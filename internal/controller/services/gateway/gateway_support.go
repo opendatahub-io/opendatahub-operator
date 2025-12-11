@@ -66,10 +66,10 @@ const (
 	DefaultGatewayTLSSecretName = "data-science-gatewayconfig-tls"
 
 	// Gateway infrastructure configuration.
-	GatewayInfraConfigMapName = "data-science-gateway-config"
+	GatewayInfraConfigMapName   = "data-science-gateway-config"
 	GatewayServiceTLSSecretName = "data-science-gateway-service-tls"
-	IstioRevisionLabel        = "istio.io/rev"
-	IstioRevisionValue        = "openshift-gateway"
+	IstioRevisionLabel          = "istio.io/rev"
+	IstioRevisionValue          = "openshift-gateway"
 
 	// Environment variable names for OAuth2 proxy.
 	EnvClientID     = "OAUTH2_PROXY_CLIENT_ID"
@@ -228,41 +228,67 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 	listeners := []gwapiv1.Listener{}
 
 	if certSecretName != "" {
-		allowedNamespaces := gwapiv1.NamespacesFromSelector
 		httpsMode := gwapiv1.TLSModeTerminate
-		hostname := gwapiv1.Hostname(domain)
-		httpsListener := gwapiv1.Listener{
-			Name:     "https",
-			Protocol: gwapiv1.HTTPSProtocolType,
-			Port:     StandardHTTPSPort,
-			Hostname: &hostname,
-			TLS: &gwapiv1.GatewayTLSConfig{
-				Mode: &httpsMode,
-				CertificateRefs: []gwapiv1.SecretObjectReference{
-					{
-						Name: gwapiv1.ObjectName(certSecretName),
+
+		// For OcpRoute mode (Pattern 3): no hostname on listener, allow routes from all namespaces
+		// For LoadBalancer mode: hostname on listener, restrict to specific namespaces
+		if ingressMode == serviceApi.IngressModeOcpRoute {
+			allowedNamespaces := gwapiv1.NamespacesFromAll
+			httpsListener := gwapiv1.Listener{
+				Name:     "https",
+				Protocol: gwapiv1.HTTPSProtocolType,
+				Port:     StandardHTTPSPort,
+				TLS: &gwapiv1.GatewayTLSConfig{
+					Mode: &httpsMode,
+					CertificateRefs: []gwapiv1.SecretObjectReference{
+						{
+							Name: gwapiv1.ObjectName(certSecretName),
+						},
 					},
 				},
-			},
-			AllowedRoutes: &gwapiv1.AllowedRoutes{
-				Namespaces: &gwapiv1.RouteNamespaces{
-					From: &allowedNamespaces,
-					Selector: &metav1.LabelSelector{
-						MatchExpressions: []metav1.LabelSelectorRequirement{
-							{
-								Key:      "kubernetes.io/metadata.name",
-								Operator: metav1.LabelSelectorOpIn,
-								Values: []string{
-									GatewayNamespace,
-									cluster.GetApplicationNamespace(),
+				AllowedRoutes: &gwapiv1.AllowedRoutes{
+					Namespaces: &gwapiv1.RouteNamespaces{
+						From: &allowedNamespaces,
+					},
+				},
+			}
+			listeners = append(listeners, httpsListener)
+		} else {
+			allowedNamespaces := gwapiv1.NamespacesFromSelector
+			hostname := gwapiv1.Hostname(domain)
+			httpsListener := gwapiv1.Listener{
+				Name:     "https",
+				Protocol: gwapiv1.HTTPSProtocolType,
+				Port:     StandardHTTPSPort,
+				Hostname: &hostname,
+				TLS: &gwapiv1.GatewayTLSConfig{
+					Mode: &httpsMode,
+					CertificateRefs: []gwapiv1.SecretObjectReference{
+						{
+							Name: gwapiv1.ObjectName(certSecretName),
+						},
+					},
+				},
+				AllowedRoutes: &gwapiv1.AllowedRoutes{
+					Namespaces: &gwapiv1.RouteNamespaces{
+						From: &allowedNamespaces,
+						Selector: &metav1.LabelSelector{
+							MatchExpressions: []metav1.LabelSelectorRequirement{
+								{
+									Key:      "kubernetes.io/metadata.name",
+									Operator: metav1.LabelSelectorOpIn,
+									Values: []string{
+										GatewayNamespace,
+										cluster.GetApplicationNamespace(),
+									},
 								},
 							},
 						},
 					},
 				},
-			},
+			}
+			listeners = append(listeners, httpsListener)
 		}
-		listeners = append(listeners, httpsListener)
 	}
 
 	gateway := &gwapiv1.Gateway{

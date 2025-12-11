@@ -58,9 +58,18 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 		return fmt.Errorf("failed to create GatewayClass: %w", err)
 	}
 
-	certSecretName, err := handleCertificates(ctx, rr, gatewayConfig, hostname)
-	if err != nil {
-		return fmt.Errorf("failed to handle certificates: %w", err)
+	var certSecretName string
+	// For OcpRoute mode (Pattern 3): use service-CA generated certificate
+	// The ConfigMap annotation triggers service-CA to create the secret automatically
+	if gatewayConfig.Spec.IngressMode == serviceApi.IngressModeOcpRoute {
+		certSecretName = GatewayServiceTLSSecretName
+		l.V(1).Info("Using service-CA generated certificate for OcpRoute mode", "secretName", certSecretName)
+	} else {
+		// For LoadBalancer mode: use user-configured or default ingress certificate
+		certSecretName, err = handleCertificates(ctx, rr, gatewayConfig, hostname)
+		if err != nil {
+			return fmt.Errorf("failed to handle certificates: %w", err)
+		}
 	}
 
 	if err := createGateway(rr, certSecretName, hostname, gatewayConfig.Spec.IngressMode); err != nil {

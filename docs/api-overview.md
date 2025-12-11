@@ -2355,7 +2355,6 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `applicationsNamespace` _string_ | Namespace for applications to be installed, non-configurable, default to "opendatahub" | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 | `monitoring` _[DSCIMonitoring](#dscimonitoring)_ | Enable monitoring on specified namespace |  |  |
-| `gateway` _[DSCIGateway](#dscigateway)_ | Gateway configuration for the platform gateway |  |  |
 | `trustedCABundle` _[TrustedCABundleSpec](#trustedcabundlespec)_ | When set to `Managed`, adds odh-trusted-ca-bundle Configmap to all namespaces that includes<br />cluster-wide Trusted CA Bundle in .data["ca-bundle.crt"].<br />Additionally, this fields allows admins to add custom CA bundles to the configmap using the .CustomCABundle field. |  |  |
 | `devFlags` _[DevFlags](#devflags)_ | Internal development useful field to test customizations.<br />This is not recommended to be used in production environment. |  |  |
 
@@ -2879,22 +2878,6 @@ _Appears in:_
 | `refresh` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#duration-v1-meta)_ | Refresh duration for OAuth2 proxy to refresh access tokens (e.g., "2h", "1h", "30m")<br />This must be LESS than the OIDC provider's Access Token Lifespan to avoid token expiration.<br />For example, if Keycloak Access Token Lifespan is 1 hour, set this to "30m" or "45m". | 1h |  |
 
 
-#### DSCIGateway
-
-
-
-DSCIGateway contains gateway configuration exposed through DSCInitialization.
-
-
-
-_Appears in:_
-- [DSCInitializationSpec](#dscinitializationspec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `ingressMode` _[IngressMode](#ingressmode)_ | IngressMode specifies how the Gateway is exposed externally.<br />"OcpRoute" uses ClusterIP with standard OpenShift Routes (default for new deployments).<br />"LoadBalancer" uses a LoadBalancer service type (requires cloud or MetalLB). | OcpRoute | Enum: [OcpRoute LoadBalancer] <br /> |
-
-
 #### DSCIMonitoring
 
 
@@ -2992,7 +2975,6 @@ _Validation:_
 - Enum: [OcpRoute LoadBalancer]
 
 _Appears in:_
-- [DSCIGateway](#dscigateway)
 - [GatewayConfigSpec](#gatewayconfigspec)
 
 | Field | Description |
