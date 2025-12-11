@@ -2,8 +2,8 @@ name: Sync Stable Branch Into Rhoai Branch
 
 on:
   schedule:
-    # Run every 2 hours
-    - cron: '0 */2 * * *'
+    # Run every 2 hours, on the half hour
+    - cron: '30 */2 * * *'
   workflow_dispatch: # Allow manual triggering
 
 jobs:
