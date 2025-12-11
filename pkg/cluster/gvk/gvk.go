@@ -326,6 +326,12 @@ var (
 		Kind:    componentApi.FeastOperatorKind,
 	}
 
+	MLflowOperator = schema.GroupVersionKind{
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.MLflowOperatorKind,
+	}
+
 	CustomResourceDefinition = schema.GroupVersionKind{
 		Group:   "apiextensions.k8s.io",
 		Version: "v1",
@@ -648,5 +654,11 @@ var (
 		Group:   "jobset.x-k8s.io",
 		Version: "v1alpha2",
 		Kind:    "JobSet",
+	}
+
+	MLflow = schema.GroupVersionKind{
+		Group:   "mlflow.opendatahub.io",
+		Version: "v1",
+		Kind:    "MLflow",
 	}
 )
