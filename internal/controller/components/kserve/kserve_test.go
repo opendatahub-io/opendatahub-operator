@@ -8,6 +8,7 @@ import (
 	gt "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -231,4 +232,197 @@ func createKserveCR(ready bool) *componentApi.Kserve {
 	}
 
 	return &c
+}
+
+func TestVersionedWellKnownLLMInferenceServiceConfigs(t *testing.T) {
+	tests := []struct {
+		name           string
+		version        string
+		resourceName   string
+		isWellKnown    bool
+		expectedName   string
+		expectedEnvVar string
+	}{
+		{
+			name:           "should version well-known LLMInferenceServiceConfig",
+			version:        "v2-25-0",
+			resourceName:   "kserve-config-llm-decode-template",
+			isWellKnown:    true,
+			expectedName:   "v2-25-0-kserve-config-llm-decode-template",
+			expectedEnvVar: "v2-25-0-kserve-",
+		},
+		{
+			name:           "should not version non-well-known LLMInferenceServiceConfig",
+			version:        "v2-25-0",
+			resourceName:   "custom-config",
+			isWellKnown:    false,
+			expectedName:   "custom-config",
+			expectedEnvVar: "v2-25-0-kserve-",
+		},
+		{
+			name:           "should handle different version format",
+			version:        "v1-0-0",
+			resourceName:   "kserve-config-llm-prefill-template",
+			isWellKnown:    true,
+			expectedName:   "v1-0-0-kserve-config-llm-prefill-template",
+			expectedEnvVar: "v1-0-0-kserve-",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			ctx := t.Context()
+
+			// Create reconciliation request with LLMInferenceServiceConfig resource
+			resource := &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "serving.kserve.io/v1alpha1",
+					"kind":       "LLMInferenceServiceConfig",
+					"metadata": map[string]interface{}{
+						"name": tt.resourceName,
+					},
+				},
+			}
+
+			// Add well-known annotation if applicable
+			if tt.isWellKnown {
+				resource.SetAnnotations(map[string]string{
+					LLMInferenceServiceConfigWellKnownAnnotationKey: LLMInferenceServiceConfigWellKnownAnnotationValue,
+				})
+			}
+
+			rr := &types.ReconciliationRequest{
+				Resources: []unstructured.Unstructured{*resource},
+			}
+
+			// Call the versioning function
+			err := versionedWellKnownLLMInferenceServiceConfigs(ctx, tt.version, rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			// Verify the resource name
+			g.Expect(rr.Resources[0].GetName()).Should(Equal(tt.expectedName))
+		})
+	}
+
+	t.Run("should inject LLM_INFERENCE_SERVICE_CONFIG_PREFIX env var into deployments", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		version := "v2-25-0"
+		expectedEnvValue := "v2-25-0-kserve-"
+
+		// Create reconciliation request with Deployment resource
+		resource := &unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"apiVersion": "apps/v1",
+				"kind":       "Deployment",
+				"metadata": map[string]interface{}{
+					"name": "kserve-controller",
+				},
+				"spec": map[string]interface{}{
+					"template": map[string]interface{}{
+						"spec": map[string]interface{}{
+							"containers": []interface{}{
+								map[string]interface{}{
+									"name":  "manager",
+									"image": "kserve/controller:latest",
+									"env":   []interface{}{},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		rr := &types.ReconciliationRequest{
+			Resources: []unstructured.Unstructured{*resource},
+		}
+
+		// Call the versioning function
+		err := versionedWellKnownLLMInferenceServiceConfigs(ctx, version, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify the env var was injected by checking the unstructured object directly
+		containers, found, err := unstructured.NestedSlice(rr.Resources[0].Object, "spec", "template", "spec", "containers")
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(found).Should(BeTrue())
+		g.Expect(containers).Should(HaveLen(1))
+
+		container, ok := containers[0].(map[string]interface{})
+		g.Expect(ok).Should(BeTrue(), "container should be a map")
+		env, found, err := unstructured.NestedSlice(container, "env")
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(found).Should(BeTrue())
+		g.Expect(env).Should(HaveLen(1))
+
+		envVar, ok := env[0].(map[string]interface{})
+		g.Expect(ok).Should(BeTrue(), "envVar should be a map")
+		g.Expect(envVar["name"]).Should(Equal("LLM_INFERENCE_SERVICE_CONFIG_PREFIX"))
+		g.Expect(envVar["value"]).Should(Equal(expectedEnvValue))
+	})
+
+	t.Run("should update existing LLM_INFERENCE_SERVICE_CONFIG_PREFIX env var in deployments", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		version := "v3-0-0"
+		expectedEnvValue := "v3-0-0-kserve-"
+
+		// Create reconciliation request with Deployment resource with existing env var
+		resource := &unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"apiVersion": "apps/v1",
+				"kind":       "Deployment",
+				"metadata": map[string]interface{}{
+					"name": "kserve-controller",
+				},
+				"spec": map[string]interface{}{
+					"template": map[string]interface{}{
+						"spec": map[string]interface{}{
+							"containers": []interface{}{
+								map[string]interface{}{
+									"name":  "manager",
+									"image": "kserve/controller:latest",
+									"env": []interface{}{
+										map[string]interface{}{
+											"name":  "LLM_INFERENCE_SERVICE_CONFIG_PREFIX",
+											"value": "old-prefix-",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		rr := &types.ReconciliationRequest{
+			Resources: []unstructured.Unstructured{*resource},
+		}
+
+		// Call the versioning function
+		err := versionedWellKnownLLMInferenceServiceConfigs(ctx, version, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify the env var was updated by checking the unstructured object directly
+		containers, found, err := unstructured.NestedSlice(rr.Resources[0].Object, "spec", "template", "spec", "containers")
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(found).Should(BeTrue())
+		g.Expect(containers).Should(HaveLen(1))
+
+		container, ok := containers[0].(map[string]interface{})
+		g.Expect(ok).Should(BeTrue(), "container should be a map")
+		env, found, err := unstructured.NestedSlice(container, "env")
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(found).Should(BeTrue())
+		g.Expect(env).Should(HaveLen(1))
+
+		envVar, ok := env[0].(map[string]interface{})
+		g.Expect(ok).Should(BeTrue(), "envVar should be a map")
+		g.Expect(envVar["name"]).Should(Equal("LLM_INFERENCE_SERVICE_CONFIG_PREFIX"))
+		g.Expect(envVar["value"]).Should(Equal(expectedEnvValue))
+	})
 }
