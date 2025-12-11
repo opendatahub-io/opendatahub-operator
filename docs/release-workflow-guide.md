@@ -45,7 +45,7 @@ gitGraph
     checkout main
     merge feature
     checkout rhoai
-    merge main
+    merge main tag: "auto-sync every 2h"
 ```
 
 1. **Merge PR to `main`**. Follow the process in [CONTRIBUTING.md](../CONTRIBUTING.md).
@@ -57,8 +57,8 @@ To prepare the downstream releases, we freeze the `rhoai` branch to prevent new 
 
 During code freeze:
 
-1. The [sync-main-to-rhoai workflow](../.github/workflows/sync-main-to-rhoai.yaml) must be disabled by Platform team.
-2. Changes that need to land in the release after the sync job is disabled must be cherry-picked manually into the `red-hat-data-services/rhoai-x.y` branch.
+1. **Disable the automated workflow**: The RHOAI Platform team disables the [sync-main-to-rhoai workflow](../.github/workflows/sync-main-to-rhoai.yaml) via GitHub Actions settings to prevent automatic syncs during the freeze period.
+2. **Manual cherry-picks**: Changes that need to land in the release after the sync job is disabled must be cherry-picked manually into the `red-hat-data-services/rhoai-x.y` branch following the same process as [z-stream releases](#code-freeze-and-z-stream-overview).
 
 ## Downstream Development and Release Workflow
 
