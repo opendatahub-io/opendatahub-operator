@@ -89,7 +89,6 @@ func (in *DSCInitializationList) DeepCopyObject() runtime.Object {
 func (in *DSCInitializationSpec) DeepCopyInto(out *DSCInitializationSpec) {
 	*out = *in
 	in.Monitoring.DeepCopyInto(&out.Monitoring)
-	out.Gateway = in.Gateway
 	if in.TrustedCABundle != nil {
 		in, out := &in.TrustedCABundle, &out.TrustedCABundle
 		*out = new(TrustedCABundleSpec)

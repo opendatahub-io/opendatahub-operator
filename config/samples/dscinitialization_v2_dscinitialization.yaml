@@ -10,8 +10,6 @@ spec:
     namespace: 'opendatahub'
     metrics: {}
   applicationsNamespace: 'opendatahub'
-  gateway:
-    ingressMode: OcpRoute
   trustedCABundle:
     managementState: "Managed"
     customCABundle: ""
