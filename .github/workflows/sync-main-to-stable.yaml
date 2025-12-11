@@ -1,4 +1,4 @@
-name: Sync Main Branch Into Rhoai Branch
+name: Sync Main Branch Into Stable Branch
 
 on:
   schedule:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch: # Allow manual triggering
 
 jobs:
-  sync_main_into_rhoai:
+  sync_main_into_stable:
     runs-on: ubuntu-latest
     steps:
       - name: Generate GitHub App Token
@@ -30,12 +30,12 @@ jobs:
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           fetch-depth: 0
-          ref: rhoai
+          ref: stable
           token: ${{ steps.generate-token.outputs.token }}
 
-      - name: Update main commits into rhoai
-        id: update_main_into_rhoai
+      - name: Update main commits into stable
+        id: update_main_into_stable
         run: |
-          git fetch origin main rhoai
-          git merge origin/main
-          git push origin rhoai
+          git fetch origin main stable
+          git merge --ff-only origin/main
+          git push origin stable
