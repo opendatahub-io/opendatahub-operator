@@ -33,3 +33,5 @@ spec:
       managementState: "Removed"
     llamastackoperator:
       managementState: "Removed"
+    mlflowoperator:
+      managementState: "Removed"
