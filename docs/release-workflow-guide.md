@@ -50,6 +50,13 @@ gitGraph
 
 1. **Merge PR to `main`**. Follow the process in [CONTRIBUTING.md](../CONTRIBUTING.md).
 2. **Sync changes to `rhoai` branch:** The [sync-main-to-rhoai workflow](../.github/workflows/sync-main-to-rhoai.yaml) will automatically sync the changes from the `main` branch to the `rhoai` branch.
+   * Note: maintainers can manually trigger the sync workflow via the [Actions tab](https://github.com/opendatahub-io/opendatahub-operator/actions/workflows/sync-main-to-rhoai.yaml) if needed between scheduled runs.
+
+#### Troubleshooting Automated Sync
+
+If the automated sync fails (due to merge conflicts or other issues):
+  1. Check the [workflow run logs](https://github.com/opendatahub-io/opendatahub-operator/actions/workflows/sync-main-to-rhoai.yaml)
+  2. Manual intervention required: Create a manual sync PR to resolve conflicts and merge it manually (merge flow can't use squash merge).
 
 ### `rhoai` Code Freeze and Manual Sync Workflow
 
