@@ -45,20 +45,20 @@ gitGraph
     checkout main
     merge feature
     checkout rhoai
-    branch cherry-pick-feature
-    cherry-pick id:"2-0a10a11"
-    checkout rhoai
-    merge cherry-pick-feature
+    merge main
 ```
 
 1. **Merge PR to `main`**. Follow the process in [CONTRIBUTING.md](../CONTRIBUTING.md).
-2. **Create a downstream sync PR:**
-The PR author should then create another PR targeting the `rhoai` branch. CI automation typically creates the cherry-pick PR. Add a `/cherry-pick rhoai` comment to the original PR; CI will report success or failure. If it fails, manually cherry-pick the commits into a new branch and open a new PR.
-3. **Edit the cherry-pick PR:** Edit the title to include the prefix `[sync]`. If the PR is associated with any Jira
-ticket, edit the description to include the ticket link.
-3. **Regenerate the bundle:** As of [#2329](https://github.com/opendatahub-io/opendatahub-operator/pull/2329), the `main` branch doesn't maintain most generated files anymore; however downstream builds still need bundle contents in the `rhoai` branch, so it is necessary to regenerate the bundle in the sync PR.
-4. **Merge sync PR:**
-After the sync PR has passed GitHub checks and is reviewed and approved, CI will merge it into the `rhoai` branch.
+2. **Sync changes to `rhoai` branch:** The [sync-main-to-rhoai workflow](.github/workflows/sync-main-to-rhoai.yaml) will automatically sync the changes from the `main` branch to the `rhoai` branch.
+
+### `rhoai` Code Freeze and Manual Sync Workflow
+
+To prepare the downstream releases, we freeze the `rhoai` branch to prevent new development from entering the release. Development continues on the upstream `main` branch.
+
+During code freeze:
+
+1. The [sync-main-to-rhoai workflow](../.github/workflows/sync-main-to-rhoai.yaml) is disabled.
+2. Changes that need to land in the release after the code freeze must be cherry-picked manually into the red-hat-data-services/rhoai-x.y branch.
 
 ## Downstream Development and Release Workflow
 
@@ -82,7 +82,7 @@ sequenceDiagram
     participant rhoaixy as red-hat-data-services/rhoai-x.y
 
     engineer ->> main: pull request
-    engineer ->> rhoai: cherry-pick & pull request
+    main ->> rhoai: merge (via CI)
     rhoai ->> rhds: merge (via CI)
 alt landing a change in the next rhoai release
     rhds ->> rhoaixy: merge (via CI)
