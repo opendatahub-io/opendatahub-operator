@@ -65,6 +65,12 @@ const (
 	// Secret configuration.
 	DefaultGatewayTLSSecretName = "data-science-gatewayconfig-tls"
 
+	// Gateway infrastructure configuration.
+	GatewayInfraConfigMapName = "data-science-gateway-config"
+	GatewayServiceTLSSecretName = "data-science-gateway-service-tls"
+	IstioRevisionLabel        = "istio.io/rev"
+	IstioRevisionValue        = "openshift-gateway"
+
 	// Environment variable names for OAuth2 proxy.
 	EnvClientID     = "OAUTH2_PROXY_CLIENT_ID"
 	EnvClientSecret = "OAUTH2_PROXY_CLIENT_SECRET" //nolint:gosec // This is an environment variable name, not a secret
@@ -259,23 +265,55 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 		listeners = append(listeners, httpsListener)
 	}
 
-	// Set annotations based on ingress mode
-	annotations := map[string]string{}
-	if ingressMode == serviceApi.IngressModeOcpRoute {
-		// Use ClusterIP instead of LoadBalancer when using OCP Routes
-		annotations["networking.istio.io/service-type"] = "ClusterIP"
-	}
-
 	gateway := &gwapiv1.Gateway{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        DefaultGatewayName,
-			Namespace:   GatewayNamespace,
-			Annotations: annotations,
+			Name:      DefaultGatewayName,
+			Namespace: GatewayNamespace,
+			Labels: map[string]string{
+				IstioRevisionLabel: IstioRevisionValue,
+			},
 		},
 		Spec: gwapiv1.GatewaySpec{
 			GatewayClassName: GatewayClassName,
 			Listeners:        listeners,
 		},
+	}
+
+	// Configure infrastructure parameters for OcpRoute mode (ClusterIP service)
+	if ingressMode == serviceApi.IngressModeOcpRoute {
+		// Create ConfigMap with service type and TLS cert annotation configuration
+		// See https://istio.io/latest/docs/tasks/traffic-management/ingress/gateway-api/
+		serviceConfig := fmt.Sprintf(`metadata:
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: "%s"
+spec:
+  type: ClusterIP
+`, GatewayServiceTLSSecretName)
+
+		infraConfigMap := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      GatewayInfraConfigMapName,
+				Namespace: GatewayNamespace,
+				Labels: map[string]string{
+					labels.PlatformPartOf: PartOfGatewayConfig,
+				},
+			},
+			Data: map[string]string{
+				"service": serviceConfig,
+			},
+		}
+		if err := rr.AddResources(infraConfigMap); err != nil {
+			return err
+		}
+
+		// Reference the ConfigMap in Gateway's infrastructure.parametersRef
+		gateway.Spec.Infrastructure = &gwapiv1.GatewayInfrastructure{
+			ParametersRef: &gwapiv1.LocalParametersReference{
+				Group: "",
+				Kind:  "ConfigMap",
+				Name:  GatewayInfraConfigMapName,
+			},
+		}
 	}
 
 	return rr.AddResources(gateway)

@@ -72,7 +72,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(createKubeAuthProxyInfrastructure). //  include destinationrule
 		WithAction(createEnvoyFilter).
 		WithAction(createNetworkPolicy).
-		WithAction(reconcileOCPRoutes). // Create OCP Routes for HTTPRoutes when ingressMode is OcpRoute
+		WithAction(createOCPRoutes). // Create OCP Routes for HTTPRoutes when ingressMode is OcpRoute
 		WithAction(template.NewAction(
 			template.WithDataFn(getTemplateData),
 		)).
