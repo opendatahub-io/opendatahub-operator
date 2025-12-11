@@ -116,6 +116,7 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test Perses CR configuration", monitoringServiceCtx.ValidatePersesCRConfiguration},
 		{"Test Perses lifecycle", monitoringServiceCtx.ValidatePersesLifecycle},
 		{"Test Perses not deployed without metrics or traces", monitoringServiceCtx.ValidatePersesNotDeployedWithoutMetricsOrTraces},
+		{"Test Perses NetworkPolicy creation", monitoringServiceCtx.ValidatePersesNetworkPolicy},
 		{"Test Perses Datasource Creation with Traces", monitoringServiceCtx.ValidatePersesDatasourceCreationWithTraces},
 		{"Test Perses Datasource Configuration", monitoringServiceCtx.ValidatePersesDatasourceConfiguration},
 		{"Test PersesDatasource deployment with Prometheus", monitoringServiceCtx.ValidatePersesDatasourceWithPrometheus},
@@ -894,6 +895,29 @@ func (tc *MonitoringTestCtx) ValidatePersesNotDeployedWithoutMetricsOrTraces(t *
 	)
 
 	tc.resetMonitoringConfigToManaged()
+}
+
+func (tc *MonitoringTestCtx) ValidatePersesNetworkPolicy(t *testing.T) {
+	t.Helper()
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.NetworkPolicy, types.NamespacedName{Name: "perses-operator-access", Namespace: tc.MonitoringNamespace}),
+		WithCondition(And(
+			jq.Match(`.metadata.labels["platform.opendatahub.io/part-of"] == "monitoring"`),
+			jq.Match(`.spec.podSelector.matchLabels["app.kubernetes.io/managed-by"] == "perses-operator"`),
+			jq.Match(`.spec.policyTypes[0] == "Ingress"`),
+			jq.Match(`.spec.ingress[0].from[0].namespaceSelector.matchLabels["kubernetes.io/metadata.name"] == "openshift-cluster-observability-operator"`),
+			jq.Match(`.spec.ingress[0].from[0].podSelector.matchLabels["app.kubernetes.io/name"] == "perses-operator"`),
+			jq.Match(`.spec.ingress[0].ports[0].protocol == "TCP"`),
+			jq.Match(`.spec.ingress[0].ports[0].port == 8080`),
+		)),
+		WithCustomErrorMsg("Perses NetworkPolicy should be created with correct configuration allowing perses-operator access"),
+	)
 }
 
 // ValidatePersesDatasourceWithPrometheus validates that Prometheus datasource is created when both Perses and MonitoringStack are deployed.
@@ -2004,11 +2028,11 @@ func (tc *MonitoringTestCtx) validatePersesDatasourceTLSWithCloudBackend(t *test
 			And(
 				// Validate HTTPS endpoint
 				jq.Match(`.spec.config.plugin.spec.proxy.spec.url == "%s"`, expectedTempoEndpoint),
-				// Validate TLS client configuration exists
-				jq.Match(`.spec.config.plugin.spec.proxy.spec.client.tls.enable == true`),
-				jq.Match(`.spec.config.plugin.spec.proxy.spec.client.tls.caCert.type == "configmap"`),
-				jq.Match(`.spec.config.plugin.spec.proxy.spec.client.tls.caCert.name == "tempo-service-ca"`),
-				jq.Match(`.spec.config.plugin.spec.proxy.spec.client.tls.caCert.certPath == "service-ca.crt"`),
+				// Validate TLS client configuration exists at top-level spec.client.tls
+				jq.Match(`.spec.client.tls.enable == true`),
+				jq.Match(`.spec.client.tls.caCert.type == "configmap"`),
+				jq.Match(`.spec.client.tls.caCert.name == "tempo-service-ca"`),
+				jq.Match(`.spec.client.tls.caCert.certPath == "service-ca.crt"`),
 			),
 		),
 		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
