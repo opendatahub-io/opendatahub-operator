@@ -198,6 +198,36 @@ func TestUpdateDSCStatus(t *testing.T) {
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("Component ManagementState is set to Removed")`, ReadyConditionType)),
 		))
 	})
+
+	t.Run("should propagate KServe conditions to DSC", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+		dsc := createDSCWithKserve(operatorv1.Managed)
+		kserve := createKserveCR(true)
+		kserve.Status.Conditions = append(kserve.Status.Conditions, common.Condition{
+			Type:   LLMInferenceServiceDependencies,
+			Status: metav1.ConditionTrue,
+		})
+
+		kserve.Status.Conditions = append(kserve.Status.Conditions, common.Condition{
+			Type:   LLMInferenceServiceWideEPDependencies,
+			Status: metav1.ConditionFalse,
+		})
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, kserve))
+		g.Expect(err).ShouldNot(HaveOccurred())
+		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+		})
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(cs).Should(Equal(metav1.ConditionTrue))
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, LLMInferenceServiceDependencies, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, LLMInferenceServiceWideEPDependencies, metav1.ConditionFalse),
+		)))
+	})
 }
 
 func createDSCWithKserve(managementState operatorv1.ManagementState) *dscv2.DataScienceCluster {

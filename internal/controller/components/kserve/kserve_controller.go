@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	templatev1 "github.com/openshift/api/template/v1"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -29,6 +30,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -96,9 +98,21 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True),
 			),
 		).
+		Watches(&v1alpha1.Subscription{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.KserveInstanceName),
+			),
+			reconciler.WithPredicates(
+				predicate.Or(
+					resources.CreatedOrUpdatedOrDeletedNamed(rhclOperatorSubscription),
+					resources.CreatedOrUpdatedOrDeletedNamed(lwsOperatorSubscription),
+				),
+			),
+		).
 
 		// actions
 		WithAction(initialize).
+		WithAction(checkPreConditions).
 		WithAction(releases.NewAction()).
 		WithAction(removeOwnershipFromUnmanagedResources).
 		WithAction(cleanUpTemplatedResources).

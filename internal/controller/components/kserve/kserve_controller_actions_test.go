@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -12,8 +14,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 
 	. "github.com/onsi/gomega"
 )
@@ -214,6 +218,97 @@ func createTestConfigMap() *corev1.ConfigMap {
 			}`,
 		},
 	}
+}
+
+func Test_checkPreConditions(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+	dsc := createDSCWithKserve(operatorv1.Managed)
+	kserve := createKserveCR(true)
+
+	t.Run("Test rhcl subscription is absent", func(t *testing.T) {
+		cli, err := fakeclient.New(fakeclient.WithObjects(kserve, dsc))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &odhtypes.ReconciliationRequest{
+			Instance:   kserve,
+			Client:     cli,
+			Conditions: conditions.NewManager(kserve, LLMInferenceServiceDependencies),
+		}
+
+		err = checkPreConditions(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		cs := rr.Conditions.GetCondition(LLMInferenceServiceDependencies)
+		g.Expect(cs.Status).Should(Equal(metav1.ConditionFalse))
+	})
+
+	t.Run("Test rhcl subscription is present", func(t *testing.T) {
+		rhclSub := &v1alpha1.Subscription{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: rhclOperatorSubscription,
+			},
+		}
+		cli, err := fakeclient.New(fakeclient.WithObjects(kserve, dsc, rhclSub))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &odhtypes.ReconciliationRequest{
+			Instance:   kserve,
+			Client:     cli,
+			Conditions: conditions.NewManager(kserve, LLMInferenceServiceDependencies),
+		}
+
+		err = checkPreConditions(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		cs := rr.Conditions.GetCondition(LLMInferenceServiceDependencies)
+		g.Expect(cs.Status).Should(Equal(metav1.ConditionTrue))
+	})
+
+	t.Run("Test only lws subscription is absent", func(t *testing.T) {
+		rhclSub := &v1alpha1.Subscription{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: rhclOperatorSubscription,
+			},
+		}
+		cli, err := fakeclient.New(fakeclient.WithObjects(kserve, dsc, rhclSub))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &odhtypes.ReconciliationRequest{
+			Instance:   kserve,
+			Client:     cli,
+			Conditions: conditions.NewManager(kserve, LLMInferenceServiceWideEPDependencies),
+		}
+
+		err = checkPreConditions(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		cs := rr.Conditions.GetCondition(LLMInferenceServiceWideEPDependencies)
+		g.Expect(cs.Status).Should(Equal(metav1.ConditionFalse))
+	})
+
+	t.Run("Test when rhcl + lws subscription are present", func(t *testing.T) {
+		rhclSub := &v1alpha1.Subscription{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: rhclOperatorSubscription,
+			},
+		}
+		lwsSub := &v1alpha1.Subscription{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: lwsOperatorSubscription,
+			},
+		}
+		cli, err := fakeclient.New(fakeclient.WithObjects(kserve, dsc, rhclSub, lwsSub))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &odhtypes.ReconciliationRequest{
+			Instance:   kserve,
+			Client:     cli,
+			Conditions: conditions.NewManager(kserve, LLMInferenceServiceWideEPDependencies),
+		}
+
+		err = checkPreConditions(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		cs := rr.Conditions.GetCondition(LLMInferenceServiceWideEPDependencies)
+		g.Expect(cs.Status).Should(Equal(metav1.ConditionTrue))
+	})
 }
 
 func createTestDeployment() *appsv1.Deployment {
