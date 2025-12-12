@@ -54,6 +54,12 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 		return fmt.Errorf("failed to resolve domain: %w", err)
 	}
 
+	// Handle ingress mode changes by deleting Gateway if configuration doesn't match.
+	// This is necessary because SSA doesn't remove fields that are omitted from the desired object.
+	if err := reconcileGatewayForModeChange(ctx, rr, gatewayConfig.Spec.IngressMode); err != nil {
+		return fmt.Errorf("failed to reconcile Gateway for mode change: %w", err)
+	}
+
 	if err := createGatewayClass(rr); err != nil {
 		return fmt.Errorf("failed to create GatewayClass: %w", err)
 	}
