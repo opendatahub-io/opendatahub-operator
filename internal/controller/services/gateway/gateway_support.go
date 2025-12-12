@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
@@ -550,4 +551,48 @@ func getAuthProxySecretValues(
 	}
 
 	return clientID, clientSecretValue, cookieSecretGen.Value, nil
+}
+
+// reconcileGatewayForModeChange deletes the Gateway if its configuration doesn't match
+// the desired ingress mode. SSA won't remove fields like hostname, so we force recreation.
+func reconcileGatewayForModeChange(ctx context.Context, rr *odhtypes.ReconciliationRequest, desiredMode serviceApi.IngressMode) error {
+	l := logf.FromContext(ctx).WithName("reconcileGatewayForModeChange")
+
+	gateway := &gwapiv1.Gateway{}
+	err := rr.Client.Get(ctx, client.ObjectKey{
+		Name:      DefaultGatewayName,
+		Namespace: GatewayNamespace,
+	}, gateway)
+
+	if k8serr.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to get Gateway: %w", err)
+	}
+
+	// OcpRoute: no hostname, has infrastructure
+	// LoadBalancer: has hostname, no infrastructure
+	var hasHostname bool
+	for _, listener := range gateway.Spec.Listeners {
+		if listener.Name == "https" && listener.Hostname != nil {
+			hasHostname = true
+			break
+		}
+	}
+	hasInfrastructure := gateway.Spec.Infrastructure != nil
+
+	wantsHostname := desiredMode == serviceApi.IngressModeLoadBalancer
+	wantsInfrastructure := desiredMode == serviceApi.IngressModeOcpRoute
+
+	if hasHostname == wantsHostname && hasInfrastructure == wantsInfrastructure {
+		return nil
+	}
+
+	l.Info("Deleting Gateway for ingress mode change", "desiredMode", desiredMode)
+	if err := rr.Client.Delete(ctx, gateway); err != nil {
+		return fmt.Errorf("failed to delete Gateway: %w", err)
+	}
+
+	return nil
 }
