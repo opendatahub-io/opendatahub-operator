@@ -32,7 +32,12 @@ const (
 	// deployment to the new component name, so keep it around till we figure out a solution.
 	LegacyComponentName = "kserve"
 
-	ReadyConditionType = componentApi.KserveKind + status.ReadySuffix
+	ReadyConditionType                    = componentApi.KserveKind + status.ReadySuffix
+	LLMInferenceServiceDependencies       = componentApi.KserveKind + "LLMInferenceServiceDependencies"
+	LLMInferenceServiceWideEPDependencies = componentApi.KserveKind + "LLMInferenceServiceWideEPDependencies"
+	rhclOperatorSubscription              = "rhcl-operator"
+	lwsOperatorSubscription               = "leader-worker-set"
+	subNotFound                           = "Subscription not found"
 )
 
 var (
@@ -114,6 +119,12 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 			cs = rc.Status
 		} else {
 			cs = metav1.ConditionFalse
+		}
+		if rhclCondition := conditions.FindStatusCondition(c.GetStatus(), LLMInferenceServiceDependencies); rhclCondition != nil {
+			rr.Conditions.MarkFrom(LLMInferenceServiceDependencies, *rhclCondition)
+		}
+		if lwsCondition := conditions.FindStatusCondition(c.GetStatus(), LLMInferenceServiceWideEPDependencies); lwsCondition != nil {
+			rr.Conditions.MarkFrom(LLMInferenceServiceWideEPDependencies, *lwsCondition)
 		}
 	} else {
 		rr.Conditions.MarkFalse(

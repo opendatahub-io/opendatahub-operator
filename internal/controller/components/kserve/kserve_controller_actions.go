@@ -3,6 +3,7 @@ package kserve
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -13,9 +14,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -173,6 +177,65 @@ func versionedWellKnownLLMInferenceServiceConfigs(_ context.Context, version str
 			}
 			rr.Resources[i] = *u
 		}
+	}
+	return nil
+}
+
+// checkPreConditions checks if there are optional operators that KServe could use.
+func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	k, ok := rr.Instance.(*componentApi.Kserve)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.Kserve)", rr.Instance)
+	}
+
+	rr.Conditions.MarkUnknown(LLMInferenceServiceDependencies)
+	rr.Conditions.MarkUnknown(LLMInferenceServiceWideEPDependencies)
+
+	rhclFound, err := cluster.SubscriptionExists(ctx, rr.Client, rhclOperatorSubscription)
+	if err != nil && !k8serr.IsNotFound(err) {
+		return fmt.Errorf("failed to check Red Hat Connectivity Link subscription: %w", err)
+	}
+	lwsFound, err := cluster.SubscriptionExists(ctx, rr.Client, lwsOperatorSubscription)
+	if err != nil && !k8serr.IsNotFound(err) {
+		return fmt.Errorf("failed to check Leader Worker Set subscription: %w", err)
+	}
+	// LLMInferenceService requires only the RHCL operator
+	if rhclFound {
+		conditions.SetStatusCondition(k, common.Condition{
+			Type:   LLMInferenceServiceDependencies,
+			Status: metav1.ConditionTrue,
+		})
+	} else {
+		conditions.SetStatusCondition(k, common.Condition{
+			Type:     LLMInferenceServiceDependencies,
+			Status:   metav1.ConditionFalse,
+			Reason:   subNotFound,
+			Message:  "Warning: Red Hat Connectivity Link is not installed, LLMInferenceService cannot be used",
+			Severity: common.ConditionSeverityInfo,
+		})
+	}
+	// Wide Expert Parallelism requires both RHCL and LWS operators
+	if rhclFound && lwsFound {
+		conditions.SetStatusCondition(k, common.Condition{
+			Type:   LLMInferenceServiceWideEPDependencies,
+			Status: metav1.ConditionTrue,
+		})
+	} else {
+		// Build message indicating which dependencies are missing
+		var missing []string
+		if !rhclFound {
+			missing = append(missing, "Red Hat Connectivity Link")
+		}
+		if !lwsFound {
+			missing = append(missing, "LeaderWorkerSet")
+		}
+		conditions.SetStatusCondition(k, common.Condition{
+			Type:     LLMInferenceServiceWideEPDependencies,
+			Status:   metav1.ConditionFalse,
+			Reason:   subNotFound,
+			Message:  fmt.Sprintf("Warning: %s not installed, Wide Expert Parallelism with LLMInferenceService cannot be used", strings.Join(missing, " and ")),
+			Severity: common.ConditionSeverityInfo,
+		})
 	}
 	return nil
 }
