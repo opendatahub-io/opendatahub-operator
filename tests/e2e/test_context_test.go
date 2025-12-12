@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -22,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -36,6 +38,11 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+type Logger interface {
+	Logf(format string, args ...any)
+	Helper()
+}
+
 // TestContext holds shared context and utilities used during E2E test execution.
 type TestContext struct {
 	// Embeds the common test context (e.g., cluster clients, config)
@@ -43,6 +50,9 @@ type TestContext struct {
 
 	// Shared Gomega wrapper for making assertions in tests.
 	g *testf.WithT
+
+	// Logger for test output.
+	logger Logger
 
 	// Test timeouts
 	TestTimeouts TestTimeouts
@@ -98,6 +108,7 @@ func NewTestContext(t *testing.T) (*TestContext, error) { //nolint:thelper
 	return &TestContext{
 		TestContext:                      tcf,
 		g:                                tcf.NewWithT(t),
+		logger:                           t,
 		DSCInitializationNamespacedName:  types.NamespacedName{Name: dsciInstanceName},
 		DataScienceClusterNamespacedName: types.NamespacedName{Name: dscInstanceName},
 		OperatorNamespace:                testOpts.operatorNamespace,
@@ -106,6 +117,12 @@ func NewTestContext(t *testing.T) (*TestContext, error) { //nolint:thelper
 		MonitoringNamespace:              testOpts.monitoringNamespace,
 		TestTimeouts:                     testOpts.TestTimeouts,
 	}, nil
+}
+
+// Logf logs a formatted message to the test output.
+func (tc *TestContext) Logf(format string, args ...any) {
+	tc.logger.Helper()
+	tc.logger.Logf(format, args...)
 }
 
 // OverrideEventuallyTimeout temporarily changes the Eventually timeout and polling period.
@@ -1754,4 +1771,206 @@ func (tc *TestContext) SkipIfOCPVersionBelow(t *testing.T, minVersion string, re
 		t.Skipf("Skipping test: requires OpenShift %s or above for %s, current version: %s",
 			minVersion, reason, cluster.GetClusterInfo().Version.String())
 	}
+}
+
+// FetchSingleResourceOfKind fetches the first resource of a given GVK in a namespace.
+// This is useful for external operator CRs where the name may vary.
+func (tc *TestContext) FetchSingleResourceOfKind(resourceGVK schema.GroupVersionKind, namespace string) *unstructured.Unstructured {
+	tc.Logf("Fetching single %s resource in namespace %q.", resourceGVK.Kind, namespace)
+	var result *unstructured.Unstructured
+
+	tc.g.Eventually(func(g Gomega) {
+		list := &unstructured.UnstructuredList{}
+		list.SetGroupVersionKind(resourceGVK)
+
+		err := tc.Client().List(tc.Context(), list, client.InNamespace(namespace))
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to list %s resources in namespace %s", resourceGVK.Kind, namespace)
+
+		g.Expect(list.Items).To(HaveLen(1), "Expected exactly one %s resource in namespace %s, got %d", resourceGVK.Kind, namespace, len(list.Items))
+
+		result = &list.Items[0]
+	}).Should(Succeed(), "Failed to fetch single %s resource in namespace %s", resourceGVK.Kind, namespace)
+
+	return result
+}
+
+// InjectConditionIntoResourceStatus injects a condition into a resource's status.conditions field.
+// This is useful for testing things such as external operator degradation scenarios.
+func (tc *TestContext) InjectConditionIntoResourceStatus(
+	resource *unstructured.Unstructured,
+	conditionType string,
+	conditionStatus metav1.ConditionStatus,
+	reason, message string,
+) {
+	tc.Logf("Injecting condition %s=%s into resource %s/%s.", conditionType, conditionStatus, resource.GetNamespace(), resource.GetName())
+
+	tc.g.Eventually(func(g Gomega) {
+		// Refresh, mutate, update, then re-fetch and assert final state in one Eventually
+		err := testf.RefreshResource(tc.Context(), tc.Client(), resource)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to refresh resource %s/%s", resource.GetNamespace(), resource.GetName())
+
+		conditions, err := testf.ExtractTypedConditions(resource)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to extract conditions from resource")
+
+		meta.SetStatusCondition(&conditions, metav1.Condition{
+			Type:    conditionType,
+			Status:  conditionStatus,
+			Reason:  reason,
+			Message: message,
+		})
+		err = testf.SetTypedConditions(resource, conditions)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to set conditions on resource")
+
+		err = tc.Client().Status().Update(tc.Context(), resource)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to update resource status with condition %s=%s", conditionType, conditionStatus)
+
+		// Re-fetch and assert the condition is present with expected status/reason/message
+		err = testf.RefreshResource(tc.Context(), tc.Client(), resource)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to re-fetch resource %s/%s after update", resource.GetNamespace(), resource.GetName())
+
+		conditions, err = testf.ExtractTypedConditions(resource)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to re-extract conditions from resource")
+
+		found := meta.FindStatusCondition(conditions, conditionType)
+		g.Expect(found).NotTo(BeNil(), "Expected condition %s to be present", conditionType)
+		g.Expect(found.Status).To(Equal(conditionStatus), "Expected condition %s status %s", conditionType, conditionStatus)
+		if reason != "" {
+			g.Expect(found.Reason).To(Equal(reason), "Expected condition %s reason %s", conditionType, reason)
+		}
+		if message != "" {
+			g.Expect(found.Message).To(ContainSubstring(message), "Expected condition %s message to contain %q", conditionType, message)
+		}
+	}).Should(Succeed(), "Failed to inject condition %s=%s into resource %s/%s",
+		conditionType, conditionStatus, resource.GetNamespace(), resource.GetName())
+}
+
+// RemoveConditionFromResourceStatus removes a condition from a resource's status.conditions field.
+// This is useful for testing recovery from external operator degradation scenarios.
+func (tc *TestContext) RemoveConditionFromResourceStatus(
+	resource *unstructured.Unstructured,
+	conditionType string,
+) {
+	tc.Logf("Removing condition %s from resource %s/%s.", conditionType, resource.GetNamespace(), resource.GetName())
+
+	tc.g.Eventually(func(g Gomega) {
+		// Refresh, mutate, update, then re-fetch and assert absence in one Eventually
+		err := testf.RefreshResource(tc.Context(), tc.Client(), resource)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to refresh resource %s/%s", resource.GetNamespace(), resource.GetName())
+
+		conditions, err := testf.ExtractTypedConditions(resource)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to extract conditions from resource")
+
+		meta.RemoveStatusCondition(&conditions, conditionType)
+		err = testf.SetTypedConditions(resource, conditions)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to set conditions on resource")
+
+		err = tc.Client().Status().Update(tc.Context(), resource)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to update resource status to remove condition %s", conditionType)
+
+		// Re-fetch and assert the condition is absent
+		err = testf.RefreshResource(tc.Context(), tc.Client(), resource)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to re-fetch resource %s/%s after update", resource.GetNamespace(), resource.GetName())
+
+		conditions, err = testf.ExtractTypedConditions(resource)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to re-extract conditions from resource")
+		found := meta.FindStatusCondition(conditions, conditionType)
+		g.Expect(found).To(BeNil(), "Expected condition %s to be absent", conditionType)
+	}).Should(Succeed(), "Failed to remove condition %s from resource %s/%s",
+		conditionType, resource.GetNamespace(), resource.GetName())
+}
+
+// ClearAllConditionsFromResourceStatus removes all conditions from a resource's status.conditions.
+// Useful to start tests from a clean slate when the external operator is paused.
+func (tc *TestContext) ClearAllConditionsFromResourceStatus(
+	resource *unstructured.Unstructured,
+) {
+	tc.Logf("Clearing all conditions from resource %s/%s.", resource.GetNamespace(), resource.GetName())
+
+	tc.g.Eventually(func(g Gomega) {
+		// Refresh, clear, update, then re-fetch and assert empty in one Eventually
+		err := testf.RefreshResource(tc.Context(), tc.Client(), resource)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to refresh resource %s/%s", resource.GetNamespace(), resource.GetName())
+
+		conditions := []metav1.Condition{}
+		err = testf.SetTypedConditions(resource, conditions)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to clear conditions on resource")
+
+		err = tc.Client().Status().Update(tc.Context(), resource)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to update resource status after clearing conditions")
+
+		// Re-fetch and assert conditions are empty/absent
+		err = testf.RefreshResource(tc.Context(), tc.Client(), resource)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to re-fetch resource %s/%s after update", resource.GetNamespace(), resource.GetName())
+
+		conditions, err = testf.ExtractTypedConditions(resource)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to re-extract conditions from resource")
+		g.Expect(conditions).To(BeEmpty(), "Expected no conditions after clear on %s/%s", resource.GetNamespace(), resource.GetName())
+	}).Should(Succeed(), "Failed to clear all conditions from resource %s/%s",
+		resource.GetNamespace(), resource.GetName())
+}
+
+// ScaleCSVDeploymentReplicas patches a ClusterServiceVersion to change the replica count
+// of a specific deployment. This method blocks until the deployment reaches the target replica count.
+//
+// This is useful for testing scenarios where we need, for e.g., to scale down an external dependency to 0 replicas, without removing the operator.
+//
+// Parameters:
+//   - namespace: The namespace where the CSV is installed
+//   - csvNamePrefix: Prefix to match the CSV name (e.g., "kueue" matches "kueue.v0.10.0")
+//   - deploymentName: The name of the deployment within the CSV to scale
+//   - replicas: The target replica count
+//
+// Returns:
+//   - int: The replica count of the deployment before scaling
+func (tc *TestContext) ScaleCSVDeploymentReplicas(
+	namespace string,
+	csvNamePrefix string,
+	deploymentName string,
+	replicas int32,
+) int32 {
+	tc.Logf("Listing CSVs in namespace %s to find one with prefix %q.", namespace, csvNamePrefix)
+	csvList := &ofapi.ClusterServiceVersionList{}
+	err := tc.Client().List(tc.Context(), csvList, client.InNamespace(namespace))
+	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to list CSVs in namespace %s", namespace)
+
+	csvIdx := slices.IndexFunc(csvList.Items, func(csv ofapi.ClusterServiceVersion) bool {
+		return strings.HasPrefix(csv.Name, csvNamePrefix)
+	})
+	tc.g.Expect(csvIdx).NotTo(Equal(-1), "No CSV found with prefix %s in namespace %s", csvNamePrefix, namespace)
+	targetCSV := &csvList.Items[csvIdx]
+	tc.Logf("Found CSV %s.", targetCSV.Name)
+
+	tc.Logf("Looking for deployment %s in CSV spec.", deploymentName)
+	deployments := targetCSV.Spec.InstallStrategy.StrategySpec.DeploymentSpecs
+	depIdx := slices.IndexFunc(deployments, func(d ofapi.StrategyDeploymentSpec) bool {
+		return d.Name == deploymentName
+	})
+	tc.g.Expect(depIdx).NotTo(Equal(-1), "Deployment %s not found in CSV %s", deploymentName, targetCSV.Name)
+
+	spec := &deployments[depIdx].Spec
+	originalReplicas := ptr.Deref(spec.Replicas, 1)
+	spec.Replicas = ptr.To(replicas)
+	tc.Logf("Scaling deployment %s from %d to %d replicas.", deploymentName, originalReplicas, replicas)
+
+	tc.Logf("Updating CSV %s.", targetCSV.Name)
+	err = tc.Client().Update(tc.Context(), targetCSV)
+	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to update CSV %s", targetCSV.Name)
+
+	tc.Logf("Waiting for deployment %s to reach %d replicas.", deploymentName, replicas)
+	deploymentNN := types.NamespacedName{Name: deploymentName, Namespace: namespace}
+	if replicas == 0 {
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.Deployment, deploymentNN),
+			WithCondition(jq.Match(`.status.replicas == 0 or .status.replicas == null`)),
+			WithCustomErrorMsg("Deployment %s should have 0 replicas", deploymentName),
+		)
+	} else {
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.Deployment, deploymentNN),
+			WithCondition(jq.Match(`.status.readyReplicas == %d`, replicas)),
+			WithCustomErrorMsg("Deployment %s should have %d ready replicas", deploymentName, replicas),
+		)
+	}
+
+	return originalReplicas
 }

@@ -422,6 +422,18 @@ var (
 		Kind:    "Kueue",
 	}
 
+	LeaderWorkerSetOperatorV1 = schema.GroupVersionKind{
+		Group:   "operator.openshift.io",
+		Version: "v1",
+		Kind:    "LeaderWorkerSetOperator",
+	}
+
+	JobSetOperatorV1 = schema.GroupVersionKind{
+		Group:   "operator.openshift.io",
+		Version: "v1",
+		Kind:    "JobSetOperator",
+	}
+
 	LocalQueue = schema.GroupVersionKind{
 		Group:   "kueue.x-k8s.io",
 		Version: "v1beta1",
@@ -618,12 +630,6 @@ var (
 		Group:   "admissionregistration.k8s.io",
 		Version: "v1",
 		Kind:    "ValidatingAdmissionPolicyBinding",
-	}
-
-	LeaderWorkerSetOperator = schema.GroupVersionKind{
-		Group:   "operator.openshift.io",
-		Version: "v1",
-		Kind:    "LeaderWorkerSetOperator",
 	}
 
 	AuthPolicyv1 = schema.GroupVersionKind{
