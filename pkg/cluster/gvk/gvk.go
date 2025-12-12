@@ -326,6 +326,12 @@ var (
 		Kind:    componentApi.FeastOperatorKind,
 	}
 
+	MLflowOperator = schema.GroupVersionKind{
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.MLflowOperatorKind,
+	}
+
 	CustomResourceDefinition = schema.GroupVersionKind{
 		Group:   "apiextensions.k8s.io",
 		Version: "v1",
@@ -467,6 +473,12 @@ var (
 	InferencePoolV1alpha2 = schema.GroupVersionKind{
 		Group:   "inference.networking.x-k8s.io",
 		Version: "v1alpha2",
+		Kind:    "InferencePool",
+	}
+
+	InferencePoolV1 = schema.GroupVersionKind{
+		Group:   "inference.networking.k8s.io",
+		Version: "v1",
 		Kind:    "InferencePool",
 	}
 
@@ -642,5 +654,11 @@ var (
 		Group:   "jobset.x-k8s.io",
 		Version: "v1alpha2",
 		Kind:    "JobSet",
+	}
+
+	MLflow = schema.GroupVersionKind{
+		Group:   "mlflow.opendatahub.io",
+		Version: "v1",
+		Kind:    "MLflow",
 	}
 )

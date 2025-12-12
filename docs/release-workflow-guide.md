@@ -11,18 +11,25 @@ The OpenDataHub operator development and release process spans two main reposito
 
 ## Upstream Development and Release Workflow
 
-There are two long-lived branches:
+There are three long-lived branches:
 
 * `main` the primary development branch where all changes land first
+* `stable` the staging branch for changes before they reach downstream
 * `rhoai` the branch tracking downstream (productization) changes
 
 ### Main Branch Overview
 
 * All new features and bug fixes are first merged into the `main` branch.
 
+### Stable Branch Overview
+
+* The `stable` branch serves as a staging area for changes before they reach downstream.
+* Changes are automatically synced from `main` to `stable` every 2 hours via fast-forward merge.
+
 ### RHOAI Branch Overview
 
 * A dedicated `rhoai` branch exists to track downstream-related changes.
+* Changes are automatically synced from `stable` to `rhoai` every 2 hours.
 
 ### Release Branches Overview
 
@@ -30,12 +37,15 @@ There are two long-lived branches:
 
 ### Basic Upstream Workflow for the Operator
 
-Changes to the operator should land in both `main` and the downstream `rhoai` branch.
+Changes to the operator flow through a two-stage sync pipeline: `main` → `stable` → `rhoai`.
 
 ```mermaid
 gitGraph
+    branch stable order: 3
     branch rhoai order: 4
     checkout main
+    commit
+    checkout stable
     commit
     checkout rhoai
     commit
@@ -44,21 +54,25 @@ gitGraph
     commit id: "2-0a10a11"
     checkout main
     merge feature
+    checkout stable
+    merge main
     checkout rhoai
-    branch cherry-pick-feature
-    cherry-pick id:"2-0a10a11"
-    checkout rhoai
-    merge cherry-pick-feature
+    merge stable
 ```
 
 1. **Merge PR to `main`**. Follow the process in [CONTRIBUTING.md](../CONTRIBUTING.md).
-2. **Create a downstream sync PR:**
-The PR author should then create another PR targeting the `rhoai` branch. CI automation typically creates the cherry-pick PR. Add a `/cherry-pick rhoai` comment to the original PR; CI will report success or failure. If it fails, manually cherry-pick the commits into a new branch and open a new PR.
-3. **Edit the cherry-pick PR:** Edit the title to include the prefix `[sync]`. If the PR is associated with any Jira
-ticket, edit the description to include the ticket link.
-3. **Regenerate the bundle:** As of [#2329](https://github.com/opendatahub-io/opendatahub-operator/pull/2329), the `main` branch doesn't maintain most generated files anymore; however downstream builds still need bundle contents in the `rhoai` branch, so it is necessary to regenerate the bundle in the sync PR.
-4. **Merge sync PR:**
-After the sync PR has passed GitHub checks and is reviewed and approved, CI will merge it into the `rhoai` branch.
+2. **Sync changes to `stable` branch:** The [sync-main-to-stable workflow](.github/workflows/sync-main-to-stable.yaml) will automatically sync the changes from the `main` branch to the `stable` branch every 2 hours using fast-forward merge.
+3. **Sync changes to `rhoai` branch:** The [sync-stable-to-rhoai workflow](.github/workflows/sync-stable-to-rhoai.yaml) will automatically sync the changes from the `stable` branch to the `rhoai` branch every 2 hours.
+
+### `rhoai` Code Freeze and Manual Sync Workflow
+
+To prepare the downstream releases, we freeze the `rhoai` branch to prevent new development from entering the release. Development continues on the upstream `main` branch and `stable` branch.
+
+During code freeze:
+
+1. The [sync-stable-to-rhoai workflow](../.github/workflows/sync-stable-to-rhoai.yaml) is disabled to prevent automatic syncing from `stable` to `rhoai`.
+2. The [sync-main-to-stable workflow](../.github/workflows/sync-main-to-stable.yaml) continues to run, keeping `stable` up to date with `main`.
+3. Changes that need to land in the release after the code freeze must be cherry-picked manually into the red-hat-data-services/rhoai-x.y branch.
 
 ## Downstream Development and Release Workflow
 
@@ -77,12 +91,14 @@ After the sync PR has passed GitHub checks and is reviewed and approved, CI will
 sequenceDiagram
     actor engineer
     participant main as opendatahub-io/main
+    participant stable as opendatahub-io/stable
     participant rhoai as opendatahub-io/rhoai
     participant rhds as red-hat-data-services/main
     participant rhoaixy as red-hat-data-services/rhoai-x.y
 
     engineer ->> main: pull request
-    engineer ->> rhoai: cherry-pick & pull request
+    main ->> stable: merge (via CI)
+    stable ->> rhoai: merge (via CI)
     rhoai ->> rhds: merge (via CI)
 alt landing a change in the next rhoai release
     rhds ->> rhoaixy: merge (via CI)
@@ -93,8 +109,10 @@ end
 
 A change that lands in the odh-operator `main` branch ends up in the next `rhoai-x.y` branch as follows:
 
-1. CI automation periodically merges the opendatahub-operator `rhoai` branch into the rhods-operator `main` branch.
-2. CI automation periodically merges the rhods-operator `main` branch into the active rhods-operator `rhoai-x.y` release branch.
+1. CI automation periodically (every 2 hours) merges the opendatahub-operator `main` branch into the opendatahub-operator `stable` branch using fast-forward merge.
+2. CI automation periodically (every 2 hours) merges the opendatahub-operator `stable` branch into the opendatahub-operator `rhoai` branch.
+3. CI automation periodically merges the opendatahub-operator `rhoai` branch into the rhods-operator `main` branch.
+4. CI automation periodically merges the rhods-operator `main` branch into the active rhods-operator `rhoai-x.y` release branch.
 
 ### Code Freeze and Z-Stream Overview
 
@@ -114,13 +132,11 @@ The following illustration shows the three stages of downstream branches:
 
 ## ODH Release Process(community)
 
-The Open Data Hub (ODH) follows a **3-week release cycle**. This document outlines the standard steps involved in preparing and executing an ODH release.
-
-> Remember to notify this [slack channel](https://odh-io.slack.com/archives/C05RJFT0DT5) regarding any updates/issues regarding the release.
+The Open Data Hub (ODH) follows a **4-week release cycle**. This document outlines the standard steps involved in preparing and executing an ODH release.
 
 ### Tracker Issue
 
-At the **beginning of the week (Monday)** following the release cycle, each team must:
+On the **code freeze date (Friday)**, each team must:
 
 - Post a **comment** on the tracker issue (created for every release)
 - The comment must include the following format:
@@ -131,7 +147,7 @@ At the **beginning of the week (Monday)** following the release cycle, each team
 
 > **Note**: The comment format must comply with the expected structure to be parsed by the release automation tool.
 
-The **actual release** occurs on the **following Tuesday**.
+**Code freeze** occurs on **Friday**, and the **actual release** occurs on the **following Monday**.
 
 ### Release Automation
 
@@ -141,7 +157,7 @@ A set of workflows/tasks using **GitHub Actions (GHA)** and **Konflux Pipelines*
 
 In the operator repository:
 
-- Trigger the [`release-staging`](.github/workflows/release-staging.yaml) GHA workflow by providing:
+- Trigger the [`release-staging`](../.github/workflows/release-staging.yaml) GHA workflow by providing:
   - **Tracker issue URL** eg: https://github.com/opendatahub-io/opendatahub-community/issues/176
   - **Release version** eg: 2.30.0(Strictly semver)
 
@@ -230,6 +246,6 @@ The **Quality Engineering (QE)** team performs:
 
 ## Summary
 
-* The overall process involves **four branches** across two repos.
-* First, a change lands in the [opendatahub-io/opendatahub-operator](https://github.com/opendatahub-io/opendatahub-operator) repo according to the [Basic Upstream Workflow](#basic-upstream-workflow-for-the-operator).
+* The overall process involves **five branches** across two repos.
+* First, a change lands in the [opendatahub-io/opendatahub-operator](https://github.com/opendatahub-io/opendatahub-operator) repo according to the [Basic Upstream Workflow](#basic-upstream-workflow-for-the-operator), flowing through the two-stage sync pipeline: `main` → `stable` → `rhoai`.
 * Then, downstream work happens in the [red-hat-data-services/rhods-operator](https://github.com/red-hat-data-services/rhods-operator) repo according to the [Basic Downstream Workflow](#basic-downstream-workflow-for-the-operator).
