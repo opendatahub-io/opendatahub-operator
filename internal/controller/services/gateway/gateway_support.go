@@ -90,7 +90,7 @@ const (
 	kubeAuthProxyServiceTemplate         = "resources/kube-auth-proxy-svc.tmpl.yaml"
 	kubeAuthProxyHTTPRouteTemplate       = "resources/kube-auth-proxy-httproute.tmpl.yaml"
 	networkPolicyTemplate                = "resources/kube-auth-proxy-networkpolicy.yaml"
-	ocpRouteTemplate                     = "resources/ocp-route.tmpl.yaml"
+	ocpRouteTemplate                     = "resources/gateway-ocp-route.tmpl.yaml"
 )
 
 // GetFQDN returns the fully qualified domain name for the gateway based on the GatewayConfig.

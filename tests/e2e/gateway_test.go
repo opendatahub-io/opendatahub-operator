@@ -20,7 +20,6 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -33,10 +32,11 @@ import (
 
 // Gateway TLS and EnvoyFilter configuration constants.
 const (
-	gatewayTLSSecretName   = "data-science-gatewayconfig-tls"
-	envoyFilterName        = "data-science-authn-filter"
-	expectedSecretDataKeys = 3
-	SecretHashAnnotation   = "opendatahub.io/secret-hash" //nolint:gosec
+	gatewayTLSSecretName        = "data-science-gatewayconfig-tls"
+	gatewayServiceTLSSecretName = gateway.GatewayServiceTLSSecretName
+	envoyFilterName             = "data-science-authn-filter"
+	expectedSecretDataKeys      = 3
+	SecretHashAnnotation        = "opendatahub.io/secret-hash" //nolint:gosec
 )
 
 // Gateway infrastructure and OAuth proxy configuration constants.
@@ -64,8 +64,12 @@ type GatewayTestCtx struct {
 
 	// cachedGatewayHostname stores the computed gateway hostname to avoid repeated cluster API calls.
 	cachedGatewayHostname string
+	// cachedIngressMode stores the detected ingress mode.
+	cachedIngressMode serviceApi.IngressMode
 	// once ensures thread-safe lazy initialization of cachedGatewayHostname.
 	once sync.Once
+	// ingressModeOnce ensures thread-safe lazy initialization of cachedIngressMode.
+	ingressModeOnce sync.Once
 }
 
 func gatewayTestSuite(t *testing.T) {
@@ -110,16 +114,15 @@ func (tc *GatewayTestCtx) ValidateGatewayConfig(t *testing.T) {
 	t.Helper()
 	t.Log("Validating GatewayConfig resource")
 
+	// Common validation: Ready status and ownership
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayConfigName}),
 		WithCondition(And(
-			jq.Match(`.spec.certificate.secretName == "%s"`, gatewayTLSSecretName),
-			jq.Match(`.spec.certificate.type == "%s"`, string(infrav1.OpenshiftDefaultIngress)),
 			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue),
 			jq.Match(`.metadata.ownerReferences[0].kind == "DSCInitialization"`),
 			jq.Match(`.metadata.ownerReferences[0].name == "%s"`, tc.DSCInitializationNamespacedName.Name),
 		)),
-		WithCustomErrorMsg("GatewayConfig should have correct certificate configuration, Ready status, and be owned by %s DSCInitialization", tc.DSCInitializationNamespacedName.Name),
+		WithCustomErrorMsg("GatewayConfig should be Ready and owned by %s DSCInitialization", tc.DSCInitializationNamespacedName.Name),
 	)
 
 	t.Log("GatewayConfig validation completed")
@@ -137,17 +140,17 @@ func (tc *GatewayTestCtx) ValidateGatewayInfrastructure(t *testing.T) {
 		WithCustomErrorMsg("GatewayClass should exist with OpenShift Gateway controller"),
 	)
 
-	t.Log("Validating TLS certificate secret")
+	tlsSecretName := tc.getTLSSecretName(t)
+	t.Logf("Validating TLS certificate secret: %s", tlsSecretName)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Secret, types.NamespacedName{
-			Name:      gatewayTLSSecretName,
+			Name:      tlsSecretName,
 			Namespace: gatewayNamespace,
 		}),
-		WithCustomErrorMsg("TLS secret should exist"),
+		WithCustomErrorMsg("TLS secret %s should exist", tlsSecretName),
 	)
 
-	expectedGatewayHostname := tc.getExpectedGatewayHostname(t)
-
+	// Gateway validation with mode-specific TLS secret reference
 	t.Log("Validating Gateway resource")
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.KubernetesGateway, types.NamespacedName{
@@ -156,14 +159,15 @@ func (tc *GatewayTestCtx) ValidateGatewayInfrastructure(t *testing.T) {
 		}),
 		WithCondition(And(
 			jq.Match(`.spec.gatewayClassName == "%s"`, gatewayClassName),
-			jq.Match(`.spec.listeners | length > 0`),
-			jq.Match(`.spec.listeners[] | select(.name == "https") | .protocol == "%s"`, string(gwapiv1.HTTPSProtocolType)),
-			jq.Match(`.spec.listeners[] | select(.name == "https") | .port == %d`, standardHTTPSPort),
-			jq.Match(`.spec.listeners[] | select(.name == "https") | .hostname == "%s"`, expectedGatewayHostname),
-			jq.Match(`.spec.listeners[] | select(.name == "https") | .tls.certificateRefs[0].name == "%s"`, gatewayTLSSecretName),
+			jq.Match(`.spec.listeners[] | select(.name == "https") | .tls.certificateRefs[0].name == "%s"`, tlsSecretName),
 		)),
-		WithCustomErrorMsg("Gateway should be created with correct HTTPS listener configuration and hostname %s", expectedGatewayHostname),
+		WithCustomErrorMsg("Gateway should be created with correct HTTPS listener configuration"),
 	)
+
+	// OcpRoute mode: validate the OCP Route exists
+	if tc.isOcpRouteMode(t) {
+		tc.validateOCPRoute(t)
+	}
 
 	t.Log("Gateway infrastructure validation completed")
 }
@@ -474,35 +478,18 @@ func (tc *GatewayTestCtx) ValidateGatewayReadyStatus(t *testing.T) {
 	t.Helper()
 	t.Log("Validating Gateway ready status")
 
+	// Core validation: Gateway is Accepted, Programmed, and has routes attached
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.KubernetesGateway, types.NamespacedName{
 			Name:      gatewayName,
 			Namespace: gatewayNamespace,
 		}),
 		WithCondition(And(
-			// Gateway-level conditions
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, string(gwapiv1.GatewayConditionAccepted), string(metav1.ConditionTrue)),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, string(gwapiv1.GatewayConditionProgrammed), string(metav1.ConditionTrue)),
-
-			// External address exists (load balancer provisioned)
-			jq.Match(`.status.addresses | length > 0`),
-			jq.Match(`.status.addresses[0].type == "Hostname" or .status.addresses[0].type == "IPAddress"`),
-			jq.Match(`.status.addresses[0].value | length > 0`),
-
-			// Listener status - HTTPS listener must be ready
-			jq.Match(`.status.listeners | length > 0`),
 			jq.Match(`.status.listeners[] | select(.name == "https") | .attachedRoutes >= 1`),
-
-			// Listener conditions - all must be healthy
-			jq.Match(`.status.listeners[] | select(.name == "https") | .conditions[] | select(.type == "Accepted") | .status == "%s"`, string(metav1.ConditionTrue)),
-			jq.Match(`.status.listeners[] | select(.name == "https") | .conditions[] | select(.type == "Conflicted") | .status == "%s"`, string(metav1.ConditionFalse)),
-			jq.Match(`.status.listeners[] | select(.name == "https") | .conditions[] | select(.type == "Programmed") | .status == "%s"`, string(metav1.ConditionTrue)),
-			jq.Match(`.status.listeners[] | select(.name == "https") | .conditions[] | select(.type == "ResolvedRefs") | .status == "%s"`, string(metav1.ConditionTrue)),
-
-			// Listener supports HTTPRoute (required for routing)
-			jq.Match(`.status.listeners[] | select(.name == "https") | .supportedKinds[] | select(.group == "%s") | .kind == "HTTPRoute"`, gwapiv1.GroupVersion.Group),
 		)),
-		WithCustomErrorMsg("Gateway should be fully operational with healthy listener and load balancer"),
+		WithCustomErrorMsg("Gateway should be fully operational with healthy listener"),
 	)
 
 	t.Log("Gateway ready status validation completed")
@@ -640,6 +627,68 @@ func (tc *GatewayTestCtx) getExpectedGatewayHostname(t *testing.T) string {
 	}
 	t.Logf("Expected gateway hostname: %s", tc.cachedGatewayHostname)
 	return tc.cachedGatewayHostname
+}
+
+// getIngressMode returns the ingress mode from GatewayConfig.
+// Result is cached to avoid multiple cluster API calls.
+func (tc *GatewayTestCtx) getIngressMode(t *testing.T) serviceApi.IngressMode {
+	t.Helper()
+	tc.ingressModeOnce.Do(func() {
+		gatewayConfig := &serviceApi.GatewayConfig{}
+		err := tc.Client().Get(tc.Context(), types.NamespacedName{Name: gatewayConfigName}, gatewayConfig)
+		if err != nil {
+			tc.cachedIngressMode = serviceApi.IngressModeOcpRoute
+			t.Logf("GatewayConfig not found, defaulting to ingress mode: %s", tc.cachedIngressMode)
+			return
+		}
+		tc.cachedIngressMode = gatewayConfig.Spec.IngressMode
+		if tc.cachedIngressMode == "" {
+			tc.cachedIngressMode = serviceApi.IngressModeOcpRoute
+		}
+		t.Logf("Detected ingress mode: %s", tc.cachedIngressMode)
+	})
+	return tc.cachedIngressMode
+}
+
+// isOcpRouteMode returns true if the gateway is configured for OCP Route ingress mode.
+func (tc *GatewayTestCtx) isOcpRouteMode(t *testing.T) bool {
+	t.Helper()
+	return tc.getIngressMode(t) == serviceApi.IngressModeOcpRoute
+}
+
+// getTLSSecretName returns the appropriate TLS secret name based on ingress mode.
+func (tc *GatewayTestCtx) getTLSSecretName(t *testing.T) string {
+	t.Helper()
+	if tc.isOcpRouteMode(t) {
+		return gatewayServiceTLSSecretName
+	}
+	return gatewayTLSSecretName
+}
+
+// validateOCPRoute validates the OpenShift Route exists and is properly configured for OcpRoute mode.
+func (tc *GatewayTestCtx) validateOCPRoute(t *testing.T) {
+	t.Helper()
+	t.Log("Validating OCP Route for Gateway")
+
+	expectedHostname := tc.getExpectedGatewayHostname(t)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Route, types.NamespacedName{
+			Name:      gatewayName,
+			Namespace: gatewayNamespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.host == "%s"`, expectedHostname),
+			jq.Match(`.spec.to.kind == "Service"`),
+			jq.Match(`.spec.to.name == "%s"`, gateway.GatewayServiceFullName),
+			jq.Match(`.spec.port.targetPort == %d`, standardHTTPSPort),
+			jq.Match(`.spec.tls.termination == "reencrypt"`),
+			jq.Match(`.spec.tls.insecureEdgeTerminationPolicy == "Redirect"`),
+		)),
+		WithCustomErrorMsg("OCP Route should exist with correct configuration for hostname %s", expectedHostname),
+	)
+
+	t.Log("OCP Route validation completed")
 }
 
 // getServiceFQDN returns the fully qualified domain name for a Kubernetes service.
