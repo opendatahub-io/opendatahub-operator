@@ -65,7 +65,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		Watches(
 			&gwapiv1.HTTPRoute{},
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
-			reconciler.WithPredicates(HTTPRouteGatewayRefPredicate()),
+			reconciler.WithPredicates(resources.HTTPRouteReferencesGateway(DefaultGatewayName, GatewayNamespace)),
 		).
 		WithAction(createGatewayInfrastructure).
 		WithAction(createKubeAuthProxyInfrastructure). //  include destinationrule

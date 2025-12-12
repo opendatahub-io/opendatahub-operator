@@ -278,6 +278,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"GatewayName":              DefaultGatewayName,
 		"GatewayClassName":         GatewayClassName,
 		"GatewayHostname":          hostname,
+		"GatewayServiceName":       GatewayServiceFullName,
 		"KubeAuthProxyServiceName": KubeAuthProxyName,
 		"KubeAuthProxySecretsName": KubeAuthProxySecretsName,
 		"KubeAuthProxyTLSName":     KubeAuthProxyTLSName,
@@ -302,6 +303,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"ComponentLabelValue":      ComponentLabelValue,
 		"PartOfLabelKey":           labels.K8SCommon.PartOf,
 		"PartOfLabelValue":         PartOfLabelValue,
+		"PartOfGatewayConfig":      PartOfGatewayConfig,
 		"GatewayNameLabelKey":      labels.GatewayAPI.GatewayName,
 	}
 

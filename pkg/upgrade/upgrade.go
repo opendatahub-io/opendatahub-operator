@@ -26,6 +26,7 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
@@ -558,8 +559,8 @@ func MigrateGatewayConfigIngressMode(ctx context.Context, cli client.Client) err
 
 	gatewayService := &corev1.Service{}
 	err = cli.Get(ctx, client.ObjectKey{
-		Name:      "data-science-gateway-data-science-gateway-class",
-		Namespace: "openshift-ingress",
+		Name:      gateway.GatewayServiceFullName,
+		Namespace: gateway.GatewayNamespace,
 	}, gatewayService)
 	switch {
 	case k8serr.IsNotFound(err):
