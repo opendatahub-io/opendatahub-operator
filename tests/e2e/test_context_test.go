@@ -575,28 +575,6 @@ func (tc *TestContext) EnsureResourcesGone(opts ...ResourceOpts) {
 	}).Should(Succeed())
 }
 
-// FetchSubscription get a subscription if exists.
-//
-// Parameters:
-//   - nn (types.NamespacedName): The namespace and name of the Subscription.
-//
-// Returns:
-//   - *unstructured.Unstructured: The existing subscription or nil.
-func (tc *TestContext) GetSubscription(nn types.NamespacedName, channelName string) *unstructured.Unstructured {
-	// Construct a resource identifier.
-	resourceID := resources.FormatNamespacedName(nn)
-
-	// Create the subscription object using the necessary values (adapt as needed)
-	sub := tc.createSubscription(nn, channelName)
-
-	// Ensure the Subscription exists or create it if missing
-	return tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(sub),
-		WithMutateFunc(testf.TransformSpecToUnstructured(sub.Spec)),
-		WithCondition(jq.Match(`.status | has("installPlanRef")`)),
-		WithCustomErrorMsg("Failed to ensure Subscription '%s' exists", resourceID),
-	)
-}
 
 // EnsureSubscriptionExistsOrCreate ensures that the specified Subscription exists.
 // If the Subscription is missing, it will be created; if it already exists, no action is taken.
@@ -866,10 +844,11 @@ func (tc *TestContext) EnsureOperatorInstalledWithChannel(nn types.NamespacedNam
 // EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel ensures that an operator is installed via OLM with a specific channel.
 //
 // This function performs the following steps:
-//  1. Creates the operator's namespace if it doesn't exist
-//  2. Creates an OperatorGroup with global scope in the namespace
-//  3. Creates a Subscription for the operator with the specified channel
-//  4. Waits for the CSV (ClusterServiceVersion) to reach "Succeeded" phase
+//  1. Checks if the Subscription already exists
+//  2. Creates the operator's namespace if it doesn't exist
+//  3. Creates an OperatorGroup with global scope in the namespace
+//  4. Creates a Subscription for the operator with the specified channel
+//  5. Waits for the CSV (ClusterServiceVersion) to reach "Succeeded" phase
 //
 // Parameters:
 //   - nn (types.NamespacedName): The namespace and name of the operator being installed.
@@ -884,22 +863,29 @@ func (tc *TestContext) EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(
 		WithCustomErrorMsg("Failed to create or update namespace '%s'", nn.Namespace),
 	)
 
-	// Ensure the operator group is created or updated.
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.OperatorGroup, nn),
-		WithCustomErrorMsg("Failed to create or update operator group '%s'", resourceID),
-	)
+	// first, we check if the subscription exists
+	checkedSub := tc.FetchSubscription(nn)
 
-	tc.ensureInstallPlan(nn, channelName)
+	// if the subscription does not exist, we proceed with the creation of the operator group
+	if checkedSub == nil {
+		// Ensure the operator group is created or updated.
+		tc.EventuallyResourceCreatedOrUpdated(
+			WithMinimalObject(gvk.OperatorGroup, nn),
+			WithCustomErrorMsg("Failed to create or update operator group '%s'", resourceID),
+		)
+
+		tc.ensureInstallPlan(nn, channelName)
+	}
 }
 
 // EnsureOperatorInstalledWithLocalOperatorGroupAndChannel ensures that an operator is installed via OLM with a specific channel.
 //
 // This function performs the following steps:
-//  1. Creates the operator's namespace if it doesn't exist
-//  2. Creates an OperatorGroup targeting operator's namespace
-//  3. Creates a Subscription for the operator with the specified channel
-//  4. Waits for the CSV (ClusterServiceVersion) to reach "Succeeded" phase
+//  1. Checks if the Subscription already exists
+//  2. Creates the operator's namespace if it doesn't exist
+//  3. Creates an OperatorGroup targeting operator's namespace
+//  4. Creates a Subscription for the operator with the specified channel
+//  5. Waits for the CSV (ClusterServiceVersion) to reach "Succeeded" phase
 //
 // Parameters:
 //   - nn (types.NamespacedName): The namespace and name of the operator being installed.
@@ -914,13 +900,19 @@ func (tc *TestContext) EnsureOperatorInstalledWithLocalOperatorGroupAndChannel(n
 		WithCustomErrorMsg("Failed to create or update namespace '%s'", nn.Namespace),
 	)
 
-	// Ensure the operator group is created or updated.
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(tc.createOperatorGroup(nn, []string{nn.Namespace})),
-		WithCustomErrorMsg("Failed to create or update operator group '%s'", resourceID),
-	)
+	// first, we check if the subscription exists
+	checkedSub := tc.FetchSubscription(nn)
 
-	tc.ensureInstallPlan(nn, channelName)
+	// if the subscription does not exist, we proceed with the creation of the operator group
+	if checkedSub == nil {
+		// Ensure the operator group is created or updated.
+		tc.EventuallyResourceCreatedOrUpdated(
+			WithObjectToCreate(tc.createOperatorGroup(nn, []string{nn.Namespace})),
+			WithCustomErrorMsg("Failed to create or update operator group '%s'", resourceID),
+		)
+
+		tc.ensureInstallPlan(nn, channelName)
+	}
 }
 
 // ensureInstallPlan is a helper function that retrieves and approves an operator's InstallPlan,
@@ -1133,6 +1125,27 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 		"Resource %s %s was not properly recreated with new identity", ro.GVK.Kind, ro.ResourceID)
 
 	return recreatedResource
+}
+
+// FetchSubscription get a subscription if exists.
+//
+// Parameters:
+//   - nn (types.NamespacedName): The namespace and name of the Subscription.
+//
+// Returns:
+//   - *unstructured.Unstructured: The existing subscription or nil.
+func (tc *TestContext) FetchSubscription(nn types.NamespacedName) *unstructured.Unstructured {
+	// Construct a resource identifier.
+	resourceID := resources.FormatNamespacedName(nn)
+
+	sub, _ := fetchResource(
+		tc.NewResourceOptions(
+			WithFetchedObject(gvk.Subscription, nn),
+			WithCustomErrorMsg("Failed to check if Subscription '%s' exists", resourceID),
+		),
+	)
+
+	return sub
 }
 
 // FetchInstallPlanName retrieves the name of the InstallPlan associated with a subscription.

@@ -1,10 +1,9 @@
 package e2e_test
 
 import (
+	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
-	. "github.com/onsi/gomega"
 )
 
 // fetchResource attempts to retrieve a single Kubernetes resource, retrying automatically until success or timeout.

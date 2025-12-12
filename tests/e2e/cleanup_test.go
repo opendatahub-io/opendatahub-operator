@@ -96,8 +96,9 @@ func cleanupKueueTestResources(t *testing.T, tc *TestContext) {
 		t.Logf("Attempting to delete %s %s/%s", resource.gvk.Kind, resource.namespacedName.Namespace, resource.namespacedName.Name)
 
 		// For CRD-dependent resources, skip finalizer removal to avoid fetching non-existent resources
+		// For Kueue CRD, we need to remove the finalizers to avoid stuck in deletion
 		removeFinalizersOnDelete := true
-		if resource.gvk.Kind == gvk.KueueConfigV1.Kind || resource.gvk.Kind == gvk.ClusterQueue.Kind {
+		if resource.gvk.Kind == gvk.ClusterQueue.Kind {
 			removeFinalizersOnDelete = false
 		}
 
