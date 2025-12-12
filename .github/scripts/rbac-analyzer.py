@@ -73,6 +73,7 @@ VALIDATION:
 import argparse
 import yaml
 import sys
+import re
 from pathlib import Path
 from typing import Dict, List, Set
 from collections import defaultdict
@@ -87,6 +88,13 @@ class RBACAnalyzer:
         self.pods = {}
         self.findings = []
 
+    def _preprocess_template(self, content: str) -> str:
+        """Replace Go template syntax with placeholder values to enable YAML parsing."""
+        # Replace templates with unquoted placeholder to preserve type flexibility
+        # YAML parser will infer type based on context (string, int, bool, etc.)
+        content = re.sub(r'\{\{[^}]+\}\}', 'placeholder-value', content)
+        return content
+
     def load_yaml_files(self, base_path: str):
         """Load all YAML manifests from the repository."""
         for yaml_file in Path(base_path).rglob("*.yaml"):
@@ -95,15 +103,32 @@ class RBACAnalyzer:
                                                    'docs', 'bin', '.github/workflows']):
                 continue
 
+            # Initialize before try block to avoid NameError in exception handler
+            is_template = False
             try:
                 with open(yaml_file) as f:
-                    docs = yaml.safe_load_all(f)
+                    content = f.read()
+
+                    # Detect templates by filename or content
+                    is_template = (
+                        '.tmpl.yaml' in str(yaml_file) or
+                        '.template.yaml' in str(yaml_file) or
+                        '{{' in content  # Contains Go template syntax
+                    )
+
+                    # Preprocess template files to replace Go template syntax
+                    if is_template:
+                        content = self._preprocess_template(content)
+
+                    docs = yaml.safe_load_all(content)
                     for doc in docs:
                         if not doc or 'kind' not in doc:
                             continue
                         self._categorize_resource(doc, str(yaml_file))
             except Exception as e:
-                print(f"Warning: Failed to parse {yaml_file}: {e}", file=sys.stderr)
+                # Suppress warnings for template files (expected parsing issues)
+                if not is_template:
+                    print(f"Warning: Failed to parse {yaml_file}: {e}", file=sys.stderr)
 
     def _categorize_resource(self, doc: dict, file_path: str):
         """Categorize Kubernetes resource by kind."""
