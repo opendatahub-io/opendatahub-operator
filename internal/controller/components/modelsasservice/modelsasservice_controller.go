@@ -23,6 +23,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -31,6 +32,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -53,6 +56,13 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// Note: AuthPolicy (kuadrant.io/v1) is not included here as it's a third-party CRD
 		// that may not be available in all environments. It should be handled by the
 		// manifest deployment process.
+		Watches(
+			&extv1.CustomResourceDefinition{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.ModelsAsServiceInstanceName)),
+			reconciler.WithPredicates(
+				component.ForLabel(labels.ODH.Component(ComponentName), labels.True)),
+		).
 		WithAction(initialize).
 		WithAction(validateGateway).
 		WithAction(customizeManifests).
