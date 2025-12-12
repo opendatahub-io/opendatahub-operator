@@ -9,6 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
@@ -208,6 +209,53 @@ func GatewayCertificateSecret(isGatewayCertFn func(obj client.Object) bool) pred
 		// If certificate secret is deleted, trigger reconciliation to update status to error and warn user
 		DeleteFunc: func(e event.TypedDeleteEvent[client.Object]) bool {
 			return isGatewayCertFn(e.Object)
+		},
+	}
+}
+
+// HTTPRouteReferencesGateway returns a predicate that filters HTTPRoutes referencing the specified gateway.
+func HTTPRouteReferencesGateway(gatewayName, gatewayNamespace string) predicate.Predicate {
+	referencesGateway := func(httpRoute *gwapiv1.HTTPRoute) bool {
+		for _, ref := range httpRoute.Spec.ParentRefs {
+			refNamespace := gatewayNamespace
+			if ref.Namespace != nil {
+				refNamespace = string(*ref.Namespace)
+			}
+			if string(ref.Name) == gatewayName && refNamespace == gatewayNamespace {
+				return true
+			}
+		}
+		return false
+	}
+
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			httpRoute, ok := e.Object.(*gwapiv1.HTTPRoute)
+			if !ok {
+				return false
+			}
+			return referencesGateway(httpRoute)
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			httpRoute, ok := e.ObjectNew.(*gwapiv1.HTTPRoute)
+			if !ok {
+				return false
+			}
+			return referencesGateway(httpRoute)
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			httpRoute, ok := e.Object.(*gwapiv1.HTTPRoute)
+			if !ok {
+				return false
+			}
+			return referencesGateway(httpRoute)
+		},
+		GenericFunc: func(e event.GenericEvent) bool {
+			httpRoute, ok := e.Object.(*gwapiv1.HTTPRoute)
+			if !ok {
+				return false
+			}
+			return referencesGateway(httpRoute)
 		},
 	}
 }
