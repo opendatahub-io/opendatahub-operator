@@ -32,9 +32,11 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
@@ -42,6 +44,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/hash"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
@@ -109,10 +112,25 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				),
 			),
 		).
+		WatchesGVK(gvk.LeaderWorkerSetOperatorV1,
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.KserveInstanceName),
+			),
+			reconciler.WithPredicates(
+				dependent.New(dependent.WithWatchStatus(true)),
+			),
+			reconciler.Dynamic(reconciler.CrdExists(gvk.LeaderWorkerSetOperatorV1))).
 
 		// actions
-		WithAction(initialize).
 		WithAction(checkPreConditions).
+		WithAction(initialize).
+		WithAction(dependency.NewAction(
+			dependency.MonitorOperator(dependency.OperatorConfig{
+				OperatorGVK: gvk.LeaderWorkerSetOperatorV1,
+				Severity:    common.ConditionSeverityInfo,
+				Filter:      lwsConditionFilter,
+			}),
+		)).
 		WithAction(releases.NewAction()).
 		WithAction(removeOwnershipFromUnmanagedResources).
 		WithAction(cleanUpTemplatedResources).
