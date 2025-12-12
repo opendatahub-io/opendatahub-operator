@@ -102,7 +102,7 @@ func NewTestContext(t *testing.T) (*TestContext, error) { //nolint:thelper
 		return nil, err
 	}
 
-	// Set up global debug client for panic handling
+	// Set up the global debug client for panic handling
 	SetGlobalDebugClient(tcf.Client())
 
 	return &TestContext{
@@ -599,20 +599,18 @@ func (tc *TestContext) EnsureResourcesGone(opts ...ResourceOpts) {
 //
 // Returns:
 //   - *unstructured.Unstructured: The existing subscription or nil.
-func (tc *TestContext) GetSubscription(nn types.NamespacedName, channelName string) *unstructured.Unstructured {
+func (tc *TestContext) FetchSubscription(nn types.NamespacedName) *unstructured.Unstructured {
 	// Construct a resource identifier.
 	resourceID := resources.FormatNamespacedName(nn)
 
-	// Create the subscription object using the necessary values (adapt as needed)
-	sub := tc.createSubscription(nn, channelName)
-
-	// Ensure the Subscription exists or create it if missing
-	return tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(sub),
-		WithMutateFunc(testf.TransformSpecToUnstructured(sub.Spec)),
-		WithCondition(jq.Match(`.status | has("installPlanRef")`)),
-		WithCustomErrorMsg("Failed to ensure Subscription '%s' exists", resourceID),
+	sub, _ := fetchResource(
+		tc.NewResourceOptions(
+			WithFetchedObject(gvk.Subscription, nn),
+			WithCustomErrorMsg("Failed to check if Subscription '%s' exists", resourceID),
+		),
 	)
+
+	return sub
 }
 
 // EnsureSubscriptionExistsOrCreate ensures that the specified Subscription exists.
@@ -871,13 +869,7 @@ func (tc *TestContext) EnsureResourceIsUnique(obj client.Object, args ...any) {
 //   - nn (types.NamespacedName): The namespace and name of the operator being installed.
 //   - channelName (string): The OLM channel to use for the operator installation (e.g., "stable", "alpha").
 func (tc *TestContext) EnsureOperatorInstalledWithChannel(nn types.NamespacedName, channelName string) {
-	// Ensure the operator's namespace is created.
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: nn.Namespace}),
-		WithCustomErrorMsg("Failed to create or update namespace '%s'", nn.Namespace),
-	)
-
-	tc.ensureInstallPlan(nn, channelName)
+	tc.EnsureOperatorHealthy(nn, channelName, nil)
 }
 
 // EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel ensures that an operator is installed via OLM with a specific channel.
@@ -892,22 +884,7 @@ func (tc *TestContext) EnsureOperatorInstalledWithChannel(nn types.NamespacedNam
 //   - nn (types.NamespacedName): The namespace and name of the operator being installed.
 //   - channelName (string): The OLM channel to use for the operator installation (e.g., "stable", "alpha").
 func (tc *TestContext) EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(nn types.NamespacedName, channelName string) {
-	// Construct a resource identifier.
-	resourceID := resources.FormatNamespacedName(nn)
-
-	// Ensure the operator's namespace is created.
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: nn.Namespace}),
-		WithCustomErrorMsg("Failed to create or update namespace '%s'", nn.Namespace),
-	)
-
-	// Ensure the operator group is created or updated.
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.OperatorGroup, nn),
-		WithCustomErrorMsg("Failed to create or update operator group '%s'", resourceID),
-	)
-
-	tc.ensureInstallPlan(nn, channelName)
+	tc.EnsureOperatorHealthy(nn, channelName, nil)
 }
 
 // EnsureOperatorInstalledWithLocalOperatorGroupAndChannel ensures that an operator is installed via OLM with a specific channel.
@@ -922,22 +899,132 @@ func (tc *TestContext) EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(
 //   - nn (types.NamespacedName): The namespace and name of the operator being installed.
 //   - channelName (string): The OLM channel to use for the operator installation (e.g., "stable", "alpha").
 func (tc *TestContext) EnsureOperatorInstalledWithLocalOperatorGroupAndChannel(nn types.NamespacedName, channelName string) {
-	// Construct a resource identifier.
-	resourceID := resources.FormatNamespacedName(nn)
+	tc.EnsureOperatorHealthy(nn, channelName, []string{nn.Namespace})
+}
 
-	// Ensure the operator's namespace is created.
+// EnsureOperatorHealthy validates that an operator is installed and healthy.
+// If the operator is not present or unhealthy, it will be installed.
+// This function is idempotent and works regardless of how the operator was initially installed.
+func (tc *TestContext) EnsureOperatorHealthy(nn types.NamespacedName, channel string, targetNamespaces []string) {
+	// Quick health check - if already healthy, we're done
+	if tc.isOperatorHealthy(nn) {
+		return
+	}
+
+	// Not healthy - ensure installation
+	tc.ensureOperatorInstalled(nn, channel, targetNamespaces)
+
+	// Wait for the operator to become healthy
+	tc.ensureCSVSucceeded(nn)
+}
+
+// isOperatorHealthy checks if operator CSV is in Succeeded phase.
+func (tc *TestContext) isOperatorHealthy(nn types.NamespacedName) bool {
+	sub := tc.FetchSubscription(nn)
+	if sub == nil {
+		return false
+	}
+
+	// Determine CSV name from subscription status (supports both currentCSV and installedCSV)
+	csvName := extractSubscriptionCSVName(sub)
+	if csvName == "" {
+		return false
+	}
+
+	csv, err := fetchResource(
+		tc.NewResourceOptions(
+			WithFetchedObject(gvk.ClusterServiceVersion, types.NamespacedName{
+				Namespace: nn.Namespace,
+				Name:      csvName,
+			}),
+		),
+	)
+
+	if err != nil || csv == nil {
+		return false
+	}
+
+	clusterServiceVersion := &ofapi.ClusterServiceVersion{}
+	tc.convertToResource(csv, clusterServiceVersion)
+
+	return clusterServiceVersion.Status.Phase == ofapi.CSVPhaseSucceeded
+}
+
+// ensureOperatorInstalled performs operator installation, handling pre-existing resources.
+func (tc *TestContext) ensureOperatorInstalled(nn types.NamespacedName, channel string, targetNamespaces []string) {
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: nn.Namespace}),
-		WithCustomErrorMsg("Failed to create or update namespace '%s'", nn.Namespace),
+		WithCustomErrorMsg("Failed to create namespace '%s'", nn.Namespace),
 	)
 
-	// Ensure the operator group is created or updated.
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(tc.createOperatorGroup(nn, []string{nn.Namespace})),
-		WithCustomErrorMsg("Failed to create or update operator group '%s'", resourceID),
+	tc.ensureOperatorGroupExists(nn, targetNamespaces)
+	tc.ensureInstallPlan(nn, channel)
+}
+
+// ensureOperatorGroupExists reuses existing OperatorGroups or creates one.
+func (tc *TestContext) ensureOperatorGroupExists(nn types.NamespacedName, targetNamespaces []string) {
+	existingOG := tc.fetchOperatorGroupInNamespace(nn.Namespace)
+	if existingOG != nil {
+		return // Reuse existing OperatorGroup
+	}
+
+	resourceID := resources.FormatNamespacedName(nn)
+
+	if len(targetNamespaces) == 0 {
+		tc.EventuallyResourceCreatedOrUpdated(
+			WithMinimalObject(gvk.OperatorGroup, nn),
+			WithCustomErrorMsg("Failed to create operator group '%s'", resourceID),
+		)
+	} else {
+		tc.EventuallyResourceCreatedOrUpdated(
+			WithObjectToCreate(tc.createOperatorGroup(nn, targetNamespaces)),
+			WithCustomErrorMsg("Failed to create operator group '%s'", resourceID),
+		)
+	}
+}
+
+// fetchOperatorGroupInNamespace discovers any OperatorGroup in the namespace.
+func (tc *TestContext) fetchOperatorGroupInNamespace(namespace string) *operatorsv1.OperatorGroup {
+	operatorGroups := tc.FetchResources(
+		WithMinimalObject(gvk.OperatorGroup, types.NamespacedName{Namespace: namespace}),
+		WithListOptions(&client.ListOptions{Namespace: namespace}),
 	)
 
-	tc.ensureInstallPlan(nn, channelName)
+	if len(operatorGroups) == 0 {
+		return nil
+	}
+
+	og := &operatorsv1.OperatorGroup{}
+	tc.convertToResource(&operatorGroups[0], og)
+
+	return og
+}
+
+// ensureCSVSucceeded waits for CSV to reach the Succeeded phase.
+func (tc *TestContext) ensureCSVSucceeded(nn types.NamespacedName) {
+	resourceID := resources.FormatNamespacedName(nn)
+
+	tc.g.Eventually(func(g Gomega) {
+		// Fetch Subscription synchronously to avoid nested Eventually
+		sub, err := fetchResourceSync(tc.NewResourceOptions(
+			WithMinimalObject(gvk.Subscription, nn),
+			WithCustomErrorMsg("Failed to fetch Subscription %s", resourceID),
+		))
+		g.Expect(err).NotTo(HaveOccurred(), "error fetching Subscription %s", resourceID)
+		g.Expect(sub).NotTo(BeNil(), "Subscription %s not found", resourceID)
+
+		// Extract CSV name
+		csvName := extractSubscriptionCSVName(sub)
+		g.Expect(csvName).NotTo(BeEmpty(), "Subscription %s has no current/installed CSV", resourceID)
+
+		// Fetch CSV
+		csv := tc.FetchClusterServiceVersion(types.NamespacedName{Namespace: nn.Namespace, Name: csvName})
+
+		g.Expect(csv.Status.Phase).To(Equal(ofapi.CSVPhaseSucceeded),
+			"CSV %s is not Succeeded: %s", csvName, csv.Status.Phase)
+	}).WithTimeout(tc.TestTimeouts.mediumEventuallyTimeout).
+		WithPolling(tc.TestTimeouts.defaultEventuallyPollInterval).
+		Should(Succeed(), "Operator %s CSV did not reach Succeeded phase", resourceID)
 }
 
 // ensureInstallPlan is a helper function that retrieves and approves an operator's InstallPlan,
@@ -969,7 +1056,9 @@ func (tc *TestContext) ensureInstallPlan(nn types.NamespacedName, channelName st
 	csvName := plan.Spec.ClusterServiceVersionNames[0] // Assuming first in the list
 
 	tc.g.Eventually(func(g Gomega) {
+		// Fetch CSV
 		csv := tc.FetchClusterServiceVersion(types.NamespacedName{Namespace: nn.Namespace, Name: csvName})
+
 		g.Expect(csv.Status.Phase).To(
 			Equal(ofapi.CSVPhaseSucceeded),
 			"CSV %s did not reach 'Succeeded' phase", resourceID,
@@ -1500,9 +1589,8 @@ func (tc *TestContext) UninstallOperator(operatorNamespacedName types.Namespaced
 		"Expected resource to be a Subscription, got %s", operatorSubscription.GetKind())
 
 	// Extract CSV and InstallPlan names with proper error handling
-	csv, foundCSV, errCSV := unstructured.NestedString(operatorSubscription.UnstructuredContent(), "status", "currentCSV")
-	tc.g.Expect(errCSV).NotTo(HaveOccurred(),
-		"Failed to extract currentCSV from subscription %s", operatorNamespacedName.Name)
+	csv := extractSubscriptionCSVName(operatorSubscription)
+	foundCSV := csv != ""
 
 	installPlan, foundPlan, errPlan := unstructured.NestedString(operatorSubscription.UnstructuredContent(), "status", "installPlanRef", "name")
 	tc.g.Expect(errPlan).NotTo(HaveOccurred(),
@@ -1516,7 +1604,7 @@ func (tc *TestContext) UninstallOperator(operatorNamespacedName types.Namespaced
 	tc.DeleteResource(subscriptionOpts...)
 
 	// Delete CSV if found and valid
-	if foundCSV && csv != "" {
+	if foundCSV {
 		csvOpts := []ResourceOpts{WithIgnoreNotFound(true), WithMinimalObject(gvk.ClusterServiceVersion, types.NamespacedName{Name: csv, Namespace: namespace})}
 		csvOpts = append(csvOpts, opts...) // Add user-provided options
 		tc.DeleteResource(csvOpts...)
@@ -1528,6 +1616,20 @@ func (tc *TestContext) UninstallOperator(operatorNamespacedName types.Namespaced
 		installPlanOpts = append(installPlanOpts, opts...) // Add user-provided options
 		tc.DeleteResource(installPlanOpts...)
 	}
+}
+
+// extractSubscriptionCSVName returns the CSV name referenced by a Subscription status.
+func extractSubscriptionCSVName(subscription *unstructured.Unstructured) string {
+	if subscription == nil {
+		return ""
+	}
+	if name, found, _ := unstructured.NestedString(subscription.UnstructuredContent(), "status", "currentCSV"); found && name != "" {
+		return name
+	}
+	if name, found, _ := unstructured.NestedString(subscription.UnstructuredContent(), "status", "installedCSV"); found && name != "" {
+		return name
+	}
+	return ""
 }
 
 func (tc *TestContext) convertToResource(u *unstructured.Unstructured, obj client.Object) {
