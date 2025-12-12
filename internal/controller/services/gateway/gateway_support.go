@@ -90,6 +90,7 @@ const (
 	kubeAuthProxyServiceTemplate         = "resources/kube-auth-proxy-svc.tmpl.yaml"
 	kubeAuthProxyHTTPRouteTemplate       = "resources/kube-auth-proxy-httproute.tmpl.yaml"
 	networkPolicyTemplate                = "resources/kube-auth-proxy-networkpolicy.yaml"
+	ocpRouteTemplate                     = "resources/ocp-route.tmpl.yaml"
 )
 
 // GetFQDN returns the fully qualified domain name for the gateway based on the GatewayConfig.
@@ -244,51 +245,32 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 			},
 		}
 
-		if ingressMode == serviceApi.IngressModeOcpRoute {
-			httpsListener := gwapiv1.Listener{
-				Name:     "https",
-				Protocol: gwapiv1.HTTPSProtocolType,
-				Port:     StandardHTTPSPort,
-				TLS: &gwapiv1.GatewayTLSConfig{
-					Mode: &httpsMode,
-					CertificateRefs: []gwapiv1.SecretObjectReference{
-						{
-							Name: gwapiv1.ObjectName(certSecretName),
-						},
+		httpsListener := gwapiv1.Listener{
+			Name:     "https",
+			Protocol: gwapiv1.HTTPSProtocolType,
+			Port:     StandardHTTPSPort,
+			TLS: &gwapiv1.GatewayTLSConfig{
+				Mode: &httpsMode,
+				CertificateRefs: []gwapiv1.SecretObjectReference{
+					{
+						Name: gwapiv1.ObjectName(certSecretName),
 					},
 				},
-				AllowedRoutes: &gwapiv1.AllowedRoutes{
-					Namespaces: &gwapiv1.RouteNamespaces{
-						From:     &allowedNamespaces,
-						Selector: namespaceSelector,
-					},
+			},
+			AllowedRoutes: &gwapiv1.AllowedRoutes{
+				Namespaces: &gwapiv1.RouteNamespaces{
+					From:     &allowedNamespaces,
+					Selector: namespaceSelector,
 				},
-			}
-			listeners = append(listeners, httpsListener)
-		} else {
-			hostname := gwapiv1.Hostname(domain)
-			httpsListener := gwapiv1.Listener{
-				Name:     "https",
-				Protocol: gwapiv1.HTTPSProtocolType,
-				Port:     StandardHTTPSPort,
-				Hostname: &hostname,
-				TLS: &gwapiv1.GatewayTLSConfig{
-					Mode: &httpsMode,
-					CertificateRefs: []gwapiv1.SecretObjectReference{
-						{
-							Name: gwapiv1.ObjectName(certSecretName),
-						},
-					},
-				},
-				AllowedRoutes: &gwapiv1.AllowedRoutes{
-					Namespaces: &gwapiv1.RouteNamespaces{
-						From:     &allowedNamespaces,
-						Selector: namespaceSelector,
-					},
-				},
-			}
-			listeners = append(listeners, httpsListener)
+			},
 		}
+
+		if ingressMode != serviceApi.IngressModeOcpRoute {
+			hostname := gwapiv1.Hostname(domain)
+			httpsListener.Hostname = &hostname
+		}
+
+		listeners = append(listeners, httpsListener)
 	}
 
 	gateway := &gwapiv1.Gateway{
@@ -306,39 +288,49 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 	}
 
 	if ingressMode == serviceApi.IngressModeOcpRoute {
-		serviceConfig := fmt.Sprintf(`metadata:
+		if err := configureClusterIPInfrastructure(rr, gateway); err != nil {
+			return err
+		}
+	}
+
+	return rr.AddResources(gateway)
+}
+
+// configureClusterIPInfrastructure creates a ConfigMap for ClusterIP service configuration
+// and sets the Gateway's infrastructure reference.
+func configureClusterIPInfrastructure(rr *odhtypes.ReconciliationRequest, gateway *gwapiv1.Gateway) error {
+	serviceConfig := fmt.Sprintf(`metadata:
   annotations:
     service.beta.openshift.io/serving-cert-secret-name: "%s"
 spec:
   type: ClusterIP
 `, GatewayServiceTLSSecretName)
 
-		infraConfigMap := &corev1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      GatewayInfraConfigMapName,
-				Namespace: GatewayNamespace,
-				Labels: map[string]string{
-					labels.PlatformPartOf: PartOfGatewayConfig,
-				},
+	infraConfigMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      GatewayInfraConfigMapName,
+			Namespace: GatewayNamespace,
+			Labels: map[string]string{
+				labels.PlatformPartOf: PartOfGatewayConfig,
 			},
-			Data: map[string]string{
-				"service": serviceConfig,
-			},
-		}
-		if err := rr.AddResources(infraConfigMap); err != nil {
-			return err
-		}
-
-		gateway.Spec.Infrastructure = &gwapiv1.GatewayInfrastructure{
-			ParametersRef: &gwapiv1.LocalParametersReference{
-				Group: "",
-				Kind:  "ConfigMap",
-				Name:  GatewayInfraConfigMapName,
-			},
-		}
+		},
+		Data: map[string]string{
+			"service": serviceConfig,
+		},
+	}
+	if err := rr.AddResources(infraConfigMap); err != nil {
+		return err
 	}
 
-	return rr.AddResources(gateway)
+	gateway.Spec.Infrastructure = &gwapiv1.GatewayInfrastructure{
+		ParametersRef: &gwapiv1.LocalParametersReference{
+			Group: "",
+			Kind:  "ConfigMap",
+			Name:  GatewayInfraConfigMapName,
+		},
+	}
+
+	return nil
 }
 
 // createOAuthClient creates an OpenShift OAuth client for integrated authentication.
