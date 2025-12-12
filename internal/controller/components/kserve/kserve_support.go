@@ -38,6 +38,12 @@ var (
 	}
 )
 
+const (
+	lwsConditionDegraded                       = "Degraded"
+	lwsConditionTargetConfigControllerDegraded = "TargetConfigControllerDegraded"
+	lwsConditionAvailable                      = "Available"
+)
+
 func kserveManifestInfo(sourcePath string) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
 		Path:       odhdeploy.DefaultManifestPath,
@@ -168,4 +174,16 @@ func isForDependency(s string) func(u *unstructured.Unstructured) bool {
 func isKserveOwnerRef(or metav1.OwnerReference) bool {
 	return or.APIVersion == componentApi.GroupVersion.String() &&
 		or.Kind == componentApi.KserveKind
+}
+
+// lwsConditionFilter monitors LeaderWorkerSet operator conditions for degraded state.
+func lwsConditionFilter(condType, condStatus string) bool {
+	switch condType {
+	case lwsConditionDegraded, lwsConditionTargetConfigControllerDegraded:
+		return condStatus == string(metav1.ConditionTrue)
+	case lwsConditionAvailable:
+		return condStatus == string(metav1.ConditionFalse)
+	default:
+		return false
+	}
 }

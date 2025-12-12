@@ -1,12 +1,16 @@
 package testf
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/itchyny/gojq"
 	"github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // StopErr stops the retry process with a specified message and wraps the provided error.
@@ -129,4 +133,53 @@ func TransformSpecToUnstructured(spec interface{}) TransformFn {
 
 		return nil
 	}
+}
+
+// ExtractTypedConditions converts unstructured status.conditions to a typed metav1.Condition slice.
+// This is useful for working with conditions on CRs that don't have Go types.
+func ExtractTypedConditions(obj *unstructured.Unstructured) ([]metav1.Condition, error) {
+	raw, found, err := unstructured.NestedSlice(obj.Object, "status", "conditions")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get conditions from status: %w", err)
+	}
+	if !found {
+		return nil, nil
+	}
+	conditions := make([]metav1.Condition, 0, len(raw))
+	for _, c := range raw {
+		m, ok := c.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("condition is not a map: %T", c)
+		}
+		var cond metav1.Condition
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(m, &cond); err != nil {
+			return nil, fmt.Errorf("failed to convert condition: %w", err)
+		}
+		conditions = append(conditions, cond)
+	}
+	return conditions, nil
+}
+
+// SetTypedConditions writes a typed metav1.Condition slice to an unstructured object's status.conditions.
+// This is useful for injecting conditions into CRs for testing.
+func SetTypedConditions(obj *unstructured.Unstructured, conditions []metav1.Condition) error {
+	raw := make([]interface{}, len(conditions))
+	for i, c := range conditions {
+		m, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&c)
+		if err != nil {
+			return fmt.Errorf("failed to convert condition: %w", err)
+		}
+		raw[i] = m
+	}
+	return unstructured.SetNestedSlice(obj.Object, raw, "status", "conditions")
+}
+
+// RefreshResource fetches the latest version of a resource from the cluster.
+// This is useful inside Eventually blocks for read-modify-update operations
+// where the resource version may have changed.
+func RefreshResource(ctx context.Context, c client.Client, obj *unstructured.Unstructured) error {
+	return c.Get(ctx, types.NamespacedName{
+		Name:      obj.GetName(),
+		Namespace: obj.GetNamespace(),
+	}, obj)
 }
