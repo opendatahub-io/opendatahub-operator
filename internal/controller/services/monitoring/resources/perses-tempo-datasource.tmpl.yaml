@@ -4,6 +4,15 @@ metadata:
   name: tempo-datasource
   namespace: {{.Namespace}}
 spec:
+{{- if .TempoTLSEnabled }}
+  client:
+    tls:
+      enable: true
+      caCert:
+        type: configmap
+        name: tempo-service-ca
+        certPath: service-ca.crt
+{{- end }}
   config:
     default: false
     display:
@@ -16,14 +25,5 @@ spec:
           kind: HTTPProxy
           spec:
             url: {{.TempoQueryEndpoint}}
-{{- if .TempoTLSEnabled }}
-            client:
-              tls:
-                enable: true
-                caCert:
-                  type: configmap
-                  name: tempo-service-ca
-                  certPath: service-ca.crt
-{{- end }}
             headers:
               X-Scope-OrgID: {{.Namespace}}
