@@ -29,7 +29,6 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -93,9 +92,6 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		return fmt.Errorf("failed to detect cluster authentication mode: %w", err)
 	}
 	l.V(1).Info("detected cluster authentication mode", "mode", authMode)
-
-	// Reset the condition to false
-	rr.Conditions.MarkFalse(ReadyConditionType)
 
 	kubeAuthProxyDeploymentTemplates := odhtypes.TemplateInfo{
 		FS:   gatewayResources,
@@ -185,6 +181,14 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		},
 	}
 	rr.Templates = append(rr.Templates, kubeAuthProxyCommonTemplates...)
+
+	// Mark GatewayConfigReady as true since all auth proxy setup succeeded
+	// This will be checked later by syncGatewayConfigStatus
+	rr.Conditions.MarkTrue(
+		ReadyConditionType,
+		conditions.WithReason(status.ReadyReason),
+		conditions.WithMessage(status.AuthProxyDeployedMessage),
+	)
 
 	return nil
 }
@@ -322,9 +326,12 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	return templateData, nil
 }
 
+// This function only checks Gateway infrastructure readiness.
+// The reconciler framework automatically computes the top-level "Ready" condition
+// from "ProvisioningSucceeded" and component-specific conditions like "GatewayConfigReady".
 func syncGatewayConfigStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	// Use helper function for consistent validation
-	gatewayConfig, err := validateGatewayConfig(rr)
+	_, err := validateGatewayConfig(rr)
 	if err != nil {
 		return err
 	}
@@ -336,37 +343,40 @@ func syncGatewayConfigStatus(ctx context.Context, rr *odhtypes.ReconciliationReq
 	}, gateway)
 	if err != nil {
 		if client.IgnoreNotFound(err) == nil {
-			conditions.SetStatusCondition(gatewayConfig, common.Condition{
-				Type:    status.ConditionTypeReady,
-				Status:  metav1.ConditionFalse,
-				Reason:  status.NotReadyReason,
-				Message: status.GatewayNotFoundMessage,
-			})
+			// Gateway not found - mark GatewayConfigReady as false
+			rr.Conditions.MarkFalse(
+				ReadyConditionType,
+				conditions.WithReason(status.NotReadyReason),
+				conditions.WithMessage(status.GatewayNotFoundMessage),
+			)
 			return nil
 		}
 		return fmt.Errorf("failed to get Gateway: %w", err)
 	}
 
-	// Use optimized helper function to check gateway readiness
-	ready := isGatewayReady(gateway)
+	// Check if Gateway infrastructure is ready
+	gatewayReady := isGatewayReady(gateway)
 
-	// Determine condition values based on readiness
-	conditionStatus := metav1.ConditionFalse
-	reason := status.NotReadyReason
-	message := status.GatewayNotReadyMessage
-
-	if ready {
-		conditionStatus = metav1.ConditionTrue
-		reason = status.ReadyReason
-		message = status.GatewayReadyMessage
+	if !gatewayReady {
+		// Gateway exists but not ready yet
+		rr.Conditions.MarkFalse(
+			ReadyConditionType,
+			conditions.WithReason(status.NotReadyReason),
+			conditions.WithMessage(status.GatewayNotReadyMessage),
+		)
+		return nil
 	}
 
-	conditions.SetStatusCondition(gatewayConfig, common.Condition{
-		Type:    status.ConditionTypeReady,
-		Status:  conditionStatus,
-		Reason:  reason,
-		Message: message,
-	})
+	// Gateway is ready - mark GatewayConfigReady as true if not already set to false
+	// (e.g., if createKubeAuthProxyInfrastructure set it to false due to missing OIDC config)
+	existingCondition := rr.Conditions.GetCondition(ReadyConditionType)
+	if existingCondition == nil || existingCondition.Status != metav1.ConditionFalse {
+		rr.Conditions.MarkTrue(
+			ReadyConditionType,
+			conditions.WithReason(status.ReadyReason),
+			conditions.WithMessage(status.GatewayReadyMessage),
+		)
+	}
 
 	return nil
 }
