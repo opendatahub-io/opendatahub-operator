@@ -304,6 +304,21 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		templateData["OIDCIssuerURL"] = gatewayConfig.Spec.OIDC.IssuerURL
 	}
 
+	// Add provider CA certificate configuration if specified
+	templateData["ProviderCASecret"] = false
+	if gatewayConfig.Spec.ProviderCASecretName != "" {
+		templateData["ProviderCASecret"] = true
+		templateData["ProviderCASecretName"] = gatewayConfig.Spec.ProviderCASecretName
+	}
+
+	// Add TLS verification setting (default to true for security)
+	verifyProviderCert := true
+	if gatewayConfig.Spec.VerifyProviderCertificate != nil {
+		verifyProviderCert = *gatewayConfig.Spec.VerifyProviderCertificate
+	}
+	// Template needs the inverse: insecure-skip-verify is the opposite of verify
+	templateData["InsecureSkipVerify"] = !verifyProviderCert
+
 	return templateData, nil
 }
 
