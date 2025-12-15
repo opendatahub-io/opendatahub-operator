@@ -2934,7 +2934,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `ingressMode` _[IngressMode](#ingressmode)_ | IngressMode specifies how the Gateway is exposed externally.<br />"OcpRoute" uses ClusterIP with standard OpenShift Routes (default for new deployments).<br />"LoadBalancer" uses a LoadBalancer service type (requires cloud or MetalLB). | OcpRoute | Enum: [OcpRoute LoadBalancer] <br /> |
+| `ingressMode` _[IngressMode](#ingressmode)_ | IngressMode specifies how the Gateway is exposed externally.<br />"OcpRoute" uses ClusterIP with standard OpenShift Routes (default for new deployments).<br />"LoadBalancer" uses a LoadBalancer service type (requires cloud or MetalLB). |  | Enum: [OcpRoute LoadBalancer] <br /> |
 | `oidc` _[OIDCConfig](#oidcconfig)_ | OIDC configuration (used when cluster is in OIDC authentication mode) |  |  |
 | `certificate` _[CertificateSpec](#certificatespec)_ | Certificate specifies configuration of the TLS certificate securing communication for the gateway. |  |  |
 | `domain` _string_ | Domain specifies the host name for intercepting incoming requests.<br />Most likely, you will want to use a wildcard name, like *.example.com.<br />If not set, the domain of the OpenShift Ingress is used.<br />If you choose to generate a certificate, this is the domain used for the certificate request.<br />Example: *.example.com, example.com, apps.example.com |  | Pattern: `^(\*\.)?([a-z0-9]([-a-z0-9]*[a-z0-9])?\.)*[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br /> |
