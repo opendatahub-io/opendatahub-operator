@@ -79,6 +79,7 @@ const (
 	ConditionTypeProvisioningSucceeded           = "ProvisioningSucceeded"
 	ConditionDeploymentsNotAvailableReason       = "DeploymentsNotReady"
 	ConditionDeploymentsAvailable                = "DeploymentsAvailable"
+	ConditionDependenciesAvailable               = "DependenciesAvailable"
 	ConditionArgoWorkflowAvailable               = "ArgoWorkflowAvailable"
 	ConditionTypeComponentsReady                 = "ComponentsReady"
 	ConditionMonitoringAvailable                 = "MonitoringAvailable"
@@ -180,6 +181,7 @@ To uninstall it, you should delete all RayClusters resources from the cluster, d
 // For JobSet operator checks.
 const (
 	JobSetOperatorNotInstalledMessage = "JobSet operator not installed, please install it first"
+	JobSetCRDMissingMessage           = "JobSet CRD does not exist, please create JobSetOperator CR to proceed"
 )
 
 // setConditions is a helper function to set multiple conditions at once.

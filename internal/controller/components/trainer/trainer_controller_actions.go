@@ -19,18 +19,29 @@ package trainer
 import (
 	"context"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
 func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	if found, err := cluster.OperatorExists(ctx, rr.Client, jobSetOperator); err != nil || !found {
+	if jobSetInfo, err := cluster.OperatorExists(ctx, rr.Client, jobSetOperator); err != nil || jobSetInfo == nil {
 		if err != nil {
 			return odherrors.NewStopErrorW(err)
 		}
 
 		return ErrJobSetOperatorNotInstalled
+	}
+
+	jobset, err := cluster.HasCRD(ctx, rr.Client, gvk.JobSetv1alpha2)
+	if err != nil {
+		return odherrors.NewStopError("failed to check %s CRDs version: %w", gvk.JobSetv1alpha2, err)
+	}
+
+	if !jobset {
+		return odherrors.NewStopError(status.JobSetCRDMissingMessage)
 	}
 
 	return nil

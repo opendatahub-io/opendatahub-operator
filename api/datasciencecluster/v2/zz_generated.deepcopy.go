@@ -39,6 +39,7 @@ func (in *Components) DeepCopyInto(out *Components) {
 	out.TrainingOperator = in.TrainingOperator
 	out.FeastOperator = in.FeastOperator
 	out.LlamaStackOperator = in.LlamaStackOperator
+	out.MLflowOperator = in.MLflowOperator
 	out.Trainer = in.Trainer
 }
 
@@ -66,6 +67,7 @@ func (in *ComponentsStatus) DeepCopyInto(out *ComponentsStatus) {
 	in.TrainingOperator.DeepCopyInto(&out.TrainingOperator)
 	in.FeastOperator.DeepCopyInto(&out.FeastOperator)
 	in.LlamaStackOperator.DeepCopyInto(&out.LlamaStackOperator)
+	in.MLflowOperator.DeepCopyInto(&out.MLflowOperator)
 	in.Trainer.DeepCopyInto(&out.Trainer)
 }
 

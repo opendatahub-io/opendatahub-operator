@@ -29,7 +29,7 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 	case operatorv1.Managed:
 		return ErrKueueStateManagedNotSupported
 	case operatorv1.Unmanaged:
-		if found, err := cluster.OperatorExists(ctx, rr.Client, kueueOperator); err != nil || !found {
+		if kueueInfo, err := cluster.OperatorExists(ctx, rr.Client, kueueOperator); err != nil || kueueInfo == nil {
 			if err != nil {
 				return odherrors.NewStopErrorW(err)
 			}

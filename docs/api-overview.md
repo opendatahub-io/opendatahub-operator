@@ -22,6 +22,7 @@ Package v1 contains API Schema definitions for the components v1 API group
 - [Kserve](#kserve)
 - [Kueue](#kueue)
 - [LlamaStackOperator](#llamastackoperator)
+- [MLflowOperator](#mlflowoperator)
 - [ModelController](#modelcontroller)
 - [ModelRegistry](#modelregistry)
 - [ModelsAsService](#modelsasservice)
@@ -252,6 +253,38 @@ DSCLlamaStackOperatorStatus struct holds the status for the LlamaStackOperator c
 
 _Appears in:_
 - [ComponentsStatus](#componentsstatus)
+- [ComponentsStatus](#componentsstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
+#### DSCMLflowOperator
+
+
+
+
+
+
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
+#### DSCMLflowOperatorStatus
+
+
+
+DSCMLflowOperatorStatus contains the observed state of the MLflowOperator exposed in the DSC instance
+
+
+
+_Appears in:_
 - [ComponentsStatus](#componentsstatus)
 
 | Field | Description | Default | Validation |
@@ -1034,6 +1067,90 @@ LlamaStackOperatorStatus defines the observed state of LlamaStackOperator
 
 _Appears in:_
 - [LlamaStackOperator](#llamastackoperator)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `conditions` _[Condition](#condition) array_ |  |  |  |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
+
+
+#### MLflowOperator
+
+
+
+MLflowOperator is the Schema for the MLflowOperators API
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
+| `kind` _string_ | `MLflowOperator` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[MLflowOperatorSpec](#mlflowoperatorspec)_ |  |  |  |
+| `status` _[MLflowOperatorStatus](#mlflowoperatorstatus)_ |  |  |  |
+
+
+#### MLflowOperatorCommonSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [DSCMLflowOperator](#dscmlflowoperator)
+- [MLflowOperatorSpec](#mlflowoperatorspec)
+
+
+
+#### MLflowOperatorCommonStatus
+
+
+
+MLflowOperatorCommonStatus defines the shared observed state of MLflowOperator
+
+
+
+_Appears in:_
+- [DSCMLflowOperatorStatus](#dscmlflowoperatorstatus)
+- [MLflowOperatorStatus](#mlflowoperatorstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
+
+
+#### MLflowOperatorSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [MLflowOperator](#mlflowoperator)
+
+
+
+#### MLflowOperatorStatus
+
+
+
+MLflowOperatorStatus defines the observed state of MLflowOperator
+
+
+
+_Appears in:_
+- [MLflowOperator](#mlflowoperator)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -1987,6 +2104,7 @@ _Appears in:_
 | `trainingoperator` _[DSCTrainingOperator](#dsctrainingoperator)_ | Training Operator component configuration. |  |  |
 | `feastoperator` _[DSCFeastOperator](#dscfeastoperator)_ | Feast Operator component configuration. |  |  |
 | `llamastackoperator` _[DSCLlamaStackOperator](#dscllamastackoperator)_ | LlamaStack Operator component configuration. |  |  |
+| `mlflowoperator` _[DSCMLflowOperator](#dscmlflowoperator)_ | MLflow Operator component configuration. |  |  |
 | `trainer` _[DSCTrainer](#dsctrainer)_ | Trainer component configuration. |  |  |
 
 
@@ -2014,6 +2132,7 @@ _Appears in:_
 | `trainingoperator` _[DSCTrainingOperatorStatus](#dsctrainingoperatorstatus)_ | Training Operator component status. |  |  |
 | `feastoperator` _[DSCFeastOperatorStatus](#dscfeastoperatorstatus)_ | Feast Operator component status. |  |  |
 | `llamastackoperator` _[DSCLlamaStackOperatorStatus](#dscllamastackoperatorstatus)_ | LlamaStack Operator component status. |  |  |
+| `mlflowoperator` _[DSCMLflowOperatorStatus](#dscmlflowoperatorstatus)_ | MLflow Operator component status. |  |  |
 | `trainer` _[DSCTrainerStatus](#dsctrainerstatus)_ | Trainer component status. |  |  |
 
 
@@ -2823,6 +2942,8 @@ _Appears in:_
 | `authTimeout` _string_ | AuthTimeout is the duration Envoy waits for auth proxy responses.<br />Requests timeout with 403 if exceeded.<br />Deprecated: Use AuthProxyTimeout instead. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br /> |
 | `authProxyTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#duration-v1-meta)_ | AuthProxyTimeout defines the timeout for external authorization service calls (e.g., "5s", "10s")<br />This controls how long Envoy waits for a response from the authentication proxy before timing out 403 response. |  |  |
 | `networkPolicy` _[NetworkPolicyConfig](#networkpolicyconfig)_ | NetworkPolicy configuration for kube-auth-proxy |  |  |
+| `providerCASecretName` _string_ | ProviderCASecretName is the name of the secret containing the CA certificate for the authentication provider<br />Used when the OAuth/OIDC provider uses a self-signed or custom CA certificate.<br />Secret must exist in the openshift-ingress namespace and contain a 'ca.crt' key with the PEM-encoded CA certificate. |  |  |
+| `verifyProviderCertificate` _boolean_ | VerifyProviderCertificate controls TLS certificate verification for the authentication provider.<br />When true (default), certificates are verified against the system trust store and providerCASecretName.<br />When false, certificate verification is disabled (development/testing only).<br />WARNING: Setting this to false disables security and should only be used in non-production environments.<br />For production use with self-signed certificates, use ProviderCASecretName instead. | true |  |
 
 
 #### GatewayConfigStatus
@@ -3039,7 +3160,7 @@ _Appears in:_
 
 
 
-TracesStorage defines the storage configuration for tracing.
+TracesStorage defines the storage configuration for tracing
 
 
 
@@ -3058,7 +3179,7 @@ _Appears in:_
 
 
 
-TracesTLS defines TLS configuration for traces collection
+TracesTLS defines TLS configuration for trace ingestion and query APIs
 
 
 
@@ -3067,7 +3188,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `enabled` _boolean_ | Enabled enables TLS for Tempo gRPC connections | true |  |
+| `enabled` _boolean_ | Enabled enables TLS for Tempo OTLP ingestion (gRPC/HTTP) and query APIs (HTTP)<br />TLS is disabled by default to maintain backward compatibility |  |  |
 | `certificateSecret` _string_ | CertificateSecret specifies the name of the secret containing TLS certificates<br />If not specified, OpenShift service serving certificates will be used |  |  |
 | `caConfigMap` _string_ | CAConfigMap specifies the name of the ConfigMap containing the CA certificate<br />Required for mutual TLS authentication |  |  |
 

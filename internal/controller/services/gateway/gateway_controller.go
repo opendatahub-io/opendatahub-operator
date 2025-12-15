@@ -43,7 +43,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 	}
 
 	gw.OwnsGVK(gvk.GatewayClass).
-		OwnsGVK(gvk.KubernetesGateway).
+		OwnsGVK(gvk.KubernetesGateway, reconciler.WithPredicates(resources.GatewayStatusChanged())).
 		OwnsGVK(gvk.Secret).
 		OwnsGVK(gvk.Service).
 		OwnsGVK(gvk.Deployment).
@@ -71,7 +71,8 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			deploy.WithCache(),
 		)).
 		WithAction(syncGatewayConfigStatus).
-		WithAction(gc.NewAction())
+		WithAction(gc.NewAction()).
+		WithConditions(ReadyConditionType)
 
 	if _, err := gw.Build(ctx); err != nil {
 		return fmt.Errorf("could not create the GatewayConfig controller: %w", err)

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -11,6 +12,64 @@ import (
 
 	. "github.com/onsi/gomega"
 )
+
+func TestExtractTypedConditionsSuccess(t *testing.T) {
+	t.Helper()
+	g := NewWithT(t)
+
+	obj := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"status": map[string]interface{}{
+				"conditions": []interface{}{
+					map[string]interface{}{
+						"type":    "Ready",
+						"status":  string(metav1.ConditionTrue),
+						"reason":  "OK",
+						"message": "All good",
+					},
+				},
+			},
+		},
+	}
+
+	conds, err := testf.ExtractTypedConditions(obj)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(conds).To(HaveLen(1))
+	g.Expect(conds[0].Type).To(Equal("Ready"))
+	g.Expect(conds[0].Status).To(Equal(metav1.ConditionTrue))
+	g.Expect(conds[0].Reason).To(Equal("OK"))
+	g.Expect(conds[0].Message).To(Equal("All good"))
+}
+
+func TestExtractTypedConditionsNotFound(t *testing.T) {
+	t.Helper()
+	g := NewWithT(t)
+
+	obj := &unstructured.Unstructured{
+		Object: map[string]interface{}{},
+	}
+
+	conds, err := testf.ExtractTypedConditions(obj)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(conds).To(BeEmpty())
+}
+
+func TestExtractTypedConditionsInvalidShape(t *testing.T) {
+	t.Helper()
+	g := NewWithT(t)
+
+	obj := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"status": map[string]interface{}{
+				"conditions": "oops",
+			},
+		},
+	}
+
+	conds, err := testf.ExtractTypedConditions(obj)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(conds).To(BeNil())
+}
 
 func TestTransform(t *testing.T) {
 	g := NewWithT(t)

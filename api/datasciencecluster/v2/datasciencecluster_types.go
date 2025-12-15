@@ -64,6 +64,9 @@ type Components struct {
 	// LlamaStack Operator component configuration.
 	LlamaStackOperator componentApi.DSCLlamaStackOperator `json:"llamastackoperator,omitempty"`
 
+	// MLflow Operator component configuration.
+	MLflowOperator componentApi.DSCMLflowOperator `json:"mlflowoperator,omitempty"`
+
 	// Trainer component configuration.
 	Trainer componentApi.DSCTrainer `json:"trainer,omitempty"`
 }
@@ -102,6 +105,9 @@ type ComponentsStatus struct {
 
 	// LlamaStack Operator component status.
 	LlamaStackOperator componentApi.DSCLlamaStackOperatorStatus `json:"llamastackoperator,omitempty"`
+
+	// MLflow Operator component status.
+	MLflowOperator componentApi.DSCMLflowOperatorStatus `json:"mlflowoperator,omitempty"`
 
 	// Trainer component status.
 	Trainer componentApi.DSCTrainerStatus `json:"trainer,omitempty"`

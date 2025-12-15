@@ -9,6 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -38,6 +39,10 @@ const (
 	KueueConfigMapName  = "kueue-manager-config"
 	KueueConfigMapEntry = "controller_manager_config.yaml"
 
+	kueueConditionDegraded             = "Degraded"
+	kueueConditionAvailable            = "Available"
+	kueueConditionCertManagerAvailable = "CertManagerAvailable"
+
 	NSListLimit = 500
 
 	// GPU resource keys.
@@ -52,6 +57,7 @@ const (
 var (
 	conditionTypes = []string{
 		status.ConditionDeploymentsAvailable,
+		status.ConditionDependenciesAvailable,
 	}
 
 	supportedGPUMap = map[string]string{
@@ -339,4 +345,17 @@ func getClusterResourceInfo(ctx context.Context, c client.Client) (ClusterResour
 	}
 
 	return info, nil
+}
+
+// kueueDegradedConditionFilter is used to filter condition that represent a degraded state in
+// the Kueue external operator.
+func kueueDegradedConditionFilter(condType, condStatus string) bool {
+	switch condType {
+	case kueueConditionDegraded:
+		return condStatus == string(metav1.ConditionTrue)
+	case kueueConditionAvailable, kueueConditionCertManagerAvailable:
+		return condStatus == string(metav1.ConditionFalse)
+	default:
+		return false
+	}
 }

@@ -1,0 +1,424 @@
+name: Security Full Codebase Scan
+
+# This workflow performs comprehensive security scanning on the ENTIRE codebase.
+# Complements CodeRabbit's PR incremental scanning with full repository validation.
+#
+# Trigger modes:
+# - Manual: workflow_dispatch (on-demand PoC testing)
+# - Scheduled: Weekly on Sundays at 00:00 UTC (optional baseline)
+# - On-demand: Can be triggered via GitHub UI or gh CLI
+
+on:
+  workflow_dispatch:  # Manual trigger via GitHub UI or gh CLI
+    inputs:
+      test_advisory:
+        description: 'Test security advisory creation (creates advisory even with no findings)'
+        required: false
+        type: boolean
+        default: false
+  schedule:
+    # Run weekly on Sunday at 00:00 UTC for baseline tracking
+    - cron: '0 0 * * 0'
+
+jobs:
+  security-scan:
+    name: Full Codebase Security Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write          # For SARIF upload
+      repository_advisories: write    # For creating security advisories
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
+        with:
+          fetch-depth: 0  # Full history for accurate analysis
+
+      # ============================================================================
+      # SECRETS DETECTION - Gitleaks (Pattern-based)
+      # ============================================================================
+      # Tool: Gitleaks v8.20.1
+      # Purpose: Detects hardcoded secrets using regex patterns (API keys, passwords, tokens)
+      # Coverage: ~100 built-in patterns for AWS, GitHub, Slack, etc.
+      # Mode: Pattern-based detection (fast, some false positives possible)
+      # Complement: TruffleHog provides verified credential detection below
+      #
+      # Docker Image Pinning:
+      # - Git tag: v8.20.1
+      # - Docker digest: sha256:6d6f122ae3b429f4341de88b71672e8d8699c7a98f14f7a66f0d87178b3ac765
+      # - Why digest?: Immutable reference, prevents tag retargeting attacks
+      # - Verification: docker inspect ghcr.io/gitleaks/gitleaks:v8.20.1 --format='{{.RepoDigests}}'
+
+      - name: Run Gitleaks secrets scanner
+        id: gitleaks
+        timeout-minutes: 10
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/repo" \
+            -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+            ghcr.io/gitleaks/gitleaks@sha256:6d6f122ae3b429f4341de88b71672e8d8699c7a98f14f7a66f0d87178b3ac765 \
+            detect \
+              --source /repo \
+              --report-format json \
+              --report-path /repo/gitleaks.json \
+              --verbose
+        continue-on-error: true  # Don't block workflow, collect all findings
+
+      # ============================================================================
+      # SECRETS DETECTION - TruffleHog (Verified Credentials)
+      # ============================================================================
+      # Tool: TruffleHog v3.91.1
+      # Purpose: Detects AND verifies live credentials by testing them against APIs
+      # Coverage: 800+ credential types with API verification
+      # Mode: Verified detection (slower, near-zero false positives)
+      # Benefit: Confirms credentials are active/exploitable, not just pattern matches
+      # Note: Only runs in full scans (not CodeRabbit PRs) due to API call overhead
+      #
+      # Docker Image Pinning:
+      # - Git tag: 3.91.1
+      # - Docker digest: sha256:3fd838267a315d0b21c1823ba12e6df8f4f9fa917244b1860bb702a808ef918f
+      # - Why digest?: Immutable reference, prevents tag retargeting attacks
+      # - Verification: docker inspect trufflesecurity/trufflehog:3.91.1 --format='{{.RepoDigests}}'
+
+      - name: Run TruffleHog secrets scanner
+        id: trufflehog
+        timeout-minutes: 10
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/repo" \
+            trufflesecurity/trufflehog@sha256:3fd838267a315d0b21c1823ba12e6df8f4f9fa917244b1860bb702a808ef918f \
+            filesystem /repo \
+              --only-verified \
+              --json > trufflehog.json
+        continue-on-error: true  # Don't block workflow, collect all findings
+
+      # ============================================================================
+      # CUSTOM SECURITY RULES - Semgrep
+      # ============================================================================
+      # Tool: Semgrep v1.144.0
+      # Purpose: Custom SAST rules for RBAC, OWASP, Kubernetes operator patterns
+      # Coverage: 27 operator-focused rules (11 RBAC, excludes SQL/command injection)
+      # Config: semgrep.yaml in repository root
+      # Output: SARIF format for GitHub Security tab integration
+      #
+      # Docker Image Pinning:
+      # - Git tag: v1.144.0 → Git commit 906aec8af7ec18ee090183e2eaf762bb9bbb56f2
+      # - Docker digest: sha256:10301f060aacf84078f9704fb1ba3a321df4ac46b009fd29c1c66880d1db8e77
+      # - Why digest?: Immutable reference, prevents Docker Hub tag retargeting attacks
+      # - Verification: podman inspect semgrep/semgrep:1.144.0 --format='{{.RepoDigests}}'
+
+      - name: Run Semgrep security analysis
+        id: semgrep
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/src" \
+            -e SEMGREP_TIMEOUT=300 \
+            semgrep/semgrep@sha256:10301f060aacf84078f9704fb1ba3a321df4ac46b009fd29c1c66880d1db8e77 \
+            semgrep scan \
+              --config /src/semgrep.yaml \
+              --sarif \
+              --output /src/semgrep.sarif \
+              /src
+        continue-on-error: true
+
+      - name: Upload Semgrep SARIF results
+        if: always() && hashFiles('semgrep.sarif') != ''
+        uses: github/codeql-action/upload-sarif@ce729e4d353d580e6cacd6a8cf2921b72e5e310a  # codeql-bundle-v2.23.6
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+      # ============================================================================
+      # SHELL SCRIPT SECURITY - ShellCheck
+      # ============================================================================
+      # Tool: ShellCheck v0.10.0
+      # Purpose: Static analysis for shell scripts (bash, sh)
+      # Detects: Quoting issues, command injection, dangerous patterns
+      # Coverage: All .sh files in repository
+      # Common findings: Unquoted variables, missing error handling, SC2086, SC2046
+      # OWASP: Prevents CWE-78 (OS Command Injection)
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Run ShellCheck
+        id: shellcheck
+        run: |
+          # Find all shell scripts and run shellcheck, outputting JSON
+          find . -name "*.sh" -type f -print0 | \
+            xargs -0 shellcheck --format=json --severity=warning > shellcheck.json
+        continue-on-error: true
+
+      # ============================================================================
+      # DOCKERFILE SECURITY - Hadolint
+      # ============================================================================
+      # Tool: Hadolint v3.3.0
+      # Purpose: Dockerfile linter enforcing best practices
+      # Detects: Secrets in ENV, unpinned base images, running as root
+      # Coverage: All Dockerfile* files (including Dockerfile.dev, etc.)
+      # Standards: Enforces Docker best practices and CIS Benchmark recommendations
+      # Output: SARIF format for GitHub Security tab integration
+
+      - name: Run Hadolint on Dockerfiles
+        id: hadolint
+        uses: hadolint/hadolint-action@2332a7b74a6de0dda2e2221d575162eba76ba5e5  # v3.3.0
+        with:
+          recursive: true
+          format: sarif
+          output-file: hadolint.sarif
+        continue-on-error: true
+
+      - name: Upload Hadolint SARIF results
+        if: always() && hashFiles('hadolint.sarif') != ''
+        uses: github/codeql-action/upload-sarif@ce729e4d353d580e6cacd6a8cf2921b72e5e310a  # codeql-bundle-v2.23.6
+        with:
+          sarif_file: hadolint.sarif
+          category: hadolint
+
+      # ============================================================================
+      # YAML VALIDATION - yamllint
+      # ============================================================================
+      # Tool: yamllint v3.1.1
+      # Purpose: Validates YAML syntax and style for Kubernetes manifests
+      # Detects: Syntax errors, inconsistent indentation, line length violations
+      # Config: .yamllint (strict truthy checking: yes/no/true/false enforcement)
+      # Coverage: All .yaml and .yml files (manifests, workflows, configs)
+      # Benefit: Catches deployment-breaking YAML errors before runtime
+
+      - name: Run yamllint
+        id: yamllint
+        uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c  # v3.1.1
+        with:
+          file_or_dir: .
+          config_file: .yamllint
+          format: github
+          strict: false
+        continue-on-error: true
+
+      # ============================================================================
+      # RBAC PRIVILEGE CHAIN ANALYSIS - Custom Script
+      # ============================================================================
+      # Tool: Custom Python analyzer (.github/scripts/rbac-analyzer.py)
+      # Purpose: Maps privilege escalation chains in Kubernetes RBAC
+      # Analysis: ClusterRole → RoleBinding → ServiceAccount → Pod relationships
+      # Detects:
+      #   - Dangerous verbs (escalate, impersonate, bind)
+      #   - Dangerous resources (secrets, pods/exec, pods/attach)
+      #   - Wildcard permissions (*, resources/verbs)
+      #   - Escalation combos (create/patch/update on roles/bindings)
+      #   - Pods with cluster-admin access
+      #   - RoleBinding → ClusterRole misuse (namespace privilege escalation)
+      # Output: Structured findings with CRITICAL/HIGH/WARNING/INFO severity
+      # Exit codes: Configurable via --fail-on (default: CRITICAL for PoC)
+      # Exclusions: test, examples, docs, bin, .github/workflows
+      #
+      # Why custom?: No existing tool maps full Pod→SA→Role privilege chains
+      # Complement: Semgrep catches individual RBAC issues, this finds relationships
+
+      - name: Setup Python for RBAC Analysis
+        uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548  # v6.1.0
+        with:
+          python-version: '3.11'
+
+      - name: Install PyYAML for RBAC analyzer
+        run: python -m pip install "pyyaml==6.0.3"
+
+      - name: Run RBAC Privilege Chain Analyzer
+        id: rbac_analyzer
+        run: |
+          python .github/scripts/rbac-analyzer.py . 2>&1 | tee rbac-analysis.txt
+          echo "## 🔐 RBAC Privilege Chain Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          cat rbac-analysis.txt >> $GITHUB_STEP_SUMMARY
+        continue-on-error: true
+
+      - name: Upload RBAC analysis report
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5.0.0
+        with:
+          name: rbac-analysis-report
+          path: rbac-analysis.txt
+          retention-days: 30
+
+      # ============================================================================
+      # COMPREHENSIVE SECURITY REPORT GENERATION
+      # ============================================================================
+      # Tool: Custom Python report generator (.github/scripts/generate-security-report.py)
+      # Purpose: Aggregates all tool outputs into a unified markdown report
+      # Inputs: JSON/SARIF from all tools (Gitleaks, TruffleHog, Semgrep, etc.)
+      # Output: Comprehensive markdown report with:
+      #   - Executive summary with overall security posture
+      #   - Findings organized by severity (CRITICAL/HIGH/MEDIUM/LOW/INFO)
+      #   - File paths, line numbers, descriptions, remediation guidance
+      #   - RBAC privilege chain analysis inclusion
+      #   - Prioritized recommendations
+      # Format: Markdown suitable for security review and JIRA attachments
+      # Artifact: Uploaded with org-configured retention period
+
+      - name: Generate comprehensive security report
+        if: always()
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: |
+          python .github/scripts/generate-security-report.py \
+            --output security-report.md \
+            --workspace .
+          echo "## 📊 Comprehensive Security Report Generated" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "A detailed security report has been generated and uploaded as an artifact." >> $GITHUB_STEP_SUMMARY
+          echo "Download it from the workflow artifacts section for full details." >> $GITHUB_STEP_SUMMARY
+        continue-on-error: true
+
+      - name: Upload comprehensive security report
+        if: always() && hashFiles('security-report.md') != ''
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5.0.0
+        with:
+          name: comprehensive-security-report
+          path: security-report.md
+          retention-days: 90
+
+      # ============================================================================
+      # DETERMINE ADVISORY SEVERITY
+      # ============================================================================
+      # Dynamically determine security advisory severity based on actual findings
+      # in the comprehensive security report, rather than using hardcoded 'high'.
+
+      - name: Determine advisory severity
+        if: always() && hashFiles('security-report.md') != ''
+        id: severity
+        run: |
+          # Check comprehensive report for critical/high findings
+          if grep -q '🔴 CRITICAL' security-report.md || grep -q 'Critical:' security-report.md; then
+            echo "severity=critical" >> $GITHUB_OUTPUT
+            echo "📊 Detected CRITICAL findings - advisory severity: critical"
+          elif grep -q '🟠 HIGH' security-report.md || grep -q 'High:' security-report.md; then
+            echo "severity=high" >> $GITHUB_OUTPUT
+            echo "📊 Detected HIGH findings - advisory severity: high"
+          elif grep -q '🟡 MEDIUM' security-report.md || grep -q 'Medium:' security-report.md; then
+            echo "severity=moderate" >> $GITHUB_OUTPUT
+            echo "📊 Detected MEDIUM findings - advisory severity: moderate"
+          else
+            echo "severity=low" >> $GITHUB_OUTPUT
+            echo "📊 No high-severity findings - advisory severity: low"
+          fi
+        continue-on-error: true
+
+      # ============================================================================
+      # AGGREGATE RESULTS
+      # ============================================================================
+
+      - name: Generate security scan summary
+        if: always()
+        env:
+          GITLEAKS_OUTCOME: ${{ steps.gitleaks.outcome }}
+          TRUFFLEHOG_OUTCOME: ${{ steps.trufflehog.outcome }}
+          SEMGREP_OUTCOME: ${{ steps.semgrep.outcome }}
+          SHELLCHECK_OUTCOME: ${{ steps.shellcheck.outcome }}
+          HADOLINT_OUTCOME: ${{ steps.hadolint.outcome }}
+          YAMLLINT_OUTCOME: ${{ steps.yamllint.outcome }}
+          RBAC_OUTCOME: ${{ steps.rbac_analyzer.outcome }}
+        run: |
+          # Enhanced status function with more detail
+          status_icon() {
+            case "$1" in
+              success) echo "✅" ;;
+              failure) echo "❌" ;;
+              cancelled) echo "🚫" ;;
+              skipped) echo "⏭️" ;;
+              *) echo "❓" ;;
+            esac
+          }
+
+          status_text() {
+            case "$1" in
+              success) echo "Passed" ;;
+              failure) echo "Failed/Findings" ;;
+              cancelled) echo "Cancelled" ;;
+              skipped) echo "Skipped" ;;
+              *) echo "Unknown" ;;
+            esac
+          }
+
+          echo "## 🔒 Security Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Tool | Purpose | Status | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|---------|--------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Gitleaks | Secrets detection (pattern-based) | $(status_icon "$GITLEAKS_OUTCOME") | $(status_text "$GITLEAKS_OUTCOME") |" >> $GITHUB_STEP_SUMMARY
+          echo "| TruffleHog | Secrets detection (verified, 800+ types) | $(status_icon "$TRUFFLEHOG_OUTCOME") | $(status_text "$TRUFFLEHOG_OUTCOME") |" >> $GITHUB_STEP_SUMMARY
+          echo "| Semgrep | Custom security rules (27 operator-focused) | $(status_icon "$SEMGREP_OUTCOME") | $(status_text "$SEMGREP_OUTCOME") |" >> $GITHUB_STEP_SUMMARY
+          echo "| ShellCheck | Shell script security | $(status_icon "$SHELLCHECK_OUTCOME") | $(status_text "$SHELLCHECK_OUTCOME") |" >> $GITHUB_STEP_SUMMARY
+          echo "| Hadolint | Dockerfile security | $(status_icon "$HADOLINT_OUTCOME") | $(status_text "$HADOLINT_OUTCOME") |" >> $GITHUB_STEP_SUMMARY
+          echo "| yamllint | YAML validation | $(status_icon "$YAMLLINT_OUTCOME") | $(status_text "$YAMLLINT_OUTCOME") |" >> $GITHUB_STEP_SUMMARY
+          echo "| RBAC Analyzer | Privilege chain analysis | $(status_icon "$RBAC_OUTCOME") | $(status_text "$RBAC_OUTCOME") |" >> $GITHUB_STEP_SUMMARY
+
+          # Overall status
+          if [[ "$GITLEAKS_OUTCOME" == "success" ]] && \
+             [[ "$TRUFFLEHOG_OUTCOME" == "success" ]] && \
+             [[ "$SEMGREP_OUTCOME" == "success" ]] && \
+             [[ "$SHELLCHECK_OUTCOME" == "success" ]] && \
+             [[ "$HADOLINT_OUTCOME" == "success" ]] && \
+             [[ "$YAMLLINT_OUTCOME" == "success" ]] && \
+             [[ "$RBAC_OUTCOME" == "success" ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **All security scans passed**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ **Some security scans failed or found issues - review required**" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      # ============================================================================
+      # CREATE SECURITY ADVISORY ON CRITICAL FINDINGS
+      # ============================================================================
+      # Only triggered by actual security tools, not linters like yamllint.
+      # Severity is determined dynamically from the comprehensive security report.
+
+      - name: Create private security advisory on critical findings
+        if: |
+          inputs.test_advisory == true ||
+          steps.gitleaks.outcome == 'failure' ||
+          steps.trufflehog.outcome == 'failure' ||
+          steps.semgrep.outcome == 'failure' ||
+          steps.shellcheck.outcome == 'failure' ||
+          steps.hadolint.outcome == 'failure' ||
+          steps.rbac_analyzer.outcome == 'failure'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8
+        with:
+          script: |
+            await github.rest.securityAdvisories.createRepositoryAdvisory({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              summary: 'Security Full Scan - Critical Findings Detected',
+              description: `## Critical Security Issues Detected
+
+              The full codebase security scan has detected critical issues.
+
+              **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              **Commit:** ${{ github.sha }}
+              **Branch:** ${{ github.ref_name }}
+
+              ### Next Steps
+              1. Review the workflow run logs at the link above
+              2. Download the **comprehensive-security-report** artifact for detailed findings
+              3. Check the Security tab for SARIF results (Semgrep, Hadolint)
+              4. Review individual tool artifacts (gitleaks.json, trufflehog.json, etc.)
+              5. Triage and remediate findings
+
+              ### Report Contents
+              The comprehensive security report includes:
+              - Executive summary with overall security posture
+              - Critical/High/Medium/Low findings with file paths and line numbers
+              - Remediation guidance for each finding
+              - RBAC privilege chain analysis
+              - Prioritized recommendations
+
+              This is an automated private security advisory created by the security scanning workflow.
+              It will remain private until manually published.`,
+              severity: '${{ steps.severity.outputs.severity || 'high' }}'
+            })

@@ -1,13 +1,13 @@
-name: Sync Main Branch Into Rhoai Branch
+name: Sync Stable Branch Into Rhoai Branch
 
 on:
   schedule:
-    # Run every 2 hours
-    - cron: '0 */2 * * *'
+    # Run every 2 hours, on the half hour
+    - cron: '30 */2 * * *'
   workflow_dispatch: # Allow manual triggering
 
 jobs:
-  sync_main_into_rhoai:
+  sync_stable_into_rhoai:
     runs-on: ubuntu-latest
     steps:
       - name: Generate GitHub App Token
@@ -33,9 +33,9 @@ jobs:
           ref: rhoai
           token: ${{ steps.generate-token.outputs.token }}
 
-      - name: Update main commits into rhoai
-        id: update_main_into_rhoai
+      - name: Update stable commits into rhoai
+        id: update_stable_into_rhoai
         run: |
-          git fetch origin main rhoai
-          git merge origin/main
+          git fetch origin stable rhoai
+          git merge origin/stable
           git push origin rhoai

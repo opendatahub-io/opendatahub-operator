@@ -17,8 +17,9 @@ limitations under the License.
 package v1
 
 import (
-	operatorv1 "github.com/openshift/api/operator/v1"
 	"strings"
+
+	operatorv1 "github.com/openshift/api/operator/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -122,6 +123,11 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 			},
 			FeastOperator:      c.Spec.Components.FeastOperator,
 			LlamaStackOperator: c.Spec.Components.LlamaStackOperator,
+			MLflowOperator: componentApi.DSCMLflowOperator{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Removed,
+				},
+			},
 		},
 	}
 
@@ -152,6 +158,11 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 			},
 			FeastOperator:      c.Status.Components.FeastOperator,
 			LlamaStackOperator: c.Status.Components.LlamaStackOperator,
+			MLflowOperator: componentApi.DSCMLflowOperatorStatus{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Removed,
+				},
+			},
 		},
 		Release: c.Status.Release,
 	}

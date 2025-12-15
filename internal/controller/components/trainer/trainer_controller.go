@@ -28,6 +28,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
@@ -35,6 +36,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -58,8 +60,22 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithPredicates(
 				component.ForLabel(labels.ODH.Component(ComponentName), labels.True)),
 		).
+		WatchesGVK(gvk.JobSetOperatorV1,
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.TrainerInstanceName),
+			),
+			reconciler.WithPredicates(
+				dependent.New(dependent.WithWatchStatus(true)),
+			),
+			reconciler.Dynamic(reconciler.CrdExists(gvk.JobSetOperatorV1))).
 		WithAction(checkPreConditions).
 		WithAction(initialize).
+		WithAction(dependency.NewAction(
+			dependency.MonitorOperator(dependency.OperatorConfig{
+				OperatorGVK: gvk.JobSetOperatorV1,
+				Filter:      jobSetConditionFilter,
+			}),
+		)).
 		WithAction(releases.NewAction()).
 		WithAction(kustomize.NewAction()).
 		WithAction(deploy.NewAction(

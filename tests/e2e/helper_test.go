@@ -63,10 +63,13 @@ const (
 	leaderWorkerSetOpName       = "leader-worker-set"                        // Name of the Leader Worker Set Operator
 	leaderWorkerSetNamespace    = "openshift-lws-operator"                   // Namespace for the Leader Worker Set Operator
 	leaderWorkerSetChannel      = "stable-v1.0"                              // Channel for the Leader Worker Set Operator
+	kueueOcpOperatorNamespace   = "openshift-kueue-operator"                 // Namespace for the OCP Kueue Operator
+	kueueOcpOperatorChannel     = "stable-v1.1"                              // Channel for the OCP Kueue Operator
 	kuadrantOpName              = "rhcl-operator"                            // Name of the Red Hat Connectivity Link Operator subscription.
 	kuadrantNamespace           = "kuadrant-system"                          // Namespace for the Red Hat Connectivity Link Operator.
 	dashboardRouteNameODH       = "odh-dashboard"                            // Name of the ODH dashboard route
 	dashboardRouteNameRhoai     = "rhods-dashboard"                          // Name of the Rhoai dashboard route
+
 )
 
 // Configuration and Miscellaneous Constants.
@@ -262,6 +265,11 @@ func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceClust
 						ManagementState: operatorv1.Removed,
 					},
 				},
+				MLflowOperator: componentApi.DSCMLflowOperator{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
 			},
 		},
 	}
@@ -400,6 +408,23 @@ func CreateHardwareProfile(name, namespace, apiVersion string) *unstructured.Uns
 	}
 
 	return hwProfile
+}
+
+// CreateJobSetOperator creates a JobSetOperator CR.
+func CreateJobSetOperator() *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "operator.openshift.io/v1",
+			"kind":       "JobSetOperator",
+			"metadata": map[string]interface{}{
+				"name": "cluster",
+			},
+			"spec": map[string]interface{}{
+				"logLevel":         "Normal",
+				"operatorLogLevel": "Normal",
+			},
+		},
+	}
 }
 
 // CreateNamespaceWithLabels creates a namespace manifest with optional labels for use with WithObjectToCreate.

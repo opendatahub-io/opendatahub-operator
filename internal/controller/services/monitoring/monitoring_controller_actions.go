@@ -46,6 +46,8 @@ const (
 	PersesTempoDashboardTemplate                  = "resources/perses-tempo-dashboard.tmpl.yaml"
 	PersesDatasourcePrometheusTemplate            = "resources/perses-datasource-prometheus.tmpl.yaml"
 	PrometheusClusterProxyTemplate                = "resources/data-science-prometheus-cluster-proxy.tmpl.yaml"
+	TempoServiceCAConfigMapTemplate               = "resources/tempo-service-ca-configmap.tmpl.yaml"
+	PersesOperatorAccessNetworkPolicyTemplate     = "resources/perses-operator-access-network-policy.tmpl.yaml"
 
 	// Resource names.
 	PersesTempoDatasourceName = "tempo-datasource"
@@ -477,6 +479,10 @@ func deployPerses(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 			FS:   resourcesFS,
 			Path: PersesTemplate,
 		},
+		{
+			FS:   resourcesFS,
+			Path: PersesOperatorAccessNetworkPolicyTemplate,
+		},
 	}
 	rr.Templates = append(rr.Templates, template...)
 
@@ -557,6 +563,10 @@ func deployPersesTempoIntegration(ctx context.Context, rr *odhtypes.Reconciliati
 		{
 			FS:   resourcesFS,
 			Path: PersesTempoDatasourceTemplate,
+		},
+		{
+			FS:   resourcesFS,
+			Path: TempoServiceCAConfigMapTemplate,
 		},
 	}
 

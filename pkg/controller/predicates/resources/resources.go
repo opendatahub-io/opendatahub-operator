@@ -211,3 +211,24 @@ func GatewayCertificateSecret(isGatewayCertFn func(obj client.Object) bool) pred
 		},
 	}
 }
+
+// GatewayStatusChanged returns a predicate that watches for Gateway status changes.
+// This is used to trigger GatewayConfig reconciliation when the underlying Gateway
+// becomes Accepted/Programmed, ensuring GatewayConfig status stays in sync with Gateway readiness.
+func GatewayStatusChanged() predicate.Predicate {
+	return predicate.Funcs{
+		CreateFunc: func(e event.TypedCreateEvent[client.Object]) bool {
+			return false
+		},
+		UpdateFunc: func(e event.TypedUpdateEvent[client.Object]) bool {
+			// Only trigger on status changes, not spec changes
+			// Status changes have different resourceVersion but same generation
+			return e.ObjectOld.GetResourceVersion() != e.ObjectNew.GetResourceVersion() &&
+				e.ObjectOld.GetGeneration() == e.ObjectNew.GetGeneration()
+		},
+		DeleteFunc: func(e event.TypedDeleteEvent[client.Object]) bool {
+			// Trigger reconciliation when Gateway is deleted to update GatewayConfig status
+			return true
+		},
+	}
+}

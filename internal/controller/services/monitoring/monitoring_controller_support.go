@@ -215,17 +215,33 @@ func addTracesTemplateData(templateData map[string]any, traces *serviceApi.Trace
 	// Add retention for all backends (both TempoMonolithic and TempoStack)
 	templateData["TracesRetention"] = traces.Storage.Retention.Duration.String()
 
+	// Determine TLS enabled state for query endpoints (reuses existing TLS configuration)
+	tlsEnabled := determineTLSEnabled(traces)
+	templateData["TempoTLSEnabled"] = tlsEnabled
+
+	// Set TLS certificate configuration
+	if tlsEnabled {
+		// traces.TLS is guaranteed non-nil here since determineTLSEnabled returns false when TLS is nil
+		templateData["TempoCertificateSecret"] = traces.TLS.CertificateSecret
+		templateData["TempoCAConfigMap"] = traces.TLS.CAConfigMap
+	} else {
+		// Set empty values to avoid template missing key errors
+		templateData["TempoCertificateSecret"] = ""
+		templateData["TempoCAConfigMap"] = ""
+	}
+
 	// Add tempo-related data from traces.Storage fields (Storage is a struct, not a pointer)
+	// Note: Gateway endpoints always use HTTPS (service-ca auto-provisions TLS)
 	switch traces.Storage.Backend {
-	case "pv":
+	case serviceApi.StorageBackendPV:
 		templateData["TempoEndpoint"] = fmt.Sprintf("tempo-data-science-tempomonolithic.%s.svc.cluster.local:4317", namespace)
-		// Perses datasource needs HTTP query endpoint (port 3200)
-		templateData["TempoQueryEndpoint"] = fmt.Sprintf("http://tempo-data-science-tempomonolithic.%s.svc.cluster.local:3200", namespace)
+		// Perses datasource query endpoint via gateway (port 8080) - always uses HTTPS (gateway is HTTPS-only)
+		templateData["TempoQueryEndpoint"] = fmt.Sprintf("https://tempo-data-science-tempomonolithic-gateway.%s.svc.cluster.local:8080", namespace)
 		templateData["Size"] = traces.Storage.Size
-	case "s3", "gcs":
+	case serviceApi.StorageBackendS3, serviceApi.StorageBackendGCS:
 		templateData["TempoEndpoint"] = fmt.Sprintf("tempo-data-science-tempostack-gateway.%s.svc.cluster.local:4317", namespace)
-		// Perses datasource needs HTTP query endpoint via gateway (port 8080)
-		templateData["TempoQueryEndpoint"] = fmt.Sprintf("http://tempo-data-science-tempostack-gateway.%s.svc.cluster.local:8080", namespace)
+		// Perses datasource query endpoint via gateway (port 8080) - always uses HTTPS (gateway is HTTPS-only)
+		templateData["TempoQueryEndpoint"] = fmt.Sprintf("https://tempo-data-science-tempostack-gateway.%s.svc.cluster.local:8080", namespace)
 		templateData["Secret"] = traces.Storage.Secret
 	}
 
@@ -328,7 +344,6 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 
 	// Add traces-related data if traces are configured
 	if traces := monitoring.Spec.Traces; traces != nil {
-		addTracesData(traces, monitoring.Spec.Namespace, templateData)
 		if err := addTracesTemplateData(templateData, traces, monitoring.Spec.Namespace); err != nil {
 			return nil, err
 		}
@@ -371,7 +386,7 @@ func checkMonitoringPreconditions(ctx context.Context, rr *odhtypes.Reconciliati
 
 	// Check for opentelemetry-product operator if either metrics or traces are enabled
 	if monitoring.Spec.Metrics != nil || monitoring.Spec.Traces != nil {
-		if found, err := cluster.OperatorExists(ctx, rr.Client, opentelemetryOperator); err != nil || !found {
+		if openTelemetryInfo, err := cluster.OperatorExists(ctx, rr.Client, opentelemetryOperator); err != nil || openTelemetryInfo == nil {
 			if err != nil {
 				return odherrors.NewStopErrorW(err)
 			}
@@ -381,7 +396,7 @@ func checkMonitoringPreconditions(ctx context.Context, rr *odhtypes.Reconciliati
 
 	// Check for cluster-observability-operator if metrics are enabled
 	if monitoring.Spec.Metrics != nil {
-		if found, err := cluster.OperatorExists(ctx, rr.Client, clusterObservabilityOperator); err != nil || !found {
+		if clusterObservabilityOperatorInfo, err := cluster.OperatorExists(ctx, rr.Client, clusterObservabilityOperator); err != nil || clusterObservabilityOperatorInfo == nil {
 			if err != nil {
 				return odherrors.NewStopErrorW(err)
 			}
@@ -391,7 +406,7 @@ func checkMonitoringPreconditions(ctx context.Context, rr *odhtypes.Reconciliati
 
 	// Check for tempo-product operator if traces are enabled
 	if monitoring.Spec.Traces != nil {
-		if found, err := cluster.OperatorExists(ctx, rr.Client, tempoOperator); err != nil || !found {
+		if tempoOperatorInfo, err := cluster.OperatorExists(ctx, rr.Client, tempoOperator); err != nil || tempoOperatorInfo == nil {
 			if err != nil {
 				return odherrors.NewStopErrorW(err)
 			}
@@ -538,48 +553,15 @@ func addExportersData(metrics *serviceApi.Metrics, templateData map[string]any) 
 	return nil
 }
 
-// addTracesData adds traces configuration data to the template data map.
-func addTracesData(traces *serviceApi.Traces, namespace string, templateData map[string]any) {
-	templateData["OtlpEndpoint"] = fmt.Sprintf("http://data-science-collector.%s.svc.cluster.local:4317", namespace)
-	templateData["SampleRatio"] = traces.SampleRatio
-	templateData["Backend"] = traces.Storage.Backend // backend has default "pv" set in API
-
-	tlsEnabled := determineTLSEnabled(traces)
-	templateData["TempoTLSEnabled"] = tlsEnabled
-
-	if tlsEnabled && traces.TLS != nil {
-		templateData["TempoCertificateSecret"] = traces.TLS.CertificateSecret
-		templateData["TempoCAConfigMap"] = traces.TLS.CAConfigMap
-	} else {
-		// Set empty values to avoid template missing key errors
-		templateData["TempoCertificateSecret"] = ""
-		templateData["TempoCAConfigMap"] = ""
-	}
-
-	templateData["TracesRetention"] = traces.Storage.Retention.Duration.String()
-
-	setTempoEndpointAndStorageData(traces, namespace, templateData)
-}
-
 // determineTLSEnabled determines if TLS should be enabled for traces.
+// TLS must be explicitly enabled via traces.TLS.Enabled field.
+// Default is false to avoid Tempo operator certificate provisioning issues.
 func determineTLSEnabled(traces *serviceApi.Traces) bool {
 	if traces.TLS != nil {
 		return traces.TLS.Enabled
 	}
-	return traces.Storage.Backend == "pv"
-}
-
-// setTempoEndpointAndStorageData sets the tempo endpoint and storage-specific data.
-func setTempoEndpointAndStorageData(traces *serviceApi.Traces, namespace string, templateData map[string]any) {
-	switch traces.Storage.Backend {
-	case "pv":
-		templateData["TempoEndpoint"] = fmt.Sprintf("tempo-data-science-tempomonolithic.%s.svc.cluster.local:4317", namespace)
-		templateData["Size"] = traces.Storage.Size
-	case "s3", "gcs":
-		// Always use gateway endpoint for S3/GCS backends (required for OpenShift mode)
-		templateData["TempoEndpoint"] = fmt.Sprintf("tempo-data-science-tempostack-gateway.%s.svc.cluster.local:4317", namespace)
-		templateData["Secret"] = traces.Storage.Secret
-	}
+	// Default to false - user must explicitly enable TLS
+	return false
 }
 
 // getResourceValueOrDefault returns the resource value or a default if empty or zero.
