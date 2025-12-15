@@ -1,0 +1,20 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{.GatewayName}}
+  namespace: {{.GatewayNamespace}}
+  labels:
+    {{.PartOfLabelKey}}: {{.PartOfGatewayConfig}}
+  annotations:
+    router.openshift.io/service-ca-certificate: "true"
+spec:
+  host: {{.GatewayHostname}}
+  to:
+    kind: Service
+    name: {{.GatewayServiceName}}
+    weight: 100
+  port:
+    targetPort: {{.StandardHTTPSPort}}
+  tls:
+    termination: reencrypt
+    insecureEdgeTerminationPolicy: Redirect
