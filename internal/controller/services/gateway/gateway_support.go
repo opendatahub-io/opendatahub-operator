@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
@@ -65,6 +66,12 @@ const (
 	// Secret configuration.
 	DefaultGatewayTLSSecretName = "data-science-gatewayconfig-tls"
 
+	// Gateway infrastructure configuration.
+	GatewayInfraConfigMapName   = "data-science-gateway-config"
+	GatewayServiceTLSSecretName = "data-science-gateway-service-tls"
+	IstioRevisionLabel          = "istio.io/rev"
+	IstioRevisionValue          = "openshift-gateway"
+
 	// Environment variable names for OAuth2 proxy.
 	EnvClientID     = "OAUTH2_PROXY_CLIENT_ID"
 	EnvClientSecret = "OAUTH2_PROXY_CLIENT_SECRET" //nolint:gosec // This is an environment variable name, not a secret
@@ -84,6 +91,7 @@ const (
 	kubeAuthProxyServiceTemplate         = "resources/kube-auth-proxy-svc.tmpl.yaml"
 	kubeAuthProxyHTTPRouteTemplate       = "resources/kube-auth-proxy-httproute.tmpl.yaml"
 	networkPolicyTemplate                = "resources/kube-auth-proxy-networkpolicy.yaml"
+	ocpRouteTemplate                     = "resources/gateway-ocp-route.tmpl.yaml"
 )
 
 // GetFQDN returns the fully qualified domain name for the gateway based on the GatewayConfig.
@@ -218,18 +226,30 @@ func createGatewayClass(rr *odhtypes.ReconciliationRequest) error {
 	return rr.AddResources(gatewayClass)
 }
 
-func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, domain string) error {
+func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, domain string, ingressMode serviceApi.IngressMode) error {
 	listeners := []gwapiv1.Listener{}
 
 	if certSecretName != "" {
-		allowedNamespaces := gwapiv1.NamespacesFromSelector
 		httpsMode := gwapiv1.TLSModeTerminate
-		hostname := gwapiv1.Hostname(domain)
+		allowedNamespaces := gwapiv1.NamespacesFromSelector
+
+		namespaceSelector := &metav1.LabelSelector{
+			MatchExpressions: []metav1.LabelSelectorRequirement{
+				{
+					Key:      "kubernetes.io/metadata.name",
+					Operator: metav1.LabelSelectorOpIn,
+					Values: []string{
+						GatewayNamespace,
+						cluster.GetApplicationNamespace(),
+					},
+				},
+			},
+		}
+
 		httpsListener := gwapiv1.Listener{
 			Name:     "https",
 			Protocol: gwapiv1.HTTPSProtocolType,
 			Port:     StandardHTTPSPort,
-			Hostname: &hostname,
 			TLS: &gwapiv1.GatewayTLSConfig{
 				Mode: &httpsMode,
 				CertificateRefs: []gwapiv1.SecretObjectReference{
@@ -240,22 +260,17 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 			},
 			AllowedRoutes: &gwapiv1.AllowedRoutes{
 				Namespaces: &gwapiv1.RouteNamespaces{
-					From: &allowedNamespaces,
-					Selector: &metav1.LabelSelector{
-						MatchExpressions: []metav1.LabelSelectorRequirement{
-							{
-								Key:      "kubernetes.io/metadata.name",
-								Operator: metav1.LabelSelectorOpIn,
-								Values: []string{
-									GatewayNamespace,
-									cluster.GetApplicationNamespace(),
-								},
-							},
-						},
-					},
+					From:     &allowedNamespaces,
+					Selector: namespaceSelector,
 				},
 			},
 		}
+
+		if ingressMode != serviceApi.IngressModeOcpRoute {
+			hostname := gwapiv1.Hostname(domain)
+			httpsListener.Hostname = &hostname
+		}
+
 		listeners = append(listeners, httpsListener)
 	}
 
@@ -263,6 +278,9 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      DefaultGatewayName,
 			Namespace: GatewayNamespace,
+			Labels: map[string]string{
+				IstioRevisionLabel: IstioRevisionValue,
+			},
 		},
 		Spec: gwapiv1.GatewaySpec{
 			GatewayClassName: GatewayClassName,
@@ -270,7 +288,50 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 		},
 	}
 
+	if ingressMode == serviceApi.IngressModeOcpRoute {
+		if err := configureClusterIPInfrastructure(rr, gateway); err != nil {
+			return err
+		}
+	}
+
 	return rr.AddResources(gateway)
+}
+
+// configureClusterIPInfrastructure creates a ConfigMap for ClusterIP service configuration
+// and sets the Gateway's infrastructure reference.
+func configureClusterIPInfrastructure(rr *odhtypes.ReconciliationRequest, gateway *gwapiv1.Gateway) error {
+	serviceConfig := fmt.Sprintf(`metadata:
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: "%s"
+spec:
+  type: ClusterIP
+`, GatewayServiceTLSSecretName)
+
+	infraConfigMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      GatewayInfraConfigMapName,
+			Namespace: GatewayNamespace,
+			Labels: map[string]string{
+				labels.PlatformPartOf: PartOfGatewayConfig,
+			},
+		},
+		Data: map[string]string{
+			"service": serviceConfig,
+		},
+	}
+	if err := rr.AddResources(infraConfigMap); err != nil {
+		return err
+	}
+
+	gateway.Spec.Infrastructure = &gwapiv1.GatewayInfrastructure{
+		ParametersRef: &gwapiv1.LocalParametersReference{
+			Group: "",
+			Kind:  "ConfigMap",
+			Name:  GatewayInfraConfigMapName,
+		},
+	}
+
+	return nil
 }
 
 // createOAuthClient creates an OpenShift OAuth client for integrated authentication.
@@ -490,4 +551,86 @@ func getAuthProxySecretValues(
 	}
 
 	return clientID, clientSecretValue, cookieSecretGen.Value, nil
+}
+
+// detectAndSetIngressMode detects the ingress mode from an existing Gateway Service and updates
+// the GatewayConfig to match. This preserves existing Gateway configuration when ingressMode is unset.
+func detectAndSetIngressMode(ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig) error {
+	l := logf.FromContext(ctx).WithName("detectAndSetIngressMode")
+
+	svc := &corev1.Service{}
+	err := rr.Client.Get(ctx, client.ObjectKey{
+		Name:      GatewayServiceFullName,
+		Namespace: GatewayNamespace,
+	}, svc)
+
+	if k8serr.IsNotFound(err) {
+		gatewayConfig.Spec.IngressMode = serviceApi.IngressModeOcpRoute
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to get Gateway Service: %w", err)
+	}
+
+	var detectedMode serviceApi.IngressMode
+	if svc.Spec.Type == corev1.ServiceTypeLoadBalancer {
+		detectedMode = serviceApi.IngressModeLoadBalancer
+	} else {
+		detectedMode = serviceApi.IngressModeOcpRoute
+	}
+
+	l.Info("Detected ingress mode from existing Gateway Service", "mode", detectedMode)
+
+	gatewayConfig.Spec.IngressMode = detectedMode
+
+	if err := rr.Client.Update(ctx, gatewayConfig); err != nil {
+		return fmt.Errorf("failed to update GatewayConfig with detected mode: %w", err)
+	}
+
+	return nil
+}
+
+// reconcileGatewayForModeChange deletes the Gateway if its configuration doesn't match
+// the desired ingress mode. SSA won't remove fields like hostname, so we force recreation.
+func reconcileGatewayForModeChange(ctx context.Context, rr *odhtypes.ReconciliationRequest, desiredMode serviceApi.IngressMode) error {
+	l := logf.FromContext(ctx).WithName("reconcileGatewayForModeChange")
+
+	gateway := &gwapiv1.Gateway{}
+	err := rr.Client.Get(ctx, client.ObjectKey{
+		Name:      DefaultGatewayName,
+		Namespace: GatewayNamespace,
+	}, gateway)
+
+	if k8serr.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to get Gateway: %w", err)
+	}
+
+	// OcpRoute: no hostname, has infrastructure
+	// LoadBalancer: has hostname, no infrastructure
+	var hasHostname bool
+	for _, listener := range gateway.Spec.Listeners {
+		if listener.Name == "https" && listener.Hostname != nil {
+			hasHostname = true
+			break
+		}
+	}
+	hasInfrastructure := gateway.Spec.Infrastructure != nil
+
+	wantsHostname := desiredMode == serviceApi.IngressModeLoadBalancer
+	wantsInfrastructure := desiredMode == serviceApi.IngressModeOcpRoute
+
+	if hasHostname == wantsHostname && hasInfrastructure == wantsInfrastructure {
+		return nil
+	}
+
+	l.Info("Deleting Gateway for ingress mode change", "desiredMode", desiredMode)
+	if err := rr.Client.Delete(ctx, gateway); err != nil {
+		return fmt.Errorf("failed to delete Gateway: %w", err)
+	}
+
+	// Return error to requeue and let the Gateway fully terminate before recreating
+	return errors.New("gateway deleted for mode change, requeuing to recreate")
 }
