@@ -553,6 +553,43 @@ func getAuthProxySecretValues(
 	return clientID, clientSecretValue, cookieSecretGen.Value, nil
 }
 
+// detectAndSetIngressMode detects the ingress mode from an existing Gateway Service and updates
+// the GatewayConfig to match. This preserves existing Gateway configuration when ingressMode is unset.
+func detectAndSetIngressMode(ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig) error {
+	l := logf.FromContext(ctx).WithName("detectAndSetIngressMode")
+
+	svc := &corev1.Service{}
+	err := rr.Client.Get(ctx, client.ObjectKey{
+		Name:      GatewayServiceFullName,
+		Namespace: GatewayNamespace,
+	}, svc)
+
+	if k8serr.IsNotFound(err) {
+		gatewayConfig.Spec.IngressMode = serviceApi.IngressModeOcpRoute
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to get Gateway Service: %w", err)
+	}
+
+	var detectedMode serviceApi.IngressMode
+	if svc.Spec.Type == corev1.ServiceTypeLoadBalancer {
+		detectedMode = serviceApi.IngressModeLoadBalancer
+	} else {
+		detectedMode = serviceApi.IngressModeOcpRoute
+	}
+
+	l.Info("Detected ingress mode from existing Gateway Service", "mode", detectedMode)
+
+	gatewayConfig.Spec.IngressMode = detectedMode
+
+	if err := rr.Client.Update(ctx, gatewayConfig); err != nil {
+		return fmt.Errorf("failed to update GatewayConfig with detected mode: %w", err)
+	}
+
+	return nil
+}
+
 // reconcileGatewayForModeChange deletes the Gateway if its configuration doesn't match
 // the desired ingress mode. SSA won't remove fields like hostname, so we force recreation.
 func reconcileGatewayForModeChange(ctx context.Context, rr *odhtypes.ReconciliationRequest, desiredMode serviceApi.IngressMode) error {
@@ -594,5 +631,6 @@ func reconcileGatewayForModeChange(ctx context.Context, rr *odhtypes.Reconciliat
 		return fmt.Errorf("failed to delete Gateway: %w", err)
 	}
 
-	return nil
+	// Return error to requeue and let the Gateway fully terminate before recreating
+	return errors.New("gateway deleted for mode change, requeuing to recreate")
 }

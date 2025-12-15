@@ -53,7 +53,6 @@ type GatewayConfigSpec struct {
 	// "OcpRoute" uses ClusterIP with standard OpenShift Routes (default for new deployments).
 	// "LoadBalancer" uses a LoadBalancer service type (requires cloud or MetalLB).
 	// +optional
-	// +kubebuilder:default=OcpRoute
 	IngressMode IngressMode `json:"ingressMode,omitempty"`
 
 	// OIDC configuration (used when cluster is in OIDC authentication mode)

@@ -49,6 +49,12 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 	}
 	l.V(1).Info("Creating Gateway infrastructure", "gateway", gatewayConfig.Name)
 
+	if gatewayConfig.Spec.IngressMode == "" {
+		if err := detectAndSetIngressMode(ctx, rr, gatewayConfig); err != nil {
+			return fmt.Errorf("failed to detect ingress mode: %w", err)
+		}
+	}
+
 	hostname, err := GetFQDN(ctx, rr.Client, gatewayConfig)
 	if err != nil {
 		return fmt.Errorf("failed to resolve domain: %w", err)
