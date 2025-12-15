@@ -30,7 +30,7 @@ spec:
       managementState: "Managed"
       registriesNamespace: "rhoai-model-registries"
     feastoperator:
-      managementState: "Removed"
+      managementState: "Managed"
     llamastackoperator:
       managementState: "Removed"
     mlflowoperator:
