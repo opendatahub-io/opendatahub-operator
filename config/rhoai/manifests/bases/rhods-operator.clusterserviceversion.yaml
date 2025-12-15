@@ -39,7 +39,7 @@ metadata:
               "managementState": "Managed"
             },
             "feastoperator": {
-              "managementState": "Removed"
+              "managementState": "Managed"
             },
             "kserve": {
               "managementState": "Managed"
