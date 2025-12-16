@@ -49,21 +49,39 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 	}
 	l.V(1).Info("Creating Gateway infrastructure", "gateway", gatewayConfig.Name)
 
+	if gatewayConfig.Spec.IngressMode == "" {
+		if err := detectAndSetIngressMode(ctx, rr, gatewayConfig); err != nil {
+			return fmt.Errorf("failed to detect ingress mode: %w", err)
+		}
+	}
+
 	hostname, err := GetFQDN(ctx, rr.Client, gatewayConfig)
 	if err != nil {
 		return fmt.Errorf("failed to resolve domain: %w", err)
+	}
+
+	// Handle ingress mode changes by deleting Gateway if configuration doesn't match.
+	// This is necessary because SSA doesn't remove fields that are omitted from the desired object.
+	if err := reconcileGatewayForModeChange(ctx, rr, gatewayConfig.Spec.IngressMode); err != nil {
+		return fmt.Errorf("failed to reconcile Gateway for mode change: %w", err)
 	}
 
 	if err := createGatewayClass(rr); err != nil {
 		return fmt.Errorf("failed to create GatewayClass: %w", err)
 	}
 
-	certSecretName, err := handleCertificates(ctx, rr, gatewayConfig, hostname)
-	if err != nil {
-		return fmt.Errorf("failed to handle certificates: %w", err)
+	var certSecretName string
+	if gatewayConfig.Spec.IngressMode == serviceApi.IngressModeOcpRoute {
+		certSecretName = GatewayServiceTLSSecretName
+		l.V(1).Info("Using service-CA generated certificate for OcpRoute mode", "secretName", certSecretName)
+	} else {
+		certSecretName, err = handleCertificates(ctx, rr, gatewayConfig, hostname)
+		if err != nil {
+			return fmt.Errorf("failed to handle certificates: %w", err)
+		}
 	}
 
-	if err := createGateway(rr, certSecretName, hostname); err != nil {
+	if err := createGateway(rr, certSecretName, hostname, gatewayConfig.Spec.IngressMode); err != nil {
 		return fmt.Errorf("failed to create Gateway: %w", err)
 	}
 
@@ -276,6 +294,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"GatewayName":              DefaultGatewayName,
 		"GatewayClassName":         GatewayClassName,
 		"GatewayHostname":          hostname,
+		"GatewayServiceName":       GatewayServiceFullName,
 		"KubeAuthProxyServiceName": KubeAuthProxyName,
 		"KubeAuthProxySecretsName": KubeAuthProxySecretsName,
 		"KubeAuthProxyTLSName":     KubeAuthProxyTLSName,
@@ -300,6 +319,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"ComponentLabelValue":      ComponentLabelValue,
 		"PartOfLabelKey":           labels.K8SCommon.PartOf,
 		"PartOfLabelValue":         PartOfLabelValue,
+		"PartOfGatewayConfig":      PartOfGatewayConfig,
 		"GatewayNameLabelKey":      labels.GatewayAPI.GatewayName,
 	}
 

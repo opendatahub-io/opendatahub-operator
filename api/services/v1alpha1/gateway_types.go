@@ -31,11 +31,30 @@ const (
 	GatewayConfigKind = "GatewayConfig"
 )
 
+// IngressMode defines how the Gateway exposes its endpoints externally.
+// +kubebuilder:validation:Enum=OcpRoute;LoadBalancer
+type IngressMode string
+
+const (
+	// IngressModeOcpRoute uses ClusterIP service with standard OpenShift Routes.
+	// This is the default for new deployments and works without additional infrastructure.
+	IngressModeOcpRoute IngressMode = "OcpRoute"
+	// IngressModeLoadBalancer uses a LoadBalancer service type.
+	// This requires a load balancer provider (cloud or MetalLB).
+	IngressModeLoadBalancer IngressMode = "LoadBalancer"
+)
+
 // Check that the component implements common.PlatformObject.
 var _ common.PlatformObject = (*GatewayConfig)(nil)
 
 // GatewayConfigSpec defines the desired state of GatewayConfig
 type GatewayConfigSpec struct {
+	// IngressMode specifies how the Gateway is exposed externally.
+	// "OcpRoute" uses ClusterIP with standard OpenShift Routes (default for new deployments).
+	// "LoadBalancer" uses a LoadBalancer service type (requires cloud or MetalLB).
+	// +optional
+	IngressMode IngressMode `json:"ingressMode,omitempty"`
+
 	// OIDC configuration (used when cluster is in OIDC authentication mode)
 	// +optional
 	OIDC *OIDCConfig `json:"oidc,omitempty"`

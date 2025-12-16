@@ -27,7 +27,6 @@ jobs:
     permissions:
       contents: read
       security-events: write          # For SARIF upload
-      repository_advisories: write    # For creating security advisories
 
     steps:
       - name: Checkout repository
@@ -376,20 +375,43 @@ jobs:
       # ============================================================================
       # CREATE SECURITY ADVISORY ON CRITICAL FINDINGS
       # ============================================================================
-      # Only triggered by actual security tools, not linters like yamllint.
+      # Only triggered by critical security tools (secrets detection, SAST, RBAC analysis).
+      # Excluded: linters (yamllint, shellcheck, hadolint) - these flag style/best-practices.
       # Severity is determined dynamically from the comprehensive security report.
+      #
+      # GitHub App Authentication:
+      # - Requires a GitHub App with repository_advisories:write permission
+      # - GITHUB_TOKEN does not support the repository_advisories permission scope
+      # - App credentials (App ID and Private Key) must be stored as repository secrets
+      # - Uses continue-on-error to allow workflow to complete even if secrets are missing
 
-      - name: Create private security advisory on critical findings
+      - name: Generate GitHub App token
         if: |
           inputs.test_advisory == true ||
           steps.gitleaks.outcome == 'failure' ||
           steps.trufflehog.outcome == 'failure' ||
           steps.semgrep.outcome == 'failure' ||
-          steps.shellcheck.outcome == 'failure' ||
-          steps.hadolint.outcome == 'failure' ||
           steps.rbac_analyzer.outcome == 'failure'
+        id: app_token
+        continue-on-error: true
+        uses: actions/create-github-app-token@5d869da34e18e7287c1daad50e0b8ea0f506ce69  # v1.11.0
+        with:
+          app-id: ${{ secrets.SECURITY_APP_ID }}
+          private-key: ${{ secrets.SECURITY_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+
+      - name: Create private security advisory on critical findings
+        if: |
+          steps.app_token.outcome == 'success' &&
+          (inputs.test_advisory == true ||
+           steps.gitleaks.outcome == 'failure' ||
+           steps.trufflehog.outcome == 'failure' ||
+           steps.semgrep.outcome == 'failure' ||
+           steps.rbac_analyzer.outcome == 'failure')
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8
         with:
+          github-token: ${{ steps.app_token.outputs.token }}
           script: |
             await github.rest.securityAdvisories.createRepositoryAdvisory({
               owner: context.repo.owner,
@@ -420,5 +442,13 @@ jobs:
 
               This is an automated private security advisory created by the security scanning workflow.
               It will remain private until manually published.`,
-              severity: '${{ steps.severity.outputs.severity || 'high' }}'
+              severity: '${{ steps.severity.outputs.severity || 'high' }}',
+              vulnerabilities: [{
+                package: {
+                  ecosystem: 'other',
+                  name: 'opendatahub-operator'
+                },
+                vulnerable_version_range: 'all versions',
+                patched_versions: 'none'
+              }]
             })
