@@ -1,5 +1,29 @@
 const { getLatestCommitSha } = require('./manifest-utils');
 
+/**
+ * Convert image name to RELATED_IMAGE_* env var name using convention:
+ * - Uppercase
+ * - Replace hyphens with underscores
+ * - Prefix: RELATED_IMAGE_ODH_
+ * - Suffix: _IMAGE (unless already ends with _IMAGE)
+ *
+ * Examples:
+ *   kube-auth-proxy → RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
+ *   foo-image       → RELATED_IMAGE_ODH_FOO_IMAGE (no duplication)
+ */
+function imageNameToEnvVar(imageName) {
+    const normalized = imageName
+        .toUpperCase()
+        .replace(/[-]/g, '_');
+
+    // Avoid duplication if image name already ends with _IMAGE
+    if (normalized.endsWith('_IMAGE')) {
+        return `RELATED_IMAGE_ODH_${normalized}`;
+    }
+
+    return `RELATED_IMAGE_ODH_${normalized}_IMAGE`;
+}
+
 module.exports = async ({ github, core }) => {
     const { TRACKER_URL } = process.env
     console.log(`The tracker url is: ${TRACKER_URL}`)
@@ -75,6 +99,39 @@ module.exports = async ({ github, core }) => {
                         core.exportVariable("component_sha_" + normalizedName, commitSha);
                         console.log(`Set SHA for ${trimmedComponentName}: ${commitSha.substring(0, 8)}`);
                     }
+                }
+            }
+
+            // Parse #Images# section for operator-level images
+            if (issueCommentBody.includes("#Images#")) {
+                console.log("Found #Images# section in tracker comment");
+
+                const imagesIdx = lines.indexOf("#Images#");
+                const imageLines = lines.slice(imagesIdx + 1);
+                const imageRegex = /\s*([A-Za-z0-9\-_]+)\s*\|\s*([a-z0-9.\-]+(?::[0-9]+)?\/[a-zA-Z0-9_.\-\/]+:[a-zA-Z0-9_.\-]+)\s*/;
+
+                for (const imageLine of imageLines) {
+                    if (!imageRegex.test(imageLine)) {
+                        // Stop processing when we hit a line that doesn't match
+                        // (likely end of #Images# section or empty line)
+                        if (imageLine.trim() !== "") {
+                            break;
+                        }
+                        continue;
+                    }
+
+                    const match = imageLine.match(imageRegex);
+                    const imageName = match[1].trim();
+                    const imageReference = match[2].trim();
+
+                    console.log(`Processing operator image: ${imageName} -> ${imageReference}`);
+
+                    // Convert image name to env var name using convention
+                    const envVarName = imageNameToEnvVar(imageName);
+
+                    // Export the env var
+                    core.exportVariable(envVarName, imageReference);
+                    console.log(`  ✓ Exported ${envVarName}=${imageReference}`);
                 }
             }
         }
