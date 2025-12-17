@@ -65,6 +65,8 @@ spec:
             value: /opt/manifests
           - name: ODH_PLATFORM_TYPE
             value: OpenDataHub
+          - name: RELATED_IMAGE_KUBE_AUTH_PROXY_IMAGE
+            value: quay.io/opendatahub/odh-kube-auth-proxy:v3.2.0
         args:
         - --leader-elect
         - --operator-name=opendatahub
