@@ -16,6 +16,11 @@ on:
         required: false
         type: boolean
         default: false
+      scan_git_history:
+        description: 'Scan full git history for secrets (slower, may find secrets in deleted files)'
+        required: false
+        type: boolean
+        default: false
   schedule:
     # Run weekly on Sunday at 00:00 UTC for baseline tracking
     - cron: '0 0 * * 0'
@@ -30,7 +35,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3  # v6.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
         with:
           fetch-depth: 0  # Full history for accurate analysis
 
@@ -41,24 +46,34 @@ jobs:
       # Purpose: Detects hardcoded secrets using regex patterns (API keys, passwords, tokens)
       # Coverage: ~100 built-in patterns for AWS, GitHub, Slack, etc.
       # Mode: Pattern-based detection (fast, some false positives possible)
-      # Complement: TruffleHog provides verified credential detection below
+      # Scope: By default scans current working tree only (--no-git flag)
+      #        Set scan_git_history=true to scan full git history (slower, finds historical secrets)
+      # Security Trade-off:
+      #   - --no-git (default): Fast, low noise, but blind to secrets in deleted commits (CWE-312)
+      #   - Full history: Comprehensive, finds all historical secrets, but includes false positives
+      #   - Recommendation: Use --no-git for weekly scans, full history for incident response
+      # Complement: TruffleHog scans full git history with credential verification
       #
       # Docker Image Pinning:
-      # - Git tag: v8.20.1
-      # - Docker digest: sha256:6d6f122ae3b429f4341de88b71672e8d8699c7a98f14f7a66f0d87178b3ac765
+      # - Git tag: v8.30.0
+      # - Docker digest (linux/amd64): sha256:105ac66a57b2bb8afb61a3b8a5dcc4817773d03724a7e8a515214cfe58225556
       # - Why digest?: Immutable reference, prevents tag retargeting attacks
-      # - Verification: docker inspect ghcr.io/gitleaks/gitleaks:v8.20.1 --format='{{.RepoDigests}}'
+      # - Verification: docker pull --platform linux/amd64 ghcr.io/gitleaks/gitleaks:v8.30.0 && docker inspect ghcr.io/gitleaks/gitleaks:v8.30.0 --format='{{.RepoDigests}}'
 
       - name: Run Gitleaks secrets scanner
         id: gitleaks
         timeout-minutes: 10
         run: |
+          # Conditionally add --no-git flag based on workflow input
+          NO_GIT_FLAG="${{ inputs.scan_git_history == 'false' && '--no-git' || '' }}"
+
           docker run --rm \
             -v "${{ github.workspace }}:/repo" \
             -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
-            ghcr.io/gitleaks/gitleaks@sha256:6d6f122ae3b429f4341de88b71672e8d8699c7a98f14f7a66f0d87178b3ac765 \
+            ghcr.io/gitleaks/gitleaks@sha256:105ac66a57b2bb8afb61a3b8a5dcc4817773d03724a7e8a515214cfe58225556 \
             detect \
               --source /repo \
+              $NO_GIT_FLAG \
               --report-format json \
               --report-path /repo/gitleaks.json \
               --verbose
@@ -75,10 +90,11 @@ jobs:
       # Note: Only runs in full scans (not CodeRabbit PRs) due to API call overhead
       #
       # Docker Image Pinning:
-      # - Git tag: 3.91.1
-      # - Docker digest: sha256:3fd838267a315d0b21c1823ba12e6df8f4f9fa917244b1860bb702a808ef918f
+      # - Git tag: 3.92.3
+      # - Docker digest (linux/amd64): sha256:e42f126628f0a0ce4ee670bf62b71543eca5a3a2d3c590ff361091b841ac39c1
       # - Why digest?: Immutable reference, prevents tag retargeting attacks
-      # - Verification: docker inspect trufflesecurity/trufflehog:3.91.1 --format='{{.RepoDigests}}'
+      # - Source: https://github.com/trufflesecurity/trufflehog/pkgs/container/trufflehog
+      # - Verification: docker run --rm ghcr.io/trufflesecurity/trufflehog@sha256:e42f126628f0a0ce4ee670bf62b71543eca5a3a2d3c590ff361091b841ac39c1 --version
 
       - name: Run TruffleHog secrets scanner
         id: trufflehog
@@ -86,7 +102,7 @@ jobs:
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/repo" \
-            trufflesecurity/trufflehog@sha256:3fd838267a315d0b21c1823ba12e6df8f4f9fa917244b1860bb702a808ef918f \
+            ghcr.io/trufflesecurity/trufflehog@sha256:e42f126628f0a0ce4ee670bf62b71543eca5a3a2d3c590ff361091b841ac39c1 \
             filesystem /repo \
               --only-verified \
               --json > trufflehog.json
@@ -102,10 +118,10 @@ jobs:
       # Output: SARIF format for GitHub Security tab integration
       #
       # Docker Image Pinning:
-      # - Git tag: v1.144.0 → Git commit 906aec8af7ec18ee090183e2eaf762bb9bbb56f2
-      # - Docker digest: sha256:10301f060aacf84078f9704fb1ba3a321df4ac46b009fd29c1c66880d1db8e77
+      # - Git tag: v1.145.0
+      # - Docker digest (linux/amd64): sha256:1f0850c540140c6da68811b21012fd26e91e5323daae245b0a71e70b72a89d2a
       # - Why digest?: Immutable reference, prevents Docker Hub tag retargeting attacks
-      # - Verification: podman inspect semgrep/semgrep:1.144.0 --format='{{.RepoDigests}}'
+      # - Verification: podman manifest inspect semgrep/semgrep:1.145.0 | jq -r '.manifests[] | select(.platform.architecture=="amd64") | .digest'
 
       - name: Run Semgrep security analysis
         id: semgrep
@@ -113,7 +129,7 @@ jobs:
           docker run --rm \
             -v "${{ github.workspace }}:/src" \
             -e SEMGREP_TIMEOUT=300 \
-            semgrep/semgrep@sha256:10301f060aacf84078f9704fb1ba3a321df4ac46b009fd29c1c66880d1db8e77 \
+            semgrep/semgrep@sha256:1f0850c540140c6da68811b21012fd26e91e5323daae245b0a71e70b72a89d2a \
             semgrep scan \
               --config /src/semgrep.yaml \
               --sarif \
@@ -123,7 +139,7 @@ jobs:
 
       - name: Upload Semgrep SARIF results
         if: always() && hashFiles('semgrep.sarif') != ''
-        uses: github/codeql-action/upload-sarif@ce729e4d353d580e6cacd6a8cf2921b72e5e310a  # codeql-bundle-v2.23.6
+        uses: github/codeql-action/upload-sarif@1b168cd39490f61582a9beae412bb7057a6b2c4e  # v4.31.8
         with:
           sarif_file: semgrep.sarif
           category: semgrep
@@ -172,7 +188,7 @@ jobs:
 
       - name: Upload Hadolint SARIF results
         if: always() && hashFiles('hadolint.sarif') != ''
-        uses: github/codeql-action/upload-sarif@ce729e4d353d580e6cacd6a8cf2921b72e5e310a  # codeql-bundle-v2.23.6
+        uses: github/codeql-action/upload-sarif@1b168cd39490f61582a9beae412bb7057a6b2c4e  # v4.31.8
         with:
           sarif_file: hadolint.sarif
           category: hadolint
@@ -186,15 +202,17 @@ jobs:
       # Config: .yamllint (strict truthy checking: yes/no/true/false enforcement)
       # Coverage: All .yaml and .yml files (manifests, workflows, configs)
       # Benefit: Catches deployment-breaking YAML errors before runtime
+      # Output: JSON format for consistent failure detection and parsing
+
+      - name: Install yamllint
+        run: |
+          python -m pip install --upgrade pip
+          pip install yamllint==1.35.1
 
       - name: Run yamllint
         id: yamllint
-        uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c  # v3.1.1
-        with:
-          file_or_dir: .
-          config_file: .yamllint
-          format: github
-          strict: false
+        run: |
+          yamllint -f json . > yamllint.json || true
         continue-on-error: true
 
       # ============================================================================
@@ -211,7 +229,7 @@ jobs:
       #   - Pods with cluster-admin access
       #   - RoleBinding → ClusterRole misuse (namespace privilege escalation)
       # Output: Structured findings with CRITICAL/HIGH/WARNING/INFO severity
-      # Exit codes: Configurable via --fail-on (default: CRITICAL for PoC)
+      # Exit codes: Configurable via --fail-on (production: HIGH, fails on HIGH+ findings)
       # Exclusions: test, examples, docs, bin, .github/workflows
       #
       # Why custom?: No existing tool maps full Pod→SA→Role privilege chains
@@ -228,15 +246,17 @@ jobs:
       - name: Run RBAC Privilege Chain Analyzer
         id: rbac_analyzer
         run: |
-          python .github/scripts/rbac-analyzer.py . 2>&1 | tee rbac-analysis.txt
+          python .github/scripts/rbac-analyzer.py . --fail-on HIGH 2>&1 | tee rbac-analysis.txt
           echo "## 🔐 RBAC Privilege Chain Analysis" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           cat rbac-analysis.txt >> $GITHUB_STEP_SUMMARY
         continue-on-error: true
 
+      # Note: actions/upload-artifact v6.0.0 requires Node.js 24 (Actions Runner 2.327.1+)
+      # GitHub-hosted runners (ubuntu-latest) are automatically updated and meet this requirement
       - name: Upload RBAC analysis report
         if: always()
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5.0.0
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
         with:
           name: rbac-analysis-report
           path: rbac-analysis.txt
@@ -268,8 +288,9 @@ jobs:
         run: |
           python .github/scripts/generate-security-report.py \
             --output security-report.md \
+            --json-summary security-summary.json \
             --workspace .
-          echo "## 📊 Comprehensive Security Report Generated" >> $GITHUB_STEP_SUMMARY
+          echo "## Comprehensive Security Report Generated" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "A detailed security report has been generated and uploaded as an artifact." >> $GITHUB_STEP_SUMMARY
           echo "Download it from the workflow artifacts section for full details." >> $GITHUB_STEP_SUMMARY
@@ -277,10 +298,12 @@ jobs:
 
       - name: Upload comprehensive security report
         if: always() && hashFiles('security-report.md') != ''
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5.0.0
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
         with:
           name: comprehensive-security-report
-          path: security-report.md
+          path: |
+            security-report.md
+            security-summary.json
           retention-days: 90
 
       # ============================================================================
@@ -324,40 +347,130 @@ jobs:
           YAMLLINT_OUTCOME: ${{ steps.yamllint.outcome }}
           RBAC_OUTCOME: ${{ steps.rbac_analyzer.outcome }}
         run: |
-          # Enhanced status function with more detail
-          status_icon() {
-            case "$1" in
-              success) echo "✅" ;;
-              failure) echo "❌" ;;
-              cancelled) echo "🚫" ;;
-              skipped) echo "⏭️" ;;
-              *) echo "❓" ;;
-            esac
+          # Function to extract severity summary from JSON (robust parsing with jq)
+          get_severity_badge() {
+            local tool_name="$1"
+            local json_file="security-summary.json"
+
+            if [[ ! -f "$json_file" ]]; then
+              echo ""
+              return
+            fi
+
+            # Extract severity counts from JSON using jq
+            local critical=$(jq -r ".tools[\"$tool_name\"].critical // 0" "$json_file")
+            local high=$(jq -r ".tools[\"$tool_name\"].high // 0" "$json_file")
+            local medium=$(jq -r ".tools[\"$tool_name\"].medium // 0" "$json_file")
+            local low=$(jq -r ".tools[\"$tool_name\"].low // 0" "$json_file")
+            local total=$(jq -r ".tools[\"$tool_name\"].total // 0" "$json_file")
+
+            if [[ "$total" == "0" ]]; then
+              echo ""
+              return
+            fi
+
+            # Build severity summary with non-zero counts
+            local summary=""
+            [[ $critical -gt 0 ]] && summary="${summary}🔴 Critical: $critical "
+            [[ $high -gt 0 ]] && summary="${summary}🟠 High: $high "
+            [[ $medium -gt 0 ]] && summary="${summary}🟡 Medium: $medium "
+            [[ $low -gt 0 ]] && summary="${summary}🔵 Low: $low "
+
+            # Trim trailing space
+            summary="${summary% }"
+
+            # Fallback: if no severity breakdown, just show total
+            if [[ -z "$summary" ]]; then
+              summary="$total issues"
+            fi
+
+            echo "<br/>$summary"
           }
 
-          status_text() {
-            case "$1" in
-              success) echo "Passed" ;;
-              failure) echo "Failed/Findings" ;;
-              cancelled) echo "Cancelled" ;;
-              skipped) echo "Skipped" ;;
-              *) echo "Unknown" ;;
-            esac
+          # Function to determine status based on outcome and output file validity
+          get_status() {
+            local outcome="$1"
+            local output_file="$2"
+
+            if [[ "$outcome" == "success" ]]; then
+              echo "✅|Passed"
+            elif [[ "$outcome" == "failure" ]]; then
+              if [[ -f "$output_file" && -s "$output_file" ]]; then
+                # Verify file is valid JSON/SARIF (for tools that produce such output)
+                case "$output_file" in
+                  *.json)
+                    if jq empty "$output_file" 2>/dev/null; then
+                      echo "🔒|Issues Found"
+                    else
+                      echo "❌|Failed (invalid JSON output)"
+                    fi
+                    ;;
+                  *.sarif)
+                    if jq empty "$output_file" 2>/dev/null; then
+                      echo "🔒|Issues Found"
+                    else
+                      echo "❌|Failed (invalid SARIF)"
+                    fi
+                    ;;
+                  *)
+                    # For text files like rbac-analysis.txt
+                    echo "🔒|Issues Found"
+                    ;;
+                esac
+              else
+                echo "❌|Failed (no output or empty file)"
+              fi
+            elif [[ "$outcome" == "cancelled" ]]; then
+              echo "🚫|Cancelled"
+            elif [[ "$outcome" == "skipped" ]]; then
+              echo "⏭️|Skipped"
+            else
+              echo "❓|Unknown"
+            fi
           }
 
           echo "## 🔒 Security Scan Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Tool | Purpose | Status | Result |" >> $GITHUB_STEP_SUMMARY
           echo "|------|---------|--------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Gitleaks | Secrets detection (pattern-based) | $(status_icon "$GITLEAKS_OUTCOME") | $(status_text "$GITLEAKS_OUTCOME") |" >> $GITHUB_STEP_SUMMARY
-          echo "| TruffleHog | Secrets detection (verified, 800+ types) | $(status_icon "$TRUFFLEHOG_OUTCOME") | $(status_text "$TRUFFLEHOG_OUTCOME") |" >> $GITHUB_STEP_SUMMARY
-          echo "| Semgrep | Custom security rules (27 operator-focused) | $(status_icon "$SEMGREP_OUTCOME") | $(status_text "$SEMGREP_OUTCOME") |" >> $GITHUB_STEP_SUMMARY
-          echo "| ShellCheck | Shell script security | $(status_icon "$SHELLCHECK_OUTCOME") | $(status_text "$SHELLCHECK_OUTCOME") |" >> $GITHUB_STEP_SUMMARY
-          echo "| Hadolint | Dockerfile security | $(status_icon "$HADOLINT_OUTCOME") | $(status_text "$HADOLINT_OUTCOME") |" >> $GITHUB_STEP_SUMMARY
-          echo "| yamllint | YAML validation | $(status_icon "$YAMLLINT_OUTCOME") | $(status_text "$YAMLLINT_OUTCOME") |" >> $GITHUB_STEP_SUMMARY
-          echo "| RBAC Analyzer | Privilege chain analysis | $(status_icon "$RBAC_OUTCOME") | $(status_text "$RBAC_OUTCOME") |" >> $GITHUB_STEP_SUMMARY
+
+          # Gitleaks
+          status_result=$(get_status "$GITLEAKS_OUTCOME" "gitleaks.json")
+          severity_summary=$(get_severity_badge "Gitleaks")
+          echo "| Gitleaks | Secrets detection (pattern-based) | ${status_result%%|*} | ${status_result##*|}${severity_summary} |" >> $GITHUB_STEP_SUMMARY
+
+          # TruffleHog
+          status_result=$(get_status "$TRUFFLEHOG_OUTCOME" "trufflehog.json")
+          severity_summary=$(get_severity_badge "TruffleHog")
+          echo "| TruffleHog | Secrets detection (verified, 800+ types) | ${status_result%%|*} | ${status_result##*|}${severity_summary} |" >> $GITHUB_STEP_SUMMARY
+
+          # Semgrep
+          status_result=$(get_status "$SEMGREP_OUTCOME" "semgrep.sarif")
+          severity_summary=$(get_severity_badge "Semgrep")
+          echo "| Semgrep | Custom security rules (27 operator-focused) | ${status_result%%|*} | ${status_result##*|}${severity_summary} |" >> $GITHUB_STEP_SUMMARY
+
+          # ShellCheck
+          status_result=$(get_status "$SHELLCHECK_OUTCOME" "shellcheck.json")
+          severity_summary=$(get_severity_badge "ShellCheck")
+          echo "| ShellCheck | Shell script security | ${status_result%%|*} | ${status_result##*|}${severity_summary} |" >> $GITHUB_STEP_SUMMARY
+
+          # Hadolint
+          status_result=$(get_status "$HADOLINT_OUTCOME" "hadolint.sarif")
+          severity_summary=$(get_severity_badge "Hadolint")
+          echo "| Hadolint | Dockerfile security | ${status_result%%|*} | ${status_result##*|}${severity_summary} |" >> $GITHUB_STEP_SUMMARY
+
+          # yamllint
+          status_result=$(get_status "$YAMLLINT_OUTCOME" "yamllint.json")
+          severity_summary=$(get_severity_badge "yamllint")
+          echo "| yamllint | YAML validation | ${status_result%%|*} | ${status_result##*|}${severity_summary} |" >> $GITHUB_STEP_SUMMARY
+
+          # RBAC Analyzer
+          status_result=$(get_status "$RBAC_OUTCOME" "rbac-analysis.txt")
+          severity_summary=$(get_severity_badge "RBAC Analyzer")
+          echo "| RBAC Analyzer | Privilege chain analysis | ${status_result%%|*} | ${status_result##*|}${severity_summary} |" >> $GITHUB_STEP_SUMMARY
 
           # Overall status
+          echo "" >> $GITHUB_STEP_SUMMARY
           if [[ "$GITLEAKS_OUTCOME" == "success" ]] && \
              [[ "$TRUFFLEHOG_OUTCOME" == "success" ]] && \
              [[ "$SEMGREP_OUTCOME" == "success" ]] && \
@@ -365,11 +478,23 @@ jobs:
              [[ "$HADOLINT_OUTCOME" == "success" ]] && \
              [[ "$YAMLLINT_OUTCOME" == "success" ]] && \
              [[ "$RBAC_OUTCOME" == "success" ]]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "✅ **All security scans passed**" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **All security scans passed - no issues found**" >> $GITHUB_STEP_SUMMARY
           else
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "⚠️ **Some security scans failed or found issues - review required**" >> $GITHUB_STEP_SUMMARY
+            # Check if any tools actually failed (vs just found issues)
+            has_failures=false
+            for outcome in "$GITLEAKS_OUTCOME" "$TRUFFLEHOG_OUTCOME" "$SEMGREP_OUTCOME" "$SHELLCHECK_OUTCOME" "$HADOLINT_OUTCOME" "$YAMLLINT_OUTCOME" "$RBAC_OUTCOME"; do
+              if [[ "$outcome" == "failure" ]]; then
+                # At least one tool had a non-success outcome (either failed or found issues)
+                has_failures=true
+                break
+              fi
+            done
+
+            if $has_failures; then
+              echo "⚠️ **Security issues detected - review required**" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "Download the **comprehensive-security-report** artifact for detailed findings." >> $GITHUB_STEP_SUMMARY
+            fi
           fi
 
       # ============================================================================
