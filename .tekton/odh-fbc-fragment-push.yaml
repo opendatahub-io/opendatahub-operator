@@ -23,7 +23,7 @@ spec:
   - name: revision
     value: '{{revision}}'
   - name: output-image
-    value: quay.io/opendatahub/opendatahub-operator-catalog:3.2.0
+    value: quay.io/opendatahub/opendatahub-operator-catalog:v3.2.0
   - name: build-platforms
     value:
     - linux/x86_64

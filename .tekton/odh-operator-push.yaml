@@ -23,7 +23,7 @@ spec:
   - name: revision
     value: '{{revision}}'
   - name: output-image
-    value: quay.io/opendatahub/opendatahub-operator:3.2.0
+    value: quay.io/opendatahub/opendatahub-operator:v3.2.0
   - name: dockerfile
     value: Dockerfiles/Dockerfile
   - name: rebuild

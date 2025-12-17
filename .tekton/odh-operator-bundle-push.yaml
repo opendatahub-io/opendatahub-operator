@@ -23,7 +23,7 @@ spec:
   - name: revision
     value: '{{revision}}'
   - name: output-image
-    value: quay.io/opendatahub/opendatahub-operator-bundle:3.2.0
+    value: quay.io/opendatahub/opendatahub-operator-bundle:v3.2.0
   - name: dockerfile
     value: Dockerfiles/bundle.Dockerfile
   - name: rebuild
@@ -33,6 +33,9 @@ spec:
   - name: build-args
     value:
     - OPERATOR_VERSION=3.2.0
+    - IMAGE_TAG_BASE=quay.io/opendatahub/opendatahub-operator
+    - IMG_TAG=v3.2.0
+    - BUNDLE_IMG=quay.io/opendatahub/opendatahub-operator-bundle:v3.2.0
   pipelineSpec:
     description: |
       This pipeline is ideal for building container images from a Containerfile while maintaining trust after pipeline customization.
