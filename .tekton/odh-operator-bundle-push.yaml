@@ -32,7 +32,7 @@ spec:
     value: '{{target_branch}}'
   - name: build-args
     value:
-    - OPERATOR_VERSION=$$OUTPUT_IMAGE_TAG$$
+    - OPERATOR_VERSION=3.2.0
   pipelineSpec:
     description: |
       This pipeline is ideal for building container images from a Containerfile while maintaining trust after pipeline customization.
