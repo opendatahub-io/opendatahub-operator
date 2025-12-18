@@ -1,5 +1,29 @@
 const { getLatestCommitSha } = require('./manifest-utils');
 
+/**
+ * Convert image name to RELATED_IMAGE_* env var name using convention:
+ * - Uppercase
+ * - Replace hyphens with underscores
+ * - Prefix: RELATED_IMAGE_ODH_
+ * - Suffix: _IMAGE (unless already ends with _IMAGE)
+ *
+ * Examples:
+ *   kube-auth-proxy → RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
+ *   foo-image       → RELATED_IMAGE_ODH_FOO_IMAGE (no duplication)
+ */
+function imageNameToEnvVar(imageName) {
+    const normalized = imageName
+        .toUpperCase()
+        .replace(/[-]/g, '_');
+
+    // Avoid duplication if image name already ends with _IMAGE
+    if (normalized.endsWith('_IMAGE')) {
+        return `RELATED_IMAGE_ODH_${normalized}`;
+    }
+
+    return `RELATED_IMAGE_ODH_${normalized}_IMAGE`;
+}
+
 module.exports = async ({ github, core }) => {
     const { TRACKER_URL } = process.env
     console.log(`The tracker url is: ${TRACKER_URL}`)
@@ -75,6 +99,46 @@ module.exports = async ({ github, core }) => {
                         core.exportVariable("component_sha_" + normalizedName, commitSha);
                         console.log(`Set SHA for ${trimmedComponentName}: ${commitSha.substring(0, 8)}`);
                     }
+                }
+            }
+
+            if (issueCommentBody.includes("#Images#")) {
+                console.log("Found #Images# section in tracker comment");
+
+                const imagesIdx = lines.indexOf("#Images#");
+                const imageLines = lines.slice(imagesIdx + 1);
+
+                // Simpler regexes for each part
+                const imageNameRegex = /^[A-Za-z0-9\-_]+$/;
+                // Support both tag-based (:tag) and digest-based (@sha256:...) image references
+                const imageRefRegex = /^[a-z0-9.\-]+(?::[0-9]+)?\/[a-zA-Z0-9_.\-\/]+(?::[a-zA-Z0-9_.\-]+|@[a-z0-9]+:[a-f0-9]+)$/;
+
+                for (const imageLine of imageLines) {
+                    const trimmedLine = imageLine.trim();
+
+                    // Skip empty lines
+                    if (trimmedLine === "") {
+                        continue;
+                    }
+
+                    const parts = trimmedLine.split("|");
+                    if (parts.length !== 2) {
+                        break;
+                    }
+
+                    const imageName = parts[0].trim();
+                    const imageReference = parts[1].trim();
+
+                    if (!imageNameRegex.test(imageName) || !imageRefRegex.test(imageReference)) {
+                        break;
+                    }
+
+                    console.log(`Processing operator image: ${imageName} -> ${imageReference}`);
+
+                    const envVarName = imageNameToEnvVar(imageName);
+
+                    core.exportVariable(envVarName, imageReference);
+                    console.log(`  ✓ Exported ${envVarName}=${imageReference}`);
                 }
             }
         }
