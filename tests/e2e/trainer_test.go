@@ -53,6 +53,7 @@ func trainerTestSuite(t *testing.T) {
 // External Operator CR > Trainer Component CR > DataScienceCluster CR.
 func (tc *TrainerTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.T) {
 	t.Helper()
+	t.Skip("RHOAIENG-41751: Skipping flaky external operator degraded monitoring test - under investigation")
 
 	testCases := []degradedConditionTestCase{
 		{

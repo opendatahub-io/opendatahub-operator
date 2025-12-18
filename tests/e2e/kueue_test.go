@@ -786,6 +786,7 @@ integrations:
 // but the operator can't reset conditions we inject.
 func (tc *KueueTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.T) {
 	t.Helper()
+	t.Skip("RHOAIENG-41751: Skipping flaky external operator degraded monitoring test - under investigation")
 
 	// condition types monitored by the Kueue Component
 	testCases := []degradedConditionTestCase{

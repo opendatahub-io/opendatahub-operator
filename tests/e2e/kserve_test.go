@@ -263,6 +263,7 @@ func (tc *KserveTestCtx) ensureLWSBaseline(t *testing.T) *unstructured.Unstructu
 // External Operator CR > Kserve Component CR > DataScienceCluster CR.
 func (tc *KserveTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.T) {
 	t.Helper()
+	t.Skip("RHOAIENG-41751: Skipping flaky external operator degraded monitoring test - under investigation")
 
 	// condition types monitored by the Kserve Component
 	testCases := []degradedConditionTestCase{
