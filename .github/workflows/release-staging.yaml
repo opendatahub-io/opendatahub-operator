@@ -48,15 +48,7 @@ jobs:
     - name: Update versions in relevant files
       run: ./.github/scripts/update-versions.sh ${{ env.VERSION }}
 
-    - name: Run make manifests & bundle
-      run: make manifests bundle IMG_TAG=v${{ env.VERSION }}
-
-    - name: Clean up bundle files
-      run: |
-        sed -i -e "s|image: quay.io/opendatahub/opendatahub-operator:latest.*|image: REPLACE_IMAGE:latest|g" odh-bundle/manifests/opendatahub-operator.clusterserviceversion.yaml
-        rm -f ./config/manager/kustomization.yaml
-
-    - name: Update branches in get_all_manifest.sh
+    - name: Parse tracker for components and operator images
       uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
       with:
         script: |
@@ -69,6 +61,17 @@ jobs:
         script: |
           const script = require('./.github/scripts/update-manifests-tags.js')
           script()
+
+    - name: Apply operator images to manager.yaml
+      run: ./.github/scripts/apply-operator-images.sh
+
+    - name: Run make manifests & bundle
+      run: make manifests bundle IMG_TAG=v${{ env.VERSION }}
+
+    - name: Clean up bundle files
+      run: |
+        sed -i -e "s|image: quay.io/opendatahub/opendatahub-operator:latest.*|image: REPLACE_IMAGE:latest|g" odh-bundle/manifests/opendatahub-operator.clusterserviceversion.yaml
+        rm -f ./config/manager/kustomization.yaml
 
     - name: Show changes summary
       shell: bash
