@@ -31,6 +31,7 @@ var (
 		"guardrails-built-in-detector-image": "RELATED_IMAGE_ODH_BUILT_IN_DETECTOR_IMAGE",
 		"ragas-provider-image":               "RELATED_IMAGE_ODH_TRUSTYAI_RAGAS_LLS_PROVIDER_DSP_IMAGE",
 		"garak-provider-image":               "RELATED_IMAGE_ODH_TRUSTYAI_GARAK_LLS_PROVIDER_DSP_IMAGE",
+		"nemo-guardrails-image":              "RELATED_IMAGE_ODH_TRUSTYAI_NEMO_GUARDRAILS_IMAGE",
 		"kube-rbac-proxy":                    "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
 	}
 
