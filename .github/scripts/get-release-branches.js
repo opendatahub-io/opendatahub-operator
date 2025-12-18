@@ -102,34 +102,41 @@ module.exports = async ({ github, core }) => {
                 }
             }
 
-            // Parse #Images# section for operator-level images
             if (issueCommentBody.includes("#Images#")) {
                 console.log("Found #Images# section in tracker comment");
 
                 const imagesIdx = lines.indexOf("#Images#");
                 const imageLines = lines.slice(imagesIdx + 1);
-                const imageRegex = /\s*([A-Za-z0-9\-_]+)\s*\|\s*([a-z0-9.\-]+(?::[0-9]+)?\/[a-zA-Z0-9_.\-\/]+:[a-zA-Z0-9_.\-]+)\s*/;
+
+                // Simpler regexes for each part
+                const imageNameRegex = /^[A-Za-z0-9\-_]+$/;
+                // Support both tag-based (:tag) and digest-based (@sha256:...) image references
+                const imageRefRegex = /^[a-z0-9.\-]+(?::[0-9]+)?\/[a-zA-Z0-9_.\-\/]+(?::[a-zA-Z0-9_.\-]+|@[a-z0-9]+:[a-f0-9]+)$/;
 
                 for (const imageLine of imageLines) {
-                    if (!imageRegex.test(imageLine)) {
-                        // Stop processing when we hit a line that doesn't match
-                        // (likely end of #Images# section or empty line)
-                        if (imageLine.trim() !== "") {
-                            break;
-                        }
+                    const trimmedLine = imageLine.trim();
+
+                    // Skip empty lines
+                    if (trimmedLine === "") {
                         continue;
                     }
 
-                    const match = imageLine.match(imageRegex);
-                    const imageName = match[1].trim();
-                    const imageReference = match[2].trim();
+                    const parts = trimmedLine.split("|");
+                    if (parts.length !== 2) {
+                        break;
+                    }
+
+                    const imageName = parts[0].trim();
+                    const imageReference = parts[1].trim();
+
+                    if (!imageNameRegex.test(imageName) || !imageRefRegex.test(imageReference)) {
+                        break;
+                    }
 
                     console.log(`Processing operator image: ${imageName} -> ${imageReference}`);
 
-                    // Convert image name to env var name using convention
                     const envVarName = imageNameToEnvVar(imageName);
 
-                    // Export the env var
                     core.exportVariable(envVarName, imageReference);
                     console.log(`  ✓ Exported ${envVarName}=${imageReference}`);
                 }
