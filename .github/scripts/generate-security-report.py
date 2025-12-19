@@ -34,9 +34,10 @@ from typing import Dict, List, Any, Optional
 # Report Format Version: 1.0
 # Breaking changes require updating .github/workflows/security-full-scan.yml badge parsing
 class SecurityReportGenerator:
-    def __init__(self, workspace: str, github_context: Dict[str, str]):
+    def __init__(self, workspace: str, github_context: Dict[str, str], yamllint_limit: int = 50):
         self.workspace = Path(workspace)
         self.github = github_context
+        self.yamllint_limit = yamllint_limit
         self.findings = {
             'critical': [],
             'high': [],
@@ -68,13 +69,11 @@ class SecurityReportGenerator:
                         if file_path.startswith('/repo/'):
                             file_path = file_path[6:]  # Remove '/repo/' prefix
 
-                        # Normalize path: remove traversal sequences and leading slashes
-                        while '..' in file_path:
-                            file_path = file_path.replace('..', '')
-                        file_path = file_path.lstrip('/')
-                        # Collapse multiple slashes
-                        while '//' in file_path:
-                            file_path = file_path.replace('//', '/')
+                        # Normalize path using os.path.normpath for robust handling
+                        file_path = os.path.normpath(file_path).lstrip('/')
+                        # Ensure no leading path traversal after normalization
+                        if file_path.startswith('..'):
+                            file_path = file_path.lstrip('./')
 
                         # Include description hash to differentiate multiple secrets at same location
                         description = finding.get('Description', 'Secret detected')
@@ -346,7 +345,7 @@ class SecurityReportGenerator:
                             'tool': 'RBAC Analyzer',
                             'type': 'RBAC Privilege Chain',
                             'severity': 'CRITICAL',
-                            'file': 'rbac-analysis.txt',
+                            'file': 'rbac-analysis.md',
                             'line': '?',
                             'rule': 'RBAC_ANALYZER_CRITICAL',
                             'description': 'Critical RBAC privilege chain issue; see RBAC analysis section',
@@ -357,7 +356,7 @@ class SecurityReportGenerator:
                             'tool': 'RBAC Analyzer',
                             'type': 'RBAC Privilege Chain',
                             'severity': 'HIGH',
-                            'file': 'rbac-analysis.txt',
+                            'file': 'rbac-analysis.md',
                             'line': '?',
                             'rule': 'RBAC_ANALYZER_HIGH',
                             'description': 'High-severity RBAC issue; see RBAC analysis section',
@@ -368,7 +367,7 @@ class SecurityReportGenerator:
                             'tool': 'RBAC Analyzer',
                             'type': 'RBAC Privilege Chain',
                             'severity': 'MEDIUM',
-                            'file': 'rbac-analysis.txt',
+                            'file': 'rbac-analysis.md',
                             'line': '?',
                             'rule': 'RBAC_ANALYZER_WARNING',
                             'description': 'RBAC warning; see RBAC analysis section',
@@ -381,9 +380,17 @@ class SecurityReportGenerator:
 
         return stats
 
-    def parse_yamllint(self, filepath: str) -> Dict[str, Any]:
-        """Parse yamllint JSON output"""
-        stats = {'tool': 'yamllint', 'findings': 0, 'status': '✅ PASS'}
+    def parse_yamllint(self, filepath: str, max_findings: int = 50) -> Dict[str, Any]:
+        """Parse yamllint parsable format output
+
+        Args:
+            filepath: Path to yamllint parsable output (file:line:col: [level] message (rule))
+            max_findings: Maximum number of findings to include in report (default: 50)
+
+        Format: file:line:column: [level] message (rule)
+        Example: ./config/rbac/role.yaml:10:5: [error] line too long (120 > 80 characters) (line-length)
+        """
+        stats = {'tool': 'yamllint', 'findings': 0, 'status': '✅ PASS', 'findings_data': []}
 
         if not Path(filepath).exists():
             stats['status'] = '⏭️ SKIPPED'
@@ -391,29 +398,45 @@ class SecurityReportGenerator:
 
         try:
             with open(filepath) as f:
-                data = json.load(f)
+                lines = f.readlines()
 
-            # yamllint outputs an array of finding objects
-            for finding in data:
+            # Parse each line in parsable format
+            # Pattern: filepath:line:column: [level] message (rule)
+            pattern = r'^(.+?):(\d+):(\d+): \[(error|warning)\] (.+?) \(([^)]+)\)$'
+
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+
+                match = re.match(pattern, line)
+                if not match:
+                    # Skip lines that don't match expected format
+                    continue
+
+                file_path, line_num, col, level, message, rule = match.groups()
                 stats['findings'] += 1
 
-                level = finding.get('level', 'warning')
-                severity_map = {
-                    'error': 'high',
-                    'warning': 'medium'
-                }
-                severity = severity_map.get(level, 'medium')
-
-                self.findings[severity].append({
+                # Store yamllint findings in separate list (not in main findings dict)
+                # This prevents them from cluttering the security report
+                stats['findings_data'].append({
                     'tool': 'yamllint',
                     'type': 'YAML Issue',
-                    'severity': severity.upper(),
-                    'file': finding.get('file', 'unknown'),
-                    'line': finding.get('line', '?'),
-                    'rule': finding.get('rule', 'unknown'),
-                    'description': finding.get('message', 'No description'),
-                    'remediation': 'Follow yamllint YAML style guidelines and fix syntax errors'
+                    'level': level,
+                    'file': file_path,
+                    'line': int(line_num),
+                    'rule': rule,
+                    'description': message,
                 })
+
+            # Store all findings for dedicated report, but track truncation for comprehensive report
+            stats['findings_data_all'] = stats['findings_data'].copy()  # Keep all for dedicated report
+            if len(stats['findings_data']) > max_findings:
+                stats['findings_data'] = stats['findings_data'][:max_findings]  # Limit for comprehensive report
+                stats['truncated'] = True
+                stats['total_findings'] = stats['findings']
+            else:
+                stats['truncated'] = False
 
             if stats['findings'] > 0:
                 stats['status'] = '❌ FINDINGS'
@@ -438,8 +461,8 @@ class SecurityReportGenerator:
         }
         return remediations.get(rule_id, 'Follow security best practices for this finding')
 
-    def generate_report(self, output_file: str, json_summary_file: Optional[str] = None):
-        """Generate comprehensive markdown security report and optional JSON summary"""
+    def generate_report(self, output_file: str, json_summary_file: Optional[str] = None, yamllint_report_file: Optional[str] = None):
+        """Generate comprehensive markdown security report, optional JSON summary, and optional yamllint report"""
 
         # Parse all tool outputs
         self.tool_stats['gitleaks'] = self.parse_gitleaks(f'{self.workspace}/gitleaks.json')
@@ -447,8 +470,8 @@ class SecurityReportGenerator:
         self.tool_stats['semgrep'] = self.parse_semgrep_sarif(f'{self.workspace}/semgrep.sarif')
         self.tool_stats['hadolint'] = self.parse_hadolint_sarif(f'{self.workspace}/hadolint.sarif')
         self.tool_stats['shellcheck'] = self.parse_shellcheck(f'{self.workspace}/shellcheck.json')
-        self.tool_stats['yamllint'] = self.parse_yamllint(f'{self.workspace}/yamllint.json')
-        self.tool_stats['rbac'] = self.parse_rbac_analyzer(f'{self.workspace}/rbac-analysis.txt')
+        self.tool_stats['yamllint'] = self.parse_yamllint(f'{self.workspace}/yamllint.txt', max_findings=self.yamllint_limit)
+        self.tool_stats['rbac'] = self.parse_rbac_analyzer(f'{self.workspace}/rbac-analysis.md')
 
         # Calculate totals
         total_findings = sum(len(findings) for findings in self.findings.values())
@@ -548,9 +571,43 @@ class SecurityReportGenerator:
                 # RBAC Analysis
                 if self.tool_stats['rbac']['content']:
                     f.write(f"## RBAC Privilege Chain Analysis\n\n")
-                    f.write(f"```\n")
+                    # RBAC analyzer already outputs markdown format - no code blocks needed
                     f.write(self.tool_stats['rbac']['content'])
-                    f.write(f"```\n\n")
+                    f.write(f"\n---\n\n")
+
+                # YAML Lint Issues (separate section, non-security)
+                yamllint_stats = self.tool_stats.get('yamllint', {})
+                if yamllint_stats.get('findings', 0) > 0:
+                    f.write(f"## Code Quality: YAML Formatting Issues\n\n")
+                    f.write(f"**Note:** These are style/formatting issues, not security vulnerabilities.\n\n")
+
+                    yamllint_findings = yamllint_stats.get('findings_data', [])
+                    if yamllint_stats.get('truncated', False):
+                        total = yamllint_stats.get('total_findings', len(yamllint_findings))
+                        f.write(f"Showing {len(yamllint_findings)} of {total} yamllint findings (truncated for readability).\n\n")
+
+                    # Group by severity
+                    errors = [f for f in yamllint_findings if f.get('level') == 'error']
+                    warnings = [f for f in yamllint_findings if f.get('level') == 'warning']
+
+                    if errors:
+                        f.write(f"<details>\n")
+                        f.write(f"<summary>YAML Errors ({len(errors)}) - Click to expand</summary>\n\n")
+                        for i, finding in enumerate(errors, 1):
+                            f.write(f"{i}. **{finding['rule']}** in `{finding['file']}:{finding['line']}`\n")
+                            f.write(f"   - {finding['description']}\n\n")
+                        f.write(f"</details>\n\n")
+
+                    if warnings:
+                        f.write(f"<details>\n")
+                        f.write(f"<summary>YAML Warnings ({len(warnings)}) - Click to expand</summary>\n\n")
+                        for i, finding in enumerate(warnings, 1):
+                            f.write(f"{i}. **{finding['rule']}** in `{finding['file']}:{finding['line']}`\n")
+                            f.write(f"   - {finding['description']}\n\n")
+                        f.write(f"</details>\n\n")
+
+                    f.write(f"**Remediation:** These are YAML style and formatting issues, not security vulnerabilities. ")
+                    f.write(f"See the dedicated **yamllint-report.md** artifact for complete findings and detailed remediation instructions.\n\n")
                     f.write(f"---\n\n")
 
                 # Recommendations (dynamic based on actual findings)
@@ -630,6 +687,10 @@ class SecurityReportGenerator:
         if json_summary_file:
             self._generate_json_summary(json_summary_file, posture, total_findings, critical_count, high_count, medium_count, low_count)
 
+        # Generate dedicated yamllint report if requested
+        if yamllint_report_file:
+            self._generate_yamllint_report(yamllint_report_file)
+
     def _generate_json_summary(self, output_file: str, posture: str, total: int, critical: int, high: int, medium: int, low: int):
         """Generate machine-parseable JSON summary for workflow badge extraction"""
 
@@ -664,9 +725,47 @@ class SecurityReportGenerator:
                 tool_breakdowns[tool_name][severity] = count
                 tool_breakdowns[tool_name]['total'] += count
 
+        # Add yamllint as code quality (separate from security findings)
+        yamllint_summary = {
+            'total': self.tool_stats.get('yamllint', {}).get('findings', 0),
+            'errors': len([f for f in self.tool_stats.get('yamllint', {}).get('findings_data_all', []) if f.get('level') == 'error']),
+            'warnings': len([f for f in self.tool_stats.get('yamllint', {}).get('findings_data_all', []) if f.get('level') == 'warning']),
+            'status': self.tool_stats.get('yamllint', {}).get('status', 'SKIPPED')
+        }
+
+        # Calculate AI measurement metrics
+        metrics = {
+            'security_density': {
+                'critical_per_scan': critical,
+                'high_per_scan': high,
+                'total_security_findings': total,
+                'security_tools_run': sum(1 for t in tool_breakdowns.values() if t['status'] not in ['⏭️ SKIPPED', 'UNKNOWN'])
+            },
+            'code_quality_density': {
+                'yamllint_total': yamllint_summary['total'],
+                'yamllint_errors': yamllint_summary['errors'],
+                'yamllint_warnings': yamllint_summary['warnings']
+            },
+            'remediation_priority': {
+                'immediate_action_required': critical > 0,
+                'high_priority_count': critical + high,
+                'medium_priority_count': medium,
+                'low_priority_count': low
+            },
+            'trend_indicators': {
+                'has_critical_secrets': tool_breakdowns.get('Gitleaks', {}).get('critical', 0) > 0 or tool_breakdowns.get('TruffleHog', {}).get('critical', 0) > 0,
+                'has_verified_secrets': tool_breakdowns.get('TruffleHog', {}).get('critical', 0) > 0,
+                'has_rbac_issues': tool_breakdowns.get('RBAC Analyzer', {}).get('total', 0) > 0,
+                'has_code_quality_issues': yamllint_summary['total'] > 0
+            }
+        }
+
         summary = {
             'format_version': '1.0',
             'generated': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
+            'commit': self.github.get('sha', 'unknown'),
+            'branch': self.github.get('ref_name', 'unknown'),
+            'repository': self.github.get('repository', 'unknown'),
             'posture': posture,
             'total_findings': total,
             'severity_counts': {
@@ -676,7 +775,11 @@ class SecurityReportGenerator:
                 'low': low,
                 'info': len(self.findings.get('info', []))
             },
-            'tools': tool_breakdowns
+            'tools': tool_breakdowns,
+            'code_quality': {
+                'yamllint': yamllint_summary
+            },
+            'metrics': metrics
         }
 
         try:
@@ -686,12 +789,78 @@ class SecurityReportGenerator:
             print(f"[ERROR] Failed to write JSON summary to {output_file}: {str(e)}", file=sys.stderr)
             sys.exit(1)
 
+    def _generate_yamllint_report(self, output_file: str):
+        """Generate dedicated yamllint report with all findings"""
+
+        yamllint_stats = self.tool_stats.get('yamllint', {})
+        if yamllint_stats.get('findings', 0) == 0:
+            return  # Skip if no yamllint findings
+
+        try:
+            with open(output_file, 'w') as f:
+                f.write(f"# YAMLlint Code Quality Report\n\n")
+                f.write(f"**Generated:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}\n\n")
+                f.write(f"**Repository:** {self.github.get('repository', 'unknown')}\n\n")
+                f.write(f"**Commit:** {self.github.get('sha', 'unknown')}\n\n")
+                f.write(f"**Branch:** {self.github.get('ref_name', 'unknown')}\n\n")
+                f.write(f"---\n\n")
+
+                total = yamllint_stats.get('findings', 0)
+                f.write(f"## Summary\n\n")
+                f.write(f"**Total Issues:** {total}\n\n")
+
+                # Use ALL findings for dedicated report (not truncated)
+                yamllint_findings = yamllint_stats.get('findings_data_all', [])
+                errors = [fi for fi in yamllint_findings if fi.get('level') == 'error']
+                warnings = [fi for fi in yamllint_findings if fi.get('level') == 'warning']
+
+                f.write(f"- Errors: {len(errors)}\n")
+                f.write(f"- Warnings: {len(warnings)}\n\n")
+
+                f.write(f"---\n\n")
+
+                if errors:
+                    f.write(f"## Errors ({len(errors)})\n\n")
+                    for i, finding in enumerate(errors, 1):
+                        f.write(f"### {i}. {finding['rule']}\n\n")
+                        f.write(f"- **File:** `{finding['file']}:{finding['line']}`\n")
+                        f.write(f"- **Description:** {finding['description']}\n\n")
+
+                if warnings:
+                    f.write(f"## Warnings ({len(warnings)})\n\n")
+                    for i, finding in enumerate(warnings, 1):
+                        f.write(f"### {i}. {finding['rule']}\n\n")
+                        f.write(f"- **File:** `{finding['file']}:{finding['line']}`\n")
+                        f.write(f"- **Description:** {finding['description']}\n\n")
+
+                f.write(f"---\n\n")
+                f.write(f"## Remediation\n\n")
+                f.write(f"These are YAML style and formatting issues, not security vulnerabilities.\n\n")
+                f.write(f"To fix automatically (where possible):\n")
+                f.write(f"```bash\n")
+                f.write(f"# Install yamllint\n")
+                f.write(f"pip install yamllint\n\n")
+                f.write(f"# Check current issues\n")
+                f.write(f"yamllint .\n\n")
+                f.write(f"# Many issues can be fixed manually or with automated formatters\n")
+                f.write(f"```\n\n")
+                f.write(f"Common fixes:\n")
+                f.write(f"- **line-length**: Break long lines, use YAML multi-line strings\n")
+                f.write(f"- **trailing-spaces**: Remove whitespace at end of lines\n")
+                f.write(f"- **indentation**: Use consistent 2-space indentation\n")
+                f.write(f"- **truthy**: Use `true`/`false` instead of `yes`/`no`\n\n")
+
+        except IOError as e:
+            print(f"[ERROR] Failed to write yamllint report to {output_file}: {str(e)}", file=sys.stderr)
+
 
 def main():
     parser = argparse.ArgumentParser(description='Generate comprehensive security scan report')
     parser.add_argument('--output', default='security-report.md', help='Output file path')
     parser.add_argument('--json-summary', default=None, help='JSON summary output file for workflow parsing')
+    parser.add_argument('--yamllint-report', default=None, help='Dedicated yamllint report output file (all findings)')
     parser.add_argument('--workspace', default='.', help='Workspace directory')
+    parser.add_argument('--yamllint-limit', type=int, default=50, help='Maximum yamllint findings to show in comprehensive report (default: 50)')
     args = parser.parse_args()
 
     # Gather GitHub context from environment
@@ -703,11 +872,13 @@ def main():
     }
 
     try:
-        generator = SecurityReportGenerator(args.workspace, github_context)
-        generator.generate_report(args.output, args.json_summary)
+        generator = SecurityReportGenerator(args.workspace, github_context, yamllint_limit=args.yamllint_limit)
+        generator.generate_report(args.output, args.json_summary, args.yamllint_report)
         print(f"✅ Comprehensive security report generated: {args.output}")
         if args.json_summary:
             print(f"✅ JSON summary generated: {args.json_summary}")
+        if args.yamllint_report:
+            print(f"✅ Dedicated yamllint report generated: {args.yamllint_report}")
     except Exception as e:
         print(f"❌ Failed to generate security report: {str(e)}", file=sys.stderr)
         sys.exit(1)
