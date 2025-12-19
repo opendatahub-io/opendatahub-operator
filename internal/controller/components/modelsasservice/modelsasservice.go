@@ -65,8 +65,8 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 	maasConfig := dsc.Spec.Components.Kserve.ModelsAsService
 
 	// Determine management state from the DSC configuration
-	managementState := operatorv1.Managed
-	if maasConfig.ManagementState != "" {
+	managementState := operatorv1.Removed
+	if maasConfig.ManagementState == operatorv1.Managed {
 		managementState = maasConfig.ManagementState
 	}
 
