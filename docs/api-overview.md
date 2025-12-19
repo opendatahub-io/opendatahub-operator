@@ -328,8 +328,6 @@ _Appears in:_
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
-
-
 #### DSCModelsAsServiceSpec
 
 
@@ -340,14 +338,13 @@ DSCModelsAsServiceSpec enables ModelsAsService integration
 
 _Appears in:_
 - [DSCKserve](#dsckserve)
-- [DSCModelsAsService](#dscmodelsasservice)
 - [KserveCommonSpec](#kservecommonspec)
 - [KserveSpec](#kservespec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  | Managed | Enum: [Managed Removed] <br /> |
-| `gateway` _[GatewaySpec](#gatewayspec)_ | Gateway configuration for Models as a Service |  |  |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  | Removed | Enum: [Managed Removed] <br /> |
+| `gateway` _[GatewaySpec](#gatewayspec)_ |  |  |  |
 
 
 
@@ -790,7 +787,6 @@ models should be published to when exposed as services.
 
 
 _Appears in:_
-- [DSCModelsAsService](#dscmodelsasservice)
 - [DSCModelsAsServiceSpec](#dscmodelsasservicespec)
 - [ModelsAsServiceSpec](#modelsasservicespec)
 
@@ -1402,6 +1398,7 @@ ModelsAsServiceSpec defines the desired state of ModelsAsService
 
 
 _Appears in:_
+- [DSCModelsAsServiceSpec](#dscmodelsasservicespec)
 - [ModelsAsService](#modelsasservice)
 
 | Field | Description | Default | Validation |
