@@ -64,7 +64,7 @@ const (
 	leaderWorkerSetNamespace    = "openshift-lws-operator"                   // Namespace for the Leader Worker Set Operator
 	leaderWorkerSetChannel      = "stable-v1.0"                              // Channel for the Leader Worker Set Operator
 	kueueOcpOperatorNamespace   = "openshift-kueue-operator"                 // Namespace for the OCP Kueue Operator
-	kueueOcpOperatorChannel     = "stable-v1.1"                              // Channel for the OCP Kueue Operator
+	kueueOcpOperatorChannel     = "stable-v1.2"                              // Channel for the OCP Kueue Operator
 	kuadrantOpName              = "rhcl-operator"                            // Name of the Red Hat Connectivity Link Operator subscription.
 	kuadrantNamespace           = "kuadrant-system"                          // Namespace for the Red Hat Connectivity Link Operator.
 	dashboardRouteNameODH       = "odh-dashboard"                            // Name of the ODH dashboard route
