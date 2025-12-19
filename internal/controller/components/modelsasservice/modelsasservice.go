@@ -61,8 +61,27 @@ func (s *componentHandler) Init(_ common.Platform) error {
 
 // NewCRObject constructs a new ModelsAsService Custom Resource.
 func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
-	// TODO: ModelsAsService should be integrated into the KServe component
-	// For now, we create a basic ModelsAsService CR with default values
+	// Extract ModelsAsService configuration from KServe component in DSC
+	maasConfig := dsc.Spec.Components.Kserve.ModelsAsService
+
+	// Determine management state from the DSC configuration
+	managementState := operatorv1.Managed
+	if maasConfig.ManagementState != "" {
+		managementState = maasConfig.ManagementState
+	}
+
+	// Configure Gateway spec - use defaults if not specified
+	gatewaySpec := componentApi.GatewaySpec{
+		Namespace: DefaultGatewayNamespace,
+		Name:      DefaultGatewayName,
+	}
+
+	// Override with DSC configuration if provided
+	if maasConfig.Gateway.Namespace != "" || maasConfig.Gateway.Name != "" {
+		// All-or-nothing validation should be handled during reconciliation
+		gatewaySpec = maasConfig.Gateway
+	}
+
 	return &componentApi.ModelsAsService{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.ModelsAsServiceKind,
@@ -71,23 +90,27 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 		ObjectMeta: metav1.ObjectMeta{
 			Name: componentApi.ModelsAsServiceInstanceName,
 			Annotations: map[string]string{
-				annotations.ManagementStateAnnotation: string(operatorv1.Managed),
+				annotations.ManagementStateAnnotation: string(managementState),
 			},
 		},
 		Spec: componentApi.ModelsAsServiceSpec{
-			Gateway: componentApi.GatewaySpec{
-				Namespace: DefaultGatewayNamespace,
-				Name:      DefaultGatewayName,
-			},
+			Gateway: gatewaySpec,
 		},
 	}
 }
 
 // IsEnabled checks if the ModelsAsService component should be deployed.
 func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
-	// For now, return false.
-	// This logic will need to be updated once DSCModelsAsService is integrated into the KServe spec
-	return false
+	// ModelsAsService is enabled when:
+	// 1. KServe component is enabled in the DSC
+	// 2. ModelsAsService sub-component is configured with ManagementState = Managed
+	if dsc.Spec.Components.Kserve.ManagementState != operatorv1.Managed {
+		return false
+	}
+
+	// Check ModelsAsService specific management state
+	// For Technical preview release, default to Disabled if not explicitly set to Managed
+	return dsc.Spec.Components.Kserve.ModelsAsService.ManagementState == operatorv1.Managed
 }
 
 // UpdateDSCStatus updates the ModelsAsService component status in the DataScienceCluster.
@@ -106,10 +129,6 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		return cs, errors.New("failed to convert to DataScienceCluster")
 	}
 
-	// Since s.IsEnabled() always returns false, for now, the following code will always mark the ready condition as not ready.
-	// This will need to be updated once DSCModelsAsService is properly integrated
-
-	// Set the ready condition based on the ModelsAsService status
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
 	if s.IsEnabled(dsc) {
@@ -120,10 +139,19 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 			cs = metav1.ConditionFalse
 		}
 	} else {
+		var reason, message string
+		if dsc.Spec.Components.Kserve.ManagementState != operatorv1.Managed {
+			reason = "KServeDisabled"
+			message = "KServe component is not managed, ModelsAsService requires KServe to be enabled"
+		} else {
+			reason = string(operatorv1.Removed)
+			message = "ModelsAsService ManagementState is set to Removed"
+		}
+
 		rr.Conditions.MarkFalse(
 			ReadyConditionType,
-			conditions.WithReason(string(operatorv1.Removed)),
-			conditions.WithMessage("Component ManagementState is set to %s", string(operatorv1.Removed)),
+			conditions.WithReason(reason),
+			conditions.WithMessage(message),
 			conditions.WithSeverity(common.ConditionSeverityInfo),
 		)
 	}
