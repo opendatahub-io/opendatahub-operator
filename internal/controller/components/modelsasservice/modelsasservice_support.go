@@ -33,19 +33,19 @@ const (
 	DefaultGatewayName      = "maas-default-gateway"
 
 	// Manifest paths.
-	BaseManifestsSourcePath = "overlays/openshift"
+	BaseManifestsSourcePath = "overlays/odh"
 )
 
 var (
 	// Image parameter mappings for manifest substitution.
 	imagesMap = map[string]string{
-		"IMAGES_MAAS_API": "RELATED_IMAGE_ODH_MAAS_API_IMAGE",
+		"maas-api-image": "RELATED_IMAGE_ODH_MAAS_API_IMAGE",
 	}
 
 	// Additional parameters for manifest customization.
 	extraParamsMap = map[string]string{
-		"DEFAULT_GATEWAY_NAMESPACE": DefaultGatewayNamespace,
-		"DEFAULT_GATEWAY_NAME":      DefaultGatewayName,
+		"gateway-namespace": DefaultGatewayNamespace,
+		"gateway-name":      DefaultGatewayName,
 	}
 
 	conditionTypes = []string{

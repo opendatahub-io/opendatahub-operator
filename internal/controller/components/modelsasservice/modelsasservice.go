@@ -139,21 +139,21 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 			cs = metav1.ConditionFalse
 		}
 	} else {
-		var reason, message string
 		if dsc.Spec.Components.Kserve.ManagementState != operatorv1.Managed {
-			reason = "KServeDisabled"
-			message = "KServe component is not managed, ModelsAsService requires KServe to be enabled"
+			rr.Conditions.MarkFalse(
+				ReadyConditionType,
+				conditions.WithReason("KServeDisabled"),
+				conditions.WithMessage("KServe component is not managed, ModelsAsService requires KServe to be enabled"),
+				conditions.WithSeverity(common.ConditionSeverityInfo),
+			)
 		} else {
-			reason = string(operatorv1.Removed)
-			message = "ModelsAsService ManagementState is set to Removed"
+			rr.Conditions.MarkFalse(
+				ReadyConditionType,
+				conditions.WithReason(string(operatorv1.Removed)),
+				conditions.WithMessage("Component ManagementState is set to Removed"),
+				conditions.WithSeverity(common.ConditionSeverityInfo),
+			)
 		}
-
-		rr.Conditions.MarkFalse(
-			ReadyConditionType,
-			conditions.WithReason(reason),
-			conditions.WithMessage(message),
-			conditions.WithSeverity(common.ConditionSeverityInfo),
-		)
 	}
 
 	return cs, nil
