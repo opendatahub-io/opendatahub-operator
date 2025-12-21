@@ -31,12 +31,24 @@ jobs:
       pull-requests: write
     steps:
     - name: Checkout opendatahub-operator release branch
-      uses: actions/checkout@v5
+      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       with:
         repository: opendatahub-io/opendatahub-operator
         ref: odh-${{ env.VERSION }}
         path: opendatahub-operator
         fetch-depth: 0
+
+    - name: Setup Go
+      uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+      with:
+        go-version-file: opendatahub-operator/go.mod
+        cache: false
+
+    - name: Generate bundle
+      working-directory: opendatahub-operator
+      run: |
+        VERSION="${{ env.VERSION }}"
+        make manifests bundle VERSION="${VERSION}" IMG_TAG="v${VERSION}"
 
     - name: Validate OpenShift versions format
       run: |
@@ -61,7 +73,7 @@ jobs:
         ./.github/scripts/validate-bundle-csv.sh "$VERSION"
 
     - name: Checkout community-operators-prod upstream
-      uses: actions/checkout@v5
+      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       with:
         repository: ${{ env.COMMUNITY_UPSTREAM }}
         path: community-operators-prod
@@ -100,15 +112,16 @@ jobs:
 
     - name: Generate GitHub App Token
       id: generate-token
-      uses: actions/create-github-app-token@v2
+      uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
       with:
         app-id: ${{ secrets.ODH_RELEASE_BOT_APP_ID }}
         private-key: ${{ secrets.ODH_RELEASE_BOT_PRIVATE_KEY }}
-        repositories: ${{ env.COMMUNITY_FORK }}
+        owner: opendatahub-io
+        repositories: community-operators-prod
 
     - name: Create Pull Request
       id: create-pr
-      uses: peter-evans/create-pull-request@v7
+      uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.11
       with:
         token: ${{ steps.generate-token.outputs.token }}
         path: community-operators-prod
