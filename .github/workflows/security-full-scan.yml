@@ -528,6 +528,23 @@ jobs:
             fi
           fi
 
+      - name: Fail workflow on critical findings
+        if: always() && hashFiles('security-summary.json') != ''
+        run: |
+          # Verify jq is available
+          if ! command -v jq &> /dev/null; then
+            echo "⚠️ jq not available - skipping critical findings check"
+            exit 0
+          fi
+
+          critical=$(jq -r '.severity_counts.critical // 0' security-summary.json)
+          # Validate numeric value
+          if [[ "$critical" =~ ^[0-9]+$ ]] && [[ $critical -gt 0 ]]; then
+            echo "❌ Workflow failed: $critical CRITICAL findings detected"
+            echo "Review the comprehensive-security-report artifact for details"
+            exit 1
+          fi
+
       # ============================================================================
       # CREATE SECURITY ADVISORY ON CRITICAL FINDINGS
       # ============================================================================
@@ -565,72 +582,17 @@ jobs:
            steps.trufflehog.outcome == 'failure' ||
            steps.semgrep.outcome == 'failure' ||
            steps.rbac_analyzer.outcome == 'failure')
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b  # v7.0.1
         with:
           github-token: ${{ steps.app_token.outputs.token }}
           script: |
-            const fs = require('fs');
-
-            // Read private RBAC analysis with attack scenarios
-            let rbacAnalysisPrivate = '';
-            try {
-              rbacAnalysisPrivate = fs.readFileSync('rbac-analysis-private.md', 'utf8');
-            } catch (error) {
-              console.log('rbac-analysis-private.md not found, skipping attack scenarios');
-              rbacAnalysisPrivate = '*RBAC analysis with attack scenarios not available*';
-            }
-
-            const advisoryDescription = `## Critical Security Issues Detected
-
-            The full codebase security scan has detected critical issues.
-
-            **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-            **Commit:** ${{ github.sha }}
-            **Branch:** ${{ github.ref_name }}
-
-            ---
-
-            ## ⚠️ CONFIDENTIAL: RBAC Attack Scenarios
-
-            **WARNING**: This section contains detailed exploitation chains with step-by-step commands.
-            This information is CONFIDENTIAL and should only be shared with authorized security personnel.
-
-            ${rbacAnalysisPrivate}
-
-            ---
-
-            ### Next Steps
-            1. Review the workflow run logs at the link above
-            2. Download the **comprehensive-security-report** artifact for detailed findings
-            3. Check the Security tab for SARIF results (Semgrep, Hadolint)
-            4. Review individual tool artifacts (gitleaks.json, trufflehog.json, etc.)
-            5. Triage and remediate findings
-
-            ### Report Contents
-            The comprehensive security report includes:
-            - Executive summary with overall security posture
-            - Critical/High/Medium/Low findings with file paths and line numbers
-            - Remediation guidance for each finding
-            - RBAC privilege chain analysis
-            - Prioritized recommendations
-
-            **IMPORTANT**: This advisory contains CONFIDENTIAL attack scenarios with detailed
-            exploitation chains. Do NOT share externally or publish. Remains private until manually published.
-
-            This is an automated private security advisory created by the security scanning workflow.`;
-
-            await github.rest.securityAdvisories.createRepositoryAdvisory({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              summary: 'Security Full Scan - Critical Findings Detected',
-              description: advisoryDescription,
+            const createAdvisory = require('./.github/scripts/create-security-advisory.js')
+            await createAdvisory({
+              github,
+              context,
+              core,
               severity: '${{ steps.severity.outputs.severity || 'high' }}',
-              vulnerabilities: [{
-                package: {
-                  ecosystem: 'other',
-                  name: 'opendatahub-operator'
-                },
-                vulnerable_version_range: 'all versions',
-                patched_versions: 'none'
-              }]
+              workflowRunUrl: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}',
+              commit: '${{ github.sha }}',
+              branch: '${{ github.ref_name }}'
             })
