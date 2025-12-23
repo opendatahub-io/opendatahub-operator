@@ -14,10 +14,10 @@ DST_MANIFESTS_DIR="./opt/manifests"
 
 # ODH Component Manifests
 declare -A ODH_COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:main@3d41e4b421ded7cf9b6f9f66a0e08f92f3c78a67:manifests"
+    ["dashboard"]="opendatahub-io:odh-dashboard:main@d45a93a029692e6fd283c9adb98f59396f2174f8:manifests"
     ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@211a77d7ca1413991e38b4941cce9cec52a3b737:components/notebook-controller/config"
     ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@211a77d7ca1413991e38b4941cce9cec52a3b737:components/odh-notebook-controller/config"
-    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@79b82c0632c0c4ee104bf58bfed0626ba783a210:manifests"
+    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@5fe160d0645ff0f5169d3a610808528caf26ade0:manifests"
     ["kserve"]="opendatahub-io:kserve:release-v0.15@5f4a1331c3b044983295c382878fc7b4933ba1be:config"
     ["ray"]="opendatahub-io:kuberay:dev@922c0bc1371473a39c62bac138dce4aeb27ab361:ray-operator/config"
     ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@0da9c2ac84eb88c245df56c72d2a6192f7f9b4df:config"
@@ -28,7 +28,7 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["feastoperator"]="opendatahub-io:feast:stable@c3b8280592f9f5af4b10db868a83d51f54b94738:infra/feast-operator/config"
     ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@8f3f9289969c8a1b7efafa07b5920a030ac56b3c:config"
     ["trainer"]="opendatahub-io:trainer:main@e99c2618a4f350be1bc2803c3e4f01e55c3db866:manifests"
-    ["maas"]="opendatahub-io:maas-billing:main@2c5bfecf66c1d9345b99547d8652dcf27e4e7193:deployment"
+    ["maas"]="opendatahub-io:maas-billing:main@216b20b3e0b3c9e76f7d75e812537c98802bb0cb:deployment"
     ["mlflowoperator"]="opendatahub-io:mlflow-operator:main@d60363ccf63adada5e6a638b7e3a189265b025e0:config"
 )
 
