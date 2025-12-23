@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	templatev1 "github.com/openshift/api/template/v1"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -29,10 +30,13 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
@@ -40,6 +44,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/hash"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
@@ -96,9 +101,36 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True),
 			),
 		).
+		Watches(&v1alpha1.Subscription{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.KserveInstanceName),
+			),
+			reconciler.WithPredicates(
+				predicate.Or(
+					resources.CreatedOrUpdatedOrDeletedNamed(rhclOperatorSubscription),
+					resources.CreatedOrUpdatedOrDeletedNamed(lwsOperatorSubscription),
+				),
+			),
+		).
+		WatchesGVK(gvk.LeaderWorkerSetOperatorV1,
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.KserveInstanceName),
+			),
+			reconciler.WithPredicates(
+				dependent.New(dependent.WithWatchStatus(true)),
+			),
+			reconciler.Dynamic(reconciler.CrdExists(gvk.LeaderWorkerSetOperatorV1))).
 
 		// actions
+		WithAction(checkPreConditions).
 		WithAction(initialize).
+		WithAction(dependency.NewAction(
+			dependency.MonitorOperator(dependency.OperatorConfig{
+				OperatorGVK: gvk.LeaderWorkerSetOperatorV1,
+				Severity:    common.ConditionSeverityInfo,
+				Filter:      lwsConditionFilter,
+			}),
+		)).
 		WithAction(releases.NewAction()).
 		WithAction(removeOwnershipFromUnmanagedResources).
 		WithAction(cleanUpTemplatedResources).

@@ -73,6 +73,7 @@ VALIDATION:
 import argparse
 import yaml
 import sys
+import re
 from pathlib import Path
 from typing import Dict, List, Set
 from collections import defaultdict
@@ -87,6 +88,13 @@ class RBACAnalyzer:
         self.pods = {}
         self.findings = []
 
+    def _preprocess_template(self, content: str) -> str:
+        """Replace Go template syntax with placeholder values to enable YAML parsing."""
+        # Replace templates with unquoted placeholder to preserve type flexibility
+        # YAML parser will infer type based on context (string, int, bool, etc.)
+        content = re.sub(r'\{\{[^}]+\}\}', 'placeholder-value', content)
+        return content
+
     def load_yaml_files(self, base_path: str):
         """Load all YAML manifests from the repository."""
         for yaml_file in Path(base_path).rglob("*.yaml"):
@@ -95,15 +103,32 @@ class RBACAnalyzer:
                                                    'docs', 'bin', '.github/workflows']):
                 continue
 
+            # Initialize before try block to avoid NameError in exception handler
+            is_template = False
             try:
                 with open(yaml_file) as f:
-                    docs = yaml.safe_load_all(f)
+                    content = f.read()
+
+                    # Detect templates by filename or content
+                    is_template = (
+                        '.tmpl.yaml' in str(yaml_file) or
+                        '.template.yaml' in str(yaml_file) or
+                        '{{' in content  # Contains Go template syntax
+                    )
+
+                    # Preprocess template files to replace Go template syntax
+                    if is_template:
+                        content = self._preprocess_template(content)
+
+                    docs = yaml.safe_load_all(content)
                     for doc in docs:
                         if not doc or 'kind' not in doc:
                             continue
                         self._categorize_resource(doc, str(yaml_file))
             except Exception as e:
-                print(f"Warning: Failed to parse {yaml_file}: {e}", file=sys.stderr)
+                # Suppress warnings for template files (expected parsing issues)
+                if not is_template:
+                    print(f"Warning: Failed to parse {yaml_file}: {e}", file=sys.stderr)
 
     def _categorize_resource(self, doc: dict, file_path: str):
         """Categorize Kubernetes resource by kind."""
@@ -134,7 +159,7 @@ class RBACAnalyzer:
 
     def analyze_privilege_chains(self):
         """Build ClusterRole → Binding → SA → Pod chains."""
-        print("\n=== RBAC Privilege Chain Analysis ===\n")
+        print("\n### RBAC Privilege Chain Analysis\n")
 
         # Track which ServiceAccounts have which permissions
         sa_permissions = defaultdict(list)
@@ -181,7 +206,7 @@ class RBACAnalyzer:
                     })
 
         # Map ServiceAccounts to Pods
-        print("### Service Account → Pod Mapping\n")
+        print("#### Service Account → Pod Mapping\n")
 
         # Track already-reported bindings to avoid duplicate findings
         reported_bindings = set()
@@ -226,7 +251,7 @@ class RBACAnalyzer:
 
     def analyze_dangerous_permissions(self):
         """Identify high-risk permissions in ClusterRoles."""
-        print("\n=== Dangerous Permission Analysis ===\n")
+        print("\n### Dangerous Permission Analysis\n")
 
         dangerous_verbs = {'escalate', 'impersonate', 'bind', '*'}
         dangerous_resources = {
@@ -293,7 +318,7 @@ class RBACAnalyzer:
 
     def check_aggregated_roles(self):
         """Check for aggregated ClusterRoles."""
-        print("\n=== Aggregated ClusterRole Analysis ===\n")
+        print("\n### Aggregated ClusterRole Analysis\n")
 
         for role_name, role_data in self.cluster_roles.items():
             doc = role_data['doc']
@@ -328,9 +353,9 @@ class RBACAnalyzer:
             fail_on_severity: Minimum severity level to trigger non-zero exit code
                              (CRITICAL, HIGH, WARNING, INFO)
         """
-        print("\n" + "="*80)
-        print("RBAC SECURITY FINDINGS SUMMARY")
-        print("="*80 + "\n")
+        print("\n---")
+        print("\n## RBAC SECURITY FINDINGS SUMMARY\n")
+        print("---\n")
 
         by_severity = defaultdict(list)
         for finding in self.findings:

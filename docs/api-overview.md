@@ -172,6 +172,7 @@ _Appears in:_
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br /> |
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration |  |  |
+| `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Configures and enables Models as a Service integration |  |  |
 
 
 #### DSCKserveStatus
@@ -325,6 +326,27 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
+#### DSCModelsAsServiceSpec
+
+
+
+DSCModelsAsServiceSpec enables ModelsAsService integration
+
+
+
+_Appears in:_
+- [DSCKserve](#dsckserve)
+- [KserveCommonSpec](#kservecommonspec)
+- [KserveSpec](#kservespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  | Removed | Enum: [Managed Removed] <br /> |
+| `gateway` _[GatewaySpec](#gatewayspec)_ |  |  |  |
+
+
 
 
 #### DSCRay
@@ -765,6 +787,7 @@ models should be published to when exposed as services.
 
 
 _Appears in:_
+- [DSCModelsAsServiceSpec](#dscmodelsasservicespec)
 - [ModelsAsServiceSpec](#modelsasservicespec)
 
 | Field | Description | Default | Validation |
@@ -810,6 +833,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br /> |
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration |  |  |
+| `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Configures and enables Models as a Service integration |  |  |
 
 
 #### KserveCommonStatus
@@ -844,6 +868,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br /> |
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration |  |  |
+| `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Configures and enables Models as a Service integration |  |  |
 
 
 #### KserveStatus
@@ -1373,6 +1398,7 @@ ModelsAsServiceSpec defines the desired state of ModelsAsService
 
 
 _Appears in:_
+- [DSCModelsAsServiceSpec](#dscmodelsasservicespec)
 - [ModelsAsService](#modelsasservice)
 
 | Field | Description | Default | Validation |
@@ -2934,6 +2960,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
+| `ingressMode` _[IngressMode](#ingressmode)_ | IngressMode specifies how the Gateway is exposed externally.<br />"OcpRoute" uses ClusterIP with standard OpenShift Routes (default for new deployments).<br />"LoadBalancer" uses a LoadBalancer service type (requires cloud or MetalLB). |  | Enum: [OcpRoute LoadBalancer] <br /> |
 | `oidc` _[OIDCConfig](#oidcconfig)_ | OIDC configuration (used when cluster is in OIDC authentication mode) |  |  |
 | `certificate` _[CertificateSpec](#certificatespec)_ | Certificate specifies configuration of the TLS certificate securing communication for the gateway. |  |  |
 | `domain` _string_ | Domain specifies the host name for intercepting incoming requests.<br />Most likely, you will want to use a wildcard name, like *.example.com.<br />If not set, the domain of the OpenShift Ingress is used.<br />If you choose to generate a certificate, this is the domain used for the certificate request.<br />Example: *.example.com, example.com, apps.example.com |  | Pattern: `^(\*\.)?([a-z0-9]([-a-z0-9]*[a-z0-9])?\.)*[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br /> |
@@ -2942,6 +2969,8 @@ _Appears in:_
 | `authTimeout` _string_ | AuthTimeout is the duration Envoy waits for auth proxy responses.<br />Requests timeout with 403 if exceeded.<br />Deprecated: Use AuthProxyTimeout instead. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br /> |
 | `authProxyTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#duration-v1-meta)_ | AuthProxyTimeout defines the timeout for external authorization service calls (e.g., "5s", "10s")<br />This controls how long Envoy waits for a response from the authentication proxy before timing out 403 response. |  |  |
 | `networkPolicy` _[NetworkPolicyConfig](#networkpolicyconfig)_ | NetworkPolicy configuration for kube-auth-proxy |  |  |
+| `providerCASecretName` _string_ | ProviderCASecretName is the name of the secret containing the CA certificate for the authentication provider<br />Used when the OAuth/OIDC provider uses a self-signed or custom CA certificate.<br />Secret must exist in the openshift-ingress namespace and contain a 'ca.crt' key with the PEM-encoded CA certificate. |  |  |
+| `verifyProviderCertificate` _boolean_ | VerifyProviderCertificate controls TLS certificate verification for the authentication provider.<br />When true (default), certificates are verified against the system trust store and providerCASecretName.<br />When false, certificate verification is disabled (development/testing only).<br />WARNING: Setting this to false disables security and should only be used in non-production environments.<br />For production use with self-signed certificates, use ProviderCASecretName instead. | true |  |
 
 
 #### GatewayConfigStatus
@@ -2960,6 +2989,24 @@ _Appears in:_
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
+
+
+#### IngressMode
+
+_Underlying type:_ _string_
+
+IngressMode defines how the Gateway exposes its endpoints externally.
+
+_Validation:_
+- Enum: [OcpRoute LoadBalancer]
+
+_Appears in:_
+- [GatewayConfigSpec](#gatewayconfigspec)
+
+| Field | Description |
+| --- | --- |
+| `OcpRoute` | IngressModeOcpRoute uses ClusterIP service with standard OpenShift Routes.<br />This is the default for new deployments and works without additional infrastructure.<br /> |
+| `LoadBalancer` | IngressModeLoadBalancer uses a LoadBalancer service type.<br />This requires a load balancer provider (cloud or MetalLB).<br /> |
 
 
 #### IngressPolicyConfig

@@ -787,3 +787,78 @@ func getClusterNodes(t *testing.T, withGPU bool) []client.Object {
 		node2,
 	}
 }
+
+func TestKueueConditionFilter(t *testing.T) {
+	tests := []struct {
+		name           string
+		conditionType  string
+		conditionValue string
+		shouldDegrade  bool
+	}{
+		// Degraded conditions
+		{
+			name:           "Degraded=True triggers degradation",
+			conditionType:  "Degraded",
+			conditionValue: "True",
+			shouldDegrade:  true,
+		},
+		{
+			name:           "Available=False triggers degradation",
+			conditionType:  "Available",
+			conditionValue: "False",
+			shouldDegrade:  true,
+		},
+		{
+			name:           "CertManagerAvailable=False triggers degradation",
+			conditionType:  "CertManagerAvailable",
+			conditionValue: "False",
+			shouldDegrade:  true,
+		},
+		// Healthy conditions
+		{
+			name:           "Degraded=False is healthy",
+			conditionType:  "Degraded",
+			conditionValue: "False",
+			shouldDegrade:  false,
+		},
+		{
+			name:           "Available=True is healthy",
+			conditionType:  "Available",
+			conditionValue: "True",
+			shouldDegrade:  false,
+		},
+		{
+			name:           "CertManagerAvailable=True is healthy",
+			conditionType:  "CertManagerAvailable",
+			conditionValue: "True",
+			shouldDegrade:  false,
+		},
+		// Conditions not in filter (should be ignored)
+		{
+			name:           "Progressing=False is ignored",
+			conditionType:  "Progressing",
+			conditionValue: "False",
+			shouldDegrade:  false,
+		},
+		{
+			name:           "Progressing=True is ignored",
+			conditionType:  "Progressing",
+			conditionValue: "True",
+			shouldDegrade:  false,
+		},
+		{
+			name:           "Unknown condition type is ignored",
+			conditionType:  "SomeOtherCondition",
+			conditionValue: "True",
+			shouldDegrade:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			result := kueueDegradedConditionFilter(tt.conditionType, tt.conditionValue)
+			g.Expect(result).To(Equal(tt.shouldDegrade))
+		})
+	}
+}

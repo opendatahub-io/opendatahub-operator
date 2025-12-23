@@ -31,11 +31,30 @@ const (
 	GatewayConfigKind = "GatewayConfig"
 )
 
+// IngressMode defines how the Gateway exposes its endpoints externally.
+// +kubebuilder:validation:Enum=OcpRoute;LoadBalancer
+type IngressMode string
+
+const (
+	// IngressModeOcpRoute uses ClusterIP service with standard OpenShift Routes.
+	// This is the default for new deployments and works without additional infrastructure.
+	IngressModeOcpRoute IngressMode = "OcpRoute"
+	// IngressModeLoadBalancer uses a LoadBalancer service type.
+	// This requires a load balancer provider (cloud or MetalLB).
+	IngressModeLoadBalancer IngressMode = "LoadBalancer"
+)
+
 // Check that the component implements common.PlatformObject.
 var _ common.PlatformObject = (*GatewayConfig)(nil)
 
 // GatewayConfigSpec defines the desired state of GatewayConfig
 type GatewayConfigSpec struct {
+	// IngressMode specifies how the Gateway is exposed externally.
+	// "OcpRoute" uses ClusterIP with standard OpenShift Routes (default for new deployments).
+	// "LoadBalancer" uses a LoadBalancer service type (requires cloud or MetalLB).
+	// +optional
+	IngressMode IngressMode `json:"ingressMode,omitempty"`
+
 	// OIDC configuration (used when cluster is in OIDC authentication mode)
 	// +optional
 	OIDC *OIDCConfig `json:"oidc,omitempty"`
@@ -79,6 +98,21 @@ type GatewayConfigSpec struct {
 	// NetworkPolicy configuration for kube-auth-proxy
 	// +optional
 	NetworkPolicy *NetworkPolicyConfig `json:"networkPolicy,omitempty"`
+
+	// ProviderCASecretName is the name of the secret containing the CA certificate for the authentication provider
+	// Used when the OAuth/OIDC provider uses a self-signed or custom CA certificate.
+	// Secret must exist in the openshift-ingress namespace and contain a 'ca.crt' key with the PEM-encoded CA certificate.
+	// +optional
+	ProviderCASecretName string `json:"providerCASecretName,omitempty"`
+
+	// VerifyProviderCertificate controls TLS certificate verification for the authentication provider.
+	// When true (default), certificates are verified against the system trust store and providerCASecretName.
+	// When false, certificate verification is disabled (development/testing only).
+	// WARNING: Setting this to false disables security and should only be used in non-production environments.
+	// For production use with self-signed certificates, use ProviderCASecretName instead.
+	// +optional
+	// +kubebuilder:default=true
+	VerifyProviderCertificate *bool `json:"verifyProviderCertificate,omitempty"`
 }
 
 // NetworkPolicyConfig defines network policy configuration for kube-auth-proxy.

@@ -198,6 +198,36 @@ func TestUpdateDSCStatus(t *testing.T) {
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("Component ManagementState is set to Removed")`, ReadyConditionType)),
 		))
 	})
+
+	t.Run("should propagate KServe conditions to DSC", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+		dsc := createDSCWithKserve(operatorv1.Managed)
+		kserve := createKserveCR(true)
+		kserve.Status.Conditions = append(kserve.Status.Conditions, common.Condition{
+			Type:   LLMInferenceServiceDependencies,
+			Status: metav1.ConditionTrue,
+		})
+
+		kserve.Status.Conditions = append(kserve.Status.Conditions, common.Condition{
+			Type:   LLMInferenceServiceWideEPDependencies,
+			Status: metav1.ConditionFalse,
+		})
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, kserve))
+		g.Expect(err).ShouldNot(HaveOccurred())
+		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+		})
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(cs).Should(Equal(metav1.ConditionTrue))
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, LLMInferenceServiceDependencies, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, LLMInferenceServiceWideEPDependencies, metav1.ConditionFalse),
+		)))
+	})
 }
 
 func createDSCWithKserve(managementState operatorv1.ManagementState) *dscv2.DataScienceCluster {
@@ -232,6 +262,75 @@ func createKserveCR(ready bool) *componentApi.Kserve {
 	}
 
 	return &c
+}
+
+func TestLwsConditionFilter(t *testing.T) {
+	tests := []struct {
+		name           string
+		conditionType  string
+		conditionValue string
+		shouldDegrade  bool
+	}{
+		// Degraded conditions
+		{
+			name:           "Degraded=True triggers degradation",
+			conditionType:  "Degraded",
+			conditionValue: "True",
+			shouldDegrade:  true,
+		},
+		{
+			name:           "TargetConfigControllerDegraded=True triggers degradation",
+			conditionType:  "TargetConfigControllerDegraded",
+			conditionValue: "True",
+			shouldDegrade:  true,
+		},
+		{
+			name:           "Available=False triggers degradation",
+			conditionType:  "Available",
+			conditionValue: "False",
+			shouldDegrade:  true,
+		},
+		// Healthy conditions
+		{
+			name:           "Degraded=False is healthy",
+			conditionType:  "Degraded",
+			conditionValue: "False",
+			shouldDegrade:  false,
+		},
+		{
+			name:           "TargetConfigControllerDegraded=False is healthy",
+			conditionType:  "TargetConfigControllerDegraded",
+			conditionValue: "False",
+			shouldDegrade:  false,
+		},
+		{
+			name:           "Available=True is healthy",
+			conditionType:  "Available",
+			conditionValue: "True",
+			shouldDegrade:  false,
+		},
+		// Conditions not in filter (should be ignored)
+		{
+			name:           "Progressing=True is ignored",
+			conditionType:  "Progressing",
+			conditionValue: "True",
+			shouldDegrade:  false,
+		},
+		{
+			name:           "Unknown condition type is ignored",
+			conditionType:  "SomeOtherCondition",
+			conditionValue: "True",
+			shouldDegrade:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			result := lwsConditionFilter(tt.conditionType, tt.conditionValue)
+			g.Expect(result).To(Equal(tt.shouldDegrade))
+		})
+	}
 }
 
 func TestVersionedWellKnownLLMInferenceServiceConfigs(t *testing.T) {
