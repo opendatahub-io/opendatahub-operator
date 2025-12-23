@@ -75,11 +75,12 @@ func customizeManifests(_ context.Context, rr *types.ReconciliationRequest) erro
 		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
 	}
 
-	// Customize Gateway parameters in manifests based on the ModelsAsService spec
-	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), "params.env", nil, map[string]string{
-		"GATEWAY_NAMESPACE": maas.Spec.Gateway.Namespace,
-		"GATEWAY_NAME":      maas.Spec.Gateway.Name,
-	}); err != nil {
+	gatewayParams := map[string]string{
+		"gateway-namespace": maas.Spec.Gateway.Namespace,
+		"gateway-name":      maas.Spec.Gateway.Name,
+	}
+
+	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), "params.env", nil, gatewayParams); err != nil {
 		return fmt.Errorf("failed to update Gateway params on path %s: %w", rr.Manifests[0].String(), err)
 	}
 
