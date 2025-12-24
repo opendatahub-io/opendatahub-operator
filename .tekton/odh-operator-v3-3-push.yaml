@@ -1,0 +1,71 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  annotations:
+    build.appstudio.openshift.io/repo: https://github.com/red-hat-data-services/rhods-operator?rev={{revision}}
+    build.appstudio.redhat.com/commit_sha: '{{revision}}'
+    build.appstudio.redhat.com/target_branch: '{{target_branch}}'
+    pipelinesascode.tekton.dev/max-keep-runs: "3"
+    build.appstudio.openshift.io/build-nudge-files: "bundle/bundle-patch.yaml"
+    pipelinesascode.tekton.dev/on-cel-expression: |
+      event == "push" && target_branch == "rhoai-3.3" && !"bundle/**".pathChanged()
+      && !"Dockerfiles/bundle.Dockerfile".pathChanged() && (!"build/**".pathChanged()
+      || "build/operands-map.yaml".pathChanged() || ".tekton/odh-operator-v3-3-push.yaml".pathChanged()
+      ) && !".github/workflows/**".pathChanged()
+  creationTimestamp: null
+  labels:
+    appstudio.openshift.io/application: rhoai-v3-3
+    appstudio.openshift.io/component: odh-operator-v3-3
+    pipelines.appstudio.openshift.io/type: build
+  name: odh-operator-v3-3-on-push
+  namespace: rhoai-tenant
+spec:
+  timeouts:
+    pipeline: 4h
+  params:
+  - name: git-url
+    value: '{{source_url}}'
+  - name: revision
+    value: '{{revision}}'
+  - name: additional-tags
+    value:
+    - '{{target_branch}}-{{revision}}'
+  - name: additional-labels
+    value:
+    - version=v3.3.0
+    - io.openshift.tags=odh-operator
+  - name: output-image
+    value: quay.io/rhoai/odh-rhel9-operator:{{target_branch}}
+  - name: build-platforms
+    value:
+    - linux/x86_64
+    - linux/ppc64le
+    - linux/s390x
+    - linux-m2xlarge/arm64
+  - name: dockerfile
+    value: Dockerfiles/Dockerfile.konflux
+  - name: path-context
+    value: .
+  - name: hermetic
+    value: true
+  - name: prefetch-input
+    value: |
+      [{"type": "gomod", "path": "."}, {"type": "rpm", "path": "."}]
+  - name: build-image-index
+    value: true
+  pipelineRef:
+    resolver: git
+    params:
+    - name: url
+      value: https://github.com/red-hat-data-services/konflux-central.git
+    - name: revision
+      value: '{{ target_branch }}'
+    - name: pathInRepo
+      value: pipelines/multi-arch-container-build.yaml
+  taskRunTemplate:
+    serviceAccountName: build-pipeline-odh-operator-v3-3
+  workspaces:
+  - name: git-auth
+    secret:
+      secretName: '{{ git_auth_secret }}'
+status: {}
