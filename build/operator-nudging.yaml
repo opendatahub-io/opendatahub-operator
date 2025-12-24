@@ -70,7 +70,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_BUILT_IN_DETECTOR_IMAGE
   value: quay.io/rhoai/odh-built-in-detector-rhel9@sha256:59f75020cf630e2c7aeb1ca7692745c8e11e4ff46cc29fe7779213f7b56d1e71
 - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_DATASCIENCE_CPU_PY312_IMAGE
-  value: quay.io/rhoai/odh-pipeline-runtime-datascience-cpu-py312-rhel9@sha256:3d210fc4080bb897a4e67a1b7fbf5a68c95291b4d39d6ba7109357bf5cda344a
+  value: quay.io/rhoai/odh-pipeline-runtime-datascience-cpu-py312-rhel9@sha256:3219b4f6c43e9a7c5978d23ba47ed47dd9ad3f5959b14aff284c7734e3663392
 - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_MINIMAL_CPU_PY312_IMAGE
   value: quay.io/rhoai/odh-pipeline-runtime-minimal-cpu-py312-rhel9@sha256:1ee70bc8e5aee1c5b43ba11227e1bc62e2bf908a6cb22357e04d17c79f8d6c6f
 - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_CUDA_PY312_IMAGE
