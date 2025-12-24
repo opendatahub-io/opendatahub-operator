@@ -132,7 +132,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TRUSTYAI_RAGAS_LLS_PROVIDER_DSP_IMAGE
   value: quay.io/rhoai/odh-trustyai-ragas-lls-provider-dsp-rhel9@sha256:3f82e0cea55a3f583c024d982f61ac39ece06f7ce39256f6576336a6a5fa1d05
 - name: RELATED_IMAGE_ODH_TRAINING_CUDA121_TORCH24_PY311_IMAGE
-  value: quay.io/rhoai/odh-training-cuda121-torch24-py311-rhel9@sha256:5f7a974163856d07985b5da257688aad036427d3724194050782e58eab0cff1a
+  value: quay.io/rhoai/odh-training-cuda121-torch24-py311-rhel9@sha256:7e4d2ca600792eade90a42213e5e97597faa7b617b58e9c3f4b3f36d94589cf2
 - name: RELATED_IMAGE_ODH_TRAINING_CUDA124_TORCH25_PY311_IMAGE
   value: quay.io/rhoai/odh-training-cuda124-torch25-py311-rhel9@sha256:bafee27b0842d196eb305963cc9b3f29d31cdf2c014af88b5965a8d908cc6f9a
 - name: RELATED_IMAGE_ODH_TRAINING_CUDA128_TORCH28_PY312_IMAGE
