@@ -14,7 +14,7 @@ DST_MANIFESTS_DIR="./opt/manifests"
 
 # ODH Component Manifests
 declare -A ODH_COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:main@d45a93a029692e6fd283c9adb98f59396f2174f8:manifests"
+    ["dashboard"]="opendatahub-io:odh-dashboard:main@31ac6b44132266ad10b0e40f9e460b54f3ca6924:manifests"
     ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@211a77d7ca1413991e38b4941cce9cec52a3b737:components/notebook-controller/config"
     ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@211a77d7ca1413991e38b4941cce9cec52a3b737:components/odh-notebook-controller/config"
     ["workbenches/notebooks"]="opendatahub-io:notebooks:main@5fe160d0645ff0f5169d3a610808528caf26ade0:manifests"
@@ -28,7 +28,7 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["feastoperator"]="opendatahub-io:feast:stable@c3b8280592f9f5af4b10db868a83d51f54b94738:infra/feast-operator/config"
     ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@8f3f9289969c8a1b7efafa07b5920a030ac56b3c:config"
     ["trainer"]="opendatahub-io:trainer:main@e99c2618a4f350be1bc2803c3e4f01e55c3db866:manifests"
-    ["maas"]="opendatahub-io:maas-billing:main@216b20b3e0b3c9e76f7d75e812537c98802bb0cb:deployment"
+    ["maas"]="opendatahub-io:maas-billing:main@731d145809e95beaa83f7c6867d9da46792ea576:deployment"
     ["mlflowoperator"]="opendatahub-io:mlflow-operator:main@d60363ccf63adada5e6a638b7e3a189265b025e0:config"
 )
 
