@@ -42,7 +42,7 @@ jobs:
       # ============================================================================
       # SECRETS DETECTION - Gitleaks (Pattern-based)
       # ============================================================================
-      # Tool: Gitleaks v8.20.1
+      # Tool: Gitleaks v8.30.0
       # Purpose: Detects hardcoded secrets using regex patterns (API keys, passwords, tokens)
       # Coverage: ~100 built-in patterns for AWS, GitHub, Slack, etc.
       # Mode: Pattern-based detection (fast, some false positives possible)
@@ -65,7 +65,7 @@ jobs:
         timeout-minutes: 10
         run: |
           # Conditionally add --no-git flag based on workflow input
-          NO_GIT_FLAG="${{ inputs.scan_git_history == 'false' && '--no-git' || '' }}"
+          NO_GIT_FLAG="${{ !inputs.scan_git_history && '--no-git' || '' }}"
 
           docker run --rm \
             -v "${{ github.workspace }}:/repo" \
@@ -82,7 +82,7 @@ jobs:
       # ============================================================================
       # SECRETS DETECTION - TruffleHog (Verified Credentials)
       # ============================================================================
-      # Tool: TruffleHog v3.91.1
+      # Tool: TruffleHog v3.92.3
       # Purpose: Detects AND verifies live credentials by testing them against APIs
       # Coverage: 800+ credential types with API verification
       # Mode: Verified detection (slower, near-zero false positives)
@@ -111,7 +111,7 @@ jobs:
       # ============================================================================
       # CUSTOM SECURITY RULES - Semgrep
       # ============================================================================
-      # Tool: Semgrep v1.144.0
+      # Tool: Semgrep v1.145.0
       # Purpose: Custom SAST rules for RBAC, OWASP, Kubernetes operator patterns
       # Coverage: 27 operator-focused rules (11 RBAC, excludes SQL/command injection)
       # Config: semgrep.yaml in repository root
@@ -196,23 +196,24 @@ jobs:
       # ============================================================================
       # YAML VALIDATION - yamllint
       # ============================================================================
-      # Tool: yamllint v3.1.1
+      # Tool: yamllint v1.37.1
       # Purpose: Validates YAML syntax and style for Kubernetes manifests
       # Detects: Syntax errors, inconsistent indentation, line length violations
       # Config: .yamllint (strict truthy checking: yes/no/true/false enforcement)
       # Coverage: All .yaml and .yml files (manifests, workflows, configs)
       # Benefit: Catches deployment-breaking YAML errors before runtime
-      # Output: JSON format for consistent failure detection and parsing
+      # Output: parsable format (file:line:col: [level] message (rule))
+      # Note: JSON format not supported - PR #245 never merged
 
       - name: Install yamllint
         run: |
           python -m pip install --upgrade pip
-          pip install yamllint==1.35.1
+          pip install yamllint==1.37.1
 
       - name: Run yamllint
         id: yamllint
         run: |
-          yamllint -f json . > yamllint.json || true
+          yamllint -f parsable . > yamllint.txt || true
         continue-on-error: true
 
       # ============================================================================
@@ -243,23 +244,31 @@ jobs:
       - name: Install PyYAML for RBAC analyzer
         run: python -m pip install "pyyaml==6.0.3"
 
-      - name: Run RBAC Privilege Chain Analyzer
+      - name: Run RBAC Privilege Chain Analyzer (Public Version)
         id: rbac_analyzer
         run: |
-          python .github/scripts/rbac-analyzer.py . --fail-on HIGH 2>&1 | tee rbac-analysis.txt
-          echo "## 🔐 RBAC Privilege Chain Analysis" >> $GITHUB_STEP_SUMMARY
+          # Generate public version (no attack scenarios) for artifacts
+          python .github/scripts/rbac-analyzer.py . --fail-on HIGH 2>&1 | tee rbac-analysis.md
+          echo "## 🔐 RBAC Privilege Chain Analysis (Public)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          cat rbac-analysis.txt >> $GITHUB_STEP_SUMMARY
+          cat rbac-analysis.md >> $GITHUB_STEP_SUMMARY
         continue-on-error: true
 
-      # Note: actions/upload-artifact v6.0.0 requires Node.js 24 (Actions Runner 2.327.1+)
-      # GitHub-hosted runners (ubuntu-latest) are automatically updated and meet this requirement
+      - name: Generate RBAC Analysis with Attack Scenarios (Private Version)
+        id: rbac_analyzer_private
+        if: always()
+        run: |
+          # Generate private version with detailed attack scenarios for security advisory
+          python .github/scripts/rbac-analyzer.py . --fail-on HIGH --include-attack-scenarios 2>&1 | tee rbac-analysis-private.md
+          echo "✅ Private RBAC analysis with attack scenarios generated (for security advisory)"
+        continue-on-error: true
+
       - name: Upload RBAC analysis report
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
         with:
           name: rbac-analysis-report
-          path: rbac-analysis.txt
+          path: rbac-analysis.md
           retention-days: 30
 
       # ============================================================================
@@ -289,7 +298,9 @@ jobs:
           python .github/scripts/generate-security-report.py \
             --output security-report.md \
             --json-summary security-summary.json \
-            --workspace .
+            --yamllint-report yamllint-report.md \
+            --workspace . \
+            --yamllint-limit 30
           echo "## Comprehensive Security Report Generated" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "A detailed security report has been generated and uploaded as an artifact." >> $GITHUB_STEP_SUMMARY
@@ -304,6 +315,7 @@ jobs:
           path: |
             security-report.md
             security-summary.json
+            yamllint-report.md
           retention-days: 90
 
       # ============================================================================
@@ -353,6 +365,18 @@ jobs:
             local json_file="security-summary.json"
 
             if [[ ! -f "$json_file" ]]; then
+              echo ""
+              return
+            fi
+
+            # Verify jq is available
+            if ! command -v jq &> /dev/null; then
+              echo "<br/>⚠️ jq not available"
+              return
+            fi
+
+            # Validate JSON structure before parsing
+            if ! jq -e ".tools[\"$tool_name\"]" "$json_file" &>/dev/null; then
               echo ""
               return
             fi
@@ -413,7 +437,7 @@ jobs:
                     fi
                     ;;
                   *)
-                    # For text files like rbac-analysis.txt
+                    # For text/markdown files like rbac-analysis.md
                     echo "🔒|Issues Found"
                     ;;
                 esac
@@ -460,12 +484,12 @@ jobs:
           echo "| Hadolint | Dockerfile security | ${status_result%%|*} | ${status_result##*|}${severity_summary} |" >> $GITHUB_STEP_SUMMARY
 
           # yamllint
-          status_result=$(get_status "$YAMLLINT_OUTCOME" "yamllint.json")
+          status_result=$(get_status "$YAMLLINT_OUTCOME" "yamllint.txt")
           severity_summary=$(get_severity_badge "yamllint")
           echo "| yamllint | YAML validation | ${status_result%%|*} | ${status_result##*|}${severity_summary} |" >> $GITHUB_STEP_SUMMARY
 
           # RBAC Analyzer
-          status_result=$(get_status "$RBAC_OUTCOME" "rbac-analysis.txt")
+          status_result=$(get_status "$RBAC_OUTCOME" "rbac-analysis.md")
           severity_summary=$(get_severity_badge "RBAC Analyzer")
           echo "| RBAC Analyzer | Privilege chain analysis | ${status_result%%|*} | ${status_result##*|}${severity_summary} |" >> $GITHUB_STEP_SUMMARY
 
@@ -482,11 +506,14 @@ jobs:
           else
             # Check if any tools actually failed (vs just found issues)
             has_failures=false
+            has_incomplete=false
             for outcome in "$GITLEAKS_OUTCOME" "$TRUFFLEHOG_OUTCOME" "$SEMGREP_OUTCOME" "$SHELLCHECK_OUTCOME" "$HADOLINT_OUTCOME" "$YAMLLINT_OUTCOME" "$RBAC_OUTCOME"; do
               if [[ "$outcome" == "failure" ]]; then
                 # At least one tool had a non-success outcome (either failed or found issues)
                 has_failures=true
-                break
+              elif [[ "$outcome" == "cancelled" || "$outcome" == "skipped" ]]; then
+                # At least one tool was cancelled or skipped
+                has_incomplete=true
               fi
             done
 
@@ -494,7 +521,28 @@ jobs:
               echo "⚠️ **Security issues detected - review required**" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
               echo "Download the **comprehensive-security-report** artifact for detailed findings." >> $GITHUB_STEP_SUMMARY
+            elif $has_incomplete; then
+              echo "ℹ️ **Security scans incomplete - review required**" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "Some scans were cancelled or skipped. Review the workflow logs for details." >> $GITHUB_STEP_SUMMARY
             fi
+          fi
+
+      - name: Fail workflow on critical findings
+        if: always() && hashFiles('security-summary.json') != ''
+        run: |
+          # Verify jq is available
+          if ! command -v jq &> /dev/null; then
+            echo "⚠️ jq not available - skipping critical findings check"
+            exit 0
+          fi
+
+          critical=$(jq -r '.severity_counts.critical // 0' security-summary.json)
+          # Validate numeric value
+          if [[ "$critical" =~ ^[0-9]+$ ]] && [[ $critical -gt 0 ]]; then
+            echo "❌ Workflow failed: $critical CRITICAL findings detected"
+            echo "Review the comprehensive-security-report artifact for details"
+            exit 1
           fi
 
       # ============================================================================
@@ -534,46 +582,17 @@ jobs:
            steps.trufflehog.outcome == 'failure' ||
            steps.semgrep.outcome == 'failure' ||
            steps.rbac_analyzer.outcome == 'failure')
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b  # v7.0.1
         with:
           github-token: ${{ steps.app_token.outputs.token }}
           script: |
-            await github.rest.securityAdvisories.createRepositoryAdvisory({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              summary: 'Security Full Scan - Critical Findings Detected',
-              description: `## Critical Security Issues Detected
-
-              The full codebase security scan has detected critical issues.
-
-              **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-              **Commit:** ${{ github.sha }}
-              **Branch:** ${{ github.ref_name }}
-
-              ### Next Steps
-              1. Review the workflow run logs at the link above
-              2. Download the **comprehensive-security-report** artifact for detailed findings
-              3. Check the Security tab for SARIF results (Semgrep, Hadolint)
-              4. Review individual tool artifacts (gitleaks.json, trufflehog.json, etc.)
-              5. Triage and remediate findings
-
-              ### Report Contents
-              The comprehensive security report includes:
-              - Executive summary with overall security posture
-              - Critical/High/Medium/Low findings with file paths and line numbers
-              - Remediation guidance for each finding
-              - RBAC privilege chain analysis
-              - Prioritized recommendations
-
-              This is an automated private security advisory created by the security scanning workflow.
-              It will remain private until manually published.`,
+            const createAdvisory = require('./.github/scripts/create-security-advisory.js')
+            await createAdvisory({
+              github,
+              context,
+              core,
               severity: '${{ steps.severity.outputs.severity || 'high' }}',
-              vulnerabilities: [{
-                package: {
-                  ecosystem: 'other',
-                  name: 'opendatahub-operator'
-                },
-                vulnerable_version_range: 'all versions',
-                patched_versions: 'none'
-              }]
+              workflowRunUrl: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}',
+              commit: '${{ github.sha }}',
+              branch: '${{ github.ref_name }}'
             })
