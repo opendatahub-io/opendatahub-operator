@@ -14,7 +14,7 @@ DST_MANIFESTS_DIR="./opt/manifests"
 
 # ODH Component Manifests
 declare -A ODH_COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:main@31ac6b44132266ad10b0e40f9e460b54f3ca6924:manifests"
+    ["dashboard"]="opendatahub-io:odh-dashboard:main@7e4b847776bd816f512737d53b9ecc1a4d8aff9d:manifests"
     ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@211a77d7ca1413991e38b4941cce9cec52a3b737:components/notebook-controller/config"
     ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@211a77d7ca1413991e38b4941cce9cec52a3b737:components/odh-notebook-controller/config"
     ["workbenches/notebooks"]="opendatahub-io:notebooks:main@5fe160d0645ff0f5169d3a610808528caf26ade0:manifests"
