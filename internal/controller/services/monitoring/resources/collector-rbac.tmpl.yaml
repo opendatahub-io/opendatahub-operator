@@ -17,6 +17,16 @@ rules:
   - watch
   - list
 - apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - podmonitors
+  - servicemonitors
+  - probes
+  verbs:
+  - get
+  - watch
+  - list
+- apiGroups:
   - apps
   resources:
   - replicasets
