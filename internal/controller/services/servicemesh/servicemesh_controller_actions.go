@@ -537,6 +537,10 @@ func cleanupSMCP(ctx context.Context, rr *odhtypes.ReconciliationRequest) error 
 		return nil
 	}
 	if err != nil {
+		// If CRD doesn't exist (NoMatchError), skip cleanup gracefully
+		if meta.IsNoMatchError(err) {
+			return nil
+		}
 		return fmt.Errorf("failed to get ServiceMeshControlPlane: %w", err)
 	}
 

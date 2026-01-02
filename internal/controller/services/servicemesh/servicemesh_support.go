@@ -14,6 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -82,6 +83,43 @@ func (SMCPReadyPredicate) Update(e event.UpdateEvent) bool {
 
 func NewSMCPReadyPredicate() *SMCPReadyPredicate {
 	return &SMCPReadyPredicate{}
+}
+
+type DSCIServiceMeshPredicate struct {
+	predicate.Funcs
+}
+
+func (DSCIServiceMeshPredicate) Update(e event.UpdateEvent) bool {
+	if e.ObjectOld == nil || e.ObjectNew == nil {
+		return false
+	}
+
+	oldDSCI, ok := e.ObjectOld.(*dsciv1.DSCInitialization)
+	if !ok {
+		return false
+	}
+
+	newDSCI, ok := e.ObjectNew.(*dsciv1.DSCInitialization)
+	if !ok {
+		return false
+	}
+
+	// Trigger reconciliation if ServiceMesh ManagementState changes
+	oldState := getServiceMeshManagementState(oldDSCI)
+	newState := getServiceMeshManagementState(newDSCI)
+
+	return oldState != newState
+}
+
+func NewDSCIServiceMeshPredicate() *DSCIServiceMeshPredicate {
+	return &DSCIServiceMeshPredicate{}
+}
+
+func getServiceMeshManagementState(dsci *dsciv1.DSCInitialization) string {
+	if dsci == nil || dsci.Spec.ServiceMesh == nil {
+		return ""
+	}
+	return string(dsci.Spec.ServiceMesh.ManagementState)
 }
 
 func checkServiceMeshOperator(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {

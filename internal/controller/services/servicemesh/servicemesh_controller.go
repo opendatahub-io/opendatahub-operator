@@ -15,6 +15,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 )
@@ -65,6 +66,11 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WatchesGVK(gvk.ServiceMeshControlPlane,
 			reconciler.Dynamic(reconciler.CrdExists(gvk.ServiceMeshControlPlane)),
 			reconciler.WithPredicates(NewSMCPReadyPredicate()),
+		).
+		// watch DSCI for ServiceMesh ManagementState changes (e.g., when set to Removed)
+		WatchesGVK(gvk.DSCInitialization,
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.ServiceMeshInstanceName)),
+			reconciler.WithPredicates(NewDSCIServiceMeshPredicate()),
 		).
 		WithAction(checkPreconditions).
 		WithAction(createControlPlaneNamespace).
