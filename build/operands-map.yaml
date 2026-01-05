@@ -165,3 +165,5 @@ relatedImages:
   value: "quay.io/rhoai/odh-mlflow-operator-rhel9@sha256:9f584a0c3c5dfa142c2ceac79a44201b9686d5a2900e3a9014251fa2ac669f5f"
 - name: RELATED_IMAGE_ODH_MLFLOW_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-mlflow-operator-rhel9@sha256:9f584a0c3c5dfa142c2ceac79a44201b9686d5a2900e3a9014251fa2ac669f5f"
+- name: RELATED_IMAGE_ODH_OPERATOR_IMAGE
+  value: quay.io/rhoai/odh-rhel9-operator@sha256:b4c3a44795921857453ecdba224199675a79a6422c8cbe88bc493d001309a018
