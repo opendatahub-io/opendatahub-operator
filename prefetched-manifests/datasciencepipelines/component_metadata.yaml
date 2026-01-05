@@ -1,0 +1,4 @@
+releases:
+  - name: Kubeflow Pipelines
+    version: 2.5.0
+    repoUrl: https://github.com/kubeflow/pipelines

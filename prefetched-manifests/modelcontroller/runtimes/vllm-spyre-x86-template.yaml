@@ -1,0 +1,66 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  labels:
+    opendatahub.io/dashboard: 'true'
+    opendatahub.io/ootb: 'true'
+  annotations:
+    description: vLLM ServingRuntime to support IBM Spyre
+    openshift.io/display-name: vLLM Spyre on x86 ServingRuntime for KServe
+    openshift.io/provider-display-name: Red Hat, Inc.
+    tags: rhods,rhoai,kserve,servingruntime
+    template.openshift.io/documentation-url: https://github.com/vllm-project/vllm-spyre
+    template.openshift.io/long-description: This template defines resources needed to deploy vLLM Spyre AI Accelerator ServingRuntime with KServe in Red Hat OpenShift AI (x86 architectures only)
+    opendatahub.io/modelServingSupport: '["single"]'
+    opendatahub.io/apiProtocol: 'REST'
+    opendatahub.io/model-type: '["generative"]'
+  name: vllm-spyre-x86-runtime-template
+objects:
+  - apiVersion: serving.kserve.io/v1alpha1
+    kind: ServingRuntime
+    metadata:
+      name: vllm-spyre-x86-runtime
+      annotations:
+        openshift.io/display-name: vLLM Spyre on x86 ServingRuntime for KServe
+        opendatahub.io/recommended-accelerators: '["ibm.com/spyre_pf"]'
+        opendatahub.io/runtime-version: 'v0.11.0'
+      labels:
+        opendatahub.io/dashboard: 'true'
+    spec:
+      annotations:
+        opendatahub.io/kserve-runtime: 'vllm'
+        prometheus.io/path: /metrics
+        prometheus.io/port: '8080'
+      containers:
+        - image: $(vllm-spyre-x86-image)
+          name: kserve-container
+          args:
+            - '--model=/mnt/models'
+            - '--port=8000'
+            - '--served-model-name={{.Name}}'
+          env:
+            - name: HF_HOME
+              value: /tmp/hf_home
+            - name: FLEX_COMPUTE
+              value: SENTIENT
+            - name: FLEX_DEVICE
+              value: PF
+            - name: TOKENIZERS_PARALLELISM
+              value: 'false'
+            - name: DTLOG_LEVEL
+              value: error
+            - name: TORCH_SENDNN_LOG
+              value: CRITICAL
+            - name: VLLM_SPYRE_WARMUP_BATCH_SIZES
+              value: '4'
+            - name: VLLM_SPYRE_WARMUP_PROMPT_LENS
+              value: '1024'
+            - name: VLLM_SPYRE_WARMUP_NEW_TOKENS
+              value: '256'
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+      multiModel: false
+      supportedModelFormats:
+        - autoSelect: true
+          name: vLLM

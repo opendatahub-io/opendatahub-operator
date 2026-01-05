@@ -1,0 +1,87 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inferenceservice-config
+  namespace: kserve
+data:
+  explainers: |-
+    {
+        "art": {
+            "image" : "kserve/art-explainer",
+            "defaultImageVersion": "latest"
+        }
+    }
+  storageInitializer: |-
+    {
+        "image" : "kserve/storage-initializer:latest",
+        "memoryRequest": "100Mi",
+        "memoryLimit": "1Gi",
+        "cpuRequest": "100m",
+        "cpuLimit": "1",
+        "enableDirectPvcVolumeMount": true,
+        "cpuModelcar": "10m",
+        "memoryModelcar": "15Mi",
+        "enableModelcar": true
+    }
+  credentials: |-
+    {
+       "gcs": {
+           "gcsCredentialFileName": "gcloud-application-credentials.json"
+       },
+       "s3": {
+           "s3AccessKeyIDName": "awsAccessKeyID",
+           "s3SecretAccessKeyName": "awsSecretAccessKey"
+       }
+    }
+  ingress: |-
+    {
+        "enableGatewayApi": false,
+        "kserveIngressGateway": "kserve/kserve-ingress-gateway",
+        "ingressGateway" : "knative-serving/knative-ingress-gateway",
+        "localGateway": "knative-serving/knative-local-gateway",
+        "localGatewayService" : "knative-local-gateway.istio-system.svc.cluster.local",
+        "ingressClassName" : "istio",
+        "domainTemplate": "{{ .Name }}-{{ .Namespace }}.{{ .IngressDomain }}"
+    }
+  logger: |-
+    {
+        "image" : "kserve/agent:latest",
+        "memoryRequest": "100Mi",
+        "memoryLimit": "1Gi",
+        "cpuRequest": "100m",
+        "cpuLimit": "1",
+        "defaultUrl": "http://default-broker"
+    }
+  batcher: |-
+    {
+        "image" : "kserve/agent:latest",
+        "memoryRequest": "100Mi",
+        "memoryLimit": "500Mi",
+        "cpuRequest": "100m",
+        "cpuLimit": "300m"
+    }
+  agent: |-
+    {
+        "image" : "kserve/agent:latest",
+        "memoryRequest": "100Mi",
+        "memoryLimit": "500Mi",
+        "cpuRequest": "100m",
+        "cpuLimit": "300m"
+    }
+  metricsAggregator: |-
+    {
+      "enableMetricAggregation": "false",
+      "enablePrometheusScraping" : "false"
+    }
+  router: |-
+    {
+        "image" : "kserve/router:latest",
+        "memoryRequest": "100Mi",
+        "memoryLimit": "500Mi",
+        "cpuRequest": "100m",
+        "cpuLimit": "100m"
+    }
+  service: |-
+    {
+        "serviceClusterIPNone": false
+    }

@@ -1,0 +1,15 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: odh-dashboard
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: dashboard-proxy-tls
+    service.beta.kubernetes.io/backend-protocol: HTTPS
+spec:
+  selector:
+    deployment: odh-dashboard
+  ports:
+    - name: dashboard-ui
+      protocol: TCP
+      port: 8443
+      targetPort: 8443

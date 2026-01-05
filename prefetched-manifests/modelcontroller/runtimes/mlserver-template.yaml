@@ -1,0 +1,68 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  labels:
+    opendatahub.io/dashboard: 'true'
+    opendatahub.io/ootb: 'true'
+  annotations:
+    description: MLServer is a lightweight, extensible inference server for serving machine learning models across multiple frameworks.
+    openshift.io/display-name: MLServer ServingRuntime for KServe - Tech Preview
+    openshift.io/provider-display-name: Red Hat, Inc.
+    tags: rhods,rhoai,kserve,servingruntime
+    template.openshift.io/long-description: This template defines resources needed to deploy MLServer ServingRuntime with KServe in Red Hat OpenShift AI
+    opendatahub.io/modelServingSupport: '["single"]'
+    opendatahub.io/apiProtocol: 'REST'
+    opendatahub.io/model-type: '["predictive"]'
+  name: mlserver-runtime-template
+objects:
+  - apiVersion: serving.kserve.io/v1alpha1
+    kind: ServingRuntime
+    metadata:
+      name: mlserver-runtime
+      annotations:
+        openshift.io/display-name: MLServer ServingRuntime for KServe - Tech Preview
+        opendatahub.io/runtime-version: '1.7.1'
+      labels:
+        opendatahub.io/dashboard: 'true'
+    spec:
+      annotations:
+        opendatahub.io/kserve-runtime: 'mlserver'
+        prometheus.io/port: '8082'
+        prometheus.io/path: /metrics
+        monitoring.opendatahub.io/scrape: 'true'
+      containers:
+        - name: kserve-container
+          image: $(mlserver-image)
+          env:
+            - name: MLSERVER_MODEL_NAME
+              value: '{{.Name}}'
+            - name: MLSERVER_HTTP_PORT
+              value: '8080'
+            - name: MODELS_DIR
+              value: /mnt/models
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            runAsNonRoot: true
+      protocolVersions:
+        - v2
+      multiModel: false
+      supportedModelFormats:
+        - name: sklearn
+          version: '0'
+        - name: sklearn
+          version: '1'
+        - name: xgboost
+          version: '1'
+        - name: xgboost
+          version: '2'
+        - name: lightgbm
+          version: '3'
+        - name: lightgbm
+          version: '4'

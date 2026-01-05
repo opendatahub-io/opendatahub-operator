@@ -1,0 +1,26 @@
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nim-account-access
+rules:
+  - apiGroups:
+      - nim.opendatahub.io
+    verbs:
+      - get
+      - list
+      - watch
+    resources:
+      - accounts
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: nim-account-access-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: nim-account-access
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: system:authenticated

@@ -1,0 +1,22 @@
+# permissions for end users to view LlamaStackDistributions.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: llsd-viewer-role
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-view: "true"
+rules:
+- apiGroups:
+  - llamastack.io
+  resources:
+  - llamastackdistributions
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - llamastack.io
+  resources:
+  - llamastackdistributions/status
+  verbs:
+  - get

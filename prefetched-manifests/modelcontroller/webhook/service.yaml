@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+#  labels:
+#    app.kubernetes.io/name: odh-model-controller
+#    app.kubernetes.io/managed-by: kustomize
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: odh-model-controller-webhook-cert
+  name: odh-model-controller-webhook-service
+  namespace: system
+spec:
+  ports:
+    - port: 443
+      protocol: TCP
+      targetPort: 9443
+  selector:
+    control-plane: odh-model-controller

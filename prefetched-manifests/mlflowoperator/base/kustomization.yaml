@@ -1,0 +1,67 @@
+# Adds namespace to all resources.
+namespace: opendatahub
+namePrefix: mlflow-operator-
+
+resources:
+- ../crd
+- ../rbac
+- ../manager
+- metrics_service.yaml
+
+# Generate ConfigMap from params.env
+configMapGenerator:
+- name: operator-params
+  envs:
+  - params.env
+
+# Replace image values using kustomize replacements
+# NOTE: The operator image replacement is in production overlays (openshift, opendatahub, rhoai)
+# This allows dev overlay to use 'kustomize edit set image' for local development and CI
+replacements:
+# Replace MLFLOW_IMAGE env var
+- source:
+    kind: ConfigMap
+    name: operator-params
+    fieldPath: data.MLFLOW_IMAGE
+  targets:
+  - select:
+      kind: Deployment
+      name: controller-manager
+    fieldPaths:
+    - spec.template.spec.containers.[name=manager].env.[name=MLFLOW_IMAGE].value
+
+# Replace GATEWAY_NAME env var
+- source:
+    kind: ConfigMap
+    name: operator-params
+    fieldPath: data.gateway-name
+  targets:
+  - select:
+      kind: Deployment
+      name: controller-manager
+    fieldPaths:
+    - spec.template.spec.containers.[name=manager].env.[name=GATEWAY_NAME].value
+
+# Replace MLFLOW_URL env var
+- source:
+    kind: ConfigMap
+    name: operator-params
+    fieldPath: data.mlflow-url
+  targets:
+  - select:
+      kind: Deployment
+      name: controller-manager
+    fieldPaths:
+    - spec.template.spec.containers.[name=manager].env.[name=MLFLOW_URL].value
+
+# Replace SECTION_TITLE env var
+- source:
+    kind: ConfigMap
+    name: operator-params
+    fieldPath: data.section-title
+  targets:
+  - select:
+      kind: Deployment
+      name: controller-manager
+    fieldPaths:
+    - spec.template.spec.containers.[name=manager].env.[name=SECTION_TITLE].value

@@ -1,0 +1,59 @@
+apiVersion: mlflow.opendatahub.io/v1
+kind: MLflow
+metadata:
+  name: mlflow
+spec:
+  # Example using digest-based image references for reproducible deployments
+  # Digest-based references ensure the exact same image is used every time
+
+  # MLflow container image with digest reference
+  image:
+    # Example digest-based reference (replace with actual digest)
+    # This ensures the exact same image is used across all deployments
+    image: "quay.io/opendatahub/mlflow@sha256:265a7ebe9cba52d4e71fcf8177b847824cba47a30c8aa8c8f96dea260bfc7052"
+    imagePullPolicy: IfNotPresent
+
+  # Number of replicas
+  replicas: 1
+
+  # Compute resources
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "1Gi"
+
+  # Local file-based storage with PVC
+  storage:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 10Gi
+    # storageClassName: ""  # Uncomment to specify storage class
+
+  backendStoreUri: "sqlite:////mlflow/mlflow.db"
+  registryStoreUri: "sqlite:////mlflow/mlflow.db"
+  artifactsDestination: "file:///mlflow/artifacts"
+
+  # IMPORTANT: serveArtifacts MUST be enabled when using file-based artifact storage
+  serveArtifacts: true
+
+  # Environment variables
+  env:
+    - name: MLFLOW_LOGGING_LEVEL
+      value: INFO
+
+# Note: Digest-based image references provide:
+# - Immutable deployments - the exact same image bits are used every time
+# - Security - prevents tag reuse attacks (e.g., someone pushing a malicious image with the same tag)
+# - Reproducibility - critical for production deployments and compliance
+#
+# To get the digest of an image:
+#   docker pull quay.io/opendatahub/mlflow:master
+#   docker inspect quay.io/opendatahub/mlflow:master | grep RepoDigests
+#
+# Or using skopeo:
+#   skopeo inspect docker://quay.io/opendatahub/mlflow:master | grep Digest

@@ -1,0 +1,22 @@
+apiVersion: trustyai.opendatahub.io/v1
+kind: TrustyAIService
+metadata:
+  labels:
+    app.kubernetes.io/name: trustyaiservice
+    app.kubernetes.io/instance: trustyaiservice-sample
+    app.kubernetes.io/part-of: trustyai-service-operator
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: trustyai-service-operator
+  name: trustyaiservice-sample
+spec:
+  storage:
+    format: "PVC"
+    folder: "/inputs"
+    size: "1Gi"
+  data:
+    filename: "data.csv"
+    format: "CSV"
+  metrics:
+    schedule: "5s"
+    batchSize: 5000
+  replicas: 1

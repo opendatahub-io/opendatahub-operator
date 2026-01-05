@@ -1,0 +1,40 @@
+apiVersion: dashboard.opendatahub.io/v1
+kind: OdhApplication
+metadata:
+  name: rhoam
+  annotations:
+    opendatahub.io/categories: 'Model serving'
+spec:
+  displayName: OpenShift API Management
+  provider: Red Hat
+  description: |-
+    OpenShift API Management is a service that accelerates time-to-value and reduces the cost of delivering API-first, microservices-based applications.
+  enableCR:
+    group: integreatly.org
+    version: v1alpha1
+    plural: rhmis
+    name: rhoam
+    namespace: redhat-rhoam-operator
+    field: status.stage
+    value: complete
+  consoleLink: 'rhmi-3scale-console-link'
+  img: >-
+    <svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 145"><defs><style>.cls-1{fill:#e00;}</style></defs><title>RedHat-Logo-Hat-Color</title><path d="M157.77,62.61a14,14,0,0,1,.31,3.42c0,14.88-18.1,17.46-30.61,17.46C78.83,83.49,42.53,53.26,42.53,44a6.43,6.43,0,0,1,.22-1.94l-3.66,9.06a18.45,18.45,0,0,0-1.51,7.33c0,18.11,41,45.48,87.74,45.48,20.69,0,36.43-7.76,36.43-21.77,0-1.08,0-1.94-1.73-10.13Z"/><path class="cls-1" d="M127.47,83.49c12.51,0,30.61-2.58,30.61-17.46a14,14,0,0,0-.31-3.42l-7.45-32.36c-1.72-7.12-3.23-10.35-15.73-16.6C124.89,8.69,103.76.5,97.51.5,91.69.5,90,8,83.06,8c-6.68,0-11.64-5.6-17.89-5.6-6,0-9.91,4.09-12.93,12.5,0,0-8.41,23.72-9.49,27.16A6.43,6.43,0,0,0,42.53,44c0,9.22,36.3,39.45,84.94,39.45M160,72.07c1.73,8.19,1.73,9.05,1.73,10.13,0,14-15.74,21.77-36.43,21.77C78.54,104,37.58,76.6,37.58,58.49a18.45,18.45,0,0,1,1.51-7.33C22.27,52,.5,55,.5,74.22c0,31.48,74.59,70.28,133.65,70.28,45.28,0,56.7-20.48,56.7-36.65,0-12.72-11-27.16-30.83-35.78"/></svg>
+
+  category: Red Hat managed
+  support: redhat
+  docsLink: https://docs.redhat.com/en/documentation/red_hat_openshift_api_management
+  quickStart: deploy-model-rhoam
+  getStartedLink: https://console.redhat.com/openshift/details/<CLUSTER_ID/>#addOns
+  getStartedMarkDown: >-
+      # Red Hat OpenShift API Management
+
+      Red Hat OpenShift API Management, when added to managed Red Hat OpenShift, provides a streamlined developer experience for building, deploying, and scaling cloud-native, integrated applications. The combination of enterprise-grade Kubernetes, an API-first approach to integration, and managed operations allows teams to focus on core competencies, accelerate time-to-value, and reduce operational costs.
+
+      Red Hat OpenShift API Management makes it easy to secure, share, and control access to services, applications, and enterprise systems across public and private clouds. As a key component in an open, modern approach to building microservices-based applications, it allows organizations to efficiently update and reuse assets, remain agile, and stay ahead of the competition.
+
+
+      For more information visit:
+      [https://www.redhat.com/en/technologies/cloud-computing/openshift/openshift-api-management](https://www.redhat.com/en/technologies/cloud-computing/openshift/openshift-api-management)
+
+      [https://docs.redhat.com/en/documentation/red_hat_openshift_api_management](https://docs.redhat.com/en/documentation/red_hat_openshift_api_management)

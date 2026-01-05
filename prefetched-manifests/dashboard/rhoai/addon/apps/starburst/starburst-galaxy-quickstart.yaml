@@ -1,0 +1,101 @@
+apiVersion: console.openshift.io/v1
+kind: OdhQuickStart
+metadata:
+  name: using-starburst-galaxy
+  annotations:
+    opendatahub.io/categories: 'Getting started,Starburst Galaxy,Data management,Data analysis'
+spec:
+  displayName: Querying data with Starburst Galaxy
+  appName: starburst
+  durationMinutes: 5
+  icon: 'images/starburst.svg'
+  description: This quickstart will walk you through using a Jupyter notebook to query data through Starburst Galaxy.
+  introduction: |-
+    ### This quickstart shows you how to query data through Starburst Galaxy using a Jupyter notebook.
+    Red Hat® OpenShift® AI lets you connect to your Starburst Galaxy instance(s) to provide you with lightning fast query federation capabilities.
+
+    In a matter of minutes, you will be able to access data from multiple sources with a single query using a Jupyter notebook.
+
+    Before you begin, please be sure to clone the [Starburst Galaxy 101 GitHub repo](https://github.com/starburstdata/rhods-starburst-101.git) to your local machine.
+
+    A recording of this quickstart is available [here](https://developers.redhat.com/articles/2021/11/22/access-more-data-your-jupyter-notebook) in case you are unsure of how to complete any of the tasks.
+  tasks:
+    - title: Launch Starburst Galaxy
+      description: |-
+        ### To launch Starburst Galaxy:
+        1. Click **Applications** &#x2192; **Explore**.
+        2. Find the **Starburst Galaxy** card.
+        3. Click **Get started** on the **Starburst Galaxy** card.  A new browser tab will open displaying the sign-up page for Starburst Galaxy.
+        4. Click on **Start Free**.  Provide your first name, last name and business email address, then click on **Create Account**.
+        5. On the Welcome page for Starburst Galaxy, follow the on-screen instructions to finish registering your Staburst Galaxy instance.  The email field should already be filled in and the activiation code should be sitting in your email inbox.  **Be sure to remember your password as this will be needed when connecting client tools to Starburst Galaxy.**
+        6. After completing the registration steps, you will be taken to the management console for your Starburst Galaxy instance.  Some sample data is provided for you to get started with and a **sample** cluster should already be running for you to start running queries.
+        7. On the **<> Query Editor** page, run a simple query to confirm the cluster is working:  SELECT * FROM tpch.sf1.customer limit 40
+
+        You should see the results of your query populated on the screen.
+      review:
+        instructions: |-
+          #### To verify you have launched Starburst Galaxy:
+          Are you able to run a query from the **Query Editor** page?
+        failedTaskHelp: This task is not verified yet. Try the task again.
+      summary:
+        success: You have successfully launched a Starburst Galaxy cluster.  Proceed to the next step.
+        failed: Try the steps again.
+
+    - title: Get Starburst Galaxy connection details
+      description: |-
+        ### Obtain the connection details for your Starburst Galaxy cluster:
+        1. Click on **Clusters** in the navigation pane on the left side of the Starburst Galaxy management console.
+        2. Click on the 3 vertical dots next to the name of the cluster you want to connect to.
+        2. Select **Get connection** from the pop-up menu.
+        3. Copy the text in the **JDBC** field as this information will be needed in the Jupyter notebook to establish a connection to Starburst Galaxy.
+      review:
+        instructions: |-
+          #### To verify you have all the connection details you need:
+          Do you have the JDBC URL and password copied somewhere for your Starburst Galaxy cluster?  NOTE:  The password was set in the previous step when you first registered your Starburst Galaxy instance.
+        failedTaskHelp: This task is not verified yet. Try the task again.
+      summary:
+        success: You have all of the connection details you need to connect to your Starburst Galaxy cluster.  Proceed to the next step.
+        failed: Try the steps again.
+
+    - title: Launch Jupyter from Red Hat OpenShift AI
+      description: |-
+        ### To launch a Jupyter workbench from within the Red Hat OpenShift AI console:
+        1. Click **Applications** &#x2192; **Enabled**.
+        2. Find the **Start basic workbench** card.
+        3. Click **Open application** on the Start basic workbench card to access the Jupyter **Start a basic workbench** page. A new browser tab will open displaying the **Start a basic workbench** page.
+        4. Select the **Standard Data Science** notebook image and the **Default** container size.
+        5. Add the environment variables for **TRINO\_USERNAME**, **TRINO\_PASSWORD**, **TRINO\_HOSTNAME**, and **TRINO\_PORT** using the connection details you obtained in the previous task.
+        6. Click on **Start workbench** to launch Jupyter.
+
+        If you have not previously authorized the jupyterhub-hub service account to access your account, the **Authorize Access** page appears prompting you to provide authorization. Inspect the permissions selected by default, and click the **Allow selected permissions** button.
+
+        The **Start a basic workbench** page will reload and indicate that the system is starting up.
+      review:
+        instructions: |-
+          #### To verify that you have launched a Jupyter workbench:
+          Do you see a message in the page that says **The workbench is starting up**?
+        failedTaskHelp: This task is not verified yet. Try the task again.
+      summary:
+        success: Your workbench has started and the JupyterLab interface will load shortly. When the page displays a **Stop** option, proceed to the next step.
+        failed: Try the steps again.
+
+    - title: Run the **explore-data.ipynb** Jupyter notebook
+      description: |-
+        ### To run the **explore-data.ipynb** notebook:
+        1. If you haven't already done so, clone the [Starburst Galaxy 101 GitHub repo](https://github.com/starburstdata/rhods-starburst-101) to your local machine.
+        2. Open the **explore-data.ipynb** notebook within your JupyterLab interface.
+        3. Follow the instructions provided in the notebook to install the required packages and initialize the environment.
+        4. Run the cells under the **What is Starburst Galaxy and how does it work?** section to confirm you are connected to your Starburst Galaxy cluster.
+        5. Run the cells under the **Accessing Data** section to confirm you are able to execute queries against your Starburst Galaxy cluster.
+
+        You have now successfully connected a Jupyter notebook to your Starburst Galaxy cluster and executed queries against that cluster.
+      review:
+        instructions: |-
+          #### Verify you are connected to your Starburst Galaxy cluster:
+          Did you get results when you ran the cells mentioned in step #3 and step #4?
+        failedTaskHelp:
+          This task is not verified yet. Try the task again.
+      summary:
+        success: You have connected to Starburst Galaxy using a Jupyter notebook.
+        failed: Try the steps again.
+  conclusion: You are now able to create a Starburst Galaxy cluster and connect a Jupyter notebook to that cluster to execute queries against it.  For more information on how to use Starburst Galaxy, please refer to the [online documentation](https://docs.starburst.io/starburst-galaxy/).

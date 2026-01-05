@@ -1,0 +1,105 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{.APIServerDefaultResourceName}}
+  namespace: {{.Namespace}}
+  labels:
+    app: {{.APIServerDefaultResourceName}}
+    component: data-science-pipelines
+rules:
+  - verbs:
+      - create
+      - get
+      - list
+      - watch
+      - update
+      - patch
+      - delete
+    apiGroups:
+      - pipelines.kubeflow.org
+    resources:
+      - pipelines
+      - pipelines/finalizers
+  - verbs:
+      - create
+      - get
+      - list
+      - watch
+      - update
+      - patch
+      - delete
+    apiGroups:
+      - pipelines.kubeflow.org
+    resources:
+      - pipelineversions
+      - pipelineversions/status
+      - pipelineversions/finalizers
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - pods/log
+    verbs:
+      - get
+      - list
+      - delete
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - get
+      - list
+  - apiGroups:
+      - argoproj.io
+    resources:
+      - workflows
+    verbs:
+      - create
+      - get
+      - list
+      - watch
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - kubeflow.org
+    resources:
+      - scheduledworkflows
+    verbs:
+      - create
+      - get
+      - list
+      - update
+      - patch
+      - delete
+  - verbs:
+      - update
+    apiGroups:
+      - kubeflow.org
+    resources:
+      - scheduledworkflows/finalizers
+  - apiGroups:
+      - authorization.k8s.io
+    resources:
+      - subjectaccessreviews
+    verbs:
+      - create
+  - apiGroups:
+      - authentication.k8s.io
+    resources:
+      - tokenreviews
+    verbs:
+      - create
+  - apiGroups:
+      - image.openshift.io
+    resources:
+      - imagestreamtags
+    verbs:
+      - get
+  - apiGroups:
+      - route.openshift.io
+    verbs:
+      - get
+    resources:
+      - routes

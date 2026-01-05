@@ -145,3 +145,13 @@ relatedImages:
   value: quay.io/rhoai/odh-mod-arch-model-registry-rhel9@sha256:sha256:8b040b818f211081c893e5686bdda91314508582c4e976d481a22b7ffdb004c2
 - name: RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE
   value: quay.io/rhoai/odh-kube-auth-proxy-rhel9@sha256:3e4e445bcf9b356b058823de777f7be3fc7f16f12c8d30cdc355e5572ce31d4b
+- name: RELATED_IMAGE_ODH_TRAINER_IMAGE
+  value: quay.io/rhoai/odh-trainer-rhel9@sha256:a72921bc12177f4f95f7e7a2f99375743f15d8ef7ceec3d8d2edf60f8cf9ac40
+- name: RELATED_IMAGE_ODH_TRUSTYAI_NEMO_GUARDRAILS_SERVER_IMAGE
+  value: quay.io/rhoai/odh-trustyai-nemo-guardrails-server-rhel9@sha256:f62f0997988f0a9d839b41e3040c72c7984f9f14397ecfa5e2512ba141a4c428
+- name: RELATED_IMAGE_ODH_TRUSTYAI_GARAK_LLS_PROVIDER_DSP_IMAGE
+  value: quay.io/rhoai/odh-trustyai-garak-lls-provider-dsp-rhel9@sha256:2f4f35d33cf6b45df45c198fb3df83a16f5573ba19969c4092ab16478d64784b
+- name: RELATED_IMAGE_ODH_MLFLOW_IMAGE
+  value: quay.io/rhoai/odh-mlflow-rhel9@sha256:661c3fd90c1bd39995e90a03b4975366501a932a09d3307471cdd63169d52c01
+- name: RELATED_IMAGE_ODH_MLFLOW_OPERATOR_IMAGE
+  value: quay.io/rhoai/odh-mlflow-operator-rhel9@sha256:0db7671228500ece583f842ab51dd3b8dce9d4c8183c6acf33aeaf24c0f986b0

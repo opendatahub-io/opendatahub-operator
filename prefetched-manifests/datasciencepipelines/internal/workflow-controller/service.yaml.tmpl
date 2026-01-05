@@ -1,0 +1,26 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    internal.kpt.dev/upstream-identifier: '|Service|default|workflow-controller-metrics'
+    workflows.argoproj.io/description: |
+      This service is deprecated. It will be removed in v3.4.
+
+      https://github.com/argoproj/argo-workflows/issues/8441
+  labels:
+    app: ds-pipeline-workflow-controller-{{.Name}}
+    component: data-science-pipelines
+    dspa: {{.Name}}
+  name: ds-pipeline-workflow-controller-metrics-{{.Name}}
+  namespace: {{.Namespace}}
+spec:
+  ports:
+  - name: metrics
+    port: 9090
+    protocol: TCP
+    targetPort: 9090
+  selector:
+    app: ds-pipeline-workflow-controller-{{.Name}}
+    component: data-science-pipelines
+    dspa: {{.Name}}

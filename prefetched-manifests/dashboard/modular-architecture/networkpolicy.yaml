@@ -1,0 +1,20 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: odh-dashboard-allow-ports
+spec:
+  podSelector:
+    matchLabels:
+      deployment: odh-dashboard
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: 8443
+          protocol: TCP
+        - port: 8043
+          protocol: TCP
+        - port: 8143
+          protocol: TCP
+      # Empty 'from' means allow from all sources to these ports.

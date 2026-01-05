@@ -1,0 +1,260 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.3
+  name: nemoguardrails.trustyai.opendatahub.io
+spec:
+  group: trustyai.opendatahub.io
+  names:
+    kind: NemoGuardrails
+    listKind: NemoGuardrailsList
+    plural: nemoguardrails
+    singular: nemoguardrails
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: NemoGuardrails is the Schema for the nemoguardrails API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: NemoGuardrailsSpec defines the desired state of NemoGuardrails
+            properties:
+              caBundleConfig:
+                description: CABundleConfig defines the CA bundle configuration for
+                  custom certificates
+                properties:
+                  configMapKeys:
+                    description: |-
+                      ConfigMapKeys specifies multiple keys within the ConfigMap containing CA bundle data
+                      All certificates from these keys will be concatenated into a single CA bundle file
+                      If not specified, defaults to [DefaultCABundleKey]
+                    items:
+                      type: string
+                    maxItems: 50
+                    type: array
+                  configMapName:
+                    description: ConfigMapName is the name of the ConfigMap containing
+                      CA bundle certificates
+                    type: string
+                  configMapNamespace:
+                    description: ConfigMapNamespace is the namespace of the ConfigMap
+                      (defaults to the same namespace as the CR)
+                    type: string
+                required:
+                - configMapName
+                type: object
+              env:
+                description: Define Env information for the main container
+                items:
+                  description: EnvVar represents an environment variable present in
+                    a Container.
+                  properties:
+                    name:
+                      description: Name of the environment variable. Must be a C_IDENTIFIER.
+                      type: string
+                    value:
+                      description: |-
+                        Variable references $(VAR_NAME) are expanded
+                        using the previously defined environment variables in the container and
+                        any service environment variables. If a variable cannot be resolved,
+                        the reference in the input string will be unchanged. Double $$ are reduced
+                        to a single $, which allows for escaping the $(VAR_NAME) syntax: i.e.
+                        "$$(VAR_NAME)" will produce the string literal "$(VAR_NAME)".
+                        Escaped references will never be expanded, regardless of whether the variable
+                        exists or not.
+                        Defaults to "".
+                      type: string
+                    valueFrom:
+                      description: Source for the environment variable's value. Cannot
+                        be used if value is not empty.
+                      properties:
+                        configMapKeyRef:
+                          description: Selects a key of a ConfigMap.
+                          properties:
+                            key:
+                              description: The key to select.
+                              type: string
+                            name:
+                              description: |-
+                                Name of the referent.
+                                More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              type: string
+                            optional:
+                              description: Specify whether the ConfigMap or its key
+                                must be defined
+                              type: boolean
+                          required:
+                          - key
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        fieldRef:
+                          description: |-
+                            Selects a field of the pod: supports metadata.name, metadata.namespace, `metadata.labels['<KEY>']`, `metadata.annotations['<KEY>']`,
+                            spec.nodeName, spec.serviceAccountName, status.hostIP, status.podIP, status.podIPs.
+                          properties:
+                            apiVersion:
+                              description: Version of the schema the FieldPath is
+                                written in terms of, defaults to "v1".
+                              type: string
+                            fieldPath:
+                              description: Path of the field to select in the specified
+                                API version.
+                              type: string
+                          required:
+                          - fieldPath
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        resourceFieldRef:
+                          description: |-
+                            Selects a resource of the container: only resources limits and requests
+                            (limits.cpu, limits.memory, limits.ephemeral-storage, requests.cpu, requests.memory and requests.ephemeral-storage) are currently supported.
+                          properties:
+                            containerName:
+                              description: 'Container name: required for volumes,
+                                optional for env vars'
+                              type: string
+                            divisor:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              description: Specifies the output format of the exposed
+                                resources, defaults to "1"
+                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                              x-kubernetes-int-or-string: true
+                            resource:
+                              description: 'Required: resource to select'
+                              type: string
+                          required:
+                          - resource
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        secretKeyRef:
+                          description: Selects a key of a secret in the pod's namespace
+                          properties:
+                            key:
+                              description: The key of the secret to select from.  Must
+                                be a valid secret key.
+                              type: string
+                            name:
+                              description: |-
+                                Name of the referent.
+                                More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              type: string
+                            optional:
+                              description: Specify whether the Secret or its key must
+                                be defined
+                              type: boolean
+                          required:
+                          - key
+                          type: object
+                          x-kubernetes-map-type: atomic
+                      type: object
+                  required:
+                  - name
+                  type: object
+                type: array
+              nemoConfigs:
+                description: NemoConfig should be the names of the configmaps containing
+                  NeMO server configuration files. All files in NemoConfigs will be
+                  mounted to /app/config/$Name
+                items:
+                  description: NemoConfig holds information related to a single configuration
+                    of the NeMo Guardrails server
+                  properties:
+                    configMaps:
+                      description: ConfigMaps is a list of configmaps that comprise
+                        the configuration. All files from these configmaps will be
+                        mounted within /app/config/$Name
+                      items:
+                        type: string
+                      type: array
+                    default:
+                      description: The Default flag determines whether config is treated
+                        as the default config for the nemo-server. If no config is
+                        set to default, the first entry in NemoConfigs will be used
+                        as the default
+                      type: boolean
+                    name:
+                      description: Name sets the id of this particular config within
+                        the NeMo Guardrails server. This will create a directory called
+                        /app/config/$Name. Since it $Name will be used a directory,
+                        it must only contain alphanumeric characters, dashes, and
+                        underscores.
+                      pattern: ^[a-zA-Z0-9_-]+$
+                      type: string
+                  type: object
+                type: array
+            required:
+            - nemoConfigs
+            type: object
+          status:
+            description: NemoGuardrailStatus defines the observed state of NemoGuardrails
+            properties:
+              ca:
+                description: CA describes the status of the CA configmaps
+                properties:
+                  odhTrustedCAError:
+                    type: string
+                  odhTrustedCAFound:
+                    type: boolean
+                  openshiftServingCAError:
+                    type: string
+                  openshiftServingCAFound:
+                    type: boolean
+                  userCAError:
+                    type: string
+                  userCAFound:
+                    type: boolean
+                required:
+                - odhTrustedCAFound
+                - openshiftServingCAFound
+                type: object
+              conditions:
+                description: Conditions describes the state of the NemoGuardrails
+                  resource.
+                items:
+                  properties:
+                    lastTransitionTime:
+                      format: date-time
+                      type: string
+                    message:
+                      type: string
+                    reason:
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - status
+                  - type
+                  type: object
+                type: array
+              phase:
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

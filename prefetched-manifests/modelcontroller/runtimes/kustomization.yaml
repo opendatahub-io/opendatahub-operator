@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+labels:
+  - pairs:
+      app: odh-dashboard
+      app.kubernetes.io/part-of: odh-dashboard
+    includeSelectors: true
+resources:
+  - ovms-kserve-template.yaml
+  - mlserver-template.yaml
+  - vllm-cuda-template.yaml
+  - vllm-multinode-template.yaml
+  - vllm-rocm-template.yaml
+  - vllm-gaudi-template.yaml
+  - vllm-cpu-template.yaml
+  - vllm-spyre-x86-template.yaml
+  - vllm-spyre-s390x-template.yaml
+  - hf-detector-template.yaml

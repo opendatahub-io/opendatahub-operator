@@ -1,0 +1,22 @@
+releases:
+  - name: TrustyAI operator
+    version: v1.37.0
+    repoUrl: https://github.com/trustyai-explainability/trustyai-service-operator
+  - name: TrustyAI service
+    version: v0.28.0
+    repoUrl: https://github.com/trustyai-explainability/trustyai-explainability
+  - name: TrustyAI LMEval driver
+    version: v1.37.0
+    repoUrl: https://github.com/trustyai-explainability/trustyai-service-operator
+  - name: TrustyAI LMEval job
+    version: v0.4.8
+    repoUrl: https://github.com/EleutherAI/lm-evaluation-harness
+  - name: TrustyAI Guardrails orchestrator
+    version: 0.9.4
+    repoUrl: https://github.com/foundation-model-stack/fms-guardrails-orchestrator
+  - name: TrustyAI builtin detectors
+    version: v0.2.0
+    repoUrl: https://github.com/trustyai-explainability/guardrails-regex-detector
+  - name: TrustyAI sidecar gateway
+    version: v0.2.1
+    repoUrl: https://github.com/trustyai-explainability/vllm-orchestrator-gateway

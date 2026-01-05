@@ -1,0 +1,14 @@
+resources:
+  - bases/trustyai.opendatahub.io_trustyaiservices.yaml
+  - bases/trustyai.opendatahub.io_lmevaljobs.yaml
+  - bases/trustyai.opendatahub.io_guardrailsorchestrators.yaml
+  - bases/trustyai.opendatahub.io_nemoguardrails.yaml
+#+kubebuilder:scaffold:crdkustomizeresource
+
+patchesStrategicMerge: []
+#+kubebuilder:scaffold:crdkustomizewebhookpatch
+#- path: patches/cainjection_in_nemoguardrails.yaml
+#+kubebuilder:scaffold:crdkustomizecainjectionpatch
+
+configurations:
+  - kustomizeconfig.yaml

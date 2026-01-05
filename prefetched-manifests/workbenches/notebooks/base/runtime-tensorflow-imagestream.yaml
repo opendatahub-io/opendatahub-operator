@@ -1,0 +1,38 @@
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  labels:
+    opendatahub.io/runtime-image: "true"
+  annotations:
+    opendatahub.io/runtime-image-url: "https://github.com/opendatahub-io/notebooks/tree/main/runtimes"
+    opendatahub.io/runtime-image-name: "Runtime | TensorFlow | CUDA | Python 3.12"
+    opendatahub.io/runtime-image-desc: "TensorFlow runtime image for Elyra, enabling pipeline execution from Workbenches with TensorFlow libraries and dependencies, supporting different runtimes for various pipeline nodes."
+  name: runtime-tensorflow
+spec:
+  lookupPolicy:
+    local: true
+  tags:
+    - annotations:
+        # language=json
+        opendatahub.io/runtime-image-metadata: |
+          [
+            {
+              "display_name": "Runtime | TensorFlow | CUDA | Python 3.12",
+              "metadata": {
+                "tags": [
+                  "tensorflow"
+                ],
+                "display_name": "Runtime | TensorFlow | CUDA | Python 3.12",
+                "pull_policy": "IfNotPresent"
+              },
+              "schema_name": "runtime-image"
+            }
+          ]
+        openshift.io/imported-from: quay.io/modh/runtime-images
+      from:
+        kind: DockerImage
+        name: odh-pipeline-runtime-tensorflow-cuda-py312-ubi9-n_PLACEHOLDER
+      name: "tensorflow"
+      referencePolicy:
+        type: Source

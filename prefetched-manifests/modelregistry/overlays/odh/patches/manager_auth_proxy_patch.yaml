@@ -1,0 +1,30 @@
+# This patch injects serving cert in HTTPS proxy for the controller manager
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-manager
+  namespace: system
+spec:
+  template:
+    spec:
+      containers:
+      - name: manager
+        args:
+        - "--health-probe-bind-address=:8081"
+        - "--metrics-bind-address=:8443"
+        - "--leader-elect"
+        - "--metrics-secure=true"
+        - "--metrics-cert-dir=/etc/server-cert/"
+        - "--metrics-cert-name=tls.crt"
+        - "--metrics-key-name=tls.key"
+        # name must match the volume name below
+        volumeMounts:
+        - name: server-cert
+          mountPath: /etc/server-cert
+          readOnly: true
+      # The secret data is exposed to Containers in the Pod through a Volume.
+      volumes:
+        - name: server-cert
+          secret:
+            secretName: controller-manager-metrics-service
+            defaultMode: 0600

@@ -1,0 +1,1078 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+  name: datasciencepipelinesapplications.datasciencepipelinesapplications.opendatahub.io
+spec:
+  group: datasciencepipelinesapplications.opendatahub.io
+  names:
+    kind: DataSciencePipelinesApplication
+    listKind: DataSciencePipelinesApplicationList
+    plural: datasciencepipelinesapplications
+    shortNames:
+    - dspa
+    singular: datasciencepipelinesapplication
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              apiServer:
+                default:
+                  deploy: true
+                description: DS Pipelines API Server configuration.
+                properties:
+                  argoDriverImage:
+                    description: Driver image used during pipeline execution.
+                    type: string
+                  argoLauncherImage:
+                    description: Launcher/Executor image used during pipeline execution.
+                    type: string
+                  artifactSignedURLExpirySeconds:
+                    default: 60
+                    description: |-
+                      The expiry time (seconds) for artifact download links when
+                      querying the dsp server via /apis/v2beta1/artifacts/{id}?share_url=true
+                      Default: 60
+                    type: integer
+                  cABundle:
+                    description: |-
+                      If the Object store/DB is behind a TLS secured connection that is
+                      unrecognized by the host OpenShift/K8s cluster, then you can
+                      provide a PEM formatted CA bundle to be injected into the DSP
+                      server pod to trust this connection. CA Bundle should be provided
+                      as values within configmaps, mapped to keys.
+                    properties:
+                      configMapKey:
+                        description: |-
+                          Key should map to a CA bundle. The key is also used to name
+                          the CA bundle file (e.g. ca-bundle.crt)
+                        type: string
+                      configMapName:
+                        type: string
+                    required:
+                    - configMapKey
+                    - configMapName
+                    type: object
+                  caBundleFileMountPath:
+                    description: |-
+                      This is the path where the ca bundle will be mounted in the
+                      pipeline server and user executor pods
+                    type: string
+                  caBundleFileName:
+                    description: |-
+                      This is the filename of the ca bundle that will be created in the
+                      pipeline server and user executor pods
+                    type: string
+                  cacheEnabled:
+                    default: true
+                    description: |-
+                      Allows/disallows caching in the DSP API server.
+                      When true, cache options are permitted for Pipelines and Task configurations made via the KFP SDK at compile time.
+                      When false, caching is always disabled and overrides the Pipelines and Task configurations.
+                      Default: true
+                    type: boolean
+                  customKfpLauncherConfigMap:
+                    description: |-
+                      When specified, the `data` contents of the `kfp-launcher` ConfigMap that DSPO writes
+                      will be fully replaced with the `data` contents of the ConfigMap specified here.
+                      This allows the user to fully replace the `data` contents of the kfp-launcher ConfigMap.
+                      The `kfp-launcher` component requires a ConfigMap to exist in the namespace
+                      where it runs (i.e. the namespace where pipelines run). This ConfigMap contains
+                      object storage configuration, as well as pipeline root (object store root path
+                      where artifacts will be uploaded) configuration. Currently this ConfigMap *must*
+                      be named "kfp-launcher". We currently deploy a default copy of the kfp-launcher
+                      ConfigMap via DSPO, but a user may want to provide their own ConfigMap configuration,
+                      so that they can specify multiple object storage sources and paths.
+                    type: string
+                  customServerConfigMap:
+                    description: |-
+                      CustomServerConfig is a custom config file that you can provide
+                      for the api server to use instead.
+                    properties:
+                      key:
+                        type: string
+                      name:
+                        type: string
+                    type: object
+                  deploy:
+                    default: true
+                    description: 'Enable DS Pipelines Operator management of DSP API
+                      Server. Setting Deploy to false disables operator reconciliation.
+                      Default: true'
+                    type: boolean
+                  enableOauth:
+                    default: true
+                    description: |-
+                      Create an Openshift Route for this DSP API Server. Note, this doesn't provide OAuth functionality but is
+                      protected by authorization. Default: true
+                    type: boolean
+                  enableSamplePipeline:
+                    default: false
+                    description: 'Include the Iris sample pipeline with the deployment
+                      of this DSP API Server. Default: true'
+                    type: boolean
+                  image:
+                    description: Specify a custom image for DSP API Server.
+                    type: string
+                  managedPipelines:
+                    description: |-
+                      The technology preview InstructLab pipeline was removed and this field is reserved for future managed pipeline
+                      options.
+                    type: object
+                  pipelineStore:
+                    default: database
+                    description: |-
+                      The storage for pipeline definitions (pipelines and pipeline versions). It can be
+                      either 'database' or 'kubernetes' (Pipeline and PipelineVersion kinds). Defaults to 'database'.
+                    enum:
+                    - database
+                    - kubernetes
+                    type: string
+                  resources:
+                    description: Specify custom Pod resource requirements for this
+                      component.
+                    properties:
+                      limits:
+                        properties:
+                          cpu:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          memory:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                        type: object
+                      requests:
+                        properties:
+                          cpu:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          memory:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                        type: object
+                    type: object
+                  workspace:
+                    description: |-
+                      Workspace config defines the default pipeline run workspace (PVC) specification applied to runs.
+                      The workspace provides ephemeral shared storage that lives for the duration of a pipeline run so
+                      components can exchange large intermediate data without repeatedly uploading to object storage.
+                      The user specifies the workspace size with:
+                      @dsl.pipeline(pipeline_config=dsl.PipelineConfig(workspace=dsl.WorkspaceConfig(size="25Mi"))).
+                    properties:
+                      volumeClaimTemplateSpec:
+                        description: VolumeClaimTemplateSpec defaults workspace PVC
+                          for pipeline runs. accessModes and storageClassName must
+                          be provided.
+                        properties:
+                          accessModes:
+                            description: |-
+                              accessModes contains the desired access modes the volume should have.
+                              More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1
+                            items:
+                              type: string
+                            type: array
+                          dataSource:
+                            description: |-
+                              dataSource field can be used to specify either:
+                              * An existing VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot)
+                              * An existing PVC (PersistentVolumeClaim)
+                              If the provisioner or an external controller can support the specified data source,
+                              it will create a new volume based on the contents of the specified data source.
+                              When the AnyVolumeDataSource feature gate is enabled, dataSource contents will be copied to dataSourceRef,
+                              and dataSourceRef contents will be copied to dataSource when dataSourceRef.namespace is not specified.
+                              If the namespace is specified, then dataSourceRef will not be copied to dataSource.
+                            properties:
+                              apiGroup:
+                                description: |-
+                                  APIGroup is the group for the resource being referenced.
+                                  If APIGroup is not specified, the specified Kind must be in the core API group.
+                                  For any other third-party types, APIGroup is required.
+                                type: string
+                              kind:
+                                description: Kind is the type of resource being referenced
+                                type: string
+                              name:
+                                description: Name is the name of resource being referenced
+                                type: string
+                            required:
+                            - kind
+                            - name
+                            type: object
+                            x-kubernetes-map-type: atomic
+                          dataSourceRef:
+                            description: |-
+                              dataSourceRef specifies the object from which to populate the volume with data, if a non-empty
+                              volume is desired. This may be any object from a non-empty API group (non
+                              core object) or a PersistentVolumeClaim object.
+                              When this field is specified, volume binding will only succeed if the type of
+                              the specified object matches some installed volume populator or dynamic
+                              provisioner.
+                              This field will replace the functionality of the dataSource field and as such
+                              if both fields are non-empty, they must have the same value. For backwards
+                              compatibility, when namespace isn't specified in dataSourceRef,
+                              both fields (dataSource and dataSourceRef) will be set to the same
+                              value automatically if one of them is empty and the other is non-empty.
+                              When namespace is specified in dataSourceRef,
+                              dataSource isn't set to the same value and must be empty.
+                              There are three important differences between dataSource and dataSourceRef:
+                              * While dataSource only allows two specific types of objects, dataSourceRef
+                                allows any non-core object, as well as PersistentVolumeClaim objects.
+                              * While dataSource ignores disallowed values (dropping them), dataSourceRef
+                                preserves all values, and generates an error if a disallowed value is
+                                specified.
+                              * While dataSource only allows local objects, dataSourceRef allows objects
+                                in any namespaces.
+                              (Beta) Using this field requires the AnyVolumeDataSource feature gate to be enabled.
+                              (Alpha) Using the namespace field of dataSourceRef requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
+                            properties:
+                              apiGroup:
+                                description: |-
+                                  APIGroup is the group for the resource being referenced.
+                                  If APIGroup is not specified, the specified Kind must be in the core API group.
+                                  For any other third-party types, APIGroup is required.
+                                type: string
+                              kind:
+                                description: Kind is the type of resource being referenced
+                                type: string
+                              name:
+                                description: Name is the name of resource being referenced
+                                type: string
+                              namespace:
+                                description: |-
+                                  Namespace is the namespace of resource being referenced
+                                  Note that when a namespace is specified, a gateway.networking.k8s.io/ReferenceGrant object is required in the referent namespace to allow that namespace's owner to accept the reference. See the ReferenceGrant documentation for details.
+                                  (Alpha) This field requires the CrossNamespaceVolumeDataSource feature gate to be enabled.
+                                type: string
+                            required:
+                            - kind
+                            - name
+                            type: object
+                          resources:
+                            description: |-
+                              resources represents the minimum resources the volume should have.
+                              If RecoverVolumeExpansionFailure feature is enabled users are allowed to specify resource requirements
+                              that are lower than previous value but must still be higher than capacity recorded in the
+                              status field of the claim.
+                              More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources
+                            properties:
+                              claims:
+                                description: |-
+                                  Claims lists the names of resources, defined in spec.resourceClaims,
+                                  that are used by this container.
+
+                                  This is an alpha field and requires enabling the
+                                  DynamicResourceAllocation feature gate.
+
+                                  This field is immutable. It can only be set for containers.
+                                items:
+                                  description: ResourceClaim references one entry
+                                    in PodSpec.ResourceClaims.
+                                  properties:
+                                    name:
+                                      description: |-
+                                        Name must match the name of one entry in pod.spec.resourceClaims of
+                                        the Pod where this field is used. It makes that resource available
+                                        inside a container.
+                                      type: string
+                                  required:
+                                  - name
+                                  type: object
+                                type: array
+                                x-kubernetes-list-map-keys:
+                                - name
+                                x-kubernetes-list-type: map
+                              limits:
+                                additionalProperties:
+                                  anyOf:
+                                  - type: integer
+                                  - type: string
+                                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                  x-kubernetes-int-or-string: true
+                                description: |-
+                                  Limits describes the maximum amount of compute resources allowed.
+                                  More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                                type: object
+                              requests:
+                                additionalProperties:
+                                  anyOf:
+                                  - type: integer
+                                  - type: string
+                                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                  x-kubernetes-int-or-string: true
+                                description: |-
+                                  Requests describes the minimum amount of compute resources required.
+                                  If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                                  otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                                  More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                                type: object
+                            type: object
+                          selector:
+                            description: selector is a label query over volumes to
+                              consider for binding.
+                            properties:
+                              matchExpressions:
+                                description: matchExpressions is a list of label selector
+                                  requirements. The requirements are ANDed.
+                                items:
+                                  description: |-
+                                    A label selector requirement is a selector that contains values, a key, and an operator that
+                                    relates the key and values.
+                                  properties:
+                                    key:
+                                      description: key is the label key that the selector
+                                        applies to.
+                                      type: string
+                                    operator:
+                                      description: |-
+                                        operator represents a key's relationship to a set of values.
+                                        Valid operators are In, NotIn, Exists and DoesNotExist.
+                                      type: string
+                                    values:
+                                      description: |-
+                                        values is an array of string values. If the operator is In or NotIn,
+                                        the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                        the values array must be empty. This array is replaced during a strategic
+                                        merge patch.
+                                      items:
+                                        type: string
+                                      type: array
+                                  required:
+                                  - key
+                                  - operator
+                                  type: object
+                                type: array
+                              matchLabels:
+                                additionalProperties:
+                                  type: string
+                                description: |-
+                                  matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                                  map is equivalent to an element of matchExpressions, whose key field is "key", the
+                                  operator is "In", and the values array contains only "value". The requirements are ANDed.
+                                type: object
+                            type: object
+                            x-kubernetes-map-type: atomic
+                          storageClassName:
+                            description: |-
+                              storageClassName is the name of the StorageClass required by the claim.
+                              More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1
+                            type: string
+                          volumeMode:
+                            description: |-
+                              volumeMode defines what type of volume is required by the claim.
+                              Value of Filesystem is implied when not included in claim spec.
+                            type: string
+                          volumeName:
+                            description: volumeName is the binding reference to the
+                              PersistentVolume backing this claim.
+                            type: string
+                        type: object
+                        x-kubernetes-validations:
+                        - message: spec.apiServer.workspace.volumeClaimTemplateSpec.accessModes
+                            must be provided
+                          rule: has(self.accessModes) && size(self.accessModes) >
+                            0
+                        - message: spec.apiServer.workspace.volumeClaimTemplateSpec.storageClassName
+                            must be provided
+                          rule: has(self.storageClassName) && self.storageClassName
+                            != ""
+                    required:
+                    - volumeClaimTemplateSpec
+                    type: object
+                type: object
+              database:
+                default:
+                  mariaDB:
+                    deploy: true
+                description: Database specifies database configurations, used for
+                  DS Pipelines metadata tracking. Specify either the default MariaDB
+                  deployment, or configure your own External SQL DB.
+                properties:
+                  customExtraParams:
+                    description: |-
+                      CustomExtraParams allow users to further customize the sql dsn parameters used by the Pipeline Server
+                      when opening a connection with the Database.
+                      ref: https://github.com/go-sql-driver/mysql?tab=readme-ov-file#dsn-data-source-name
+
+                      Value must be a JSON string. For example, to disable tls for Pipeline Server DB connection
+                      the user can provide a string: {"tls":"true"}
+
+                      If updating post DSPA deployment, then a manual restart of the pipeline server pod will be required
+                      so the new configmap may be consumed.
+                    type: string
+                  disableHealthCheck:
+                    default: false
+                    description: 'Default: false'
+                    type: boolean
+                  externalDB:
+                    properties:
+                      host:
+                        type: string
+                      passwordSecret:
+                        properties:
+                          key:
+                            type: string
+                          name:
+                            type: string
+                        required:
+                        - key
+                        - name
+                        type: object
+                      pipelineDBName:
+                        type: string
+                      port:
+                        type: string
+                      username:
+                        type: string
+                    required:
+                    - host
+                    - passwordSecret
+                    - pipelineDBName
+                    - port
+                    - username
+                    type: object
+                  mariaDB:
+                    properties:
+                      deploy:
+                        default: true
+                        description: 'Enable DS Pipelines Operator management of MariaDB.
+                          Setting Deploy to false disables operator reconciliation.
+                          Default: true'
+                        type: boolean
+                      image:
+                        description: Specify a custom image for DSP MariaDB pod.
+                        type: string
+                      passwordSecret:
+                        properties:
+                          key:
+                            type: string
+                          name:
+                            type: string
+                        required:
+                        - key
+                        - name
+                        type: object
+                      pipelineDBName:
+                        default: mlpipeline
+                        description: 'The database name that will be created. Should
+                          match `^[a-zA-Z0-9_]+`. // Default: mlpipeline'
+                        pattern: ^[a-zA-Z0-9_]+$
+                        type: string
+                      pvcSize:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        default: 10Gi
+                        description: 'Customize the size of the PVC created for the
+                          default MariaDB instance. Default: 10Gi'
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                      resources:
+                        description: Specify custom Pod resource requirements for
+                          this component.
+                        properties:
+                          limits:
+                            properties:
+                              cpu:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                x-kubernetes-int-or-string: true
+                              memory:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                x-kubernetes-int-or-string: true
+                            type: object
+                          requests:
+                            properties:
+                              cpu:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                x-kubernetes-int-or-string: true
+                              memory:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                x-kubernetes-int-or-string: true
+                            type: object
+                        type: object
+                      storageClassName:
+                        description: Volume Mode Filesystem storageClass to use for
+                          PVC creation
+                        type: string
+                      username:
+                        default: mlpipeline
+                        description: 'The MariadB username that will be created. Should
+                          match `^[a-zA-Z0-9_]+`. Default: mlpipeline'
+                        pattern: ^[a-zA-Z0-9_]+$
+                        type: string
+                    type: object
+                type: object
+              dspVersion:
+                default: v2
+                type: string
+              mlmd:
+                properties:
+                  deploy:
+                    default: false
+                    description: 'Enable DS Pipelines Operator management of MLMD.
+                      Setting Deploy to false disables operator reconciliation. Default:
+                      true'
+                    type: boolean
+                  envoy:
+                    properties:
+                      deployRoute:
+                        default: true
+                        type: boolean
+                      image:
+                        type: string
+                      resources:
+                        description: |-
+                          ResourceRequirements structures compute resource requirements.
+                          Replaces ResourceRequirements from corev1 which also includes optional storage field.
+                          We handle storage field separately, and should not include it as a subfield for Resources.
+                        properties:
+                          limits:
+                            properties:
+                              cpu:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                x-kubernetes-int-or-string: true
+                              memory:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                x-kubernetes-int-or-string: true
+                            type: object
+                          requests:
+                            properties:
+                              cpu:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                x-kubernetes-int-or-string: true
+                              memory:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                x-kubernetes-int-or-string: true
+                            type: object
+                        type: object
+                    type: object
+                  grpc:
+                    properties:
+                      image:
+                        type: string
+                      port:
+                        type: string
+                      resources:
+                        description: |-
+                          ResourceRequirements structures compute resource requirements.
+                          Replaces ResourceRequirements from corev1 which also includes optional storage field.
+                          We handle storage field separately, and should not include it as a subfield for Resources.
+                        properties:
+                          limits:
+                            properties:
+                              cpu:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                x-kubernetes-int-or-string: true
+                              memory:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                x-kubernetes-int-or-string: true
+                            type: object
+                          requests:
+                            properties:
+                              cpu:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                x-kubernetes-int-or-string: true
+                              memory:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                x-kubernetes-int-or-string: true
+                            type: object
+                        type: object
+                    type: object
+                type: object
+              objectStorage:
+                description: ObjectStorage specifies Object Store configurations,
+                  used for DS Pipelines artifact passing and storage. Specify either
+                  the your own External Storage (e.g. AWS S3), or use the default
+                  Minio deployment (unsupported, primarily for development, and testing)
+                  .
+                properties:
+                  disableHealthCheck:
+                    default: false
+                    description: 'Default: false'
+                    type: boolean
+                  enableExternalRoute:
+                    default: false
+                    description: 'Enable an external route so the object storage is
+                      reachable from outside the cluster. Default: false'
+                    type: boolean
+                  externalStorage:
+                    properties:
+                      basePath:
+                        description: Subpath where objects should be stored for this
+                          DSPA
+                        type: string
+                      bucket:
+                        type: string
+                      host:
+                        type: string
+                      port:
+                        type: string
+                      region:
+                        type: string
+                      s3CredentialsSecret:
+                        properties:
+                          accessKey:
+                            description: The "Keys" in the k8sSecret key/value pairs.
+                              Not to be confused with the values.
+                            type: string
+                          secretKey:
+                            type: string
+                          secretName:
+                            description: The name of the Secret where the AccessKey
+                              and SecretKey are defined.
+                            type: string
+                        required:
+                        - accessKey
+                        - secretKey
+                        - secretName
+                        type: object
+                      scheme:
+                        type: string
+                      secure:
+                        type: boolean
+                    required:
+                    - bucket
+                    - host
+                    - s3CredentialsSecret
+                    - scheme
+                    type: object
+                  minio:
+                    description: Enable DS Pipelines Operator management of Minio.
+                      Setting Deploy to false disables operator reconciliation.
+                    properties:
+                      bucket:
+                        default: mlpipeline
+                        description: 'Provide the Bucket name that will be used to
+                          store artifacts in S3. If provided bucket does not exist,
+                          DSP Apiserver will attempt to create it. As such the credentials
+                          provided should have sufficient permissions to do create
+                          buckets. Default: mlpipeline'
+                        type: string
+                      deploy:
+                        default: true
+                        description: 'Enable DS Pipelines Operator management of Minio.
+                          Setting Deploy to false disables operator reconciliation.
+                          Default: true'
+                        type: boolean
+                      image:
+                        description: Specify a custom image for Minio pod.
+                        type: string
+                      pvcSize:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        default: 10Gi
+                        description: 'Customize the size of the PVC created for the
+                          Minio instance. Default: 10Gi'
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                      resources:
+                        description: Specify custom Pod resource requirements for
+                          this component.
+                        properties:
+                          limits:
+                            properties:
+                              cpu:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                x-kubernetes-int-or-string: true
+                              memory:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                x-kubernetes-int-or-string: true
+                            type: object
+                          requests:
+                            properties:
+                              cpu:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                x-kubernetes-int-or-string: true
+                              memory:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                x-kubernetes-int-or-string: true
+                            type: object
+                        type: object
+                      s3CredentialsSecret:
+                        description: Credentials for the S3 user (e.g. IAM user cred
+                          stored in a k8s secret.). Note that the S3 user should have
+                          the permissions to create a bucket if the provided bucket
+                          does not exist.
+                        properties:
+                          accessKey:
+                            description: The "Keys" in the k8sSecret key/value pairs.
+                              Not to be confused with the values.
+                            type: string
+                          secretKey:
+                            type: string
+                          secretName:
+                            description: The name of the Secret where the AccessKey
+                              and SecretKey are defined.
+                            type: string
+                        required:
+                        - accessKey
+                        - secretKey
+                        - secretName
+                        type: object
+                      storageClassName:
+                        description: Volume Mode Filesystem storageClass to use for
+                          PVC creation
+                        type: string
+                    required:
+                    - image
+                    type: object
+                type: object
+              persistenceAgent:
+                default:
+                  deploy: true
+                description: DS Pipelines PersistenceAgent configuration.
+                properties:
+                  deploy:
+                    default: true
+                    description: 'Enable DS Pipelines Operator management of Persisence
+                      Agent. Setting Deploy to false disables operator reconciliation.
+                      Default: true'
+                    type: boolean
+                  image:
+                    description: Specify a custom image for DSP PersistenceAgent.
+                    type: string
+                  numWorkers:
+                    default: 2
+                    description: 'Number of worker for Persistence Agent sync job.
+                      Default: 2'
+                    type: integer
+                  resources:
+                    description: Specify custom Pod resource requirements for this
+                      component.
+                    properties:
+                      limits:
+                        properties:
+                          cpu:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          memory:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                        type: object
+                      requests:
+                        properties:
+                          cpu:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          memory:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                        type: object
+                    type: object
+                type: object
+              podToPodTLS:
+                default: true
+                description: PodToPodTLS Set to "true" or "false" to enable or disable
+                  TLS communication between DSPA components (pods). Defaults to "true"
+                  to enable TLS between all pods. Only supported in DSP V2 on OpenShift.
+                type: boolean
+              proxy:
+                description: Proxy configuration for all DSPA components to enable
+                  usage in environments requiring proxy access
+                properties:
+                  httpProxy:
+                    description: HTTP proxy URL for outbound HTTP connections
+                    type: string
+                  httpsProxy:
+                    description: |-
+                      HTTPS proxy URL for outbound HTTPS connections
+                      If omitted, HTTPProxy will be used for both HTTP and HTTPS connections as a safe default
+                    type: string
+                  noProxy:
+                    description: |-
+                      Comma-separated list of hostnames, IP addresses, or CIDR ranges
+                      that should bypass the proxy. Recommended baseline for in-cluster traffic:
+                      ".svc.cluster.local,kubernetes.default.svc". Also include service FQDNs for
+                      in-cluster dependencies (e.g. "minio-<name>.<ns>.svc", "mariadb-<name>.<ns>.svc")
+                      and any cluster/service CIDRs if required by your environment. Use "*" to match any hostname.
+                      If unset, a safe default for in-cluster traffic is set.
+                    type: string
+                type: object
+              scheduledWorkflow:
+                default:
+                  deploy: true
+                description: DS Pipelines Scheduled Workflow configuration.
+                properties:
+                  cronScheduleTimezone:
+                    default: UTC
+                    description: 'Specify the Cron timezone used for ScheduledWorkflow
+                      PipelineRuns. Default: UTC'
+                    type: string
+                  deploy:
+                    default: true
+                    description: 'Enable DS Pipelines Operator management of ScheduledWorkflow.
+                      Setting Deploy to false disables operator reconciliation. Default:
+                      true'
+                    type: boolean
+                  image:
+                    description: Specify a custom image for DSP ScheduledWorkflow
+                      controller.
+                    type: string
+                  resources:
+                    description: Specify custom Pod resource requirements for this
+                      component.
+                    properties:
+                      limits:
+                        properties:
+                          cpu:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          memory:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                        type: object
+                      requests:
+                        properties:
+                          cpu:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          memory:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                        type: object
+                    type: object
+                type: object
+              workflowController:
+                description: WorkflowController is an argo-specific component that
+                  manages a DSPA's Workflow objects and handles the orchestration
+                  of them with the central Argo server
+                properties:
+                  argoExecImage:
+                    type: string
+                  customConfig:
+                    type: string
+                  deploy:
+                    default: true
+                    description: |-
+                      Enable deployment of the Argo Workflow Controller for this DSPA, if the DSPO's global management state for
+                      WorkflowControllers is also set to Managed (default). It is overriden by the global management state if it is set to Removed. Default: true
+                    type: boolean
+                  image:
+                    type: string
+                  resources:
+                    description: Specify custom Pod resource requirements for this
+                      component.
+                    properties:
+                      limits:
+                        properties:
+                          cpu:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          memory:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                        type: object
+                      requests:
+                        properties:
+                          cpu:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          memory:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                        type: object
+                    type: object
+                type: object
+            required:
+            - objectStorage
+            type: object
+          status:
+            properties:
+              components:
+                properties:
+                  apiServer:
+                    properties:
+                      externalUrl:
+                        type: string
+                      url:
+                        type: string
+                    type: object
+                  mlmdProxy:
+                    properties:
+                      externalUrl:
+                        type: string
+                      url:
+                        type: string
+                    type: object
+                type: object
+              conditions:
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

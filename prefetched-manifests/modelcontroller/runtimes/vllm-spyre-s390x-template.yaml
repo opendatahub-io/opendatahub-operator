@@ -1,0 +1,77 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  labels:
+    opendatahub.io/dashboard: 'true'
+    opendatahub.io/ootb: 'true'
+  annotations:
+    description: vLLM ServingRuntime to support IBM Spyre
+    openshift.io/display-name: vLLM Spyre s390x ServingRuntime for KServe
+    openshift.io/provider-display-name: Red Hat, Inc.
+    tags: rhods,rhoai,kserve,servingruntime
+    template.openshift.io/documentation-url: https://github.com/vllm-project/vllm-spyre
+    template.openshift.io/long-description: This template defines resources needed to deploy vLLM Spyre AI Accelerator ServingRuntime with KServe in Red Hat OpenShift AI (s390x architecture only)
+    opendatahub.io/modelServingSupport: '["single"]'
+    opendatahub.io/apiProtocol: 'REST'
+    opendatahub.io/model-type: '["generative"]'
+  name: vllm-spyre-s390x-runtime-template
+objects:
+  - apiVersion: serving.kserve.io/v1alpha1
+    kind: ServingRuntime
+    metadata:
+      name: vllm-spyre-s390x-runtime
+      annotations:
+        openshift.io/display-name: vLLM Spyre s390x ServingRuntime for KServe
+        opendatahub.io/recommended-accelerators: '["ibm.com/spyre_vf"]'
+        opendatahub.io/runtime-version: 'v0.11.0'
+      labels:
+        opendatahub.io/dashboard: 'true'
+    spec:
+      annotations:
+        opendatahub.io/kserve-runtime: 'vllm'
+        prometheus.io/path: /metrics
+        prometheus.io/port: '8080'
+      containers:
+        - image: $(vllm-spyre-s390x-image)
+          name: kserve-container
+          command:
+            - /bin/bash
+            - -c
+            - source /etc/profile.d/ibm-aiu-setup.sh && exec python3 -m vllm.entrypoints.openai.api_server "$@"
+            - --
+          args:
+            - '--model=/mnt/models'
+            - '--port=8000'
+            - '--served-model-name={{.Name}}'
+          env:
+            - name: HF_HOME
+              value: /tmp/hf_home
+            - name: FLEX_DEVICE
+              value: VF
+            - name: TOKENIZERS_PARALLELISM
+              value: 'false'
+            - name: DTLOG_LEVEL
+              value: error
+            - name: TORCH_SENDNN_LOG
+              value: CRITICAL
+            - name: VLLM_SPYRE_USE_CB
+              value: "1"
+            - name: VLLM_SPYRE_REQUIRE_PRECOMPILED_DECODERS
+              value: "1"
+            - name: TORCH_SENDNN_CACHE_ENABLE
+              value: "1"
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+          volumeMounts:
+            - name: shm
+              mountPath: /dev/shm
+      multiModel: false
+      supportedModelFormats:
+        - autoSelect: true
+          name: vLLM
+      volumes:
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 2Gi

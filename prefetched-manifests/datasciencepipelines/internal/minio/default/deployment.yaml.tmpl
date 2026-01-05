@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio-{{.Name}}
+  namespace: {{.Namespace}}
+  labels:
+    app: minio-{{.Name}}
+    component: data-science-pipelines
+    dspa: {{.Name}}
+spec:
+  selector:
+    matchLabels:
+      app: minio-{{.Name}}
+      component: data-science-pipelines
+      dspa: {{.Name}}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: minio-{{.Name}}
+        component: data-science-pipelines
+        dspa: {{.Name}}
+    spec:
+      serviceAccountName: ds-pipelines-minio-sa-{{.Name}}
+      containers:
+        - args:
+            - server
+            - /data
+          env:
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: "{{.ObjectStorageConnection.CredentialsSecret.AccessKey}}"
+                  name: "{{.ObjectStorageConnection.CredentialsSecret.SecretName}}"
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: "{{.ObjectStorageConnection.CredentialsSecret.SecretKey}}"
+                  name: "{{.ObjectStorageConnection.CredentialsSecret.SecretName}}"
+          image: "{{.Minio.Image}}"
+          name: minio
+          ports:
+            - containerPort: 9000
+          livenessProbe:
+            tcpSocket:
+              port: 9000
+            initialDelaySeconds: 30
+            timeoutSeconds: 1
+            periodSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket:
+              port: 9000
+            initialDelaySeconds: 5
+            timeoutSeconds: 1
+            periodSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          resources:
+            {{ if .Minio.Resources.Requests }}
+            requests:
+              {{ if .Minio.Resources.Requests.CPU }}
+              cpu: {{.Minio.Resources.Requests.CPU}}
+              {{ end }}
+              {{ if .Minio.Resources.Requests.Memory }}
+              memory: {{.Minio.Resources.Requests.Memory}}
+              {{ end }}
+            {{ end }}
+            {{ if .Minio.Resources.Limits }}
+            limits:
+              {{ if .Minio.Resources.Limits.CPU }}
+              cpu: {{.Minio.Resources.Limits.CPU}}
+              {{ end }}
+              {{ if .Minio.Resources.Limits.Memory }}
+              memory: {{.Minio.Resources.Limits.Memory}}
+              {{ end }}
+            {{ end }}
+          volumeMounts:
+            - mountPath: /data
+              name: data
+              subPath: minio
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: minio-{{.Name}}

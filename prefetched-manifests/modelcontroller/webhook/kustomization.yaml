@@ -1,0 +1,82 @@
+resources:
+- manifests.yaml
+- service.yaml
+
+patches:
+- patch: |-
+    apiVersion: admissionregistration.k8s.io/v1
+    kind: ValidatingWebhookConfiguration
+    metadata:
+      name: validating.odh-model-controller.opendatahub.io
+      annotations:
+        service.beta.openshift.io/inject-cabundle: true
+    webhooks:
+    - name: validating.llmisvc.odh-model-controller.opendatahub.io
+      clientConfig:
+        service:
+          name: odh-model-controller-webhook-service
+    - name: validating.nim.account.odh-model-controller.opendatahub.io
+      clientConfig:
+        service:
+          name: odh-model-controller-webhook-service
+    - name: validating.isvc.odh-model-controller.opendatahub.io
+      clientConfig:
+        service:
+          name: odh-model-controller-webhook-service
+    - name: vinferencegraph-v1alpha1.odh-model-controller.opendatahub.io
+      clientConfig:
+        service:
+          name: odh-model-controller-webhook-service
+  target:
+    group: admissionregistration.k8s.io
+    kind: ValidatingWebhookConfiguration
+    name: validating-webhook-configuration
+    version: v1
+- patch: |-
+    apiVersion: admissionregistration.k8s.io/v1
+    kind: MutatingWebhookConfiguration
+    metadata:
+      name: mutating-webhook-configuration
+      annotations:
+        service.beta.openshift.io/inject-cabundle: true
+    webhooks:
+    - name: minferencegraph-v1alpha1.odh-model-controller.opendatahub.io
+      clientConfig:
+        service:
+          name: odh-model-controller-webhook-service
+    - name: minferenceservice-v1beta1.odh-model-controller.opendatahub.io
+      clientConfig:
+        service:
+          name: odh-model-controller-webhook-service
+    - name: mutating.pod.odh-model-controller.opendatahub.io
+      clientConfig:
+        service:
+          name: odh-model-controller-webhook-service          
+      objectSelector:
+        matchExpressions:
+          - key: serving.kserve.io/inferenceservice
+            operator: Exists          
+          - key: control-plane
+            operator: DoesNotExist
+
+- patch: |-
+    - op: replace
+      path: /metadata/name
+      value: validating.odh-model-controller.opendatahub.io
+  target:
+    group: admissionregistration.k8s.io
+    kind: ValidatingWebhookConfiguration
+    name: validating-webhook-configuration
+    version: v1
+- patch: |-
+    - op: replace
+      path: /metadata/name
+      value: mutating.odh-model-controller.opendatahub.io
+  target:
+    group: admissionregistration.k8s.io
+    kind: MutatingWebhookConfiguration
+    name: mutating-webhook-configuration
+    version: v1
+
+configurations:
+- kustomizeconfig.yaml

@@ -1,0 +1,10 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: controller-manager-pdb
+  namespace: system
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+       app.kubernetes.io/name: llama-stack-k8s-operator

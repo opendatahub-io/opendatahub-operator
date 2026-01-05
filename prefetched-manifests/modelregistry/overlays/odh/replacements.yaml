@@ -1,0 +1,156 @@
+# replacements from configmap using params.env for use in opendatahub-operator
+- source:
+    kind: ConfigMap
+    name: model-registry-operator-parameters
+    fieldPath: data.IMAGES_MODELREGISTRY_OPERATOR
+  targets:
+    - select:
+        kind: Deployment
+        name: controller-manager
+      fieldPaths:
+        - spec.template.spec.containers.[name=manager].image
+- source:
+    kind: ConfigMap
+    name: model-registry-operator-parameters
+    fieldPath: data.IMAGES_REST_SERVICE
+  targets:
+    - select:
+        kind: Deployment
+        name: controller-manager
+      fieldPaths:
+        - spec.template.spec.containers.[name=manager].env.[name=REST_IMAGE].value
+- source:
+    kind: ConfigMap
+    name: model-registry-operator-parameters
+    fieldPath: data.IMAGES_OAUTH_PROXY
+  targets:
+    - select:
+        kind: Deployment
+        name: controller-manager
+      fieldPaths:
+        - spec.template.spec.containers.[name=manager].env.[name=OAUTH_PROXY_IMAGE].value
+- source:
+    kind: ConfigMap
+    name: model-registry-operator-parameters
+    fieldPath: data.kube-rbac-proxy
+  targets:
+    - select:
+        kind: Deployment
+        name: controller-manager
+      fieldPaths:
+        - spec.template.spec.containers.[name=manager].env.[name=KUBE_RBAC_PROXY_IMAGE].value
+- source:
+    kind: ConfigMap
+    name: model-registry-operator-parameters
+    fieldPath: data.IMAGES_POSTGRES
+  targets:
+    - select:
+        kind: Deployment
+        name: controller-manager
+      fieldPaths:
+        - spec.template.spec.containers.[name=manager].env.[name=POSTGRES_IMAGE].value
+- source:
+    kind: ConfigMap
+    name: model-registry-operator-parameters
+    fieldPath: data.IMAGES_CATALOG_DATA
+  targets:
+    - select:
+        kind: Deployment
+        name: controller-manager
+      fieldPaths:
+        - spec.template.spec.containers.[name=manager].env.[name=CATALOG_DATA_IMAGE].value
+- source:
+    kind: ConfigMap
+    name: model-registry-operator-parameters
+    fieldPath: data.IMAGES_BENCHMARK_DATA
+  targets:
+    - select:
+        kind: Deployment
+        name: controller-manager
+      fieldPaths:
+        - spec.template.spec.containers.[name=manager].env.[name=BENCHMARK_DATA_IMAGE].value
+- source:
+    kind: ConfigMap
+    name: model-registry-operator-parameters
+    fieldPath: data.CREATE_AUTH_RESOURCES
+  targets:
+    - select:
+        kind: Deployment
+        name: controller-manager
+      fieldPaths:
+        - spec.template.spec.containers.[name=manager].env.[name=CREATE_AUTH_RESOURCES].value
+- source:
+    kind: ConfigMap
+    name: model-registry-operator-parameters
+    fieldPath: data.REGISTRIES_NAMESPACE
+  targets:
+    - select:
+        kind: Deployment
+        name: controller-manager
+      fieldPaths:
+        - spec.template.spec.containers.[name=manager].env.[name=REGISTRIES_NAMESPACE].value
+- source:
+    kind: ConfigMap
+    name: model-registry-operator-parameters
+    fieldPath: data.ENABLE_MODEL_CATALOG
+  targets:
+    - select:
+        kind: Deployment
+        name: controller-manager
+      fieldPaths:
+        - spec.template.spec.containers.[name=manager].env.[name=ENABLE_MODEL_CATALOG].value
+- source:
+    kind: ConfigMap
+    name: model-registry-operator-parameters
+    fieldPath: data.SKIP_MODEL_CATALOG_DB_CREATION
+  targets:
+    - select:
+        kind: Deployment
+        name: controller-manager
+      fieldPaths:
+        - spec.template.spec.containers.[name=manager].env.[name=SKIP_MODEL_CATALOG_DB_CREATION].value
+# Metrics service name replacements for auth proxy serving cert
+- source:
+    kind: Service
+    name: controller-manager-metrics-service
+    fieldPath: metadata.name
+  targets:
+    - select:
+        kind: Service
+        name: controller-manager-metrics-service
+      fieldPaths:
+        - metadata.annotations.[service.beta.openshift.io/serving-cert-secret-name]
+    - select:
+        kind: Deployment
+        name: controller-manager
+      fieldPaths:
+        # uses regex since kustomize v4.5.3, hence the full match below
+        - spec.template.spec.volumes.[name=^server-cert$].secret.secretName
+# Webhook service name replacement for webhook-server port serving cert
+- source:
+    kind: Service
+    name: webhook-service
+    fieldPath: metadata.name
+  targets:
+    - select:
+        kind: Service
+        name: webhook-service
+      fieldPaths:
+        - metadata.annotations.[service.beta.openshift.io/serving-cert-secret-name]
+    - select:
+        kind: Deployment
+        name: controller-manager
+      fieldPaths:
+        # uses regex since kustomize v4.5.3, hence the full match below
+        - spec.template.spec.volumes.[name=^cert$].secret.secretName
+# Jobs async-upload replacement
+- source:
+    kind: ConfigMap
+    name: model-registry-operator-parameters
+    fieldPath: data.IMAGES_JOBS_ASYNC_UPLOAD
+  targets:
+    - select:
+        kind: Template
+        name: jobs-async-upload-s3-to-oci-template
+      fieldPaths:
+        - parameters.[name=JOB_IMAGE].value

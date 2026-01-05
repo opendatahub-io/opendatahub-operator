@@ -1,0 +1,148 @@
+- op: add
+  path: /spec/template/spec/containers/0/env
+  value:
+    - name: MODULE_FEDERATION_CONFIG
+      valueFrom:
+        configMapKeyRef:
+          key: module-federation-config.json
+          name: federation-config
+- op: add
+  path: /spec/template/spec/containers/-
+  value:
+    name: model-registry-ui
+    image: $(model-registry-ui-image)
+    imagePullPolicy: Always
+    livenessProbe:
+      httpGet:
+        path: /healthcheck
+        port: 8043
+        scheme: HTTPS
+      initialDelaySeconds: 30
+      timeoutSeconds: 15
+      periodSeconds: 30
+      successThreshold: 1
+      failureThreshold: 3
+    readinessProbe:
+      httpGet:
+        path: /healthcheck
+        port: 8043
+        scheme: HTTPS
+      initialDelaySeconds: 15
+      timeoutSeconds: 15
+      periodSeconds: 30
+      successThreshold: 1
+      failureThreshold: 3
+    resources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 1Gi
+    ports:
+      - containerPort: 8043
+        name: mr-ui
+    volumeMounts:
+      - name: proxy-tls
+        mountPath: /etc/tls/private
+        readOnly: true
+      - name: odh-trusted-ca-cert
+        mountPath: /etc/pki/tls/certs/odh-trusted-ca-bundle.crt
+        subPath: odh-trusted-ca-bundle.crt
+        readOnly: true
+      - name: odh-trusted-ca-cert
+        mountPath: /etc/ssl/certs/odh-trusted-ca-bundle.crt
+        subPath: odh-trusted-ca-bundle.crt
+        readOnly: true
+      - name: odh-ca-cert
+        mountPath: /etc/pki/tls/certs/odh-ca-bundle.crt
+        subPath: odh-ca-bundle.crt
+        readOnly: true
+      - name: odh-ca-cert
+        mountPath: /etc/ssl/certs/odh-ca-bundle.crt
+        subPath: odh-ca-bundle.crt
+        readOnly: true
+    args:
+      - '--deployment-mode=federated'
+      - '--auth-method=user_token'
+      - '--auth-token-header=x-forwarded-access-token'
+      - '--auth-token-prefix='
+      - '--port=8043'
+      - '--cert-file=/etc/tls/private/tls.crt'
+      - '--key-file=/etc/tls/private/tls.key'
+      - '--bundle-paths=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem,/var/run/secrets/kubernetes.io/serviceaccount/ca.crt,/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt,/etc/pki/tls/certs/odh-ca-bundle.crt,/etc/pki/tls/certs/odh-trusted-ca-bundle.crt'
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+- op: add
+  path: /spec/template/spec/containers/-
+  value:
+    name: gen-ai-ui
+    image: $(gen-ai-ui-image)
+    imagePullPolicy: Always
+    livenessProbe:
+      httpGet:
+        path: /healthcheck
+        port: 8143
+        scheme: HTTPS
+      initialDelaySeconds: 30
+      timeoutSeconds: 15
+      periodSeconds: 30
+      successThreshold: 1
+      failureThreshold: 3
+    readinessProbe:
+      httpGet:
+        path: /healthcheck
+        port: 8143
+        scheme: HTTPS
+      initialDelaySeconds: 15
+      timeoutSeconds: 15
+      periodSeconds: 30
+      successThreshold: 1
+      failureThreshold: 3
+    resources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 1Gi
+    ports:
+      - containerPort: 8143
+        name: gen-ai-ui
+    volumeMounts:
+      - name: proxy-tls
+        mountPath: /etc/tls/private
+        readOnly: true
+      - name: odh-trusted-ca-cert
+        mountPath: /etc/pki/tls/certs/odh-trusted-ca-bundle.crt
+        subPath: odh-trusted-ca-bundle.crt
+        readOnly: true
+      - name: odh-trusted-ca-cert
+        mountPath: /etc/ssl/certs/odh-trusted-ca-bundle.crt
+        subPath: odh-trusted-ca-bundle.crt
+        readOnly: true
+      - name: odh-ca-cert
+        mountPath: /etc/pki/tls/certs/odh-ca-bundle.crt
+        subPath: odh-ca-bundle.crt
+        readOnly: true
+      - name: odh-ca-cert
+        mountPath: /etc/ssl/certs/odh-ca-bundle.crt
+        subPath: odh-ca-bundle.crt
+        readOnly: true
+    args:
+      - '--auth-method=user_token'
+      - '--auth-token-header=x-forwarded-access-token'
+      - '--auth-token-prefix='
+      - '--port=8143'
+      - '--cert-file=/etc/tls/private/tls.crt'
+      - '--key-file=/etc/tls/private/tls.key'
+      - '--bundle-paths=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem,/var/run/secrets/kubernetes.io/serviceaccount/ca.crt,/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt,/etc/pki/tls/certs/odh-ca-bundle.crt,/etc/pki/tls/certs/odh-trusted-ca-bundle.crt'
+
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL

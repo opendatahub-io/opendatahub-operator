@@ -1,0 +1,28 @@
+Images:
+  ApiServer: $(IMAGES_APISERVER)
+  PersistenceAgent: $(IMAGES_PERSISTENCEAGENT)
+  ScheduledWorkflow: $(IMAGES_SCHEDULEDWORKFLOW)
+  MlmdEnvoy: $(IMAGES_MLMDENVOY)
+  MlmdGRPC: $(IMAGES_MLMDGRPC)
+  ArgoExecImage: $(IMAGES_ARGO_EXEC)
+  ArgoWorkflowController: $(IMAGES_ARGO_WORKFLOWCONTROLLER)
+  LauncherImage: $(IMAGES_LAUNCHER)
+  DriverImage: $(IMAGES_DRIVER)
+  KubeRBACProxy: $(kube-rbac-proxy)
+  MariaDB: $(IMAGES_MARIADB)
+ManagedPipelinesMetadata:
+  Iris:
+    Name: "[Demo] iris-training"
+    Description: "[source code](https://github.com/opendatahub-io/data-science-pipelines/tree/master/samples/iris-sklearn) A simple pipeline to demonstrate a basic ML Training workflow"
+    Filepath: /samples/iris-pipeline-compiled.yaml
+    VersionName: "[Demo] iris-training"
+DSPO:
+  ArgoWorkflowsControllers: $(ARGOWORKFLOWSCONTROLLERS)
+  HealthCheck:
+    Database:
+      ConnectionTimeout: $(DSPO_HEALTHCHECK_DATABASE_CONNECTIONTIMEOUT)
+    ObjectStore:
+      ConnectionTimeout: $(DSPO_HEALTHCHECK_OBJECTSTORE_CONNECTIONTIMEOUT)
+  RequeueTime: $(DSPO_REQUEUE_TIME)
+  PlatformVersion: $(PLATFORMVERSION)
+  FIPSEnabled: $(FIPSENABLED)

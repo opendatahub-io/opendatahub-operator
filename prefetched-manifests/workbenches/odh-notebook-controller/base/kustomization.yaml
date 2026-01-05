@@ -1,0 +1,41 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../default
+
+configMapGenerator:
+- envs:
+  - params.env
+  name: odh-notebook-controller-image-parameters
+generatorOptions:
+  disableNameSuffixHash: true
+
+replacements:
+- source:
+    fieldPath: data.odh-notebook-controller-image
+    kind: ConfigMap
+    name: odh-notebook-controller-image-parameters
+    version: v1
+  targets:
+  - fieldPaths:
+    - spec.template.spec.containers.0.image
+    select:
+      group: apps
+      kind: Deployment
+      name: manager
+      namespace: system
+      version: v1
+- source:
+    fieldPath: data.kube-rbac-proxy
+    kind: ConfigMap
+    name: odh-notebook-controller-image-parameters
+    version: v1
+  targets:
+  - fieldPaths:
+    - spec.template.spec.containers.0.args.1
+    select:
+      group: apps
+      kind: Deployment
+      name: manager
+      namespace: system
+      version: v1

@@ -1,0 +1,185 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: opendatahub
+namePrefix: data-science-pipelines-operator-
+resources:
+  - ../crd
+  - ../rbac
+  - ../manager
+  - ../prometheus
+  - ../configmaps
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+  - name: dspo-parameters
+    envs:
+      - params.env
+vars:
+  # Images
+  - name: IMAGES_DSPO
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_DSPO
+  - name: IMAGES_APISERVER
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_APISERVER
+  - name: kube-rbac-proxy
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.kube-rbac-proxy
+  - name: IMAGES_PERSISTENCEAGENT
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_PERSISTENCEAGENT
+  - name: IMAGES_SCHEDULEDWORKFLOW
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_SCHEDULEDWORKFLOW
+  - name: IMAGES_MARIADB
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_MARIADB
+  - name: IMAGES_MLMDENVOY
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_MLMDENVOY
+  - name: IMAGES_MLMDGRPC
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_MLMDGRPC
+  - name: IMAGES_LAUNCHER
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_LAUNCHER
+  - name: IMAGES_DRIVER
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_DRIVER
+  - name: IMAGES_ARGO_EXEC
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_ARGO_EXEC
+  - name: IMAGES_ARGO_WORKFLOWCONTROLLER
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.IMAGES_ARGO_WORKFLOWCONTROLLER
+
+  # DSPO level configs
+  - name: ZAP_LOG_LEVEL
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.ZAP_LOG_LEVEL
+  - name: DSPO_REQUEUE_TIME
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.DSPO_REQUEUE_TIME
+  - name: MAX_CONCURRENT_RECONCILES
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.MAX_CONCURRENT_RECONCILES
+  - name: DSPO_HEALTHCHECK_DATABASE_CONNECTIONTIMEOUT
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.DSPO_HEALTHCHECK_DATABASE_CONNECTIONTIMEOUT
+  - name: DSPO_HEALTHCHECK_OBJECTSTORE_CONNECTIONTIMEOUT
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.DSPO_HEALTHCHECK_OBJECTSTORE_CONNECTIONTIMEOUT
+  - name: DSPO_APISERVER_INCLUDE_OWNERREFERENCE
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.DSPO_APISERVER_INCLUDE_OWNERREFERENCE
+  - name: MANAGEDPIPELINES
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.MANAGEDPIPELINES
+  - name: ARGOWORKFLOWSCONTROLLERS
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.ARGOWORKFLOWSCONTROLLERS
+  - name: PLATFORMVERSION
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.PLATFORMVERSION
+  - name: FIPSENABLED
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.FIPSENABLED
+  - name: WEBHOOK_ANNOTATIONS
+    objref:
+      kind: ConfigMap
+      name: dspo-parameters
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.WEBHOOK_ANNOTATIONS
+configurations:
+  - params.yaml

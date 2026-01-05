@@ -1,0 +1,12 @@
+resources:
+- manager.yaml
+- service-account.yaml
+- service.yaml
+configMapGenerator:
+- envs:
+  - params.env
+  name: config
+generatorOptions:
+  disableNameSuffixHash: true
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization

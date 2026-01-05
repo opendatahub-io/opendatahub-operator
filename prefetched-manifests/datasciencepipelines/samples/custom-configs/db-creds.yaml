@@ -1,0 +1,10 @@
+kind: Secret
+apiVersion: v1
+metadata:
+  name: testdbsecret
+  labels:
+    app: mariadb-sample
+    component: data-science-pipelines
+stringData:
+  password: "testingpassword"
+type: Opaque

@@ -1,0 +1,69 @@
+# Example with remote storage (PostgreSQL + S3)
+# No PVC required - all storage is remote
+#
+# This example uses secret references for database credentials (recommended for production).
+# Create the secret first:
+#
+#   kubectl create secret generic mlflow-db-credentials \
+#     --from-literal=backend-store-uri='postgresql://mlflow:password@postgres.example.com:5432/mlflow' \
+#     --from-literal=registry-store-uri='postgresql://mlflow:password@postgres.example.com:5432/mlflow_registry'
+#
+apiVersion: mlflow.opendatahub.io/v1
+kind: MLflow
+metadata:
+  name: mlflow
+spec:
+  # MLflow container image
+  image:
+    image: quay.io/opendatahub/mlflow:master
+    imagePullPolicy: Always
+
+  # Number of replicas - can scale horizontally with remote storage
+  replicas: 2
+
+  # Compute resources
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+
+  # Remote database for metadata - using secret references (recommended for production)
+  # This keeps credentials out of the CR and in a Kubernetes secret
+  backendStoreUriFrom:
+    name: mlflow-db-credentials
+    key: backend-store-uri
+
+  # Alternative: Direct URI (not recommended for production due to embedded credentials)
+  # backendStoreUri: "postgresql://mlflow:password@postgres.example.com:5432/mlflow"
+  # registryStoreUri: defaults to backendStoreUri if not specified
+
+  # Remote S3 storage for artifacts
+  artifactsDestination: "s3://my-mlflow-bucket/artifacts"
+
+  # Default artifact root - where MLflow stores artifacts for runs that don't specify a location
+  # If not specified, defaults to artifactsDestination value
+  # You can set this to a different location or subdirectory for better organization
+  defaultArtifactRoot: "s3://my-mlflow-bucket/artifacts/runs"
+
+  # Enable artifact serving through MLflow REST API
+  # Clients can log/retrieve artifacts via MLflow instead of direct S3 access
+  serveArtifacts: true
+
+  # Number of gunicorn workers per pod
+  # For high-traffic deployments, scaling replicas is recommended over increasing workers
+  workers: 2
+
+  # AWS credentials for S3 access
+  envFrom:
+    - secretRef:
+        name: aws-credentials  # Contains AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
+
+  # Environment variables
+  env:
+    - name: MLFLOW_LOGGING_LEVEL
+      value: INFO
+    - name: AWS_DEFAULT_REGION
+      value: us-east-1

@@ -1,0 +1,6 @@
+apiVersion: modelregistry.opendatahub.io/v1beta1
+kind: ModelRegistry
+metadata:
+  name: modelregistry-sample
+spec:
+  oauthProxy: {}

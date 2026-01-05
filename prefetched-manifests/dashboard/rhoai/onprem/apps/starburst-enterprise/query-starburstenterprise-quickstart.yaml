@@ -1,0 +1,105 @@
+apiVersion: console.openshift.io/v1
+kind: OdhQuickStart
+metadata:
+  name: using-starburst-enterprise
+  annotations:
+    opendatahub.io/categories: 'Getting started,Notebook environments,Starburst Enterprise'
+spec:
+  displayName: Querying data with Starburst Enterprise
+  appName: starburstenterprise
+  durationMinutes: 5
+  icon: 'images/starburst.svg'
+  description: This quickstart will walk you through using a Jupyter notebook to query data through Starburst Enterprise.
+  introduction: |-
+    ### This quickstart shows you how to query data through Starburst Enterprise using a Jupyter notebook.
+    Red Hat® OpenShift® AI lets you connect to your Starburst Enterprise instance(s) to provide you with lightning fast query federation capabilities.
+
+    In a matter of minutes, you will be able to access data from multiple sources with a single query using a Jupyter notebook.
+
+    **Prerequisites**
+    Before you begin, please be sure you have completed the following tasks:
+     - Clone the [Red Hat OpenShift AI + Starburst 101 GitHub repo](https://github.com/starburstdata/rhods-starburst-101) to your local machine.
+     - Install Starburst Enterprise on your OpenShift cluster by following the [Starburst Enterprise Helm operator deployment](https://docs.starburst.io/ecosystems/redhat/openshift-deployment.html#installation) guide.
+
+    A recording of this quickstart is available [here](https://developers.redhat.com/articles/2021/11/22/access-more-data-your-jupyter-notebook) in case you are unsure of how to complete any of the tasks.
+  tasks:
+    - title: Confirm your Starburst Enterprise deployment
+      description: |-
+        ### To confirm your Starburst Enterprise deployment:
+        Complete all 4 steps of the [getting started](https://github.com/starburstdata/starburst-rhpds/tree/main/getting-started) guide.  This will confirm that your Starburst Enterprise cluster is running, that you have multiple data sources configured in your cluster and that you are able to query those data sources.
+
+        You should see results in the Starburst Enterprise query editor results pane after running the query at the bottom of the guide.
+      review:
+        instructions: |-
+          #### To verify your Starburst Enterprise cluster has been deployed successfully:
+          Are you able to run a query from the **Query Editor** page?
+        failedTaskHelp: This task is not verified yet. Try the task again.
+      summary:
+        success: You have confirmed that your Starburst Enterprise cluster has been deployed successfully.  Proceed to the next step.
+        failed: Try the steps again.
+
+    - title: Get Starburst Enterprise connection details
+      description: |-
+        ### Obtain the connection details for your Starburst Enterprise cluster:
+        The hostname for your Starburst Enterprise cluster is the same as the URL you used to access the Starburst web UI, but with the protocol (http/https) removed.  The hostname will be needed to connect to your Starburst cluster from a Jupyter notebook.
+
+        For example, if the URL for your Starburst web UI is:
+        **https://console-openshift-console.apps.test-cluster.example.com**
+
+
+        Then the hostname for your Starburst cluster is:
+        **console-openshift-console.apps.test-cluster.example.com**
+
+
+        Confirm the port number for you Starburst cluster.  The default port is **443** for clusters with TLS enabled and is **8080** for clusters with TLS disabled.
+      review:
+        instructions: |-
+          #### To verify you have all the connection details you need:
+          Do you have the hostname copied somewhere for your Starburst Enterprise cluster?  Have you verified the port number for your Starburst Enterprise cluster?
+        failedTaskHelp: This task is not verified yet. Try the task again.
+      summary:
+        success: You have all of the connection details you need to connect to your Starburst Enterprise cluster.  Proceed to the next step.
+        failed: Try the steps again.
+
+    - title: Launch Jupyter from Red Hat OpenShift AI
+      description: |-
+        ### To launch a Jupyter workbench from within the Red Hat OpenShift AI console:
+        1. Click **Applications** &#x2192; **Enabled**.
+        2. Find the **Jupyter** card.
+        3. Click **Open application** on the Jupyter card to access the Jupyter **Start a basic workbench** page. A new browser tab will open displaying the **Start a basic workbench** page.
+        4. Select the **Standard Data Science** notebook image and the **Default** container size.
+        5. Add the environment variables for **TRINO\_USERNAME**, **TRINO\_PASSWORD**, **TRINO\_HOSTNAME**, and **TRINO\_PORT** using the connection details you obtained in the previous task.
+        6. Click on **Start workbench** to launch Jupyter.
+
+        If you have not previously authorized the jupyterhub-hub service account to access your account, the **Authorize Access** page appears prompting you to provide authorization. Inspect the permissions selected by default, and click the **Allow selected permissions** button.
+
+        The **Start a basic workbench** page will reload and indicate that the system is starting up.
+      review:
+        instructions: |-
+          #### To verify that you have launched a Jupyter workbench:
+          Do you see a message in the page that says **The workbench is starting up**?
+        failedTaskHelp: This task is not verified yet. Try the task again.
+      summary:
+        success: Your workbench has started and the JupyterLab interface will load shortly. When the page displays a **Stop** option, proceed to the next step.
+        failed: Try the steps again.
+
+    - title: Run the **explore-data.ipynb** Jupyter notebook
+      description: |-
+        ### To run the **explore-data.ipynb** notebook:
+        1. If you haven't already done so, clone the [Red Hat OpenShift AI + Starburst 101 GitHub repo](https://github.com/starburstdata/rhods-starburst-101) to your local machine.
+        2. Open the **explore-data.ipynb** notebook within your JupyterLab interface.
+        3. Follow the instructions provided in the notebook to install the required packages and initialize the environment.
+        4. Run the cells under the **What is Starburst and how does it work?** section to confirm you are connected to your Starburst Enterprise cluster.
+        5. Run the cells under the **Accessing Data** section to confirm you are able to execute queries against your Starburst Enterprise cluster.
+
+        You have now successfully connected a Jupyter notebook to your Starburst Enterprise cluster and executed queries against that cluster.
+      review:
+        instructions: |-
+          #### Verify you are connected to your Starburst Enterprise cluster:
+          Did you get results when you ran the cells mentioned in step #3 and step #4?
+        failedTaskHelp:
+          This task is not verified yet. Try the task again.
+      summary:
+        success: You have connected to Starburst Enterprise using a Jupyter notebook.
+        failed: Try the steps again.
+  conclusion: You are now able to create a Starburst Enterprise cluster and connect a Jupyter notebook to that cluster to execute queries against it.  For more information on how to use Starburst Enterprise, please refer to the [online documentation](https://docs.starburst.io/latest/index.html).

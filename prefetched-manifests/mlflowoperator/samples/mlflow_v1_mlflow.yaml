@@ -1,0 +1,76 @@
+apiVersion: mlflow.opendatahub.io/v1
+kind: MLflow
+metadata:
+  name: mlflow
+spec:
+  # MLflow container image
+  image:
+    image: quay.io/opendatahub/mlflow:master
+    imagePullPolicy: Always
+
+  # Number of replicas
+  replicas: 1
+
+  # Compute resources
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "1Gi"
+
+  # ========================================
+  # Storage Configuration
+  # ========================================
+  # Option 1: Local file-based storage (development/testing)
+  # Requires PVC for SQLite database and local file artifacts
+  storage:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 10Gi
+    # storageClassName: ""  # Uncomment to specify storage class
+
+  backendStoreUri: "sqlite:////mlflow/mlflow.db"
+  registryStoreUri: "sqlite:////mlflow/mlflow.db"
+  artifactsDestination: "file:///mlflow/artifacts"
+
+  # IMPORTANT: serveArtifacts MUST be enabled when using file-based artifact storage
+  serveArtifacts: true
+
+  # Option 2: Remote storage (production - COMMENTED OUT)
+  # No PVC needed - remove or comment out 'storage' section above
+  # backendStoreUri: "postgresql://mlflow:password@postgres.example.com:5432/mlflow"
+  # registryStoreUri: "postgresql://mlflow:password@postgres.example.com:5432/mlflow"
+  # artifactsDestination: "s3://my-mlflow-bucket/artifacts"
+
+  # Option 3: Hybrid storage (COMMENTED OUT)
+  # Use remote DB but local artifacts (or vice versa)
+  # storage:
+  #   size: 20Gi
+  # backendStoreUri: "postgresql://mlflow:password@postgres.example.com:5432/mlflow"
+  # registryStoreUri: "postgresql://mlflow:password@postgres.example.com:5432/mlflow"
+  # artifactsDestination: "file:///mlflow/artifacts"
+
+  # Environment variables passthrough
+  env:
+    - name: MLFLOW_LOGGING_LEVEL
+      value: DEBUG
+    # For S3 artifacts, you might need:
+    # - name: AWS_ACCESS_KEY_ID
+    #   valueFrom:
+    #     secretKeyRef:
+    #       name: aws-credentials
+    #       key: access-key-id
+    # - name: AWS_SECRET_ACCESS_KEY
+    #   valueFrom:
+    #     secretKeyRef:
+    #       name: aws-credentials
+    #       key: secret-access-key
+
+  # Environment from secrets/configmaps
+  # envFrom:
+  #   - secretRef:
+  #       name: mlflow-s3-credentials

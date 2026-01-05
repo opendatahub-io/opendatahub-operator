@@ -1,0 +1,71 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../modular-architecture
+patchesJson6902:
+  - path: service-account.yaml
+    target:
+      version: v1
+      kind: ServiceAccount
+      name: odh-dashboard
+  - path: role.yaml
+    target:
+      group: rbac.authorization.k8s.io
+      version: v1
+      kind: Role
+      name: odh-dashboard
+  - path: cluster-role.yaml
+    target:
+      group: rbac.authorization.k8s.io
+      version: v1
+      kind: ClusterRole
+      name: odh-dashboard
+  - path: role-binding.yaml
+    target:
+      group: rbac.authorization.k8s.io
+      version: v1
+      kind: RoleBinding
+      name: odh-dashboard
+  - path: cluster-role-binding.yaml
+    target:
+      group: rbac.authorization.k8s.io
+      version: v1
+      kind: ClusterRoleBinding
+      name: odh-dashboard
+  - path: auth-delegator.clusterrolebinding.yaml
+    target:
+      group: rbac.authorization.k8s.io
+      version: v1
+      kind: ClusterRoleBinding
+      name: odh-dashboard-auth-delegator
+  - path: cluster-monitoring-role-binding.yaml
+    target:
+      group: rbac.authorization.k8s.io
+      version: v1
+      kind: ClusterRoleBinding
+      name: odh-dashboard-monitoring
+  - path: service.yaml
+    target:
+      version: v1
+      kind: Service
+      name: odh-dashboard
+  - path: deployment.yaml
+    target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: odh-dashboard
+  - path: httproute.yaml
+    target:
+      group: gateway.networking.k8s.io
+      version: v1
+      kind: HTTPRoute
+      name: odh-dashboard
+  - path: networkpolicy.yaml
+    target:
+      group: networking.k8s.io
+      version: v1
+      kind: NetworkPolicy
+      name: odh-dashboard-allow-ports
+patchesStrategicMerge:
+  - federation-configmap.yaml

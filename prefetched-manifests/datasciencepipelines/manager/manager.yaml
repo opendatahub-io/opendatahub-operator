@@ -1,0 +1,114 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-manager
+  namespace: datasciencepipelinesapplications-controller
+  labels:
+    app.kubernetes.io/name: data-science-pipelines-operator
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: data-science-pipelines-operator
+  replicas: 1
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        app.kubernetes.io/name: data-science-pipelines-operator
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      volumes:
+        - name: config
+          configMap:
+            name: dspo-config
+      containers:
+      - command:
+        - /manager
+        args:
+        - --leader-elect
+        - --zap-log-level=$(ZAP_LOG_LEVEL)
+        - --MaxConcurrentReconciles=$(MAX_CONCURRENT_RECONCILES)
+        - --config
+        - /home/config
+        image: $(IMAGES_DSPO)
+        name: manager
+        # imagePullPolicy: default - https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+        env:
+          # Env vars are prioritized over --config
+          - name: IMAGES_APISERVER
+            value: $(IMAGES_APISERVER)
+          - name: IMAGES_PERSISTENCEAGENT
+            value: $(IMAGES_PERSISTENCEAGENT)
+          - name: IMAGES_SCHEDULEDWORKFLOW
+            value: $(IMAGES_SCHEDULEDWORKFLOW)
+          - name: IMAGES_MLMDENVOY
+            value: $(IMAGES_MLMDENVOY)
+          - name: IMAGES_MLMDGRPC
+            value: $(IMAGES_MLMDGRPC)
+          - name: IMAGES_ARGO_EXEC
+            value: $(IMAGES_ARGO_EXEC)
+          - name: IMAGES_ARGO_WORKFLOWCONTROLLER
+            value: $(IMAGES_ARGO_WORKFLOWCONTROLLER)
+          - name: IMAGES_LAUNCHER
+            value: $(IMAGES_LAUNCHER)
+          - name: IMAGES_DRIVER
+            value: $(IMAGES_DRIVER)
+          - name: IMAGES_KUBE_RBAC_PROXY
+            value: $(kube-rbac-proxy)
+          - name: IMAGES_MARIADB
+            value: $(IMAGES_MARIADB)
+          - name: ZAP_LOG_LEVEL
+            value: $(ZAP_LOG_LEVEL)
+          - name: MAX_CONCURRENT_RECONCILES
+            value: $(MAX_CONCURRENT_RECONCILES)
+          - name: DSPO_REQUEUE_TIME
+            value: $(DSPO_REQUEUE_TIME)
+          - name: DSPO_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          # DSPO_APISERVER_INCLUDE_OWNERREFERENCE is intended to be used only for tests.
+          # It must always be enabled in production
+          - name: DSPO_APISERVER_INCLUDE_OWNERREFERENCE
+            value: $(DSPO_APISERVER_INCLUDE_OWNERREFERENCE)
+          - name: DSPO_ARGOWORKFLOWSCONTROLLERS
+            value: $(ARGOWORKFLOWSCONTROLLERS)
+          - name: MANAGEDPIPELINES
+            value: $(MANAGEDPIPELINES)
+          - name: DSPO_PLATFORMVERSION
+            value: $(PLATFORMVERSION)
+          - name: DSPO_FIPSENABLED
+            value: $(FIPSENABLED)
+          - name: WEBHOOK_ANNOTATIONS
+            value: $(WEBHOOK_ANNOTATIONS)
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - "ALL"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: 1
+            memory: 4Gi
+          requests:
+            cpu: 200m
+            memory: 400Mi
+        volumeMounts:
+          - mountPath: /home/config
+            name: config
+      serviceAccountName: controller-manager
+      terminationGracePeriodSeconds: 10

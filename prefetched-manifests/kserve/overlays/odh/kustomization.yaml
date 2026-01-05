@@ -1,0 +1,189 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+- ../../default
+- ../../llmisvc
+- ../../monitoring/llmisvc
+- llm-svc-scc.yaml
+- network-policies.yaml
+- user-cluster-roles.yaml
+- accelerators/
+
+namespace: opendatahub
+
+patches:
+- path: patches/remove-clusterservingruntime.yaml
+- path: patches/remove-cert-manager.yaml
+- path: patches/remove-local-model.yaml
+- path: patches/patch-webhook-svc-openshift-cert-injection.yaml
+- path: patches/patch-inferenceservice-config.yaml
+- path: patches/patch-set-resources-manager.yaml
+- path: patches/remove-namespace.yaml
+- target:
+    kind: MutatingWebhookConfiguration
+  patch: |
+    - op: remove
+      path: /metadata/annotations/cert-manager.io~1inject-ca-from
+    - op: add
+      path: /metadata/annotations/service.beta.openshift.io~1inject-cabundle
+      value: "true"
+- target:
+      kind: CustomResourceDefinition
+      name: inferenceservices.serving.kserve.io
+  patch: |
+    - op: remove
+      path: /metadata/annotations/cert-manager.io~1inject-ca-from
+    - op: add
+      path: /metadata/annotations/service.beta.openshift.io~1inject-cabundle
+      value: "true"
+- target:
+    kind: ValidatingWebhookConfiguration
+  patch: |
+    - op: remove
+      path: /metadata/annotations/cert-manager.io~1inject-ca-from
+    - op: add
+      path: /metadata/annotations/service.beta.openshift.io~1inject-cabundle
+      value: "true"
+- target:
+    kind: LLMInferenceServiceConfig
+    name: kserve-config-llm-scheduler
+  patch: |-
+    - op: replace
+      path: /spec/router/scheduler/template/containers/0/image
+      value: "$(kserve-llm-d-inference-scheduler)"
+- target:
+    kind: LLMInferenceServiceConfig
+    name: kserve-config-llm-decode-template
+  patch: |-
+    - op: replace
+      path: /spec/template/initContainers/0/image
+      value: "$(kserve-llm-d-routing-sidecar)"
+- target:
+    kind: LLMInferenceServiceConfig
+    name: kserve-config-llm-decode-worker-data-parallel
+  patch: |-
+    - op: replace
+      path: /spec/template/initContainers/0/image
+      value: "$(kserve-llm-d-routing-sidecar)"
+- target:
+    kind: LLMInferenceServiceConfig
+  patch: |
+    - op: add
+      path: /metadata/annotations/serving.kserve.io~1well-known-config
+      value: "true"
+
+replacements:
+- source:
+    kind: ConfigMap
+    name: kserve-parameters
+    fieldPath: data.kserve-controller
+  targets:
+  - select:
+      kind: Deployment
+      name: kserve-controller-manager
+    fieldPaths:
+    - spec.template.spec.containers.[name=manager].image
+- source:
+    kind: ConfigMap
+    name: kserve-parameters
+    fieldPath: data.kserve-llm-d
+  targets:
+    - select:
+        kind: LLMInferenceServiceConfig
+        name: kserve-config-llm-decode-template
+      fieldPaths:
+        - spec.template.containers.[name=main].image
+    - select:
+        kind: LLMInferenceServiceConfig
+        name: kserve-config-llm-decode-worker-data-parallel
+      fieldPaths:
+        - spec.template.containers.[name=main].image
+        - spec.worker.containers.[name=main].image
+    - select:
+        kind: LLMInferenceServiceConfig
+        name: kserve-config-llm-prefill-template
+      fieldPaths:
+        - spec.prefill.template.containers.[name=main].image
+    - select:
+        kind: LLMInferenceServiceConfig
+        name: kserve-config-llm-prefill-worker-data-parallel
+      fieldPaths:
+        - spec.prefill.template.containers.[name=main].image
+        - spec.prefill.worker.containers.[name=main].image
+    - select:
+        kind: LLMInferenceServiceConfig
+        name: kserve-config-llm-template
+      fieldPaths:
+        - spec.template.containers.[name=main].image
+    - select:
+        kind: LLMInferenceServiceConfig
+        name: kserve-config-llm-worker-data-parallel
+      fieldPaths:
+        - spec.template.containers.[name=main].image
+        - spec.worker.containers.[name=main].image
+- source:
+    kind: ConfigMap
+    name: kserve-parameters
+    fieldPath: data.kserve-llm-d-amd-rocm
+  targets:
+    - select:
+        kind: LLMInferenceServiceConfig
+        name: kserve-config-llm-template-amd-rocm
+      fieldPaths:
+        - spec.template.containers.[name=main].image
+
+configMapGenerator:
+- envs:
+  - params.env
+  name: kserve-parameters
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+vars:
+- fieldref:
+    fieldpath: data.kserve-storage-initializer
+  name: kserve-storage-initializer
+  objref:
+    apiVersion: v1
+    kind: ConfigMap
+    name: kserve-parameters
+- fieldref:
+    fieldpath: data.kserve-agent
+  name: kserve-agent
+  objref:
+    apiVersion: v1
+    kind: ConfigMap
+    name: kserve-parameters
+- fieldref:
+    fieldpath: data.kserve-router
+  name: kserve-router
+  objref:
+    apiVersion: v1
+    kind: ConfigMap
+    name: kserve-parameters
+- fieldref:
+    fieldpath: data.kube-rbac-proxy
+  name: kube-rbac-proxy
+  objref:
+    apiVersion: v1
+    kind: ConfigMap
+    name: kserve-parameters
+- fieldref:
+    fieldpath: data.kserve-llm-d-inference-scheduler
+  name: kserve-llm-d-inference-scheduler
+  objref:
+    apiVersion: v1
+    kind: ConfigMap
+    name: kserve-parameters
+- fieldref:
+    fieldpath: data.kserve-llm-d-routing-sidecar
+  name: kserve-llm-d-routing-sidecar
+  objref:
+    apiVersion: v1
+    kind: ConfigMap
+    name: kserve-parameters
+
+configurations:
+- params.yaml

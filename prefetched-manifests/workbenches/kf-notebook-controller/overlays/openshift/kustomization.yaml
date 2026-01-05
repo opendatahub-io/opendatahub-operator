@@ -1,0 +1,42 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../../base
+namespace: opendatahub
+configurations:
+- params.yaml
+configMapGenerator:
+- envs:
+  - params.env
+  name: kf-notebook-controller-image-parameters
+- behavior: merge
+  literals:
+  - USE_ISTIO=false
+  - ADD_FSGROUP=false
+  name: config
+generatorOptions:
+  disableNameSuffixHash: true
+labels:
+- includeSelectors: true
+  pairs:
+    app.kubernetes.io/part-of: odh-notebook-controller
+    component.opendatahub.io/name: kf-notebook-controller
+    opendatahub.io/component: "true"
+patches:
+- path: remove_namespace_patch.yaml
+- path: manager_openshift_patch.yaml
+- path: manager_service_openshift_patch.yaml
+replacements:
+- source:
+    fieldPath: data.odh-kf-notebook-controller-image
+    kind: ConfigMap
+    name: kf-notebook-controller-image-parameters
+    version: v1
+  targets:
+  - fieldPaths:
+    - spec.template.spec.containers.0.image
+    select:
+      group: apps
+      kind: Deployment
+      name: deployment
+      version: v1

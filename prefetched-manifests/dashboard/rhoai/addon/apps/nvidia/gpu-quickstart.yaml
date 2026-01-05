@@ -1,0 +1,60 @@
+apiVersion: console.openshift.io/v1
+kind: OdhQuickStart
+metadata:
+  name: gpu-quickstart
+  annotations:
+    opendatahub.io/categories: 'Getting started'
+spec:
+  displayName: Installing and verifying NVIDIA GPU add-on
+  appName: nvidia
+  durationMinutes: 5
+  icon: 'images/nvidia.svg'
+  description: Install GPU add-on
+  prerequisites: [Your cluster has at least one GPU node provisioned.]
+  introduction: |-
+    This quick start shows you how to install the GPU add-on and verify that the Jupyter Spawner detects the available GPUs.
+  tasks:
+    - title: Launch Red Hat Hybrid Cloud Console
+      description: |-
+        Prerequisites:
+
+        - Your cluster has at least one GPU node provisioned.
+
+        Procedure:
+
+        1. Navigate to the Red Hat Hybrid Cloud Console in a new tab on your web browser.
+        2. Click **OpenShift** in the left navigation menu.
+        3. Click the name of the cluster you want to work with.
+        4. Click the **Add-ons** tab.
+        5. Locate the **NVIDIA GPU Add-on** card and click **Install**.
+
+      review:
+        instructions: |-
+          Has the NVIDIA GPU Add-on card updated to show the **Installed** label?
+        failedTaskHelp: If the card has updated to show **Installing**, wait a little longer. Otherwise, try the task again.
+      summary:
+        success: You have installed the NVIDIA GPU Add-on.
+        failed: Ensure you have met the prerequisites for the add-on and try the steps again.
+    - title: Verify that Red Hat OpenShift AI sees the available Accelerators
+      description: |-
+        Prerequisites:
+
+        - You have no workbenches running in Red Hat OpenShift AI.
+
+        1. Navigate to the Red Hat OpenShift AI dashboard.
+        2. Click **Open application** on the Start basic workbench card to open the **Start a basic workbench** page.
+        2. Under **Deployment size**, set the **Number of Accelerators** dropdown menu to the number of GPUs you want to use.
+        3. Launch a workbench using the PyTorch notebook image.
+
+      review:
+        instructions: |-
+          Can you select the number of Accelerators?
+        failedTaskHelp: Ensure you have met the prerequisites for the add-on and try the steps again.
+      summary:
+        success: Your workbench has started and Jupyter will automatically use the selected Accelerators
+        failed: Ensure you have met the prerequisites for the add-on and try the steps again.
+  nextQuickStart: [gpu-enabled-notebook-quickstart]
+  conclusion: >-
+    Congratulations!
+
+    You have successfully installed the NVIDIA GPU Add-on and confirmed that your Accelerators are visible.

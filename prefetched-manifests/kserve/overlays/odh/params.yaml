@@ -1,0 +1,11 @@
+varReference:
+  - path: spec/template/spec/containers/image
+    kind: Deployment
+  - path: data
+    kind: ConfigMap
+  - path: spec/router/scheduler/template/containers/image
+    kind: LLMInferenceServiceConfig
+  - path: spec/worker/initContainers/image
+    kind: LLMInferenceServiceConfig
+  - path: spec/template/initContainers/image
+    kind: LLMInferenceServiceConfig

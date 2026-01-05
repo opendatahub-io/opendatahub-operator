@@ -1,0 +1,13 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: uri-v1
+  labels:
+    opendatahub.io/connection-type: 'true'
+    opendatahub.io/dashboard: 'true'
+  annotations:
+    openshift.io/description: Establish connections by using Uniform Resource Identifiers (URIs) to access various data sources.
+    openshift.io/display-name: URI - v1
+data:
+  category: '["URI"]'
+  fields: '[{"type":"uri","name":"URI","envVar":"URI","required":true,"properties":{}}]'

@@ -1,0 +1,313 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.3
+  name: guardrailsorchestrators.trustyai.opendatahub.io
+spec:
+  group: trustyai.opendatahub.io
+  names:
+    kind: GuardrailsOrchestrator
+    listKind: GuardrailsOrchestratorList
+    plural: guardrailsorchestrators
+    singular: guardrailsorchestrator
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: GuardrailsOrchestrator is the Schema for the guardrailsorchestrators
+          API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: GuardrailsOrchestratorSpec defines the desired state of GuardrailsOrchestrator.
+            properties:
+              autoConfig:
+                description: Settings governing the automatic configuration of the
+                  orchestrator. Replaces `OrchestratorConfig`.
+                properties:
+                  detectorServiceLabelToMatch:
+                    description: |-
+                      Label key to use when automatically identifying guardrail detector inference services.
+                      If provided, all inference services with the label `$detectorServiceLabelToMatch: true` will be used as a guardrails detector.
+                      If not provided, the default match label is `trustyai/guardrails`, and the autoconfig will use all inference services with the label `trustyai/guardrails: true` as detectors.
+                    type: string
+                  inferenceServiceToGuardrail:
+                    description: The name of the inference service that provides the
+                      vLLM generation model to-be-guardrailed
+                    type: string
+                required:
+                - inferenceServiceToGuardrail
+                type: object
+              customDetectorsConfig:
+                description: Name of configmap containing user-defined Python detectors.
+                  This is only used if EnableBuiltInDetectors is true
+                type: string
+              disableOrchestrator:
+                description: ' Boolean flag to disable the orchestrator container,
+                  if running the built-in detectors in standalone mode'
+                type: boolean
+              enableBuiltInDetectors:
+                description: Boolean flag to enable/disable built-in detectors
+                type: boolean
+              enableGuardrailsGateway:
+                description: Boolean flag to enable/disable the guardrails sidecar
+                  gateway
+                type: boolean
+              env:
+                description: Define environment variables. These will be added to
+                  the orchestrator, gateway, and built-in detector pods.
+                items:
+                  description: EnvVar represents an environment variable present in
+                    a Container.
+                  properties:
+                    name:
+                      description: Name of the environment variable. Must be a C_IDENTIFIER.
+                      type: string
+                    value:
+                      description: |-
+                        Variable references $(VAR_NAME) are expanded
+                        using the previously defined environment variables in the container and
+                        any service environment variables. If a variable cannot be resolved,
+                        the reference in the input string will be unchanged. Double $$ are reduced
+                        to a single $, which allows for escaping the $(VAR_NAME) syntax: i.e.
+                        "$$(VAR_NAME)" will produce the string literal "$(VAR_NAME)".
+                        Escaped references will never be expanded, regardless of whether the variable
+                        exists or not.
+                        Defaults to "".
+                      type: string
+                    valueFrom:
+                      description: Source for the environment variable's value. Cannot
+                        be used if value is not empty.
+                      properties:
+                        configMapKeyRef:
+                          description: Selects a key of a ConfigMap.
+                          properties:
+                            key:
+                              description: The key to select.
+                              type: string
+                            name:
+                              description: |-
+                                Name of the referent.
+                                More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              type: string
+                            optional:
+                              description: Specify whether the ConfigMap or its key
+                                must be defined
+                              type: boolean
+                          required:
+                          - key
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        fieldRef:
+                          description: |-
+                            Selects a field of the pod: supports metadata.name, metadata.namespace, `metadata.labels['<KEY>']`, `metadata.annotations['<KEY>']`,
+                            spec.nodeName, spec.serviceAccountName, status.hostIP, status.podIP, status.podIPs.
+                          properties:
+                            apiVersion:
+                              description: Version of the schema the FieldPath is
+                                written in terms of, defaults to "v1".
+                              type: string
+                            fieldPath:
+                              description: Path of the field to select in the specified
+                                API version.
+                              type: string
+                          required:
+                          - fieldPath
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        resourceFieldRef:
+                          description: |-
+                            Selects a resource of the container: only resources limits and requests
+                            (limits.cpu, limits.memory, limits.ephemeral-storage, requests.cpu, requests.memory and requests.ephemeral-storage) are currently supported.
+                          properties:
+                            containerName:
+                              description: 'Container name: required for volumes,
+                                optional for env vars'
+                              type: string
+                            divisor:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              description: Specifies the output format of the exposed
+                                resources, defaults to "1"
+                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                              x-kubernetes-int-or-string: true
+                            resource:
+                              description: 'Required: resource to select'
+                              type: string
+                          required:
+                          - resource
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        secretKeyRef:
+                          description: Selects a key of a secret in the pod's namespace
+                          properties:
+                            key:
+                              description: The key of the secret to select from.  Must
+                                be a valid secret key.
+                              type: string
+                            name:
+                              description: |-
+                                Name of the referent.
+                                More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              type: string
+                            optional:
+                              description: Specify whether the Secret or its key must
+                                be defined
+                              type: boolean
+                          required:
+                          - key
+                          type: object
+                          x-kubernetes-map-type: atomic
+                      type: object
+                  required:
+                  - name
+                  type: object
+                type: array
+              guardrailsGatewayConfig:
+                description: ' Name of the configmap containing guadrails sidecar
+                  gateway arguments'
+                type: string
+              logLevel:
+                description: Set log level in the orchestrator deployment
+                type: string
+              orchestratorConfig:
+                description: Name of configmap containing generator, detector, and
+                  chunker arguments
+                type: string
+              otelExporter:
+                description: List of orchestrator enviroment variables for configuring
+                  the OTLP exporter
+                properties:
+                  enableMetrics:
+                    description: Specifies whether to enable metrics data export
+                    type: boolean
+                  enableTraces:
+                    description: Specifies whether to enable tracing data export
+                    type: boolean
+                  otlpMetricsEndpoint:
+                    description: Overrides the OTLP endpoint for metrics
+                    type: string
+                  otlpProtocol:
+                    default: grpc
+                    description: Sets the protocol for both traces and metrics
+                    type: string
+                  otlpTracesEndpoint:
+                    description: Overrides the OTLP endpoint for traces
+                    type: string
+                type: object
+              replicas:
+                description: |-
+                  INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
+                  Important: Run "make" to regenerate code after modifying this file
+                  Number of replicas
+                format: int32
+                type: integer
+              tlsSecrets:
+                description: Define TLS secrets to be mounted to the orchestrator.
+                  Secrets will be mounted at /etc/tls/$SECRET_NAME
+                items:
+                  type: string
+                type: array
+            required:
+            - replicas
+            type: object
+          status:
+            properties:
+              autoConfigState:
+                description: AutoConfigState describes information about the generated
+                  autoconfiguration
+                properties:
+                  configurationHash:
+                    type: string
+                  detectorServices:
+                    items:
+                      properties:
+                        hostname:
+                          type: string
+                        name:
+                          type: string
+                        port:
+                          type: string
+                        scheme:
+                          type: string
+                        tlsSecret:
+                          type: string
+                        type:
+                          type: string
+                      type: object
+                    type: array
+                  generatedConfigMap:
+                    type: string
+                  generatedGatewayConfigMap:
+                    type: string
+                  generationService:
+                    properties:
+                      hostname:
+                        type: string
+                      name:
+                        type: string
+                      port:
+                        type: string
+                      scheme:
+                        type: string
+                      tlsSecret:
+                        type: string
+                      type:
+                        type: string
+                    type: object
+                  lastGenerated:
+                    type: string
+                  message:
+                    type: string
+                  status:
+                    type: string
+                type: object
+              conditions:
+                description: Conditions describes the state of the GuardrailsOrchestrator
+                  resource.
+                items:
+                  properties:
+                    lastTransitionTime:
+                      format: date-time
+                      type: string
+                    message:
+                      type: string
+                    reason:
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - status
+                  - type
+                  type: object
+                type: array
+              phase:
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

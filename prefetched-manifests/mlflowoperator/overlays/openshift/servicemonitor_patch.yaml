@@ -1,0 +1,19 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: controller-manager-metrics-monitor
+  namespace: system
+spec:
+  endpoints:
+    - path: /metrics
+      port: https
+      scheme: https
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      tlsConfig:
+        # Use OpenShift's service CA for certificate verification
+        ca:
+          configMap:
+            name: openshift-service-ca.crt
+            key: service-ca.crt
+        # Verify the server name matches the service
+        serverName: controller-manager-metrics-service.opendatahub.svc

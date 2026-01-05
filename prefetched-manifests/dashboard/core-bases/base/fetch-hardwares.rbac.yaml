@@ -1,0 +1,26 @@
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: fetch-hardware-profiles-role
+rules:
+  - apiGroups:
+      - infrastructure.opendatahub.io
+    verbs:
+      - get
+      - list
+      - watch
+    resources:
+      - hardwareprofiles
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hardware-profile-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: fetch-hardware-profiles-role
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: system:authenticated

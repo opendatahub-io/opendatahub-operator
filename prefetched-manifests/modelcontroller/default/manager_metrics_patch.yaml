@@ -1,0 +1,5 @@
+# This patch adds the args to allow exposing the metrics endpoint using HTTPS
+# TODO: restore to 8443 port
+- op: add
+  path: /spec/template/spec/containers/0/args/0
+  value: --metrics-bind-address=:8080

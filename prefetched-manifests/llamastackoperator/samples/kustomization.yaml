@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+## Append samples you want in your CSV to this file as resources ##
+resources:
+- _v1alpha1_llamastackdistribution.yaml
+- example-with-configmap.yaml
+- example-with-ca-bundle.yaml

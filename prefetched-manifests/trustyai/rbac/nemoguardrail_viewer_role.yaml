@@ -1,0 +1,23 @@
+# permissions for end users to view nemoguardrails.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: trustyai-service-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: nemoguardrail-viewer-role
+rules:
+- apiGroups:
+  - trustyai.opendatahub.io
+  resources:
+  - nemoguardrails
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - trustyai.opendatahub.io
+  resources:
+  - nemoguardrails/status
+  verbs:
+  - get

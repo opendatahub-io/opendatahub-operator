@@ -1,0 +1,69 @@
+---
+# Aggregate role for viewing MLflow resources
+# This will be automatically aggregated into the "view" ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: mlflow-view
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-view: "true"
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+    rbac.authorization.k8s.io/aggregate-to-admin: "true"
+rules:
+  - apiGroups:
+      - mlflow.opendatahub.io
+    resources:
+      - mlflows
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - mlflow.opendatahub.io
+    resources:
+      - mlflows/status
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - mlflow.kubeflow.org
+    resources:
+      - experiments
+      - registeredmodels
+      - jobs
+    verbs:
+      - get
+      - list
+---
+# Aggregate role for editing MLflow resources
+# This will be automatically aggregated into the "edit" and "admin" ClusterRoles
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: mlflow-edit
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+    rbac.authorization.k8s.io/aggregate-to-admin: "true"
+rules:
+  - apiGroups:
+      - mlflow.opendatahub.io
+    resources:
+      - mlflows
+      - mlflows/finalizers
+    verbs:
+      - create
+      - delete
+      - deletecollection
+      - patch
+      - update
+  - apiGroups:
+      - mlflow.kubeflow.org
+    resources:
+      - experiments
+      - registeredmodels
+      - jobs
+    verbs:
+      - create
+      - update
+      - delete

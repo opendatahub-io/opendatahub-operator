@@ -1,0 +1,11 @@
+apiVersion: v1
+data:
+  viewer-pod-template.json: |-
+    {
+        "spec": {
+            "serviceAccountName": "ds-pipelines-viewer-sample"
+        }
+    }
+kind: ConfigMap
+metadata:
+  name: custom-ui-configmap

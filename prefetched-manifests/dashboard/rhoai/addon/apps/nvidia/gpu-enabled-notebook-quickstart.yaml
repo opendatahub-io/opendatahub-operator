@@ -1,0 +1,64 @@
+apiVersion: console.openshift.io/v1
+kind: OdhQuickStart
+metadata:
+  name: gpu-enabled-notebook-quickstart
+  annotations:
+    opendatahub.io/categories: 'Getting started,Model development'
+spec:
+  displayName: Creating a Machine Learning Model using the NVIDIA GPU Add-on.
+  appName: nvidia
+  durationMinutes: 5
+  icon: 'images/nvidia.svg'
+  description: Install GPU add-on
+  prerequisites: [You have completed the "Installing and verifying NVIDIA GPU add-on" quick start.]
+  introduction: |-
+    This quick start shows you how to run a workbench that uses a GPU available in your cluster.
+  tasks:
+    - title: Import the notebook repository into Jupyter
+      description: |-
+        ### Prerequisites
+
+        - You have launched a workbench with at least 1 GPU attached. For help, run the "Installing and verifying NVIDIA GPU add-on" quick start.
+
+        ### Procedure
+
+        1. In Jupyter, click the **Git** menu.
+        2. Click **Clone a repository**.
+        3. Enter URL of the repository to be cloned : **https://github.com/rh-aiservices-bu/getting-started-with-gpus** and click **Clone**.
+
+      review:
+        instructions: |-
+          Can you see a getting-started-with-gpus directory in the file navigation pane in Jupyter?
+        failedTaskHelp: This task is not verified yet. Try the task again.
+      summary:
+        success: You have successfully cloned the notebook repository into your workbench environment.
+        failed: Ensure you have met the prerequisites for the GPU add-on and try the steps again.
+    - title: Run the "Using GPU resources with PyTorch" notebook
+      description: |-
+        1. Double click the **torch-use-gpu.ipynb** file to open the "Using GPU resources with PyTorch" notebook.
+        2. Read through and run each step in the notebook file to learn how to check for an available GPU and use the GPU to train a simple model. Detailed explanations of each step are provided in the notebook.
+
+      review:
+        instructions: |-
+          Were you able to run all steps in the **torch-use-gpu.ipynb** file?
+        failedTaskHelp: Ensure that you have at least one GPU node available in your cluster and then try the task again.
+      summary:
+        success: You have successfully trained a model while using a GPU.
+        failed: Try the steps again.
+    - title: Run the "Loading and running a trained model with PyTorch" notebook
+      description: |-
+        1. Double click the **torch-test-model.ipynb** file to open the "Loading and running a trained model with PyTorch" notebook.
+        2. Read through and run each step in the notebook file to learn how to check for an available GPU and use it to run a trained model. Detailed explanations of each step are provided in the notebook.
+
+      review:
+        instructions: |-
+          Were you able to run the **torch-use-gpu.ipynb** file?
+        failedTaskHelp: Ensure that you have at least one GPU node available in your cluster and then try the task again.
+      summary:
+        success: You have successfully run a trained model while using a GPU.
+        failed: Try the steps again.
+  nextQuickStart: []
+  conclusion: >-
+    Congratulations!
+
+    You have successfully used a GPU to train and run a model.

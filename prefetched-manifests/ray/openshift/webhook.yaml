@@ -1,0 +1,47 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kuberay-webhook-service
+  namespace: $(namespace)
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: kuberay-webhook-server-cert
+  labels:
+    app.kubernetes.io/name: kuberay
+    app.kubernetes.io/component: webhook
+spec:
+  ports:
+    - name: webhook-server
+      port: 443
+      protocol: TCP
+      targetPort: 9443
+  selector:
+    app.kubernetes.io/component: kuberay-operator
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: kuberay-mutating-webhook-configuration
+  annotations:
+    service.beta.openshift.io/inject-cabundle: "true"
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: kuberay-webhook-service
+      namespace: $(namespace)
+      path: /mutate-ray-io-v1-raycluster
+  failurePolicy: Fail
+  name: mraycluster.kb.io
+  rules:
+  - apiGroups:
+    - ray.io
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - rayclusters
+  sideEffects: None

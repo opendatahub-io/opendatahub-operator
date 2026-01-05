@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kube-rbac-proxy-config
+data:
+  config-file.yaml: |+
+    # Check for projects instead of namespaces - more permissive for regular users
+    authorization:
+      resourceAttributes:
+        namespace: ""
+        apiGroup: "project.openshift.io"
+        apiVersion: v1
+        resource: "projects"
+        verb: "list"

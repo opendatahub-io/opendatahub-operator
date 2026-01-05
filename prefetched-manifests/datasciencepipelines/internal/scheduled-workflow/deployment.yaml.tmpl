@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.ScheduledWorkflowDefaultResourceName}}
+  namespace: {{.Namespace}}
+  labels:
+    app: {{.ScheduledWorkflowDefaultResourceName}}
+    component: data-science-pipelines
+    dspa: {{.Name}}
+spec:
+  selector:
+    matchLabels:
+      app: {{.ScheduledWorkflowDefaultResourceName}}
+      component: data-science-pipelines
+      dspa: {{.Name}}
+  template:
+    metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+      labels:
+        app: {{.ScheduledWorkflowDefaultResourceName}}
+        component: data-science-pipelines
+        dspa: {{.Name}}
+    spec:
+      containers:
+        - env:
+            - name: NAMESPACE
+              value: "{{.Namespace}}"
+            - name: CRON_SCHEDULE_TIMEZONE
+              value: "{{.ScheduledWorkflow.CronScheduleTimezone}}"
+            {{ if .ProxyConfig }}
+            {{ if .ProxyConfig.HTTPProxy }}
+            - name: HTTP_PROXY
+              value: "{{.ProxyConfig.HTTPProxy}}"
+            {{ end }}
+            {{ if .ProxyConfig.HTTPSProxy }}
+            - name: HTTPS_PROXY
+              value: "{{.ProxyConfig.HTTPSProxy}}"
+            {{ end }}
+            {{ if and .ProxyConfig.NoProxy (or .ProxyConfig.HTTPProxy .ProxyConfig.HTTPSProxy) }}
+            - name: NO_PROXY
+              value: "{{.ProxyConfig.NoProxy}}"
+            {{ end }}
+            {{ end }}
+          image: "{{.ScheduledWorkflow.Image}}"
+          # imagePullPolicy: default - https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+          name: ds-pipeline-scheduledworkflow
+          command:
+            - controller
+            - "--mlPipelineAPIServerName={{.APIServerServiceDNSName}}"
+            - "--mlPipelineServiceGRPCPort=8887"
+            {{ if .PodToPodTLS }}
+            - "--mlPipelineServiceTLSEnabled=true"
+            - "--mlPipelineServiceTLSCert={{ .PiplinesCABundleMountPath }}"
+            {{ end }}
+            - "--logtostderr=true"
+            - "--namespace={{.Namespace}}"
+          livenessProbe:
+            exec:
+              command:
+                - test
+                - -x
+                - controller
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            timeoutSeconds: 2
+          readinessProbe:
+            exec:
+              command:
+                - test
+                - -x
+                - controller
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 2
+          resources:
+            {{ if .ScheduledWorkflow.Resources.Requests }}
+            requests:
+              {{ if .ScheduledWorkflow.Resources.Requests.CPU }}
+              cpu: {{.ScheduledWorkflow.Resources.Requests.CPU}}
+              {{ end }}
+              {{ if .ScheduledWorkflow.Resources.Requests.Memory }}
+              memory: {{.ScheduledWorkflow.Resources.Requests.Memory}}
+              {{ end }}
+            {{ end }}
+            {{ if .ScheduledWorkflow.Resources.Limits }}
+            limits:
+              {{ if .ScheduledWorkflow.Resources.Limits.CPU }}
+              cpu: {{.ScheduledWorkflow.Resources.Limits.CPU}}
+              {{ end }}
+              {{ if .ScheduledWorkflow.Resources.Limits.Memory }}
+              memory: {{.ScheduledWorkflow.Resources.Limits.Memory}}
+              {{ end }}
+            {{ end }}
+          volumeMounts:
+            {{ if and .CustomCABundle .PodToPodTLS }}
+            - mountPath: {{ .CustomCABundleRootMountPath  }}
+              name: ca-bundle
+            {{ end }}
+      serviceAccountName: {{.ScheduledWorkflowDefaultResourceName}}
+      volumes:
+        {{ if and .CustomCABundle .PodToPodTLS }}
+        - name: ca-bundle
+          configMap:
+            name: {{ .CustomCABundle.ConfigMapName }}
+        {{ end }}

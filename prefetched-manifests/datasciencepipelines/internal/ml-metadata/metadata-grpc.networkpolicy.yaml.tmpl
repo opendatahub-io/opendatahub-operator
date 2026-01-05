@@ -1,0 +1,23 @@
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: ds-pipeline-metadata-grpc-{{ .Name }}
+  namespace: {{ .Namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app: ds-pipeline-metadata-grpc-{{ .Name }}
+      component: data-science-pipelines
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8080
+      from:
+        - podSelector:
+            matchLabels:
+              pipelines.kubeflow.org/v2_component: 'true'
+        - podSelector:
+           matchLabels:
+             component: data-science-pipelines
+  policyTypes:
+    - Ingress

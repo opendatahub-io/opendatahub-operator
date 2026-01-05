@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+commonLabels:
+  app: rhods-dashboard
+  app.kubernetes.io/part-of: rhods-dashboard
+resources:
+  - ../../../core-bases/consolelink
+patchesJson6902:
+  - path: consolelink.yaml
+    target:
+      group: console.openshift.io
+      version: v1
+      kind: ConsoleLink
+      name: odhlink

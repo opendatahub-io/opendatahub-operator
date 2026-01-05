@@ -1,0 +1,28 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+  # - ../crd
+
+# Adds namespace to all resources.
+namespace: opendatahub
+
+# Value of this field is prepended to the names of all resources, e.g. a
+# deployment named "wordpress" becomes "alices-wordpress". Note that it should
+# also match with the prefix (text before '-') of the namespace field above.
+namePrefix: odh-notebook-controller-
+
+# Labels to add to all resources and selectors.
+
+resources:
+- ../rbac
+- ../manager
+- ../webhook
+labels:
+- includeSelectors: true
+  pairs:
+    app: odh-notebook-controller
+    app.kubernetes.io/part-of: odh-notebook-controller
+    component.opendatahub.io/name: odh-notebook-controller
+    kustomize.component: odh-notebook-controller
+    opendatahub.io/component: "true"
+patches:
+- path: webhook_manager_patch.yaml

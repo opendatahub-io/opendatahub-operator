@@ -1,0 +1,80 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: llama-stack-config
+data:
+  run.yaml: |
+    # Llama Stack Configuration
+    version: '2'
+    image_name: starter
+    apis:
+    - inference
+    providers:
+      inference:
+      - provider_id: vllm
+        provider_type: "remote::vllm"
+        config:
+          url: "https://vllm-server.vllm-dist.svc.cluster.local:8000/v1"
+    models:
+      - model_id: "meta-llama/Llama-3.2-1B-Instruct"
+        provider_id: vllm
+        model_type: llm
+    server:
+      port: 8321
+    storage:
+      backends:
+        kv_default:
+          type: kv_sqlite
+          db_path: ${env.SQLITE_STORE_DIR:=~/.llama/distributions/ollama}/kvstore.db
+        sql_default:
+          type: sql_sqlite
+          db_path: ${env.SQLITE_STORE_DIR:=~/.llama/distributions/ollama}/sqlstore.db
+      stores:
+        metadata:
+          backend: kv_default
+          namespace: registry
+        inference:
+          backend: sql_default
+          table_name: inference_store
+          max_write_queue_size: 10000
+          num_writers: 4
+        conversations:
+          backend: sql_default
+          table_name: openai_conversations
+        prompts:
+          backend: kv_default
+          namespace: prompts
+---
+apiVersion: llamastack.io/v1alpha1
+kind: LlamaStackDistribution
+metadata:
+  name: llamastack-with-config
+spec:
+  replicas: 1
+  server:
+    distribution:
+      name: starter
+    containerSpec:
+      port: 8321
+      env:
+      - name: INFERENCE_MODEL
+        value: "meta-llama/Llama-3.2-1B-Instruct"
+      - name: VLLM_URL
+        value: "https://vllm-server.vllm-dist.svc.cluster.local:8000/v1"
+    userConfig:
+      configMapName: llama-stack-config
+      # configMapNamespace: ""  # Optional - defaults to the same namespace as the CR
+    tlsConfig:
+      caBundle:
+        configMapName: custom-ca-bundle
+        # configMapNamespace: ""  # Optional - defaults to the same namespace as the CR
+        # configMapKeys not specified - defaults to ["ca-bundle.crt"]
+        # configMapKeys: # Specify multiple keys to concatenate into a single CA bundle
+        #   - ca-bundle1.crt
+        #   - ca-bundle2.crt
+        # Note: The operator will automatically:
+        #   1. Validate and extract valid certificates from all specified ConfigMap keys
+        #   2. Concatenate them into a single PEM file
+        #   3. Create a managed ConfigMap named {instance-name}-ca-bundle
+        #   4. Mount the bundle at /etc/ssl/certs/ca-bundle/ca-bundle.crt
+        #   5. Set SSL_CERT_FILE environment variable automatically

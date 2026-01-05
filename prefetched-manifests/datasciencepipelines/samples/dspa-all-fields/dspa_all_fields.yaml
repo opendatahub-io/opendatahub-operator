@@ -1,0 +1,224 @@
+# This file should not be used to deploy a DataSciencePipelinesApplication
+# It's main purpose is to show all possible fields that can be configured
+# Note that you cannot specify all fields, some are mutually exclusive
+# For example, you can only specify either a miniodb deployment or
+# externalstorage connection, but not both
+apiVersion: datasciencepipelinesapplications.opendatahub.io/v1
+kind: DataSciencePipelinesApplication
+metadata:
+  name: sample
+  namespace: data-science-project
+spec:
+  dspVersion: v2
+  apiServer:
+    customKfpLauncherConfigMap: configmapname
+    deploy: true
+    enableSamplePipeline: true
+    cacheEnabled: true
+    image: quay.io/opendatahub/ds-pipelines-api-server:latest
+    argoLauncherImage: quay.io/org/kfp-launcher:latest
+    argoDriverImage: quay.io/org/kfp-driver:latest
+    resources:
+      requests:
+        cpu: 250m
+        memory: 500Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+    # requires this configmap to be created beforehand,
+    cABundle:
+      configMapKey: keyname
+      configMapName: configmapname
+    # requires this configmap to be created beforehand,
+    customServerConfigMap:
+      name: configmapname
+      key: keyname
+  persistenceAgent:
+    deploy: true
+    image: quay.io/modh/odh-ml-pipelines-persistenceagent-container:v1.18.0-8
+    numWorkers: 2  # Number of worker for sync job.
+    resources:
+      requests:
+        cpu: 120m
+        memory: 500Mi
+      limits:
+        cpu: 250m
+        memory: 1Gi
+  scheduledWorkflow:
+    deploy: true
+    image: quay.io/modh/odh-ml-pipelines-scheduledworkflow-container:v1.18.0-8
+    cronScheduleTimezone: UTC
+    resources:
+      requests:
+        cpu: 120m
+        memory: 100Mi
+      limits:
+        cpu: 250m
+        memory: 250Mi
+  # deploys an optional ML-Metadata Component
+  mlmd:
+    deploy: true
+    envoy:
+      image: quay.io/opendatahub/ds-pipelines-metadata-envoy:1.7.0
+      resources:
+        limits:
+          cpu: 100m
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+    grpc:
+      image: quay.io/opendatahub/ds-pipelines-metadata-grpc:1.0.0
+      port: "8080"
+      resources:
+        limits:
+          cpu: 100m
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+  workflowController:
+    deploy: true
+    image: quay.io/opendatahub/ds-pipelines-argo-workflowcontroller:3.3.10-upstream
+    argoExecImage: quay.io/opendatahub/ds-pipelines-argo-argoexec:3.3.10-upstream
+    customConfig: some-custom-workflowcontroller-configmap  # see ../custom-workflow-controller-config for example
+    resources:
+      requests:
+        cpu: 120m
+        memory: 500Mi
+      limits:
+        cpu: 250m
+        memory: 1Gi
+  database:
+    disableHealthCheck: false
+    # possible values for tls: true, false, skip-verify
+    # this field can also be used to add other dsn parameters:
+    # https://github.com/go-sql-driver/mysql?tab=readme-ov-file#dsn-data-source-name
+    customExtraParams: |
+      {"tls":"true"}
+    mariaDB:   # mutually exclusive with externalDB
+      deploy: true
+      image: registry.redhat.io/rhel8/mariadb-103:1-188
+      username: mlpipeline
+      pipelineDBName: randomDBName
+      pvcSize: 20Gi
+      storageClassName: nonDefaultSC
+      resources:
+        requests:
+          cpu: 300m
+          memory: 800Mi
+        limits:
+          cpu: "1"
+          memory: 1Gi
+      # requires this configmap to be created before hand,
+      # otherwise operator will not deploy DSPA
+      passwordSecret:
+        name: ds-pipelines-db-sample
+        key: password
+    externalDB:
+      host: mysql:3306
+      port: "8888"
+      username: root
+      pipelineDBName: randomDBName
+      passwordSecret:
+        name: somesecret
+        key: somekey
+  objectStorage:
+    disableHealthCheck: false
+    minio:  # mutually exclusive with externalStorage
+      deploy: true
+      image: quay.io/opendatahub/minio:RELEASE.2019-08-14T20-37-41Z-license-compliance
+      bucket: mlpipeline
+      pvcSize: 10Gi
+      storageClassName: nonDefaultSC
+      resources:
+        requests:
+          cpu: 200m
+          memory: 100Mi
+        limits:
+          cpu: 250m
+          memory: 1Gi
+      # requires this configmap to be created before hand,
+      # otherwise operator will not deploy DSPA
+      s3CredentialsSecret:
+        secretName: somesecret-sample
+        accessKey: AWS_ACCESS_KEY_ID
+        secretKey: AWS_SECRET_ACCESS_KEY
+    externalStorage:
+      host: minio.com
+      port: "9092"
+      bucket: mlpipeline
+      scheme: https
+      # subpath in bucket where objects should be stored
+      # for this dspa
+      basePath: some/path
+      s3CredentialsSecret:
+        secretName: somesecret-db-sample
+        accessKey: somekey
+        secretKey: somekey
+  # Proxy configuration for corporate environments requiring proxy access
+  proxy:
+    # HTTP proxy URL for outbound HTTP connections
+    httpProxy: "http://squid.dspa-proxy.svc.cluster.local:3128"
+    # HTTPS proxy URL for outbound HTTPS connections
+    httpsProxy: "http://squid.dspa-proxy.svc.cluster.local:3128"
+    # Comma-separated list of hosts that should bypass the proxy
+    noProxy: "localhost,127.0.0.1,.svc.cluster.local,kubernetes.default.svc"
+# example status fields
+status:
+  components:
+    mlmdProxy:
+      url: http://mlmd-proxy.svc.cluster.local
+      externalUrl: https://mlmd-proxy-dspa.example.com
+    apiServer:
+      url: http://apiserver.svc.cluster.local
+      externalUrl: https://apiserver-dspa.example.com
+  conditions:
+    - lastTransitionTime: '2024-03-14T22:04:25Z'
+      message: Database connectivity successfully verified
+      observedGeneration: 3
+      reason: DatabaseAvailable
+      status: 'True'
+      type: DatabaseAvailable
+    - lastTransitionTime: '2024-03-14T22:04:25Z'
+      message: Object Store connectivity successfully verified
+      observedGeneration: 3
+      reason: ObjectStoreAvailable
+      status: 'True'
+      type: ObjectStoreAvailable
+    - lastTransitionTime: '2024-03-14T22:06:37Z'
+      message: 'Component [ds-pipeline-test] is minimally available.'
+      observedGeneration: 3
+      reason: MinimumReplicasAvailable
+      status: 'True'
+      type: APIServerReady
+    - lastTransitionTime: '2024-03-14T22:04:28Z'
+      message: 'Component [ds-pipeline-persistenceagent-test] is minimally available.'
+      observedGeneration: 3
+      reason: MinimumReplicasAvailable
+      status: 'True'
+      type: PersistenceAgentReady
+    - lastTransitionTime: '2024-03-14T22:04:30Z'
+      message: 'Component [ds-pipeline-scheduledworkflow-test] is minimally available.'
+      observedGeneration: 3
+      reason: MinimumReplicasAvailable
+      status: 'True'
+      type: ScheduledWorkflowReady
+    - lastTransitionTime: '2024-03-14T22:04:30Z'
+      message: 'Component [ds-pipeline-workflowcontroller-test] is minimally available.'
+      observedGeneration: 3
+      reason: MinimumReplicasAvailable
+      status: 'True'
+      type: WorkflowControllerReady
+    - lastTransitionTime: '2024-03-14T22:04:30Z'
+      message: 'Component [ds-pipeline-metadata-envoy] is minimally available.'
+      observedGeneration: 3
+      reason: MinimumReplicasAvailable
+      status: 'True'
+      type: MLMDProxyReady
+    - lastTransitionTime: '2024-03-14T22:06:37Z'
+      message: All components are ready.
+      observedGeneration: 3
+      reason: MinimumReplicasAvailable
+      status: 'True'
+      type: Ready

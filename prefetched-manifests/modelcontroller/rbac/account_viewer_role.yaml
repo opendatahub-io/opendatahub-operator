@@ -1,0 +1,23 @@
+# permissions for end users to view accounts.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: odh-model-controller
+    app.kubernetes.io/managed-by: kustomize
+  name: account-viewer-role
+rules:
+- apiGroups:
+  - nim.opendatahub.io
+  resources:
+  - accounts
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - nim.opendatahub.io
+  resources:
+  - accounts/status
+  verbs:
+  - get

@@ -1,0 +1,25 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{.PersistentAgentDefaultResourceName}}
+  namespace: {{.Namespace}}
+  labels:
+    app: {{.PersistentAgentDefaultResourceName}}
+    component: data-science-pipelines
+rules:
+  - apiGroups:
+      - argoproj.io
+    resources:
+      - workflows
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - kubeflow.org
+    resources:
+      - scheduledworkflows
+    verbs:
+      - get
+      - list
+      - watch

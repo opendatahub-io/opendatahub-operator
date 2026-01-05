@@ -1,0 +1,143 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pipeline-runner-{{.Name}}
+  namespace: {{.Namespace}}
+  labels:
+    app: {{.APIServerDefaultResourceName}}
+    component: data-science-pipelines
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - get
+      - list
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - get
+      - watch
+      - list
+  - apiGroups:
+      - ""
+    resources:
+      - persistentvolumes
+      - persistentvolumeclaims
+    verbs:
+      - '*'
+  - apiGroups:
+      - snapshot.storage.k8s.io
+    resources:
+      - volumesnapshots
+    verbs:
+      - create
+      - delete
+      - get
+  - apiGroups:
+      - argoproj.io
+    resources:
+      - workflowtaskresults
+    verbs:
+      - create
+      - patch
+  - apiGroups:
+      - argoproj.io
+    resources:
+      - workflows
+    verbs:
+      - get
+      - list
+      - watch
+      - update
+      - patch
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - pods/exec
+      - pods/log
+      - services
+    verbs:
+      - '*'
+  - apiGroups:
+      - ""
+      - apps
+      - extensions
+    resources:
+      - deployments
+      - replicasets
+    verbs:
+      - '*'
+  - apiGroups:
+      - kubeflow.org
+    resources:
+      - '*'
+    verbs:
+      - '*'
+  - apiGroups:
+      - batch
+    resources:
+      - jobs
+    verbs:
+      - '*'
+  - apiGroups:
+      - machinelearning.seldon.io
+    resources:
+      - seldondeployments
+    verbs:
+      - '*'
+  - apiGroups:
+      - ray.io
+    resources:
+      - rayclusters
+      - rayjobs
+      - rayservices
+    verbs:
+      - create
+      - get
+      - list
+      - patch
+      - delete
+  - apiGroups:
+      - workload.codeflare.dev
+    resources:
+      - appwrappers
+      - appwrappers/finalizers
+      - appwrappers/status
+    verbs:
+      - create
+      - delete
+      - deletecollection
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - ingresses
+    verbs:
+      - get
+      - list
+  - apiGroups:
+      - route.openshift.io
+    resources:
+      - routes
+    verbs:
+      - get
+      - list
+  - apiGroups:
+      - serving.kserve.io
+    resources:
+      - inferenceservices
+    verbs:
+      - create
+      - get
+      - list
+      - patch
+      - delete

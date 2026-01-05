@@ -1,0 +1,151 @@
+# ref: https://github.com/opendatahub-io/model-registry/tree/main/jobs/async-upload
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: jobs-async-upload-uri-to-oci-template
+  annotations:
+    description: "Example OpenShift template for the Model Registry jobs/async-upload going from URI to OCI (KServe ModelCar)"
+parameters:
+  - name: JOB_IMAGE
+    description: The container image for the Job
+    required: true
+    value: quay.io/opendatahub/model-registry-job-async-upload:latest
+  - name: MODEL_SYNC_MODEL_ID
+    description: The RegisteredModel ID in the Model Registry
+    required: false
+  - name: MODEL_SYNC_MODEL_VERSION_ID
+    description: The ModelVersion ID in the Model Registry
+    required: false
+  - name: MODEL_SYNC_MODEL_ARTIFACT_ID
+    description: The ModelArtifact ID in the Model Registry
+    required: false
+  - name: MODEL_SYNC_REGISTRY_SERVER_ADDRESS
+    description: The address of the Model Registry, ref. the MR py client documentation
+    required: true
+  - name: MODEL_SYNC_REGISTRY_PORT
+    description: The port of the Model Registry, ref. the MR py client documentation
+    required: true
+  - name: MODEL_SYNC_REGISTRY_AUTHOR
+    description: The author to be set during API calls to Model Registry, ref. the MR py client documentation
+    required: true
+    value: "jobs-async-upload"
+  - name: SOURCE_CONNECTION
+    description: "Name of the Connection resource for the Source (e.g.: S3, URI ('https://', 'hf://', 'http://'))"
+    required: false
+  - name: DESTINATION_CONNECTION
+    description: "Name of the Connection resource for the Sink destination (e.g.: OCI)"
+    required: true
+  - name: MODEL_SYNC_SOURCE_URI
+    description: The URI to download the model from
+    required: true
+  - name: MODEL_SYNC_DESTINATION_OCI_URI
+    description: The OCI URI for the destination
+    required: true
+  - name: MODEL_SYNC_REGISTRY_USER_TOKEN_ENVVAR
+    description: The environment variable name for the registry user token
+    required: false
+    value: "KF_PIPELINES_SA_TOKEN_PATH"
+  - name: KF_PIPELINES_SA_TOKEN_PATH
+    description: The path to the service account token
+    required: false
+    value: "/var/run/secrets/kubernetes.io/serviceaccount/token"
+  - name: MODEL_SYNC_MODEL_UPLOAD_INTENT
+    description: The upload intent for the model sync operation
+    required: false
+    value: "update_artifact"
+  - name: MODEL_METADATA_CONFIGMAP
+    description: "Name of the ConfigMap containing model metadata (required for create_model and create_version intents)"
+    required: false
+    value: "model-metadata"
+objects:
+  - apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: my-async-upload-job
+      labels:
+        app.kubernetes.io/name: model-registry-async-job
+        app.kubernetes.io/component: async-job
+        app.kubernetes.io/part-of: model-registry
+        app.kubernetes.io/managed-by: kubectl
+        component: model-registry-job
+        modelregistry.kubeflow.org/job-type: async-upload
+        modelregistry.kubeflow.org/model-sync-model-id: "${MODEL_SYNC_MODEL_ID}"
+        modelregistry.kubeflow.org/model-sync-model-version-id: "${MODEL_SYNC_MODEL_VERSION_ID}"
+        modelregistry.kubeflow.org/model-sync-model-artifact-id: "${MODEL_SYNC_MODEL_ARTIFACT_ID}"
+      annotations:
+        modelregistry.kubeflow.org/description: "Asynchronous job for uploading models to Model Registry"
+    spec:
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: model-registry-async-job
+            app.kubernetes.io/component: async-job
+            component: model-registry-job
+            modelregistry.kubeflow.org/job-type: async-upload
+            modelregistry.kubeflow.org/model-sync-model-id: "${MODEL_SYNC_MODEL_ID}"
+            modelregistry.kubeflow.org/model-sync-model-version-id: "${MODEL_SYNC_MODEL_VERSION_ID}"
+            modelregistry.kubeflow.org/model-sync-model-artifact-id: "${MODEL_SYNC_MODEL_ARTIFACT_ID}"
+        spec:
+          securityContext:
+            runAsNonRoot: true
+          volumes: # Source and Sink Connection resources
+            - name: source-credentials
+              secret:
+                secretName: ${SOURCE_CONNECTION}
+            - name: destination-credentials
+              secret:
+                secretName: ${DESTINATION_CONNECTION}
+            - name: model-metadata
+              configMap:
+                name: ${MODEL_METADATA_CONFIGMAP}
+                optional: true
+          restartPolicy: Never
+          containers:
+            - name: async-upload
+              image: ${JOB_IMAGE}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+                capabilities:
+                  drop: ["ALL"]
+                seccompProfile:
+                  type: RuntimeDefault
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "128Mi"
+                limits:
+                  memory: "512Mi"
+              volumeMounts: # Source and Sink Connection resources
+                - name: source-credentials
+                  readOnly: true
+                  mountPath: "/opt/creds/source"
+                - name: destination-credentials
+                  readOnly: true
+                  mountPath: "/opt/creds/destination"
+                - name: model-metadata
+                  readOnly: true
+                  mountPath: "/etc/model-metadata"
+              env:
+                - name: MODEL_SYNC_REGISTRY_SERVER_ADDRESS
+                  value: "${MODEL_SYNC_REGISTRY_SERVER_ADDRESS}"
+                - name: MODEL_SYNC_REGISTRY_PORT
+                  value: "${MODEL_SYNC_REGISTRY_PORT}"
+                - name: MODEL_SYNC_REGISTRY_AUTHOR
+                  value: "${MODEL_SYNC_REGISTRY_AUTHOR}"
+                - name: MODEL_SYNC_MODEL_ID
+                  value: "${MODEL_SYNC_MODEL_ID}"
+                - name: MODEL_SYNC_MODEL_VERSION_ID
+                  value: "${MODEL_SYNC_MODEL_VERSION_ID}"
+                - name: MODEL_SYNC_MODEL_ARTIFACT_ID
+                  value: "${MODEL_SYNC_MODEL_ARTIFACT_ID}"
+                - name: MODEL_SYNC_SOURCE_URI_CREDENTIALS_PATH
+                  value: "/opt/creds/source"
+                - name: MODEL_SYNC_SOURCE_URI
+                  value: "${MODEL_SYNC_SOURCE_URI}"
+                - name: MODEL_SYNC_DESTINATION_OCI_CREDENTIALS_PATH
+                  value: "/opt/creds/destination"
+                - name: MODEL_SYNC_MODEL_UPLOAD_INTENT
+                  value: "${MODEL_SYNC_MODEL_UPLOAD_INTENT}"
+                - name: MODEL_SYNC_METADATA_CONFIGMAP_PATH
+                  value: "/etc/model-metadata"

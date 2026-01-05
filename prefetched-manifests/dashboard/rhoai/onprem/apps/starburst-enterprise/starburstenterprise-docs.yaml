@@ -1,0 +1,44 @@
+apiVersion: dashboard.opendatahub.io/v1
+kind: OdhDocument
+metadata:
+  name: starburst-enterprise-requirements
+  annotations:
+    opendatahub.io/categories: 'Requirements,Installation'
+spec:
+  displayName: Installation Requirements for Starburst Enterprise
+  appName: starburstenterprise
+  type: how-to
+  description: |-
+    Hardware and software requirements for installing Starburst Enterprise on Kubernetes.
+  url: https://docs.starburst.io/latest/k8s/requirements.html
+  durationMinutes: 5
+---
+apiVersion: dashboard.opendatahub.io/v1
+kind: OdhDocument
+metadata:
+  name: starburst-openshift-overview
+  annotations:
+    opendatahub.io/categories: 'Getting started'
+spec:
+  displayName: Overivew of Starburst Enterprise on OpenShift
+  type: how-to
+  appName: starburstenterprise
+  description: |-
+    An overview of the available options for deploying Starburst on OpenShift.
+  url: https://docs.starburst.io/ecosystems/redhat/
+  durationMinutes: 5
+---
+apiVersion: dashboard.opendatahub.io/v1
+kind: OdhDocument
+metadata:
+  name: starburst-openshift-deployment
+  annotations:
+    opendatahub.io/categories: 'Getting started,Installation'
+spec:
+  displayName: Starburst Enterprise Deployment Guide for OpenShift
+  type: how-to
+  appName: starburstenterprise
+  description: |-
+    Instructions for each method of deploying Starburst Enterprise on OpenShift.
+  url: https://docs.starburst.io/ecosystems/redhat/openshift-deployment.html
+  durationMinutes: 30

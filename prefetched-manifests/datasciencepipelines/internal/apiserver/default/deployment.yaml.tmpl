@@ -1,0 +1,327 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.APIServerDefaultResourceName}}
+  namespace: {{.Namespace}}
+  labels:
+    app: {{.APIServerDefaultResourceName}}
+    component: data-science-pipelines
+    dspa: {{.Name}}
+spec:
+  selector:
+    matchLabels:
+      app: {{.APIServerDefaultResourceName}}
+      component: data-science-pipelines
+      dspa: {{.Name}}
+  template:
+    metadata:
+      annotations:
+        configHash: {{.APIServerConfigHash}}
+      labels:
+        app: {{.APIServerDefaultResourceName}}
+        component: data-science-pipelines
+        dspa: {{.Name}}
+    spec:
+      containers:
+        - env:
+            {{ if .IncludeOwnerReference }}
+            - name: OWNER_UID
+              value: "{{.UID}}"
+            - name: OWNER_NAME
+              value: "{{.Name}}"
+            - name: OWNER_API_VERSION
+              value: "{{.APIVersion}}"
+            - name: OWNER_KIND
+              value: "{{.Kind}}"
+            {{ end }}
+            - name: POD_NAMESPACE
+              value: "{{.Namespace}}"
+            - name: DBCONFIG_USER
+              value: "{{.DBConnection.Username}}"
+            - name: DBCONFIG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: "{{.DBConnection.CredentialsSecret.Key}}"
+                  name: "{{.DBConnection.CredentialsSecret.Name}}"
+            - name: DBCONFIG_DBNAME
+              value: "{{.DBConnection.DBName}}"
+            - name: DBCONFIG_HOST
+              value: "{{.DBConnection.Host}}"
+            - name: DBCONFIG_PORT
+              value: "{{.DBConnection.Port}}"
+            {{ if .CustomCABundle }}
+            - name: ARTIFACT_COPY_STEP_CABUNDLE_CONFIGMAP_NAME
+              value: "{{.CustomCABundle.ConfigMapName}}"
+            - name: ARTIFACT_COPY_STEP_CABUNDLE_CONFIGMAP_KEY
+              value: "{{.CustomCABundle.ConfigMapKey}}"
+            - name: ARTIFACT_COPY_STEP_CABUNDLE_MOUNTPATH
+              value: {{ .CustomCABundleRootMountPath }}
+            {{ end }}
+            {{ if .CustomSSLCertDir }}
+            - name: SSL_CERT_DIR
+              value: {{.CustomSSLCertDir}}
+            {{ end }}
+            # Visualization server is something we deploy
+            # But this env is required in KFP, even though
+            # It is not used.
+            - name: ML_PIPELINE_VISUALIZATIONSERVER_SERVICE_HOST
+              value: "ds-pipeline-visualizationserver"
+            - name: ML_PIPELINE_VISUALIZATIONSERVER_SERVICE_PORT
+              value: "8888"
+            - name: OBJECTSTORECONFIG_CREDENTIALSSECRET
+              value: "{{.ObjectStorageConnection.CredentialsSecret.SecretName}}"
+            - name: OBJECTSTORECONFIG_CREDENTIALSACCESSKEYKEY
+              value: "{{.ObjectStorageConnection.CredentialsSecret.AccessKey}}"
+            - name: OBJECTSTORECONFIG_CREDENTIALSSECRETKEYKEY
+              value: "{{.ObjectStorageConnection.CredentialsSecret.SecretKey}}"
+            - name: DEFAULTPIPELINERUNNERSERVICEACCOUNT
+              value: "pipeline-runner-{{.Name}}"
+            - name: OBJECTSTORECONFIG_BUCKETNAME
+              value: "{{.ObjectStorageConnection.Bucket}}"
+            - name: OBJECTSTORECONFIG_ACCESSKEY
+              valueFrom:
+                secretKeyRef:
+                  key: "{{.ObjectStorageConnection.CredentialsSecret.AccessKey}}"
+                  name: "{{.ObjectStorageConnection.CredentialsSecret.SecretName}}"
+            - name: OBJECTSTORECONFIG_SECRETACCESSKEY
+              valueFrom:
+                secretKeyRef:
+                  key: "{{.ObjectStorageConnection.CredentialsSecret.SecretKey}}"
+                  name: "{{.ObjectStorageConnection.CredentialsSecret.SecretName}}"
+            - name: OBJECTSTORECONFIG_SECURE
+              value: "{{.ObjectStorageConnection.Secure}}"
+            {{ if .ObjectStorageConnection.BasePath }}
+            - name: OBJECTSTORECONFIG_PIPELINEPATH
+              value: "{{.ObjectStorageConnection.BasePath}}"
+            {{ end }}
+            - name: OBJECTSTORECONFIG_HOST
+              value: "{{.ObjectStorageConnection.Host}}"
+            - name: OBJECTSTORECONFIG_PORT
+              value: "{{.ObjectStorageConnection.Port}}"
+            - name: V2_LAUNCHER_IMAGE
+              value: "{{.APIServer.ArgoLauncherImage}}"
+            - name: V2_DRIVER_IMAGE
+              value: "{{.APIServer.ArgoDriverImage}}"
+            ## Env Vars to only include if MLMD Deployed ##
+            {{ if .MLMD }}
+            {{ if .MLMD.Deploy }}
+            - name: METADATA_GRPC_SERVICE_SERVICE_HOST
+              value: "ds-pipeline-metadata-grpc-{{.Name}}.{{.Namespace}}.svc.cluster.local"
+            {{ if .MLMD.GRPC.Port }}
+            - name: METADATA_GRPC_SERVICE_SERVICE_PORT
+              value: "{{.MLMD.GRPC.Port}}"
+            {{ end }}
+            {{ end }}
+            {{ end }}
+            - name: ML_PIPELINE_SERVICE_HOST
+              value: "ds-pipeline-{{.Name}}.{{.Namespace}}.svc.cluster.local"
+            - name: ML_PIPELINE_SERVICE_PORT_GRPC
+              value: "8887"
+            - name: SIGNED_URL_EXPIRY_TIME_SECONDS
+              value: "{{.APIServer.ArtifactSignedURLExpirySeconds}}"
+            {{ if .PodToPodTLS }}
+            - name: ML_PIPELINE_TLS_ENABLED
+              value: "true"
+            - name: METADATA_TLS_ENABLED
+              value: "true"
+            {{ end }}
+            - name: EXECUTIONTYPE
+              value: Workflow
+            - name: DB_DRIVER_NAME
+              value: mysql
+            - name: DBCONFIG_MYSQLCONFIG_USER
+              value: "{{.DBConnection.Username}}"
+            - name: DBCONFIG_MYSQLCONFIG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: "{{.DBConnection.CredentialsSecret.Key}}"
+                  name: "{{.DBConnection.CredentialsSecret.Name}}"
+            - name: DBCONFIG_MYSQLCONFIG_DBNAME
+              value: "{{.DBConnection.DBName}}"
+            - name: DBCONFIG_MYSQLCONFIG_HOST
+              value: "{{.DBConnection.Host}}"
+            - name: DBCONFIG_MYSQLCONFIG_PORT
+              value: "{{.DBConnection.Port}}"
+            {{ if .FIPSEnabled }}
+            - name: V2_LAUNCHER_COMMAND
+              value: "launcher-v2-fips"
+            {{ end }}
+            - name: CACHEENABLED
+              value: "{{.APIServer.CacheEnabled}}"
+            {{ if .ProxyConfig }}
+            {{ if .ProxyConfig.HTTPProxy }}
+            - name: HTTP_PROXY
+              value: "{{.ProxyConfig.HTTPProxy}}"
+            {{ end }}
+            {{ if .ProxyConfig.HTTPSProxy }}
+            - name: HTTPS_PROXY
+              value: "{{.ProxyConfig.HTTPSProxy}}"
+            {{ end }}
+            {{ if and .ProxyConfig.NoProxy (or .ProxyConfig.HTTPProxy .ProxyConfig.HTTPSProxy) }}
+            - name: NO_PROXY
+              value: "{{.ProxyConfig.NoProxy}}"
+            {{ end }}
+            {{ end }}
+          image: {{.APIServer.Image}}
+          # imagePullPolicy: default - https://kubernetes.io/docs/concepts/containers/images/#imagepullpolicy-defaulting
+          name: ds-pipeline-api-server
+          command: ['/bin/apiserver']
+          args:
+            - --config=/config
+            - -logtostderr=true
+            - --sampleconfig=/config/sample_config.json
+            {{ if .PodToPodTLS }}
+            - --tlsCertPath=/etc/tls/private/tls.crt
+            - --tlsCertKeyPath=/etc/tls/private/tls.key
+            {{ end }}
+            {{ if eq .APIServer.PipelineStore "kubernetes" }}
+            - --pipelinesStoreKubernetes=true
+            - --disableWebhook=true
+            {{ end }}
+          ports:
+            - containerPort: 8888
+              name: http
+            - containerPort: 8887
+              name: grpc
+          livenessProbe:
+            httpGet:
+              path: /apis/v1beta1/healthz
+              port: http
+              {{ if .PodToPodTLS }}
+              scheme: HTTPS
+              {{ end }}
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 2
+          readinessProbe:
+            httpGet:
+              path: /apis/v1beta1/healthz
+              port: http
+              {{ if .PodToPodTLS }}
+              scheme: HTTPS
+              {{ end }}
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 2
+          resources:
+            {{ if .APIServer.Resources.Requests }}
+            requests:
+              {{ if .APIServer.Resources.Requests.CPU }}
+              cpu: {{.APIServer.Resources.Requests.CPU}}
+              {{ end }}
+              {{ if .APIServer.Resources.Requests.Memory }}
+              memory: {{.APIServer.Resources.Requests.Memory}}
+              {{ end }}
+            {{ end }}
+            {{ if .APIServer.Resources.Limits }}
+            limits:
+              {{ if .APIServer.Resources.Limits.CPU }}
+              cpu: {{.APIServer.Resources.Limits.CPU}}
+              {{ end }}
+              {{ if .APIServer.Resources.Limits.Memory }}
+              memory: {{.APIServer.Resources.Limits.Memory}}
+              {{ end }}
+            {{ end }}
+          volumeMounts:
+            - name: server-config
+              mountPath: /config/config.json
+              subPath: {{ .APIServer.CustomServerConfig.Key }}
+          {{ if .PodToPodTLS }}
+            - mountPath: /etc/tls/private
+              name: proxy-tls
+          {{ end }}
+            - name: sample-config
+              mountPath: /config/sample_config.json
+              subPath: sample_config.json
+            - name: sample-pipeline
+              mountPath: /samples/
+            {{ if .CustomCABundle }}
+            - mountPath: {{ .CustomCABundleRootMountPath  }}
+              name: ca-bundle
+            {{ end }}
+        {{ if .APIServer.EnableRoute }}
+        - name: kube-rbac-proxy
+          args:
+            - --secure-listen-address=0.0.0.0:8443
+            - --proxy-endpoints-port=8444
+            {{ if .PodToPodTLS }}
+            # because we use certs signed by openshift, these certs are not valid for
+            # localhost, thus we have to use the service name
+            - --upstream=https://{{.APIServerServiceDNSName}}:8888
+            {{ if .CustomCABundle }}
+            - --upstream-ca-file={{ .PiplinesCABundleMountPath }}
+            {{ else }}
+            - --upstream-ca-file=/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
+            {{ end }}
+            {{ else }}
+            - --upstream=http://localhost:8888
+            {{ end }}
+            - --tls-cert-file=/etc/tls/private/tls.crt
+            - --tls-private-key-file=/etc/tls/private/tls.key
+            - --config-file=/etc/kube-rbac-proxy/config-file.yaml
+            - --ignore-paths=/healthz,/apis/v1beta1/healthz,/metrics
+          image: {{.KubeRBACProxy}}
+          ports:
+            - containerPort: 8443
+              name: proxy
+            - containerPort: 8444
+              name: proxy-metrics
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: proxy-metrics
+              scheme: HTTPS
+            initialDelaySeconds: 30
+            timeoutSeconds: 1
+            periodSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: proxy-metrics
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            timeoutSeconds: 1
+            periodSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          resources:
+            limits:
+              cpu: 100m
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+          volumeMounts:
+            - mountPath: /etc/tls/private
+              name: proxy-tls
+            - mountPath: /etc/kube-rbac-proxy
+              name: proxy-config
+            {{ if .CustomCABundle }}
+            - mountPath: {{ .CustomCABundleRootMountPath  }}
+              name: ca-bundle
+            {{ end }}
+        {{ end }}
+      serviceAccountName: {{.APIServerDefaultResourceName}}
+      volumes:
+        - name: proxy-tls
+          secret:
+            secretName: ds-pipelines-proxy-tls-{{.Name}}
+        - name: proxy-config
+          configMap:
+            name: kube-rbac-proxy-config-{{.APIServerDefaultResourceName}}
+        - name: server-config
+          configMap:
+            name: {{ .APIServer.CustomServerConfig.Name }}
+        {{ if .CustomCABundle }}
+        - name: ca-bundle
+          configMap:
+            name: {{ .CustomCABundle.ConfigMapName }}
+        {{ end }}
+        - name: sample-config
+          configMap:
+            name: sample-config-{{.Name}}
+        - name: sample-pipeline
+          configMap:
+            name: sample-pipeline-{{.Name}}

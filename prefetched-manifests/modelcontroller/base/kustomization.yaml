@@ -1,0 +1,193 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../default
+
+namespace: opendatahub
+configMapGenerator:
+  - envs:
+      - params.env
+    name: odh-model-controller-parameters
+generatorOptions:
+  disableNameSuffixHash: true
+
+replacements:
+  - source:
+      kind: ConfigMap
+      version: v1
+      name: odh-model-controller-parameters
+      fieldPath: data.guardrails-detector-huggingface-runtime-image
+    targets:
+      - select:
+          kind: Template
+          name: guardrails-detector-huggingface-serving-template
+        fieldPaths:
+          - objects.0.spec.containers.0.image
+  - source:
+      kind: ConfigMap
+      version: v1
+      name: odh-model-controller-parameters
+      fieldPath: data.ovms-image
+    targets:
+      - select:
+          kind: Template
+          name: kserve-ovms
+        fieldPaths:
+          - objects.0.spec.containers.0.image
+      - select:
+          kind: Template
+          name: ovms
+        fieldPaths:
+          - objects.0.spec.containers.0.image    
+  - source:
+      kind: ConfigMap
+      version: v1
+      name: odh-model-controller-parameters
+      fieldPath: data.mlserver-image
+    targets:
+      - select:
+          kind: Template
+          name: mlserver-runtime-template
+        fieldPaths:
+          - objects.0.spec.containers.0.image
+  - source:
+      kind: ConfigMap
+      version: v1
+      name: odh-model-controller-parameters
+      fieldPath: data.vllm-cuda-image
+    targets:
+      - select:
+          kind: Template
+          name: vllm-cuda-runtime-template
+        fieldPaths:
+          - objects.0.spec.containers.0.image
+      - select:
+          kind: Template
+          name: vllm-multinode-runtime-template
+        fieldPaths:
+          - objects.0.spec.containers.0.image
+          - objects.0.spec.workerSpec.containers.0.image
+  - source:
+      kind: ConfigMap
+      version: v1
+      name: odh-model-controller-parameters
+      fieldPath: data.vllm-rocm-image
+    targets:
+      - select:
+          kind: Template
+          name: vllm-rocm-runtime-template
+        fieldPaths:
+          - objects.0.spec.containers.0.image
+  - source:
+      kind: ConfigMap
+      version: v1
+      name: odh-model-controller-parameters
+      fieldPath: data.vllm-gaudi-image
+    targets:
+      - select:
+          kind: Template
+          name: vllm-gaudi-runtime-template
+        fieldPaths:
+          - objects.0.spec.containers.0.image
+  - source:
+      kind: ConfigMap
+      version: v1
+      name: odh-model-controller-parameters
+      fieldPath: data.vllm-cpu-image
+    targets:
+      - select:
+          kind: Template
+          name: vllm-cpu-runtime-template
+        fieldPaths:
+          - objects.0.spec.containers.0.image
+  - source:
+      kind: ConfigMap
+      version: v1
+      name: odh-model-controller-parameters
+      fieldPath: data.vllm-spyre-x86-image
+    targets:
+      - select:
+          kind: Template
+          name: vllm-spyre-x86-runtime-template
+        fieldPaths:
+          - objects.0.spec.containers.0.image
+  - source:
+      kind: ConfigMap
+      version: v1
+      name: odh-model-controller-parameters
+      fieldPath: data.vllm-spyre-s390x-image
+    targets:
+      - select:
+          kind: Template
+          name: vllm-spyre-s390x-runtime-template
+        fieldPaths:
+          - objects.0.spec.containers.0.image
+  - source:
+      kind: ConfigMap
+      version: v1
+      name: odh-model-controller-parameters
+      fieldPath: data.odh-model-controller
+    targets:
+      - select: 
+          kind: Deployment
+          name: odh-model-controller
+        fieldPaths:
+          - spec.template.spec.containers.0.image
+  - source:
+      kind: ConfigMap
+      version: v1
+      name: odh-model-controller-parameters
+      fieldPath: data.nim-state
+    targets:
+      - select:
+          kind: Deployment
+          name: odh-model-controller
+        fieldPaths:
+          - spec.template.spec.containers.[name=manager].env.[name=NIM_STATE].value
+  - source:
+      kind: ConfigMap
+      version: v1
+      name: odh-model-controller-parameters
+      fieldPath: data.kserve-state
+    targets:
+      - select:
+          kind: Deployment
+          name: odh-model-controller
+        fieldPaths:
+          - spec.template.spec.containers.[name=manager].env.[name=KSERVE_STATE].value
+  - source:
+      kind: ConfigMap
+      version: v1
+      name: odh-model-controller-parameters
+      fieldPath: data.modelregistry-state
+    targets:
+      - select:
+          kind: Deployment
+          name: odh-model-controller
+        fieldPaths:
+          - spec.template.spec.containers.[name=manager].env.[name=MODELREGISTRY_STATE].value
+  - source:
+      kind: ConfigMap
+      version: v1
+      name: odh-model-controller-parameters
+      fieldPath: data.maas-namespace
+    targets:
+      - select:
+          kind: Deployment
+          name: odh-model-controller
+        fieldPaths:
+          - spec.template.spec.containers.[name=manager].env.[name=MAAS_NAMESPACE].value
+  - source:
+      kind: ConfigMap
+      version: v1
+      name: odh-model-controller-parameters
+      fieldPath: metadata.namespace
+    targets:
+      - select:
+          kind: ValidatingWebhookConfiguration
+          name: validating-webhook-configuration
+        fieldPaths:
+          - webhooks.0.clientConfig.service.namespace
+
+patches:
+- path: remove-namespace.yaml

@@ -1,0 +1,40 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../core-bases/base
+  - federation-configmap.yaml
+  - networkpolicy.yaml
+configMapGenerator:
+  - name: modular-architecture-params
+    env: params.env
+generatorOptions:
+  disableNameSuffixHash: true
+vars:
+  - name: model-registry-ui-image
+    objref:
+      kind: ConfigMap
+      name: modular-architecture-params
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.model-registry-ui-image
+  - name: gen-ai-ui-image
+    objref:
+      kind: ConfigMap
+      name: modular-architecture-params
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.gen-ai-ui-image
+configurations:
+  - params.yaml
+patchesJson6902:
+  - path: deployment.yaml
+    target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: odh-dashboard
+  - path: service.yaml
+    target:
+      version: v1
+      kind: Service
+      name: odh-dashboard

@@ -1,0 +1,38 @@
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  labels:
+    opendatahub.io/runtime-image: "true"
+  annotations:
+    opendatahub.io/runtime-image-url: "https://github.com/opendatahub-io/notebooks/tree/main/runtimes"
+    opendatahub.io/runtime-image-name: "Runtime | PyTorch LLM Compressor | CUDA | Python 3.12"
+    opendatahub.io/runtime-image-desc: "PyTorch runtime image for Elyra, enabling pipeline execution from Workbenches with PyTorch libraries and dependencies, supporting different runtimes for various pipeline nodes."
+  name: runtime-pytorch-llmcompressor
+spec:
+  lookupPolicy:
+    local: true
+  tags:
+    - annotations:
+        # language=json
+        opendatahub.io/runtime-image-metadata: |
+          [
+            {
+              "display_name": "Runtime | PyTorch LLM Compressor | CUDA | Python 3.12",
+              "metadata": {
+                "tags": [
+                  "pytorch"
+                ],
+                "display_name": "Runtime | PyTorch LLM Compressor | CUDA | Python 3.12",
+                "pull_policy": "IfNotPresent"
+              },
+              "schema_name": "runtime-image"
+            }
+          ]
+        openshift.io/imported-from: quay.io/opendatahub/workbench-images
+      from:
+        kind: DockerImage
+        name: odh-pipeline-runtime-pytorch-llmcompressor-cuda-py312-ubi9-n_PLACEHOLDER
+      name: "pytorch-llmcompressor"
+      referencePolicy:
+        type: Source

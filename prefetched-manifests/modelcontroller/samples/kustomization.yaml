@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- nim_v1_account.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples

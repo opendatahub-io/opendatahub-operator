@@ -1,0 +1,56 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  labels:
+    opendatahub.io/dashboard: 'true'
+    opendatahub.io/ootb: 'true'
+  annotations:
+    description: vLLM ServingRuntime to support Gaudi(for Habana AI processors)
+    openshift.io/display-name: vLLM Intel Gaudi Accelerator ServingRuntime for KServe
+    openshift.io/provider-display-name: Red Hat, Inc.
+    tags: rhods,rhoai,kserve,servingruntime
+    template.openshift.io/documentation-url: https://github.com/opendatahub-io/vllm
+    template.openshift.io/long-description: This template defines resources needed to deploy vLLM Intel Gaudi Accelerator ServingRuntime with KServe in Red Hat OpenShift AI
+    opendatahub.io/modelServingSupport: '["single"]'
+    opendatahub.io/apiProtocol: 'REST'
+    opendatahub.io/model-type: '["generative"]'
+  name: vllm-gaudi-runtime-template
+objects:
+  - apiVersion: serving.kserve.io/v1alpha1
+    kind: ServingRuntime
+    metadata:
+      name: vllm-gaudi-runtime
+      annotations:
+        openshift.io/display-name: vLLM Intel Gaudi Accelerator ServingRuntime for KServe
+        opendatahub.io/recommended-accelerators: '["habana.ai/gaudi"]'
+        opendatahub.io/runtime-version: 'v0.9.0.1'
+      labels:
+        opendatahub.io/dashboard: 'true'
+    spec:
+      annotations:
+        opendatahub.io/kserve-runtime: 'vllm'
+        prometheus.io/port: '8080'
+        prometheus.io/path: '/metrics'
+      multiModel: false
+      supportedModelFormats:
+        - autoSelect: false
+          name: vLLM
+      builtInAdapter:
+        modelLoadingTimeoutMillis: 90000
+      containers:
+        - name: kserve-container
+          image: $(vllm-gaudi-image)
+          command:
+            - python
+            - -m
+            - vllm.entrypoints.openai.api_server
+          args:
+            - "--port=8080"
+            - "--model=/mnt/models"
+            - "--served-model-name={{.Name}}"
+          env:
+            - name: HF_HOME
+              value: /tmp/hf_home
+          ports:
+            - containerPort: 8080
+              protocol: TCP

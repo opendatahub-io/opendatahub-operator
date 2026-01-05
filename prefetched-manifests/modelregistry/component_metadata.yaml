@@ -1,0 +1,7 @@
+releases:
+  - name: Kubeflow Model Registry
+    version: latest
+    repoUrl: https://github.com/kubeflow/model-registry
+  - name: Open Data Hub Model Registry Operator
+    version: latest
+    repoUrl: https://github.com/opendatahub-io/model-registry-operator

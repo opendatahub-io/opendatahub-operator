@@ -1,0 +1,30 @@
+# Prometheus Monitor Service (Metrics)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    control-plane: odh-model-controller
+#    app.kubernetes.io/name: odh-model-controller
+#    app.kubernetes.io/managed-by: kustomize
+  name: odh-model-controller-metrics-monitor
+  namespace: system
+spec:
+  endpoints:
+    - path: /metrics
+      port: https # Ensure this is the name of the port that exposes HTTPS metrics
+      scheme: https
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      tlsConfig:
+        # Enabling option insecureSkipVerify is not recommended for production since it disables
+        # certificate verification. This poses a significant security risk by making the system vulnerable to
+        # man-in-the-middle attacks, where an attacker could intercept and manipulate the communication between
+        # Prometheus and the monitored services. This could lead to unauthorized access to sensitive metrics data,
+        # compromising the integrity and confidentiality of the information.
+        # Please use the following options for secure configurations:
+        # caFile: /etc/metrics-certs/ca.crt
+        # certFile: /etc/metrics-certs/tls.crt
+        # keyFile: /etc/metrics-certs/tls.key
+        insecureSkipVerify: false
+  selector:
+    matchLabels:
+      control-plane: odh-model-controller

@@ -1,0 +1,19 @@
+- op: replace
+  path: /metadata/name
+  value: rhods-dashboard
+- op: replace
+  path: /spec/selector/matchLabels/deployment
+  value: rhods-dashboard
+- op: replace
+  path: /spec/template/metadata/labels/deployment
+  value: rhods-dashboard
+- op: replace
+  path: /spec/template/spec/affinity/podAntiAffinity/preferredDuringSchedulingIgnoredDuringExecution/0/podAffinityTerm/labelSelector/matchExpressions/0/values/0
+  value: rhods-dashboard
+- op: replace
+  path: /spec/template/spec/containers/0/name
+  value: rhods-dashboard
+  # The image value is already an env
+- op: replace
+  path: /spec/template/spec/serviceAccount
+  value: rhods-dashboard

@@ -1,0 +1,10 @@
+## Append samples of your project ##
+resources:
+- mlflow_v1_mlflow.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples
+
+# Additional samples (uncomment to use):
+# - mlflow_v1_mlflow_minimal.yaml          # Minimal config with local storage
+# - mlflow_v1_mlflow_manual_tls.yaml       # Manual TLS for vanilla Kubernetes
+# - mlflow_v1_mlflow_remote_storage.yaml   # Remote storage (PostgreSQL + S3)
+# - mlflow_v1_mlflow_digest.yaml           # Digest-based image references

@@ -1,0 +1,19 @@
+---
+apiVersion: llamastack.io/v1alpha1
+kind: LlamaStackDistribution
+metadata:
+  name: llamastack-without-userconfig
+spec:
+  replicas: 1
+  server:
+    distribution:
+      name: starter
+    containerSpec:
+      env:
+      - name: OLLAMA_INFERENCE_MODEL
+        value: "llama3.2:1b"
+      - name: OLLAMA_URL
+        value: "http://ollama-server-service.ollama-dist.svc.cluster.local:11434"
+    storage:
+      size: "10Gi"  # Optional - defaults to 10Gi
+      mountPath: "/home/lls/.lls"  # Optional - defaults to /.llama

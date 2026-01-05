@@ -1,0 +1,1572 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.17.3
+  name: modelregistries.modelregistry.opendatahub.io
+spec:
+  group: modelregistry.opendatahub.io
+  names:
+    kind: ModelRegistry
+    listKind: ModelRegistryList
+    plural: modelregistries
+    shortNames:
+    - mr
+    singular: modelregistry
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.conditions[?(@.type=="Available")].status
+      name: Available
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="IstioAvailable")].status
+      name: Istio
+      priority: 2
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="GatewayAvailable")].status
+      name: Gateway
+      priority: 2
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="OAuthProxyAvailable")].status
+      name: OAuthProxy
+      priority: 2
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    - jsonPath: .status.hostsStr
+      name: Hosts
+      priority: 2
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="Available")].message
+      name: Status
+      priority: 2
+      type: string
+    deprecated: true
+    deprecationWarning: Version v1alpha1 of the ModelRegistry API is deprecated and
+      will be removed in a future release. Please use v1beta1 instead.
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: ModelRegistry is the Schema for the modelregistries API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              ModelRegistrySpec defines the desired state of ModelRegistry.
+              One of `postgres` or `mysql` database configurations MUST be provided!
+            properties:
+              downgrade_db_schema_version:
+                description: |-
+                  Database downgrade schema version value. If set the database
+                  schema version is downgraded to the set value during
+                  initialization (Optional Parameter)
+                format: int64
+                type: integer
+              enable_database_upgrade:
+                description: |-
+                  Flag specifying database upgrade option. If set to true, it enables
+                  database migration during initialization (Optional parameter)
+                type: boolean
+              grpc:
+                description: Configuration for gRPC endpoint
+                properties:
+                  image:
+                    description: Optional image to support overriding the image deployed
+                      by the operator.
+                    type: string
+                  port:
+                    default: 9090
+                    description: Listen port for gRPC connections, defaults to 9090.
+                    format: int32
+                    maximum: 65535
+                    minimum: 0
+                    type: integer
+                  resources:
+                    description: Resource requirements
+                    properties:
+                      claims:
+                        description: |-
+                          Claims lists the names of resources, defined in spec.resourceClaims,
+                          that are used by this container.
+
+                          This is an alpha field and requires enabling the
+                          DynamicResourceAllocation feature gate.
+
+                          This field is immutable. It can only be set for containers.
+                        items:
+                          description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                          properties:
+                            name:
+                              description: |-
+                                Name must match the name of one entry in pod.spec.resourceClaims of
+                                the Pod where this field is used. It makes that resource available
+                                inside a container.
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
+                      limits:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: |-
+                          Limits describes the maximum amount of compute resources allowed.
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        type: object
+                      requests:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: |-
+                          Requests describes the minimum amount of compute resources required.
+                          If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                          otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        type: object
+                    type: object
+                type: object
+              istio:
+                description: Istio servicemesh configuration options
+                properties:
+                  audiences:
+                    description: |-
+                      Optional Authorino AuthConfig credential audiences. This depends on the cluster identity provider.
+                      If not specified, operator will determine the cluster's audience using its own service account.
+                    items:
+                      type: string
+                    type: array
+                  authConfigLabels:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      Authorino AuthConfig selector labels.
+
+                      If missing, it is set using the operator environment property DEFAULT_AUTH_CONFIG_LABELS
+                    type: object
+                  authProvider:
+                    description: |-
+                      Authorino authentication provider name
+
+                      If missing, it is set using the operator environment property DEFAULT_AUTH_PROVIDER
+                      Model registry will have an error status if the operator property is also missing
+                    type: string
+                  gateway:
+                    description: |-
+                      Optional Istio Gateway for registry services.
+                      Gateway is not created if set to null (default).
+                    properties:
+                      controlPlane:
+                        description: Maistra/OpenShift Servicemesh control plane name
+                        type: string
+                      domain:
+                        description: |-
+                          Domain name for Gateway configuration.
+                          Must follow DNS952 subdomain conventions.
+                          If not provided, it is set automatically using model registry operator env variable DEFAULT_DOMAIN.
+                          If the env variable is not set, it is set to the OpenShift `cluster` ingress domain in an OpenShift cluster.
+                        maxLength: 253
+                        pattern: ^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])(\.([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9]))*)?$
+                        type: string
+                      grpc:
+                        description: gRPC  gateway server config
+                        properties:
+                          gatewayRoute:
+                            description: Creates an OpenShift Route for Gateway Service
+                              when set to enabled (default).
+                            enum:
+                            - disabled
+                            - enabled
+                            type: string
+                          port:
+                            description: Listen port for server connections, defaults
+                              to 80 without TLS and 443 when TLS settings are present.
+                            format: int32
+                            maximum: 65535
+                            minimum: 0
+                            type: integer
+                          tls:
+                            description: |-
+                              Set of TLS related options that govern the server's behavior. Use
+                              these options to control if all http requests should be redirected to
+                              https, and the TLS modes to use.
+                            properties:
+                              credentialName:
+                                description: |-
+                                  The name of the secret that holds the TLS certs including the CA certificates.
+                                  If not provided, it is set automatically using model registry operator env variable DEFAULT_CERT.
+                                  An Opaque secret should contain the following
+                                  keys and values: `tls.key: <privateKey>` and `tls.crt: <serverCert>` or
+                                  `key: <privateKey>` and `cert: <serverCert>`.
+                                  For mutual TLS, `cacert: <CACertificate>` and `crl: <CertificateRevocationList>`
+                                  can be provided in the same secret or a separate secret named `<secret>-cacert`.
+                                  A TLS secret for server certificates with an additional `tls.ocsp-staple` key
+                                  for specifying OCSP staple information, `ca.crt` key for CA certificates
+                                  and `ca.crl` for certificate revocation list is also supported.
+                                  Only one of server certificates and CA certificate
+                                  or credentialName can be specified.
+                                type: string
+                              mode:
+                                default: SIMPLE
+                                description: |-
+                                  The value of this field determines how TLS is enforced.
+                                  SIMPLE: Secure connections with standard TLS semantics. In this mode client certificate is not requested during handshake.
+
+                                  MUTUAL: Secure connections to the downstream using mutual TLS by presenting server certificates for authentication. A client certificate will also be requested during the handshake and at least one valid certificate is required to be sent by the client.
+
+                                  ISTIO_MUTUAL: Secure connections from the downstream using mutual TLS by presenting server certificates for authentication. Compared to Mutual mode, this mode uses certificates, representing gateway workload identity, generated automatically by Istio for mTLS authentication. When this mode is used, all other TLS fields should be empty.
+
+                                  OPTIONAL_MUTUAL: Similar to MUTUAL mode, except that the client certificate is optional. Unlike SIMPLE mode, A client certificate will still be explicitly requested during handshake, but the client is not required to send a certificate. If a client certificate is presented, it will be validated. ca_certificates should be specified for validating client certificates.
+                                enum:
+                                - SIMPLE
+                                - MUTUAL
+                                - ISTIO_MUTUAL
+                                - OPTIONAL_MUTUAL
+                                type: string
+                            type: object
+                        type: object
+                      istioIngress:
+                        description: Value of label `istio` used to identify the Ingress
+                          Gateway
+                        type: string
+                      rest:
+                        description: Rest gateway server config
+                        properties:
+                          gatewayRoute:
+                            description: Creates an OpenShift Route for Gateway Service
+                              when set to enabled (default).
+                            enum:
+                            - disabled
+                            - enabled
+                            type: string
+                          port:
+                            description: Listen port for server connections, defaults
+                              to 80 without TLS and 443 when TLS settings are present.
+                            format: int32
+                            maximum: 65535
+                            minimum: 0
+                            type: integer
+                          tls:
+                            description: |-
+                              Set of TLS related options that govern the server's behavior. Use
+                              these options to control if all http requests should be redirected to
+                              https, and the TLS modes to use.
+                            properties:
+                              credentialName:
+                                description: |-
+                                  The name of the secret that holds the TLS certs including the CA certificates.
+                                  If not provided, it is set automatically using model registry operator env variable DEFAULT_CERT.
+                                  An Opaque secret should contain the following
+                                  keys and values: `tls.key: <privateKey>` and `tls.crt: <serverCert>` or
+                                  `key: <privateKey>` and `cert: <serverCert>`.
+                                  For mutual TLS, `cacert: <CACertificate>` and `crl: <CertificateRevocationList>`
+                                  can be provided in the same secret or a separate secret named `<secret>-cacert`.
+                                  A TLS secret for server certificates with an additional `tls.ocsp-staple` key
+                                  for specifying OCSP staple information, `ca.crt` key for CA certificates
+                                  and `ca.crl` for certificate revocation list is also supported.
+                                  Only one of server certificates and CA certificate
+                                  or credentialName can be specified.
+                                type: string
+                              mode:
+                                default: SIMPLE
+                                description: |-
+                                  The value of this field determines how TLS is enforced.
+                                  SIMPLE: Secure connections with standard TLS semantics. In this mode client certificate is not requested during handshake.
+
+                                  MUTUAL: Secure connections to the downstream using mutual TLS by presenting server certificates for authentication. A client certificate will also be requested during the handshake and at least one valid certificate is required to be sent by the client.
+
+                                  ISTIO_MUTUAL: Secure connections from the downstream using mutual TLS by presenting server certificates for authentication. Compared to Mutual mode, this mode uses certificates, representing gateway workload identity, generated automatically by Istio for mTLS authentication. When this mode is used, all other TLS fields should be empty.
+
+                                  OPTIONAL_MUTUAL: Similar to MUTUAL mode, except that the client certificate is optional. Unlike SIMPLE mode, A client certificate will still be explicitly requested during handshake, but the client is not required to send a certificate. If a client certificate is presented, it will be validated. ca_certificates should be specified for validating client certificates.
+                                enum:
+                                - SIMPLE
+                                - MUTUAL
+                                - ISTIO_MUTUAL
+                                - OPTIONAL_MUTUAL
+                                type: string
+                            type: object
+                        type: object
+                    required:
+                    - grpc
+                    - rest
+                    type: object
+                  tlsMode:
+                    default: ISTIO_MUTUAL
+                    description: |-
+                      DestinationRule TLS mode. Defaults to ISTIO_MUTUAL.
+
+                      DISABLE: Do not setup a TLS connection to the upstream endpoint.
+
+                      SIMPLE: Originate a TLS connection to the upstream endpoint.
+
+                      MUTUAL: Secure connections to the upstream using mutual TLS by presenting
+                      client certificates for authentication.
+
+                      ISTIO_MUTUAL: Secure connections to the upstream using mutual TLS by presenting
+                      client certificates for authentication.
+                      Compared to Mutual mode, this mode uses certificates generated
+                      automatically by Istio for mTLS authentication. When this mode is
+                      used, all other fields in `ClientTLSSettings` should be empty.
+                    type: string
+                type: object
+              mysql:
+                description: MySQL configuration options
+                properties:
+                  database:
+                    description: |-
+                      The database to connect to. Must be specified.
+                      After connecting to the MYSQL server, this database is created if not
+                      already present unless SkipDBCreation is set.
+                      All queries after Connect() are assumed to be for this database.
+                    type: string
+                  host:
+                    description: |-
+                      The hostname or IP address of the MYSQL server:
+                      If unspecified, a connection to the local host is assumed.
+                      Currently, a replicated MYSQL backend is not supported.
+                    type: string
+                  passwordSecret:
+                    description: |-
+                      The password to use for `Username`. If empty, only MYSQL user ids that don't
+                      have a password set are allowed to connect.
+                    properties:
+                      key:
+                        description: Key name in secret
+                        type: string
+                      name:
+                        description: Kubernetes secret name
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  port:
+                    default: 3306
+                    description: |-
+                      Port number to connect to at the server host.
+                      The TCP Port number that the MYSQL server accepts connections on.
+                      If unspecified, the default MYSQL port (3306) is used.
+                    format: int32
+                    maximum: 65535
+                    minimum: 1
+                    type: integer
+                  skipDBCreation:
+                    default: false
+                    description: |-
+                      True if skipping database instance creation during ML Metadata
+                      service initialization. By default, it is false.
+                    type: boolean
+                  sslCertificateSecret:
+                    description: This parameter specifies the Kubernetes Secret name
+                      and key of the client public key certificate.
+                    properties:
+                      key:
+                        description: Key name in secret
+                        type: string
+                      name:
+                        description: Kubernetes secret name
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  sslCipher:
+                    description: This parameter specifies the list of permissible
+                      ciphers for SSL encryption.
+                    type: string
+                  sslKeySecret:
+                    description: |-
+                      This parameter specifies the Kubernetes Secret name and key used for the
+                      client private key.
+                    properties:
+                      key:
+                        description: Key name in secret
+                        type: string
+                      name:
+                        description: Kubernetes secret name
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  sslRootCertificateConfigMap:
+                    description: |-
+                      This parameter specifies the Kubernetes ConfigMap name and key containing
+                      certificate authority (CA) certificate.
+                    properties:
+                      key:
+                        description: Key name in configmap
+                        type: string
+                      name:
+                        description: Kubernetes configmap name
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  sslRootCertificateSecret:
+                    description: |-
+                      This parameter specifies the Kubernetes Secret name and key containing
+                      certificate authority (CA) certificate.
+                    properties:
+                      key:
+                        description: Key name in secret
+                        type: string
+                      name:
+                        description: Kubernetes secret name
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  sslRootCertificatesConfigMapName:
+                    description: |-
+                      This parameter specifies the Kubernetes ConfigMap name containing
+                      multiple certificate authority (CA) certificate(s) as keys.
+                    type: string
+                  sslRootCertificatesSecretName:
+                    description: |-
+                      This parameter specifies the Kubernetes Secret name containing
+                      multiple certificate authority (CA) certificate(s) as keys.
+                    type: string
+                  username:
+                    description: The MYSQL login id.
+                    type: string
+                  verifyServerCert:
+                    description: |-
+                      If set, enable verification of the server certificate against the host
+                      name used when connecting to the server.
+                    type: boolean
+                required:
+                - database
+                - host
+                - username
+                type: object
+              oauthProxy:
+                description: OpenShift OAuth proxy configuration options
+                properties:
+                  domain:
+                    description: |-
+                      Domain name for Route configuration.
+                      Must follow DNS952 subdomain conventions.
+                      If not provided, it is set automatically using model registry operator env variable DEFAULT_DOMAIN.
+                      If the env variable is not set, it is set to the OpenShift `cluster` ingress domain in an OpenShift cluster.
+                    maxLength: 253
+                    pattern: ^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])(\.([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9]))*)?$
+                    type: string
+                  image:
+                    description: Optional image to support overriding the image deployed
+                      by the operator.
+                    type: string
+                  port:
+                    default: 8443
+                    description: Listen port for OAuth Proxy connections, defaults
+                      to 8443
+                    format: int32
+                    maximum: 65535
+                    minimum: 0
+                    type: integer
+                  routePort:
+                    default: 443
+                    description: Listen port for OAuth Proxy Route connections, defaults
+                      to 443 in OpenShift router default configuration
+                    format: int32
+                    maximum: 65535
+                    minimum: 0
+                    type: integer
+                  serviceRoute:
+                    default: enabled
+                    description: Create an OpenShift Route for REST proxy Service,
+                      enabled by default
+                    enum:
+                    - disabled
+                    - enabled
+                    type: string
+                  tlsCertificateSecret:
+                    description: |-
+                      This parameter specifies the Kubernetes Secret name and key of the proxy public key certificate.
+                      If this option is not set, the operator uses OpenShift Serving Certificate by default in OpenShift clusters.
+                      In non-OpenShift clusters, a secret named `<modelregistry-name>-oauth-proxy` MUST be provided with data keys
+                      `tls.crt` and `tls.key` for the certificate and secret key respectively.
+                    properties:
+                      key:
+                        description: Key name in secret
+                        type: string
+                      name:
+                        description: Kubernetes secret name
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  tlsKeySecret:
+                    description: |-
+                      This parameter specifies the optional Kubernetes Secret name and key used for the
+                      proxy private key if `SSLCertificateSecret` is set.
+                    properties:
+                      key:
+                        description: Key name in secret
+                        type: string
+                      name:
+                        description: Kubernetes secret name
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                type: object
+                x-kubernetes-validations:
+                - message: tlsCertificateSecret and tlsKeySecret MUST be set together
+                  rule: has(self.tlsCertificateSecret) == has(self.tlsKeySecret)
+              postgres:
+                description: PostgreSQL configuration options
+                properties:
+                  database:
+                    description: The database name.
+                    type: string
+                  host:
+                    description: Name of host to connect to.
+                    type: string
+                  hostAddress:
+                    description: |-
+                      Numeric IP address of host to connect to. If this field is
+                      provided, "host" field is ignored.
+                    type: string
+                  passwordSecret:
+                    description: Password to be used if required by the PostgreSQL
+                      server.
+                    properties:
+                      key:
+                        description: Key name in secret
+                        type: string
+                      name:
+                        description: Kubernetes secret name
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  port:
+                    default: 5432
+                    description: Port number to connect to at the server host.
+                    format: int32
+                    maximum: 65535
+                    minimum: 1
+                    type: integer
+                  skipDBCreation:
+                    default: false
+                    description: |-
+                      True if skipping database instance creation during ML Metadata
+                      service initialization. By default, it is false.
+                    type: boolean
+                  sslCertificateSecret:
+                    description: This parameter specifies the Kubernetes Secret name
+                      and key of the client SSL certificate.
+                    properties:
+                      key:
+                        description: Key name in secret
+                        type: string
+                      name:
+                        description: Kubernetes secret name
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  sslKeySecret:
+                    description: |-
+                      This parameter specifies the Kubernetes Secret name and key used for the
+                      client certificate SSL secret key.
+                    properties:
+                      key:
+                        description: Key name in secret
+                        type: string
+                      name:
+                        description: Kubernetes secret name
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  sslMode:
+                    default: disable
+                    description: |-
+                      PostgreSQL sslmode setup. Values can be disable, allow, prefer,
+                      require, verify-ca, verify-full.
+                    enum:
+                    - disable
+                    - allow
+                    - prefer
+                    - require
+                    - verify-ca
+                    - verify-full
+                    type: string
+                  sslPasswordSecret:
+                    description: |-
+                      This parameter specifies the Kubernetes Secret name and key of the password for the SSL secret key
+                      specified in sslKeySecret, allowing client certificate private keys
+                      to be stored in encrypted form on disk even when interactive
+                      passphrase input is not practical.
+                    properties:
+                      key:
+                        description: Key name in secret
+                        type: string
+                      name:
+                        description: Kubernetes secret name
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  sslRootCertificateConfigMap:
+                    description: |-
+                      This parameter specifies the Kubernetes ConfigMap name and key containing SSL
+                      certificate authority (CA) certificate(s).
+                    properties:
+                      key:
+                        description: Key name in configmap
+                        type: string
+                      name:
+                        description: Kubernetes configmap name
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  sslRootCertificateSecret:
+                    description: |-
+                      This parameter specifies the Kubernetes Secret name and key containing SSL
+                      certificate authority (CA) certificate(s).
+                    properties:
+                      key:
+                        description: Key name in secret
+                        type: string
+                      name:
+                        description: Kubernetes secret name
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  username:
+                    description: PostgreSQL username to connect as.
+                    type: string
+                required:
+                - database
+                type: object
+              rest:
+                description: Configuration for REST endpoint
+                properties:
+                  image:
+                    description: Optional image to support overriding the image deployed
+                      by the operator.
+                    type: string
+                  port:
+                    default: 8080
+                    description: Listen port for REST connections, defaults to 8080.
+                    format: int32
+                    maximum: 65535
+                    minimum: 1
+                    type: integer
+                  resources:
+                    description: Resource requirements
+                    properties:
+                      claims:
+                        description: |-
+                          Claims lists the names of resources, defined in spec.resourceClaims,
+                          that are used by this container.
+
+                          This is an alpha field and requires enabling the
+                          DynamicResourceAllocation feature gate.
+
+                          This field is immutable. It can only be set for containers.
+                        items:
+                          description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                          properties:
+                            name:
+                              description: |-
+                                Name must match the name of one entry in pod.spec.resourceClaims of
+                                the Pod where this field is used. It makes that resource available
+                                inside a container.
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
+                      limits:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: |-
+                          Limits describes the maximum amount of compute resources allowed.
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        type: object
+                      requests:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: |-
+                          Requests describes the minimum amount of compute resources required.
+                          If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                          otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        type: object
+                    type: object
+                  serviceRoute:
+                    default: disabled
+                    description: Create an OpenShift Route for REST Service
+                    enum:
+                    - disabled
+                    - enabled
+                    type: string
+                type: object
+            required:
+            - grpc
+            - rest
+            type: object
+            x-kubernetes-validations:
+            - message: Cannot use both istio and oauthProxy
+              rule: '!(has(self.istio) && has(self.oauthProxy))'
+          status:
+            description: ModelRegistryStatus defines the observed state of ModelRegistry
+            properties:
+              conditions:
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              hosts:
+                description: |-
+                  Hosts where model registry services are available
+                  NOTE: Gateway service names are different for gRPC and REST service routes
+                items:
+                  type: string
+                type: array
+              hostsStr:
+                description: Formatted Host names separated by comma
+                type: string
+              specDefaults:
+                description: SpecDefaults is a JSON string containing default spec
+                  values that were used for model registry deployment
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: false
+    subresources:
+      status: {}
+  - additionalPrinterColumns:
+    - jsonPath: .status.conditions[?(@.type=="Available")].status
+      name: Available
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="KubeRBACProxyAvailable")].status
+      name: KubeRBACProxy
+      priority: 2
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    - jsonPath: .status.hostsStr
+      name: Hosts
+      priority: 2
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="Available")].message
+      name: Status
+      priority: 2
+      type: string
+    name: v1beta1
+    schema:
+      openAPIV3Schema:
+        description: ModelRegistry is the Schema for the modelregistries API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              ModelRegistrySpec defines the desired state of ModelRegistry.
+              One of `postgres` or `mysql` database configurations MUST be provided!
+            properties:
+              downgrade_db_schema_version:
+                description: |-
+                  Database downgrade schema version value. If set the database
+                  schema version is downgraded to the set value during
+                  initialization (Optional Parameter)
+                format: int64
+                type: integer
+              enable_database_upgrade:
+                description: |-
+                  Flag specifying database upgrade option. If set to true, it enables
+                  database migration during initialization (Optional parameter)
+                type: boolean
+              grpc:
+                description: 'Deprecated: Configuration for gRPC endpoint is deprecated
+                  and will be removed in a future release'
+                properties:
+                  image:
+                    description: Optional image to support overriding the image deployed
+                      by the operator.
+                    type: string
+                  port:
+                    default: 9090
+                    description: Listen port for gRPC connections, defaults to 9090.
+                    format: int32
+                    maximum: 65535
+                    minimum: 0
+                    type: integer
+                  resources:
+                    description: Resource requirements
+                    properties:
+                      claims:
+                        description: |-
+                          Claims lists the names of resources, defined in spec.resourceClaims,
+                          that are used by this container.
+
+                          This is an alpha field and requires enabling the
+                          DynamicResourceAllocation feature gate.
+
+                          This field is immutable. It can only be set for containers.
+                        items:
+                          description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                          properties:
+                            name:
+                              description: |-
+                                Name must match the name of one entry in pod.spec.resourceClaims of
+                                the Pod where this field is used. It makes that resource available
+                                inside a container.
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
+                      limits:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: |-
+                          Limits describes the maximum amount of compute resources allowed.
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        type: object
+                      requests:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: |-
+                          Requests describes the minimum amount of compute resources required.
+                          If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                          otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        type: object
+                    type: object
+                type: object
+              kubeRBACProxy:
+                description: kube-rbac-proxy configuration options
+                properties:
+                  domain:
+                    description: |-
+                      Domain name for Route configuration.
+                      Must follow DNS952 subdomain conventions.
+                      If not provided, it is set automatically using model registry operator env variable DEFAULT_DOMAIN.
+                      If the env variable is not set, it is set to the OpenShift `cluster` ingress domain in an OpenShift cluster.
+                    maxLength: 253
+                    pattern: ^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])(\.([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9]))*)?$
+                    type: string
+                  image:
+                    description: Optional image to support overriding the image deployed
+                      by the operator.
+                    type: string
+                  port:
+                    default: 8443
+                    description: Listen port for kube-rbac-proxy connections, defaults
+                      to 8443
+                    format: int32
+                    maximum: 65535
+                    minimum: 0
+                    type: integer
+                  routePort:
+                    default: 443
+                    description: Listen port for kube-rbac-proxy Route connections,
+                      defaults to 443 in OpenShift router default configuration
+                    format: int32
+                    maximum: 65535
+                    minimum: 0
+                    type: integer
+                  serviceRoute:
+                    default: enabled
+                    description: Create an OpenShift Route for REST proxy Service,
+                      enabled by default
+                    enum:
+                    - disabled
+                    - enabled
+                    type: string
+                  tlsCertificateSecret:
+                    description: |-
+                      This parameter specifies the Kubernetes Secret name and key of the proxy public key certificate.
+                      If this option is not set, the operator uses OpenShift Serving Certificate by default in OpenShift clusters.
+                      In non-OpenShift clusters, a secret named `<modelregistry-name>-kube-rbac-proxy` MUST be provided with data keys
+                      `tls.crt` and `tls.key` for the certificate and secret key respectively.
+                    properties:
+                      key:
+                        description: Key name in secret
+                        type: string
+                      name:
+                        description: Kubernetes secret name
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  tlsKeySecret:
+                    description: |-
+                      This parameter specifies the optional Kubernetes Secret name and key used for the
+                      proxy private key if `TLSCertificateSecret` is set.
+                    properties:
+                      key:
+                        description: Key name in secret
+                        type: string
+                      name:
+                        description: Kubernetes secret name
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                type: object
+                x-kubernetes-validations:
+                - message: tlsCertificateSecret and tlsKeySecret MUST be set together
+                  rule: has(self.tlsCertificateSecret) == has(self.tlsKeySecret)
+              mysql:
+                description: MySQL configuration options
+                properties:
+                  database:
+                    description: |-
+                      The database to connect to. Must be specified.
+                      After connecting to the MYSQL server, this database is created if not
+                      already present unless SkipDBCreation is set.
+                      All queries after Connect() are assumed to be for this database.
+                    type: string
+                  host:
+                    description: |-
+                      The hostname or IP address of the MYSQL server:
+                      If unspecified, a connection to the local host is assumed.
+                      Currently, a replicated MYSQL backend is not supported.
+                    type: string
+                  passwordSecret:
+                    description: |-
+                      The password to use for `Username`. If empty, only MYSQL user ids that don't
+                      have a password set are allowed to connect.
+                    properties:
+                      key:
+                        description: Key name in secret
+                        type: string
+                      name:
+                        description: Kubernetes secret name
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  port:
+                    default: 3306
+                    description: |-
+                      Port number to connect to at the server host.
+                      The TCP Port number that the MYSQL server accepts connections on.
+                      If unspecified, the default MYSQL port (3306) is used.
+                    format: int32
+                    maximum: 65535
+                    minimum: 1
+                    type: integer
+                  skipDBCreation:
+                    default: false
+                    description: |-
+                      True if skipping database instance creation during Model Registry
+                      service initialization. By default, it is false.
+                    type: boolean
+                  sslCertificateSecret:
+                    description: This parameter specifies the Kubernetes Secret name
+                      and key of the client public key certificate.
+                    properties:
+                      key:
+                        description: Key name in secret
+                        type: string
+                      name:
+                        description: Kubernetes secret name
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  sslCipher:
+                    description: This parameter specifies the list of permissible
+                      ciphers for SSL encryption.
+                    type: string
+                  sslKeySecret:
+                    description: |-
+                      This parameter specifies the Kubernetes Secret name and key used for the
+                      client private key.
+                    properties:
+                      key:
+                        description: Key name in secret
+                        type: string
+                      name:
+                        description: Kubernetes secret name
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  sslRootCertificateConfigMap:
+                    description: |-
+                      This parameter specifies the Kubernetes ConfigMap name and key containing
+                      certificate authority (CA) certificate.
+                    properties:
+                      key:
+                        description: Key name in configmap
+                        type: string
+                      name:
+                        description: Kubernetes configmap name
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  sslRootCertificateSecret:
+                    description: |-
+                      This parameter specifies the Kubernetes Secret name and key containing
+                      certificate authority (CA) certificate.
+                    properties:
+                      key:
+                        description: Key name in secret
+                        type: string
+                      name:
+                        description: Kubernetes secret name
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  sslRootCertificatesConfigMapName:
+                    description: |-
+                      This parameter specifies the Kubernetes ConfigMap name containing
+                      multiple certificate authority (CA) certificate(s) as keys.
+                    type: string
+                  sslRootCertificatesSecretName:
+                    description: |-
+                      This parameter specifies the Kubernetes Secret name containing
+                      multiple certificate authority (CA) certificate(s) as keys.
+                    type: string
+                  username:
+                    description: The MYSQL login id.
+                    type: string
+                  verifyServerCert:
+                    description: |-
+                      If set, enable verification of the server certificate against the host
+                      name used when connecting to the server.
+                    type: boolean
+                required:
+                - database
+                - host
+                - username
+                type: object
+              oauthProxy:
+                description: OpenShift OAuth proxy configuration options
+                properties:
+                  domain:
+                    description: |-
+                      Domain name for Route configuration.
+                      Must follow DNS952 subdomain conventions.
+                      If not provided, it is set automatically using model registry operator env variable DEFAULT_DOMAIN.
+                      If the env variable is not set, it is set to the OpenShift `cluster` ingress domain in an OpenShift cluster.
+                    maxLength: 253
+                    pattern: ^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])(\.([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9]))*)?$
+                    type: string
+                  image:
+                    description: Optional image to support overriding the image deployed
+                      by the operator.
+                    type: string
+                  port:
+                    default: 8443
+                    description: Listen port for OAuth Proxy connections, defaults
+                      to 8443
+                    format: int32
+                    maximum: 65535
+                    minimum: 0
+                    type: integer
+                  routePort:
+                    default: 443
+                    description: Listen port for OAuth Proxy Route connections, defaults
+                      to 443 in OpenShift router default configuration
+                    format: int32
+                    maximum: 65535
+                    minimum: 0
+                    type: integer
+                  serviceRoute:
+                    default: enabled
+                    description: Create an OpenShift Route for REST proxy Service,
+                      enabled by default
+                    enum:
+                    - disabled
+                    - enabled
+                    type: string
+                  tlsCertificateSecret:
+                    description: |-
+                      This parameter specifies the Kubernetes Secret name and key of the proxy public key certificate.
+                      If this option is not set, the operator uses OpenShift Serving Certificate by default in OpenShift clusters.
+                      In non-OpenShift clusters, a secret named `<modelregistry-name>-oauth-proxy` MUST be provided with data keys
+                      `tls.crt` and `tls.key` for the certificate and secret key respectively.
+                    properties:
+                      key:
+                        description: Key name in secret
+                        type: string
+                      name:
+                        description: Kubernetes secret name
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  tlsKeySecret:
+                    description: |-
+                      This parameter specifies the optional Kubernetes Secret name and key used for the
+                      proxy private key if `SSLCertificateSecret` is set.
+                    properties:
+                      key:
+                        description: Key name in secret
+                        type: string
+                      name:
+                        description: Kubernetes secret name
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                type: object
+                x-kubernetes-validations:
+                - message: tlsCertificateSecret and tlsKeySecret MUST be set together
+                  rule: has(self.tlsCertificateSecret) == has(self.tlsKeySecret)
+              postgres:
+                description: PostgreSQL configuration options
+                properties:
+                  database:
+                    description: The database name.
+                    type: string
+                  generateDeployment:
+                    description: Auto-provision a PostgreSQL database if true.
+                    type: boolean
+                  host:
+                    description: Name of host to connect to.
+                    type: string
+                  hostAddress:
+                    description: |-
+                      Numeric IP address of host to connect to. If this field is
+                      provided, "host" field is ignored.
+                    type: string
+                  image:
+                    description: |-
+                      Optional image to support overriding the PostgreSQL image deployed by the operator.
+                      If not specified, defaults to the operator's configured PostgreSQL image.
+                    type: string
+                  passwordSecret:
+                    description: Password to be used if required by the PostgreSQL
+                      server.
+                    properties:
+                      key:
+                        description: Key name in secret
+                        type: string
+                      name:
+                        description: Kubernetes secret name
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  port:
+                    default: 5432
+                    description: Port number to connect to at the server host.
+                    format: int32
+                    maximum: 65535
+                    minimum: 1
+                    type: integer
+                  skipDBCreation:
+                    default: false
+                    description: |-
+                      True if skipping database instance creation during Model Registry
+                      service initialization. By default, it is false.
+                    type: boolean
+                  sslCertificateSecret:
+                    description: This parameter specifies the Kubernetes Secret name
+                      and key of the client SSL certificate.
+                    properties:
+                      key:
+                        description: Key name in secret
+                        type: string
+                      name:
+                        description: Kubernetes secret name
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  sslKeySecret:
+                    description: |-
+                      This parameter specifies the Kubernetes Secret name and key used for the
+                      client certificate SSL secret key.
+                    properties:
+                      key:
+                        description: Key name in secret
+                        type: string
+                      name:
+                        description: Kubernetes secret name
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  sslMode:
+                    default: disable
+                    description: |-
+                      PostgreSQL sslmode setup. Values can be disable, allow, prefer,
+                      require, verify-ca, verify-full.
+                    enum:
+                    - disable
+                    - allow
+                    - prefer
+                    - require
+                    - verify-ca
+                    - verify-full
+                    type: string
+                  sslPasswordSecret:
+                    description: |-
+                      This parameter specifies the Kubernetes Secret name and key of the password for the SSL secret key
+                      specified in sslKeySecret, allowing client certificate private keys
+                      to be stored in encrypted form on disk even when interactive
+                      passphrase input is not practical.
+                    properties:
+                      key:
+                        description: Key name in secret
+                        type: string
+                      name:
+                        description: Kubernetes secret name
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  sslRootCertificateConfigMap:
+                    description: |-
+                      This parameter specifies the Kubernetes ConfigMap name and key containing SSL
+                      certificate authority (CA) certificate(s).
+                    properties:
+                      key:
+                        description: Key name in configmap
+                        type: string
+                      name:
+                        description: Kubernetes configmap name
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  sslRootCertificateSecret:
+                    description: |-
+                      This parameter specifies the Kubernetes Secret name and key containing SSL
+                      certificate authority (CA) certificate(s).
+                    properties:
+                      key:
+                        description: Key name in secret
+                        type: string
+                      name:
+                        description: Kubernetes secret name
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                  username:
+                    description: PostgreSQL username to connect as.
+                    type: string
+                type: object
+                x-kubernetes-validations:
+                - message: GenerateDeployment must be set to true if host/hostAddress
+                    are not provided
+                  rule: 'has(self.generateDeployment) && self.generateDeployment ?
+                    true : (size(self.host) > 0 || size(self.hostAddress) > 0)'
+                - message: Username must be set if database is specified
+                  rule: 'has(self.database) && size(self.database) > 0 ? has(self.username)
+                    && size(self.username) > 0 : true'
+                - message: host and hostAddress must not be set when generateDeployment
+                    is true
+                  rule: '!(has(self.generateDeployment) && self.generateDeployment)
+                    || ((!has(self.host) || size(self.host) == 0) && (!has(self.hostAddress)
+                    || size(self.hostAddress) == 0))'
+              rest:
+                description: Configuration for REST endpoint
+                properties:
+                  image:
+                    description: Optional image to support overriding the image deployed
+                      by the operator.
+                    type: string
+                  port:
+                    default: 8080
+                    description: Listen port for REST connections, defaults to 8080.
+                    format: int32
+                    maximum: 65535
+                    minimum: 1
+                    type: integer
+                  resources:
+                    description: Resource requirements
+                    properties:
+                      claims:
+                        description: |-
+                          Claims lists the names of resources, defined in spec.resourceClaims,
+                          that are used by this container.
+
+                          This is an alpha field and requires enabling the
+                          DynamicResourceAllocation feature gate.
+
+                          This field is immutable. It can only be set for containers.
+                        items:
+                          description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                          properties:
+                            name:
+                              description: |-
+                                Name must match the name of one entry in pod.spec.resourceClaims of
+                                the Pod where this field is used. It makes that resource available
+                                inside a container.
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
+                      limits:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: |-
+                          Limits describes the maximum amount of compute resources allowed.
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        type: object
+                      requests:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: |-
+                          Requests describes the minimum amount of compute resources required.
+                          If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                          otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        type: object
+                    type: object
+                  serviceRoute:
+                    default: disabled
+                    description: Create an OpenShift Route for REST Service
+                    enum:
+                    - disabled
+                    - enabled
+                    type: string
+                type: object
+            required:
+            - grpc
+            - rest
+            type: object
+            x-kubernetes-validations:
+            - message: Cannot use both oauthProxy and kubeRBACProxy
+              rule: '!(has(self.oauthProxy) && has(self.kubeRBACProxy))'
+          status:
+            description: ModelRegistryStatus defines the observed state of ModelRegistry
+            properties:
+              conditions:
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              hosts:
+                description: |-
+                  Hosts where model registry services are available
+                  NOTE: Gateway service names are different for gRPC and REST service routes
+                items:
+                  type: string
+                type: array
+              hostsStr:
+                description: Formatted Host names separated by comma
+                type: string
+              specDefaults:
+                description: SpecDefaults is a JSON string containing default spec
+                  values that were used for model registry deployment
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

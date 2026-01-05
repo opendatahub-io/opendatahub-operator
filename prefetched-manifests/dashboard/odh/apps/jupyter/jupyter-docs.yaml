@@ -1,0 +1,59 @@
+apiVersion: dashboard.opendatahub.io/v1
+kind: OdhDocument
+metadata:
+  name: jupyter-install-python-packages
+  annotations:
+    opendatahub.io/categories: 'Package management,Notebook environments,Getting started'
+spec:
+  displayName: How to install Python packages on your workbench
+  appName: jupyter
+  type: how-to
+  description: |-
+    Install additional python packages into your workbench.
+  url: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/latest/html/working_with_connected_applications/using-basic-workbenches_connected-apps#installing-python-packages-on-your-workbench_connected-apps
+  durationMinutes: 15
+---
+apiVersion: dashboard.opendatahub.io/v1
+kind: OdhDocument
+metadata:
+  name: jupyter-update-server-settings
+  annotations:
+    opendatahub.io/categories: 'Notebook environments,Getting started'
+spec:
+  displayName: How to update workbench settings
+  type: how-to
+  appName: jupyter
+  description: |-
+    Update the settings or the notebook image on your workbench.
+  url: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/latest/html/managing_resources/managing-basic-workbenches_notebook-mgmt
+  durationMinutes: 15
+---
+apiVersion: dashboard.opendatahub.io/v1
+kind: OdhDocument
+metadata:
+  name: jupyter-use-s3-bucket-data
+  annotations:
+    opendatahub.io/categories: 'Data management,Notebook environments'
+spec:
+  displayName: How to use data from an S3-compatible object store
+  appName: jupyter
+  type: how-to
+  description: |-
+    Connect to data in S3 Storage.
+  url: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/latest/html/working_with_data_in_an_s3-compatible_object_store/index
+  durationMinutes: 15
+---
+apiVersion: dashboard.opendatahub.io/v1
+kind: OdhDocument
+metadata:
+  name: jupyter-view-installed-packages
+  annotations:
+    opendatahub.io/categories: 'Package management,Notebook environments,Getting started'
+spec:
+  displayName: How to view installed packages on your workbench
+  appName: jupyter
+  type: how-to
+  description: |-
+    See which packages are installed into your running workbench.
+  url: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/latest/html/working_with_connected_applications/using-basic-workbenches_connected-apps#viewing-python-packages-installed-on-your-workbench_connected-apps
+  durationMinutes: 15

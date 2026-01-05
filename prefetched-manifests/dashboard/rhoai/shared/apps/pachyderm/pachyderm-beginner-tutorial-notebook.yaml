@@ -1,0 +1,73 @@
+apiVersion: console.openshift.io/v1
+kind: OdhQuickStart
+metadata:
+  name: pachyderm-beginner-tutorial-notebook
+  annotations:
+    opendatahub.io/categories: 'Data management,Data preprocessing,Model training,Getting started,Notebook environments'
+spec:
+  displayName: Importing Pachyderm Beginner Tutorial Notebook
+  appName: pachyderm
+  durationMinutes: 30
+  icon: 'images/pachyderm.svg'
+  description: Load Pachyderm's beginner tutorial notebook and learn about Pachyderm's main concepts such as data repositories, pipelines, and using the pachctl CLI from your cells.
+  introduction: |-
+    ### This quick start shows you how to import Pachyderm Tutorial notebook
+
+    Pachyderm provides industry leading data versioning, pipelines, and lineage that allow data science teams
+    to automate and optimize their machine learning operations (MLOps).
+  tasks:
+    - title: Launching Jupyter workbench
+      description: |-
+        ### Important considerations
+        Use the **Standard Data Science** notebook with a **Medium** container size.
+
+      review:
+        instructions: |-
+          #### Launched Jupyter workbench
+          Do you have a workbench browser tab?
+        failedTaskHelp: This task is not verified yet. Try the task again.
+      summary:
+        success: You have a workbench up and running.
+        failed: Review the "Creating a basic workbench" quick start for additional help.
+    - title: Loading Pachyderm beginner tutorial notebook
+      description: |-
+        ### Load the beginner tutorial notebook
+        1. Download the "Intro to Pachyderm Tutorial.ipynb" notebook from our [examples repository](https://github.com/pachyderm/examples/).
+        2. Upload the **Intro to Pachyderm Tutorial.ipynb** notebook file using the JupyterLab file manager.
+        3. Click on the uploaded notebook to launch it in a new JupyterLab tab.
+
+      review:
+        instructions: |-
+          #### Verify that the notebook launched successfully
+          Do you have a notebook tab your Pachyderm notebook in your browser?
+        failedTaskHelp:
+          This task is not verified yet. Try the task again.
+      summary:
+        success: You have loaded Pachyderm beginner tutorial notebook.
+        failed: Try the steps again.
+
+    - title: Configuring your notebook to connect to your cluster
+      description: |-
+        ### Before experimenting, you will need to "connect" your notebook to Pachyderm
+        To connect your notebook to a cluster, follow those steps:
+        ALL COMMANDS AND STEPS REFERENCED BELOW ARE DETAILED IN THE GETTING STARTED SECTION:
+        *OpenShift AI Dashboard* > *Explore* > *Pachyderm*
+        1. Install Pachyderm’s CLI (`pachchtl`) from a top new cell in your notebook.
+        2. In another cell, create a new context for your CLI to connect to your cluster.
+        3. Set the pachctl context to your newly created context.
+        4. Verify that your active context is the new context.
+
+      review:
+        instructions: |-
+          #### Verify that you are connected to your cluster
+          From a notebook cell, run: `!pachctl version`. You should see both pachctl and pachd versions printed.
+        failedTaskHelp:
+          This task is not verified yet. Try the task again.
+      summary:
+        success: You have connected your notebook to Pachyderm's cluster. You are ready to start your beginner tutorial.
+        failed: Try the steps again.
+
+
+  conclusion: You can complete the rest of the quick start inside the notebook itself. Proceed cell by cell, taking care not to skip any. Once you have completed the entire notebook, you will have learned about Pachyderm's main concepts.
+  nextQuickStart: []
+

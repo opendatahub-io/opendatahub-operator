@@ -1,0 +1,245 @@
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: odh-dashboard
+rules:
+  - verbs:
+      - update
+      - patch
+    apiGroups:
+      - storage.k8s.io
+    resources:
+      - storageclasses
+  - verbs:
+      - get
+      - list
+    apiGroups:
+      - ''
+    resources:
+      - nodes
+  - verbs:
+      - get
+      - list
+    apiGroups:
+      - machine.openshift.io
+      - autoscaling.openshift.io
+    resources:
+      - machineautoscalers
+      - machinesets
+  - verbs:
+      - get
+      - watch
+      - list
+    apiGroups:
+      - ''
+      - config.openshift.io
+    resources:
+      - clusterversions
+      - ingresses
+  - verbs:
+      - get
+      - list
+      - watch
+    apiGroups:
+      - operators.coreos.com
+    resources:
+      - clusterserviceversions
+      - subscriptions
+  - apiGroups:
+      - ''
+      - image.openshift.io
+    resources:
+      - imagestreams/layers
+    verbs:
+      - get
+  - apiGroups:
+      - ''
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+    resources:
+      - configmaps
+      - persistentvolumeclaims
+      - secrets
+  - verbs:
+      - get
+      - list
+      - watch
+    apiGroups:
+      - route.openshift.io
+    resources:
+      - routes
+  - verbs:
+      - get
+      - list
+      - watch
+    apiGroups:
+      - console.openshift.io
+    resources:
+      - consolelinks
+  - verbs:
+      - get
+      - list
+      - watch
+    apiGroups:
+      - operator.openshift.io
+    resources:
+      - consoles
+  - verbs:
+      - get
+      - watch
+      - list
+    apiGroups:
+      - ''
+      - integreatly.org
+    resources:
+      - rhmis
+  - verbs:
+      - get
+      - list
+      - watch
+    apiGroups:
+      - user.openshift.io
+    resources:
+      - groups
+  - verbs:
+      - get
+      - list
+      - watch
+    apiGroups:
+      - user.openshift.io
+    resources:
+      - users
+  - verbs:
+      - get
+      - list
+      - watch
+    apiGroups:
+      - ''
+    resources:
+      - pods
+      - serviceaccounts
+      - services
+  - apiGroups:
+      - ''
+    verbs:
+      - patch
+    resources:
+      - namespaces
+  - apiGroups:
+      - rbac.authorization.k8s.io
+      # The rbac.authorization.k8s.io permissions (list, get, create, patch, and delete on rolebindings, clusterrolebindings, and roles) are needed so the dashboard can handle user access and permissions automatically. 
+      # This includes tasks like assigning roles, updating existing bindings, and creating or removing access rules.
+      # Ex. the standalone Jupyter workbench requires the ability to create an image puller role if one doesn't exist.
+    verbs:
+      - list
+      - get
+      - create
+      - patch
+      - delete
+    resources:
+      - rolebindings
+      - clusterrolebindings
+      - roles
+  - apiGroups:
+      - ''
+      - events.k8s.io
+    resources:
+      - events
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - kubeflow.org
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+    resources:
+      - notebooks
+  - apiGroups:
+      - datasciencecluster.opendatahub.io
+    verbs:
+      - list
+      - watch
+      - get
+    resources:
+      - datascienceclusters
+  - apiGroups:
+      - dscinitialization.opendatahub.io
+    verbs:
+      - list
+      - watch
+      - get
+    resources:
+      - dscinitializations
+  - apiGroups:
+      - serving.kserve.io
+    resources:
+      - inferenceservices
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - modelregistry.opendatahub.io
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+    resources:
+      - modelregistries
+  - verbs:
+      - get
+    apiGroups:
+      - ''
+    resources:
+      - endpoints
+  - verbs:
+      - get
+    apiGroups:
+      - 'services.platform.opendatahub.io'
+    resources:
+      - auths
+  - apiGroups:
+      - llamastack.io
+    verbs:
+      - get
+      - list
+      - watch
+    resources:
+      - llamastackdistributions
+  - apiGroups:
+      - feast.dev
+    verbs:
+      - get
+      - list
+      - watch
+    resources:
+      - featurestores
+  - verbs:
+      - create
+    apiGroups:
+      - authentication.k8s.io
+    resources:
+      - tokenreviews
+  - verbs:
+      - create
+    apiGroups:
+      - authorization.k8s.io
+    resources:
+      - subjectaccessreviews

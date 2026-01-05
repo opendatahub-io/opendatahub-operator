@@ -1,0 +1,17 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  annotations:
+    kubernetes.io/tls-acme: 'true'
+    haproxy.router.openshift.io/hsts_header: max-age=31536000;includeSubDomains;preload       
+  name: odh-dashboard
+spec:
+  port:
+    targetPort: dashboard-ui
+  tls:
+    insecureEdgeTerminationPolicy: Redirect
+    termination: reencrypt
+  to:
+    kind: Service
+    name: odh-dashboard
+    weight: 100

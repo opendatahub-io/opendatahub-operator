@@ -1,0 +1,148 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lmeval-tasks
+data:
+  tier1: |
+    [
+      {
+        "task": "gsm8k",
+        "description": "A benchmark of grade school math problems aimed at evaluating reasoning capabilities."
+      },
+      {
+        "task": "rte",
+        "description": ""
+      },
+      {
+        "task": "arc_easy",
+        "description": ""
+      },
+      {
+        "task": "bbh",
+        "description": "Tasks focused on deep semantic understanding through hypothesization and reasoning."
+      },
+      {
+        "task": "hellaswag",
+        "description": "Tasks to predict the ending of stories or scenarios, testing comprehension and creativity."
+      },
+      {
+        "task": "winogrande",
+        "description": "A large-scale dataset for coreference resolution, inspired by the Winograd Schema Challenge."
+      },
+      {
+        "task": "mmlu_anatomy",
+        "description": ""
+      },
+      {
+        "task": "cb",
+        "description": ""
+      },
+      {
+        "task": "openbookqa",
+        "description": "Open-book question answering tasks that require external knowledge and reasoning."
+      },
+      {
+        "task": "commonsense_qa",
+        "description": "CommonsenseQA, a multiple-choice QA dataset for measuring commonsense knowledge."
+      },
+      {
+        "task": "lambada_openai",
+        "description": ""
+      },
+      {
+        "task": "lambada_standard",
+        "description": ""
+      },
+      {
+        "task": "humaneval",
+        "description": "Code generation task that measures functional correctness for synthesizing programs from docstrings."
+      },
+      {
+        "task": "wsc273",
+        "description": "The Winograd Schema Challenge, a test of commonsense reasoning and coreference resolution."
+      },
+      {
+        "task": "mmlu_pro_law",
+        "description": ""
+      },
+      {
+        "task": "gpqa_main_n_shot",
+        "description": ""
+      },
+      {
+        "task": "xnli_tr",
+        "description": ""
+      },
+      {
+        "task": "mbpp",
+        "description": "A benchmark designed to measure the ability to synthesize short Python programs from natural language descriptions."
+      },
+      {
+        "task": "truthfulqa_mc2",
+        "description": ""
+      },
+      {
+        "task": "wikitext",
+        "description": "Tasks based on text from Wikipedia articles to assess language modeling and generation."
+      },
+      {
+        "task": "minerva_math_precalc",
+        "description": ""
+      },
+      {
+        "task": "piqa",
+        "description": "Physical Interaction Question Answering tasks to test physical commonsense reasoning."
+      },
+      {
+        "task": "leaderboard_math_algebra_hard",
+        "description": ""
+      },
+      {
+        "task": "triviaqa",
+        "description": "A large-scale dataset for trivia question answering to test general knowledge."
+      },
+      {
+        "task": "xwinograd_zh",
+        "description": ""
+      },
+      {
+        "task": "social_iqa",
+        "description": ""
+      },
+      {
+        "task": "ifeval",
+        "description": "Interactive fiction evaluation tasks for narrative understanding and reasoning."
+      },
+      {
+        "task": "sciq",
+        "description": "Science Question Answering tasks to assess understanding of scientific concepts."
+      },
+      {
+        "task": "wmdp_bio",
+        "description": ""
+      },
+      {
+        "task": "ceval-valid_law",
+        "description": ""
+      },
+      {
+        "task": "kmmlu_direct_law",
+        "description": ""
+      },
+      {
+        "task": "belebele_ckb_Arab",
+        "description": ""
+      },
+      {
+        "task": "xlsum_es",
+        "description": ""
+      },
+      {
+        "task": "bbh_fewshot_snarks",
+        "description": ""
+      },
+      {
+        "task": "mmlu_pro_plus_law",
+        "description": ""
+      }
+    ]

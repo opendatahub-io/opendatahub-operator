@@ -1,0 +1,79 @@
+---
+kind: ImageStream
+apiVersion: image.openshift.io/v1
+metadata:
+  annotations:
+    opendatahub.io/notebook-image-creator: RHOAI
+    opendatahub.io/notebook-image-url: "https://github.com/red-hat-data-services/notebooks/tree/main/rstudio"
+    opendatahub.io/notebook-image-name: "RStudio | Minimal | CUDA | R 4.5"
+    opendatahub.io/notebook-image-desc: "RStudio Server Workbench image with an integrated development environment for R, a programming language designed for statistical computing and graphics."
+    opendatahub.io/recommended-accelerators: '["nvidia.com/gpu"]'
+  name: cuda-rstudio-rhel9
+spec:
+  lookupPolicy:
+    local: true
+  tags:
+    - name: latest
+      annotations:
+        # language=json
+        opendatahub.io/notebook-software: |
+          [
+            {"name":"CUDA","version":"12.8"},
+            {"name":"R","version":"v4.5"},
+            {"name":"Python","version":"v3.12"}
+          ]
+        # language=json
+        opendatahub.io/notebook-python-dependencies: |
+          [
+            {"name":"rstudio-server","version":"2025.09"}
+          ]
+      referencePolicy:
+        type: Source
+---
+kind: BuildConfig
+apiVersion: build.openshift.io/v1
+metadata:
+  name: cuda-rstudio-server-rhel9
+  labels:
+    app: buildchain
+    component: cuda-rstudio-server-image
+spec:
+  source:
+    type: Git
+    git:
+      uri: "https://github.com/red-hat-data-services/notebooks"
+      ref: rhoai-3.2
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: "rstudio/rhel9-python-3.12/Dockerfile.cuda"
+      buildArgs:
+        - name: BASE_IMAGE
+          value: "registry.redhat.io/rhel9/python-312:latest"
+      noCache: true
+      volumes:
+        - name: secret-mvn
+          source:
+            type: Secret
+            secret:
+              secretName: rhel-subscription-secret
+              defaultMode: 420
+          mounts:
+            - destinationPath: /opt/app-root/src/.sec
+  output:
+    to:
+      kind: ImageStreamTag
+      name: "cuda-rstudio-rhel9:latest"
+  resources:
+    limits:
+      cpu: "1500m"
+      memory: 8Gi
+    requests:
+      cpu: "1500m"
+      memory: 8Gi
+  successfulBuildsHistoryLimit: 2
+  failedBuildsHistoryLimit: 2
+  runPolicy: Serial
+  triggers:
+    - imageChange: {}
+      type: ImageChange

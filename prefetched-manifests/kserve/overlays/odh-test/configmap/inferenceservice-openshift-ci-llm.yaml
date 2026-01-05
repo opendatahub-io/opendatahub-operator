@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inferenceservice-config
+  namespace: opendatahub
+data:
+  ingress: |-
+    {
+        "ingressGateway" : "knative-serving/knative-ingress-gateway",
+        "kserveIngressGateway": "openshift-ingress/openshift-ai-inference",
+        "ingressService" : "istio-ingressgateway.istio-system.svc.cluster.local",
+        "localGateway" : "knative-serving/knative-local-gateway",
+        "localGatewayService" : "knative-local-gateway.istio-system.svc.cluster.local",
+        "ingressDomain"  : "$OPENSHIFT_INGRESS_DOMAIN",
+        "ingressClassName" : "openshift-default",
+        "domainTemplate": "{{ .Name }}-{{ .Namespace }}.{{ .IngressDomain }}",
+        "urlScheme": "http",
+        "disableIstioVirtualHost": false,
+        "disableIngressCreation": true
+    }

@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployment
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: manager
+          env:
+            - name: ADD_FSGROUP
+              valueFrom:
+                configMapKeyRef:
+                  name: config
+                  key: ADD_FSGROUP
+            - name: ENABLE_CULLING
+              valueFrom:
+                configMapKeyRef:
+                  name: notebook-controller-culler-config
+                  key: ENABLE_CULLING
+                  optional: true
+            - name: CULL_IDLE_TIME
+              valueFrom:
+                configMapKeyRef:
+                  name: notebook-controller-culler-config
+                  key: CULL_IDLE_TIME
+                  optional: true
+            - name: IDLENESS_CHECK_PERIOD
+              valueFrom:
+                configMapKeyRef:
+                  name: notebook-controller-culler-config
+                  key: IDLENESS_CHECK_PERIOD
+                  optional: true
+          image: odh-kf-notebook-controller-image_PLACEHOLDER
+          resources:
+            limits:
+              cpu: 500m
+              memory: 4Gi
+            requests:
+              cpu: 500m
+              memory: 256Mi

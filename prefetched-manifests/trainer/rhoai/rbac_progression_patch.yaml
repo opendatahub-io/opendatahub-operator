@@ -1,0 +1,13 @@
+# RHAI-specific: Permissions for progression tracking
+# Allows the controller to list/get pods to read IPs for HTTP metrics polling
+# Note: watch not needed - controller polls during TrainJob reconciliation, not on pod events
+- op: add
+  path: /rules/-
+  value:
+    apiGroups:
+    - ""
+    resources:
+    - pods
+    verbs:
+    - get
+    - list

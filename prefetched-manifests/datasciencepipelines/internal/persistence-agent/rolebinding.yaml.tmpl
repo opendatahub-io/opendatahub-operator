@@ -1,0 +1,16 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{.PersistentAgentDefaultResourceName}}
+  namespace: {{.Namespace}}
+  labels:
+    app: {{.PersistentAgentDefaultResourceName}}
+    component: data-science-pipelines
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{.PersistentAgentDefaultResourceName}}
+subjects:
+  - kind: ServiceAccount
+    namespace: {{.Namespace}}
+    name: {{.PersistentAgentDefaultResourceName}}

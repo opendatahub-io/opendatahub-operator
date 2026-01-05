@@ -1,0 +1,14 @@
+apiVersion: dashboard.opendatahub.io/v1
+kind: OdhDocument
+metadata:
+  name: openvino-ovms-serving
+  annotations:
+    opendatahub.io/categories: 'Model serving,Getting started'
+spec:
+  displayName: How to serve a model using OpenVINO Model Server
+  appName: openvino
+  type: how-to
+  description: |-
+    Learn how to deploy optimized models with the OpenVINO Model Server using OpenVINO custom resources.
+  url: https://github.com/openvinotoolkit/operator
+  durationMinutes: 10

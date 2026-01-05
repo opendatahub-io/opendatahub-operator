@@ -1,0 +1,44 @@
+apiVersion: mlflow.opendatahub.io/v1
+kind: MLflow
+metadata:
+  name: mlflow
+spec:
+  # Minimal configuration with local storage
+  # Suitable for development/testing environments
+
+  # MLflow container image
+  image:
+    image: quay.io/opendatahub/mlflow:master
+    imagePullPolicy: Always
+
+  # Number of replicas
+  replicas: 1
+
+  # Compute resources (minimal for development)
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+  # Local file-based storage with PVC
+  storage:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 5Gi
+
+  backendStoreUri: "sqlite:////mlflow/mlflow.db"
+  registryStoreUri: "sqlite:////mlflow/mlflow.db"
+  artifactsDestination: "file:///mlflow/artifacts"
+
+  # IMPORTANT: serveArtifacts MUST be enabled when using file-based artifact storage
+  serveArtifacts: true
+
+  # Environment variables
+  env:
+    - name: MLFLOW_LOGGING_LEVEL
+      value: DEBUG

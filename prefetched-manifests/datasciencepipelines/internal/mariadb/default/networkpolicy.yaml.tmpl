@@ -1,0 +1,32 @@
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: mariadb-{{.Name}}
+  namespace: {{.Namespace}}
+spec:
+  podSelector:
+    matchLabels:
+      app: mariadb-{{.Name}}
+      component: data-science-pipelines
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 3306
+      from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: data-science-pipelines-operator
+          namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{.DSPONamespace}}
+        - podSelector:
+           matchLabels:
+             app: {{.APIServerDefaultResourceName}}
+             component: data-science-pipelines
+        - podSelector:
+            matchLabels:
+              app: ds-pipeline-metadata-grpc-{{.Name}}
+              component: data-science-pipelines
+
+  policyTypes:
+    - Ingress

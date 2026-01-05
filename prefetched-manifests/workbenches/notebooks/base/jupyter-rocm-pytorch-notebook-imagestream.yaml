@@ -1,0 +1,134 @@
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  labels:
+    opendatahub.io/notebook-image: "true"
+  annotations:
+    opendatahub.io/notebook-image-url: "https://github.com/red-hat-data-services/notebooks/blob/main/jupyter/rocm/pytorch"
+    opendatahub.io/notebook-image-name: "Jupyter | PyTorch | ROCm | Python 3.12"
+    opendatahub.io/notebook-image-desc: "Jupyter ROCm optimized PyTorch notebook image for ODH notebooks."
+    opendatahub.io/notebook-image-order: "12"
+    opendatahub.io/recommended-accelerators: '["amd.com/gpu"]'
+  name: jupyter-rocm-pytorch
+spec:
+  lookupPolicy:
+    local: true
+  tags:
+    # N Version of the image
+    - annotations:
+        # language=json
+        opendatahub.io/notebook-software: |
+          [
+            {"name": "ROCm", "version": "v6.3"},
+            {"name": "Python", "version": "v3.12"},
+            {"name": "ROCm-PyTorch", "version": "2.7"}
+          ]
+        # language=json
+        opendatahub.io/notebook-python-dependencies: |
+          [
+            {"name": "JupyterLab","version": "4.4"},
+            {"name": "ROCm-PyTorch", "version": "2.7"},
+            {"name": "Tensorboard", "version": "2.20"},
+            {"name": "Kafka-Python-ng", "version": "2.2"},
+            {"name": "Matplotlib", "version": "3.10"},
+            {"name": "Numpy", "version": "2.3"},
+            {"name": "Pandas", "version": "2.3"},
+            {"name": "Scikit-learn", "version": "1.7"},
+            {"name": "Scipy", "version": "1.16"},
+            {"name": "Odh-Elyra", "version": "4.3"},
+            {"name": "PyMongo", "version": "4.15"},
+            {"name": "Pyodbc", "version": "5.2"},
+            {"name": "Codeflare-SDK", "version": "0.33"},
+            {"name": "Feast", "version": "0.58"},
+            {"name": "Sklearn-onnx", "version": "1.19"},
+            {"name": "Psycopg", "version": "3.2"},
+            {"name": "MySQL Connector/Python", "version": "9.4"},
+            {"name": "Kubeflow-Training", "version": "1.9"}
+          ]
+        openshift.io/imported-from: quay.io/opendatahub/workbench-images
+        opendatahub.io/workbench-image-recommended: 'true'
+        opendatahub.io/notebook-build-commit: odh-workbench-jupyter-pytorch-rocm-py312-ubi9-commit-n_PLACEHOLDER
+      from:
+        kind: DockerImage
+        name: odh-workbench-jupyter-pytorch-rocm-py312-ubi9-n_PLACEHOLDER
+      name: "2025.2"
+      referencePolicy:
+        type: Source
+    # N - 1 Version of the image
+    - annotations:
+        # language=json
+        opendatahub.io/notebook-software: |
+          [
+            {"name": "ROCm", "version": "v6.2"},
+            {"name": "Python", "version": "v3.11"},
+            {"name": "ROCm-PyTorch", "version": "2.6"}
+          ]
+        # language=json
+        opendatahub.io/notebook-python-dependencies: |
+          [
+            {"name": "JupyterLab","version": "4.4"},
+            {"name": "ROCm-PyTorch", "version": "2.6"},
+            {"name": "Tensorboard", "version": "2.18"},
+            {"name": "Kafka-Python-ng", "version": "2.2"},
+            {"name": "Matplotlib", "version": "3.10"},
+            {"name": "Numpy", "version": "2.2"},
+            {"name": "Pandas", "version": "2.2"},
+            {"name": "Scikit-learn", "version": "1.6"},
+            {"name": "Scipy", "version": "1.15"},
+            {"name": "Odh-Elyra", "version": "4.2"},
+            {"name": "PyMongo", "version": "4.11"},
+            {"name": "Pyodbc", "version": "5.2"},
+            {"name": "Codeflare-SDK", "version": "0.30"},
+            {"name": "Sklearn-onnx", "version": "1.18"},
+            {"name": "Psycopg", "version": "3.2"},
+            {"name": "MySQL Connector/Python", "version": "9.3"},
+            {"name": "Kubeflow-Training", "version": "1.9"}
+          ]
+        openshift.io/imported-from: quay.io/modh/rocm-notebooks
+        opendatahub.io/workbench-image-recommended: 'false'
+        opendatahub.io/notebook-build-commit: odh-workbench-jupyter-pytorch-rocm-py311-ubi9-commit-n-1_PLACEHOLDER
+      from:
+        kind: DockerImage
+        name: odh-workbench-jupyter-pytorch-rocm-py311-ubi9-n-1_PLACEHOLDER
+      name: "2025.1"
+      referencePolicy:
+        type: Source
+    # N - 2 Version of the image
+    - annotations:
+        # language=json
+        opendatahub.io/notebook-software: |
+          [
+            {"name": "Python", "version": "v3.11"},
+            {"name": "ROCm-PyTorch", "version": "2.4"}
+          ]
+        # language=json
+        opendatahub.io/notebook-python-dependencies: |
+          [
+            {"name": "JupyterLab","version": "4.2"},
+            {"name": "ROCm-PyTorch", "version": "2.4"},
+            {"name": "Tensorboard", "version": "2.16"},
+            {"name": "Kafka-Python-ng", "version": "2.2"},
+            {"name": "Matplotlib", "version": "3.9"},
+            {"name": "Numpy", "version": "2.1"},
+            {"name": "Pandas", "version": "2.2"},
+            {"name": "Scikit-learn", "version": "1.5"},
+            {"name": "Scipy", "version": "1.14"},
+            {"name": "Odh-Elyra", "version": "4.2"},
+            {"name": "PyMongo", "version": "4.8"},
+            {"name": "Pyodbc", "version": "5.1"},
+            {"name": "Codeflare-SDK", "version": "0.26"},
+            {"name": "Sklearn-onnx", "version": "1.17"},
+            {"name": "Psycopg", "version": "3.2"},
+            {"name": "MySQL Connector/Python", "version": "9.0"},
+            {"name": "Kubeflow-Training", "version": "1.8"}
+          ]
+        openshift.io/imported-from: quay.io/modh/rocm-notebooks
+        opendatahub.io/image-tag-outdated: "true"
+        opendatahub.io/notebook-build-commit: odh-workbench-jupyter-pytorch-rocm-py311-ubi9-commit-n-2_PLACEHOLDER
+      from:
+        kind: DockerImage
+        name: odh-workbench-jupyter-pytorch-rocm-py311-ubi9-n-2_PLACEHOLDER
+      name: "2024.2"
+      referencePolicy:
+        type: Source

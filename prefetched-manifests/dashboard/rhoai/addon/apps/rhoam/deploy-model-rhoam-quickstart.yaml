@@ -1,0 +1,227 @@
+apiVersion: console.openshift.io/v1
+kind: OdhQuickStart
+metadata:
+  name: deploy-model-rhoam
+  annotations:
+    opendatahub.io/categories: 'Getting started,Model serving'
+spec:
+  displayName: Securing a deployed model using Red Hat OpenShift API Management
+  appName: rhoam
+  durationMinutes: 10
+  icon: 'images/red-hat.svg'
+  description: Protect a model service API using Red Hat OpenShift API Management. 
+  prerequisites: [You have completed the "How to deploy a Python model using Flask and OpenShift" quick start.]
+  introduction: >-
+    Red Hat OpenShift API Management installs and manages instances of Red Hat 3scale API Management and Red Hat Single Sign-On on an OpenShift cluster.
+
+
+    In this quick start, you will import a deployed Python model service into Red Hat 3scale API Management using Service Discovery and protect it using API Key security.
+  tasks:
+    - title: Annotate your Python Model API for Service Discovery
+      description: >-
+        Service Discovery is a 3scale feature that helps you import services from an OpenShift cluster. The Red Hat 3scale API Management instance provided by Red Hat OpenShift API Management has the [Service Discovery](https://docs.redhat.com/en/documentation/red_hat_3scale_api_management/2.14/html/admin_portal_guide/service_discovery_from_openshift_to_3scale_api_management) feature enabled and pre-configured.
+
+
+        When Service Discovery is configured, 3scale scans for discoverable API services that are running in the same OpenShift cluster and automatically imports the associated API definitions into 3scale. Additionally, 3scale can update the API integration and its specification, based on OpenAPI Specification (OAS), to resynchronize them with the cluster.
+
+
+        You must add annotations and a label to make your Python application available for Service Discovery:
+
+        1. Navigate to the **Topology** view.
+
+        1. Click the Python s2i model deployment that you created in the quickstart "How to deploy a Python model using Flask and OpenShift". The deployment overview panel appears on the right.
+
+        1. In the deployment overview panel, click the **Resources** tab.
+
+        1. Click the link under the **Services** heading to load the **Service Details** screen.
+
+        1. Use the **Edit** link next to the **Labels** heading to add a label with the key `discovery.3scale.net` and the value `true`.
+
+        1. Scroll down and click the **Annotations** to open the **Edit annotations** dialog for the Service.
+
+        1. Use the **Add more** button to add the following key-value pairs:
+            * Key: `discovery.3scale.net/port` with value: `8080`
+            * Key: `discovery.3scale.net/scheme` with value: `http`
+
+        1. Click **Save** after you've added the three annotations.
+
+      review:
+        instructions: |-
+          Are the new annotations and label listed under their respective headings on the **Service details** screen?
+        failedTaskHelp: This task isn’t verified yet. Try the task again.
+      summary:
+        success: >-
+          You have completed this task!
+        failed: Try the steps again.
+    - title: Import the API into 3scale API Management
+      description: >-
+        You are now ready to import the API into 3scale API Management using the Service Discovery feature.
+
+        ## Accessing the API Management Dashboard
+
+        1. From the OpenShift AI Dashboard, under **Enabled** applications, locate the tile for "**OpenShift API Management**.
+
+        1. Click **Launch**.
+
+        1. Log in using the identity provider that applies to you.
+
+        1. A welcome message is displayed if this is your first time logging in to 3scale API Management. Dismiss, or read through the welcome message page(s).
+
+
+        You are now at the Red Hat 3scale API Management dashboard.
+
+        ## Importing your API
+
+        Your API in 3scale is referred to as a **Product**.
+
+
+        Products can have one or many **Backends**.
+
+
+        A Backend is a web service that 3scale API Management proxies requests to, based on mapping rules defined in the Product.
+
+
+        1. Click **Create Product** under the **APIs** heading on the dashboard. The **New Product** screen is displayed.
+
+        1. Select the **Import from OpenShift** option. If this option is greyed out, click the **(Authenticate to enable this option)** link to enable it.
+
+        1. After selecting the **Import from OpenShift** option, use the drop-down fields to select:
+            * The **Namespace** that contains your Python application.
+            * The **Python** application.
+        1. Click **Create Product**.
+
+        You are redirected to the 3scale API Management dashboard, which lists your new API. If your Python API is not listed in the APIs section after a few moments, try refreshing the page.
+
+        ## Verify the API Product and Backend
+
+        You can inspect the **Product** and **Backend** by following these steps:
+
+        1. Select your **s2i-python-app** from the **Products** list to visit the **Overview** screen.
+
+        1. Expand the drop-down menu in the top navigation and select **Backends**.
+
+        1. Verify that your python application Backend is listed, and that a private Service URL is listed, for example, `http://s2i-python-service.my-project.svc.cluster.local:8080`. 3scale API Management proxies incoming requests to this private Service URL.
+
+      review:
+        instructions: |-
+          Are the API Product and Backend listed in the 3scale API Management dashboard?
+        failedTaskHelp: This task isn’t verified yet. Try the task again.
+      summary:
+        success: >-
+          You have completed this task!
+        failed: Try the steps again.
+    - title: Enable API Key Security
+      description: >-
+        3scale routes API requests through proxies known as **APIcast** instances.
+
+        The APIcast instances enforce API security rules and policies. API Key security is the default setting for imported APIs.
+
+
+        Now that your API is imported into 3scale API Management, you need an API Key to make authenticated requests against it.
+
+
+        ## Obtain the APIcast URL
+
+        1. Navigate to your 3scale API Management tenant.
+
+        1. Log in using the identity provider that applies to you.
+
+        1. Select your **s2i-python-app** from the **Products** list.
+
+        1. Navigate to **Integration** -> **Configuration**. Your API is already available through the Staging APIcast, but the `user_key` parameter is set to a placeholder value, for example, **Example curl for testing** shows something similar to `https://my-project-s2i-python-service-openapi-3scale-api.cluster.com/?user_key=USER_KEY`
+
+        If you copy the URL and visit it in a browser, a message indicating authentication has failed is displayed. A failed authentication results when the API Key placeholder value (`USER_KEY`) is not valid.
+
+
+        To obtain an API Key you need to create an **Application Plan** and subscribe an **Application** to that plan.
+
+
+        ## Create an Application Plan
+
+        1. Select your **s2i-python-app** from the **Products** list.
+
+        1. Navigate to **Applications** -> **Application plans**.
+
+        1. Click **Create Application Plan**.
+
+        1. Enter following values:
+            * In the **Name** field, enter `RHOAM Open API Plan`.
+            * In the **System name** field, enter `rhoam-openapi-plan`.
+            * Uncheck the **Applications require approval** box.
+        1. Click **Create Application Plan**. You are redirected to the **Application Plans** listing.
+
+        1. Click the **Publish** link to publish the plan.
+
+
+        ## Create an Application
+
+        Next, create an **Application** that is registered to a developer account:
+
+        1. Expand the drop-down menu in the top navigation of 3scale API Management and select **Audience**.
+
+        1. Under **Account**, click the **Developer** account.
+
+        1. From the **Developer** account page select the **Applications** link at the top.
+
+        1. Click the **Create Application** link.
+
+        1. Use the following details to create the application:
+          1. Set **Application Plan** to `RHOAM Open API Plan`.
+          1. Use the default value for the **Service Plan**.
+          1. In the **Name** and **Desciption** fields, enter `Developer RHOAM Application`.
+        1. Click **Create Application**.
+
+        1. You are redirected to the **Developer RHOAM Application** page, and your **User Key** is now listed under **API Credentials**.
+
+      review:
+        instructions: |-
+          Is the User Key listed on the **Developer RHOAM Application** page?
+        failedTaskHelp: This task isn’t verified yet. Try the task again.
+      summary:
+        success: >-
+          You have completed this task!
+        failed: Try the steps again.
+    - title: Call the API using your API Key
+      description: >-
+        Now that you have a valid API Key you are ready to make authenticated requests against your API.
+
+        1. Select your **s2i-python-app** from the **Products** list on the 3scale API Management dashboard.
+
+        1. Navigate to **Integration** -> **Configuration**.
+
+        1. Copy the Staging URL, for example, `https://user-dev-rhoam-quarkus-openapi-3scale-api.cluster.com/?user_key=<API_KEY_GOES_HERE>` and replace `<API_KEY_GOES_HERE>` with your API Key value.
+
+        1. Visit the API status endpoint by adding `/status` to the path, before the `/?user_key` portion of the URL. Use the following as an example formatting: https://user-dev-rhoam-quarkus-openapi-3scale-api.cluster.com/status/?user_key=<API_KEY_GOES_HERE>. The response from your API endpoint is `{"status":"ok"}`.
+
+
+        ## Delete the Unprotected Route
+
+        You visited a URL exposed directly by a Route in your OpenShift project in the first section of this guide.
+
+        This endpoint was useful for testing, but is unprotected. You can remove this public Route:
+
+        1. Click the **s2i-python-app** deployment in the [Topology View]{{highlight qs-nav-topology}}.
+
+        1. Select the **Resources** tab in the panel that appeared.
+
+        1. Click the **s2i-python-app** item under the **Routes** heading.
+
+        1. Expand the **Actions** drop-down menu and click **Delete Route**.
+
+
+        Congratulations! The only endpoint available to access your API now enforces API Key security.
+
+      review:
+        instructions: |-
+          Were you able to access the API using your API Key?
+        failedTaskHelp: This task isn’t verified yet. Try the task again.
+      summary:
+        success: >-
+          You have completed this task!
+        failed: Try the steps again.
+  conclusion: >-
+    Congratulations!
+
+
+    You have successfully completed the **Securing a deployed model using Red Hat OpenShift API Management** quick start,
+    and are now ready to use the service.

@@ -1,0 +1,76 @@
+---
+kind: ImageStream
+apiVersion: image.openshift.io/v1
+metadata:
+  annotations:
+    opendatahub.io/notebook-image-creator: RHOAI
+    opendatahub.io/notebook-image-url: "https://github.com/red-hat-data-services/notebooks/tree/main/rstudio"
+    opendatahub.io/notebook-image-name: "RStudio | Minimal | CPU | R 4.5"
+    opendatahub.io/notebook-image-desc: "RStudio Server Workbench image with an integrated development environment for R, a programming language designed for statistical computing and graphics."
+  name: rstudio-rhel9
+spec:
+  lookupPolicy:
+    local: true
+  tags:
+    - name: latest
+      annotations:
+        # language=json
+        opendatahub.io/notebook-software: |
+          [
+            {"name":"R","version":"v4.5"},
+            {"name":"Python","version":"v3.12"}
+          ]
+        # language=json
+        opendatahub.io/notebook-python-dependencies: |
+          [
+            {"name":"rstudio-server","version":"2025.09"}
+          ]
+      referencePolicy:
+        type: Source
+---
+kind: BuildConfig
+apiVersion: build.openshift.io/v1
+metadata:
+  name: rstudio-server-rhel9
+  labels:
+    component: rstudio-server-rhel9-image
+spec:
+  source:
+    type: Git
+    git:
+      uri: "https://github.com/red-hat-data-services/notebooks"
+      ref: rhoai-3.2
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: "rstudio/rhel9-python-3.12/Dockerfile.cpu"
+      buildArgs:
+        - name: BASE_IMAGE
+          value: "registry.redhat.io/rhel9/python-312:latest"
+      volumes:
+        - name: secret-mvn
+          source:
+            type: Secret
+            secret:
+              secretName: rhel-subscription-secret
+              defaultMode: 420
+          mounts:
+            - destinationPath: /opt/app-root/src/.sec
+      noCache: true
+  output:
+    to:
+      kind: ImageStreamTag
+      name: "rstudio-rhel9:latest"
+  runPolicy: Serial
+  resources:
+    limits:
+      cpu: "1"
+      memory: 2Gi
+    requests:
+      cpu: "1"
+      memory: 2Gi
+  successfulBuildsHistoryLimit: 2
+  failedBuildsHistoryLimit: 2
+  triggers:
+    - imageChange: {}
+      type: ImageChange

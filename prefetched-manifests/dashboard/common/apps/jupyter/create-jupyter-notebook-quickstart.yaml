@@ -1,0 +1,55 @@
+apiVersion: console.openshift.io/v1
+kind: OdhQuickStart
+metadata:
+  name: create-jupyter-notebook
+  annotations:
+    opendatahub.io/categories: 'Getting started,Notebook environments'
+spec:
+  displayName: Creating a basic workbench
+  appName: jupyter
+  durationMinutes: 10
+  icon: 'images/jupyter.svg'
+  description: This quick start walks you through creating a basic workbench.
+  introduction: |-
+    ### This quick start shows you how to create a basic workbench.
+    Open Data Hub lets you run Jupyter notebooks in a scalable OpenShift hybrid cloud environment.
+
+    The Jupyter spawner supports your Data Scientist explorations and model deployments.
+
+    We just know you will absolutely love this amazing environment.  This quick start gets you working in a workbench in just a few minutes.
+  tasks:
+    - title: Create a basic workbench
+      description: |-
+        ### Prerequisites
+        - You have logged in to Open Data Hub.
+        - You know the names and values that you want to use for environment variables in your workbench environment, for example, `AWS_SECRET_ACCESS_KEY`.
+        - If you want to work with a very large data set, work with your administrator to proactively increase the storage capacity of your workbench.
+        ### Launch a workbench
+        1. On the **Enabled applications** page, locate the **Start basic workbench** card.
+        2. Click **Open application**.
+           a) If prompted, select your identity provider.
+           b) Enter your credentials and click **Log in** (or equivalent for your identity provider).
+           c) If you see an **Access permission needed** message, you are not in the default user group or the default administrator group for Open Data Hub. Contact your administrator so that they can add you to the correct group.
+        3. If you have previously launched Jupyter, skip to Step 4.
+           If you have not launched Jupyter previously, start a workbench.
+           a) Select the **Workbench image** to use for your workbench.
+           b) If the notebook image contains multiple versions, select the version of the notebook image from the **Versions** section.
+           c) Select the **Container size** for your workbench.
+        4. (Optional) Select the **Number of Accelerators** for your workbench.
+        5. (Optional) Select and specify values for any new **Environment variables**.
+           The interface stores these variables so that you need to enter them only once. Example variable names for common environment variables are automatically provided for frequently integrated environments and frameworks, such as Amazon Web Services (AWS).
+        6. Click **Start workbench**.
+           The **Starting workbench** progress indicator appears.
+        7. (Optional) Click **Expand event log** to view additional information on the workbench creation process.
+           Depending on the deployment size and resources you requested, starting the workbench can take up to several minutes. After the workbench starts, the JupyterLab interface opens.
+      review:
+        instructions: |-
+          #### Verify that your workbench launched:
+          Does an untitled Jupyter notebook open in JupyterLab?
+        failedTaskHelp:
+          This task is not verified yet. Try the task again.
+      summary:
+        success: You have created a basic workbench!
+        failed: Try the steps again.
+  conclusion: Now you can launch basic workbenches and write Python code.  If you want to learn how to deploy a model written in Python, take the next quick start.
+  nextQuickStart: [deploy-python-model]

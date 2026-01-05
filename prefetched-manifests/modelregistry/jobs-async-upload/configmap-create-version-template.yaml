@@ -1,0 +1,114 @@
+# OpenShift Template for generating ConfigMap metadata for create_version intent
+# This ConfigMap contains metadata for ModelVersion and ModelArtifact only
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: configmap-create-version-template
+  annotations:
+    description: "Template to generate ConfigMap with metadata for create_version upload intent"
+parameters:
+  # ConfigMap metadata
+  - name: CONFIGMAP_NAME
+    description: Name of the ConfigMap to create
+    required: false
+    value: "model-metadata"
+
+  # ModelVersion parameters
+  - name: MODEL_VERSION_NAME
+    description: Name/version of the ModelVersion
+    required: true
+  - name: MODEL_VERSION_DESCRIPTION
+    description: Description of the ModelVersion
+    required: false
+    value: ""
+  - name: MODEL_VERSION_AUTHOR
+    description: Author of the ModelVersion
+    required: false
+    value: ""
+  - name: MODEL_VERSION_CUSTOM_PROPERTIES
+    description: Custom properties for ModelVersion (JSON format)
+    required: false
+    value: "{}"
+
+  # ModelArtifact parameters
+  - name: MODEL_ARTIFACT_NAME
+    description: Name of the ModelArtifact
+    required: false
+  - name: MODEL_ARTIFACT_FORMAT_NAME
+    description: Model format name (e.g., tensorflow, pytorch, onnx)
+    required: false
+    value: ""
+  - name: MODEL_ARTIFACT_FORMAT_VERSION
+    description: Model format version
+    required: false
+    value: ""
+  - name: MODEL_ARTIFACT_STORAGE_KEY
+    description: Storage key for the model artifact
+    required: false
+    value: ""
+  - name: MODEL_ARTIFACT_STORAGE_PATH
+    description: Storage path for the model artifact
+    required: false
+    value: ""
+  - name: MODEL_ARTIFACT_SERVICE_ACCOUNT_NAME
+    description: Service account name for the model artifact
+    required: false
+    value: ""
+  - name: MODEL_ARTIFACT_SOURCE_KIND
+    description: Model source kind (e.g., HuggingFace, GitHub)
+    required: false
+    value: ""
+  - name: MODEL_ARTIFACT_SOURCE_CLASS
+    description: Model source class
+    required: false
+    value: ""
+  - name: MODEL_ARTIFACT_SOURCE_GROUP
+    description: Model source group
+    required: false
+    value: ""
+  - name: MODEL_ARTIFACT_SOURCE_ID
+    description: Model source ID
+    required: false
+    value: ""
+  - name: MODEL_ARTIFACT_SOURCE_NAME
+    description: Model source name
+    required: false
+    value: ""
+  - name: MODEL_ARTIFACT_CUSTOM_PROPERTIES
+    description: Custom properties for ModelArtifact (JSON format)
+    required: false
+    value: "{}"
+
+objects:
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: ${CONFIGMAP_NAME}
+      labels:
+        app.kubernetes.io/name: model-registry-configmap
+        app.kubernetes.io/component: metadata
+        app.kubernetes.io/part-of: model-registry
+        modelregistry.kubeflow.org/intent-type: create_version
+    data:
+      # ModelVersion metadata
+      ModelVersion.name: "${MODEL_VERSION_NAME}"
+      ModelVersion.description: |
+        ${MODEL_VERSION_DESCRIPTION}
+      ModelVersion.author: "${MODEL_VERSION_AUTHOR}"
+      ModelVersion.custom_properties: |
+        ${MODEL_VERSION_CUSTOM_PROPERTIES}
+
+      # ModelArtifact metadata
+      ModelArtifact.name: "${MODEL_ARTIFACT_NAME}"
+      ModelArtifact.model_format_name: "${MODEL_ARTIFACT_FORMAT_NAME}"
+      ModelArtifact.model_format_version: "${MODEL_ARTIFACT_FORMAT_VERSION}"
+      ModelArtifact.storage_key: "${MODEL_ARTIFACT_STORAGE_KEY}"
+      ModelArtifact.storage_path: "${MODEL_ARTIFACT_STORAGE_PATH}"
+      ModelArtifact.service_account_name: "${MODEL_ARTIFACT_SERVICE_ACCOUNT_NAME}"
+      ModelArtifact.model_source_kind: "${MODEL_ARTIFACT_SOURCE_KIND}"
+      ModelArtifact.model_source_class: "${MODEL_ARTIFACT_SOURCE_CLASS}"
+      ModelArtifact.model_source_group: "${MODEL_ARTIFACT_SOURCE_GROUP}"
+      ModelArtifact.model_source_id: "${MODEL_ARTIFACT_SOURCE_ID}"
+      ModelArtifact.model_source_name: "${MODEL_ARTIFACT_SOURCE_NAME}"
+      ModelArtifact.custom_properties: |
+        ${MODEL_ARTIFACT_CUSTOM_PROPERTIES}

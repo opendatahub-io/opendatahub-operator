@@ -1,0 +1,53 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+commonLabels:
+  app: odh-dashboard
+  app.kubernetes.io/part-of: odh-dashboard
+resources:
+  - ../common
+  - ../modular-architecture
+  - ../core-bases/consolelink
+  - ./apps
+configMapGenerator:
+  - name: odh-dashboard-params
+    env: params.env
+generatorOptions:
+  disableNameSuffixHash: true
+vars:
+  - name: odh-dashboard-image
+    objref:
+      kind: ConfigMap
+      name: odh-dashboard-params
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.odh-dashboard-image
+  - name: kube-rbac-proxy
+    objref:
+      kind: ConfigMap
+      name: odh-dashboard-params
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.kube-rbac-proxy
+  - name: section-title
+    objref:
+      kind: ConfigMap
+      name: odh-dashboard-params
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.section-title
+  - name: dashboard-url
+    objref:
+      kind: ConfigMap
+      name: odh-dashboard-params
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.dashboard-url
+  - name: gateway-name
+    objref:
+      kind: ConfigMap
+      name: odh-dashboard-params
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.gateway-name
+configurations:
+  - params.yaml

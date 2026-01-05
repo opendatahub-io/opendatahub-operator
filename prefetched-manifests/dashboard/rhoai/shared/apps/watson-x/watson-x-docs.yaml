@@ -1,0 +1,15 @@
+apiVersion: dashboard.opendatahub.io/v1
+kind: OdhDocument
+metadata:
+  name: watson-x-use-case
+  annotations:
+    opendatahub.io/categories: 'Data preprocessing, Data visualization, Model development'
+spec:
+  appName: watson-x-ai
+  type: how-to
+  displayName: IBM watsonx.ai use case
+  description: |-
+    Enable your enterprise to develop and deploy machine learning models and generative AI solutions.
+  url: https://ibm.biz/wxai-use-case
+  durationMinutes: 45
+---
