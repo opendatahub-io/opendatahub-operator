@@ -20,6 +20,7 @@ import (
 	"context"
 	"embed"
 	"fmt"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -356,6 +357,21 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	}
 	// Template needs the inverse: insecure-skip-verify is the opposite of verify
 	templateData["InsecureSkipVerify"] = !verifyProviderCert
+
+	// Add K8s service account token validation settings (default to enabled)
+	enableK8sTokenValidation := true
+	if gatewayConfig.Spec.EnableK8sTokenValidation != nil {
+		enableK8sTokenValidation = *gatewayConfig.Spec.EnableK8sTokenValidation
+	}
+	templateData["EnableK8sTokenValidation"] = enableK8sTokenValidation
+
+	// Add K8s token audiences (default to "kube-auth-proxy" if not specified)
+	kubernetesAudiences := gatewayConfig.Spec.KubernetesAudiences
+	if len(kubernetesAudiences) == 0 {
+		kubernetesAudiences = []string{"kube-auth-proxy"}
+	}
+	// Join audiences with commas for the command-line flag
+	templateData["KubernetesAudiencesJoined"] = strings.Join(kubernetesAudiences, ",")
 
 	return templateData, nil
 }
