@@ -154,4 +154,4 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MLFLOW_IMAGE
   value: quay.io/rhoai/odh-mlflow-rhel9@sha256:661c3fd90c1bd39995e90a03b4975366501a932a09d3307471cdd63169d52c01
 - name: RELATED_IMAGE_ODH_MLFLOW_OPERATOR_IMAGE
-  value: quay.io/rhoai/odh-mlflow-operator-rhel9@sha256:0db7671228500ece583f842ab51dd3b8dce9d4c8183c6acf33aeaf24c0f986b0
+  value: quay.io/rhoai/odh-mlflow-operator-rhel9@sha256:5f4f85f2a3a53e162b6ec988295fe5e644d2d743f08d345da9b78b7e80301ae8
