@@ -11,3 +11,21 @@
     verbs:
     - get
     - list
+# RHAI-specific: Permissions for NetworkPolicy management
+# Required to create/update NetworkPolicies that restrict metrics endpoint access
+# to controller pods only (security hardening for progression tracking)
+# Note: list/watch needed for controller-runtime cache, delete not needed (OwnerReference cleanup)
+- op: add
+  path: /rules/-
+  value:
+    apiGroups:
+    - networking.k8s.io
+    resources:
+    - networkpolicies
+    verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - patch

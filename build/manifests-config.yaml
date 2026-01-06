@@ -69,7 +69,7 @@ map:
     src: manifests
     dest: trainer
     git.url: https://github.com/red-hat-data-services/trainer
-    git.commit: c96ab72ee685e4962025337c9b81af6a59fcc4f5
+    git.commit: 604d1a213694500466688daaab4cfae932c1d5a6
   odh-mlflow-operator:
     src: config
     dest: mlflowoperator
@@ -207,7 +207,7 @@ additional_meta:
     git.commit: d11697f9a8f31591a13724a7106298778691a04d
   odh-llama-stack-core:
     git.url: https://github.com/red-hat-data-services/llama-stack-distribution
-    git.commit: af3ecd426eb4b240b62a2d9a6c7550f206aad7c1
+    git.commit: 05420a751c2b144b7b1ac964c4c6391e1042cf35
   odh-workbench-jupyter-pytorch-llmcompressor-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: f9a598cf8d0a86b9d45b65114c3ac1d487faa49f
@@ -219,7 +219,7 @@ additional_meta:
     git.commit: 13fe16b47ae8befc455af46b6e823d157ece434d
   odh-mod-arch-gen-ai:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 236cc6aa961d60770593a9485786dcf0388a5d83
+    git.commit: 61981fcef316b61669d553714e7a983557e5f7a8
   odh-kube-auth-proxy:
     git.url: https://github.com/red-hat-data-services/kube-auth-proxy
     git.commit: 8fed23e9932e951e8dc9806c4e549c8f715100e2
