@@ -51,6 +51,8 @@ type KserveCommonSpec struct {
 	RawDeploymentServiceConfig RawServiceConfig `json:"rawDeploymentServiceConfig,omitempty"`
 	// Configures and enables NVIDIA NIM integration
 	NIM NimSpec `json:"nim,omitempty"`
+	// Configures and enables Models as a Service integration
+	ModelsAsService DSCModelsAsServiceSpec `json:"modelsAsService,omitempty"`
 }
 
 // nimSpec enables NVIDIA NIM integration

@@ -97,7 +97,7 @@ func cleanupKueueTestResources(t *testing.T, tc *TestContext) {
 
 		// For CRD-dependent resources, skip finalizer removal to avoid fetching non-existent resources
 		removeFinalizersOnDelete := true
-		if resource.gvk.Kind == gvk.KueueConfigV1.Kind || resource.gvk.Kind == gvk.ClusterQueue.Kind {
+		if resource.gvk.Kind == gvk.ClusterQueue.Kind || resource.gvk.Kind == gvk.KueueConfigV1.Kind {
 			removeFinalizersOnDelete = false
 		}
 
