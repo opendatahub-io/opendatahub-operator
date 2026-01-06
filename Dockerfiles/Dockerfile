@@ -7,14 +7,18 @@ ARG TARGETPLATFORM
 ################################################################################
 FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi9/toolbox as manifests
 ARG USE_LOCAL=false
+ARG MANIFESTS_MODE=CI
 ARG OVERWRITE_MANIFESTS=""
 USER root
 WORKDIR /
 COPY opt/manifests/ /opt/manifests/
 COPY get_all_manifests.sh get_all_manifests.sh
-RUN if [ "${USE_LOCAL}" != "true" ]; then \
+RUN if [ "${MANIFESTS_MODE}" == "RELEASE" ]; then \
         rm -rf /opt/manifests/*; \
         ./get_all_manifests.sh ${OVERWRITE_MANIFESTS}; \
+    elif [ "${MANIFESTS_MODE}" == "CI" ]; then \
+        ls -la /cachi2/prefetched-manifests; \
+        cp -r /cachi2/prefetched-manifests/* /opt/manifests/; \
     fi
 
 # Clean up unwanted directories and files from manifests
