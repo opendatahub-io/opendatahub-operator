@@ -141,7 +141,7 @@ additional_meta:
     git.commit: 361899a27834e3847427c5fe1268b6964c2ca023
   odh-built-in-detector:
     git.url: https://github.com/red-hat-data-services/guardrails-detectors
-    git.commit: d78ba1d9f272c7556d451a7631333e8c418b0c10
+    git.commit: 50fb763f8c00520550bcf0527499d145edf61ff2
   odh-pipeline-runtime-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: abdda6172ce81469ea02d0b9f1c10abc2b40b1e0
@@ -225,7 +225,7 @@ additional_meta:
     git.commit: 8fed23e9932e951e8dc9806c4e549c8f715100e2
   odh-maas-api:
     git.url: https://github.com/red-hat-data-services/maas-billing
-    git.commit: 2859788a7910f82975d1b5d675599cbd56f4a447
+    git.commit: 54c8397ea927ce0e8d9fdfbe72658b8bbc16b9a6
   odh-model-performance-data:
     git.url: https://github.com/red-hat-data-services/models-perf-benchmark-data
     git.commit: 1bc7e71739761d67b5d6400c94a0e332aca86444
