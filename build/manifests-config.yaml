@@ -2,6 +2,7 @@ map:
   notebooks:
     src: manifests
     dest: workbenches/notebooks
+    git.url: https://github.com/opendatahub-io/notebooks
     ref_type: branch
     branch: stable
   odh-kserve-controller:
