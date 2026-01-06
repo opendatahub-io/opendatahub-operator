@@ -260,6 +260,12 @@ spec:
         - $(params.build-args[*])
       - name: BUILD_ARGS_FILE
         value: $(params.build-args-file)
+      - name: LABELS
+        value:
+        - url=$(params.git-url)
+        - release=$(tasks.clone-repository.results.commit-timestamp)
+        - git.url=$(params.git-url)
+        - git.commit=$(params.revision)
       - name: PRIVILEGED_NESTED
         value: $(params.privileged-nested)
       - name: SOURCE_URL
