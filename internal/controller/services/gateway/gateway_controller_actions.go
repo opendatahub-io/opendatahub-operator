@@ -109,6 +109,15 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 
 	l.V(1).Info("creating auth proxy for gateway", "gateway", gatewayConfig.Name)
 
+	// Set default kubernetesAudiences if not specified - makes it visible to users
+	if len(gatewayConfig.Spec.KubernetesAudiences) == 0 {
+		gatewayConfig.Spec.KubernetesAudiences = []string{"kube-auth-proxy"}
+		if err := rr.Client.Update(ctx, gatewayConfig); err != nil {
+			return fmt.Errorf("failed to set default kubernetesAudiences: %w", err)
+		}
+		l.V(1).Info("set default kubernetesAudiences", "audiences", gatewayConfig.Spec.KubernetesAudiences)
+	}
+
 	authMode, err := cluster.GetClusterAuthenticationMode(ctx, rr.Client)
 	if err != nil {
 		return fmt.Errorf("failed to detect cluster authentication mode: %w", err)
@@ -200,6 +209,10 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		{
 			FS:   gatewayResources,
 			Path: kubeAuthProxyHPATemplate,
+		},
+		{
+			FS:   gatewayResources,
+			Path: kubeAuthProxyClusterRoleBindingTemplate,
 		},
 		{
 			FS:   gatewayResources,
