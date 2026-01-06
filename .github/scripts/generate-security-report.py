@@ -25,11 +25,14 @@ import os
 import sys
 import argparse
 import re
+import hashlib
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
 
+# Report Format Version: 1.0
+# Breaking changes require updating .github/workflows/security-full-scan.yml badge parsing
 class SecurityReportGenerator:
     def __init__(self, workspace: str, github_context: Dict[str, str]):
         self.workspace = Path(workspace)
@@ -55,23 +58,50 @@ class SecurityReportGenerator:
             with open(filepath) as f:
                 data = json.load(f)
                 if data:
-                    stats['findings'] = len(data)
-                    stats['status'] = '❌ FINDINGS'
+                    # Deduplicate findings by file:line:rule combination
+                    seen = set()
+                    unique_findings = []
 
                     for finding in data:
-                        self.findings['critical'].append({
-                            'tool': 'Gitleaks',
-                            'type': 'Hardcoded Secret',
-                            'severity': 'CRITICAL',
-                            'file': finding.get('File', 'unknown'),
-                            'line': finding.get('StartLine', '?'),
-                            'rule': finding.get('RuleID', 'unknown'),
-                            'description': finding.get(
-                                'Description',
-                                'Secret detected; see Gitleaks JSON artifact for details (value redacted)'
-                            ),
-                            'remediation': 'Remove secret from code, rotate credential, use secret manager'
-                        })
+                        # Strip /repo/ prefix from Docker container mount path
+                        file_path = finding.get('File', 'unknown')
+                        if file_path.startswith('/repo/'):
+                            file_path = file_path[6:]  # Remove '/repo/' prefix
+
+                        # Normalize path: remove traversal sequences and leading slashes
+                        while '..' in file_path:
+                            file_path = file_path.replace('..', '')
+                        file_path = file_path.lstrip('/')
+                        # Collapse multiple slashes
+                        while '//' in file_path:
+                            file_path = file_path.replace('//', '/')
+
+                        # Include description hash to differentiate multiple secrets at same location
+                        description = finding.get('Description', 'Secret detected')
+                        desc_hash = hashlib.sha256(description.encode()).hexdigest()[:8]
+                        dedup_key = f"{file_path}:{finding.get('StartLine', '?')}:{finding.get('RuleID', 'unknown')}:{desc_hash}"
+
+                        if dedup_key not in seen:
+                            seen.add(dedup_key)
+                            unique_findings.append({
+                                'tool': 'Gitleaks',
+                                'type': 'Hardcoded Secret',
+                                'severity': 'CRITICAL',
+                                'file': file_path,
+                                'line': finding.get('StartLine', '?'),
+                                'rule': finding.get('RuleID', 'unknown'),
+                                'description': finding.get(
+                                    'Description',
+                                    'Secret detected; see Gitleaks JSON artifact for details (value redacted)'
+                                ),
+                                'remediation': 'Remove secret from code, rotate credential, use secret manager'
+                            })
+
+                    self.findings['critical'].extend(unique_findings)
+                    stats['findings'] = len(unique_findings)
+                    if unique_findings:
+                        stats['status'] = '❌ FINDINGS'
+
         except Exception as e:
             stats['status'] = '⚠️ ERROR: Failed to parse Gitleaks output'
             print(f"[ERROR] Gitleaks parser: {str(e)}", file=sys.stderr)
@@ -351,6 +381,49 @@ class SecurityReportGenerator:
 
         return stats
 
+    def parse_yamllint(self, filepath: str) -> Dict[str, Any]:
+        """Parse yamllint JSON output"""
+        stats = {'tool': 'yamllint', 'findings': 0, 'status': '✅ PASS'}
+
+        if not Path(filepath).exists():
+            stats['status'] = '⏭️ SKIPPED'
+            return stats
+
+        try:
+            with open(filepath) as f:
+                data = json.load(f)
+
+            # yamllint outputs an array of finding objects
+            for finding in data:
+                stats['findings'] += 1
+
+                level = finding.get('level', 'warning')
+                severity_map = {
+                    'error': 'high',
+                    'warning': 'medium'
+                }
+                severity = severity_map.get(level, 'medium')
+
+                self.findings[severity].append({
+                    'tool': 'yamllint',
+                    'type': 'YAML Issue',
+                    'severity': severity.upper(),
+                    'file': finding.get('file', 'unknown'),
+                    'line': finding.get('line', '?'),
+                    'rule': finding.get('rule', 'unknown'),
+                    'description': finding.get('message', 'No description'),
+                    'remediation': 'Follow yamllint YAML style guidelines and fix syntax errors'
+                })
+
+            if stats['findings'] > 0:
+                stats['status'] = '❌ FINDINGS'
+
+        except Exception as e:
+            stats['status'] = '⚠️ ERROR: Failed to parse yamllint output'
+            print(f"[ERROR] yamllint parser: {str(e)}", file=sys.stderr)
+
+        return stats
+
     def _get_semgrep_remediation(self, rule_id: str) -> str:
         """Get remediation guidance for Semgrep rules"""
         remediations = {
@@ -365,8 +438,8 @@ class SecurityReportGenerator:
         }
         return remediations.get(rule_id, 'Follow security best practices for this finding')
 
-    def generate_report(self, output_file: str):
-        """Generate comprehensive markdown security report"""
+    def generate_report(self, output_file: str, json_summary_file: Optional[str] = None):
+        """Generate comprehensive markdown security report and optional JSON summary"""
 
         # Parse all tool outputs
         self.tool_stats['gitleaks'] = self.parse_gitleaks(f'{self.workspace}/gitleaks.json')
@@ -374,6 +447,7 @@ class SecurityReportGenerator:
         self.tool_stats['semgrep'] = self.parse_semgrep_sarif(f'{self.workspace}/semgrep.sarif')
         self.tool_stats['hadolint'] = self.parse_hadolint_sarif(f'{self.workspace}/hadolint.sarif')
         self.tool_stats['shellcheck'] = self.parse_shellcheck(f'{self.workspace}/shellcheck.json')
+        self.tool_stats['yamllint'] = self.parse_yamllint(f'{self.workspace}/yamllint.json')
         self.tool_stats['rbac'] = self.parse_rbac_analyzer(f'{self.workspace}/rbac-analysis.txt')
 
         # Calculate totals
@@ -385,19 +459,19 @@ class SecurityReportGenerator:
 
         # Determine overall security posture
         if critical_count > 0:
-            posture = '🔴 CRITICAL'
+            posture = 'CRITICAL'
             posture_desc = 'Immediate action required - critical vulnerabilities detected'
         elif high_count > 0:
-            posture = '🟠 HIGH'
+            posture = 'HIGH'
             posture_desc = 'High-severity issues detected - prompt review needed'
         elif medium_count > 0:
-            posture = '🟡 MEDIUM'
+            posture = 'MEDIUM'
             posture_desc = 'Medium-severity issues detected - review recommended'
         elif low_count > 0:
-            posture = '🟢 LOW'
+            posture = 'LOW'
             posture_desc = 'Low-severity issues detected - minor improvements suggested'
         else:
-            posture = '✅ CLEAN'
+            posture = 'CLEAN'
             posture_desc = 'No security issues detected'
 
         # Generate report
@@ -417,11 +491,11 @@ class SecurityReportGenerator:
                 f.write(f"**Security Posture:** {posture}\n\n")
                 f.write(f"{posture_desc}\n\n")
                 f.write(f"**Total Findings:** {total_findings}\n\n")
-                f.write(f"- 🔴 Critical: {critical_count}\n")
-                f.write(f"- 🟠 High: {high_count}\n")
-                f.write(f"- 🟡 Medium: {medium_count}\n")
-                f.write(f"- 🔵 Low: {low_count}\n")
-                f.write(f"- ℹ️ Info: {len(self.findings['info'])}\n\n")
+                f.write(f"- Critical: {critical_count}\n")
+                f.write(f"- High: {high_count}\n")
+                f.write(f"- Medium: {medium_count}\n")
+                f.write(f"- Low: {low_count}\n")
+                f.write(f"- Info: {len(self.findings['info'])}\n\n")
                 f.write(f"---\n\n")
 
                 # Tool Status Table
@@ -433,12 +507,13 @@ class SecurityReportGenerator:
                 f.write(f"| {self.tool_stats['semgrep']['tool']} | Custom security rules (27 operator-focused) | {self.tool_stats['semgrep']['status']} | {self.tool_stats['semgrep']['findings']} |\n")
                 f.write(f"| {self.tool_stats['hadolint']['tool']} | Dockerfile best practices | {self.tool_stats['hadolint']['status']} | {self.tool_stats['hadolint']['findings']} |\n")
                 f.write(f"| {self.tool_stats['shellcheck']['tool']} | Shell script security | {self.tool_stats['shellcheck']['status']} | {self.tool_stats['shellcheck']['findings']} |\n")
+                f.write(f"| {self.tool_stats['yamllint']['tool']} | YAML syntax and style validation | {self.tool_stats['yamllint']['status']} | {self.tool_stats['yamllint']['findings']} |\n")
                 f.write(f"| {self.tool_stats['rbac']['tool']} | RBAC privilege chain analysis | {self.tool_stats['rbac']['status']} | {self.tool_stats['rbac']['findings']} |\n\n")
                 f.write(f"---\n\n")
 
                 # Critical Findings
                 if self.findings['critical']:
-                    f.write(f"## 🔴 Critical Findings ({len(self.findings['critical'])})\n\n")
+                    f.write(f"## Critical Findings ({len(self.findings['critical'])})\n\n")
                     f.write(f"**IMMEDIATE ACTION REQUIRED**\n\n")
                     for i, finding in enumerate(self.findings['critical'], 1):
                         f.write(f"### {i}. {finding['type']} ({finding['tool']})\n\n")
@@ -450,7 +525,7 @@ class SecurityReportGenerator:
 
                 # High Findings
                 if self.findings['high']:
-                    f.write(f"## 🟠 High-Severity Findings ({len(self.findings['high'])})\n\n")
+                    f.write(f"## High-Severity Findings ({len(self.findings['high'])})\n\n")
                     for i, finding in enumerate(self.findings['high'], 1):
                         f.write(f"### {i}. {finding['type']} ({finding['tool']})\n\n")
                         f.write(f"- **File:** `{finding['file']}:{finding['line']}`\n")
@@ -461,7 +536,7 @@ class SecurityReportGenerator:
 
                 # Medium Findings
                 if self.findings['medium']:
-                    f.write(f"## 🟡 Medium-Severity Findings ({len(self.findings['medium'])})\n\n")
+                    f.write(f"## Medium-Severity Findings ({len(self.findings['medium'])})\n\n")
                     for i, finding in enumerate(self.findings['medium'], 1):
                         f.write(f"### {i}. {finding['type']} ({finding['tool']})\n\n")
                         f.write(f"- **File:** `{finding['file']}:{finding['line']}`\n")
@@ -472,31 +547,72 @@ class SecurityReportGenerator:
 
                 # RBAC Analysis
                 if self.tool_stats['rbac']['content']:
-                    f.write(f"## 🔐 RBAC Privilege Chain Analysis\n\n")
+                    f.write(f"## RBAC Privilege Chain Analysis\n\n")
                     f.write(f"```\n")
                     f.write(self.tool_stats['rbac']['content'])
                     f.write(f"```\n\n")
                     f.write(f"---\n\n")
 
-                # Recommendations
+                # Recommendations (dynamic based on actual findings)
                 f.write(f"## 📋 Recommendations\n\n")
+
                 if critical_count > 0:
                     f.write(f"### Immediate Actions (Critical)\n\n")
-                    f.write(f"1. **Rotate all exposed credentials immediately** - especially verified credentials from TruffleHog\n")
-                    f.write(f"2. **Remove hardcoded secrets** from codebase and use secret management\n")
-                    f.write(f"3. **Fix dangerous RBAC permissions** - remove wildcards and dangerous verbs\n\n")
+                    rec_num = 1
+
+                    # Check for specific tool findings
+                    has_gitleaks = any(f['tool'] == 'Gitleaks' for f in self.findings['critical'])
+                    has_trufflehog = any(f['tool'] == 'TruffleHog' for f in self.findings['critical'])
+                    has_rbac_critical = any(f['tool'] == 'RBAC Analyzer' for f in self.findings['critical'])
+
+                    if has_trufflehog:
+                        f.write(f"{rec_num}. **URGENT: Rotate verified credentials immediately** - TruffleHog confirmed these credentials are active\n")
+                        rec_num += 1
+                    if has_gitleaks:
+                        f.write(f"{rec_num}. **Remove hardcoded secrets** from codebase and use secret management\n")
+                        rec_num += 1
+                    if has_rbac_critical:
+                        f.write(f"{rec_num}. **Fix critical RBAC permissions** - remove wildcards and dangerous verbs\n")
+                        rec_num += 1
+                    f.write("\n")
 
                 if high_count > 0:
                     f.write(f"### High Priority (This Week)\n\n")
-                    f.write(f"1. Review and fix high-severity Semgrep findings\n")
-                    f.write(f"2. Address insecure TLS and weak cryptography usage\n")
-                    f.write(f"3. Fix privileged container configurations\n\n")
+                    rec_num = 1
+
+                    has_semgrep_high = any(f['tool'] == 'Semgrep' for f in self.findings['high'])
+                    has_shellcheck_high = any(f['tool'] == 'ShellCheck' for f in self.findings['high'])
+                    has_rbac_high = any(f['tool'] == 'RBAC Analyzer' for f in self.findings['high'])
+
+                    if has_semgrep_high:
+                        f.write(f"{rec_num}. Review and fix high-severity Semgrep findings\n")
+                        rec_num += 1
+                    if has_shellcheck_high:
+                        f.write(f"{rec_num}. Fix high-severity ShellCheck issues to prevent command injection\n")
+                        rec_num += 1
+                    if has_rbac_high:
+                        f.write(f"{rec_num}. Tighten high-risk RBAC permissions\n")
+                        rec_num += 1
+                    f.write("\n")
 
                 if medium_count > 0 or low_count > 0:
                     f.write(f"### Medium/Low Priority (Next Sprint)\n\n")
-                    f.write(f"1. Address Dockerfile best practice violations\n")
-                    f.write(f"2. Fix ShellCheck warnings in scripts\n")
-                    f.write(f"3. Improve YAML formatting and validation\n\n")
+                    rec_num = 1
+
+                    has_hadolint = self.tool_stats.get('hadolint', {}).get('findings', 0) > 0
+                    has_shellcheck_medium = any(f['tool'] == 'ShellCheck' for f in self.findings['medium'])
+                    has_semgrep_medium = any(f['tool'] == 'Semgrep' for f in self.findings['medium'])
+
+                    if has_hadolint:
+                        f.write(f"{rec_num}. Address Dockerfile best practice violations\n")
+                        rec_num += 1
+                    if has_shellcheck_medium:
+                        f.write(f"{rec_num}. Fix ShellCheck warnings in scripts\n")
+                        rec_num += 1
+                    if has_semgrep_medium:
+                        f.write(f"{rec_num}. Review medium-severity Semgrep findings\n")
+                        rec_num += 1
+                    f.write("\n")
 
                 # Next Steps
                 f.write(f"## 🎯 Next Steps\n\n")
@@ -510,10 +626,71 @@ class SecurityReportGenerator:
             print(f"[ERROR] Failed to write security report to {output_file}: {str(e)}", file=sys.stderr)
             sys.exit(1)
 
+        # Generate JSON summary if requested
+        if json_summary_file:
+            self._generate_json_summary(json_summary_file, posture, total_findings, critical_count, high_count, medium_count, low_count)
+
+    def _generate_json_summary(self, output_file: str, posture: str, total: int, critical: int, high: int, medium: int, low: int):
+        """Generate machine-parseable JSON summary for workflow badge extraction"""
+
+        # Map display names to tool_stats keys
+        tool_key_map = {
+            'Gitleaks': 'gitleaks',
+            'TruffleHog': 'trufflehog',
+            'Semgrep': 'semgrep',
+            'Hadolint': 'hadolint',
+            'ShellCheck': 'shellcheck',
+            'yamllint': 'yamllint',
+            'RBAC Analyzer': 'rbac'
+        }
+
+        # Calculate per-tool severity breakdowns
+        tool_breakdowns = {}
+        for tool_name in ['Gitleaks', 'TruffleHog', 'Semgrep', 'Hadolint', 'ShellCheck', 'yamllint', 'RBAC Analyzer']:
+            stats_key = tool_key_map[tool_name]
+            tool_breakdowns[tool_name] = {
+                'status': self.tool_stats.get(stats_key, {}).get('status', 'UNKNOWN'),
+                'total': 0,
+                'critical': 0,
+                'high': 0,
+                'medium': 0,
+                'low': 0,
+                'info': 0
+            }
+
+            # Count findings per severity for this tool
+            for severity in ['critical', 'high', 'medium', 'low', 'info']:
+                count = sum(1 for f in self.findings.get(severity, []) if f.get('tool') == tool_name)
+                tool_breakdowns[tool_name][severity] = count
+                tool_breakdowns[tool_name]['total'] += count
+
+        summary = {
+            'format_version': '1.0',
+            'generated': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
+            'posture': posture,
+            'total_findings': total,
+            'severity_counts': {
+                'critical': critical,
+                'high': high,
+                'medium': medium,
+                'low': low,
+                'info': len(self.findings.get('info', []))
+            },
+            'tools': tool_breakdowns
+        }
+
+        try:
+            with open(output_file, 'w') as f:
+                json.dump(summary, f, indent=2)
+        except IOError as e:
+            print(f"[ERROR] Failed to write JSON summary to {output_file}: {str(e)}", file=sys.stderr)
+            sys.exit(1)
+
 
 def main():
     parser = argparse.ArgumentParser(description='Generate comprehensive security scan report')
     parser.add_argument('--output', default='security-report.md', help='Output file path')
+    parser.add_argument('--json-summary', default=None, help='JSON summary output file for workflow parsing')
     parser.add_argument('--workspace', default='.', help='Workspace directory')
     args = parser.parse_args()
 
@@ -527,8 +704,10 @@ def main():
 
     try:
         generator = SecurityReportGenerator(args.workspace, github_context)
-        generator.generate_report(args.output)
+        generator.generate_report(args.output, args.json_summary)
         print(f"✅ Comprehensive security report generated: {args.output}")
+        if args.json_summary:
+            print(f"✅ JSON summary generated: {args.json_summary}")
     except Exception as e:
         print(f"❌ Failed to generate security report: {str(e)}", file=sys.stderr)
         sys.exit(1)
