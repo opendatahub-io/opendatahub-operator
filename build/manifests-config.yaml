@@ -225,7 +225,7 @@ additional_meta:
     git.commit: 8fed23e9932e951e8dc9806c4e549c8f715100e2
   odh-maas-api:
     git.url: https://github.com/red-hat-data-services/maas-billing
-    git.commit: 9617c9e3df30668e09c5043e8ac242ef3dbeb4a6
+    git.commit: 2859788a7910f82975d1b5d675599cbd56f4a447
   odh-model-performance-data:
     git.url: https://github.com/red-hat-data-services/models-perf-benchmark-data
     git.commit: 1bc7e71739761d67b5d6400c94a0e332aca86444
