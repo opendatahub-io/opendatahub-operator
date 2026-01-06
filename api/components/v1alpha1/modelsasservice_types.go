@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -92,4 +93,18 @@ func (c *ModelsAsService) GetConditions() []common.Condition {
 
 func (c *ModelsAsService) SetConditions(conditions []common.Condition) {
 	c.Status.SetConditions(conditions)
+}
+
+// DSCModelsAsServiceSpec enables ModelsAsService integration
+type DSCModelsAsServiceSpec struct {
+	// +kubebuilder:validation:Enum=Managed;Removed
+	// +kubebuilder:default=Removed
+	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
+
+	ModelsAsServiceSpec `json:",inline"`
+}
+
+// DSCModelsAsServiceStatus contains the observed state of the ModelsAsService exposed in the DSC instance
+type DSCModelsAsServiceStatus struct {
+	common.ManagementSpec `json:",inline"`
 }

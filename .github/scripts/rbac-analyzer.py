@@ -159,7 +159,7 @@ class RBACAnalyzer:
 
     def analyze_privilege_chains(self):
         """Build ClusterRole → Binding → SA → Pod chains."""
-        print("\n=== RBAC Privilege Chain Analysis ===\n")
+        print("\n### RBAC Privilege Chain Analysis\n")
 
         # Track which ServiceAccounts have which permissions
         sa_permissions = defaultdict(list)
@@ -206,7 +206,7 @@ class RBACAnalyzer:
                     })
 
         # Map ServiceAccounts to Pods
-        print("### Service Account → Pod Mapping\n")
+        print("#### Service Account → Pod Mapping\n")
 
         # Track already-reported bindings to avoid duplicate findings
         reported_bindings = set()
@@ -251,7 +251,7 @@ class RBACAnalyzer:
 
     def analyze_dangerous_permissions(self):
         """Identify high-risk permissions in ClusterRoles."""
-        print("\n=== Dangerous Permission Analysis ===\n")
+        print("\n### Dangerous Permission Analysis\n")
 
         dangerous_verbs = {'escalate', 'impersonate', 'bind', '*'}
         dangerous_resources = {
@@ -318,7 +318,7 @@ class RBACAnalyzer:
 
     def check_aggregated_roles(self):
         """Check for aggregated ClusterRoles."""
-        print("\n=== Aggregated ClusterRole Analysis ===\n")
+        print("\n### Aggregated ClusterRole Analysis\n")
 
         for role_name, role_data in self.cluster_roles.items():
             doc = role_data['doc']
@@ -353,9 +353,9 @@ class RBACAnalyzer:
             fail_on_severity: Minimum severity level to trigger non-zero exit code
                              (CRITICAL, HIGH, WARNING, INFO)
         """
-        print("\n" + "="*80)
-        print("RBAC SECURITY FINDINGS SUMMARY")
-        print("="*80 + "\n")
+        print("\n---")
+        print("\n## RBAC SECURITY FINDINGS SUMMARY\n")
+        print("---\n")
 
         by_severity = defaultdict(list)
         for finding in self.findings:
