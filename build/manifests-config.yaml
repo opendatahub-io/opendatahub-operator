@@ -1,0 +1,45 @@
+map:
+  notebooks:
+    src: manifests
+    dest: workbenches/notebooks
+    ref_type: branch
+    branch: stable
+  odh-kserve-controller:
+    src: config
+    dest: kserve
+  odh-kf-notebook-controller:
+    src: components/notebook-controller/config
+    dest: workbenches/kf-notebook-controller
+  odh-notebook-controller:
+    src: components/odh-notebook-controller/config
+    dest: workbenches/odh-notebook-controller
+  odh-data-science-pipelines-operator-controller:
+    src: config
+    dest: datasciencepipelines
+  odh-kuberay-operator-controller:
+    src: ray-operator/config
+    dest: ray
+  odh-trustyai-service-operator:
+    src: config
+    dest: trustyai
+  odh-model-controller:
+    src: config
+    dest: modelcontroller
+  odh-model-registry-operator:
+    src: config
+    dest: modelregistry
+  odh-dashboard:
+    src: manifests
+    dest: dashboard
+  odh-training-operator:
+    src: manifests
+    dest: trainingoperator
+  odh-feast-operator:
+    src: infra/feast-operator/config
+    dest: feastoperator
+  odh-llama-stack-k8s-operator:
+    src: config
+    dest: llamastackoperator
+  odh-trainer:
+    src: manifests
+    dest: trainer
