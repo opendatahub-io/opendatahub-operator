@@ -84,14 +84,15 @@ const (
 )
 
 const (
-	envoyFilterTemplate                  = "resources/envoyfilter-authn.tmpl.yaml"
-	destinationRuleTemplate              = "resources/kube-auth-proxy-destinationrule-tls.tmpl.yaml"
-	kubeAuthProxyDeploymentOidcTemplate  = "resources/kube-auth-proxy-oidc-deployment.tmpl.yaml"
-	kubeAuthProxyDeploymentOauthTemplate = "resources/kube-auth-proxy-oauth-deployment.tmpl.yaml"
-	kubeAuthProxyServiceTemplate         = "resources/kube-auth-proxy-svc.tmpl.yaml"
-	kubeAuthProxyHTTPRouteTemplate       = "resources/kube-auth-proxy-httproute.tmpl.yaml"
-	networkPolicyTemplate                = "resources/kube-auth-proxy-networkpolicy.yaml"
-	ocpRouteTemplate                     = "resources/gateway-ocp-route.tmpl.yaml"
+	envoyFilterTemplate                     = "resources/envoyfilter-authn.tmpl.yaml"
+	destinationRuleTemplate                 = "resources/kube-auth-proxy-destinationrule-tls.tmpl.yaml"
+	kubeAuthProxyDeploymentOidcTemplate     = "resources/kube-auth-proxy-oidc-deployment.tmpl.yaml"
+	kubeAuthProxyDeploymentOauthTemplate    = "resources/kube-auth-proxy-oauth-deployment.tmpl.yaml"
+	kubeAuthProxyServiceTemplate            = "resources/kube-auth-proxy-svc.tmpl.yaml"
+	kubeAuthProxyHTTPRouteTemplate          = "resources/kube-auth-proxy-httproute.tmpl.yaml"
+	kubeAuthProxyClusterRoleBindingTemplate = "resources/kube-auth-proxy-clusterrolebinding.tmpl.yaml"
+	networkPolicyTemplate                   = "resources/kube-auth-proxy-networkpolicy.yaml"
+	ocpRouteTemplate                        = "resources/gateway-ocp-route.tmpl.yaml"
 )
 
 // GetFQDN returns the fully qualified domain name for the gateway based on the GatewayConfig.
