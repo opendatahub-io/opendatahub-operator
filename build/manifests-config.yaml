@@ -8,6 +8,9 @@ map:
   odh-kserve-controller:
     src: config
     dest: kserve
+    git.url: https://github.com/opendatahub-io/kserve
+    ref_type: branch
+    branch: master
   odh-kf-notebook-controller:
     src: components/notebook-controller/config
     dest: workbenches/kf-notebook-controller
