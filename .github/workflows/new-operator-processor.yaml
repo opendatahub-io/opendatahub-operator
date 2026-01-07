@@ -1,4 +1,4 @@
-name: Operator Processor
+name: New Operator Processor
 
 on:
   workflow_dispatch:
