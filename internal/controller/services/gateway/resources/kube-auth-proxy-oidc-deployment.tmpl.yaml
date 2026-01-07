@@ -31,6 +31,11 @@ spec:
           emptyDir:
             medium: Memory
             sizeLimit: 10Mi
+        {{- if .ProviderCASecret }}
+        - name: provider-ca-cert
+          secret:
+            secretName: {{.ProviderCASecretName}}
+        {{- end }}
       containers:
         - name: {{.KubeAuthProxyServiceName}}
           image: {{.KubeAuthProxyImage}}
@@ -65,6 +70,11 @@ spec:
               mountPath: {{.TLSCertsMountPath}}
             - name: tmp
               mountPath: /tmp
+            {{- if .ProviderCASecret }}
+            - name: provider-ca-cert
+              readOnly: true
+              mountPath: /etc/provider-ca
+            {{- end }}
           resources:
             requests:
               cpu: "10m"
@@ -92,6 +102,9 @@ spec:
             - "--tls-cert-file={{.TLSCertsMountPath}}/tls.crt"
             - "--tls-key-file={{.TLSCertsMountPath}}/tls.key"
             - "--use-system-trust-store=true"
+            {{- if .ProviderCASecret }}
+            - "--provider-ca-file=/etc/provider-ca/ca.crt"
+            {{- end }}
             - "--cookie-expire={{.CookieExpire}}"
             - "--cookie-refresh={{.CookieRefresh}}"
             - "--cookie-secure=true"
@@ -102,4 +115,4 @@ spec:
             - "--provider=oidc"
             - "--oidc-issuer-url={{.OIDCIssuerURL}}"
             - "--skip-oidc-discovery=false"
-            - "--ssl-insecure-skip-verify=false" # TODO: need to check if this is correct to hardcode skip verify.
+            - "--ssl-insecure-skip-verify={{.InsecureSkipVerify}}"

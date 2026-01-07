@@ -2,6 +2,7 @@
 package trainer
 
 import (
+	"fmt"
 	"testing"
 
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
@@ -19,6 +20,8 @@ import (
 
 	. "github.com/onsi/gomega"
 )
+
+const jobSetOperatorRndVersion = "1.1.0"
 
 func TestCheckPreConditions_Managed_JobSetOperatorNotInstalled(t *testing.T) {
 	ctx := t.Context()
@@ -49,7 +52,7 @@ func TestCheckPreConditions_Managed_JobSetCRDNotInstalled(t *testing.T) {
 	cli, err := fakeclient.New(
 		fakeclient.WithObjects(
 			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
-				Name: jobSetOperator,
+				Name: fmt.Sprintf("%s.%s", jobSetOperator, jobSetOperatorRndVersion),
 			}},
 		),
 	)
@@ -88,7 +91,7 @@ func TestCheckPreConditions_Managed_JobSetCRDInstalled(t *testing.T) {
 		},
 	}
 	jobSetOperatorCondition := &ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
-		Name: jobSetOperator,
+		Name: fmt.Sprintf("%s.%s", jobSetOperator, jobSetOperatorRndVersion),
 	}}
 
 	cli, err := fakeclient.New(
@@ -109,4 +112,79 @@ func TestCheckPreConditions_Managed_JobSetCRDInstalled(t *testing.T) {
 
 	err = checkPreConditions(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
+}
+
+func TestJobSetConditionFilter(t *testing.T) {
+	tests := []struct {
+		name           string
+		conditionType  string
+		conditionValue string
+		shouldDegrade  bool
+	}{
+		// Degraded conditions
+		{
+			name:           "Degraded=True triggers degradation",
+			conditionType:  "Degraded",
+			conditionValue: "True",
+			shouldDegrade:  true,
+		},
+		{
+			name:           "TargetConfigControllerDegraded=True triggers degradation",
+			conditionType:  "TargetConfigControllerDegraded",
+			conditionValue: "True",
+			shouldDegrade:  true,
+		},
+		{
+			name:           "JobSetOperatorStaticResourcesDegraded=True triggers degradation",
+			conditionType:  "JobSetOperatorStaticResourcesDegraded",
+			conditionValue: "True",
+			shouldDegrade:  true,
+		},
+		// Healthy conditions
+		{
+			name:           "Degraded=False is healthy",
+			conditionType:  "Degraded",
+			conditionValue: "False",
+			shouldDegrade:  false,
+		},
+		{
+			name:           "TargetConfigControllerDegraded=False is healthy",
+			conditionType:  "TargetConfigControllerDegraded",
+			conditionValue: "False",
+			shouldDegrade:  false,
+		},
+		{
+			name:           "JobSetOperatorStaticResourcesDegraded=False is healthy",
+			conditionType:  "JobSetOperatorStaticResourcesDegraded",
+			conditionValue: "False",
+			shouldDegrade:  false,
+		},
+		{
+			name:           "Available=False triggers degradation",
+			conditionType:  "Available",
+			conditionValue: "False",
+			shouldDegrade:  true,
+		},
+		{
+			name:           "Available=True is healthy",
+			conditionType:  "Available",
+			conditionValue: "True",
+			shouldDegrade:  false,
+		},
+		// Conditions not in filter (should be ignored)
+		{
+			name:           "Unknown condition type is ignored",
+			conditionType:  "SomeOtherCondition",
+			conditionValue: "True",
+			shouldDegrade:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			result := jobSetConditionFilter(tt.conditionType, tt.conditionValue)
+			g.Expect(result).To(Equal(tt.shouldDegrade))
+		})
+	}
 }

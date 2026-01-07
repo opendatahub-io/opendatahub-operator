@@ -29,11 +29,19 @@ var (
 		"kserve-controller":                "RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE",
 		"kserve-router":                    "RELATED_IMAGE_ODH_KSERVE_ROUTER_IMAGE",
 		"kserve-storage-initializer":       "RELATED_IMAGE_ODH_KSERVE_STORAGE_INITIALIZER_IMAGE",
-		"kserve-llm-d":                     "RELATED_IMAGE_RHAIIS_VLLM_CUDA_IMAGE",
+		"kserve-llm-d":                     "RELATED_IMAGE_RHAIIS_VLLM_CUDA_IMAGE", // Default image (Nvidia CUDA)
+		"kserve-llm-d-nvidia-cuda":         "RELATED_IMAGE_RHAIIS_VLLM_CUDA_IMAGE",
+		"kserve-llm-d-amd-rocm":            "RELATED_IMAGE_RHAIIS_VLLM_ROCM_IMAGE",
 		"kserve-llm-d-inference-scheduler": "RELATED_IMAGE_ODH_LLM_D_INFERENCE_SCHEDULER_IMAGE",
 		"kserve-llm-d-routing-sidecar":     "RELATED_IMAGE_ODH_LLM_D_ROUTING_SIDECAR_IMAGE",
 		"kube-rbac-proxy":                  "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
 	}
+)
+
+const (
+	lwsConditionDegraded                       = "Degraded"
+	lwsConditionTargetConfigControllerDegraded = "TargetConfigControllerDegraded"
+	lwsConditionAvailable                      = "Available"
 )
 
 func kserveManifestInfo(sourcePath string) odhtypes.ManifestInfo {
@@ -166,4 +174,16 @@ func isForDependency(s string) func(u *unstructured.Unstructured) bool {
 func isKserveOwnerRef(or metav1.OwnerReference) bool {
 	return or.APIVersion == componentApi.GroupVersion.String() &&
 		or.Kind == componentApi.KserveKind
+}
+
+// lwsConditionFilter monitors LeaderWorkerSet operator conditions for degraded state.
+func lwsConditionFilter(condType, condStatus string) bool {
+	switch condType {
+	case lwsConditionDegraded, lwsConditionTargetConfigControllerDegraded:
+		return condStatus == string(metav1.ConditionTrue)
+	case lwsConditionAvailable:
+		return condStatus == string(metav1.ConditionFalse)
+	default:
+		return false
+	}
 }

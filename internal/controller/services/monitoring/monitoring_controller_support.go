@@ -230,23 +230,18 @@ func addTracesTemplateData(templateData map[string]any, traces *serviceApi.Trace
 		templateData["TempoCAConfigMap"] = ""
 	}
 
-	// Use HTTPS for query endpoints when TLS is enabled (defaults to disabled)
-	protocol := "http"
-	if tlsEnabled {
-		protocol = "https"
-	}
-
 	// Add tempo-related data from traces.Storage fields (Storage is a struct, not a pointer)
+	// Note: Gateway endpoints always use HTTPS (service-ca auto-provisions TLS)
 	switch traces.Storage.Backend {
 	case serviceApi.StorageBackendPV:
 		templateData["TempoEndpoint"] = fmt.Sprintf("tempo-data-science-tempomonolithic.%s.svc.cluster.local:4317", namespace)
-		// Perses datasource query endpoint (port 3200) - uses HTTPS when TLS is enabled
-		templateData["TempoQueryEndpoint"] = fmt.Sprintf("%s://tempo-data-science-tempomonolithic.%s.svc.cluster.local:3200", protocol, namespace)
+		// Perses datasource query endpoint via gateway (port 8080) - always uses HTTPS (gateway is HTTPS-only)
+		templateData["TempoQueryEndpoint"] = fmt.Sprintf("https://tempo-data-science-tempomonolithic-gateway.%s.svc.cluster.local:8080", namespace)
 		templateData["Size"] = traces.Storage.Size
 	case serviceApi.StorageBackendS3, serviceApi.StorageBackendGCS:
 		templateData["TempoEndpoint"] = fmt.Sprintf("tempo-data-science-tempostack-gateway.%s.svc.cluster.local:4317", namespace)
-		// Perses datasource query endpoint via gateway (port 8080) - uses HTTPS when TLS is enabled
-		templateData["TempoQueryEndpoint"] = fmt.Sprintf("%s://tempo-data-science-tempostack-gateway.%s.svc.cluster.local:8080", protocol, namespace)
+		// Perses datasource query endpoint via gateway (port 8080) - always uses HTTPS (gateway is HTTPS-only)
+		templateData["TempoQueryEndpoint"] = fmt.Sprintf("https://tempo-data-science-tempostack-gateway.%s.svc.cluster.local:8080", namespace)
 		templateData["Secret"] = traces.Storage.Secret
 	}
 
@@ -391,7 +386,7 @@ func checkMonitoringPreconditions(ctx context.Context, rr *odhtypes.Reconciliati
 
 	// Check for opentelemetry-product operator if either metrics or traces are enabled
 	if monitoring.Spec.Metrics != nil || monitoring.Spec.Traces != nil {
-		if found, err := cluster.OperatorExists(ctx, rr.Client, opentelemetryOperator); err != nil || !found {
+		if openTelemetryInfo, err := cluster.OperatorExists(ctx, rr.Client, opentelemetryOperator); err != nil || openTelemetryInfo == nil {
 			if err != nil {
 				return odherrors.NewStopErrorW(err)
 			}
@@ -401,7 +396,7 @@ func checkMonitoringPreconditions(ctx context.Context, rr *odhtypes.Reconciliati
 
 	// Check for cluster-observability-operator if metrics are enabled
 	if monitoring.Spec.Metrics != nil {
-		if found, err := cluster.OperatorExists(ctx, rr.Client, clusterObservabilityOperator); err != nil || !found {
+		if clusterObservabilityOperatorInfo, err := cluster.OperatorExists(ctx, rr.Client, clusterObservabilityOperator); err != nil || clusterObservabilityOperatorInfo == nil {
 			if err != nil {
 				return odherrors.NewStopErrorW(err)
 			}
@@ -411,7 +406,7 @@ func checkMonitoringPreconditions(ctx context.Context, rr *odhtypes.Reconciliati
 
 	// Check for tempo-product operator if traces are enabled
 	if monitoring.Spec.Traces != nil {
-		if found, err := cluster.OperatorExists(ctx, rr.Client, tempoOperator); err != nil || !found {
+		if tempoOperatorInfo, err := cluster.OperatorExists(ctx, rr.Client, tempoOperator); err != nil || tempoOperatorInfo == nil {
 			if err != nil {
 				return odherrors.NewStopErrorW(err)
 			}

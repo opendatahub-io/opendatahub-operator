@@ -326,6 +326,12 @@ var (
 		Kind:    componentApi.FeastOperatorKind,
 	}
 
+	MLflowOperator = schema.GroupVersionKind{
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.MLflowOperatorKind,
+	}
+
 	CustomResourceDefinition = schema.GroupVersionKind{
 		Group:   "apiextensions.k8s.io",
 		Version: "v1",
@@ -416,6 +422,18 @@ var (
 		Kind:    "Kueue",
 	}
 
+	LeaderWorkerSetOperatorV1 = schema.GroupVersionKind{
+		Group:   "operator.openshift.io",
+		Version: "v1",
+		Kind:    "LeaderWorkerSetOperator",
+	}
+
+	JobSetOperatorV1 = schema.GroupVersionKind{
+		Group:   "operator.openshift.io",
+		Version: "v1",
+		Kind:    "JobSetOperator",
+	}
+
 	LocalQueue = schema.GroupVersionKind{
 		Group:   "kueue.x-k8s.io",
 		Version: "v1beta1",
@@ -467,6 +485,12 @@ var (
 	InferencePoolV1alpha2 = schema.GroupVersionKind{
 		Group:   "inference.networking.x-k8s.io",
 		Version: "v1alpha2",
+		Kind:    "InferencePool",
+	}
+
+	InferencePoolV1 = schema.GroupVersionKind{
+		Group:   "inference.networking.k8s.io",
+		Version: "v1",
 		Kind:    "InferencePool",
 	}
 
@@ -608,12 +632,6 @@ var (
 		Kind:    "ValidatingAdmissionPolicyBinding",
 	}
 
-	LeaderWorkerSetOperator = schema.GroupVersionKind{
-		Group:   "operator.openshift.io",
-		Version: "v1",
-		Kind:    "LeaderWorkerSetOperator",
-	}
-
 	AuthPolicyv1 = schema.GroupVersionKind{
 		Group:   "kuadrant.io",
 		Version: "v1",
@@ -642,5 +660,11 @@ var (
 		Group:   "jobset.x-k8s.io",
 		Version: "v1alpha2",
 		Kind:    "JobSet",
+	}
+
+	MLflow = schema.GroupVersionKind{
+		Group:   "mlflow.opendatahub.io",
+		Version: "v1",
+		Kind:    "MLflow",
 	}
 )

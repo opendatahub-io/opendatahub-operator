@@ -14,21 +14,22 @@ DST_MANIFESTS_DIR="./opt/manifests"
 
 # ODH Component Manifests
 declare -A ODH_COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:main@22dbce446ca20267edcfc0e1890c31fc15a80a43:manifests"
-    ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@ea167c3e4cdd12bc74f82f814a2d54d236914939:components/notebook-controller/config"
-    ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@ea167c3e4cdd12bc74f82f814a2d54d236914939:components/odh-notebook-controller/config"
-    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@89f935643bf0de92d7c36ea22a306fe0ad2bcfd2:manifests"
-    ["kserve"]="opendatahub-io:kserve:release-v0.15@48f02d7ab8094310eb3fd658055c28e1dd8537f9:config"
-    ["ray"]="opendatahub-io:kuberay:dev@aed5412f7fcf199bd2f0d1952e4953d78861188c:ray-operator/config"
-    ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@c0d153c22f3a2916fe52aa5819bb754937bae34a:config"
-    ["modelregistry"]="opendatahub-io:model-registry-operator:main@4fb799a02c8291363539c535a5e1f53848cc2706:config"
-    ["trainingoperator"]="opendatahub-io:training-operator:dev@f9de604ab8e4e7e6821162f665589ec934e4f2e1:manifests"
-    ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@bc6b06e9693cf168f1a576deb6f87a2b0329fd06:config"
-    ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@9a83a3544820c9b56fb0bb37d678035d66c6fb4c:config"
-    ["feastoperator"]="opendatahub-io:feast:stable@94bc6204cbdbcbebfd004f64986f43397bfc0e65:infra/feast-operator/config"
-    ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@226e911cca9bf7efa1e632860613087b0bf14d74:config"
-    ["trainer"]="opendatahub-io:trainer:main@8ddd0ab935ee68bdc05a0adf843720586617d7b0:manifests"
-    ["maas"]="opendatahub-io:maas-billing:main@cf23d72ba94b040e4327a2b8d417fdad0fe4d04c:deployment"
+    ["dashboard"]="opendatahub-io:odh-dashboard:main@82d891e6a0c03c6ff1a009a03497b4ba8cf79900:manifests"
+    ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@211a77d7ca1413991e38b4941cce9cec52a3b737:components/notebook-controller/config"
+    ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@211a77d7ca1413991e38b4941cce9cec52a3b737:components/odh-notebook-controller/config"
+    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@2f6d0028cb5d59d9c6daaf172d764509c383e3a9:manifests"
+    ["kserve"]="opendatahub-io:kserve:release-v0.15@2818dee265ddd6ec4fc6f5b0b2dfcf54c038a2a7:config"
+    ["ray"]="opendatahub-io:kuberay:dev@922c0bc1371473a39c62bac138dce4aeb27ab361:ray-operator/config"
+    ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@0da9c2ac84eb88c245df56c72d2a6192f7f9b4df:config"
+    ["modelregistry"]="opendatahub-io:model-registry-operator:main@0e374b44a9f77a4433752d82f41eb09ef00b03e5:config"
+    ["trainingoperator"]="opendatahub-io:training-operator:stable@f9de604ab8e4e7e6821162f665589ec934e4f2e1:manifests"
+    ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@55477285919507e7a1af323c1843eb33f70d7d5e:config"
+    ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@07130ae171cdfa2155d96833ae0cb99704c54fab:config"
+    ["feastoperator"]="opendatahub-io:feast:stable@c3b8280592f9f5af4b10db868a83d51f54b94738:infra/feast-operator/config"
+    ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@8f3f9289969c8a1b7efafa07b5920a030ac56b3c:config"
+    ["trainer"]="opendatahub-io:trainer:main@e99c2618a4f350be1bc2803c3e4f01e55c3db866:manifests"
+    ["maas"]="opendatahub-io:maas-billing:main@534ad45313bb563730412a397008a31f7dca743a:deployment"
+    ["mlflowoperator"]="opendatahub-io:mlflow-operator:main@a47fc7e8a1abc8547c071f9edb5a3b474449c691:config"
 )
 
 # RHOAI Component Manifests
@@ -48,6 +49,7 @@ declare -A RHOAI_COMPONENT_MANIFESTS=(
     ["llamastackoperator"]="red-hat-data-services:llama-stack-k8s-operator:rhoai-3.2:config"
     ["trainer"]="red-hat-data-services:trainer:rhoai-3.2:manifests"
     ["maas"]="red-hat-data-services:maas-billing:rhoai-3.2:deployment"
+    ["mlflowoperator"]="red-hat-data-services:mlflow-operator:rhoai-3.2:config"
 )
 
 # Select the appropriate manifest based on platform type
