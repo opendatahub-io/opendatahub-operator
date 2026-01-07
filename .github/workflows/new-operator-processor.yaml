@@ -1,0 +1,115 @@
+name: Operator Processor
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'rhoai-[23].[0-9]' # Matches branches like 'rhoai-2.0', 'rhoai-3.1', etc.
+      - 'rhoai-[23].[0-9][0-9]' # Matches branches like 'rhoai-2.10', 'rhoai-3.12', etc.
+    paths:
+      - build/operator-nudging.yaml
+
+
+env:
+  GITHUB_ORG: red-hat-data-services
+  GITHUB_RKA_ORG: red-hat-data-services
+  LOG_FILE_DIR: ${{ github.workspace }}
+  LOG_FILE_NAME: operator-processor.log
+
+permissions:
+  contents: write
+
+jobs:
+  operator-processor:
+    if: ${{ github.ref_name != 'main' && (github.event_name == 'workflow_dispatch' || ( github.event_name == 'push' && github.event.commits[0].author.name == 'konflux-internal-p02[bot]' )) }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout RBC repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GITHUB_ORG }}/RHOAI-Build-Config
+          ref: ${{ github.ref_name }}
+          path: RBC
+          sparse-checkout: |
+            bundle/bundle-patch.yaml
+          sparse-checkout-cone-mode: false
+      - name: Git checkout utils
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GITHUB_RKA_ORG }}/RHOAI-Konflux-Automation
+          ref: main
+          path: utils
+          sparse-checkout: |
+            utils/processors
+          sparse-checkout-cone-mode: false
+      - name: Git checkout utils
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GITHUB_ORG }}/rhods-operator
+          ref: ${{ github.ref_name }}
+          path: rhods-operator
+          sparse-checkout: |
+            build-tmp
+            prefetched-manifests
+            .tekton
+          sparse-checkout-cone-mode: false
+      - name: Install dependencies
+        run: |
+          os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+          arch="$(uname -m | sed 's/x86_64/amd64/')"
+          yq_version="v4.44.3"
+          yq_filename="yq-$yq_version"
+          echo "-> Downloading yq" >&2
+          curl -sSfLo "$yq_filename" "https://github.com/mikefarah/yq/releases/download/$yq_version/yq_${os}_${arch}"
+          chmod +x $yq_filename
+          ln -s $yq_filename yq
+          cp $yq_filename /usr/local/bin/yq
+  
+          pip install --default-timeout=100 -r utils/utils/processors/requirements.txt
+
+      - name: Execute Operator Processor
+        env:
+          BRANCH: ${{ github.ref_name }}
+          RHOAI_QUAY_API_TOKEN: ${{ secrets.RHOAI_QUAY_API_TOKEN }}
+        run: |
+          RHOAI_VERSION=v${BRANCH/rhoai-/}
+          COMPONENT_SUFFIX=${RHOAI_VERSION/./-}
+          ODH_OPERATOR_COMPONENT_NAME=odh-operator-${COMPONENT_SUFFIX}
+          PUSH_PIPELINE_PATH=rhods-operator/.tekton/${ODH_OPERATOR_COMPONENT_NAME}-push.yaml
+          
+          PATCH_YAML_PATH=RBC/bundle/bundle-patch.yaml
+          OPERANDS_MAP_PATH=rhods-operator/build-tmp/operands-map.yaml
+          NUDGING_YAML_PATH=rhods-operator/build-tmp/operator-nudging.yaml
+          MANIFEST_CONFIG_PATH=rhods-operator/build-tmp/manifests-config.yaml
+          
+          python3 utils/utils/processors/operator-processor.py  -op process-operator-yamls --patch-yaml-path ${PATCH_YAML_PATH} --operands-map-path ${OPERANDS_MAP_PATH} --nudging-yaml-path ${NUDGING_YAML_PATH} --manifest-config-path ${MANIFEST_CONFIG_PATH} --rhoai-version ${BRANCH} --push-pipeline-yaml-path ${PUSH_PIPELINE_PATH} --push-pipeline-operation enable
+
+      - name: Print debug logs
+        if: always()
+        run: |
+          LOG_FILE="${{ env.LOG_FILE_DIR }}/${{ env.LOG_FILE_NAME }}"
+          if [ -f "$LOG_FILE" ]; then
+            cat "$LOG_FILE"
+          else
+            echo "Log file not found at $LOG_FILE"
+          fi
+
+      - name: Upload debug logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: operator-processor-logs
+          path: ${{ env.LOG_FILE_DIR }}/${{ env.LOG_FILE_NAME }}
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Commit and push the changes to release branch
+        uses: actions-js/push@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.ref_name }}
+          message: "Updating files processed by the refactored operator processor"
+          repository: ${{ env.GITHUB_ORG }}/rhods-operator
+          directory: rhods-operator
+          author_name: Openshift-AI DevOps
+          author_email: openshift-ai-devops@redhat.com
