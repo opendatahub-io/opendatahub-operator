@@ -8,7 +8,7 @@ metadata:
     pipelinesascode.tekton.dev/max-keep-runs: "3"
     build.appstudio.openshift.io/build-nudge-files: "bundle/bundle-patch.yaml"
     pipelinesascode.tekton.dev/on-cel-expression: |
-      "non-existent-file.non-existent-ext".pathChanged() && event == "push" && target_branch == "rhoai-3.3" && !"bundle/**".pathChanged()
+      event == "push" && target_branch == "rhoai-3.3" && !"bundle/**".pathChanged()
       && !"Dockerfiles/bundle.Dockerfile".pathChanged() && (!"build/**".pathChanged()
       || "build/operands-map.yaml".pathChanged() || ".tekton/odh-operator-v3-3-push.yaml".pathChanged()
       ) && !".github/workflows/**".pathChanged()
