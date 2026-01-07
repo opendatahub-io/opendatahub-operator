@@ -20,22 +20,24 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
-	configv1 "github.com/openshift/api/config/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	types2 "k8s.io/apimachinery/pkg/types"
-	v1 "sigs.k8s.io/gateway-api/apis/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	k8stypes "k8s.io/apimachinery/pkg/types"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 // validateGateway validates the Gateway specification in the ModelsAsService resource.
-func validateGateway(_ context.Context, rr *types.ReconciliationRequest) error {
+// It checks that:
+// 1. Both namespace and name are provided (or neither, in which case defaults are used)
+// 2. The specified Gateway resource exists in the cluster
+func validateGateway(ctx context.Context, rr *types.ReconciliationRequest) error {
 	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
@@ -45,7 +47,6 @@ func validateGateway(_ context.Context, rr *types.ReconciliationRequest) error {
 	if maas.Spec.Gateway.Namespace == "" && maas.Spec.Gateway.Name == "" {
 		maas.Spec.Gateway.Namespace = DefaultGatewayNamespace
 		maas.Spec.Gateway.Name = DefaultGatewayName
-		return nil
 	}
 
 	// If one field of the Gateway reference is specified, both are mandatory
@@ -53,8 +54,28 @@ func validateGateway(_ context.Context, rr *types.ReconciliationRequest) error {
 		return errors.New("invalid gateway specification: when specifying a custom gateway, both namespace and name must be provided")
 	}
 
-	// TODO: Add validation logic to check if the specified Gateway exists
-	// (For now, we'll just validate that the name and namespace are set)
+	// Validate that the Gateway exists in the cluster
+	if err := validateGatewayExists(ctx, rr, maas.Spec.Gateway.Namespace, maas.Spec.Gateway.Name); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateGatewayExists checks if a Gateway resource exists in the specified namespace.
+func validateGatewayExists(ctx context.Context, rr *types.ReconciliationRequest, namespace, name string) error {
+	gateway := &gwapiv1.Gateway{}
+	err := rr.Client.Get(ctx, k8stypes.NamespacedName{
+		Namespace: namespace,
+		Name:      name,
+	}, gateway)
+
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			return fmt.Errorf("gateway %s/%s not found: the specified Gateway must exist before enabling ModelsAsService", namespace, name)
+		}
+		return fmt.Errorf("failed to check if gateway %s/%s exists: %w", namespace, name, err)
+	}
 
 	return nil
 }
@@ -87,37 +108,68 @@ func customizeManifests(_ context.Context, rr *types.ReconciliationRequest) erro
 	return nil
 }
 
-// TODO: Remove this function. We are not expecting to programatically create the Gateway. Users would create it.
-func configureMaaSGatewayHostname(ctx context.Context, rr *types.ReconciliationRequest) error {
-	for idx, resource := range rr.Resources {
-		if resource.GroupVersionKind() == gvk.KubernetesGateway {
-			gateway := &v1.Gateway{}
-			fromUnstructuredErr := runtime.DefaultUnstructuredConverter.FromUnstructured(resource.Object, gateway)
-			if fromUnstructuredErr != nil {
-				return fmt.Errorf("failed converting to Gateway type from resource %s: %w", resources.FormatObjectReference(&resource), fromUnstructuredErr)
-			}
+// Post Render action that configures the gateway-auth-policy
+// 1. Sets the namespace to match the gateway's namespace (since AuthPolicy must be in the same namespace as the gateway)
+// 2. Updates spec.targetRef.name to point to the configured gateway name
+func configureGatewayAuthPolicy(ctx context.Context, rr *types.ReconciliationRequest) error {
+	log := logf.FromContext(ctx)
+	log.V(1).Info("Entering configureGatewayAuthPolicy",
+		"resourceCount", len(rr.Resources),
+		"lookingFor", GatewayAuthPolicyName)
 
-			clusterIngress := &configv1.Ingress{}
-			ingressFetchErr := rr.Client.Get(ctx, types2.NamespacedName{Namespace: "", Name: "cluster"}, clusterIngress)
-			if ingressFetchErr != nil {
-				return fmt.Errorf("failed fetching OpenShift cluster ingress resource: %w", ingressFetchErr)
-			}
+	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
+	}
 
-			for idxListener := range gateway.Spec.Listeners {
-				if gateway.Spec.Listeners[idxListener].Hostname != nil {
-					hostnameTemplate := string(*gateway.Spec.Listeners[idxListener].Hostname)
-					finalHostname := v1.Hostname(strings.Replace(hostnameTemplate, "${CLUSTER_DOMAIN}", clusterIngress.Spec.Domain, 1))
-					gateway.Spec.Listeners[idxListener].Hostname = &finalHostname
-				}
-			}
+	gatewayNamespace := maas.Spec.Gateway.Namespace
+	gatewayName := maas.Spec.Gateway.Name
 
-			unstructuredGw, toUnstructuredErr := resources.ToUnstructured(gateway)
-			if toUnstructuredErr != nil {
-				return fmt.Errorf("failed converting Gateway resource to unstructured object: %w", toUnstructuredErr)
-			}
+	log.V(1).Info("Gateway configuration from MaaS spec",
+		"gatewayNamespace", gatewayNamespace,
+		"gatewayName", gatewayName)
 
-			rr.Resources[idx] = *unstructuredGw
+	authPolicyFound := false
+	for idx := range rr.Resources {
+		resource := &rr.Resources[idx]
+
+		// Only process AuthPolicy resources with the specific name
+		if resource.GroupVersionKind() != gvk.AuthPolicyv1 {
+			continue
 		}
+
+		log.V(1).Info("Found AuthPolicy resource",
+			"name", resource.GetName(),
+			"namespace", resource.GetNamespace(),
+			"expectedName", GatewayAuthPolicyName)
+
+		if resource.GetName() != GatewayAuthPolicyName {
+			continue
+		}
+
+		authPolicyFound = true
+		log.Info("Configuring gateway-auth-policy AuthPolicy",
+			"originalNamespace", resource.GetNamespace(),
+			"newNamespace", gatewayNamespace,
+			"newTargetGateway", gatewayName)
+
+		// Set the namespace to match the gateway's namespace
+		resource.SetNamespace(gatewayNamespace)
+
+		// Update spec.targetRef.name to point to the configured gateway
+		if err := unstructured.SetNestedField(resource.Object, gatewayName, "spec", "targetRef", "name"); err != nil {
+			return fmt.Errorf("failed to set spec.targetRef.name on AuthPolicy: %w", err)
+		}
+
+		log.V(1).Info("Successfully updated AuthPolicy",
+			"namespace", resource.GetNamespace(),
+			"targetRef.name", gatewayName)
+	}
+
+	if !authPolicyFound {
+		log.V(1).Info("AuthPolicy not found in rendered resources",
+			"expectedName", GatewayAuthPolicyName,
+			"expectedGVK", gvk.AuthPolicyv1.String())
 	}
 
 	return nil
