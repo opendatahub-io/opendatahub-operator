@@ -2,7 +2,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kf-notebook-controller-rhel9@sha256:81e547d2841ba28f16b6c2e141700fc015b4666953fd78643f216652ecb51e4a"
 - name: RELATED_IMAGE_ODH_DASHBOARD_IMAGE
-  value: "quay.io/rhoai/odh-dashboard-rhel9@sha256:4b0c9ab6f4d269514ff5aa6d94ba67d63ce37ae2d6b9933b58d39692453f41f8"
+  value: "quay.io/rhoai/odh-dashboard-rhel9@sha256:7655d0f46f68129ff1e562e346304af4431b3217d78a0258eb8f00cfa1e63d31"
 - name: RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-notebook-controller-rhel9@sha256:76b7796f40324420f2c807596cf23ee57f1c47e20e3b4669241907a6aad7bca2"
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_OPERATOR_CONTROLLER_IMAGE
@@ -170,6 +170,8 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TRAINING_ROCM64_TORCH290_PY312_IMAGE
   value: "quay.io/rhoai/odh-training-rocm64-torch290-py312-rhel9@sha256:6986c3ce62ef30856a7144e7b5ae02fc6a09ce469beec662c7f70b20991ca17d"
 - name: RELATED_IMAGE_ODH_TRAINING_CPU_TORCH290_PY312_IMAGE
-  value: "quay.io/rhoai/odh-training-cpu-torch290-py312-rhel9@sha256:29a741431cee6760271dcb864b03a0c07587cd9bf700de3499b69f188cbe2bbb"
+  value: "quay.io/rhoai/odh-training-cpu-torch290-py312-rhel9@sha256:6323e0232dcc524a9077376403d0b743b7e24936330018b82c421ac2d979413c"
 - name: RELATED_IMAGE_ODH_TRAINING_CPU_TORCH290_PY312_IMAGE
-  value: "quay.io/rhoai/odh-training-cpu-torch290-py312-rhel9@sha256:29a741431cee6760271dcb864b03a0c07587cd9bf700de3499b69f188cbe2bbb"
+  value: "quay.io/rhoai/odh-training-cpu-torch290-py312-rhel9@sha256:6323e0232dcc524a9077376403d0b743b7e24936330018b82c421ac2d979413c"
+- name: RELATED_IMAGE_ODH_OPERATOR_IMAGE
+  value: quay.io/rhoai/odh-rhel9-operator@sha256:a2c967cf3f1981a6d87556049f79002c7898a8f6ecbbff5a75dd81ece17b27fc
