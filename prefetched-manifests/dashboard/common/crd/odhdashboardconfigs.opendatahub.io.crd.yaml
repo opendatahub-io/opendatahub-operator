@@ -111,6 +111,8 @@ spec:
                       type: boolean
                     trainingJobs:
                       type: boolean
+                    observabilityDashboard:
+                      type: boolean
                   x-kubernetes-validations:
                     - rule: '!has(self.disableAcceleratorProfiles) || self.disableAcceleratorProfiles == oldSelf.disableAcceleratorProfiles'
                       message: 'DEPRECATED: spec.dashboardConfig.disableAcceleratorProfiles must be removed or left unchanged.'
