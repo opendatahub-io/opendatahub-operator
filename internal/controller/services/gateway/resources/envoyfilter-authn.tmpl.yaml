@@ -29,7 +29,8 @@ spec:
           http_service:
             server_uri:
               uri: https://{{.KubeAuthProxyServiceName}}.{{.GatewayNamespace}}.svc.cluster.local:{{.GatewayHTTPSPort}}/oauth2/auth
-              cluster: {{.KubeAuthProxyServiceName}}
+              # Use Istio's auto-created EDS cluster for better load balancing across all pods
+              cluster: outbound|{{.GatewayHTTPSPort}}||{{.KubeAuthProxyServiceName}}.{{.GatewayNamespace}}.svc.cluster.local
               timeout: {{.AuthProxyTimeout}}
             authorization_request:
               allowed_headers:
@@ -106,21 +107,3 @@ spec:
               end
               -- If no auth token present, preserve cookies (needed for ext_authz authentication)
             end
-  - applyTo: CLUSTER
-    match:
-      context: GATEWAY
-    patch:
-      operation: ADD
-      value:
-        name: {{.KubeAuthProxyServiceName}}
-        type: EDS
-        connect_timeout: {{.AuthProxyTimeout}}
-        transport_socket:
-          name: envoy.transport_sockets.tls
-          typed_config:
-            "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-            common_tls_context:
-              validation_context:
-                trusted_ca:
-                  filename: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
-            sni: {{.KubeAuthProxyServiceName}}.{{.GatewayNamespace}}.svc.cluster.local
