@@ -8,10 +8,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -335,7 +334,7 @@ func createAuthPolicy(name, namespace, targetGatewayName string) unstructured.Un
 // createFakeClientWithGateway creates a fake client with a Gateway resource.
 func createFakeClientWithGateway(namespace, name string) client.Client {
 	scheme := runtime.NewScheme()
-	_ = gwapiv1.AddToScheme(scheme)
+	_ = gwapiv1.Install(scheme)
 
 	gateway := &gwapiv1.Gateway{
 		ObjectMeta: metav1.ObjectMeta{
@@ -353,7 +352,7 @@ func createFakeClientWithGateway(namespace, name string) client.Client {
 // createFakeClientWithoutGateway creates a fake client with no Gateway resources.
 func createFakeClientWithoutGateway() client.Client {
 	scheme := runtime.NewScheme()
-	_ = gwapiv1.AddToScheme(scheme)
+	_ = gwapiv1.Install(scheme)
 
 	return fake.NewClientBuilder().
 		WithScheme(scheme).

@@ -35,8 +35,8 @@ import (
 
 // validateGateway validates the Gateway specification in the ModelsAsService resource.
 // It checks that:
-// 1. Both namespace and name are provided (or neither, in which case defaults are used)
-// 2. The specified Gateway resource exists in the cluster
+// 1. Both namespace and name are provided (or neither, in which case defaults are used).
+// 2. The specified Gateway resource exists in the cluster.
 func validateGateway(ctx context.Context, rr *types.ReconciliationRequest) error {
 	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
 	if !ok {
@@ -108,9 +108,9 @@ func customizeManifests(_ context.Context, rr *types.ReconciliationRequest) erro
 	return nil
 }
 
-// Post Render action that configures the gateway-auth-policy
-// 1. Sets the namespace to match the gateway's namespace (since AuthPolicy must be in the same namespace as the gateway)
-// 2. Updates spec.targetRef.name to point to the configured gateway name
+// Post Render action that configures the gateway-auth-policy.
+// 1. Sets the namespace to match the gateway's namespace (since AuthPolicy must be in the same namespace as the gateway).
+// 2. Updates spec.targetRef.name to point to the configured gateway name.
 func configureGatewayAuthPolicy(ctx context.Context, rr *types.ReconciliationRequest) error {
 	log := logf.FromContext(ctx)
 	log.V(1).Info("Entering configureGatewayAuthPolicy",
