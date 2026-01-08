@@ -83,7 +83,6 @@ func kueueTestSuite(t *testing.T) {
 		{"Validate component unmanaged error with ocp kueue-operator not installed", componentCtx.ValidateKueueUnmanagedWithoutOcpKueueOperator},
 		{"Validate component removed to unmanaged transition", componentCtx.ValidateKueueRemovedToUnmanagedTransition},
 		{"Validate component unmanaged to removed transition", componentCtx.ValidateKueueUnmanagedToRemovedTransition},
-		{"Validate external operator degraded condition monitoring", componentCtx.ValidateExternalOperatorDegradedMonitoring},
 	}
 
 	// Add webhook tests if enabled
@@ -99,6 +98,23 @@ func kueueTestSuite(t *testing.T) {
 		TestCase{"Validate component disabled", componentCtx.ValidateKueueComponentDisabled})
 
 	// Run the test suite.
+	RunTestCases(t, testCases)
+}
+
+// kueueDegradedMonitoringTestSuite runs only the external operator degraded monitoring tests.
+func kueueDegradedMonitoringTestSuite(t *testing.T) {
+	t.Helper()
+
+	ct, err := NewComponentTestCtx(t, &componentApi.Kueue{})
+	require.NoError(t, err)
+
+	componentCtx := KueueTestCtx{
+		ComponentTestCtx: ct,
+	}
+
+	testCases := []TestCase{
+		{"Validate external operator degraded condition monitoring", componentCtx.ValidateExternalOperatorDegradedMonitoring},
+	}
 	RunTestCases(t, testCases)
 }
 
@@ -786,7 +802,6 @@ integrations:
 // but the operator can't reset conditions we inject.
 func (tc *KueueTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.T) {
 	t.Helper()
-	t.Skip("RHOAIENG-41751: Skipping flaky external operator degraded monitoring test - under investigation")
 
 	// condition types monitored by the Kueue Component
 	testCases := []degradedConditionTestCase{
