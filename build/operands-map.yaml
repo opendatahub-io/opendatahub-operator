@@ -70,7 +70,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_BUILT_IN_DETECTOR_IMAGE
   value: "quay.io/rhoai/odh-built-in-detector-rhel9@sha256:7443fe0192a9d750bb1b3b94ff8aa8a7f5c2f45948ba2e19012d0a298aa711e9"
 - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_DATASCIENCE_CPU_PY312_IMAGE
-  value: "quay.io/rhoai/odh-pipeline-runtime-datascience-cpu-py312-rhel9@sha256:3219b4f6c43e9a7c5978d23ba47ed47dd9ad3f5959b14aff284c7734e3663392"
+  value: "quay.io/rhoai/odh-pipeline-runtime-datascience-cpu-py312-rhel9@sha256:a94d6bd81cecfd4fcd9837885a8a130f013dd5bf4b170e1803e6375068e71bb0"
 - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_MINIMAL_CPU_PY312_IMAGE
   value: "quay.io/rhoai/odh-pipeline-runtime-minimal-cpu-py312-rhel9@sha256:1ee70bc8e5aee1c5b43ba11227e1bc62e2bf908a6cb22357e04d17c79f8d6c6f"
 - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_CUDA_PY312_IMAGE
@@ -122,7 +122,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MODEL_METADATA_COLLECTION_IMAGE
   value: "quay.io/rhoai/odh-model-metadata-collection-rhel9@sha256:e51cd7eeedc64b2c41cde3797ddbdf28552c94d6a9b8056734c8210518a42750"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_GEN_AI_IMAGE
-  value: "quay.io/rhoai/odh-mod-arch-gen-ai-rhel9@sha256:a752540e77ec5fd59799dd59c073104fdafe0d96d5d718c748036a9840e6a936"
+  value: "quay.io/rhoai/odh-mod-arch-gen-ai-rhel9@sha256:2d3a76c2ee2b5106edb4e88f0936bf0bafaae98801dd598f7dbe61412f9e9639"
 - name: RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
   value: "quay.io/rhoai/odh-kube-auth-proxy-rhel9@sha256:3e4e445bcf9b356b058823de777f7be3fc7f16f12c8d30cdc355e5572ce31d4b"
 - name: RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
