@@ -90,6 +90,7 @@ func gatewayTestSuite(t *testing.T) {
 		{"Validate NetworkPolicy creation", gatewayCtx.ValidateNetworkPolicy},
 		{"Validate OAuth callback HTTPRoute", gatewayCtx.ValidateOAuthCallbackRoute},
 		{"Validate EnvoyFilter creation", gatewayCtx.ValidateEnvoyFilter},
+		{"Validate EDS endpoint discovery", gatewayCtx.ValidateEDSEndpointDiscovery},
 		{"Validate Gateway ready status", gatewayCtx.ValidateGatewayReadyStatus},
 		{"Validate unauthenticated access redirects to login", gatewayCtx.ValidateUnauthenticatedRedirect},
 	}
@@ -407,7 +408,8 @@ func (tc *GatewayTestCtx) ValidateEnvoyFilter(t *testing.T) {
 	authProxyFQDN := getServiceFQDN(kubeAuthProxyName, gatewayNamespace)
 	authProxyHostPort := net.JoinHostPort(authProxyFQDN, strconv.Itoa(kubeAuthProxyHTTPSPort))
 	authProxyURI := "https://" + authProxyHostPort + "/oauth2/auth"
-	serviceCAPath := "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
+	// Istio auto-creates EDS clusters with this naming pattern for better load balancing
+	istioEDSClusterName := fmt.Sprintf("outbound|%d||%s", kubeAuthProxyHTTPSPort, authProxyFQDN)
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.EnvoyFilter, types.NamespacedName{
@@ -418,8 +420,7 @@ func (tc *GatewayTestCtx) ValidateEnvoyFilter(t *testing.T) {
 			// workload selector
 			jq.Match(`.spec.workloadSelector.labels."%s" == "%s"`, labels.GatewayAPI.GatewayName, gatewayName),
 
-			// config patches length
-			jq.Match(`.spec.configPatches | length == 3`),
+			jq.Match(`.spec.configPatches | length == 2`),
 
 			// Patch 1: ext_authz
 			jq.Match(`.spec.configPatches[0].applyTo == "HTTP_FILTER"`),
@@ -427,8 +428,8 @@ func (tc *GatewayTestCtx) ValidateEnvoyFilter(t *testing.T) {
 			jq.Match(`.spec.configPatches[0].patch.operation == "INSERT_BEFORE"`),
 			jq.Match(`.spec.configPatches[0].patch.value.name == "envoy.filters.http.ext_authz"`),
 
-			// ext_authz config - server/uri and timeout
-			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.server_uri.cluster == "%s"`, kubeAuthProxyName),
+			// ext_authz config - uses Istio's EDS cluster for better load balancing across all pods
+			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.server_uri.cluster == "%s"`, istioEDSClusterName),
 			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.server_uri.timeout == "5s"`),
 			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.server_uri.uri == "%s"`, authProxyURI),
 
@@ -445,32 +446,37 @@ func (tc *GatewayTestCtx) ValidateEnvoyFilter(t *testing.T) {
 			jq.Match(`.spec.configPatches[1].patch.value.typed_config.inline_code | contains("x-auth-request-access-token")`),
 			jq.Match(`.spec.configPatches[1].patch.value.typed_config.inline_code | contains("Bearer")`),
 			jq.Match(`.spec.configPatches[1].patch.value.typed_config.inline_code | contains("authorization")`),
-
-			// Patch 3: Cluster for kube-auth-proxy
-			jq.Match(`.spec.configPatches[2].applyTo == "CLUSTER"`),
-			jq.Match(`.spec.configPatches[2].match.context == "GATEWAY"`),
-			jq.Match(`.spec.configPatches[2].patch.operation == "ADD"`),
-			jq.Match(`.spec.configPatches[2].patch.value.name == "%s"`, kubeAuthProxyName),
-			jq.Match(`.spec.configPatches[2].patch.value.type == "STRICT_DNS"`),
-			jq.Match(`.spec.configPatches[2].patch.value.connect_timeout == "5s"`),
-
-			// cluster endpoints
-			jq.Match(`.spec.configPatches[2].patch.value.load_assignment.cluster_name == "%s"`, kubeAuthProxyName),
-			jq.Match(`.spec.configPatches[2].patch.value.load_assignment.endpoints | length == 1`),
-			jq.Match(`.spec.configPatches[2].patch.value.load_assignment.endpoints[0].lb_endpoints | length == 1`),
-			jq.Match(`.spec.configPatches[2].patch.value.load_assignment.endpoints[0].lb_endpoints[0].endpoint.address.socket_address.address == "%s"`, authProxyFQDN),
-			jq.Match(`.spec.configPatches[2].patch.value.load_assignment.endpoints[0].lb_endpoints[0].endpoint.address.socket_address.port_value == %d`, kubeAuthProxyHTTPSPort),
-
-			// TLS config for cluster
-			jq.Match(`.spec.configPatches[2].patch.value.transport_socket.name == "envoy.transport_sockets.tls"`),
-			jq.Match(`.spec.configPatches[2].patch.value.transport_socket.typed_config."@type" == "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext"`),
-			jq.Match(`.spec.configPatches[2].patch.value.transport_socket.typed_config.common_tls_context.validation_context.trusted_ca.filename == "%s"`, serviceCAPath),
-			jq.Match(`.spec.configPatches[2].patch.value.transport_socket.typed_config.sni == "%s"`, authProxyFQDN),
 		)),
 		WithCustomErrorMsg("EnvoyFilter should be properly configured for authentication"),
 	)
 
 	t.Log("EnvoyFilter validation completed")
+}
+
+// ValidateEDSEndpointDiscovery validates that the Service is properly configured for EDS.
+//
+// This test verifies:
+// - Kubernetes Service exists for kube-auth-proxy
+// - Service has correct selector labels to match auth proxy pods
+// - Service is properly configured for EDS to discover endpoints.
+func (tc *GatewayTestCtx) ValidateEDSEndpointDiscovery(t *testing.T) {
+	t.Helper()
+	t.Log("Validating EDS service configuration for kube-auth-proxy")
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Service, types.NamespacedName{
+			Name:      kubeAuthProxyName,
+			Namespace: gatewayNamespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.selector.app == "%s"`, kubeAuthProxyName),
+			jq.Match(`.spec.ports[] | select(.name == "https") | .port == %d`, kubeAuthProxyHTTPSPort),
+			jq.Match(`.spec.ports[] | select(.name == "https") | .targetPort == %d`, kubeAuthProxyHTTPSPort),
+		)),
+		WithCustomErrorMsg("kube-auth-proxy Service should exist with correct pod selector for EDS endpoint discovery"),
+	)
+
+	t.Log("EDS service configuration validation completed")
 }
 
 // ValidateGatewayReadyStatus validates Gateway resource is fully operational and ready to route traffic.
