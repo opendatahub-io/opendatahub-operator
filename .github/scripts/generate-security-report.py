@@ -573,6 +573,70 @@ class SecurityReportGenerator:
 
         return stats
 
+    def parse_actionlint(self, filepath: str) -> Dict[str, Any]:
+        """Parse actionlint text output
+
+        Format: <file>:<line>:<col>: <message> [<rule>]
+        Example: .github/workflows/test.yml:10:5: invalid expression syntax [expression]
+        """
+        stats = {'tool': 'actionlint', 'findings': 0, 'status': '✅ PASS', 'findings_data': []}
+
+        if not Path(filepath).exists():
+            stats['status'] = '⏭️ SKIPPED'
+            return stats
+
+        try:
+            with open(filepath) as f:
+                content = f.read()
+
+            # Pattern: filepath:line:col: message [rule]
+            # actionlint uses this format for all findings
+            pattern = r'^(.+?):(\d+):(\d+):\s+(.+?)(?:\s+\[(.+?)\])?$'
+
+            for line in content.splitlines():
+                if not line.strip():
+                    continue
+
+                match = re.match(pattern, line)
+                if not match:
+                    continue
+
+                file_path, line_num, col, message, rule = match.groups()
+                stats['findings'] += 1
+
+                # Map severity based on message content
+                # GitHub Actions security issues are generally MEDIUM (workflow errors can break CI/CD)
+                severity = 'medium'
+                severity_bucket = 'medium'
+
+                # Upgrade to HIGH for security-related issues
+                if any(keyword in message.lower() for keyword in ['permission', 'token', 'secret', 'credential']):
+                    severity = 'HIGH'
+                    severity_bucket = 'high'
+
+                finding = {
+                    'tool': 'actionlint',
+                    'type': 'GitHub Actions Workflow Issue',
+                    'severity': severity,
+                    'file': file_path,
+                    'line': int(line_num),
+                    'rule': rule or 'workflow-syntax',
+                    'description': message,
+                    'remediation': 'Fix GitHub Actions workflow syntax according to actionlint recommendation'
+                }
+
+                stats['findings_data'].append(finding)
+                self.findings[severity_bucket].append(finding)
+
+            if stats['findings'] > 0:
+                stats['status'] = '❌ FINDINGS'
+
+        except Exception as e:
+            stats['status'] = '⚠️ ERROR: Failed to parse actionlint output'
+            print(f"[ERROR] actionlint parser: {str(e)}", file=sys.stderr)
+
+        return stats
+
     def _get_semgrep_remediation(self, rule_id: str) -> str:
         """Get remediation guidance for Semgrep rules"""
         remediations = {
@@ -597,6 +661,7 @@ class SecurityReportGenerator:
         self.tool_stats['hadolint'] = self.parse_hadolint_sarif(f'{self.workspace}/hadolint.sarif')
         self.tool_stats['shellcheck'] = self.parse_shellcheck(f'{self.workspace}/shellcheck.json')
         self.tool_stats['yamllint'] = self.parse_yamllint(f'{self.workspace}/yamllint.txt', max_findings=self.yamllint_limit)
+        self.tool_stats['actionlint'] = self.parse_actionlint(f'{self.workspace}/actionlint.txt')
         self.tool_stats['kube-linter'] = self.parse_kubelinter(f'{self.workspace}/kube-linter.json')
         self.tool_stats['rbac'] = self.parse_rbac_analyzer(f'{self.workspace}/rbac-analysis.md')
 
@@ -658,6 +723,7 @@ class SecurityReportGenerator:
                 f.write(f"| {self.tool_stats['hadolint']['tool']} | Dockerfile best practices | {self.tool_stats['hadolint']['status']} | {self.tool_stats['hadolint']['findings']} |\n")
                 f.write(f"| {self.tool_stats['shellcheck']['tool']} | Shell script security | {self.tool_stats['shellcheck']['status']} | {self.tool_stats['shellcheck']['findings']} |\n")
                 f.write(f"| {self.tool_stats['yamllint']['tool']} | YAML syntax and style validation | {self.tool_stats['yamllint']['status']} | {self.tool_stats['yamllint']['findings']} |\n")
+                f.write(f"| {self.tool_stats['actionlint']['tool']} | GitHub Actions workflow validation | {self.tool_stats['actionlint']['status']} | {self.tool_stats['actionlint']['findings']} |\n")
                 f.write(f"| {self.tool_stats['rbac']['tool']} | RBAC privilege chain analysis | {self.tool_stats['rbac']['status']} | {self.tool_stats['rbac']['findings']} |\n\n")
                 f.write(f"---\n\n")
 
@@ -829,12 +895,13 @@ class SecurityReportGenerator:
             'Hadolint': 'hadolint',
             'ShellCheck': 'shellcheck',
             'yamllint': 'yamllint',
+            'actionlint': 'actionlint',
             'RBAC Analyzer': 'rbac'
         }
 
         # Calculate per-tool severity breakdowns
         tool_breakdowns = {}
-        for tool_name in ['Gitleaks', 'TruffleHog', 'Semgrep', 'Hadolint', 'ShellCheck', 'yamllint', 'RBAC Analyzer']:
+        for tool_name in ['Gitleaks', 'TruffleHog', 'Semgrep', 'Hadolint', 'ShellCheck', 'yamllint', 'actionlint', 'RBAC Analyzer']:
             stats_key = tool_key_map[tool_name]
             tool_breakdowns[tool_name] = {
                 'status': self.tool_stats.get(stats_key, {}).get('status', 'UNKNOWN'),
