@@ -532,7 +532,7 @@ rules:
       cwe: "CWE-94: Code Injection"
 
   - id: shell-missing-quotes-dangerous
-    pattern-regex: '(rm|cp|mv|eval|chmod|chown|kill|pkill)\s+[^|;]*\$[A-Za-z_][A-Za-z0-9_]*(?![}"\x27])'
+    pattern-regex: '(rm|cp|mv|eval|chmod|chown|kill|pkill)\s+[^|;]*(?<!["''\\])\$[A-Za-z_][A-Za-z0-9_]*'
     message: "Unquoted variable in dangerous command. Use double quotes: \"$VAR\""
     severity: ERROR
     languages: [bash, sh]

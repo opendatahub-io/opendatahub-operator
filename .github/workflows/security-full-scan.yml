@@ -69,7 +69,6 @@ jobs:
 
           docker run --rm \
             -v "${{ github.workspace }}:/repo" \
-            -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
             ghcr.io/gitleaks/gitleaks@sha256:105ac66a57b2bb8afb61a3b8a5dcc4817773d03724a7e8a515214cfe58225556 \
             detect \
               --source /repo \
