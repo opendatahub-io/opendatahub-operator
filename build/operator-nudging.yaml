@@ -161,3 +161,5 @@ relatedImages:
   value: quay.io/rhoai/odh-training-rocm64-torch290-py312-rhel9@sha256:6986c3ce62ef30856a7144e7b5ae02fc6a09ce469beec662c7f70b20991ca17d
 - name: RELATED_IMAGE_ODH_TRAINING_CPU_TORCH290_PY312_IMAGE
   value: quay.io/rhoai/odh-training-cpu-torch290-py312-rhel9@sha256:6323e0232dcc524a9077376403d0b743b7e24936330018b82c421ac2d979413c
+- name: RELATED_IMAGE_ODH_MLSERVER_IMAGE
+  value: quay.io/rhoai/odh-mlserver-rhel9@sha256:b9674f7d7ed7895186922abf11fb0d3a36b27289c5ed24a7fe8f528ce76e18f0
