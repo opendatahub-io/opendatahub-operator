@@ -3,6 +3,7 @@ package mlflowoperator
 import (
 	"context"
 	"fmt"
+	"path"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -41,6 +42,8 @@ var (
 	conditionTypes = []string{
 		status.ConditionDeploymentsAvailable,
 	}
+
+	paramsPath = path.Join(odhdeploy.DefaultManifestPath, ComponentName, "base")
 )
 
 func manifestPath(p common.Platform) types.ManifestInfo {
