@@ -45,10 +45,7 @@ func modelsAsServiceTestSuite(t *testing.T) {
 	// Setup: Create the MaaS Gateway before running tests
 	componentCtx.createMaaSGateway(t)
 
-	// Cleanup: Delete the MaaS Gateway after all tests complete
-	t.Cleanup(func() {
-		componentCtx.deleteMaaSGateway(t)
-	})
+	// Note: per e2e convention, do not cleanup resources; leave state for debugging.
 
 	testCases := []TestCase{
 		{"Validate subcomponent enabled", componentCtx.ValidateSubComponentEnabled},
