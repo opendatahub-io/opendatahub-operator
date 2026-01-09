@@ -51,6 +51,21 @@
 #   semgrep scan --config /src/semgrep.yaml /src
 # ==============================================================================
 
+# Global path exclusions (applied to all rules)
+# Excludes test fixtures, examples, documentation, and development scripts
+paths:
+  exclude:
+    - "examples/**"           # Example configurations with mock credentials
+    - "contrib/**"            # Contributed scripts and local development configs
+    - "scripts/**"            # Build/release scripts (may use eval, unquoted vars)
+    - "**/testdata/**"        # Test fixture data with mock secrets
+    - "**/*_test.go"          # Go test files with mock credentials
+    - "**/*_mock.go"          # Go mock files with test data
+    - "test/**"               # Test directories
+    - "docs/**"               # Documentation with example code snippets
+    - "bin/**"                # Compiled binaries
+    - ".github/workflows/**"  # GitHub Actions workflows
+
 rules:
   # ============================================================================
   # SECRETS DETECTION (Backup for Gitleaks)

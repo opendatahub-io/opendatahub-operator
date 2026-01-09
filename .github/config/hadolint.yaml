@@ -1,0 +1,34 @@
+---
+# ==============================================================================
+# Hadolint Configuration for Dockerfile Security Analysis
+# ==============================================================================
+#
+# PURPOSE:
+# Enforces Docker best practices and CIS Benchmark recommendations for
+# Dockerfiles. Catches common security issues like unpinned base images,
+# secrets in ENV vars, and running containers as root.
+#
+# USED BY:
+# - GitHub Actions: .github/workflows/security-full-scan.yml
+# - Local usage: hadolint --config .github/config/hadolint.yaml Dockerfile
+#
+# PATH EXCLUSIONS: Same as Semgrep, Gitleaks, and yamllint
+# ==============================================================================
+
+# Ignore Dockerfiles in test/example directories to prevent false positives
+# Use glob patterns to match nested directories
+ignored:
+  - "**/examples/**"
+  - "**/contrib/**"
+  - "**/scripts/**"
+  - "**/testdata/**"
+  - "**/test/**"
+  - "**/tests/**"
+  - "**/docs/**"
+  - "**/bin/**"
+  - "**/.github/workflows/**"
+
+# Optional: Disable specific rules if they create too many false positives
+# ignored-rules:
+#   - DL3008  # Pin versions in apt-get install
+#   - DL3018  # Pin versions in apk add

@@ -1,0 +1,24 @@
+# ==============================================================================
+# ShellCheck Path Exclusions
+# ==============================================================================
+#
+# PURPOSE: Excludes test, example, and non-production shell scripts from
+# security scanning to prevent false positives.
+#
+# FORMAT: One path pattern per line (glob patterns supported)
+# USAGE: Read by .github/workflows/security-full-scan.yml
+#
+# PATH EXCLUSIONS: Same as Semgrep, Gitleaks, yamllint, and Hadolint
+# ==============================================================================
+
+**/examples/**
+**/contrib/**
+**/scripts/**
+**/testdata/**
+**/test/**
+**/tests/**
+**/docs/**
+**/bin/**
+**/.github/workflows/**
+**/node_modules/**
+**/vendor/**
