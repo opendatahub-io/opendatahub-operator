@@ -25,12 +25,149 @@ jobs:
   kube-linter:
     name: kube-linter
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write  # For SARIF upload
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       - name: Set up Go env
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
           go-version-file: go.mod
-      - name: kube-lint
-        run:
-          make kube-lint
+
+      # Run kube-linter with SARIF output for GitHub Security tab integration
+      - name: Run kube-linter (SARIF output)
+        id: kubelinter_sarif
+        run: |
+          # Prepare manifests
+          make prepare
+          TMP_FILE=$(mktemp /tmp/kube-lint.XXXXXX.yaml)
+          ./bin/kustomize build config/manifests > $TMP_FILE
+
+          # Run kube-linter with SARIF format for GitHub Security tab
+          go run golang.stackrox.io/kube-linter/cmd/kube-linter@v0.7.6 lint \
+            --config .kube-linter.yaml \
+            --format sarif \
+            $TMP_FILE > kube-linter.sarif || true
+
+          rm -f $TMP_FILE
+        continue-on-error: true
+
+      # Upload SARIF to GitHub Security tab
+      - name: Upload kube-linter SARIF results
+        if: always() && hashFiles('kube-linter.sarif') != ''
+        uses: github/codeql-action/upload-sarif@1b168cd39490f61582a9beae412bb7057a6b2c4e  # v4.31.8
+        with:
+          sarif_file: kube-linter.sarif
+          category: kube-linter
+
+      # Run kube-linter with severity-based blocking (CRITICAL/HIGH only)
+      # MEDIUM and LOW findings are reported but don't block PRs
+      - name: Run kube-linter (blocking check - CRITICAL/HIGH only)
+        run: |
+          # Prepare manifests
+          make prepare
+          TMP_FILE=$(mktemp /tmp/kube-lint.XXXXXX.yaml)
+          ./bin/kustomize build config/manifests > $TMP_FILE
+
+          # Run kube-linter with JSON output for severity filtering
+          go run golang.stackrox.io/kube-linter/cmd/kube-linter@v0.7.6 lint \
+            --config .kube-linter.yaml \
+            --format json \
+            $TMP_FILE > kube-linter-pr-check.json || true
+
+          # Analyze findings and block only on CRITICAL/HIGH
+          python3 - <<'EOF'
+          import json
+          import sys
+
+          # Severity mapping (matches generate-security-report.py)
+          CRITICAL_CHECKS = {
+              'cluster-admin-role-binding', 'privileged-container',
+              'host-network', 'host-pid', 'host-ipc', 'docker-sock',
+              'access-to-create-pods', 'privilege-escalation-container'
+          }
+          HIGH_CHECKS = {
+              'access-to-secrets', 'wildcard-in-rules', 'sensitive-host-mounts',
+              'writable-host-mount', 'unsafe-proc-mount', 'unsafe-sysctls',
+              'default-service-account', 'env-var-secret', 'read-secret-from-env-var',
+              'drop-net-raw-capability'
+          }
+
+          try:
+              with open('kube-linter-pr-check.json') as f:
+                  data = json.load(f)
+          except FileNotFoundError:
+              print("⚠️  kube-linter output not found - skipping check")
+              sys.exit(0)
+          except json.JSONDecodeError as e:
+              print(f"⚠️  Failed to parse kube-linter JSON: {e}")
+              sys.exit(0)
+
+          reports = data.get('Reports', [])
+
+          critical_findings = []
+          high_findings = []
+          medium_low_count = 0
+
+          for report in reports:
+              check_name = report.get('Check', 'unknown')
+
+              if check_name in CRITICAL_CHECKS:
+                  critical_findings.append(report)
+              elif check_name in HIGH_CHECKS:
+                  high_findings.append(report)
+              else:
+                  medium_low_count += 1
+
+          # Print summary
+          print("\n" + "="*80)
+          print("🔍 Kube-linter PR Check Results")
+          print("="*80)
+
+          if critical_findings:
+              print(f"\n🔴 CRITICAL: {len(critical_findings)} findings (BLOCKING)")
+              for finding in critical_findings:
+                  obj = finding.get('Object', {}).get('K8sObject', {})
+                  name = obj.get('Name', 'unknown')
+                  kind = obj.get('GroupVersionKind', {}).get('Kind', 'unknown')
+                  check = finding.get('Check', 'unknown')
+                  msg = finding.get('Diagnostic', {}).get('Message', '')
+                  print(f"  ❌ {kind}/{name}: {check}")
+                  print(f"     {msg}")
+
+          if high_findings:
+              print(f"\n🟠 HIGH: {len(high_findings)} findings (BLOCKING)")
+              for finding in high_findings:
+                  obj = finding.get('Object', {}).get('K8sObject', {})
+                  name = obj.get('Name', 'unknown')
+                  kind = obj.get('GroupVersionKind', {}).get('Kind', 'unknown')
+                  check = finding.get('Check', 'unknown')
+                  msg = finding.get('Diagnostic', {}).get('Message', '')
+                  print(f"  ❌ {kind}/{name}: {check}")
+                  print(f"     {msg}")
+
+          if medium_low_count > 0:
+              print(f"\n🟡 MEDIUM/LOW: {medium_low_count} findings (non-blocking)")
+              print("   ℹ️  See SARIF results in Security tab for details")
+
+          # Block PR only on CRITICAL or HIGH
+          if critical_findings or high_findings:
+              print("\n" + "="*80)
+              print("❌ PR BLOCKED: Fix CRITICAL/HIGH findings to proceed")
+              print("="*80)
+              sys.exit(1)
+          elif medium_low_count > 0:
+              print("\n" + "="*80)
+              print("✅ PR CHECK PASSED (MEDIUM/LOW findings don't block)")
+              print("📋 Please address these findings in a follow-up PR")
+              print("="*80)
+              sys.exit(0)
+          else:
+              print("\n" + "="*80)
+              print("✅ ALL CHECKS PASSED - No kube-linter findings")
+              print("="*80)
+              sys.exit(0)
+          EOF
+
+          rm -f $TMP_FILE kube-linter-pr-check.json

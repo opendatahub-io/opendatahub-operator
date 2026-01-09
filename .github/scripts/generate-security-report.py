@@ -17,6 +17,7 @@ Tools parsed:
     - ShellCheck (JSON)
     - Hadolint (SARIF)
     - yamllint (text)
+    - kube-linter (JSON)
     - RBAC Analyzer (text)
 """
 
@@ -309,6 +310,131 @@ class SecurityReportGenerator:
 
         return stats
 
+    def parse_kubelinter(self, filepath: str) -> Dict[str, Any]:
+        """Parse kube-linter JSON output
+
+        kube-linter JSON format:
+        {
+          "Reports": [
+            {
+              "Object": {
+                "K8sObject": {
+                  "Namespace": "...",
+                  "Name": "...",
+                  "GroupVersionKind": {...}
+                }
+              },
+              "Check": "check-name",
+              "Diagnostic": {
+                "Message": "...",
+                "Description": "..."
+              }
+            }
+          ]
+        }
+        """
+        stats = {'tool': 'kube-linter', 'findings': 0, 'status': '✅ PASS'}
+
+        if not Path(filepath).exists():
+            stats['status'] = '⏭️ SKIPPED'
+            return stats
+
+        try:
+            with open(filepath) as f:
+                data = json.load(f)
+
+            reports = data.get('Reports', [])
+            if not reports:
+                return stats
+
+            # Deduplicate findings by check:object:message combination
+            seen = set()
+            unique_findings = []
+
+            for report in reports:
+                check_name = report.get('Check', 'unknown')
+                diagnostic = report.get('Diagnostic', {})
+                message = diagnostic.get('Message', 'kube-linter finding')
+                description = diagnostic.get('Description', '')
+
+                # Extract object information
+                k8s_obj = report.get('Object', {}).get('K8sObject', {})
+                namespace = k8s_obj.get('Namespace', '')
+                name = k8s_obj.get('Name', 'unknown')
+                gvk = k8s_obj.get('GroupVersionKind', {})
+                kind = gvk.get('Kind', 'unknown')
+
+                # Construct object identifier
+                if namespace:
+                    object_id = f"{kind}/{namespace}/{name}"
+                else:
+                    object_id = f"{kind}/{name}"
+
+                # Deduplication key
+                dedup_key = f"{check_name}:{object_id}:{message}"
+                if dedup_key in seen:
+                    continue
+                seen.add(dedup_key)
+
+                # Map check severity (kube-linter doesn't provide severity in JSON)
+                # Critical: cluster-admin, privileged containers, host access
+                # High: RBAC wildcards, secret access, missing probes
+                # Medium: resource limits, namespace issues
+                # Low: image tags, best practices
+                critical_checks = {
+                    'cluster-admin-role-binding', 'privileged-container',
+                    'host-network', 'host-pid', 'host-ipc', 'docker-sock',
+                    'access-to-create-pods', 'privilege-escalation-container'
+                }
+                high_checks = {
+                    'access-to-secrets', 'wildcard-in-rules', 'sensitive-host-mounts',
+                    'writable-host-mount', 'unsafe-proc-mount', 'unsafe-sysctls',
+                    'default-service-account', 'env-var-secret', 'read-secret-from-env-var',
+                    'drop-net-raw-capability'
+                }
+                medium_checks = {
+                    'unset-cpu-requirements', 'unset-memory-requirements',
+                    'no-liveness-probe', 'no-readiness-probe', 'use-namespace',
+                    'non-isolated-pod', 'exposed-services', 'no-read-only-root-fs'
+                }
+
+                if check_name in critical_checks:
+                    severity = 'CRITICAL'
+                    severity_bucket = 'critical'
+                elif check_name in high_checks:
+                    severity = 'HIGH'
+                    severity_bucket = 'high'
+                elif check_name in medium_checks:
+                    severity = 'MEDIUM'
+                    severity_bucket = 'medium'
+                else:
+                    severity = 'LOW'
+                    severity_bucket = 'low'
+
+                finding = {
+                    'tool': 'kube-linter',
+                    'type': 'Kubernetes Manifest Security',
+                    'severity': severity,
+                    'file': object_id,  # Use object ID as "file" for display
+                    'line': check_name,  # Use check name as "line" for display
+                    'rule': check_name,
+                    'description': f"{message} (Object: {object_id})",
+                    'remediation': description or 'Fix Kubernetes manifest according to check requirements'
+                }
+
+                unique_findings.append(finding)
+                self.findings[severity_bucket].append(finding)
+
+            stats['findings'] = len(unique_findings)
+            if stats['findings'] > 0:
+                stats['status'] = '❌ FINDINGS'
+
+        except Exception as e:
+            stats['status'] = '⚠️ ERROR: Failed to parse kube-linter JSON'
+            print(f"[ERROR] kube-linter parser: {str(e)}", file=sys.stderr)
+
+        return stats
+
     def parse_rbac_analyzer(self, filepath: str) -> Dict[str, Any]:
         """Parse RBAC Analyzer text output"""
         stats = {'tool': 'RBAC Analyzer', 'findings': 0, 'status': '✅ PASS', 'content': ''}
@@ -471,6 +597,7 @@ class SecurityReportGenerator:
         self.tool_stats['hadolint'] = self.parse_hadolint_sarif(f'{self.workspace}/hadolint.sarif')
         self.tool_stats['shellcheck'] = self.parse_shellcheck(f'{self.workspace}/shellcheck.json')
         self.tool_stats['yamllint'] = self.parse_yamllint(f'{self.workspace}/yamllint.txt', max_findings=self.yamllint_limit)
+        self.tool_stats['kube-linter'] = self.parse_kubelinter(f'{self.workspace}/kube-linter.json')
         self.tool_stats['rbac'] = self.parse_rbac_analyzer(f'{self.workspace}/rbac-analysis.md')
 
         # Calculate totals

@@ -248,6 +248,68 @@ jobs:
         continue-on-error: true
 
       # ============================================================================
+      # KUBERNETES MANIFEST SECURITY - kube-linter
+      # ============================================================================
+      # Tool: kube-linter v0.7.6
+      # Purpose: Kubernetes manifest validation for security and best practices
+      # Coverage: 36 security checks (up from 9 original checks):
+      #   - Container security (13 checks): privilege escalation, host namespaces,
+      #     docker.sock, sensitive mounts, capabilities, sysctls
+      #   - RBAC (5 checks): CIS Benchmark 5.1.1-5.1.4 (cluster-admin, secrets,
+      #     wildcards, pod creation)
+      #   - Secret management (2 checks): CIS 5.4.1 (env vars vs mounted secrets)
+      #   - Service Account (2 checks): default SA, non-existent SA
+      #   - Network security (4 checks): privileged ports, SSH, exposed services,
+      #     NetworkPolicy isolation
+      #   - Reliability (4 checks): liveness/readiness probes, resource limits
+      #   - Namespace isolation (1 check): CIS 5.7.1, 5.7.4 (default namespace)
+      #   - Image security (1 check): latest tag prohibition
+      # Config: .kube-linter.yaml (36 checks total, organized by category)
+      # Output: SARIF (GitHub Security tab) + JSON (comprehensive report)
+      # Scope: Rendered Kubernetes manifests from kustomize build
+      #
+      # Integration Notes:
+      # - Complements RBAC Analyzer: kube-linter checks individual RBAC rules,
+      #   RBAC Analyzer maps full privilege chains (Pod→SA→Role→Binding)
+      # - Runs in both PR workflow (test-linter.yaml) and weekly full scan
+
+      - name: Set up Go for kube-linter
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00  # v6.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Run kube-linter
+        id: kubelinter
+        timeout-minutes: 5
+        run: |
+          # Prepare kustomize and render manifests
+          make prepare
+          TMP_FILE=$(mktemp /tmp/kube-lint.XXXXXX.yaml)
+          ./bin/kustomize build config/manifests > $TMP_FILE
+
+          # Run kube-linter with JSON output for comprehensive report
+          go run golang.stackrox.io/kube-linter/cmd/kube-linter@v0.7.6 lint \
+            --config .kube-linter.yaml \
+            --format json \
+            $TMP_FILE > kube-linter.json || true
+
+          # Run kube-linter with SARIF output for GitHub Security tab
+          go run golang.stackrox.io/kube-linter/cmd/kube-linter@v0.7.6 lint \
+            --config .kube-linter.yaml \
+            --format sarif \
+            $TMP_FILE > kube-linter.sarif || true
+
+          rm -f $TMP_FILE
+        continue-on-error: true
+
+      - name: Upload kube-linter SARIF results
+        if: always() && hashFiles('kube-linter.sarif') != ''
+        uses: github/codeql-action/upload-sarif@1b168cd39490f61582a9beae412bb7057a6b2c4e  # v4.31.8
+        with:
+          sarif_file: kube-linter.sarif
+          category: kube-linter
+
+      # ============================================================================
       # RBAC PRIVILEGE CHAIN ANALYSIS - Custom Script
       # ============================================================================
       # Tool: Custom Python analyzer (.github/scripts/rbac-analyzer.py)
@@ -388,6 +450,7 @@ jobs:
           SHELLCHECK_OUTCOME: ${{ steps.shellcheck.outcome }}
           HADOLINT_OUTCOME: ${{ steps.hadolint.outcome }}
           YAMLLINT_OUTCOME: ${{ steps.yamllint.outcome }}
+          KUBELINTER_OUTCOME: ${{ steps.kubelinter.outcome }}
           RBAC_OUTCOME: ${{ steps.rbac_analyzer.outcome }}
         run: |
           # Function to extract severity summary from JSON (robust parsing with jq)
@@ -560,6 +623,11 @@ jobs:
           severity_summary=$(get_severity_badge "yamllint")
           echo "| yamllint | YAML validation | ${status_result%%|*} | ${status_result##*|}${severity_summary} |" >> $GITHUB_STEP_SUMMARY
 
+          # kube-linter
+          status_result=$(get_status "kube-linter" "$KUBELINTER_OUTCOME")
+          severity_summary=$(get_severity_badge "kube-linter")
+          echo "| kube-linter | Kubernetes manifest security (36 checks) | ${status_result%%|*} | ${status_result##*|}${severity_summary} |" >> $GITHUB_STEP_SUMMARY
+
           # RBAC Analyzer
           status_result=$(get_status "RBAC Analyzer" "$RBAC_OUTCOME")
           severity_summary=$(get_severity_badge "RBAC Analyzer")
@@ -573,13 +641,14 @@ jobs:
              [[ "$SHELLCHECK_OUTCOME" == "success" ]] && \
              [[ "$HADOLINT_OUTCOME" == "success" ]] && \
              [[ "$YAMLLINT_OUTCOME" == "success" ]] && \
+             [[ "$KUBELINTER_OUTCOME" == "success" ]] && \
              [[ "$RBAC_OUTCOME" == "success" ]]; then
             echo "✅ **All security scans passed - no issues found**" >> $GITHUB_STEP_SUMMARY
           else
             # Check if any tools actually failed (vs just found issues)
             has_failures=false
             has_incomplete=false
-            for outcome in "$GITLEAKS_OUTCOME" "$TRUFFLEHOG_OUTCOME" "$SEMGREP_OUTCOME" "$SHELLCHECK_OUTCOME" "$HADOLINT_OUTCOME" "$YAMLLINT_OUTCOME" "$RBAC_OUTCOME"; do
+            for outcome in "$GITLEAKS_OUTCOME" "$TRUFFLEHOG_OUTCOME" "$SEMGREP_OUTCOME" "$SHELLCHECK_OUTCOME" "$HADOLINT_OUTCOME" "$YAMLLINT_OUTCOME" "$KUBELINTER_OUTCOME" "$RBAC_OUTCOME"; do
               if [[ "$outcome" == "failure" ]]; then
                 # At least one tool had a non-success outcome (either failed or found issues)
                 has_failures=true
@@ -600,7 +669,7 @@ jobs:
             fi
           fi
 
-      - name: Fail workflow on critical findings
+      - name: Fail workflow on critical/high findings
         if: always() && hashFiles('security-summary.json') != ''
         run: |
           # Verify jq is available
@@ -610,9 +679,17 @@ jobs:
           fi
 
           critical=$(jq -r '.severity_counts.critical // 0' security-summary.json)
-          # Validate numeric value
+          high=$(jq -r '.severity_counts.high // 0' security-summary.json)
+
+          # Validate numeric values
           if [[ "$critical" =~ ^[0-9]+$ ]] && [[ $critical -gt 0 ]]; then
             echo "❌ Workflow failed: $critical CRITICAL findings detected"
+            echo "Review the comprehensive-security-report artifact for details"
+            exit 1
+          fi
+
+          if [[ "$high" =~ ^[0-9]+$ ]] && [[ $high -gt 0 ]]; then
+            echo "❌ Workflow failed: $high HIGH severity findings detected"
             echo "Review the comprehensive-security-report artifact for details"
             exit 1
           fi
