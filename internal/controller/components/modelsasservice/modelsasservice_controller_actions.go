@@ -113,9 +113,6 @@ func customizeManifests(_ context.Context, rr *types.ReconciliationRequest) erro
 // 2. Updates spec.targetRef.name to point to the configured gateway name.
 func configureGatewayAuthPolicy(ctx context.Context, rr *types.ReconciliationRequest) error {
 	log := logf.FromContext(ctx)
-	log.V(1).Info("Entering configureGatewayAuthPolicy",
-		"resourceCount", len(rr.Resources),
-		"lookingFor", GatewayAuthPolicyName)
 
 	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
 	if !ok {
@@ -125,7 +122,7 @@ func configureGatewayAuthPolicy(ctx context.Context, rr *types.ReconciliationReq
 	gatewayNamespace := maas.Spec.Gateway.Namespace
 	gatewayName := maas.Spec.Gateway.Name
 
-	log.V(1).Info("Gateway configuration from MaaS spec",
+	log.V(4).Info("Gateway configuration from MaaS spec",
 		"gatewayNamespace", gatewayNamespace,
 		"gatewayName", gatewayName)
 
@@ -138,17 +135,12 @@ func configureGatewayAuthPolicy(ctx context.Context, rr *types.ReconciliationReq
 			continue
 		}
 
-		log.V(1).Info("Found AuthPolicy resource",
-			"name", resource.GetName(),
-			"namespace", resource.GetNamespace(),
-			"expectedName", GatewayAuthPolicyName)
-
 		if resource.GetName() != GatewayAuthPolicyName {
 			continue
 		}
 
 		authPolicyFound = true
-		log.Info("Configuring gateway-auth-policy AuthPolicy",
+		log.V(4).Info("Configuring gateway-auth-policy AuthPolicy",
 			"originalNamespace", resource.GetNamespace(),
 			"newNamespace", gatewayNamespace,
 			"newTargetGateway", gatewayName)
@@ -160,10 +152,6 @@ func configureGatewayAuthPolicy(ctx context.Context, rr *types.ReconciliationReq
 		if err := unstructured.SetNestedField(resource.Object, gatewayName, "spec", "targetRef", "name"); err != nil {
 			return fmt.Errorf("failed to set spec.targetRef.name on AuthPolicy: %w", err)
 		}
-
-		log.V(1).Info("Successfully updated AuthPolicy",
-			"namespace", resource.GetNamespace(),
-			"targetRef.name", gatewayName)
 	}
 
 	if !authPolicyFound {

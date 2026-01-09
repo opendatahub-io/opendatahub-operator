@@ -127,19 +127,3 @@ func (tc *ModelsAsServiceTestCtx) createMaaSGateway(t *testing.T) {
 
 	t.Logf("MaaS Gateway %s/%s created successfully", maasGatewayNamespace, maasGatewayName)
 }
-
-// deleteMaaSGateway removes the maas-default-gateway Gateway resource.
-func (tc *ModelsAsServiceTestCtx) deleteMaaSGateway(t *testing.T) {
-	t.Helper()
-	t.Logf("Cleaning up MaaS Gateway: %s/%s", maasGatewayNamespace, maasGatewayName)
-
-	tc.DeleteResource(
-		WithMinimalObject(gvk.KubernetesGateway, types.NamespacedName{
-			Name:      maasGatewayName,
-			Namespace: maasGatewayNamespace,
-		}),
-		WithIgnoreNotFound(true),
-	)
-
-	t.Logf("MaaS Gateway %s/%s cleanup completed", maasGatewayNamespace, maasGatewayName)
-}
