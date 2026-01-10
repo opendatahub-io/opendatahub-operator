@@ -66,13 +66,13 @@ var componentIDRE = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*(?:/[A-Za-z0-9][A-
 //
 // Note: This image version must stay compatible with the Cluster Observability Operator (COO) version
 // that we depend on. When upgrading COO, verify Perses image compatibility and update accordingly.
-// The current image is compatible with COO 1.2.2.
+// The current image is compatible with COO 1.3.1.
 func getPersesImage() string {
-	if image := os.Getenv("RELATED_IMAGE_PERSES"); image != "" {
+	if image := os.Getenv("RELATED_IMAGE_PERSES_IMAGE"); image != "" {
 		return image
 	}
 
-	return "registry.redhat.io/cluster-observability-operator/perses-0-50-rhel9:1.2.2-1752686994"
+	return "registry.redhat.io/cluster-observability-operator/perses-rhel9:1.3.1-1765876130"
 }
 
 // isLocalServiceEndpoint checks if an endpoint URL is for a local/in-cluster service.
