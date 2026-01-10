@@ -593,11 +593,17 @@ class SecurityReportGenerator:
             # actionlint uses this format for all findings
             pattern = r'^(.+?):(\d+):(\d+):\s+(.+?)(?:\s+\[(.+?)\])?$'
 
+            # Regex to strip ANSI color codes (e.g., \x1b[31m for red, \x1b[0m for reset)
+            ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
+
             for line in content.splitlines():
                 if not line.strip():
                     continue
 
-                match = re.match(pattern, line)
+                # Strip ANSI color codes before pattern matching
+                clean_line = ansi_escape.sub('', line)
+
+                match = re.match(pattern, clean_line)
                 if not match:
                     continue
 
@@ -606,7 +612,7 @@ class SecurityReportGenerator:
 
                 # Map severity based on message content
                 # GitHub Actions security issues are generally MEDIUM (workflow errors can break CI/CD)
-                severity = 'medium'
+                severity = 'MEDIUM'
                 severity_bucket = 'medium'
 
                 # Upgrade to HIGH for security-related issues
@@ -724,6 +730,7 @@ class SecurityReportGenerator:
                 f.write(f"| {self.tool_stats['shellcheck']['tool']} | Shell script security | {self.tool_stats['shellcheck']['status']} | {self.tool_stats['shellcheck']['findings']} |\n")
                 f.write(f"| {self.tool_stats['yamllint']['tool']} | YAML syntax and style validation | {self.tool_stats['yamllint']['status']} | {self.tool_stats['yamllint']['findings']} |\n")
                 f.write(f"| {self.tool_stats['actionlint']['tool']} | GitHub Actions workflow validation | {self.tool_stats['actionlint']['status']} | {self.tool_stats['actionlint']['findings']} |\n")
+                f.write(f"| {self.tool_stats['kube-linter']['tool']} | Kubernetes manifest security | {self.tool_stats['kube-linter']['status']} | {self.tool_stats['kube-linter']['findings']} |\n")
                 f.write(f"| {self.tool_stats['rbac']['tool']} | RBAC privilege chain analysis | {self.tool_stats['rbac']['status']} | {self.tool_stats['rbac']['findings']} |\n\n")
                 f.write(f"---\n\n")
 
@@ -896,12 +903,13 @@ class SecurityReportGenerator:
             'ShellCheck': 'shellcheck',
             'yamllint': 'yamllint',
             'actionlint': 'actionlint',
+            'kube-linter': 'kube-linter',
             'RBAC Analyzer': 'rbac'
         }
 
         # Calculate per-tool severity breakdowns
         tool_breakdowns = {}
-        for tool_name in ['Gitleaks', 'TruffleHog', 'Semgrep', 'Hadolint', 'ShellCheck', 'yamllint', 'actionlint', 'RBAC Analyzer']:
+        for tool_name in ['Gitleaks', 'TruffleHog', 'Semgrep', 'Hadolint', 'ShellCheck', 'yamllint', 'actionlint', 'kube-linter', 'RBAC Analyzer']:
             stats_key = tool_key_map[tool_name]
             tool_breakdowns[tool_name] = {
                 'status': self.tool_stats.get(stats_key, {}).get('status', 'UNKNOWN'),

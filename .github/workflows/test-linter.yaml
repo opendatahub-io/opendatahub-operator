@@ -131,11 +131,12 @@ jobs:
               with open('kube-linter-pr-check.json') as f:
                   data = json.load(f)
           except FileNotFoundError:
-              print("⚠️  kube-linter output not found - skipping check")
-              sys.exit(0)
+              print("❌ ERROR: kube-linter output not found - failing check to prevent bypass")
+              sys.exit(1)
           except json.JSONDecodeError as e:
-              print(f"⚠️  Failed to parse kube-linter JSON: {e}")
-              sys.exit(0)
+              print(f"❌ ERROR: Failed to parse kube-linter JSON: {e}")
+              print("   Failing check to prevent bypass - ensure kube-linter runs successfully")
+              sys.exit(1)
 
           reports = data.get('Reports', [])
 

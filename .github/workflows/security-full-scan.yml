@@ -240,7 +240,7 @@ jobs:
             -v "${{ github.workspace }}:/repo" \
             -w /repo \
             rhysd/actionlint@sha256:9633cc7845f67b0f757d1b60651e2cfbb41e641ee3d85937d1ca69b4c68e54be \
-            -color > actionlint.txt 2>&1 || true
+            --no-color > actionlint.txt 2>&1
         continue-on-error: true
 
       # ============================================================================
