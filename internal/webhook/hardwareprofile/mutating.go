@@ -243,11 +243,6 @@ func (i *Injector) performHardwareProfileInjection(ctx context.Context, req *adm
 		}
 	}
 
-	// Early exit if hardware profile has no meaningful configuration
-	if len(hwp.Spec.Identifiers) == 0 && hwp.Spec.SchedulingSpec == nil {
-		return admission.Allowed("HardwareProfile has no configuration to apply")
-	}
-
 	// Only set the annotation if it wasn't already set
 	if resources.GetAnnotation(obj, HardwareProfileNamespaceAnnotation) == "" {
 		resources.SetAnnotation(obj, HardwareProfileNamespaceAnnotation, profileNamespace)
@@ -318,6 +313,7 @@ func (i *Injector) fetchHardwareProfile(ctx context.Context, namespace, name str
 // Scheduling Configuration:
 //   - Applies Kueue LocalQueue labels for queue-based scheduling
 //   - Applies node scheduling constraints (nodeSelector, tolerations)
+//   - Clears existing scheduling configuration before applying new settings
 //   - Always applies scheduling configuration regardless of existing values
 //
 // Parameters:
@@ -330,7 +326,21 @@ func (i *Injector) fetchHardwareProfile(ctx context.Context, namespace, name str
 func (i *Injector) applyHardwareProfileToWorkload(ctx context.Context, obj *unstructured.Unstructured, hwp *infrav1.HardwareProfile) error {
 	log := logf.FromContext(ctx)
 
-	log.V(1).Info("applying hardware profile to workload", "workload", obj.GetName(), "kind", obj.GetKind(), "hardwareProfile", hwp.Name)
+	log.V(1).Info("clear existing HWP and Kueue settings", "workload", obj.GetName(), "kind", obj.GetKind(), "hardwareProfile", hwp.Name)
+
+	// Remove Kueue label
+	resources.RemoveLabel(obj, cluster.KueueQueueNameLabel)
+
+	// Remove nodeSelector and tolerations
+	if config, err := GetWorkloadConfig(obj.GetKind()); err == nil {
+		unstructured.RemoveNestedField(obj.Object, config.NodeSelectorPath...)
+		unstructured.RemoveNestedField(obj.Object, config.TolerationsPath...)
+	} else {
+		// Log an error if we cannot determine workload config for this kind
+		return fmt.Errorf("failed to clear scheduling fields - unsupported workload kind: %s: %w", obj.GetKind(), err)
+	}
+
+	log.V(1).Info("applying new HWP or Kueue settings to workload", "workload", obj.GetName(), "kind", obj.GetKind(), "hardwareProfile", hwp.Name)
 
 	// Apply resource requirements to containers (only if there are identifiers)
 	if len(hwp.Spec.Identifiers) > 0 {

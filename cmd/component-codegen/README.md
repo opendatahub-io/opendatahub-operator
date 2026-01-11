@@ -25,7 +25,7 @@ A folder named after the component inside `internal/controller/components` conta
    - component.go
 
 3. API Updates
-Adds an entry of the component in `api/datasciencecluster/v1/datasciencecluster_types.go` within the spec section.
+Adds an entry of the component in `api/datasciencecluster/v2/datasciencecluster_types.go` within the spec section.
 
 4. RBAC Configuration
 Updates the file `internal/controller/datasciencecluster/kubebuilder_rbac.go` with necessary Kubebuilder RBAC markers.

@@ -17,8 +17,9 @@ limitations under the License.
 package v1
 
 import (
-	operatorv1 "github.com/openshift/api/operator/v1"
 	"strings"
+
+	operatorv1 "github.com/openshift/api/operator/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -111,12 +112,22 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 				KueueCommonSpec:       c.Spec.Components.Kueue.KueueCommonSpec,
 				KueueDefaultQueueSpec: c.Spec.Components.Kueue.KueueDefaultQueueSpec,
 			},
-			Ray:                c.Spec.Components.Ray,
-			TrustyAI:           c.Spec.Components.TrustyAI,
-			ModelRegistry:      c.Spec.Components.ModelRegistry,
-			TrainingOperator:   c.Spec.Components.TrainingOperator,
+			Ray:              c.Spec.Components.Ray,
+			TrustyAI:         c.Spec.Components.TrustyAI,
+			ModelRegistry:    c.Spec.Components.ModelRegistry,
+			TrainingOperator: c.Spec.Components.TrainingOperator,
+			Trainer: componentApi.DSCTrainer{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Removed,
+				},
+			},
 			FeastOperator:      c.Spec.Components.FeastOperator,
 			LlamaStackOperator: c.Spec.Components.LlamaStackOperator,
+			MLflowOperator: componentApi.DSCMLflowOperator{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Removed,
+				},
+			},
 		},
 	}
 
@@ -131,17 +142,27 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 		RelatedObjects: c.Status.RelatedObjects,
 		ErrorMessage:   c.Status.ErrorMessage,
 		Components: dscv2.ComponentsStatus{
-			Dashboard:          c.Status.Components.Dashboard,
-			Workbenches:        c.Status.Components.Workbenches,
-			AIPipelines:        c.Status.Components.DataSciencePipelines,
-			Kserve:             c.Status.Components.Kserve,
-			Kueue:              c.Status.Components.Kueue,
-			Ray:                c.Status.Components.Ray,
-			TrustyAI:           c.Status.Components.TrustyAI,
-			ModelRegistry:      c.Status.Components.ModelRegistry,
-			TrainingOperator:   c.Status.Components.TrainingOperator,
+			Dashboard:        c.Status.Components.Dashboard,
+			Workbenches:      c.Status.Components.Workbenches,
+			AIPipelines:      c.Status.Components.DataSciencePipelines,
+			Kserve:           c.Status.Components.Kserve,
+			Kueue:            c.Status.Components.Kueue,
+			Ray:              c.Status.Components.Ray,
+			TrustyAI:         c.Status.Components.TrustyAI,
+			ModelRegistry:    c.Status.Components.ModelRegistry,
+			TrainingOperator: c.Status.Components.TrainingOperator,
+			Trainer: componentApi.DSCTrainerStatus{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Removed,
+				},
+			},
 			FeastOperator:      c.Status.Components.FeastOperator,
 			LlamaStackOperator: c.Status.Components.LlamaStackOperator,
+			MLflowOperator: componentApi.DSCMLflowOperatorStatus{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Removed,
+				},
+			},
 		},
 		Release: c.Status.Release,
 	}

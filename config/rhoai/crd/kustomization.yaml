@@ -1,0 +1,40 @@
+# This kustomization.yaml is not intended to be run by itself,
+# since it depends on service name and namespace that are out of this kustomize package.
+# It should be run by config/rhoai/default
+# TODO: if we will use default webhooks, we could remove this override
+resources:
+- bases/
+
+patches:
+# patches here are for enabling the conversion webhook for each CRD
+- target:
+    group: apiextensions.k8s.io
+    version: v1
+    kind: CustomResourceDefinition
+    name: dscinitializations.dscinitialization.opendatahub.io
+  path: patches/webhook_in_dscinitialization_dscinitializations.yaml
+- target:
+    group: apiextensions.k8s.io
+    version: v1
+    kind: CustomResourceDefinition
+    name: datascienceclusters.datasciencecluster.opendatahub.io
+  path: patches/webhook_in_datasciencecluster_datascienceclusters.yaml
+#+kubebuilder:scaffold:crdkustomizewebhookpatch
+
+# CA injection patches for local certificate management
+- target:
+    group: apiextensions.k8s.io
+    version: v1
+    kind: CustomResourceDefinition
+    name: dscinitializations.dscinitialization.opendatahub.io
+  path: patches/cainjection_in_dscinitialization_dscinitializations.yaml
+- target:
+    group: apiextensions.k8s.io
+    version: v1
+    kind: CustomResourceDefinition
+    name: datascienceclusters.datasciencecluster.opendatahub.io
+  path: patches/cainjection_in_datasciencecluster_datascienceclusters.yaml
+
+# the following config is for teaching kustomize how to do kustomization for CRDs.
+configurations:
+- kustomizeconfig.yaml

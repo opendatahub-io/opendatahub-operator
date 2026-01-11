@@ -173,6 +173,25 @@ func GetHardwareProfile(ctx context.Context, cli client.Client, name, namespace 
 	return hwProfile, nil
 }
 
+// CreateHardwareProfile creates a HardwareProfile resource in the cluster.
+// If the resource already exists, it returns nil (idempotent operation).
+//
+// Parameters:
+//   - ctx: The context for the request
+//   - cli: The Kubernetes client used to create the resource
+//   - hwp: The HardwareProfile to create
+//
+// Returns:
+//   - error: An error if the creation fails for reasons other than "already exists"
+func CreateHardwareProfile(ctx context.Context, cli client.Client, hwp *infrav1.HardwareProfile) error {
+	if err := cli.Create(ctx, hwp); err != nil {
+		if !k8serr.IsAlreadyExists(err) {
+			return fmt.Errorf("failed to create HardwareProfile '%s/%s': %w", hwp.Namespace, hwp.Name, err)
+		}
+	}
+	return nil
+}
+
 // UpdatePodSecurityRolebinding update default rolebinding which is created in applications namespace by manifests
 // being used by different components and SRE monitoring.
 func UpdatePodSecurityRolebinding(ctx context.Context, cli client.Client, namespace string, serviceAccountsList ...string) error {

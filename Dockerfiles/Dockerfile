@@ -1,5 +1,5 @@
 # Build the manager binary
-ARG GOLANG_VERSION=1.24
+ARG GOLANG_VERSION=1.25
 
 ARG BUILDPLATFORM
 ARG TARGETPLATFORM
@@ -21,15 +21,15 @@ RUN if [ "${USE_LOCAL}" != "true" ]; then \
 RUN rm -rf /opt/manifests/*/e2e /opt/manifests/*/scorecard /opt/manifests/*/test /opt/manifests/*/samples /opt/manifests/*/example-* \
     && find /opt/manifests -name "README.md" -delete
 
-# Copy monitoring config removing any possibly pre-existing symlinks
-RUN rm -f /opt/manifests/monitoring
-COPY config/monitoring/ /opt/manifests/monitoring
 # Copy ods-configs removing any possibly pre-existing symlinks
 RUN rm -f /opt/manifests/osd-configs
 COPY config/osd-configs/ /opt/manifests/osd-configs
 # Copy hardwareprofiles removing any possibly pre-existing symlinks
 RUN rm -f /opt/manifests/hardwareprofiles
 COPY config/hardwareprofiles/ /opt/manifests/hardwareprofiles
+# Copy connectionAPI removing any possibly pre-existing symlinks
+RUN rm -f /opt/manifests/connectionAPI
+COPY config/connectionAPI/ /opt/manifests/connectionAPI
 
 ################################################################################
 FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi9/go-toolset:$GOLANG_VERSION as builder

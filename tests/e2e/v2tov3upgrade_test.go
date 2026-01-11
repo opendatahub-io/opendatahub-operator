@@ -159,7 +159,7 @@ func (tc *V2Tov3UpgradeTestCtx) DatascienceclusterV1CreationAndRead(t *testing.T
 	dscName := testDSCV1Name
 
 	// Create a DataScienceCluster v1 resource
-	dscV1 := CreateDSCv1(dscName)
+	dscV1 := CreateDSCv1(dscName, tc.WorkbenchesNamespace)
 
 	// Create the v1 DataScienceCluster resource and verify it's created correctly
 	tc.EventuallyResourceCreatedOrUpdated(

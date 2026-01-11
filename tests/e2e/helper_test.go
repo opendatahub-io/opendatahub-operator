@@ -48,9 +48,10 @@ const (
 	certManagerOpName           = "openshift-cert-manager-operator"          // Name of the cert-manager Operator
 	certManagerOpNamespace      = "cert-manager-operator"                    // Name of the cert-manager Namespace
 	certManagerOpChannel        = "stable-v1"                                // Name of cert-manager operator stable channel
-	telemetryOpName             = "opentelemetry-product"                    // Name of the Telemetry Operator
+	jobSetOpName                = "job-set"                                  // Name of the JobSet Operator
+	jobSetOpNamespace           = "openshift-jobset-operator"                // Namespace for the JobSet Operator
+	jobSetOpChannel             = "tech-preview-v0.1"                        // Name of the JobSet Operator stable channel
 	openshiftOperatorsNamespace = "openshift-operators"                      // Namespace for OpenShift Operators
-	telemetryOpNamespace        = "openshift-opentelemetry-operator"         // Namespace for the Telemetry Operator
 	observabilityOpName         = "cluster-observability-operator"           // Name of the Cluster Observability Operator
 	observabilityOpNamespace    = "openshift-cluster-observability-operator" // Namespace for the Cluster Observability Operator
 	tempoOpName                 = "tempo-product"                            // Name of the Tempo Operator
@@ -59,6 +60,16 @@ const (
 	opentelemetryOpNamespace    = "openshift-opentelemetry-operator"         // Namespace for the OpenTelemetry Operator
 	controllerDeploymentODH     = "opendatahub-operator-controller-manager"  // Name of the ODH deployment
 	controllerDeploymentRhoai   = "rhods-operator"                           // Name of the Rhoai deployment
+	leaderWorkerSetOpName       = "leader-worker-set"                        // Name of the Leader Worker Set Operator
+	leaderWorkerSetNamespace    = "openshift-lws-operator"                   // Namespace for the Leader Worker Set Operator
+	leaderWorkerSetChannel      = "stable-v1.0"                              // Channel for the Leader Worker Set Operator
+	kueueOcpOperatorNamespace   = "openshift-kueue-operator"                 // Namespace for the OCP Kueue Operator
+	kueueOcpOperatorChannel     = "stable-v1.2"                              // Channel for the OCP Kueue Operator
+	kuadrantOpName              = "rhcl-operator"                            // Name of the Red Hat Connectivity Link Operator subscription.
+	kuadrantNamespace           = "kuadrant-system"                          // Namespace for the Red Hat Connectivity Link Operator.
+	dashboardRouteNameODH       = "odh-dashboard"                            // Name of the ODH dashboard route
+	dashboardRouteNameRhoai     = "rhods-dashboard"                          // Name of the Rhoai dashboard route
+
 )
 
 // Configuration and Miscellaneous Constants.
@@ -175,7 +186,7 @@ func CreateDSCI(name, groupVersion string, appNamespace, monitoringNamespace str
 }
 
 // CreateDSC creates a DataScienceCluster CR.
-func CreateDSC(name string) *dscv2.DataScienceCluster {
+func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceCluster {
 	return &dscv2.DataScienceCluster{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DataScienceCluster",
@@ -195,6 +206,9 @@ func CreateDSC(name string) *dscv2.DataScienceCluster {
 				Workbenches: componentApi.DSCWorkbenches{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
+					},
+					WorkbenchesCommonSpec: componentApi.WorkbenchesCommonSpec{
+						WorkbenchNamespace: workbenchesNamespace,
 					},
 				},
 				AIPipelines: componentApi.DSCDataSciencePipelines{
@@ -236,6 +250,11 @@ func CreateDSC(name string) *dscv2.DataScienceCluster {
 						ManagementState: operatorv1.Removed,
 					},
 				},
+				Trainer: componentApi.DSCTrainer{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
 				FeastOperator: componentApi.DSCFeastOperator{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
@@ -246,12 +265,17 @@ func CreateDSC(name string) *dscv2.DataScienceCluster {
 						ManagementState: operatorv1.Removed,
 					},
 				},
+				MLflowOperator: componentApi.DSCMLflowOperator{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
 			},
 		},
 	}
 }
 
-func CreateDSCv1(name string) *dscv1.DataScienceCluster {
+func CreateDSCv1(name string, workbenchesNamespace string) *dscv1.DataScienceCluster {
 	return &dscv1.DataScienceCluster{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DataScienceCluster",
@@ -270,6 +294,9 @@ func CreateDSCv1(name string) *dscv1.DataScienceCluster {
 				Workbenches: componentApi.DSCWorkbenches{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
+					},
+					WorkbenchesCommonSpec: componentApi.WorkbenchesCommonSpec{
+						WorkbenchNamespace: workbenchesNamespace,
 					},
 				},
 				ModelMeshServing: componentApi.DSCModelMeshServing{
@@ -383,6 +410,23 @@ func CreateHardwareProfile(name, namespace, apiVersion string) *unstructured.Uns
 	return hwProfile
 }
 
+// CreateJobSetOperator creates a JobSetOperator CR.
+func CreateJobSetOperator() *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "operator.openshift.io/v1",
+			"kind":       "JobSetOperator",
+			"metadata": map[string]interface{}{
+				"name": "cluster",
+			},
+			"spec": map[string]interface{}{
+				"logLevel":         "Normal",
+				"operatorLogLevel": "Normal",
+			},
+		},
+	}
+}
+
 // CreateNamespaceWithLabels creates a namespace manifest with optional labels for use with WithObjectToCreate.
 func CreateNamespaceWithLabels(name string, labels map[string]string) *corev1.Namespace {
 	ns := &corev1.Namespace{
@@ -436,5 +480,16 @@ func getControllerDeploymentNameByPlatform(platform common.Platform) string {
 		return controllerDeploymentODH
 	default:
 		return controllerDeploymentODH
+	}
+}
+
+func getDashboardRouteNameByPlatform(platform common.Platform) string {
+	switch platform {
+	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
+		return dashboardRouteNameRhoai
+	case cluster.OpenDataHub:
+		return dashboardRouteNameODH
+	default:
+		return dashboardRouteNameODH
 	}
 }

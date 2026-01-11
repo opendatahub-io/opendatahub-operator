@@ -29,33 +29,44 @@ async function getLatestCommitSha(github, org, repo, ref) {
 }
 
 /**
- * Parse the get_all_manifests.sh file to extract component definitions
- * @param {string} filePath - Path to the manifest file
- * @returns {Map} Map of component name to component info
+ * Parse a manifest block from the content
+ * @param {string} content - Full file content
+ * @param {string} arrayName - Name of the array to extract (e.g., 'ODH_COMPONENT_MANIFESTS')
+ * @param {string} platform - Platform identifier ('odh' or 'rhoai')
+ * @returns {Array} Array of component info objects
  */
-function parseManifestFile(filePath) {
-    const content = fs.readFileSync(filePath, 'utf8');
-    const components = new Map();
+function parseManifestBlock(content, arrayName, platform) {
+    const components = [];
+
+    // Extract the entire manifest block using regex
+    const blockRegex = new RegExp(
+        `declare -A ${arrayName}=\\(([\\s\\S]*?)\\n\\)`,
+        'm'
+    );
+    const blockMatch = content.match(blockRegex);
+
+    if (!blockMatch) {
+        return components;
+    }
+
+    const blockContent = blockMatch[1];
 
     // Regex to match component manifest definitions (line by line)
     // Pattern: ["component"]="org:repo:ref:path"
-    const manifestRegex = /^\s*\["([^"]+)"\]="([^:]+):([^:]+):([^:]+):([^"]+)"$/;
+    const manifestRegex = /\["([^"]+)"\]="([^:]+):([^:]+):([^:]+):([^"]+)"/g;
 
-    const lines = content.split('\n');
-    for (const line of lines) {
-        const match = line.match(manifestRegex);
-        if (!match) {
-            continue;
-        }
-
+    let match;
+    while ((match = manifestRegex.exec(blockContent)) !== null) {
         const [fullMatch, componentName, org, repo, ref, sourcePath] = match;
 
-        components.set(componentName, {
+        components.push({
+            componentName,
             org,
             repo,
             ref,
             sourcePath,
-            originalLine: fullMatch.trim()
+            originalLine: fullMatch.trim(),
+            platform
         });
     }
 
@@ -63,12 +74,33 @@ function parseManifestFile(filePath) {
 }
 
 /**
+ * Parse the get_all_manifests.sh file to extract component definitions
+ * Now supports both ODH and RHOAI platform types
+ * @param {string} filePath - Path to the manifest file
+ * @returns {object} Object containing:
+ *   - odh: Array of component info for ODH
+ *   - rhoai: Array of component info for RHOAI
+ */
+function parseManifestFile(filePath) {
+    const content = fs.readFileSync(filePath, 'utf8');
+
+    // Parse both ODH and RHOAI manifest blocks
+    const odhComponents = parseManifestBlock(content, 'ODH_COMPONENT_MANIFESTS', 'odh');
+    const rhoaiComponents = parseManifestBlock(content, 'RHOAI_COMPONENT_MANIFESTS', 'rhoai');
+
+    return {
+        odh: odhComponents,
+        rhoai: rhoaiComponents
+    };
+}
+
+/**
  * Update the manifest file with new component information
  * @param {string} filePath - Path to the manifest file
- * @param {Map} updates - Map of component name to update info
+ * @param {Array} updates - Array of update objects containing componentName and update info
  */
 function updateManifestFile(filePath, updates) {
-    if (updates.size === 0) {
+    if (!updates || updates.length === 0) {
         console.log('No updates to apply');
         return false;
     }
@@ -76,18 +108,19 @@ function updateManifestFile(filePath, updates) {
     let content = fs.readFileSync(filePath, 'utf8');
     let hasChanges = false;
 
-    for (const [componentName, updateInfo] of updates) {
-        const oldLine = updateInfo.originalLine;
-        const newLine = `["${componentName}"]="${updateInfo.org}:${updateInfo.repo}:${updateInfo.newRef}:${updateInfo.sourcePath}"`;
+    for (const update of updates) {
+        const { componentName, org, repo, newRef, sourcePath, originalLine, logMessage } = update;
+        const oldLine = originalLine;
+        const newLine = `["${componentName}"]="${org}:${repo}:${newRef}:${sourcePath}"`;
 
         if (content.includes(oldLine)) {
             content = content.replace(oldLine, newLine);
             hasChanges = true;
-            if (updateInfo.logMessage) {
-                console.log(updateInfo.logMessage);
+            if (logMessage) {
+                console.log(logMessage);
             }
         } else {
-            console.log(`Warning: Could not find ${componentName} in manifest file`);
+            console.log(`Warning: Could not find component in manifest file (originalLine: ${oldLine})`);
         }
     }
 

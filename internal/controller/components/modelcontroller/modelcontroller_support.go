@@ -23,6 +23,7 @@ var (
 		"odh-model-controller":    "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
 		"caikit-standalone-image": "RELATED_IMAGE_ODH_CAIKIT_NLP_IMAGE",
 		"ovms-image":              "RELATED_IMAGE_ODH_OPENVINO_MODEL_SERVER_IMAGE",
+		"mlserver-image":          "RELATED_IMAGE_ODH_MLSERVER_IMAGE",
 		"vllm-cuda-image":         "RELATED_IMAGE_RHAIIS_VLLM_CUDA_IMAGE",
 		"vllm-cpu-image":          "RELATED_IMAGE_ODH_VLLM_CPU_IMAGE",
 		"vllm-gaudi-image":        "RELATED_IMAGE_ODH_VLLM_GAUDI_IMAGE",

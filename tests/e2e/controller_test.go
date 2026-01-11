@@ -13,6 +13,7 @@ import (
 	"github.com/onsi/gomega/format"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
+	userv1 "github.com/openshift/api/user/v1"
 	ofapiv1 "github.com/operator-framework/api/pkg/operators/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
@@ -73,10 +74,11 @@ func ParseDeletionPolicy(dp string) (DeletionPolicy, error) {
 
 // Struct to store test configurations.
 type TestContextConfig struct {
-	operatorNamespace   string
-	appsNamespace       string
-	monitoringNamespace string
-	deletionPolicy      DeletionPolicy
+	operatorNamespace    string
+	appsNamespace        string
+	workbenchesNamespace string
+	monitoringNamespace  string
+	deletionPolicy       DeletionPolicy
 
 	operatorControllerTest bool
 	operatorResilienceTest bool
@@ -124,11 +126,14 @@ var (
 				componentApi.RayComponentName:                  rayTestSuite,
 				componentApi.ModelRegistryComponentName:        modelRegistryTestSuite,
 				componentApi.TrainingOperatorComponentName:     trainingOperatorTestSuite,
+				componentApi.TrainerComponentName:              trainerTestSuite,
 				componentApi.DataSciencePipelinesComponentName: dataSciencePipelinesTestSuite,
 				componentApi.WorkbenchesComponentName:          workbenchesTestSuite,
 				componentApi.KserveComponentName:               kserveTestSuite,
 				componentApi.FeastOperatorComponentName:        feastOperatorTestSuite,
 				componentApi.LlamaStackOperatorComponentName:   llamastackOperatorTestSuite,
+				componentApi.MLflowOperatorComponentName:       mlflowOperatorTestSuite,
+				componentApi.ModelsAsServiceComponentName:      modelsAsServiceTestSuite,
 			},
 			{
 				// Kueue tests depends on Workbenches, so must not run with Workbenches tests in parallel
@@ -150,7 +155,7 @@ var (
 		scenarios: []map[string]TestFn{{
 			serviceApi.MonitoringServiceName: monitoringTestSuite,
 			serviceApi.AuthServiceName:       authControllerTestSuite,
-			// serviceApi.GatewayServiceName:    gatewayTestSuite,
+			serviceApi.GatewayServiceName:    gatewayTestSuite,
 		}},
 	}
 )
@@ -308,6 +313,7 @@ func TestOdhOperator(t *testing.T) {
 	// Run hardware profile test suites
 	if testOpts.hardwareProfileTest {
 		mustRun(t, "Hardware Profile E2E Tests", hardwareProfileTestSuite)
+		mustRun(t, "Hardware Profile Workload E2E Tests", hardwareProfileWorkloadTestSuite)
 	}
 	// Deletion logic based on deletionPolicy
 	switch testOpts.deletionPolicy {
@@ -368,6 +374,8 @@ func TestMain(m *testing.M) {
 	checkEnvVarBindingError(viper.BindEnv("operator-namespace", viper.GetEnvPrefix()+"_OPERATOR_NAMESPACE"))
 	pflag.String("applications-namespace", "opendatahub", "Namespace where the odh applications are deployed")
 	checkEnvVarBindingError(viper.BindEnv("applications-namespace", viper.GetEnvPrefix()+"_APPLICATIONS_NAMESPACE"))
+	pflag.String("workbenches-namespace", "opendatahub", "Namespace where the workbenches are deployed")
+	checkEnvVarBindingError(viper.BindEnv("workbenches-namespace", viper.GetEnvPrefix()+"_WORKBENCHES_NAMESPACE"))
 	pflag.String("dsc-monitoring-namespace", "opendatahub", "Namespace where the odh monitoring is deployed")
 	checkEnvVarBindingError(viper.BindEnv("dsc-monitoring-namespace", viper.GetEnvPrefix()+"_DSC_MONITORING_NAMESPACE"))
 	pflag.String("deletion-policy", "always",
@@ -424,6 +432,7 @@ func TestMain(m *testing.M) {
 	}
 	testOpts.operatorNamespace = viper.GetString("operator-namespace")
 	testOpts.appsNamespace = viper.GetString("applications-namespace")
+	testOpts.workbenchesNamespace = viper.GetString("workbenches-namespace")
 	testOpts.monitoringNamespace = viper.GetString("dsc-monitoring-namespace")
 	var err error
 	if testOpts.deletionPolicy, err = ParseDeletionPolicy(viper.GetString("deletion-policy")); err != nil {
@@ -459,6 +468,7 @@ func registerSchemes() {
 	schemes := []func(*runtime.Scheme) error{
 		clientgoscheme.AddToScheme,
 		routev1.AddToScheme,
+		userv1.AddToScheme,
 		apiextv1.AddToScheme,
 		autoscalingv1.AddToScheme,
 		dsciv2.AddToScheme,

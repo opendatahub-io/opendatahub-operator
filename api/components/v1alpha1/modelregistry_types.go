@@ -32,15 +32,6 @@ const (
 // Check that the component implements common.PlatformObject.
 var _ common.PlatformObject = (*ModelRegistry)(nil)
 
-// ModelRegistryCommonSpec spec defines the shared desired state of ModelRegistry
-type ModelRegistryCommonSpec struct {
-	// Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries"
-	// +kubebuilder:default="odh-model-registries"
-	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
-	// +kubebuilder:validation:MaxLength=63
-	RegistriesNamespace string `json:"registriesNamespace,omitempty"`
-}
-
 // ModelRegistrySpec defines the desired state of ModelRegistry
 type ModelRegistrySpec struct {
 	// model registry spec exposed to DSC api
@@ -110,7 +101,7 @@ func init() {
 }
 
 // +kubebuilder:object:generate=true
-// +kubebuilder:validation:XValidation:rule="(self.managementState != 'Managed') || (oldSelf.registriesNamespace == '') || (oldSelf.managementState != 'Managed')|| (self.registriesNamespace == oldSelf.registriesNamespace)",message="RegistriesNamespace is immutable when model registry is Managed"
+// +kubebuilder:validation:XValidation:rule="(!has(self.managementState) || self.managementState != 'Managed') || (oldSelf.registriesNamespace == '') || (!has(oldSelf.managementState) || oldSelf.managementState != 'Managed') || (self.registriesNamespace == oldSelf.registriesNamespace)",message="RegistriesNamespace is immutable when model registry is Managed"
 //nolint:lll
 
 // DSCModelRegistry contains all the configuration exposed in DSC instance for ModelRegistry component

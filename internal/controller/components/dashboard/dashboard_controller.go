@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -64,10 +65,11 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
 		// operands - openshift
 		Owns(&routev1.Route{}).
+		Owns(&gwapiv1.HTTPRoute{}).
 		Owns(&consolev1.ConsoleLink{}).
 		// Those APIs are provided by the component itself hence they should
 		// be watched dynamically
-		OwnsGVK(gvk.DashboardAcceleratorProfile, reconciler.Dynamic()).
+		OwnsGVK(gvk.DashboardAcceleratorProfile, reconciler.Dynamic(reconciler.CrdExists(gvk.DashboardAcceleratorProfile))).
 		OwnsGVK(gvk.OdhApplication, reconciler.Dynamic()).
 		OwnsGVK(gvk.OdhDocument, reconciler.Dynamic()).
 		OwnsGVK(gvk.OdhQuickStart, reconciler.Dynamic()).

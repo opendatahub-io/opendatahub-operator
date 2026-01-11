@@ -2,6 +2,7 @@
 package kueue
 
 import (
+	"fmt"
 	"slices"
 	"testing"
 
@@ -30,6 +31,8 @@ import (
 
 	. "github.com/onsi/gomega"
 )
+
+const kueueOperatorMinVersionWithTrainerSupport = "1.2.0"
 
 func TestCheckPreConditions_Unknown_State(t *testing.T) {
 	ctx := t.Context()
@@ -61,9 +64,12 @@ func TestCheckPreConditions_Managed_KueueOperatorAlreadyInstalled(t *testing.T) 
 
 	cli, err := fakeclient.New(
 		fakeclient.WithObjects(
-			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
-				Name: kueueOperator,
-			}},
+			&ofapiv2.OperatorCondition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      fmt.Sprintf("%s.%s", kueueOperator, kueueOperatorMinVersionWithTrainerSupport),
+					Namespace: kueueOperatorNamespace,
+				},
+			},
 		),
 	)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -547,12 +553,21 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 				},
 			}
 
+			// Set an OperatorCondition for kueue-operator with the 1.2.0 version
+			operatorCondition := &ofapiv2.OperatorCondition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      fmt.Sprintf("%s.%s", kueueOperator, kueueOperatorMinVersionWithTrainerSupport),
+					Namespace: kueueOperatorNamespace,
+				},
+			}
+
 			runtimeObjects := []client.Object{
 				managedNamespace,
 				legacyManagedNamespace,
 				bothManagedNamespace,
 				unmanagedNamespace,
 				dsci,
+				operatorCondition,
 			}
 
 			clusterNodes := getClusterNodes(t, test.withGPU)
@@ -770,5 +785,80 @@ func getClusterNodes(t *testing.T, withGPU bool) []client.Object {
 	return []client.Object{
 		node1,
 		node2,
+	}
+}
+
+func TestKueueConditionFilter(t *testing.T) {
+	tests := []struct {
+		name           string
+		conditionType  string
+		conditionValue string
+		shouldDegrade  bool
+	}{
+		// Degraded conditions
+		{
+			name:           "Degraded=True triggers degradation",
+			conditionType:  "Degraded",
+			conditionValue: "True",
+			shouldDegrade:  true,
+		},
+		{
+			name:           "Available=False triggers degradation",
+			conditionType:  "Available",
+			conditionValue: "False",
+			shouldDegrade:  true,
+		},
+		{
+			name:           "CertManagerAvailable=False triggers degradation",
+			conditionType:  "CertManagerAvailable",
+			conditionValue: "False",
+			shouldDegrade:  true,
+		},
+		// Healthy conditions
+		{
+			name:           "Degraded=False is healthy",
+			conditionType:  "Degraded",
+			conditionValue: "False",
+			shouldDegrade:  false,
+		},
+		{
+			name:           "Available=True is healthy",
+			conditionType:  "Available",
+			conditionValue: "True",
+			shouldDegrade:  false,
+		},
+		{
+			name:           "CertManagerAvailable=True is healthy",
+			conditionType:  "CertManagerAvailable",
+			conditionValue: "True",
+			shouldDegrade:  false,
+		},
+		// Conditions not in filter (should be ignored)
+		{
+			name:           "Progressing=False is ignored",
+			conditionType:  "Progressing",
+			conditionValue: "False",
+			shouldDegrade:  false,
+		},
+		{
+			name:           "Progressing=True is ignored",
+			conditionType:  "Progressing",
+			conditionValue: "True",
+			shouldDegrade:  false,
+		},
+		{
+			name:           "Unknown condition type is ignored",
+			conditionType:  "SomeOtherCondition",
+			conditionValue: "True",
+			shouldDegrade:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			result := kueueDegradedConditionFilter(tt.conditionType, tt.conditionValue)
+			g.Expect(result).To(Equal(tt.shouldDegrade))
+		})
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"golang.org/x/mod/semver"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -22,18 +23,19 @@ import (
 
 var (
 	frameworkMapping = map[string]string{
-		"pod":                     "Pod",
-		"deployment":              "Deployment",
-		"statefulset":             "StatefulSet",
-		"batch/job":               "BatchJob",
-		"ray.io/rayjob":           "RayJob",
-		"ray.io/raycluster":       "RayCluster",
-		"jobset.x-k8s.io/jobset":  "JobSet",
-		"kubeflow.org/mpijob":     "MPIJob",
-		"kubeflow.org/paddlejob":  "PaddleJob",
-		"kubeflow.org/pytorchjob": "PyTorchJob",
-		"kubeflow.org/tfjob":      "TFJob",
-		"kubeflow.org/xgboostjob": "XGBoostJob",
+		"pod":                                      "Pod",
+		"deployment":                               "Deployment",
+		"statefulset":                              "StatefulSet",
+		"batch/job":                                "BatchJob",
+		"ray.io/rayjob":                            "RayJob",
+		"ray.io/raycluster":                        "RayCluster",
+		"jobset.x-k8s.io/jobset":                   "JobSet",
+		"kubeflow.org/mpijob":                      "MPIJob",
+		"kubeflow.org/paddlejob":                   "PaddleJob",
+		"kubeflow.org/pytorchjob":                  "PyTorchJob",
+		"kubeflow.org/tfjob":                       "TFJob",
+		"kubeflow.org/xgboostjob":                  "XGBoostJob",
+		"trainer.kubeflow.org/trainjob":            "TrainJob",
 		"leaderworkerset.x-k8s.io/leaderworkerset": "LeaderWorkerSet",
 	}
 )
@@ -79,11 +81,19 @@ func createKueueCR(ctx context.Context, rr *odhtypes.ReconciliationRequest) (*un
 		return nil, fmt.Errorf("failed to lookup kueue manager config: %w", err)
 	}
 
+	kueueInfo, err := cluster.OperatorExists(ctx, rr.Client, kueueOperator)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check if %s exists: %w", kueueOperator, err)
+	}
+
+	if kueueInfo == nil {
+		return nil, ErrKueueOperatorNotInstalled
+	}
 	//
 	// Conversions
 	//
 
-	integrations, err := convertIntegrations(managerConfig)
+	integrations, err := convertIntegrations(managerConfig, kueueInfo.Version)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert integrations: %w", err)
 	}
@@ -148,7 +158,7 @@ func createKueueCR(ctx context.Context, rr *odhtypes.ReconciliationRequest) (*un
 }
 
 // convertIntegrations converts the integrations section from ConfigMap to Kueue operator format.
-func convertIntegrations(config map[string]interface{}) (map[string]interface{}, error) {
+func convertIntegrations(config map[string]interface{}, kueueVersion string) (map[string]interface{}, error) {
 	integrations := map[string]interface{}{}
 
 	//
@@ -168,6 +178,13 @@ func convertIntegrations(config map[string]interface{}) (map[string]interface{},
 		"Deployment",
 		"StatefulSet",
 	)
+
+	// Support for TrainJob was added in Kueue 1.2.0, so if the installed version
+	// of kueue is equal or greater than 1.2.0, add TrainJob to the list of frameworks.
+	versionCmp := semver.Compare(kueueVersion, "v1.2.0")
+	if versionCmp >= 0 {
+		frameworkSet.Insert("TrainJob")
+	}
 
 	for _, framework := range frameworks {
 		if converted, ok := frameworkMapping[framework]; ok {

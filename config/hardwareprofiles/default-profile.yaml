@@ -3,7 +3,7 @@ kind: HardwareProfile
 metadata:
   annotations:
     opendatahub.io/dashboard-feature-visibility: '[]'
-    opendatahub.io/description: 'Provides a baseline hardware profile with 2 CPUs and 4Gi memory by default, adjustable up to 4 CPUs and 8Gi memory.'
+    opendatahub.io/description: 'This profile offers 2 CPUs and 4 GiB of memory. You can customize these resources up to 4 CPUs and 8 GiB of memory.'
     opendatahub.io/disabled: 'false'
     opendatahub.io/display-name: default-profile
     opendatahub.io/managed: "false"

@@ -10,16 +10,16 @@ spec:
       managementState: "Managed"
     aipipelines:
       managementState: "Managed"
-    kserve: {
-      managementState: "Managed",
-      nim: {
+    kserve:
+      managementState: "Managed"
+      nim:
         managementState: "Managed"
-      },
-      rawDeploymentServiceConfig: "Headed",
-    }
+      rawDeploymentServiceConfig: "Headed"
     kueue:
       managementState: "Removed"
     trainingoperator:
+      managementState: "Removed"
+    trainer:
       managementState: "Managed"
     ray:
       managementState: "Managed"
@@ -33,4 +33,6 @@ spec:
     feastoperator:
       managementState: "Managed"
     llamastackoperator:
+      managementState: "Removed"
+    mlflowoperator:
       managementState: "Removed"

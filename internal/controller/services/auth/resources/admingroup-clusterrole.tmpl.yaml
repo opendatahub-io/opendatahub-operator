@@ -3,59 +3,59 @@ kind: ClusterRole
 metadata:
   name: admingroupcluster-role
 rules:
-- apiGroups:
-  - services.platform.opendatahub.io
-  resources:
-  - auths
-  verbs:
-  - get
-  - list
-  - watch
-  - patch
-- apiGroups:
-  - services.platform.opendatahub.io
-  resources:
-  - auths/status
-  verbs:
-  - get
-- apiGroups:
-  - datasciencecluster.opendatahub.io
-  resources:
-  - datascienceclusters
-  verbs:
-  - get
-  - list
-  - watch
-  - update
-  - patch
-- apiGroups:
-  - modelregistry.opendatahub.io
-  resources:
-  - modelregistries
-  verbs:
-  - watch
-  - update
-  - get
-  - list
-  - create
-  - patch
-  - delete
-- apiGroups:
-  - storage.k8s.io
-  resources:
-  - storageclasses
-  verbs:
-  - get
-  - list
-  - watch
-  - update
-  - patch
-- apiGroups:
-  - user.openshift.io
-  resources:
-  - groups
-  - users
-  verbs:
-  - get
-  - list
-  - watch
+  - apiGroups:
+      - services.platform.opendatahub.io
+    resources:
+      - auths
+    verbs:
+      - get
+      - list
+      - watch
+      - patch
+  - apiGroups:
+      - services.platform.opendatahub.io
+    resources:
+      - auths/status
+    verbs:
+      - get
+  - apiGroups:
+      - datasciencecluster.opendatahub.io
+    resources:
+      - datascienceclusters
+    verbs:
+      - get
+      - list
+      - watch
+      - update
+      - patch
+  - apiGroups:
+      - modelregistry.opendatahub.io
+    resources:
+      - modelregistries
+    verbs:
+      - watch
+      - update
+      - get
+      - list
+      - create
+      - patch
+      - delete
+  - apiGroups:
+      - storage.k8s.io
+    resources:
+      - storageclasses
+    verbs:
+      - get
+      - list
+      - watch
+      - update
+      - patch
+  - apiGroups:
+      - user.openshift.io
+    resources:
+      - groups
+      - users
+    verbs:
+      - get
+      - list
+      - watch

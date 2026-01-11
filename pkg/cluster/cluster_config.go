@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/viper"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -33,9 +34,10 @@ type ClusterInfo struct {
 }
 
 var clusterConfig struct {
-	Namespace   string
-	Release     common.Release
-	ClusterInfo ClusterInfo
+	Namespace            string
+	ApplicationNamespace string
+	Release              common.Release
+	ClusterInfo          ClusterInfo
 }
 
 type InstallConfig struct {
@@ -68,6 +70,12 @@ func Init(ctx context.Context, cli client.Client) error {
 	if err != nil {
 		return err
 	}
+
+	err = setApplicationNamespace(ctx, cli)
+	if err != nil {
+		return err
+	}
+
 	printClusterConfig(log)
 	return nil
 }
@@ -75,6 +83,7 @@ func Init(ctx context.Context, cli client.Client) error {
 func printClusterConfig(log logr.Logger) {
 	log.Info("Cluster config",
 		"Operator Namespace", clusterConfig.Namespace,
+		"Application Namespace", clusterConfig.ApplicationNamespace,
 		"Release", clusterConfig.Release,
 		"Cluster", clusterConfig.ClusterInfo)
 }
@@ -88,6 +97,46 @@ func GetOperatorNamespace() (string, error) {
 
 func GetRelease() common.Release {
 	return clusterConfig.Release
+}
+
+// GetDeployedRelease retrieves the currently deployed release version from the cluster.
+// It first attempts to get the release from the DSCInitialization (DSCI) instance,
+// and if not found, falls back to the DataScienceCluster (DSC) instance.
+//
+// This function is useful during upgrades to determine what version is currently deployed
+// before applying any changes.
+//
+// Parameters:
+//   - ctx: The context for the request
+//   - cli: The Kubernetes client used to retrieve resources
+//
+// Returns:
+//   - common.Release: The deployed release information, or an empty Release if not found
+//   - error: An error if the retrieval fails for reasons other than "not found"
+func GetDeployedRelease(ctx context.Context, cli client.Client) (common.Release, error) {
+	dsciInstance, err := GetDSCI(ctx, cli)
+	switch {
+	case k8serr.IsNotFound(err):
+		break
+	case err != nil:
+		return common.Release{}, err
+	default:
+		return dsciInstance.Status.Release, nil
+	}
+
+	// no DSCI CR found, try with DSC CR
+	dscInstances, err := GetDSC(ctx, cli)
+	switch {
+	case k8serr.IsNotFound(err):
+		break
+	case err != nil:
+		return common.Release{}, err
+	default:
+		return dscInstances.Status.Release, nil
+	}
+
+	// could be a clean installation or both CRs are deleted already
+	return common.Release{}, nil
 }
 
 func GetClusterInfo() ClusterInfo {
@@ -105,12 +154,24 @@ func GetDomain(ctx context.Context, c client.Client) (string, error) {
 		return "", fmt.Errorf("failed fetching cluster's ingress details: %w", err)
 	}
 
-	domain, found, err := unstructured.NestedString(ingress.Object, "spec", "domain")
-	if !found {
-		return "", errors.New("spec.domain not found")
+	// add support for appsDomain overwrite default domain
+	appsDomain, found, err := unstructured.NestedString(ingress.Object, "spec", "appsDomain")
+	if err != nil {
+		return "", fmt.Errorf("failed to read spec.appsDomain: %w", err)
+	}
+	if found && len(appsDomain) > 0 {
+		return appsDomain, nil
 	}
 
-	return domain, err
+	domain, found, err := unstructured.NestedString(ingress.Object, "spec", "domain")
+	if err != nil {
+		return "", fmt.Errorf("failed to read spec.domain: %w", err)
+	}
+	if !found || len(domain) == 0 {
+		return "", errors.New("spec.domain not found or empty")
+	}
+
+	return domain, nil
 }
 
 // This is an Openshift specific implementation.
@@ -160,32 +221,17 @@ func IsActiveNamespace(ns *corev1.Namespace) bool {
 	return ns.Status.Phase == corev1.NamespaceActive
 }
 
-// IsSingleNodeCluster determines if the cluster is a single-node cluster by counting the actual nodes.
+// IsSingleNodeCluster determines if the cluster is a single-node cluster by checking the ControlPlaneTopology.
 func IsSingleNodeCluster(ctx context.Context, cli client.Client) bool {
-	nodeList := &corev1.NodeList{}
-	if err := cli.List(ctx, nodeList); err != nil {
-		logf.FromContext(ctx).Info("could not list nodes, defaulting to multi-node behavior", "error", err)
+	infra := &configv1.Infrastructure{}
+	if err := cli.Get(ctx, types.NamespacedName{Name: "cluster"}, infra); err != nil {
+		logf.FromContext(ctx).Info("could not get infrastructure, defaulting to multi-node behavior", "error", err)
 		return false
 	}
 
-	// Count only nodes that are ready and not marked for deletion
-	var readyNodeCount int
-	for _, node := range nodeList.Items {
-		if node.DeletionTimestamp == nil {
-			for _, condition := range node.Status.Conditions {
-				if condition.Type == corev1.NodeReady && condition.Status == corev1.ConditionTrue {
-					readyNodeCount++
-					break
-				}
-			}
-		}
-		if readyNodeCount > 1 {
-			break
-		}
-	}
-
-	logf.FromContext(ctx).V(1).Info("detected cluster size", "totalNodes", len(nodeList.Items), "readyNodes", readyNodeCount)
-	return readyNodeCount <= 1
+	isSNO := infra.Status.ControlPlaneTopology == configv1.SingleReplicaTopologyMode
+	logf.FromContext(ctx).V(1).Info("detected cluster topology", "controlPlaneTopology", infra.Status.ControlPlaneTopology, "isSNO", isSNO)
+	return isSNO
 }
 
 // GetClusterServiceVersion retries CSV only from the defined namespace.
@@ -216,8 +262,8 @@ func GetClusterServiceVersion(ctx context.Context, c client.Client, namespace st
 
 // detectSelfManaged detects if it is Self Managed Rhoai or OpenDataHub.
 func detectSelfManaged(ctx context.Context, cli client.Client) (common.Platform, error) {
-	exists, err := OperatorExists(ctx, cli, "rhods-operator")
-	if exists {
+	operatorInfo, err := OperatorExists(ctx, cli, "rhods-operator")
+	if operatorInfo != nil {
 		return SelfManagedRhoai, nil
 	}
 
@@ -363,4 +409,97 @@ func setManagedMonitoringNamespace(ctx context.Context, cli client.Client) error
 		viper.SetDefault("dsc-monitoring-namespace", DefaultMonitoringNamespaceODH)
 	}
 	return nil
+}
+
+func setApplicationNamespace(ctx context.Context, cli client.Client) error {
+	platform := clusterConfig.Release.Name
+	defaultRHOAIApplicationNamespace := "redhat-ods-applications"
+
+	if platform == ManagedRhoai {
+		clusterConfig.ApplicationNamespace = defaultRHOAIApplicationNamespace
+		return nil
+	}
+	namespaceList := &corev1.NamespaceList{}
+	labelSelector := client.MatchingLabels{
+		"opendatahub.io/application-namespace": "true",
+	}
+
+	if err := cli.List(ctx, namespaceList, labelSelector); err != nil {
+		return err
+	}
+
+	switch len(namespaceList.Items) {
+	case 0:
+		// No labeled namespace found, use platform default
+		if platform == SelfManagedRhoai {
+			clusterConfig.ApplicationNamespace = defaultRHOAIApplicationNamespace
+		} else {
+			clusterConfig.ApplicationNamespace = "opendatahub"
+		}
+	case 1:
+		// One labeled namespace found, use it
+		clusterConfig.ApplicationNamespace = namespaceList.Items[0].Name
+	default:
+		// Multiple labeled namespaces found, this is an error
+		return errors.New("only one namespace with label opendatahub.io/application-namespace: true is supported")
+	}
+
+	return nil
+}
+
+// GetApplicationNamespace returns the application namespace for the platform.
+// It returns a cached value from clusterConfig if available, otherwise determines it dynamically.
+func GetApplicationNamespace() string {
+	if clusterConfig.ApplicationNamespace != "" {
+		return clusterConfig.ApplicationNamespace
+	}
+
+	switch clusterConfig.Release.Name {
+	case SelfManagedRhoai, ManagedRhoai:
+		return "redhat-ods-applications"
+	default:
+		return "opendatahub"
+	}
+}
+
+// AuthenticationMode represents the cluster authentication mode.
+type AuthenticationMode string
+
+const (
+	AuthModeIntegratedOAuth AuthenticationMode = "IntegratedOAuth"
+	AuthModeOIDC            AuthenticationMode = "OIDC"
+	AuthModeNone            AuthenticationMode = "None"
+)
+
+// GetClusterAuthenticationMode retrieves and returns the cluster authentication mode.
+func GetClusterAuthenticationMode(ctx context.Context, cli client.Reader) (AuthenticationMode, error) {
+	auth := &configv1.Authentication{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: ClusterAuthenticationObj}, auth); err != nil {
+		if meta.IsNoMatchError(err) { // when CRD is missing, convert error type
+			return "", k8serr.NewNotFound(schema.GroupResource{Group: gvk.Auth.Group}, ClusterAuthenticationObj)
+		}
+		return "", fmt.Errorf("failed to get cluster authentication config: %w", err)
+	}
+
+	switch auth.Spec.Type {
+	case "OIDC":
+		return AuthModeOIDC, nil
+	case configv1.AuthenticationTypeNone:
+		return AuthModeNone, nil
+	case "", configv1.AuthenticationTypeIntegratedOAuth:
+		// IntegratedOAuth is the default for empty string and explicit IntegratedOAuth
+		return AuthModeIntegratedOAuth, nil
+	default:
+		// Custom/unknown auth types are not IntegratedOAuth
+		return AuthModeNone, nil
+	}
+}
+
+// IsIntegratedOAuth returns true if the cluster uses IntegratedOAuth authentication mode which is the default in OCP.
+func IsIntegratedOAuth(ctx context.Context, cli client.Reader) (bool, error) {
+	authMode, err := GetClusterAuthenticationMode(ctx, cli)
+	if err != nil {
+		return false, err
+	}
+	return authMode == AuthModeIntegratedOAuth, nil
 }

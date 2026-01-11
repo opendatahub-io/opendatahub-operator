@@ -50,6 +50,7 @@ func dscManagementTestSuite(t *testing.T) {
 	// Define test cases.
 	testCases := []TestCase{
 		{"Ensure required operators are installed", dscTestCtx.ValidateOperatorsInstallation},
+		{"Ensure required resources are created", dscTestCtx.ValidateResourcesCreation},
 		{"Validate creation of DSCInitialization instance", dscTestCtx.ValidateDSCICreation},
 		{"Validate creation of DataScienceCluster instance", dscTestCtx.ValidateDSCCreation},
 		{"Validate HardwareProfile resource", dscTestCtx.ValidateHardwareProfileCR},
@@ -84,14 +85,18 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 
 	// Define operators to be installed.
 	operators := []struct {
-		nn                types.NamespacedName
-		skipOperatorGroup bool
-		channel           string
+		nn                  types.NamespacedName
+		skipOperatorGroup   bool
+		globalOperatorGroup bool
+		channel             string
 	}{
-		{nn: types.NamespacedName{Name: certManagerOpName, Namespace: certManagerOpNamespace}, skipOperatorGroup: false, channel: certManagerOpChannel},
-		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false, channel: defaultOperatorChannel},
-		{nn: types.NamespacedName{Name: tempoOpName, Namespace: tempoOpNamespace}, skipOperatorGroup: false, channel: defaultOperatorChannel},
-		{nn: types.NamespacedName{Name: telemetryOpName, Namespace: telemetryOpNamespace}, skipOperatorGroup: false, channel: defaultOperatorChannel},
+		{nn: types.NamespacedName{Name: certManagerOpName, Namespace: certManagerOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: certManagerOpChannel},
+		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: defaultOperatorChannel},
+		{nn: types.NamespacedName{Name: opentelemetryOpName, Namespace: opentelemetryOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: defaultOperatorChannel},
+		{nn: types.NamespacedName{Name: tempoOpName, Namespace: tempoOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: defaultOperatorChannel},
+		{nn: types.NamespacedName{Name: kuadrantOpName, Namespace: kuadrantNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: defaultOperatorChannel},
+		{nn: types.NamespacedName{Name: leaderWorkerSetOpName, Namespace: leaderWorkerSetNamespace}, skipOperatorGroup: false, globalOperatorGroup: false, channel: leaderWorkerSetChannel}, //nolint:lll
+		{nn: types.NamespacedName{Name: jobSetOpName, Namespace: jobSetOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: false, channel: jobSetOpChannel},
 	}
 
 	// Create and run test cases in parallel.
@@ -101,12 +106,30 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 			name: fmt.Sprintf("Ensure %s is installed", op.nn.Name),
 			testFn: func(t *testing.T) {
 				t.Helper()
-				tc.EnsureOperatorInstalledWithChannel(op.nn, op.skipOperatorGroup, op.channel)
+				switch {
+				case op.skipOperatorGroup:
+					tc.EnsureOperatorInstalledWithChannel(op.nn, op.channel)
+				case op.globalOperatorGroup:
+					tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(op.nn, op.channel)
+				default:
+					tc.EnsureOperatorInstalledWithLocalOperatorGroupAndChannel(op.nn, op.channel)
+				}
 			},
 		}
 	}
 
 	RunTestCases(t, testCases, WithParallel())
+}
+
+// ValidateResourcesCreation validates the creation of the required resources.
+func (tc *DSCTestCtx) ValidateResourcesCreation(t *testing.T) {
+	t.Helper()
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(CreateJobSetOperator()),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Available") | .status == "True"`)),
+		WithCustomErrorMsg("Failed to create JobSetOperator resource"),
+	)
 }
 
 // ValidateDSCICreation validates the creation of a DSCInitialization.
@@ -129,7 +152,7 @@ func (tc *DSCTestCtx) ValidateDSCCreation(t *testing.T) {
 	t.Helper()
 
 	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(CreateDSC(tc.DataScienceClusterNamespacedName.Name)),
+		WithObjectToCreate(CreateDSC(tc.DataScienceClusterNamespacedName.Name, tc.WorkbenchesNamespace)),
 		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
 		WithCustomErrorMsg("Failed to create DataScienceCluster resource %s", tc.DataScienceClusterNamespacedName.Name),
 
@@ -185,10 +208,10 @@ func (tc *DSCTestCtx) ValidateDSCIDuplication(t *testing.T) {
 func (tc *DSCTestCtx) ValidateDSCDuplication(t *testing.T) {
 	t.Helper()
 
-	dsc := CreateDSC(dscInstanceNameDuplicate)
+	dsc := CreateDSC(dscInstanceNameDuplicate, tc.WorkbenchesNamespace)
 	tc.EnsureResourceIsUnique(dsc, "Error validating DataScienceCluster duplication")
 
-	dsv1 := CreateDSCv1(dscInstanceNameDuplicate)
+	dsv1 := CreateDSCv1(dscInstanceNameDuplicate, tc.WorkbenchesNamespace)
 	tc.EnsureResourceIsUnique(dsv1, "Error validating DataScienceCluster duplication v1")
 }
 

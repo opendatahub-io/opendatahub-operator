@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
@@ -50,6 +51,7 @@ import (
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -296,6 +298,12 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			return ctrl.Result{}, err
 		}
 
+		// Create GatewayConfig, always have one in the cluster but up to user to config.
+		if err = r.CreateGatewayConfig(ctx, instance); err != nil {
+			log.Info("failed to create GatewayConfig")
+			return ctrl.Result{}, err
+		}
+
 		// Create default HWProfile CR
 		if err = r.ManageDefaultAndCustomHWProfileCR(ctx, instance, platform); err != nil {
 			log.Info("failed to manage default and custom HardwareProfile CR")
@@ -393,6 +401,10 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			&serviceApi.Auth{},
 			handler.EnqueueRequestsFromMapFunc(r.watchAuthResource),
 		).
+		Watches(
+			&serviceApi.GatewayConfig{},
+			handler.EnqueueRequestsFromMapFunc(r.watchGatewayConfigResource),
+		).
 		Watches( // TODO: this might not be needed after v3.3.
 			&apiextensionsv1.CustomResourceDefinition{},
 			handler.EnqueueRequestsFromMapFunc(r.watchHWProfileCRDResource),
@@ -462,6 +474,23 @@ func (r *DSCInitializationReconciler) watchAuthResource(ctx context.Context, a c
 	return nil
 }
 
+func (r *DSCInitializationReconciler) watchGatewayConfigResource(ctx context.Context, a client.Object) []reconcile.Request {
+	log := logf.FromContext(ctx)
+	instanceList := &serviceApi.GatewayConfigList{}
+	if err := r.Client.List(ctx, instanceList); err != nil {
+		// do not handle if cannot get list
+		log.Error(err, "Failed to get GatewayConfigList")
+		return nil
+	}
+	if len(instanceList.Items) == 0 {
+		log.Info("Found no GatewayConfig instance in cluster, reconciling to recreate one")
+
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: serviceApi.GatewayConfigName}}}
+	}
+
+	return nil
+}
+
 func (r *DSCInitializationReconciler) deleteMonitoringCR(ctx context.Context) error {
 	defaultMonitoring := &serviceApi.Monitoring{
 		ObjectMeta: metav1.ObjectMeta{
@@ -493,7 +522,7 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 		},
 	}
 
-	metricsEnabled := dsci.Spec.Monitoring.Metrics != nil && (dsci.Spec.Monitoring.Metrics.Storage != nil || dsci.Spec.Monitoring.Metrics.Resources != nil)
+	metricsEnabled := dsci.Spec.Monitoring.Metrics != nil && dsci.Spec.Monitoring.Metrics.Storage != nil
 	tracesEnabled := dsci.Spec.Monitoring.Traces != nil
 
 	if metricsEnabled {
@@ -536,6 +565,57 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 	)
 
 	if err != nil && !k8serr.IsAlreadyExists(err) {
+		return err
+	}
+	return nil
+}
+
+// CreateGatewayConfig creates a default GatewayConfig if it doesn't exist.
+// Parameters:
+//   - ctx: context for the operation
+//   - instance: DSCInitialization instance
+//
+// Returns:
+//   - error: nil on success, error if GatewayConfig creation fails
+func (r *DSCInitializationReconciler) CreateGatewayConfig(ctx context.Context, instance *dsciv2.DSCInitialization) error {
+	gatewayConfig := &serviceApi.GatewayConfig{}
+	err := r.Client.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayConfigName}, gatewayConfig)
+	if err == nil {
+		return nil
+	}
+
+	if !k8serr.IsNotFound(err) {
+		return err
+	}
+
+	// GatewayConfig CR not found, create default GatewayConfig CR.
+	defaultGateway := &serviceApi.GatewayConfig{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       serviceApi.GatewayConfigKind,
+			APIVersion: serviceApi.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: serviceApi.GatewayConfigName,
+		},
+		Spec: serviceApi.GatewayConfigSpec{
+			Certificate: &infrav1.CertificateSpec{
+				Type:       infrav1.OpenshiftDefaultIngress,
+				SecretName: gateway.DefaultGatewayTLSSecretName,
+			},
+			Cookie: serviceApi.CookieConfig{
+				Expire:  metav1.Duration{Duration: 24 * time.Hour},
+				Refresh: metav1.Duration{Duration: 1 * time.Hour},
+			},
+			AuthProxyTimeout: metav1.Duration{Duration: 5 * time.Second},
+		},
+	}
+
+	// Set the DSCInitialization instance as the owner of the GatewayConfig
+	if err := ctrl.SetControllerReference(instance, defaultGateway, r.Scheme); err != nil {
+		return err
+	}
+
+	if err := r.Client.Create(ctx, defaultGateway); err != nil && !k8serr.IsAlreadyExists(err) {
 		return err
 	}
 	return nil

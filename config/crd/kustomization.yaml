@@ -2,63 +2,37 @@
 # since it depends on service name and namespace that are out of this kustomize package.
 # It should be run by config/default
 resources:
-- bases/dscinitialization.opendatahub.io_dscinitializations.yaml
-- bases/datasciencecluster.opendatahub.io_datascienceclusters.yaml
-- bases/features.opendatahub.io_featuretrackers.yaml
-- bases/components.platform.opendatahub.io_dashboards.yaml
-- bases/components.platform.opendatahub.io_workbenches.yaml
-- bases/components.platform.opendatahub.io_modelcontrollers.yaml
-- bases/components.platform.opendatahub.io_datasciencepipelines.yaml
-- bases/components.platform.opendatahub.io_kserves.yaml
-- bases/components.platform.opendatahub.io_kueues.yaml
-- bases/components.platform.opendatahub.io_rays.yaml
-- bases/components.platform.opendatahub.io_trustyais.yaml
-- bases/components.platform.opendatahub.io_modelregistries.yaml
-- bases/components.platform.opendatahub.io_trainingoperators.yaml
-- bases/services.platform.opendatahub.io_monitorings.yaml
-- bases/services.platform.opendatahub.io_auths.yaml
-- bases/services.platform.opendatahub.io_gatewayconfigs.yaml
-- bases/components.platform.opendatahub.io_feastoperators.yaml
-- bases/components.platform.opendatahub.io_llamastackoperators.yaml
-- bases/infrastructure.opendatahub.io_hardwareprofiles.yaml
-#+kubebuilder:scaffold:crdkustomizeresource
+- bases/
 
-#patches:
-# [WEBHOOK] To enable webhook, uncomment all the sections with [WEBHOOK] prefix.
+patches:
 # patches here are for enabling the conversion webhook for each CRD
-#- target:
-#    group: apiextensions.k8s.io
-#    version: v1
-#    kind: CustomResourceDefinition
-#    name: dscinitializations.dscinitialization.opendatahub.io
-#  path: patches/webhook_in_dscinitialization_dscinitializations.yaml
-#- target:
-#    group: apiextensions.k8s.io
-#    version: v1
-#    kind: CustomResourceDefinition
-#    name: datascienceclusters.datasciencecluster.opendatahub.io
-#  path: patches/webhook_in_datasciencecluster_datascienceclusters.yaml
-#- patches/webhook_in_monitorings.yaml
-#- patches/webhook_in_auths.yaml
+- target:
+    group: apiextensions.k8s.io
+    version: v1
+    kind: CustomResourceDefinition
+    name: dscinitializations.dscinitialization.opendatahub.io
+  path: patches/webhook_in_dscinitialization_dscinitializations.yaml
+- target:
+    group: apiextensions.k8s.io
+    version: v1
+    kind: CustomResourceDefinition
+    name: datascienceclusters.datasciencecluster.opendatahub.io
+  path: patches/webhook_in_datasciencecluster_datascienceclusters.yaml
 #+kubebuilder:scaffold:crdkustomizewebhookpatch
 
-# [CERTMANAGER] To enable cert-manager, uncomment all the sections with [CERTMANAGER] prefix.
-# patches here are for enabling the CA injection for each CRD
-#- target:
-#    group: apiextensions.k8s.io
-#    version: v1
-#    kind: CustomResourceDefinition
-#    name: dscinitializations.dscinitialization.opendatahub.io
-#  path: patches/cainjection_in_dscinitialization_dscinitializations.yaml
-#- target:
-#    group: apiextensions.k8s.io
-#    version: v1
-#    kind: CustomResourceDefinition
-#    name: datascienceclusters.datasciencecluster.opendatahub.io
-#  path: patches/cainjection_in_datasciencecluster_datascienceclusters.yaml
-#- patches/cainjection_in_monitorings.yaml
-#- patches/cainjection_in_auths.yaml
-#+kubebuilder:scaffold:crdkustomizecainjectionpatch
+# CA injection patches for local certificate management
+- target:
+    group: apiextensions.k8s.io
+    version: v1
+    kind: CustomResourceDefinition
+    name: dscinitializations.dscinitialization.opendatahub.io
+  path: patches/cainjection_in_dscinitialization_dscinitializations.yaml
+- target:
+    group: apiextensions.k8s.io
+    version: v1
+    kind: CustomResourceDefinition
+    name: datascienceclusters.datasciencecluster.opendatahub.io
+  path: patches/cainjection_in_datasciencecluster_datascienceclusters.yaml
 
 # the following config is for teaching kustomize how to do kustomization for CRDs.
 configurations:

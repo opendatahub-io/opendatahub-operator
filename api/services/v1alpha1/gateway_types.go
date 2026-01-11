@@ -1,5 +1,5 @@
 /*
-Copyright 2023.
+Copyright 2025.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,8 +27,21 @@ const (
 	GatewayServiceName = "gateway"
 	// GatewayInstanceName the name of the GatewayConfig instance singleton.
 	// value should match whats set in the XValidation below
-	GatewayInstanceName = "default-gateway"
-	GatewayConfigKind   = "GatewayConfig"
+	GatewayConfigName = "default-gateway"
+	GatewayConfigKind = "GatewayConfig"
+)
+
+// IngressMode defines how the Gateway exposes its endpoints externally.
+// +kubebuilder:validation:Enum=OcpRoute;LoadBalancer
+type IngressMode string
+
+const (
+	// IngressModeOcpRoute uses ClusterIP service with standard OpenShift Routes.
+	// This is the default for new deployments and works without additional infrastructure.
+	IngressModeOcpRoute IngressMode = "OcpRoute"
+	// IngressModeLoadBalancer uses a LoadBalancer service type.
+	// This requires a load balancer provider (cloud or MetalLB).
+	IngressModeLoadBalancer IngressMode = "LoadBalancer"
 )
 
 // Check that the component implements common.PlatformObject.
@@ -36,22 +49,90 @@ var _ common.PlatformObject = (*GatewayConfig)(nil)
 
 // GatewayConfigSpec defines the desired state of GatewayConfig
 type GatewayConfigSpec struct {
+	// IngressMode specifies how the Gateway is exposed externally.
+	// "OcpRoute" uses ClusterIP with standard OpenShift Routes (default for new deployments).
+	// "LoadBalancer" uses a LoadBalancer service type (requires cloud or MetalLB).
+	// +optional
+	IngressMode IngressMode `json:"ingressMode,omitempty"`
+
 	// OIDC configuration (used when cluster is in OIDC authentication mode)
 	// +optional
 	OIDC *OIDCConfig `json:"oidc,omitempty"`
 
-	// Certificate management
+	// Certificate specifies configuration of the TLS certificate securing communication for the gateway.
 	// +optional
 	Certificate *infrav1.CertificateSpec `json:"certificate,omitempty"`
 
-	// Domain configuration for the GatewayConfig
-	// Example: apps.example.com
+	// Domain specifies the host name for intercepting incoming requests.
+	// Most likely, you will want to use a wildcard name, like *.example.com.
+	// If not set, the domain of the OpenShift Ingress is used.
+	// If you choose to generate a certificate, this is the domain used for the certificate request.
+	// Example: *.example.com, example.com, apps.example.com
 	// +optional
+	// +kubebuilder:validation:Pattern=`^(\*\.)?([a-z0-9]([-a-z0-9]*[a-z0-9])?\.)*[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
 	Domain string `json:"domain,omitempty"`
 
-	// Cookie configuration for OAuth2 proxy (applies to both OIDC and OpenShift OAuth)
+	// Subdomain configuration for the GatewayConfig
+	// Example: my-gateway, custom-gateway
 	// +optional
-	Cookie *CookieConfig `json:"cookie,omitempty"`
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?)$`
+	Subdomain string `json:"subdomain,omitempty"`
+
+	// Cookie configuration (applies to both OIDC and OpenShift OAuth)
+	// +optional
+	Cookie CookieConfig `json:"cookie,omitempty"` // not pointer to make defaults clear
+
+	// AuthTimeout is the duration Envoy waits for auth proxy responses.
+	// Requests timeout with 403 if exceeded.
+	// Deprecated: Use AuthProxyTimeout instead.
+	// +optional
+	// +kubebuilder:validation:Pattern=`^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$`
+	AuthTimeout string `json:"authTimeout,omitempty"`
+
+	// AuthProxyTimeout defines the timeout for external authorization service calls (e.g., "5s", "10s")
+	// This controls how long Envoy waits for a response from the authentication proxy before timing out 403 response.
+	// +optional
+	AuthProxyTimeout metav1.Duration `json:"authProxyTimeout,omitempty"`
+
+	// NetworkPolicy configuration for kube-auth-proxy
+	// +optional
+	NetworkPolicy *NetworkPolicyConfig `json:"networkPolicy,omitempty"`
+
+	// ProviderCASecretName is the name of the secret containing the CA certificate for the authentication provider
+	// Used when the OAuth/OIDC provider uses a self-signed or custom CA certificate.
+	// Secret must exist in the openshift-ingress namespace and contain a 'ca.crt' key with the PEM-encoded CA certificate.
+	// +optional
+	ProviderCASecretName string `json:"providerCASecretName,omitempty"`
+
+	// VerifyProviderCertificate controls TLS certificate verification for the authentication provider.
+	// When true (default), certificates are verified against the system trust store and providerCASecretName.
+	// When false, certificate verification is disabled (development/testing only).
+	// WARNING: Setting this to false disables security and should only be used in non-production environments.
+	// For production use with self-signed certificates, use ProviderCASecretName instead.
+	// +optional
+	// +kubebuilder:default=true
+	VerifyProviderCertificate *bool `json:"verifyProviderCertificate,omitempty"`
+}
+
+// NetworkPolicyConfig defines network policy configuration for kube-auth-proxy.
+// When nil or when Ingress is nil, NetworkPolicy ingress rules are enabled by default
+// to restrict access to kube-auth-proxy pods.
+type NetworkPolicyConfig struct {
+	// Ingress defines ingress NetworkPolicy rules.
+	// When nil, ingress rules are applied by default (allows traffic from Gateway pods and monitoring namespaces).
+	// When specified, Enabled must be set to true to apply rules or false to skip NetworkPolicy creation.
+	// Set Enabled=false only in development environments or when using alternative network security controls.
+	// +optional
+	Ingress *IngressPolicyConfig `json:"ingress,omitempty"`
+}
+
+// IngressPolicyConfig defines ingress NetworkPolicy rules
+type IngressPolicyConfig struct {
+	// Enabled determines whether ingress rules are applied.
+	// When true, creates NetworkPolicy allowing traffic only from Gateway pods and monitoring namespaces.
+	// +kubebuilder:validation:Required
+	Enabled bool `json:"enabled"`
 }
 
 // OIDCConfig defines OIDC provider configuration
@@ -67,26 +148,27 @@ type OIDCConfig struct {
 	// Reference to secret containing client secret
 	// +kubebuilder:validation:Required
 	ClientSecretRef corev1.SecretKeySelector `json:"clientSecretRef"`
+
+	// Namespace where the client secret is located
+	// If not specified, defaults to openshift-ingress
+	// +optional
+	SecretNamespace string `json:"secretNamespace,omitempty"`
 }
 
 // CookieConfig defines cookie settings for OAuth2 proxy
 type CookieConfig struct {
 	// Expire duration for OAuth2 proxy session cookie (e.g., "24h", "8h")
 	// This controls how long the session cookie is valid before requiring re-authentication.
-	// Default: "24h"
 	// +optional
 	// +kubebuilder:default="24h"
-	// +kubebuilder:validation:Pattern=`^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$`
-	Expire string `json:"expire,omitempty"`
+	Expire metav1.Duration `json:"expire,omitempty"`
 
 	// Refresh duration for OAuth2 proxy to refresh access tokens (e.g., "2h", "1h", "30m")
 	// This must be LESS than the OIDC provider's Access Token Lifespan to avoid token expiration.
 	// For example, if Keycloak Access Token Lifespan is 1 hour, set this to "30m" or "45m".
-	// Default: "1h"
 	// +optional
 	// +kubebuilder:default="1h"
-	// +kubebuilder:validation:Pattern=`^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$`
-	Refresh string `json:"refresh,omitempty"`
+	Refresh metav1.Duration `json:"refresh,omitempty"`
 }
 
 // GatewayConfigStatus defines the observed state of GatewayConfig

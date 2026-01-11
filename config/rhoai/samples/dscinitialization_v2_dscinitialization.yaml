@@ -1,0 +1,15 @@
+apiVersion: dscinitialization.opendatahub.io/v2
+kind: DSCInitialization
+metadata:
+  labels:
+    app.kubernetes.io/name: dscinitialization
+  name: default-dsci
+spec:
+  monitoring:
+    managementState: "Managed"
+    namespace: 'redhat-ods-monitoring'
+    metrics: {}
+  applicationsNamespace: 'redhat-ods-applications'
+  trustedCABundle:
+    managementState: "Managed"
+    customCABundle: ""

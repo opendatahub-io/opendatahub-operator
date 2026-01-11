@@ -42,10 +42,9 @@ type MonitoringSpec struct {
 }
 
 // Metrics defines the desired state of metrics for the monitoring service
-// +kubebuilder:validation:XValidation:rule="!(self.storage == null && self.resources == null) || !has(self.replicas) || self.replicas == 0",message="Replicas can only be set to non-zero value when either Storage or Resources is configured"
+// +kubebuilder:validation:XValidation:rule="has(self.storage) || !has(self.replicas) || self.replicas == 0",message="Non-zero replicas require metrics.storage to be configured"
 type Metrics struct {
-	Storage   *MetricsStorage   `json:"storage,omitempty"`
-	Resources *MetricsResources `json:"resources,omitempty"`
+	Storage *MetricsStorage `json:"storage,omitempty"`
 	// Replicas specifies the number of replicas in monitoringstack. If not set, it defaults
 	// to 1 on single-node clusters and 2 on multi-node clusters.
 	// +kubebuilder:validation:Minimum=0
@@ -72,22 +71,6 @@ type MetricsStorage struct {
 	Retention string `json:"retention,omitempty"`
 }
 
-// MetricsResources defines the resource requests and limits for the monitoring service
-type MetricsResources struct {
-	// CPULimit specifies the maximum CPU allocation (e.g., "500m", "2")
-	// +kubebuilder:default="500m"
-	CPULimit resource.Quantity `json:"cpulimit,omitempty"`
-	// MemoryLimit specifies the maximum memory allocation (e.g., "1Gi", "512Mi")
-	// +kubebuilder:default="512Mi"
-	MemoryLimit resource.Quantity `json:"memorylimit,omitempty"`
-	// CPURequest specifies the minimum CPU allocation (e.g., "100m", "0.5")
-	// +kubebuilder:default="100m"
-	CPURequest resource.Quantity `json:"cpurequest,omitempty"`
-	// MemoryRequest specifies the minimum memory allocation (e.g., "256Mi", "1Gi")
-	// +kubebuilder:default="256Mi"
-	MemoryRequest resource.Quantity `json:"memoryrequest,omitempty"`
-}
-
 // MonitoringStatus defines the observed state of Monitoring
 type MonitoringStatus struct {
 	common.Status `json:",inline"`
@@ -104,6 +87,7 @@ type Traces struct {
 	// +kubebuilder:validation:Pattern="^(0(\\.[0-9]+)?|1(\\.0+)?)$"
 	SampleRatio string `json:"sampleRatio,omitempty"`
 	// TLS configuration for Tempo gRPC connections
+	// +optional
 	TLS *TracesTLS `json:"tls,omitempty"`
 	// Exporters defines custom trace exporters for sending traces to external observability tools.
 	// Each key represents the exporter name, and the value contains the exporter configuration.
@@ -112,10 +96,10 @@ type Traces struct {
 	Exporters map[string]runtime.RawExtension `json:"exporters,omitempty"`
 }
 
-// TracesTLS defines TLS configuration for traces collection
+// TracesTLS defines TLS configuration for trace ingestion and query APIs
 type TracesTLS struct {
-	// Enabled enables TLS for Tempo gRPC connections
-	// +kubebuilder:default=true
+	// Enabled enables TLS for Tempo OTLP ingestion (gRPC/HTTP) and query APIs (HTTP)
+	// TLS is disabled by default to maintain backward compatibility
 	Enabled bool `json:"enabled,omitempty"`
 	// CertificateSecret specifies the name of the secret containing TLS certificates
 	// If not specified, OpenShift service serving certificates will be used
@@ -125,8 +109,18 @@ type TracesTLS struct {
 	CAConfigMap string `json:"caConfigMap,omitempty"`
 }
 
-// TracesStorage defines the storage configuration for tracing.
-// +kubebuilder:validation:XValidation:rule="self.backend != 'pv' ? has(self.secret) : true", message="When backend is s3 or gcs, the 'secret' field must be specified and non-empty"
+// Storage backend type constants
+const (
+	// StorageBackendPV represents persistent volume storage backend
+	StorageBackendPV = "pv"
+	// StorageBackendS3 represents S3-compatible storage backend
+	StorageBackendS3 = "s3"
+	// StorageBackendGCS represents Google Cloud Storage backend
+	StorageBackendGCS = "gcs"
+)
+
+// TracesStorage defines the storage configuration for tracing
+// +kubebuilder:validation:XValidation:rule="self.backend != 'pv' ? (has(self.secret) && self.secret != '') : true", message="When backend is s3 or gcs, the 'secret' field must be specified and non-empty"
 // +kubebuilder:validation:XValidation:rule="self.backend != 'pv' ? !has(self.size) : true", message="Size is supported when backend is pv only"
 type TracesStorage struct {
 	// Backend defines the storage backend type.
@@ -169,28 +163,6 @@ type Monitoring struct {
 
 	Spec   MonitoringSpec   `json:"spec,omitempty"`
 	Status MonitoringStatus `json:"status,omitempty"`
-}
-
-// MonitoringCommonSpec spec defines the shared desired state of Dashboard
-// +kubebuilder:validation:XValidation:rule="has(self.alerting) ? has(self.metrics.storage) || has(self.metrics.resources) : true",message="Alerting configuration requires metrics.storage or metrics.resources to be configured"
-// +kubebuilder:validation:XValidation:rule="!has(self.collectorReplicas) || (self.collectorReplicas > 0 && ((self.metrics.resources != null || self.metrics.storage != null) || self.traces != null))",message="CollectorReplicas can only be set when metrics.resources, metrics.storage or traces are configured, and must be > 0"
-type MonitoringCommonSpec struct {
-	// monitoring spec exposed to DSCI api
-	// Namespace for monitoring if it is enabled
-	// +kubebuilder:default=opendatahub
-	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
-	// +kubebuilder:validation:MaxLength=63
-	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="MonitoringNamespace is immutable"
-	Namespace string `json:"namespace,omitempty"`
-	// metrics collection
-	Metrics *Metrics `json:"metrics,omitempty"`
-	// Tracing configuration for OpenTelemetry instrumentation
-	Traces *Traces `json:"traces,omitempty"`
-	// Alerting configuration for Prometheus
-	Alerting *Alerting `json:"alerting,omitempty"`
-	// CollectorReplicas specifies the number of replicas in opentelemetry-collector. If not set, it defaults
-	// to 1 on single-node clusters and 2 on multi-node clusters.
-	CollectorReplicas int32 `json:"collectorReplicas,omitempty"`
 }
 
 //+kubebuilder:object:root=true

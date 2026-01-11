@@ -2,11 +2,14 @@
 package kueue
 
 import (
+	"fmt"
 	"testing"
 
+	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -63,6 +66,7 @@ integrations:
   - "kubeflow.org/pytorchjob"
   - "kubeflow.org/tfjob"
   - "kubeflow.org/xgboostjob"
+  - "trainer.kubeflow.org/trainjob"
   - "workload.codeflare.dev/appwrapper"
   - "leaderworkerset.x-k8s.io/leaderworkerset"
 manageJobsWithoutQueueName: true
@@ -93,6 +97,7 @@ spec:
         - RayJob
         - StatefulSet
         - TFJob
+        - TrainJob
         - XGBoostJob
     workloadManagement:
       labelPolicy: None
@@ -137,6 +142,7 @@ spec:
         - RayCluster
         - RayJob
         - StatefulSet
+        - TrainJob
 `
 	runKueueCRTest(t, kueueConfig, kueueCR)
 }
@@ -163,6 +169,7 @@ spec:
         - RayCluster
         - RayJob
         - StatefulSet
+        - TrainJob
 `
 	runKueueCRTest(t, kueueConfig, kueueCR)
 }
@@ -189,6 +196,7 @@ spec:
         - RayCluster
         - RayJob
         - StatefulSet
+        - TrainJob
 `
 	runKueueCRTest(t, kueueConfig, kueueCR)
 }
@@ -219,6 +227,7 @@ spec:
         - RayCluster
         - RayJob
         - StatefulSet
+        - TrainJob
 `
 	runKueueCRTest(t, kueueConfig, kueueCR)
 }
@@ -257,6 +266,7 @@ spec:
         - RayCluster
         - RayJob
         - StatefulSet
+        - TrainJob
       externalFrameworks:
         - MPIJob
         - RayJob
@@ -287,6 +297,7 @@ spec:
         - RayCluster
         - RayJob
         - StatefulSet
+        - TrainJob
 `
 	runKueueCRTest(t, kueueConfig, kueueCR)
 }
@@ -316,6 +327,7 @@ spec:
         - RayCluster
         - RayJob
         - StatefulSet
+        - TrainJob
     workloadManagement:
       labelPolicy: None
 `
@@ -348,6 +360,7 @@ spec:
         - RayCluster
         - RayJob
         - StatefulSet
+        - TrainJob
     gangScheduling:
       policy: ByWorkload
       byWorkload:
@@ -382,6 +395,7 @@ spec:
         - RayCluster
         - RayJob
         - StatefulSet
+        - TrainJob
     preemption:
       preemptionPolicy: FairSharing
       fairSharing:
@@ -418,6 +432,7 @@ spec:
         - RayCluster
         - RayJob
         - StatefulSet
+        - TrainJob
     gangScheduling:
       policy: ByWorkload
       byWorkload:
@@ -457,6 +472,7 @@ spec:
         - RayCluster
         - RayJob
         - StatefulSet
+        - TrainJob
 `
 	runKueueCRTest(t, kueueConfig, kueueCR)
 }
@@ -489,6 +505,7 @@ spec:
         - RayCluster
         - RayJob
         - StatefulSet
+        - TrainJob
       externalFrameworks:
         - MPIJob
         - RayJob
@@ -524,6 +541,7 @@ spec:
         - RayCluster
         - RayJob
         - StatefulSet
+        - TrainJob
       labelKeys:
         - custom.label/key1
         - custom.label/key2
@@ -550,6 +568,15 @@ func runKueueCRTest(t *testing.T, configMapYAML string, expectedCRYAML string) {
 		},
 	}
 	g.Expect(fakeClient.Create(ctx, dsci)).Should(Succeed())
+
+	// Set an OperatorCondition for kueue-operator with the 1.2.0 version
+	operatorCondition := &ofapiv2.OperatorCondition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "kueue-operator.v1.2.0",
+			Namespace: "openshift-kueue-operator",
+		},
+	}
+	g.Expect(fakeClient.Create(ctx, operatorCondition)).Should(Succeed())
 
 	rr := &odhtypes.ReconciliationRequest{
 		Client:   fakeClient,
@@ -632,4 +659,67 @@ invalid: yaml: content: [
 	g.Expect(err).Should(HaveOccurred())
 	g.Expect(result).Should(BeNil())
 	g.Expect(err.Error()).Should(ContainSubstring("failed to lookup kueue manager config"))
+}
+
+// --- Test: TrainJob framework generic test, with RHBoKv110 and RHBoKv120 ---.
+func TestCreateKueueConfigurationCR_TrainJobFramework(t *testing.T) {
+	tests := []struct {
+		name         string
+		kueueVersion string
+	}{
+		{
+			name:         "TestCreateKueueConfigurationCR_TrainJob_Framework_WithRHBoKv110",
+			kueueVersion: "v1.1.0",
+		},
+		{
+			name:         "TestCreateKueueConfigurationCR_TrainJob_Framework_WithRHBoKv120",
+			kueueVersion: "v1.2.0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			ctx := t.Context()
+
+			// Setup fake client
+			fakeClient, err := fakeclient.New()
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			// DSCI with applications namespace
+			dsci := &dsciv2.DSCInitialization{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-dsci"},
+				Spec:       dsciv2.DSCInitializationSpec{ApplicationsNamespace: "test-namespace"},
+			}
+			g.Expect(fakeClient.Create(ctx, dsci)).Should(Succeed())
+
+			// Set an OperatorCondition for kueue-operator with the desired version
+			operatorCondition := &ofapiv2.OperatorCondition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      fmt.Sprintf("kueue-operator.%s", tt.kueueVersion),
+					Namespace: "openshift-kueue-operator",
+				},
+			}
+
+			g.Expect(fakeClient.Create(ctx, operatorCondition)).Should(Succeed())
+
+			rr := &odhtypes.ReconciliationRequest{Client: fakeClient, Instance: &componentApi.Kueue{}}
+
+			// No ConfigMap needed; defaults will be used
+			result, err := createKueueCR(ctx, rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			// Extract frameworks from the resulting CR and check if the expected values are there
+			frameworks, _, err := unstructured.NestedStringSlice(result.Object, "spec", "config", "integrations", "frameworks")
+			g.Expect(err).ShouldNot(HaveOccurred())
+			switch tt.kueueVersion {
+			case "v1.1.0":
+				g.Expect(frameworks).ShouldNot(ContainElement("TrainJob"))
+			case "v1.2.0":
+				g.Expect(frameworks).Should(ContainElement("TrainJob"))
+			default:
+				t.Skipf("Unexpected kueue version: %s", tt.kueueVersion)
+			}
+		})
+	}
 }

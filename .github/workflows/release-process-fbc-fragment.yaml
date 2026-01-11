@@ -14,7 +14,7 @@ jobs:
         run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
         id: get_branch
       - name: Git checkout current branch
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           ref: ${{ steps.get_branch.outputs.branch }}
           path: ${{ steps.get_branch.outputs.branch }}
@@ -49,7 +49,7 @@ jobs:
           make catalog-prepare -e BUNDLE_IMGS=${QUAY_IMG}:v${PREV_VERSION},${QUAY_IMG}:v${CURRENT_VERSION}
 
       - name: Push latest FBC artifacts
-        uses: actions-js/push@master
+        uses: actions-js/push@5a7cbd780d82c0c937b5977586e641b2fd94acc5 # v1.5
         with:
           branch: ${{ steps.get_branch.outputs.branch }}
           github_token: ${{ secrets.GITHUB_TOKEN }}

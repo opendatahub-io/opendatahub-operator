@@ -363,18 +363,6 @@ func TestHardwareProfile_ErrorPaths(t *testing.T) {
 			expectAllowed: false,
 			expectMessage: "hardware profile 'non-existent' not found",
 		},
-		{
-			name: "empty hardware profile configuration",
-			injector: func() *hardwareprofile.Injector {
-				// Create empty hardware profile
-				hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace)
-				cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
-				return createWebhookInjector(cli, sch)
-			}(),
-			workload:      envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)),
-			expectAllowed: true,
-			expectMessage: "HardwareProfile has no configuration to apply",
-		},
 	}
 
 	for _, tc := range testCases {
@@ -675,6 +663,150 @@ func TestHardwareProfile_SchedulingConfiguration_Notebook(t *testing.T) {
 			g.Expect(resp.Patches).Should(Not(BeEmpty()))
 		})
 	}
+}
+
+// TestHardwareProfile_ClearsKueue ensures that when a workload
+// is annotated with a HardwareProfile that has no SchedulingSpec, any existing kueue label
+// configuration is removed by the webhook.
+func TestHardwareProfile_ClearsKueue(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create a HardwareProfile that has no scheduling spec (empty/no config)
+	newProfileName := "profile-without-sched"
+	hwpNew := envtestutil.NewHardwareProfile(newProfileName, testNamespace)
+
+	// Build fake client with the new profile only
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwpNew).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	// Create a Notebook workload that currently has scheduling fields present
+	notebook := &unstructured.Unstructured{}
+	notebook.SetGroupVersionKind(gvk.Notebook)
+	notebook.SetName(testNotebook)
+	notebook.SetNamespace(testNamespace)
+	// Set annotation to point at the new profile (which lacks scheduling)
+	notebook.SetAnnotations(map[string]string{
+		hardwareprofile.HardwareProfileNameAnnotation: newProfileName,
+	})
+	// Add an existing kueue label (upstream form)
+	notebook.SetLabels(map[string]string{"kueue.x-k8s.io/queue-name": "old-queue"})
+
+	// Populate spec.template.spec with nodeSelector, tolerations and a minimal container
+	err := unstructured.SetNestedMap(notebook.Object, map[string]interface{}{
+		"template": map[string]interface{}{
+			"spec": map[string]interface{}{
+				"containers": []interface{}{
+					map[string]interface{}{"name": "notebook", "image": "notebook:latest"},
+				},
+			},
+		},
+	}, "spec")
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	req := envtestutil.NewAdmissionRequest(
+		t,
+		admissionv1.Update,
+		notebook,
+		gvk.Notebook,
+		metav1.GroupVersionResource{
+			Group:    gvk.Notebook.Group,
+			Version:  gvk.Notebook.Version,
+			Resource: "notebooks",
+		},
+	)
+
+	resp := injector.Handle(ctx, req)
+	g.Expect(resp.Allowed).Should(BeTrue())
+
+	// Expect patches that remove nodeSelector, tolerations and the kueue label
+	foundKueueLabel := false
+
+	for _, patch := range resp.Patches {
+		if strings.Contains(patch.Path, "queue-name") {
+			foundKueueLabel = true
+		}
+	}
+
+	g.Expect(foundKueueLabel).Should(BeTrue(), "expected a patch removing kueue label")
+}
+
+// TestHardwareProfile_ClearsHWP ensures that when a workload
+// is annotated with a HardwareProfile that has no SchedulingSpec, any existing scheduling
+// configuration (nodeSelector, tolerations) on the workload is removed by the webhook.
+func TestHardwareProfile_ClearsHWP(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create a HardwareProfile that has no scheduling spec (empty/no config)
+	newProfileName := "profile-without-sched"
+	hwpNew := envtestutil.NewHardwareProfile(newProfileName, testNamespace)
+
+	// Build fake client with the new profile only
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwpNew).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	// Create a Notebook workload that currently has scheduling fields present
+	notebook := &unstructured.Unstructured{}
+	notebook.SetGroupVersionKind(gvk.Notebook)
+	notebook.SetName(testNotebook)
+	notebook.SetNamespace(testNamespace)
+	// Set annotation to point at the new profile (which lacks scheduling)
+	notebook.SetAnnotations(map[string]string{
+		hardwareprofile.HardwareProfileNameAnnotation: newProfileName,
+	})
+	// Populate spec.template.spec with nodeSelector, tolerations and a minimal container
+	err := unstructured.SetNestedMap(notebook.Object, map[string]interface{}{
+		"template": map[string]interface{}{
+			"spec": map[string]interface{}{
+				"nodeSelector": map[string]interface{}{"node-type": "gpu-node"},
+				"tolerations": []interface{}{
+					map[string]interface{}{
+						"key":      "nvidia.com/gpu",
+						"operator": "Equal",
+						"value":    "true",
+						"effect":   "NoSchedule",
+					},
+				},
+				"containers": []interface{}{
+					map[string]interface{}{"name": "notebook", "image": "notebook:latest"},
+				},
+			},
+		},
+	}, "spec")
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	req := envtestutil.NewAdmissionRequest(
+		t,
+		admissionv1.Update,
+		notebook,
+		gvk.Notebook,
+		metav1.GroupVersionResource{
+			Group:    gvk.Notebook.Group,
+			Version:  gvk.Notebook.Version,
+			Resource: "notebooks",
+		},
+	)
+
+	resp := injector.Handle(ctx, req)
+	g.Expect(resp.Allowed).Should(BeTrue())
+
+	// Expect patches that remove nodeSelector, tolerations and the kueue label
+	foundNodeSelector := false
+	foundTolerations := false
+	for _, patch := range resp.Patches {
+		if strings.Contains(patch.Path, "nodeSelector") {
+			foundNodeSelector = true
+		}
+		if strings.Contains(patch.Path, "tolerations") {
+			foundTolerations = true
+		}
+	}
+
+	g.Expect(foundNodeSelector).Should(BeTrue(), "expected a patch removing nodeSelector")
+	g.Expect(foundTolerations).Should(BeTrue(), "expected a patch removing tolerations")
 }
 
 // TestHardwareProfile_ResourceInjection_Notebook tests that hardware profiles with resource requirements are applied correctly to Notebook workloads.

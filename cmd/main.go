@@ -18,7 +18,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -47,7 +46,6 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -81,8 +79,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/initialinstall"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
@@ -93,9 +91,12 @@ import (
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kserve"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/llamastackoperator"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/mlflowoperator"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelcontroller"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelsasservice"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ray"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainer"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainingoperator"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trustyai"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/workbenches"
@@ -258,15 +259,19 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 
 	// get old release version before we create default DSCI CR
-	oldReleaseVersion, _ := upgrade.GetDeployedRelease(ctx, setupClient)
+	oldReleaseVersion, err := cluster.GetDeployedRelease(ctx, setupClient)
+	if err != nil {
+		setupLog.Error(err, "unable to get deployed release version")
+		os.Exit(1)
+	}
 
-	secretCache, err := createSecretCacheConfig(ctx, setupClient, platform)
+	secretCache, err := createSecretCacheConfig(platform)
 	if err != nil {
 		setupLog.Error(err, "unable to get application namespace into cache")
 		os.Exit(1)
 	}
 
-	oDHCache, err := createODHGeneralCacheConfig(ctx, setupClient, platform)
+	oDHCache, err := createODHGeneralCacheConfig(platform)
 	if err != nil {
 		setupLog.Error(err, "unable to get application namespace into cache")
 		os.Exit(1)
@@ -408,7 +413,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		setupLog.Info("DSCI auto creation is disabled")
 	} else {
 		var createDefaultDSCIFunc manager.RunnableFunc = func(ctx context.Context) error {
-			err := upgrade.CreateDefaultDSCI(ctx, setupClient, platform, oconfig.MonitoringNamespace)
+			err := initialinstall.CreateDefaultDSCI(ctx, setupClient, platform, oconfig.MonitoringNamespace)
 			if err != nil {
 				setupLog.Error(err, "unable to create initial setup for the operator")
 			}
@@ -424,7 +429,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	// Create default DSC CR for managed RHOAI
 	if platform == cluster.ManagedRhoai {
 		var createDefaultDSCFunc manager.RunnableFunc = func(ctx context.Context) error {
-			err := upgrade.CreateDefaultDSC(ctx, setupClient)
+			err := initialinstall.CreateDefaultDSC(ctx, setupClient)
 			if err != nil {
 				setupLog.Error(err, "unable to create default DSC CR by the operator")
 			}
@@ -435,44 +440,6 @@ func main() { //nolint:funlen,maintidx,gocyclo
 			setupLog.Error(err, "error scheduling DSC creation")
 			os.Exit(1)
 		}
-	}
-
-	var createDefaultGatewayFunc manager.RunnableFunc = func(ctx context.Context) error {
-		defaultGateway := &serviceApi.GatewayConfig{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: serviceApi.GatewayInstanceName,
-			},
-			Spec: serviceApi.GatewayConfigSpec{
-				Certificate: &infrav1.CertificateSpec{
-					Type:       infrav1.OpenshiftDefaultIngress,
-					SecretName: "default-gateway-tls",
-				},
-			},
-		}
-
-		existingGateway := &serviceApi.GatewayConfig{}
-		err := setupClient.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayInstanceName}, existingGateway)
-		if err != nil {
-			if client.IgnoreNotFound(err) == nil {
-				if createErr := setupClient.Create(ctx, defaultGateway); createErr != nil {
-					setupLog.Error(createErr, "unable to create default Gateway CR")
-					return createErr
-				}
-				setupLog.Info("Created default Gateway CR", "name", serviceApi.GatewayInstanceName)
-			} else {
-				setupLog.Error(err, "error checking for existing Gateway CR")
-				return err
-			}
-		} else {
-			setupLog.Info("Default Gateway CR already exists", "name", serviceApi.GatewayInstanceName)
-		}
-
-		return nil
-	}
-	err = mgr.Add(createDefaultGatewayFunc)
-	if err != nil {
-		setupLog.Error(err, "error scheduling Gateway creation")
-		os.Exit(1)
 	}
 
 	// Cleanup resources from previous v2 releases
@@ -504,7 +471,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 }
 
-func getCommonCache(ctx context.Context, cli client.Client, platform common.Platform) (map[string]cache.Config, error) {
+func getCommonCache(platform common.Platform) (map[string]cache.Config, error) {
 	namespaceConfigs := map[string]cache.Config{}
 
 	// networkpolicy need operator namespace
@@ -516,39 +483,20 @@ func getCommonCache(ctx context.Context, cli client.Client, platform common.Plat
 	namespaceConfigs[operatorNs] = cache.Config{}
 	namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
 
-	if platform == cluster.ManagedRhoai {
-		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
-		namespaceConfigs[cluster.NamespaceConsoleLink] = cache.Config{}
-		return namespaceConfigs, nil
-	} else {
-		// get the managed application's namespaces
-		cNamespaceList := &corev1.NamespaceList{}
-		labelSelector := client.MatchingLabels{
-			labels.CustomizedAppNamespace: labels.True,
-		}
-		if err := cli.List(ctx, cNamespaceList, labelSelector); err != nil {
-			return nil, err
-		}
+	// Get application namespace from cluster config
+	appNamespace := cluster.GetApplicationNamespace()
+	namespaceConfigs[appNamespace] = cache.Config{}
 
-		switch len(cNamespaceList.Items) {
-		case 0:
-			if platform == cluster.SelfManagedRhoai {
-				namespaceConfigs["redhat-ods-applications"] = cache.Config{}
-			} else {
-				namespaceConfigs["opendatahub"] = cache.Config{}
-			}
-			return namespaceConfigs, nil
-		case 1:
-			namespaceConfigs[cNamespaceList.Items[0].Name] = cache.Config{}
-			return namespaceConfigs, nil
-		default:
-			return nil, errors.New("only support max. one namespace with label: opendatahub.io/application-namespace: true")
-		}
+	// Add console link namespace for managed RHOAI
+	if platform == cluster.ManagedRhoai {
+		namespaceConfigs[cluster.NamespaceConsoleLink] = cache.Config{}
 	}
+
+	return namespaceConfigs, nil
 }
 
-func createSecretCacheConfig(ctx context.Context, cli client.Client, platform common.Platform) (map[string]cache.Config, error) {
-	namespaceConfigs, err := getCommonCache(ctx, cli, platform)
+func createSecretCacheConfig(platform common.Platform) (map[string]cache.Config, error) {
+	namespaceConfigs, err := getCommonCache(platform)
 	if err != nil {
 		return nil, err
 	}
@@ -558,8 +506,8 @@ func createSecretCacheConfig(ctx context.Context, cli client.Client, platform co
 	return namespaceConfigs, nil
 }
 
-func createODHGeneralCacheConfig(ctx context.Context, cli client.Client, platform common.Platform) (map[string]cache.Config, error) {
-	namespaceConfigs, err := getCommonCache(ctx, cli, platform)
+func createODHGeneralCacheConfig(platform common.Platform) (map[string]cache.Config, error) {
+	namespaceConfigs, err := getCommonCache(platform)
 	if err != nil {
 		return nil, err
 	}

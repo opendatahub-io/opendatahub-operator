@@ -22,9 +22,12 @@ Package v1 contains API Schema definitions for the components v1 API group
 - [Kserve](#kserve)
 - [Kueue](#kueue)
 - [LlamaStackOperator](#llamastackoperator)
+- [MLflowOperator](#mlflowoperator)
 - [ModelController](#modelcontroller)
 - [ModelRegistry](#modelregistry)
+- [ModelsAsService](#modelsasservice)
 - [Ray](#ray)
+- [Trainer](#trainer)
 - [TrainingOperator](#trainingoperator)
 - [TrustyAI](#trustyai)
 - [Workbenches](#workbenches)
@@ -169,6 +172,7 @@ _Appears in:_
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br /> |
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration |  |  |
+| `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Configures and enables Models as a Service integration |  |  |
 
 
 #### DSCKserveStatus
@@ -257,6 +261,38 @@ _Appears in:_
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
+#### DSCMLflowOperator
+
+
+
+
+
+
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
+#### DSCMLflowOperatorStatus
+
+
+
+DSCMLflowOperatorStatus contains the observed state of the MLflowOperator exposed in the DSC instance
+
+
+
+_Appears in:_
+- [ComponentsStatus](#componentsstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
 #### DSCModelRegistry
 
 
@@ -292,6 +328,27 @@ _Appears in:_
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
+#### DSCModelsAsServiceSpec
+
+
+
+DSCModelsAsServiceSpec enables ModelsAsService integration
+
+
+
+_Appears in:_
+- [DSCKserve](#dsckserve)
+- [KserveCommonSpec](#kservecommonspec)
+- [KserveSpec](#kservespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  | Removed | Enum: [Managed Removed] <br /> |
+| `gateway` _[GatewaySpec](#gatewayspec)_ |  |  |  |
+
+
+
+
 #### DSCRay
 
 
@@ -319,6 +376,38 @@ DSCRayStatus struct holds the status for the Ray component exposed in the DSC
 
 _Appears in:_
 - [ComponentsStatus](#componentsstatus)
+- [ComponentsStatus](#componentsstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
+#### DSCTrainer
+
+
+
+DSCTrainer contains all the configuration exposed in DSC instance for Trainer component
+
+
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
+#### DSCTrainerStatus
+
+
+
+DSCTrainerStatus struct holds the status for the Trainer component exposed in the DSC
+
+
+
+_Appears in:_
 - [ComponentsStatus](#componentsstatus)
 
 | Field | Description | Default | Validation |
@@ -688,6 +777,25 @@ _Appears in:_
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
+#### GatewaySpec
+
+
+
+GatewaySpec defines the reference to the global Gateway (Gw API) where
+models should be published to when exposed as services.
+
+
+
+_Appears in:_
+- [DSCModelsAsServiceSpec](#dscmodelsasservicespec)
+- [ModelsAsServiceSpec](#modelsasservicespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `namespace` _string_ | Namespace is the namespace name where the gateway.networking.k8s.io/v1/Gateway resource is. |  |  |
+| `name` _string_ | Name is the name of the gateway.networking.k8s.io/v1/Gateway resource. |  |  |
+
+
 #### Kserve
 
 
@@ -725,6 +833,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br /> |
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration |  |  |
+| `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Configures and enables Models as a Service integration |  |  |
 
 
 #### KserveCommonStatus
@@ -759,6 +868,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br /> |
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration |  |  |
+| `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Configures and enables Models as a Service integration |  |  |
 
 
 #### KserveStatus
@@ -991,6 +1101,90 @@ _Appears in:_
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
+#### MLflowOperator
+
+
+
+MLflowOperator is the Schema for the MLflowOperators API
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
+| `kind` _string_ | `MLflowOperator` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[MLflowOperatorSpec](#mlflowoperatorspec)_ |  |  |  |
+| `status` _[MLflowOperatorStatus](#mlflowoperatorstatus)_ |  |  |  |
+
+
+#### MLflowOperatorCommonSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [DSCMLflowOperator](#dscmlflowoperator)
+- [MLflowOperatorSpec](#mlflowoperatorspec)
+
+
+
+#### MLflowOperatorCommonStatus
+
+
+
+MLflowOperatorCommonStatus defines the shared observed state of MLflowOperator
+
+
+
+_Appears in:_
+- [DSCMLflowOperatorStatus](#dscmlflowoperatorstatus)
+- [MLflowOperatorStatus](#mlflowoperatorstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
+
+
+#### MLflowOperatorSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [MLflowOperator](#mlflowoperator)
+
+
+
+#### MLflowOperatorStatus
+
+
+
+MLflowOperatorStatus defines the observed state of MLflowOperator
+
+
+
+_Appears in:_
+- [MLflowOperator](#mlflowoperator)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `conditions` _[Condition](#condition) array_ |  |  |  |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
+
+
 #### ModelController
 
 
@@ -1174,6 +1368,62 @@ _Appears in:_
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
+#### ModelsAsService
+
+
+
+ModelsAsService is the Schema for the modelsasservice API
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
+| `kind` _string_ | `ModelsAsService` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[ModelsAsServiceSpec](#modelsasservicespec)_ |  |  |  |
+| `status` _[ModelsAsServiceStatus](#modelsasservicestatus)_ |  |  |  |
+
+
+#### ModelsAsServiceSpec
+
+
+
+ModelsAsServiceSpec defines the desired state of ModelsAsService
+
+
+
+_Appears in:_
+- [DSCModelsAsServiceSpec](#dscmodelsasservicespec)
+- [ModelsAsService](#modelsasservice)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `gateway` _[GatewaySpec](#gatewayspec)_ |  |  |  |
+
+
+#### ModelsAsServiceStatus
+
+
+
+ModelsAsServiceStatus defines the observed state of ModelsAsService
+
+
+
+_Appears in:_
+- [ModelsAsService](#modelsasservice)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `conditions` _[Condition](#condition) array_ |  |  |  |
+
+
 #### NimSpec
 
 
@@ -1288,6 +1538,90 @@ RayStatus defines the observed state of Ray
 
 _Appears in:_
 - [Ray](#ray)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `conditions` _[Condition](#condition) array_ |  |  |  |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
+
+
+#### Trainer
+
+
+
+Trainer is the Schema for the trainers API
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
+| `kind` _string_ | `Trainer` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[TrainerSpec](#trainerspec)_ |  |  |  |
+| `status` _[TrainerStatus](#trainerstatus)_ |  |  |  |
+
+
+#### TrainerCommonSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [DSCTrainer](#dsctrainer)
+- [TrainerSpec](#trainerspec)
+
+
+
+#### TrainerCommonStatus
+
+
+
+TrainerCommonStatus defines the shared observed state of Trainer
+
+
+
+_Appears in:_
+- [DSCTrainerStatus](#dsctrainerstatus)
+- [TrainerStatus](#trainerstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
+
+
+#### TrainerSpec
+
+
+
+TrainerSpec defines the desired state of Trainer
+
+
+
+_Appears in:_
+- [Trainer](#trainer)
+
+
+
+#### TrainerStatus
+
+
+
+TrainerStatus defines the observed state of Trainer
+
+
+
+_Appears in:_
+- [Trainer](#trainer)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -1796,6 +2130,8 @@ _Appears in:_
 | `trainingoperator` _[DSCTrainingOperator](#dsctrainingoperator)_ | Training Operator component configuration. |  |  |
 | `feastoperator` _[DSCFeastOperator](#dscfeastoperator)_ | Feast Operator component configuration. |  |  |
 | `llamastackoperator` _[DSCLlamaStackOperator](#dscllamastackoperator)_ | LlamaStack Operator component configuration. |  |  |
+| `mlflowoperator` _[DSCMLflowOperator](#dscmlflowoperator)_ | MLflow Operator component configuration. |  |  |
+| `trainer` _[DSCTrainer](#dsctrainer)_ | Trainer component configuration. |  |  |
 
 
 #### ComponentsStatus
@@ -1822,6 +2158,8 @@ _Appears in:_
 | `trainingoperator` _[DSCTrainingOperatorStatus](#dsctrainingoperatorstatus)_ | Training Operator component status. |  |  |
 | `feastoperator` _[DSCFeastOperatorStatus](#dscfeastoperatorstatus)_ | Feast Operator component status. |  |  |
 | `llamastackoperator` _[DSCLlamaStackOperatorStatus](#dscllamastackoperatorstatus)_ | LlamaStack Operator component status. |  |  |
+| `mlflowoperator` _[DSCMLflowOperatorStatus](#dscmlflowoperatorstatus)_ | MLflow Operator component status. |  |  |
+| `trainer` _[DSCTrainerStatus](#dsctrainerstatus)_ | Trainer component status. |  |  |
 
 
 #### DataScienceCluster
@@ -2562,8 +2900,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `expire` _string_ | Expire duration for OAuth2 proxy session cookie (e.g., "24h", "8h")<br />This controls how long the session cookie is valid before requiring re-authentication.<br />Default: "24h" | 24h | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br /> |
-| `refresh` _string_ | Refresh duration for OAuth2 proxy to refresh access tokens (e.g., "2h", "1h", "30m")<br />This must be LESS than the OIDC provider's Access Token Lifespan to avoid token expiration.<br />For example, if Keycloak Access Token Lifespan is 1 hour, set this to "30m" or "45m".<br />Default: "1h" | 1h | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br /> |
+| `expire` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#duration-v1-meta)_ | Expire duration for OAuth2 proxy session cookie (e.g., "24h", "8h")<br />This controls how long the session cookie is valid before requiring re-authentication. | 24h |  |
+| `refresh` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#duration-v1-meta)_ | Refresh duration for OAuth2 proxy to refresh access tokens (e.g., "2h", "1h", "30m")<br />This must be LESS than the OIDC provider's Access Token Lifespan to avoid token expiration.<br />For example, if Keycloak Access Token Lifespan is 1 hour, set this to "30m" or "45m". | 1h |  |
 
 
 #### DSCIMonitoring
@@ -2622,10 +2960,17 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
+| `ingressMode` _[IngressMode](#ingressmode)_ | IngressMode specifies how the Gateway is exposed externally.<br />"OcpRoute" uses ClusterIP with standard OpenShift Routes (default for new deployments).<br />"LoadBalancer" uses a LoadBalancer service type (requires cloud or MetalLB). |  | Enum: [OcpRoute LoadBalancer] <br /> |
 | `oidc` _[OIDCConfig](#oidcconfig)_ | OIDC configuration (used when cluster is in OIDC authentication mode) |  |  |
-| `certificate` _[CertificateSpec](#certificatespec)_ | Certificate management |  |  |
-| `domain` _string_ | Domain configuration for the GatewayConfig<br />Example: apps.example.com |  |  |
-| `cookie` _[CookieConfig](#cookieconfig)_ | Cookie configuration for OAuth2 proxy (applies to both OIDC and OpenShift OAuth) |  |  |
+| `certificate` _[CertificateSpec](#certificatespec)_ | Certificate specifies configuration of the TLS certificate securing communication for the gateway. |  |  |
+| `domain` _string_ | Domain specifies the host name for intercepting incoming requests.<br />Most likely, you will want to use a wildcard name, like *.example.com.<br />If not set, the domain of the OpenShift Ingress is used.<br />If you choose to generate a certificate, this is the domain used for the certificate request.<br />Example: *.example.com, example.com, apps.example.com |  | Pattern: `^(\*\.)?([a-z0-9]([-a-z0-9]*[a-z0-9])?\.)*[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br /> |
+| `subdomain` _string_ | Subdomain configuration for the GatewayConfig<br />Example: my-gateway, custom-gateway |  | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)$` <br /> |
+| `cookie` _[CookieConfig](#cookieconfig)_ | Cookie configuration (applies to both OIDC and OpenShift OAuth) |  |  |
+| `authTimeout` _string_ | AuthTimeout is the duration Envoy waits for auth proxy responses.<br />Requests timeout with 403 if exceeded.<br />Deprecated: Use AuthProxyTimeout instead. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br /> |
+| `authProxyTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#duration-v1-meta)_ | AuthProxyTimeout defines the timeout for external authorization service calls (e.g., "5s", "10s")<br />This controls how long Envoy waits for a response from the authentication proxy before timing out 403 response. |  |  |
+| `networkPolicy` _[NetworkPolicyConfig](#networkpolicyconfig)_ | NetworkPolicy configuration for kube-auth-proxy |  |  |
+| `providerCASecretName` _string_ | ProviderCASecretName is the name of the secret containing the CA certificate for the authentication provider<br />Used when the OAuth/OIDC provider uses a self-signed or custom CA certificate.<br />Secret must exist in the openshift-ingress namespace and contain a 'ca.crt' key with the PEM-encoded CA certificate. |  |  |
+| `verifyProviderCertificate` _boolean_ | VerifyProviderCertificate controls TLS certificate verification for the authentication provider.<br />When true (default), certificates are verified against the system trust store and providerCASecretName.<br />When false, certificate verification is disabled (development/testing only).<br />WARNING: Setting this to false disables security and should only be used in non-production environments.<br />For production use with self-signed certificates, use ProviderCASecretName instead. | true |  |
 
 
 #### GatewayConfigStatus
@@ -2646,6 +2991,40 @@ _Appears in:_
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 
 
+#### IngressMode
+
+_Underlying type:_ _string_
+
+IngressMode defines how the Gateway exposes its endpoints externally.
+
+_Validation:_
+- Enum: [OcpRoute LoadBalancer]
+
+_Appears in:_
+- [GatewayConfigSpec](#gatewayconfigspec)
+
+| Field | Description |
+| --- | --- |
+| `OcpRoute` | IngressModeOcpRoute uses ClusterIP service with standard OpenShift Routes.<br />This is the default for new deployments and works without additional infrastructure.<br /> |
+| `LoadBalancer` | IngressModeLoadBalancer uses a LoadBalancer service type.<br />This requires a load balancer provider (cloud or MetalLB).<br /> |
+
+
+#### IngressPolicyConfig
+
+
+
+IngressPolicyConfig defines ingress NetworkPolicy rules
+
+
+
+_Appears in:_
+- [NetworkPolicyConfig](#networkpolicyconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `enabled` _boolean_ | Enabled determines whether ingress rules are applied.<br />When true, creates NetworkPolicy allowing traffic only from Gateway pods and monitoring namespaces. |  | Required: \{\} <br /> |
+
+
 #### Metrics
 
 
@@ -2662,28 +3041,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `storage` _[MetricsStorage](#metricsstorage)_ |  |  |  |
-| `resources` _[MetricsResources](#metricsresources)_ |  |  |  |
 | `replicas` _integer_ | Replicas specifies the number of replicas in monitoringstack. If not set, it defaults<br />to 1 on single-node clusters and 2 on multi-node clusters. |  | Minimum: 0 <br /> |
 | `exporters` _object (keys:string, values:[RawExtension](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#rawextension-runtime-pkg))_ | Exporters defines custom metrics exporters for sending metrics to external observability tools.<br />Each key represents the exporter name, and the value contains the exporter configuration.<br />The configuration follows the OpenTelemetry Collector exporter format.<br />Reserved names 'prometheus' and 'otlp/tempo' cannot be used as they conflict with built-in exporters.<br />Maximum 10 exporters allowed, each config must be less than 10KB (enforced at reconciliation time). |  |  |
-
-
-#### MetricsResources
-
-
-
-MetricsResources defines the resource requests and limits for the monitoring service
-
-
-
-_Appears in:_
-- [Metrics](#metrics)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `cpulimit` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | CPULimit specifies the maximum CPU allocation (e.g., "500m", "2") | 500m |  |
-| `memorylimit` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | MemoryLimit specifies the maximum memory allocation (e.g., "1Gi", "512Mi") | 512Mi |  |
-| `cpurequest` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | CPURequest specifies the minimum CPU allocation (e.g., "100m", "0.5") | 100m |  |
-| `memoryrequest` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | MemoryRequest specifies the minimum memory allocation (e.g., "256Mi", "1Gi") | 256Mi |  |
 
 
 #### MetricsStorage
@@ -2728,7 +3087,7 @@ Monitoring is the Schema for the monitorings API
 
 
 
-MonitoringCommonSpec spec defines the shared desired state of Dashboard
+MonitoringCommonSpec spec defines the shared desired state of Monitoring
 
 
 
@@ -2784,6 +3143,24 @@ _Appears in:_
 | `url` _string_ |  |  |  |
 
 
+#### NetworkPolicyConfig
+
+
+
+NetworkPolicyConfig defines network policy configuration for kube-auth-proxy.
+When nil or when Ingress is nil, NetworkPolicy ingress rules are enabled by default
+to restrict access to kube-auth-proxy pods.
+
+
+
+_Appears in:_
+- [GatewayConfigSpec](#gatewayconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `ingress` _[IngressPolicyConfig](#ingresspolicyconfig)_ | Ingress defines ingress NetworkPolicy rules.<br />When nil, ingress rules are applied by default (allows traffic from Gateway pods and monitoring namespaces).<br />When specified, Enabled must be set to true to apply rules or false to skip NetworkPolicy creation.<br />Set Enabled=false only in development environments or when using alternative network security controls. |  |  |
+
+
 #### OIDCConfig
 
 
@@ -2800,6 +3177,7 @@ _Appears in:_
 | `issuerURL` _string_ | OIDC issuer URL |  | Required: \{\} <br /> |
 | `clientID` _string_ | OIDC client ID |  | Required: \{\} <br /> |
 | `clientSecretRef` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#secretkeyselector-v1-core)_ | Reference to secret containing client secret |  | Required: \{\} <br /> |
+| `secretNamespace` _string_ | Namespace where the client secret is located<br />If not specified, defaults to openshift-ingress |  |  |
 
 
 #### Traces
@@ -2827,7 +3205,7 @@ _Appears in:_
 
 
 
-TracesStorage defines the storage configuration for tracing.
+TracesStorage defines the storage configuration for tracing
 
 
 
@@ -2846,7 +3224,7 @@ _Appears in:_
 
 
 
-TracesTLS defines TLS configuration for traces collection
+TracesTLS defines TLS configuration for trace ingestion and query APIs
 
 
 
@@ -2855,7 +3233,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `enabled` _boolean_ | Enabled enables TLS for Tempo gRPC connections | true |  |
+| `enabled` _boolean_ | Enabled enables TLS for Tempo OTLP ingestion (gRPC/HTTP) and query APIs (HTTP)<br />TLS is disabled by default to maintain backward compatibility |  |  |
 | `certificateSecret` _string_ | CertificateSecret specifies the name of the secret containing TLS certificates<br />If not specified, OpenShift service serving certificates will be used |  |  |
 | `caConfigMap` _string_ | CAConfigMap specifies the name of the ConfigMap containing the CA certificate<br />Required for mutual TLS authentication |  |  |
 

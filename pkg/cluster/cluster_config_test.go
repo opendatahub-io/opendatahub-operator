@@ -3,11 +3,14 @@ package cluster_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
+	configv1 "github.com/openshift/api/config/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -15,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
 // erroringClient is a wrapper around a client.Client that allows us to inject errors.
@@ -25,7 +29,7 @@ type erroringClient struct {
 }
 
 func (c *erroringClient) Get(ctx context.Context, key types.NamespacedName, obj client.Object, opts ...client.GetOption) error {
-	if key.Name == "cluster-config-v1" {
+	if key.Name == "cluster-config-v1" || key.Name == "cluster" {
 		return c.err
 	}
 	return c.Client.Get(ctx, key, obj, opts...)
@@ -193,6 +197,409 @@ invalid: yaml`,
 				}
 			} else if err != nil {
 				t.Errorf("IsFIPSEnabled() error = %v, want nil", err)
+			}
+		})
+	}
+}
+
+func TestGetClusterAuthenticationMode(t *testing.T) {
+	// Register the configv1 scheme
+	scheme := runtime.NewScheme()
+	err := configv1.AddToScheme(scheme)
+	if err != nil {
+		t.Fatalf("failed to add configv1 scheme: %v", err)
+	}
+
+	testCases := []struct {
+		name          string
+		authObject    *configv1.Authentication
+		expectedMode  cluster.AuthenticationMode
+		expectedError bool
+		errorType     string
+	}{
+		{
+			name: "IntegratedOAuth type",
+			authObject: &configv1.Authentication{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: cluster.ClusterAuthenticationObj,
+				},
+				Spec: configv1.AuthenticationSpec{
+					Type: configv1.AuthenticationTypeIntegratedOAuth,
+				},
+			},
+			expectedMode:  cluster.AuthModeIntegratedOAuth,
+			expectedError: false,
+		},
+		{
+			name: "Empty type (defaults to IntegratedOAuth)",
+			authObject: &configv1.Authentication{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: cluster.ClusterAuthenticationObj,
+				},
+				Spec: configv1.AuthenticationSpec{
+					Type: "",
+				},
+			},
+			expectedMode:  cluster.AuthModeIntegratedOAuth,
+			expectedError: false,
+		},
+		{
+			name: "OIDC type",
+			authObject: &configv1.Authentication{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: cluster.ClusterAuthenticationObj,
+				},
+				Spec: configv1.AuthenticationSpec{
+					Type: "OIDC",
+				},
+			},
+			expectedMode:  cluster.AuthModeOIDC,
+			expectedError: false,
+		},
+		{
+			name: "None type",
+			authObject: &configv1.Authentication{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: cluster.ClusterAuthenticationObj,
+				},
+				Spec: configv1.AuthenticationSpec{
+					Type: configv1.AuthenticationTypeNone,
+				},
+			},
+			expectedMode:  cluster.AuthModeNone,
+			expectedError: false,
+		},
+		{
+			name: "Custom type (defaults to None)",
+			authObject: &configv1.Authentication{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: cluster.ClusterAuthenticationObj,
+				},
+				Spec: configv1.AuthenticationSpec{
+					Type: "CustomAuth",
+				},
+			},
+			expectedMode:  cluster.AuthModeNone,
+			expectedError: false,
+		},
+		{
+			name:          "Authentication object not found",
+			authObject:    nil,
+			expectedMode:  "",
+			expectedError: true,
+			errorType:     "notfound",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			var fakeClient client.Client
+			objs := []runtime.Object{}
+			if tc.authObject != nil {
+				objs = append(objs, tc.authObject)
+			}
+
+			fakeClient = fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objs...).Build()
+
+			result, err := cluster.GetClusterAuthenticationMode(ctx, fakeClient)
+
+			if tc.expectedError {
+				if err == nil {
+					t.Errorf("GetClusterAuthenticationMode() expected error but got nil")
+				} else if tc.errorType == "notfound" && !k8serr.IsNotFound(err) {
+					t.Errorf("GetClusterAuthenticationMode() expected NotFound error but got %v", err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("GetClusterAuthenticationMode() unexpected error: %v", err)
+				}
+				if result != tc.expectedMode {
+					t.Errorf("GetClusterAuthenticationMode() = %v, want %v", result, tc.expectedMode)
+				}
+			}
+		})
+	}
+}
+
+func TestIsIntegratedOAuth(t *testing.T) {
+	// Register the configv1 scheme
+	scheme := runtime.NewScheme()
+	err := configv1.AddToScheme(scheme)
+	if err != nil {
+		t.Fatalf("failed to add configv1 scheme: %v", err)
+	}
+
+	testCases := []struct {
+		name           string
+		authObject     *configv1.Authentication
+		expectedResult bool
+		expectedError  bool
+	}{
+		{
+			name: "IntegratedOAuth type returns true",
+			authObject: &configv1.Authentication{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: cluster.ClusterAuthenticationObj,
+				},
+				Spec: configv1.AuthenticationSpec{
+					Type: configv1.AuthenticationTypeIntegratedOAuth,
+				},
+			},
+			expectedResult: true,
+			expectedError:  false,
+		},
+		{
+			name: "Empty type returns true (defaults to IntegratedOAuth)",
+			authObject: &configv1.Authentication{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: cluster.ClusterAuthenticationObj,
+				},
+				Spec: configv1.AuthenticationSpec{
+					Type: "",
+				},
+			},
+			expectedResult: true,
+			expectedError:  false,
+		},
+		{
+			name: "OIDC type returns false",
+			authObject: &configv1.Authentication{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: cluster.ClusterAuthenticationObj,
+				},
+				Spec: configv1.AuthenticationSpec{
+					Type: "OIDC",
+				},
+			},
+			expectedResult: false,
+			expectedError:  false,
+		},
+		{
+			name: "None type returns false",
+			authObject: &configv1.Authentication{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: cluster.ClusterAuthenticationObj,
+				},
+				Spec: configv1.AuthenticationSpec{
+					Type: configv1.AuthenticationTypeNone,
+				},
+			},
+			expectedResult: false,
+			expectedError:  false,
+		},
+		{
+			name: "Custom type returns false",
+			authObject: &configv1.Authentication{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: cluster.ClusterAuthenticationObj,
+				},
+				Spec: configv1.AuthenticationSpec{
+					Type: "CustomAuth",
+				},
+			},
+			expectedResult: false,
+			expectedError:  false,
+		},
+		{
+			name:           "Authentication object not found returns error",
+			authObject:     nil,
+			expectedResult: false,
+			expectedError:  true,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			var fakeClient client.Client
+			objs := []runtime.Object{}
+			if tc.authObject != nil {
+				objs = append(objs, tc.authObject)
+			}
+
+			fakeClient = fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objs...).Build()
+
+			result, err := cluster.IsIntegratedOAuth(ctx, fakeClient)
+
+			if tc.expectedError {
+				if err == nil {
+					t.Errorf("IsIntegratedOAuth() expected error but got nil")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("IsIntegratedOAuth() unexpected error: %v", err)
+				}
+				if result != tc.expectedResult {
+					t.Errorf("IsIntegratedOAuth() = %v, want %v", result, tc.expectedResult)
+				}
+			}
+		})
+	}
+}
+
+func TestGetDomain(t *testing.T) {
+	testCases := []struct {
+		name           string
+		ingress        *unstructured.Unstructured
+		clientErr      error
+		expectedDomain string
+		expectError    bool
+		errorContains  string
+	}{
+		{
+			name: "appsDomain takes precedence over domain",
+			ingress: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "config.openshift.io/v1",
+					"kind":       "Ingress",
+					"metadata": map[string]interface{}{
+						"name": "cluster",
+					},
+					"spec": map[string]interface{}{
+						"appsDomain": "apps.custom.example.com",
+						"domain":     "example.com",
+					},
+				},
+			},
+			expectedDomain: "apps.custom.example.com",
+			expectError:    false,
+		},
+		{
+			name: "appsDomain empty string falls back to domain",
+			ingress: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "config.openshift.io/v1",
+					"kind":       "Ingress",
+					"metadata": map[string]interface{}{
+						"name": "cluster",
+					},
+					"spec": map[string]interface{}{
+						"appsDomain": "",
+						"domain":     "example.com",
+					},
+				},
+			},
+			expectedDomain: "example.com",
+			expectError:    false,
+		},
+		{
+			name: "appsDomain not set falls back to domain",
+			ingress: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "config.openshift.io/v1",
+					"kind":       "Ingress",
+					"metadata": map[string]interface{}{
+						"name": "cluster",
+					},
+					"spec": map[string]interface{}{
+						"domain": "example.com",
+					},
+				},
+			},
+			expectedDomain: "example.com",
+			expectError:    false,
+		},
+		{
+			name: "only domain field present",
+			ingress: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "config.openshift.io/v1",
+					"kind":       "Ingress",
+					"metadata": map[string]interface{}{
+						"name": "cluster",
+					},
+					"spec": map[string]interface{}{
+						"domain": "example.com",
+					},
+				},
+			},
+			expectedDomain: "example.com",
+			expectError:    false,
+		},
+		{
+			name: "domain field missing returns error",
+			ingress: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "config.openshift.io/v1",
+					"kind":       "Ingress",
+					"metadata": map[string]interface{}{
+						"name": "cluster",
+					},
+					"spec": map[string]interface{}{},
+				},
+			},
+			expectError:   true,
+			errorContains: "spec.domain not found or empty",
+		},
+		{
+			name: "domain field empty string returns error",
+			ingress: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "config.openshift.io/v1",
+					"kind":       "Ingress",
+					"metadata": map[string]interface{}{
+						"name": "cluster",
+					},
+					"spec": map[string]interface{}{
+						"domain": "",
+					},
+				},
+			},
+			expectError:   true,
+			errorContains: "spec.domain not found or empty",
+		},
+		{
+			name:          "ingress not found returns error",
+			clientErr:     k8serr.NewNotFound(schema.GroupResource{Group: "config.openshift.io", Resource: "ingresses"}, "cluster"),
+			expectError:   true,
+			errorContains: "failed fetching cluster's ingress details",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a fake client
+			var fakeClient client.Client
+			objs := []runtime.Object{}
+
+			if tc.ingress != nil {
+				tc.ingress.SetGroupVersionKind(gvk.OpenshiftIngress)
+				objs = append(objs, tc.ingress)
+			}
+
+			fakeClient = fake.NewClientBuilder().WithRuntimeObjects(objs...).Build()
+
+			if tc.clientErr != nil {
+				fakeClient = &erroringClient{
+					Client: fakeClient,
+					err:    tc.clientErr,
+				}
+			}
+
+			// Call the function under test
+			ctx := context.Background()
+			domain, err := cluster.GetDomain(ctx, fakeClient)
+
+			// Check the error
+			if tc.expectError {
+				if err == nil {
+					t.Errorf("GetDomain() expected error but got nil")
+				} else if tc.errorContains != "" {
+					if !strings.Contains(err.Error(), tc.errorContains) {
+						t.Errorf("GetDomain() error = %v, want error containing %q", err, tc.errorContains)
+					}
+				}
+			} else {
+				if err != nil {
+					t.Errorf("GetDomain() unexpected error = %v", err)
+				}
+			}
+
+			// Check the domain result
+			if !tc.expectError && domain != tc.expectedDomain {
+				t.Errorf("GetDomain() = %q, want %q", domain, tc.expectedDomain)
 			}
 		})
 	}

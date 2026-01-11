@@ -235,6 +235,65 @@ func TestBuildSkipFilter(t *testing.T) {
 			},
 			expected: "^TestOdhOperator$/^components$/^component1$",
 		},
+		{
+			name: "components with sub groups",
+			opts: types.E2ETestOptions{
+				SkipAtPrefixes: []string{"TestOdhOperator/components/*/", "TestOdhOperator/"},
+			},
+			aggregatedTestResult: &types.TestResult{PassedTest: []types.TestCase{
+				{Name: "TestOdhOperator/components/group_1/dashboard"},
+				{Name: "TestOdhOperator/components/group_1/dashboard/subtest1"},
+				{Name: "TestOdhOperator/components/group_1/dashboard/subtest2"},
+				{Name: "TestOdhOperator/components/group_1/kueue/subtest1"},
+				{Name: "TestOdhOperator/components/group_1/kueue/subtest2"},
+				{Name: "TestOdhOperator/components/group_2/kserve"},
+				{Name: "TestOdhOperator/components/group_2/kserve/subtest1"},
+				{Name: "TestOdhOperator/components/group_2/kserve/subtest2"},
+				{Name: "TestOdhOperator/components/group_3"},
+				{Name: "TestOdhOperator/components/group_3/trustyai"},
+				{Name: "TestOdhOperator/components/group_3/trustyai/subtest1"},
+				{Name: "TestOdhOperator/components/group_3/trustyai/subtest2"},
+			}},
+			expected: "^TestOdhOperator$/^components$/^group_1$/^dashboard$|^TestOdhOperator$/^components$/^group_2$/^kserve$|^TestOdhOperator$/^components$/^group_3$|^TestOdhOperator$/^components$/^group_3$/^trustyai$",
+		},
+		{
+			name: "only components skipped",
+			opts: types.E2ETestOptions{
+				SkipAtPrefixes: []string{"TestOdhOperator/components"},
+			},
+			aggregatedTestResult: &types.TestResult{PassedTest: []types.TestCase{
+				{Name: "TestOdhOperator"},
+				{Name: "TestOdhOperator/components"},
+				{Name: "TestOdhOperator/components/dashboard"},
+				{Name: "TestOdhOperator/components/dashboard/subtest"},
+			}},
+			expected: "^TestOdhOperator$/^components$|^TestOdhOperator$/^components$/^dashboard$",
+		},
+		{
+			name: "wildcard not in the end of the prefix",
+			opts: types.E2ETestOptions{
+				SkipAtPrefixes: []string{"TestOdhOperator/*/group_1"},
+			},
+			aggregatedTestResult: &types.TestResult{PassedTest: []types.TestCase{
+				{Name: "TestOdhOperator/components/group_1/dashboard"},
+				{Name: "TestOdhOperator/components/group_1/dashboard/subtest1"},
+				{Name: "TestOdhOperator/components/group_1/dashboard/subtest2"},
+				{Name: "TestOdhOperator/components/group_1/kueue/subtest1"},
+				{Name: "TestOdhOperator/components/group_1/kueue/subtest2"},
+				{Name: "TestOdhOperator/components/group_2"},
+				{Name: "TestOdhOperator/components/group_2/kserve"},
+				{Name: "TestOdhOperator/components/group_2/kserve/subtest1"},
+				{Name: "TestOdhOperator/services/group_1/auth"},
+				{Name: "TestOdhOperator/services/group_1/auth/subtest1"},
+				{Name: "TestOdhOperator/services/group_1/auth/subtest2"},
+				{Name: "TestOdhOperator/services/group_1/monitoring/subtest1"},
+				{Name: "TestOdhOperator/services/group_1/monitoring/subtest2"},
+				{Name: "TestOdhOperator/components/group_2"},
+				{Name: "TestOdhOperator/components/group_2/gateway"},
+				{Name: "TestOdhOperator/components/group_2/gateway/subtest1"},
+			}},
+			expected: "^TestOdhOperator$/^components$/^group_1$/^dashboard$|^TestOdhOperator$/^services$/^group_1$/^auth$",
+		},
 	}
 
 	for _, tt := range tests {

@@ -14,9 +14,8 @@ const (
 
 	ReadyConditionType = componentApi.ModelRegistryKind + status.ReadySuffix
 
-	DefaultModelRegistriesNamespace = "odh-model-registries"
-	DefaultModelRegistryCert        = "default-modelregistry-cert"
-	BaseManifestsSourcePath         = "overlays/odh"
+	DefaultModelRegistryCert = "default-modelregistry-cert"
+	BaseManifestsSourcePath  = "overlays/odh"
 	// LegacyComponentName is the name of the component that is assigned to deployments
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
 	// deployment to the new component name, so keep it around till we figure out a solution.
@@ -27,11 +26,11 @@ var (
 	imagesMap = map[string]string{
 		"IMAGES_MODELREGISTRY_OPERATOR": "RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE",
 		"IMAGES_REST_SERVICE":           "RELATED_IMAGE_ODH_MODEL_REGISTRY_IMAGE",
-		"IMAGES_OAUTH_PROXY":            "RELATED_IMAGE_OSE_OAUTH_PROXY_IMAGE",
 		"IMAGES_CATALOG_DATA":           "RELATED_IMAGE_ODH_MODEL_METADATA_COLLECTION_IMAGE",
 		"IMAGES_BENCHMARK_DATA":         "RELATED_IMAGE_ODH_MODEL_PERFORMANCE_DATA_IMAGE",
 		"IMAGES_JOBS_ASYNC_UPLOAD":      "RELATED_IMAGE_ODH_MODEL_REGISTRY_JOB_ASYNC_UPLOAD_IMAGE",
 		"kube-rbac-proxy":               "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
+		"IMAGES_POSTGRES":               "RELATED_IMAGE_POSTGRESQL_16_IMAGE",
 	}
 
 	extraParamsMap = map[string]string{

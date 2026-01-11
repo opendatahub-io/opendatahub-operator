@@ -30,7 +30,7 @@ This uses the PVC name, so if you've changed that, then change it in the patch f
 The example in the `component-dev-csv-patch.json` file mounts the volume to the dashboard manifests location at `/opt/manifests/dashboard`.
 Update as appropriate for your component.
 
-Note also that the CSV is a namespaced resource that is duplicated into every namespace for some reason, so you need to make sure that you specify the correct namespace for the operator here, so that it's patching the correct one:
+Note also that the CSV is a namespaced resource that is duplicated into every namespace for some reason, so you need to make sure that you specify the operator's installation namespace here (where its Subscription resource exists), so that it's patching the correct one:
 
 ``` shell
 # Change to correct name and namespace for CSV
