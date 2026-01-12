@@ -242,7 +242,7 @@ func TestComputeKustomizeVariable(t *testing.T) {
 		{
 			name:              "OpenDataHub platform with default domain",
 			platform:          cluster.OpenDataHub,
-			expectedURL:       "https://data-science-gateway." + defaultDomain + "/",
+			expectedURL:       "https://rh-ai." + defaultDomain + "/",
 			expectedTitle:     "OpenShift Open Data Hub",
 			gatewayConfigFunc: defaultGatewayConfig, // Use default GatewayConfig (no custom domain)
 			clusterDomain:     defaultDomain,
@@ -250,7 +250,7 @@ func TestComputeKustomizeVariable(t *testing.T) {
 		{
 			name:              "RHOAI platform with custom domain",
 			platform:          cluster.SelfManagedRhoai,
-			expectedURL:       "https://data-science-gateway." + customDomain + "/",
+			expectedURL:       "https://rh-ai." + customDomain + "/",
 			expectedTitle:     "OpenShift Self Managed Services",
 			gatewayConfigFunc: customGatewayConfig,
 			clusterDomain:     defaultDomain, // Should be ignored due to custom domain
@@ -258,7 +258,7 @@ func TestComputeKustomizeVariable(t *testing.T) {
 		{
 			name:              "Managed RHOAI platform with default domain",
 			platform:          cluster.ManagedRhoai,
-			expectedURL:       "https://data-science-gateway." + managedDomain + "/",
+			expectedURL:       "https://rh-ai." + managedDomain + "/",
 			expectedTitle:     "OpenShift Managed Services",
 			gatewayConfigFunc: defaultGatewayConfig,
 			clusterDomain:     managedDomain,

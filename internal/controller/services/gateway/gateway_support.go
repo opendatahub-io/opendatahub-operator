@@ -36,18 +36,18 @@ const (
 const (
 	// Gateway infrastructure constants.
 	GatewayNamespace      = "openshift-ingress"                  // Namespace where Gateway resources are deployed
-	GatewayClassName      = "data-science-gateway-class"         // GatewayClass name for data science gateways
+	GatewayClassName      = "rh-ai-gateway-class"                // GatewayClass name for Red Hat AI gateways
 	GatewayControllerName = "openshift.io/gateway-controller/v1" // OpenShift Gateway API controller name
-	DefaultGatewayName    = "data-science-gateway"               // Default gateway name used across all platforms
+	DefaultGatewayName    = "rh-ai"                              // Default gateway name used across all platforms
 
 	// Authentication constants.
-	AuthClientID             = "data-science" // OauthClient name.
+	AuthClientID             = "rh-ai" // OauthClient name.
 	KubeAuthProxyName        = "kube-auth-proxy"
 	KubeAuthProxySecretsName = "kube-auth-proxy-creds" //nolint:gosec // This is a resource name, not actual credentials
 	KubeAuthProxyTLSName     = "kube-auth-proxy-tls"   //nolint:gosec
 	OAuthCallbackRouteName   = "oauth-callback-route"
-	AuthnFilterName          = "data-science-authn-filter"
-	DestinationRuleName      = "data-science-tls-rule"
+	AuthnFilterName          = "rh-ai-authn-filter"
+	DestinationRuleName      = "rh-ai-tls-rule"
 
 	// Network configuration.
 	AuthProxyHTTPPort    = 4180
@@ -64,11 +64,11 @@ const (
 	TLSCertsMountPath  = "/etc/tls/private"
 
 	// Secret configuration.
-	DefaultGatewayTLSSecretName = "data-science-gatewayconfig-tls"
+	DefaultGatewayTLSSecretName = "rh-ai-gatewayconfig-tls"
 
 	// Gateway infrastructure configuration.
-	GatewayInfraConfigMapName   = "data-science-gateway-config"
-	GatewayServiceTLSSecretName = "data-science-gateway-service-tls"
+	GatewayInfraConfigMapName   = "rh-ai-gateway-config"
+	GatewayServiceTLSSecretName = "rh-ai-gateway-service-tls"
 	IstioRevisionLabel          = "istio.io/rev"
 	IstioRevisionValue          = "openshift-gateway"
 
@@ -79,7 +79,7 @@ const (
 
 	// Label constants.
 	ComponentLabelValue = "authentication"
-	PartOfLabelValue    = "data-science-gateway"
+	PartOfLabelValue    = "rh-ai"
 	PartOfGatewayConfig = "gatewayconfig"
 )
 

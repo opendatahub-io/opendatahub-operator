@@ -32,9 +32,9 @@ import (
 
 // Gateway TLS and EnvoyFilter configuration constants.
 const (
-	gatewayTLSSecretName        = "data-science-gatewayconfig-tls"
+	gatewayTLSSecretName        = "rh-ai-gatewayconfig-tls"
 	gatewayServiceTLSSecretName = gateway.GatewayServiceTLSSecretName
-	envoyFilterName             = "data-science-authn-filter"
+	envoyFilterName             = "rh-ai-authn-filter"
 	expectedSecretDataKeys      = 3
 	SecretHashAnnotation        = "opendatahub.io/secret-hash" //nolint:gosec
 )
