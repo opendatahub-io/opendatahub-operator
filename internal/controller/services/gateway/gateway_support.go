@@ -35,19 +35,20 @@ const (
 
 const (
 	// Gateway infrastructure constants.
-	GatewayNamespace      = "openshift-ingress"                  // Namespace where Gateway resources are deployed
-	GatewayClassName      = "rh-ai-gateway-class"                // GatewayClass name for Red Hat AI gateways
-	GatewayControllerName = "openshift.io/gateway-controller/v1" // OpenShift Gateway API controller name
-	DefaultGatewayName    = "rh-ai"                              // Default gateway name used across all platforms
+	GatewayNamespace        = "openshift-ingress"                  // Namespace where Gateway resources are deployed
+	GatewayClassName        = "data-science-gateway-class"         // GatewayClass name for gateway resources
+	GatewayControllerName   = "openshift.io/gateway-controller/v1" // OpenShift Gateway API controller name
+	DefaultGatewayName      = "data-science-gateway"               // Default gateway resource name
+	DefaultGatewaySubdomain = "rh-ai"                              // Default subdomain for gateway URLs
 
 	// Authentication constants.
-	AuthClientID             = "rh-ai" // OauthClient name.
+	AuthClientID             = "data-science" // OauthClient name.
 	KubeAuthProxyName        = "kube-auth-proxy"
 	KubeAuthProxySecretsName = "kube-auth-proxy-creds" //nolint:gosec // This is a resource name, not actual credentials
 	KubeAuthProxyTLSName     = "kube-auth-proxy-tls"   //nolint:gosec
 	OAuthCallbackRouteName   = "oauth-callback-route"
-	AuthnFilterName          = "rh-ai-authn-filter"
-	DestinationRuleName      = "rh-ai-tls-rule"
+	AuthnFilterName          = "data-science-authn-filter"
+	DestinationRuleName      = "data-science-tls-rule"
 
 	// Network configuration.
 	AuthProxyHTTPPort    = 4180
@@ -64,11 +65,11 @@ const (
 	TLSCertsMountPath  = "/etc/tls/private"
 
 	// Secret configuration.
-	DefaultGatewayTLSSecretName = "rh-ai-gatewayconfig-tls"
+	DefaultGatewayTLSSecretName = "data-science-gatewayconfig-tls"
 
 	// Gateway infrastructure configuration.
-	GatewayInfraConfigMapName   = "rh-ai-gateway-config"
-	GatewayServiceTLSSecretName = "rh-ai-gateway-service-tls"
+	GatewayInfraConfigMapName   = "data-science-gateway-config"
+	GatewayServiceTLSSecretName = "data-science-gateway-service-tls"
 	IstioRevisionLabel          = "istio.io/rev"
 	IstioRevisionValue          = "openshift-gateway"
 
@@ -79,7 +80,7 @@ const (
 
 	// Label constants.
 	ComponentLabelValue = "authentication"
-	PartOfLabelValue    = "rh-ai"
+	PartOfLabelValue    = "data-science-gateway"
 	PartOfGatewayConfig = "gatewayconfig"
 )
 
@@ -98,12 +99,12 @@ const (
 // It constructs the FQDN by combining the subdomain (or default) with either the user-specified
 // domain or the cluster domain.
 func GetFQDN(ctx context.Context, cli client.Client, gatewayConfig *serviceApi.GatewayConfig) (string, error) {
-	subdomain := DefaultGatewayName
+	subdomain := DefaultGatewaySubdomain
 
 	if gatewayConfig != nil {
 		subdomain = strings.TrimSpace(gatewayConfig.Spec.Subdomain)
 		if subdomain == "" {
-			subdomain = DefaultGatewayName
+			subdomain = DefaultGatewaySubdomain
 		}
 
 		baseDomain := strings.TrimSpace(gatewayConfig.Spec.Domain)
@@ -196,7 +197,7 @@ func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 		}
 		return secretName, nil
 	case infrav1.SelfSigned:
-		hostname := fmt.Sprintf("%s.%s", DefaultGatewayName, domain)
+		hostname := fmt.Sprintf("%s.%s", DefaultGatewaySubdomain, domain)
 		if err := cluster.CreateSelfSignedCertificate(ctx, rr.Client, secretName, hostname, GatewayNamespace,
 			cluster.WithLabels( // add label easy to know it is from us.
 				labels.PlatformPartOf, ServiceName,
