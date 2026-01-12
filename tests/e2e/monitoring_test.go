@@ -1258,6 +1258,7 @@ func (tc *MonitoringTestCtx) updateMonitoringConfig(transforms ...testf.Transfor
 func (tc *MonitoringTestCtx) updateMonitoringConfigWithOptions(opts ...ResourceOpts) {
 	baseOpts := []ResourceOpts{
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
 	}
 	tc.EventuallyResourcePatched(append(baseOpts, opts...)...)
 }
@@ -1508,6 +1509,7 @@ func (tc *MonitoringTestCtx) ValidatePersesDatasourceCreationWithTraces(t *testi
 			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
 			withMonitoringTraces("pv", "", "", ""),
 		)),
+		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
 	)
 
 	// Wait for the Monitoring resource to be updated by DSCInitialization controller
@@ -1527,6 +1529,7 @@ func (tc *MonitoringTestCtx) ValidatePersesDatasourceCreationWithTraces(t *testi
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.monitoring.traces = null`)),
+		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
 	)
 
 	// Ensure the PersesDatasource is cleaned up after traces are removed
@@ -1570,6 +1573,7 @@ func (tc *MonitoringTestCtx) ValidatePersesDatasourceConfiguration(t *testing.T)
 			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
 			withMonitoringTraces("pv", "", "", ""),
 		)),
+		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
 	)
 
 	// Validate Perses datasource configuration
@@ -1610,6 +1614,7 @@ func (tc *MonitoringTestCtx) ValidatePersesDatasourceConfiguration(t *testing.T)
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.monitoring.traces = null`)),
+		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
 	)
 }
 
@@ -1716,6 +1721,7 @@ func (tc *MonitoringTestCtx) ValidatePrometheusRestrictedResourceConfiguration(t
 			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
 			tc.withMetricsConfig(),
 		)),
+		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
 	)
 
 	// Validate common data-science-prometheus-namespace-proxy resources
