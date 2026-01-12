@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-multierror"
+	oauthv1 "github.com/openshift/api/oauth/v1"
+	routev1 "github.com/openshift/api/route/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -19,8 +21,10 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"github.com/go-logr/logr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -28,6 +32,7 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -60,6 +65,20 @@ var defaultResourceLimits = map[string]string{
 	"maxCpu":    "30",
 	"minCpu":    "1",
 }
+
+// Legacy gateway resource names from versions < 3.3.
+// These are being renamed to rh-ai-* for better Red Hat AI branding.
+const (
+	legacyGatewayName              = "data-science-gateway"
+	legacyGatewayClassName         = "data-science-gateway-class"
+	legacyAuthClientID             = "data-science"
+	legacyAuthnFilterName          = "data-science-authn-filter"
+	legacyDestinationRuleName      = "data-science-tls-rule"
+	legacyGatewayTLSSecretName     = "data-science-gatewayconfig-tls"
+	legacyGatewayInfraConfigMap    = "data-science-gateway-config"
+	legacyGatewayServiceTLSSecret  = "data-science-gateway-service-tls"
+	legacyGatewayServiceFullName   = "data-science-gateway-data-science-gateway-class"
+)
 
 // TODO: remove function once we have a generic solution across all components.
 func CleanupExistingResource(ctx context.Context,
@@ -96,6 +115,12 @@ func CleanupExistingResource(ctx context.Context,
 	// GatewayConfig ingressMode migration: preserve LoadBalancer mode for existing 3.x deployments
 	if oldReleaseVersion.Version.Major == 3 {
 		multiErr = multierror.Append(multiErr, MigrateGatewayConfigIngressMode(ctx, cli))
+	}
+
+	// Gateway resource name migration: rename data-science-* to rh-ai-* for 3.3+ upgrades
+	// This runs for 3.x upgrades where old naming may exist; fresh installs skip automatically
+	if oldReleaseVersion.Version.Major == 3 {
+		multiErr = multierror.Append(multiErr, MigrateGatewayResourceNames(ctx, cli))
 	}
 
 	return multiErr.ErrorOrNil()
@@ -585,5 +610,139 @@ func MigrateGatewayConfigIngressMode(ctx context.Context, cli client.Client) err
 
 	l.Info("GatewayConfig migrated to ingressMode=LoadBalancer")
 
+	return nil
+}
+
+// MigrateGatewayResourceNames migrates gateway resources from legacy "data-science-*" names
+// to new "rh-ai-*" names. This is needed for upgrades from versions < 3.3 where the gateway
+// resources used the old naming convention.
+// The function deletes old-named resources; the operator will recreate them with new names.
+func MigrateGatewayResourceNames(ctx context.Context, cli client.Client) error {
+	l := logf.FromContext(ctx)
+	var multiErr *multierror.Error
+
+	// Check if legacy gateway exists - if not, no migration needed
+	legacyGateway := &gwapiv1.Gateway{}
+	err := cli.Get(ctx, client.ObjectKey{
+		Name:      legacyGatewayName,
+		Namespace: gateway.GatewayNamespace,
+	}, legacyGateway)
+	if k8serr.IsNotFound(err) {
+		l.Info("No legacy gateway resources found, skipping gateway name migration")
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to check for legacy gateway: %w", err)
+	}
+
+	l.Info("Found legacy gateway resources, migrating to new rh-ai naming")
+
+	// Delete legacy Gateway (must be deleted before GatewayClass)
+	multiErr = multierror.Append(multiErr, deleteResourceIfExists(ctx, cli, l, &gwapiv1.Gateway{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      legacyGatewayName,
+			Namespace: gateway.GatewayNamespace,
+		},
+	}, "Gateway"))
+
+	// Delete legacy GatewayClass (cluster-scoped)
+	multiErr = multierror.Append(multiErr, deleteResourceIfExists(ctx, cli, l, &gwapiv1.GatewayClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: legacyGatewayClassName,
+		},
+	}, "GatewayClass"))
+
+	// Delete legacy OAuthClient (cluster-scoped)
+	multiErr = multierror.Append(multiErr, deleteResourceIfExists(ctx, cli, l, &oauthv1.OAuthClient{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: legacyAuthClientID,
+		},
+	}, "OAuthClient"))
+
+	// Delete legacy Route
+	multiErr = multierror.Append(multiErr, deleteResourceIfExists(ctx, cli, l, &routev1.Route{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      legacyGatewayName,
+			Namespace: gateway.GatewayNamespace,
+		},
+	}, "Route"))
+
+	// Delete legacy Secrets
+	multiErr = multierror.Append(multiErr, deleteResourceIfExists(ctx, cli, l, &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      legacyGatewayTLSSecretName,
+			Namespace: gateway.GatewayNamespace,
+		},
+	}, "Secret (gateway TLS)"))
+
+	multiErr = multierror.Append(multiErr, deleteResourceIfExists(ctx, cli, l, &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      legacyGatewayServiceTLSSecret,
+			Namespace: gateway.GatewayNamespace,
+		},
+	}, "Secret (service TLS)"))
+
+	// Delete legacy ConfigMap
+	multiErr = multierror.Append(multiErr, deleteResourceIfExists(ctx, cli, l, &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      legacyGatewayInfraConfigMap,
+			Namespace: gateway.GatewayNamespace,
+		},
+	}, "ConfigMap"))
+
+	// Delete legacy Service (auto-created by Gateway API)
+	multiErr = multierror.Append(multiErr, deleteResourceIfExists(ctx, cli, l, &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      legacyGatewayServiceFullName,
+			Namespace: gateway.GatewayNamespace,
+		},
+	}, "Service"))
+
+	// Delete legacy EnvoyFilter (Istio CRD - use unstructured)
+	envoyFilter := &unstructured.Unstructured{}
+	envoyFilter.SetGroupVersionKind(gvk.EnvoyFilter)
+	envoyFilter.SetName(legacyAuthnFilterName)
+	envoyFilter.SetNamespace(gateway.GatewayNamespace)
+	multiErr = multierror.Append(multiErr, deleteUnstructuredIfExists(ctx, cli, l, envoyFilter, "EnvoyFilter"))
+
+	// Delete legacy DestinationRule (Istio CRD - use unstructured)
+	destRule := &unstructured.Unstructured{}
+	destRule.SetGroupVersionKind(gvk.DestinationRule)
+	destRule.SetName(legacyDestinationRuleName)
+	destRule.SetNamespace(gateway.GatewayNamespace)
+	multiErr = multierror.Append(multiErr, deleteUnstructuredIfExists(ctx, cli, l, destRule, "DestinationRule"))
+
+	if multiErr.ErrorOrNil() != nil {
+		return fmt.Errorf("errors during gateway name migration: %w", multiErr.ErrorOrNil())
+	}
+
+	l.Info("Successfully deleted legacy gateway resources, operator will recreate with new names")
+	return nil
+}
+
+// deleteResourceIfExists deletes a resource if it exists, logging the action.
+func deleteResourceIfExists(ctx context.Context, cli client.Client, l logr.Logger, obj client.Object, resourceType string) error {
+	err := cli.Delete(ctx, obj)
+	if k8serr.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to delete legacy %s %s: %w", resourceType, obj.GetName(), err)
+	}
+	l.Info("Deleted legacy resource", "type", resourceType, "name", obj.GetName(), "namespace", obj.GetNamespace())
+	return nil
+}
+
+// deleteUnstructuredIfExists deletes an unstructured resource if it exists.
+// It ignores "no match" errors for CRDs that may not be installed.
+func deleteUnstructuredIfExists(ctx context.Context, cli client.Client, l logr.Logger, obj *unstructured.Unstructured, resourceType string) error {
+	err := cli.Delete(ctx, obj)
+	if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to delete legacy %s %s: %w", resourceType, obj.GetName(), err)
+	}
+	l.Info("Deleted legacy resource", "type", resourceType, "name", obj.GetName(), "namespace", obj.GetNamespace())
 	return nil
 }
