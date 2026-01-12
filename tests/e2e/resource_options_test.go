@@ -132,22 +132,6 @@ func WithObjectToCreate(obj client.Object) ResourceOpts {
 	}
 }
 
-// WithFetchedObject creates a ResourceOpts function that sets the ObjFn field of the ResourceOptions to
-// fetch an existing resource by its GroupVersionKind (GVK) and NamespacedName (NN). This is useful when
-// the resource already exists and needs to be updated or patched.
-func WithFetchedObject(gvk schema.GroupVersionKind, nn types.NamespacedName) ResourceOpts {
-	return func(ro *ResourceOptions) {
-		ro.ObjFn = func(tc *TestContext) *unstructured.Unstructured {
-			u, err := tc.g.Get(gvk, nn).Get()
-			tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to fetch resource %s", nn.Name)
-			return u
-		}
-		ro.NN = nn
-		ro.GVK = gvk
-		ro.ResourceID = resources.FormatNamespacedName(nn)
-	}
-}
-
 // WithMinimalObject creates a ResourceOpts function that sets the ObjFn field of the ResourceOptions to
 // create a minimal unstructured resource with the provided GroupVersionKind (GVK) and NamespacedName (NN).
 // This is useful for scenarios where only a few essential fields of the resource need to be specified, such

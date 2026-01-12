@@ -1819,10 +1819,8 @@ func (tc *TestContext) tryRemoveFinalizers(gvk schema.GroupVersionKind, nn types
 		}
 	}()
 
-	// Try to remove finalizers by fetching the existing resource first
-	// This avoids validation issues with minimal objects that have empty specs
 	tc.EventuallyResourcePatched(
-		WithFetchedObject(gvk, nn),
+		WithMinimalObject(gvk, nn),
 		WithMutateFunc(testf.Transform(`.metadata.finalizers = []`)),
 		WithIgnoreNotFound(true),
 		WithAcceptableErr(func(err error) bool {
