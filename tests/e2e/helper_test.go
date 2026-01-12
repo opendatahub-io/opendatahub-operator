@@ -187,7 +187,7 @@ func CreateDSCI(name, appNamespace, monitoringNamespace string) *dsciv2.DSCIniti
 	}
 }
 
-// CreateDSCI v1 creates a DSCInitialization v1 iCR.
+// CreateDSCIv1 creates a DSCInitialization v1 CR.
 func CreateDSCIv1(name, appNamespace, monitoringNamespace string) *dsciv1.DSCInitialization {
 	return &dsciv1.DSCInitialization{
 		TypeMeta: metav1.TypeMeta{

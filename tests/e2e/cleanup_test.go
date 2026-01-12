@@ -31,7 +31,7 @@ func CleanupPreviousTestResources(t *testing.T) {
 	tc.DeleteResource(
 		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: tc.AppsNamespace}),
 		WithIgnoreNotFound(true),
-		WithWaitForDeletion(false),
+		WithWaitForDeletion(true),
 	)
 
 	// Cleanup Kueue cluster-scoped resources

@@ -452,7 +452,7 @@ func (tc *MonitoringTestCtx) ValidateMetricsTLSAlwaysEnabled(t *testing.T) {
 	tc.ensureOpenTelemetryCollectorReady(t)
 
 	// Validate TLS Service for Prometheus exporter exists with service-ca annotation
-	tc.EventuallyResourcePatched(
+	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Service, types.NamespacedName{
 			Name:      "data-science-collector-prometheus",
 			Namespace: tc.MonitoringNamespace,
@@ -466,7 +466,7 @@ func (tc *MonitoringTestCtx) ValidateMetricsTLSAlwaysEnabled(t *testing.T) {
 	)
 
 	// Validate TLS Secret is created by service-ca
-	tc.EventuallyResourcePatched(
+	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Secret, types.NamespacedName{
 			Name:      "data-science-collector-tls",
 			Namespace: tc.MonitoringNamespace,
@@ -480,7 +480,7 @@ func (tc *MonitoringTestCtx) ValidateMetricsTLSAlwaysEnabled(t *testing.T) {
 	)
 
 	// Validate OpenTelemetryCollector has TLS configuration for Prometheus exporter
-	tc.EventuallyResourcePatched(
+	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{
 			Name:      OpenTelemetryCollectorName,
 			Namespace: tc.MonitoringNamespace,
@@ -494,7 +494,7 @@ func (tc *MonitoringTestCtx) ValidateMetricsTLSAlwaysEnabled(t *testing.T) {
 	)
 
 	// Validate ServiceMonitor for Prometheus exporter uses HTTPS
-	tc.EventuallyResourcePatched(
+	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.ServiceMonitor, types.NamespacedName{
 			Name:      "data-science-prometheus-monitor",
 			Namespace: tc.MonitoringNamespace,
@@ -733,13 +733,9 @@ func (tc *MonitoringTestCtx) ValidatePrometheusRulesLifecycle(t *testing.T) {
 		WithMutateFunc(testf.TransformPipeline(
 			testf.Transform(`.spec.components.dashboard.managementState = "%s"`, operatorv1.Managed),
 		)),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "DashboardReady") | .status == "True"`)),
 	)
 
-	// Verify dashboard ready and both Prometheus rules exist
-	tc.EnsureResourcesExist(
-		WithMinimalObject(gvk.Dashboard, types.NamespacedName{Name: "default-dashboard", Namespace: tc.AppsNamespace}),
-		WithCondition(HaveLen(1)),
-	)
 	tc.EnsureResourceExists(WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "dashboard-prometheusrules", Namespace: tc.MonitoringNamespace}))
 	tc.EnsureResourceExists(WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "operator-prometheusrules", Namespace: tc.MonitoringNamespace}))
 
