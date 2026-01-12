@@ -270,4 +270,4 @@ additional_meta:
     git.commit: 239b7cc8f5907a27ef3c6bf9d89b2207971f5b82
   odh-mlserver:
     git.url: https://github.com/red-hat-data-services/MLServer
-    git.commit: 6c6f971d00add04a7386899d3d1765ca611b96ca
+    git.commit: 7f1f6da1413db37e7c0da7f3aeef0da4f4aa1865
