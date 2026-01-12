@@ -13,7 +13,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -536,7 +539,7 @@ func InfrastructureHealthCheck(tc *TestContext) error {
 	// Check 1: Cluster nodes are ready
 	tc.Logf("[FAIL-FAST] Checking cluster nodes are ready...")
 	nodeList := &corev1.NodeList{}
-	if err := tc.Client().List(tc.Ctx(), nodeList); err != nil {
+	if err := tc.Client().List(tc.Context(), nodeList); err != nil {
 		return fmt.Errorf("[INFRASTRUCTURE] failed to list nodes: %w", err)
 	}
 
@@ -566,13 +569,13 @@ func InfrastructureHealthCheck(tc *TestContext) error {
 	tc.Logf("[FAIL-FAST] Checking operator deployment is ready...")
 	deploymentName := getControllerDeploymentNameByPlatform(tc.FetchPlatformRelease())
 	deployment := &unstructured.Unstructured{}
-	deployment.SetGroupVersionKind(metav1.GroupVersionKind{
+	deployment.SetGroupVersionKind(schema.GroupVersionKind{
 		Group:   "apps",
 		Version: "v1",
 		Kind:    "Deployment",
 	})
 
-	if err := tc.Client().Get(tc.Ctx(), types.NamespacedName{
+	if err := tc.Client().Get(tc.Context(), types.NamespacedName{
 		Name:      deploymentName,
 		Namespace: tc.OperatorNamespace,
 	}, deployment); err != nil {
@@ -582,18 +585,19 @@ func InfrastructureHealthCheck(tc *TestContext) error {
 
 	// Extract replicas from deployment status
 	readyReplicas, found, err := unstructured.NestedInt64(deployment.Object, "status", "readyReplicas")
-	if err != nil || !found {
+	switch {
+	case err != nil || !found:
 		tc.Logf("[FAIL-FAST] WARNING: Could not determine operator pod readiness")
-	} else if readyReplicas == 0 {
+	case readyReplicas == 0:
 		return fmt.Errorf("[INFRASTRUCTURE] operator deployment %s has 0 ready replicas - operator not running", deploymentName)
-	} else {
+	default:
 		tc.Logf("[FAIL-FAST] ✓ Operator deployment %s has %d ready replica(s)", deploymentName, readyReplicas)
 	}
 
 	// Check 3: API server is responsive (implicit from previous checks, but let's verify)
 	tc.Logf("[FAIL-FAST] Checking API server responsiveness...")
 	namespaceList := &corev1.NamespaceList{}
-	if err := tc.Client().List(tc.Ctx(), namespaceList, &client.ListOptions{Limit: 1}); err != nil {
+	if err := tc.Client().List(tc.Context(), namespaceList, &client.ListOptions{Limit: 1}); err != nil {
 		return fmt.Errorf("[INFRASTRUCTURE] API server not responding to list requests: %w", err)
 	}
 	tc.Logf("[FAIL-FAST] ✓ API server is responsive")
