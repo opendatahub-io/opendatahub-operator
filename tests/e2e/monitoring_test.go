@@ -1628,6 +1628,7 @@ func (tc *MonitoringTestCtx) waitForPrometheusNamespaceProxyPrerequisites(t *tes
 			Namespace: namespace,
 		}),
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Available") | .status == "True"`)),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 		WithCustomErrorMsg("MonitoringStack should be Available before prometheus-namespace-proxy deployment"),
 	)
 

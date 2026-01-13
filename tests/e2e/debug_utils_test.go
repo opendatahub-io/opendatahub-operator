@@ -750,6 +750,17 @@ func debugResourceQuotas() {
 				log.Printf("  No quota violations detected")
 			}
 		}
+
+		// Print pods in namespace with quotas
+		pods := &corev1.PodList{}
+		if err := globalDebugClient.List(context.TODO(), pods, client.InNamespace(ns)); err != nil {
+			log.Printf("Failed to list pods in namespace %s: %v", ns, err)
+		} else {
+			log.Printf("Pods in namespace %s (%d total):", ns, len(pods.Items))
+			for _, pod := range pods.Items {
+				log.Printf("  Pod %s: Phase=%s", pod.Name, pod.Status.Phase)
+			}
+		}
 	}
 
 	if !hasQuotas {

@@ -1227,12 +1227,6 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 		newUID := recreatedResource.GetUID()
 		newResourceVersion := recreatedResource.GetResourceVersion()
 
-		// Debug logging to understand what's happening
-		if newUID == originalUID {
-			// This indicates the resource was never actually deleted, just log and continue polling
-			return
-		}
-
 		g.Expect(newUID).NotTo(Equal(originalUID),
 			"Recreated resource should have different UID. Original: %s, New: %s", originalUID, newUID)
 		g.Expect(newResourceVersion).NotTo(Equal(originalResourceVersion),
