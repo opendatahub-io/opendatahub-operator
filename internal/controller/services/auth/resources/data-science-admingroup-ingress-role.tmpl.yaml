@@ -8,8 +8,6 @@ rules:
   - kuadrant.io
   resources:
   - tokenratelimitpolicies
-  resourceNames:
-  - gateway-token-rate-limits
   verbs:
   - get
   - list
@@ -17,12 +15,11 @@ rules:
   - patch
   - update
   - delete
+  - create
 - apiGroups:
   - kuadrant.io
   resources:
   - ratelimitpolicies
-  resourceNames:
-  - gateway-rate-limits
   verbs:
   - get
   - list
@@ -30,3 +27,4 @@ rules:
   - patch
   - update
   - delete
+  - create
