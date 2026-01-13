@@ -722,29 +722,24 @@ func (tc *MonitoringTestCtx) ValidateTracesExportersReservedNameValidation(t *te
 func (tc *MonitoringTestCtx) ValidatePrometheusRulesLifecycle(t *testing.T) {
 	t.Helper()
 
+	// First, ensure dashboard is disabled to establish a known initial state.
+	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, gvk.Dashboard.Kind)
+
 	// Enable alerting + dashboard → Prometheus rules created
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
 		tc.withMetricsConfig(),
 		withEmptyAlerting(),
 	)
-	tc.EventuallyResourcePatched(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.TransformPipeline(
-			testf.Transform(`.spec.components.dashboard.managementState = "%s"`, operatorv1.Managed),
-		)),
-		WithCondition(jq.Match(`.status.conditions[] | select(.type == "DashboardReady") | .status == "True"`)),
-	)
+
+	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, gvk.Dashboard.Kind)
 
 	tc.EnsureResourceExists(WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "dashboard-prometheusrules", Namespace: tc.MonitoringNamespace}))
 	tc.EnsureResourceExists(WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "operator-prometheusrules", Namespace: tc.MonitoringNamespace}))
 
 	// Disable both dashboard and monitoring
 	tc.resetMonitoringConfigToRemoved()
-	tc.EventuallyResourcePatched(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.dashboard.managementState = "%s"`, operatorv1.Removed)),
-	)
+	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, gvk.Dashboard.Kind)
 
 	// Verify both Prometheus rules are deleted
 	tc.EnsureResourceGone(WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "dashboard-prometheusrules", Namespace: tc.MonitoringNamespace}))
