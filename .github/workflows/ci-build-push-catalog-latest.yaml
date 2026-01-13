@@ -47,10 +47,18 @@ jobs:
         id: short-sha
         run: echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-      - name: Create bundle image (latest)
+      - name: Get VERSION from Makefile
+        id: version
+        run: |
+          base_version=$(make -s print-VERSION)
+          echo "base=${base_version}" >> $GITHUB_OUTPUT
+          echo "full=${base_version}-main-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Create bundle image
         env:
-          BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:latest
-          IMG_TAG: latest
+          BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:v${{ steps.version.outputs.full }}
+          IMG_TAG: v${{ steps.version.outputs.full }}
+          VERSION: ${{ steps.version.outputs.full }}
         run: |
           make bundle-build
           make bundle-push
@@ -58,23 +66,15 @@ jobs:
       - name: Build and push catalog image (latest)
         env:
           CATALOG_IMG: ${{ env.IMAGE_TAG_BASE }}-catalog:latest
-          BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:latest
+          BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:v${{ steps.version.outputs.full }}
         run: |
           make catalog-build
           make catalog-push
 
-      - name: Create bundle image (main-sha)
-        env:
-          BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:main-${{ steps.short-sha.outputs.sha }}
-          IMG_TAG: main-${{ steps.short-sha.outputs.sha }}
-        run: |
-          make bundle-build
-          make bundle-push
-
       - name: Build and push catalog image (main-sha)
         env:
           CATALOG_IMG: ${{ env.IMAGE_TAG_BASE }}-catalog:main-${{ steps.short-sha.outputs.sha }}
-          BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:main-${{ steps.short-sha.outputs.sha }}
+          BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:v${{ steps.version.outputs.full }}
         run: |
           make catalog-build
           make catalog-push
