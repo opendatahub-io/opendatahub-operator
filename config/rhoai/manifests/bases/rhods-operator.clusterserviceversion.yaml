@@ -63,8 +63,11 @@ metadata:
             "workbenches": {
               "managementState": "Managed"
             },
-            "trainingoperator": {
+            "trainer": {
               "managementState": "Managed"
+            },
+            "trainingoperator": {
+              "managementState": "Removed"
             },
             "trustyai": {
               "managementState": "Managed"
@@ -79,10 +82,12 @@ metadata:
       "dashboards.components.platform.opendatahub.io", "datasciencepipelines.components.platform.opendatahub.io",
       "kserves.components.platform.opendatahub.io", "kueues.components.platform.opendatahub.io",
       "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
+      "trainers.components.platform.opendatahub.io",
       "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",
       "workbenches.components.platform.opendatahub.io", "monitorings.services.platform.opendatahub.io",
       "modelcontrollers.components.platform.opendatahub.io", "feastoperators.components.platform.opendatahub.io",
-      "llamastackoperators.components.platform.opendatahub.io", "mlflowoperators.components.platform.opendatahub.io"]
+      "llamastackoperators.components.platform.opendatahub.io", "mlflowoperators.components.platform.opendatahub.io", 
+      "modelsasservices.components.platform.opendatahub.io"]
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
   name: rhods-operator.v2.0.0
@@ -167,6 +172,11 @@ spec:
       kind: MLflowOperator
       name: mlflowoperators.components.platform.opendatahub.io
       version: v1alpha1
+    - description: ModelsAsService is the Schema for the modelsasservices API
+      displayName: Models As Service
+      kind: ModelsAsService
+      name: modelsasservices.components.platform.opendatahub.io
+      version: v1alpha1
     - description: ModelRegistry is the Schema for the modelregistries API
       displayName: Model Registry
       kind: ModelRegistry
@@ -181,6 +191,11 @@ spec:
       displayName: Ray
       kind: Ray
       name: rays.components.platform.opendatahub.io
+      version: v1alpha1
+    - description: Trainer is the Schema for the trainers API
+      displayName: Trainer
+      kind: Trainer
+      name: trainers.components.platform.opendatahub.io
       version: v1alpha1
     - description: TrainingOperator is the Schema for the trainingoperators API
       displayName: Training Operator
