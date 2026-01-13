@@ -113,6 +113,8 @@ spec:
                       type: boolean
                     observabilityDashboard:
                       type: boolean
+                    disableLLMd:
+                      type: boolean
                   x-kubernetes-validations:
                     - rule: '!has(self.disableAcceleratorProfiles) || self.disableAcceleratorProfiles == oldSelf.disableAcceleratorProfiles'
                       message: 'DEPRECATED: spec.dashboardConfig.disableAcceleratorProfiles must be removed or left unchanged.'
