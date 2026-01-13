@@ -1,0 +1,80 @@
+name: Build and push catalog image for main branch
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'config/**'
+      - 'Dockerfiles/**'
+      - 'internal/**'
+      - 'pkg/**'
+      - 'cmd/main.go'
+  workflow_dispatch: # Allow manual triggering
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+env:
+  IMAGE_TAG_BASE: quay.io/${{ secrets.QUAY_ORG }}/opendatahub-operator
+
+jobs:
+  create-catalog-image:
+    name: Build/push catalog image
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_BUILDER: podman
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Quay.io login
+        uses: redhat-actions/podman-login@4934294ad0449894bcd1e9f191899d7292469603 # v1.7
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_ID }}
+          password: ${{ secrets.QUAY_TOKEN }}
+
+      - name: Setup Go
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Get short SHA
+        id: short-sha
+        run: echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Create bundle image (latest)
+        env:
+          BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:latest
+          IMG_TAG: latest
+        run: |
+          make bundle-build
+          make bundle-push
+
+      - name: Build and push catalog image (latest)
+        env:
+          CATALOG_IMG: ${{ env.IMAGE_TAG_BASE }}-catalog:latest
+          BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:latest
+        run: |
+          make catalog-build
+          make catalog-push
+
+      - name: Create bundle image (main-sha)
+        env:
+          BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:main-${{ steps.short-sha.outputs.sha }}
+          IMG_TAG: main-${{ steps.short-sha.outputs.sha }}
+        run: |
+          make bundle-build
+          make bundle-push
+
+      - name: Build and push catalog image (main-sha)
+        env:
+          CATALOG_IMG: ${{ env.IMAGE_TAG_BASE }}-catalog:main-${{ steps.short-sha.outputs.sha }}
+          BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:main-${{ steps.short-sha.outputs.sha }}
+        run: |
+          make catalog-build
+          make catalog-push
