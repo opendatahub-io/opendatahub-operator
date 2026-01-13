@@ -74,7 +74,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_MINIMAL_CPU_PY312_IMAGE
   value: quay.io/rhoai/odh-pipeline-runtime-minimal-cpu-py312-rhel9@sha256:1ee70bc8e5aee1c5b43ba11227e1bc62e2bf908a6cb22357e04d17c79f8d6c6f
 - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_CUDA_PY312_IMAGE
-  value: quay.io/rhoai/odh-pipeline-runtime-pytorch-cuda-py312-rhel9@sha256:ddfdf6bde7ba25880dc4bf9c8d23167d0775abaa8b62978a1b7853cf56c22c55
+  value: quay.io/rhoai/odh-pipeline-runtime-pytorch-cuda-py312-rhel9@sha256:7bba89c50b8329c21340ddd3ea75a88fc862f71c5c92246c28ec7f1982ea22ac
 - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_ROCM_PY312_IMAGE
   value: quay.io/rhoai/odh-pipeline-runtime-pytorch-rocm-py312-rhel9@sha256:60fa798959d408f561610056c86b64c864feea6017b2fa0be4bf247f9bea7e74
 - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_TENSORFLOW_CUDA_PY312_IMAGE
