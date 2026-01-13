@@ -18,6 +18,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/monitoring"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
@@ -25,13 +26,16 @@ import (
 )
 
 const (
-	testNamespace        = "test-ns"
-	testPodMonitor       = "test-podmonitor"
-	testServiceMonitor   = "test-servicemonitor"
-	monitoringLabelKey   = "opendatahub.io/monitoring"
-	monitoringLabelValue = "true"
-	dashboardLabelKey    = "opendatahub.io/dashboard"
-	dashboardLabelValue  = "true"
+	testNamespace      = "test-ns"
+	testPodMonitor     = "test-podmonitor"
+	testServiceMonitor = "test-servicemonitor"
+)
+
+var (
+	monitoringLabelKey   = labels.Monitoring
+	monitoringLabelValue = labels.True
+	dashboardLabelKey    = labels.Dashboard
+	dashboardLabelValue  = labels.True
 )
 
 // Helper functions for test simplification.
