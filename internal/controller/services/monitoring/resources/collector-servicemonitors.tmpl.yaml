@@ -35,7 +35,7 @@ spec:
     - port: prometheus
       scheme: https
       tlsConfig:
-        caFile: /etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt
+        caFile: /etc/prometheus/secrets/prometheus-web-tls-ca/service-ca.crt
         serverName: "data-science-collector-prometheus.{{.Namespace}}.svc"
       bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
   namespaceSelector:
