@@ -1,0 +1,20 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: data-science-admingroup-ingress-role
+  namespace: openshift-ingress
+rules:
+- apiGroups:
+  - kuadrant.io
+  resources:
+  - tokenratelimitpolicies
+  - tokenratelimitpolicies/gateway-token-rate-limits
+  - ratelimitpolicies
+  - ratelimitpolicies/gateway-rate-limits
+  verbs:
+  - get
+  - list
+  - watch
+  - patch
+  - update
+  - delete

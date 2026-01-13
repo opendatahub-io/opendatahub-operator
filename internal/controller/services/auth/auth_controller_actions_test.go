@@ -143,7 +143,7 @@ func TestBindRoleValidation(t *testing.T) {
 				Resources: []unstructured.Unstructured{},
 			}
 
-			err := bindRole(ctx, rr, tt.groups, "test-binding", tt.roleName)
+			err := bindRole(ctx, rr, tt.groups, "test-binding", tt.roleName, "test-namespace")
 			g.Expect(err).ToNot(HaveOccurred(), tt.description)
 
 			// Verify a resource was added
