@@ -566,32 +566,44 @@ func InfrastructureHealthCheck(tc *TestContext) error {
 	}
 
 	// Check 2: Operator pod is running
+	// Try both common operator deployment names (we can't use FetchPlatformRelease() here as it may require
+	// DSCInitialization to exist, which creates a chicken-and-egg problem)
 	tc.Logf("[FAIL-FAST] Checking operator deployment is ready...")
-	deploymentName := getControllerDeploymentNameByPlatform(tc.FetchPlatformRelease())
-	deployment := &unstructured.Unstructured{}
-	deployment.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   "apps",
-		Version: "v1",
-		Kind:    "Deployment",
-	})
+	deploymentNames := []string{controllerDeploymentODH, controllerDeploymentRhoai}
 
-	if err := tc.Client().Get(tc.Context(), types.NamespacedName{
-		Name:      deploymentName,
-		Namespace: tc.OperatorNamespace,
-	}, deployment); err != nil {
-		return fmt.Errorf("[INFRASTRUCTURE] operator deployment %s not found in namespace %s: %w",
-			deploymentName, tc.OperatorNamespace, err)
+	foundDeployment := false
+	for _, deploymentName := range deploymentNames {
+		deployment := &unstructured.Unstructured{}
+		deployment.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   "apps",
+			Version: "v1",
+			Kind:    "Deployment",
+		})
+
+		err := tc.Client().Get(tc.Context(), types.NamespacedName{
+			Name:      deploymentName,
+			Namespace: tc.OperatorNamespace,
+		}, deployment)
+
+		if err == nil {
+			// Found a deployment, check its readiness
+			foundDeployment = true
+			readyReplicas, found, replicasErr := unstructured.NestedInt64(deployment.Object, "status", "readyReplicas")
+			switch {
+			case replicasErr != nil || !found:
+				tc.Logf("[FAIL-FAST] WARNING: Could not determine operator pod readiness for %s", deploymentName)
+			case readyReplicas == 0:
+				return fmt.Errorf("[INFRASTRUCTURE] operator deployment %s has 0 ready replicas - operator not running", deploymentName)
+			default:
+				tc.Logf("[FAIL-FAST] ✓ Operator deployment %s has %d ready replica(s)", deploymentName, readyReplicas)
+			}
+			break
+		}
 	}
 
-	// Extract replicas from deployment status
-	readyReplicas, found, err := unstructured.NestedInt64(deployment.Object, "status", "readyReplicas")
-	switch {
-	case err != nil || !found:
-		tc.Logf("[FAIL-FAST] WARNING: Could not determine operator pod readiness")
-	case readyReplicas == 0:
-		return fmt.Errorf("[INFRASTRUCTURE] operator deployment %s has 0 ready replicas - operator not running", deploymentName)
-	default:
-		tc.Logf("[FAIL-FAST] ✓ Operator deployment %s has %d ready replica(s)", deploymentName, readyReplicas)
+	if !foundDeployment {
+		return fmt.Errorf("[INFRASTRUCTURE] operator deployment not found - tried: %v in namespace %s",
+			deploymentNames, tc.OperatorNamespace)
 	}
 
 	// Check 3: API server is responsive (implicit from previous checks, but let's verify)
@@ -601,6 +613,28 @@ func InfrastructureHealthCheck(tc *TestContext) error {
 		return fmt.Errorf("[INFRASTRUCTURE] API server not responding to list requests: %w", err)
 	}
 	tc.Logf("[FAIL-FAST] ✓ API server is responsive")
+
+	// Check 4: Required CRDs are installed
+	tc.Logf("[FAIL-FAST] Checking required CRDs are installed...")
+	requiredCRDs := []string{
+		"dscinitializations.dscinitialization.opendatahub.io",
+		"datascienceclusters.datasciencecluster.opendatahub.io",
+	}
+
+	for _, crdName := range requiredCRDs {
+		crd := &unstructured.Unstructured{}
+		crd.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   "apiextensions.k8s.io",
+			Version: "v1",
+			Kind:    "CustomResourceDefinition",
+		})
+
+		if err := tc.Client().Get(tc.Context(), types.NamespacedName{Name: crdName}, crd); err != nil {
+			return fmt.Errorf("[INFRASTRUCTURE] required CRD %s not found - operator may not be installed correctly: %w", crdName, err)
+		}
+
+		tc.Logf("[FAIL-FAST] ✓ CRD %s is installed", crdName)
+	}
 
 	tc.Logf("[FAIL-FAST] ✓ Infrastructure health check PASSED - cluster is ready for e2e tests")
 	return nil
