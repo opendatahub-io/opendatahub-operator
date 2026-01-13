@@ -51,7 +51,6 @@ jobs:
         env:
           BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:latest
           IMG_TAG: latest
-          VERSION: latest
         run: |
           make bundle-build
           make bundle-push
@@ -68,7 +67,6 @@ jobs:
         env:
           BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:main-${{ steps.short-sha.outputs.sha }}
           IMG_TAG: main-${{ steps.short-sha.outputs.sha }}
-          VERSION: main-${{ steps.short-sha.outputs.sha }}
         run: |
           make bundle-build
           make bundle-push
