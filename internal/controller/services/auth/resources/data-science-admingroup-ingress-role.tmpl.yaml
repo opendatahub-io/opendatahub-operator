@@ -16,6 +16,7 @@ rules:
   - watch
   - patch
   - update
+  - delete
 - apiGroups:
   - kuadrant.io
   resources:
@@ -28,3 +29,4 @@ rules:
   - watch
   - patch
   - update
+  - delete
