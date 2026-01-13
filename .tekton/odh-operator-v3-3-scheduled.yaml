@@ -10,7 +10,6 @@ metadata:
     pipelinesascode.tekton.dev/on-cel-expression: |
       event == "push" && target_branch == "rhoai-3.3"
        &&  "build/schedule/operator-tekton-trigger.txt".pathChanged()
-  creationTimestamp: null
   labels:
     appstudio.openshift.io/application: rhoai-v3-3
     appstudio.openshift.io/component: odh-operator-v3-3
@@ -29,12 +28,10 @@ spec:
     value:
     - '{{target_branch}}-{{revision}}'
     - '{{target_branch}}-nightly'
-  - name: additional-labels
-    value:
-    - version=v3.3.0
-    - io.openshift.tags=odh-operator
   - name: output-image
     value: quay.io/rhoai/odh-rhel9-operator:{{target_branch}}
+  - name: rhoai-version
+    value: "3.3.0"
   - name: build-platforms
     value:
     - linux/x86_64
