@@ -117,7 +117,7 @@ additional_meta:
     git.commit: 556e51c8ff7c2a36ac3127c3859533ea1c05c8ee
   odh-must-gather:
     git.url: https://github.com/red-hat-data-services/must-gather
-    git.commit: 2c0975e00827c16fde7cdba7003c9bd37b1e68da
+    git.commit: b84de6653cede36029d7a914b662785cc3c79474
   odh-kserve-agent:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 267789431432b58bc69b03e6f9c58a82715626c4
@@ -249,7 +249,7 @@ additional_meta:
     git.commit: 524e8e46eb9059f7673679e15509e9eaab91d12e
   odh-mod-arch-model-registry:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: d87a090768708822d63fcb50af0548fd793311e7
+    git.commit: 7e27cc1df0786410401aa2300049077dba3a5359
   odh-trustyai-nemo-guardrails-server:
     git.url: https://github.com/red-hat-data-services/NeMo-Guardrails
     git.commit: 90ccb7910f3b7dec63ecf580a47732dba7891575
