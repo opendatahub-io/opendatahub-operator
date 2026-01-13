@@ -138,12 +138,11 @@ rules:
     - '' 
   resources:
     - configmaps
-    - configmaps/tier-to-group-mapping
+  resourceNames:
+    - tier-to-group-mapping
   verbs:
-    - watch
-    - update
     - get
     - list
-    - create
+    - watch
     - patch
-    - delete
+    - update

@@ -8,13 +8,23 @@ rules:
   - kuadrant.io
   resources:
   - tokenratelimitpolicies
-  - tokenratelimitpolicies/gateway-token-rate-limits
-  - ratelimitpolicies
-  - ratelimitpolicies/gateway-rate-limits
+  resourceNames:
+  - gateway-token-rate-limits
   verbs:
   - get
   - list
   - watch
   - patch
   - update
-  - delete
+- apiGroups:
+  - kuadrant.io
+  resources:
+  - ratelimitpolicies
+  resourceNames:
+  - gateway-rate-limits
+  verbs:
+  - get
+  - list
+  - watch
+  - patch
+  - update
