@@ -132,7 +132,7 @@ additional_meta:
     git.commit: 7d148d9a6d2d4e5324938ca2607138a203eea685
   odh-ta-lmes-job:
     git.url: https://github.com/red-hat-data-services/lm-evaluation-harness
-    git.commit: 9f375104d59457cf8e0f8e6030deb05840b5dd46
+    git.commit: 2573ad3f71c940f8316b112a6dc98fbc200f8ada
   odh-fms-guardrails-orchestrator:
     git.url: https://github.com/red-hat-data-services/fms-guardrails-orchestrator
     git.commit: fa63063694c9f2b19aa6292f0f6ee13995ea47ef
