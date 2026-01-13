@@ -53,7 +53,7 @@ type ModelsAsService struct {
 
 // ModelsAsServiceSpec defines the desired state of ModelsAsService
 type ModelsAsServiceSpec struct {
-	Gateway GatewaySpec `json:"gateway,omitempty"`
+	Gateway GatewaySpec `json:"-"` // Internal use only, not exposed in CRD
 }
 
 // GatewaySpec defines the reference to the global Gateway (Gw API) where

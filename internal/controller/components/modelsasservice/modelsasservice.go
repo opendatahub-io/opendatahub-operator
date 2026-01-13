@@ -76,11 +76,12 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 		Name:      DefaultGatewayName,
 	}
 
+	// TODO: uncomment when gateway field is made user-configurable (currently json:"-" tag).
 	// Override with DSC configuration if provided
-	if maasConfig.Gateway.Namespace != "" || maasConfig.Gateway.Name != "" {
-		// All-or-nothing validation should be handled during reconciliation
-		gatewaySpec = maasConfig.Gateway
-	}
+	//if maasConfig.Gateway.Namespace != "" || maasConfig.Gateway.Name != "" {
+	//	// All-or-nothing validation should be handled during reconciliation
+	//	gatewaySpec = maasConfig.Gateway
+	//}
 
 	return &componentApi.ModelsAsService{
 		TypeMeta: metav1.TypeMeta{
