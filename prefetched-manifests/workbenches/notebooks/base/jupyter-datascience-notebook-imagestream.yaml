@@ -36,7 +36,7 @@ spec:
             {"name": "Odh-Elyra", "version": "4.3"},
             {"name": "PyMongo", "version": "4.15"},
             {"name": "Pyodbc", "version": "5.2"},
-            {"name": "Codeflare-SDK", "version": "0.33"},
+            {"name": "Codeflare-SDK", "version": "0.34"},
             {"name": "Feast", "version": "0.58"},
             {"name": "Sklearn-onnx", "version": "1.19"},
             {"name": "Psycopg", "version": "3.2"},

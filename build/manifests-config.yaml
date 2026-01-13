@@ -1,7 +1,7 @@
 map:
   notebooks:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: e09fe9a450390e3e6097d6460ccb167fc9a2b1ff
+    git.commit: 197052779c4431e6e45a0825689c4799fc372aef
     src: manifests
     dest: workbenches/notebooks
     ref_type: branch
@@ -117,7 +117,7 @@ additional_meta:
     git.commit: 556e51c8ff7c2a36ac3127c3859533ea1c05c8ee
   odh-must-gather:
     git.url: https://github.com/red-hat-data-services/must-gather
-    git.commit: b84de6653cede36029d7a914b662785cc3c79474
+    git.commit: f0d7edac73bf04a9d3f20d0c5b26eb502064d692
   odh-kserve-agent:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 267789431432b58bc69b03e6f9c58a82715626c4
@@ -171,7 +171,7 @@ additional_meta:
     git.commit: abdda6172ce81469ea02d0b9f1c10abc2b40b1e0
   odh-workbench-jupyter-minimal-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: abdda6172ce81469ea02d0b9f1c10abc2b40b1e0
+    git.commit: 197052779c4431e6e45a0825689c4799fc372aef
   odh-workbench-jupyter-minimal-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: abdda6172ce81469ea02d0b9f1c10abc2b40b1e0
