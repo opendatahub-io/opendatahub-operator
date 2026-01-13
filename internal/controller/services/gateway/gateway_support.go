@@ -40,6 +40,7 @@ const (
 	GatewayControllerName   = "openshift.io/gateway-controller/v1" // OpenShift Gateway API controller name
 	DefaultGatewayName      = "data-science-gateway"               // Default gateway resource name
 	DefaultGatewaySubdomain = "rh-ai"                              // Default subdomain for gateway URLs
+	LegacyGatewaySubdomain  = "data-science-gateway"               // Legacy subdomain to redirect from
 
 	// Authentication constants.
 	AuthClientID             = "data-science" // OauthClient name.
@@ -93,6 +94,7 @@ const (
 	kubeAuthProxyHTTPRouteTemplate       = "resources/kube-auth-proxy-httproute.tmpl.yaml"
 	networkPolicyTemplate                = "resources/kube-auth-proxy-networkpolicy.yaml"
 	ocpRouteTemplate                     = "resources/gateway-ocp-route.tmpl.yaml"
+	ocpRouteRedirectTemplate             = "resources/gateway-ocp-route-redirect.tmpl.yaml"
 )
 
 // GetFQDN returns the fully qualified domain name for the gateway based on the GatewayConfig.

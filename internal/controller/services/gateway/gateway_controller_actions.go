@@ -20,6 +20,7 @@ import (
 	"context"
 	"embed"
 	"fmt"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -289,6 +290,25 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	// Get cookie settings with defaults
 	cookieExpire, cookieRefresh := getCookieSettings(&gatewayConfig.Spec.Cookie)
 
+	// Determine current subdomain (from spec or default)
+	currentSubdomain := DefaultGatewaySubdomain
+	if gatewayConfig.Spec.Subdomain != "" {
+		currentSubdomain = gatewayConfig.Spec.Subdomain
+	}
+
+	// Only enable legacy redirect if current subdomain differs from legacy
+	legacySubdomain := ""
+	legacySubdomainPattern := ""
+	legacyHostname := ""
+	if currentSubdomain != LegacyGatewaySubdomain {
+		legacySubdomain = LegacyGatewaySubdomain
+		// Escape dashes for Lua pattern matching (dash is a special character in Lua patterns)
+		legacySubdomainPattern = strings.ReplaceAll(LegacyGatewaySubdomain, "-", "%-")
+		// Compute legacy hostname by replacing current subdomain with legacy subdomain
+		// hostname format is: <subdomain>.<domain>
+		legacyHostname = LegacyGatewaySubdomain + hostname[len(currentSubdomain):]
+	}
+
 	templateData := map[string]any{
 		"GatewayNamespace":         GatewayNamespace,
 		"GatewayName":              DefaultGatewayName,
@@ -321,6 +341,10 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"PartOfLabelValue":         PartOfLabelValue,
 		"PartOfGatewayConfig":      PartOfGatewayConfig,
 		"GatewayNameLabelKey":      labels.GatewayAPI.GatewayName,
+		"LegacySubdomain":          legacySubdomain,
+		"LegacySubdomainPattern":   legacySubdomainPattern,
+		"CurrentSubdomain":         currentSubdomain,
+		"LegacyHostname":           legacyHostname,
 	}
 
 	// Add OIDC-specific fields only if OIDC config is present
