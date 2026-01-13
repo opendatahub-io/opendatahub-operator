@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"strings"
 	"testing"
+	"time"
 
 	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -554,12 +555,41 @@ func (tc *ComponentTestCtx) ValidateResourceDeletionRecovery(t *testing.T, resou
 
 	// For each resource, test individual deletion-recreation
 	for _, resource := range existingResources {
-		t.Run(resourceGVK.Kind+"_"+resource.GetName(), func(t *testing.T) {
+		resourceName := resource.GetName()
+		resourceNamespace := resource.GetNamespace()
+
+		t.Run(resourceGVK.Kind+"_"+resourceName, func(t *testing.T) {
 			t.Helper()
+
+			// Setup diagnostic collection on failure
+			// This uses defer + recover to catch test failures and collect diagnostics
+			defer func() {
+				if r := recover(); r != nil {
+					t.Logf("\n⚠️  Deletion recovery test FAILED - collecting diagnostics...")
+					// Run diagnostics to understand why controller didn't recreate the resource
+					_ = diagnoseDeletionRecoveryFailure(
+						tc.TestContext,
+						resourceGVK,
+						resourceName,
+						resourceNamespace,
+						tc.GVK.Kind,
+					)
+					// Re-panic to preserve test failure
+					panic(r)
+				}
+			}()
+
+			// Log start time for duration tracking
+			startTime := time.Now()
+			t.Logf("[DELETION-RECOVERY] Starting test for %s/%s", resourceGVK.Kind, resourceName)
 
 			tc.EnsureResourceDeletedThenRecreated(
 				WithMinimalObject(resourceGVK, resources.NamespacedNameFromObject(&resource)),
 			)
+
+			// Log success with duration
+			duration := time.Since(startTime)
+			t.Logf("[DELETION-RECOVERY] ✓ Success: %s/%s recreated in %v", resourceGVK.Kind, resourceName, duration)
 		})
 	}
 }

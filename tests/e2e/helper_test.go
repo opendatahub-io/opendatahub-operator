@@ -798,3 +798,298 @@ func EventuallyWithCircuitBreaker(
 	}, timeout, pollInterval).Should(Succeed(),
 		"Condition '%s' did not succeed within %v", description, timeout)
 }
+
+// diagnoseDeletionRecoveryFailure collects comprehensive diagnostics when a resource
+// deletion recovery test fails. This helps investigate why the controller failed to
+// recreate the resource within the expected timeout.
+//
+// Based on CI audit data showing ConfigMap deletion recovery has 73% pass rate (26.7% failure):
+// - Passing runs: 5-13 seconds (controller recreates quickly)
+// - Failing runs: 605-611 seconds (timeout, controller never recreates)
+//
+// This function investigates potential root causes:
+// 1. Controller pod health (crashes, restarts, OOMKilled)
+// 2. Controller resource pressure (CPU/memory throttling)
+// 3. Controller rate limiting or backoff
+// 4. Cluster resource exhaustion
+// 5. OwnerReference issues blocking recreation
+func diagnoseDeletionRecoveryFailure(
+	tc *TestContext,
+	resourceGVK schema.GroupVersionKind,
+	resourceName string,
+	resourceNamespace string,
+	componentKind string,
+) error {
+	tc.Logf("\n=== DELETION RECOVERY DIAGNOSTICS: %s/%s (component: %s) ===\n",
+		resourceGVK.Kind, resourceName, componentKind)
+
+	// Diagnostic 1: Controller pod health
+	tc.Logf("\n--- Controller Pod Health ---")
+
+	// Try both common operator deployment names
+	deploymentNames := []string{controllerDeploymentODH, controllerDeploymentRhoai}
+
+	for _, depName := range deploymentNames {
+		deployment := &unstructured.Unstructured{}
+		deployment.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   "apps",
+			Version: "v1",
+			Kind:    "Deployment",
+		})
+
+		err := tc.Client().Get(tc.Context(), types.NamespacedName{
+			Name:      depName,
+			Namespace: tc.OperatorNamespace,
+		}, deployment)
+
+		if err != nil {
+			if client.IgnoreNotFound(err) == nil {
+				tc.Logf("⚠️  Deployment %s not found (trying alternate name)", depName)
+			} else {
+				tc.Logf("⚠️  Error fetching deployment %s: %v", depName, err)
+			}
+			continue
+		}
+
+		// Found the deployment
+		readyReplicas, _, _ := unstructured.NestedInt64(deployment.Object, "status", "readyReplicas")
+		replicas, _, _ := unstructured.NestedInt64(deployment.Object, "status", "replicas")
+		unavailableReplicas, _, _ := unstructured.NestedInt64(deployment.Object, "status", "unavailableReplicas")
+
+		tc.Logf("Operator Deployment: %s", depName)
+		tc.Logf("  Ready Replicas: %d/%d", readyReplicas, replicas)
+		if unavailableReplicas > 0 {
+			tc.Logf("  ⚠️  Unavailable Replicas: %d", unavailableReplicas)
+		}
+
+		// Get pods for this deployment
+		podList := &corev1.PodList{}
+		labelSelector := client.MatchingLabels{"control-plane": "controller-manager"}
+		if err := tc.Client().List(tc.Context(), podList, client.InNamespace(tc.OperatorNamespace), labelSelector); err != nil {
+			tc.Logf("  ⚠️  Failed to list controller pods: %v", err)
+			continue
+		}
+
+		for _, pod := range podList.Items {
+			tc.Logf("\n  Pod: %s", pod.Name)
+			tc.Logf("    Phase: %s", pod.Status.Phase)
+			tc.Logf("    Restarts: %d", getPodRestartCount(&pod))
+
+			if pod.Status.Phase != corev1.PodRunning {
+				tc.Logf("    ⚠️  Pod not running!")
+			}
+
+			// Check container statuses
+			for _, containerStatus := range pod.Status.ContainerStatuses {
+				tc.Logf("    Container: %s", containerStatus.Name)
+				tc.Logf("      Ready: %t", containerStatus.Ready)
+				tc.Logf("      RestartCount: %d", containerStatus.RestartCount)
+
+				if containerStatus.State.Waiting != nil {
+					tc.Logf("      ⚠️  Waiting: %s - %s",
+						containerStatus.State.Waiting.Reason,
+						containerStatus.State.Waiting.Message)
+				}
+				if containerStatus.State.Terminated != nil {
+					tc.Logf("      ⚠️  Terminated: %s - %s (exit code: %d)",
+						containerStatus.State.Terminated.Reason,
+						containerStatus.State.Terminated.Message,
+						containerStatus.State.Terminated.ExitCode)
+				}
+
+				// Check for OOMKilled
+				if containerStatus.LastTerminationState.Terminated != nil {
+					if containerStatus.LastTerminationState.Terminated.Reason == "OOMKilled" {
+						tc.Logf("      ⚠️⚠️  Last termination: OOMKilled - controller may be under memory pressure!")
+					}
+				}
+			}
+
+			// Check resource requests/limits
+			for _, container := range pod.Spec.Containers {
+				if container.Name == "manager" || container.Name == "controller-manager" {
+					tc.Logf("    Resource Limits:")
+					if container.Resources.Limits != nil {
+						cpu := container.Resources.Limits.Cpu()
+						memory := container.Resources.Limits.Memory()
+						tc.Logf("      CPU: %s", cpu.String())
+						tc.Logf("      Memory: %s", memory.String())
+					}
+					tc.Logf("    Resource Requests:")
+					if container.Resources.Requests != nil {
+						cpu := container.Resources.Requests.Cpu()
+						memory := container.Resources.Requests.Memory()
+						tc.Logf("      CPU: %s", cpu.String())
+						tc.Logf("      Memory: %s", memory.String())
+					}
+				}
+			}
+		}
+	}
+
+	// Diagnostic 2: Check if the resource still exists (maybe deletion failed?)
+	tc.Logf("\n--- Resource Existence Check ---")
+	resource := &unstructured.Unstructured{}
+	resource.SetGroupVersionKind(resourceGVK)
+	err := tc.Client().Get(tc.Context(), types.NamespacedName{
+		Name:      resourceName,
+		Namespace: resourceNamespace,
+	}, resource)
+
+	if err != nil {
+		if client.IgnoreNotFound(err) == nil {
+			tc.Logf("✓ Resource does NOT exist (deletion successful, recreation failed)")
+		} else {
+			tc.Logf("⚠️  Error checking resource existence: %v", err)
+		}
+	} else {
+		tc.Logf("⚠️  Resource STILL EXISTS - may not have been deleted properly")
+		tc.Logf("  UID: %s", resource.GetUID())
+		tc.Logf("  ResourceVersion: %s", resource.GetResourceVersion())
+		tc.Logf("  DeletionTimestamp: %v", resource.GetDeletionTimestamp())
+
+		if resource.GetDeletionTimestamp() != nil {
+			tc.Logf("  ⚠️⚠️  Resource has DeletionTimestamp but still exists - finalizer may be stuck!")
+			finalizers := resource.GetFinalizers()
+			if len(finalizers) > 0 {
+				tc.Logf("  Finalizers: %v", finalizers)
+			}
+		}
+	}
+
+	// Diagnostic 3: Check component CR status
+	tc.Logf("\n--- Component Status Check ---")
+	componentGVK, err := getComponentGVK(componentKind)
+	if err != nil {
+		tc.Logf("⚠️  Could not determine component GVK: %v", err)
+	} else {
+		component := &unstructured.Unstructured{}
+		component.SetGroupVersionKind(componentGVK)
+		componentName := getComponentInstanceName(componentKind)
+
+		err = tc.Client().Get(tc.Context(), types.NamespacedName{Name: componentName}, component)
+		if err != nil {
+			tc.Logf("⚠️  Failed to get component %s: %v", componentKind, err)
+		} else {
+			tc.Logf("Component %s:", componentKind)
+
+			// Check conditions
+			conditions, found, _ := unstructured.NestedSlice(component.Object, "status", "conditions")
+			if found && len(conditions) > 0 {
+				tc.Logf("  Conditions:")
+				for _, cond := range conditions {
+					condMap, ok := cond.(map[string]interface{})
+					if !ok {
+						continue
+					}
+					condType, _ := condMap["type"].(string)
+					condStatus, _ := condMap["status"].(string)
+					condReason, _ := condMap["reason"].(string)
+					condMessage, _ := condMap["message"].(string)
+
+					statusIcon := "✓"
+					if condStatus != "True" && condType == "Ready" {
+						statusIcon = "⚠️ "
+					}
+
+					tc.Logf("    %s %s: %s", statusIcon, condType, condStatus)
+					if condReason != "" {
+						tc.Logf("      Reason: %s", condReason)
+					}
+					if condMessage != "" && condStatus != "True" {
+						tc.Logf("      Message: %s", condMessage)
+					}
+				}
+			} else {
+				tc.Logf("  ⚠️  No conditions found in status")
+			}
+
+			// Check observedGeneration
+			observedGen, found, _ := unstructured.NestedInt64(component.Object, "status", "observedGeneration")
+			generation := component.GetGeneration()
+			if found {
+				if observedGen != generation {
+					tc.Logf("  ⚠️⚠️  ObservedGeneration (%d) != Generation (%d) - controller may be lagging!",
+						observedGen, generation)
+				} else {
+					tc.Logf("  ✓ ObservedGeneration matches Generation (%d)", observedGen)
+				}
+			}
+		}
+	}
+
+	// Diagnostic 4: Check recent events
+	tc.Logf("\n--- Recent Events (last 5 minutes) ---")
+	eventList := &corev1.EventList{}
+	if err := tc.Client().List(tc.Context(), eventList, client.InNamespace(resourceNamespace)); err != nil {
+		tc.Logf("⚠️  Failed to list events: %v", err)
+	} else {
+		relevantEvents := 0
+		fiveMinutesAgo := metav1.Now().Add(-5 * time.Minute)
+
+		for _, event := range eventList.Items {
+			// Only show recent events
+			if event.LastTimestamp.Time.Before(fiveMinutesAgo) {
+				continue
+			}
+
+			// Filter for relevant events (controller, resource, or errors)
+			if strings.Contains(event.InvolvedObject.Name, resourceName) ||
+				strings.Contains(event.Reason, "Failed") ||
+				strings.Contains(event.Reason, "Error") ||
+				strings.Contains(event.Message, componentKind) ||
+				event.Type == corev1.EventTypeWarning {
+
+				relevantEvents++
+				tc.Logf("  [%s] %s/%s: %s - %s",
+					event.LastTimestamp.Format("15:04:05"),
+					event.InvolvedObject.Kind,
+					event.InvolvedObject.Name,
+					event.Reason,
+					event.Message)
+			}
+		}
+
+		if relevantEvents == 0 {
+			tc.Logf("  No relevant events in last 5 minutes")
+		}
+	}
+
+	tc.Logf("\n=== END DELETION RECOVERY DIAGNOSTICS ===\n")
+	return nil
+}
+
+// Helper function to get pod restart count
+func getPodRestartCount(pod *corev1.Pod) int32 {
+	var restarts int32
+	for _, containerStatus := range pod.Status.ContainerStatuses {
+		restarts += containerStatus.RestartCount
+	}
+	return restarts
+}
+
+// Helper function to get component GVK from kind string
+func getComponentGVK(componentKind string) (schema.GroupVersionKind, error) {
+	gvk := schema.GroupVersionKind{
+		Group:   "components.opendatahub.io",
+		Version: "v1alpha1",
+		Kind:    componentKind,
+	}
+	return gvk, nil
+}
+
+// Helper function to get component instance name from kind
+func getComponentInstanceName(componentKind string) string {
+	// Most components use lowercase kind as instance name
+	// ModelsAsService uses "modelsasservice"
+	switch componentKind {
+	case "ModelsAsService":
+		return "modelsasservice"
+	case "DataSciencePipelines":
+		return "datasciencepipelines"
+	case "Kserve":
+		return "kserve"
+	default:
+		return strings.ToLower(componentKind)
+	}
+}
