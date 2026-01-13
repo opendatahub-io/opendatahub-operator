@@ -1,7 +1,7 @@
 map:
   notebooks:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 32607543470af645e74829e81b9a571c62944cd3
+    git.commit: 15c27a2095720edfc5b3e146a1b29986dd74778b
     src: manifests
     dest: workbenches/notebooks
     ref_type: branch
@@ -123,7 +123,7 @@ additional_meta:
     git.commit: 4f8dffb5301ef9e81f1dc4b53271862bda8b6d00
   odh-kserve-router:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 4f8dffb5301ef9e81f1dc4b53271862bda8b6d00
+    git.commit: 59ad0edebc9b0a38cb71af09833875b37104121c
   odh-kserve-storage-initializer:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 4f8dffb5301ef9e81f1dc4b53271862bda8b6d00
