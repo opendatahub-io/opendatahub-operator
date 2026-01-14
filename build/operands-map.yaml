@@ -62,7 +62,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TA_LMES_DRIVER_IMAGE
   value: "quay.io/rhoai/odh-ta-lmes-driver-rhel9@sha256:8bdba4b5da8d9f8a9b0a51b421754a646cfc8550fe376109b6f4743e486986e5"
 - name: RELATED_IMAGE_ODH_TA_LMES_JOB_IMAGE
-  value: "quay.io/rhoai/odh-ta-lmes-job-rhel9@sha256:7ab4da2216d0b22901d3607293236913c625b3855e621adee22f6fff06974b85"
+  value: "quay.io/rhoai/odh-ta-lmes-job-rhel9@sha256:2080861f276037c6ff7fac7d5fef56f40a213c02995550ce04466c4f7afe41ab"
 - name: RELATED_IMAGE_ODH_FMS_GUARDRAILS_ORCHESTRATOR_IMAGE
   value: "quay.io/rhoai/odh-fms-guardrails-orchestrator-rhel9@sha256:44b3693338884d628ba85a4fdafcf0e10239332b9a5abd20e4401b2a46fa08b0"
 - name: RELATED_IMAGE_ODH_TRUSTYAI_VLLM_ORCHESTRATOR_GATEWAY_IMAGE
@@ -132,7 +132,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MAAS-API_IMAGE
   value: "quay.io/rhoai/odh-maas-api-rhel9@sha256:3aa6eed03f2553371e4350f3d6e0e2be4050f9c43db37b1432e83940c0e581f9"
 - name: RELATED_IMAGE_ODH_MODEL_PERFORMANCE_DATA_IMAGE
-  value: "quay.io/rhoai/odh-model-performance-data-rhel9@sha256:562decf3eafb59ffa58c99f0ced2c05ad7c89c135a8981f525489004dbfd65c2"
+  value: "quay.io/rhoai/odh-model-performance-data-rhel9@sha256:bbf433bcad6c2b9d5c0e26d246d83cde2037a777368335547d7e1e86a2964dbb"
 - name: RELATED_IMAGE_ODH_TRAINING_CUDA121_TORCH24_PY311_IMAGE
   value: "quay.io/rhoai/odh-training-cuda121-torch24-py311-rhel9@sha256:4f76f198f8fb45c5d2eedc0e683a27f6327a5e0ae1af5dd2bbf641002195c89d"
 - name: RELATED_IMAGE_ODH_TRAINING_CUDA124_TORCH25_PY311_IMAGE
