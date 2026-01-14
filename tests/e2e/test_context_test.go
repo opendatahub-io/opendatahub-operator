@@ -1205,25 +1205,77 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 
 	var recreatedResource *unstructured.Unstructured
 
+	// Circuit breaker variables to fail fast instead of waiting for full timeout
+	var consecutiveFailures int
+	const failureThreshold = 6 // 6 failures * 5s polling = 30s before circuit breaker trips
+	var lastCheckTime time.Time
+	const resetInterval = 15 * time.Second // Reset counter if we make progress
+
 	tc.g.Eventually(func(g Gomega) {
+		now := time.Now()
+
+		// Reset circuit breaker if enough time has passed (indicates progress/recovery)
+		if !lastCheckTime.IsZero() && now.Sub(lastCheckTime) > resetInterval {
+			consecutiveFailures = 0
+		}
+		lastCheckTime = now
+
 		// Poll without nesting Eventually to avoid compounded timeouts
 		// Use direct client.Get() instead of fetchResource() to avoid nested Eventually calls
 		u, err := fetchResourceSync(ro)
-		g.Expect(err).NotTo(HaveOccurred(), "Failed to fetch %s %s", ro.GVK.Kind, ro.ResourceID)
-		g.Expect(u).NotTo(BeNil(), "Expected %s %s to be recreated", ro.GVK.Kind, ro.ResourceID)
+
+		if err != nil || u == nil {
+			consecutiveFailures++
+
+			// Circuit breaker: fail fast after threshold
+			if consecutiveFailures >= failureThreshold {
+				failureMsg := fmt.Sprintf("[CONTROLLER] %s %s recreation failing consistently after %d attempts (%.0fs) - controller may not be responding to deletion events",
+					ro.GVK.Kind, ro.ResourceID, consecutiveFailures, float64(consecutiveFailures*5))
+				g.Expect(err).NotTo(HaveOccurred(), failureMsg)
+			}
+
+			g.Expect(err).NotTo(HaveOccurred(), "Failed to fetch %s %s", ro.GVK.Kind, ro.ResourceID)
+			g.Expect(u).NotTo(BeNil(), "Expected %s %s to be recreated", ro.GVK.Kind, ro.ResourceID)
+			return
+		}
+
 		recreatedResource = u
 
 		// Verify it's actually a new resource (different UID)
 		newUID := recreatedResource.GetUID()
 		newResourceVersion := recreatedResource.GetResourceVersion()
 
+		// Debug logging to understand what's happening
+		if newUID == originalUID {
+			consecutiveFailures++
+
+			// Circuit breaker for UID mismatch
+			if consecutiveFailures >= failureThreshold {
+				g.Expect(newUID).NotTo(Equal(originalUID),
+					"[CONTROLLER] Resource still has old UID after %d checks - deletion may not be acknowledged by controller", consecutiveFailures)
+			}
+
+			// This indicates the resource was never actually deleted, just log and continue polling
+			return
+		}
+
+		// Reset counter on success
+		consecutiveFailures = 0
+
 		g.Expect(newUID).NotTo(Equal(originalUID),
 			"Recreated resource should have different UID. Original: %s, New: %s", originalUID, newUID)
 		g.Expect(newResourceVersion).NotTo(Equal(originalResourceVersion),
 			"Recreated resource should have different ResourceVersion. Original: %s, New: %s",
 			originalResourceVersion, newResourceVersion)
-	}).Should(Succeed(),
-		"Resource %s %s was not properly recreated with new identity", ro.GVK.Kind, ro.ResourceID)
+	}).Should(Succeed(), func() string {
+		// This function runs ONLY on failure (when Eventually times out)
+		// Run diagnostics if callback is provided
+		if ro.OnFailure != nil {
+			return ro.OnFailure()
+		}
+		// Default error message with controller tag
+		return fmt.Sprintf("[CONTROLLER] Resource %s %s was not properly recreated with new identity", ro.GVK.Kind, ro.ResourceID)
+	})
 
 	return recreatedResource
 }

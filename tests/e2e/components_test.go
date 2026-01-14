@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -561,10 +562,15 @@ func (tc *ComponentTestCtx) ValidateResourceDeletionRecovery(t *testing.T, resou
 		t.Run(resourceGVK.Kind+"_"+resourceName, func(t *testing.T) {
 			t.Helper()
 
-			// Setup diagnostic collection on failure using same pattern as cluster diagnostics
-			// This correctly detects test failures via t.Failed() (works with both Gomega and standard assertions)
-			defer func() {
-				if t.Failed() {
+			// Log start time for duration tracking
+			startTime := time.Now()
+			t.Logf("[DELETION-RECOVERY] Starting test for %s/%s", resourceGVK.Kind, resourceName)
+
+			// Use OnFailure callback for diagnostic collection
+			// This runs ONLY when Eventually() times out, avoiding the defer timing issue
+			tc.EnsureResourceDeletedThenRecreated(
+				WithMinimalObject(resourceGVK, resources.NamespacedNameFromObject(&resource)),
+				WithOnFailure(func() string {
 					t.Logf("\n⚠️  Deletion recovery test FAILED - collecting diagnostics...")
 					// Run diagnostics to understand why controller didn't recreate the resource
 					diagnoseDeletionRecoveryFailure(
@@ -574,15 +580,10 @@ func (tc *ComponentTestCtx) ValidateResourceDeletionRecovery(t *testing.T, resou
 						resourceNamespace,
 						tc.GVK.Kind,
 					)
-				}
-			}()
-
-			// Log start time for duration tracking
-			startTime := time.Now()
-			t.Logf("[DELETION-RECOVERY] Starting test for %s/%s", resourceGVK.Kind, resourceName)
-
-			tc.EnsureResourceDeletedThenRecreated(
-				WithMinimalObject(resourceGVK, resources.NamespacedNameFromObject(&resource)),
+					// Return failure message with controller tag
+					return fmt.Sprintf("[CONTROLLER] %s %s was not recreated after deletion - controller may not be watching deletion events",
+						resourceGVK.Kind, resourceName)
+				}),
 			)
 
 			// Log success with duration

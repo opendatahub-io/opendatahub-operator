@@ -104,6 +104,11 @@ type ResourceOptions struct {
 	InvalidValue string
 	// FieldName holds the name of the field being validated by the webhook
 	FieldName string
+
+	// OnFailure is an optional callback that runs when a resource operation fails (e.g., recreation timeout).
+	// This is used to collect diagnostics and provide additional context about the failure.
+	// The callback should run diagnostics and return a failure message string.
+	OnFailure func() string
 }
 
 // ResourceOpts is a function type used to configure options for the ResourceOptions object.
@@ -332,5 +337,14 @@ func WithDeleteAllOfOptions(deleteAllOfOptions ...client.DeleteAllOfOption) Reso
 func WithNamespaceFilter(namespace string) ResourceOpts {
 	return func(ro *ResourceOptions) {
 		ro.DeleteAllOfOptions = append(ro.DeleteAllOfOptions, client.InNamespace(namespace))
+	}
+}
+
+// WithOnFailure sets a callback that runs when a resource operation fails.
+// The callback should collect diagnostics and return a failure message.
+// This is used to provide detailed context when operations like recreation timeout.
+func WithOnFailure(onFailure func() string) ResourceOpts {
+	return func(ro *ResourceOptions) {
+		ro.OnFailure = onFailure
 	}
 }
