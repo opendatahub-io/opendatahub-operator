@@ -567,7 +567,7 @@ func (tc *ComponentTestCtx) ValidateResourceDeletionRecovery(t *testing.T, resou
 				if t.Failed() {
 					t.Logf("\n⚠️  Deletion recovery test FAILED - collecting diagnostics...")
 					// Run diagnostics to understand why controller didn't recreate the resource
-					_ = diagnoseDeletionRecoveryFailure(
+					diagnoseDeletionRecoveryFailure(
 						tc.TestContext,
 						resourceGVK,
 						resourceName,
