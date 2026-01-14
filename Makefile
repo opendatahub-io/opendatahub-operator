@@ -56,7 +56,7 @@ else
 	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 	# NOTE: see also the git branches for RHOAI in get_all_manifests.sh. This variable does NOT affect those
 	ifeq ($(VERSION), )
-		VERSION = 3.2.0
+		VERSION = 3.3.0
 	endif
 	# Specifies the namespace where the operator pods are deployed (defaults to redhat-ods-operator)
 	OPERATOR_NAMESPACE ?= redhat-ods-operator
