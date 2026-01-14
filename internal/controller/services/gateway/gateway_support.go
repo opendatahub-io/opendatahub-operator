@@ -229,7 +229,7 @@ func createGatewayClass(rr *odhtypes.ReconciliationRequest) error {
 	return rr.AddResources(gatewayClass)
 }
 
-func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, domain string, ingressMode serviceApi.IngressMode) error {
+func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, domain string, legacyDomain string, ingressMode serviceApi.IngressMode) error {
 	listeners := []gwapiv1.Listener{}
 
 	if certSecretName != "" {
@@ -249,24 +249,28 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 			},
 		}
 
+		tlsConfig := &gwapiv1.GatewayTLSConfig{
+			Mode: &httpsMode,
+			CertificateRefs: []gwapiv1.SecretObjectReference{
+				{
+					Name: gwapiv1.ObjectName(certSecretName),
+				},
+			},
+		}
+
+		allowedRoutes := &gwapiv1.AllowedRoutes{
+			Namespaces: &gwapiv1.RouteNamespaces{
+				From:     &allowedNamespaces,
+				Selector: namespaceSelector,
+			},
+		}
+
 		httpsListener := gwapiv1.Listener{
-			Name:     "https",
-			Protocol: gwapiv1.HTTPSProtocolType,
-			Port:     StandardHTTPSPort,
-			TLS: &gwapiv1.GatewayTLSConfig{
-				Mode: &httpsMode,
-				CertificateRefs: []gwapiv1.SecretObjectReference{
-					{
-						Name: gwapiv1.ObjectName(certSecretName),
-					},
-				},
-			},
-			AllowedRoutes: &gwapiv1.AllowedRoutes{
-				Namespaces: &gwapiv1.RouteNamespaces{
-					From:     &allowedNamespaces,
-					Selector: namespaceSelector,
-				},
-			},
+			Name:          "https",
+			Protocol:      gwapiv1.HTTPSProtocolType,
+			Port:          StandardHTTPSPort,
+			TLS:           tlsConfig,
+			AllowedRoutes: allowedRoutes,
 		}
 
 		if ingressMode != serviceApi.IngressModeOcpRoute {
@@ -275,6 +279,21 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 		}
 
 		listeners = append(listeners, httpsListener)
+
+		// Add legacy listener for LoadBalancer mode to accept requests for legacy hostname
+		// (EnvoyFilter will redirect these to the new hostname)
+		if ingressMode != serviceApi.IngressModeOcpRoute && legacyDomain != "" {
+			legacyHostname := gwapiv1.Hostname(legacyDomain)
+			legacyListener := gwapiv1.Listener{
+				Name:          "https-legacy",
+				Protocol:      gwapiv1.HTTPSProtocolType,
+				Port:          StandardHTTPSPort,
+				Hostname:      &legacyHostname,
+				TLS:           tlsConfig,
+				AllowedRoutes: allowedRoutes,
+			}
+			listeners = append(listeners, legacyListener)
+		}
 	}
 
 	gateway := &gwapiv1.Gateway{
@@ -568,7 +587,7 @@ func detectAndSetIngressMode(ctx context.Context, rr *odhtypes.ReconciliationReq
 	}, svc)
 
 	if k8serr.IsNotFound(err) {
-		gatewayConfig.Spec.IngressMode = serviceApi.IngressModeOcpRoute
+		gatewayConfig.Spec.IngressMode = serviceApi.IngressModeLoadBalancer
 		return nil
 	}
 	if err != nil {

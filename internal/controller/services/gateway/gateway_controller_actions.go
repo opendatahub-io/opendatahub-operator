@@ -82,7 +82,17 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 		}
 	}
 
-	if err := createGateway(rr, certSecretName, hostname, gatewayConfig.Spec.IngressMode); err != nil {
+	// Compute legacy hostname for LoadBalancer mode (needs second listener)
+	var legacyHostname string
+	currentSubdomain := DefaultGatewaySubdomain
+	if gatewayConfig.Spec.Subdomain != "" {
+		currentSubdomain = gatewayConfig.Spec.Subdomain
+	}
+	if currentSubdomain != LegacyGatewaySubdomain {
+		legacyHostname = LegacyGatewaySubdomain + hostname[len(currentSubdomain):]
+	}
+
+	if err := createGateway(rr, certSecretName, hostname, legacyHostname, gatewayConfig.Spec.IngressMode); err != nil {
 		return fmt.Errorf("failed to create Gateway: %w", err)
 	}
 
