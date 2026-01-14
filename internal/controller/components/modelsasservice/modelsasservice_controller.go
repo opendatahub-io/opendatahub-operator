@@ -31,7 +31,6 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
@@ -70,11 +69,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(validateGateway).
 		WithAction(customizeManifests).
 		// WithAction(releases.NewAction()). // TODO: Do we need this? How to fix annotation of "platform.opendatahub.io/version:0.0.0"
-		WithAction(kustomize.NewAction(
-			// TODO: There are comments in some components mentioning these are legacy labels. Do we still need these?
-			kustomize.WithLabel(labels.ODH.Component(ComponentName), labels.True),
-			kustomize.WithLabel(labels.K8SCommon.PartOf, ComponentName),
-		)).
 		WithAction(configureGatewayAuthPolicy).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
