@@ -94,7 +94,7 @@ const (
 	kubeAuthProxyHTTPRouteTemplate       = "resources/kube-auth-proxy-httproute.tmpl.yaml"
 	networkPolicyTemplate                = "resources/kube-auth-proxy-networkpolicy.yaml"
 	ocpRouteTemplate                     = "resources/gateway-ocp-route.tmpl.yaml"
-	ocpRouteRedirectTemplate             = "resources/gateway-ocp-route-redirect.tmpl.yaml"
+	ocpRouteLegacyRedirectTemplate       = "resources/gateway-ocp-route-legacy-redirect.tmpl.yaml"
 )
 
 // GetFQDN returns the fully qualified domain name for the gateway based on the GatewayConfig.
@@ -199,8 +199,8 @@ func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 		}
 		return secretName, nil
 	case infrav1.SelfSigned:
-		hostname := fmt.Sprintf("%s.%s", DefaultGatewaySubdomain, domain)
-		if err := cluster.CreateSelfSignedCertificate(ctx, rr.Client, secretName, hostname, GatewayNamespace,
+		// domain parameter already contains the full FQDN (subdomain.baseDomain) from GetFQDN
+		if err := cluster.CreateSelfSignedCertificate(ctx, rr.Client, secretName, domain, GatewayNamespace,
 			cluster.WithLabels( // add label easy to know it is from us.
 				labels.PlatformPartOf, ServiceName,
 			),
@@ -467,6 +467,39 @@ func getCookieSettings(cookieConfig *serviceApi.CookieConfig) (string, string) {
 	return expire, refresh
 }
 
+// LegacyRedirectInfo contains computed values for legacy hostname redirect functionality.
+type LegacyRedirectInfo struct {
+	CurrentSubdomain       string // The current subdomain (from config or default)
+	LegacySubdomain        string // The legacy subdomain to redirect from (empty if redirect not needed)
+	LegacySubdomainPattern string // Lua-escaped pattern for legacy subdomain matching
+	LegacyHostname         string // Full legacy hostname (empty if redirect not needed)
+}
+
+// computeLegacyRedirectInfo computes the subdomain and legacy hostname information
+// for redirect functionality. Returns empty legacy fields if current subdomain equals legacy.
+func computeLegacyRedirectInfo(gatewayConfig *serviceApi.GatewayConfig, hostname string) LegacyRedirectInfo {
+	currentSubdomain := DefaultGatewaySubdomain
+	if gatewayConfig != nil && gatewayConfig.Spec.Subdomain != "" {
+		currentSubdomain = gatewayConfig.Spec.Subdomain
+	}
+
+	info := LegacyRedirectInfo{
+		CurrentSubdomain: currentSubdomain,
+	}
+
+	// Only enable legacy redirect if current subdomain differs from legacy
+	if currentSubdomain != LegacyGatewaySubdomain {
+		info.LegacySubdomain = LegacyGatewaySubdomain
+		// Escape dashes for Lua pattern matching (dash is a special character in Lua patterns)
+		info.LegacySubdomainPattern = strings.ReplaceAll(LegacyGatewaySubdomain, "-", "%-")
+		// Compute legacy hostname by replacing current subdomain with legacy subdomain
+		// Using strings.Replace with dot suffix for safer, more explicit replacement
+		info.LegacyHostname = strings.Replace(hostname, currentSubdomain+".", LegacyGatewaySubdomain+".", 1)
+	}
+
+	return info
+}
+
 // calculateAuthConfigHash generates a hash of the authentication secret values
 // to detect changes that should trigger a kube-auth-proxy pod restart.
 func calculateAuthConfigHash(authSecret *corev1.Secret) string {
@@ -587,7 +620,7 @@ func detectAndSetIngressMode(ctx context.Context, rr *odhtypes.ReconciliationReq
 	}, svc)
 
 	if k8serr.IsNotFound(err) {
-		gatewayConfig.Spec.IngressMode = serviceApi.IngressModeLoadBalancer
+		gatewayConfig.Spec.IngressMode = serviceApi.IngressModeOcpRoute
 		return nil
 	}
 	if err != nil {

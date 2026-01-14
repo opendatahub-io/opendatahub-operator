@@ -497,3 +497,33 @@ func TestGetCookieSettings(t *testing.T) {
 		})
 	}
 }
+
+// TestComputeLegacyRedirectInfo tests the computeLegacyRedirectInfo helper function.
+func TestComputeLegacyRedirectInfo(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	// Default subdomain enables legacy redirect with Lua-escaped pattern
+	info := computeLegacyRedirectInfo(nil, "rh-ai.apps.example.com")
+	g.Expect(info.CurrentSubdomain).To(Equal(DefaultGatewaySubdomain))
+	g.Expect(info.LegacySubdomain).To(Equal(LegacyGatewaySubdomain))
+	g.Expect(info.LegacySubdomainPattern).To(Equal("data%-science%-gateway"))
+	g.Expect(info.LegacyHostname).To(Equal("data-science-gateway.apps.example.com"))
+
+	// Legacy subdomain disables redirect (empty legacy fields)
+	legacyConfig := &serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{Subdomain: LegacyGatewaySubdomain},
+	}
+	info = computeLegacyRedirectInfo(legacyConfig, "data-science-gateway.apps.example.com")
+	g.Expect(info.CurrentSubdomain).To(Equal(LegacyGatewaySubdomain))
+	g.Expect(info.LegacySubdomain).To(BeEmpty())
+	g.Expect(info.LegacyHostname).To(BeEmpty())
+
+	// Custom subdomain still enables redirect
+	customConfig := &serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{Subdomain: "custom"},
+	}
+	info = computeLegacyRedirectInfo(customConfig, "custom.apps.example.com")
+	g.Expect(info.CurrentSubdomain).To(Equal("custom"))
+	g.Expect(info.LegacyHostname).To(Equal("data-science-gateway.apps.example.com"))
+}
