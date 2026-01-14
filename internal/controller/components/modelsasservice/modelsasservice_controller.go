@@ -69,12 +69,10 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(initialize).
 		WithAction(validateGateway).
 		WithAction(customizeManifests).
-		// WithAction(releases.NewAction()). // TODO: Do we need this? How to fix annotation of "platform.opendatahub.io/version:0.0.0"
 		WithAction(kustomize.NewAction(
-			// TODO: There are comments in some components mentioning these are legacy labels. Do we still need these?
 			kustomize.WithLabel(labels.ODH.Component(ComponentName), labels.True),
-			kustomize.WithLabel(labels.K8SCommon.PartOf, ComponentName),
 		)).
+		// WithAction(releases.NewAction()). // TODO: Do we need this? How to fix annotation of "platform.opendatahub.io/version:0.0.0"
 		WithAction(configureGatewayAuthPolicy).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
