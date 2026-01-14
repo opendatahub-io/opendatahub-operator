@@ -49,7 +49,7 @@ map:
     src: manifests
     dest: dashboard
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 4007ef2ae86f8407e9e04e2552d42dfb021f7582
+    git.commit: 5baa17d659fec977c9b75be48d37d471e732fc82
   odh-training-operator:
     src: manifests
     dest: trainingoperator
@@ -156,7 +156,7 @@ additional_meta:
     git.commit: 3037ed0e5ba1ded57d716680798792a8c33c85dc
   odh-pipeline-runtime-tensorflow-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 32607543470af645e74829e81b9a571c62944cd3
+    git.commit: 3037ed0e5ba1ded57d716680798792a8c33c85dc
   odh-pipeline-runtime-tensorflow-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 3037ed0e5ba1ded57d716680798792a8c33c85dc
@@ -180,10 +180,10 @@ additional_meta:
     git.commit: 3037ed0e5ba1ded57d716680798792a8c33c85dc
   odh-workbench-jupyter-pytorch-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 32607543470af645e74829e81b9a571c62944cd3
+    git.commit: 3037ed0e5ba1ded57d716680798792a8c33c85dc
   odh-workbench-jupyter-tensorflow-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 197052779c4431e6e45a0825689c4799fc372aef
+    git.commit: 3037ed0e5ba1ded57d716680798792a8c33c85dc
   odh-workbench-jupyter-tensorflow-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 3037ed0e5ba1ded57d716680798792a8c33c85dc
