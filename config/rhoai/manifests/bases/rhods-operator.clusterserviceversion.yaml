@@ -77,14 +77,15 @@ metadata:
       }
     operatorframework.io/suggested-namespace: redhat-ods-operator
     operators.openshift.io/infrastructure-features: '["disconnected"]'
-    operators.operatorframework.io/internal-objects: "[\"featuretrackers.features.opendatahub.io\",\n\"dashboards.components.platform.opendatahub.io\",
-      \"datasciencepipelines.components.platform.opendatahub.io\",\n\"kserves.components.platform.opendatahub.io\",
-      \"kueues.components.platform.opendatahub.io\",\n\"modelregistries.components.platform.opendatahub.io\",
-      \"rays.components.platform.opendatahub.io\",\n\"trainers.components.platform.opendatahub.io\",\n\"trainingoperators.components.platform.opendatahub.io\",
-      \"trustyais.components.platform.opendatahub.io\",\n\"workbenches.components.platform.opendatahub.io\",
-      \"monitorings.services.platform.opendatahub.io\",\n\"modelcontrollers.components.platform.opendatahub.io\",
-      \"feastoperators.components.platform.opendatahub.io\",\n\"llamastackoperators.components.platform.opendatahub.io\",
-      \"mlflowoperators.components.platform.opendatahub.io\", \n\"modelsasservices.components.platform.opendatahub.io\"]"
+    operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
+      "dashboards.components.platform.opendatahub.io", "datasciencepipelines.components.platform.opendatahub.io",
+      "kserves.components.platform.opendatahub.io", "kueues.components.platform.opendatahub.io",
+      "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
+      "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",
+      "workbenches.components.platform.opendatahub.io", "monitorings.services.platform.opendatahub.io",
+      "modelcontrollers.components.platform.opendatahub.io", "feastoperators.components.platform.opendatahub.io",
+      "llamastackoperators.components.platform.opendatahub.io", "trainers.components.platform.opendatahub.io",
+      "mlflowoperators.components.platform.opendatahub.io", "modelsasservices.components.platform.opendatahub.io"]'
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
   name: rhods-operator.v2.0.0
