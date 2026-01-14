@@ -16,7 +16,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -25,10 +24,6 @@ import (
 
 const (
 	jobSetOperator = "jobset-operator"
-)
-
-var (
-	ErrJobSetOperatorNotInstalled = odherrors.NewStopError(status.JobSetOperatorNotInstalledMessage)
 )
 
 type componentHandler struct{}
