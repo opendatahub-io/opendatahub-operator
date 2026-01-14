@@ -51,7 +51,6 @@ jobs:
         id: version
         run: |
           base_version=$(make -s print-VERSION)
-          echo "base=${base_version}" >> $GITHUB_OUTPUT
           echo "full=${base_version}-main-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
       - name: Create bundle image
