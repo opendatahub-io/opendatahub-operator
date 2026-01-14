@@ -165,14 +165,6 @@ relatedImages:
   value: "quay.io/rhoai/odh-mlflow-operator-rhel9@sha256:034f019af555947129a50cadaa5c84a61392568951251b31e39f3672e305f7d8"
 - name: RELATED_IMAGE_ODH_MLFLOW_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-mlflow-operator-rhel9@sha256:034f019af555947129a50cadaa5c84a61392568951251b31e39f3672e305f7d8"
-- name: RELATED_IMAGE_ODH_TRAINING_TH04_CUDA128_TORCH29_PY312_IMAGE
-  value: "quay.io/rhoai/odh-training-th04-cuda128-torch29-py312-rhel9@sha256:1fb53fee04a05ab30fe7f7844f2382e022e940327982f753f1abcabe15b6b92b"
-- name: RELATED_IMAGE_ODH_TRAINING_ROCM64_TORCH290_PY312_IMAGE
-  value: "quay.io/rhoai/odh-training-rocm64-torch290-py312-rhel9@sha256:6986c3ce62ef30856a7144e7b5ae02fc6a09ce469beec662c7f70b20991ca17d"
-- name: RELATED_IMAGE_ODH_TRAINING_CPU_TORCH290_PY312_IMAGE
-  value: "quay.io/rhoai/odh-training-cpu-torch290-py312-rhel9@sha256:6323e0232dcc524a9077376403d0b743b7e24936330018b82c421ac2d979413c"
-- name: RELATED_IMAGE_ODH_TRAINING_CPU_TORCH290_PY312_IMAGE
-  value: "quay.io/rhoai/odh-training-cpu-torch290-py312-rhel9@sha256:6323e0232dcc524a9077376403d0b743b7e24936330018b82c421ac2d979413c"
 - name: RELATED_IMAGE_ODH_MLSERVER_IMAGE
   value: "quay.io/rhoai/odh-mlserver-rhel9@sha256:be9bc8ce06430860bb7a0a6eb972942b4ad553671a89ab28688a538ed4f3df70"
 - name: RELATED_IMAGE_ODH_MLSERVER_IMAGE
