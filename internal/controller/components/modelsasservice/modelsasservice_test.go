@@ -52,23 +52,6 @@ func TestNewCRObject(t *testing.T) {
 		g.Expect(maasObj.Spec.Gateway.Name).Should(Equal(DefaultGatewayName))
 	})
 
-	// TODO: uncomment when gateway field is made user-configurable (currently json:"-" tag).
-	//t.Run("creates CR with custom Gateway configuration from DSC specification", func(t *testing.T) {
-	//	customGateway := componentApi.GatewaySpec{
-	//		Namespace: "custom-gateway-namespace",
-	//		Name:      "custom-gateway-name",
-	//	}
-	//	dsc := createDSCWithMaaSEnabledAndGateway(customGateway)
-	//
-	//	cr := handler.NewCRObject(dsc)
-	//	g.Expect(cr).ShouldNot(BeNil())
-	//
-	//	maasObj, ok := cr.(*componentApi.ModelsAsService)
-	//	g.Expect(ok).Should(BeTrue())
-	//	g.Expect(maasObj.Spec.Gateway.Namespace).Should(Equal("custom-gateway-namespace"))
-	//	g.Expect(maasObj.Spec.Gateway.Name).Should(Equal("custom-gateway-name"))
-	//})
-
 	t.Run("propagates management state from DSC to ModelsAsService annotations", func(t *testing.T) {
 		testCases := []struct {
 			name                    string
@@ -119,18 +102,6 @@ func TestIsEnabled(t *testing.T) {
 }
 
 func createDSCWithKServeAndMaaS(kserveState, maasState operatorv1.ManagementState) *dscv2.DataScienceCluster {
-	return createDSCWithMaaSGateway(kserveState, maasState, componentApi.GatewaySpec{})
-}
-
-// TODO: uncomment when gateway field is made user-configurable (currently json:"-" tag).
-//func createDSCWithMaaSEnabledAndGateway(gatewaySpec componentApi.GatewaySpec) *dscv2.DataScienceCluster {
-//	return createDSCWithMaaSGateway(operatorv1.Managed, operatorv1.Managed, gatewaySpec)
-//}
-
-func createDSCWithMaaSGateway(kserveState, maasState operatorv1.ManagementState, gatewaySpec componentApi.GatewaySpec) *dscv2.DataScienceCluster {
-	// gatewaySpec parameter is currently unused but kept for future compatibility
-	_ = gatewaySpec
-
 	return &dscv2.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-dsc",
@@ -144,10 +115,6 @@ func createDSCWithMaaSGateway(kserveState, maasState operatorv1.ManagementState,
 					KserveCommonSpec: componentApi.KserveCommonSpec{
 						ModelsAsService: componentApi.DSCModelsAsServiceSpec{
 							ManagementState: maasState,
-							// TODO: uncomment when gateway field is made user-configurable (currently json:"-" tag).
-							//ModelsAsServiceSpec: componentApi.ModelsAsServiceSpec{
-							//	Gateway: gatewaySpec,
-							//},
 						},
 					},
 				},
