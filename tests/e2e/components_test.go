@@ -561,10 +561,10 @@ func (tc *ComponentTestCtx) ValidateResourceDeletionRecovery(t *testing.T, resou
 		t.Run(resourceGVK.Kind+"_"+resourceName, func(t *testing.T) {
 			t.Helper()
 
-			// Setup diagnostic collection on failure
-			// This uses defer + recover to catch test failures and collect diagnostics
+			// Setup diagnostic collection on failure using same pattern as cluster diagnostics
+			// This correctly detects test failures via t.Failed() (works with both Gomega and standard assertions)
 			defer func() {
-				if r := recover(); r != nil {
+				if t.Failed() {
 					t.Logf("\n⚠️  Deletion recovery test FAILED - collecting diagnostics...")
 					// Run diagnostics to understand why controller didn't recreate the resource
 					_ = diagnoseDeletionRecoveryFailure(
@@ -574,8 +574,6 @@ func (tc *ComponentTestCtx) ValidateResourceDeletionRecovery(t *testing.T, resou
 						resourceNamespace,
 						tc.GVK.Kind,
 					)
-					// Re-panic to preserve test failure
-					panic(r)
 				}
 			}()
 
