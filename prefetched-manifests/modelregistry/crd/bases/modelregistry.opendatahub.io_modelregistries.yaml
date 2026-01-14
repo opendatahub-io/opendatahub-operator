@@ -1485,7 +1485,6 @@ spec:
                     type: string
                 type: object
             required:
-            - grpc
             - rest
             type: object
             x-kubernetes-validations:

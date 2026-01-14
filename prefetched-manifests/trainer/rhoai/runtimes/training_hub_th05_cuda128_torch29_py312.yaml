@@ -1,9 +1,9 @@
 apiVersion: trainer.kubeflow.org/v1alpha1
 kind: ClusterTrainingRuntime
 metadata:
-  name: torch-distributed-th03-cuda128-torch28-py312
+  name: training-hub-th05-cuda128-torch29-py312
   labels:
-    trainer.kubeflow.org/framework: torch
+    trainer.kubeflow.org/framework: training-hub
 spec:
   mlPolicy:
     numNodes: 1
@@ -22,4 +22,4 @@ spec:
                 spec:
                   containers:
                     - name: node
-                      image: quay.io/modh/training:py312-cuda128-torch280
+                      image: quay.io/opendatahub/odh-training-cuda128-torch29-py312@sha256:87539ef75e399efceefc6ecc54ebdc4453f794302f417bd30372112692eee70c

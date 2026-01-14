@@ -33,7 +33,7 @@ replacements:
     kind: ConfigMap
     name: rhoai-config
     version: v1
-    fieldPath: data.odh-training-rocm64-torch28-py312-image
+    fieldPath: data.odh-training-rocm64-torch29-py312-image
   targets:
   - select:
       kind: ClusterTrainingRuntime
@@ -41,16 +41,16 @@ replacements:
     fieldPaths:
     - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
 
-# Replace image for torch-distributed-th03-cuda128-torch28-py312
+# Replace image for torch-distributed-rocm64-torch29-py312
 - source:
     kind: ConfigMap
     name: rhoai-config
     version: v1
-    fieldPath: data.odh-training-cuda128-torch28-py312-image
+    fieldPath: data.odh-training-rocm64-torch29-py312-image
   targets:
   - select:
       kind: ClusterTrainingRuntime
-      name: torch-distributed-th03-cuda128-torch28-py312
+      name: torch-distributed-rocm64-torch29-py312
     fieldPaths:
     - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
 
@@ -59,7 +59,7 @@ replacements:
     kind: ConfigMap
     name: rhoai-config
     version: v1
-    fieldPath: data.odh-training-cuda128-torch28-py312-image
+    fieldPath: data.odh-training-cuda128-torch29-py312-image
   targets:
   - select:
       kind: ClusterTrainingRuntime
@@ -67,16 +67,16 @@ replacements:
     fieldPaths:
     - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
 
-# Replace image for training-hub-th03-cuda128-torch28-py312
+# Replace image for torch-distributed-cuda128-torch29-py312
 - source:
     kind: ConfigMap
     name: rhoai-config
     version: v1
-    fieldPath: data.odh-training-cuda128-torch28-py312-image
+    fieldPath: data.odh-training-cuda128-torch29-py312-image
   targets:
   - select:
       kind: ClusterTrainingRuntime
-      name: training-hub03-cuda128-torch28-py312
+      name: torch-distributed-cuda128-torch29-py312
     fieldPaths:
     - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
 
@@ -85,11 +85,24 @@ replacements:
     kind: ConfigMap
     name: rhoai-config
     version: v1
-    fieldPath: data.odh-training-cuda128-torch28-py312-image
+    fieldPath: data.odh-training-cuda128-torch29-py312-image
   targets:
   - select:
       kind: ClusterTrainingRuntime
       name: training-hub
+    fieldPaths:
+    - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
+
+# Replace image for training-hub-th05-cuda128-torch29-py312
+- source:
+    kind: ConfigMap
+    name: rhoai-config
+    version: v1
+    fieldPath: data.odh-training-cuda128-torch29-py312-image
+  targets:
+  - select:
+      kind: ClusterTrainingRuntime
+      name: training-hub-th05-cuda128-torch29-py312
     fieldPaths:
     - spec.template.spec.replicatedJobs.[name=node].template.spec.template.spec.containers.[name=node].image
 

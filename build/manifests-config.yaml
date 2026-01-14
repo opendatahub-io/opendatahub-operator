@@ -29,7 +29,7 @@ map:
     src: ray-operator/config
     dest: ray
     git.url: https://github.com/red-hat-data-services/kuberay
-    git.commit: b15581071af0646bb1c3e07ca3fa4ef94025065f
+    git.commit: 11b54d5d09b7ad2604e3bd44e4adc99b29b1214b
   odh-trustyai-service-operator:
     src: config
     dest: trustyai
@@ -44,7 +44,7 @@ map:
     src: config
     dest: modelregistry
     git.url: https://github.com/red-hat-data-services/model-registry-operator
-    git.commit: a7d0e4d489970790edd79a842574eb7c3d8b4911
+    git.commit: 3217f739b4948f01cca60cc4cde0e9cdcf83f857
   odh-dashboard:
     src: manifests
     dest: dashboard
@@ -69,7 +69,7 @@ map:
     src: manifests
     dest: trainer
     git.url: https://github.com/red-hat-data-services/trainer
-    git.commit: 1ee79facd69a05fa5d59de246b6deabf48dee71d
+    git.commit: 7a55d6c173c870753b615ab1c7e3f4762f90909e
   odh-mlflow-operator:
     src: config
     dest: mlflowoperator
@@ -105,7 +105,7 @@ additional_meta:
     git.commit: 2eb86a46919b327a7c81c4eeeca076eb4510b5e6
   odh-model-registry:
     git.url: https://github.com/red-hat-data-services/model-registry
-    git.commit: 7aa0d73fbb0eb92d18f09c31fc1e8144ddb5fefc
+    git.commit: 4426c5c3ecf46885b1553d73914d0ec17f9a5ec1
   odh-feature-server:
     git.url: https://github.com/red-hat-data-services/feast
     git.commit: 5b873b78c1a2a56c7652c4bd73741a0c7e2287ee

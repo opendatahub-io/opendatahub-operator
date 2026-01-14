@@ -22,4 +22,4 @@ spec:
                 spec:
                   containers:
                     - name: node
-                      image: quay.io/modh/training:py312-cuda128-torch280
+                      image: quay.io/opendatahub/odh-training-cuda128-torch29-py312@sha256:87539ef75e399efceefc6ecc54ebdc4453f794302f417bd30372112692eee70c
