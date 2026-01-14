@@ -8,14 +8,14 @@ metadata:
     build.appstudio.redhat.com/target_branch: '{{target_branch}}'
     pipelinesascode.tekton.dev/cancel-in-progress: "false"
     pipelinesascode.tekton.dev/max-keep-runs: "3"
-    pipelinesascode.tekton.dev/on-cel-expression: ( event == "test-comment" || ( event == "push" && target_branch
-      == "konflux-poc-1" && ".tekton/odh-ci-operator-push.yaml".pathChanged() ))
+    pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch
+      == "konflux-poc-1"
   creationTimestamp: null
   labels:
     appstudio.openshift.io/application: poc
     appstudio.openshift.io/component: odh-ci-operator
     pipelines.appstudio.openshift.io/type: build
-  name: odh-ci-operator-on-push
+  name: odh-ci-operator-on-pull-request.yaml
   namespace: open-data-hub-tenant
 spec:
   params:
@@ -24,7 +24,7 @@ spec:
   - name: revision
     value: '{{revision}}'
   - name: output-image
-    value: quay.io/opendatahub/opendatahub-operator:odh-stable
+    value: quay.io/opendatahub/opendatahub-operator:odh-pr
   - name: dockerfile
     value: Dockerfiles/Dockerfile
   - name: skip-checks
@@ -38,7 +38,9 @@ spec:
     - linux/x86_64
   - name: additional-tags
     value:
-    - '{{target_branch}}-{{revision}}'
+    - 'odh-pr-{{revision}}'
+  - name: pipeline-type
+    value: pull-request
   pipelineRef:
     resolver: git
     params:
