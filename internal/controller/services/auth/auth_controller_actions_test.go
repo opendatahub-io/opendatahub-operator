@@ -79,10 +79,11 @@ func TestInitialize(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// Verify templates were added
-	g.Expect(rr.Templates).To(HaveLen(3))
+	g.Expect(rr.Templates).To(HaveLen(4))
 	g.Expect(rr.Templates[0].Path).To(Equal(AdminGroupRoleTemplate))
-	g.Expect(rr.Templates[1].Path).To(Equal(AdminGroupClusterRoleTemplate))
-	g.Expect(rr.Templates[2].Path).To(Equal(AllowedGroupClusterRoleTemplate))
+	g.Expect(rr.Templates[1].Path).To(Equal(AdminGroupIngressRoleTemplate))
+	g.Expect(rr.Templates[2].Path).To(Equal(AdminGroupClusterRoleTemplate))
+	g.Expect(rr.Templates[3].Path).To(Equal(AllowedGroupClusterRoleTemplate))
 }
 
 // TestBindRoleValidation validates the security filtering logic in the bindRole function.
@@ -143,7 +144,7 @@ func TestBindRoleValidation(t *testing.T) {
 				Resources: []unstructured.Unstructured{},
 			}
 
-			err := bindRole(ctx, rr, tt.groups, "test-binding", tt.roleName)
+			err := bindRole(ctx, rr, tt.groups, "test-binding", tt.roleName, "test-namespace")
 			g.Expect(err).ToNot(HaveOccurred(), tt.description)
 
 			// Verify a resource was added
@@ -197,8 +198,8 @@ func TestManagePermissionsBasic(t *testing.T) {
 	err := managePermissions(ctx, rr)
 	g.Expect(err).ToNot(HaveOccurred(), "Should create all required RBAC resources")
 
-	// Verify resources were created (3 total: 1 RoleBindings + 2 ClusterRoleBinding)
-	g.Expect(rr.Resources).To(HaveLen(3), "Should create 3 RBAC resources")
+	// Verify resources were created (4 total: 2 RoleBindings + 2 ClusterRoleBinding)
+	g.Expect(rr.Resources).To(HaveLen(4), "Should create 4 RBAC resources")
 
 	// Count different resource types
 	roleBindings := 0
@@ -213,7 +214,7 @@ func TestManagePermissionsBasic(t *testing.T) {
 		}
 	}
 
-	g.Expect(roleBindings).To(Equal(1), "Should create 1 RoleBindings")
+	g.Expect(roleBindings).To(Equal(2), "Should create 2 RoleBindings")
 	g.Expect(clusterRoleBindings).To(Equal(2), "Should create 2 ClusterRoleBinding")
 }
 
@@ -296,8 +297,8 @@ func TestManagePermissions(t *testing.T) {
 	err := managePermissions(ctx, rr)
 	g.Expect(err).ToNot(HaveOccurred(), "Should create all required RBAC resources")
 
-	// Verify resources were created (3 total: 1 RoleBinding + 2 ClusterRoleBindings)
-	g.Expect(rr.Resources).To(HaveLen(3), "Should create 3 RBAC resources")
+	// Verify resources were created (4 total: 2 RoleBindings + 2 ClusterRoleBindings)
+	g.Expect(rr.Resources).To(HaveLen(4), "Should create 4 RBAC resources")
 
 	// Count different resource types and verify role names
 	roleBindings := 0
@@ -326,7 +327,7 @@ func TestManagePermissions(t *testing.T) {
 		}
 	}
 
-	g.Expect(roleBindings).To(Equal(1), "Should create 1 RoleBinding")
+	g.Expect(roleBindings).To(Equal(2), "Should create 2 RoleBindings")
 	g.Expect(clusterRoleBindings).To(Equal(2), "Should create 2 ClusterRoleBindings")
 
 	// Verify that cluster-scoped roles are created
@@ -371,8 +372,8 @@ func TestManagePermissionsMultipleGroups(t *testing.T) {
 	err := managePermissions(ctx, rr)
 	g.Expect(err).ToNot(HaveOccurred(), "Should create all required RBAC resources")
 
-	// Verify resources were created (3 total: 1 RoleBinding + 2 ClusterRoleBindings)
-	g.Expect(rr.Resources).To(HaveLen(3), "Should create 3 RBAC resources (no metrics roles)")
+	// Verify resources were created (4 total: 2 RoleBindings + 2 ClusterRoleBindings)
+	g.Expect(rr.Resources).To(HaveLen(4), "Should create 4 RBAC resources (no metrics roles)")
 
 	roleBindings := 0
 	clusterRoleBindings := 0
@@ -418,7 +419,7 @@ func TestManagePermissionsMultipleGroups(t *testing.T) {
 		}
 	}
 
-	g.Expect(roleBindings).To(Equal(1), "Should create 1 RoleBinding")
+	g.Expect(roleBindings).To(Equal(2), "Should create 2 RoleBindings")
 	g.Expect(clusterRoleBindings).To(Equal(2), "Should create 2 ClusterRoleBindings")
 	g.Expect(clusterRoleNames).To(ContainElement("data-science-admingroupcluster-role"), "Should create admin group cluster role")
 	g.Expect(clusterRoleNames).To(ContainElement("data-science-allowedgroupcluster-role"), "Should create allowed group cluster role")
