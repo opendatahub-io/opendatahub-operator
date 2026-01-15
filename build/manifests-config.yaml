@@ -44,7 +44,7 @@ map:
     src: config
     dest: modelregistry
     git.url: https://github.com/red-hat-data-services/model-registry-operator
-    git.commit: 3217f739b4948f01cca60cc4cde0e9cdcf83f857
+    git.commit: 67fb128521e4c149e87e4a3d8bd6e1c8e171844d
   odh-dashboard:
     src: manifests
     dest: dashboard
@@ -64,7 +64,7 @@ map:
     src: config
     dest: llamastackoperator
     git.url: https://github.com/red-hat-data-services/llama-stack-k8s-operator
-    git.commit: 059a74f0bf5fc34b0a851cd6d54182185629db35
+    git.commit: 3288b31ba3bd41eaaf391cab7e1c675ef1a450d5
   odh-trainer:
     src: manifests
     dest: trainer
@@ -110,7 +110,7 @@ additional_meta:
     git.commit: 2eb86a46919b327a7c81c4eeeca076eb4510b5e6
   odh-model-registry:
     git.url: https://github.com/red-hat-data-services/model-registry
-    git.commit: 4426c5c3ecf46885b1553d73914d0ec17f9a5ec1
+    git.commit: 9bad36f44e1692afa7b2e01838a60700316b6c02
   odh-feature-server:
     git.url: https://github.com/red-hat-data-services/feast
     git.commit: 5b873b78c1a2a56c7652c4bd73741a0c7e2287ee
@@ -221,7 +221,7 @@ additional_meta:
     git.commit: 32607543470af645e74829e81b9a571c62944cd3
   odh-model-metadata-collection:
     git.url: https://github.com/red-hat-data-services/model-metadata-collection
-    git.commit: c2da485e6f6bfc67fba342b4ca6ed7255600cbe4
+    git.commit: 4ff9f55465cfcae382ed9586243e3c5e0b7c2fb1
   odh-mod-arch-gen-ai:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 26724b4dbc498ff7b6295c4b595c06dcc41fd029
@@ -269,7 +269,7 @@ additional_meta:
     git.commit: 6e09c3f48c0fc07c56204adaaa3f4be2f6fae2ca
   odh-training-rocm64-torch29-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: c72d8e3ff73922ee6303047a4b7476d7c2fbffe4
+    git.commit: 551cec9c23655961edb9de59cbfb9fa1b656e40b
   odh-training-cuda128-torch29-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 551cec9c23655961edb9de59cbfb9fa1b656e40b

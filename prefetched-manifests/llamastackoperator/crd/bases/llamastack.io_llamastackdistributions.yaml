@@ -56,6 +56,38 @@ spec:
           spec:
             description: LlamaStackDistributionSpec defines the desired state of LlamaStackDistribution.
             properties:
+              network:
+                description: Network defines network access controls for the LlamaStack
+                  service
+                properties:
+                  allowedFrom:
+                    description: |-
+                      AllowedFrom defines which namespaces are allowed to access the LlamaStack service.
+                      By default, only the LLSD namespace and the operator namespace are allowed.
+                    properties:
+                      labels:
+                        description: |-
+                          Labels is a list of namespace label keys that are allowed to access the service.
+                          A namespace matching any of these labels will be granted access (OR semantics).
+                          Example: ["myproject/lls-allowed", "team/authorized"]
+                        items:
+                          type: string
+                        type: array
+                      namespaces:
+                        description: |-
+                          Namespaces is an explicit list of namespace names allowed to access the service.
+                          Use "*" to allow all namespaces.
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                  exposeRoute:
+                    default: false
+                    description: |-
+                      ExposeRoute when true, creates an Ingress (or OpenShift Route) for external access.
+                      Default is false (internal access only).
+                    type: boolean
+                type: object
               replicas:
                 default: 1
                 format: int32
@@ -2705,6 +2737,11 @@ spec:
                 - Ready
                 - Failed
                 - Terminating
+                type: string
+              routeURL:
+                description: |-
+                  RouteURL is the external URL where the distribution is exposed (when exposeRoute is true).
+                  nil when external access is not configured, empty string when Ingress exists but URL not ready.
                 type: string
               serviceURL:
                 description: ServiceURL is the internal Kubernetes service URL where

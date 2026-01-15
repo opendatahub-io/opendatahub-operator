@@ -6,3 +6,4 @@ resources:
 - _v1alpha1_llamastackdistribution.yaml
 - example-with-configmap.yaml
 - example-with-ca-bundle.yaml
+- example-with-network-config.yaml

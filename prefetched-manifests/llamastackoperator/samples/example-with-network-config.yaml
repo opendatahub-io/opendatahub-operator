@@ -1,0 +1,50 @@
+apiVersion: llamastack.io/v1alpha1
+kind: LlamaStackDistribution
+metadata:
+  name: llamastackdistribution-network-example
+spec:
+  replicas: 1
+  server:
+    containerSpec:
+      env:
+        - name: OLLAMA_INFERENCE_MODEL
+          value: 'llama3.2:1b'
+        - name: OLLAMA_URL
+          value: 'http://ollama-server-service.ollama-dist.svc.cluster.local:11434'
+      name: llama-stack
+    distribution:
+      name: starter
+  network:
+    exposeRoute: false
+    allowedFrom:
+      namespaces:
+        - nsA
+        - nsB
+      labels:
+        - myproject/lls-allowed
+        - team/authorized
+---
+# Example with exposeRoute enabled and all namespaces allowed
+apiVersion: llamastack.io/v1alpha1
+kind: LlamaStackDistribution
+metadata:
+  name: llamastackdistribution-public
+spec:
+  replicas: 1
+  server:
+    containerSpec:
+      env:
+        - name: OLLAMA_INFERENCE_MODEL
+          value: 'llama3.2:1b'
+        - name: OLLAMA_URL
+          value: 'http://ollama-server-service.ollama-dist.svc.cluster.local:11434'
+      name: llama-stack
+    distribution:
+      name: starter
+  network:
+    # Expose the service externally via Ingress
+    exposeRoute: true
+    allowedFrom:
+      # Allow access from all namespaces
+      namespaces:
+        - "*"

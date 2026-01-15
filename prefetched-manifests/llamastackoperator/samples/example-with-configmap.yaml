@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: llama-stack-config
 data:
-  run.yaml: |
+  config.yaml: |
     # Llama Stack Configuration
     version: '2'
     image_name: starter
