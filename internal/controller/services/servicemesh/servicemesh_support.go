@@ -9,7 +9,9 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -21,8 +23,28 @@ import (
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
+const (
+	conditionTypeReady  = "Ready"
+	conditionStatusTrue = "True"
+
+	istioSidecarInjectLabel = "sidecar.istio.io/inject"
+)
+
 type AuthorinoDeploymentPredicate struct {
 	predicate.Funcs
+}
+
+func (AuthorinoDeploymentPredicate) Create(e event.CreateEvent) bool {
+	if e.Object == nil {
+		return false
+	}
+
+	deployment, ok := e.Object.(*appsv1.Deployment)
+	if !ok {
+		return false
+	}
+
+	return deployment.GetName() == authProviderName
 }
 
 func (AuthorinoDeploymentPredicate) Update(e event.UpdateEvent) bool {
@@ -40,13 +62,17 @@ func (AuthorinoDeploymentPredicate) Update(e event.UpdateEvent) bool {
 		return false
 	}
 
-	if newDeployment.GetName() != "authorino" {
+	if newDeployment.GetName() != authProviderName {
 		return false
 	}
 
+	oldHasSidecarInjectionLabel := hasIstioSidecarInjectionLabel(oldDeployment)
+	newHasSidecarInjectionLabel := hasIstioSidecarInjectionLabel(newDeployment)
+
 	return oldDeployment.Generation != newDeployment.Generation ||
 		oldDeployment.Status.Replicas != newDeployment.Status.Replicas ||
-		oldDeployment.Status.ReadyReplicas != newDeployment.Status.ReadyReplicas
+		oldDeployment.Status.ReadyReplicas != newDeployment.Status.ReadyReplicas ||
+		(oldHasSidecarInjectionLabel && !newHasSidecarInjectionLabel)
 }
 
 func NewAuthorinoDeploymentPredicate() *AuthorinoDeploymentPredicate {
@@ -224,8 +250,8 @@ func isSMCPReady(smcp *unstructured.Unstructured) (bool, string) {
 			lastConditionMessage = fmt.Sprintf("%v", message)
 		}
 
-		if condType == "Ready" {
-			if condStatus == "True" {
+		if condType == conditionTypeReady {
+			if condStatus == conditionStatusTrue {
 				return true, "SMCP Ready condition is True"
 			}
 
@@ -237,6 +263,59 @@ func isSMCPReady(smcp *unstructured.Unstructured) (bool, string) {
 	}
 
 	return false, "SMCP Ready condition not found, SMCP may be initializing"
+}
+
+func getSMCP(ctx context.Context, rr *odhtypes.ReconciliationRequest) (*unstructured.Unstructured, error) {
+	sm, ok := rr.Instance.(*serviceApi.ServiceMesh)
+	if !ok {
+		return nil, fmt.Errorf("resource instance %v is not a serviceApi.ServiceMesh)", rr.Instance)
+	}
+
+	smcp := &unstructured.Unstructured{}
+	smcp.SetGroupVersionKind(gvk.ServiceMeshControlPlane)
+	err := rr.Client.Get(ctx, client.ObjectKey{
+		Name:      sm.Spec.ControlPlane.Name,
+		Namespace: sm.Spec.ControlPlane.Namespace,
+	}, smcp)
+
+	return smcp, err
+}
+
+func isServiceMeshMemberReady(ctx context.Context, rr *odhtypes.ReconciliationRequest, name, namespace string) (bool, error) {
+	smm := &unstructured.Unstructured{}
+	smm.SetGroupVersionKind(gvk.ServiceMeshMember)
+	err := rr.Client.Get(ctx, client.ObjectKey{
+		Name:      name,
+		Namespace: namespace,
+	}, smm)
+
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	conditions, found, err := unstructured.NestedSlice(smm.Object, "status", "conditions")
+	if err != nil {
+		return false, err
+	}
+
+	if !found {
+		return false, nil
+	}
+
+	for _, condition := range conditions {
+		conditionMap, ok := condition.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if conditionMap["type"] == conditionTypeReady && conditionMap["status"] == conditionStatusTrue {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 func isAuthorinoReady(authorino *unstructured.Unstructured) (bool, error) {
@@ -263,7 +342,7 @@ func isAuthorinoReady(authorino *unstructured.Unstructured) (bool, error) {
 			continue
 		}
 
-		if condType == "Ready" && condStatus == "True" {
+		if condType == conditionTypeReady && condStatus == conditionStatusTrue {
 			return true, nil
 		}
 	}
@@ -271,7 +350,7 @@ func isAuthorinoReady(authorino *unstructured.Unstructured) (bool, error) {
 	return false, errors.New("no Authorino Ready condition found, Authorino may be initializing")
 }
 
-func getAutorinoResource(ctx context.Context, rr *odhtypes.ReconciliationRequest) (*unstructured.Unstructured, error) {
+func getAuthorinoResource(ctx context.Context, rr *odhtypes.ReconciliationRequest) (*unstructured.Unstructured, error) {
 	authorinoNamespace, err := getAuthorinoNamespace(rr)
 	if err != nil {
 		return nil, err
@@ -301,7 +380,7 @@ func createAuthorinoDeploymentPatch(name string, namespace string) *unstructured
 			"template": map[string]interface{}{
 				"metadata": map[string]interface{}{
 					"labels": map[string]interface{}{
-						"sidecar.istio.io/inject": "true",
+						istioSidecarInjectLabel: "true",
 					},
 				},
 			},
@@ -309,4 +388,33 @@ func createAuthorinoDeploymentPatch(name string, namespace string) *unstructured
 	}
 
 	return authorinoDeploymentPatch
+}
+
+func getAuthorinoDeployment(ctx context.Context, rr *odhtypes.ReconciliationRequest, name, namespace string) (*appsv1.Deployment, error) {
+	deploymentResource := rr.Controller.GetDynamicClient().Resource(gvk.Deployment.GroupVersion().WithResource("deployments")).Namespace(namespace)
+
+	u, err := deploymentResource.Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	deployment := &appsv1.Deployment{}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, deployment); err != nil {
+		return nil, fmt.Errorf("failed to convert unstructured to Deployment: %w", err)
+	}
+
+	return deployment, nil
+}
+
+func hasIstioSidecarInjectionLabel(deployment *appsv1.Deployment) bool {
+	if deployment == nil {
+		return false
+	}
+
+	labels := deployment.Spec.Template.Labels
+	if labels == nil {
+		return false
+	}
+
+	return labels[istioSidecarInjectLabel] == "true"
 }

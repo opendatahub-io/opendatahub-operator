@@ -206,6 +206,22 @@ func initializeAuthorino(ctx context.Context, rr *odhtypes.ReconciliationRequest
 		return nil
 	}
 
+	// wait for SMCP to be ready before initializing Authorino
+	// to ensure the Istio sidecar injection works properly
+	smcp, err := getSMCP(ctx, rr)
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			log.Info("SMCP not found yet, deferring Authorino initialization")
+			return nil
+		}
+		log.Info("Unable to get SMCP, deferring Authorino initialization", "error", err)
+		return nil
+	}
+	if ready, _ := isSMCPReady(smcp); !ready {
+		log.Info("SMCP not ready yet, deferring Authorino initialization until SMCP is ready")
+		return nil
+	}
+
 	// ensure Authorino operator is installed as pre-requisite
 	authorinoOperatorFound, err := cluster.SubscriptionExists(ctx, rr.Client, authorinoOperatorName)
 	if err != nil {
@@ -241,15 +257,31 @@ func initializeAuthorino(ctx context.Context, rr *odhtypes.ReconciliationRequest
 		return fmt.Errorf("failed to create Authorino namespace %s: %w", authorinoNamespace, err)
 	}
 
+	// add the SMM template first to ensure environment is ready for Authorino
+	rr.Templates = append(
+		rr.Templates,
+		odhtypes.TemplateInfo{
+			FS:   resourcesFS,
+			Path: authorinoServiceMeshMemberTemplate,
+		},
+	)
+
+	// only add Authorino CR and Authorino-related SMCP patch after SMM is Ready
+	smmReady, err := isServiceMeshMemberReady(ctx, rr, serviceMeshMemberName, authorinoNamespace)
+	if err != nil {
+		log.Info("Unable to check ServiceMeshMember readiness, deferring Authorino CR creation", "error", err)
+		return nil
+	}
+	if !smmReady {
+		log.Info("ServiceMeshMember not ready yet, deferring Authorino CR creation until namespace is fully synced with mesh")
+		return nil
+	}
+
 	rr.Templates = append(
 		rr.Templates,
 		odhtypes.TemplateInfo{
 			FS:   resourcesFS,
 			Path: authorinoTemplate,
-		},
-		odhtypes.TemplateInfo{
-			FS:   resourcesFS,
-			Path: authorinoServiceMeshMemberTemplate,
 		},
 		odhtypes.TemplateInfo{
 			FS:   resourcesFS,
@@ -373,25 +405,18 @@ func checkSMCPReadiness(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 		return nil
 	}
 
-	smcp := &unstructured.Unstructured{}
-	smcp.SetGroupVersionKind(gvk.ServiceMeshControlPlane)
-	err := rr.Client.Get(ctx, client.ObjectKey{
-		Name:      sm.Spec.ControlPlane.Name,
-		Namespace: sm.Spec.ControlPlane.Namespace,
-	}, smcp)
-
-	if err != nil && !k8serr.IsNotFound(err) {
+	smcp, err := getSMCP(ctx, rr)
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			rr.Conditions.MarkFalse(
+				status.CapabilityServiceMesh,
+				conditions.WithReason(status.NotReadyReason),
+				conditions.WithMessage("ServiceMeshControlPlane not found, SMCP may be initializing: %v", err),
+				conditions.WithSeverity(common.ConditionSeverityInfo),
+			)
+			return nil
+		}
 		return fmt.Errorf("failed to get ServiceMeshControlPlane: %w", err)
-	}
-
-	if k8serr.IsNotFound(err) {
-		rr.Conditions.MarkFalse(
-			status.CapabilityServiceMesh,
-			conditions.WithReason(status.NotReadyReason),
-			conditions.WithMessage("ServiceMeshControlPlane not found, SMCP may be initializing: %v", err),
-			conditions.WithSeverity(common.ConditionSeverityInfo),
-		)
-		return nil
 	}
 
 	ready, message := isSMCPReady(smcp)
@@ -487,6 +512,8 @@ func checkAuthorinoReadiness(ctx context.Context, rr *odhtypes.ReconciliationReq
 }
 
 func patchAuthorinoDeployment(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	log := logf.FromContext(ctx)
+
 	sm, ok := rr.Instance.(*serviceApi.ServiceMesh)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a serviceApi.ServiceMesh)", rr.Instance)
@@ -497,7 +524,7 @@ func patchAuthorinoDeployment(ctx context.Context, rr *odhtypes.ReconciliationRe
 		return nil
 	}
 
-	authorino, err := getAutorinoResource(ctx, rr)
+	authorino, err := getAuthorinoResource(ctx, rr)
 
 	if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
 		// nothing to do, authorino cr or crd do not exist
@@ -506,6 +533,27 @@ func patchAuthorinoDeployment(ctx context.Context, rr *odhtypes.ReconciliationRe
 	if err != nil {
 		return err
 	}
+
+	authorinoDeployment, err := getAuthorinoDeployment(ctx, rr, authorino.GetName(), authorino.GetNamespace())
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			// Authorino Deployment not yet created by Authorino operator, nothing to do yet
+			log.Info("Authorino Deployment not found, waiting for Authorino operator to create it",
+				"name", authorino.GetName(), "namespace", authorino.GetNamespace())
+			return nil
+		}
+		return fmt.Errorf("failed to get Authorino Deployment: %w", err)
+	}
+
+	// check if the sidecar injection label is already present, to determine if patch is needed
+	if hasIstioSidecarInjectionLabel(authorinoDeployment) {
+		log.Info("Authorino Deployment already has sidecar injection label, skipping patch",
+			"name", authorino.GetName(), "namespace", authorino.GetNamespace())
+		return nil
+	}
+
+	log.Info("Patching Authorino Deployment with sidecar injection label",
+		"name", authorino.GetName(), "namespace", authorino.GetNamespace())
 
 	patch := createAuthorinoDeploymentPatch(authorino.GetName(), authorino.GetNamespace())
 	data, errJSON := patch.MarshalJSON()
@@ -520,23 +568,12 @@ func patchAuthorinoDeployment(ctx context.Context, rr *odhtypes.ReconciliationRe
 }
 
 func cleanupSMCP(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	sm, ok := rr.Instance.(*serviceApi.ServiceMesh)
-	if !ok {
-		return fmt.Errorf("resource instance %v is not a serviceApi.ServiceMesh)", rr.Instance)
-	}
-
-	smcp := &unstructured.Unstructured{}
-	smcp.SetGroupVersionKind(gvk.ServiceMeshControlPlane)
-	err := rr.Client.Get(ctx, client.ObjectKey{
-		Name:      sm.Spec.ControlPlane.Name,
-		Namespace: sm.Spec.ControlPlane.Namespace,
-	}, smcp)
-
-	if k8serr.IsNotFound(err) {
-		// SMCP not found, skipping deletion
-		return nil
-	}
+	smcp, err := getSMCP(ctx, rr)
 	if err != nil {
+		if k8serr.IsNotFound(err) {
+			// SMCP not found, skipping deletion
+			return nil
+		}
 		// If CRD doesn't exist (NoMatchError), skip cleanup gracefully
 		if meta.IsNoMatchError(err) {
 			return nil
