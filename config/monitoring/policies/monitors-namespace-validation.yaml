@@ -30,3 +30,6 @@ spec:
         - key: opendatahub.io/dashboard
           operator: NotIn
           values: ["true"]
+        - key: opendatahub.io/generated-namespace
+          operator: NotIn
+          values: ["true"]

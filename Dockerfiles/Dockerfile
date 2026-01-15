@@ -30,6 +30,9 @@ COPY config/hardwareprofiles/ /opt/manifests/hardwareprofiles
 # Copy connectionAPI removing any possibly pre-existing symlinks
 RUN rm -f /opt/manifests/connectionAPI
 COPY config/connectionAPI/ /opt/manifests/connectionAPI
+# Copy monitoring removing any possibly pre-existing symlinks
+RUN rm -f /opt/manifests/monitoring
+COPY config/monitoring/ /opt/manifests/monitoring
 
 ################################################################################
 FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi9/go-toolset:$GOLANG_VERSION as builder

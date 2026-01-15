@@ -23,6 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
@@ -171,27 +172,29 @@ func (i *Injector) performMonitoringInjection(ctx context.Context, req *admissio
 
         namespaceLabels := ns.GetLabels()
 
-        if isOpendatahubNamespace, exists := namespaceLabels["opendatahub.io/dashboard"]; exists {
-                if isOpendatahubNamespace != "true" {
-                        log.V(1).Info("Ignore non odh namespace", "namespace", resourceNamespace)
-			return admission.Allowed("ignored")
-                }
+        // Check if namespace is ODH-managed (either dashboard or generated-namespace label)
+        isDashboardNS := namespaceLabels[labels.Dashboard] == labels.True
+        isGeneratedNS := namespaceLabels[labels.ODH.OwnedNamespace] == labels.True
+
+        if !isDashboardNS && !isGeneratedNS {
+                log.V(1).Info("Ignore non-ODH namespace", "namespace", resourceNamespace)
+                return admission.Allowed("ignored - not an ODH-managed namespace")
         }
 
-        if isMonitoredNamespace, exists := namespaceLabels["opendatahub.io/monitoring"]; exists {
-		if isMonitoredNamespace == "true" {
+        if isMonitoredNamespace, exists := namespaceLabels[labels.Monitoring]; exists {
+		if isMonitoredNamespace == labels.True {
                         log.V(1).Info("Performing monitoring injection",
                 		"resource", obj.GetName(),
                 		"namespace", resourceNamespace,
                 		"labels", namespaceLabels)
 
 			// Inject opendatahub.io/monitoring=true label
-			labels := obj.GetLabels()
-			if labels == nil {
-				labels = make(map[string]string)
+			objLabels := obj.GetLabels()
+			if objLabels == nil {
+				objLabels = make(map[string]string)
 			}
-			labels["opendatahub.io/monitoring"] = "true"
-			obj.SetLabels(labels)
+			objLabels[labels.Monitoring] = labels.True
+			obj.SetLabels(objLabels)
 
 			// Marshal the modified object
 			marshaledObj, err := json.Marshal(obj)

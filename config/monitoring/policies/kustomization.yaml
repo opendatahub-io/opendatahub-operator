@@ -4,4 +4,3 @@ kind: Kustomization
 resources:
 - monitoring-labels-values-validation.yaml
 - monitors-namespace-validation.yaml
-- namespace-monitoring-validation.yaml
