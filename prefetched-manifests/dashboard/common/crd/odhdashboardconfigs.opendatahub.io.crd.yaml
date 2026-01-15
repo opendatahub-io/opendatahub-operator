@@ -109,6 +109,8 @@ spec:
                       type: boolean
                     mlflow:
                       type: boolean
+                    projectRBAC:
+                      type: boolean
                     trainingJobs:
                       type: boolean
                     observabilityDashboard:
