@@ -29,8 +29,10 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
@@ -55,9 +57,9 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// Gateway API resources
 		Owns(&gwapiv1.HTTPRoute{}).
 		Owns(&gwapiv1.Gateway{}).
-		// Note: AuthPolicy (kuadrant.io/v1) is not included here as it's a third-party CRD
-		// that may not be available in all environments. It should be handled by the
-		// manifest deployment process.
+		// Third-party CRDs that may not be available in all environments.
+		OwnsGVK(gvk.AuthPolicyv1, reconciler.Dynamic(reconciler.CrdExists(gvk.AuthPolicyv1))).
+		OwnsGVK(gvk.DestinationRule, reconciler.Dynamic(reconciler.CrdExists(gvk.DestinationRule))).
 		Watches(
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(
@@ -68,8 +70,11 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(initialize).
 		WithAction(validateGateway).
 		WithAction(customizeManifests).
+		WithAction(kustomize.NewAction(
+			kustomize.WithLabel(labels.ODH.Component(ComponentName), labels.True),
+		)).
 		// WithAction(releases.NewAction()). // TODO: Do we need this? How to fix annotation of "platform.opendatahub.io/version:0.0.0"
-		WithAction(configureGatewayAuthPolicy).
+		WithAction(configureGatewayNamespaceResources).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
