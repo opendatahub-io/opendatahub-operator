@@ -52,12 +52,13 @@ jobs:
         run: |
           base_version=$(make -s print-VERSION)
           echo "full=${base_version}-main-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "main=${base_version}-main" >> $GITHUB_OUTPUT
 
       - name: Create bundle image (latest)
         env:
-          BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:v${{ steps.version.outputs.full }}
-          IMG_TAG: latest
-          VERSION: ${{ steps.version.outputs.full }}
+          BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:v${{ steps.version.outputs.main }}
+          IMG_TAG: main
+          VERSION: ${{ steps.version.outputs.main }}
         run: |
           make bundle-build
           make bundle-push
@@ -65,7 +66,7 @@ jobs:
       - name: Build and push catalog image (latest)
         env:
           CATALOG_IMG: ${{ env.IMAGE_TAG_BASE }}-catalog:latest
-          BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:latest
+          BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:v${{ steps.version.outputs.main }}
         run: |
           make catalog-build
           make catalog-push
