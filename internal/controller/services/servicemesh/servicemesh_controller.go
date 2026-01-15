@@ -77,6 +77,11 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			reconciler.Dynamic(reconciler.CrdExists(gvk.ServiceMeshControlPlane)),
 			reconciler.WithPredicates(NewSMCPReadyPredicate()),
 		).
+		// watch DSCI for ServiceMesh ManagementState changes (e.g., when set to Removed)
+		WatchesGVK(gvk.DSCInitialization,
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.ServiceMeshInstanceName)),
+			reconciler.WithPredicates(NewDSCIServiceMeshPredicate()),
+		).
 		WithAction(checkPreconditions).
 		WithAction(createControlPlaneNamespace).
 		WithAction(initializeServiceMesh).
