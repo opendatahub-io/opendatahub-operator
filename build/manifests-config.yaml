@@ -198,7 +198,7 @@ additional_meta:
     git.commit: d0e523c46724efb537a185ef035c96ed0209e411
   odh-vllm-cpu:
     git.url: https://github.com/red-hat-data-services/vllm-cpu
-    git.commit: efeca31baae871caf27b26e17232ebcd3b03fa48
+    git.commit: 0c809bd9cf49d01d779a6d9d515d443db0b5bb58
   odh-vllm-gaudi:
     git.url: https://github.com/red-hat-data-services/vllm-gaudi
     git.commit: f2e38eb1f0ae643ef8ad10976b27bca90ae883e5
@@ -270,4 +270,4 @@ additional_meta:
     git.commit: 468b18e6a596c729a74814164b890cb038f82eb1
   odh-training-cuda128-torch29-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: 9e23a2b6550601f1d73421042fc246838dc6986d
+    git.commit: c72d8e3ff73922ee6303047a4b7476d7c2fbffe4
