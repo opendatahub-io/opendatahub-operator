@@ -117,7 +117,7 @@ additional_meta:
     git.commit: 4aa27ff6b65a8f80d01327ab28a436c0405bc394
   odh-must-gather:
     git.url: https://github.com/red-hat-data-services/must-gather
-    git.commit: 2becc82e58be2eb06c66c1e2b0369b262c83bdca
+    git.commit: 76699f94e1a8081fb4a6a846dd6727c2d25e477d
   odh-kserve-agent:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 59ad0edebc9b0a38cb71af09833875b37104121c
