@@ -39,12 +39,14 @@ const (
 	PrometheusServiceOverrideTemplate             = "resources/data-science-prometheus-service-override.tmpl.yaml"
 	PrometheusNetworkPolicyTemplate               = "resources/data-science-prometheus-network-policy.tmpl.yaml"
 	PrometheusWebTLSServiceTemplate               = "resources/prometheus-web-tls-service.tmpl.yaml"
+	PrometheusSelfServiceMonitorTemplate          = "resources/prometheus-self-servicemonitor.tmpl.yaml"
 	ThanosQuerierTemplate                         = "resources/thanos-querier-cr.tmpl.yaml"
 	ThanosQuerierRouteTemplate                    = "resources/thanos-querier-route.tmpl.yaml"
 	PersesTemplate                                = "resources/perses.tmpl.yaml"
 	PersesTempoDatasourceTemplate                 = "resources/perses-tempo-datasource.tmpl.yaml"
 	PersesTempoDashboardTemplate                  = "resources/perses-tempo-dashboard.tmpl.yaml"
 	PersesDatasourcePrometheusTemplate            = "resources/perses-datasource-prometheus.tmpl.yaml"
+	PersesDatasourceClusterPrometheusTemplate     = "resources/perses-datasource-cluster-prometheus.tmpl.yaml"
 	PrometheusClusterProxyTemplate                = "resources/data-science-prometheus-cluster-proxy.tmpl.yaml"
 	TempoServiceCAConfigMapTemplate               = "resources/tempo-service-ca-configmap.tmpl.yaml"
 	PersesOperatorAccessNetworkPolicyTemplate     = "resources/perses-operator-access-network-policy.tmpl.yaml"
@@ -203,6 +205,7 @@ func deployMonitoringStackWithQuerierAndRestrictions(ctx context.Context, rr *od
 	templates := []odhtypes.TemplateInfo{
 		{FS: resourcesFS, Path: PrometheusWebTLSServiceTemplate},
 		{FS: resourcesFS, Path: MonitoringStackTemplate},
+		{FS: resourcesFS, Path: PrometheusSelfServiceMonitorTemplate},
 		{FS: resourcesFS, Path: MonitoringStackAlertmanagerRBACTemplate},
 		{FS: resourcesFS, Path: PrometheusRouteTemplate},
 		{FS: resourcesFS, Path: PrometheusServiceOverrideTemplate},
@@ -613,6 +616,12 @@ func deployPersesPrometheusIntegration(ctx context.Context, rr *odhtypes.Reconci
 		{
 			FS:   resourcesFS,
 			Path: PersesDatasourcePrometheusTemplate,
+		},
+		// Cluster-wide metrics datasource (from OpenShift Monitoring Thanos Querier)
+		// This is the default datasource until decentralized collection is implemented
+		{
+			FS:   resourcesFS,
+			Path: PersesDatasourceClusterPrometheusTemplate,
 		},
 	}
 	rr.Templates = append(rr.Templates, templates...)

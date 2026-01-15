@@ -62,6 +62,18 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 						return e.Object.GetName() == "inferenceservices.serving.kserve.io" &&
 							e.Object.GetLabels()[labels.ODH.Component(componentApi.KserveComponentName)] == labels.True
 					},
+					UpdateFunc: func(e event.UpdateEvent) bool {
+						// Only match Create events, not Update events
+						return false
+					},
+					DeleteFunc: func(e event.DeleteEvent) bool {
+						// Only match Create events, not Delete events
+						return false
+					},
+					GenericFunc: func(e event.GenericEvent) bool {
+						// Only match Create events, not Generic events
+						return false
+					},
 				},
 			)),
 		).
