@@ -29,6 +29,11 @@ spec:
       kind: HardwareProfile
       name: hardwareprofiles.infrastructure.opendatahub.io
       version: v1alpha1
+    - description: ModelsAsService is the Schema for the modelsasservices API
+      displayName: Models As Service
+      kind: ModelsAsService
+      name: modelsasservices.components.platform.opendatahub.io
+      version: v1alpha1
     - description: Auth is the Schema for the auths API
       displayName: Auth
       kind: Auth
@@ -99,11 +104,6 @@ spec:
       displayName: MLflow Operator
       kind: MLflowOperator
       name: mlflowoperators.components.platform.opendatahub.io
-      version: v1alpha1
-    - description: ModelsAsService is the Schema for the modelsasservices API
-      displayName: Models As Service
-      kind: ModelsAsService
-      name: modelsasservices.components.platform.opendatahub.io
       version: v1alpha1
     - description: ModelRegistry is the Schema for the modelregistries API
       displayName: Model Registry
