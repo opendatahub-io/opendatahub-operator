@@ -45,6 +45,7 @@ const (
 	PersesTempoDatasourceTemplate                 = "resources/perses-tempo-datasource.tmpl.yaml"
 	PersesTempoDashboardTemplate                  = "resources/perses-tempo-dashboard.tmpl.yaml"
 	PersesDatasourcePrometheusTemplate            = "resources/perses-datasource-prometheus.tmpl.yaml"
+	PersesDatasourceClusterPrometheusTemplate     = "resources/perses-datasource-cluster-prometheus.tmpl.yaml"
 	PrometheusClusterProxyTemplate                = "resources/data-science-prometheus-cluster-proxy.tmpl.yaml"
 	TempoServiceCAConfigMapTemplate               = "resources/tempo-service-ca-configmap.tmpl.yaml"
 	PersesOperatorAccessNetworkPolicyTemplate     = "resources/perses-operator-access-network-policy.tmpl.yaml"
@@ -613,6 +614,12 @@ func deployPersesPrometheusIntegration(ctx context.Context, rr *odhtypes.Reconci
 		{
 			FS:   resourcesFS,
 			Path: PersesDatasourcePrometheusTemplate,
+		},
+		// Cluster-wide metrics datasource (from OpenShift Monitoring Thanos Querier)
+		// This is the default datasource until decentralized collection is implemented
+		{
+			FS:   resourcesFS,
+			Path: PersesDatasourceClusterPrometheusTemplate,
 		},
 	}
 	rr.Templates = append(rr.Templates, templates...)
