@@ -167,3 +167,5 @@ rules:
   - routes
   verbs:
   - get
+  - list
+  - watch
