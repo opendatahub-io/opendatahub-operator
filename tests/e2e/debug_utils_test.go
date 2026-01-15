@@ -616,7 +616,7 @@ func debugDSCIStatus() {
 	dsci := getDSCI()
 	if dsci != nil {
 		log.Printf("DSCI %s:", dsci.GetName())
-		logUnhealthyConditions(dsci.Object)
+		logConditions(dsci.Object)
 	}
 
 	// Check DSC (singleton resource - depends on DSCI)
@@ -634,11 +634,11 @@ func debugDSCIStatus() {
 	}
 
 	log.Printf("DSC %s:", dsc.GetName())
-	logUnhealthyConditions(dsc.Object)
+	logConditions(dsc.Object)
 }
 
-// logUnhealthyConditions logs any conditions that are not "True".
-func logUnhealthyConditions(obj map[string]interface{}) {
+// logConditions logs any conditions that are not "True".
+func logConditions(obj map[string]interface{}) {
 	conditions, found, _ := unstructured.NestedSlice(obj, "status", "conditions")
 	if !found {
 		return
@@ -649,10 +649,8 @@ func logUnhealthyConditions(obj map[string]interface{}) {
 			condType, _ := condition["type"].(string)
 			status, _ := condition["status"].(string)
 
-			if status != "True" {
-				message, _ := condition["message"].(string)
-				log.Printf("  %s: %s - %s", condType, status, message)
-			}
+			message, _ := condition["message"].(string)
+			log.Printf("  %s: %s - %s", condType, status, message)
 		}
 	}
 }
