@@ -200,7 +200,12 @@ func eventuallyResourceApplied(
 	// Use Eventually to retry getting the resource until it appears
 	var u *unstructured.Unstructured
 
-	ro.tc.g.Eventually(ensureResourceAppliedGomegaFunction(ro, &u, applyResourceFn)).Should(Succeed())
+	// Use failure message function if OnFailure callback is provided
+	if ro.OnFailure != nil {
+		ro.tc.g.Eventually(ensureResourceAppliedGomegaFunction(ro, &u, applyResourceFn)).Should(Succeed(), ro.OnFailure)
+	} else {
+		ro.tc.g.Eventually(ensureResourceAppliedGomegaFunction(ro, &u, applyResourceFn)).Should(Succeed())
+	}
 
 	return u
 }

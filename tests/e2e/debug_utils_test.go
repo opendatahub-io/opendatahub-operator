@@ -37,6 +37,9 @@ const (
 
 	// Condition status constants for unstructured objects.
 	conditionStatusTrue = "True"
+
+	// Visual status symbols.
+	statusCheckmark = "✓"
 )
 
 var (
@@ -609,7 +612,7 @@ func capturePodDiagnostics(ctx context.Context, namespace, podName string) {
 	// Show pod conditions
 	log.Printf("Pod Conditions:")
 	for _, condition := range pod.Status.Conditions {
-		statusSymbol := "✓"
+		statusSymbol := statusCheckmark
 		if condition.Status != corev1.ConditionTrue {
 			statusSymbol = "✗"
 		}
