@@ -52,12 +52,18 @@ jobs:
         run: |
           base_version=$(make -s print-VERSION)
           echo "full=${base_version}-main-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          # We need BUNDLE_IMG tag to be a SemVer compliant because it is used
+          # by https://github.com/davidebianchi/opendatahub-operator/blob/main/hack/update-catalog-template.sh
+          # to set the OLM bundle version in the catalog (the latest catalog reference the last VERSION-snapshot bundle, which reference to latest opendatahub-operator tag). 
+          # We choose snapshot for the bundle image tag to avoid to have a VERSION-latest bundle tag,
+          # which could be misleading (e.g. v3.2.0-latest with v3.2.0 released).
+          echo "snapshot=${base_version}-snapshot" >> $GITHUB_OUTPUT
 
-      - name: Create bundle image (latest)
+      - name: Create bundle image (snapshot)
         env:
-          BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:v${{ steps.version.outputs.full }}
+          BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:v${{ steps.version.outputs.snapshot }}
           IMG_TAG: latest
-          VERSION: ${{ steps.version.outputs.full }}
+          VERSION: ${{ steps.version.outputs.snapshot }}
         run: |
           make bundle-build
           make bundle-push
@@ -65,7 +71,7 @@ jobs:
       - name: Build and push catalog image (latest)
         env:
           CATALOG_IMG: ${{ env.IMAGE_TAG_BASE }}-catalog:latest
-          BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:latest
+          BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:v${{ steps.version.outputs.snapshot }}
         run: |
           make catalog-build
           make catalog-push
