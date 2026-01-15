@@ -294,6 +294,7 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToRemovedTransition(t *testing.T) 
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, stateRemoved)),
 		WithCondition(And(conditionsRemovedReady...)),
+		WithCircuitBreaker(20), // Fail fast after 20 consecutive failures (~100s) instead of full timeout
 		WithProgressLogging(fmt.Sprintf("Kueue state transition to %s", stateRemoved), t.Logf),
 		WithOnFailure(func() string {
 			t.Logf("\n⚠️  Kueue state transition FAILED - collecting diagnostics...")

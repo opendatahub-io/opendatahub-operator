@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"fmt"
 	"reflect"
 
 	"github.com/onsi/gomega/matchers"
@@ -254,6 +255,10 @@ func ensureResourceAppliedGomegaFunction(
 	ro *ResourceOptions,
 	u **unstructured.Unstructured,
 	applyResourceFn func(obj *unstructured.Unstructured, fn ...func(obj *unstructured.Unstructured) error) *testf.EventuallyValue[*unstructured.Unstructured]) func(innerG Gomega) {
+	// Circuit breaker state - persists across Eventually() polling iterations
+	consecutiveFailures := 0
+	var lastErr error
+
 	return func(innerG Gomega) {
 		// Log progress if progress tracker is configured
 		if ro.ProgressTracker != nil {
@@ -268,6 +273,7 @@ func ensureResourceAppliedGomegaFunction(
 		if ro.IgnoreNotFound && err != nil && errors.IsNotFound(err) {
 			// Resource not found, but we're ignoring it - set to nil and continue
 			*u = nil
+			consecutiveFailures = 0 // Reset counter - this is an expected state
 			return
 		}
 
@@ -275,6 +281,7 @@ func ensureResourceAppliedGomegaFunction(
 		if ro.AcceptableErrMatcher != nil && err != nil {
 			// WithAcceptableErr was specified - validate specific error type and return
 			innerG.Expect(err).To(ro.AcceptableErrMatcher, "Expected specific error type but got: %v", err)
+			consecutiveFailures = 0 // Reset counter - acceptable error matched
 			return
 		}
 
@@ -282,6 +289,29 @@ func ensureResourceAppliedGomegaFunction(
 		expectingFailure := isFailureExpected(ro.Condition)
 
 		if !expectingFailure {
+			// Circuit breaker: check for persistent failures before continuing
+			if err != nil && ro.CircuitBreakerThreshold > 0 {
+				tag, countToward := classifyError(err)
+				if countToward {
+					consecutiveFailures++
+					lastErr = err
+
+					// Trip circuit breaker if threshold reached
+					if consecutiveFailures >= ro.CircuitBreakerThreshold {
+						failureMsg := fmt.Sprintf(
+							"%s Operation on resource '%s' of kind '%s' failing consistently after %d attempts - likely persistent issue: %v",
+							tag,
+							ro.ResourceID,
+							ro.GVK.Kind,
+							consecutiveFailures,
+							lastErr,
+						)
+						innerG.Expect(err).NotTo(HaveOccurred(), failureMsg)
+						return
+					}
+				}
+			}
+
 			// Expect no error if success is expected
 			innerG.Expect(err).NotTo(
 				HaveOccurred(),
@@ -295,6 +325,9 @@ func ensureResourceAppliedGomegaFunction(
 			if !ro.IgnoreNotFound {
 				innerG.Expect(*u).NotTo(BeNil(), resourceNotFoundErrorMsg, ro.ResourceID, ro.GVK.Kind)
 			}
+
+			// Reset counter on success
+			consecutiveFailures = 0
 		} else {
 			// Expect error if failure is expected
 			innerG.Expect(err).To(HaveOccurred(), "Expected applyResourceFn to fail but it succeeded")

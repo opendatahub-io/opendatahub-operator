@@ -113,6 +113,19 @@ type ResourceOptions struct {
 	// ProgressTracker is an optional progress tracker for logging periodic updates during long-running operations.
 	// If provided, progress will be logged every 30 seconds during Eventually() polling.
 	ProgressTracker *ProgressTracker
+
+	// CircuitBreakerThreshold sets the number of consecutive failures before failing fast.
+	// When set to a value > 0, the operation will fail immediately after this many consecutive
+	// failures instead of waiting for the full timeout. This helps detect persistent infrastructure
+	// issues quickly (e.g., in 30-60 seconds instead of 90+ minutes).
+	//
+	// Recommended thresholds based on operation type:
+	//   - Fast operations (API calls):  5 failures × 1s  = 5 seconds
+	//   - Medium operations (pod start): 10 failures × 5s = 50 seconds
+	//   - Slow operations (state changes): 20 failures × 5s = 100 seconds
+	//
+	// Set to 0 (default) to disable circuit breaker and wait for full timeout.
+	CircuitBreakerThreshold int
 }
 
 // ResourceOpts is a function type used to configure options for the ResourceOptions object.
@@ -359,5 +372,27 @@ func WithOnFailure(onFailure func() string) ResourceOpts {
 func WithProgressLogging(operationDesc string, logFunc func(format string, args ...interface{})) ResourceOpts {
 	return func(ro *ResourceOptions) {
 		ro.ProgressTracker = NewProgressTracker(operationDesc, logFunc)
+	}
+}
+
+// WithCircuitBreaker sets the circuit breaker threshold for failing fast on persistent failures.
+// When enabled, the operation will fail immediately after the specified number of consecutive
+// failures instead of waiting for the full timeout. This helps detect infrastructure issues quickly.
+//
+// Recommended thresholds based on operation type:
+//   - Fast operations (API calls, resource fetches):  WithCircuitBreaker(5)  = ~5 seconds
+//   - Medium operations (pod starts, deployments):    WithCircuitBreaker(10) = ~50 seconds
+//   - Slow operations (state transitions, installs):  WithCircuitBreaker(20) = ~100 seconds
+//
+// Example:
+//
+//	tc.EventuallyResourcePatched(
+//	    WithMinimalObject(gvk, nn),
+//	    WithMutateFunc(fn),
+//	    WithCircuitBreaker(10),  // Fail fast after 10 consecutive failures
+//	)
+func WithCircuitBreaker(threshold int) ResourceOpts {
+	return func(ro *ResourceOptions) {
+		ro.CircuitBreakerThreshold = threshold
 	}
 }
