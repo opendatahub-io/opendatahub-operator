@@ -97,6 +97,57 @@ const (
 // TestCaseOpts defines a function type that can be used to modify how individual test cases are executed.
 type TestCaseOpts func(t *testing.T)
 
+// ProgressTracker tracks progress for long-running operations and logs periodic updates.
+// Use this inside Eventually() polling functions to provide visibility during long waits.
+type ProgressTracker struct {
+	startTime     time.Time
+	lastLogTime   time.Time
+	logInterval   time.Duration
+	operationDesc string
+	logFunc       func(format string, args ...interface{})
+}
+
+// NewProgressTracker creates a new progress tracker for logging periodic updates.
+// operationDesc describes what operation is being waited for (e.g., "Kueue state transition to Removed").
+// logFunc is the logging function to use (e.g., t.Logf or tc.Logf).
+func NewProgressTracker(operationDesc string, logFunc func(format string, args ...interface{})) *ProgressTracker {
+	now := time.Now()
+	return &ProgressTracker{
+		startTime:     now,
+		lastLogTime:   now,
+		logInterval:   30 * time.Second, // Log every 30 seconds
+		operationDesc: operationDesc,
+		logFunc:       logFunc,
+	}
+}
+
+// LogProgress logs a progress update if enough time has elapsed since the last log.
+// Call this inside your Eventually() polling function to get periodic progress updates.
+// Returns true if a log message was printed, false otherwise.
+func (pt *ProgressTracker) LogProgress() bool {
+	now := time.Now()
+	elapsed := now.Sub(pt.startTime)
+	timeSinceLastLog := now.Sub(pt.lastLogTime)
+
+	if timeSinceLastLog >= pt.logInterval {
+		pt.logFunc("[PROGRESS] Still waiting for %s... (elapsed: %v)", pt.operationDesc, elapsed.Round(time.Second))
+		pt.lastLogTime = now
+		return true
+	}
+	return false
+}
+
+// LogFinal logs the final completion message with total elapsed time.
+// Call this after the Eventually() succeeds or fails.
+func (pt *ProgressTracker) LogFinal(success bool) {
+	elapsed := time.Since(pt.startTime).Round(time.Second)
+	if success {
+		pt.logFunc("[PROGRESS] ✓ Completed: %s (total time: %v)", pt.operationDesc, elapsed)
+	} else {
+		pt.logFunc("[PROGRESS] ✗ Failed: %s (total time: %v)", pt.operationDesc, elapsed)
+	}
+}
+
 // RunTestCases runs a series of test cases, optionally in parallel based on the provided options.
 //
 // Parameters:

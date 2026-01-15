@@ -199,12 +199,18 @@ func eventuallyResourceApplied(
 
 	// Use Eventually to retry getting the resource until it appears
 	var u *unstructured.Unstructured
+	var success bool
 
 	// Use failure message function if OnFailure callback is provided
 	if ro.OnFailure != nil {
-		ro.tc.g.Eventually(ensureResourceAppliedGomegaFunction(ro, &u, applyResourceFn)).Should(Succeed(), ro.OnFailure)
+		success = ro.tc.g.Eventually(ensureResourceAppliedGomegaFunction(ro, &u, applyResourceFn)).Should(Succeed(), ro.OnFailure)
 	} else {
-		ro.tc.g.Eventually(ensureResourceAppliedGomegaFunction(ro, &u, applyResourceFn)).Should(Succeed())
+		success = ro.tc.g.Eventually(ensureResourceAppliedGomegaFunction(ro, &u, applyResourceFn)).Should(Succeed())
+	}
+
+	// Log final progress message if progress tracker is configured
+	if ro.ProgressTracker != nil {
+		ro.ProgressTracker.LogFinal(success)
 	}
 
 	return u
@@ -249,6 +255,11 @@ func ensureResourceAppliedGomegaFunction(
 	u **unstructured.Unstructured,
 	applyResourceFn func(obj *unstructured.Unstructured, fn ...func(obj *unstructured.Unstructured) error) *testf.EventuallyValue[*unstructured.Unstructured]) func(innerG Gomega) {
 	return func(innerG Gomega) {
+		// Log progress if progress tracker is configured
+		if ro.ProgressTracker != nil {
+			ro.ProgressTracker.LogProgress()
+		}
+
 		// Fetch the resource
 		var err error
 		*u, err = applyResourceFn(ro.Obj, ro.MutateFunc).Get()

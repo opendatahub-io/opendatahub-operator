@@ -109,6 +109,10 @@ type ResourceOptions struct {
 	// This is used to collect diagnostics and provide additional context about the failure.
 	// The callback should run diagnostics and return a failure message string.
 	OnFailure func() string
+
+	// ProgressTracker is an optional progress tracker for logging periodic updates during long-running operations.
+	// If provided, progress will be logged every 30 seconds during Eventually() polling.
+	ProgressTracker *ProgressTracker
 }
 
 // ResourceOpts is a function type used to configure options for the ResourceOptions object.
@@ -346,5 +350,14 @@ func WithNamespaceFilter(namespace string) ResourceOpts {
 func WithOnFailure(onFailure func() string) ResourceOpts {
 	return func(ro *ResourceOptions) {
 		ro.OnFailure = onFailure
+	}
+}
+
+// WithProgressLogging sets a progress tracker for logging periodic updates during long-running operations.
+// Progress will be logged every 30 seconds with elapsed time.
+// The operationDesc should describe what is being waited for (e.g., "Kueue state transition to Removed").
+func WithProgressLogging(operationDesc string, logFunc func(format string, args ...interface{})) ResourceOpts {
+	return func(ro *ResourceOptions) {
+		ro.ProgressTracker = NewProgressTracker(operationDesc, logFunc)
 	}
 }

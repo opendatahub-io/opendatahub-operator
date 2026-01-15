@@ -294,6 +294,7 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToRemovedTransition(t *testing.T) 
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, stateRemoved)),
 		WithCondition(And(conditionsRemovedReady...)),
+		WithProgressLogging(fmt.Sprintf("Kueue state transition to %s", stateRemoved), t.Logf),
 		WithOnFailure(func() string {
 			t.Logf("\n⚠️  Kueue state transition FAILED - collecting diagnostics...")
 			diagnoseKueueStateTransitionFailure(tc.TestContext, componentName, stateRemoved)
