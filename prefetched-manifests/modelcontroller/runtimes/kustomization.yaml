@@ -13,6 +13,7 @@ resources:
   - vllm-rocm-template.yaml
   - vllm-gaudi-template.yaml
   - vllm-cpu-template.yaml
+  - vllm-cpu-x86-template.yaml
   - vllm-spyre-x86-template.yaml
   - vllm-spyre-s390x-template.yaml
   - hf-detector-template.yaml

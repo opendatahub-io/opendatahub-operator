@@ -23,7 +23,7 @@ objects:
       annotations:
         openshift.io/display-name: vLLM Spyre s390x ServingRuntime for KServe
         opendatahub.io/recommended-accelerators: '["ibm.com/spyre_vf"]'
-        opendatahub.io/runtime-version: 'v0.11.0'
+        opendatahub.io/runtime-version: 'v0.12.0'
       labels:
         opendatahub.io/dashboard: 'true'
     spec:

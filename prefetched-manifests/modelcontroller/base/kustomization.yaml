@@ -104,6 +104,17 @@ replacements:
       kind: ConfigMap
       version: v1
       name: odh-model-controller-parameters
+      fieldPath: data.vllm-cpu-x86-image
+    targets:
+      - select:
+          kind: Template
+          name: vllm-cpu-x86-runtime-template
+        fieldPaths:
+          - objects.0.spec.containers.0.image
+  - source:
+      kind: ConfigMap
+      version: v1
+      name: odh-model-controller-parameters
       fieldPath: data.vllm-spyre-x86-image
     targets:
       - select:

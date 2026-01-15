@@ -39,7 +39,7 @@ map:
     src: config
     dest: modelcontroller
     git.url: https://github.com/red-hat-data-services/odh-model-controller
-    git.commit: 366fd0b136171e82e7b6c695616620043076dade
+    git.commit: f6ad78e07b3da146d18d68aaaa9df6ffaeba1c85
   odh-model-registry-operator:
     src: config
     dest: modelregistry
@@ -212,7 +212,7 @@ additional_meta:
     git.commit: d11697f9a8f31591a13724a7106298778691a04d
   odh-llama-stack-core:
     git.url: https://github.com/red-hat-data-services/llama-stack-distribution
-    git.commit: 027aad544bccc8ae147b545f156937efa8459785
+    git.commit: df25d10090df81232d577031d7a185dfcd6103ac
   odh-workbench-jupyter-pytorch-llmcompressor-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: ca192ffe0aa7cfc078f08c8a906b19800b8fd520
