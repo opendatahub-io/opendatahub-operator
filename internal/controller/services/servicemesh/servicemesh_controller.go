@@ -15,6 +15,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 )
@@ -53,7 +54,12 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			reconciler.Dynamic(reconciler.CrdExists(gvk.ServiceMonitorServiceMesh))).
 		// authorino-related resources
 		OwnsGVK(gvk.ServiceMeshMember,
-			reconciler.Dynamic(reconciler.CrdExists(gvk.ServiceMeshMember))).
+			reconciler.Dynamic(reconciler.CrdExists(gvk.ServiceMeshMember)),
+			reconciler.WithPredicates(dependent.Predicate{
+				WatchDelete: true,
+				WatchUpdate: true,
+				WatchStatus: true,
+			})).
 		OwnsGVK(gvk.Authorino,
 			reconciler.Dynamic(reconciler.CrdExists(gvk.Authorino)),
 			reconciler.WithPredicates(dependent.Predicate{
@@ -61,6 +67,11 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 				WatchUpdate: true,
 				WatchStatus: true,
 			})).
+		// watch for Authorino Deployment changes to re-apply sidecar injection label if needed
+		WatchesGVK(gvk.Deployment,
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.ServiceMeshInstanceName)),
+			reconciler.WithPredicates(NewAuthorinoDeploymentPredicate()),
+		).
 		// watch for SMCP readiness
 		WatchesGVK(gvk.ServiceMeshControlPlane,
 			reconciler.Dynamic(reconciler.CrdExists(gvk.ServiceMeshControlPlane)),

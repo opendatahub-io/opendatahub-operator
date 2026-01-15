@@ -27,6 +27,8 @@ const (
 
 	authProviderName = "authorino"
 	authorinoLabel   = "security.opendatahub.io/authorization-group=default"
+
+	serviceMeshMemberName = "default" // matches the name specified in the SMM template
 )
 
 const (
