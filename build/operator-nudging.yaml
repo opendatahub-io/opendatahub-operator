@@ -158,4 +158,4 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MLSERVER_IMAGE
   value: quay.io/rhoai/odh-mlserver-rhel9@sha256:be9bc8ce06430860bb7a0a6eb972942b4ad553671a89ab28688a538ed4f3df70
 - name: RELATED_IMAGE_ODH_MOD_ARCH_MAAS_IMAGE
-  value: quay.io/rhoai/odh-mod-arch-maas-rhel9@sha256:64fb154edfe296cdffa603421936e25e194e4ed54e36a7aaafbbea9a5c5327cb
+  value: quay.io/rhoai/odh-mod-arch-maas-rhel9@sha256:931b9b8715f7935c8ae4dc040debbd448be783b409b96d39a78239fbd9943e41
