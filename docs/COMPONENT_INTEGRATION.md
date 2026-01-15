@@ -148,7 +148,7 @@ Alternatively, you can refer to the existing integrated component APIs located w
 
 Component CRDs can be marked as internal to hide them from users in the OperatorHub UI. While some internal resources can still be edited by users if needed, resources visible in the UI represent the primary configuration points that users are expected to interact with. Most component resources should be internal unless they require direct user configuration. 
 
-To mark your component as internal, update `config/manifests/bases/opendatahub-operator.clusterserviceversion.yaml` to add your component's CRD to the `operators.operatorframework.io/internal-objects` annotation:
+To mark your component as internal, update `config/manifests/bases/opendatahub-operator.clusterserviceversion.yaml` and `config/rhoai/manifests/bases/rhods-operator.clusterserviceversion.yaml`to add your component's CRD to the `operators.operatorframework.io/internal-objects` annotation:
 
 ```yaml
 operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
@@ -159,7 +159,9 @@ operators.operatorframework.io/internal-objects: '["featuretrackers.features.ope
 
 #### Add component to the owned objects list
 
-Add your component to the `owned` list under `customresourcedefinitions`:
+Add your component to the `owned` list under `customresourcedefinitions` in `config/manifests/bases/opendatahub-operator.clusterserviceversion.yaml` and `config/rhoai/manifests/bases/rhods-operator.clusterserviceversion.yaml` by running `make bundle && ODH_PLATFORM_TYPE=rhoai`. 
+
+Verify your component has been correctly added to the list:
 
 ```yaml
     owned:
