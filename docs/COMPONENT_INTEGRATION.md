@@ -144,6 +144,34 @@ type DSCExampleComponentStatus struct {
 
 Alternatively, you can refer to the existing integrated component APIs located within `api/component/v1alpha1` directory.
 
+#### Define internal resources for the new component
+
+Component CRDs can be marked as internal to hide them from users in the OperatorHub UI. While some internal resources can still be edited by users if needed, resources visible in the UI represent the primary configuration points that users are expected to interact with. Most component resources should be internal unless they require direct user configuration. 
+
+To mark your component as internal, update `config/manifests/bases/opendatahub-operator.clusterserviceversion.yaml` and `config/rhoai/manifests/bases/rhods-operator.clusterserviceversion.yaml`to add your component's CRD to the `operators.operatorframework.io/internal-objects` annotation:
+
+```yaml
+operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
+  "dashboards.components.platform.opendatahub.io", "datasciencepipelines.components.platform.opendatahub.io",
+  ...
+  "examplecomponents.components.platform.opendatahub.io"]'
+```
+
+#### Add component to the owned objects list
+
+Add your component to the `owned` list under `customresourcedefinitions` in `config/manifests/bases/opendatahub-operator.clusterserviceversion.yaml` and `config/rhoai/manifests/bases/rhods-operator.clusterserviceversion.yaml` by running `make bundle && ODH_PLATFORM_TYPE=rhoai`. 
+
+Verify your component has been correctly added to the list:
+
+```yaml
+    owned:
+    - description: ExampleComponent is the Schema for the examplecomponent API.
+      displayName: Your Component
+      kind: ExampleComponent
+      name: examplecomponents.components.platform.opendatahub.io
+      version: v1alpha1
+```
+
 #### Add Component to DataScienceCluster API spec
 
 DataScienceCluster (DSC) CRD is responsible for enabling individual components and exposing them to end users.
