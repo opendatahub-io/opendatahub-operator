@@ -61,9 +61,9 @@ jobs:
 
       - name: Create bundle image (snapshot)
         env:
-          BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:v${{ steps.version.outputs.main }}
-          IMG_TAG: main
-          VERSION: ${{ steps.version.outputs.main }}
+          BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:v${{ steps.version.outputs.snapshot }}
+          IMG_TAG: latest
+          VERSION: ${{ steps.version.outputs.snapshot }}
         run: |
           make bundle-build
           make bundle-push
