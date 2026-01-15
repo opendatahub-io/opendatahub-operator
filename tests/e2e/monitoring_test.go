@@ -114,6 +114,7 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test Traces Exporters Reserved Name Validation", monitoringServiceCtx.ValidateTracesExportersReservedNameValidation},
 		{"Test ThanosQuerier deployment with metrics", monitoringServiceCtx.ValidateThanosQuerierDeployment},
 		{"Test ThanosQuerier not deployed without metrics", monitoringServiceCtx.ValidateThanosQuerierNotDeployedWithoutMetrics},
+		{"Test Prometheus Self ServiceMonitor TLS Fix", monitoringServiceCtx.ValidatePrometheusSelfServiceMonitorTLSFix},
 		{"Test Perses deployment when monitoring is managed", monitoringServiceCtx.ValidatePersesCRCreation},
 		{"Test Perses CR configuration", monitoringServiceCtx.ValidatePersesCRConfiguration},
 		{"Test Perses lifecycle", monitoringServiceCtx.ValidatePersesLifecycle},
@@ -1526,6 +1527,77 @@ func (tc *MonitoringTestCtx) ValidateThanosQuerierNotDeployedWithoutMetrics(t *t
 	)
 
 	// Cleanup: Reset monitoring configuration
+	tc.resetMonitoringConfigToManaged()
+}
+
+// ValidatePrometheusSelfServiceMonitorTLSFix tests that the prometheus-self-fixed ServiceMonitor is deployed
+// and properly configured with the correct serverName to fix TLS SANs mismatch issues.
+func (tc *MonitoringTestCtx) ValidatePrometheusSelfServiceMonitorTLSFix(t *testing.T) {
+	t.Helper()
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(And(
+			jq.Match(`.spec.metrics != null`),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionMonitoringStackAvailable, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Monitoring resource should be ready with MonitoringStack available"),
+	)
+
+	// Verify the prometheus-self-fixed ServiceMonitor is created with correct TLS configuration
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ServiceMonitor, types.NamespacedName{Name: "prometheus-self-fixed", Namespace: tc.MonitoringNamespace}),
+		WithCondition(And(
+			// Validate it has the correct serverName that matches the certificate SANs
+			jq.Match(`.spec.endpoints[0].tlsConfig.serverName == "prometheus-operated.%s.svc"`, tc.MonitoringNamespace),
+			// Validate it targets the correct service
+			jq.Match(`.spec.selector.matchLabels."app.kubernetes.io/name" == "data-science-monitoringstack-prometheus"`),
+			// Validate it uses HTTPS
+			jq.Match(`.spec.endpoints[0].scheme == "https"`),
+			// Validate it references the correct CA configmap
+			jq.Match(`.spec.endpoints[0].tlsConfig.ca.configMap.name == "prometheus-web-tls-ca"`),
+			// Validate platform label
+			jq.Match(`.metadata.labels."platform.opendatahub.io/part-of" == "monitoring"`),
+			// Validate owner references point to Monitoring CR
+			monitoringOwnerReferencesCondition,
+		)),
+		WithCustomErrorMsg("prometheus-self-fixed ServiceMonitor should be created with correct TLS configuration"),
+	)
+
+	// Verify the prometheus-web-tls-ca ConfigMap exists (used by ServiceMonitor for TLS)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{Name: "prometheus-web-tls-ca", Namespace: tc.MonitoringNamespace}),
+		WithCondition(And(
+			// Validate it has the service-ca injection annotation
+			jq.Match(`.metadata.annotations."service.beta.openshift.io/inject-cabundle" == "true"`),
+		)),
+		WithCustomErrorMsg("prometheus-web-tls-ca ConfigMap should exist with CA injection annotation"),
+	)
+
+	// Verify the prometheus-operated service has TLS cert secret annotation
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Service, types.NamespacedName{Name: "prometheus-operated", Namespace: tc.MonitoringNamespace}),
+		WithCondition(And(
+			jq.Match(`.metadata.annotations."service.beta.openshift.io/serving-cert-secret-name" == "prometheus-operated-tls"`),
+		)),
+		WithCustomErrorMsg("prometheus-operated Service should have serving-cert-secret-name annotation for TLS"),
+	)
+
+	// Verify Prometheus StatefulSet is ready
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.StatefulSet, types.NamespacedName{Name: "prometheus-data-science-monitoringstack", Namespace: tc.MonitoringNamespace}),
+		WithCondition(And(
+			jq.Match(`.status.readyReplicas >= 1`),
+		)),
+		WithCustomErrorMsg("Prometheus StatefulSet should have at least one ready replica, indicating healthy operation"),
+	)
+
 	tc.resetMonitoringConfigToManaged()
 }
 
