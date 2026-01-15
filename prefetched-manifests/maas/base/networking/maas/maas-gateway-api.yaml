@@ -1,0 +1,36 @@
+# Default MaaS Gateway for LLMInferenceServices - opt-in to MaaS features
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: maas-default-gateway
+  namespace: openshift-ingress
+  annotations:
+    opendatahub.io/managed: "false"
+  labels:
+    app.kubernetes.io/name: maas
+    app.kubernetes.io/instance: maas-default-gateway
+    app.kubernetes.io/component: gateway
+    opendatahub.io/managed: "false"
+spec:
+  gatewayClassName: openshift-default
+  listeners:
+   - name: http
+     hostname: maas.${CLUSTER_DOMAIN}
+     port: 80
+     protocol: HTTP
+     allowedRoutes:
+       namespaces:
+         from: All
+   - name: https
+     hostname: maas.${CLUSTER_DOMAIN}
+     port: 443
+     protocol: HTTPS
+     allowedRoutes:
+       namespaces:
+         from: All
+     tls:
+       certificateRefs:
+       - group: ''
+         kind: Secret
+         name: ${CERT_NAME}
+       mode: Terminate

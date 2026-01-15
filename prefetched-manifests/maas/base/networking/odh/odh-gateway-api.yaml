@@ -1,0 +1,23 @@
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: openshift-default
+spec:
+  controllerName: "openshift.io/gateway-controller/v1"
+---
+# Default LLMInferenceService Gateway
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: openshift-ai-inference
+  namespace: openshift-ingress
+spec:
+  gatewayClassName: openshift-default
+  listeners:
+  - name: http
+    port: 80
+    protocol: HTTP
+    allowedRoutes:
+      namespaces:
+        from: All

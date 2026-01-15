@@ -1,0 +1,40 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: maas-api
+rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# SA token provider resources
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get", "list", "watch", "create"]
+- apiGroups: [""]
+  resources: ["serviceaccounts"]
+  verbs: ["get", "list", "watch", "create", "delete"]
+- apiGroups: [""]
+  # Needed for TokenRequest API
+  resources: ["serviceaccounts/token"]
+  verbs: ["create"]
+
+# Token review for authentication
+- apiGroups: ["authentication.k8s.io"]
+  resources: ["tokenreviews"]
+  verbs: ["create"]
+
+# KServe resources for model management
+- apiGroups: ["serving.kserve.io"]
+  resources: ["inferenceservices", "llminferenceservices"]
+  verbs: ["get", "list", "watch"]
+
+# Gateway API resources for route filtering
+- apiGroups: ["gateway.networking.k8s.io"]
+  resources: ["httproutes"]
+  verbs: ["get", "list", "watch"]
+
+# Metrics and monitoring
+- apiGroups: [""]
+  resources: ["pods", "services", "endpoints"]
+  verbs: ["get", "list", "watch"]

@@ -1,0 +1,45 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: authorino-runtime
+  labels:
+    environment: base
+    project: models-aas-observability
+spec:
+  namespaceSelector:
+    matchNames:
+      - kuadrant-system
+  selector:
+    matchLabels:
+      authorino-resource: authorino
+      control-plane: controller-manager
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+    - port: http
+      path: /server-metrics
+      interval: 30s
+      scrapeTimeout: 10s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: limitador-runtime
+  labels:
+    environment: base
+    project: models-aas-observability
+spec:
+  namespaceSelector:
+    matchNames:
+      - kuadrant-system
+  selector:
+    matchLabels:
+      app: limitador
+      limitador-resource: limitador
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s

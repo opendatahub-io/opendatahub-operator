@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: maas-observability
+  annotations:
+    config.kubernetes.io/local-config: "true"
+
+namespace: llm-observability
+
+resources:
+  # Enhanced Prometheus
+  - ../prometheus
+
+commonLabels:
+  app.kubernetes.io/name: maas-platform
+  app.kubernetes.io/part-of: kuadrant-maas
+  app.kubernetes.io/component: observability
+  app.kubernetes.io/managed-by: kustomize
+
+commonAnnotations:
+  config.kubernetes.io/origin: |
+    path: infrastructure/kustomize-templates/observability/kustomization.yaml

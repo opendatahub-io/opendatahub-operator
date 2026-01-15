@@ -1,0 +1,17 @@
+apiVersion: dscinitialization.opendatahub.io/v1
+kind: DSCInitialization
+metadata:
+  name: default-dsci
+  namespace: opendatahub
+spec:
+  # Namespace where ODH applications will be deployed
+  applicationsNamespace: opendatahub
+  
+  # Monitoring configuration for ODH components
+  monitoring:
+    managementState: Managed
+    namespace: opendatahub
+  
+  # Trusted CA bundle for TLS certificates
+  trustedCABundle:
+    managementState: Managed 

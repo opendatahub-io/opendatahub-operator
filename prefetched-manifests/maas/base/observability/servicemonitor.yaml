@@ -1,0 +1,15 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: limitador-metrics
+  namespace: kuadrant-system
+  labels:
+    app: limitador
+spec:
+  selector:
+    matchLabels:
+      app: limitador
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 30s

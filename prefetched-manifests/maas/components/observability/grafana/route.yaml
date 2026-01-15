@@ -1,0 +1,19 @@
+# Kubernetes Ingress for external access to Grafana dashboard
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: grafana-ingress
+  namespace: llm-observability
+  labels:
+    app: grafana
+    component: observability
+spec:
+  to:
+    kind: Service
+    name: grafana-service
+  port:
+    targetPort: grafana
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

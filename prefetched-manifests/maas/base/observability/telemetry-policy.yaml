@@ -1,0 +1,16 @@
+apiVersion: extensions.kuadrant.io/v1alpha1
+kind: TelemetryPolicy
+metadata:
+  name: user-group
+  namespace: openshift-ingress
+spec:
+  metrics:
+    default:
+      labels:
+        model: responseBodyJSON("/model")
+        tier: auth.identity.tier
+        user: auth.identity.userid
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: maas-default-gateway

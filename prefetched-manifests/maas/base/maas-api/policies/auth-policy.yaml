@@ -1,0 +1,26 @@
+apiVersion: kuadrant.io/v1
+kind: AuthPolicy
+metadata:
+  name: maas-api-auth-policy
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: maas-api-route
+  rules:
+    # Allow any authenticated user to access the API
+    authentication:
+      openshift-identities:
+        kubernetesTokenReview:
+          audiences:
+            - https://kubernetes.default.svc
+            - maas-default-gateway-sa
+    response:
+      success:
+        headers:
+          X-MaaS-Username:
+            plain:
+              selector: auth.identity.user.username
+          X-MaaS-Group:
+            plain:
+              selector: auth.identity.user.groups.@tostr

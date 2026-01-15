@@ -1,7 +1,7 @@
 map:
   notebooks:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 71bc28fc1b36d9dc39b7223fe7acac2bca72a3d6
+    git.commit: ca192ffe0aa7cfc078f08c8a906b19800b8fd520
     src: manifests
     dest: workbenches/notebooks
     ref_type: branch
@@ -173,10 +173,10 @@ additional_meta:
     git.commit: abdda6172ce81469ea02d0b9f1c10abc2b40b1e0
   odh-workbench-jupyter-minimal-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 71bc28fc1b36d9dc39b7223fe7acac2bca72a3d6
+    git.commit: ca192ffe0aa7cfc078f08c8a906b19800b8fd520
   odh-workbench-jupyter-minimal-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 71bc28fc1b36d9dc39b7223fe7acac2bca72a3d6
+    git.commit: ca192ffe0aa7cfc078f08c8a906b19800b8fd520
   odh-workbench-jupyter-minimal-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 71bc28fc1b36d9dc39b7223fe7acac2bca72a3d6
@@ -227,7 +227,7 @@ additional_meta:
     git.commit: 26724b4dbc498ff7b6295c4b595c06dcc41fd029
   odh-kube-auth-proxy:
     git.url: https://github.com/red-hat-data-services/kube-auth-proxy
-    git.commit: b8d9b138e10a54b4fef710e6fc387d91528df048    
+    git.commit: b8d9b138e10a54b4fef710e6fc387d91528df048
   odh-model-performance-data:
     git.url: https://github.com/red-hat-data-services/models-perf-benchmark-data
     git.commit: d7ae6d1cc3c1e32435ada021d9aef305d01ef620
@@ -266,10 +266,10 @@ additional_meta:
     git.commit: 1a322d9195a750b842cac8c8d4b3a0375cc5fe85
   odh-mod-arch-maas:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 26724b4dbc498ff7b6295c4b595c06dcc41fd029
+    git.commit: 6e09c3f48c0fc07c56204adaaa3f4be2f6fae2ca
   odh-training-rocm64-torch29-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: 468b18e6a596c729a74814164b890cb038f82eb1
+    git.commit: 9e23a2b6550601f1d73421042fc246838dc6986d
   odh-training-cuda128-torch29-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: c72d8e3ff73922ee6303047a4b7476d7c2fbffe4
+    git.commit: 551cec9c23655961edb9de59cbfb9fa1b656e40b

@@ -1,0 +1,40 @@
+# Tier to Group Mapping for MaaS API
+# This ConfigMap defines which user groups belong to each tier
+# Users in higher tier groups get higher rate limits
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tier-to-group-mapping
+  labels:
+    app: maas-api
+    component: tier-mapping
+  annotations:
+    opendatahub.io/managed: "false"
+data:
+  tiers: |
+    # Free tier - default for all authenticated users
+    - name: free
+      displayName: Free Tier
+      level: 0
+      groups:
+        - tier-free-users
+        - system:authenticated  # Default for all authenticated users
+
+    # Premium tier - for premium users
+    - name: premium
+      displayName: Premium Tier
+      level: 1
+      groups:
+        - tier-premium-users
+        - premium-group
+
+    # Enterprise tier - highest level
+    - name: enterprise
+      displayName: Enterprise Tier
+      level: 2
+      groups:
+        - tier-enterprise-users
+        - enterprise-group
+        - admin-group
+

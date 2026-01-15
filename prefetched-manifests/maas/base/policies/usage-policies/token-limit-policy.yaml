@@ -1,0 +1,44 @@
+# Gateway-level Token Rate Limiting Policy for OpenShift
+# Automatically tracks tokens from response bodies (usage.total_tokens)
+# Uses the same user groups as the auth policy configuration
+---
+apiVersion: kuadrant.io/v1alpha1
+kind: TokenRateLimitPolicy
+metadata:
+  name: gateway-token-rate-limits
+  namespace: openshift-ingress
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: maas-default-gateway
+  limits:
+    free-user-tokens:
+      rates:
+        - limit: 100
+          window: 1m
+      when:
+        - predicate: |
+            auth.identity.tier == "free"
+      counters:
+        - expression: auth.identity.userid
+    
+    premium-user-tokens:
+      rates:
+        - limit: 50000
+          window: 1m
+      when:
+        - predicate: |
+            auth.identity.tier == "premium"
+      counters:
+        - expression: auth.identity.userid
+    enterprise-user-tokens:
+      rates:
+        - limit: 100000
+          window: 1m
+      when:
+        - predicate: |
+            auth.identity.tier == "enterprise"
+      counters:
+        - expression: auth.identity.userid
+

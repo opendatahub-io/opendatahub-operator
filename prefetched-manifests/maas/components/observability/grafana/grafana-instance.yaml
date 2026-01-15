@@ -1,0 +1,23 @@
+kind: Grafana
+apiVersion: grafana.integreatly.org/v1beta1
+metadata:
+  labels:
+    app: grafana
+  name: grafana
+  namespace: llm-observability
+spec:
+  config:
+    auth:
+      disable_login_form: 'false'
+    log:
+      mode: console
+    security:
+      admin_password: password
+      admin_user: root
+  deployment:
+    spec:
+      template:
+        metadata:
+          # Disable Istio sidecar injection for Grafana in current implementation
+          annotations:
+            sidecar.istio.io/inject: "false" 

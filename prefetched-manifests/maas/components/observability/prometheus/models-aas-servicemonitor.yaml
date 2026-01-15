@@ -1,0 +1,49 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: models-aas-observability-self
+  labels:
+    app: models-aas-observability
+spec:
+  endpoints:
+  - interval: 30s
+    port: web
+  selector:
+    matchLabels:
+      app: models-aas-observability
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: vllm-simulator-monitor
+  labels:
+    app: vllm-simulator
+spec:
+  endpoints:
+  - interval: 30s
+    port: http
+    path: /metrics
+  selector:
+    matchLabels:
+      app: vllm-simulator
+  namespaceSelector:
+    matchNames:
+    - llm
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: qwen3-model-monitor
+  labels:
+    app: qwen3-0-6b-instruct
+spec:
+  endpoints:
+  - interval: 30s
+    port: http
+    path: /metrics
+  selector:
+    matchLabels:
+      serving.kserve.io/inferenceservice: qwen3-0-6b-instruct
+  namespaceSelector:
+    matchNames:
+    - llm

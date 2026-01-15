@@ -1,0 +1,102 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: maas-odh-overlay
+
+namespace: opendatahub
+resources:
+  - ../../base/policies/auth-policies
+  - ../../base/maas-api
+
+configMapGenerator:
+- envs:
+  - params.env
+  name: maas-parameters
+generatorOptions:
+  disableNameSuffixHash: true
+
+patches:
+- patch: |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: maas-api
+    spec:
+      template:
+        spec:
+          containers:
+          - name: maas-api
+            env:
+            - name: GATEWAY_NAMESPACE
+              valueFrom:
+                configMapKeyRef:
+                  key: gateway-namespace
+                  name: maas-parameters
+            - name: GATEWAY_NAME
+              valueFrom:
+                configMapKeyRef:
+                  key: gateway-name
+                  name: maas-parameters
+  target:
+    kind: Deployment
+    name: maas-api
+
+replacements:
+- source:
+    kind: ConfigMap
+    version: v1
+    name: maas-parameters
+    fieldPath: data.maas-api-image
+  targets:
+  - select:
+      kind: Deployment
+      name: maas-api
+    fieldPaths:
+    - spec.template.spec.containers.[name=maas-api].image
+- source:
+    kind: ConfigMap
+    version: v1
+    name: maas-parameters
+    fieldPath: data.gateway-namespace
+  targets:
+  - select:
+      kind: HTTPRoute
+      name: maas-api-route
+    fieldPaths:
+    - spec.parentRefs.0.namespace
+  - select:
+      kind: AuthPolicy
+      name: gateway-auth-policy
+    fieldPaths:
+    - metadata.namespace
+- source:
+    kind: ConfigMap
+    version: v1
+    name: maas-parameters
+    fieldPath: data.gateway-name
+  targets:
+  - select:
+      kind: HTTPRoute
+      name: maas-api-route
+    fieldPaths:
+    - spec.parentRefs.0.name
+  - select:
+      kind: AuthPolicy
+      name: gateway-auth-policy
+    fieldPaths:
+    - spec.targetRef.name
+- source:
+    kind: ConfigMap
+    version: v1
+    name: maas-parameters
+    fieldPath: metadata.namespace
+  targets:
+  - select:
+      kind: AuthPolicy
+      name: gateway-auth-policy
+    fieldPaths:
+    - spec.rules.metadata.matchedTier.http.url
+    options:
+      delimiter: "."
+      index: 1
