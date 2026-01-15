@@ -47,3 +47,6 @@ map:
   odh-mlflow-operator:
     src: config
     dest: mlflowoperator
+  odh-maas-api:
+    src: deployment
+    dest: maas
