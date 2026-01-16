@@ -23,7 +23,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
-	gTypes "github.com/onsi/gomega/types"
 )
 
 // ComponentTestCtx holds the context for component tests.
