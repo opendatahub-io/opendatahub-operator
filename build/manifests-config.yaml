@@ -23,6 +23,8 @@ map:
     src: config
     dest: datasciencepipelines
     git.url: https://github.com/opendatahub-io/data-science-pipelines-operator
+    ref_type: branch
+    branch: main
   odh-kuberay-operator-controller:
     src: ray-operator/config
     dest: ray
