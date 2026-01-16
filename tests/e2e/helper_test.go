@@ -810,7 +810,7 @@ func InfrastructureHealthCheck(tc *TestContext) error {
 	// Check 5: Component CRDs are installed and established
 	tc.Logf("[FAIL-FAST] Checking component CRDs are installed...")
 	componentCRDs := []string{
-		"codeflares.components.opendatahub.io",
+		// Note: codeflares removed in v3.0, modelmeshservings only has minimal types for v1 compatibility
 		"dashboards.components.opendatahub.io",
 		"datasciencepipelines.components.opendatahub.io",
 		"feastoperators.components.opendatahub.io",
@@ -819,7 +819,6 @@ func InfrastructureHealthCheck(tc *TestContext) error {
 		"llamastackoperators.components.opendatahub.io",
 		"mlflowoperators.components.opendatahub.io",
 		"modelcontrollers.components.opendatahub.io",
-		"modelmeshservings.components.opendatahub.io",
 		"modelregistries.components.opendatahub.io",
 		"modelsasservices.components.opendatahub.io",
 		"rays.components.opendatahub.io",
