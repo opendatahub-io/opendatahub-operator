@@ -807,6 +807,78 @@ func InfrastructureHealthCheck(tc *TestContext) error {
 		tc.Logf("[FAIL-FAST] ✓ CRD %s is installed", crdName)
 	}
 
+	// Check 5: Component CRDs are installed and established
+	tc.Logf("[FAIL-FAST] Checking component CRDs are installed...")
+	componentCRDs := []string{
+		"codeflares.components.opendatahub.io",
+		"dashboards.components.opendatahub.io",
+		"datasciencepipelines.components.opendatahub.io",
+		"feastoperators.components.opendatahub.io",
+		"kserves.components.opendatahub.io",
+		"kueues.components.opendatahub.io",
+		"llamastackoperators.components.opendatahub.io",
+		"mlflowoperators.components.opendatahub.io",
+		"modelcontrollers.components.opendatahub.io",
+		"modelmeshservings.components.opendatahub.io",
+		"modelregistries.components.opendatahub.io",
+		"modelsasservices.components.opendatahub.io",
+		"rays.components.opendatahub.io",
+		"trainers.components.opendatahub.io",
+		"trainingoperators.components.opendatahub.io",
+		"trustyais.components.opendatahub.io",
+		"workbenches.components.opendatahub.io",
+	}
+
+	for _, crdName := range componentCRDs {
+		crd := &unstructured.Unstructured{}
+		crd.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   "apiextensions.k8s.io",
+			Version: "v1",
+			Kind:    "CustomResourceDefinition",
+		})
+
+		if err := tc.Client().Get(tc.Context(), types.NamespacedName{Name: crdName}, crd); err != nil {
+			return fmt.Errorf(
+				"[INFRASTRUCTURE] Component CRD %s not found - "+
+					"operator may not have installed component CRDs yet. "+
+					"Wait for operator to complete CRD installation: %w",
+				crdName, err)
+		}
+
+		// Check if CRD is established (ready for use)
+		conditions, found, _ := unstructured.NestedSlice(crd.Object, "status", "conditions")
+		if !found {
+			return fmt.Errorf(
+				"[INFRASTRUCTURE] Component CRD %s has no status conditions - "+
+					"CRD may be installing",
+				crdName)
+		}
+
+		established := false
+		for _, condInterface := range conditions {
+			cond, ok := condInterface.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			condType, _ := cond["type"].(string)
+			condStatus, _ := cond["status"].(string)
+
+			if condType == "Established" && condStatus == conditionStatusTrue {
+				established = true
+				break
+			}
+		}
+
+		if !established {
+			return fmt.Errorf(
+				"[INFRASTRUCTURE] Component CRD %s exists but is not established yet - "+
+					"wait for CRD to become ready. Check CRD status conditions",
+				crdName)
+		}
+
+		tc.Logf("[FAIL-FAST] ✓ Component CRD %s is installed and established", crdName)
+	}
+
 	tc.Logf("[FAIL-FAST] ✓ Infrastructure health check PASSED - cluster is ready for e2e tests")
 	return nil
 }
@@ -1149,11 +1221,17 @@ func ValidateComponentCRDExists(tc *TestContext, componentKind string) error {
 
 	err := tc.Client().List(tc.Context(), resourcesList)
 	if err != nil {
-		// Check for "no matches for kind" error which indicates CRD doesn't exist
-		if strings.Contains(err.Error(), "no matches for kind") {
+		// Check for CRD/API group accessibility errors
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "no matches for kind") ||
+			strings.Contains(errMsg, "unable to retrieve the complete list of server APIs") {
 			return fmt.Errorf(
-				"[TEST-CONFIG] Component CRD '%s' (GVK: %s) does not exist in the cluster - "+
-					"component may have been renamed or removed. Check test configuration",
+				"[TEST-CONFIG] Component CRD '%s' (GVK: %s) is not accessible.\n"+
+					"Possible causes:\n"+
+					"  1. Component CRDs not installed (check operator logs for CRD installation)\n"+
+					"  2. API group not registered (CRD installation may still be in progress)\n"+
+					"  3. API discovery cache stale (API server may be initializing)\n"+
+					"Run infrastructure health check to verify all CRDs are installed and established",
 				componentKind,
 				componentGVK.String(),
 			)
