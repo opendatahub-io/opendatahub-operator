@@ -29,7 +29,7 @@ ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	# - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 	ifeq ($(VERSION), )
-		VERSION = 3.2.0
+		VERSION = 3.3.0
 	endif
 	# Specifies the namespace where the operator pods are deployed (defaults to opendatahub-operator-system)
 	OPERATOR_NAMESPACE ?= opendatahub-operator-system
@@ -56,7 +56,7 @@ else
 	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 	# NOTE: see also the git branches for RHOAI in get_all_manifests.sh. This variable does NOT affect those
 	ifeq ($(VERSION), )
-		VERSION = 3.2.0
+		VERSION = 3.3.0
 	endif
 	# Specifies the namespace where the operator pods are deployed (defaults to redhat-ods-operator)
 	OPERATOR_NAMESPACE ?= redhat-ods-operator
@@ -250,6 +250,11 @@ endif
 	@$(call fetch-external-crds,github.com/openshift/api,config/v1,authentications)
 CLEANFILES += config/crd/bases config/rhoai/crd/bases config/crd/external config/rhoai/crd/external config/rbac/role.yaml config/rhoai/rbac/role.yaml config/webhook/manifests.yaml config/rhoai/webhook/manifests.yaml
 
+.PHONY: manifests-all
+manifests-all:
+	$(MAKE) manifests
+	$(MAKE) manifests RHOAI_PLATFORM_TYPE=rhoai
+
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
@@ -435,6 +440,11 @@ bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then val
 	rm -f $(BUNDLE_DIR)/manifests/opendatahub-operator-webhook-service_v1_service.yaml
 	rm -f $(BUNDLE_DIR)/manifests/rhods-operator-webhook-service_v1_service.yaml
 CLEANFILES += rhoai-bundle odh-bundle
+
+.PHONY: bundle-all
+bundle-all:
+	$(MAKE) bundle
+	$(MAKE) bundle RHOAI_PLATFORM_TYPE=rhoai
 
 # The bundle image is multi-stage to preserve the ability to build without invoking make
 # We use build args to ensure the variables are passed to the underlying internal make invocation
