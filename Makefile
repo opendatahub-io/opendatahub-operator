@@ -250,6 +250,11 @@ endif
 	@$(call fetch-external-crds,github.com/openshift/api,config/v1,authentications)
 CLEANFILES += config/crd/bases config/rhoai/crd/bases config/crd/external config/rhoai/crd/external config/rbac/role.yaml config/rhoai/rbac/role.yaml config/webhook/manifests.yaml config/rhoai/webhook/manifests.yaml
 
+.PHONY: manifests-all
+manifests-all:
+	$(MAKE) manifests
+	$(MAKE) manifests RHOAI_PLATFORM_TYPE=rhoai
+
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
@@ -435,6 +440,11 @@ bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then val
 	rm -f $(BUNDLE_DIR)/manifests/opendatahub-operator-webhook-service_v1_service.yaml
 	rm -f $(BUNDLE_DIR)/manifests/rhods-operator-webhook-service_v1_service.yaml
 CLEANFILES += rhoai-bundle odh-bundle
+
+.PHONY: bundle-all
+bundle-all:
+	$(MAKE) bundle
+	$(MAKE) bundle RHOAI_PLATFORM_TYPE=rhoai
 
 # The bundle image is multi-stage to preserve the ability to build without invoking make
 # We use build args to ensure the variables are passed to the underlying internal make invocation
