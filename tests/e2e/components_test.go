@@ -6,6 +6,7 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -520,8 +521,12 @@ func (tc *ComponentTestCtx) ValidateAllDeletionRecovery(t *testing.T) {
 	RunTestCases(t, testCases)
 }
 
+// ResourceFilter is a function that filters a list of resources before validation.
+type ResourceFilter func([]unstructured.Unstructured) []unstructured.Unstructured
+
 // ValidateResourceDeletionRecovery validates that resources of a specific type are recreated upon deletion.
-func (tc *ComponentTestCtx) ValidateResourceDeletionRecovery(t *testing.T, resourceGVK schema.GroupVersionKind, nn types.NamespacedName) {
+// An optional ResourceFilter can be passed to filter the resources before testing.
+func (tc *ComponentTestCtx) ValidateResourceDeletionRecovery(t *testing.T, resourceGVK schema.GroupVersionKind, nn types.NamespacedName, filters ...ResourceFilter) {
 	t.Helper()
 
 	// Fetch existing resources of this type
@@ -536,6 +541,11 @@ func (tc *ComponentTestCtx) ValidateResourceDeletionRecovery(t *testing.T, resou
 		WithMinimalObject(resourceGVK, nn),
 		WithListOptions(listOptions),
 	)
+
+	// Apply filters
+	for _, filter := range filters {
+		existingResources = filter(existingResources)
+	}
 
 	if len(existingResources) == 0 {
 		t.Logf("No %s resources found for component %s, skipping", resourceGVK.Kind, tc.GVK.Kind)

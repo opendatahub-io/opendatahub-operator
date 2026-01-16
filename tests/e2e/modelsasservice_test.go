@@ -2,9 +2,11 @@ package e2e_test
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -126,4 +128,38 @@ func (tc *ModelsAsServiceTestCtx) createMaaSGateway(t *testing.T) {
 	)
 
 	t.Logf("MaaS Gateway %s/%s created successfully", maasGatewayNamespace, maasGatewayName)
+}
+
+// ValidateAllDeletionRecovery overrides the base implementation to exclude the tier-to-group-mapping ConfigMap
+// which is should not be managed by the ModelsAsService controller, as it's open for customisation.
+func (tc *ModelsAsServiceTestCtx) ValidateAllDeletionRecovery(t *testing.T) {
+	t.Helper()
+
+	// Increase the global eventually timeout for deletion recovery tests
+	reset := tc.OverrideEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout, tc.TestTimeouts.defaultEventuallyPollInterval)
+	defer reset()
+
+	testCases := []TestCase{
+		{"ConfigMap deletion recovery", func(t *testing.T) {
+			t.Helper()
+			// The tier-to-group-mapping ConfigMap is created externally and only referenced.
+			// It has the component label but is not managed by the ModelsAsService controller.
+			tc.ValidateResourceDeletionRecovery(t, gvk.ConfigMap, types.NamespacedName{Namespace: tc.AppsNamespace},
+				func(resources []unstructured.Unstructured) []unstructured.Unstructured {
+					return slices.DeleteFunc(resources, func(r unstructured.Unstructured) bool {
+						return r.GetName() == "tier-to-group-mapping"
+					})
+				},
+			)
+		}},
+		{"Service deletion recovery", func(t *testing.T) {
+			t.Helper()
+			tc.ValidateResourceDeletionRecovery(t, gvk.Service, types.NamespacedName{Namespace: tc.AppsNamespace})
+		}},
+		{"RBAC deletion recovery", tc.ValidateRBACDeletionRecovery},
+		{"ServiceAccount deletion recovery", tc.ValidateServiceAccountDeletionRecovery},
+		{"Deployment deletion recovery", tc.ValidateDeploymentDeletionRecovery},
+	}
+
+	RunTestCases(t, testCases)
 }
