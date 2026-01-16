@@ -1205,11 +1205,18 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 
 	var recreatedResource *unstructured.Unstructured
 
-	// Circuit breaker variables to fail fast instead of waiting for full timeout
+	// Circuit breaker configuration and variables to fail fast instead of waiting for full timeout
+	// 6 failures * 5s polling = 30s before circuit breaker trips
+	const failureThreshold = 6
+	// Absolute time-based circuit breaker
+	const noProgressTimeout = 30 * time.Second
+	// Reset counter if we make progress
+	const resetInterval = 15 * time.Second
+
 	var consecutiveFailures int
-	const failureThreshold = 6 // 6 failures * 5s polling = 30s before circuit breaker trips
 	var lastCheckTime time.Time
-	const resetInterval = 15 * time.Second // Reset counter if we make progress
+	// Track when deletion was confirmed
+	deletionCompletedTime := time.Now()
 
 	tc.g.Eventually(func(g Gomega) {
 		now := time.Now()
@@ -1227,7 +1234,20 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 		if err != nil || u == nil {
 			consecutiveFailures++
 
-			// Circuit breaker: fail fast after threshold
+			// Time-based circuit breaker: fail fast if no progress after absolute timeout
+			// This catches "no progress" scenarios where resource is deleted but never recreated
+			timeSinceDeletion := now.Sub(deletionCompletedTime)
+			if timeSinceDeletion > noProgressTimeout {
+				failureMsg := fmt.Sprintf(
+					"[CONTROLLER] %s %s not recreated after %.0fs since deletion - controller likely not watching deletion events",
+					ro.GVK.Kind,
+					ro.ResourceID,
+					timeSinceDeletion.Seconds(),
+				)
+				g.Expect(err).NotTo(HaveOccurred(), failureMsg)
+			}
+
+			// Counter-based circuit breaker: fail fast after consecutive failures
 			if consecutiveFailures >= failureThreshold {
 				failureMsg := fmt.Sprintf("[CONTROLLER] %s %s recreation failing consistently after %d attempts (%.0fs) - controller may not be responding to deletion events",
 					ro.GVK.Kind, ro.ResourceID, consecutiveFailures, float64(consecutiveFailures*5))

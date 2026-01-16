@@ -1128,9 +1128,54 @@ func diagnoseResourceExistence(tc *TestContext, resourceGVK schema.GroupVersionK
 	}
 }
 
+// ValidateComponentCRDExists checks if a component CRD is installed in the cluster.
+// This helps catch configuration errors early instead of waiting for long timeouts.
+// Returns an error if the component CRD doesn't exist or can't be accessed.
+//
+// This function tries to create a dummy unstructured object of the component type
+// and checks if the API server recognizes the GroupVersionKind. If it returns
+// "no matches for kind", the CRD is not installed.
+func ValidateComponentCRDExists(tc *TestContext, componentKind string) error {
+	componentGVK := getComponentGVK(componentKind)
+
+	// Try to list resources of this type to verify the CRD exists
+	// Using List instead of Get because we don't need an actual instance
+	resourcesList := &unstructured.UnstructuredList{}
+	resourcesList.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   componentGVK.Group,
+		Version: componentGVK.Version,
+		Kind:    componentGVK.Kind + "List", // API expects "FooList" for list operations
+	})
+
+	err := tc.Client().List(tc.Context(), resourcesList)
+	if err != nil {
+		// Check for "no matches for kind" error which indicates CRD doesn't exist
+		if strings.Contains(err.Error(), "no matches for kind") {
+			return fmt.Errorf(
+				"[TEST-CONFIG] Component CRD '%s' (GVK: %s) does not exist in the cluster - "+
+					"component may have been renamed or removed. Check test configuration",
+				componentKind,
+				componentGVK.String(),
+			)
+		}
+		// Other errors (permissions, API issues) should be returned as-is
+		return fmt.Errorf("failed to validate component CRD '%s': %w", componentKind, err)
+	}
+
+	// CRD exists and is accessible
+	return nil
+}
+
 // diagnoseComponentStatus checks component CR status and conditions.
 func diagnoseComponentStatus(tc *TestContext, componentKind string) {
 	tc.Logf("\n--- Component Status Check ---")
+
+	// First, validate that the component CRD exists
+	if err := ValidateComponentCRDExists(tc, componentKind); err != nil {
+		tc.Logf("⚠️  %v", err)
+		return
+	}
+
 	componentGVK := getComponentGVK(componentKind)
 	component := &unstructured.Unstructured{}
 	component.SetGroupVersionKind(componentGVK)

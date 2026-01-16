@@ -64,6 +64,12 @@ func NewComponentTestCtx(t *testing.T, object common.PlatformObject) (*Component
 		NamespacedName: resources.NamespacedNameFromObject(object),
 	}
 
+	// Validate that the component CRD exists before running tests
+	// This catches configuration errors early instead of waiting for long timeouts
+	if err := ValidateComponentCRDExists(baseCtx, ogvk.Kind); err != nil {
+		return nil, fmt.Errorf("component CRD validation failed: %w", err)
+	}
+
 	return &componentCtx, nil
 }
 
@@ -78,6 +84,12 @@ func NewSubComponentTestCtx(t *testing.T, object common.PlatformObject, parentKi
 
 	componentCtx.ParentKind = parentKind
 	componentCtx.SubComponentFieldName = subComponentFieldName
+
+	// For subcomponents, validate the parent component's CRD exists
+	// (The subcomponent itself may not have a CRD, but the parent component should)
+	if err := ValidateComponentCRDExists(componentCtx.TestContext, parentKind); err != nil {
+		return nil, fmt.Errorf("parent component CRD validation failed for subcomponent %s: %w", componentCtx.GVK.Kind, err)
+	}
 
 	return componentCtx, nil
 }
@@ -573,12 +585,18 @@ func (tc *ComponentTestCtx) ValidateResourceDeletionRecovery(t *testing.T, resou
 				WithOnFailure(func() string {
 					t.Logf("\n⚠️  Deletion recovery test FAILED - collecting diagnostics...")
 					// Run diagnostics to understand why controller didn't recreate the resource
+					// For subcomponents, use ParentKind instead of GVK.Kind to get the actual component
+					componentKindForDiagnostic := tc.GVK.Kind
+					if tc.ParentKind != "" {
+						componentKindForDiagnostic = tc.ParentKind
+						t.Logf("Using parent component %s for diagnostics (subcomponent: %s)", tc.ParentKind, tc.GVK.Kind)
+					}
 					diagnoseDeletionRecoveryFailure(
 						tc.TestContext,
 						resourceGVK,
 						resourceName,
 						resourceNamespace,
-						tc.GVK.Kind,
+						componentKindForDiagnostic,
 					)
 					// Return failure message with controller tag
 					return fmt.Sprintf("[CONTROLLER] %s %s was not recreated after deletion - controller may not be watching deletion events",
