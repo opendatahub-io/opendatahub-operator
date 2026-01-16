@@ -9,6 +9,7 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -17,6 +18,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
+	testf "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
 )
@@ -49,12 +51,36 @@ func TestCheckPreConditions_Managed_JobSetCRDNotInstalled(t *testing.T) {
 	ctx := t.Context()
 	g := NewWithT(t)
 
+	fakeSchema, err := scheme.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	jobSetOperatorListGVK := schema.GroupVersionKind{
+		Group:   gvk.JobSetOperatorV1.Group,
+		Version: gvk.JobSetOperatorV1.Version,
+		Kind:    "JobSetOperatorList",
+	}
+	fakeSchema.AddKnownTypeWithName(gvk.JobSetOperatorV1, &unstructured.Unstructured{})
+	fakeSchema.AddKnownTypeWithName(jobSetOperatorListGVK, &unstructured.UnstructuredList{})
+
+	jobSetOperatorCondition := &ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+		Name: fmt.Sprintf("%s.%s", jobSetOperator, jobSetOperatorRndVersion),
+	}}
+
+	jobSetOperatorCR := &unstructured.Unstructured{}
+	jobSetOperatorCR.SetGroupVersionKind(gvk.JobSetOperatorV1)
+	jobSetOperatorCR.SetName("cluster")
+	err = testf.SetTypedConditions(jobSetOperatorCR, []metav1.Condition{
+		{
+			Type:   "Available",
+			Status: metav1.ConditionTrue,
+			Reason: "Ready",
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
 	cli, err := fakeclient.New(
-		fakeclient.WithObjects(
-			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
-				Name: fmt.Sprintf("%s.%s", jobSetOperator, jobSetOperatorRndVersion),
-			}},
-		),
+		fakeclient.WithScheme(fakeSchema),
+		fakeclient.WithObjects(jobSetOperatorCondition, jobSetOperatorCR),
 	)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
@@ -73,14 +99,168 @@ func TestCheckPreConditions_Managed_JobSetCRDNotInstalled(t *testing.T) {
 	g.Expect(err).To(MatchError(ContainSubstring(status.JobSetCRDMissingMessage)))
 }
 
-func TestCheckPreConditions_Managed_JobSetCRDInstalled(t *testing.T) {
+func TestCheckPreConditions_JobSetOperatorCRNotFound(t *testing.T) {
 	ctx := t.Context()
 	g := NewWithT(t)
 
 	fakeSchema, err := scheme.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
+	jobSetOperatorListGVK := schema.GroupVersionKind{
+		Group:   gvk.JobSetOperatorV1.Group,
+		Version: gvk.JobSetOperatorV1.Version,
+		Kind:    "JobSetOperatorList",
+	}
 	fakeSchema.AddKnownTypeWithName(gvk.JobSetv1alpha2, &unstructured.Unstructured{})
+	fakeSchema.AddKnownTypeWithName(gvk.JobSetOperatorV1, &unstructured.Unstructured{})
+	fakeSchema.AddKnownTypeWithName(jobSetOperatorListGVK, &unstructured.UnstructuredList{})
+
+	jobSetOperatorCondition := &ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+		Name: fmt.Sprintf("%s.%s", jobSetOperator, jobSetOperatorRndVersion),
+	}}
+
+	cli, err := fakeclient.New(
+		fakeclient.WithScheme(fakeSchema),
+		fakeclient.WithObjects(jobSetOperatorCondition),
+	)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	trainer := componentApi.Trainer{
+		Spec: componentApi.TrainerSpec{},
+	}
+
+	rr := types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   &trainer,
+		Conditions: conditions.NewManager(&trainer, status.ConditionTypeReady),
+	}
+
+	err = checkPreConditions(ctx, &rr)
+	g.Expect(err).Should(HaveOccurred())
+	g.Expect(err).To(MatchError(ContainSubstring(status.JobSetOperatorCRNotFoundMessage)))
+}
+
+func TestCheckPreConditions_JobSetOperatorCRWrongName(t *testing.T) {
+	ctx := t.Context()
+	g := NewWithT(t)
+
+	fakeSchema, err := scheme.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	jobSetOperatorListGVK := schema.GroupVersionKind{
+		Group:   gvk.JobSetOperatorV1.Group,
+		Version: gvk.JobSetOperatorV1.Version,
+		Kind:    "JobSetOperatorList",
+	}
+	fakeSchema.AddKnownTypeWithName(gvk.JobSetv1alpha2, &unstructured.Unstructured{})
+	fakeSchema.AddKnownTypeWithName(gvk.JobSetOperatorV1, &unstructured.Unstructured{})
+	fakeSchema.AddKnownTypeWithName(jobSetOperatorListGVK, &unstructured.UnstructuredList{})
+
+	jobSetOperatorCondition := &ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+		Name: fmt.Sprintf("%s.%s", jobSetOperator, jobSetOperatorRndVersion),
+	}}
+
+	wrongNameCR := &unstructured.Unstructured{}
+	wrongNameCR.SetGroupVersionKind(gvk.JobSetOperatorV1)
+	wrongNameCR.SetName("wrong-name")
+
+	cli, err := fakeclient.New(
+		fakeclient.WithScheme(fakeSchema),
+		fakeclient.WithObjects(jobSetOperatorCondition, wrongNameCR),
+	)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	trainer := componentApi.Trainer{
+		Spec: componentApi.TrainerSpec{},
+	}
+
+	rr := types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   &trainer,
+		Conditions: conditions.NewManager(&trainer, status.ConditionTypeReady),
+	}
+
+	err = checkPreConditions(ctx, &rr)
+	g.Expect(err).Should(HaveOccurred())
+	expectedMessage := fmt.Sprintf(status.JobSetOperatorCRWrongNameMessage, "wrong-name")
+	g.Expect(err).To(MatchError(ContainSubstring(expectedMessage)))
+	g.Expect(err.Error()).To(ContainSubstring("wrong-name"))
+}
+
+func TestCheckPreConditions_JobSetOperatorCRWrongNameWithClusterCR(t *testing.T) {
+	ctx := t.Context()
+	g := NewWithT(t)
+
+	fakeSchema, err := scheme.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	jobSetOperatorListGVK := schema.GroupVersionKind{
+		Group:   gvk.JobSetOperatorV1.Group,
+		Version: gvk.JobSetOperatorV1.Version,
+		Kind:    "JobSetOperatorList",
+	}
+	fakeSchema.AddKnownTypeWithName(gvk.JobSetv1alpha2, &unstructured.Unstructured{})
+	fakeSchema.AddKnownTypeWithName(gvk.JobSetOperatorV1, &unstructured.Unstructured{})
+	fakeSchema.AddKnownTypeWithName(jobSetOperatorListGVK, &unstructured.UnstructuredList{})
+
+	jobSetOperatorCondition := &ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+		Name: fmt.Sprintf("%s.%s", jobSetOperator, jobSetOperatorRndVersion),
+	}}
+
+	clusterCR := &unstructured.Unstructured{}
+	clusterCR.SetGroupVersionKind(gvk.JobSetOperatorV1)
+	clusterCR.SetName("cluster")
+	err = testf.SetTypedConditions(clusterCR, []metav1.Condition{
+		{
+			Type:   "Available",
+			Status: metav1.ConditionTrue,
+			Reason: "Ready",
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	wrongNameCR := &unstructured.Unstructured{}
+	wrongNameCR.SetGroupVersionKind(gvk.JobSetOperatorV1)
+	wrongNameCR.SetName("another-wrong-name")
+
+	cli, err := fakeclient.New(
+		fakeclient.WithScheme(fakeSchema),
+		fakeclient.WithObjects(jobSetOperatorCondition, clusterCR, wrongNameCR),
+	)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	trainer := componentApi.Trainer{
+		Spec: componentApi.TrainerSpec{},
+	}
+
+	rr := types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   &trainer,
+		Conditions: conditions.NewManager(&trainer, status.ConditionTypeReady),
+	}
+
+	err = checkPreConditions(ctx, &rr)
+	g.Expect(err).Should(HaveOccurred())
+	expectedMessage := fmt.Sprintf(status.JobSetOperatorCRWrongNameMessage, "another-wrong-name")
+	g.Expect(err).To(MatchError(ContainSubstring(expectedMessage)))
+	g.Expect(err.Error()).To(ContainSubstring("another-wrong-name"))
+}
+
+func TestCheckPreConditions_Success(t *testing.T) {
+	ctx := t.Context()
+	g := NewWithT(t)
+
+	fakeSchema, err := scheme.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	jobSetOperatorListGVK := schema.GroupVersionKind{
+		Group:   gvk.JobSetOperatorV1.Group,
+		Version: gvk.JobSetOperatorV1.Version,
+		Kind:    "JobSetOperatorList",
+	}
+	fakeSchema.AddKnownTypeWithName(gvk.JobSetv1alpha2, &unstructured.Unstructured{})
+	fakeSchema.AddKnownTypeWithName(gvk.JobSetOperatorV1, &unstructured.Unstructured{})
+	fakeSchema.AddKnownTypeWithName(jobSetOperatorListGVK, &unstructured.UnstructuredList{})
 
 	jobSetCRD := &apiextensionsv1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
@@ -94,9 +274,21 @@ func TestCheckPreConditions_Managed_JobSetCRDInstalled(t *testing.T) {
 		Name: fmt.Sprintf("%s.%s", jobSetOperator, jobSetOperatorRndVersion),
 	}}
 
+	jobSetOperatorCR := &unstructured.Unstructured{}
+	jobSetOperatorCR.SetGroupVersionKind(gvk.JobSetOperatorV1)
+	jobSetOperatorCR.SetName("cluster")
+	err = testf.SetTypedConditions(jobSetOperatorCR, []metav1.Condition{
+		{
+			Type:   "Available",
+			Status: metav1.ConditionTrue,
+			Reason: "Ready",
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
 	cli, err := fakeclient.New(
 		fakeclient.WithScheme(fakeSchema),
-		fakeclient.WithObjects(jobSetCRD, jobSetOperatorCondition),
+		fakeclient.WithObjects(jobSetCRD, jobSetOperatorCondition, jobSetOperatorCR),
 	)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
