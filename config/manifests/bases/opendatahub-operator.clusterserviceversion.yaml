@@ -29,11 +29,6 @@ spec:
       kind: HardwareProfile
       name: hardwareprofiles.infrastructure.opendatahub.io
       version: v1alpha1
-    - description: ModelsAsService is the Schema for the modelsasservices API
-      displayName: Models As Service
-      kind: ModelsAsService
-      name: modelsasservices.components.platform.opendatahub.io
-      version: v1alpha1
     - description: Auth is the Schema for the auths API
       displayName: Auth
       kind: Auth
@@ -110,6 +105,11 @@ spec:
       kind: ModelRegistry
       name: modelregistries.components.platform.opendatahub.io
       version: v1alpha1
+    - description: ModelsAsService is the Schema for the modelsasservice API
+      displayName: Models As Service
+      kind: ModelsAsService
+      name: modelsasservices.components.platform.opendatahub.io
+      version: v1alpha1
     - description: Monitoring is the Schema for the monitorings API
       displayName: Monitoring
       kind: Monitoring
@@ -119,6 +119,11 @@ spec:
       displayName: Ray
       kind: Ray
       name: rays.components.platform.opendatahub.io
+      version: v1alpha1
+    - description: Trainer is the Schema for the trainers API
+      displayName: Trainer
+      kind: Trainer
+      name: trainers.components.platform.opendatahub.io
       version: v1alpha1
     - description: TrainingOperator is the Schema for the trainingoperators API
       displayName: Training Operator
