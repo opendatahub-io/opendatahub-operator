@@ -69,7 +69,13 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// Note: The component manifests define a configmap with the annotation
 		// opendatahub.io/managed: "false". Adding this watch allows the controller to
 		// recreate the configmap with default values when it is deleted.
-		Watches(&corev1.ConfigMap{}, reconciler.WithPredicates(resources.Deleted())).
+		Watches(
+			&corev1.ConfigMap{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.ModelsAsServiceInstanceName),
+			),
+			reconciler.WithPredicates(resources.Deleted()),
+		).
 		WithAction(initialize).
 		WithAction(validateGateway).
 		WithAction(customizeManifests).
