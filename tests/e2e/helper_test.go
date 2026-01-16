@@ -811,21 +811,21 @@ func InfrastructureHealthCheck(tc *TestContext) error {
 	tc.Logf("[FAIL-FAST] Checking component CRDs are installed...")
 	componentCRDs := []string{
 		// Note: codeflares removed in v3.0, modelmeshservings only has minimal types for v1 compatibility
-		"dashboards.components.opendatahub.io",
-		"datasciencepipelines.components.opendatahub.io",
-		"feastoperators.components.opendatahub.io",
-		"kserves.components.opendatahub.io",
-		"kueues.components.opendatahub.io",
-		"llamastackoperators.components.opendatahub.io",
-		"mlflowoperators.components.opendatahub.io",
-		"modelcontrollers.components.opendatahub.io",
-		"modelregistries.components.opendatahub.io",
-		"modelsasservices.components.opendatahub.io",
-		"rays.components.opendatahub.io",
-		"trainers.components.opendatahub.io",
-		"trainingoperators.components.opendatahub.io",
-		"trustyais.components.opendatahub.io",
-		"workbenches.components.opendatahub.io",
+		"dashboards.components.platform.opendatahub.io",
+		"datasciencepipelines.components.platform.opendatahub.io",
+		"feastoperators.components.platform.opendatahub.io",
+		"kserves.components.platform.opendatahub.io",
+		"kueues.components.platform.opendatahub.io",
+		"llamastackoperators.components.platform.opendatahub.io",
+		"mlflowoperators.components.platform.opendatahub.io",
+		"modelcontrollers.components.platform.opendatahub.io",
+		"modelregistries.components.platform.opendatahub.io",
+		"modelsasservices.components.platform.opendatahub.io",
+		"rays.components.platform.opendatahub.io",
+		"trainers.components.platform.opendatahub.io",
+		"trainingoperators.components.platform.opendatahub.io",
+		"trustyais.components.platform.opendatahub.io",
+		"workbenches.components.platform.opendatahub.io",
 	}
 
 	for _, crdName := range componentCRDs {
