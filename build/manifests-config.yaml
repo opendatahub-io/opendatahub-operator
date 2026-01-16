@@ -34,7 +34,7 @@ map:
     src: config
     dest: trustyai
     git.url: https://github.com/red-hat-data-services/trustyai-service-operator
-    git.commit: 11861e471b9adbf1df8398ba6ba7b30443c31a3d
+    git.commit: bd34ecfa457a086541036c638740ca8e19842f87
   odh-model-controller:
     src: config
     dest: modelcontroller
@@ -134,7 +134,7 @@ additional_meta:
     git.commit: 4f8dffb5301ef9e81f1dc4b53271862bda8b6d00
   odh-ta-lmes-driver:
     git.url: https://github.com/red-hat-data-services/trustyai-service-operator
-    git.commit: 11861e471b9adbf1df8398ba6ba7b30443c31a3d
+    git.commit: bd34ecfa457a086541036c638740ca8e19842f87
   odh-ta-lmes-job:
     git.url: https://github.com/red-hat-data-services/lm-evaluation-harness
     git.commit: d5168a76f4e2177c484f03ea9e1d7927e9c91768
@@ -203,7 +203,7 @@ additional_meta:
     git.commit: d0e523c46724efb537a185ef035c96ed0209e411
   odh-vllm-cpu:
     git.url: https://github.com/red-hat-data-services/vllm-cpu
-    git.commit: 0c809bd9cf49d01d779a6d9d515d443db0b5bb58
+    git.commit: 063d5165e8190d17aa4f4abf56d384b50c2ec2f3
   odh-vllm-gaudi:
     git.url: https://github.com/red-hat-data-services/vllm-gaudi
     git.commit: f2e38eb1f0ae643ef8ad10976b27bca90ae883e5
@@ -212,7 +212,7 @@ additional_meta:
     git.commit: d11697f9a8f31591a13724a7106298778691a04d
   odh-llama-stack-core:
     git.url: https://github.com/red-hat-data-services/llama-stack-distribution
-    git.commit: df25d10090df81232d577031d7a185dfcd6103ac
+    git.commit: c9d9b6d83667d2b121641ba8d6180fe5b0f206a6
   odh-workbench-jupyter-pytorch-llmcompressor-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: ca192ffe0aa7cfc078f08c8a906b19800b8fd520
@@ -251,7 +251,7 @@ additional_meta:
     git.commit: 524e8e46eb9059f7673679e15509e9eaab91d12e
   odh-mod-arch-model-registry:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 7e27cc1df0786410401aa2300049077dba3a5359
+    git.commit: 883bc77e309eed7ebcc161c44d14873c43325b36
   odh-trustyai-nemo-guardrails-server:
     git.url: https://github.com/red-hat-data-services/NeMo-Guardrails
     git.commit: 9bed06513044c0d02a64c060bc9c13aee133d522
@@ -266,7 +266,7 @@ additional_meta:
     git.commit: 1a322d9195a750b842cac8c8d4b3a0375cc5fe85
   odh-mod-arch-maas:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: b02f347596be00d10e7b7c7bd53dd76741cbd103
+    git.commit: 44328bad647dac47952fd30e8ad8935b26d8199f
   odh-training-rocm64-torch29-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 551cec9c23655961edb9de59cbfb9fa1b656e40b
