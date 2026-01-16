@@ -170,9 +170,9 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MLSERVER_IMAGE
   value: "quay.io/rhoai/odh-mlserver-rhel9@sha256:be9bc8ce06430860bb7a0a6eb972942b4ad553671a89ab28688a538ed4f3df70"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_MAAS_IMAGE
-  value: "quay.io/rhoai/odh-mod-arch-maas-rhel9@sha256:803613263abf99de8783870e67142aa70e17b7d7a5a5f02a84da2e19a8d027e6"
+  value: "quay.io/rhoai/odh-mod-arch-maas-rhel9@sha256:abbd8f0f07c2d884b17c3fe61764138ff673d5605b6aaf4c8d4429c97269f67c"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_MAAS_IMAGE
-  value: "quay.io/rhoai/odh-mod-arch-maas-rhel9@sha256:803613263abf99de8783870e67142aa70e17b7d7a5a5f02a84da2e19a8d027e6"
+  value: "quay.io/rhoai/odh-mod-arch-maas-rhel9@sha256:abbd8f0f07c2d884b17c3fe61764138ff673d5605b6aaf4c8d4429c97269f67c"
 - name: RELATED_IMAGE_ODH_TRAINING_ROCM64_TORCH29_PY312_IMAGE
   value: "quay.io/rhoai/odh-training-rocm64-torch29-py312-rhel9@sha256:f4e722af34e45c1bc45fdec68dd3bd256fdfe23d2b1d9405b92673f14de3a5b2"
 - name: RELATED_IMAGE_ODH_TRAINING_CUDA128_TORCH29_PY312_IMAGE
