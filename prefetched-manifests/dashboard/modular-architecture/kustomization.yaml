@@ -24,6 +24,13 @@ vars:
       apiVersion: v1
     fieldref:
       fieldpath: data.gen-ai-ui-image
+  - name: maas-ui-image
+    objref:
+      kind: ConfigMap
+      name: modular-architecture-params
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.maas-ui-image
 configurations:
   - params.yaml
 patchesJson6902:

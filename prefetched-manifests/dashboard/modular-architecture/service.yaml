@@ -12,3 +12,10 @@
     protocol: TCP
     port: 8143
     targetPort: 8143
+- op: add
+  path: /spec/ports/-
+  value:
+    name: maas-ui
+    protocol: TCP
+    port: 8243
+    targetPort: 8243

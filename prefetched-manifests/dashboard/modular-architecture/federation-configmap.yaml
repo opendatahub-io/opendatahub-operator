@@ -46,5 +46,26 @@ data:
             "namespace": "opendatahub",
             "port": 8143
         }
+      },
+      {
+          "name": "maas",
+          "remoteEntry": "/remoteEntry.js",
+          "authorize": true,
+          "tls": true,
+          "proxy": [
+            {
+              "path": "/maas/api",
+              "pathRewrite": "/api"
+            }
+          ],
+          "local": {
+            "host": "localhost",
+            "port": 8080
+          },
+          "service": {
+            "name": "odh-dashboard",
+            "namespace": "opendatahub",
+            "port": 8243
+        }
       }
     ]

@@ -49,7 +49,7 @@ map:
     src: manifests
     dest: dashboard
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: b02f347596be00d10e7b7c7bd53dd76741cbd103
+    git.commit: f3a9f4adc8d1db57c18892f7c2b7ea57199dab21
   odh-training-operator:
     src: manifests
     dest: trainingoperator
@@ -212,7 +212,7 @@ additional_meta:
     git.commit: d11697f9a8f31591a13724a7106298778691a04d
   odh-llama-stack-core:
     git.url: https://github.com/red-hat-data-services/llama-stack-distribution
-    git.commit: c9d9b6d83667d2b121641ba8d6180fe5b0f206a6
+    git.commit: 6c9a6d6f0a42ccb705cef7f92da8447020cfcecf
   odh-workbench-jupyter-pytorch-llmcompressor-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: ca192ffe0aa7cfc078f08c8a906b19800b8fd520
@@ -266,7 +266,7 @@ additional_meta:
     git.commit: 1a322d9195a750b842cac8c8d4b3a0375cc5fe85
   odh-mod-arch-maas:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 44328bad647dac47952fd30e8ad8935b26d8199f
+    git.commit: f3a9f4adc8d1db57c18892f7c2b7ea57199dab21
   odh-training-rocm64-torch29-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 551cec9c23655961edb9de59cbfb9fa1b656e40b

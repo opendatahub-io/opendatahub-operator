@@ -17,4 +17,6 @@ spec:
           protocol: TCP
         - port: 8143
           protocol: TCP
+        - port: 8243
+          protocol: TCP
       # Empty 'from' means allow from all sources to these ports.
