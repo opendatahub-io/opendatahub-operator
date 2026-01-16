@@ -776,17 +776,7 @@ func (tc *TestContext) EnsureCRDEstablished(name string) {
 //   - state (operatorv1.ManagementState): The desired management state (e.g., Managed, Removed).
 //   - kind (string): The component kind (e.g., "Dashboard", "Workbenches").
 func (tc *TestContext) UpdateComponentStateInDataScienceClusterWithKind(state operatorv1.ManagementState, kind string) {
-	componentName := strings.ToLower(kind)
-
-	// Map DataSciencePipelines to aipipelines for v2 API
-	componentFieldName := componentName
-	conditionKind := kind
-	const dataSciencePipelinesKind = "DataSciencePipelines"
-	const aiPipelinesFieldName = "aipipelines"
-	if kind == dataSciencePipelinesKind {
-		componentFieldName = aiPipelinesFieldName
-		conditionKind = "AIPipelines"
-	}
+	componentName, conditionKind := getComponentNameFromKind(kind)
 
 	readyCondition := metav1.ConditionFalse
 	if state == operatorv1.Managed {
@@ -796,7 +786,7 @@ func (tc *TestContext) UpdateComponentStateInDataScienceClusterWithKind(state op
 	// Define common conditions to match.
 	conditions := []gTypes.GomegaMatcher{
 		// Validate that the component's management state is updated correctly
-		jq.Match(`.spec.components.%s.managementState == "%s"`, componentFieldName, state),
+		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, state),
 
 		// Validate the "Ready" condition for the component
 		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, conditionKind, readyCondition),
@@ -805,7 +795,7 @@ func (tc *TestContext) UpdateComponentStateInDataScienceClusterWithKind(state op
 	// Update the management state of the component in the DataScienceCluster.
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentFieldName, state)),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, state)),
 		WithCondition(And(conditions...)),
 	)
 }
@@ -2075,4 +2065,19 @@ func (tc *TestContext) ScaleCSVDeploymentReplicas(
 	}
 
 	return originalReplicas
+}
+
+func getComponentNameFromKind(kind string) (string, string) {
+	componentName := strings.ToLower(kind)
+
+	componentFieldName := componentName
+	conditionKind := kind
+	const dataSciencePipelinesKind = "DataSciencePipelines"
+	const aiPipelinesFieldName = "aipipelines"
+	if kind == dataSciencePipelinesKind {
+		componentFieldName = aiPipelinesFieldName
+		conditionKind = "AIPipelines"
+	}
+
+	return componentFieldName, conditionKind
 }

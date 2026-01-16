@@ -22,6 +22,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
+	gTypes "github.com/onsi/gomega/types"
 )
 
 // ComponentTestCtx holds the context for component tests.
@@ -278,23 +279,8 @@ func (tc *ComponentTestCtx) EnsureParentComponentEnabled(t *testing.T) {
 		t.Fatal("EnsureParentComponentEnabled called on a component without parent information.")
 	}
 
-	parentComponentName := strings.ToLower(tc.ParentKind)
-
 	// Enable the parent component
 	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, tc.ParentKind)
-
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithCondition(
-			And(
-				// Ensure the parent component's management state is "Managed"
-				jq.Match(`.spec.components.%s.managementState == "%s"`, parentComponentName, operatorv1.Managed),
-				// Ensure the parent component is ready
-				jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.ParentKind, metav1.ConditionTrue),
-			),
-		),
-		WithCustomErrorMsg("Parent component should be enabled and ready"),
-	)
 }
 
 // UpdateSubComponentStateInDataScienceCluster updates the management state of a subcomponent in the DataScienceCluster.
@@ -305,15 +291,38 @@ func (tc *ComponentTestCtx) UpdateSubComponentStateInDataScienceCluster(t *testi
 		t.Fatal("UpdateSubComponentStateInDataScienceCluster called on a component without parent/subcomponent information.")
 	}
 
-	parentComponentName := strings.ToLower(tc.ParentKind)
+	parentComponentName, parentConditionKind := getComponentNameFromKind(tc.ParentKind)
+	subComponentName := tc.SubComponentFieldName
+
+	readyCondition := metav1.ConditionFalse
+	if state == operatorv1.Managed {
+		readyCondition = metav1.ConditionTrue
+	}
+
+	// Define common conditions to match.
+	conditions := []gTypes.GomegaMatcher{
+		// Validate that the component's management state is updated correctly
+		jq.Match(`.spec.components.%s.%s.managementState == "%s"`, parentComponentName, subComponentName, state),
+	}
+
+	if readyCondition == metav1.ConditionTrue {
+		// If the component is managed, the parent component should be ready
+		conditions = append(conditions,
+			// Validate the "Ready" condition for the parent component
+			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, parentConditionKind, metav1.ConditionTrue),
+		)
+	}
+
+	conditions = append(conditions,
+		// Validate the "Ready" condition for the subcomponent
+		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, readyCondition),
+	)
 
 	// Update the subcomponent's management state
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.%s.%s.managementState = "%s"`, parentComponentName, tc.SubComponentFieldName, state)),
-		WithCondition(
-			jq.Match(`.spec.components.%s.%s.managementState == "%s"`, parentComponentName, tc.SubComponentFieldName, state),
-		),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.%s.managementState = "%s"`, parentComponentName, subComponentName, state)),
+		WithCondition(And(conditions...)),
 	)
 }
 
@@ -355,7 +364,8 @@ func (tc *ComponentTestCtx) ValidateSubComponentReleases(t *testing.T) {
 		t.Fatal("ValidateSubComponentReleases called on a component without parent/subcomponent information.")
 	}
 
-	parentComponentName := strings.ToLower(tc.ParentKind)
+	parentComponentName, _ := getComponentNameFromKind(tc.ParentKind)
+	subComponentName := tc.SubComponentFieldName
 
 	// Ensure the DataScienceCluster exists and the parent component's conditions are met
 	tc.EnsureResourceExists(
@@ -365,7 +375,7 @@ func (tc *ComponentTestCtx) ValidateSubComponentReleases(t *testing.T) {
 				// Ensure the parent component's management state is "Managed"
 				jq.Match(`.spec.components.%s.managementState == "%s"`, parentComponentName, operatorv1.Managed),
 				// Ensure the subcomponent's management state is "Managed"
-				jq.Match(`.spec.components.%s.%s.managementState == "%s"`, parentComponentName, tc.SubComponentFieldName, operatorv1.Managed),
+				jq.Match(`.spec.components.%s.%s.managementState == "%s"`, parentComponentName, subComponentName, operatorv1.Managed),
 				// Validate that the releases field contains at least one release for the parent component
 				jq.Match(`.status.components.%s.releases | length > 0`, parentComponentName),
 				// Validate the fields (name, version, repoUrl) for each release
