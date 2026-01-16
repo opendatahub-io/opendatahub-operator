@@ -12,7 +12,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE
   value: "quay.io/rhoai/odh-trustyai-service-rhel9@sha256:a94fe8783dbaf9f47a0cbcdf7686999fe5422b4dc76df776cf82cf8b36ad9b45"
 - name: RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-trustyai-service-operator-rhel9@sha256:202c2dd7cd3c714474da35e1550f34c8817da16b399f4f7d8dae6d922fe4bb41"
+  value: "quay.io/rhoai/odh-trustyai-service-operator-rhel9@sha256:d274bc728cfb0ec16cd797289599037ea6d224288c23790033c584313cc55948"
 - name: RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kuberay-operator-controller-rhel9@sha256:bb72b585f14b6d76973d7091078f5279c9d30eafc602b1b9cb35bd5a425eb9f5"
 - name: RELATED_IMAGE_ODH_MLMD_GRPC_SERVER_IMAGE
@@ -60,7 +60,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KSERVE_STORAGE_INITIALIZER_IMAGE
   value: "quay.io/rhoai/odh-kserve-storage-initializer-rhel9@sha256:6f6d2db57c4db7ba6e600229cfe3797b7dbf9a8be20323c0c4ab7f37e9db6be6"
 - name: RELATED_IMAGE_ODH_TA_LMES_DRIVER_IMAGE
-  value: "quay.io/rhoai/odh-ta-lmes-driver-rhel9@sha256:8bdba4b5da8d9f8a9b0a51b421754a646cfc8550fe376109b6f4743e486986e5"
+  value: "quay.io/rhoai/odh-ta-lmes-driver-rhel9@sha256:6a22f5136c0ea8d0010a8f91de3a214208bd7683e2172a03dab33ad1754395ac"
 - name: RELATED_IMAGE_ODH_TA_LMES_JOB_IMAGE
   value: "quay.io/rhoai/odh-ta-lmes-job-rhel9@sha256:2080861f276037c6ff7fac7d5fef56f40a213c02995550ce04466c4f7afe41ab"
 - name: RELATED_IMAGE_ODH_FMS_GUARDRAILS_ORCHESTRATOR_IMAGE
