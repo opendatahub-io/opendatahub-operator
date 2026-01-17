@@ -159,9 +159,7 @@ operators.operatorframework.io/internal-objects: '["featuretrackers.features.ope
 
 #### Add component to the owned objects list
 
-Add your component to the `owned` list under `customresourcedefinitions` in `config/manifests/bases/opendatahub-operator.clusterserviceversion.yaml` and `config/rhoai/manifests/bases/rhods-operator.clusterserviceversion.yaml` by running `make bundle && ODH_PLATFORM_TYPE=rhoai`. 
-
-Verify your component has been correctly added to the list:
+Add your component to the `owned` list under `customresourcedefinitions` in `config/manifests/bases/opendatahub-operator.clusterserviceversion.yaml` and `config/rhoai/manifests/bases/rhods-operator.clusterserviceversion.yaml`:
 
 ```yaml
     owned:
@@ -171,6 +169,8 @@ Verify your component has been correctly added to the list:
       name: examplecomponents.components.platform.opendatahub.io
       version: v1alpha1
 ```
+
+and run `make bundle-all` to verify your component has been correctly added to the list.
 
 #### Add Component to DataScienceCluster API spec
 
