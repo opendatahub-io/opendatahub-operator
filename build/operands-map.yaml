@@ -62,7 +62,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TA_LMES_DRIVER_IMAGE
   value: "quay.io/rhoai/odh-ta-lmes-driver-rhel9@sha256:012fac2103d7eb55c42b31815ff8302822da2fdd603108980dd9aa420bd3711a"
 - name: RELATED_IMAGE_ODH_TA_LMES_JOB_IMAGE
-  value: "quay.io/rhoai/odh-ta-lmes-job-rhel9@sha256:2080861f276037c6ff7fac7d5fef56f40a213c02995550ce04466c4f7afe41ab"
+  value: "quay.io/rhoai/odh-ta-lmes-job-rhel9@sha256:ec06ab8ca53a41d4b1d82ad845c165567f2e52f61c4d89bb76b8625474b4d884"
 - name: RELATED_IMAGE_ODH_FMS_GUARDRAILS_ORCHESTRATOR_IMAGE
   value: "quay.io/rhoai/odh-fms-guardrails-orchestrator-rhel9@sha256:44b3693338884d628ba85a4fdafcf0e10239332b9a5abd20e4401b2a46fa08b0"
 - name: RELATED_IMAGE_ODH_TRUSTYAI_VLLM_ORCHESTRATOR_GATEWAY_IMAGE
@@ -104,7 +104,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_GUARDRAILS_DETECTOR_HUGGINGFACE_RUNTIME_IMAGE
   value: "quay.io/rhoai/odh-guardrails-detector-huggingface-runtime-rhel9@sha256:b90f15f4cb8409fcdf7f29a7a52883bc75a29da0b467aaa397e0c5d37a4e6db6"
 - name: RELATED_IMAGE_ODH_OPENVINO_MODEL_SERVER_IMAGE
-  value: "quay.io/rhoai/odh-openvino-model-server-rhel9@sha256:935ce55871ef0ecbffdc27b9e8c0a34c5bc33ad4134dba2b3e6ea2d089836f92"
+  value: "quay.io/rhoai/odh-openvino-model-server-rhel9@sha256:f15dc4fa5257e28bbb6ccf3768d25df434a6523e4c0dcc33f170380a71985a3f"
 - name: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
   value: "quay.io/rhoai/odh-vllm-cpu-rhel9@sha256:79ef1d78266ad6bbc7c7687250a6bdfca3f203ae2248f91c699f48c1d6336afa"
 - name: RELATED_IMAGE_ODH_VLLM_GAUDI_IMAGE

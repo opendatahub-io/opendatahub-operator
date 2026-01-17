@@ -137,7 +137,7 @@ additional_meta:
     git.commit: bd34ecfa457a086541036c638740ca8e19842f87
   odh-ta-lmes-job:
     git.url: https://github.com/red-hat-data-services/lm-evaluation-harness
-    git.commit: d5168a76f4e2177c484f03ea9e1d7927e9c91768
+    git.commit: 0e3405bb94031fdd29baed2cb32c75cfff65e55c
   odh-fms-guardrails-orchestrator:
     git.url: https://github.com/red-hat-data-services/fms-guardrails-orchestrator
     git.commit: fa63063694c9f2b19aa6292f0f6ee13995ea47ef
@@ -200,7 +200,7 @@ additional_meta:
     git.commit: 50fb763f8c00520550bcf0527499d145edf61ff2
   odh-openvino-model-server:
     git.url: https://github.com/red-hat-data-services/openvino_model_server
-    git.commit: d0e523c46724efb537a185ef035c96ed0209e411
+    git.commit: 2bffe6523a37b7a763f2ce26a8a53a315aee162b
   odh-vllm-cpu:
     git.url: https://github.com/red-hat-data-services/vllm-cpu
     git.commit: 063d5165e8190d17aa4f4abf56d384b50c2ec2f3
