@@ -2,7 +2,6 @@
 package modelsasservice
 
 import (
-	"context"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -44,7 +43,7 @@ func TestGatewayValidation(t *testing.T) {
 				Client:   cli,
 			}
 
-			err := validateGateway(context.Background(), rr)
+			err := validateGateway(t.Context(), rr)
 			g.Expect(err).ShouldNot(HaveOccurred())
 		})
 
@@ -66,7 +65,7 @@ func TestGatewayValidation(t *testing.T) {
 				Client:   cli,
 			}
 
-			err := validateGateway(context.Background(), rr)
+			err := validateGateway(t.Context(), rr)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
 			// Verify defaults were applied
@@ -94,7 +93,7 @@ func TestGatewayValidation(t *testing.T) {
 				Client:   cli,
 			}
 
-			err := validateGateway(context.Background(), rr)
+			err := validateGateway(t.Context(), rr)
 			g.Expect(err).Should(HaveOccurred())
 			g.Expect(err.Error()).Should(ContainSubstring("invalid gateway specification: when specifying a custom gateway, both namespace and name must be provided"))
 		})
@@ -119,7 +118,7 @@ func TestGatewayValidation(t *testing.T) {
 				Client:   cli,
 			}
 
-			err := validateGateway(context.Background(), rr)
+			err := validateGateway(t.Context(), rr)
 			g.Expect(err).Should(HaveOccurred())
 			g.Expect(err.Error()).Should(ContainSubstring("invalid gateway specification: when specifying a custom gateway, both namespace and name must be provided"))
 		})
@@ -145,7 +144,7 @@ func TestGatewayValidation(t *testing.T) {
 				Client:   cli,
 			}
 
-			err := validateGateway(context.Background(), rr)
+			err := validateGateway(t.Context(), rr)
 			g.Expect(err).Should(HaveOccurred())
 			g.Expect(err.Error()).Should(ContainSubstring("gateway non-existent-namespace/non-existent-gateway not found"))
 			g.Expect(err.Error()).Should(ContainSubstring("the specified Gateway must exist before enabling ModelsAsService"))
@@ -169,14 +168,14 @@ func TestGatewayValidation(t *testing.T) {
 				Client:   cli,
 			}
 
-			err := validateGateway(context.Background(), rr)
+			err := validateGateway(t.Context(), rr)
 			g.Expect(err).Should(HaveOccurred())
 			g.Expect(err.Error()).Should(ContainSubstring("not found"))
 		})
 	})
 }
 
-func TestConfigureGatewayAuthPolicy(t *testing.T) {
+func TestConfigureGatewayNamespaceResources(t *testing.T) {
 	g := NewWithT(t)
 
 	t.Run("Configure Gateway AuthPolicy", func(t *testing.T) {
@@ -200,7 +199,7 @@ func TestConfigureGatewayAuthPolicy(t *testing.T) {
 				Resources: []unstructured.Unstructured{authPolicy},
 			}
 
-			err := configureGatewayAuthPolicy(context.Background(), rr)
+			err := configureGatewayNamespaceResources(t.Context(), rr)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
 			// Verify namespace was updated
@@ -232,7 +231,7 @@ func TestConfigureGatewayAuthPolicy(t *testing.T) {
 				Resources: []unstructured.Unstructured{},
 			}
 
-			err := configureGatewayAuthPolicy(context.Background(), rr)
+			err := configureGatewayNamespaceResources(t.Context(), rr)
 			g.Expect(err).ShouldNot(HaveOccurred())
 		})
 
@@ -257,7 +256,7 @@ func TestConfigureGatewayAuthPolicy(t *testing.T) {
 				Resources: []unstructured.Unstructured{otherAuthPolicy},
 			}
 
-			err := configureGatewayAuthPolicy(context.Background(), rr)
+			err := configureGatewayNamespaceResources(t.Context(), rr)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
 			// Verify namespace was NOT updated
@@ -297,7 +296,7 @@ func TestConfigureGatewayAuthPolicy(t *testing.T) {
 				Resources: []unstructured.Unstructured{*configMap, gatewayAuthPolicy, otherAuthPolicy},
 			}
 
-			err := configureGatewayAuthPolicy(context.Background(), rr)
+			err := configureGatewayNamespaceResources(t.Context(), rr)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
 			// ConfigMap should be unchanged
@@ -312,6 +311,106 @@ func TestConfigureGatewayAuthPolicy(t *testing.T) {
 			g.Expect(rr.Resources[2].GetNamespace()).Should(Equal("keep-namespace"))
 			otherTargetRefName, _, _ := unstructured.NestedString(rr.Resources[2].Object, "spec", "targetRef", "name")
 			g.Expect(otherTargetRefName).Should(Equal("keep-gateway"))
+		})
+	})
+
+	t.Run("Configure Gateway DestinationRule", func(t *testing.T) {
+		t.Run("should update DestinationRule namespace when found", func(t *testing.T) {
+			maas := &componentApi.ModelsAsService{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: componentApi.ModelsAsServiceInstanceName,
+				},
+				Spec: componentApi.ModelsAsServiceSpec{
+					Gateway: componentApi.GatewaySpec{
+						Namespace: "custom-gateway-ns",
+						Name:      "custom-gateway",
+					},
+				},
+			}
+
+			destinationRule := createDestinationRule(GatewayDestinationRuleName, "wrong-namespace")
+
+			rr := &types.ReconciliationRequest{
+				Instance:  maas,
+				Resources: []unstructured.Unstructured{destinationRule},
+			}
+
+			err := configureGatewayNamespaceResources(t.Context(), rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			// Verify namespace was updated
+			g.Expect(rr.Resources[0].GetNamespace()).Should(Equal("custom-gateway-ns"))
+		})
+
+		t.Run("should not modify DestinationRule with different name", func(t *testing.T) {
+			maas := &componentApi.ModelsAsService{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: componentApi.ModelsAsServiceInstanceName,
+				},
+				Spec: componentApi.ModelsAsServiceSpec{
+					Gateway: componentApi.GatewaySpec{
+						Namespace: "custom-gateway-ns",
+						Name:      "custom-gateway",
+					},
+				},
+			}
+
+			// DestinationRule with a different name should not be modified
+			otherDestinationRule := createDestinationRule("other-destination-rule", "original-namespace")
+
+			rr := &types.ReconciliationRequest{
+				Instance:  maas,
+				Resources: []unstructured.Unstructured{otherDestinationRule},
+			}
+
+			err := configureGatewayNamespaceResources(t.Context(), rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			// Verify namespace was NOT updated
+			g.Expect(rr.Resources[0].GetNamespace()).Should(Equal("original-namespace"))
+		})
+	})
+
+	t.Run("Configure Both AuthPolicy and DestinationRule", func(t *testing.T) {
+		t.Run("should update both AuthPolicy and DestinationRule namespaces", func(t *testing.T) {
+			maas := &componentApi.ModelsAsService{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: componentApi.ModelsAsServiceInstanceName,
+				},
+				Spec: componentApi.ModelsAsServiceSpec{
+					Gateway: componentApi.GatewaySpec{
+						Namespace: "target-gateway-ns",
+						Name:      "target-gateway",
+					},
+				},
+			}
+
+			authPolicy := createAuthPolicy(GatewayAuthPolicyName, "old-namespace", "old-gateway")
+			destinationRule := createDestinationRule(GatewayDestinationRuleName, "old-namespace")
+			configMap := &unstructured.Unstructured{}
+			configMap.SetAPIVersion("v1")
+			configMap.SetKind("ConfigMap")
+			configMap.SetName("some-config")
+			configMap.SetNamespace("app-namespace")
+
+			rr := &types.ReconciliationRequest{
+				Instance:  maas,
+				Resources: []unstructured.Unstructured{authPolicy, destinationRule, *configMap},
+			}
+
+			err := configureGatewayNamespaceResources(t.Context(), rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			// AuthPolicy should be updated
+			g.Expect(rr.Resources[0].GetNamespace()).Should(Equal("target-gateway-ns"))
+			targetRefName, _, _ := unstructured.NestedString(rr.Resources[0].Object, "spec", "targetRef", "name")
+			g.Expect(targetRefName).Should(Equal("target-gateway"))
+
+			// DestinationRule should be updated
+			g.Expect(rr.Resources[1].GetNamespace()).Should(Equal("target-gateway-ns"))
+
+			// ConfigMap should be unchanged
+			g.Expect(rr.Resources[2].GetNamespace()).Should(Equal("app-namespace"))
 		})
 	})
 }
@@ -329,6 +428,19 @@ func createAuthPolicy(name, namespace, targetGatewayName string) unstructured.Un
 	_ = unstructured.SetNestedField(authPolicy.Object, "gateway.networking.k8s.io", "spec", "targetRef", "group")
 
 	return authPolicy
+}
+
+// createDestinationRule creates an unstructured DestinationRule resource for testing.
+func createDestinationRule(name, namespace string) unstructured.Unstructured {
+	destinationRule := unstructured.Unstructured{}
+	destinationRule.SetGroupVersionKind(gvk.DestinationRule)
+	destinationRule.SetName(name)
+	destinationRule.SetNamespace(namespace)
+
+	// Set spec.host (typical for DestinationRule)
+	_ = unstructured.SetNestedField(destinationRule.Object, "*.local", "spec", "host")
+
+	return destinationRule
 }
 
 // createFakeClientWithGateway creates a fake client with a Gateway resource.

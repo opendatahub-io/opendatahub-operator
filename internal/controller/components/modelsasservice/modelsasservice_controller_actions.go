@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/go-logr/logr"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -108,10 +109,16 @@ func customizeManifests(_ context.Context, rr *types.ReconciliationRequest) erro
 	return nil
 }
 
-// Post Render action that configures the gateway-auth-policy.
-// 1. Sets the namespace to match the gateway's namespace (since AuthPolicy must be in the same namespace as the gateway).
+// configureGatewayNamespaceResources is a post-render action that configures resources
+// that must be deployed to the gateway's namespace.
+//
+// For AuthPolicy:
+// 1. Sets the namespace to match the gateway's namespace (AuthPolicy must be in the same namespace as the gateway).
 // 2. Updates spec.targetRef.name to point to the configured gateway name.
-func configureGatewayAuthPolicy(ctx context.Context, rr *types.ReconciliationRequest) error {
+//
+// For DestinationRule:
+// 1. Sets the namespace to match the gateway's namespace (DestinationRule must be in the same namespace as the gateway).
+func configureGatewayNamespaceResources(ctx context.Context, rr *types.ReconciliationRequest) error {
 	log := logf.FromContext(ctx)
 
 	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
@@ -127,30 +134,22 @@ func configureGatewayAuthPolicy(ctx context.Context, rr *types.ReconciliationReq
 		"gatewayName", gatewayName)
 
 	authPolicyFound := false
+	destinationRuleFound := false
+
 	for idx := range rr.Resources {
 		resource := &rr.Resources[idx]
+		resourceGVK := resource.GroupVersionKind()
 
-		// Only process AuthPolicy resources with the specific name
-		if resource.GroupVersionKind() != gvk.AuthPolicyv1 {
-			continue
-		}
+		switch {
+		case resourceGVK == gvk.AuthPolicyv1 && resource.GetName() == GatewayAuthPolicyName:
+			authPolicyFound = true
+			if err := configureAuthPolicy(log, resource, gatewayNamespace, gatewayName); err != nil {
+				return err
+			}
 
-		if resource.GetName() != GatewayAuthPolicyName {
-			continue
-		}
-
-		authPolicyFound = true
-		log.V(4).Info("Configuring gateway-auth-policy AuthPolicy",
-			"originalNamespace", resource.GetNamespace(),
-			"newNamespace", gatewayNamespace,
-			"newTargetGateway", gatewayName)
-
-		// Set the namespace to match the gateway's namespace
-		resource.SetNamespace(gatewayNamespace)
-
-		// Update spec.targetRef.name to point to the configured gateway
-		if err := unstructured.SetNestedField(resource.Object, gatewayName, "spec", "targetRef", "name"); err != nil {
-			return fmt.Errorf("failed to set spec.targetRef.name on AuthPolicy: %w", err)
+		case resourceGVK == gvk.DestinationRule && resource.GetName() == GatewayDestinationRuleName:
+			destinationRuleFound = true
+			configureDestinationRule(log, resource, gatewayNamespace)
 		}
 	}
 
@@ -160,5 +159,38 @@ func configureGatewayAuthPolicy(ctx context.Context, rr *types.ReconciliationReq
 			"expectedGVK", gvk.AuthPolicyv1.String())
 	}
 
+	if !destinationRuleFound {
+		log.V(1).Info("DestinationRule not found in rendered resources",
+			"expectedName", GatewayDestinationRuleName,
+			"expectedGVK", gvk.DestinationRule.String())
+	}
+
 	return nil
+}
+
+// configureAuthPolicy updates the AuthPolicy resource to use the correct gateway namespace and name.
+func configureAuthPolicy(log logr.Logger, resource *unstructured.Unstructured, gatewayNamespace, gatewayName string) error {
+	log.V(4).Info("Configuring AuthPolicy",
+		"name", resource.GetName(),
+		"originalNamespace", resource.GetNamespace(),
+		"newNamespace", gatewayNamespace,
+		"newTargetGateway", gatewayName)
+
+	resource.SetNamespace(gatewayNamespace)
+
+	if err := unstructured.SetNestedField(resource.Object, gatewayName, "spec", "targetRef", "name"); err != nil {
+		return fmt.Errorf("failed to set spec.targetRef.name on AuthPolicy: %w", err)
+	}
+
+	return nil
+}
+
+// configureDestinationRule updates the DestinationRule resource to use the correct gateway namespace.
+func configureDestinationRule(log logr.Logger, resource *unstructured.Unstructured, gatewayNamespace string) {
+	log.V(4).Info("Configuring DestinationRule",
+		"name", resource.GetName(),
+		"originalNamespace", resource.GetNamespace(),
+		"newNamespace", gatewayNamespace)
+
+	resource.SetNamespace(gatewayNamespace)
 }
