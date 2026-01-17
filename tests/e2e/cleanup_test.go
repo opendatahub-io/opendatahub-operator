@@ -31,7 +31,7 @@ func CleanupPreviousTestResources(t *testing.T) {
 	tc.DeleteResource(
 		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: tc.AppsNamespace}),
 		WithIgnoreNotFound(true),
-		WithWaitForDeletion(false),
+		WithWaitForDeletion(true),
 	)
 
 	// Cleanup Kueue cluster-scoped resources
@@ -95,16 +95,10 @@ func cleanupKueueTestResources(t *testing.T, tc *TestContext) {
 	for _, resource := range clusterScopedResources {
 		t.Logf("Attempting to delete %s %s/%s", resource.gvk.Kind, resource.namespacedName.Namespace, resource.namespacedName.Name)
 
-		// For CRD-dependent resources, skip finalizer removal to avoid fetching non-existent resources
-		removeFinalizersOnDelete := true
-		if resource.gvk.Kind == gvk.ClusterQueue.Kind || resource.gvk.Kind == gvk.KueueConfigV1.Kind {
-			removeFinalizersOnDelete = false
-		}
-
 		tc.DeleteResource(
 			WithMinimalObject(resource.gvk, resource.namespacedName),
 			WithIgnoreNotFound(true),
-			WithRemoveFinalizersOnDelete(removeFinalizersOnDelete),
+			WithRemoveFinalizersOnDelete(true),
 			WithWaitForDeletion(false),
 			WithAcceptableErr(meta.IsNoMatchError, "IsNoMatchError"),
 		)

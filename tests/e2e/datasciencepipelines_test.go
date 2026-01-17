@@ -36,8 +36,7 @@ func dataSciencePipelinesTestSuite(t *testing.T) {
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
-		{"Validate argoWorkflowsControllers options v1", componentCtx.ValidateArgoWorkflowsControllersOptionsV1},
-		{"Validate argoWorkflowsControllers options v2", componentCtx.ValidateArgoWorkflowsControllersOptionsV2},
+		{"Validate argoWorkflowsControllers options", componentCtx.ValidateArgoWorkflowsControllersOptions},
 		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
@@ -58,28 +57,9 @@ func (tc *DataSciencePipelinesTestCtx) ValidateConditions(t *testing.T) {
 	)
 }
 
-// ValidateArgoWorkflowsControllersOptionsV1 ensures the DataSciencePipelines component is ready if the
-// argoWorkflowsControllersSpec options are set to "Removed" when using v1 API (datasciencepipelines field).
-func (tc *DataSciencePipelinesTestCtx) ValidateArgoWorkflowsControllersOptionsV1(t *testing.T) {
-	t.Helper()
-
-	tc.EventuallyResourcePatched(
-		WithMinimalObject(gvk.DataScienceClusterV1, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.datasciencepipelines.argoWorkflowsControllers.managementState = "%s"`, operatorv1.Removed)),
-		WithCondition(
-			And(
-				// Verify v1 condition type exists
-				jq.Match(`.status.conditions[] | select(.type == "DataSciencePipelinesReady") | .status == "True"`),
-				// Verify v2 condition type does NOT exist
-				jq.Match(`[.status.conditions[] | select(.type == "AIPipelinesReady")] | length == 0`),
-			),
-		),
-	)
-}
-
 // ValidateArgoWorkflowsControllersOptionsV2 ensures the DataSciencePipelines component is ready if the
 // argoWorkflowsControllersSpec options are set to "Removed" when using v2 API (aipipelines field).
-func (tc *DataSciencePipelinesTestCtx) ValidateArgoWorkflowsControllersOptionsV2(t *testing.T) {
+func (tc *DataSciencePipelinesTestCtx) ValidateArgoWorkflowsControllersOptions(t *testing.T) {
 	t.Helper()
 
 	tc.EventuallyResourcePatched(
