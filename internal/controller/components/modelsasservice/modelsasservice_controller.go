@@ -22,12 +22,14 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
@@ -50,12 +52,14 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// RBAC resources
 		Owns(&rbacv1.ClusterRole{}).
 		Owns(&rbacv1.ClusterRoleBinding{}).
+		// Networking resources
+		Owns(&networkingv1.NetworkPolicy{}).
 		// Gateway API resources
 		Owns(&gwapiv1.HTTPRoute{}).
 		Owns(&gwapiv1.Gateway{}).
-		// Note: AuthPolicy (kuadrant.io/v1) is not included here as it's a third-party CRD
-		// that may not be available in all environments. It should be handled by the
-		// manifest deployment process.
+		// Third-party CRDs that may not be available in all environments.
+		OwnsGVK(gvk.AuthPolicyv1, reconciler.Dynamic(reconciler.CrdExists(gvk.AuthPolicyv1))).
+		OwnsGVK(gvk.DestinationRule, reconciler.Dynamic(reconciler.CrdExists(gvk.DestinationRule))).
 		Watches(
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(
@@ -63,16 +67,24 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithPredicates(
 				component.ForLabel(labels.ODH.Component(ComponentName), labels.True)),
 		).
+		// Note: The component manifests define a configmap with the annotation
+		// opendatahub.io/managed: "false". Adding this watch allows the controller to
+		// recreate the configmap with default values when it is deleted.
+		Watches(
+			&corev1.ConfigMap{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.ModelsAsServiceInstanceName),
+			),
+			reconciler.WithPredicates(resources.Deleted()),
+		).
 		WithAction(initialize).
 		WithAction(validateGateway).
 		WithAction(customizeManifests).
-		// WithAction(releases.NewAction()). // TODO: Do we need this? How to fix annotation of "platform.opendatahub.io/version:0.0.0"
 		WithAction(kustomize.NewAction(
-			// TODO: There are comments in some components mentioning these are legacy labels. Do we still need these?
 			kustomize.WithLabel(labels.ODH.Component(ComponentName), labels.True),
-			kustomize.WithLabel(labels.K8SCommon.PartOf, ComponentName),
 		)).
-		WithAction(configureGatewayAuthPolicy).
+		// WithAction(releases.NewAction()). // TODO: Do we need this? How to fix annotation of "platform.opendatahub.io/version:0.0.0"
+		WithAction(configureGatewayNamespaceResources).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).

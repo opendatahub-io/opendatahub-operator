@@ -134,4 +134,15 @@ rules:
     - create
     - patch
     - delete
-
+- apiGroups:
+    - '' 
+  resources:
+    - configmaps
+  resourceNames:
+    - tier-to-group-mapping
+  verbs:
+    - get
+    - list
+    - watch
+    - patch
+    - update

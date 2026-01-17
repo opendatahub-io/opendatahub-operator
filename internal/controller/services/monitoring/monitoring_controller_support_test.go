@@ -849,6 +849,8 @@ func validateTemplates(t *testing.T, g Gomega, rr *odhtypes.ReconciliationReques
 			"Alertmanager RBAC template should be included when MonitoringStack enabled")
 		g.Expect(templatePaths).Should(ContainElement(PrometheusRouteTemplate),
 			"Prometheus route template should be included when MonitoringStack enabled")
+		g.Expect(templatePaths).Should(ContainElement(PrometheusSelfServiceMonitorTemplate),
+			"Prometheus self ServiceMonitor template should be included when MonitoringStack enabled")
 	} else {
 		g.Expect(templatePaths).ShouldNot(ContainElement(MonitoringStackTemplate),
 			"MonitoringStack template should be excluded when disabled")
@@ -856,6 +858,8 @@ func validateTemplates(t *testing.T, g Gomega, rr *odhtypes.ReconciliationReques
 			"Alertmanager RBAC template should be excluded when MonitoringStack disabled")
 		g.Expect(templatePaths).ShouldNot(ContainElement(PrometheusRouteTemplate),
 			"Prometheus route template should be excluded when MonitoringStack disabled")
+		g.Expect(templatePaths).ShouldNot(ContainElement(PrometheusSelfServiceMonitorTemplate),
+			"Prometheus self ServiceMonitor template should be excluded when MonitoringStack disabled")
 	}
 
 	if tt.expectedTQTemplates > 0 {
@@ -882,9 +886,9 @@ func TestMonitoringStackThanosQuerierIntegration(t *testing.T) {
 			hasThanosQuerierCRD:       true,
 			expectedMSConditionStatus: "True",
 			expectedTQConditionStatus: "True",
-			expectedMSTemplates:       8, // MonitoringStack + Alertmanager RBAC + PrometheusRoute +
+			expectedMSTemplates:       9, // MonitoringStack + Alertmanager RBAC + PrometheusRoute +
 			// PrometheusServiceOverride + PrometheusNetworkPolicy + PrometheusWebTLSService +
-			// PrometheusNamespaceProxy + PrometheusNamespaceProxyNetworkPolicy
+			// PrometheusNamespaceProxy + PrometheusNamespaceProxyNetworkPolicy + PrometheusSelfServiceMonitor
 			expectedTQTemplates: 2, // ThanosQuerier + ThanosQuerierRoute
 			description:         "When both CRDs are available and metrics configured, both should be deployed",
 		},
@@ -1255,6 +1259,189 @@ func TestGetImageURL(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPrometheusSelfServiceMonitorTemplate(t *testing.T) {
+	ctx := t.Context()
+
+	tests := []struct {
+		name                  string
+		hasMetricsConfig      bool
+		hasMonitoringStackCRD bool
+		hasThanosQuerierCRD   bool
+		expectedTemplate      bool
+		description           string
+	}{
+		{
+			name:                  "Both CRDs available with metrics - ServiceMonitor template included",
+			hasMetricsConfig:      true,
+			hasMonitoringStackCRD: true,
+			hasThanosQuerierCRD:   true,
+			expectedTemplate:      true,
+			description:           "When all prerequisites are met, the prometheus-self ServiceMonitor should be deployed",
+		},
+		{
+			name:                  "Missing MonitoringStack CRD - no ServiceMonitor template",
+			hasMetricsConfig:      true,
+			hasMonitoringStackCRD: false,
+			hasThanosQuerierCRD:   true,
+			expectedTemplate:      false,
+			description:           "When MonitoringStack CRD is missing, no templates should be deployed (atomic deployment)",
+		},
+		{
+			name:                  "Missing ThanosQuerier CRD - no ServiceMonitor template",
+			hasMetricsConfig:      true,
+			hasMonitoringStackCRD: true,
+			hasThanosQuerierCRD:   false,
+			expectedTemplate:      false,
+			description:           "When ThanosQuerier CRD is missing, no templates should be deployed (atomic deployment)",
+		},
+		{
+			name:                  "No metrics configuration - no ServiceMonitor template",
+			hasMetricsConfig:      false,
+			hasMonitoringStackCRD: true,
+			hasThanosQuerierCRD:   true,
+			expectedTemplate:      false,
+			description:           "When metrics are not configured, the ServiceMonitor should not be deployed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			testCase := monitoringIntegrationTestCase{
+				hasMetricsConfig:      tt.hasMetricsConfig,
+				hasMonitoringStackCRD: tt.hasMonitoringStackCRD,
+				hasThanosQuerierCRD:   tt.hasThanosQuerierCRD,
+			}
+
+			objects := setupTestObjects(testCase)
+
+			fakeClient, err := setupFakeClient(objects, testCase)
+			g.Expect(err).ShouldNot(HaveOccurred(), "Failed to create fake client")
+
+			monitoring, ok := objects[0].(*serviceApi.Monitoring)
+			g.Expect(ok).Should(BeTrue(), "First object should be monitoring instance")
+
+			rr := &odhtypes.ReconciliationRequest{
+				Client:     fakeClient,
+				Instance:   monitoring,
+				Templates:  []odhtypes.TemplateInfo{},
+				Conditions: conditions.NewManager(monitoring, status.ConditionTypeReady),
+			}
+
+			err = deployMonitoringStackWithQuerierAndRestrictions(ctx, rr)
+			require.NoError(t, err, "deployMonitoringStackWithQuerierAndRestrictions should not return error")
+
+			// Collect template paths
+			templatePaths := make([]string, 0, len(rr.Templates))
+			for _, template := range rr.Templates {
+				templatePaths = append(templatePaths, template.Path)
+			}
+
+			if tt.expectedTemplate {
+				g.Expect(templatePaths).Should(ContainElement(PrometheusSelfServiceMonitorTemplate),
+					"Prometheus self ServiceMonitor template should be included: %s", tt.description)
+			} else {
+				g.Expect(templatePaths).ShouldNot(ContainElement(PrometheusSelfServiceMonitorTemplate),
+					"Prometheus self ServiceMonitor template should not be included: %s", tt.description)
+			}
+		})
+	}
+}
+
+func TestPrometheusSelfServiceMonitorTemplateContent(t *testing.T) {
+	g := NewWithT(t)
+
+	content, err := resourcesFS.ReadFile(PrometheusSelfServiceMonitorTemplate)
+	g.Expect(err).ShouldNot(HaveOccurred(), "Template file should be readable")
+
+	templateContent := string(content)
+
+	// Verify the template contains the correct serverName for TLS SANs fix
+	g.Expect(templateContent).Should(ContainSubstring("prometheus-operated.{{.Namespace}}.svc"),
+		"Template should use prometheus-operated as serverName to fix TLS SANs mismatch")
+
+	// Verify the template targets the correct service
+	g.Expect(templateContent).Should(ContainSubstring("app.kubernetes.io/name: data-science-monitoringstack-prometheus"),
+		"Template should target data-science-monitoringstack-prometheus service")
+
+	// Verify it uses TLS with the correct CA configmap
+	g.Expect(templateContent).Should(ContainSubstring("prometheus-web-tls-ca"),
+		"Template should reference the prometheus-web-tls-ca ConfigMap for TLS")
+
+	// Verify the ServiceMonitor name indicates the fix
+	g.Expect(templateContent).Should(ContainSubstring("prometheus-self-fixed"),
+		"Template should have the prometheus-self-fixed name")
+
+	// Verify the job label replacement
+	g.Expect(templateContent).Should(ContainSubstring("prometheus-self-fixed"),
+		"Template should set job label to prometheus-self-fixed")
+
+	// Verify correct API group
+	g.Expect(templateContent).Should(ContainSubstring("monitoring.rhobs/v1"),
+		"Template should use monitoring.rhobs/v1 API version")
+}
+
+func TestPrometheusSelfServiceMonitorTemplateConstants(t *testing.T) {
+	// Verify that the template constant is properly defined
+	assert.Equal(t, "resources/prometheus-self-servicemonitor.tmpl.yaml", PrometheusSelfServiceMonitorTemplate,
+		"PrometheusSelfServiceMonitorTemplate constant should have the correct path")
+}
+
+func TestPrometheusWebTLSServiceDeployedWithServiceMonitor(t *testing.T) {
+	ctx := t.Context()
+	g := NewWithT(t)
+
+	testCase := monitoringIntegrationTestCase{
+		hasMetricsConfig:      true,
+		hasMonitoringStackCRD: true,
+		hasThanosQuerierCRD:   true,
+	}
+
+	objects := setupTestObjects(testCase)
+
+	fakeClient, err := setupFakeClient(objects, testCase)
+	g.Expect(err).ShouldNot(HaveOccurred(), "Failed to create fake client")
+
+	monitoring, ok := objects[0].(*serviceApi.Monitoring)
+	g.Expect(ok).Should(BeTrue(), "First object should be monitoring instance")
+
+	rr := &odhtypes.ReconciliationRequest{
+		Client:     fakeClient,
+		Instance:   monitoring,
+		Templates:  []odhtypes.TemplateInfo{},
+		Conditions: conditions.NewManager(monitoring, status.ConditionTypeReady),
+	}
+
+	err = deployMonitoringStackWithQuerierAndRestrictions(ctx, rr)
+	require.NoError(t, err, "deployMonitoringStackWithQuerierAndRestrictions should not return error")
+
+	templatePaths := make([]string, 0, len(rr.Templates))
+	for _, template := range rr.Templates {
+		templatePaths = append(templatePaths, template.Path)
+	}
+
+	// Verify both the TLS service and the ServiceMonitor are deployed together
+	g.Expect(templatePaths).Should(ContainElement(PrometheusWebTLSServiceTemplate),
+		"Prometheus web TLS service template should be deployed with ServiceMonitor")
+	g.Expect(templatePaths).Should(ContainElement(PrometheusSelfServiceMonitorTemplate),
+		"Prometheus self ServiceMonitor template should be deployed with TLS service")
+
+	// Verify the TLS service template is deployed before the ServiceMonitor
+	tlsServiceIdx := -1
+	serviceMonitorIdx := -1
+	for i, path := range templatePaths {
+		if path == PrometheusWebTLSServiceTemplate {
+			tlsServiceIdx = i
+		}
+		if path == PrometheusSelfServiceMonitorTemplate {
+			serviceMonitorIdx = i
+		}
+	}
+	g.Expect(tlsServiceIdx).Should(BeNumerically("<", serviceMonitorIdx),
+		"TLS service should be deployed before ServiceMonitor to ensure certificate is available")
 }
 
 func TestGetTemplateDataImageURLs(t *testing.T) {
