@@ -114,23 +114,28 @@ module.exports = async ({ github, core }) => {
                 const imageRefRegex = /^[a-z0-9.\-]+(?::[0-9]+)?\/[a-zA-Z0-9_.\-\/]+(?::[a-zA-Z0-9_.\-]+|@[a-z0-9]+:[a-f0-9]+)$/;
 
                 for (const imageLine of imageLines) {
-                    const trimmedLine = imageLine.trim();
+                    let trimmedLine = imageLine.trim();
 
                     // Skip empty lines
                     if (trimmedLine === "") {
                         continue;
                     }
 
+                    // Strip leading '- ' if present (GitHub markdown bullet format)
+                    if (trimmedLine.startsWith('- ')) {
+                        trimmedLine = trimmedLine.substring(2).trim();
+                    }
+
                     const parts = trimmedLine.split("|");
                     if (parts.length !== 2) {
-                        break;
+                        continue;
                     }
 
                     const imageName = parts[0].trim();
                     const imageReference = parts[1].trim();
 
                     if (!imageNameRegex.test(imageName) || !imageRefRegex.test(imageReference)) {
-                        break;
+                        continue;
                     }
 
                     console.log(`Processing operator image: ${imageName} -> ${imageReference}`);
