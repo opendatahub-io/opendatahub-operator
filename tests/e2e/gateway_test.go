@@ -365,7 +365,8 @@ func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 // - HPA exists with correct target deployment reference
 // - Minimum replicas is set to 2 (matching deployment initial replica count)
 // - Maximum replicas allows scaling up to 10 pods
-// - CPU utilization target is set to 70%
+// - CPU utilization target is set to 70%.
+// - Scaling behavior is configured for stable scale-down and rapid scale-up.
 func (tc *GatewayTestCtx) ValidateHPA(t *testing.T) {
 	t.Helper()
 	t.Log("Validating HorizontalPodAutoscaler for kube-auth-proxy")
@@ -385,6 +386,16 @@ func (tc *GatewayTestCtx) ValidateHPA(t *testing.T) {
 			jq.Match(`.spec.minReplicas == 2`),
 			jq.Match(`.spec.maxReplicas == 10`),
 
+			// Scale-down behavior: 5 min stabilization, 50% reduction per minute
+			jq.Match(`.spec.behavior.scaleDown.stabilizationWindowSeconds == 300`),
+			jq.Match(`.spec.behavior.scaleDown.policies[0].type == "Percent"`),
+			jq.Match(`.spec.behavior.scaleDown.policies[0].value == 50`),
+			jq.Match(`.spec.behavior.scaleDown.policies[0].periodSeconds == 60`),
+
+			// Scale-up behavior: immediate, aggressive scaling
+			jq.Match(`.spec.behavior.scaleUp.stabilizationWindowSeconds == 0`),
+			jq.Match(`.spec.behavior.scaleUp.selectPolicy == "Max"`),
+
 			// CPU utilization metric
 			jq.Match(`.spec.metrics | length == 1`),
 			jq.Match(`.spec.metrics[0].type == "Resource"`),
@@ -392,7 +403,7 @@ func (tc *GatewayTestCtx) ValidateHPA(t *testing.T) {
 			jq.Match(`.spec.metrics[0].resource.target.type == "Utilization"`),
 			jq.Match(`.spec.metrics[0].resource.target.averageUtilization == 70`),
 		)),
-		WithCustomErrorMsg("HPA should exist with minReplicas=2, maxReplicas=10, and CPU target=70%%"),
+		WithCustomErrorMsg("HPA should exist with correct scaling behavior and CPU target=70%%"),
 	)
 
 	t.Log("HorizontalPodAutoscaler validation completed")
