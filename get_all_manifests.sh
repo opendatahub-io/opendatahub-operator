@@ -34,22 +34,22 @@ declare -A ODH_COMPONENT_MANIFESTS=(
 
 # RHOAI Component Manifests
 declare -A RHOAI_COMPONENT_MANIFESTS=(
-    ["dashboard"]="red-hat-data-services:odh-dashboard:rhoai-3.2:manifests"
-    ["workbenches/kf-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.2:components/notebook-controller/config"
-    ["workbenches/odh-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.2:components/odh-notebook-controller/config"
-    ["workbenches/notebooks"]="red-hat-data-services:notebooks:rhoai-3.2:manifests"
-    ["kserve"]="red-hat-data-services:kserve:rhoai-3.2:config"
-    ["ray"]="red-hat-data-services:kuberay:rhoai-3.2:ray-operator/config"
-    ["trustyai"]="red-hat-data-services:trustyai-service-operator:rhoai-3.2:config"
-    ["modelregistry"]="red-hat-data-services:model-registry-operator:rhoai-3.2:config"
-    ["trainingoperator"]="red-hat-data-services:training-operator:rhoai-3.2:manifests"
-    ["datasciencepipelines"]="red-hat-data-services:data-science-pipelines-operator:rhoai-3.2:config"
-    ["modelcontroller"]="red-hat-data-services:odh-model-controller:rhoai-3.2:config"
-    ["feastoperator"]="red-hat-data-services:feast:rhoai-3.2:infra/feast-operator/config"
-    ["llamastackoperator"]="red-hat-data-services:llama-stack-k8s-operator:rhoai-3.2:config"
-    ["trainer"]="red-hat-data-services:trainer:rhoai-3.2:manifests"
-    ["maas"]="red-hat-data-services:maas-billing:rhoai-3.2:deployment"
-    ["mlflowoperator"]="red-hat-data-services:mlflow-operator:rhoai-3.2:config"
+    ["dashboard"]="red-hat-data-services:odh-dashboard:rhoai-3.3:manifests"
+    ["workbenches/kf-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.3:components/notebook-controller/config"
+    ["workbenches/odh-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.3:components/odh-notebook-controller/config"
+    ["workbenches/notebooks"]="red-hat-data-services:notebooks:rhoai-3.3:manifests"
+    ["kserve"]="red-hat-data-services:kserve:rhoai-3.3:config"
+    ["ray"]="red-hat-data-services:kuberay:rhoai-3.3:ray-operator/config"
+    ["trustyai"]="red-hat-data-services:trustyai-service-operator:rhoai-3.3:config"
+    ["modelregistry"]="red-hat-data-services:model-registry-operator:rhoai-3.3:config"
+    ["trainingoperator"]="red-hat-data-services:training-operator:rhoai-3.3:manifests"
+    ["datasciencepipelines"]="red-hat-data-services:data-science-pipelines-operator:rhoai-3.3:config"
+    ["modelcontroller"]="red-hat-data-services:odh-model-controller:rhoai-3.3:config"
+    ["feastoperator"]="red-hat-data-services:feast:rhoai-3.3:infra/feast-operator/config"
+    ["llamastackoperator"]="red-hat-data-services:llama-stack-k8s-operator:rhoai-3.3:config"
+    ["trainer"]="red-hat-data-services:trainer:rhoai-3.3:manifests"
+    ["maas"]="red-hat-data-services:maas-billing:rhoai-3.3:deployment"
+    ["mlflowoperator"]="red-hat-data-services:mlflow-operator:rhoai-3.3:config"
 )
 
 # Select the appropriate manifest based on platform type
