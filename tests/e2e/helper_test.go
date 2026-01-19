@@ -1370,7 +1370,7 @@ func getPodRestartCount(pod *corev1.Pod) int32 {
 // Helper function to get component GVK from kind string.
 func getComponentGVK(componentKind string) schema.GroupVersionKind {
 	return schema.GroupVersionKind{
-		Group:   "components.opendatahub.io",
+		Group:   "components.platform.opendatahub.io",
 		Version: "v1alpha1",
 		Kind:    componentKind,
 	}
