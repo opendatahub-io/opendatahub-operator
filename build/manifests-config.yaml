@@ -149,7 +149,7 @@ additional_meta:
     git.commit: 38ca74ed68712d3dfe317ab2efe98c77b58623a4
   odh-pipeline-runtime-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: e09fe9a450390e3e6097d6460ccb167fc9a2b1ff
+    git.commit: e36fe53a1b5e278fd69025b80ba8e6e4bb9684cd
   odh-pipeline-runtime-minimal-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: 71bc28fc1b36d9dc39b7223fe7acac2bca72a3d6
