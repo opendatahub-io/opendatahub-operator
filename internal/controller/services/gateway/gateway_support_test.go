@@ -376,7 +376,7 @@ func TestGetFQDN(t *testing.T) {
 					Domain: "apps.example.com",
 				},
 			},
-			expectedDomain: "data-science-gateway.apps.example.com",
+			expectedDomain: DefaultGatewaySubdomain + ".apps.example.com",
 			expectError:    false,
 			description:    "should use user-provided domain and prepend default gateway name",
 		},
@@ -406,7 +406,7 @@ func TestGetFQDN(t *testing.T) {
 					Subdomain: "   ",
 				},
 			},
-			expectedDomain: "data-science-gateway.apps.example.com",
+			expectedDomain: DefaultGatewaySubdomain + ".apps.example.com",
 			expectError:    false,
 			description:    "should fall back to default when subdomain is whitespace",
 		},
@@ -496,4 +496,34 @@ func TestGetCookieSettings(t *testing.T) {
 			g.Expect(refresh).To(Equal(tc.expectedRefresh), tc.description)
 		})
 	}
+}
+
+// TestComputeLegacyRedirectInfo tests the computeLegacyRedirectInfo helper function.
+func TestComputeLegacyRedirectInfo(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	// Default subdomain enables legacy redirect with Lua-escaped pattern
+	info := computeLegacyRedirectInfo(nil, "rh-ai.apps.example.com")
+	g.Expect(info.CurrentSubdomain).To(Equal(DefaultGatewaySubdomain))
+	g.Expect(info.LegacySubdomain).To(Equal(LegacyGatewaySubdomain))
+	g.Expect(info.LegacySubdomainPattern).To(Equal("data%-science%-gateway"))
+	g.Expect(info.LegacyHostname).To(Equal("data-science-gateway.apps.example.com"))
+
+	// Legacy subdomain disables redirect (empty legacy fields)
+	legacyConfig := &serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{Subdomain: LegacyGatewaySubdomain},
+	}
+	info = computeLegacyRedirectInfo(legacyConfig, "data-science-gateway.apps.example.com")
+	g.Expect(info.CurrentSubdomain).To(Equal(LegacyGatewaySubdomain))
+	g.Expect(info.LegacySubdomain).To(BeEmpty())
+	g.Expect(info.LegacyHostname).To(BeEmpty())
+
+	// Custom subdomain still enables redirect
+	customConfig := &serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{Subdomain: "custom"},
+	}
+	info = computeLegacyRedirectInfo(customConfig, "custom.apps.example.com")
+	g.Expect(info.CurrentSubdomain).To(Equal("custom"))
+	g.Expect(info.LegacyHostname).To(Equal("data-science-gateway.apps.example.com"))
 }

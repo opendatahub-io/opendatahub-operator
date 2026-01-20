@@ -15,6 +15,7 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -242,7 +243,7 @@ func TestComputeKustomizeVariable(t *testing.T) {
 		{
 			name:              "OpenDataHub platform with default domain",
 			platform:          cluster.OpenDataHub,
-			expectedURL:       "https://data-science-gateway." + defaultDomain + "/",
+			expectedURL:       "https://" + gateway.DefaultGatewaySubdomain + "." + defaultDomain + "/",
 			expectedTitle:     "OpenShift Open Data Hub",
 			gatewayConfigFunc: defaultGatewayConfig, // Use default GatewayConfig (no custom domain)
 			clusterDomain:     defaultDomain,
@@ -250,7 +251,7 @@ func TestComputeKustomizeVariable(t *testing.T) {
 		{
 			name:              "RHOAI platform with custom domain",
 			platform:          cluster.SelfManagedRhoai,
-			expectedURL:       "https://data-science-gateway." + customDomain + "/",
+			expectedURL:       "https://" + gateway.DefaultGatewaySubdomain + "." + customDomain + "/",
 			expectedTitle:     "OpenShift Self Managed Services",
 			gatewayConfigFunc: customGatewayConfig,
 			clusterDomain:     defaultDomain, // Should be ignored due to custom domain
@@ -258,7 +259,7 @@ func TestComputeKustomizeVariable(t *testing.T) {
 		{
 			name:              "Managed RHOAI platform with default domain",
 			platform:          cluster.ManagedRhoai,
-			expectedURL:       "https://data-science-gateway." + managedDomain + "/",
+			expectedURL:       "https://" + gateway.DefaultGatewaySubdomain + "." + managedDomain + "/",
 			expectedTitle:     "OpenShift Managed Services",
 			gatewayConfigFunc: defaultGatewayConfig,
 			clusterDomain:     managedDomain,
