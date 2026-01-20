@@ -73,6 +73,26 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
+      path: /validate--v1-configmap
+  failurePolicy: Fail
+  name: validating.configmap.odh-model-controller.opendatahub.io
+  rules:
+  - apiGroups:
+    - ""
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - configmaps
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
       path: /validate-nim-opendatahub-io-v1-account
   failurePolicy: Fail
   name: validating.nim.account.odh-model-controller.opendatahub.io

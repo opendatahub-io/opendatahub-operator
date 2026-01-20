@@ -22,7 +22,7 @@ objects:
       name: vllm-cpu-runtime
       annotations:
         openshift.io/display-name: vLLM CPU (ppc64le/s390x) ServingRuntime for KServe
-        opendatahub.io/runtime-version: 'v0.9.1.0'
+        opendatahub.io/runtime-version: 'v0.10.1.1.6'
       labels:
         opendatahub.io/dashboard: 'true'
     spec:

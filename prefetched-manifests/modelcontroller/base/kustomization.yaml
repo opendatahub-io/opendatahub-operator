@@ -210,6 +210,17 @@ replacements:
           name: validating-webhook-configuration
         fieldPaths:
           - webhooks.0.clientConfig.service.namespace
+  - source:
+      kind: ConfigMap
+      version: v1
+      name: odh-model-controller-parameters
+      fieldPath: data.maas-namespace
+    targets:
+      - select:
+          kind: ValidatingWebhookConfiguration
+          name: validating-webhook-configuration
+        fieldPaths:
+          - webhooks.[name=validating.configmap.odh-model-controller.opendatahub.io].namespaceSelector.matchExpressions.[key=kubernetes.io/metadata.name].values.0
 
 patches:
 - path: remove-namespace.yaml
