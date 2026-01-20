@@ -344,7 +344,6 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  | Removed | Enum: [Managed Removed] <br /> |
-| `gateway` _[GatewaySpec](#gatewayspec)_ |  |  |  |
 
 
 
@@ -777,23 +776,6 @@ _Appears in:_
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
-#### GatewaySpec
-
-
-
-GatewaySpec defines the reference to the global Gateway (Gw API) where
-models should be published to when exposed as services.
-
-
-
-_Appears in:_
-- [DSCModelsAsServiceSpec](#dscmodelsasservicespec)
-- [ModelsAsServiceSpec](#modelsasservicespec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `namespace` _string_ | Namespace is the namespace name where the gateway.networking.k8s.io/v1/Gateway resource is. |  |  |
-| `name` _string_ | Name is the name of the gateway.networking.k8s.io/v1/Gateway resource. |  |  |
 
 
 #### Kserve
@@ -1401,9 +1383,6 @@ _Appears in:_
 - [DSCModelsAsServiceSpec](#dscmodelsasservicespec)
 - [ModelsAsService](#modelsasservice)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `gateway` _[GatewaySpec](#gatewayspec)_ |  |  |  |
 
 
 #### ModelsAsServiceStatus
