@@ -219,10 +219,10 @@ func (tc *ComponentTestCtx) ValidateUpdateDeploymentsResources(t *testing.T) {
 				WithMinimalObject(gvk.Deployment, resources.NamespacedNameFromObject(&d)),
 				WithMutateFunc(testf.Transform(`.spec.replicas = %d`, expectedReplica)),
 				WithCondition(And(
-					jq.Match(`.spec.replicas == %d`, expectedReplica),             // Spec updated
-					jq.Match(`.status.readyReplicas == %d`, expectedReplica),      // Pods ready
+					jq.Match(`.spec.replicas == %d`, expectedReplica),        // Spec updated
+					jq.Match(`.status.readyReplicas == %d`, expectedReplica), // Pods ready
 				)),
-				WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),         // 7 minutes
+				WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),               // 7 minutes
 				WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval), // 10s
 			)
 		})
