@@ -214,11 +214,16 @@ func (tc *ComponentTestCtx) ValidateUpdateDeploymentsResources(t *testing.T) {
 				expectedReplica = 1
 			}
 
-			// Update the deployment's replica count
-			tc.ConsistentlyResourceCreatedOrUpdated(
+			// Update the deployment's replica count and wait for pods to be ready
+			tc.EventuallyResourceCreatedOrUpdated(
 				WithMinimalObject(gvk.Deployment, resources.NamespacedNameFromObject(&d)),
 				WithMutateFunc(testf.Transform(`.spec.replicas = %d`, expectedReplica)),
-				WithCondition(jq.Match(`.spec.replicas == %d`, expectedReplica)),
+				WithCondition(And(
+					jq.Match(`.spec.replicas == %d`, expectedReplica),             // Spec updated
+					jq.Match(`.status.readyReplicas == %d`, expectedReplica),      // Pods ready
+				)),
+				WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),         // 7 minutes
+				WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval), // 10s
 			)
 		})
 	}
