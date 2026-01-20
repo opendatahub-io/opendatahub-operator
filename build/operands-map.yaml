@@ -144,9 +144,9 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TRAINING_ROCM62_TORCH25_PY311_IMAGE
   value: "quay.io/rhoai/odh-training-rocm62-torch25-py311-rhel9@sha256:96651f267b6a26d95e71504cc4b14ee7e817b4a70dd847837938e142f92762d2"
 - name: RELATED_IMAGE_ODH_TRAINING_ROCM64_TORCH28_PY312_IMAGE
-  value: "quay.io/rhoai/odh-training-rocm64-torch28-py312-rhel9@sha256:134ee4a5b9a23b7c53c9fc1df8bdd6ee05bebd50ffbd623a7bc59173cc6c95e4"
+  value: "quay.io/rhoai/odh-training-rocm64-torch28-py312-rhel9@sha256:bcd82fae03b645fc7e6e54b4e038e304a1ca4c2c29c08f15d945a8c14b0b8cf4"
 - name: RELATED_IMAGE_ODH_TRAINING_ROCM64_TORCH28_PY312_IMAGE
-  value: "quay.io/rhoai/odh-training-rocm64-torch28-py312-rhel9@sha256:134ee4a5b9a23b7c53c9fc1df8bdd6ee05bebd50ffbd623a7bc59173cc6c95e4"
+  value: "quay.io/rhoai/odh-training-rocm64-torch28-py312-rhel9@sha256:bcd82fae03b645fc7e6e54b4e038e304a1ca4c2c29c08f15d945a8c14b0b8cf4"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_MODEL_REGISTRY_IMAGE
   value: "quay.io/rhoai/odh-mod-arch-model-registry-rhel9@sha256:cb297aa62b9a56645b4cbc82995ba9d3ae0b8e3d3fac4f9f1a81e77a32cfa8c7"
 - name: RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE
