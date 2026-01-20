@@ -137,6 +137,17 @@ replacements:
       kind: ConfigMap
       version: v1
       name: odh-model-controller-parameters
+      fieldPath: data.vllm-spyre-ppc64le-image
+    targets:
+      - select:
+          kind: Template
+          name: vllm-spyre-ppc64le-runtime-template
+        fieldPaths:
+          - objects.0.spec.containers.0.image
+  - source:
+      kind: ConfigMap
+      version: v1
+      name: odh-model-controller-parameters
       fieldPath: data.odh-model-controller
     targets:
       - select: 

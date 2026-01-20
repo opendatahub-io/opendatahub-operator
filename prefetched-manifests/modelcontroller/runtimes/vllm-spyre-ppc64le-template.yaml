@@ -1,0 +1,90 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  labels:
+    opendatahub.io/dashboard: 'true'
+    opendatahub.io/ootb: 'true'
+  annotations:
+    description: vLLM ServingRuntime to support IBM Spyre
+    openshift.io/display-name: vLLM Spyre ppc64le ServingRuntime for KServe
+    openshift.io/provider-display-name: Red Hat, Inc.
+    tags: rhods,rhoai,kserve,servingruntime
+    template.openshift.io/documentation-url: https://github.com/vllm-project/vllm-spyre
+    template.openshift.io/long-description: This template defines resources needed to deploy vLLM Spyre AI Accelerator ServingRuntime with KServe in Red Hat OpenShift AI (ppc64le architecture only)
+    opendatahub.io/modelServingSupport: '["single"]'
+    opendatahub.io/apiProtocol: 'REST'
+    opendatahub.io/model-type: '["generative"]'
+  name: vllm-spyre-ppc64le-runtime-template
+objects:
+  - apiVersion: serving.kserve.io/v1alpha1
+    kind: ServingRuntime
+    metadata:
+      name: vllm-spyre-ppc64le-runtime
+      annotations:
+        openshift.io/display-name: vLLM Spyre ppc64le ServingRuntime for KServe
+        opendatahub.io/recommended-accelerators: '["ibm.com/spyre_pf"]'
+        opendatahub.io/runtime-version: 'v0.11.0'
+      labels:
+        opendatahub.io/dashboard: 'true'
+    spec:
+      annotations:
+        opendatahub.io/kserve-runtime: 'vllm'
+        prometheus.io/path: /metrics
+        prometheus.io/port: '8080'
+      containers:
+        - image: $(vllm-spyre-ppc64le-image)
+          name: kserve-container
+          args:
+            - '--model=/mnt/models'
+            - '--port=8000'
+            - '--served-model-name={{.Name}}'
+            - '--max-model-len=$(MAX_MODEL_LEN)'
+            - '--max-num-seqs=$(MAX_BATCH_SIZE)'
+          env:
+            - name: HF_HOME
+              value: /tmp/hf_home
+            - name: HF_HUB_OFFLINE
+              value: '0'
+            - name: FLEX_COMPUTE
+              value: SENTIENT
+            - name: FLEX_DEVICE
+              value: PF
+            - name: TOKENIZERS_PARALLELISM
+              value: 'false'
+            - name: DTLOG_LEVEL
+              value: error
+            - name: TORCH_SENDNN_LOG
+              value: CRITICAL
+            - name: VLLM_SPYRE_USE_CB
+              value: "1"
+            - name: VLLM_SPYRE_REQUIRE_PRECOMPILED_DECODERS
+              value: "1"
+            - name: TORCH_SENDNN_CACHE_ENABLE
+              value: "1"
+            - name: VLLM_SPYRE_WARMUP_PROMPT_LENS
+              value: "256"
+            - name: VLLM_SPYRE_WARMUP_NEW_TOKENS
+              value: "128"
+            - name: VLLM_SPYRE_WARMUP_BATCH_SIZES
+              value: "16"
+            # set defaults, let user override later
+            - name: MAX_MODEL_LEN
+              value: "3072"
+            - name: MAX_BATCH_SIZE
+              value: "16"
+
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+          volumeMounts:
+            - name: shm
+              mountPath: /dev/shm
+      multiModel: false
+      supportedModelFormats:
+        - autoSelect: true
+          name: vLLM
+      volumes:
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 2Gi
