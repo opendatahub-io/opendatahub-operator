@@ -6,17 +6,19 @@ metadata:
 spec:
   replicas: {{.CollectorReplicas}}
   mode: statefulset
+  {{- if .Metrics }}
   targetAllocator:
     enabled: true
     serviceAccount: data-science-collector-collector
     prometheusCR:
       enabled: true
-      podMonitorSelector: 
+      podMonitorSelector:
         matchLabels:
           opendatahub.io/monitoring: "true"
-      serviceMonitorSelector: 
+      serviceMonitorSelector:
         matchLabels:
           opendatahub.io/monitoring: "true"
+  {{- end }}
   resources:
     limits:
       cpu: {{.CollectorCPULimit}}
@@ -200,6 +202,7 @@ spec:
       {{ end }}
     service:
       telemetry:
+        {{- if .Metrics }}
         metrics:
           readers:
             - pull:
@@ -207,6 +210,7 @@ spec:
                   prometheus:
                     host: '0.0.0.0'
                     port: 8888
+        {{- end }}
       extensions: [bearertokenauth]
       {{- if or .Traces .Metrics }}
       pipelines:
