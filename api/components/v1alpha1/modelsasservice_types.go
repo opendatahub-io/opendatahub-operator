@@ -17,6 +17,8 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"encoding/json"
+
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -54,16 +56,22 @@ type ModelsAsService struct {
 // ModelsAsServiceSpec defines the desired state of ModelsAsService
 type ModelsAsServiceSpec struct {
 	// Gateway specifies which Gateway (Gateway API) to use for exposing model endpoints.
-	// This field is currently internal-only (json:"-") and not exposed in the CRD schema.
+	// This field is internal-only (json:"-") and not exposed in the CRD schema.
 	//
 	// The gateway is hardcoded to default values:
 	//   - Namespace: "openshift-ingress"
 	//   - Name: "maas-default-gateway"
 	//
-	// Future enhancement: This field is expected to become user-configurable to allow
-	// custom gateway specifications. When that happens, change the json tag from "-" to
-	// "gateway,omitempty" and restore the DSC override logic from git history.
+	// Future enhancement: This field may become user-configurable. When that happens,
+	// change the json tag from "-" to "gateway,omitempty" and remove the MarshalJSON method.
 	Gateway GatewaySpec `json:"-"`
+}
+
+// MarshalJSON ensures the spec always serializes as an empty object {}
+// instead of null when the Gateway field (which has json:"-") is the only field.
+// This prevents CRD validation errors when the operator applies the resource.
+func (s ModelsAsServiceSpec) MarshalJSON() ([]byte, error) {
+	return []byte("{}"), nil
 }
 
 // GatewaySpec defines the reference to the global Gateway (Gw API) where
@@ -112,6 +120,22 @@ type DSCModelsAsServiceSpec struct {
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 
 	ModelsAsServiceSpec `json:",inline"`
+}
+
+// MarshalJSON ensures the spec serializes as an object with managementState
+// even when other inline fields would serialize as empty.
+// This prevents CRD validation errors when the operator applies the Kserve resource.
+func (s DSCModelsAsServiceSpec) MarshalJSON() ([]byte, error) {
+	// Create a simple map to serialize, including managementState if set
+	result := make(map[string]interface{})
+	if s.ManagementState != "" {
+		result["managementState"] = s.ManagementState
+	}
+	// Return empty object if no fields are set
+	if len(result) == 0 {
+		return []byte("{}"), nil
+	}
+	return json.Marshal(result)
 }
 
 // DSCModelsAsServiceStatus contains the observed state of the ModelsAsService exposed in the DSC instance

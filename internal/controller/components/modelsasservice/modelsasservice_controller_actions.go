@@ -18,7 +18,6 @@ package modelsasservice
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/go-logr/logr"
@@ -34,33 +33,15 @@ import (
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
-// validateGateway validates the Gateway specification in the ModelsAsService resource.
-// It checks that:
-// 1. Both namespace and name are provided (or neither, in which case defaults are used).
-// 2. The specified Gateway resource exists in the cluster.
+// validateGateway validates that the default Gateway exists in the cluster.
+// Gateway configuration is hardcoded and not user-configurable.
 func validateGateway(ctx context.Context, rr *types.ReconciliationRequest) error {
-	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
-	if !ok {
+	if _, ok := rr.Instance.(*componentApi.ModelsAsService); !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
 	}
 
-	// When the Gateway is omitted, use defaults
-	if maas.Spec.Gateway.Namespace == "" && maas.Spec.Gateway.Name == "" {
-		maas.Spec.Gateway.Namespace = DefaultGatewayNamespace
-		maas.Spec.Gateway.Name = DefaultGatewayName
-	}
-
-	// If one field of the Gateway reference is specified, both are mandatory
-	if maas.Spec.Gateway.Namespace == "" || maas.Spec.Gateway.Name == "" {
-		return errors.New("invalid gateway specification: when specifying a custom gateway, both namespace and name must be provided")
-	}
-
-	// Validate that the Gateway exists in the cluster
-	if err := validateGatewayExists(ctx, rr, maas.Spec.Gateway.Namespace, maas.Spec.Gateway.Name); err != nil {
-		return err
-	}
-
-	return nil
+	// Validate that the default Gateway exists in the cluster
+	return validateGatewayExists(ctx, rr, DefaultGatewayNamespace, DefaultGatewayName)
 }
 
 // validateGatewayExists checks if a Gateway resource exists in the specified namespace.
@@ -92,14 +73,14 @@ func initialize(_ context.Context, rr *types.ReconciliationRequest) error {
 
 // customizeManifests applies component-specific customizations to the manifests.
 func customizeManifests(_ context.Context, rr *types.ReconciliationRequest) error {
-	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
-	if !ok {
+	if _, ok := rr.Instance.(*componentApi.ModelsAsService); !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
 	}
 
+	// Gateway configuration is hardcoded and not user-configurable
 	gatewayParams := map[string]string{
-		"gateway-namespace": maas.Spec.Gateway.Namespace,
-		"gateway-name":      maas.Spec.Gateway.Name,
+		"gateway-namespace": DefaultGatewayNamespace,
+		"gateway-name":      DefaultGatewayName,
 	}
 
 	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), "params.env", nil, gatewayParams); err != nil {
@@ -121,15 +102,15 @@ func customizeManifests(_ context.Context, rr *types.ReconciliationRequest) erro
 func configureGatewayNamespaceResources(ctx context.Context, rr *types.ReconciliationRequest) error {
 	log := logf.FromContext(ctx)
 
-	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
-	if !ok {
+	if _, ok := rr.Instance.(*componentApi.ModelsAsService); !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
 	}
 
-	gatewayNamespace := maas.Spec.Gateway.Namespace
-	gatewayName := maas.Spec.Gateway.Name
+	// Gateway configuration is hardcoded and not user-configurable
+	gatewayNamespace := DefaultGatewayNamespace
+	gatewayName := DefaultGatewayName
 
-	log.V(4).Info("Gateway configuration from MaaS spec",
+	log.V(4).Info("Gateway configuration",
 		"gatewayNamespace", gatewayNamespace,
 		"gatewayName", gatewayName)
 
