@@ -28,9 +28,9 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_ML_PIPELINES_LAUNCHER_IMAGE
   value: "quay.io/rhoai/odh-ml-pipelines-launcher-rhel9@sha256:20eec6d51878e19d4626e6b37cc638fe54943bd141093d9f3db2b131a3621127"
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_ARGOEXEC_IMAGE
-  value: "quay.io/rhoai/odh-data-science-pipelines-argo-argoexec-rhel9@sha256:b9f6dfd2e96c98f7fe9611a18d5a0e7c4d860fda91fdeb82177461924053ba5e"
+  value: "quay.io/rhoai/odh-data-science-pipelines-argo-argoexec-rhel9@sha256:e41f41f75969fee6d3d91945e4c690eb5d35a604e98eff9bfe58285fc2963322"
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_WORKFLOWCONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-data-science-pipelines-argo-workflowcontroller-rhel9@sha256:11fcb3c0920d8da559f9fdedac474715be848c8035c13e08bbf76ce347e363e3"
+  value: "quay.io/rhoai/odh-data-science-pipelines-argo-workflowcontroller-rhel9@sha256:ac8eb69533677d7837b052a04c315552f04199c114d01a87e2022e311da6d320"
 - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_IMAGE
   value: "quay.io/rhoai/odh-model-registry-rhel9@sha256:019e6862614c509001a5c6e2d13f7f8706e1e2121d7c72ee62c7b5e29ebc6c05"
 - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE
@@ -140,7 +140,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TRAINING_CUDA128_TORCH28_PY312_IMAGE
   value: "quay.io/rhoai/odh-training-cuda128-torch28-py312-rhel9@sha256:1d0cdd7dee6cdf75b49da98bd4cee0bb3d0f680533a9f25a1fcd9d500fda84d1"
 - name: RELATED_IMAGE_ODH_TRAINING_ROCM62_TORCH24_PY311_IMAGE
-  value: "quay.io/rhoai/odh-training-rocm62-torch24-py311-rhel9@sha256:6d55788ed34ecaabbeec961108aa1342b5df905d686b032cca4af19dd92a2103"
+  value: "quay.io/rhoai/odh-training-rocm62-torch24-py311-rhel9@sha256:843e6917479178452b4a03e7b0728422566907bb3d21b69c9a7dffbd04fc783d"
 - name: RELATED_IMAGE_ODH_TRAINING_ROCM62_TORCH25_PY311_IMAGE
   value: "quay.io/rhoai/odh-training-rocm62-torch25-py311-rhel9@sha256:96651f267b6a26d95e71504cc4b14ee7e817b4a70dd847837938e142f92762d2"
 - name: RELATED_IMAGE_ODH_TRAINING_ROCM64_TORCH28_PY312_IMAGE
@@ -160,7 +160,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TRUSTYAI_GARAK_LLS_PROVIDER_DSP_IMAGE
   value: "quay.io/rhoai/odh-trustyai-garak-lls-provider-dsp-rhel9@sha256:240580e8ed1b9e30e7019b2ef6cb7be84708c0a79a07fea3b840b5198e5eb833"
 - name: RELATED_IMAGE_ODH_MLFLOW_IMAGE
-  value: "quay.io/rhoai/odh-mlflow-rhel9@sha256:18a278d862339a9b995bbfbdc0fbc0674ae4966d6d74846aa9c72f898a7e6fbc"
+  value: "quay.io/rhoai/odh-mlflow-rhel9@sha256:2b7248a1c938a44f4a6d5abc4b50bf9757ac9a77e6a881d7af17d4bc055ff29d"
 - name: RELATED_IMAGE_ODH_MLFLOW_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-mlflow-operator-rhel9@sha256:034f019af555947129a50cadaa5c84a61392568951251b31e39f3672e305f7d8"
 - name: RELATED_IMAGE_ODH_MLFLOW_OPERATOR_IMAGE

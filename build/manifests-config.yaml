@@ -104,10 +104,10 @@ additional_meta:
     git.commit: 8f5ccfc1256d9acc1e98709356b6f51028fdd10b
   odh-data-science-pipelines-argo-argoexec:
     git.url: https://github.com/red-hat-data-services/argo-workflows
-    git.commit: 463351c8152738fba4277974eac68af247d8564c
+    git.commit: 82651ba11e6451b9760cca37899afbb0163f2060
   odh-data-science-pipelines-argo-workflowcontroller:
     git.url: https://github.com/red-hat-data-services/argo-workflows
-    git.commit: 4aca35e0ae7960a6ad0cc380ed3214fc8cdf8c56
+    git.commit: 82651ba11e6451b9760cca37899afbb0163f2060
   odh-model-registry:
     git.url: https://github.com/red-hat-data-services/model-registry
     git.commit: 3b2ada13cc3347a60c687d4d8e981db39af92bfa
@@ -242,7 +242,7 @@ additional_meta:
     git.commit: 38f8ce14a0405efe631ece2bbd79cba5f8fbbe0e
   odh-training-rocm62-torch24-py311:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: 524e8e46eb9059f7673679e15509e9eaab91d12e
+    git.commit: 391abddb9389d2c8ac7dc1fb976835fb6d60447e
   odh-training-rocm62-torch25-py311:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 9d84958a1569b72dc830716e76cf6085a810bbf7
@@ -260,7 +260,7 @@ additional_meta:
     git.commit: ab02bce84b8c09761b6ad4f896607cba355d4674
   odh-mlflow:
     git.url: https://github.com/red-hat-data-services/mlflow
-    git.commit: 6afb33da8974ed77c2bf67f4f0ca0d30cb1dd90e
+    git.commit: 7f89548a05a6c16a3ca02c0bb04e7bc1e7e1be99
   odh-mlserver:
     git.url: https://github.com/red-hat-data-services/MLServer
     git.commit: 1a322d9195a750b842cac8c8d4b3a0375cc5fe85
