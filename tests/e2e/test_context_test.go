@@ -1206,12 +1206,12 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 	var recreatedResource *unstructured.Unstructured
 
 	// Circuit breaker configuration and variables to fail fast instead of waiting for full timeout
-	// 6 failures * 5s polling = 30s before circuit breaker trips
-	const failureThreshold = 6
-	// Absolute time-based circuit breaker
-	const noProgressTimeout = 30 * time.Second
-	// Reset counter if we make progress
-	const resetInterval = 15 * time.Second
+	// 30 failures * 10s polling = up to 5 minutes before counter-based circuit breaker trips
+	const failureThreshold = 30
+	// Absolute time-based circuit breaker - fail fast if no progress after 90 seconds
+	const noProgressTimeout = 90 * time.Second
+	// Reset counter only after 60s without recent checks (indicates system stall, not transient errors)
+	const resetInterval = 60 * time.Second
 
 	var consecutiveFailures int
 	var lastCheckTime time.Time
