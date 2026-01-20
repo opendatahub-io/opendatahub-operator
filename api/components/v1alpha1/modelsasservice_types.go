@@ -53,7 +53,17 @@ type ModelsAsService struct {
 
 // ModelsAsServiceSpec defines the desired state of ModelsAsService
 type ModelsAsServiceSpec struct {
-	Gateway GatewaySpec `json:"gateway,omitempty"`
+	// Gateway specifies which Gateway (Gateway API) to use for exposing model endpoints.
+	// This field is currently internal-only (json:"-") and not exposed in the CRD schema.
+	//
+	// The gateway is hardcoded to default values:
+	//   - Namespace: "openshift-ingress"
+	//   - Name: "maas-default-gateway"
+	//
+	// Future enhancement: This field is expected to become user-configurable to allow
+	// custom gateway specifications. When that happens, change the json tag from "-" to
+	// "gateway,omitempty" and restore the DSC override logic from git history.
+	Gateway GatewaySpec `json:"-"`
 }
 
 // GatewaySpec defines the reference to the global Gateway (Gw API) where
