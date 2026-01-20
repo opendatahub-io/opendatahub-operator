@@ -40,7 +40,7 @@ spec:
             {"name": "PyMongo", "version": "4.15"},
             {"name": "Pyodbc", "version": "5.2"},
             {"name": "Codeflare-SDK", "version": "0.34"},
-            {"name": "Feast", "version": "0.58"},
+            {"name": "Feast", "version": "0.59"},
             {"name": "Sklearn-onnx", "version": "1.19"},
             {"name": "Psycopg", "version": "3.2"},
             {"name": "MySQL Connector/Python", "version": "9.4"},

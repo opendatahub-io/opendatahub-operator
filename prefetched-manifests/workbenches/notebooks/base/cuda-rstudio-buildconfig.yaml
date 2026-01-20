@@ -42,7 +42,7 @@ spec:
     type: Git
     git:
       uri: "https://github.com/red-hat-data-services/notebooks"
-      ref: rhoai-3.2
+      ref: rhoai-3.3
   strategy:
     type: Docker
     dockerStrategy:
