@@ -10,6 +10,38 @@ spec:
     labels:
       {{.GatewayNameLabelKey}}: {{.GatewayName}}
   configPatches:
+  # FIRST: Redirect legacy hostnames before any auth processing
+  {{- if .LegacySubdomain }}
+  - applyTo: HTTP_FILTER
+    match:
+      context: GATEWAY
+      listener:
+        filterChain:
+          filter:
+            name: "envoy.filters.network.http_connection_manager"
+            subFilter:
+              name: "envoy.filters.http.router"
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: envoy.filters.http.lua.redirect
+        typed_config:
+          "@type": "type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua"
+          inline_code: |
+            function envoy_on_request(request_handle)
+              local host = request_handle:headers():get(":authority")
+              if host and host:find("^{{.LegacySubdomainPattern}}%.") then
+                local new_host = host:gsub("^{{.LegacySubdomainPattern}}%.", "{{.CurrentSubdomain}}.")
+                local path = request_handle:headers():get(":path") or "/"
+                local redirect_url = "https://" .. new_host .. path
+                request_handle:respond(
+                  {[":status"] = "301", ["location"] = redirect_url},
+                  ""
+                )
+              end
+            end
+  {{- end }}
+  # SECOND: ext_authz for authentication
   - applyTo: HTTP_FILTER
     match:
       context: GATEWAY
@@ -45,6 +77,7 @@ spec:
               allowed_client_headers:
                 patterns:
                 - exact: set-cookie
+  # THIRD: Lua for token forwarding after auth
   - applyTo: HTTP_FILTER
     match:
       context: GATEWAY

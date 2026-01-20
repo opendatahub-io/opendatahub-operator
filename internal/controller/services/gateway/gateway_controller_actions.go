@@ -81,7 +81,10 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 		}
 	}
 
-	if err := createGateway(rr, certSecretName, hostname, gatewayConfig.Spec.IngressMode); err != nil {
+	// Compute legacy hostname for LoadBalancer mode (needs second listener)
+	legacyInfo := computeLegacyRedirectInfo(gatewayConfig, hostname)
+
+	if err := createGateway(rr, certSecretName, hostname, legacyInfo.LegacyHostname, gatewayConfig.Spec.IngressMode); err != nil {
 		return fmt.Errorf("failed to create Gateway: %w", err)
 	}
 
@@ -289,6 +292,9 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	// Get cookie settings with defaults
 	cookieExpire, cookieRefresh := getCookieSettings(&gatewayConfig.Spec.Cookie)
 
+	// Compute legacy redirect info for template
+	legacyInfo := computeLegacyRedirectInfo(gatewayConfig, hostname)
+
 	templateData := map[string]any{
 		"GatewayNamespace":         GatewayNamespace,
 		"GatewayName":              DefaultGatewayName,
@@ -321,6 +327,10 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"PartOfLabelValue":         PartOfLabelValue,
 		"PartOfGatewayConfig":      PartOfGatewayConfig,
 		"GatewayNameLabelKey":      labels.GatewayAPI.GatewayName,
+		"LegacySubdomain":          legacyInfo.LegacySubdomain,
+		"LegacySubdomainPattern":   legacyInfo.LegacySubdomainPattern,
+		"CurrentSubdomain":         legacyInfo.CurrentSubdomain,
+		"LegacyHostname":           legacyInfo.LegacyHostname,
 	}
 
 	// Add OIDC-specific fields only if OIDC config is present

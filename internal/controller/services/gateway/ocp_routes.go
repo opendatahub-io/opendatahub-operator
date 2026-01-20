@@ -45,12 +45,18 @@ func createOCPRoutes(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 		return nil
 	}
 
-	l.V(1).Info("Adding OCP Route template for Gateway")
+	l.V(1).Info("Adding OCP Route templates for Gateway")
 
-	rr.Templates = append(rr.Templates, odhtypes.TemplateInfo{
-		FS:   gatewayResources,
-		Path: ocpRouteTemplate,
-	})
+	rr.Templates = append(rr.Templates,
+		odhtypes.TemplateInfo{
+			FS:   gatewayResources,
+			Path: ocpRouteTemplate,
+		},
+		odhtypes.TemplateInfo{
+			FS:   gatewayResources,
+			Path: ocpRouteLegacyRedirectTemplate,
+		},
+	)
 
 	return nil
 }
