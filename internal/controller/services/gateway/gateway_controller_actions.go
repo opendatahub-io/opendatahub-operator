@@ -198,6 +198,10 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		},
 		{
 			FS:   gatewayResources,
+			Path: kubeAuthProxyHPATemplate,
+		},
+		{
+			FS:   gatewayResources,
 			Path: destinationRuleTemplate,
 		},
 	}

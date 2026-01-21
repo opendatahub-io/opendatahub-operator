@@ -88,6 +88,7 @@ func gatewayTestSuite(t *testing.T) {
 		{"Validate Gateway infrastructure", gatewayCtx.ValidateGatewayInfrastructure},
 		{"Validate OAuth client and secret creation", gatewayCtx.ValidateOAuthClientAndSecret},
 		{"Validate authentication proxy deployment", gatewayCtx.ValidateAuthProxyDeployment},
+		{"Validate HorizontalPodAutoscaler creation", gatewayCtx.ValidateHPA},
 		{"Validate NetworkPolicy creation", gatewayCtx.ValidateNetworkPolicy},
 		{"Validate OAuth callback HTTPRoute", gatewayCtx.ValidateOAuthCallbackRoute},
 		{"Validate EnvoyFilter creation", gatewayCtx.ValidateEnvoyFilter},
@@ -247,8 +248,8 @@ func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 			Namespace: gatewayNamespace,
 		}),
 		WithCondition(And(
-			// replica count
-			jq.Match(`.spec.replicas == 1`),
+			// replica count (minimum 2 for HPA)
+			jq.Match(`.spec.replicas == 2`),
 
 			// basic pod template checks
 			jq.Match(`.spec.selector.matchLabels.app == "%s"`, kubeAuthProxyName),
@@ -326,7 +327,7 @@ func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 	)
 
 	// wait for deployment readiness using TestContext helper
-	tc.EnsureDeploymentReady(types.NamespacedName{Name: kubeAuthProxyName, Namespace: gatewayNamespace}, 1)
+	tc.EnsureDeploymentReady(types.NamespacedName{Name: kubeAuthProxyName, Namespace: gatewayNamespace}, 2)
 
 	// kube-auth-proxy service
 	tc.EnsureResourceExists(
@@ -355,6 +356,57 @@ func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 	)
 
 	t.Log("kube-auth-proxy deployment and service validation completed")
+}
+
+// ValidateHPA validates the HorizontalPodAutoscaler for kube-auth-proxy.
+//
+// The HPA automatically scales kube-auth-proxy pods based on CPU utilization to handle varying load.
+// This test verifies:
+// - HPA exists with correct target deployment reference
+// - Minimum replicas is set to 2 (matching deployment initial replica count)
+// - Maximum replicas allows scaling up to 10 pods
+// - CPU utilization target is set to 70%.
+// - Scaling behavior is configured for stable scale-down and rapid scale-up.
+func (tc *GatewayTestCtx) ValidateHPA(t *testing.T) {
+	t.Helper()
+	t.Log("Validating HorizontalPodAutoscaler for kube-auth-proxy")
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.HorizontalPodAutoscaler, types.NamespacedName{
+			Name:      kubeAuthProxyName,
+			Namespace: gatewayNamespace,
+		}),
+		WithCondition(And(
+			// Target deployment reference
+			jq.Match(`.spec.scaleTargetRef.apiVersion == "apps/v1"`),
+			jq.Match(`.spec.scaleTargetRef.kind == "Deployment"`),
+			jq.Match(`.spec.scaleTargetRef.name == "%s"`, kubeAuthProxyName),
+
+			// Replica bounds
+			jq.Match(`.spec.minReplicas == 2`),
+			jq.Match(`.spec.maxReplicas == 10`),
+
+			// Scale-down behavior: 5 min stabilization, 50% reduction per minute
+			jq.Match(`.spec.behavior.scaleDown.stabilizationWindowSeconds == 300`),
+			jq.Match(`.spec.behavior.scaleDown.policies[0].type == "Percent"`),
+			jq.Match(`.spec.behavior.scaleDown.policies[0].value == 50`),
+			jq.Match(`.spec.behavior.scaleDown.policies[0].periodSeconds == 60`),
+
+			// Scale-up behavior: immediate, aggressive scaling
+			jq.Match(`.spec.behavior.scaleUp.stabilizationWindowSeconds == 0`),
+			jq.Match(`.spec.behavior.scaleUp.selectPolicy == "Max"`),
+
+			// CPU utilization metric
+			jq.Match(`.spec.metrics | length == 1`),
+			jq.Match(`.spec.metrics[0].type == "Resource"`),
+			jq.Match(`.spec.metrics[0].resource.name == "cpu"`),
+			jq.Match(`.spec.metrics[0].resource.target.type == "Utilization"`),
+			jq.Match(`.spec.metrics[0].resource.target.averageUtilization == 70`),
+		)),
+		WithCustomErrorMsg("HPA should exist with correct scaling behavior and CPU target=70%%"),
+	)
+
+	t.Log("HorizontalPodAutoscaler validation completed")
 }
 
 // ValidateOAuthCallbackRoute validates the OAuth callback HTTPRoute configuration.

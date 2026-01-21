@@ -92,6 +92,7 @@ const (
 	kubeAuthProxyDeploymentOauthTemplate = "resources/kube-auth-proxy-oauth-deployment.tmpl.yaml"
 	kubeAuthProxyServiceTemplate         = "resources/kube-auth-proxy-svc.tmpl.yaml"
 	kubeAuthProxyHTTPRouteTemplate       = "resources/kube-auth-proxy-httproute.tmpl.yaml"
+	kubeAuthProxyHPATemplate             = "resources/kube-auth-proxy-hpa.tmpl.yaml"
 	networkPolicyTemplate                = "resources/kube-auth-proxy-networkpolicy.yaml"
 	ocpRouteTemplate                     = "resources/gateway-ocp-route.tmpl.yaml"
 	ocpRouteLegacyRedirectTemplate       = "resources/gateway-ocp-route-legacy-redirect.tmpl.yaml"
