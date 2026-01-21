@@ -158,7 +158,7 @@ additional_meta:
     git.commit: f88354f543ee7587cda35ae6a57f870f707fcbae
   odh-pipeline-runtime-pytorch-rocm-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 6b7b4860218e81c1b82c66c146fbed9ee62f40f0
+    git.commit: f88354f543ee7587cda35ae6a57f870f707fcbae
   odh-pipeline-runtime-tensorflow-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: f88354f543ee7587cda35ae6a57f870f707fcbae
@@ -200,7 +200,7 @@ additional_meta:
     git.commit: 50fb763f8c00520550bcf0527499d145edf61ff2
   odh-openvino-model-server:
     git.url: https://github.com/red-hat-data-services/openvino_model_server
-    git.commit: 2bffe6523a37b7a763f2ce26a8a53a315aee162b
+    git.commit: 9dacfc8f1e1bd7a7d330afe0c547aac2e46fb718
   odh-vllm-cpu:
     git.url: https://github.com/red-hat-data-services/vllm-cpu
     git.commit: 063d5165e8190d17aa4f4abf56d384b50c2ec2f3
@@ -266,7 +266,7 @@ additional_meta:
     git.commit: bde329e11ec12d9ceb3339903bf28062f873d2cd
   odh-mod-arch-maas:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 922185aed2365c2ccd5aca6e952ff538d93b2812
+    git.commit: ca635dee96a43821991797cb990c9d3a71b79f04
   odh-training-rocm64-torch29-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 9bc722560855749974017d94f9e6a8a65a1140b3
