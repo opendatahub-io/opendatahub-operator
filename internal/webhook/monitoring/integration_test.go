@@ -111,7 +111,8 @@ func TestMonitoringWebhook_Update(t *testing.T) {
 	g.Expect(hasMonitoringLabel(podMonitor)).Should(BeTrue())
 
 	// Update the PodMonitor - webhook should be called again
-	podMonitorUnstructured := podMonitor.(*unstructured.Unstructured)
+	podMonitorUnstructured, ok := podMonitor.(*unstructured.Unstructured)
+	g.Expect(ok).Should(BeTrue(), "podMonitor should be *unstructured.Unstructured")
 	spec := map[string]interface{}{
 		"selector": map[string]interface{}{
 			"matchLabels": map[string]interface{}{
