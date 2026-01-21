@@ -776,6 +776,22 @@ _Appears in:_
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
+#### GatewayRef
+
+
+
+GatewayRef defines the reference to the global Gateway (Gw API) where
+models should be published to when exposed as services.
+
+
+
+_Appears in:_
+- [ModelsAsServiceSpec](#modelsasservicespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `namespace` _string_ | Namespace is the namespace where the Gateway resource is located. | openshift-ingress | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `name` _string_ | Name is the name of the Gateway resource. | maas-default-gateway | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
 #### Kserve
@@ -1380,9 +1396,11 @@ ModelsAsServiceSpec defines the desired state of ModelsAsService
 
 
 _Appears in:_
-- [DSCModelsAsServiceSpec](#dscmodelsasservicespec)
 - [ModelsAsService](#modelsasservice)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `gatewayRef` _[GatewayRef](#gatewayref)_ | GatewayRef specifies which Gateway (Gateway API) to use for exposing model endpoints.<br />If omitted, defaults to openshift-ingress/maas-default-gateway. |  | Optional: \{\} <br /> |
 
 
 #### ModelsAsServiceStatus

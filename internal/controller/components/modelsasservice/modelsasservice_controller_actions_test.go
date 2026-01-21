@@ -28,7 +28,7 @@ func TestGatewayValidation(t *testing.T) {
 					Name: componentApi.ModelsAsServiceInstanceName,
 				},
 				Spec: componentApi.ModelsAsServiceSpec{
-					Gateway: componentApi.GatewaySpec{
+					GatewayRef: componentApi.GatewayRef{
 						Namespace: "valid-namespace",
 						Name:      "valid-gateway",
 					},
@@ -53,7 +53,7 @@ func TestGatewayValidation(t *testing.T) {
 					Name: componentApi.ModelsAsServiceInstanceName,
 				},
 				Spec: componentApi.ModelsAsServiceSpec{
-					Gateway: componentApi.GatewaySpec{},
+					GatewayRef: componentApi.GatewayRef{},
 				},
 			}
 
@@ -69,8 +69,8 @@ func TestGatewayValidation(t *testing.T) {
 			g.Expect(err).ShouldNot(HaveOccurred())
 
 			// Verify defaults were applied
-			g.Expect(maas.Spec.Gateway.Namespace).Should(Equal(DefaultGatewayNamespace))
-			g.Expect(maas.Spec.Gateway.Name).Should(Equal(DefaultGatewayName))
+			g.Expect(maas.Spec.GatewayRef.Namespace).Should(Equal(DefaultGatewayNamespace))
+			g.Expect(maas.Spec.GatewayRef.Name).Should(Equal(DefaultGatewayName))
 		})
 
 		t.Run("should reject Gateway with only namespace specified", func(t *testing.T) {
@@ -79,7 +79,7 @@ func TestGatewayValidation(t *testing.T) {
 					Name: componentApi.ModelsAsServiceInstanceName,
 				},
 				Spec: componentApi.ModelsAsServiceSpec{
-					Gateway: componentApi.GatewaySpec{
+					GatewayRef: componentApi.GatewayRef{
 						Namespace: "some-namespace",
 						Name:      "",
 					},
@@ -104,7 +104,7 @@ func TestGatewayValidation(t *testing.T) {
 					Name: componentApi.ModelsAsServiceInstanceName,
 				},
 				Spec: componentApi.ModelsAsServiceSpec{
-					Gateway: componentApi.GatewaySpec{
+					GatewayRef: componentApi.GatewayRef{
 						Namespace: "",
 						Name:      "some-name",
 					},
@@ -129,7 +129,7 @@ func TestGatewayValidation(t *testing.T) {
 					Name: componentApi.ModelsAsServiceInstanceName,
 				},
 				Spec: componentApi.ModelsAsServiceSpec{
-					Gateway: componentApi.GatewaySpec{
+					GatewayRef: componentApi.GatewayRef{
 						Namespace: "non-existent-namespace",
 						Name:      "non-existent-gateway",
 					},
@@ -156,7 +156,7 @@ func TestGatewayValidation(t *testing.T) {
 					Name: componentApi.ModelsAsServiceInstanceName,
 				},
 				Spec: componentApi.ModelsAsServiceSpec{
-					Gateway: componentApi.GatewaySpec{}, // Uses defaults
+					GatewayRef: componentApi.GatewayRef{}, // Uses defaults
 				},
 			}
 
@@ -185,7 +185,7 @@ func TestConfigureGatewayNamespaceResources(t *testing.T) {
 					Name: componentApi.ModelsAsServiceInstanceName,
 				},
 				Spec: componentApi.ModelsAsServiceSpec{
-					Gateway: componentApi.GatewaySpec{
+					GatewayRef: componentApi.GatewayRef{
 						Namespace: "custom-gateway-ns",
 						Name:      "custom-gateway",
 					},
@@ -218,7 +218,7 @@ func TestConfigureGatewayNamespaceResources(t *testing.T) {
 					Name: componentApi.ModelsAsServiceInstanceName,
 				},
 				Spec: componentApi.ModelsAsServiceSpec{
-					Gateway: componentApi.GatewaySpec{
+					GatewayRef: componentApi.GatewayRef{
 						Namespace: "custom-gateway-ns",
 						Name:      "custom-gateway",
 					},
@@ -241,7 +241,7 @@ func TestConfigureGatewayNamespaceResources(t *testing.T) {
 					Name: componentApi.ModelsAsServiceInstanceName,
 				},
 				Spec: componentApi.ModelsAsServiceSpec{
-					Gateway: componentApi.GatewaySpec{
+					GatewayRef: componentApi.GatewayRef{
 						Namespace: "custom-gateway-ns",
 						Name:      "custom-gateway",
 					},
@@ -275,7 +275,7 @@ func TestConfigureGatewayNamespaceResources(t *testing.T) {
 					Name: componentApi.ModelsAsServiceInstanceName,
 				},
 				Spec: componentApi.ModelsAsServiceSpec{
-					Gateway: componentApi.GatewaySpec{
+					GatewayRef: componentApi.GatewayRef{
 						Namespace: "new-gateway-ns",
 						Name:      "new-gateway",
 					},
@@ -321,7 +321,7 @@ func TestConfigureGatewayNamespaceResources(t *testing.T) {
 					Name: componentApi.ModelsAsServiceInstanceName,
 				},
 				Spec: componentApi.ModelsAsServiceSpec{
-					Gateway: componentApi.GatewaySpec{
+					GatewayRef: componentApi.GatewayRef{
 						Namespace: "custom-gateway-ns",
 						Name:      "custom-gateway",
 					},
@@ -348,7 +348,7 @@ func TestConfigureGatewayNamespaceResources(t *testing.T) {
 					Name: componentApi.ModelsAsServiceInstanceName,
 				},
 				Spec: componentApi.ModelsAsServiceSpec{
-					Gateway: componentApi.GatewaySpec{
+					GatewayRef: componentApi.GatewayRef{
 						Namespace: "custom-gateway-ns",
 						Name:      "custom-gateway",
 					},
@@ -378,7 +378,7 @@ func TestConfigureGatewayNamespaceResources(t *testing.T) {
 					Name: componentApi.ModelsAsServiceInstanceName,
 				},
 				Spec: componentApi.ModelsAsServiceSpec{
-					Gateway: componentApi.GatewaySpec{
+					GatewayRef: componentApi.GatewayRef{
 						Namespace: "target-gateway-ns",
 						Name:      "target-gateway",
 					},

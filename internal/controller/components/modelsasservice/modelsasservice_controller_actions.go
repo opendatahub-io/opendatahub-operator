@@ -45,18 +45,18 @@ func validateGateway(ctx context.Context, rr *types.ReconciliationRequest) error
 	}
 
 	// When the Gateway is omitted, use defaults
-	if maas.Spec.Gateway.Namespace == "" && maas.Spec.Gateway.Name == "" {
-		maas.Spec.Gateway.Namespace = DefaultGatewayNamespace
-		maas.Spec.Gateway.Name = DefaultGatewayName
+	if maas.Spec.GatewayRef.Namespace == "" && maas.Spec.GatewayRef.Name == "" {
+		maas.Spec.GatewayRef.Namespace = DefaultGatewayNamespace
+		maas.Spec.GatewayRef.Name = DefaultGatewayName
 	}
 
 	// If one field of the Gateway reference is specified, both are mandatory
-	if maas.Spec.Gateway.Namespace == "" || maas.Spec.Gateway.Name == "" {
+	if maas.Spec.GatewayRef.Namespace == "" || maas.Spec.GatewayRef.Name == "" {
 		return errors.New("invalid gateway specification: when specifying a custom gateway, both namespace and name must be provided")
 	}
 
 	// Validate that the Gateway exists in the cluster
-	if err := validateGatewayExists(ctx, rr, maas.Spec.Gateway.Namespace, maas.Spec.Gateway.Name); err != nil {
+	if err := validateGatewayExists(ctx, rr, maas.Spec.GatewayRef.Namespace, maas.Spec.GatewayRef.Name); err != nil {
 		return err
 	}
 
@@ -98,8 +98,8 @@ func customizeManifests(_ context.Context, rr *types.ReconciliationRequest) erro
 	}
 
 	gatewayParams := map[string]string{
-		"gateway-namespace": maas.Spec.Gateway.Namespace,
-		"gateway-name":      maas.Spec.Gateway.Name,
+		"gateway-namespace": maas.Spec.GatewayRef.Namespace,
+		"gateway-name":      maas.Spec.GatewayRef.Name,
 	}
 
 	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), "params.env", nil, gatewayParams); err != nil {
@@ -126,8 +126,8 @@ func configureGatewayNamespaceResources(ctx context.Context, rr *types.Reconcili
 		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
 	}
 
-	gatewayNamespace := maas.Spec.Gateway.Namespace
-	gatewayName := maas.Spec.Gateway.Name
+	gatewayNamespace := maas.Spec.GatewayRef.Namespace
+	gatewayName := maas.Spec.GatewayRef.Name
 
 	log.V(4).Info("Gateway configuration from MaaS spec",
 		"gatewayNamespace", gatewayNamespace,
