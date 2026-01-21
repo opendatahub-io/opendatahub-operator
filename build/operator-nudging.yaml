@@ -156,7 +156,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MLFLOW_OPERATOR_IMAGE
   value: quay.io/rhoai/odh-mlflow-operator-rhel9@sha256:034f019af555947129a50cadaa5c84a61392568951251b31e39f3672e305f7d8
 - name: RELATED_IMAGE_ODH_MLSERVER_IMAGE
-  value: quay.io/rhoai/odh-mlserver-rhel9@sha256:be9bc8ce06430860bb7a0a6eb972942b4ad553671a89ab28688a538ed4f3df70
+  value: quay.io/rhoai/odh-mlserver-rhel9@sha256:0dcba71dffef6e16c95174f204f01d59bcf448055693a5c79b036fafbec9ac7c
 - name: RELATED_IMAGE_ODH_MOD_ARCH_MAAS_IMAGE
   value: quay.io/rhoai/odh-mod-arch-maas-rhel9@sha256:b569772ad013e555ab87cc6ab21aa89a921843a0dcbd56099e99f4a4e79e6fa7
 - name: RELATED_IMAGE_ODH_TRAINING_ROCM64_TORCH29_PY312_IMAGE
