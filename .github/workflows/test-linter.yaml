@@ -39,10 +39,10 @@ jobs:
         run: |
           # Install pre-built binary from GitHub Releases (avoids supply chain risk)
           set -euo pipefail
-          KUBE_LINTER_VERSION="v0.7.6"
+          KUBE_LINTER_VERSION="v0.8.1"
           KUBE_LINTER_ASSET="kube-linter-linux.tar.gz"
           KUBE_LINTER_URL="https://github.com/stackrox/kube-linter/releases/download/${KUBE_LINTER_VERSION}/kube-linter-linux.tar.gz"
-          KUBE_LINTER_SHA256="cb6128997162b8b7e6962284313635643434421b4e9b4f86545af7a4976e0139"
+          KUBE_LINTER_SHA256="49629abaf0ae3283e9437214a2bea4bf4029008744e05471c85dd3872464f50b"
 
           curl -sSfL --max-time 300 -o "${KUBE_LINTER_ASSET}" "${KUBE_LINTER_URL}"
           echo "${KUBE_LINTER_SHA256}  ${KUBE_LINTER_ASSET}" | sha256sum -c -
