@@ -156,7 +156,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TRAINER_IMAGE
   value: "quay.io/rhoai/odh-trainer-rhel9@sha256:60d2ce65c7f601b0bd2936136475cdb0a77082c5d1c37c028a04adb9685e4ca0"
 - name: RELATED_IMAGE_ODH_TRUSTYAI_NEMO_GUARDRAILS_SERVER_IMAGE
-  value: "quay.io/rhoai/odh-trustyai-nemo-guardrails-server-rhel9@sha256:e81ad49a1386a8605acc28b7890d2e96cf53453fb549b096b343eb7b4516aedf"
+  value: "quay.io/rhoai/odh-trustyai-nemo-guardrails-server-rhel9@sha256:bb74d6f2f149627c91ad8503df544a21d8bd06f41a0f0037f117b97851ba644c"
 - name: RELATED_IMAGE_ODH_TRUSTYAI_GARAK_LLS_PROVIDER_DSP_IMAGE
   value: "quay.io/rhoai/odh-trustyai-garak-lls-provider-dsp-rhel9@sha256:240580e8ed1b9e30e7019b2ef6cb7be84708c0a79a07fea3b840b5198e5eb833"
 - name: RELATED_IMAGE_ODH_MLFLOW_IMAGE
