@@ -91,13 +91,52 @@ type DeletionRecoverySnapshot struct {
 	OperatorPodLogs       []string
 	RecentEvents          []string
 	DSCStatus             map[string]interface{}
-	APIServerHealth       APIHealthMetrics
+	APIServerHealth       APIHealthTimeline // Enhanced in Patch 16 for timeline tracking
 }
 
 // APIHealthMetrics captures API server health and performance metrics.
+// Deprecated: Use APIHealthTimeline for comprehensive timeline tracking.
 type APIHealthMetrics struct {
 	Latency      time.Duration
 	RecentErrors []string
+}
+
+// APIHealthTimeline tracks API performance over recent history by analyzing operator logs.
+type APIHealthTimeline struct {
+	// Current point-in-time measurement
+	CurrentLatency time.Duration
+	CurrentStatus  string // "HEALTHY", "DEGRADED", "FAILING"
+
+	// Historical data from operator logs
+	TimeWindow  time.Duration // How far back we analyzed (e.g., 5m)
+	APIErrors   []APIError    // Errors found in logs
+	APITimeouts []APITimeout  // Timeouts found in logs
+
+	// Summary
+	TotalErrors    int
+	TotalTimeouts  int
+	FirstErrorTime time.Time
+	LastErrorTime  time.Time
+
+	// Assessment
+	Assessment       string // "HEALTHY", "INTERMITTENT_DEGRADATION", "DEGRADED"
+	AssessmentReason string // Explanation of assessment
+}
+
+// APIError represents an API error found in operator logs.
+type APIError struct {
+	Timestamp time.Time
+	Operation string // "GET", "LIST", "UPDATE", etc.
+	Resource  string // Resource being accessed
+	Error     string // Error message
+}
+
+// APITimeout represents an API timeout found in operator logs.
+type APITimeout struct {
+	Timestamp time.Time
+	Operation string // "GET", "LIST", "UPDATE", etc.
+	Resource  string // Resource being accessed
+	Message   string // Full timeout message
 }
 
 // OperatorLogEntry represents a single parsed log line from operator pods.
@@ -2194,6 +2233,16 @@ func (tc *TestContext) ScaleCSVDeploymentReplicas(
 const (
 	eventTypeWarning = "Warning"
 	eventTypeError   = "Error"
+
+	// API health status constants.
+	apiHealthStatusHealthy  = "HEALTHY"
+	apiHealthStatusDegraded = "DEGRADED"
+	apiHealthStatusFailing  = "FAILING"
+
+	// API health assessment constants.
+	apiHealthAssessmentHealthy                 = "HEALTHY"
+	apiHealthAssessmentIntermittentDegradation = "INTERMITTENT_DEGRADATION"
+	apiHealthAssessmentDegraded                = "DEGRADED"
 )
 
 // getKubernetesClientset creates a typed Kubernetes clientset for accessing
@@ -2244,9 +2293,9 @@ func (tc *TestContext) captureDeletionRecoverySnapshot(ro *ResourceOptions, phas
 	tc.Logf("[SNAPSHOT-%s] 4/5 Capturing DSC status...", phase)
 	snapshot.DSCStatus = tc.captureDSCStatus(phase)
 
-	// 5. Measure API server health
+	// 5. Measure API server health (enhanced in Patch 16 with timeline analysis)
 	tc.Logf("[SNAPSHOT-%s] 5/5 Measuring API server health...", phase)
-	snapshot.APIServerHealth = tc.measureAPIHealth(phase)
+	snapshot.APIServerHealth = tc.measureAPIHealth(phase, snapshot.OperatorPodLogs)
 
 	tc.Logf(strings.Repeat("=", 80))
 	tc.Logf("[SNAPSHOT-%s] Snapshot complete - captured %d log lines, %d events",
@@ -2543,40 +2592,293 @@ func (tc *TestContext) captureDSCStatus(phase string) map[string]interface{} {
 	}
 }
 
-// measureAPIHealth measures API server responsiveness and health.
+// measureAPIHealth measures API server responsiveness and health using timeline analysis.
+// Enhanced in Patch 16 to parse operator logs for historical API health context.
 //
 //nolint:unparam // phase kept for consistent API across diagnostic functions
-func (tc *TestContext) measureAPIHealth(phase string) APIHealthMetrics {
+func (tc *TestContext) measureAPIHealth(phase string, operatorLogs []string) APIHealthTimeline {
+	currentTime := time.Now()
+
+	// 1. Parse operator logs for historical API errors/timeouts
+	timeline := analyzeAPIHealthFromLogs(operatorLogs, currentTime)
+
+	// 2. Measure current API latency
 	clientset, err := tc.getKubernetesClientset()
+	var currentLatency time.Duration
+
 	if err != nil {
-		return APIHealthMetrics{
-			RecentErrors: []string{fmt.Sprintf("Failed to create clientset: %v", err)},
+		tc.Logf("  [API-HEALTH] Failed to create clientset for latency check: %v", err)
+		currentLatency = 0
+	} else {
+		ctx := context.Background()
+		start := time.Now()
+		_, _ = clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{Limit: 1})
+		currentLatency = time.Since(start)
+	}
+
+	// 3. Assess overall API health combining historical + current data
+	timeline.assessAPIHealth(currentLatency, currentTime)
+
+	// 4. Log comprehensive API health status
+	tc.Logf("  [API-HEALTH] Current: %s - latency: %v", timeline.CurrentStatus, currentLatency.Round(time.Millisecond))
+
+	if timeline.TotalTimeouts > 0 || timeline.TotalErrors > 0 {
+		tc.Logf("  [API-HEALTH] Assessment: %s", timeline.Assessment)
+		tc.Logf("  [API-HEALTH] Reason: %s", timeline.AssessmentReason)
+		tc.Logf("  [API-HEALTH] Recent history (last %s):", timeline.TimeWindow)
+		tc.Logf("    - Timeouts: %d", timeline.TotalTimeouts)
+		tc.Logf("    - Errors: %d", timeline.TotalErrors)
+
+		// Show recent timeouts (max 5)
+		if len(timeline.APITimeouts) > 0 {
+			tc.Logf("  [API-HEALTH] Recent timeouts:")
+			for i, timeout := range timeline.APITimeouts {
+				if i >= 5 {
+					tc.Logf("    ... and %d more", len(timeline.APITimeouts)-5)
+					break
+				}
+				tc.Logf("    [%s] %s %s",
+					timeout.Timestamp.Format("15:04:05"),
+					timeout.Operation,
+					truncateString(timeout.Message, 100))
+			}
+		}
+
+		// Show recent errors (max 3)
+		if len(timeline.APIErrors) > 0 {
+			tc.Logf("  [API-HEALTH] Recent errors:")
+			for i, apiErr := range timeline.APIErrors {
+				if i >= 3 {
+					tc.Logf("    ... and %d more", len(timeline.APIErrors)-3)
+					break
+				}
+				tc.Logf("    [%s] %s - %s",
+					apiErr.Timestamp.Format("15:04:05"),
+					apiErr.Operation,
+					truncateString(apiErr.Error, 100))
+			}
+		}
+	} else {
+		tc.Logf("  [API-HEALTH] Assessment: %s - no errors or timeouts in last %s", apiHealthAssessmentHealthy, timeline.TimeWindow)
+	}
+
+	return timeline
+}
+
+// truncateString truncates a string to maxLen characters, adding "..." if truncated.
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen-3] + "..."
+}
+
+// ==================================================================================
+// API Health Timeline Analysis (Patch 16)
+// ==================================================================================
+
+// analyzeAPIHealthFromLogs parses operator logs to extract API errors and timeouts
+// from recent history, providing timeline context for API health assessment.
+//
+
+func analyzeAPIHealthFromLogs(operatorLogs []string, currentTime time.Time) APIHealthTimeline {
+	timeline := APIHealthTimeline{
+		TimeWindow:  5 * time.Minute,
+		APIErrors:   []APIError{},
+		APITimeouts: []APITimeout{},
+	}
+
+	cutoffTime := currentTime.Add(-timeline.TimeWindow)
+
+	// Regex patterns for detecting API issues in operator logs
+	// Pattern 1: API timeout - "error retrieving resource lock: the server was unable to return a response in the time allotted"
+	timeoutPattern := `the server was unable to return a response in the time allotted`
+
+	// Pattern 2: Resource lock errors (common timeout scenario)
+	resourceLockPattern := `error retrieving resource lock`
+
+	for _, logLine := range operatorLogs {
+		// Extract timestamp from log line
+		timestamp := extractTimestampFromLog(logLine, currentTime)
+
+		// Only analyze recent logs within time window
+		if !timestamp.IsZero() && timestamp.Before(cutoffTime) {
+			continue
+		}
+
+		// Check for API timeouts
+		if strings.Contains(logLine, timeoutPattern) {
+			timeout := parseAPITimeout(logLine, timestamp)
+			timeline.APITimeouts = append(timeline.APITimeouts, timeout)
+			timeline.TotalTimeouts++
+
+			if timeline.FirstErrorTime.IsZero() || timestamp.Before(timeline.FirstErrorTime) {
+				timeline.FirstErrorTime = timestamp
+			}
+			if timestamp.After(timeline.LastErrorTime) {
+				timeline.LastErrorTime = timestamp
+			}
+		} else if strings.Contains(logLine, resourceLockPattern) && strings.Contains(logLine, "error") {
+			// Resource lock errors that aren't timeouts
+			apiErr := parseAPIError(logLine, timestamp)
+			timeline.APIErrors = append(timeline.APIErrors, apiErr)
+			timeline.TotalErrors++
+
+			if timeline.FirstErrorTime.IsZero() || timestamp.Before(timeline.FirstErrorTime) {
+				timeline.FirstErrorTime = timestamp
+			}
+			if timestamp.After(timeline.LastErrorTime) {
+				timeline.LastErrorTime = timestamp
+			}
 		}
 	}
 
-	ctx := context.Background()
-	start := time.Now()
+	return timeline
+}
 
-	// Health check: list nodes
-	_, err = clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{Limit: 1})
-	latency := time.Since(start)
-
-	metrics := APIHealthMetrics{
-		Latency: latency,
+// extractTimestampFromLog attempts to extract timestamp from operator log line.
+// Operator logs typically start with timestamp like: "2026-01-21T15:22:06.566666Z"
+// or Kubernetes style: "E0121 15:22:06.566666".
+func extractTimestampFromLog(logLine string, fallback time.Time) time.Time {
+	// Try RFC3339 format first (e.g., "2026-01-21T15:22:06.566666Z")
+	if len(logLine) > 30 {
+		timestampStr := logLine[:30]
+		if t, err := time.Parse(time.RFC3339, timestampStr[:20]+"Z"); err == nil {
+			return t
+		}
 	}
 
-	// Log API health status based on error and latency
+	// Try Kubernetes log format: "E0121 15:22:06.566666"
+	if len(logLine) > 21 && (logLine[0] == 'E' || logLine[0] == 'W' || logLine[0] == 'I') {
+		// Extract "0121 15:22:06"
+		dateTimeStr := logLine[1:18]
+		// Assume current year
+		fullDateStr := fmt.Sprintf("%d-%s-%s %s",
+			fallback.Year(),
+			dateTimeStr[0:2], // month
+			dateTimeStr[2:4], // day
+			dateTimeStr[5:],  // time
+		)
+		if t, err := time.Parse("2006-01-02 15:04:05", fullDateStr); err == nil {
+			return t
+		}
+	}
+
+	// Fallback: use current time
+	return fallback
+}
+
+// parseAPITimeout extracts timeout details from log line.
+func parseAPITimeout(logLine string, timestamp time.Time) APITimeout {
+	timeout := APITimeout{
+		Timestamp: timestamp,
+		Message:   logLine,
+		Operation: "GET", // Most timeouts are GET operations
+	}
+
+	// Try to extract resource name from "error retrieving resource lock coordination.k8s.io/v1/Lease/opendatahub-system/07ed84f7.opendatahub.io"
+	if strings.Contains(logLine, "resource lock") {
+		parts := strings.Split(logLine, "resource lock")
+		if len(parts) > 1 {
+			resourcePath := strings.TrimSpace(parts[1])
+			// Extract just the resource type and name
+			if idx := strings.Index(resourcePath, "/"); idx > 0 {
+				timeout.Resource = resourcePath
+			}
+		}
+	}
+
+	return timeout
+}
+
+// parseAPIError extracts error details from log line.
+func parseAPIError(logLine string, timestamp time.Time) APIError {
+	apiErr := APIError{
+		Timestamp: timestamp,
+		Error:     logLine,
+		Operation: "UNKNOWN",
+	}
+
+	// Try to extract operation type (GET, LIST, UPDATE, etc.)
+	for _, op := range []string{"GET", "LIST", "UPDATE", "PATCH", "DELETE", "CREATE"} {
+		if strings.Contains(strings.ToUpper(logLine), op) {
+			apiErr.Operation = op
+			break
+		}
+	}
+
+	return apiErr
+}
+
+// assessAPIHealth determines overall API health based on timeline data and current latency.
+func (t *APIHealthTimeline) assessAPIHealth(currentLatency time.Duration, currentTime time.Time) {
+	t.CurrentLatency = currentLatency
+
+	// Determine current status based on latency
 	switch {
-	case err != nil:
-		metrics.RecentErrors = []string{fmt.Sprintf("API health check failed: %v", err)}
-		tc.Logf("  [API-HEALTH] DEGRADED - latency: %v, error: %v", latency, err)
-	case latency > 5*time.Second:
-		tc.Logf("  [API-HEALTH] SLOW - latency: %v (>5s is slow)", latency)
-	case latency > 1*time.Second:
-		tc.Logf("  [API-HEALTH] OK - latency: %v (slightly elevated)", latency)
+	case currentLatency < 50*time.Millisecond:
+		t.CurrentStatus = apiHealthStatusHealthy
+	case currentLatency < 1*time.Second:
+		t.CurrentStatus = apiHealthStatusDegraded
 	default:
-		tc.Logf("  [API-HEALTH] HEALTHY - latency: %v", latency)
+		t.CurrentStatus = apiHealthStatusFailing
 	}
 
-	return metrics
+	// Determine overall assessment based on historical errors
+	if t.TotalTimeouts == 0 && t.TotalErrors == 0 {
+		t.Assessment = apiHealthAssessmentHealthy
+		t.AssessmentReason = fmt.Sprintf("No API errors or timeouts in last %s", t.TimeWindow)
+		return
+	}
+
+	// Calculate time since last error
+	var timeSinceLast time.Duration
+	if !t.LastErrorTime.IsZero() {
+		timeSinceLast = currentTime.Sub(t.LastErrorTime)
+	}
+
+	// Timeouts are serious - they indicate API server unresponsiveness
+	if t.TotalTimeouts > 0 {
+		if timeSinceLast < 2*time.Minute {
+			// Recent timeout - still experiencing issues
+			t.Assessment = apiHealthAssessmentDegraded
+			t.AssessmentReason = fmt.Sprintf(
+				"%d timeout(s) in last %s, most recent %s ago",
+				t.TotalTimeouts,
+				t.TimeWindow,
+				timeSinceLast.Round(time.Second),
+			)
+		} else {
+			// Timeout occurred but recovered
+			t.Assessment = apiHealthAssessmentIntermittentDegradation
+			t.AssessmentReason = fmt.Sprintf(
+				"%d timeout(s) in last %s, but recovered (last timeout %s ago, current latency %s)",
+				t.TotalTimeouts,
+				t.TimeWindow,
+				timeSinceLast.Round(time.Second),
+				t.CurrentLatency.Round(time.Millisecond),
+			)
+		}
+		return
+	}
+
+	// Multiple errors indicate persistent issues
+	if t.TotalErrors > 5 {
+		t.Assessment = apiHealthAssessmentDegraded
+		t.AssessmentReason = fmt.Sprintf(
+			"%d API error(s) in last %s",
+			t.TotalErrors,
+			t.TimeWindow,
+		)
+		return
+	}
+
+	// Few errors - likely transient
+	t.Assessment = apiHealthAssessmentIntermittentDegradation
+	t.AssessmentReason = fmt.Sprintf(
+		"%d API error(s) in last %s, currently %s",
+		t.TotalErrors,
+		t.TimeWindow,
+		t.CurrentStatus,
+	)
 }
