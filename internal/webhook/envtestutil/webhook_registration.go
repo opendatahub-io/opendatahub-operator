@@ -82,7 +82,7 @@ func RegisterWebhooks(mgr manager.Manager) error {
 		return err
 	}
 
-	// Register Connection webhook for Notebook
+	// Register monitoring injector webhook
 	monitoringInjector := &monitoringwebhook.Injector{
 		Client:  mgr.GetClient(),
 		Decoder: admission.NewDecoder(mgr.GetScheme()),
