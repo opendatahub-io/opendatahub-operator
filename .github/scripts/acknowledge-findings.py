@@ -29,7 +29,7 @@ import argparse
 import re
 import hashlib
 import yaml
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 
@@ -50,6 +50,9 @@ class FindingAcknowledger:
         Returns:
             Dict mapping tool name to file path
         """
+        # Reset available_tools to prevent duplicates on repeated invocations
+        self.available_tools = []
+
         tool_files = {
             'gitleaks': 'gitleaks.json',
             'trufflehog': 'trufflehog.json',
@@ -180,8 +183,7 @@ class FindingAcknowledger:
     def parse_kube_linter(self, filepath: Path) -> List[Dict[str, Any]]:
         """Parse kube-linter JSON output
 
-        Note: kube-linter v0.7.6+ emits K8sObjectInfo fields directly under Object,
-        not under Object.K8sObject (which has json:"-" tag and is not serialized)
+        Note: kube-linter v0.7.6+ structure has K8sObjectInfo fields under Object.K8sObject
         """
         findings = []
         try:
@@ -190,8 +192,10 @@ class FindingAcknowledger:
                 reports = data.get('Reports', [])
 
                 for report in reports:
-                    # kube-linter v0.7.6+ structure: Object contains K8sObjectInfo fields directly
-                    obj = report.get('Object', {})
+                    # kube-linter v0.7.6+ structure: Object.K8sObject contains the resource info
+                    # Fallback: if K8sObject doesn't exist, use Object directly for forward compatibility
+                    obj_container = report.get('Object', {})
+                    obj = obj_container.get('K8sObject', obj_container)
                     findings.append({
                         'check': report.get('Check', 'unknown'),
                         'object': {
@@ -541,7 +545,11 @@ class FindingAcknowledger:
                 return []
 
             try:
-                indices = [int(x.strip()) for x in selection.split(',')]
+                # Filter empty tokens and deduplicate indices
+                indices = sorted(set(int(x.strip()) for x in selection.split(',') if x.strip()))
+                if not indices:
+                    print("⚠️  Please enter at least one number")
+                    continue
                 if all(1 <= idx <= len(findings) for idx in indices):
                     break
                 else:
@@ -578,7 +586,7 @@ class FindingAcknowledger:
             # Add metadata
             finding['reason'] = reason
             finding['acknowledged_by'] = acknowledged_by
-            finding['acknowledged_date'] = datetime.now(UTC).strftime('%Y-%m-%d')
+            finding['acknowledged_date'] = datetime.now(timezone.utc).strftime('%Y-%m-%d')
 
             # Remove temporary fields
             if 'description' in finding and tool == 'gitleaks':

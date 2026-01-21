@@ -126,17 +126,34 @@ jobs:
         id: trufflehog
         timeout-minutes: 10
         run: |
+          set +e
           docker run --rm \
             -v "${{ github.workspace }}:/repo" \
             ghcr.io/trufflesecurity/trufflehog@sha256:e42f126628f0a0ce4ee670bf62b71543eca5a3a2d3c590ff361091b841ac39c1 \
             filesystem /repo \
               --only-verified \
-              --json > trufflehog.json 2> trufflehog-errors.log || true
+              --json > trufflehog.json 2> trufflehog-errors.log
+          TRUFFLEHOG_EXIT=$?
+          set -e
+
+          # Validate output and handle failures
+          if [ $TRUFFLEHOG_EXIT -ne 0 ] && [ ! -s trufflehog.json ]; then
+            echo "❌ TruffleHog failed to produce output (exit: $TRUFFLEHOG_EXIT)" >&2
+            if [ -s trufflehog-errors.log ]; then
+              echo "Error log:" >&2
+              cat trufflehog-errors.log >&2
+            fi
+            exit 1
+          fi
+
           # Log errors if any occurred
           if [ -s trufflehog-errors.log ]; then
             echo "::warning::TruffleHog reported errors, check trufflehog-errors.log artifact"
             cat trufflehog-errors.log
           fi
+
+          # Exit with actual status for accurate step outcome
+          exit $TRUFFLEHOG_EXIT
         continue-on-error: true  # Don't block workflow, collect all findings
 
       # ============================================================================
@@ -341,10 +358,14 @@ jobs:
         id: kubelinter
         timeout-minutes: 5
         run: |
+          set -euo pipefail
           # Prepare kustomize and render manifests
           make prepare
           TMP_FILE=$(mktemp /tmp/kube-lint.XXXXXX.yaml)
           ./bin/kustomize build config/manifests > "$TMP_FILE"
+
+          # Disable exit-on-error to capture kube-linter exit codes without short-circuiting
+          set +e
 
           # Run kube-linter with JSON output for comprehensive report
           kube-linter lint \
@@ -359,6 +380,9 @@ jobs:
             --format sarif \
             "$TMP_FILE" > kube-linter.sarif
           SARIF_EXIT=$?
+
+          # Re-enable exit-on-error for subsequent commands
+          set -e
 
           rm -f "$TMP_FILE"
 
@@ -592,6 +616,15 @@ jobs:
               if [[ -f "$output_file" && -s "$output_file" ]]; then
                 # Verify file is valid JSON/SARIF (for tools that produce such output)
                 case "$output_file" in
+                  trufflehog.json)
+                    # TruffleHog outputs JSONL (JSON Lines), not a single JSON document
+                    # Use -s to slurp all lines into an array for validation
+                    if jq -s empty "$output_file" 2>/dev/null; then
+                      echo "🔒|Issues Found"
+                    else
+                      echo "❌|Failed (invalid JSONL output)"
+                    fi
+                    ;;
                   *.json)
                     if jq empty "$output_file" 2>/dev/null; then
                       echo "🔒|Issues Found"

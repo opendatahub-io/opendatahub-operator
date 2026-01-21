@@ -55,6 +55,7 @@ jobs:
       - name: Run kube-linter (SARIF output)
         id: kubelinter_sarif
         run: |
+          set -euo pipefail
           # Prepare manifests
           make prepare
           TMP_FILE=$(mktemp /tmp/kube-lint.XXXXXX.yaml)
@@ -98,6 +99,7 @@ jobs:
       # MEDIUM and LOW findings are reported but don't block PRs
       - name: Run kube-linter (blocking check - CRITICAL/HIGH only)
         run: |
+          set -euo pipefail
           # Prepare manifests
           make prepare
           TMP_FILE=$(mktemp /tmp/kube-lint.XXXXXX.yaml)
@@ -108,6 +110,9 @@ jobs:
             --config .kube-linter.yaml \
             --format json \
             "$TMP_FILE" > kube-linter-pr-check.json || true
+
+          # Install PyYAML for baseline loading (required for yaml.safe_load)
+          python3 -m pip install --quiet --user "pyyaml==6.0.3"
 
           # Analyze findings and block only on CRITICAL/HIGH
           python3 - <<'EOF'
@@ -146,24 +151,30 @@ jobs:
           # Try unified YAML baseline first (version 2.0 - preferred format)
           try:
               with open('.github/config/security-baseline.yaml') as f:
-                  baseline = yaml.safe_load(f)
+                  baseline = yaml.safe_load(f) or {}
+                  if not isinstance(baseline, dict):
+                      baseline = {}
                   findings_list = baseline.get('kube-linter', [])
                   baseline_file_used = '.github/config/security-baseline.yaml'
           except FileNotFoundError:
               # Fall back to JSON unified baseline (version 2.0 - backward compat)
               try:
                   with open('.security-baseline.json') as f:
-                      baseline = json.load(f)
+                      baseline = json.load(f) or {}
+                      if not isinstance(baseline, dict):
+                          baseline = {}
                       findings_list = baseline.get('kube-linter', [])
                       baseline_file_used = '.security-baseline.json'
-              except FileNotFoundError:
+              except (FileNotFoundError, json.JSONDecodeError):
                   # Fall back to legacy kube-linter baseline (version 1.0)
                   try:
                       with open('.kube-linter-baseline.json') as f:
-                          baseline = json.load(f)
+                          baseline = json.load(f) or {}
+                          if not isinstance(baseline, dict):
+                              baseline = {}
                           findings_list = baseline.get('acknowledged_findings', [])
                           baseline_file_used = '.kube-linter-baseline.json'
-                  except FileNotFoundError:
+                  except (FileNotFoundError, json.JSONDecodeError):
                       findings_list = []
                       baseline_file_used = None
 
@@ -220,7 +231,7 @@ jobs:
 
           for report in reports:
               check_name = report.get('Check', 'unknown')
-              obj = report.get('Object', {})
+              obj = report.get('Object', {}).get('K8sObject', {})
               obj_name = obj.get('Name', 'unknown')
               obj_kind = obj.get('GroupVersionKind', {}).get('Kind', 'unknown')
               obj_namespace = obj.get('Namespace') or None  # None for cluster-scoped
@@ -260,7 +271,7 @@ jobs:
           if critical_findings:
               print(f"\n🔴 CRITICAL: {len(critical_findings)} findings (BLOCKING)")
               for finding in critical_findings:
-                  obj = finding.get('Object', {})
+                  obj = finding.get('Object', {}).get('K8sObject', {})
                   name = obj.get('Name', 'unknown')
                   kind = obj.get('GroupVersionKind', {}).get('Kind', 'unknown')
                   check = finding.get('Check', 'unknown')
@@ -271,7 +282,7 @@ jobs:
           if high_findings:
               print(f"\n🟠 HIGH: {len(high_findings)} findings (BLOCKING)")
               for finding in high_findings:
-                  obj = finding.get('Object', {})
+                  obj = finding.get('Object', {}).get('K8sObject', {})
                   name = obj.get('Name', 'unknown')
                   kind = obj.get('GroupVersionKind', {}).get('Kind', 'unknown')
                   check = finding.get('Check', 'unknown')
@@ -282,7 +293,7 @@ jobs:
           if medium_findings:
               print(f"\n🟡 MEDIUM: {len(medium_findings)} findings (non-blocking)")
               for finding in medium_findings:
-                  obj = finding.get('Object', {})
+                  obj = finding.get('Object', {}).get('K8sObject', {})
                   name = obj.get('Name', 'unknown')
                   kind = obj.get('GroupVersionKind', {}).get('Kind', 'unknown')
                   check = finding.get('Check', 'unknown')

@@ -26,7 +26,7 @@ import argparse
 import re
 import hashlib
 import yaml
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
@@ -95,6 +95,12 @@ class SecurityReportGenerator:
         # No baseline file found
         if baseline_data is None:
             return  # All findings will be reported
+
+        # Validate baseline is a dictionary
+        if not isinstance(baseline_data, dict):
+            print(f"[ERROR] Baseline file has invalid structure (expected dict, got {type(baseline_data).__name__})", file=sys.stderr)
+            print(f"[ERROR] Ignoring baseline - all findings will be reported", file=sys.stderr)
+            return
 
         # Validate baseline version
         version = baseline_data.get('version', '1.0')
@@ -293,7 +299,7 @@ class SecurityReportGenerator:
                             'type': 'Verified Credential',
                             'severity': 'CRITICAL',
                             'file': file_path,
-                            'line': line_num if line_num else '?',
+                            'line': line_num,  # Preserve numeric value for baseline matching (0, not '?')
                             'detector': detector,  # For baseline matching
                             'rule': detector,
                             'description': f"Verified {detector} found",
@@ -552,8 +558,10 @@ class SecurityReportGenerator:
                 description = diagnostic.get('Description', '')
 
                 # Extract object information
-                # kube-linter v0.7.6+ emits K8sObjectInfo fields directly under Object
-                obj = report.get('Object', {})
+                # kube-linter v0.7.6+ structure has K8sObjectInfo fields under Object.K8sObject
+                # Fallback: if K8sObject doesn't exist, use Object directly for forward compatibility
+                obj_container = report.get('Object', {})
+                obj = obj_container.get('K8sObject', obj_container)
                 namespace = obj.get('Namespace', '')
                 name = obj.get('Name', 'unknown')
                 gvk = obj.get('GroupVersionKind', {})
@@ -941,7 +949,7 @@ class SecurityReportGenerator:
             with open(output_file, 'w') as f:
                 # Header
                 f.write(f"# Comprehensive Security Scan Report\n\n")
-                f.write(f"**Generated:** {datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S')} UTC\n\n")
+                f.write(f"**Generated:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC\n\n")
                 f.write(f"**Repository:** {self.github.get('repository', 'unknown')}\n\n")
                 f.write(f"**Commit:** {self.github.get('sha', 'unknown')}\n\n")
                 f.write(f"**Branch:** {self.github.get('ref_name', 'unknown')}\n\n")
@@ -1224,7 +1232,7 @@ class SecurityReportGenerator:
 
         summary = {
             'format_version': '1.0',
-            'generated': datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S UTC'),
+            'generated': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC'),
             'commit': self.github.get('sha', 'unknown'),
             'branch': self.github.get('ref_name', 'unknown'),
             'repository': self.github.get('repository', 'unknown'),
@@ -1261,7 +1269,7 @@ class SecurityReportGenerator:
         try:
             with open(output_file, 'w') as f:
                 f.write(f"# YAMLlint Code Quality Report\n\n")
-                f.write(f"**Generated:** {datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}\n\n")
+                f.write(f"**Generated:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}\n\n")
                 f.write(f"**Repository:** {self.github.get('repository', 'unknown')}\n\n")
                 f.write(f"**Commit:** {self.github.get('sha', 'unknown')}\n\n")
                 f.write(f"**Branch:** {self.github.get('ref_name', 'unknown')}\n\n")
