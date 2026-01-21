@@ -70,12 +70,6 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 		managementState = maasConfig.ManagementState
 	}
 
-	// Configure Gateway spec - always use defaults (gateway is not user-configurable)
-	gatewaySpec := componentApi.GatewaySpec{
-		Namespace: DefaultGatewayNamespace,
-		Name:      DefaultGatewayName,
-	}
-
 	return &componentApi.ModelsAsService{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.ModelsAsServiceKind,
@@ -86,9 +80,6 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 			Annotations: map[string]string{
 				annotations.ManagementStateAnnotation: string(managementState),
 			},
-		},
-		Spec: componentApi.ModelsAsServiceSpec{
-			Gateway: gatewaySpec,
 		},
 	}
 }

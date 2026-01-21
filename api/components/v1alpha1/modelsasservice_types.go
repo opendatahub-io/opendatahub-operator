@@ -53,26 +53,25 @@ type ModelsAsService struct {
 
 // ModelsAsServiceSpec defines the desired state of ModelsAsService
 type ModelsAsServiceSpec struct {
-	// Gateway specifies which Gateway (Gateway API) to use for exposing model endpoints.
-	// This field is currently internal-only (json:"-") and not exposed in the CRD schema.
-	//
-	// The gateway is hardcoded to default values:
-	//   - Namespace: "openshift-ingress"
-	//   - Name: "maas-default-gateway"
-	//
-	// Future enhancement: This field is expected to become user-configurable to allow
-	// custom gateway specifications. When that happens, change the json tag from "-" to
-	// "gateway,omitempty" and restore the DSC override logic from git history.
-	Gateway GatewaySpec `json:"-"`
+	// GatewayRef specifies which Gateway (Gateway API) to use for exposing model endpoints.
+	// If omitted, defaults to openshift-ingress/maas-default-gateway.
+	// +kubebuilder:validation:Optional
+	GatewayRef GatewayRef `json:"gatewayRef,omitempty"`
 }
 
-// GatewaySpec defines the reference to the global Gateway (Gw API) where
+// GatewayRef defines the reference to the global Gateway (Gw API) where
 // models should be published to when exposed as services.
-type GatewaySpec struct {
-	// Namespace is the namespace name where the gateway.networking.k8s.io/v1/Gateway resource is.
+type GatewayRef struct {
+	// Namespace is the namespace where the Gateway resource is located.
+	// +kubebuilder:default="openshift-ingress"
+	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
+	// +kubebuilder:validation:MaxLength=63
 	Namespace string `json:"namespace,omitempty"`
 
-	// Name is the name of the gateway.networking.k8s.io/v1/Gateway resource.
+	// Name is the name of the Gateway resource.
+	// +kubebuilder:default="maas-default-gateway"
+	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
+	// +kubebuilder:validation:MaxLength=63
 	Name string `json:"name,omitempty"`
 }
 
@@ -110,8 +109,6 @@ type DSCModelsAsServiceSpec struct {
 	// +kubebuilder:validation:Enum=Managed;Removed
 	// +kubebuilder:default=Removed
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
-
-	ModelsAsServiceSpec `json:",inline"`
 }
 
 // DSCModelsAsServiceStatus contains the observed state of the ModelsAsService exposed in the DSC instance
