@@ -1,8 +1,11 @@
 package e2e_test
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"slices"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -23,8 +26,10 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlcfg "sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
@@ -74,6 +79,35 @@ type TestContext struct {
 
 	// Namespaced name of the DataScienceCluster custom resource used for testing.
 	DataScienceClusterNamespacedName types.NamespacedName
+}
+
+// DeletionRecoverySnapshot captures the complete state of the cluster at a specific point
+// during deletion recovery testing, enabling root cause analysis of failures.
+type DeletionRecoverySnapshot struct {
+	Timestamp             time.Time
+	Phase                 string
+	ComponentStatus       map[string]interface{}
+	ParentComponentStatus map[string]interface{}
+	OperatorPodLogs       []string
+	RecentEvents          []string
+	DSCStatus             map[string]interface{}
+	APIServerHealth       APIHealthMetrics
+}
+
+// APIHealthMetrics captures API server health and performance metrics.
+type APIHealthMetrics struct {
+	Latency      time.Duration
+	RecentErrors []string
+}
+
+// OperatorLogEntry represents a single parsed log line from operator pods.
+type OperatorLogEntry struct {
+	Timestamp time.Time
+	PodName   string
+	Level     string
+	Message   string
+	Component string
+	Fields    map[string]interface{}
 }
 
 // NewTestContext creates and initializes a new TestContext instance.
@@ -1172,6 +1206,9 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 	originalUID := originalResource.GetUID()
 	originalResourceVersion := originalResource.GetResourceVersion()
 
+	// [DIAGNOSTICS] Capture pre-deletion snapshot
+	tc.captureDeletionRecoverySnapshot(ro, "PRE-DELETE")
+
 	// Step 2: Delete the resource using standard deletion
 	tc.DeleteResource(opts...)
 
@@ -1195,6 +1232,9 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 			"Resource deletion not yet acknowledged: resource still exists with original UID")
 		// If it has a different UID, it was already recreated, which is fine
 	}).Should(Succeed(), "Resource %s %s deletion was not acknowledged within timeout", ro.GVK.Kind, ro.ResourceID)
+
+	// [DIAGNOSTICS] Capture post-deletion snapshot
+	tc.captureDeletionRecoverySnapshot(ro, "POST-DELETE")
 
 	// Step 3: Wait for controller to recreate with new identity
 	// (UID-based verification automatically handles deletion acknowledgment)
@@ -1238,6 +1278,10 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 			// This catches "no progress" scenarios where resource is deleted but never recreated
 			timeSinceDeletion := now.Sub(deletionCompletedTime)
 			if timeSinceDeletion > noProgressTimeout {
+				// [DIAGNOSTICS] Capture failure snapshot before failing
+				tc.captureDeletionRecoverySnapshot(ro, "TIMEOUT-NO-RECREATION")
+				tc.Logf("\n[DIAGNOSTICS] Deletion recovery failed - resource not recreated after %.0fs", timeSinceDeletion.Seconds())
+
 				failureMsg := fmt.Sprintf(
 					"[CONTROLLER] %s %s not recreated after %.0fs since deletion - controller likely not watching deletion events",
 					ro.GVK.Kind,
@@ -1296,6 +1340,10 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 		// Default error message with controller tag
 		return fmt.Sprintf("[CONTROLLER] Resource %s %s was not properly recreated with new identity", ro.GVK.Kind, ro.ResourceID)
 	})
+
+	// [DIAGNOSTICS] Capture post-recreation snapshot (success case)
+	tc.captureDeletionRecoverySnapshot(ro, "POST-RECREATION")
+	tc.Logf("[SUCCESS] Deletion recovery completed - resource recreated with new UID")
 
 	return recreatedResource
 }
@@ -2139,17 +2187,396 @@ func (tc *TestContext) ScaleCSVDeploymentReplicas(
 	return originalReplicas
 }
 
-func getComponentNameFromKind(kind string) (string, string) {
-	componentName := strings.ToLower(kind)
+// ==================================================================================
+// Deletion Recovery Comprehensive Diagnostics
+// ==================================================================================
 
-	componentFieldName := componentName
-	conditionKind := kind
-	const dataSciencePipelinesKind = "DataSciencePipelines"
-	const aiPipelinesFieldName = "aipipelines"
-	if kind == dataSciencePipelinesKind {
-		componentFieldName = aiPipelinesFieldName
-		conditionKind = "AIPipelines"
+const (
+	eventTypeWarning = "Warning"
+	eventTypeError   = "Error"
+)
+
+// getKubernetesClientset creates a typed Kubernetes clientset for accessing
+// operator logs, events, and other cluster resources not available through
+// the controller-runtime client.
+func (tc *TestContext) getKubernetesClientset() (*kubernetes.Clientset, error) {
+	cfg, err := ctrlcfg.GetConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get rest config: %w", err)
 	}
 
-	return componentFieldName, conditionKind
+	clientset, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create clientset: %w", err)
+	}
+
+	return clientset, nil
+}
+
+// captureDeletionRecoverySnapshot captures comprehensive cluster state including
+// resource status, operator logs, cluster events, and API health metrics.
+//
+//nolint:unparam // Return value used for structured logging, not direct usage
+func (tc *TestContext) captureDeletionRecoverySnapshot(ro *ResourceOptions, phase string) *DeletionRecoverySnapshot {
+	tc.Logf("\n" + strings.Repeat("=", 80))
+	tc.Logf("[SNAPSHOT-%s] Capturing comprehensive cluster state at %s", phase, time.Now().Format("15:04:05"))
+	tc.Logf(strings.Repeat("=", 80))
+
+	snapshot := &DeletionRecoverySnapshot{
+		Timestamp:       time.Now(),
+		Phase:           phase,
+		ComponentStatus: make(map[string]interface{}),
+	}
+
+	// 1. Capture target resource status
+	tc.Logf("[SNAPSHOT-%s] 1/5 Capturing resource status...", phase)
+	snapshot.ComponentStatus = tc.captureResourceStatus(ro, phase)
+
+	// 2. Capture operator pod logs
+	tc.Logf("[SNAPSHOT-%s] 2/5 Capturing operator logs...", phase)
+	snapshot.OperatorPodLogs = tc.captureOperatorLogs(phase, 100)
+
+	// 3. Capture recent cluster events
+	tc.Logf("[SNAPSHOT-%s] 3/5 Capturing cluster events...", phase)
+	snapshot.RecentEvents = tc.captureRecentEvents(ro.NN.Namespace, phase, 50)
+
+	// 4. Capture DSC status (if this is a component resource)
+	tc.Logf("[SNAPSHOT-%s] 4/5 Capturing DSC status...", phase)
+	snapshot.DSCStatus = tc.captureDSCStatus(phase)
+
+	// 5. Measure API server health
+	tc.Logf("[SNAPSHOT-%s] 5/5 Measuring API server health...", phase)
+	snapshot.APIServerHealth = tc.measureAPIHealth(phase)
+
+	tc.Logf(strings.Repeat("=", 80))
+	tc.Logf("[SNAPSHOT-%s] Snapshot complete - captured %d log lines, %d events",
+		phase, len(snapshot.OperatorPodLogs), len(snapshot.RecentEvents))
+	tc.Logf(strings.Repeat("=", 80) + "\n")
+
+	return snapshot
+}
+
+// captureResourceStatus captures the current status of the resource being tested.
+//
+//nolint:unparam // phase kept for consistent API across diagnostic functions
+func (tc *TestContext) captureResourceStatus(ro *ResourceOptions, phase string) map[string]interface{} {
+	u, err := fetchResourceSync(ro)
+
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			tc.Logf("  [RESOURCE] %s %s: NOT FOUND (deleted)", ro.GVK.Kind, ro.ResourceID)
+			return map[string]interface{}{
+				"found":  false,
+				"reason": "NotFound",
+			}
+		}
+		tc.Logf("  [RESOURCE] %s %s: ERROR - %v", ro.GVK.Kind, ro.ResourceID, err)
+		return map[string]interface{}{
+			"found": false,
+			"error": err.Error(),
+		}
+	}
+
+	status, _, _ := unstructured.NestedMap(u.Object, "status")
+	tc.Logf("  [RESOURCE] %s %s: FOUND", ro.GVK.Kind, ro.ResourceID)
+	tc.Logf("    UID: %s", u.GetUID())
+	tc.Logf("    ResourceVersion: %s", u.GetResourceVersion())
+	tc.Logf("    Generation: %d", u.GetGeneration())
+
+	// Log conditions if present
+	if conditions, found, _ := unstructured.NestedSlice(status, "conditions"); found && len(conditions) > 0 {
+		tc.Logf("    Conditions:")
+		for _, cond := range conditions {
+			if condMap, ok := cond.(map[string]interface{}); ok {
+				tc.Logf("      - Type: %v, Status: %v, Reason: %v, Message: %v",
+					condMap["type"], condMap["status"], condMap["reason"], condMap["message"])
+			}
+		}
+	}
+
+	// Log replica counts for Deployments/StatefulSets
+	if ro.GVK.Kind == "Deployment" || ro.GVK.Kind == "StatefulSet" {
+		if replicas, found, _ := unstructured.NestedInt64(status, "replicas"); found {
+			tc.Logf("    Replicas: %d", replicas)
+		}
+		if readyReplicas, found, _ := unstructured.NestedInt64(status, "readyReplicas"); found {
+			tc.Logf("    ReadyReplicas: %d", readyReplicas)
+		}
+		if availableReplicas, found, _ := unstructured.NestedInt64(status, "availableReplicas"); found {
+			tc.Logf("    AvailableReplicas: %d", availableReplicas)
+		}
+	}
+
+	return map[string]interface{}{
+		"found":           true,
+		"uid":             string(u.GetUID()),
+		"resourceVersion": u.GetResourceVersion(),
+		"generation":      u.GetGeneration(),
+		"status":          status,
+	}
+}
+
+// captureOperatorLogs captures recent operator pod logs for analysis.
+//
+//nolint:unparam // phase kept for consistent API across diagnostic functions
+func (tc *TestContext) captureOperatorLogs(phase string, maxLines int) []string {
+	clientset, err := tc.getKubernetesClientset()
+	if err != nil {
+		tc.Logf("  [OPERATOR-LOGS] Failed to create clientset: %v", err)
+		return []string{fmt.Sprintf("ERROR: Failed to create clientset: %v", err)}
+	}
+
+	ctx := context.Background()
+
+	// Find operator pods
+	pods, err := clientset.CoreV1().Pods(tc.OperatorNamespace).List(ctx, metav1.ListOptions{
+		LabelSelector: "control-plane=controller-manager",
+	})
+
+	if err != nil {
+		tc.Logf("  [OPERATOR-LOGS] Failed to list operator pods: %v", err)
+		return []string{fmt.Sprintf("ERROR: Failed to list operator pods: %v", err)}
+	}
+
+	if len(pods.Items) == 0 {
+		tc.Logf("  [OPERATOR-LOGS] No operator pods found in namespace %s", tc.OperatorNamespace)
+		return []string{fmt.Sprintf("ERROR: No operator pods found in namespace %s", tc.OperatorNamespace)}
+	}
+
+	tc.Logf("  [OPERATOR-LOGS] Found %d operator pod(s)", len(pods.Items))
+
+	var allLogs []string
+	for _, pod := range pods.Items {
+		tc.Logf("  [OPERATOR-LOGS] Capturing logs from pod %s (status: %s)...", pod.Name, pod.Status.Phase)
+
+		// Get container names
+		var containerNames []string
+		for _, container := range pod.Spec.Containers {
+			containerNames = append(containerNames, container.Name)
+		}
+
+		// Capture logs from each container
+		for _, containerName := range containerNames {
+			req := clientset.CoreV1().Pods(tc.OperatorNamespace).GetLogs(pod.Name, &corev1.PodLogOptions{
+				Container: containerName,
+				TailLines: ptr.To(int64(maxLines)),
+			})
+
+			logStream, err := req.Stream(ctx)
+			if err != nil {
+				allLogs = append(allLogs, fmt.Sprintf("ERROR getting logs from %s/%s: %v", pod.Name, containerName, err))
+				continue
+			}
+
+			logBytes, err := io.ReadAll(logStream)
+			logStream.Close()
+
+			if err != nil {
+				allLogs = append(allLogs, fmt.Sprintf("ERROR reading logs from %s/%s: %v", pod.Name, containerName, err))
+				continue
+			}
+
+			logLines := strings.Split(string(logBytes), "\n")
+			relevantLines := 0
+			for _, line := range logLines {
+				line = strings.TrimSpace(line)
+				if line != "" {
+					allLogs = append(allLogs, fmt.Sprintf("[%s/%s] %s", pod.Name, containerName, line))
+					relevantLines++
+				}
+			}
+
+			tc.Logf("    Captured %d log lines from container %s", relevantLines, containerName)
+		}
+	}
+
+	tc.Logf("  [OPERATOR-LOGS] Total captured: %d log lines from %d pod(s)", len(allLogs), len(pods.Items))
+
+	// Log a sample of recent logs for immediate visibility
+	if len(allLogs) > 0 {
+		tc.Logf("  [OPERATOR-LOGS] Recent log sample (last 10 lines):")
+		sampleStart := len(allLogs) - 10
+		if sampleStart < 0 {
+			sampleStart = 0
+		}
+		for i := sampleStart; i < len(allLogs); i++ {
+			tc.Logf("    %s", allLogs[i])
+		}
+	}
+
+	return allLogs
+}
+
+// captureRecentEvents captures recent Kubernetes events in the specified namespace.
+//
+//nolint:unparam // phase kept for consistent API across diagnostic functions
+func (tc *TestContext) captureRecentEvents(namespace string, phase string, maxEvents int) []string {
+	clientset, err := tc.getKubernetesClientset()
+	if err != nil {
+		tc.Logf("  [EVENTS] Failed to create clientset: %v", err)
+		return []string{fmt.Sprintf("ERROR: Failed to create clientset: %v", err)}
+	}
+
+	ctx := context.Background()
+
+	// Get events from target namespace
+	events, err := clientset.CoreV1().Events(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		tc.Logf("  [EVENTS] Failed to list events in namespace %s: %v", namespace, err)
+		return []string{fmt.Sprintf("ERROR: Failed to list events: %v", err)}
+	}
+
+	// Also get events from operator namespace (if different)
+	var operatorEvents *corev1.EventList
+	if namespace != tc.OperatorNamespace {
+		operatorEvents, err = clientset.CoreV1().Events(tc.OperatorNamespace).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			tc.Logf("  [EVENTS] Failed to list events in operator namespace %s: %v", tc.OperatorNamespace, err)
+		} else {
+			events.Items = append(events.Items, operatorEvents.Items...)
+		}
+	}
+
+	// Sort events by last timestamp (most recent first)
+	sort.Slice(events.Items, func(i, j int) bool {
+		return events.Items[i].LastTimestamp.After(events.Items[j].LastTimestamp.Time)
+	})
+
+	tc.Logf("  [EVENTS] Found %d total events (across namespaces)", len(events.Items))
+
+	// Pre-allocate slice to avoid multiple allocations
+	capacity := maxEvents
+	if len(events.Items) < maxEvents {
+		capacity = len(events.Items)
+	}
+	eventStrings := make([]string, 0, capacity)
+	warningCount := 0
+	errorCount := 0
+
+	for i, event := range events.Items {
+		if i >= maxEvents {
+			break
+		}
+
+		eventStr := fmt.Sprintf("[%s] [%s] %s/%s: %s - %s",
+			event.LastTimestamp.Format("15:04:05"),
+			event.Type,
+			event.InvolvedObject.Kind,
+			event.InvolvedObject.Name,
+			event.Reason,
+			event.Message,
+		)
+		eventStrings = append(eventStrings, eventStr)
+
+		if event.Type == eventTypeWarning {
+			warningCount++
+		}
+		if event.Type == eventTypeError {
+			errorCount++
+		}
+	}
+
+	tc.Logf("  [EVENTS] Captured %d events (%d warnings, %d errors)", len(eventStrings), warningCount, errorCount)
+
+	// Log recent warning/error events immediately
+	if warningCount > 0 || errorCount > 0 {
+		tc.Logf("  [EVENTS] Recent warnings/errors:")
+		count := 0
+		for _, eventStr := range eventStrings {
+			if strings.Contains(eventStr, "[Warning]") || strings.Contains(eventStr, "[Error]") {
+				tc.Logf("    %s", eventStr)
+				count++
+				if count >= 5 {
+					break
+				}
+			}
+		}
+	}
+
+	return eventStrings
+}
+
+// captureDSCStatus captures the DataScienceCluster status for component context.
+//
+//nolint:unparam // phase kept for consistent API across diagnostic functions
+func (tc *TestContext) captureDSCStatus(phase string) map[string]interface{} {
+	// Try to get the default DSC
+	dsc := &dscv2.DataScienceCluster{}
+	dscKey := types.NamespacedName{Name: "default-dsc"}
+
+	err := tc.Client().Get(tc.Context(), dscKey, dsc)
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			tc.Logf("  [DSC] DataScienceCluster not found (not all tests require DSC)")
+			return map[string]interface{}{
+				"found": false,
+			}
+		}
+		tc.Logf("  [DSC] Failed to get DataScienceCluster: %v", err)
+		return map[string]interface{}{
+			"found": false,
+			"error": err.Error(),
+		}
+	}
+
+	tc.Logf("  [DSC] DataScienceCluster found: %s", dsc.Name)
+	tc.Logf("    Phase: %s", dsc.Status.Phase)
+
+	// Log component statuses
+	tc.Logf("    Components: %+v", dsc.Status.Components)
+
+	// Log conditions
+	if len(dsc.Status.Conditions) > 0 {
+		tc.Logf("    Conditions:")
+		for _, cond := range dsc.Status.Conditions {
+			tc.Logf("      - Type: %s, Status: %s, Reason: %s",
+				cond.Type, cond.Status, cond.Reason)
+		}
+	}
+
+	return map[string]interface{}{
+		"found":      true,
+		"name":       dsc.Name,
+		"phase":      dsc.Status.Phase,
+		"components": dsc.Status.Components,
+		"conditions": dsc.Status.Conditions,
+	}
+}
+
+// measureAPIHealth measures API server responsiveness and health.
+//
+//nolint:unparam // phase kept for consistent API across diagnostic functions
+func (tc *TestContext) measureAPIHealth(phase string) APIHealthMetrics {
+	clientset, err := tc.getKubernetesClientset()
+	if err != nil {
+		return APIHealthMetrics{
+			RecentErrors: []string{fmt.Sprintf("Failed to create clientset: %v", err)},
+		}
+	}
+
+	ctx := context.Background()
+	start := time.Now()
+
+	// Health check: list nodes
+	_, err = clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{Limit: 1})
+	latency := time.Since(start)
+
+	metrics := APIHealthMetrics{
+		Latency: latency,
+	}
+
+	// Log API health status based on error and latency
+	switch {
+	case err != nil:
+		metrics.RecentErrors = []string{fmt.Sprintf("API health check failed: %v", err)}
+		tc.Logf("  [API-HEALTH] DEGRADED - latency: %v, error: %v", latency, err)
+	case latency > 5*time.Second:
+		tc.Logf("  [API-HEALTH] SLOW - latency: %v (>5s is slow)", latency)
+	case latency > 1*time.Second:
+		tc.Logf("  [API-HEALTH] OK - latency: %v (slightly elevated)", latency)
+	default:
+		tc.Logf("  [API-HEALTH] HEALTHY - latency: %v", latency)
+	}
+
+	return metrics
 }

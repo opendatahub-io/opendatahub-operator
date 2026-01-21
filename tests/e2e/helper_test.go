@@ -1391,3 +1391,9 @@ func getComponentInstanceName(componentKind string) string {
 		return strings.ToLower(componentKind)
 	}
 }
+
+// Helper function to get component name and condition kind from component kind.
+// Returns: (componentName, conditionKind).
+func getComponentNameFromKind(componentKind string) (string, string) {
+	return getComponentInstanceName(componentKind), componentKind
+}
