@@ -22,38 +22,10 @@ func TestGatewayValidation(t *testing.T) {
 	g := NewWithT(t)
 
 	t.Run("Gateway Validation", func(t *testing.T) {
-		t.Run("should accept valid Gateway that exists in the cluster", func(t *testing.T) {
+		t.Run("should succeed when default gateway exists in the cluster", func(t *testing.T) {
 			maas := &componentApi.ModelsAsService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: componentApi.ModelsAsServiceInstanceName,
-				},
-				Spec: componentApi.ModelsAsServiceSpec{
-					Gateway: componentApi.GatewaySpec{
-						Namespace: "valid-namespace",
-						Name:      "valid-gateway",
-					},
-				},
-			}
-
-			// Create a fake client with the gateway present
-			cli := createFakeClientWithGateway("valid-namespace", "valid-gateway")
-
-			rr := &types.ReconciliationRequest{
-				Instance: maas,
-				Client:   cli,
-			}
-
-			err := validateGateway(t.Context(), rr)
-			g.Expect(err).ShouldNot(HaveOccurred())
-		})
-
-		t.Run("should accept empty Gateway (uses defaults) when default gateway exists", func(t *testing.T) {
-			maas := &componentApi.ModelsAsService{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: componentApi.ModelsAsServiceInstanceName,
-				},
-				Spec: componentApi.ModelsAsServiceSpec{
-					Gateway: componentApi.GatewaySpec{},
 				},
 			}
 
@@ -67,96 +39,12 @@ func TestGatewayValidation(t *testing.T) {
 
 			err := validateGateway(t.Context(), rr)
 			g.Expect(err).ShouldNot(HaveOccurred())
-
-			// Verify defaults were applied
-			g.Expect(maas.Spec.Gateway.Namespace).Should(Equal(DefaultGatewayNamespace))
-			g.Expect(maas.Spec.Gateway.Name).Should(Equal(DefaultGatewayName))
 		})
 
-		t.Run("should reject Gateway with only namespace specified", func(t *testing.T) {
+		t.Run("should fail when default gateway does not exist in the cluster", func(t *testing.T) {
 			maas := &componentApi.ModelsAsService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: componentApi.ModelsAsServiceInstanceName,
-				},
-				Spec: componentApi.ModelsAsServiceSpec{
-					Gateway: componentApi.GatewaySpec{
-						Namespace: "some-namespace",
-						Name:      "",
-					},
-				},
-			}
-
-			cli := createFakeClientWithGateway("some-namespace", "some-gateway")
-
-			rr := &types.ReconciliationRequest{
-				Instance: maas,
-				Client:   cli,
-			}
-
-			err := validateGateway(t.Context(), rr)
-			g.Expect(err).Should(HaveOccurred())
-			g.Expect(err.Error()).Should(ContainSubstring("invalid gateway specification: when specifying a custom gateway, both namespace and name must be provided"))
-		})
-
-		t.Run("should reject Gateway with only name specified", func(t *testing.T) {
-			maas := &componentApi.ModelsAsService{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: componentApi.ModelsAsServiceInstanceName,
-				},
-				Spec: componentApi.ModelsAsServiceSpec{
-					Gateway: componentApi.GatewaySpec{
-						Namespace: "",
-						Name:      "some-name",
-					},
-				},
-			}
-
-			cli := createFakeClientWithGateway("some-namespace", "some-name")
-
-			rr := &types.ReconciliationRequest{
-				Instance: maas,
-				Client:   cli,
-			}
-
-			err := validateGateway(t.Context(), rr)
-			g.Expect(err).Should(HaveOccurred())
-			g.Expect(err.Error()).Should(ContainSubstring("invalid gateway specification: when specifying a custom gateway, both namespace and name must be provided"))
-		})
-
-		t.Run("should reject when specified Gateway does not exist in the cluster", func(t *testing.T) {
-			maas := &componentApi.ModelsAsService{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: componentApi.ModelsAsServiceInstanceName,
-				},
-				Spec: componentApi.ModelsAsServiceSpec{
-					Gateway: componentApi.GatewaySpec{
-						Namespace: "non-existent-namespace",
-						Name:      "non-existent-gateway",
-					},
-				},
-			}
-
-			// Create a fake client with NO gateway
-			cli := createFakeClientWithoutGateway()
-
-			rr := &types.ReconciliationRequest{
-				Instance: maas,
-				Client:   cli,
-			}
-
-			err := validateGateway(t.Context(), rr)
-			g.Expect(err).Should(HaveOccurred())
-			g.Expect(err.Error()).Should(ContainSubstring("gateway non-existent-namespace/non-existent-gateway not found"))
-			g.Expect(err.Error()).Should(ContainSubstring("the specified Gateway must exist before enabling ModelsAsService"))
-		})
-
-		t.Run("should reject when default Gateway does not exist in the cluster", func(t *testing.T) {
-			maas := &componentApi.ModelsAsService{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: componentApi.ModelsAsServiceInstanceName,
-				},
-				Spec: componentApi.ModelsAsServiceSpec{
-					Gateway: componentApi.GatewaySpec{}, // Uses defaults
 				},
 			}
 
@@ -179,16 +67,10 @@ func TestConfigureGatewayNamespaceResources(t *testing.T) {
 	g := NewWithT(t)
 
 	t.Run("Configure Gateway AuthPolicy", func(t *testing.T) {
-		t.Run("should update AuthPolicy namespace and targetRef when found", func(t *testing.T) {
+		t.Run("should update AuthPolicy namespace and targetRef to default gateway", func(t *testing.T) {
 			maas := &componentApi.ModelsAsService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: componentApi.ModelsAsServiceInstanceName,
-				},
-				Spec: componentApi.ModelsAsServiceSpec{
-					Gateway: componentApi.GatewaySpec{
-						Namespace: "custom-gateway-ns",
-						Name:      "custom-gateway",
-					},
 				},
 			}
 
@@ -202,26 +84,20 @@ func TestConfigureGatewayNamespaceResources(t *testing.T) {
 			err := configureGatewayNamespaceResources(t.Context(), rr)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
-			// Verify namespace was updated
-			g.Expect(rr.Resources[0].GetNamespace()).Should(Equal("custom-gateway-ns"))
+			// Verify namespace was updated to default
+			g.Expect(rr.Resources[0].GetNamespace()).Should(Equal(DefaultGatewayNamespace))
 
-			// Verify targetRef.name was updated
+			// Verify targetRef.name was updated to default
 			targetRefName, found, err := unstructured.NestedString(rr.Resources[0].Object, "spec", "targetRef", "name")
 			g.Expect(err).ShouldNot(HaveOccurred())
 			g.Expect(found).Should(BeTrue())
-			g.Expect(targetRefName).Should(Equal("custom-gateway"))
+			g.Expect(targetRefName).Should(Equal(DefaultGatewayName))
 		})
 
 		t.Run("should succeed silently when AuthPolicy is not found in resources", func(t *testing.T) {
 			maas := &componentApi.ModelsAsService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: componentApi.ModelsAsServiceInstanceName,
-				},
-				Spec: componentApi.ModelsAsServiceSpec{
-					Gateway: componentApi.GatewaySpec{
-						Namespace: "custom-gateway-ns",
-						Name:      "custom-gateway",
-					},
 				},
 			}
 
@@ -239,12 +115,6 @@ func TestConfigureGatewayNamespaceResources(t *testing.T) {
 			maas := &componentApi.ModelsAsService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: componentApi.ModelsAsServiceInstanceName,
-				},
-				Spec: componentApi.ModelsAsServiceSpec{
-					Gateway: componentApi.GatewaySpec{
-						Namespace: "custom-gateway-ns",
-						Name:      "custom-gateway",
-					},
 				},
 			}
 
@@ -274,12 +144,6 @@ func TestConfigureGatewayNamespaceResources(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: componentApi.ModelsAsServiceInstanceName,
 				},
-				Spec: componentApi.ModelsAsServiceSpec{
-					Gateway: componentApi.GatewaySpec{
-						Namespace: "new-gateway-ns",
-						Name:      "new-gateway",
-					},
-				},
 			}
 
 			// Mix of resources
@@ -302,10 +166,10 @@ func TestConfigureGatewayNamespaceResources(t *testing.T) {
 			// ConfigMap should be unchanged
 			g.Expect(rr.Resources[0].GetNamespace()).Should(Equal("app-namespace"))
 
-			// gateway-auth-policy should be updated
-			g.Expect(rr.Resources[1].GetNamespace()).Should(Equal("new-gateway-ns"))
+			// gateway-auth-policy should be updated to defaults
+			g.Expect(rr.Resources[1].GetNamespace()).Should(Equal(DefaultGatewayNamespace))
 			targetRefName, _, _ := unstructured.NestedString(rr.Resources[1].Object, "spec", "targetRef", "name")
-			g.Expect(targetRefName).Should(Equal("new-gateway"))
+			g.Expect(targetRefName).Should(Equal(DefaultGatewayName))
 
 			// other-policy should be unchanged
 			g.Expect(rr.Resources[2].GetNamespace()).Should(Equal("keep-namespace"))
@@ -315,16 +179,10 @@ func TestConfigureGatewayNamespaceResources(t *testing.T) {
 	})
 
 	t.Run("Configure Gateway DestinationRule", func(t *testing.T) {
-		t.Run("should update DestinationRule namespace when found", func(t *testing.T) {
+		t.Run("should update DestinationRule namespace to default gateway namespace", func(t *testing.T) {
 			maas := &componentApi.ModelsAsService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: componentApi.ModelsAsServiceInstanceName,
-				},
-				Spec: componentApi.ModelsAsServiceSpec{
-					Gateway: componentApi.GatewaySpec{
-						Namespace: "custom-gateway-ns",
-						Name:      "custom-gateway",
-					},
 				},
 			}
 
@@ -338,20 +196,14 @@ func TestConfigureGatewayNamespaceResources(t *testing.T) {
 			err := configureGatewayNamespaceResources(t.Context(), rr)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
-			// Verify namespace was updated
-			g.Expect(rr.Resources[0].GetNamespace()).Should(Equal("custom-gateway-ns"))
+			// Verify namespace was updated to default
+			g.Expect(rr.Resources[0].GetNamespace()).Should(Equal(DefaultGatewayNamespace))
 		})
 
 		t.Run("should not modify DestinationRule with different name", func(t *testing.T) {
 			maas := &componentApi.ModelsAsService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: componentApi.ModelsAsServiceInstanceName,
-				},
-				Spec: componentApi.ModelsAsServiceSpec{
-					Gateway: componentApi.GatewaySpec{
-						Namespace: "custom-gateway-ns",
-						Name:      "custom-gateway",
-					},
 				},
 			}
 
@@ -372,16 +224,10 @@ func TestConfigureGatewayNamespaceResources(t *testing.T) {
 	})
 
 	t.Run("Configure Both AuthPolicy and DestinationRule", func(t *testing.T) {
-		t.Run("should update both AuthPolicy and DestinationRule namespaces", func(t *testing.T) {
+		t.Run("should update both AuthPolicy and DestinationRule to default gateway", func(t *testing.T) {
 			maas := &componentApi.ModelsAsService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: componentApi.ModelsAsServiceInstanceName,
-				},
-				Spec: componentApi.ModelsAsServiceSpec{
-					Gateway: componentApi.GatewaySpec{
-						Namespace: "target-gateway-ns",
-						Name:      "target-gateway",
-					},
 				},
 			}
 
@@ -401,13 +247,13 @@ func TestConfigureGatewayNamespaceResources(t *testing.T) {
 			err := configureGatewayNamespaceResources(t.Context(), rr)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
-			// AuthPolicy should be updated
-			g.Expect(rr.Resources[0].GetNamespace()).Should(Equal("target-gateway-ns"))
+			// AuthPolicy should be updated to defaults
+			g.Expect(rr.Resources[0].GetNamespace()).Should(Equal(DefaultGatewayNamespace))
 			targetRefName, _, _ := unstructured.NestedString(rr.Resources[0].Object, "spec", "targetRef", "name")
-			g.Expect(targetRefName).Should(Equal("target-gateway"))
+			g.Expect(targetRefName).Should(Equal(DefaultGatewayName))
 
-			// DestinationRule should be updated
-			g.Expect(rr.Resources[1].GetNamespace()).Should(Equal("target-gateway-ns"))
+			// DestinationRule should be updated to defaults
+			g.Expect(rr.Resources[1].GetNamespace()).Should(Equal(DefaultGatewayNamespace))
 
 			// ConfigMap should be unchanged
 			g.Expect(rr.Resources[2].GetNamespace()).Should(Equal("app-namespace"))
