@@ -1,5 +1,6 @@
 apiVersion: tekton.dev/v1
 kind: PipelineRun
+# retrigger Konflux builds via commit due to problem with reruns in Konflux UI/annotations: https://redhat-internal.slack.com/archives/C04PZ7H0VA8/p1768991407327089
 metadata:
   annotations:
     build.appstudio.openshift.io/repo: https://github.com/red-hat-data-services/rhods-operator?rev={{revision}}
