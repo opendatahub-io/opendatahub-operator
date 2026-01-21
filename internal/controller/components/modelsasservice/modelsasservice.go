@@ -70,18 +70,6 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 		managementState = maasConfig.ManagementState
 	}
 
-	// Configure Gateway spec - use defaults if not specified
-	gatewaySpec := componentApi.GatewaySpec{
-		Namespace: DefaultGatewayNamespace,
-		Name:      DefaultGatewayName,
-	}
-
-	// Override with DSC configuration if provided
-	if maasConfig.Gateway.Namespace != "" || maasConfig.Gateway.Name != "" {
-		// All-or-nothing validation should be handled during reconciliation
-		gatewaySpec = maasConfig.Gateway
-	}
-
 	return &componentApi.ModelsAsService{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.ModelsAsServiceKind,
@@ -92,9 +80,6 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 			Annotations: map[string]string{
 				annotations.ManagementStateAnnotation: string(managementState),
 			},
-		},
-		Spec: componentApi.ModelsAsServiceSpec{
-			Gateway: gatewaySpec,
 		},
 	}
 }
