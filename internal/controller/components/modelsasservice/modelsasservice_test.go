@@ -30,26 +30,20 @@ func TestNewCRObject(t *testing.T) {
 	handler := &componentHandler{}
 	g := NewWithT(t)
 
-	t.Run("creates CR with empty spec when DSC has MAAS enabled", func(t *testing.T) {
+	t.Run("creates CR with correct metadata", func(t *testing.T) {
 		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
 
 		cr := handler.NewCRObject(dsc)
 		g.Expect(cr).ShouldNot(BeNil())
 		g.Expect(cr).Should(BeAssignableToTypeOf(&componentApi.ModelsAsService{}))
 
+		// GatewayRef defaults are applied by API server (kubebuilder) or during reconciliation (validateGateway)
 		g.Expect(cr).Should(WithTransform(json.Marshal, And(
 			jq.Match(`.metadata.name == "%s"`, componentApi.ModelsAsServiceInstanceName),
 			jq.Match(`.kind == "%s"`, componentApi.ModelsAsServiceKind),
 			jq.Match(`.apiVersion == "%s"`, componentApi.GroupVersion),
 			jq.Match(`.metadata.annotations["%s"] == "%s"`, annotations.ManagementStateAnnotation, operatorv1.Managed),
-			// Gateway is internal-only, not exposed in spec
 		)))
-
-		// Verify Gateway is set internally (not visible in JSON)
-		maasObj, ok := cr.(*componentApi.ModelsAsService)
-		g.Expect(ok).Should(BeTrue())
-		g.Expect(maasObj.Spec.Gateway.Namespace).Should(Equal(DefaultGatewayNamespace))
-		g.Expect(maasObj.Spec.Gateway.Name).Should(Equal(DefaultGatewayName))
 	})
 
 	t.Run("propagates management state from DSC to ModelsAsService annotations", func(t *testing.T) {
