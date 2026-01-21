@@ -1,7 +1,7 @@
 map:
   notebooks:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: f88354f543ee7587cda35ae6a57f870f707fcbae
+    git.commit: 74a97bf5517b2267b9a985a59dce1b91a802f522
     src: manifests
     dest: workbenches/notebooks
     ref_type: branch
@@ -194,7 +194,7 @@ additional_meta:
     git.commit: f88354f543ee7587cda35ae6a57f870f707fcbae
   odh-workbench-jupyter-trustyai-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: ca192ffe0aa7cfc078f08c8a906b19800b8fd520
+    git.commit: 74a97bf5517b2267b9a985a59dce1b91a802f522
   odh-guardrails-detector-huggingface-runtime:
     git.url: https://github.com/red-hat-data-services/guardrails-detectors
     git.commit: ea3afc3a94a9b889d5982ed282cc0bf73320b068
