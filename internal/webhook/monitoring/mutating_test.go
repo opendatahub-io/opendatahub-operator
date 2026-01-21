@@ -32,6 +32,9 @@ const (
 	monitoringLabelValue = "true"
 	dashboardLabelKey    = "opendatahub.io/dashboard"
 	dashboardLabelValue  = "true"
+	kindPodMonitor       = "PodMonitor"
+	kindServiceMonitor   = "ServiceMonitor"
+	kindPod              = "Pod"
 )
 
 // Helper functions for test simplification.
@@ -63,6 +66,8 @@ func newPodMonitor(name, namespace string, opts ...envtestutil.ObjectOption) cli
 }
 
 // Helper function to create ServiceMonitor.
+//
+//nolint:unparam // name parameter kept for consistency with newPodMonitor and future flexibility
 func newServiceMonitor(name, namespace string, opts ...envtestutil.ObjectOption) client.Object {
 	serviceMonitor := resources.GvkToUnstructured(gvk.CoreosServiceMonitor)
 	serviceMonitor.SetName(name)
@@ -205,7 +210,7 @@ func TestMonitoring_AllowsRequests(t *testing.T) {
 			injector := createWebhookInjector(cli, sch)
 
 			var resourceName string
-			if tc.gvkToUse.Kind == "PodMonitor" {
+			if tc.gvkToUse.Kind == kindPodMonitor {
 				resourceName = "podmonitors"
 			} else {
 				resourceName = "servicemonitors"
@@ -311,15 +316,16 @@ func TestMonitoring_ErrorPaths(t *testing.T) {
 			g := NewWithT(t)
 
 			var gvrToUse metav1.GroupVersionResource
-			if tc.gvkToUse.Kind == "Pod" {
+			switch tc.gvkToUse.Kind {
+			case kindPod:
 				gvrToUse = metav1.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
-			} else if tc.gvkToUse.Kind == "PodMonitor" {
+			case kindPodMonitor:
 				gvrToUse = metav1.GroupVersionResource{
 					Group:    tc.gvkToUse.Group,
 					Version:  tc.gvkToUse.Version,
 					Resource: "podmonitors",
 				}
-			} else {
+			default:
 				gvrToUse = metav1.GroupVersionResource{
 					Group:    tc.gvkToUse.Group,
 					Version:  tc.gvkToUse.Version,
@@ -445,7 +451,7 @@ func TestMonitoring_HandlesUpdateOperations(t *testing.T) {
 			t.Parallel()
 
 			var resourceName string
-			if tc.gvkToUse.Kind == "PodMonitor" {
+			if tc.gvkToUse.Kind == kindPodMonitor {
 				resourceName = "podmonitors"
 			} else {
 				resourceName = "servicemonitors"
@@ -527,7 +533,8 @@ func TestMonitoring_SkipsObjectsMarkedForDeletion(t *testing.T) {
 	injector := createWebhookInjector(cli, sch)
 
 	// Create PodMonitor with deletion timestamp
-	podMonitor := newPodMonitor(testPodMonitor, testNamespace).(*unstructured.Unstructured)
+	podMonitor, ok := newPodMonitor(testPodMonitor, testNamespace).(*unstructured.Unstructured)
+	g.Expect(ok).Should(BeTrue(), "podMonitor should be *unstructured.Unstructured")
 	now := metav1.Now()
 	podMonitor.SetDeletionTimestamp(&now)
 
