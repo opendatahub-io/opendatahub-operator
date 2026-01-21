@@ -209,7 +209,7 @@ additional_meta:
     git.commit: edc1a8543b8440188935e6edb7c0fb44cee13e1a
   odh-model-registry-job-async-upload:
     git.url: https://github.com/red-hat-data-services/model-registry
-    git.commit: d11697f9a8f31591a13724a7106298778691a04d
+    git.commit: 331c5e962a350b6bcafe3c386828d63d9b4dff6d
   odh-llama-stack-core:
     git.url: https://github.com/red-hat-data-services/llama-stack-distribution
     git.commit: d0a3ee149e3ea609f73ad174fc7a02456b0572fb
