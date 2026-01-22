@@ -148,6 +148,12 @@ var (
 				// ModelsAsService tests depends on KServe, so must not run with Kserve, ModelController or TrustyAI tests in parallel
 				componentApi.ModelsAsServiceComponentName: modelsAsServiceTestSuite,
 			},
+			{
+				// run external operator degraded monitoring tests isolated from other component tests
+				componentApi.KserveComponentName:  kserveDegradedMonitoringTestSuite,
+				componentApi.KueueComponentName:   kueueDegradedMonitoringTestSuite,
+				componentApi.TrainerComponentName: trainerDegradedMonitoringTestSuite,
+			},
 		},
 	}
 
