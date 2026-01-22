@@ -83,7 +83,6 @@ func kueueTestSuite(t *testing.T) {
 		{"Validate component unmanaged error with ocp kueue-operator not installed", componentCtx.ValidateKueueUnmanagedWithoutOcpKueueOperator},
 		{"Validate component removed to unmanaged transition", componentCtx.ValidateKueueRemovedToUnmanagedTransition},
 		{"Validate component unmanaged to removed transition", componentCtx.ValidateKueueUnmanagedToRemovedTransition},
-		{"Validate external operator degraded condition monitoring", componentCtx.ValidateExternalOperatorDegradedMonitoring},
 	}
 
 	// Add webhook tests if enabled
@@ -100,6 +99,56 @@ func kueueTestSuite(t *testing.T) {
 
 	// Run the test suite.
 	RunTestCases(t, testCases)
+}
+
+// kueueDegradedMonitoringTestSuite runs only the external operator degraded monitoring tests.
+func kueueDegradedMonitoringTestSuite(t *testing.T) {
+	t.Helper()
+	t.Skip("Skipping: flaky due to namespace stuck in Terminating state. See RHOAIENG-46773 and RHOAIENG-46774.")
+
+	ct, err := NewComponentTestCtx(t, &componentApi.Kueue{})
+	require.NoError(t, err)
+
+	componentCtx := KueueTestCtx{
+		ComponentTestCtx: ct,
+	}
+
+	testCases := []TestCase{
+		{"Validate component enabled", componentCtx.EnsureKueueReady},
+		{"Validate external operator degraded condition monitoring", componentCtx.ValidateExternalOperatorDegradedMonitoring},
+	}
+	RunTestCases(t, testCases)
+}
+
+// EnsureKueueReady ensures the Kueue component is enabled and ready.
+func (tc *KueueTestCtx) EnsureKueueReady(t *testing.T) {
+	t.Helper()
+
+	componentName := strings.ToLower(tc.GVK.Kind)
+
+	t.Logf("Ensuring OCP Kueue Operator is installed (namespace=%s, name=%s).", kueueOcpOperatorNamespace, kueueOpName)
+	tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(
+		types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace},
+		kueueOcpOperatorChannel,
+	)
+
+	t.Logf("Ensuring Kueue operator is running (namespace=%s).", kueueOcpOperatorNamespace)
+	tc.scaleKueueOperator(t, 1)
+
+	t.Logf("Setting Kueue component to Unmanaged and waiting for KueueReady=True.")
+	stateUnmanaged := operatorv1.Unmanaged
+	conditionsUnmanagedReady := []gTypes.GomegaMatcher{
+		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, stateUnmanaged),
+		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionTrue),
+	}
+
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, stateUnmanaged)),
+		WithCondition(And(conditionsUnmanagedReady...)),
+	)
+
+	t.Log("Kueue component is ready.")
 }
 
 // ValidateKueueUnmanagedWithoutOcpKueueOperator ensures that if the component is in Unmanaged state and ocp kueue operator is not installed, then its status is "Not Ready".
@@ -786,7 +835,6 @@ integrations:
 // but the operator can't reset conditions we inject.
 func (tc *KueueTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.T) {
 	t.Helper()
-	t.Skip("RHOAIENG-41751: Skipping flaky external operator degraded monitoring test - under investigation")
 
 	// condition types monitored by the Kueue Component
 	testCases := []degradedConditionTestCase{
@@ -806,44 +854,6 @@ func (tc *KueueTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.T)
 			conditionStatus: metav1.ConditionFalse,
 		},
 	}
-
-	t.Log("Resetting environment for external operator monitoring test (Component=Removed).")
-	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Removed)
-	tc.cleanupKueueTestResources(t)
-
-	t.Logf("Ensuring Kueue OCP operator is installed (namespace=%s, name=%s).", kueueOcpOperatorNamespace, kueueOpName)
-	tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(
-		types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace},
-		kueueOcpOperatorChannel,
-	)
-
-	t.Logf("Creating managed test namespace with Kueue management annotation (namespace=%s).", kueueTestManagedNamespace)
-	tc.setupNamespace(kueueTestManagedNamespace, KueueManagedLabels)
-
-	t.Logf("Creating Kueue ConfigMap required for component reconciliation (namespace=%s, name=%s).", tc.AppsNamespace, kueue.KueueConfigMapName)
-	tc.createKueueConfigMap(t)
-
-	t.Logf("Enabling Kueue component by setting to Unmanaged mode (namespace=%s, name=%s).", tc.AppsNamespace, componentApi.KueueInstanceName)
-	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Unmanaged)
-
-	// Kueue operator auto-creates its CR, so the component should be healthy initially
-	t.Logf("Verifying Kueue component is initially healthy (DependenciesAvailable=True) (namespace=%s, name=%s).", tc.AppsNamespace, componentApi.KueueInstanceName)
-	kueueNN := types.NamespacedName{Name: componentApi.KueueInstanceName}
-	tc.EnsureResourceExists(
-		WithMinimalObject(tc.GVK, kueueNN),
-		WithCondition(
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionDependenciesAvailable, metav1.ConditionTrue),
-		),
-	)
-
-	t.Logf("Verifying DSC is healthy (KueueReady=True) before degradation tests (namespace=%s, name=%s).",
-		tc.DataScienceClusterNamespacedName.Namespace, tc.DataScienceClusterNamespacedName.Name)
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithCondition(
-			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionTrue),
-		),
-	)
 
 	t.Logf("Scaling down Kueue operator deployment to prevent condition reset (namespace=%s, name=%s).", kueueOcpOperatorNamespace, kueueOperatorDeploymentNN.Name)
 	originalReplicas := tc.scaleKueueOperator(t, 0)
