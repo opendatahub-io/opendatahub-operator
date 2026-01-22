@@ -309,6 +309,13 @@ e.g `make image-build USE_LOCAL=true"`
 
 #### Deployment
 
+##### Deployment Methods Comparison
+
+| Method | Use Case | OLM Required | Appears in OpenShift Console |
+|--------|----------|--------------|------------------------------|
+| **OLM Deployment** | Production-like, catalog-based | ✅ Yes | ✅ Yes (Operators section) |
+| **Direct Deployment** (`make deploy`) | Development, testing | ❌ No | ❌ No |
+
 **Deploying operator locally**
 
 - Define operator namespace
@@ -330,6 +337,11 @@ e.g `make image-build USE_LOCAL=true"`
   ```
 
 **Deploying operator using OLM**
+
+***Detailed Deployement instructions***
+- [OpenDataHub and RHOAI OLM Deployment](./docs/OLMDeployment.md)
+
+***Quick-Start***
 
 - To create a new bundle in defined operator namespace, run following command:
 
@@ -494,26 +506,25 @@ spec:
         managementState: Managed
       rawDeploymentServiceConfig: Headed
     kueue:
-      managementState: Unmanaged
+      managementState: Removed
     modelregistry:
       managementState: Managed
-      registriesNamespace: "odh-model-registries"
     ray:
       managementState: Managed
     trainingoperator:
       managementState: Managed
+    trainer:
+      managementState: Managed
     trustyai:
       managementState: Managed
-      eval:
-        lmeval:
-          permitCodeExecution: deny
-          permitOnline: deny
     workbenches:
       managementState: Managed
     feastoperator:
       managementState: Managed
     llamastackoperator:
       managementState: Removed
+    mlflowoperator:
+      managementState: Managed
 ```
 
 2. Enable only Dashboard and Workbenches
