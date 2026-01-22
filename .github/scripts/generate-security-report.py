@@ -12,11 +12,10 @@ Tools parsed:
     - Gitleaks (JSON)
     - TruffleHog (JSON)
     - Semgrep (SARIF)
-    - Checkov (JSON) - if available
-    - OSV Scanner (JSON) - if available
     - ShellCheck (JSON)
     - Hadolint (SARIF)
     - yamllint (text)
+    - kube-linter (JSON)
     - RBAC Analyzer (text)
 """
 
@@ -26,7 +25,8 @@ import sys
 import argparse
 import re
 import hashlib
-from datetime import datetime
+import yaml
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
@@ -46,6 +46,147 @@ class SecurityReportGenerator:
             'info': []
         }
         self.tool_stats = {}
+        self.baseline = {}  # Loaded from .github/config/security-baseline.yaml
+        # Initialize baseline_counts for all tools to prevent KeyError in standalone usage
+        self.baseline_counts = {t: 0 for t in [
+            'gitleaks', 'trufflehog', 'semgrep', 'shellcheck', 'hadolint',
+            'yamllint', 'actionlint', 'kube-linter', 'rbac-analyzer'
+        ]}
+
+    def load_baseline(self) -> None:
+        """Load acknowledged findings baseline from security-baseline.yaml or .security-baseline.json
+
+        This filters out findings that teams have acknowledged as false positives
+        or accepted risks. The baseline file contains detailed justifications.
+
+        Tries in order:
+        1. .github/config/security-baseline.yaml (v2.0 - preferred)
+        2. .security-baseline.json (v2.0 - backward compat)
+        """
+        # Reset baseline counts for this scan (already initialized in __init__)
+        for tool in self.baseline_counts:
+            self.baseline_counts[tool] = 0
+
+        # Try YAML baseline first (preferred format)
+        yaml_baseline_path = self.workspace / '.github' / 'config' / 'security-baseline.yaml'
+        json_baseline_path = self.workspace / '.security-baseline.json'
+
+        baseline_data = None
+        baseline_file_used = None
+
+        # Try YAML format first
+        if yaml_baseline_path.exists():
+            try:
+                with open(yaml_baseline_path) as f:
+                    baseline_data = yaml.safe_load(f)
+                baseline_file_used = yaml_baseline_path
+            except Exception as e:
+                print(f"[ERROR] Failed to load YAML baseline: {str(e)}", file=sys.stderr)
+
+        # Fall back to JSON format
+        if baseline_data is None and json_baseline_path.exists():
+            try:
+                with open(json_baseline_path) as f:
+                    baseline_data = json.load(f)
+                baseline_file_used = json_baseline_path
+            except Exception as e:
+                print(f"[ERROR] Failed to load JSON baseline: {str(e)}", file=sys.stderr)
+
+        # No baseline file found
+        if baseline_data is None:
+            return  # All findings will be reported
+
+        # Validate baseline is a dictionary
+        if not isinstance(baseline_data, dict):
+            print(f"[ERROR] Baseline file has invalid structure (expected dict, got {type(baseline_data).__name__})", file=sys.stderr)
+            print(f"[ERROR] Ignoring baseline - all findings will be reported", file=sys.stderr)
+            return
+
+        # Validate baseline version
+        version = baseline_data.get('version', '1.0')
+        if version != '2.0':
+            print(f"[WARNING] Unexpected baseline version: {version}, expected 2.0", file=sys.stderr)
+
+        # Store baseline data for each tool
+        for tool in self.baseline_counts:
+            self.baseline[tool] = baseline_data.get(tool, [])
+
+        print(f"[INFO] Loaded baseline from {baseline_file_used}", file=sys.stderr)
+
+    def _is_acknowledged(self, tool: str, finding: Dict[str, Any]) -> bool:
+        """Check if a finding matches an acknowledged baseline entry
+
+        Args:
+            tool: Tool name (gitleaks, trufflehog, semgrep, etc.)
+            finding: Finding dict from parser (contains tool-specific fields)
+
+        Returns:
+            True if finding is acknowledged in baseline, False otherwise
+        """
+        if tool not in self.baseline or not self.baseline[tool]:
+            return False
+
+        tool_baseline = self.baseline[tool]
+
+        # Tool-specific matching logic (matches acknowledge-findings.py)
+        for baseline_entry in tool_baseline:
+            if tool == 'gitleaks':
+                # Gitleaks findings need description hash for uniqueness
+                # Calculate it from finding description
+                description = finding.get('description', '')
+                desc_hash = hashlib.sha256(description.encode()).hexdigest()[:8]
+
+                if (finding.get('file') == baseline_entry.get('file') and
+                    str(finding.get('line')) == str(baseline_entry.get('line')) and
+                    finding.get('rule') == baseline_entry.get('rule') and
+                    desc_hash == baseline_entry.get('description_hash')):
+                    return True
+
+            elif tool == 'trufflehog':
+                if (finding.get('detector') == baseline_entry.get('detector') and
+                    finding.get('file') == baseline_entry.get('file') and
+                    str(finding.get('line')) == str(baseline_entry.get('line'))):
+                    return True
+
+            elif tool == 'semgrep' or tool == 'hadolint':
+                if (finding.get('rule') == baseline_entry.get('rule_id') and
+                    finding.get('file') == baseline_entry.get('file') and
+                    str(finding.get('line')) == str(baseline_entry.get('line'))):
+                    return True
+
+            elif tool == 'shellcheck':
+                if (finding.get('file') == baseline_entry.get('file') and
+                    str(finding.get('line')) == str(baseline_entry.get('line')) and
+                    finding.get('code') == baseline_entry.get('code')):
+                    return True
+
+            elif tool == 'yamllint':
+                if (finding.get('file') == baseline_entry.get('file') and
+                    str(finding.get('line')) == str(baseline_entry.get('line')) and
+                    finding.get('rule') == baseline_entry.get('rule')):
+                    return True
+
+            elif tool == 'actionlint':
+                if (finding.get('file') == baseline_entry.get('file') and
+                    str(finding.get('line')) == str(baseline_entry.get('line')) and
+                    finding.get('description') == baseline_entry.get('message')):
+                    return True
+
+            elif tool == 'kube-linter':
+                # kube-linter uses object kind/name/namespace + check name
+                obj = baseline_entry.get('object', {})
+                if (finding.get('rule') == baseline_entry.get('check') and
+                    finding.get('object_kind') == obj.get('kind') and
+                    finding.get('object_name') == obj.get('name') and
+                    finding.get('object_namespace') == obj.get('namespace')):
+                    return True
+
+            elif tool == 'rbac-analyzer':
+                if (finding.get('title') == baseline_entry.get('title') and
+                    finding.get('file') == baseline_entry.get('file')):
+                    return True
+
+        return False
 
     def parse_gitleaks(self, filepath: str) -> Dict[str, Any]:
         """Parse Gitleaks JSON output"""
@@ -72,8 +213,11 @@ class SecurityReportGenerator:
                         # Normalize path using os.path.normpath for robust handling
                         file_path = os.path.normpath(file_path).lstrip('/')
                         # Ensure no leading path traversal after normalization
-                        if file_path.startswith('..'):
-                            file_path = file_path.lstrip('./')
+                        while file_path.startswith('../') or file_path.startswith('./'):
+                            if file_path.startswith('../'):
+                                file_path = file_path[3:]
+                            elif file_path.startswith('./'):
+                                file_path = file_path[2:]
 
                         # Include description hash to differentiate multiple secrets at same location
                         description = finding.get('Description', 'Secret detected')
@@ -82,7 +226,7 @@ class SecurityReportGenerator:
 
                         if dedup_key not in seen:
                             seen.add(dedup_key)
-                            unique_findings.append({
+                            finding_dict = {
                                 'tool': 'Gitleaks',
                                 'type': 'Hardcoded Secret',
                                 'severity': 'CRITICAL',
@@ -94,7 +238,13 @@ class SecurityReportGenerator:
                                     'Secret detected; see Gitleaks JSON artifact for details (value redacted)'
                                 ),
                                 'remediation': 'Remove secret from code, rotate credential, use secret manager'
-                            })
+                            }
+
+                            # Check if this finding is acknowledged in baseline
+                            if not self._is_acknowledged('gitleaks', finding_dict):
+                                unique_findings.append(finding_dict)
+                            else:
+                                self.baseline_counts['gitleaks'] += 1
 
                     self.findings['critical'].extend(unique_findings)
                     stats['findings'] = len(unique_findings)
@@ -117,26 +267,61 @@ class SecurityReportGenerator:
 
         try:
             findings_count = 0
+            parse_errors = 0
             with open(filepath) as f:
                 for line in f:
                     if line.strip():
-                        finding = json.loads(line)
-                        findings_count += 1
+                        try:
+                            finding = json.loads(line)
+                        except json.JSONDecodeError:
+                            parse_errors += 1
+                            continue
+                        # Extract file and line from nested structure
+                        fs_data = finding.get('SourceMetadata', {}).get('Data', {}).get('Filesystem', {})
+                        file_path = fs_data.get('file', 'unknown')
 
-                        self.findings['critical'].append({
+                        # Normalize file path for consistent baseline matching
+                        # TruffleHog paths can be absolute or container-prefixed
+                        if file_path.startswith('/repo/'):
+                            file_path = file_path[6:]
+                        file_path = os.path.normpath(file_path).lstrip('/')
+                        while file_path.startswith('../') or file_path.startswith('./'):
+                            if file_path.startswith('../'):
+                                file_path = file_path[3:]
+                            elif file_path.startswith('./'):
+                                file_path = file_path[2:]
+
+                        line_num = fs_data.get('line', 0)
+                        detector = finding.get('DetectorName', 'unknown')
+
+                        finding_dict = {
                             'tool': 'TruffleHog',
                             'type': 'Verified Credential',
                             'severity': 'CRITICAL',
-                            'file': finding.get('SourceMetadata', {}).get('Data', {}).get('Filesystem', {}).get('file', 'unknown'),
-                            'line': '?',
-                            'rule': finding.get('DetectorName', 'unknown'),
-                            'description': f"Verified {finding.get('DetectorName', 'credential')} found",
+                            'file': file_path,
+                            'line': line_num,  # Preserve numeric value for baseline matching (0, not '?')
+                            'detector': detector,  # For baseline matching
+                            'rule': detector,
+                            'description': f"Verified {detector} found",
                             'remediation': 'URGENT: Rotate this credential immediately - it has been verified as active'
-                        })
+                        }
+
+                        # Check if this finding is acknowledged in baseline
+                        if not self._is_acknowledged('trufflehog', finding_dict):
+                            self.findings['critical'].append(finding_dict)
+                            findings_count += 1
+                        else:
+                            self.baseline_counts['trufflehog'] += 1
 
             stats['findings'] = findings_count
             if findings_count > 0:
                 stats['status'] = '❌ FINDINGS'
+            if parse_errors > 0:
+                # Surface partial parse issues without hiding real findings
+                if findings_count > 0:
+                    stats['status'] = f"❌ FINDINGS (partial: {parse_errors} unparsable lines)"
+                else:
+                    stats['status'] = f"⚠️ PARTIAL: {parse_errors} unparsable lines"
 
         except Exception as e:
             stats['status'] = '⚠️ ERROR: Failed to parse TruffleHog output'
@@ -158,8 +343,6 @@ class SecurityReportGenerator:
 
             for run in sarif.get('runs', []):
                 for result in run.get('results', []):
-                    stats['findings'] += 1
-
                     level = result.get('level', 'note')
                     severity_map = {
                         'error': 'high',
@@ -171,14 +354,15 @@ class SecurityReportGenerator:
                     rule = result.get('ruleId', 'unknown')
                     message = result.get('message', {}).get('text', 'No description')
 
-                    location = result.get('locations', [{}])[0]
+                    locations = result.get('locations') or []
+                    location = locations[0] if locations else {}
                     artifact = location.get('physicalLocation', {}).get('artifactLocation', {})
                     file_path = artifact.get('uri', 'unknown')
 
                     region = location.get('physicalLocation', {}).get('region', {})
                     line = region.get('startLine', '?')
 
-                    self.findings[severity].append({
+                    finding_dict = {
                         'tool': 'Semgrep',
                         'type': rule,
                         'severity': severity.upper(),
@@ -187,7 +371,14 @@ class SecurityReportGenerator:
                         'rule': rule,
                         'description': message,
                         'remediation': self._get_semgrep_remediation(rule)
-                    })
+                    }
+
+                    # Check if this finding is acknowledged in baseline
+                    if not self._is_acknowledged('semgrep', finding_dict):
+                        self.findings[severity].append(finding_dict)
+                        stats['findings'] += 1
+                    else:
+                        self.baseline_counts['semgrep'] += 1
 
             if stats['findings'] > 0:
                 stats['status'] = '❌ FINDINGS'
@@ -212,8 +403,6 @@ class SecurityReportGenerator:
 
             for run in sarif.get('runs', []):
                 for result in run.get('results', []):
-                    stats['findings'] += 1
-
                     level = result.get('level', 'note')
                     severity_map = {
                         'error': 'high',
@@ -225,14 +414,15 @@ class SecurityReportGenerator:
                     rule = result.get('ruleId', 'unknown')
                     message = result.get('message', {}).get('text', 'No description')
 
-                    location = result.get('locations', [{}])[0]
+                    locations = result.get('locations') or []
+                    location = locations[0] if locations else {}
                     artifact = location.get('physicalLocation', {}).get('artifactLocation', {})
                     file_path = artifact.get('uri', 'unknown')
 
                     region = location.get('physicalLocation', {}).get('region', {})
                     line = region.get('startLine', '?')
 
-                    self.findings[severity].append({
+                    finding_dict = {
                         'tool': 'Hadolint',
                         'type': 'Dockerfile Issue',
                         'severity': severity.upper(),
@@ -241,7 +431,14 @@ class SecurityReportGenerator:
                         'rule': rule,
                         'description': message,
                         'remediation': 'Follow Dockerfile best practices and CIS benchmarks'
-                    })
+                    }
+
+                    # Check if this finding is acknowledged in baseline
+                    if not self._is_acknowledged('hadolint', finding_dict):
+                        self.findings[severity].append(finding_dict)
+                        stats['findings'] += 1
+                    else:
+                        self.baseline_counts['hadolint'] += 1
 
             if stats['findings'] > 0:
                 stats['status'] = '❌ FINDINGS'
@@ -278,8 +475,6 @@ class SecurityReportGenerator:
                 findings_iter = []
 
             for finding in findings_iter:
-                stats['findings'] += 1
-
                 level = finding.get('level', 'info')
                 severity_map = {
                     'error': 'high',
@@ -289,16 +484,24 @@ class SecurityReportGenerator:
                 }
                 severity = severity_map.get(level, 'low')
 
-                self.findings[severity].append({
+                finding_dict = {
                     'tool': 'ShellCheck',
                     'type': 'Shell Script Issue',
                     'severity': severity.upper(),
                     'file': finding.get('file', 'unknown'),
                     'line': finding.get('line', '?'),
+                    'code': finding.get('code'),  # For baseline matching
                     'rule': f"SC{finding.get('code', '????')}",
                     'description': finding.get('message', 'No description'),
                     'remediation': 'Follow ShellCheck recommendations for safe shell scripting'
-                })
+                }
+
+                # Check if this finding is acknowledged in baseline
+                if not self._is_acknowledged('shellcheck', finding_dict):
+                    self.findings[severity].append(finding_dict)
+                    stats['findings'] += 1
+                else:
+                    self.baseline_counts['shellcheck'] += 1
 
             if stats['findings'] > 0:
                 stats['status'] = '❌ FINDINGS'
@@ -306,6 +509,142 @@ class SecurityReportGenerator:
         except Exception as e:
             stats['status'] = '⚠️ ERROR: Failed to parse ShellCheck output'
             print(f"[ERROR] ShellCheck parser: {str(e)}", file=sys.stderr)
+
+        return stats
+
+    def parse_kubelinter(self, filepath: str) -> Dict[str, Any]:
+        """Parse kube-linter JSON output
+
+        kube-linter v0.7.6+ JSON format:
+        {
+          "Reports": [
+            {
+              "Object": {
+                "Namespace": "...",
+                "Name": "...",
+                "GroupVersionKind": {...}
+              },
+              "Check": "check-name",
+              "Diagnostic": {
+                "Message": "...",
+                "Description": "..."
+              }
+            }
+          ]
+        }
+        """
+        stats = {'tool': 'kube-linter', 'findings': 0, 'status': '✅ PASS'}
+
+        if not Path(filepath).exists():
+            stats['status'] = '⏭️ SKIPPED'
+            return stats
+
+        try:
+            with open(filepath) as f:
+                data = json.load(f)
+
+            reports = data.get('Reports', [])
+            if not reports:
+                return stats
+
+            # Deduplicate findings by check:object:message combination
+            seen = set()
+            unique_findings = []
+
+            for report in reports:
+                check_name = report.get('Check', 'unknown')
+                diagnostic = report.get('Diagnostic', {})
+                message = diagnostic.get('Message', 'kube-linter finding')
+                description = diagnostic.get('Description', '')
+
+                # Extract object information
+                # kube-linter v0.7.6+ structure has K8sObjectInfo fields under Object.K8sObject
+                # Fallback: if K8sObject doesn't exist, use Object directly for forward compatibility
+                obj_container = report.get('Object', {})
+                obj = obj_container.get('K8sObject', obj_container)
+                namespace = obj.get('Namespace', '')
+                name = obj.get('Name', 'unknown')
+                gvk = obj.get('GroupVersionKind', {})
+                kind = gvk.get('Kind', 'unknown')
+
+                # Construct object identifier
+                if namespace:
+                    object_id = f"{kind}/{namespace}/{name}"
+                else:
+                    object_id = f"{kind}/{name}"
+
+                # Deduplication key
+                dedup_key = f"{check_name}:{object_id}:{message}"
+                if dedup_key in seen:
+                    continue
+                seen.add(dedup_key)
+
+                # Map check severity (kube-linter doesn't provide severity in JSON)
+                # Critical: cluster-admin, privileged containers, host access
+                # High: RBAC wildcards, secret access, missing probes
+                # Medium: resource limits, namespace issues
+                # Low: image tags, best practices
+                critical_checks = {
+                    'cluster-admin-role-binding', 'privileged-container',
+                    'host-network', 'host-pid', 'host-ipc', 'docker-sock',
+                    'access-to-create-pods', 'privilege-escalation-container',
+                    'run-as-non-root', 'no-read-only-root-fs', 'privileged-ports'
+                }
+                high_checks = {
+                    'access-to-secrets', 'wildcard-in-rules', 'sensitive-host-mounts',
+                    'writable-host-mount', 'unsafe-proc-mount', 'unsafe-sysctls',
+                    'default-service-account', 'env-var-secret', 'read-secret-from-env-var',
+                    'drop-net-raw-capability', 'exposed-services', 'non-isolated-pod',
+                    'ssh-port', 'latest-tag', 'no-system-group-binding'
+                }
+                medium_checks = {
+                    'no-liveness-probe', 'no-readiness-probe',
+                    'unset-cpu-requirements', 'unset-memory-requirements',
+                    'use-namespace', 'non-existent-service-account'
+                }
+
+                if check_name in critical_checks:
+                    severity = 'CRITICAL'
+                    severity_bucket = 'critical'
+                elif check_name in high_checks:
+                    severity = 'HIGH'
+                    severity_bucket = 'high'
+                elif check_name in medium_checks:
+                    severity = 'MEDIUM'
+                    severity_bucket = 'medium'
+                else:
+                    severity = 'LOW'
+                    severity_bucket = 'low'
+
+                finding = {
+                    'tool': 'kube-linter',
+                    'type': 'Kubernetes Manifest Security',
+                    'severity': severity,
+                    'file': object_id,  # Use object ID as "file" for display
+                    'line': check_name,  # Use check name as "line" for display
+                    'rule': check_name,
+                    'description': f"{message} (Object: {object_id})",
+                    'remediation': description or 'Fix Kubernetes manifest according to check requirements',
+                    # For baseline matching
+                    'object_kind': kind,
+                    'object_name': name,
+                    'object_namespace': namespace or None
+                }
+
+                # Check if this finding is acknowledged in baseline
+                if not self._is_acknowledged('kube-linter', finding):
+                    unique_findings.append(finding)
+                    self.findings[severity_bucket].append(finding)
+                else:
+                    self.baseline_counts['kube-linter'] += 1
+
+            stats['findings'] = len(unique_findings)
+            if stats['findings'] > 0:
+                stats['status'] = '❌ FINDINGS'
+
+        except Exception as e:
+            stats['status'] = '⚠️ ERROR: Failed to parse kube-linter JSON'
+            print(f"[ERROR] kube-linter parser: {str(e)}", file=sys.stderr)
 
         return stats
 
@@ -322,57 +661,80 @@ class SecurityReportGenerator:
                 content = f.read()
                 stats['content'] = content
 
-                # Count findings by matching actual RBAC analyzer heading format: "### CRITICAL (N findings)"
-                # This prevents false matches in descriptions or remediation text
-                critical_count = len(re.findall(r'(?m)^###\s+CRITICAL\b', content))
-                high_count = len(re.findall(r'(?m)^###\s+HIGH\b', content))
-                warning_count = len(re.findall(r'(?m)^###\s+WARNING\b', content))
+                # Parse individual RBAC findings from markdown (not just aggregate counts)
+                # This enables baseline filtering like all other security tools
+                severity_pattern = r'### (CRITICAL|HIGH|WARNING|INFO) \((\d+) findings?\)'
+                finding_pattern = r'\d+\. \*\*(.+?)\*\*\s*\n\s*- File: `(.+?)`\s*\n\s*- Issue: (.+?)\n\s*- Fix: (.+?)(?=\n\n|\n\d+\.|\Z)'
 
-                stats['findings'] = critical_count + high_count + warning_count
+                # Split by severity sections
+                sections = re.split(severity_pattern, content)
+
+                critical_count = 0
+                high_count = 0
+                warning_count = 0
+                info_count = 0
+                findings_count = 0
+
+                for i in range(1, len(sections), 3):
+                    severity = sections[i]
+                    section_content = sections[i+2] if i+2 < len(sections) else ''
+
+                    # Extract individual findings from this severity section
+                    for match in re.finditer(finding_pattern, section_content, re.DOTALL):
+                        title = match.group(1).strip()
+                        file_path = match.group(2).strip()
+                        issue = match.group(3).strip()
+                        fix = match.group(4).strip()
+
+                        # Map severity to finding bucket
+                        if severity == 'CRITICAL':
+                            severity_bucket = 'critical'
+                        elif severity == 'HIGH':
+                            severity_bucket = 'high'
+                        elif severity == 'WARNING':
+                            severity_bucket = 'medium'
+                        else:  # INFO
+                            severity_bucket = 'info'
+
+                        finding_dict = {
+                            'tool': 'RBAC Analyzer',
+                            'type': 'RBAC Privilege Chain',
+                            'severity': severity,
+                            'title': title,  # Required for baseline matching
+                            'file': file_path,  # Required for baseline matching
+                            'line': '?',
+                            'rule': f'RBAC_ANALYZER_{severity}',
+                            'description': issue,
+                            'remediation': fix
+                        }
+
+                        # Check if this finding is acknowledged in baseline
+                        if not self._is_acknowledged('rbac-analyzer', finding_dict):
+                            self.findings[severity_bucket].append(finding_dict)
+                            findings_count += 1
+
+                            # Track counts for breakdown
+                            if severity == 'CRITICAL':
+                                critical_count += 1
+                            elif severity == 'HIGH':
+                                high_count += 1
+                            elif severity == 'WARNING':
+                                warning_count += 1
+                            else:  # INFO
+                                info_count += 1
+                        else:
+                            self.baseline_counts['rbac-analyzer'] += 1
+
+                stats['findings'] = findings_count
 
                 if stats['findings'] > 0:
                     stats['status'] = '❌ FINDINGS'
                     stats['breakdown'] = {
                         'critical': critical_count,
                         'high': high_count,
-                        'warning': warning_count
+                        'warning': warning_count,
+                        'info': info_count
                     }
-
-                    # Feed RBAC findings into global severity buckets for posture/summary
-                    # This ensures RBAC privilege issues affect the overall security posture
-                    for _ in range(critical_count):
-                        self.findings['critical'].append({
-                            'tool': 'RBAC Analyzer',
-                            'type': 'RBAC Privilege Chain',
-                            'severity': 'CRITICAL',
-                            'file': 'rbac-analysis.md',
-                            'line': '?',
-                            'rule': 'RBAC_ANALYZER_CRITICAL',
-                            'description': 'Critical RBAC privilege chain issue; see RBAC analysis section',
-                            'remediation': 'Tighten roles/bindings; remove wildcard or dangerous verbs; apply least privilege'
-                        })
-                    for _ in range(high_count):
-                        self.findings['high'].append({
-                            'tool': 'RBAC Analyzer',
-                            'type': 'RBAC Privilege Chain',
-                            'severity': 'HIGH',
-                            'file': 'rbac-analysis.md',
-                            'line': '?',
-                            'rule': 'RBAC_ANALYZER_HIGH',
-                            'description': 'High-severity RBAC issue; see RBAC analysis section',
-                            'remediation': 'Scope RBAC rules more narrowly; justify and document remaining access'
-                        })
-                    for _ in range(warning_count):
-                        self.findings['medium'].append({
-                            'tool': 'RBAC Analyzer',
-                            'type': 'RBAC Privilege Chain',
-                            'severity': 'MEDIUM',
-                            'file': 'rbac-analysis.md',
-                            'line': '?',
-                            'rule': 'RBAC_ANALYZER_WARNING',
-                            'description': 'RBAC warning; see RBAC analysis section',
-                            'remediation': 'Review and tighten RBAC where feasible'
-                        })
 
         except Exception as e:
             stats['status'] = '⚠️ ERROR: Failed to parse RBAC analyzer output'
@@ -415,11 +777,8 @@ class SecurityReportGenerator:
                     continue
 
                 file_path, line_num, col, level, message, rule = match.groups()
-                stats['findings'] += 1
 
-                # Store yamllint findings in separate list (not in main findings dict)
-                # This prevents them from cluttering the security report
-                stats['findings_data'].append({
+                finding_dict = {
                     'tool': 'yamllint',
                     'type': 'YAML Issue',
                     'level': level,
@@ -427,7 +786,16 @@ class SecurityReportGenerator:
                     'line': int(line_num),
                     'rule': rule,
                     'description': message,
-                })
+                }
+
+                # Check if this finding is acknowledged in baseline
+                if not self._is_acknowledged('yamllint', finding_dict):
+                    # Store yamllint findings in separate list (not in main findings dict)
+                    # This prevents them from cluttering the security report
+                    stats['findings_data'].append(finding_dict)
+                    stats['findings'] += 1
+                else:
+                    self.baseline_counts['yamllint'] += 1
 
             # Store all findings for dedicated report, but track truncation for comprehensive report
             stats['findings_data_all'] = stats['findings_data'].copy()  # Keep all for dedicated report
@@ -444,6 +812,80 @@ class SecurityReportGenerator:
         except Exception as e:
             stats['status'] = '⚠️ ERROR: Failed to parse yamllint output'
             print(f"[ERROR] yamllint parser: {str(e)}", file=sys.stderr)
+
+        return stats
+
+    def parse_actionlint(self, filepath: str) -> Dict[str, Any]:
+        """Parse actionlint text output
+
+        Format: <file>:<line>:<col>: <message> [<rule>]
+        Example: .github/workflows/test.yml:10:5: invalid expression syntax [expression]
+        """
+        stats = {'tool': 'actionlint', 'findings': 0, 'status': '✅ PASS', 'findings_data': []}
+
+        if not Path(filepath).exists():
+            stats['status'] = '⏭️ SKIPPED'
+            return stats
+
+        try:
+            with open(filepath) as f:
+                content = f.read()
+
+            # Pattern: filepath:line:col: message [rule]
+            # actionlint uses this format for all findings
+            pattern = r'^(.+?):(\d+):(\d+):\s+(.+?)(?:\s+\[(.+?)\])?$'
+
+            # Regex to strip ANSI color codes (e.g., \x1b[31m for red, \x1b[0m for reset)
+            ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
+
+            for line in content.splitlines():
+                if not line.strip():
+                    continue
+
+                # Strip ANSI color codes before pattern matching
+                clean_line = ansi_escape.sub('', line)
+
+                match = re.match(pattern, clean_line)
+                if not match:
+                    continue
+
+                file_path, line_num, col, message, rule = match.groups()
+
+                # Map severity based on message content
+                # GitHub Actions security issues are generally MEDIUM (workflow errors can break CI/CD)
+                severity = 'MEDIUM'
+                severity_bucket = 'medium'
+
+                # Upgrade to HIGH for security-related issues
+                if any(keyword in message.lower() for keyword in ['permission', 'token', 'secret', 'credential']):
+                    severity = 'HIGH'
+                    severity_bucket = 'high'
+
+                finding = {
+                    'tool': 'actionlint',
+                    'type': 'GitHub Actions Workflow Issue',
+                    'severity': severity,
+                    'file': file_path,
+                    'line': int(line_num),
+                    'rule': rule or 'workflow-syntax',
+                    'description': message,
+                    'remediation': 'Fix GitHub Actions workflow syntax according to actionlint recommendation'
+                }
+
+                # Check if this finding is acknowledged in baseline
+                if not self._is_acknowledged('actionlint', finding):
+                    stats['findings_data'].append(finding)
+                    self.findings[severity_bucket].append(finding)
+                    stats['findings'] += 1
+                else:
+                    self.baseline_counts['actionlint'] += 1
+
+            if stats['findings'] > 0:
+                stats['status'] = '❌ FINDINGS'
+
+        except Exception as e:
+            stats['status'] = '⚠️ ERROR: Failed to parse actionlint output'
+            print(f"[ERROR] actionlint parser: {str(e)}", file=sys.stderr)
 
         return stats
 
@@ -464,6 +906,9 @@ class SecurityReportGenerator:
     def generate_report(self, output_file: str, json_summary_file: Optional[str] = None, yamllint_report_file: Optional[str] = None):
         """Generate comprehensive markdown security report, optional JSON summary, and optional yamllint report"""
 
+        # Load baseline to filter acknowledged findings
+        self.load_baseline()
+
         # Parse all tool outputs
         self.tool_stats['gitleaks'] = self.parse_gitleaks(f'{self.workspace}/gitleaks.json')
         self.tool_stats['trufflehog'] = self.parse_trufflehog(f'{self.workspace}/trufflehog.json')
@@ -471,6 +916,8 @@ class SecurityReportGenerator:
         self.tool_stats['hadolint'] = self.parse_hadolint_sarif(f'{self.workspace}/hadolint.sarif')
         self.tool_stats['shellcheck'] = self.parse_shellcheck(f'{self.workspace}/shellcheck.json')
         self.tool_stats['yamllint'] = self.parse_yamllint(f'{self.workspace}/yamllint.txt', max_findings=self.yamllint_limit)
+        self.tool_stats['actionlint'] = self.parse_actionlint(f'{self.workspace}/actionlint.txt')
+        self.tool_stats['kube-linter'] = self.parse_kubelinter(f'{self.workspace}/kube-linter.json')
         self.tool_stats['rbac'] = self.parse_rbac_analyzer(f'{self.workspace}/rbac-analysis.md')
 
         # Calculate totals
@@ -502,7 +949,7 @@ class SecurityReportGenerator:
             with open(output_file, 'w') as f:
                 # Header
                 f.write(f"# Comprehensive Security Scan Report\n\n")
-                f.write(f"**Generated:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC\n\n")
+                f.write(f"**Generated:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC\n\n")
                 f.write(f"**Repository:** {self.github.get('repository', 'unknown')}\n\n")
                 f.write(f"**Commit:** {self.github.get('sha', 'unknown')}\n\n")
                 f.write(f"**Branch:** {self.github.get('ref_name', 'unknown')}\n\n")
@@ -519,6 +966,25 @@ class SecurityReportGenerator:
                 f.write(f"- Medium: {medium_count}\n")
                 f.write(f"- Low: {low_count}\n")
                 f.write(f"- Info: {len(self.findings['info'])}\n\n")
+
+                # Add baseline acknowledgments note
+                # Use baseline_counts (actual filtered findings) instead of baseline (file entries)
+                total_acknowledged = sum(self.baseline_counts.values())
+                if total_acknowledged > 0:
+                    f.write(f"**Acknowledged Findings:** {total_acknowledged} findings have been acknowledged ")
+                    f.write(f"as false positives or accepted risks (see `.github/config/security-baseline.yaml`)\n\n")
+                    # Show breakdown by tool (using actual filtered counts)
+                    acknowledged_by_tool = []
+                    for tool, count in self.baseline_counts.items():
+                        if count > 0:
+                            tool_display = {
+                                'kube-linter': 'kube-linter',
+                                'rbac-analyzer': 'RBAC Analyzer'
+                            }.get(tool, tool.capitalize())
+                            acknowledged_by_tool.append(f"{tool_display}: {count}")
+                    if acknowledged_by_tool:
+                        f.write(f"- {', '.join(acknowledged_by_tool)}\n\n")
+
                 f.write(f"---\n\n")
 
                 # Tool Status Table
@@ -531,6 +997,8 @@ class SecurityReportGenerator:
                 f.write(f"| {self.tool_stats['hadolint']['tool']} | Dockerfile best practices | {self.tool_stats['hadolint']['status']} | {self.tool_stats['hadolint']['findings']} |\n")
                 f.write(f"| {self.tool_stats['shellcheck']['tool']} | Shell script security | {self.tool_stats['shellcheck']['status']} | {self.tool_stats['shellcheck']['findings']} |\n")
                 f.write(f"| {self.tool_stats['yamllint']['tool']} | YAML syntax and style validation | {self.tool_stats['yamllint']['status']} | {self.tool_stats['yamllint']['findings']} |\n")
+                f.write(f"| {self.tool_stats['actionlint']['tool']} | GitHub Actions workflow validation | {self.tool_stats['actionlint']['status']} | {self.tool_stats['actionlint']['findings']} |\n")
+                f.write(f"| {self.tool_stats['kube-linter']['tool']} | Kubernetes manifest security | {self.tool_stats['kube-linter']['status']} | {self.tool_stats['kube-linter']['findings']} |\n")
                 f.write(f"| {self.tool_stats['rbac']['tool']} | RBAC privilege chain analysis | {self.tool_stats['rbac']['status']} | {self.tool_stats['rbac']['findings']} |\n\n")
                 f.write(f"---\n\n")
 
@@ -702,12 +1170,14 @@ class SecurityReportGenerator:
             'Hadolint': 'hadolint',
             'ShellCheck': 'shellcheck',
             'yamllint': 'yamllint',
+            'actionlint': 'actionlint',
+            'kube-linter': 'kube-linter',
             'RBAC Analyzer': 'rbac'
         }
 
         # Calculate per-tool severity breakdowns
         tool_breakdowns = {}
-        for tool_name in ['Gitleaks', 'TruffleHog', 'Semgrep', 'Hadolint', 'ShellCheck', 'yamllint', 'RBAC Analyzer']:
+        for tool_name in ['Gitleaks', 'TruffleHog', 'Semgrep', 'Hadolint', 'ShellCheck', 'yamllint', 'actionlint', 'kube-linter', 'RBAC Analyzer']:
             stats_key = tool_key_map[tool_name]
             tool_breakdowns[tool_name] = {
                 'status': self.tool_stats.get(stats_key, {}).get('status', 'UNKNOWN'),
@@ -762,7 +1232,7 @@ class SecurityReportGenerator:
 
         summary = {
             'format_version': '1.0',
-            'generated': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
+            'generated': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC'),
             'commit': self.github.get('sha', 'unknown'),
             'branch': self.github.get('ref_name', 'unknown'),
             'repository': self.github.get('repository', 'unknown'),
@@ -799,7 +1269,7 @@ class SecurityReportGenerator:
         try:
             with open(output_file, 'w') as f:
                 f.write(f"# YAMLlint Code Quality Report\n\n")
-                f.write(f"**Generated:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}\n\n")
+                f.write(f"**Generated:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}\n\n")
                 f.write(f"**Repository:** {self.github.get('repository', 'unknown')}\n\n")
                 f.write(f"**Commit:** {self.github.get('sha', 'unknown')}\n\n")
                 f.write(f"**Branch:** {self.github.get('ref_name', 'unknown')}\n\n")
@@ -864,11 +1334,20 @@ def main():
     args = parser.parse_args()
 
     # Gather GitHub context from environment
+    server_url = os.getenv('GITHUB_SERVER_URL', '')
+    repository = os.getenv('GITHUB_REPOSITORY', '')
+    run_id = os.getenv('GITHUB_RUN_ID', '')
+
+    if server_url and repository and run_id:
+        run_url = f"{server_url}/{repository}/actions/runs/{run_id}"
+    else:
+        run_url = 'N/A'
+
     github_context = {
-        'repository': os.getenv('GITHUB_REPOSITORY', 'unknown'),
+        'repository': repository or 'unknown',
         'sha': os.getenv('GITHUB_SHA', 'unknown'),
         'ref_name': os.getenv('GITHUB_REF_NAME', 'unknown'),
-        'run_url': f"{os.getenv('GITHUB_SERVER_URL', '')}/{os.getenv('GITHUB_REPOSITORY', '')}/actions/runs/{os.getenv('GITHUB_RUN_ID', '')}"
+        'run_url': run_url
     }
 
     try:
