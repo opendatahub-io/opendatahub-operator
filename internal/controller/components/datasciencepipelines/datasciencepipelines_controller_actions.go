@@ -129,9 +129,10 @@ func argoWorkflowsControllersOptions(ctx context.Context, rr *odhtypes.Reconcili
 		argoWorkflowsControllersParamsKey: string(awfSpecJSON),
 	}
 
-	paramsPath := path.Join(odhdeploy.DefaultManifestPath, ComponentName, "base")
+	componentPath := path.Join(odhdeploy.DefaultManifestPath, ComponentName)
+	overlayName := cluster.OverlayName(rr.Release.Name)
 
-	if err := odhdeploy.ApplyParams(paramsPath, "params.env", imageParamMap, extraParams); err != nil {
+	if _, err := odhdeploy.ApplyParamsWithFallback(componentPath, overlayName, imageParamMap, extraParams); err != nil {
 		return fmt.Errorf("failed to update params.env: %w", err)
 	}
 
