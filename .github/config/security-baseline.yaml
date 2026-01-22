@@ -1,0 +1,41 @@
+version: "2.0"
+description: "Acknowledged security findings that are not real issues"
+_comment: "Findings acknowledged by teams using 'acknowledge-findings' CLI tool or Claude skill. This unified baseline covers all 9 security tools. Do not manually edit - use the CLI tool or Claude skill to add acknowledgments."
+
+kube-linter:
+  - check: latest-tag
+    object:
+      kind: Deployment
+      name: opendatahub-operator-controller-manager
+      namespace: opendatahub-operator-system
+    reason: "Kustomize placeholder - replaced at deployment time (see kube-linter issue #113: https://github.com/stackrox/kube-linter/issues/113)"
+    acknowledged_by: opendatahub-operator-maintainers
+    acknowledged_date: "2026-01-12"
+
+  - check: non-isolated-pod
+    object:
+      kind: Deployment
+      name: opendatahub-operator-controller-manager
+      namespace: opendatahub-operator-system
+    reason: "Operator requires cluster-wide network access to manage resources in all namespaces (controller pattern)"
+    acknowledged_by: opendatahub-operator-maintainers
+    acknowledged_date: "2026-01-12"
+
+  - check: no-read-only-root-fs
+    object:
+      kind: Deployment
+      name: opendatahub-operator-controller-manager
+      namespace: opendatahub-operator-system
+    reason: "Operator modifies baked-in manifests under /opt/manifests at runtime (e.g., prometheus-configs.yaml, alertmanager-configs.yaml) during component reconciliation"
+    recommended_improvement: "Mount /opt/manifests as emptyDir at startup or convert manifests into read-only ConfigMaps to enable readOnlyRootFilesystem: true"
+    acknowledged_by: opendatahub-operator-maintainers
+    acknowledged_date: "2026-01-12"
+
+gitleaks: []
+trufflehog: []
+semgrep: []
+shellcheck: []
+hadolint: []
+yamllint: []
+actionlint: []
+rbac-analyzer: []

@@ -522,10 +522,14 @@ class RBACAnalyzer:
 
     def load_yaml_files(self, base_path: str):
         """Load all YAML manifests from the repository."""
-        for yaml_file in Path(base_path).rglob("*.yaml"):
-            if any(x in str(yaml_file) for x in ['.git', 'vendor', 'node_modules',
-                                                   'test', 'tests', 'examples',
-                                                   'docs', 'bin', '.github/workflows']):
+        # Scan both .yaml and .yml extensions
+        yaml_files = list(Path(base_path).rglob("*.yaml")) + list(Path(base_path).rglob("*.yml"))
+        for yaml_file in yaml_files:
+            # Use path parts to avoid false matches (e.g., 'bin' in 'rolebinding')
+            path_parts = yaml_file.parts
+            if any(x in path_parts for x in ['.git', 'vendor', 'node_modules',
+                                               'test', 'tests', 'testdata', 'examples',
+                                               'docs', 'bin', '.github']):
                 continue
 
             # Initialize before try block to avoid NameError in exception handler
@@ -582,6 +586,56 @@ class RBACAnalyzer:
                 'automountToken': doc.get('spec', {}).get('automountServiceAccountToken', True)
             }
 
+    def get_clusterrole_binding_scope(self, role_name: str) -> dict:
+        """Determine if ClusterRole is bound cluster-wide or namespace-scoped.
+
+        Args:
+            role_name: Name of the ClusterRole to analyze
+
+        Returns:
+            Dictionary with binding scope information:
+            - cluster_wide: bool, True if bound via ClusterRoleBinding
+            - namespace_scoped: bool, True if bound via RoleBinding
+            - unbound: bool, True if no bindings found
+            - cluster_bindings: list of ClusterRoleBinding names
+            - role_bindings: list of RoleBinding names
+            - subject_types: dict with counts of ServiceAccounts and Groups
+        """
+        # Check for ClusterRoleBindings (cluster-wide scope)
+        cluster_bindings = []
+        for binding in self.cluster_role_bindings:
+            role_ref = binding['doc'].get('roleRef', {})
+            if role_ref.get('name') == role_name:
+                cluster_bindings.append(binding['doc'].get('metadata', {}).get('name', 'unknown'))
+
+        # Check for RoleBindings (namespace-scoped)
+        role_bindings_list = []
+        for binding in self.role_bindings:
+            role_ref = binding['doc'].get('roleRef', {})
+            if role_ref.get('name') == role_name and role_ref.get('kind') == 'ClusterRole':
+                role_bindings_list.append(binding['doc'].get('metadata', {}).get('name', 'unknown'))
+
+        # Analyze subject types across all bindings
+        # Only count bindings that reference THIS ClusterRole (not Roles with same name)
+        subject_types = {'ServiceAccount': 0, 'Group': 0, 'User': 0}
+        for binding in self.cluster_role_bindings + self.role_bindings:
+            role_ref = binding['doc'].get('roleRef', {})
+            if role_ref.get('name') == role_name and role_ref.get('kind') == 'ClusterRole':
+                subjects = binding['doc'].get('subjects', [])
+                for subject in subjects:
+                    kind = subject.get('kind', '')
+                    if kind in subject_types:
+                        subject_types[kind] += 1
+
+        return {
+            'cluster_wide': len(cluster_bindings) > 0,
+            'namespace_scoped': len(role_bindings_list) > 0,
+            'unbound': len(cluster_bindings) == 0 and len(role_bindings_list) == 0,
+            'cluster_bindings': cluster_bindings,
+            'role_bindings': role_bindings_list,
+            'subject_types': subject_types
+        }
+
     def analyze_privilege_chains(self):
         """Build ClusterRole → Binding → SA → Pod chains."""
         print("\n### RBAC Privilege Chain Analysis\n")
@@ -635,6 +689,7 @@ class RBACAnalyzer:
 
         # Track already-reported bindings to avoid duplicate findings
         reported_bindings = set()
+        chains_found = False
 
         for pod_key, pod_info in self.pods.items():
             namespace = pod_key.split('/')[0]
@@ -642,6 +697,7 @@ class RBACAnalyzer:
             sa_key = f"{namespace}/{sa_name}"
 
             if sa_key in sa_permissions:
+                chains_found = True
                 print(f"**Pod**: `{pod_key}`")
                 print(f"  - **ServiceAccount**: `{sa_key}`")
                 print(f"  - **Permissions**:")
@@ -674,6 +730,9 @@ class RBACAnalyzer:
                             )
                 print()
 
+        if not chains_found:
+            print("✅ No Pods found with RBAC bindings (or no Pods defined in manifests)\n")
+
     def analyze_dangerous_permissions(self):
         """Identify high-risk permissions in ClusterRoles."""
         print("\n### Dangerous Permission Analysis\n")
@@ -691,6 +750,7 @@ class RBACAnalyzer:
             ({'create'}, {'pods'}),  # Can create privileged pods
         ]
 
+        findings_found = False
         for role_name, role_data in self.cluster_roles.items():
             rules = role_data['rules']
             findings_for_role = []
@@ -744,9 +804,35 @@ class RBACAnalyzer:
             findings_for_role.extend(escalation_issues)
 
             if findings_for_role:
+                findings_found = True
+
+                # Get binding scope to determine severity
+                binding_scope = self.get_clusterrole_binding_scope(role_name)
+
                 print(f"**ClusterRole**: `{role_name}` ({role_data['file']})")
                 for finding in findings_for_role:
                     print(f"  - ⚠️  {finding}")
+
+                # Show binding scope information
+                if binding_scope['cluster_wide']:
+                    print(f"  - 🔴 Bound cluster-wide via ClusterRoleBinding")
+                if binding_scope['namespace_scoped']:
+                    print(f"  - 🟡 Bound per-namespace via RoleBinding")
+                if binding_scope['unbound']:
+                    print(f"  - ⚪ Not actively bound (dormant template)")
+
+                # Show subject types if bound
+                if not binding_scope['unbound']:
+                    subject_info = []
+                    if binding_scope['subject_types']['ServiceAccount'] > 0:
+                        subject_info.append(f"ServiceAccount ({binding_scope['subject_types']['ServiceAccount']})")
+                    if binding_scope['subject_types']['Group'] > 0:
+                        subject_info.append(f"Group ({binding_scope['subject_types']['Group']})")
+                    if binding_scope['subject_types']['User'] > 0:
+                        subject_info.append(f"User ({binding_scope['subject_types']['User']})")
+                    if subject_info:
+                        print(f"  - 👤 Subject types: {', '.join(subject_info)}")
+
                 print()
 
                 # Detect applicable attack scenarios based on findings
@@ -788,22 +874,73 @@ class RBACAnalyzer:
                         if any(rb in resources for rb in ['rolebindings', 'clusterrolebindings']):
                             attack_scenarios.append('escalation_create_rolebindings')
 
+                # Determine severity based on binding scope and permissions
+                # CRITICAL: Cluster-wide wildcards or extremely dangerous verbs
+                # HIGH: Cluster-wide dangerous permissions
+                # WARNING: Namespace-scoped dangerous permissions (may be legitimate for operators)
+                # INFO: Unbound ClusterRole (dormant template)
+
+                if binding_scope['unbound']:
+                    severity = 'INFO'
+                    remediation = "Remove unused ClusterRole or bind appropriately with least privilege"
+                elif binding_scope['cluster_wide']:
+                    # Cluster-wide is always HIGH unless it has wildcards (CRITICAL)
+                    if has_wildcard_resources or has_wildcard_verbs:
+                        severity = 'CRITICAL'
+                        remediation = "Remove wildcard permissions and scope to namespace via RoleBinding"
+                    else:
+                        severity = 'HIGH'
+                        remediation = "Scope to namespace via RoleBinding or reduce permissions to minimum required"
+                else:  # namespace_scoped only
+                    # Namespace-scoped with wildcards is still HIGH
+                    if has_wildcard_resources or has_wildcard_verbs:
+                        severity = 'HIGH'
+                        remediation = "Remove wildcard permissions; specify exact resources and verbs needed"
+                    # Namespace-scoped dangerous permissions are WARNING (may be legitimate)
+                    # Groups typically indicate administrative access in managed environments
+                    elif binding_scope['subject_types']['Group'] > 0 and binding_scope['subject_types']['ServiceAccount'] == 0:
+                        severity = 'WARNING'
+                        remediation = "Verify these permissions are required for administrative access; document justification"
+                    else:
+                        severity = 'WARNING'
+                        remediation = "Verify these permissions are required; document justification if multi-tenant design"
+
+                # Build enhanced description with binding context
+                description_parts = ["; ".join(findings_for_role)]
+
+                if binding_scope['cluster_wide']:
+                    description_parts.append("Bound cluster-wide via ClusterRoleBinding")
+                elif binding_scope['namespace_scoped']:
+                    description_parts.append("Bound per-namespace via RoleBinding")
+                    # Add subject type information for context
+                    if binding_scope['subject_types']['Group'] > 0:
+                        description_parts.append("Assigned to Group principals")
+                    elif binding_scope['subject_types']['ServiceAccount'] > 0:
+                        description_parts.append("Assigned to ServiceAccount principals")
+                else:
+                    description_parts.append("Not actively bound (dormant template)")
+
                 self._add_finding(
-                    severity='HIGH',
+                    severity=severity,
                     title=f"ClusterRole {role_name} has dangerous permissions",
-                    description="; ".join(findings_for_role),
+                    description="; ".join(description_parts),
                     file=role_data['file'],
-                    remediation="Apply principle of least privilege - specify exact resources and verbs needed",
+                    remediation=remediation,
                     attack_scenarios=attack_scenarios
                 )
+
+        if not findings_found:
+            print("✅ No dangerous permissions detected (wildcards, escalate, impersonate, bind, etc.)\n")
 
     def check_aggregated_roles(self):
         """Check for aggregated ClusterRoles."""
         print("\n### Aggregated ClusterRole Analysis\n")
 
+        aggregated_found = False
         for role_name, role_data in self.cluster_roles.items():
             doc = role_data['doc']
             if 'aggregationRule' in doc:
+                aggregated_found = True
                 selectors = doc['aggregationRule'].get('clusterRoleSelectors', [])
                 print(f"**ClusterRole**: `{role_name}`")
                 print(f"  - Aggregates roles matching: `{selectors}`")
@@ -816,6 +953,9 @@ class RBACAnalyzer:
                     file=role_data['file'],
                     remediation="Review aggregation selectors to ensure no unintended permissions are granted"
                 )
+
+        if not aggregated_found:
+            print("✅ No aggregated ClusterRoles detected\n")
 
     def _add_finding(self, severity: str, title: str, description: str, file: str, remediation: str, attack_scenarios: Optional[List[str]] = None):
         """Add a security finding with optional attack scenario references.
