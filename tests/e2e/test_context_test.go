@@ -2326,6 +2326,15 @@ func (tc *TestContext) captureResourceStatus(ro *ResourceOptions, phase string) 
 		}
 	}
 
+	// Defensive check: ensure u and u.Object are not nil before accessing
+	if u == nil || u.Object == nil {
+		tc.Logf("  [RESOURCE] %s %s: ERROR - resource object is nil", ro.GVK.Kind, ro.ResourceID)
+		return map[string]interface{}{
+			"found": false,
+			"error": "resource object is nil",
+		}
+	}
+
 	status, _, _ := unstructured.NestedMap(u.Object, "status")
 	tc.Logf("  [RESOURCE] %s %s: FOUND", ro.GVK.Kind, ro.ResourceID)
 	tc.Logf("    UID: %s", u.GetUID())
