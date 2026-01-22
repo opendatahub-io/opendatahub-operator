@@ -106,6 +106,10 @@ func (r *DSCInitializationReconciler) createAppNamespace(ctx context.Context, ns
 	}
 	labelList := map[string]string{
 		labels.SecurityEnforce: "baseline",
+		// Enable decentralized monitoring for this namespace.
+		// This label allows the monitoring webhook to inject opendatahub.io/monitoring=true
+		// to ServiceMonitors/PodMonitors, enabling OTel collector target allocation.
+		labels.Monitoring: labels.True,
 	}
 
 	// label only for managed cluster
@@ -145,6 +149,10 @@ func PatchMonitoringNS(ctx context.Context, cli client.Client, dscInit *dsciv2.D
 			labels.ODH.OwnedNamespace: labels.True,
 			labels.SecurityEnforce:    "baseline",
 			labels.ClusterMonitoring:  labels.True,
+			// Enable decentralized monitoring for this namespace.
+			// This label allows the monitoring webhook to inject opendatahub.io/monitoring=true
+			// to ServiceMonitors/PodMonitors, enabling OTel collector target allocation.
+			labels.Monitoring: labels.True,
 		})
 		return nil
 	})

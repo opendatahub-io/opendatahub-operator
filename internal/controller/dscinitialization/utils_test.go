@@ -57,6 +57,7 @@ func TestPatchMonitoringNS(t *testing.T) {
 	g.Expect(ns.Labels).To(HaveKeyWithValue(labels.ODH.OwnedNamespace, labels.True))
 	g.Expect(ns.Labels).To(HaveKeyWithValue(labels.SecurityEnforce, "baseline"))
 	g.Expect(ns.Labels).To(HaveKeyWithValue(labels.ClusterMonitoring, labels.True))
+	g.Expect(ns.Labels).To(HaveKeyWithValue(labels.Monitoring, labels.True))
 }
 
 func TestPatchExistingMonitoringNS(t *testing.T) {
@@ -104,4 +105,5 @@ func TestPatchExistingMonitoringNS(t *testing.T) {
 	g.Expect(ns.Labels).To(HaveKeyWithValue(labels.ODH.OwnedNamespace, labels.True))
 	g.Expect(ns.Labels).To(HaveKeyWithValue(labels.SecurityEnforce, "baseline"))
 	g.Expect(ns.Labels).To(HaveKeyWithValue(labels.ClusterMonitoring, labels.True))
+	g.Expect(ns.Labels).To(HaveKeyWithValue(labels.Monitoring, labels.True))
 }

@@ -34,7 +34,6 @@ func TestMonitoringWebhook_PodMonitor(t *testing.T) {
 	// Create test namespace with monitoring enabled using helper
 	ns := fmt.Sprintf("test-ns-%s", xid.New().String())
 	testNamespace := envtestutil.NewNamespace(ns, map[string]string{
-		dashboardLabelKey:  dashboardLabelValue,
 		monitoringLabelKey: monitoringLabelValue,
 	})
 	g.Expect(env.Client().Create(ctx, testNamespace)).To(Succeed())
@@ -68,7 +67,6 @@ func TestMonitoringWebhook_ServiceMonitor(t *testing.T) {
 	// Create test namespace with monitoring enabled using helper
 	ns := fmt.Sprintf("test-ns-%s", xid.New().String())
 	testNamespace := envtestutil.NewNamespace(ns, map[string]string{
-		dashboardLabelKey:  dashboardLabelValue,
 		monitoringLabelKey: monitoringLabelValue,
 	})
 	g.Expect(env.Client().Create(ctx, testNamespace)).To(Succeed())

@@ -172,7 +172,8 @@ func (i *Injector) performMonitoringInjection(ctx context.Context, req *admissio
 
 	namespaceLabels := ns.GetLabels()
 
-	if isOpendatahubNamespace, exists := namespaceLabels["opendatahub.io/dashboard"]; exists {
+	// Check if namespace is ODH-managed (has generated-namespace label)
+	if isOpendatahubNamespace, exists := namespaceLabels["opendatahub.io/generated-namespace"]; exists {
 		if isOpendatahubNamespace != "true" {
 			log.V(1).Info("Ignore non odh namespace", "namespace", resourceNamespace)
 			return admission.Allowed("ignored")

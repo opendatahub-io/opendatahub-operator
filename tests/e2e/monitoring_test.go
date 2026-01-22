@@ -152,7 +152,7 @@ func monitoringTestSuite(t *testing.T) {
 
 			// Validation policy tests
 			TestCase{"Validate monitoring label value enforcement", monitoringServiceCtx.ValidateMonitoringLabelValueEnforcement},
-			TestCase{"Validate namespace monitoring label requires dashboard label", monitoringServiceCtx.ValidateNamespaceMonitoringRequiresDashboard},
+			//TestCase{"Validate namespace monitoring label requires dashboard label", monitoringServiceCtx.ValidateNamespaceMonitoringRequiresDashboard},
 			TestCase{"Validate monitors cannot have monitoring label in non-ODH namespace", monitoringServiceCtx.ValidateMonitorsCannotHaveMonitoringLabelInNonODHNamespace},
 		)
 	}

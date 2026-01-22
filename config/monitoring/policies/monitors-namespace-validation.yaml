@@ -27,6 +27,6 @@ spec:
   matchResources:
     namespaceSelector:
       matchExpressions:
-        - key: opendatahub.io/dashboard
+        - key: opendatahub.io/generated-namespace
           operator: NotIn
           values: ["true"]

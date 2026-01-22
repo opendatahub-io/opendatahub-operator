@@ -30,8 +30,6 @@ const (
 	testServiceMonitor   = "test-servicemonitor"
 	monitoringLabelKey   = "opendatahub.io/monitoring"
 	monitoringLabelValue = "true"
-	dashboardLabelKey    = "opendatahub.io/dashboard"
-	dashboardLabelValue  = "true"
 	kindPodMonitor       = "PodMonitor"
 	kindServiceMonitor   = "ServiceMonitor"
 	kindPod              = "Pod"
@@ -42,7 +40,6 @@ const (
 // newMonitoredNamespace creates a namespace with monitoring enabled.
 func newMonitoredNamespace(name string) *corev1.Namespace {
 	return envtestutil.NewNamespace(name, map[string]string{
-		dashboardLabelKey:  dashboardLabelValue,
 		monitoringLabelKey: monitoringLabelValue,
 	})
 }
@@ -144,49 +141,30 @@ func TestMonitoring_AllowsRequests(t *testing.T) {
 			namespace: newMonitoredNamespace(testNamespace),
 		},
 		{
-			name:      "CREATE PodMonitor - namespace without dashboard label",
-			operation: admissionv1.Create,
-			workload:  newPodMonitor(testPodMonitor, testNamespace),
-			gvkToUse:  gvk.CoreosPodMonitor,
-			namespace: envtestutil.NewNamespace(testNamespace, map[string]string{}),
-		},
-		{
-			name:      "CREATE ServiceMonitor - namespace without dashboard label",
-			operation: admissionv1.Create,
-			workload:  newServiceMonitor(testServiceMonitor, testNamespace),
-			gvkToUse:  gvk.CoreosServiceMonitor,
-			namespace: envtestutil.NewNamespace(testNamespace, map[string]string{}),
-		},
-		{
 			name:      "CREATE PodMonitor - namespace without monitoring label",
 			operation: admissionv1.Create,
 			workload:  newPodMonitor(testPodMonitor, testNamespace),
 			gvkToUse:  gvk.CoreosPodMonitor,
-			namespace: envtestutil.NewNamespace(testNamespace, map[string]string{
-				dashboardLabelKey: dashboardLabelValue,
-			}),
+			namespace: envtestutil.NewNamespace(testNamespace, map[string]string{}),
 		},
 		{
 			name:      "CREATE ServiceMonitor - namespace without monitoring label",
 			operation: admissionv1.Create,
 			workload:  newServiceMonitor(testServiceMonitor, testNamespace),
 			gvkToUse:  gvk.CoreosServiceMonitor,
-			namespace: envtestutil.NewNamespace(testNamespace, map[string]string{
-				dashboardLabelKey: dashboardLabelValue,
-			}),
+			namespace: envtestutil.NewNamespace(testNamespace, map[string]string{}),
 		},
 		{
-			name:      "CREATE PodMonitor - namespace with dashboard=false",
+			name:      "CREATE PodMonitor - namespace with monitoring=false",
 			operation: admissionv1.Create,
 			workload:  newPodMonitor(testPodMonitor, testNamespace),
 			gvkToUse:  gvk.CoreosPodMonitor,
 			namespace: envtestutil.NewNamespace(testNamespace, map[string]string{
-				dashboardLabelKey:  "false",
-				monitoringLabelKey: monitoringLabelValue,
+				monitoringLabelKey: "false",
 			}),
 		},
 		{
-			name:      "UPDATE PodMonitor - namespace without dashboard label",
+			name:      "UPDATE PodMonitor - namespace without monitoring label",
 			operation: admissionv1.Update,
 			workload:  newPodMonitor(testPodMonitor, testNamespace),
 			gvkToUse:  gvk.CoreosPodMonitor,
@@ -197,9 +175,7 @@ func TestMonitoring_AllowsRequests(t *testing.T) {
 			operation: admissionv1.Update,
 			workload:  newServiceMonitor(testServiceMonitor, testNamespace),
 			gvkToUse:  gvk.CoreosServiceMonitor,
-			namespace: envtestutil.NewNamespace(testNamespace, map[string]string{
-				dashboardLabelKey: dashboardLabelValue,
-			}),
+			namespace: envtestutil.NewNamespace(testNamespace, map[string]string{}),
 		},
 	}
 
