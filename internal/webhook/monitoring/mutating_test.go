@@ -30,7 +30,7 @@ const (
 	testServiceMonitor   = "test-servicemonitor"
 	monitoringLabelKey   = "opendatahub.io/monitoring"
 	monitoringLabelValue = "true"
-	dashboardLabelKey    = "opendatahub.io/dashboard"
+	dashboardLabelKey    = "opendatahub.io/generated-namespace"
 	dashboardLabelValue  = "true"
 	kindPodMonitor       = "PodMonitor"
 	kindServiceMonitor   = "ServiceMonitor"

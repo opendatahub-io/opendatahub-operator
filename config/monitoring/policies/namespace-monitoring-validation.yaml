@@ -12,9 +12,10 @@ spec:
         resources: ["namespaces"]
   validations:
     - expression: >
+        !has(object.metadata.labels) ||
         !('opendatahub.io/monitoring' in object.metadata.labels) || 
-        ('opendatahub.io/dashboard' in object.metadata.labels && object.metadata.labels['opendatahub.io/dashboard'] == 'true')
-      message: "You cannot label a Namespace with 'opendatahub.io/monitoring' unless it is also labeled 'opendatahub.io/dashboard=true'."
+        ('opendatahub.io/generated-namespace' in object.metadata.labels && object.metadata.labels['opendatahub.io/generated-namespace'] == 'true')
+      message: "You cannot label a Namespace with 'opendatahub.io/monitoring' unless it is also labeled 'opendatahub.io/generated-namespace=true'."
       reason: Invalid
 
 ---

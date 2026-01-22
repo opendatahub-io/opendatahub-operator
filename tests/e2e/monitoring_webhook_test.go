@@ -25,8 +25,8 @@ func (tc *MonitoringTestCtx) ValidatePodMonitorLabelInjection(t *testing.T) {
 	// Create a test namespace with ODH dashboard and monitoring labels
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithObjectToCreate(CreateNamespaceWithLabels(testNamespace, map[string]string{
-			"opendatahub.io/dashboard":  "true",
-			"opendatahub.io/monitoring": "true",
+			"opendatahub.io/generated-namespace": "true",
+			"opendatahub.io/monitoring":          "true",
 		})),
 	)
 	defer tc.DeleteResource(
@@ -74,8 +74,8 @@ func (tc *MonitoringTestCtx) ValidateServiceMonitorLabelInjection(t *testing.T) 
 	// Create a test namespace with ODH dashboard and monitoring labels
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithObjectToCreate(CreateNamespaceWithLabels(testNamespace, map[string]string{
-			"opendatahub.io/dashboard":  "true",
-			"opendatahub.io/monitoring": "true",
+			"opendatahub.io/generated-namespace": "true",
+			"opendatahub.io/monitoring":          "true",
 		})),
 	)
 	defer tc.DeleteResource(
@@ -171,8 +171,8 @@ func (tc *MonitoringTestCtx) ValidateMonitoringLabelValueEnforcement(t *testing.
 		ObjectMeta: metav1.ObjectMeta{
 			Name: testNamespace,
 			Labels: map[string]string{
-				"opendatahub.io/dashboard":  "true",
-				"opendatahub.io/monitoring": "invalid-value", // Invalid!
+				"opendatahub.io/generated-namespace": "true",
+				"opendatahub.io/monitoring":          "invalid-value", // Invalid!
 			},
 		},
 	}
@@ -183,27 +183,27 @@ func (tc *MonitoringTestCtx) ValidateMonitoringLabelValueEnforcement(t *testing.
 	tc.g.Expect(err.Error()).To(ContainSubstring("must be set to 'true' or 'false'"), "Error message should indicate valid values")
 }
 
-// ValidateNamespaceMonitoringRequiresDashboard tests that namespaces with monitoring label must have dashboard label.
-func (tc *MonitoringTestCtx) ValidateNamespaceMonitoringRequiresDashboard(t *testing.T) {
+// ValidateNamespaceMonitoringRequiresGeneratedNamespace tests that namespaces with monitoring label must have generated-namespace label.
+func (tc *MonitoringTestCtx) ValidateNamespaceMonitoringRequiresGeneratedNamespace(t *testing.T) {
 	t.Helper()
 
-	testNamespace := "test-monitoring-needs-dashboard"
+	testNamespace := "test-monitoring-needs-generated-ns"
 
-	// Attempt to create namespace with monitoring label but WITHOUT dashboard label
+	// Attempt to create namespace with monitoring label but WITHOUT generated-namespace label
 	invalidNamespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: testNamespace,
 			Labels: map[string]string{
 				"opendatahub.io/monitoring": "true", // Has monitoring
-				// Missing dashboard label!
+				// Missing generated-namespace label!
 			},
 		},
 	}
 
 	// Expect this to be BLOCKED by namespace-monitoring-validation policy
 	err := tc.Client().Create(tc.Context(), invalidNamespace)
-	tc.g.Expect(err).To(HaveOccurred(), "Validation policy should block namespace with monitoring label but no dashboard label")
-	tc.g.Expect(err.Error()).To(ContainSubstring("opendatahub.io/dashboard"), "Error message should mention dashboard label requirement")
+	tc.g.Expect(err).To(HaveOccurred(), "Validation policy should block namespace with monitoring label but no generated-namespace label")
+	tc.g.Expect(err.Error()).To(ContainSubstring("opendatahub.io/generated-namespace"), "Error message should mention generated-namespace label requirement")
 }
 
 // ValidateMonitorsCannotHaveMonitoringLabelInNonODHNamespace tests that monitors cannot have monitoring label in non-ODH namespaces.

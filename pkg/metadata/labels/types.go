@@ -11,6 +11,10 @@ const (
 	Platform               = "platform"
 	True                   = "true"
 	CustomizedAppNamespace = "opendatahub.io/application-namespace"
+	// Monitoring is used to opt-in a namespace or monitor for ODH monitoring.
+	// When set to "true" on a namespace, the monitoring webhook will inject the
+	// opendatahub.io/monitoring label to ServiceMonitors/PodMonitors in that namespace.
+	Monitoring = "opendatahub.io/monitoring"
 )
 
 // K8SCommon keeps common kubernetes labels [1]
