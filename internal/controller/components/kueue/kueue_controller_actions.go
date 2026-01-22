@@ -174,6 +174,11 @@ func manageDefaultKueueResourcesAction(ctx context.Context, rr *odhtypes.Reconci
 
 	// Generate LocalQueues in each managed namespaces.
 	for _, ns := range managedNamespaces {
+		// Skip namespaces that are being terminated - Kubernetes rejects resource
+		// creation in terminating namespaces.
+		if !ns.GetDeletionTimestamp().IsZero() {
+			continue
+		}
 		localQueue := createDefaultLocalQueue(kueueCRInstance.Spec.DefaultLocalQueueName, kueueCRInstance.Spec.DefaultClusterQueueName, ns.Name)
 		rr.Resources = append(rr.Resources, *localQueue)
 	}
