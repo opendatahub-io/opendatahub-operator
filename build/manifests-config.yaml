@@ -9,7 +9,7 @@ map:
     src: config
     dest: kserve
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 265f0a638c770d2571048d17ea4e06692507e854
+    git.commit: 2c9e48da0e9db6835243292881df5ca3444a1643
   odh-kf-notebook-controller:
     src: components/notebook-controller/config
     dest: workbenches/kf-notebook-controller
@@ -125,10 +125,10 @@ additional_meta:
     git.commit: 36010c58f55af5ad656295035183fd6a1ac0b6a0
   odh-kserve-agent:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 265f0a638c770d2571048d17ea4e06692507e854
+    git.commit: 2c9e48da0e9db6835243292881df5ca3444a1643
   odh-kserve-router:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 265f0a638c770d2571048d17ea4e06692507e854
+    git.commit: 2c9e48da0e9db6835243292881df5ca3444a1643
   odh-kserve-storage-initializer:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 4f8dffb5301ef9e81f1dc4b53271862bda8b6d00
@@ -167,7 +167,7 @@ additional_meta:
     git.commit: f88354f543ee7587cda35ae6a57f870f707fcbae
   odh-workbench-codeserver-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 3037ed0e5ba1ded57d716680798792a8c33c85dc
+    git.commit: 55700739e85a06b901028c6ede912fa7f7e1324d
   odh-workbench-jupyter-datascience-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: f88354f543ee7587cda35ae6a57f870f707fcbae

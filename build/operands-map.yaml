@@ -52,11 +52,11 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MUST_GATHER_IMAGE
   value: "quay.io/rhoai/odh-must-gather-rhel9@sha256:faea62f549f9172e905c1d1a249693952d8ecb85c579217312193d001fd09a4a"
 - name: RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE
-  value: "quay.io/rhoai/odh-kserve-agent-rhel9@sha256:dfbe2827bb25e95e84eda6b4dc3f6fb6b560ae0fbb588c87927604ba6f73c82b"
+  value: "quay.io/rhoai/odh-kserve-agent-rhel9@sha256:0dc2f796361aab61747383475d8937a85908cacd3f2ab8715c951b884af4210d"
 - name: RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-kserve-controller-rhel9@sha256:bcafa6c2f514b9407e620f2fec827c4081602bfa93648114bfc42cbf5335e010"
+  value: "quay.io/rhoai/odh-kserve-controller-rhel9@sha256:723f355af80dc2c449e864254b9364118255130a8537ef90f2905067450c1c4c"
 - name: RELATED_IMAGE_ODH_KSERVE_ROUTER_IMAGE
-  value: "quay.io/rhoai/odh-kserve-router-rhel9@sha256:9e109f278465b6d0f1b5f305dc8794a1ce15e98939cec9c4dee53335de2174f7"
+  value: "quay.io/rhoai/odh-kserve-router-rhel9@sha256:726590405c07a59861b14d6e3446a016cdbf2ad171d615497577e75b3c58de19"
 - name: RELATED_IMAGE_ODH_KSERVE_STORAGE_INITIALIZER_IMAGE
   value: "quay.io/rhoai/odh-kserve-storage-initializer-rhel9@sha256:6f6d2db57c4db7ba6e600229cfe3797b7dbf9a8be20323c0c4ab7f37e9db6be6"
 - name: RELATED_IMAGE_ODH_TA_LMES_DRIVER_IMAGE
@@ -82,7 +82,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_TENSORFLOW_ROCM_PY312_IMAGE
   value: "quay.io/rhoai/odh-pipeline-runtime-tensorflow-rocm-py312-rhel9@sha256:dcf7436a5ac1a30f2134bef32980cf19e4f14cb9e31064a057220a8aacdc5350"
 - name: RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_DATASCIENCE_CPU_PY312_IMAGE
-  value: "quay.io/rhoai/odh-workbench-codeserver-datascience-cpu-py312-rhel9@sha256:18aa22c2f8541a2dfa9a5abfed2033287e177b952e624d1185c62cef1fef7610"
+  value: "quay.io/rhoai/odh-workbench-codeserver-datascience-cpu-py312-rhel9@sha256:4b6f1af7fbd156435dfd98c9ed05b70336a0993a12071aee5afac08f601514e8"
 - name: RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_DATASCIENCE_CPU_PY312_IMAGE
   value: "quay.io/rhoai/odh-workbench-jupyter-datascience-cpu-py312-rhel9@sha256:c9c5a46db3c7e0f2a07be8d143b49078300219c9c33ec9eadc2885e46ea1c44c"
 - name: RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_MINIMAL_CPU_PY312_IMAGE
