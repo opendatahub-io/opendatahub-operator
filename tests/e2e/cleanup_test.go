@@ -4,13 +4,22 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
+
+// workloadGVK is used to cleanup Kueue Workloads that may block namespace deletion.
+var workloadGVK = schema.GroupVersionKind{
+	Group:   "kueue.x-k8s.io",
+	Version: "v1beta1",
+	Kind:    "Workload",
+}
 
 // CleanupPreviousTestResources removes leftover resources from previous test runs.
 // This is called at the start of test suites to ensure a clean environment.
@@ -65,27 +74,70 @@ func cleanupCoreOperatorResources(t *testing.T, tc *TestContext) {
 func cleanupKueueOperatorAndResources(t *testing.T, tc *TestContext) {
 	t.Helper()
 
-	cleanupKueueTestResources(t, tc)
+	cleanupAllKueueTestResources(t, tc)
 
 	// Uninstall ocp kueue operator if present
 	t.Logf("Uninstalling kueue operator")
 	tc.UninstallOperator(types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace})
 }
 
-// cleanupKueueTestResources cleans up Kueue test resources including ClusterQueue, LocalQueue, and test namespace.
-func cleanupKueueTestResources(t *testing.T, tc *TestContext) {
+// cleanupAllKueueTestResources cleans up Kueue test namespaces (by label) and cluster-scoped resources.
+// It discovers labeled test namespaces, removes Workload finalizers, and deletes the namespaces.
+func cleanupAllKueueTestResources(t *testing.T, tc *TestContext) {
 	t.Helper()
 
-	// Cleanup additional Kueue resources
-	t.Logf("Cleaning up Kueue resources")
+	t.Logf("Finding Kueue test namespaces by label %s=%s", kueueTestNamespaceLabel, kueueTestNamespaceLabelValue)
+	nsList := &corev1.NamespaceList{}
+	// Errors are logged but not fatal - cleanup runs at suite start and should not block other tests.
+	// Leftover namespaces from previous runs may persist but won't affect tests using unique names.
+	if err := tc.Client().List(tc.Context(), nsList, client.MatchingLabels{
+		kueueTestNamespaceLabel: kueueTestNamespaceLabelValue,
+	}); err != nil {
+		t.Logf("Warning: failed to list Kueue test namespaces, leftovers may persist: %v", err)
+		nsList.Items = nil
+	}
+	t.Logf("Found %d Kueue test namespaces", len(nsList.Items))
+
+	// Delete resources with finalizers that may block namespace deletion.
+	for _, ns := range nsList.Items {
+		nsName := ns.GetName()
+		t.Logf("Cleaning up Workloads and Notebooks in test namespace %s", nsName)
+		for _, resourceGVK := range []schema.GroupVersionKind{workloadGVK, gvk.Notebook} {
+			tc.DeleteResources(
+				WithMinimalObject(resourceGVK, types.NamespacedName{}),
+				WithNamespaceFilter(nsName),
+				WithIgnoreNotFound(true),
+				WithRemoveFinalizersOnDelete(true),
+				WithWaitForDeletion(false),
+				WithAcceptableErr(meta.IsNoMatchError, "IsNoMatchError"),
+			)
+		}
+	}
+
+	for _, ns := range nsList.Items {
+		nsName := ns.GetName()
+		t.Logf("Deleting test namespace %s", nsName)
+		tc.DeleteResource(
+			WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: nsName}),
+			WithIgnoreNotFound(true),
+			WithRemoveFinalizersOnDelete(true),
+			WithWaitForDeletion(false),
+		)
+	}
+
+	// Also clean up cluster-scoped resources
+	cleanupKueueClusterScopedResources(t, tc)
+}
+
+// cleanupKueueClusterScopedResources cleans up cluster-scoped Kueue resources (ClusterQueue, KueueConfig).
+func cleanupKueueClusterScopedResources(t *testing.T, tc *TestContext) {
+	t.Helper()
+
+	t.Logf("Cleaning up Kueue cluster-scoped resources")
 	clusterScopedResources := []struct {
 		gvk            schema.GroupVersionKind
 		namespacedName types.NamespacedName
 	}{
-		{gvk.Namespace, types.NamespacedName{Name: kueueTestManagedNamespace}},
-		{gvk.Namespace, types.NamespacedName{Name: kueueTestLegacyManagedNamespace}},
-		{gvk.Namespace, types.NamespacedName{Name: kueueTestWebhookNonManagedNamespace}},
-		{gvk.Namespace, types.NamespacedName{Name: kueueTestHardwareProfileNamespace}},
 		{gvk.ClusterQueue, types.NamespacedName{Name: kueueDefaultClusterQueueName}},
 		{gvk.KueueConfigV1, types.NamespacedName{Name: kueue.KueueCRName}},
 	}
