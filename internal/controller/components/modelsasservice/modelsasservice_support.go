@@ -32,7 +32,10 @@ const (
 	DefaultGatewayNamespace = "openshift-ingress"
 	DefaultGatewayName      = "maas-default-gateway"
 
-	// Manifest paths.
+	// ManifestContextDir is the directory name under the manifests path.
+	ManifestContextDir = "maas"
+
+	// BaseManifestsSourcePath is the overlay path for Kustomize manifests.
 	BaseManifestsSourcePath = "overlays/odh"
 
 	// GatewayAuthPolicyName is the name of the AuthPolicy resource that configures
@@ -66,7 +69,7 @@ var (
 func baseManifestInfo(sourcePath string) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
 		Path:       deploy.DefaultManifestPath,
-		ContextDir: "maas",
+		ContextDir: ManifestContextDir,
 		SourcePath: sourcePath,
 	}
 }
