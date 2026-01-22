@@ -7,20 +7,29 @@ name: Security Full Codebase Scan
 # - Manual: workflow_dispatch (on-demand PoC testing)
 # - Scheduled: Weekly on Sundays at 00:00 UTC (optional baseline)
 # - On-demand: Can be triggered via GitHub UI or gh CLI
+#
+# Simplified Workflow (v2.0):
+# - All 9 security tools always run (no enable/disable toggles)
+# - Advanced options: scan_git_history, test_advisory
+# - Baseline mechanism: Acknowledged findings filtered via .github/config/security-baseline.yaml
 
 on:
   workflow_dispatch:  # Manual trigger via GitHub UI or gh CLI
     inputs:
-      test_advisory:
-        description: 'Test security advisory creation (creates advisory even with no findings)'
-        required: false
-        type: boolean
-        default: false
+      # ============================================================================
+      # ADVANCED OPTIONS
+      # ============================================================================
       scan_git_history:
-        description: 'Scan full git history for secrets (slower, may find secrets in deleted files)'
+        description: '📜 Scan full git history for secrets (slower)'
         required: false
         type: boolean
         default: false
+      test_advisory:
+        description: '🧪 Test security advisory creation'
+        required: false
+        type: boolean
+        default: false
+
   schedule:
     # Run weekly on Sunday at 00:00 UTC for baseline tracking
     - cron: '0 0 * * 0'
@@ -38,6 +47,23 @@ jobs:
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
         with:
           fetch-depth: 0  # Full history for accurate analysis
+
+      # ============================================================================
+      # ADVANCED CONFIGURATION - Configure advanced scan options
+      # ============================================================================
+      - name: Configure advanced settings
+        id: config
+        run: |
+          # Only configure advanced flags, all tools always run
+          SCAN_GIT_HISTORY="${{ inputs.scan_git_history || 'false' }}"
+          TEST_ADVISORY="${{ inputs.test_advisory || 'false' }}"
+
+          echo "scan_git_history=$SCAN_GIT_HISTORY" >> $GITHUB_OUTPUT
+          echo "test_advisory=$TEST_ADVISORY" >> $GITHUB_OUTPUT
+
+          echo "✅ All security tools will run (simplified workflow)"
+          echo "  - Scan git history: $SCAN_GIT_HISTORY"
+          echo "  - Test advisory: $TEST_ADVISORY"
 
       # ============================================================================
       # SECRETS DETECTION - Gitleaks (Pattern-based)
@@ -65,17 +91,17 @@ jobs:
         timeout-minutes: 10
         run: |
           # Conditionally add --no-git flag based on workflow input
-          NO_GIT_FLAG="${{ !inputs.scan_git_history && '--no-git' || '' }}"
+          NO_GIT_FLAG="${{ steps.config.outputs.scan_git_history == 'false' && '--no-git' || '' }}"
 
           docker run --rm \
             -v "${{ github.workspace }}:/repo" \
-            -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
             ghcr.io/gitleaks/gitleaks@sha256:105ac66a57b2bb8afb61a3b8a5dcc4817773d03724a7e8a515214cfe58225556 \
             detect \
               --source /repo \
               $NO_GIT_FLAG \
               --report-format json \
               --report-path /repo/gitleaks.json \
+              --redact \
               --verbose
         continue-on-error: true  # Don't block workflow, collect all findings
 
@@ -100,12 +126,34 @@ jobs:
         id: trufflehog
         timeout-minutes: 10
         run: |
+          set +e
           docker run --rm \
             -v "${{ github.workspace }}:/repo" \
             ghcr.io/trufflesecurity/trufflehog@sha256:e42f126628f0a0ce4ee670bf62b71543eca5a3a2d3c590ff361091b841ac39c1 \
             filesystem /repo \
               --only-verified \
-              --json > trufflehog.json
+              --json > trufflehog.json 2> trufflehog-errors.log
+          TRUFFLEHOG_EXIT=$?
+          set -e
+
+          # Validate output and handle failures
+          if [ $TRUFFLEHOG_EXIT -ne 0 ] && [ ! -s trufflehog.json ]; then
+            echo "❌ TruffleHog failed to produce output (exit: $TRUFFLEHOG_EXIT)" >&2
+            if [ -s trufflehog-errors.log ]; then
+              echo "Error log:" >&2
+              cat trufflehog-errors.log >&2
+            fi
+            exit 1
+          fi
+
+          # Log errors if any occurred
+          if [ -s trufflehog-errors.log ]; then
+            echo "::warning::TruffleHog reported errors, check trufflehog-errors.log artifact"
+            cat trufflehog-errors.log
+          fi
+
+          # Exit with actual status for accurate step outcome
+          exit $TRUFFLEHOG_EXIT
         continue-on-error: true  # Don't block workflow, collect all findings
 
       # ============================================================================
@@ -131,7 +179,7 @@ jobs:
             -e SEMGREP_TIMEOUT=300 \
             semgrep/semgrep@sha256:1f0850c540140c6da68811b21012fd26e91e5323daae245b0a71e70b72a89d2a \
             semgrep scan \
-              --config /src/semgrep.yaml \
+              --config /src/.github/config/semgrep.yaml \
               --sarif \
               --output /src/semgrep.sarif \
               /src
@@ -150,9 +198,10 @@ jobs:
       # Tool: ShellCheck v0.10.0
       # Purpose: Static analysis for shell scripts (bash, sh)
       # Detects: Quoting issues, command injection, dangerous patterns
-      # Coverage: All .sh files in repository
+      # Coverage: ALL .sh files including CI/CD, build scripts, and examples
       # Common findings: Unquoted variables, missing error handling, SC2086, SC2046
       # OWASP: Prevents CWE-78 (OS Command Injection)
+      # Note: Scans all scripts intentionally - build/CI scripts are attack vectors
 
       - name: Install ShellCheck
         run: |
@@ -163,27 +212,59 @@ jobs:
         id: shellcheck
         run: |
           # Find all shell scripts and run shellcheck, outputting JSON
-          find . -name "*.sh" -type f -print0 | \
-            xargs -0 shellcheck --format=json --severity=warning > shellcheck.json
+          # Scans ALL scripts including .github/scripts, hack/, tests/
+          # Excludes only vendor/ to avoid third-party code noise
+          find . -name "*.sh" -type f -not -path "*/vendor/*" -print0 | \
+            xargs -0 --no-run-if-empty shellcheck --format=json --severity=warning > shellcheck.json
+          # Ensure valid JSON output even if no scripts found
+          [ -s shellcheck.json ] || echo "[]" > shellcheck.json
         continue-on-error: true
 
       # ============================================================================
       # DOCKERFILE SECURITY - Hadolint
       # ============================================================================
-      # Tool: Hadolint v3.3.0
+      # Tool: Hadolint v2.14.0
       # Purpose: Dockerfile linter enforcing best practices
       # Detects: Secrets in ENV, unpinned base images, running as root
       # Coverage: All Dockerfile* files (including Dockerfile.dev, etc.)
       # Standards: Enforces Docker best practices and CIS Benchmark recommendations
       # Output: SARIF format for GitHub Security tab integration
+      #
+      # Docker Image Pinning:
+      # - Git tag: v2.14.0-alpine
+      # - Docker digest: sha256:7aba693c1442eb31c0b015c129697cb3b6cb7da589d85c7562f9deb435a6657c
+      # - Why digest?: Immutable reference, prevents tag retargeting attacks
+      # - Source: https://github.com/hadolint/hadolint/pkgs/container/hadolint/versions
+      # - Verification: docker run --rm --entrypoint hadolint ghcr.io/hadolint/hadolint@sha256:7aba693c1442eb31c0b015c129697cb3b6cb7da589d85c7562f9deb435a6657c --version
 
       - name: Run Hadolint on Dockerfiles
         id: hadolint
-        uses: hadolint/hadolint-action@2332a7b74a6de0dda2e2221d575162eba76ba5e5  # v3.3.0
-        with:
-          recursive: true
-          format: sarif
-          output-file: hadolint.sarif
+        run: |
+          # Find all Dockerfiles excluding test/example/vendor directories
+          # Use explicit path exclusions to avoid scanning test fixtures
+          # Store results in null-delimited array to handle filenames with spaces
+          mapfile -d '' -t DOCKERFILES < <(find . -type f -name "Dockerfile*" \
+            -not -path "*/examples/*" \
+            -not -path "*/testdata/*" \
+            -not -path "*/test/*" \
+            -not -path "*/tests/*" \
+            -not -path "*/docs/*" \
+            -not -path "*/vendor/*" \
+            -not -path "*/.git/*" -print0)
+
+          if [ ${#DOCKERFILES[@]} -eq 0 ]; then
+            echo "No Dockerfiles found to scan"
+            # Create empty SARIF file for consistency
+            echo '{"version":"2.1.0","$schema":"https://json.schemastore.org/sarif-2.1.0.json","runs":[]}' > hadolint.sarif
+            exit 0
+          fi
+
+          # Run hadolint on each Dockerfile and combine results
+          docker run --rm -i \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            ghcr.io/hadolint/hadolint@sha256:7aba693c1442eb31c0b015c129697cb3b6cb7da589d85c7562f9deb435a6657c \
+            hadolint --config .github/config/hadolint.yaml --format sarif "${DOCKERFILES[@]}" > hadolint.sarif
         continue-on-error: true
 
       - name: Upload Hadolint SARIF results
@@ -203,7 +284,7 @@ jobs:
       # Coverage: All .yaml and .yml files (manifests, workflows, configs)
       # Benefit: Catches deployment-breaking YAML errors before runtime
       # Output: parsable format (file:line:col: [level] message (rule))
-      # Note: JSON format not supported - PR #245 never merged
+      # Note: JSON format not yet supported - PR #442 in progress
 
       - name: Install yamllint
         run: |
@@ -213,8 +294,114 @@ jobs:
       - name: Run yamllint
         id: yamllint
         run: |
-          yamllint -f parsable . > yamllint.txt || true
+          yamllint -f parsable . > yamllint.txt
         continue-on-error: true
+
+      # ============================================================================
+      # GITHUB ACTIONS WORKFLOW VALIDATION - actionlint
+      # ============================================================================
+      # Tool: actionlint v1.7.8
+      # Purpose: Validates GitHub Actions workflow syntax and best practices
+      # Detects: Invalid expressions, incorrect job dependencies, unsafe permissions
+      # Coverage: All .github/workflows/*.yml files
+      # Benefit: Catches workflow-specific issues that yamllint doesn't validate
+      # Complements: yamllint (general YAML) + Semgrep (secrets/security)
+      # Output: Human-readable format with color highlighting
+      #
+      # Docker Image Pinning:
+      # - Git tag: v1.7.8
+      # - Docker digest (multi-arch): sha256:96d4a8c87dbbfb3bdd324f8fdc285fc3df5261e2decc619a4dd7e8ee52bbfd46
+      # - Why digest?: Immutable reference, prevents tag retargeting attacks
+      # - Verification: docker pull rhysd/actionlint:1.7.8 && docker inspect rhysd/actionlint:1.7.8 --format='{{.RepoDigests}}'
+
+      - name: Run actionlint on GitHub Actions workflows
+        id: actionlint
+        timeout-minutes: 5
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/repo" \
+            -w /repo \
+            rhysd/actionlint@sha256:96d4a8c87dbbfb3bdd324f8fdc285fc3df5261e2decc619a4dd7e8ee52bbfd46 \
+            --no-color > actionlint.txt 2>&1
+        continue-on-error: true
+
+      # ============================================================================
+      # KUBERNETES MANIFEST SECURITY - kube-linter
+      # ============================================================================
+      # Validates Kubernetes manifests for security misconfigurations, RBAC issues,
+      # privilege escalation risks, and CIS Kubernetes Benchmark compliance.
+      # Uses secure binary download + SHA256 verification (not 'go run' which could
+      # fetch malicious code via dependency confusion or compromised module mirrors)
+
+      - name: Set up Go for kube-linter
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00  # v6.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Install kube-linter
+        run: |
+          # Install pre-built binary from GitHub Releases (avoids supply chain risk)
+          set -euo pipefail
+          KUBE_LINTER_VERSION="v0.8.1"
+          KUBE_LINTER_ASSET="kube-linter-linux.tar.gz"
+          KUBE_LINTER_URL="https://github.com/stackrox/kube-linter/releases/download/${KUBE_LINTER_VERSION}/kube-linter-linux.tar.gz"
+          KUBE_LINTER_SHA256="49629abaf0ae3283e9437214a2bea4bf4029008744e05471c85dd3872464f50b"
+
+          curl -sSfL --max-time 300 -o "${KUBE_LINTER_ASSET}" "${KUBE_LINTER_URL}"
+          echo "${KUBE_LINTER_SHA256}  ${KUBE_LINTER_ASSET}" | sha256sum -c -
+          tar -xzf "${KUBE_LINTER_ASSET}" kube-linter
+          sudo mv kube-linter /usr/local/bin/
+          kube-linter version
+          rm -f "${KUBE_LINTER_ASSET}"
+
+      - name: Run kube-linter
+        id: kubelinter
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          # Prepare kustomize and render manifests
+          make prepare
+          TMP_FILE=$(mktemp /tmp/kube-lint.XXXXXX.yaml)
+          ./bin/kustomize build config/manifests > "$TMP_FILE"
+
+          # Disable exit-on-error to capture kube-linter exit codes without short-circuiting
+          set +e
+
+          # Run kube-linter with JSON output for comprehensive report
+          kube-linter lint \
+            --config .kube-linter.yaml \
+            --format json \
+            "$TMP_FILE" > kube-linter.json
+          JSON_EXIT=$?
+
+          # Run kube-linter with SARIF output for GitHub Security tab
+          kube-linter lint \
+            --config .kube-linter.yaml \
+            --format sarif \
+            "$TMP_FILE" > kube-linter.sarif
+          SARIF_EXIT=$?
+
+          # Re-enable exit-on-error for subsequent commands
+          set -e
+
+          rm -f "$TMP_FILE"
+
+          # Validate SARIF output was generated
+          if [ ! -s kube-linter.sarif ]; then
+            echo "ERROR: kube-linter.sarif is missing or empty" >&2
+            exit 1
+          fi
+
+          # Exit non-zero if either run detected findings (for accurate step outcome)
+          [ $JSON_EXIT -eq 0 ] && [ $SARIF_EXIT -eq 0 ] || exit 1
+        continue-on-error: true
+
+      - name: Upload kube-linter SARIF results
+        if: always() && hashFiles('kube-linter.sarif') != ''
+        uses: github/codeql-action/upload-sarif@1b168cd39490f61582a9beae412bb7057a6b2c4e  # v4.31.8
+        with:
+          sarif_file: kube-linter.sarif
+          category: kube-linter
 
       # ============================================================================
       # RBAC PRIVILEGE CHAIN ANALYSIS - Custom Script
@@ -259,7 +446,7 @@ jobs:
         if: always()
         run: |
           # Generate private version with detailed attack scenarios for security advisory
-          python .github/scripts/rbac-analyzer.py . --fail-on HIGH --include-attack-scenarios 2>&1 | tee rbac-analysis-private.md
+          python .github/scripts/rbac-analyzer.py . --fail-on HIGH --include-attack-scenarios > rbac-analysis-private.md 2>&1
           echo "✅ Private RBAC analysis with attack scenarios generated (for security advisory)"
         continue-on-error: true
 
@@ -305,7 +492,8 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "A detailed security report has been generated and uploaded as an artifact." >> $GITHUB_STEP_SUMMARY
           echo "Download it from the workflow artifacts section for full details." >> $GITHUB_STEP_SUMMARY
-        continue-on-error: true
+        # This file drives the "fail on critical/high" gate; do not fail-open here.
+        continue-on-error: false
 
       - name: Upload comprehensive security report
         if: always() && hashFiles('security-report.md') != ''
@@ -325,21 +513,25 @@ jobs:
       # in the comprehensive security report, rather than using hardcoded 'high'.
 
       - name: Determine advisory severity
-        if: always() && hashFiles('security-report.md') != ''
+        if: always() && hashFiles('security-summary.json') != ''
         id: severity
         run: |
-          # Check comprehensive report for critical/high findings
-          if grep -q '🔴 CRITICAL' security-report.md || grep -q 'Critical:' security-report.md; then
-            echo "severity=critical" >> $GITHUB_OUTPUT
-            echo "📊 Detected CRITICAL findings - advisory severity: critical"
-          elif grep -q '🟠 HIGH' security-report.md || grep -q 'High:' security-report.md; then
-            echo "severity=high" >> $GITHUB_OUTPUT
-            echo "📊 Detected HIGH findings - advisory severity: high"
-          elif grep -q '🟡 MEDIUM' security-report.md || grep -q 'Medium:' security-report.md; then
-            echo "severity=moderate" >> $GITHUB_OUTPUT
-            echo "📊 Detected MEDIUM findings - advisory severity: moderate"
+          # Check security-summary.json for actual finding counts
+          critical=$(jq -r '.severity_counts.critical // 0' security-summary.json)
+          high=$(jq -r '.severity_counts.high // 0' security-summary.json)
+          medium=$(jq -r '.severity_counts.medium // 0' security-summary.json)
+
+          if [[ "$critical" =~ ^[0-9]+$ ]] && (( critical > 0 )); then
+            echo "severity=critical" >> "$GITHUB_OUTPUT"
+            echo "📊 Detected CRITICAL findings ($critical) - advisory severity: critical"
+          elif [[ "$high" =~ ^[0-9]+$ ]] && (( high > 0 )); then
+            echo "severity=high" >> "$GITHUB_OUTPUT"
+            echo "📊 Detected HIGH findings ($high) - advisory severity: high"
+          elif [[ "$medium" =~ ^[0-9]+$ ]] && (( medium > 0 )); then
+            echo "severity=moderate" >> "$GITHUB_OUTPUT"
+            echo "📊 Detected MEDIUM findings ($medium) - advisory severity: moderate"
           else
-            echo "severity=low" >> $GITHUB_OUTPUT
+            echo "severity=low" >> "$GITHUB_OUTPUT"
             echo "📊 No high-severity findings - advisory severity: low"
           fi
         continue-on-error: true
@@ -357,6 +549,8 @@ jobs:
           SHELLCHECK_OUTCOME: ${{ steps.shellcheck.outcome }}
           HADOLINT_OUTCOME: ${{ steps.hadolint.outcome }}
           YAMLLINT_OUTCOME: ${{ steps.yamllint.outcome }}
+          ACTIONLINT_OUTCOME: ${{ steps.actionlint.outcome }}
+          KUBELINTER_OUTCOME: ${{ steps.kubelinter.outcome }}
           RBAC_OUTCOME: ${{ steps.rbac_analyzer.outcome }}
         run: |
           # Function to extract severity summary from JSON (robust parsing with jq)
@@ -422,6 +616,15 @@ jobs:
               if [[ -f "$output_file" && -s "$output_file" ]]; then
                 # Verify file is valid JSON/SARIF (for tools that produce such output)
                 case "$output_file" in
+                  trufflehog.json)
+                    # TruffleHog outputs JSONL (JSON Lines), not a single JSON document
+                    # Use -s to slurp all lines into an array for validation
+                    if jq -s empty "$output_file" 2>/dev/null; then
+                      echo "🔒|Issues Found"
+                    else
+                      echo "❌|Failed (invalid JSONL output)"
+                    fi
+                    ;;
                   *.json)
                     if jq empty "$output_file" 2>/dev/null; then
                       echo "🔒|Issues Found"
@@ -488,6 +691,16 @@ jobs:
           severity_summary=$(get_severity_badge "yamllint")
           echo "| yamllint | YAML validation | ${status_result%%|*} | ${status_result##*|}${severity_summary} |" >> $GITHUB_STEP_SUMMARY
 
+          # actionlint
+          status_result=$(get_status "$ACTIONLINT_OUTCOME" "actionlint.txt")
+          severity_summary=$(get_severity_badge "actionlint")
+          echo "| actionlint | GitHub Actions workflow validation | ${status_result%%|*} | ${status_result##*|}${severity_summary} |" >> $GITHUB_STEP_SUMMARY
+
+          # kube-linter
+          status_result=$(get_status "$KUBELINTER_OUTCOME" "kube-linter.json")
+          severity_summary=$(get_severity_badge "kube-linter")
+          echo "| kube-linter | Kubernetes manifest security (RBAC, privileges) | ${status_result%%|*} | ${status_result##*|}${severity_summary} |" >> $GITHUB_STEP_SUMMARY
+
           # RBAC Analyzer
           status_result=$(get_status "$RBAC_OUTCOME" "rbac-analysis.md")
           severity_summary=$(get_severity_badge "RBAC Analyzer")
@@ -501,13 +714,15 @@ jobs:
              [[ "$SHELLCHECK_OUTCOME" == "success" ]] && \
              [[ "$HADOLINT_OUTCOME" == "success" ]] && \
              [[ "$YAMLLINT_OUTCOME" == "success" ]] && \
+             [[ "$ACTIONLINT_OUTCOME" == "success" ]] && \
+             [[ "$KUBELINTER_OUTCOME" == "success" ]] && \
              [[ "$RBAC_OUTCOME" == "success" ]]; then
             echo "✅ **All security scans passed - no issues found**" >> $GITHUB_STEP_SUMMARY
           else
             # Check if any tools actually failed (vs just found issues)
             has_failures=false
             has_incomplete=false
-            for outcome in "$GITLEAKS_OUTCOME" "$TRUFFLEHOG_OUTCOME" "$SEMGREP_OUTCOME" "$SHELLCHECK_OUTCOME" "$HADOLINT_OUTCOME" "$YAMLLINT_OUTCOME" "$RBAC_OUTCOME"; do
+            for outcome in "$GITLEAKS_OUTCOME" "$TRUFFLEHOG_OUTCOME" "$SEMGREP_OUTCOME" "$SHELLCHECK_OUTCOME" "$HADOLINT_OUTCOME" "$YAMLLINT_OUTCOME" "$ACTIONLINT_OUTCOME" "$KUBELINTER_OUTCOME" "$RBAC_OUTCOME"; do
               if [[ "$outcome" == "failure" ]]; then
                 # At least one tool had a non-success outcome (either failed or found issues)
                 has_failures=true
@@ -528,7 +743,7 @@ jobs:
             fi
           fi
 
-      - name: Fail workflow on critical findings
+      - name: Fail workflow on critical/high findings
         if: always() && hashFiles('security-summary.json') != ''
         run: |
           # Verify jq is available
@@ -538,9 +753,17 @@ jobs:
           fi
 
           critical=$(jq -r '.severity_counts.critical // 0' security-summary.json)
-          # Validate numeric value
+          high=$(jq -r '.severity_counts.high // 0' security-summary.json)
+
+          # Validate numeric values
           if [[ "$critical" =~ ^[0-9]+$ ]] && [[ $critical -gt 0 ]]; then
             echo "❌ Workflow failed: $critical CRITICAL findings detected"
+            echo "Review the comprehensive-security-report artifact for details"
+            exit 1
+          fi
+
+          if [[ "$high" =~ ^[0-9]+$ ]] && [[ $high -gt 0 ]]; then
+            echo "❌ Workflow failed: $high HIGH severity findings detected"
             echo "Review the comprehensive-security-report artifact for details"
             exit 1
           fi

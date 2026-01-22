@@ -8,15 +8,74 @@ checks:
   addAllBuiltIn: false
 
   include:
-    - "privileged-container"
-    - "privileged-ports"
-    - "run-as-non-root"
-    - "cluster-admin-role-binding"
-    - "no-liveness-probe"
-    - "no-readiness-probe"
-    - "unset-cpu-requirements"
-    - "unset-memory-requirements"
-    - "no-system-group-binding"
+    # ===========================================================================
+    # CONTAINER SECURITY - Privilege & Isolation
+    # ===========================================================================
+    # Prevents containers from running with excessive privileges that could
+    # enable container escapes and node compromise
+    - "privileged-container"              # No privileged mode (bypasses all security)
+    - "privilege-escalation-container"    # Prevent allowPrivilegeEscalation=true
+    - "run-as-non-root"                   # Enforce runAsNonRoot (CWE-250)
+    - "host-network"                      # No host network namespace sharing
+    - "host-pid"                          # No host PID namespace sharing
+    - "host-ipc"                          # No host IPC namespace sharing
+    - "docker-sock"                       # No docker.sock mount (container escape)
+    - "sensitive-host-mounts"             # No mounting /, /etc, /sys, /proc, etc.
+    - "writable-host-mount"               # Host mounts must be readOnly
+    - "no-read-only-root-fs"              # Enforce readOnlyRootFilesystem
+    - "drop-net-raw-capability"           # Drop NET_RAW (packet crafting)
+    - "unsafe-proc-mount"                 # Prevent procMount=Unmasked
+    - "unsafe-sysctls"                    # Block dangerous sysctls
+
+    # ===========================================================================
+    # RBAC & ACCESS CONTROL - CIS Kubernetes Benchmark
+    # ===========================================================================
+    # Implements CIS Kubernetes Benchmark recommendations for RBAC security
+    - "cluster-admin-role-binding"        # CIS 5.1.1: Restrict cluster-admin
+    - "access-to-secrets"                 # CIS 5.1.2: Limit secret access
+    - "wildcard-in-rules"                 # CIS 5.1.3: No wildcards in RBAC
+    - "access-to-create-pods"             # CIS 5.1.4: Restrict pod creation
+    - "no-system-group-binding"           # Custom: No system:* groups
+
+    # ===========================================================================
+    # SECRET MANAGEMENT
+    # ===========================================================================
+    # Prevents secret exposure through environment variables (visible in logs,
+    # crashes, and process listings)
+    - "env-var-secret"                    # No secrets in env vars (use secretKeyRef)
+    - "read-secret-from-env-var"          # CIS 5.4.1: Prefer mounted secrets
+
+    # ===========================================================================
+    # SERVICE ACCOUNT SECURITY
+    # ===========================================================================
+    - "default-service-account"           # Don't use default SA (create dedicated)
+    - "non-existent-service-account"      # Validate SA exists
+
+    # ===========================================================================
+    # NETWORK SECURITY
+    # ===========================================================================
+    - "privileged-ports"                  # No ports < 1024 (require root)
+    - "ssh-port"                          # Flag SSH exposure (port 22)
+    - "exposed-services"                  # No NodePort/LoadBalancer (use Ingress)
+    - "non-isolated-pod"                  # Require NetworkPolicy
+
+    # ===========================================================================
+    # RELIABILITY & AVAILABILITY
+    # ===========================================================================
+    - "no-liveness-probe"                 # Require liveness probes
+    - "no-readiness-probe"                # Require readiness probes
+    - "unset-cpu-requirements"            # Require CPU requests/limits
+    - "unset-memory-requirements"         # Require memory requests/limits
+
+    # ===========================================================================
+    # NAMESPACE ISOLATION - CIS Kubernetes Benchmark
+    # ===========================================================================
+    - "use-namespace"                     # CIS 5.7.1, 5.7.4: Don't use default namespace
+
+    # ===========================================================================
+    # IMAGE SECURITY
+    # ===========================================================================
+    - "latest-tag"                        # No 'latest' tag (use immutable tags)
 
 customChecks:
   - name: "no-system-group-binding"
@@ -28,6 +87,6 @@ customChecks:
         - ClusterRoleBinding
     params:
       check: |
-        has(object.subjects) && dyn(object.subjects).exists(s, s.kind == "Group" && s.name.startsWith("system:")) 
-          ? "ClusterRoleBinding references system group" 
+        has(object.subjects) && dyn(object.subjects).exists(s, s.kind == "Group" && s.name.startsWith("system:"))
+          ? "ClusterRoleBinding references system group"
           : ""
