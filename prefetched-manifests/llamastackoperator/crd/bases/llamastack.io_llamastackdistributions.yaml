@@ -84,7 +84,7 @@ spec:
                   exposeRoute:
                     default: false
                     description: |-
-                      ExposeRoute when true, creates an Ingress (or OpenShift Route) for external access.
+                      ExposeRoute when true, creates an Ingress for external access.
                       Default is false (internal access only).
                     type: boolean
                 type: object
