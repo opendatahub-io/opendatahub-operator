@@ -4,10 +4,14 @@ kind: Kustomization
 metadata:
   name: maas-odh-overlay
 
+# ODH overlay: maas-api with TLS + auth policies
+# For full deployment including rate limits, use openshift overlay
+
 namespace: opendatahub
 resources:
-  - ../../base/policies/auth-policies
-  - ../../base/maas-api
+  - ../../base/maas-api/overlays/tls  # maas-api with TLS (includes DestinationRule)
+  - ../../base/policies/auth-policies  # Gateway auth policies only
+  - maas-authorino-networkpolicy.yaml
 
 configMapGenerator:
 - envs:
@@ -17,6 +21,16 @@ generatorOptions:
   disableNameSuffixHash: true
 
 patches:
+# Set HTTPS URL for tier lookup; namespace is injected via replacements below
+- target:
+    group: kuadrant.io
+    version: v1
+    kind: AuthPolicy
+    name: gateway-auth-policy
+  patch: |-
+    - op: replace
+      path: /spec/rules/metadata/matchedTier/http/url
+      value: https://maas-api.maas-api.svc.cluster.local:8443/v1/tiers/lookup
 - patch: |-
     apiVersion: apps/v1
     kind: Deployment
@@ -70,6 +84,11 @@ replacements:
       name: gateway-auth-policy
     fieldPaths:
     - metadata.namespace
+  - select:
+      kind: DestinationRule
+      name: maas-api-backend-tls
+    fieldPaths:
+    - metadata.namespace
 - source:
     kind: ConfigMap
     version: v1
@@ -97,6 +116,14 @@ replacements:
       name: gateway-auth-policy
     fieldPaths:
     - spec.rules.metadata.matchedTier.http.url
+    options:
+      delimiter: "."
+      index: 1
+  - select:
+      kind: DestinationRule
+      name: maas-api-backend-tls
+    fieldPaths:
+    - spec.host
     options:
       delimiter: "."
       index: 1

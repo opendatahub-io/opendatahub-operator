@@ -1,0 +1,37 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# TLS Backend with Disk Storage
+# Extends tls-backend with PVC-based persistent storage
+#
+# Usage:
+#   kustomize build deployment/overlays/tls-backend-disk | kubectl apply -f -
+
+resources:
+  - ../tls-backend
+  - pvc.yaml
+
+patches:
+  - target:
+      kind: Deployment
+      name: maas-api
+    patch: |-
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value:
+          name: data
+          persistentVolumeClaim:
+            claimName: maas-api-data
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts/-
+        value:
+          name: data
+          mountPath: /data
+      - op: add
+        path: /spec/template/spec/containers/0/command
+        value:
+          - ./maas-api
+      - op: add
+        path: /spec/template/spec/containers/0/args
+        value:
+          - --storage=disk

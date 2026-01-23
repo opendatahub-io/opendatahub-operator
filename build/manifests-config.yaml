@@ -78,8 +78,8 @@ map:
   odh-maas-api:
     src: deployment
     dest: maas
-    git.url: https://github.com/red-hat-data-services/maas-billing
-    git.commit: 54c8397ea927ce0e8d9fdfbe72658b8bbc16b9a6
+    git.url: https://github.com/red-hat-data-services/models-as-a-service
+    git.commit: b9b84bba21337f7d2e71c09acdb557d3a94a73eb
 additional_meta:
   odh-trustyai-service:
     git.url: https://github.com/red-hat-data-services/trustyai-explainability

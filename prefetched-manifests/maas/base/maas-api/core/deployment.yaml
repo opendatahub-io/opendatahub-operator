@@ -22,9 +22,11 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: SECURE
+          value: "false"
         # Note: By default, uses in-memory storage (ephemeral - data lost on restart).
         # For persistent storage, use one of the overlays:
-        #   - deployment/overlays/sqlite-pvc (single replica, file-based)
+        #   - deployment/overlays/tls-backend-disk (single replica, file-based)
         # Or configure external database (HA-ready):
         #   - See docs/samples/database/external for configuration examples
         resources:

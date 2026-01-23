@@ -1,24 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: maas-api
-
+# Pass-through to default configuration
+# Use overlays/tls for TLS-enabled deployment
 resources:
-  - deployment.yaml
-  - service.yaml
-  - rbac
-  - networking
-  - policies
-  - resources
-
-labels:
-  - includeSelectors: true 
-    pairs:
-      app.kubernetes.io/part-of: models-as-a-service
-      app.kubernetes.io/component: api
-      app.kubernetes.io/name: maas-api
-      
-images:
-  - name: maas-api
-    newName: quay.io/opendatahub/maas-api
-    newTag: latest
+  - default

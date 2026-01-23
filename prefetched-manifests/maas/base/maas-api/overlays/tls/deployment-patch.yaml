@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: maas-api
+spec:
+  template:
+    spec:
+      containers:
+      - name: maas-api
+        env:
+        - name: SECURE
+          value: "true"
+        - name: TLS_CERT
+          value: /etc/maas-api/tls/tls.crt
+        - name: TLS_KEY
+          value: /etc/maas-api/tls/tls.key
+        ports:
+        - $patch: replace
+        - containerPort: 8443
+          name: https
+          protocol: TCP
+        volumeMounts:
+        - name: maas-api-tls
+          mountPath: /etc/maas-api/tls
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: https
+            scheme: HTTPS
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: https
+            scheme: HTTPS
+      volumes:
+      - name: maas-api-tls
+        secret:
+          secretName: maas-api-serving-cert
+

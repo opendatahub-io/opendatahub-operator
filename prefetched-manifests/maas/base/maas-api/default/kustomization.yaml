@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: maas-api
+
+resources:
+  - ../core
+  - ../rbac
+  - ../networking
+  - ../policies
+  - ../resources
+
+labels:
+  - includeSelectors: true
+    pairs:
+      app.kubernetes.io/part-of: models-as-a-service
+      app.kubernetes.io/component: api
+      app.kubernetes.io/name: maas-api

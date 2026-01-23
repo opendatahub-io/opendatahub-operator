@@ -1,0 +1,19 @@
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: maas-api-backend-tls
+  namespace: openshift-ingress
+spec:
+  host: maas-api.maas-api.svc.cluster.local
+  trafficPolicy:
+    portLevelSettings:
+    - port:
+        number: 8443
+      tls:
+        mode: SIMPLE
+        # Skip cert verification for internal cluster traffic. The gateway pod
+        # doesn't have access to OpenShift's service-ca bundle out of the box, and mounting it
+        # to gateway pods is complex. Traffic is still encrypted.
+        # Aligned with ODH/RHOAI managed gateway deployment.
+        insecureSkipVerify: true
+
