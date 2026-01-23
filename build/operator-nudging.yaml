@@ -106,15 +106,13 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_OPENVINO_MODEL_SERVER_IMAGE
   value: quay.io/rhoai/odh-openvino-model-server-rhel9@sha256:1ea6bd8d5fc6f5036e1779ee5b2468dfb0f0c22198a15071254f7482e0c1e7b8
 - name: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
-  value: quay.io/rhoai/odh-vllm-cpu-rhel9@4f33c61bb9d8e11311245995d1148010bc05f77546d4b39cecc35a6606f47113
+  value: quay.io/rhoai/odh-vllm-cpu-rhel9@sha256:4f33c61bb9d8e11311245995d1148010bc05f77546d4b39cecc35a6606f47113
 - name: RELATED_IMAGE_ODH_VLLM_GAUDI_IMAGE
   value: quay.io/rhoai/odh-vllm-gaudi-rhel9@sha256:419d36436fec5daa9a99fb92cc9e4180aeb07d388b9819d694105e66d6d2be7a
 - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_JOB_ASYNC_UPLOAD_IMAGE
   value: quay.io/rhoai/odh-model-registry-job-async-upload-rhel9@sha256:03f8112dec2a537a7bbc3d46aab8bc6dd7c7d6e0acd337b8872d9e4ee1c6f128
-- name: RELATED_IMAGE_ODH_MOD_ARCH_MODEL_REGISTRY
-  value: quay.io/rhoai/odh-mod-arch-model-registry-rhel9@sha256:sha256:8b040b818f211081c893e5686bdda91314508582c4e976d481a22b7ffdb004c2
 - name: RELATED_IMAGE_ODH_LLAMA_STACK_CORE_IMAGE
-  value: quay.io/rhoai/odh-llama-stack-core-rhel9@19697942f84cb8aa281bf6f49195a2af10bdaebd8bcf5522407b2e5665094c21
+  value: quay.io/rhoai/odh-llama-stack-core-rhel9@sha256:19697942f84cb8aa281bf6f49195a2af10bdaebd8bcf5522407b2e5665094c21
 - name: RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_PYTORCH_LLMCOMPRESSOR_CUDA_PY312_IMAGE
   value: quay.io/rhoai/odh-workbench-jupyter-pytorch-llmcompressor-cuda-py312-rhel9@sha256:7a80dd51c3277f569c52a81a7f808f2b18a3ee50b302e0a0f739f7aec8e4fc06
 - name: RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_LLMCOMPRESSOR_CUDA_PY312_IMAGE
@@ -142,7 +140,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TRAINING_ROCM64_TORCH28_PY312_IMAGE
   value: quay.io/rhoai/odh-training-rocm64-torch28-py312-rhel9@sha256:22ade8a549ebc2635b9c2ba51c1a8b88aff7587162cd64a5d5bfff279a9e058f
 - name: RELATED_IMAGE_ODH_MOD_ARCH_MODEL_REGISTRY_IMAGE
-  value: quay.io/rhoai/odh-mod-arch-model-registry-rhel9@sha256:sha256:8b040b818f211081c893e5686bdda91314508582c4e976d481a22b7ffdb004c2
+  value: quay.io/rhoai/odh-mod-arch-model-registry-rhel9@sha256:8b040b818f211081c893e5686bdda91314508582c4e976d481a22b7ffdb004c2
 - name: RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE
   value: quay.io/rhoai/odh-kube-auth-proxy-rhel9@sha256:113351701d4bb46f59f960a8a27e4c08b89a2c2305d7fa7ea20d3c4f05b8d15d
 - name: RELATED_IMAGE_ODH_TRAINER_IMAGE
