@@ -79,7 +79,7 @@ map:
     src: deployment
     dest: maas
     git.url: https://github.com/red-hat-data-services/models-as-a-service
-    git.commit: b9b84bba21337f7d2e71c09acdb557d3a94a73eb
+    git.commit: 0915659e00c8cdefd4e1fd8417ffacca58b63712
 additional_meta:
   odh-trustyai-service:
     git.url: https://github.com/red-hat-data-services/trustyai-explainability
@@ -269,7 +269,7 @@ additional_meta:
     git.commit: ca635dee96a43821991797cb990c9d3a71b79f04
   odh-training-rocm64-torch29-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: 4aaa72b1db294f812c46e058198464ed9f63ddf4
+    git.commit: cffca50edb2dfa64a8fc5fea2bde1160c3f42744
   odh-training-cuda128-torch29-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: cffca50edb2dfa64a8fc5fea2bde1160c3f42744
