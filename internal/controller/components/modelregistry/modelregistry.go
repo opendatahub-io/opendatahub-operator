@@ -20,6 +20,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 type componentHandler struct{}
@@ -42,7 +43,20 @@ func (s *componentHandler) Init(_ common.Platform) error {
 	return nil
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
+func (s *componentHandler) NewCRObject(ctx context.Context, cli client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
+	spec := dsc.Spec.Components.ModelRegistry.ModelRegistryCommonSpec
+	gatewayDomain, err := resources.GetGatewayDomain(ctx, cli)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"gateway domain is missing for ModelRegistry; the Data Science Gateway may not be ready yet—check that "+
+				"GatewayConfig exists and its status reports a domain: %w", err)
+	}
+	if gatewayDomain != "" {
+		if spec.Gateway == nil {
+			spec.Gateway = &common.GatewaySpec{}
+		}
+		spec.Gateway.Domain = gatewayDomain
+	}
 	return &componentApi.ModelRegistry{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.ModelRegistryKind,
@@ -55,9 +69,9 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 			},
 		},
 		Spec: componentApi.ModelRegistrySpec{
-			ModelRegistryCommonSpec: dsc.Spec.Components.ModelRegistry.ModelRegistryCommonSpec,
+			ModelRegistryCommonSpec: spec,
 		},
-	}
+	}, nil
 }
 
 func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {

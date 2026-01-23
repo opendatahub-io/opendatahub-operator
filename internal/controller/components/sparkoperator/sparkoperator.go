@@ -36,7 +36,7 @@ func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
 	return dsc.Spec.Components.SparkOperator.ManagementState == operatorv1.Managed
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
+func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
 	return &componentApi.SparkOperator{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.SparkOperatorKind,
@@ -51,7 +51,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 		Spec: componentApi.SparkOperatorSpec{
 			SparkOperatorCommonSpec: dsc.Spec.Components.SparkOperator.SparkOperatorCommonSpec,
 		},
-	}
+	}, nil
 }
 
 func (s *componentHandler) Init(platform common.Platform) error {

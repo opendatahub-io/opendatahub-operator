@@ -28,13 +28,42 @@ func customizeManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 		return fmt.Errorf("resource instance %v is not a componentApi.ModelRegistry)", rr.Instance)
 	}
 
-	// update registries namespace in manifests
-	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), "params.env", nil, map[string]string{
-		"REGISTRIES_NAMESPACE": mr.Spec.RegistriesNamespace,
-	}); err != nil {
+	extraParamsMap, err := computeKustomizeVariable(rr)
+	if err != nil {
+		return fmt.Errorf("failed to compute gateway domain: %w", err)
+	}
+
+	// Add registries namespace to params
+	extraParamsMap["REGISTRIES_NAMESPACE"] = mr.Spec.RegistriesNamespace
+
+	// update params.env with all computed values
+	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), "params.env", nil, extraParamsMap); err != nil {
 		return fmt.Errorf("failed to update params on path %s: %w", rr.Manifests[0].String(), err)
 	}
+
 	return nil
+}
+
+func computeKustomizeVariable(rr *odhtypes.ReconciliationRequest) (map[string]string, error) {
+	mr, ok := rr.Instance.(*componentApi.ModelRegistry)
+	if !ok {
+		return nil, errors.New("instance is not a ModelRegistry")
+	}
+
+	// Use domain from ModelRegistry.Spec.Gateway.Domain (synced from GatewayConfig.Status.Domain by DSC controller)
+	var domain string
+	if mr.Spec.Gateway != nil {
+		domain = mr.Spec.Gateway.Domain
+	}
+	if domain == "" {
+		return nil, errors.New(
+			"gateway domain is missing for ModelRegistry; the Data Science Gateway may not be ready yet—check that " +
+				"GatewayConfig exists and its status reports a domain")
+	}
+
+	return map[string]string{
+		"GATEWAY_DOMAIN": domain,
+	}, nil
 }
 
 func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {

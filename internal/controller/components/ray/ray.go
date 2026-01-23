@@ -32,7 +32,7 @@ func (s *componentHandler) GetName() string {
 	return componentApi.RayComponentName
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
+func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
 	return &componentApi.Ray{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.RayKind,
@@ -47,7 +47,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 		Spec: componentApi.RaySpec{
 			RayCommonSpec: dsc.Spec.Components.Ray.RayCommonSpec,
 		},
-	}
+	}, nil
 }
 
 func (s *componentHandler) Init(_ common.Platform) error {

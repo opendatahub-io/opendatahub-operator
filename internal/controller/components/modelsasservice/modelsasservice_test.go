@@ -2,6 +2,7 @@
 package modelsasservice
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -33,7 +34,8 @@ func TestNewCRObject(t *testing.T) {
 	t.Run("creates CR with correct metadata", func(t *testing.T) {
 		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
 
-		cr := handler.NewCRObject(dsc)
+		cr, err := handler.NewCRObject(context.Background(), nil, dsc)
+		g.Expect(err).To(Succeed())
 		g.Expect(cr).ShouldNot(BeNil())
 		g.Expect(cr).Should(BeAssignableToTypeOf(&componentApi.ModelsAsService{}))
 
@@ -60,8 +62,8 @@ func TestNewCRObject(t *testing.T) {
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
 				dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, tc.inputManagementState)
-				cr := handler.NewCRObject(dsc)
-
+				cr, err := handler.NewCRObject(context.Background(), nil, dsc)
+				g.Expect(err).To(Succeed())
 				g.Expect(cr).Should(WithTransform(json.Marshal,
 					jq.Match(`.metadata.annotations["%s"] == "%s"`, annotations.ManagementStateAnnotation, tc.expectedManagementState),
 				))

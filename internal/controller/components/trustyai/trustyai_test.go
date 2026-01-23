@@ -2,6 +2,7 @@
 package trustyai
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -39,7 +40,8 @@ func TestNewCRObject(t *testing.T) {
 	g := NewWithT(t)
 	dsc := createDSCWithTrustyAI(operatorv1.Managed)
 
-	cr := handler.NewCRObject(dsc)
+	cr, err := handler.NewCRObject(context.Background(), nil, dsc)
+	g.Expect(err).To(Succeed())
 	g.Expect(cr).ShouldNot(BeNil())
 	g.Expect(cr).Should(BeAssignableToTypeOf(&componentApi.TrustyAI{}))
 
@@ -58,7 +60,8 @@ func TestEvalCRObjectSerialization(t *testing.T) {
 	// Create DSC with no eval fields specified
 	dsc := createDSCWithTrustyAI(operatorv1.Managed)
 
-	cr := handler.NewCRObject(dsc)
+	cr, err := handler.NewCRObject(context.Background(), nil, dsc)
+	g.Expect(err).To(Succeed())
 	g.Expect(cr).ShouldNot(BeNil())
 
 	// Test JSON serialization to ensure required fields are present

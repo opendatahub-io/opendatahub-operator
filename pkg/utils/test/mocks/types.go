@@ -37,8 +37,12 @@ func (m *MockComponentHandler) GetManagementState(dsc *dscv2.DataScienceCluster)
 	return m.Called(dsc).Get(0).(operatorv1.ManagementState)
 }
 
-func (m *MockComponentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
-	return m.Called(dsc).Get(0).(common.PlatformObject)
+func (m *MockComponentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
+	args := m.Called(dsc)
+	if args.Get(1) != nil {
+		return nil, args.Get(1).(error)
+	}
+	return args.Get(0).(common.PlatformObject), nil
 }
 
 func (m *MockComponentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {

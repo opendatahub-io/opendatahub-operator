@@ -34,6 +34,9 @@ var _ common.PlatformObject = (*Dashboard)(nil)
 
 // DashboardCommonSpec spec defines the shared desired state of Dashboard
 type DashboardCommonSpec struct {
+	// Gateway configuration for dashboard ingress
+	// +optional
+	Gateway *common.GatewaySpec `json:"gateway,omitempty"`
 	// dashboard spec exposed to DSC api
 	// dashboard spec exposed only to internal api
 }

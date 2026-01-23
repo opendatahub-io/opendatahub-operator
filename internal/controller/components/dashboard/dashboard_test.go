@@ -2,6 +2,7 @@
 package dashboard
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -20,7 +21,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -41,8 +42,14 @@ func TestNewCRObject(t *testing.T) {
 
 	g := NewWithT(t)
 	dsc := createDSCWithDashboard(operatorv1.Managed)
+	gatewayConfig := &serviceApi.GatewayConfig{}
+	gatewayConfig.SetName(serviceApi.GatewayConfigName)
+	gatewayConfig.Status.Domain = "gateway.example.com"
+	cl, err := fakeclient.New(fakeclient.WithObjects(gatewayConfig))
+	g.Expect(err).To(Succeed())
 
-	cr := handler.NewCRObject(dsc)
+	cr, err := handler.NewCRObject(context.Background(), cl, dsc)
+	g.Expect(err).To(Succeed())
 	g.Expect(cr).ShouldNot(BeNil())
 	g.Expect(cr).Should(BeAssignableToTypeOf(&componentApi.Dashboard{}))
 
@@ -106,7 +113,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dashboard))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+		cs, err := handler.UpdateDSCStatus(ctx, &odhtypes.ReconciliationRequest{
 			Client:     cli,
 			Instance:   dsc,
 			Conditions: conditions.NewManager(dsc, ReadyConditionType),
@@ -133,7 +140,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dashboard))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+		cs, err := handler.UpdateDSCStatus(ctx, &odhtypes.ReconciliationRequest{
 			Client:     cli,
 			Instance:   dsc,
 			Conditions: conditions.NewManager(dsc, ReadyConditionType),
@@ -159,7 +166,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+		cs, err := handler.UpdateDSCStatus(ctx, &odhtypes.ReconciliationRequest{
 			Client:     cli,
 			Instance:   dsc,
 			Conditions: conditions.NewManager(dsc, ReadyConditionType),
@@ -185,7 +192,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+		cs, err := handler.UpdateDSCStatus(ctx, &odhtypes.ReconciliationRequest{
 			Client:     cli,
 			Instance:   dsc,
 			Conditions: conditions.NewManager(dsc, ReadyConditionType),
@@ -271,7 +278,6 @@ func TestComputeKustomizeVariable(t *testing.T) {
 
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := t.Context()
 
 			// Pre-allocate slice with known capacity for better performance
 			objects := make([]client.Object, 0, 2)
@@ -289,7 +295,39 @@ func TestComputeKustomizeVariable(t *testing.T) {
 			cli, err := fakeclient.New(fakeclient.WithObjects(objects...))
 			g.Expect(err).ShouldNot(HaveOccurred())
 
-			result, err := computeKustomizeVariable(ctx, cli, tt.platform)
+			// Calculate expected domain based on test case
+			// This simulates what syncDomainFromGateway would do in real reconciliation
+			var expectedDomain string
+			if gc := tt.gatewayConfigFunc(); gc != nil {
+				if gc.Spec.Domain != "" {
+					subdomain := gc.Spec.Subdomain
+					if subdomain == "" {
+						subdomain = gateway.DefaultGatewaySubdomain
+					}
+					expectedDomain = subdomain + "." + gc.Spec.Domain
+				} else {
+					expectedDomain = gateway.DefaultGatewaySubdomain + "." + tt.clusterDomain
+				}
+			} else {
+				expectedDomain = gateway.DefaultGatewaySubdomain + "." + tt.clusterDomain
+			}
+
+			// Create Dashboard instance with gateway domain pre-populated (as DSC controller would do)
+			dashboard := &componentApi.Dashboard{
+				Spec: componentApi.DashboardSpec{
+					DashboardCommonSpec: componentApi.DashboardCommonSpec{
+						Gateway: &common.GatewaySpec{
+							Domain: expectedDomain,
+						},
+					},
+				},
+			}
+			rr := &odhtypes.ReconciliationRequest{
+				Client:   cli,
+				Instance: dashboard,
+			}
+
+			result, err := computeKustomizeVariable(rr, tt.platform)
 
 			if tt.expectError {
 				g.Expect(err).Should(HaveOccurred())
@@ -299,6 +337,7 @@ func TestComputeKustomizeVariable(t *testing.T) {
 			g.Expect(err).ShouldNot(HaveOccurred())
 			g.Expect(result).Should(HaveKeyWithValue("dashboard-url", tt.expectedURL))
 			g.Expect(result).Should(HaveKeyWithValue("section-title", tt.expectedTitle))
+			g.Expect(result).Should(HaveKey("gateway-domain"))
 		})
 	}
 }
@@ -306,16 +345,22 @@ func TestComputeKustomizeVariable(t *testing.T) {
 func TestComputeKustomizeVariableError(t *testing.T) {
 	t.Parallel() // Enable parallel execution for better performance
 	g := NewWithT(t)
-	ctx := t.Context()
 
 	// Create a client with no objects to simulate GatewayConfig not found
 	cli, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	// Test error handling with better error message validation
-	_, err = computeKustomizeVariable(ctx, cli, cluster.OpenDataHub)
-	g.Expect(err).Should(HaveOccurred(), "Should fail when cluster domain cannot be determined")
-	g.Expect(err.Error()).Should(ContainSubstring("error getting gateway domain"), "Error should contain expected message")
+	// Create Dashboard instance for test
+	dashboard := &componentApi.Dashboard{}
+	rr := &odhtypes.ReconciliationRequest{
+		Client:   cli,
+		Instance: dashboard,
+	}
+
+	// Test error handling - should fail fast when Spec.Gateway.Domain is empty
+	_, err = computeKustomizeVariable(rr, cluster.OpenDataHub)
+	g.Expect(err).Should(HaveOccurred(), "Should fail when dashboard.Spec.Gateway.Domain is empty")
+	g.Expect(err.Error()).Should(ContainSubstring("gateway domain is missing for Dashboard"), "Error should contain expected message")
 }
 
 func createDSCWithDashboard(managementState operatorv1.ManagementState) *dscv2.DataScienceCluster {

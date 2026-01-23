@@ -48,7 +48,7 @@ func (s *componentHandler) Init(_ common.Platform) error {
 	return nil
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
+func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
 	return &componentApi.DataSciencePipelines{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.DataSciencePipelinesKind,
@@ -63,7 +63,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 		Spec: componentApi.DataSciencePipelinesSpec{
 			DataSciencePipelinesCommonSpec: dsc.Spec.Components.AIPipelines.DataSciencePipelinesCommonSpec,
 		},
-	}
+	}, nil
 }
 
 func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
