@@ -36,7 +36,7 @@ func (s *componentHandler) GetName() string {
 	return componentApi.TrainerComponentName
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
+func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
 	return &componentApi.Trainer{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.TrainerKind,
@@ -51,7 +51,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 		Spec: componentApi.TrainerSpec{
 			TrainerCommonSpec: dsc.Spec.Components.Trainer.TrainerCommonSpec,
 		},
-	}
+	}, nil
 }
 
 func (s *componentHandler) Init(platform common.Platform) error {

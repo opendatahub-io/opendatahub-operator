@@ -1,14 +1,11 @@
 package dashboard
 
 import (
-	"context"
+	"errors"
 	"fmt"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -78,16 +75,27 @@ func observabilityManifestInfo() odhtypes.ManifestInfo {
 	}
 }
 
-func computeKustomizeVariable(ctx context.Context, cli client.Client, platform common.Platform) (map[string]string, error) {
-	// Get the gateway domain directly from Gateway CR
-	consoleLinkDomain, err := gateway.GetGatewayDomain(ctx, cli)
-	if err != nil {
-		return nil, fmt.Errorf("error getting gateway domain: %w", err)
+func computeKustomizeVariable(rr *odhtypes.ReconciliationRequest, platform common.Platform) (map[string]string, error) {
+	dashboard, ok := rr.Instance.(*componentApi.Dashboard)
+	if !ok {
+		return nil, errors.New("instance is not a Dashboard")
+	}
+
+	// Use domain from Dashboard.Spec.Gateway.Domain (synced from GatewayConfig.Status.Domain by DSC controller)
+	var domain string
+	if dashboard.Spec.Gateway != nil {
+		domain = dashboard.Spec.Gateway.Domain
+	}
+	if domain == "" {
+		return nil, errors.New(
+			"gateway domain is missing for Dashboard; the Data Science Gateway may not be ready yet—check that " +
+				"GatewayConfig exists and its status reports a domain")
 	}
 
 	return map[string]string{
-		"dashboard-url": fmt.Sprintf("https://%s/", consoleLinkDomain),
-		"section-title": sectionTitle[platform],
+		"dashboard-url":  fmt.Sprintf("https://%s/", domain),
+		"section-title":  sectionTitle[platform],
+		"gateway-domain": domain,
 	}, nil
 }
 

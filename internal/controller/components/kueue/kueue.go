@@ -42,7 +42,7 @@ func (s *componentHandler) GetName() string {
 	return componentApi.KueueComponentName
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
+func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
 	return &componentApi.Kueue{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.KueueKind,
@@ -59,7 +59,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 			KueueCommonSpec:       dsc.Spec.Components.Kueue.KueueCommonSpec,
 			KueueDefaultQueueSpec: dsc.Spec.Components.Kueue.KueueDefaultQueueSpec,
 		},
-	}
+	}, nil
 }
 
 func (s *componentHandler) Init(platform common.Platform) error {
