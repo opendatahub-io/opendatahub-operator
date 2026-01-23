@@ -59,6 +59,14 @@ map:
     src: manifests
     dest: trainer
     git.url: https://github.com/opendatahub-io/trainer
+  odh-mlflow-operator:
+    src: config
+    dest: mlflowoperator
+    git.url: https://github.com/red-hat-data-services/mlflow-operator
+  odh-maas-api:
+    src: deployment
+    dest: maas
+    git.url: https://github.com/red-hat-data-services/maas-billing
 #additional_meta:
 #  odh-trustyai-service:
 #    git.url: https://github.com/opendatahub-io/trustyai-explainability

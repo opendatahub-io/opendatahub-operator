@@ -176,7 +176,7 @@ relatedImages:
     - name: RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
       value: quay.io/opendatahub/odh-kube-auth-proxy@sha256:a528c85ba07a473250d72119de75b65b5d1cc6f0ce5d61abcfe89b3bb20d2839
       component: odh-kube-auth-proxy
-    - name: RELATED_IMAGE_ODH_MAAS-API_IMAGE
+    - name: RELATED_IMAGE_ODH_MAAS_API_IMAGE
       value: quay.io/opendatahub/maas-api@sha256:e83852905c7c4f65699daaad9d1f90e56f8f6b7477e6a11d76f31ae91b711197
       component: odh-maas-api
     - name: RELATED_IMAGE_ODH_TRUSTYAI_RAGAS_LLS_PROVIDER_DSP_IMAGE
@@ -215,3 +215,21 @@ relatedImages:
     - name: RELATED_IMAGE_ODH_OPERATOR_IMAGE
       value: quay.io/opendatahub/opendatahub-operator@sha256:e412c9152fcc21cea2e8d7d147c063de8bdc7b7c087ecdc712e87d29bc3e5e8f
       component: odh-operator
+    - name: RELATED_IMAGE_ODH_MLSERVER_IMAGE
+      value: quay.io/opendatahub/mlserver@sha256:0dcba71dffef6e16c95174f204f01d59bcf448055693a5c79b036fafbec9ac7c
+      component: odh-mlserver
+    - name: RELATED_IMAGE_ODH_MLFLOW_IMAGE
+      value: quay.io/opendatahub/mlflow@sha256:2b028ad64974329bbce67d8cb612fa60182addd52ebdd97caeeb28deb3712f41
+      component: odh-mlflow
+    - name: RELATED_IMAGE_ODH_MLFLOW_OPERATOR_IMAGE
+      value: quay.io/opendatahub/mlflow-operator@sha256:1830440fb16a3b338e54c40f6d74065ed18ac9c074acac3b7db798e5286899dd
+      component: odh-mlflow-operator
+    - name: RELATED_IMAGE_ODH_TRAINING_ROCM64_TORCH29_PY312_IMAGE
+      value: quay.io/opendatahub/odh-training-rocm64-torch29-py312@sha256:c1c4739a0a9504af60248a45058774223a9869c9ff809785c473a7e71772ca46
+      component: odh-training-rocm64-torch29-py312
+    - name: RELATED_IMAGE_ODH_TRAINING_CUDA128_TORCH29_PY312_IMAGE
+      value: quay.io/opendatahub/odh-training-cuda128-torch29-py312@sha256:db0cb8218852049630421ebf6237500acf437d2e5a97ebad3a7f65fb02b6cbfc
+      component: odh-training-cuda128-torch29-py312
+    - name: RELATED_IMAGE_ODH_MOD_ARCH_MAAS_IMAGE
+      value: quay.io/opendatahub/mod-arch-maas@sha256:b884966ed030a9c8abaace0491ee1ae3f075a9060ebaa1953c5d0bce028a8e1a
+      component: odh-mod-arch-maas
