@@ -104,7 +104,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_OPENVINO_MODEL_SERVER_IMAGE
   value: "quay.io/rhoai/odh-openvino-model-server-rhel9@sha256:1ea6bd8d5fc6f5036e1779ee5b2468dfb0f0c22198a15071254f7482e0c1e7b8"
 - name: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
-  value: "quay.io/rhoai/odh-vllm-cpu-rhel9@sha256:179a7fafc40911367d1273e3df2e44fb4ca4e1ab8969b84b5a027c7d262144bf"
+  value: "quay.io/rhoai/odh-vllm-cpu-rhel9@sha256:aefdce2cc6e2e4f7ab8366ad2697bc3abde2fb76d19390a7082f8bc9862c8711"
 - name: RELATED_IMAGE_ODH_VLLM_GAUDI_IMAGE
   value: "quay.io/rhoai/odh-vllm-gaudi-rhel9@sha256:419d36436fec5daa9a99fb92cc9e4180aeb07d388b9819d694105e66d6d2be7a"
 - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_JOB_ASYNC_UPLOAD_IMAGE
@@ -122,7 +122,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
   value: "quay.io/rhoai/odh-kube-auth-proxy-rhel9@sha256:113351701d4bb46f59f960a8a27e4c08b89a2c2305d7fa7ea20d3c4f05b8d15d"
 - name: RELATED_IMAGE_ODH_MAAS_API_IMAGE
-  value: "quay.io/rhoai/odh-maas-api-rhel9@sha256:195634c45aa63a992464a4262a56e7a5d45e7e5d05b17a3e041aa03f4dece112"
+  value: "quay.io/rhoai/odh-maas-api-rhel9@sha256:aa080820d45d95a40fd4f1d39708c7ff212919bd86f4d5c83fb5a10db73c2750"
 - name: RELATED_IMAGE_ODH_MODEL_PERFORMANCE_DATA_IMAGE
   value: "quay.io/rhoai/odh-model-performance-data-rhel9@sha256:a5d97d6d65c3bcf8094eeb4abcbdb71c2c357057540f5558ae7ff445d3181027"
 - name: RELATED_IMAGE_ODH_TRAINING_CUDA121_TORCH24_PY311_IMAGE
@@ -158,6 +158,6 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TRAINING_ROCM64_TORCH29_PY312_IMAGE
   value: "quay.io/rhoai/odh-training-rocm64-torch29-py312-rhel9@sha256:c1c4739a0a9504af60248a45058774223a9869c9ff809785c473a7e71772ca46"
 - name: RELATED_IMAGE_ODH_TRAINING_CUDA128_TORCH29_PY312_IMAGE
-  value: "quay.io/rhoai/odh-training-cuda128-torch29-py312-rhel9@sha256:db0cb8218852049630421ebf6237500acf437d2e5a97ebad3a7f65fb02b6cbfc"
+  value: "quay.io/rhoai/odh-training-cuda128-torch29-py312-rhel9@sha256:c75d003ebf932d0c60cc6b440ac66a31ec0251ea73fe4831f835918e07e18cf2"
 - name: RELATED_IMAGE_ODH_OPERATOR_IMAGE
   value: quay.io/rhoai/odh-rhel9-operator@sha256:78a21a59d3ca3d426c0f466629b8f87fd60bf6e636c3a2ef543d36aec319e260
