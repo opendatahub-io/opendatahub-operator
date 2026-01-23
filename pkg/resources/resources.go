@@ -351,6 +351,49 @@ func EncodeToString(in []byte) string {
 	return "v" + base64.RawURLEncoding.EncodeToString(in)
 }
 
+// HashParamsMap computes a deterministic hash of a params map for cache invalidation.
+// Keys are sorted to ensure consistent hashing regardless of map iteration order.
+// Returns the hash as an encoded string suitable for use as an annotation value.
+func HashParamsMap(params map[string]string) string {
+	// Sort keys for deterministic hashing
+	keys := make([]string, 0, len(params))
+	for k := range params {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+
+	hash := sha256.New()
+	for _, k := range keys {
+		hash.Write([]byte(k + "=" + params[k] + "\n"))
+	}
+	return EncodeToString(hash.Sum(nil))
+}
+
+// UpdateParamsHashAnnotation updates the instance annotation with a hash of the params map
+// to invalidate kustomize cache when params change. This ensures the ConfigMap gets updated.
+// The function fetches the latest instance from the client to ensure it has the current state.
+func UpdateParamsHashAnnotation(ctx context.Context, cli client.Client, instance client.Object, params map[string]string, annotationKey string) {
+	// Get the latest instance to ensure we have current annotations
+	key := client.ObjectKeyFromObject(instance)
+	if err := cli.Get(ctx, key, instance); err != nil {
+		// If we can't get the instance, log but don't fail - the params.env update is more important
+		logf.FromContext(ctx).V(1).Info("failed to get instance for annotation update", "error", err, "key", key)
+		return
+	}
+
+	// Compute hash of params map for cache invalidation
+	paramsHash := HashParamsMap(params)
+	currentHash := GetAnnotation(instance, annotationKey)
+	// Only update if the hash has changed to avoid unnecessary updates
+	if currentHash != paramsHash {
+		SetAnnotation(instance, annotationKey, paramsHash)
+		if err := cli.Update(ctx, instance); err != nil {
+			// Log but don't fail - the params.env update is more important
+			logf.FromContext(ctx).V(1).Info("failed to update instance annotation", "error", err, "key", key, "annotation", annotationKey)
+		}
+	}
+}
+
 func KindForObject(scheme *runtime.Scheme, obj runtime.Object) (string, error) {
 	if obj.GetObjectKind().GroupVersionKind().Kind != "" {
 		return obj.GetObjectKind().GroupVersionKind().Kind, nil

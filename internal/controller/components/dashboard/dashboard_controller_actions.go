@@ -68,6 +68,11 @@ func setKustomizedParams(ctx context.Context, rr *odhtypes.ReconciliationRequest
 	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), "params.env", nil, extraParamsMap); err != nil {
 		return fmt.Errorf("failed to update params.env from %s : %w", rr.Manifests[0].String(), err)
 	}
+
+	// Update Dashboard annotation with params hash to invalidate kustomize cache
+	// when dashboard params change. This ensures the ConfigMap gets updated.
+	resources.UpdateParamsHashAnnotation(ctx, rr.Client, rr.Instance, extraParamsMap, DashboardParamsHashAnnotation)
+
 	return nil
 }
 

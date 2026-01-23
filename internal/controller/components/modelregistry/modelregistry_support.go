@@ -20,6 +20,11 @@ const (
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
 	// deployment to the new component name, so keep it around till we figure out a solution.
 	LegacyComponentName = "model-registry-operator"
+
+	// ModelRegistryParamsHashAnnotation is the annotation key used to store the hash of model-registry params
+	// for cache invalidation. When this annotation changes, the kustomize cache is invalidated
+	// and resources are re-rendered with updated params.env values.
+	ModelRegistryParamsHashAnnotation = "opendatahub.io/model-registry-params-hash"
 )
 
 var (

@@ -26,6 +26,11 @@ const (
 
 	LegacyComponentNameUpstream   = "dashboard"
 	LegacyComponentNameDownstream = "rhods-dashboard"
+
+	// DashboardParamsHashAnnotation is the annotation key used to store the hash of dashboard params
+	// for cache invalidation. When this annotation changes, the kustomize cache is invalidated
+	// and resources are re-rendered with updated params.env values.
+	DashboardParamsHashAnnotation = "opendatahub.io/dashboard-params-hash"
 )
 
 var (

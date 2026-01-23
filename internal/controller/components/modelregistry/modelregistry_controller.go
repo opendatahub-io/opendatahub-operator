@@ -29,6 +29,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
@@ -71,6 +72,12 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				handlers.ToNamed(componentApi.ModelRegistryInstanceName)),
 			reconciler.WithPredicates(
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
+		).
+		WatchesGVK(gvk.GatewayConfig,
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.ModelRegistryInstanceName),
+			),
+			reconciler.WithPredicates(resources.GatewayConfigDomainChanged()),
 		).
 		WithAction(initialize).
 		WithAction(customizeManifests).
