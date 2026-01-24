@@ -1384,7 +1384,7 @@ func getComponentInstanceName(componentKind string) string {
 	case "ModelsAsService":
 		return "modelsasservice"
 	case "DataSciencePipelines":
-		return "datasciencepipelines"
+		return "aipipelines" // v2 API field name for DataSciencePipelines
 	case "Kserve":
 		return "kserve"
 	default:
@@ -1395,5 +1395,13 @@ func getComponentInstanceName(componentKind string) string {
 // Helper function to get component name and condition kind from component kind.
 // Returns: (componentName, conditionKind).
 func getComponentNameFromKind(componentKind string) (string, string) {
-	return getComponentInstanceName(componentKind), componentKind
+	componentName := getComponentInstanceName(componentKind)
+	conditionKind := componentKind
+
+	// Map DataSciencePipelines to AIPipelines for v2 API condition types
+	if componentKind == "DataSciencePipelines" {
+		conditionKind = "AIPipelines"
+	}
+
+	return componentName, conditionKind
 }
