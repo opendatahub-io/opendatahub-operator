@@ -298,8 +298,40 @@ func (tc *ComponentTestCtx) EnsureParentComponentEnabled(t *testing.T) {
 		t.Fatal("EnsureParentComponentEnabled called on a component without parent information.")
 	}
 
-	// Enable the parent component
+	// Enable the parent component in the DSC
 	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, tc.ParentKind)
+
+	// Wait for the parent component CR to become ready
+	// This is critical - without waiting, subcomponent tests may run while parent resources (ServiceAccounts, Secrets) are still being created
+	parentComponentName, _ := getComponentNameFromKind(tc.ParentKind)
+
+	// Map parent kind string to GVK
+	var parentGVK schema.GroupVersionKind
+	switch tc.ParentKind {
+	case "Kserve":
+		parentGVK = gvk.Kserve
+	case "Dashboard":
+		parentGVK = gvk.Dashboard
+	case "ModelRegistry":
+		parentGVK = gvk.ModelRegistry
+	default:
+		t.Fatalf("Unknown parent component kind: %s", tc.ParentKind)
+	}
+
+	t.Logf("Waiting for parent component %s to become ready before proceeding with subcomponent tests", tc.ParentKind)
+	tc.EnsureResourcesExist(
+		WithMinimalObject(parentGVK, types.NamespacedName{Name: parentComponentName}),
+		WithCondition(
+			And(
+				HaveLen(1),
+				HaveEach(And(
+					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
+				)),
+			),
+		),
+	)
+	t.Logf("Parent component %s is ready - proceeding with subcomponent tests", tc.ParentKind)
 }
 
 // UpdateSubComponentStateInDataScienceCluster updates the management state of a subcomponent in the DataScienceCluster.
