@@ -240,6 +240,12 @@ func (tc *TestContext) NewResourceOptions(opts ...ResourceOpts) *ResourceOptions
 		ro.ListOptions = &client.ListOptions{}
 	}
 
+	// If ListOptions doesn't have a namespace set but NN does, use NN's namespace
+	// This ensures list operations filter by namespace when using WithMinimalObject
+	if ro.ListOptions.Namespace == "" && ro.NN.Namespace != "" {
+		ro.ListOptions.Namespace = ro.NN.Namespace
+	}
+
 	// Ensure ClientDeleteOptions is not nil before using it
 	if ro.ClientDeleteOptions == nil {
 		ro.ClientDeleteOptions = &client.DeleteOptions{}
