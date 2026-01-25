@@ -153,6 +153,7 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(updatePrometheusConfigMap).
 		// These are only for new monitoring stack dependent Operators
 		WithAction(addMonitoringCapability).
+		WithAction(deployMonitoringAdmissionPolicies).
 		WithAction(deployMonitoringStackWithQuerierAndRestrictions).
 		WithAction(deployTracingStack).
 		WithAction(deployAlerting).
