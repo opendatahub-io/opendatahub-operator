@@ -517,6 +517,13 @@ func (tc *ComponentTestCtx) ValidateModelControllerInstance(t *testing.T) {
 func (tc *ComponentTestCtx) ValidateAllDeletionRecovery(t *testing.T) {
 	t.Helper()
 
+	// For subcomponents, ensure the parent component is enabled before deletion recovery tests
+	// This prevents failures when the parent was disabled by earlier test groups (e.g., kserve disabled in group_1)
+	if tc.ParentKind != "" {
+		t.Logf("Subcomponent %s detected - ensuring parent component %s is enabled before deletion recovery tests", tc.GVK.Kind, tc.ParentKind)
+		tc.EnsureParentComponentEnabled(t)
+	}
+
 	// Increase the global eventually timeout for deletion recovery tests
 	// Use longEventuallyTimeout to handle controller performance under load and complex resource dependencies
 	reset := tc.OverrideEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout, tc.TestTimeouts.defaultEventuallyPollInterval)
