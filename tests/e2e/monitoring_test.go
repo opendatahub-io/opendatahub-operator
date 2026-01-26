@@ -141,6 +141,7 @@ func monitoringTestSuite(t *testing.T) {
 			TestCase{"Validate monitoring label value enforcement on namespace", monitoringServiceCtx.ValidateMonitoringLabelValueEnforcementOnNamespace},
 			TestCase{"Validate monitoring label value enforcement on monitors", monitoringServiceCtx.ValidateMonitoringLabelValueEnforcementOnMonitors},
 			TestCase{"Validate monitors creation with custom labels", monitoringServiceCtx.ValidateMonitorsCreationWithCustomLabels},
+			TestCase{"Validate monitors monitoring label injection", monitoringServiceCtx.ValidateMonitorLabelInjection},
 		)
 	}
 
