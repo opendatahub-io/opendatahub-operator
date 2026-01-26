@@ -16,7 +16,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-kuberay-operator-controller-rhel9@sha256:808c0792a55667dbc10b77db87aef673725def1d5647848a05907bd55d10b163"
 - name: RELATED_IMAGE_ODH_MLMD_GRPC_SERVER_IMAGE
-  value: "quay.io/rhoai/odh-mlmd-grpc-server-rhel9@sha256:dc118a882ffe729aac1d3a2f828d75697fb618fe5e6c0eab90a548be8845f5e9"
+  value: "quay.io/rhoai/odh-mlmd-grpc-server-rhel9@sha256:8b4414dc877eb5a96ad027514efdfbd623a17de22eb038f55d68e26213239086"
 - name: RELATED_IMAGE_ODH_ML_PIPELINES_API_SERVER_V2_IMAGE
   value: "quay.io/rhoai/odh-ml-pipelines-api-server-v2-rhel9@sha256:e1bd96125ad8051651de4537dae830f09fcd7ce1fc72b87d9669a5fcc2c7e217"
 - name: RELATED_IMAGE_ODH_ML_PIPELINES_PERSISTENCEAGENT_V2_IMAGE
@@ -148,7 +148,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_TRUSTYAI_GARAK_LLS_PROVIDER_DSP_IMAGE
   value: "quay.io/rhoai/odh-trustyai-garak-lls-provider-dsp-rhel9@sha256:582b991203fa61ee81e2c2d89ebc795f907ca4a7f583b4b47fbab2fbb6c49895"
 - name: RELATED_IMAGE_ODH_MLFLOW_IMAGE
-  value: "quay.io/rhoai/odh-mlflow-rhel9@sha256:789518eb5d6ecde380d8dffdfd532e043e0efb73520dcded1249a754ee8e2894"
+  value: "quay.io/rhoai/odh-mlflow-rhel9@sha256:fb12f1126b61dd466cc7d38d1bf997d3d4a30e3fcaa9041e50de751dd63f981c"
 - name: RELATED_IMAGE_ODH_MLFLOW_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-mlflow-operator-rhel9@sha256:352f886375a028769e5e7b640dfba361e5fbeb7ff67f4ccd27e1950d1d9b82f0"
 - name: RELATED_IMAGE_ODH_MLSERVER_IMAGE
