@@ -28,6 +28,8 @@ const (
 	MonitoringCRName                  = "default-monitoring"
 	MonitoringStackName               = "data-science-monitoringstack"
 	OpenTelemetryCollectorName        = "data-science-collector"
+	TargetAllocatorDeploymentName     = "data-science-collector-targetallocator"
+	TargetAllocatorServiceAccount     = "data-science-collector-collector"
 	TempoMonolithicName               = "data-science-tempomonolithic"
 	TempoStackName                    = "data-science-tempostack"
 	InstrumentationName               = "data-science-instrumentation"
