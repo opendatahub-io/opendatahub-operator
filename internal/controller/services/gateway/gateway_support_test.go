@@ -504,7 +504,7 @@ func TestComputeLegacyRedirectInfo(t *testing.T) {
 	g := NewWithT(t)
 
 	// Default subdomain enables legacy redirect with Lua-escaped pattern
-	info := computeLegacyRedirectInfo(nil, "rh-ai.apps.example.com")
+	info := computeLegacyRedirectInfo(nil, "rh-ai.apps.example.com", false)
 	g.Expect(info.CurrentSubdomain).To(Equal(DefaultGatewaySubdomain))
 	g.Expect(info.LegacySubdomain).To(Equal(LegacyGatewaySubdomain))
 	g.Expect(info.LegacySubdomainPattern).To(Equal("data%-science%-gateway"))
@@ -514,7 +514,7 @@ func TestComputeLegacyRedirectInfo(t *testing.T) {
 	legacyConfig := &serviceApi.GatewayConfig{
 		Spec: serviceApi.GatewayConfigSpec{Subdomain: LegacyGatewaySubdomain},
 	}
-	info = computeLegacyRedirectInfo(legacyConfig, "data-science-gateway.apps.example.com")
+	info = computeLegacyRedirectInfo(legacyConfig, "data-science-gateway.apps.example.com", false)
 	g.Expect(info.CurrentSubdomain).To(Equal(LegacyGatewaySubdomain))
 	g.Expect(info.LegacySubdomain).To(BeEmpty())
 	g.Expect(info.LegacyHostname).To(BeEmpty())
@@ -523,9 +523,19 @@ func TestComputeLegacyRedirectInfo(t *testing.T) {
 	customConfig := &serviceApi.GatewayConfig{
 		Spec: serviceApi.GatewayConfigSpec{Subdomain: "custom"},
 	}
-	info = computeLegacyRedirectInfo(customConfig, "custom.apps.example.com")
+	info = computeLegacyRedirectInfo(customConfig, "custom.apps.example.com", false)
 	g.Expect(info.CurrentSubdomain).To(Equal("custom"))
 	g.Expect(info.LegacyHostname).To(Equal("data-science-gateway.apps.example.com"))
+
+	// Test RHODS dashboard redirect when upgrading from 2.x
+	info = computeLegacyRedirectInfo(nil, "rh-ai.apps.example.com", true)
+	g.Expect(info.RhodsDashboardHostname).To(Equal("rhods-dashboard-redhat-ods-applications.apps.example.com"))
+	g.Expect(info.RhodsDashboardHostnamePattern).To(Equal("rhods%-dashboard%-redhat%-ods%-applications"))
+
+	// Test RHODS dashboard redirect is empty when not upgrading
+	info = computeLegacyRedirectInfo(nil, "rh-ai.apps.example.com", false)
+	g.Expect(info.RhodsDashboardHostname).To(BeEmpty())
+	g.Expect(info.RhodsDashboardHostnamePattern).To(BeEmpty())
 }
 
 // TestHPATemplateConstant tests that the HPA template constant is correctly defined.

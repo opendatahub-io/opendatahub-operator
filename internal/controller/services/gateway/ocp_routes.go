@@ -16,6 +16,7 @@ limitations under the License.
 
 package gateway
 
+// +kubebuilder:rbac:groups=route.openshift.io,resources=routes,verbs=get;delete
 // +kubebuilder:rbac:groups=route.openshift.io,resources=routes/custom-host,verbs=create;patch
 
 import (
@@ -55,6 +56,10 @@ func createOCPRoutes(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 		odhtypes.TemplateInfo{
 			FS:   gatewayResources,
 			Path: ocpRouteLegacyRedirectTemplate,
+		},
+		odhtypes.TemplateInfo{
+			FS:   gatewayResources,
+			Path: ocpRouteRhodsRedirectTemplate,
 		},
 	)
 
