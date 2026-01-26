@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
@@ -95,6 +96,52 @@ func (tc *MonitoringTestCtx) createMonitorsEnvironment(t *testing.T, namespaceLa
 			WithWaitForDeletion(true),
 		)
 	})
+}
+
+// ValidateMonitorsCreationWithCustomLabels tests that monitors with custom labels retain them
+// and webhook still injects monitoring label when strictNamespaces is disabled.
+func (tc *MonitoringTestCtx) ValidateMonitorsCreationWithCustomLabels(t *testing.T) {
+	t.Helper()
+
+	// Define namespace labels (no dashboard label needed without strict mode)
+	nsLabels := map[string]string{
+		ODHLabelMonitoring: "true",
+	}
+
+	// Define custom labels for monitors
+	customMonitorLabels := map[string]string{
+		"app":     "my-app",
+		"team":    "data-science",
+		"version": "v1.0",
+	}
+
+	tc.createMonitorsEnvironment(t, nsLabels, customMonitorLabels)
+
+	// Verify PodMonitor has BOTH custom labels AND injected monitoring label
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.CoreosPodMonitor, types.NamespacedName{
+			Name:      TestPodMonitorName,
+			Namespace: TestNamespaceName,
+		}),
+		WithCondition(jq.Match(`.metadata.labels."app" == "my-app"`)),
+		WithCondition(jq.Match(`.metadata.labels."team" == "data-science"`)),
+		WithCondition(jq.Match(`.metadata.labels."version" == "v1.0"`)),
+		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "true"`)),
+		WithCustomErrorMsg("PodMonitor should retain custom labels and have monitoring label injected"),
+	)
+
+	// Verify ServiceMonitor has BOTH custom labels AND injected monitoring label
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.CoreosServiceMonitor, types.NamespacedName{
+			Name:      TestServiceMonitorName,
+			Namespace: TestNamespaceName,
+		}),
+		WithCondition(jq.Match(`.metadata.labels."app" == "my-app"`)),
+		WithCondition(jq.Match(`.metadata.labels."team" == "data-science"`)),
+		WithCondition(jq.Match(`.metadata.labels."version" == "v1.0"`)),
+		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "true"`)),
+		WithCustomErrorMsg("ServiceMonitor should retain custom labels and have monitoring label injected"),
+	)
 }
 
 // ValidateMonitoringLabelValueEnforcementOnNamespace tests that the validation policy blocks invalid monitoring label values.
