@@ -12,6 +12,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
+
+	. "github.com/onsi/gomega"
 )
 
 const (
@@ -127,3 +129,88 @@ func (tc *MonitoringTestCtx) ValidateMonitoringWebhookTestsSetup(t *testing.T) {
 	t.Logf("Webhook tests setup complete: monitoring is enabled and ready")
 }
 
+// ValidateMonitoringLabelValueEnforcementOnNamespace tests that the validation policy blocks invalid monitoring label values.
+func (tc *MonitoringTestCtx) ValidateMonitoringLabelValueEnforcementOnNamespace(t *testing.T) {
+	t.Helper()
+
+	// Pre-test cleanup: ensure namespace doesn't exist from prior runs
+	tc.DeleteResource(
+		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: TestNamespaceName}),
+		WithIgnoreNotFound(true),
+		WithWaitForDeletion(true),
+	)
+
+	// Attempt to create namespace with INVALID monitoring label value (not "true" or "false")
+	invalidNamespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: TestNamespaceName,
+			Labels: map[string]string{
+				ODHLabelMonitoring: "invalid-value", // Invalid!
+			},
+		},
+	}
+
+	// Expect this to be BLOCKED by validation policy
+	err := tc.Client().Create(tc.Context(), invalidNamespace)
+	tc.g.Expect(err).To(HaveOccurred(), "Validation policy should block namespace with invalid monitoring label value")
+	tc.g.Expect(err.Error()).To(ContainSubstring("must be set to 'true' or 'false'"), "Error message should indicate valid values")
+}
+
+// ValidateMonitoringLabelValueEnforcementOnMonitors tests that the validation policy blocks invalid monitoring label values.
+func (tc *MonitoringTestCtx) ValidateMonitoringLabelValueEnforcementOnMonitors(t *testing.T) {
+	t.Helper()
+
+	// 1. Create a valid namespace first (validation usually requires the namespace to exist)
+	tc.createMonitorsEnvironment(t, nil, nil) // Creates namespace & clean monitors. We will ignore the clean monitors.
+
+	// Define the invalid labels we want to test
+	invalidLabels := map[string]string{
+		ODHLabelMonitoring: "invalid-value",
+	}
+
+	// --- Test PodMonitor Validation ---
+
+	// Define an invalid PodMonitor object locally
+	invalidPodMonitor := &unstructured.Unstructured{}
+	invalidPodMonitor.SetGroupVersionKind(gvk.CoreosPodMonitor)
+	invalidPodMonitor.SetName("test-invalid-podmonitor")
+	invalidPodMonitor.SetNamespace(TestNamespaceName)
+	invalidPodMonitor.SetLabels(invalidLabels)
+	// Minimal valid spec so K8s doesn't reject it for schema reasons
+	invalidPodMonitor.Object["spec"] = map[string]interface{}{
+		"selector": map[string]interface{}{
+			"matchLabels": map[string]interface{}{"app": "test"},
+		},
+		"podMetricsEndpoints": []interface{}{
+			map[string]interface{}{"port": "metrics"},
+		},
+	}
+
+	// Attempt to create it - Expect Error
+	err := tc.Client().Create(tc.Context(), invalidPodMonitor)
+	tc.g.Expect(err).To(HaveOccurred(), "Validation policy should block PodMonitor with invalid monitoring label value")
+	tc.g.Expect(err.Error()).To(ContainSubstring("must be set to 'true' or 'false'"), "Error message should indicate valid values for PodMonitor")
+
+	// --- Test ServiceMonitor Validation ---
+
+	// Define an invalid ServiceMonitor object locally
+	invalidServiceMonitor := &unstructured.Unstructured{}
+	invalidServiceMonitor.SetGroupVersionKind(gvk.CoreosServiceMonitor)
+	invalidServiceMonitor.SetName("test-invalid-servicemonitor")
+	invalidServiceMonitor.SetNamespace(TestNamespaceName)
+	invalidServiceMonitor.SetLabels(invalidLabels)
+	// Minimal valid spec
+	invalidServiceMonitor.Object["spec"] = map[string]interface{}{
+		"selector": map[string]interface{}{
+			"matchLabels": map[string]interface{}{"app": "test"},
+		},
+		"endpoints": []interface{}{
+			map[string]interface{}{"port": "metrics"},
+		},
+	}
+
+	// Attempt to create it - Expect Error
+	err = tc.Client().Create(tc.Context(), invalidServiceMonitor)
+	tc.g.Expect(err).To(HaveOccurred(), "Validation policy should block ServiceMonitor with invalid monitoring label value")
+	tc.g.Expect(err.Error()).To(ContainSubstring("must be set to 'true' or 'false'"), "Error message should indicate valid values for ServiceMonitor")
+}
