@@ -16,6 +16,10 @@ const (
 	TestServiceMonitorName = "test-servicemonitor"
 )
 
+const (
+	ODHLabelMonitoring = "opendatahub.io/monitoring"
+)
+
 // createMonitorsEnvironment sets up the namespace and monitors with specific labels.
 // It automatically registers cleanup handlers using t.Cleanup.
 func (tc *MonitoringTestCtx) createMonitorsEnvironment(t *testing.T, namespaceLabels map[string]string, monitorLabels map[string]string) {
