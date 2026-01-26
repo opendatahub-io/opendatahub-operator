@@ -9,6 +9,7 @@ import (
 	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -681,6 +682,23 @@ func (tc *ComponentTestCtx) ValidateDeploymentDeletionRecovery(t *testing.T) {
 	for _, deployment := range deployments {
 		t.Run("deployment_"+deployment.GetName(), func(t *testing.T) {
 			t.Helper()
+
+			// Ensure the deployment's ServiceAccount exists before running deletion recovery test
+			// This prevents race conditions where parent component is "Ready" but hasn't created
+			// dependent resources yet (especially in Hypershift clusters)
+			saName, found, err := unstructured.NestedString(deployment.Object, "spec", "template", "spec", "serviceAccountName")
+			if err == nil && found && saName != "" {
+				t.Logf("Ensuring ServiceAccount %s exists before deployment deletion recovery test", saName)
+				tc.EnsureResourceExists(
+					WithMinimalObject(gvk.ServiceAccount, types.NamespacedName{
+						Name:      saName,
+						Namespace: deployment.GetNamespace(),
+					}),
+					WithCustomErrorMsg("ServiceAccount %s must exist before Deployment %s deletion recovery test - parent component may not be fully provisioned",
+						saName, deployment.GetName()),
+				)
+				t.Logf("ServiceAccount %s confirmed to exist", saName)
+			}
 
 			// Use robust deletion-recreation pattern that handles race conditions and verifies actual recreation
 			// Deployments may have complex dependencies (CRDs, namespaces, DSCI) so use longer timeout
