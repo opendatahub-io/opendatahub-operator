@@ -14,7 +14,7 @@ map:
     src: components/notebook-controller/config
     dest: workbenches/kf-notebook-controller
     git.url: https://github.com/red-hat-data-services/kubeflow
-    git.commit: 3de29b691c36496560896edd40ce3d657287e20f
+    git.commit: 26c3cfdf04f288387579a4e4d9c9b5e2031163fe
   odh-notebook-controller:
     src: components/odh-notebook-controller/config
     dest: workbenches/odh-notebook-controller

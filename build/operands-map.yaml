@@ -1,6 +1,6 @@
 relatedImages:
 - name: RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-kf-notebook-controller-rhel9@sha256:51b126919659db93d9aa8349e5e8c04b11577d2cce8e77aed9a31cccb2b24bd1"
+  value: "quay.io/rhoai/odh-kf-notebook-controller-rhel9@sha256:9e4d772bc19e35322e2f078f3f673e6365e1ac273ada4cd752b0d477a2830d6a"
 - name: RELATED_IMAGE_ODH_DASHBOARD_IMAGE
   value: "quay.io/rhoai/odh-dashboard-rhel9@sha256:6b71be1e9e0b5dadc1fd055e2155704ff989ca316a08a5ba3980e7de82745f98"
 - name: RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE
@@ -58,7 +58,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_KSERVE_STORAGE_INITIALIZER_IMAGE
   value: "quay.io/rhoai/odh-kserve-storage-initializer-rhel9@sha256:d5b2caaa11fafdf1147202d75e9f3ac405f01f80087078ada8fcebaa09611c71"
 - name: RELATED_IMAGE_ODH_TA_LMES_DRIVER_IMAGE
-  value: "quay.io/rhoai/odh-ta-lmes-driver-rhel9@sha256:aefaafca4e06676b71df515cca8241c7cca685736bd47bce399b385ef1b343c1"
+  value: "quay.io/rhoai/odh-ta-lmes-driver-rhel9@sha256:acea2c59fdef964441c5433bb4a890fb607ec7f432af3c5884d73b6ea6316038"
 - name: RELATED_IMAGE_ODH_TA_LMES_JOB_IMAGE
   value: "quay.io/rhoai/odh-ta-lmes-job-rhel9@sha256:f783f7fab701fbe53aa1e4a591800a4bea5b28e2045bb6a706052a8bbff6c82c"
 - name: RELATED_IMAGE_ODH_FMS_GUARDRAILS_ORCHESTRATOR_IMAGE
