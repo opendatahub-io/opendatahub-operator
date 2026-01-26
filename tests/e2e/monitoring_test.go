@@ -135,6 +135,12 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test Node Metrics Endpoint RBAC Configuration", monitoringServiceCtx.ValidateNodeMetricsEndpointRBACConfiguration},
 	}
 
+	if testOpts.webhookTest {
+		testCases = append(testCases,
+			TestCase{"Setup monitoring admission components tests", monitoringServiceCtx.ValidateMonitoringWebhookTestsSetup},
+		)
+	}
+
 	// Run the test suite.
 	RunTestCases(t, testCases)
 }
