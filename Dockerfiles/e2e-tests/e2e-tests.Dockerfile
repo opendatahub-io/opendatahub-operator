@@ -32,6 +32,7 @@ ENV E2E_TEST_OPERATOR_NAMESPACE=opendatahub-operators
 ENV E2E_TEST_APPLICATIONS_NAMESPACE=opendatahub
 ENV E2E_TEST_WORKBENCHES_NAMESPACE=opendatahub
 ENV E2E_TEST_DSC_MONITORING_NAMESPACE=opendatahub
+ENV E2E_TEST_COMPONENTS=false
 
 RUN apt-get update -y && \
     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
@@ -54,4 +55,5 @@ RUN mkdir -p results
 CMD gotestsum --junitfile-project-name odh-operator-e2e --junitfile results/xunit_report.xml --format testname --raw-command \
 -- test2json -p e2e ./e2e-tests --test.parallel=1 --test.v=test2json --deletion-policy=never \
 --operator-namespace=$E2E_TEST_OPERATOR_NAMESPACE --applications-namespace=$E2E_TEST_APPLICATIONS_NAMESPACE \
---workbenches-namespace=$E2E_TEST_WORKBENCHES_NAMESPACE --dsc-monitoring-namespace=$E2E_TEST_DSC_MONITORING_NAMESPACE
+--workbenches-namespace=$E2E_TEST_WORKBENCHES_NAMESPACE --dsc-monitoring-namespace=$E2E_TEST_DSC_MONITORING_NAMESPACE \
+--test-components=$E2E_TEST_COMPONENTS
