@@ -222,3 +222,35 @@ func (tc *MonitoringTestCtx) ValidateMonitoringLabelValueEnforcementOnMonitors(t
 	tc.g.Expect(err).To(HaveOccurred(), "Validation policy should block ServiceMonitor with invalid monitoring label value")
 	tc.g.Expect(err.Error()).To(ContainSubstring("must be set to 'true' or 'false'"), "Error message should indicate valid values for ServiceMonitor")
 }
+
+// ValidateMonitorLabelInjection tests that the mutating webhook injects opendatahub.io/monitoring=true label into Monitors.
+func (tc *MonitoringTestCtx) ValidateMonitorLabelInjection(t *testing.T) {
+	t.Helper()
+
+	// Define labels for this specific test scenario
+	nsLabels := map[string]string{
+		ODHLabelMonitoring: "true",
+	}
+
+	tc.createMonitorsEnvironment(t, nsLabels, nil)
+
+	// Verify webhook injected the monitoring label into PodMonitor
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.CoreosPodMonitor, types.NamespacedName{
+			Name:      TestPodMonitorName,
+			Namespace: TestNamespaceName,
+		}),
+		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "true"`)),
+		WithCustomErrorMsg("Mutating webhook should inject opendatahub.io/monitoring=true label into PodMonitor"),
+	)
+
+	// Verify webhook injected the monitoring label into ServiceMonitor
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.CoreosServiceMonitor, types.NamespacedName{
+			Name:      TestServiceMonitorName,
+			Namespace: TestNamespaceName,
+		}),
+		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "true"`)),
+		WithCustomErrorMsg("Mutating webhook should inject opendatahub.io/monitoring=true label into ServiceMonitor"),
+	)
+}
