@@ -137,7 +137,10 @@ func monitoringTestSuite(t *testing.T) {
 
 	// Add webhook tests if enabled
 	if testOpts.webhookTest {
-		// Webhook tests will be added here
+		testCases = append(testCases,
+			TestCase{"Validate monitoring label value enforcement on namespace", monitoringServiceCtx.ValidateMonitoringLabelValueEnforcementOnNamespace},
+			TestCase{"Validate monitoring label value enforcement on monitors", monitoringServiceCtx.ValidateMonitoringLabelValueEnforcementOnMonitors},
+		)
 	}
 
 	// Run the test suite.
