@@ -140,6 +140,7 @@ func monitoringTestSuite(t *testing.T) {
 		testCases = append(testCases,
 			TestCase{"Validate monitoring label value enforcement on namespace", monitoringServiceCtx.ValidateMonitoringLabelValueEnforcementOnNamespace},
 			TestCase{"Validate monitoring label value enforcement on monitors", monitoringServiceCtx.ValidateMonitoringLabelValueEnforcementOnMonitors},
+			TestCase{"Validate monitors creation with custom labels", monitoringServiceCtx.ValidateMonitorsCreationWithCustomLabels},
 		)
 	}
 
