@@ -115,6 +115,7 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test Target Allocator not deployed without metrics", monitoringServiceCtx.ValidateTargetAllocatorNotDeployedWithoutMetrics},
 		{"Test Target Allocator deployment with metrics", monitoringServiceCtx.ValidateTargetAllocatorDeploymentWithMetrics},
 		{"Test Target Allocator Service and ConfigMap", monitoringServiceCtx.ValidateTargetAllocatorServiceAndConfigMap},
+		{"Test Target Allocator lifecycle", monitoringServiceCtx.ValidateTargetAllocatorLifecycle},
 		{"Test Target Allocator RBAC configuration", monitoringServiceCtx.ValidateTargetAllocatorRBACConfiguration},
 		{"Test Instrumentation CR Traces lifecycle", monitoringServiceCtx.ValidateInstrumentationCRTracesLifecycle},
 		{"Test Traces Exporters Reserved Name Validation", monitoringServiceCtx.ValidateTracesExportersReservedNameValidation},
@@ -2323,6 +2324,57 @@ func (tc *MonitoringTestCtx) ValidateTargetAllocatorServiceAndConfigMap(t *testi
 			Namespace: tc.MonitoringNamespace,
 		}),
 		WithCustomErrorMsg("Target Allocator ConfigMap should be created by OpenTelemetry Operator"),
+	)
+
+	tc.resetMonitoringConfigToManaged()
+}
+
+// ValidateTargetAllocatorLifecycle tests the complete lifecycle of Target Allocator deployment and cleanup.
+func (tc *MonitoringTestCtx) ValidateTargetAllocatorLifecycle(t *testing.T) {
+	t.Helper()
+
+	// Step 1: Enable metrics to deploy Target Allocator
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	// Verify Target Allocator Deployment is created
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      TargetAllocatorDeploymentName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
+		WithCustomErrorMsg("Target Allocator should be deployed when metrics are enabled"),
+	)
+
+	// Step 2: Disable metrics and verify Target Allocator is removed
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		withNoMetrics(),
+	)
+
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      TargetAllocatorDeploymentName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+	)
+
+	// Step 3: Re-enable metrics and verify Target Allocator is recreated
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      TargetAllocatorDeploymentName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
+		WithCustomErrorMsg("Target Allocator should be recreated when metrics are re-enabled"),
 	)
 
 	tc.resetMonitoringConfigToManaged()
