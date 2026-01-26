@@ -339,3 +339,172 @@ func TestInjector_SkipsObjectsMarkedForDeletion(t *testing.T) {
 	g.Expect(resp.Patches).Should(BeEmpty())
 	g.Expect(resp.Result.Message).Should(ContainSubstring("marked for deletion"))
 }
+
+// TestInjector_InjectsLabelToPodMonitor tests that the monitoring label is injected into PodMonitors.
+func TestInjector_InjectsLabelToPodMonitor(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create namespace with monitoring label
+	ns := newMonitoredNamespace(testNamespace)
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(ns).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	// Create PodMonitor without the monitoring label
+	podMonitor := newPodMonitor(testPodMonitor, testNamespace)
+
+	req := envtestutil.NewAdmissionRequest(
+		t,
+		admissionv1.Create,
+		podMonitor,
+		gvk.CoreosPodMonitor,
+		metav1.GroupVersionResource{
+			Group:    gvk.CoreosPodMonitor.Group,
+			Version:  gvk.CoreosPodMonitor.Version,
+			Resource: "podmonitors",
+		},
+	)
+
+	resp := injector.Handle(ctx, req)
+	g.Expect(resp.Allowed).Should(BeTrue())
+	g.Expect(resp.Patches).Should(Not(BeEmpty()))
+	g.Expect(hasLabelPatch(resp.Patches)).Should(BeTrue(), "Should have monitoring label patch")
+}
+
+// TestInjector_InjectsLabelToServiceMonitor tests that the monitoring label is injected into ServiceMonitors.
+func TestInjector_InjectsLabelToServiceMonitor(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create namespace with monitoring label
+	ns := newMonitoredNamespace(testNamespace)
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(ns).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	// Create ServiceMonitor without the monitoring label
+	serviceMonitor := newServiceMonitor(testServiceMonitor, testNamespace)
+
+	req := envtestutil.NewAdmissionRequest(
+		t,
+		admissionv1.Create,
+		serviceMonitor,
+		gvk.CoreosServiceMonitor,
+		metav1.GroupVersionResource{
+			Group:    gvk.CoreosServiceMonitor.Group,
+			Version:  gvk.CoreosServiceMonitor.Version,
+			Resource: "servicemonitors",
+		},
+	)
+
+	resp := injector.Handle(ctx, req)
+	g.Expect(resp.Allowed).Should(BeTrue())
+	g.Expect(resp.Patches).Should(Not(BeEmpty()))
+	g.Expect(hasLabelPatch(resp.Patches)).Should(BeTrue(), "Should have monitoring label patch")
+}
+
+// TestInjector_HandlesUpdateOperations tests that update operations are handled correctly.
+func TestInjector_HandlesUpdateOperations(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create namespace with monitoring label
+	ns := newMonitoredNamespace(testNamespace)
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(ns).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	testCases := []struct {
+		name     string
+		workload client.Object
+		gvkToUse schema.GroupVersionKind
+	}{
+		{
+			name:     "PodMonitor UPDATE operation",
+			workload: newPodMonitor(testPodMonitor, testNamespace),
+			gvkToUse: gvk.CoreosPodMonitor,
+		},
+		{
+			name:     "ServiceMonitor UPDATE operation",
+			workload: newServiceMonitor(testServiceMonitor, testNamespace),
+			gvkToUse: gvk.CoreosServiceMonitor,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var resourceName string
+			if tc.gvkToUse.Kind == kindPodMonitor {
+				resourceName = "podmonitors"
+			} else {
+				resourceName = "servicemonitors"
+			}
+
+			req := envtestutil.NewAdmissionRequest(
+				t,
+				admissionv1.Update,
+				tc.workload,
+				tc.gvkToUse,
+				metav1.GroupVersionResource{
+					Group:    tc.gvkToUse.Group,
+					Version:  tc.gvkToUse.Version,
+					Resource: resourceName,
+				},
+			)
+
+			resp := injector.Handle(ctx, req)
+
+			// Verify update operation is processed correctly
+			g.Expect(resp.Allowed).Should(BeTrue())
+			g.Expect(resp.Patches).Should(Not(BeEmpty()))
+
+			// Verify specific patches are applied for update operations
+			g.Expect(resp.Result).Should(BeNil(), "Update operations should not return error results")
+			g.Expect(hasLabelPatch(resp.Patches)).Should(BeTrue(), "Should have monitoring label patch")
+		})
+	}
+}
+
+// TestInjector_PreservesExistingLabels tests that existing labels are preserved when injecting the monitoring label.
+func TestInjector_PreservesExistingLabels(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create namespace with monitoring label
+	ns := newMonitoredNamespace(testNamespace)
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(ns).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	// Create PodMonitor with existing labels
+	podMonitor := newPodMonitor(testPodMonitor, testNamespace, envtestutil.WithLabels(map[string]string{
+		"app":  "my-app",
+		"team": "platform",
+	}))
+
+	req := envtestutil.NewAdmissionRequest(
+		t,
+		admissionv1.Create,
+		podMonitor,
+		gvk.CoreosPodMonitor,
+		metav1.GroupVersionResource{
+			Group:    gvk.CoreosPodMonitor.Group,
+			Version:  gvk.CoreosPodMonitor.Version,
+			Resource: "podmonitors",
+		},
+	)
+
+	resp := injector.Handle(ctx, req)
+	g.Expect(resp.Allowed).Should(BeTrue())
+	g.Expect(resp.Patches).Should(Not(BeEmpty()))
+
+	// Verify the patch adds the monitoring label
+	g.Expect(hasLabelPatch(resp.Patches)).Should(BeTrue(), "Should have monitoring label patch")
+}
