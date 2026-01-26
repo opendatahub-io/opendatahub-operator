@@ -506,7 +506,8 @@ catalog-clean: ## Clean up catalog files and Dockerfile
 catalog-prepare: catalog-clean opm yq ## Prepare the catalog by adding bundles to fast channel. It requires BUNDLE_IMG exists before running the target"
 	mkdir -p catalog
 	cp config/catalog/fbc-basic-template.yaml catalog/fbc-basic-template.yaml
-	./hack/update-catalog-template.sh catalog/fbc-basic-template.yaml $(BUNDLE_IMGS)
+	$(SED_COMMAND) -i 's/opendatahub-operator/$(OPERATOR_PACKAGE)/g' catalog/fbc-basic-template.yaml
+	./hack/update-catalog-template.sh catalog/fbc-basic-template.yaml $(BUNDLE_IMGS) $(YQ) $(OPERATOR_PACKAGE)
 	$(OPM) alpha render-template basic \
 		--migrate-level=bundle-object-to-csv-metadata \
 		-o yaml \
