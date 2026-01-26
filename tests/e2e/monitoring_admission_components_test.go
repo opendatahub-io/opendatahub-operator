@@ -3,11 +3,17 @@ package e2e_test
 import (
 	"testing"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
+
+	. "github.com/onsi/gomega"
 )
 
 const (
@@ -91,4 +97,32 @@ func (tc *MonitoringTestCtx) createMonitorsEnvironment(t *testing.T, namespaceLa
 			applyLabels(monitorLabels), // Apply the passed labels
 		)),
 	)
+}
+
+// ValidateMonitoringWebhookTestsSetup ensures monitoring is enabled and ready before webhook tests run.
+// This prevents order-dependency issues if ValidateMonitoringServiceDisabled runs before webhook tests,
+// leaving monitoring in Removed state. This setup test re-enables monitoring and waits for it to be ready,
+// ensuring all webhook tests start from a known, managed state.
+func (tc *MonitoringTestCtx) ValidateMonitoringWebhookTestsSetup(t *testing.T) {
+	t.Helper()
+
+	t.Logf("Setting up webhook tests: enabling monitoring and waiting for ready state")
+
+	// Enable monitoring with metrics configuration
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	// Wait for Monitoring CR to exist and be Ready
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(And(
+			jq.Match(`.spec.metrics != null`),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Webhook tests setup: Monitoring CR should be enabled and ready"),
+	)
+
+	t.Logf("Webhook tests setup complete: monitoring is enabled and ready")
 }
