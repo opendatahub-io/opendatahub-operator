@@ -112,6 +112,8 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test OpenTelemetry Collector Configurations", monitoringServiceCtx.ValidateOpenTelemetryCollectorConfigurations},
 		{"Test OpenTelemetry Collector replicas", monitoringServiceCtx.ValidateMonitoringCRCollectorReplicas},
 		{"Test Metrics TLS is always enabled for Prometheus exporter", monitoringServiceCtx.ValidateMetricsTLSAlwaysEnabled},
+		{"Test Target Allocator not deployed without metrics", monitoringServiceCtx.ValidateTargetAllocatorNotDeployedWithoutMetrics},
+		{"Test Target Allocator deployment with metrics", monitoringServiceCtx.ValidateTargetAllocatorDeploymentWithMetrics},
 		{"Test Instrumentation CR Traces lifecycle", monitoringServiceCtx.ValidateInstrumentationCRTracesLifecycle},
 		{"Test Traces Exporters Reserved Name Validation", monitoringServiceCtx.ValidateTracesExportersReservedNameValidation},
 		{"Test ThanosQuerier deployment with metrics", monitoringServiceCtx.ValidateThanosQuerierDeployment},
@@ -2187,4 +2189,106 @@ func (tc *MonitoringTestCtx) ValidatePersesDatasourceTLSWithS3Backend(t *testing
 func (tc *MonitoringTestCtx) ValidatePersesDatasourceTLSWithGCSBackend(t *testing.T) {
 	t.Helper()
 	tc.validatePersesDatasourceTLSWithCloudBackend(t, "gcs")
+}
+
+// ValidateTargetAllocatorNotDeployedWithoutMetrics tests that the Target Allocator is not deployed when metrics are not configured.
+func (tc *MonitoringTestCtx) ValidateTargetAllocatorNotDeployedWithoutMetrics(t *testing.T) {
+	t.Helper()
+
+	tc.ensureMonitoringCleanSlate(t, "")
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		withNoMetrics(),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(And(
+			jq.Match(`.spec.metrics == null`),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Monitoring resource should be created without metrics configuration"),
+	)
+
+	// Validate that OpenTelemetryCollectorAvailable condition is False when metrics are not configured
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(jq.Match(
+			`[.status.conditions[] | select(.type=="%s" and .status=="False")] | length==1`,
+			status.ConditionOpenTelemetryCollectorAvailable,
+		)),
+		WithCustomErrorMsg("OpenTelemetryCollectorAvailable condition should be False when metrics are not configured"),
+	)
+
+	// When both metrics and traces are disabled, OpenTelemetryCollector is not deployed
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{
+			Name:      OpenTelemetryCollectorName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+	)
+
+	// Verify Target Allocator Deployment does not exist
+	// The OpenTelemetry Operator creates a deployment named: <collector-name>-targetallocator
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      TargetAllocatorDeploymentName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+	)
+
+	tc.resetMonitoringConfigToManaged()
+}
+
+// ValidateTargetAllocatorDeploymentWithMetrics tests that the Target Allocator is deployed and ready when metrics are configured.
+func (tc *MonitoringTestCtx) ValidateTargetAllocatorDeploymentWithMetrics(t *testing.T) {
+	t.Helper()
+
+	tc.ensureMonitoringCleanSlate(t, "")
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(And(
+			jq.Match(`.spec.metrics != null`),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Monitoring resource should be updated with metrics configuration"),
+	)
+
+	// Ensure the OpenTelemetryCollector CR has targetAllocator enabled
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{
+			Name:      OpenTelemetryCollectorName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.targetAllocator.enabled == true`),
+			jq.Match(`.spec.targetAllocator.serviceAccount == "%s"`, TargetAllocatorServiceAccount),
+			jq.Match(`.spec.targetAllocator.prometheusCR.enabled == true`),
+			jq.Match(`.spec.targetAllocator.prometheusCR.podMonitorSelector.matchLabels."opendatahub.io/monitoring" == "true"`),
+			jq.Match(`.spec.targetAllocator.prometheusCR.serviceMonitorSelector.matchLabels."opendatahub.io/monitoring" == "true"`),
+		)),
+		WithCustomErrorMsg("OpenTelemetryCollector should have targetAllocator enabled with correct configuration"),
+	)
+
+	// Wait for OpenTelemetry Operator to create the Target Allocator Deployment
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      TargetAllocatorDeploymentName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.status.readyReplicas >= 1`),
+			jq.Match(`.status.conditions[] | select(.type == "Available") | .status == "True"`),
+		)),
+		WithCustomErrorMsg("Target Allocator Deployment should be created and available"),
+	)
+
+	tc.resetMonitoringConfigToManaged()
 }
