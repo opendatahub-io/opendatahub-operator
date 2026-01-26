@@ -335,6 +335,48 @@ func (tc *ComponentTestCtx) EnsureParentComponentEnabled(t *testing.T) {
 	t.Logf("Parent component %s is ready - proceeding with subcomponent tests", tc.ParentKind)
 }
 
+// EnsureOperatorControllerRunning verifies that the operator controller is running before deletion recovery tests.
+// Deletion recovery tests depend on the controller to recreate deleted resources. If the controller isn't running,
+// tests will timeout waiting for recreation that will never happen (e.g., RHOAI e2e failure with 605s timeout).
+// This check fails fast with a clear error instead of wasting 10+ minutes on timeouts.
+func (tc *ComponentTestCtx) EnsureOperatorControllerRunning(t *testing.T) {
+	t.Helper()
+
+	deploymentName := tc.getControllerDeploymentName()
+
+	// Check that the operator deployment exists and has ready replicas
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Namespace: tc.OperatorNamespace,
+			Name:      deploymentName,
+		}),
+		WithCondition(And(
+			jq.Match(`.status.readyReplicas != null`),
+			jq.Match(`.status.readyReplicas > 0`),
+		)),
+		WithCustomErrorMsg("[INFRASTRUCTURE] Operator controller deployment %s has no ready replicas - deletion recovery tests will fail. Check operator deployment status.",
+			deploymentName),
+	)
+
+	// Verify at least one operator pod is running
+	pods := tc.FetchResources(
+		WithMinimalObject(gvk.Pod, types.NamespacedName{Namespace: tc.OperatorNamespace}),
+		WithListOptions(&client.ListOptions{
+			Namespace: tc.OperatorNamespace,
+			LabelSelector: k8slabels.SelectorFromSet(map[string]string{
+				"control-plane": "controller-manager",
+			}),
+		}),
+	)
+
+	if len(pods) == 0 {
+		t.Fatalf("[INFRASTRUCTURE] No operator controller pods found in namespace %s - deletion recovery tests will fail. Controller must be running to recreate deleted resources.",
+			tc.OperatorNamespace)
+	}
+
+	t.Logf("Operator controller verified: %d pod(s) running in namespace %s", len(pods), tc.OperatorNamespace)
+}
+
 // UpdateSubComponentStateInDataScienceCluster updates the management state of a subcomponent in the DataScienceCluster.
 func (tc *ComponentTestCtx) UpdateSubComponentStateInDataScienceCluster(t *testing.T, state operatorv1.ManagementState) {
 	t.Helper()
@@ -556,6 +598,13 @@ func (tc *ComponentTestCtx) ValidateAllDeletionRecovery(t *testing.T) {
 		t.Logf("Subcomponent %s detected - ensuring parent component %s is enabled before deletion recovery tests", tc.GVK.Kind, tc.ParentKind)
 		tc.EnsureParentComponentEnabled(t)
 	}
+
+	// Ensure operator controller is running before deletion recovery tests
+	// Deletion recovery tests validate that the controller recreates resources after deletion
+	// If the controller isn't running, tests will timeout waiting for recreation that will never happen
+	// Fail fast with clear error instead of wasting 10+ minutes
+	t.Logf("Verifying operator controller is running before deletion recovery tests")
+	tc.EnsureOperatorControllerRunning(t)
 
 	// Increase the global eventually timeout for deletion recovery tests
 	// Use longEventuallyTimeout to handle controller performance under load and complex resource dependencies
