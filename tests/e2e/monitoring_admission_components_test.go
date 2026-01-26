@@ -12,6 +12,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 
 	. "github.com/onsi/gomega"
 )
@@ -126,3 +127,4 @@ func (tc *MonitoringTestCtx) ValidateMonitoringWebhookTestsSetup(t *testing.T) {
 
 	t.Logf("Webhook tests setup complete: monitoring is enabled and ready")
 }
+
