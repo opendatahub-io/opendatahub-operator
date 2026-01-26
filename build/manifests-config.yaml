@@ -110,7 +110,7 @@ additional_meta:
     git.commit: 3da29ed8062b1c608aa92bd906c2eb9038672a83
   odh-model-registry:
     git.url: https://github.com/red-hat-data-services/model-registry
-    git.commit: 73d026fa2a301bc18b5a40cbd8b684e3948b4682
+    git.commit: 9f57582f6675ce7883c85fcdf12e8f777986cd1b
   odh-feature-server:
     git.url: https://github.com/red-hat-data-services/feast
     git.commit: d764fa3959f1f25177dd6525f5c7b84e53147aab
