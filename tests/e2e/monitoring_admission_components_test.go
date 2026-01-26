@@ -22,6 +22,10 @@ const (
 	TestServiceMonitorName = "test-servicemonitor"
 )
 
+const (
+	ODHLabelMonitoring = "opendatahub.io/monitoring"
+)
+
 // createMonitorsEnvironment sets up the namespace and monitors with specific labels.
 // Pre-test cleanup: Ensures resources from previous test runs are deleted before creation.
 // Post-test: Respects --deletion-policy flag (cleanup handled by framework, not this function).
