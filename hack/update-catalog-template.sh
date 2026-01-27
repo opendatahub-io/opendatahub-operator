@@ -5,6 +5,7 @@ set -euo pipefail
 CATALOG_TEMPLATE=${1:-config/catalog/fbc-basic-template.yaml}
 BUNDLE_IMGS=${2:-}
 YQ=${3:-yq}
+PACKAGE_NAME=${4:-opendatahub-operator}
 
 if [[ -z "$BUNDLE_IMGS" ]]; then
     echo "Error: BUNDLE_IMGS is required. Please provide at least one image in the format 'image:tag' or 'image:tag,image:tag'" >&2
@@ -23,7 +24,7 @@ if [[ ! "$YQ_VERSION" =~ ^v?4\. ]]; then
     exit 1
 fi
 
-package_name="opendatahub-operator"
+package_name="$PACKAGE_NAME"
 
 function add_bundle() {
     local package_name=$1 img=$2 prev_version=$3
