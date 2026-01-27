@@ -309,6 +309,11 @@ func TestOdhOperator(t *testing.T) {
 	mustRun(t, Components.String(), Components.Run)
 	mustRun(t, Services.String(), Services.Run)
 
+	// Run DSCI/DSC Webhook test suite
+	if testOpts.webhookTest {
+		mustRun(t, "DSCInitialization and DataScienceCluster Webhook E2E Tests", dscWebhookTestSuite)
+	}
+
 	// Run operator resilience test suites after functional tests
 	if testOpts.operatorResilienceTest {
 		mustRun(t, "Operator Resilience E2E Tests", operatorResilienceTestSuite)
