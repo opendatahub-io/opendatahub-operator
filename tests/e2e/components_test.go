@@ -1,7 +1,9 @@
 package e2e_test
 
 import (
+	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -45,6 +47,80 @@ type ComponentTestCtx struct {
 type CRD struct {
 	Name    string
 	Version string
+}
+
+// ControllerDiagnostics captures complete controller state for a component.
+type ControllerDiagnostics struct {
+	// Component State
+	Generation         int64
+	ObservedGeneration int64
+	ResourceVersion    string
+	GenerationGap      int64 // generation - observedGeneration
+
+	// Conditions
+	Conditions             []ConditionDiagnostic
+	MostRecentConditionAge time.Duration
+	OldestConditionAge     time.Duration
+
+	// Controller Activity Verification
+	TriggeredReconciliation bool
+	ReconciliationLatency   time.Duration // How long to respond to triggered update
+	ReconciliationSuccess   bool
+
+	// Owner/Dependency Info
+	OwnerReferences []OwnerRefDiagnostic
+	Finalizers      []string
+	Labels          map[string]string
+	Annotations     map[string]string
+
+	// Parent Component (for subcomponents)
+	ParentExists          bool
+	ParentManagementState string
+	ParentGeneration      int64
+	ParentObservedGen     int64
+	ParentConditions      []ConditionDiagnostic
+
+	// Operator Health
+	OperatorPodCount    int
+	OperatorPodsRunning int
+	OperatorPodStatuses []PodStatusDiagnostic
+	OperatorLeader      string // Which pod is leader
+
+	// Assessment
+	IsHealthy      bool
+	Issues         []string // List of detected issues
+	Recommendation string   // What to do (proceed, fail-fast, retry)
+}
+
+// ConditionDiagnostic captures detailed condition information.
+type ConditionDiagnostic struct {
+	Type               string
+	Status             string
+	Reason             string
+	Message            string
+	LastTransitionTime time.Time
+	ObservedGeneration int64
+	Age                time.Duration
+}
+
+// OwnerRefDiagnostic captures owner reference information.
+type OwnerRefDiagnostic struct {
+	APIVersion         string
+	Kind               string
+	Name               string
+	UID                string
+	Controller         bool
+	BlockOwnerDeletion bool
+}
+
+// PodStatusDiagnostic captures pod health information.
+type PodStatusDiagnostic struct {
+	Name     string
+	Phase    string
+	Ready    bool
+	Restarts int32
+	Age      time.Duration
+	IsLeader bool
 }
 
 // NewComponentTestCtx initializes a new component test context.
@@ -712,6 +788,409 @@ func (tc *ComponentTestCtx) ValidateResourceDeletionRecovery(t *testing.T, resou
 	}
 }
 
+// CaptureControllerDiagnostics performs comprehensive diagnostics on the controller state.
+func (tc *ComponentTestCtx) CaptureControllerDiagnostics(ctx context.Context, t *testing.T) (*ControllerDiagnostics, error) {
+	t.Helper()
+
+	diag := &ControllerDiagnostics{
+		Labels:      make(map[string]string),
+		Annotations: make(map[string]string),
+	}
+
+	t.Log("================================================================================")
+	t.Log("[COMPREHENSIVE-DIAGNOSTICS] Capturing complete controller state")
+	t.Log("================================================================================")
+
+	// SECTION 1: Component CR State
+	t.Log("[1/6] Analyzing component CR state...")
+	resource := tc.FetchResources(
+		WithMinimalObject(tc.GVK, tc.NamespacedName),
+	)[0]
+
+	diag.Generation, _, _ = unstructured.NestedInt64(resource.Object, "metadata", "generation")
+	diag.ObservedGeneration, _, _ = unstructured.NestedInt64(resource.Object, "status", "observedGeneration")
+	diag.ResourceVersion = resource.GetResourceVersion()
+	diag.GenerationGap = diag.Generation - diag.ObservedGeneration
+	diag.Labels = resource.GetLabels()
+	diag.Annotations = resource.GetAnnotations()
+	diag.Finalizers = resource.GetFinalizers()
+
+	t.Logf("  Generation: %d", diag.Generation)
+	t.Logf("  ObservedGeneration: %d", diag.ObservedGeneration)
+	t.Logf("  Gap: %d %s", diag.GenerationGap, gapAssessment(diag.GenerationGap))
+	t.Logf("  ResourceVersion: %s", diag.ResourceVersion)
+
+	// SECTION 2: Conditions Analysis
+	t.Log("[2/6] Analyzing status conditions...")
+	diag.Conditions = extractConditions(&resource)
+	if len(diag.Conditions) > 0 {
+		now := time.Now()
+		diag.MostRecentConditionAge = now.Sub(diag.Conditions[0].LastTransitionTime)
+		diag.OldestConditionAge = now.Sub(diag.Conditions[len(diag.Conditions)-1].LastTransitionTime)
+
+		t.Logf("  Total conditions: %d", len(diag.Conditions))
+		t.Logf("  Most recent update: %v ago", diag.MostRecentConditionAge.Round(time.Second))
+		t.Logf("  Oldest update: %v ago", diag.OldestConditionAge.Round(time.Second))
+
+		for i, cond := range diag.Conditions {
+			t.Logf("    [%d] %s=%s (reason: %s, age: %v, observedGen: %d)",
+				i, cond.Type, cond.Status, cond.Reason, cond.Age.Round(time.Second), cond.ObservedGeneration)
+			if cond.Message != "" {
+				t.Logf("        Message: %s", cond.Message)
+			}
+		}
+	} else {
+		t.Log("  WARNING: No conditions found!")
+		diag.Issues = append(diag.Issues, "No status conditions - controller may not have reconciled")
+	}
+
+	// SECTION 3: Owner References & Dependencies
+	t.Log("[3/6] Analyzing owner references and dependencies...")
+	diag.OwnerReferences = extractOwnerReferences(&resource)
+
+	if len(diag.OwnerReferences) == 0 {
+		t.Log("  WARNING: No owner references - controller may not manage this resource!")
+		diag.Issues = append(diag.Issues, "No owner references - deletion may not be detected")
+	} else {
+		t.Logf("  Owner references: %d", len(diag.OwnerReferences))
+		for i, owner := range diag.OwnerReferences {
+			t.Logf("    [%d] %s/%s (controller=%v, blockDeletion=%v)",
+				i, owner.Kind, owner.Name, owner.Controller, owner.BlockOwnerDeletion)
+		}
+	}
+
+	if len(diag.Finalizers) > 0 {
+		t.Logf("  Finalizers: %v", diag.Finalizers)
+	}
+
+	// SECTION 4: Parent Component Analysis (for subcomponents)
+	if tc.ParentKind != "" {
+		t.Logf("[4/6] Analyzing parent component (%s)...", tc.ParentKind)
+		analyzeParentComponent(t, tc, diag)
+	} else {
+		t.Log("[4/6] No parent component (not a subcomponent)")
+	}
+
+	// SECTION 5: Operator Pod Health
+	t.Log("[5/6] Analyzing operator pod health...")
+	analyzeOperatorPods(t, tc, diag)
+
+	// SECTION 6: Trigger Reconciliation Test
+	t.Log("[6/6] Testing controller responsiveness (trigger reconciliation)...")
+	testControllerResponsiveness(ctx, t, tc, &resource, diag)
+
+	// Assessment
+	t.Log("[ASSESSMENT] Generating health assessment...")
+	assessControllerHealth(diag)
+
+	t.Log("================================================================================")
+	t.Logf("[DIAGNOSTICS-SUMMARY] Health: %v", diag.IsHealthy)
+	if len(diag.Issues) > 0 {
+		t.Logf("[DIAGNOSTICS-ISSUES] Found %d issues:", len(diag.Issues))
+		for i, issue := range diag.Issues {
+			t.Logf("  [%d] %s", i+1, issue)
+		}
+	}
+	t.Logf("[DIAGNOSTICS-RECOMMENDATION] %s", diag.Recommendation)
+	t.Log("================================================================================")
+
+	return diag, nil
+}
+
+// analyzeParentComponent analyzes parent component state for subcomponents.
+func analyzeParentComponent(t *testing.T, tc *ComponentTestCtx, diag *ControllerDiagnostics) {
+	t.Helper()
+	parentGVK, err := getParentGVK(tc.ParentKind)
+	if err != nil {
+		t.Logf("  ERROR: Unknown parent kind: %s", tc.ParentKind)
+		diag.Issues = append(diag.Issues, fmt.Sprintf("Unknown parent kind: %s", tc.ParentKind))
+		return
+	}
+
+	parentName, _ := getComponentNameFromKind(tc.ParentKind)
+	parentResources := tc.FetchResources(
+		WithMinimalObject(parentGVK, types.NamespacedName{Name: parentName}),
+	)
+
+	if len(parentResources) == 0 {
+		t.Log("  ERROR: Parent component CR not found!")
+		diag.ParentExists = false
+		diag.Issues = append(diag.Issues, fmt.Sprintf("Parent component %s not found", tc.ParentKind))
+		return
+	}
+
+	diag.ParentExists = true
+	parent := parentResources[0]
+
+	diag.ParentGeneration, _, _ = unstructured.NestedInt64(parent.Object, "metadata", "generation")
+	diag.ParentObservedGen, _, _ = unstructured.NestedInt64(parent.Object, "status", "observedGeneration")
+	diag.ParentManagementState, _, _ = unstructured.NestedString(parent.Object, "spec", "managementState")
+	diag.ParentConditions = extractConditions(&parent)
+
+	t.Logf("  Parent exists: %s", tc.ParentKind)
+	t.Logf("  Parent managementState: %s", diag.ParentManagementState)
+	t.Logf("  Parent generation: %d (observed: %d, gap: %d)",
+		diag.ParentGeneration, diag.ParentObservedGen, diag.ParentGeneration-diag.ParentObservedGen)
+
+	if diag.ParentManagementState != "Managed" {
+		t.Logf("  WARNING: Parent not in Managed state - may not manage subcomponents!")
+		diag.Issues = append(diag.Issues, fmt.Sprintf("Parent %s not in Managed state: %s", tc.ParentKind, diag.ParentManagementState))
+	}
+
+	if len(diag.ParentConditions) > 0 {
+		t.Logf("  Parent conditions: %d", len(diag.ParentConditions))
+		for i, cond := range diag.ParentConditions {
+			t.Logf("    [%d] %s=%s (age: %v)", i, cond.Type, cond.Status, cond.Age.Round(time.Second))
+		}
+	}
+}
+
+// analyzeOperatorPods analyzes operator pod health.
+func analyzeOperatorPods(t *testing.T, tc *ComponentTestCtx, diag *ControllerDiagnostics) {
+	t.Helper()
+	pods := tc.FetchResources(
+		WithMinimalObject(gvk.Pod, types.NamespacedName{Namespace: tc.OperatorNamespace}),
+		WithListOptions(&client.ListOptions{
+			Namespace: tc.OperatorNamespace,
+			LabelSelector: k8slabels.SelectorFromSet(k8slabels.Set{
+				"control-plane": "controller-manager",
+			}),
+		}),
+	)
+
+	diag.OperatorPodCount = len(pods)
+	diag.OperatorPodsRunning = 0
+
+	t.Logf("  Operator pods found: %d", len(pods))
+
+	for _, pod := range pods {
+		podDiag := PodStatusDiagnostic{
+			Name: pod.GetName(),
+		}
+
+		phase, _, _ := unstructured.NestedString(pod.Object, "status", "phase")
+		podDiag.Phase = phase
+
+		if phase == "Running" {
+			diag.OperatorPodsRunning++
+			podDiag.Ready = true
+		}
+
+		// Get creation time for age
+		creationTime := pod.GetCreationTimestamp()
+		podDiag.Age = time.Since(creationTime.Time)
+
+		t.Logf("    [%s] Phase=%s, Age=%v",
+			podDiag.Name, podDiag.Phase, podDiag.Age.Round(time.Second))
+
+		diag.OperatorPodStatuses = append(diag.OperatorPodStatuses, podDiag)
+	}
+
+	t.Logf("  Operator pods running: %d/%d", diag.OperatorPodsRunning, diag.OperatorPodCount)
+
+	if diag.OperatorPodCount == 0 {
+		diag.Issues = append(diag.Issues, "No operator pods found!")
+	} else if diag.OperatorPodsRunning == 0 {
+		diag.Issues = append(diag.Issues, "Operator pods exist but none are Running")
+	}
+}
+
+// testControllerResponsiveness tests if controller responds to triggered reconciliation.
+func testControllerResponsiveness(ctx context.Context, t *testing.T, tc *ComponentTestCtx, resource *unstructured.Unstructured, diag *ControllerDiagnostics) {
+	t.Helper()
+	currentObservedGen := diag.ObservedGeneration
+
+	// Add test annotation to trigger reconciliation
+	annotations := resource.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+	testAnnotationKey := "test.opendatahub.io/reconciliation-check"
+	testAnnotationValue := time.Now().Format(time.RFC3339)
+	annotations[testAnnotationKey] = testAnnotationValue
+	resource.SetAnnotations(annotations)
+
+	t.Logf("  Triggering reconciliation with annotation: %s=%s", testAnnotationKey, testAnnotationValue)
+
+	startTime := time.Now()
+	err := tc.TestContext.Client().Update(ctx, resource)
+	if err != nil {
+		t.Logf("  ERROR: Failed to update resource: %v", err)
+		diag.TriggeredReconciliation = false
+		diag.Issues = append(diag.Issues, fmt.Sprintf("Failed to trigger reconciliation: %v", err))
+		return
+	}
+
+	diag.TriggeredReconciliation = true
+
+	// Wait for controller to respond (max 90 seconds)
+	timeout := 90 * time.Second
+	checkInterval := 2 * time.Second
+
+	for elapsed := time.Duration(0); elapsed < timeout; elapsed += checkInterval {
+		time.Sleep(checkInterval)
+
+		// Fetch updated resource
+		updated := tc.FetchResources(
+			WithMinimalObject(tc.GVK, tc.NamespacedName),
+		)[0]
+
+		newObservedGen, _, _ := unstructured.NestedInt64(updated.Object, "status", "observedGeneration")
+
+		if newObservedGen > currentObservedGen {
+			diag.ReconciliationLatency = time.Since(startTime)
+			diag.ReconciliationSuccess = true
+
+			t.Logf("  SUCCESS: Controller responded in %v (observedGeneration: %d -> %d)",
+				diag.ReconciliationLatency.Round(100*time.Millisecond), currentObservedGen, newObservedGen)
+
+			// Clean up test annotation
+			annotations = updated.GetAnnotations()
+			delete(annotations, testAnnotationKey)
+			updated.SetAnnotations(annotations)
+			_ = tc.TestContext.Client().Update(ctx, &updated)
+
+			return
+		}
+	}
+
+	// Timeout - controller didn't respond
+	diag.ReconciliationSuccess = false
+	diag.ReconciliationLatency = time.Since(startTime)
+
+	t.Logf("  FAILURE: Controller did not respond within %v", timeout)
+	diag.Issues = append(diag.Issues, fmt.Sprintf("Controller did not respond to triggered reconciliation within %v", timeout))
+}
+
+// assessControllerHealth generates health assessment and recommendation.
+func assessControllerHealth(diag *ControllerDiagnostics) {
+	// Start optimistic
+	diag.IsHealthy = true
+
+	// Check for critical issues
+	if diag.OperatorPodsRunning == 0 {
+		diag.IsHealthy = false
+		diag.Recommendation = "FAIL-FAST: No operator pods running - infrastructure failure"
+		return
+	}
+
+	if !diag.TriggeredReconciliation || !diag.ReconciliationSuccess {
+		diag.IsHealthy = false
+		if diag.ReconciliationLatency > 60*time.Second {
+			diag.Recommendation = "FAIL-FAST: Controller not responding - may be crashed/stalled/in-backoff"
+		} else {
+			diag.Recommendation = "WARNING: Controller slow to respond - may be under load"
+		}
+		return
+	}
+
+	if diag.GenerationGap > 2 {
+		diag.Recommendation = "WARNING: Controller significantly behind (gap > 2) - may be catching up"
+		return
+	}
+
+	if len(diag.OwnerReferences) == 0 {
+		diag.Recommendation = "WARNING: No owner references - deletion may not trigger recreation"
+		return
+	}
+
+	// All checks passed
+	diag.Recommendation = "PROCEED: Controller is healthy and responsive"
+}
+
+// gapAssessment provides human-readable assessment of generation gap.
+func gapAssessment(gap int64) string {
+	if gap == 0 {
+		return "✓ (in sync)"
+	} else if gap == 1 {
+		return "(reconciliation in progress)"
+	} else if gap <= 3 {
+		return "⚠ (controller catching up)"
+	}
+	return "✗ (controller significantly behind)"
+}
+
+// extractConditions extracts and sorts conditions from a resource.
+func extractConditions(resource *unstructured.Unstructured) []ConditionDiagnostic {
+	var result []ConditionDiagnostic
+
+	conditions, found, _ := unstructured.NestedSlice(resource.Object, "status", "conditions")
+	if !found {
+		return result
+	}
+
+	now := time.Now()
+	for _, cond := range conditions {
+		condMap, ok := cond.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		condDiag := ConditionDiagnostic{}
+		condDiag.Type, _, _ = unstructured.NestedString(condMap, "type")
+		condDiag.Status, _, _ = unstructured.NestedString(condMap, "status")
+		condDiag.Reason, _, _ = unstructured.NestedString(condMap, "reason")
+		condDiag.Message, _, _ = unstructured.NestedString(condMap, "message")
+		condDiag.ObservedGeneration, _, _ = unstructured.NestedInt64(condMap, "observedGeneration")
+
+		lastTransition, _, _ := unstructured.NestedString(condMap, "lastTransitionTime")
+		if lastTransition != "" {
+			if t, err := time.Parse(time.RFC3339, lastTransition); err == nil {
+				condDiag.LastTransitionTime = t
+				condDiag.Age = now.Sub(t)
+			}
+		}
+
+		result = append(result, condDiag)
+	}
+
+	// Sort by most recent first
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].LastTransitionTime.After(result[j].LastTransitionTime)
+	})
+
+	return result
+}
+
+// extractOwnerReferences extracts owner references from a resource.
+func extractOwnerReferences(resource *unstructured.Unstructured) []OwnerRefDiagnostic {
+	var result []OwnerRefDiagnostic
+
+	ownerRefs := resource.GetOwnerReferences()
+	for _, ref := range ownerRefs {
+		ownerDiag := OwnerRefDiagnostic{
+			APIVersion: ref.APIVersion,
+			Kind:       ref.Kind,
+			Name:       ref.Name,
+			UID:        string(ref.UID),
+		}
+
+		if ref.Controller != nil {
+			ownerDiag.Controller = *ref.Controller
+		}
+		if ref.BlockOwnerDeletion != nil {
+			ownerDiag.BlockOwnerDeletion = *ref.BlockOwnerDeletion
+		}
+
+		result = append(result, ownerDiag)
+	}
+
+	return result
+}
+
+// formatDiagnosticIssues formats a list of diagnostic issues for error messages.
+func formatDiagnosticIssues(issues []string) string {
+	if len(issues) == 0 {
+		return "  (no specific issues detected)"
+	}
+
+	var formatted strings.Builder
+	for i, issue := range issues {
+		formatted.WriteString(fmt.Sprintf("  [%d] %s\n", i+1, issue))
+	}
+	return formatted.String()
+}
+
 // ValidateDeploymentDeletionRecovery validates Deployment resources are recreated upon deletion.
 func (tc *ComponentTestCtx) ValidateDeploymentDeletionRecovery(t *testing.T) {
 	t.Helper()
@@ -756,69 +1235,24 @@ func (tc *ComponentTestCtx) ValidateDeploymentDeletionRecovery(t *testing.T) {
 				t.Logf("ServiceAccount %s confirmed to exist", saName)
 			}
 
-			// [DIAGNOSTIC] Verify deployment is properly configured for controller reconciliation
-			t.Logf("[PRE-DELETE-DIAGNOSTIC] Verifying deployment configuration for controller reconciliation")
-
-			// Check owner references - critical for controller to know it should recreate this resource
-			ownerRefs := deployment.GetOwnerReferences()
-			if len(ownerRefs) == 0 {
-				t.Logf("[WARNING] Deployment %s has NO owner references - controller may not recreate it!", deployment.GetName())
-			} else {
-				t.Logf("[OWNER-REFS] Deployment has %d owner reference(s):", len(ownerRefs))
-				for i, ref := range ownerRefs {
-					t.Logf("  [%d] Kind: %s, Name: %s, Controller: %v, BlockOwnerDeletion: %v",
-						i, ref.Kind, ref.Name, ref.Controller != nil && *ref.Controller, ref.BlockOwnerDeletion != nil && *ref.BlockOwnerDeletion)
-				}
+			// COMPREHENSIVE CONTROLLER DIAGNOSTICS
+			// Captures complete controller state including generation tracking, condition analysis,
+			// owner references, parent component state, operator pod health, and actively tests
+			// controller responsiveness by triggering reconciliation
+			ctx := context.Background()
+			diag, err := tc.CaptureControllerDiagnostics(ctx, t)
+			if err != nil {
+				t.Fatalf("Failed to capture controller diagnostics: %v", err)
 			}
 
-			// Check finalizers - can block deletion/recreation
-			finalizers := deployment.GetFinalizers()
-			if len(finalizers) > 0 {
-				t.Logf("[FINALIZERS] Deployment has %d finalizer(s): %v", len(finalizers), finalizers)
-			}
-
-			// For subcomponents, verify parent component is still enabled and ready
-			if tc.ParentKind != "" {
-				t.Logf("[PARENT-CHECK] Verifying parent component %s is still enabled before deployment deletion", tc.ParentKind)
-
-				parentComponentName, _ := getComponentNameFromKind(tc.ParentKind)
-				parentGVK, err := getParentGVK(tc.ParentKind)
-				if err != nil {
-					t.Fatal(err)
+			// Fail fast if controller is not healthy
+			if !diag.IsHealthy {
+				if strings.Contains(diag.Recommendation, "FAIL-FAST") {
+					t.Fatalf("[INFRASTRUCTURE] Controller diagnostics failed: %s\n\nIssues detected:\n%s",
+						diag.Recommendation, formatDiagnosticIssues(diag.Issues))
 				}
-
-				// Quick check that parent still exists and is Ready
-				parentResources := tc.FetchResources(
-					WithMinimalObject(parentGVK, types.NamespacedName{Name: parentComponentName}),
-				)
-				if len(parentResources) == 0 {
-					t.Fatalf("[INFRASTRUCTURE] Parent component %s CR not found - cannot proceed with subcomponent deletion test", tc.ParentKind)
-				}
-
-				parent := parentResources[0]
-				// Check if Ready condition is true
-				readyCondition, found, _ := unstructured.NestedString(parent.Object, "status", "conditions")
-				if found {
-					t.Logf("[PARENT-STATUS] Parent component %s status: %s", tc.ParentKind, readyCondition)
-				}
-
-				// Log parent's management state
-				managementState, found, _ := unstructured.NestedString(parent.Object, "spec", "managementState")
-				if found {
-					t.Logf("[PARENT-STATE] Parent component %s managementState: %s", tc.ParentKind, managementState)
-					if managementState != "Managed" {
-						t.Logf("[WARNING] Parent component is not in Managed state - may not recreate subcomponent resources!")
-					}
-				}
-			}
-
-			// Log deployment labels that controller uses for reconciliation
-			labels := deployment.GetLabels()
-			t.Logf("[LABELS] Deployment has %d labels:", len(labels))
-			for k, v := range labels {
-				if strings.Contains(k, "platform") || strings.Contains(k, "component") {
-					t.Logf("  %s: %s", k, v)
-				}
+				// Just a warning - log but proceed
+				t.Logf("[WARNING] Controller diagnostics show potential issues: %s", diag.Recommendation)
 			}
 
 			// Use robust deletion-recreation pattern that handles race conditions and verifies actual recreation
