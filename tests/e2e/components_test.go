@@ -1100,25 +1100,26 @@ func assessControllerHealth(diag *ControllerDiagnostics) {
 
 // gapAssessment provides human-readable assessment of generation gap.
 func gapAssessment(gap int64) string {
-	if gap == 0 {
+	switch {
+	case gap == 0:
 		return "✓ (in sync)"
-	} else if gap == 1 {
+	case gap == 1:
 		return "(reconciliation in progress)"
-	} else if gap <= 3 {
+	case gap <= 3:
 		return "⚠ (controller catching up)"
+	default:
+		return "✗ (controller significantly behind)"
 	}
-	return "✗ (controller significantly behind)"
 }
 
 // extractConditions extracts and sorts conditions from a resource.
 func extractConditions(resource *unstructured.Unstructured) []ConditionDiagnostic {
-	var result []ConditionDiagnostic
-
 	conditions, found, _ := unstructured.NestedSlice(resource.Object, "status", "conditions")
 	if !found {
-		return result
+		return nil
 	}
 
+	result := make([]ConditionDiagnostic, 0, len(conditions))
 	now := time.Now()
 	for _, cond := range conditions {
 		condMap, ok := cond.(map[string]interface{})
@@ -1154,9 +1155,8 @@ func extractConditions(resource *unstructured.Unstructured) []ConditionDiagnosti
 
 // extractOwnerReferences extracts owner references from a resource.
 func extractOwnerReferences(resource *unstructured.Unstructured) []OwnerRefDiagnostic {
-	var result []OwnerRefDiagnostic
-
 	ownerRefs := resource.GetOwnerReferences()
+	result := make([]OwnerRefDiagnostic, 0, len(ownerRefs))
 	for _, ref := range ownerRefs {
 		ownerDiag := OwnerRefDiagnostic{
 			APIVersion: ref.APIVersion,

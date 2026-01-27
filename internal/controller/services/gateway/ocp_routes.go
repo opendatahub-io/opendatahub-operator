@@ -16,7 +16,7 @@ limitations under the License.
 
 package gateway
 
-// +kubebuilder:rbac:groups=route.openshift.io,resources=routes/custom-host,verbs=create;patch
+// +kubebuilder:rbac:groups=route.openshift.io,resources=routes/custom-host,verbs=create;patch;update
 
 import (
 	"context"
