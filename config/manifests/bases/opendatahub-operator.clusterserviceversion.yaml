@@ -16,7 +16,8 @@ metadata:
       "workbenches.components.platform.opendatahub.io", "monitorings.services.platform.opendatahub.io",
       "modelcontrollers.components.platform.opendatahub.io", "feastoperators.components.platform.opendatahub.io",
       "llamastackoperators.components.platform.opendatahub.io", "trainers.components.platform.opendatahub.io",
-      "mlflowoperators.components.platform.opendatahub.io", "modelsasservices.components.platform.opendatahub.io"]'
+      "mlflowoperators.components.platform.opendatahub.io", "modelsasservices.components.platform.opendatahub.io",
+      "sparkoperators.components.platform.opendatahub.io"]'
     repository: https://github.com/opendatahub-io/opendatahub-operator
   name: opendatahub-operator.v3.3.0
   namespace: placeholder
@@ -120,6 +121,11 @@ spec:
       kind: Ray
       name: rays.components.platform.opendatahub.io
       version: v1alpha1
+    - description: SparkOperator is the Schema for the sparkoperators API
+      displayName: Spark Operator
+      kind: SparkOperator
+      name: sparkoperators.components.platform.opendatahub.io
+      version: v1alpha1
     - description: Trainer is the Schema for the trainers API
       displayName: Trainer
       kind: Trainer
@@ -174,6 +180,7 @@ spec:
   - featurestore
   - llamastack
   - mlflow
+  - sparkoperator
   links:
   - name: Open Data Hub
     url: https://opendatahub.io
