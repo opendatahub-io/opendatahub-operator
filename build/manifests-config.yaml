@@ -29,7 +29,7 @@ map:
     src: ray-operator/config
     dest: ray
     git.url: https://github.com/red-hat-data-services/kuberay
-    git.commit: 77a97dbcd42379d6bf63a5dbf9d22b2bc2b20ce2
+    git.commit: 1a3a74c2fc5cc72923e3b70a040fd51a6b896240
   odh-trustyai-service-operator:
     src: config
     dest: trustyai
