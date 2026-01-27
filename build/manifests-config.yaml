@@ -260,13 +260,13 @@ additional_meta:
     git.commit: 291b2dcb0c4e76e1eb80cfc3c22d6942e772cb7c
   odh-mlflow:
     git.url: https://github.com/red-hat-data-services/mlflow
-    git.commit: 39c97757da7790671ca38c0def00bc7180ab504b
+    git.commit: 558067ac604a719ffa7b7d7cdd4b754fa3172996
   odh-mlserver:
     git.url: https://github.com/red-hat-data-services/MLServer
     git.commit: bde329e11ec12d9ceb3339903bf28062f873d2cd
   odh-mod-arch-maas:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: d4f38a71ea7d0101285864c5bd26e56087f80a9f
+    git.commit: ef52460ac9e5214a0e44bcbcabfc6de53c209077
   odh-training-rocm64-torch29-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: cffca50edb2dfa64a8fc5fea2bde1160c3f42744
