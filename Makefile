@@ -156,8 +156,7 @@ SHELL = /usr/bin/env bash -o pipefail
 
 # E2E tests additional flags
 # See README.md, default go test timeout 10m
-# TEMPORARY: Disable component tests for debugging
-E2E_TEST_FLAGS = -timeout 50m --test-components=false
+E2E_TEST_FLAGS = -timeout 50m
 
 # Default image-build is to not use local odh-manifests folder
 # set to "true" to use local instead
@@ -648,7 +647,7 @@ ifdef ARTIFACT_DIR
 export JUNIT_OUTPUT_PATH = ${ARTIFACT_DIR}/junit_report.xml
 endif
 e2e-test:
-	go run -C ./cmd/test-retry main.go e2e --verbose --working-dir=$(CURDIR) $(if $(JUNIT_OUTPUT_PATH),--junit-output=$(JUNIT_OUTPUT_PATH)) -- ${E2E_TEST_FLAGS}
+	go run -C ./cmd/test-retry main.go e2e --verbose --working-dir=$(CURDIR) $(if $(JUNIT_OUTPUT_PATH),--junit-output=$(JUNIT_OUTPUT_PATH)) -- ${E2E_TEST_FLAGS} --test-components=false
 
 unit-test-cli:
 	go -C ./cmd/test-retry/ test ./...
