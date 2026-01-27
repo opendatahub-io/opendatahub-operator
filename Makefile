@@ -639,6 +639,10 @@ endif
 ifndef E2E_TEST_DSC_MONITORING_NAMESPACE
 export E2E_TEST_DSC_MONITORING_NAMESPACE = $(MONITORING_NAMESPACE)
 endif
+# Allow disabling component tests via E2E_TEST_COMPONENTS environment variable
+ifdef E2E_TEST_COMPONENTS
+export E2E_TEST_COMPONENTS
+endif
 ifdef ARTIFACT_DIR
 export JUNIT_OUTPUT_PATH = ${ARTIFACT_DIR}/junit_report.xml
 endif
