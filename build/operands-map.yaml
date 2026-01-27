@@ -230,6 +230,6 @@ relatedImages:
     - name: RELATED_IMAGE_ODH_TRAINING_CUDA128_TORCH29_PY312_IMAGE
       value: quay.io/opendatahub/odh-training-cuda128-torch29-py312@sha256:db0cb8218852049630421ebf6237500acf437d2e5a97ebad3a7f65fb02b6cbfc
       component: odh-training-cuda128-torch29-py312
-    - name: RELATED_IMAGE_ODH_MOD_ARCH_MAAS_IMAGE
-      value: quay.io/opendatahub/mod-arch-maas@sha256:b884966ed030a9c8abaace0491ee1ae3f075a9060ebaa1953c5d0bce028a8e1a
-      component: odh-mod-arch-maas
+#    - name: RELATED_IMAGE_ODH_MOD_ARCH_MAAS_IMAGE
+#      value: quay.io/opendatahub/mod-arch-maas@sha256:b884966ed030a9c8abaace0491ee1ae3f075a9060ebaa1953c5d0bce028a8e1a
+#      component: odh-mod-arch-maas
