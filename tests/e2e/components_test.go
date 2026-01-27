@@ -292,6 +292,20 @@ func (tc *ComponentTestCtx) ValidateComponentReleases(t *testing.T) {
 }
 
 // EnsureParentComponentEnabled ensures that the parent component is enabled and ready before enabling a subcomponent.
+// getParentGVK maps a parent component kind string to its GVK.
+func getParentGVK(parentKind string) (schema.GroupVersionKind, error) {
+	switch parentKind {
+	case "Kserve":
+		return gvk.Kserve, nil
+	case "Dashboard":
+		return gvk.Dashboard, nil
+	case "ModelRegistry":
+		return gvk.ModelRegistry, nil
+	default:
+		return schema.GroupVersionKind{}, fmt.Errorf("unknown parent component kind: %s", parentKind)
+	}
+}
+
 func (tc *ComponentTestCtx) EnsureParentComponentEnabled(t *testing.T) {
 	t.Helper()
 
@@ -307,16 +321,9 @@ func (tc *ComponentTestCtx) EnsureParentComponentEnabled(t *testing.T) {
 	parentComponentName, _ := getComponentNameFromKind(tc.ParentKind)
 
 	// Map parent kind string to GVK
-	var parentGVK schema.GroupVersionKind
-	switch tc.ParentKind {
-	case "Kserve":
-		parentGVK = gvk.Kserve
-	case "Dashboard":
-		parentGVK = gvk.Dashboard
-	case "ModelRegistry":
-		parentGVK = gvk.ModelRegistry
-	default:
-		t.Fatalf("Unknown parent component kind: %s", tc.ParentKind)
+	parentGVK, err := getParentGVK(tc.ParentKind)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	t.Logf("Waiting for parent component %s to become ready before proceeding with subcomponent tests", tc.ParentKind)
@@ -747,6 +754,71 @@ func (tc *ComponentTestCtx) ValidateDeploymentDeletionRecovery(t *testing.T) {
 						saName, deployment.GetName()),
 				)
 				t.Logf("ServiceAccount %s confirmed to exist", saName)
+			}
+
+			// [DIAGNOSTIC] Verify deployment is properly configured for controller reconciliation
+			t.Logf("[PRE-DELETE-DIAGNOSTIC] Verifying deployment configuration for controller reconciliation")
+
+			// Check owner references - critical for controller to know it should recreate this resource
+			ownerRefs := deployment.GetOwnerReferences()
+			if len(ownerRefs) == 0 {
+				t.Logf("[WARNING] Deployment %s has NO owner references - controller may not recreate it!", deployment.GetName())
+			} else {
+				t.Logf("[OWNER-REFS] Deployment has %d owner reference(s):", len(ownerRefs))
+				for i, ref := range ownerRefs {
+					t.Logf("  [%d] Kind: %s, Name: %s, Controller: %v, BlockOwnerDeletion: %v",
+						i, ref.Kind, ref.Name, ref.Controller != nil && *ref.Controller, ref.BlockOwnerDeletion != nil && *ref.BlockOwnerDeletion)
+				}
+			}
+
+			// Check finalizers - can block deletion/recreation
+			finalizers := deployment.GetFinalizers()
+			if len(finalizers) > 0 {
+				t.Logf("[FINALIZERS] Deployment has %d finalizer(s): %v", len(finalizers), finalizers)
+			}
+
+			// For subcomponents, verify parent component is still enabled and ready
+			if tc.ParentKind != "" {
+				t.Logf("[PARENT-CHECK] Verifying parent component %s is still enabled before deployment deletion", tc.ParentKind)
+
+				parentComponentName, _ := getComponentNameFromKind(tc.ParentKind)
+				parentGVK, err := getParentGVK(tc.ParentKind)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				// Quick check that parent still exists and is Ready
+				parentResources := tc.FetchResources(
+					WithMinimalObject(parentGVK, types.NamespacedName{Name: parentComponentName}),
+				)
+				if len(parentResources) == 0 {
+					t.Fatalf("[INFRASTRUCTURE] Parent component %s CR not found - cannot proceed with subcomponent deletion test", tc.ParentKind)
+				}
+
+				parent := parentResources[0]
+				// Check if Ready condition is true
+				readyCondition, found, _ := unstructured.NestedString(parent.Object, "status", "conditions")
+				if found {
+					t.Logf("[PARENT-STATUS] Parent component %s status: %s", tc.ParentKind, readyCondition)
+				}
+
+				// Log parent's management state
+				managementState, found, _ := unstructured.NestedString(parent.Object, "spec", "managementState")
+				if found {
+					t.Logf("[PARENT-STATE] Parent component %s managementState: %s", tc.ParentKind, managementState)
+					if managementState != "Managed" {
+						t.Logf("[WARNING] Parent component is not in Managed state - may not recreate subcomponent resources!")
+					}
+				}
+			}
+
+			// Log deployment labels that controller uses for reconciliation
+			labels := deployment.GetLabels()
+			t.Logf("[LABELS] Deployment has %d labels:", len(labels))
+			for k, v := range labels {
+				if strings.Contains(k, "platform") || strings.Contains(k, "component") {
+					t.Logf("  %s: %s", k, v)
+				}
 			}
 
 			// Use robust deletion-recreation pattern that handles race conditions and verifies actual recreation
