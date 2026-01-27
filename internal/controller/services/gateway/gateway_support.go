@@ -43,7 +43,7 @@ const (
 	LegacyGatewaySubdomain  = "data-science-gateway"               // Legacy subdomain to redirect from
 
 	// RHODS Dashboard redirect for 2.x to 3.x upgrade.
-	RhodsDashboardLegacyHost  = "rhods-dashboard-redhat-ods-applications"
+	RhodsDashboardLegacyHost = "rhods-dashboard-redhat-ods-applications"
 	UpgradedFrom2xAnnotation = "gateway.opendatahub.io/upgraded-from-2x"
 
 	// Authentication constants.
