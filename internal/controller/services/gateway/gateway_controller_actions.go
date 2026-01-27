@@ -81,25 +81,8 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 		}
 	}
 
-	// Check if this is an upgrade from 2.x (old RHODS dashboard route exists)
-	// If upgrading, delete the old route to avoid conflicts and take ownership of the hostname
-	isUpgradeFrom2x, err := isRhodsDashboardRoutePresent(ctx, rr.Client)
-	if err != nil {
-		return fmt.Errorf("failed to detect upgrade scenario: %w", err)
-	}
-	if isUpgradeFrom2x {
-		l.V(1).Info("Detected upgrade from RHOAI 2.x, enabling RHODS dashboard redirect")
-		deleted, err := deleteRhodsDashboardRoute(ctx, rr.Client)
-		if err != nil {
-			return fmt.Errorf("failed to delete legacy RHODS dashboard route: %w", err)
-		}
-		if deleted {
-			l.Info("Deleted legacy RHODS dashboard route, will create redirect route")
-		}
-	}
-
 	// Compute legacy hostname for LoadBalancer mode (needs additional listeners for redirects)
-	legacyInfo := computeLegacyRedirectInfo(gatewayConfig, hostname, isUpgradeFrom2x)
+	legacyInfo := computeLegacyRedirectInfo(gatewayConfig, hostname, isUpgradeFrom2x(gatewayConfig))
 
 	if err := createGateway(rr, certSecretName, hostname, legacyInfo, gatewayConfig.Spec.IngressMode); err != nil {
 		return fmt.Errorf("failed to create Gateway: %w", err)
@@ -313,14 +296,8 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	// Get cookie settings with defaults
 	cookieExpire, cookieRefresh := getCookieSettings(&gatewayConfig.Spec.Cookie)
 
-	// Check if this is an upgrade from 2.x (old RHODS dashboard route exists)
-	isUpgradeFrom2x, err := isRhodsDashboardRoutePresent(ctx, rr.Client)
-	if err != nil {
-		return nil, fmt.Errorf("failed to detect upgrade scenario: %w", err)
-	}
-
 	// Compute legacy redirect info for template
-	legacyInfo := computeLegacyRedirectInfo(gatewayConfig, hostname, isUpgradeFrom2x)
+	legacyInfo := computeLegacyRedirectInfo(gatewayConfig, hostname, isUpgradeFrom2x(gatewayConfig))
 
 	templateData := map[string]any{
 		"GatewayNamespace":         GatewayNamespace,

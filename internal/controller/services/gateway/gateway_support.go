@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	oauthv1 "github.com/openshift/api/oauth/v1"
-	routev1 "github.com/openshift/api/route/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,10 +42,9 @@ const (
 	DefaultGatewaySubdomain = "rh-ai"                              // Default subdomain for gateway URLs
 	LegacyGatewaySubdomain  = "data-science-gateway"               // Legacy subdomain to redirect from
 
-	// RHODS Dashboard legacy route constants for 2.x to 3.x upgrade.
-	RhodsDashboardLegacyHost = "rhods-dashboard-redhat-ods-applications"
-	RhodsDashboardNamespace  = "redhat-ods-applications"
-	RhodsDashboardRouteName  = "rhods-dashboard"
+	// RHODS Dashboard redirect for 2.x to 3.x upgrade.
+	RhodsDashboardLegacyHost  = "rhods-dashboard-redhat-ods-applications"
+	UpgradedFrom2xAnnotation = "gateway.opendatahub.io/upgraded-from-2x"
 
 	// Authentication constants.
 	AuthClientID             = "data-science" // OauthClient name.
@@ -530,68 +528,14 @@ func computeLegacyRedirectInfo(gatewayConfig *serviceApi.GatewayConfig, hostname
 	return info
 }
 
-// isRhodsDashboardRoutePresent checks if this is a 2.x to 3.x upgrade scenario.
-// Detection is "sticky": returns true if either the legacy route exists OR we've
-// already created the redirect route (indicating a previous upgrade detection).
-func isRhodsDashboardRoutePresent(ctx context.Context, cli client.Client) (bool, error) {
-	route := &routev1.Route{}
-	err := cli.Get(ctx, client.ObjectKey{
-		Name:      RhodsDashboardRouteName,
-		Namespace: RhodsDashboardNamespace,
-	}, route)
-
-	if err == nil {
-		return true, nil
+// isUpgradeFrom2x checks if this is a 2.x to 3.x upgrade by looking for the
+// upgrade annotation set by the upgrade package during migration.
+func isUpgradeFrom2x(gatewayConfig *serviceApi.GatewayConfig) bool {
+	if gatewayConfig == nil {
+		return false
 	}
-	if !k8serr.IsNotFound(err) {
-		return false, fmt.Errorf("failed to check legacy RHODS dashboard route: %w", err)
-	}
-
-	// Legacy route not found - check if we already created the redirect route (sticky detection)
-	redirectRoute := &routev1.Route{}
-	redirectRouteName := DefaultGatewayName + "-rhods-redirect"
-	err = cli.Get(ctx, client.ObjectKey{
-		Name:      redirectRouteName,
-		Namespace: GatewayNamespace,
-	}, redirectRoute)
-
-	if err == nil {
-		return true, nil
-	}
-	if !k8serr.IsNotFound(err) {
-		return false, fmt.Errorf("failed to check RHODS redirect route: %w", err)
-	}
-
-	return false, nil
-}
-
-// deleteRhodsDashboardRoute deletes the legacy RHODS dashboard route if it exists.
-// Returns true if route was deleted, false if it didn't exist.
-func deleteRhodsDashboardRoute(ctx context.Context, cli client.Client) (bool, error) {
-	l := logf.FromContext(ctx).WithName("deleteRhodsDashboardRoute")
-
-	route := &routev1.Route{}
-	err := cli.Get(ctx, client.ObjectKey{
-		Name:      RhodsDashboardRouteName,
-		Namespace: RhodsDashboardNamespace,
-	}, route)
-
-	if k8serr.IsNotFound(err) {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("failed to get legacy RHODS dashboard route: %w", err)
-	}
-
-	l.Info("Deleting legacy RHODS dashboard route for 2.x to 3.x upgrade",
-		"route", RhodsDashboardRouteName,
-		"namespace", RhodsDashboardNamespace)
-
-	if err := cli.Delete(ctx, route); err != nil {
-		return false, fmt.Errorf("failed to delete legacy RHODS dashboard route: %w", err)
-	}
-
-	return true, nil
+	annotations := gatewayConfig.GetAnnotations()
+	return annotations != nil && annotations[UpgradedFrom2xAnnotation] == "true"
 }
 
 // calculateAuthConfigHash generates a hash of the authentication secret values

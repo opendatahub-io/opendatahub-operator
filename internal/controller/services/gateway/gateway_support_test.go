@@ -545,3 +545,39 @@ func TestHPATemplateConstant(t *testing.T) {
 
 	g.Expect(kubeAuthProxyHPATemplate).To(Equal("resources/kube-auth-proxy-hpa.tmpl.yaml"), "HPA template path should be correct")
 }
+
+// TestIsUpgradeFrom2x tests the isUpgradeFrom2x helper function.
+func TestIsUpgradeFrom2x(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	g.Expect(isUpgradeFrom2x(nil)).To(BeFalse())
+
+	config := &serviceApi.GatewayConfig{}
+	g.Expect(isUpgradeFrom2x(config)).To(BeFalse())
+
+	config = &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{},
+		},
+	}
+	g.Expect(isUpgradeFrom2x(config)).To(BeFalse())
+
+	config = &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{
+				UpgradedFrom2xAnnotation: "false",
+			},
+		},
+	}
+	g.Expect(isUpgradeFrom2x(config)).To(BeFalse())
+
+	config = &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{
+				UpgradedFrom2xAnnotation: "true",
+			},
+		},
+	}
+	g.Expect(isUpgradeFrom2x(config)).To(BeTrue())
+}
