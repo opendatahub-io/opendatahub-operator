@@ -1,0 +1,31 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: "monitoring-labels-values-validation"
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["monitoring.coreos.com"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["podmonitors", "servicemonitors"]
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["namespaces"]
+  validations:
+    - expression: >
+        !has(object.metadata.labels) || 
+        !('opendatahub.io/monitoring' in object.metadata.labels) || 
+        object.metadata.labels['opendatahub.io/monitoring'] in ['true', 'false']
+      message: "The label 'opendatahub.io/monitoring' must be set to 'true' or 'false'."
+
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: monitoring-labels-values-validation-binding
+spec:
+  policyName: monitoring-labels-values-validation
+  validationActions: ["Deny"]
