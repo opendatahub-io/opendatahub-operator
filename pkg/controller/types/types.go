@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path"
+	"strings"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -207,6 +208,18 @@ func Hash(rr *ReconciliationRequest) ([]byte, error) {
 			return nil, fmt.Errorf("failed to hash manifest: %w", err)
 		}
 	}
+
+	// Include component-specific params hash from annotation to invalidate cache when params change
+	// Components can set opendatahub.io/<component>-params-hash annotation to trigger cache invalidation
+	// when their params.env values change (e.g., dashboard-url, section-title)
+	for key, value := range rr.Instance.GetAnnotations() {
+		if strings.HasSuffix(key, "-params-hash") {
+			if _, err := hash.Write([]byte(key + "=" + value)); err != nil {
+				return nil, fmt.Errorf("failed to hash params-hash annotation %s: %w", key, err)
+			}
+		}
+	}
+
 	for i := range rr.Templates {
 		if _, err := hash.Write([]byte(rr.Templates[i].Path)); err != nil {
 			return nil, fmt.Errorf("failed to hash template: %w", err)

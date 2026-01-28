@@ -68,6 +68,36 @@ func setKustomizedParams(ctx context.Context, rr *odhtypes.ReconciliationRequest
 	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), "params.env", nil, extraParamsMap); err != nil {
 		return fmt.Errorf("failed to update params.env from %s : %w", rr.Manifests[0].String(), err)
 	}
+
+	return nil
+}
+
+// updateParamsHashAnnotations updates both the component instance annotation and the Deployment pod template
+// annotation with params hash. This action must run AFTER kustomize action so that rr.Resources is populated.
+func updateParamsHashAnnotations(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	// Compute params (same logic as setKustomizedParams)
+	extraParamsMap, err := computeKustomizeVariable(ctx, rr.Client, rr.Release.Name)
+	if err != nil {
+		return fmt.Errorf("failed to compute kustomize variables: %w", err)
+	}
+
+	// Update Dashboard annotation with params hash to invalidate kustomize cache
+	// when dashboard params change. This ensures the ConfigMap gets updated.
+	resources.UpdateParamsHashAnnotation(ctx, rr.Client, rr.Instance, extraParamsMap, DashboardParamsHashAnnotation)
+
+	// Update Deployment pod template annotation with params hash to trigger pod restart
+	// when params change. This ensures pods pick up the new ConfigMap values.
+	componentName := computeComponentName()
+	if err := resources.UpdateDeploymentPodTemplateAnnotation(
+		ctx,
+		rr.Resources,
+		labels.ODH.Component(componentName),
+		extraParamsMap,
+		DashboardDeploymentParamsHashAnnotation,
+	); err != nil {
+		return fmt.Errorf("failed to update deployment pod template annotation: %w", err)
+	}
+
 	return nil
 }
 

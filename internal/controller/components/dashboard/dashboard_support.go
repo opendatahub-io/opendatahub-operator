@@ -13,6 +13,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 const (
@@ -26,6 +27,16 @@ const (
 
 	LegacyComponentNameUpstream   = "dashboard"
 	LegacyComponentNameDownstream = "rhods-dashboard"
+
+	// DashboardParamsHashAnnotation is the annotation key used to store the hash of dashboard params
+	// for cache invalidation. When this annotation changes, the kustomize cache is invalidated
+	// and resources are re-rendered with updated params.env values.
+	DashboardParamsHashAnnotation = "opendatahub.io/dashboard-params-hash"
+
+	// DashboardDeploymentParamsHashAnnotation is the annotation key used on the Deployment pod template
+	// to store the hash of dashboard params. When this annotation changes, pods are restarted to pick up
+	// new ConfigMap values.
+	DashboardDeploymentParamsHashAnnotation = labels.ODHAppPrefix + "/DashboardParamsHash"
 )
 
 var (

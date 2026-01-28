@@ -97,6 +97,12 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			GenericFunc: func(tge event.TypedGenericEvent[client.Object]) bool { return false },
 			DeleteFunc:  func(tde event.TypedDeleteEvent[client.Object]) bool { return false },
 		}), reconciler.Dynamic(reconciler.CrdExists(gvk.DashboardHardwareProfile))).
+		WatchesGVK(gvk.GatewayConfig,
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.DashboardInstanceName),
+			),
+			reconciler.WithPredicates(resources.GatewayConfigDomainChanged()),
+		).
 		WithAction(initialize).
 		WithAction(setKustomizedParams).
 		WithAction(configureDependencies).
@@ -112,6 +118,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			kustomize.WithLabel(labels.ODH.Component(componentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, componentName),
 		)).
+		WithAction(updateParamsHashAnnotations).
 		WithAction(deploy.NewAction()).
 		WithAction(deployments.NewAction()).
 		WithAction(reconcileHardwareProfiles).

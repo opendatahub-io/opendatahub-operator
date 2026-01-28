@@ -29,6 +29,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
@@ -72,6 +73,12 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithPredicates(
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
 		).
+		WatchesGVK(gvk.GatewayConfig,
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.ModelRegistryInstanceName),
+			),
+			reconciler.WithPredicates(resources.GatewayConfigDomainChanged()),
+		).
 		WithAction(initialize).
 		WithAction(customizeManifests).
 		WithAction(releases.NewAction()).
@@ -81,6 +88,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),
 		)).
+		WithAction(updateParamsHashAnnotations).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
