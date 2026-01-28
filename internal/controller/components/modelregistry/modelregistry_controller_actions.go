@@ -13,6 +13,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
@@ -45,9 +46,41 @@ func customizeManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 		return fmt.Errorf("failed to update params on path %s: %w", rr.Manifests[0].String(), err)
 	}
 
+	return nil
+}
+
+// updateParamsHashAnnotations updates both the component instance annotation and the Deployment pod template
+// annotation with params hash. This action must run AFTER kustomize action so that rr.Resources is populated.
+func updateParamsHashAnnotations(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	mr, ok := rr.Instance.(*componentApi.ModelRegistry)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.ModelRegistry", rr.Instance)
+	}
+
+	// Compute params (same logic as customizeManifests)
+	extraParamsMap, err := computeKustomizeVariable(ctx, rr.Client)
+	if err != nil {
+		return fmt.Errorf("failed to compute gateway domain: %w", err)
+	}
+
+	// Add registries namespace to params
+	extraParamsMap["REGISTRIES_NAMESPACE"] = mr.Spec.RegistriesNamespace
+
 	// Update ModelRegistry annotation with params hash to invalidate kustomize cache
 	// when params change. This ensures the ConfigMap gets updated.
 	resources.UpdateParamsHashAnnotation(ctx, rr.Client, rr.Instance, extraParamsMap, ModelRegistryParamsHashAnnotation)
+
+	// Update Deployment pod template annotation with params hash to trigger pod restart
+	// when params change. This ensures pods pick up the new ConfigMap values.
+	if err := resources.UpdateDeploymentPodTemplateAnnotation(
+		ctx,
+		rr.Resources,
+		labels.ODH.Component(LegacyComponentName),
+		extraParamsMap,
+		ModelRegistryDeploymentParamsHashAnnotation,
+	); err != nil {
+		return fmt.Errorf("failed to update deployment pod template annotation: %w", err)
+	}
 
 	return nil
 }

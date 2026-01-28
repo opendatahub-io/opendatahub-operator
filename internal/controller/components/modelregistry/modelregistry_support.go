@@ -7,6 +7,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 const (
@@ -25,6 +26,11 @@ const (
 	// for cache invalidation. When this annotation changes, the kustomize cache is invalidated
 	// and resources are re-rendered with updated params.env values.
 	ModelRegistryParamsHashAnnotation = "opendatahub.io/model-registry-params-hash"
+
+	// ModelRegistryDeploymentParamsHashAnnotation is the annotation key used on the Deployment pod template
+	// to store the hash of model-registry params. When this annotation changes, pods are restarted to pick up
+	// new ConfigMap values.
+	ModelRegistryDeploymentParamsHashAnnotation = labels.ODHAppPrefix + "/ModelRegistryParamsHash"
 )
 
 var (
