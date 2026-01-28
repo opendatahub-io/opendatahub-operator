@@ -51,7 +51,8 @@ RUN chmod +x ./e2e-tests
 
 RUN mkdir -p results
 
+# run main go command
 CMD gotestsum --junitfile-project-name odh-operator-e2e --junitfile results/xunit_report.xml --format testname --raw-command \
--- test2json -p e2e ./e2e-tests --test.parallel=1 --test.v=test2json --deletion-policy=never \
+-- test2json -p e2e ./e2e-tests --test.v=test2json --test.parallel=8 --deletion-policy=never \
 --operator-namespace=$E2E_TEST_OPERATOR_NAMESPACE --applications-namespace=$E2E_TEST_APPLICATIONS_NAMESPACE \
 --workbenches-namespace=$E2E_TEST_WORKBENCHES_NAMESPACE --dsc-monitoring-namespace=$E2E_TEST_DSC_MONITORING_NAMESPACE

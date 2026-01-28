@@ -132,9 +132,9 @@ jobs:
                 per_page: 100,
               });
 
-              // Check if any files in tests/e2e directory were modified
+              // Check if any files in tests/e2e directory or the e2e Dockerfile were modified
               const e2eFilesModified = files.some(file =>
-                file.filename.startsWith('tests/e2e/') &&
+                (file.filename.startsWith('tests/e2e/') || file.filename.startsWith('Dockerfiles/e2e-tests/')) &&
                 ['added', 'modified', 'renamed'].includes(file.status)
               );
 

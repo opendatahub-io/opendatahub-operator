@@ -56,25 +56,30 @@ func dscManagementTestSuite(t *testing.T) {
 		{"Validate default NetworkPolicy exist", dscTestCtx.ValidateDefaultNetworkPolicyExists},
 	}
 
-	// Append webhook-specific tests.
-	if testOpts.webhookTest {
-		webhookTests := []TestCase{
-			{"Validate creation of more than one DSCInitialization instance", dscTestCtx.ValidateDSCIDuplication},
-			{"Validate creation of more than one DataScienceCluster instance", dscTestCtx.ValidateDSCDuplication},
-			{"Validate Model Registry Configuration Changes", dscTestCtx.ValidateModelRegistryConfig},
-		}
-
-		testCases = append(testCases, TestCase{
-			name: "Webhook",
-			testFn: func(t *testing.T) {
-				t.Helper()
-				RunTestCases(t, webhookTests, WithParallel())
-			},
-		})
-	}
-
 	// Run the test suite.
 	RunTestCases(t, testCases)
+}
+
+func dscWebhookTestSuite(t *testing.T) {
+	t.Helper()
+
+	// Initialize the test context.
+	tc, err := NewTestContext(t)
+	require.NoError(t, err, "Failed to initialize test context")
+
+	// Create an instance of test context.
+	dscTestCtx := DSCTestCtx{
+		TestContext: tc,
+	}
+
+	// Define dsci/dsc webhook-specific tests.
+	webhookTests := []TestCase{
+		{"Validate creation of more than one DSCInitialization instance", dscTestCtx.ValidateDSCIDuplication},
+		{"Validate creation of more than one DataScienceCluster instance", dscTestCtx.ValidateDSCDuplication},
+		{"Validate Model Registry Configuration Changes", dscTestCtx.ValidateModelRegistryConfig},
+	}
+
+	RunTestCases(t, webhookTests, WithParallel())
 }
 
 // ValidateOperatorsInstallation ensures the required operators are installed.

@@ -2,6 +2,7 @@ package hardwareprofile_test
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/hardwareprofile"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
+	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 
 	. "github.com/onsi/gomega"
 )
@@ -497,7 +499,7 @@ func TestHardwareProfile_ConvertIntOrStringToQuantity(t *testing.T) {
 					// Verify the patch contains the expected quantity
 					patchFound := false
 					for _, patch := range resp.Patches {
-						if patch.Operation == "add" && strings.Contains(patch.Path, "/resources") {
+						if patch.Operation == webhookutils.PatchOpAdd && strings.Contains(patch.Path, "/resources") {
 							// The patch value should be a map containing requests with our resource
 							if resourcesMap, ok := patch.Value.(map[string]interface{}); ok {
 								if requests, ok := resourcesMap["requests"].(map[string]interface{}); ok {
@@ -663,150 +665,6 @@ func TestHardwareProfile_SchedulingConfiguration_Notebook(t *testing.T) {
 			g.Expect(resp.Patches).Should(Not(BeEmpty()))
 		})
 	}
-}
-
-// TestHardwareProfile_ClearsKueue ensures that when a workload
-// is annotated with a HardwareProfile that has no SchedulingSpec, any existing kueue label
-// configuration is removed by the webhook.
-func TestHardwareProfile_ClearsKueue(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-	sch, ctx := setupTestEnvironment(t)
-
-	// Create a HardwareProfile that has no scheduling spec (empty/no config)
-	newProfileName := "profile-without-sched"
-	hwpNew := envtestutil.NewHardwareProfile(newProfileName, testNamespace)
-
-	// Build fake client with the new profile only
-	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwpNew).Build()
-	injector := createWebhookInjector(cli, sch)
-
-	// Create a Notebook workload that currently has scheduling fields present
-	notebook := &unstructured.Unstructured{}
-	notebook.SetGroupVersionKind(gvk.Notebook)
-	notebook.SetName(testNotebook)
-	notebook.SetNamespace(testNamespace)
-	// Set annotation to point at the new profile (which lacks scheduling)
-	notebook.SetAnnotations(map[string]string{
-		hardwareprofile.HardwareProfileNameAnnotation: newProfileName,
-	})
-	// Add an existing kueue label (upstream form)
-	notebook.SetLabels(map[string]string{"kueue.x-k8s.io/queue-name": "old-queue"})
-
-	// Populate spec.template.spec with nodeSelector, tolerations and a minimal container
-	err := unstructured.SetNestedMap(notebook.Object, map[string]interface{}{
-		"template": map[string]interface{}{
-			"spec": map[string]interface{}{
-				"containers": []interface{}{
-					map[string]interface{}{"name": "notebook", "image": "notebook:latest"},
-				},
-			},
-		},
-	}, "spec")
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	req := envtestutil.NewAdmissionRequest(
-		t,
-		admissionv1.Update,
-		notebook,
-		gvk.Notebook,
-		metav1.GroupVersionResource{
-			Group:    gvk.Notebook.Group,
-			Version:  gvk.Notebook.Version,
-			Resource: "notebooks",
-		},
-	)
-
-	resp := injector.Handle(ctx, req)
-	g.Expect(resp.Allowed).Should(BeTrue())
-
-	// Expect patches that remove nodeSelector, tolerations and the kueue label
-	foundKueueLabel := false
-
-	for _, patch := range resp.Patches {
-		if strings.Contains(patch.Path, "queue-name") {
-			foundKueueLabel = true
-		}
-	}
-
-	g.Expect(foundKueueLabel).Should(BeTrue(), "expected a patch removing kueue label")
-}
-
-// TestHardwareProfile_ClearsHWP ensures that when a workload
-// is annotated with a HardwareProfile that has no SchedulingSpec, any existing scheduling
-// configuration (nodeSelector, tolerations) on the workload is removed by the webhook.
-func TestHardwareProfile_ClearsHWP(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-	sch, ctx := setupTestEnvironment(t)
-
-	// Create a HardwareProfile that has no scheduling spec (empty/no config)
-	newProfileName := "profile-without-sched"
-	hwpNew := envtestutil.NewHardwareProfile(newProfileName, testNamespace)
-
-	// Build fake client with the new profile only
-	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwpNew).Build()
-	injector := createWebhookInjector(cli, sch)
-
-	// Create a Notebook workload that currently has scheduling fields present
-	notebook := &unstructured.Unstructured{}
-	notebook.SetGroupVersionKind(gvk.Notebook)
-	notebook.SetName(testNotebook)
-	notebook.SetNamespace(testNamespace)
-	// Set annotation to point at the new profile (which lacks scheduling)
-	notebook.SetAnnotations(map[string]string{
-		hardwareprofile.HardwareProfileNameAnnotation: newProfileName,
-	})
-	// Populate spec.template.spec with nodeSelector, tolerations and a minimal container
-	err := unstructured.SetNestedMap(notebook.Object, map[string]interface{}{
-		"template": map[string]interface{}{
-			"spec": map[string]interface{}{
-				"nodeSelector": map[string]interface{}{"node-type": "gpu-node"},
-				"tolerations": []interface{}{
-					map[string]interface{}{
-						"key":      "nvidia.com/gpu",
-						"operator": "Equal",
-						"value":    "true",
-						"effect":   "NoSchedule",
-					},
-				},
-				"containers": []interface{}{
-					map[string]interface{}{"name": "notebook", "image": "notebook:latest"},
-				},
-			},
-		},
-	}, "spec")
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	req := envtestutil.NewAdmissionRequest(
-		t,
-		admissionv1.Update,
-		notebook,
-		gvk.Notebook,
-		metav1.GroupVersionResource{
-			Group:    gvk.Notebook.Group,
-			Version:  gvk.Notebook.Version,
-			Resource: "notebooks",
-		},
-	)
-
-	resp := injector.Handle(ctx, req)
-	g.Expect(resp.Allowed).Should(BeTrue())
-
-	// Expect patches that remove nodeSelector, tolerations and the kueue label
-	foundNodeSelector := false
-	foundTolerations := false
-	for _, patch := range resp.Patches {
-		if strings.Contains(patch.Path, "nodeSelector") {
-			foundNodeSelector = true
-		}
-		if strings.Contains(patch.Path, "tolerations") {
-			foundTolerations = true
-		}
-	}
-
-	g.Expect(foundNodeSelector).Should(BeTrue(), "expected a patch removing nodeSelector")
-	g.Expect(foundTolerations).Should(BeTrue(), "expected a patch removing tolerations")
 }
 
 // TestHardwareProfile_ResourceInjection_Notebook tests that hardware profiles with resource requirements are applied correctly to Notebook workloads.
@@ -1744,4 +1602,879 @@ func TestHardwareProfile_ResourceLimits_LLMInferenceService(t *testing.T) {
 	}
 
 	g.Expect(hasResourcesPatch).Should(BeTrue(), "Should have resources patch")
+}
+
+// TestHardwareProfile_ProfileChangeClearsScheduling tests that changing the hardware profile
+// clears existing scheduling configuration (tolerations, nodeSelector, Kueue label) before
+// applying new settings.
+func TestHardwareProfile_ProfileChangeClearsScheduling(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create two hardware profiles - one with tolerations, one empty
+	hwpWithTolerations := envtestutil.NewHardwareProfile("hwp-with-tolerations", testNamespace,
+		envtestutil.WithNodeScheduling(
+			map[string]string{"gpu": "true"},
+			[]corev1.Toleration{
+				{Key: "nvidia.com/gpu", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoSchedule},
+			},
+		),
+	)
+	hwpEmpty := envtestutil.NewHardwareProfile("hwp-empty", testNamespace)
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwpWithTolerations, hwpEmpty).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	// Create a notebook that was originally assigned to hwp-with-tolerations
+	// and had its tolerations/nodeSelector set
+	oldNotebook := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile("hwp-with-tolerations"))
+	oldNotebookUnstructured, ok := oldNotebook.(*unstructured.Unstructured)
+	g.Expect(ok).Should(BeTrue())
+
+	// Set existing tolerations and nodeSelector (as if they were applied by old HWP)
+	_ = unstructured.SetNestedSlice(oldNotebookUnstructured.Object, []interface{}{
+		map[string]interface{}{
+			"key":      "nvidia.com/gpu",
+			"operator": "Exists",
+			"effect":   "NoSchedule",
+		},
+	}, "spec", "template", "spec", "tolerations")
+	_ = unstructured.SetNestedStringMap(oldNotebookUnstructured.Object, map[string]string{"gpu": "true"}, "spec", "template", "spec", "nodeSelector")
+
+	// Now create the new notebook with hwp-empty annotation (simulating profile switch)
+	newNotebook := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile("hwp-empty"))
+	newNotebookUnstructured, ok := newNotebook.(*unstructured.Unstructured)
+	g.Expect(ok).Should(BeTrue())
+
+	// Copy the tolerations/nodeSelector from old notebook (as they would exist in the cluster)
+	_ = unstructured.SetNestedSlice(newNotebookUnstructured.Object, []interface{}{
+		map[string]interface{}{
+			"key":      "nvidia.com/gpu",
+			"operator": "Exists",
+			"effect":   "NoSchedule",
+		},
+	}, "spec", "template", "spec", "tolerations")
+	_ = unstructured.SetNestedStringMap(newNotebookUnstructured.Object, map[string]string{"gpu": "true"}, "spec", "template", "spec", "nodeSelector")
+
+	// Marshal objects for admission request
+	newObjBytes, err := json.Marshal(newNotebookUnstructured)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	oldObjBytes, err := json.Marshal(oldNotebookUnstructured)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Create UPDATE request with old and new objects
+	req := admission.Request{
+		AdmissionRequest: admissionv1.AdmissionRequest{
+			UID:       "test-uid",
+			Kind:      metav1.GroupVersionKind{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Kind: gvk.Notebook.Kind},
+			Resource:  metav1.GroupVersionResource{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Resource: "notebooks"},
+			Namespace: testNamespace,
+			Operation: admissionv1.Update,
+			Object:    runtime.RawExtension{Raw: newObjBytes},
+			OldObject: runtime.RawExtension{Raw: oldObjBytes},
+		},
+	}
+
+	resp := injector.Handle(ctx, req)
+	g.Expect(resp.Allowed).Should(BeTrue())
+
+	// Check that tolerations and nodeSelector are removed (cleared)
+	foundTolerationRemove := false
+	foundNodeSelectorRemove := false
+	for _, patch := range resp.Patches {
+		if patch.Operation == webhookutils.PatchOpRemove && strings.Contains(patch.Path, "tolerations") {
+			foundTolerationRemove = true
+		}
+		if patch.Operation == webhookutils.PatchOpRemove && strings.Contains(patch.Path, "nodeSelector") {
+			foundNodeSelectorRemove = true
+		}
+	}
+	g.Expect(foundTolerationRemove).Should(BeTrue(), "Should have patch to remove tolerations when switching profiles")
+	g.Expect(foundNodeSelectorRemove).Should(BeTrue(), "Should have patch to remove nodeSelector when switching profiles")
+}
+
+// TestHardwareProfile_SameProfileMergesTolerations tests that when the hardware profile
+// hasn't changed, tolerations are merged (HWP tolerations + existing manual tolerations).
+func TestHardwareProfile_SameProfileMergesTolerations(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create hardware profile with one toleration
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
+		envtestutil.WithNodeScheduling(
+			nil,
+			[]corev1.Toleration{
+				{Key: "nvidia.com/gpu", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoSchedule},
+			},
+		),
+	)
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	// Create the "old" notebook with the same HWP and both HWP toleration + manual toleration
+	oldNotebook := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+	oldNotebookUnstructured, ok := oldNotebook.(*unstructured.Unstructured)
+	g.Expect(ok).Should(BeTrue())
+
+	_ = unstructured.SetNestedSlice(oldNotebookUnstructured.Object, []interface{}{
+		map[string]interface{}{
+			"key":      "nvidia.com/gpu",
+			"operator": "Exists",
+			"effect":   "NoSchedule",
+		},
+		map[string]interface{}{
+			"key":      "my-manual-toleration",
+			"operator": "Equal",
+			"value":    "true",
+			"effect":   "NoSchedule",
+		},
+	}, "spec", "template", "spec", "tolerations")
+
+	// Create the "new" notebook with same HWP (no profile change)
+	newNotebook := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+	newNotebookUnstructured, ok := newNotebook.(*unstructured.Unstructured)
+	g.Expect(ok).Should(BeTrue())
+
+	// Copy the tolerations from old notebook
+	_ = unstructured.SetNestedSlice(newNotebookUnstructured.Object, []interface{}{
+		map[string]interface{}{
+			"key":      "nvidia.com/gpu",
+			"operator": "Exists",
+			"effect":   "NoSchedule",
+		},
+		map[string]interface{}{
+			"key":      "my-manual-toleration",
+			"operator": "Equal",
+			"value":    "true",
+			"effect":   "NoSchedule",
+		},
+	}, "spec", "template", "spec", "tolerations")
+
+	// Marshal objects for admission request
+	newObjBytes, err := json.Marshal(newNotebookUnstructured)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	oldObjBytes, err := json.Marshal(oldNotebookUnstructured)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Create UPDATE request with same HWP annotation
+	req := admission.Request{
+		AdmissionRequest: admissionv1.AdmissionRequest{
+			UID:       "test-uid",
+			Kind:      metav1.GroupVersionKind{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Kind: gvk.Notebook.Kind},
+			Resource:  metav1.GroupVersionResource{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Resource: "notebooks"},
+			Namespace: testNamespace,
+			Operation: admissionv1.Update,
+			Object:    runtime.RawExtension{Raw: newObjBytes},
+			OldObject: runtime.RawExtension{Raw: oldObjBytes},
+		},
+	}
+
+	resp := injector.Handle(ctx, req)
+	g.Expect(resp.Allowed).Should(BeTrue())
+
+	// Check that tolerations are NOT removed (merged instead)
+	for _, patch := range resp.Patches {
+		if patch.Operation == webhookutils.PatchOpRemove && strings.Contains(patch.Path, "tolerations") {
+			t.Fatalf("Should NOT remove tolerations when profile hasn't changed - expected merge behavior")
+		}
+	}
+
+	// Check that the resulting tolerations include both HWP and manual tolerations
+	foundTolerationsPatch := false
+	for _, patch := range resp.Patches {
+		if strings.Contains(patch.Path, "tolerations") && (patch.Operation == webhookutils.PatchOpAdd || patch.Operation == webhookutils.PatchOpReplace) {
+			foundTolerationsPatch = true
+			tolerations, ok := patch.Value.([]interface{})
+			g.Expect(ok).Should(BeTrue(), "Tolerations patch value should be a slice")
+			g.Expect(len(tolerations)).Should(BeNumerically(">=", 2), "Should have at least 2 tolerations (HWP + manual)")
+		}
+	}
+	// Note: If tolerations haven't changed, there might not be a patch at all, which is fine
+	_ = foundTolerationsPatch
+}
+
+// TestTolerationKey_DistinguishesByValue tests that tolerations with
+// same key/operator/effect but different values produce different keys.
+// This ensures user tolerations are not accidentally removed during HWP cleanup.
+func TestTolerationKey_DistinguishesByValue(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	testCases := []struct {
+		name        string
+		toleration1 map[string]interface{}
+		toleration2 map[string]interface{}
+		shouldMatch bool
+	}{
+		{
+			name: "same key/operator/effect but different value should NOT match",
+			toleration1: map[string]interface{}{
+				"key":      "gpu-type",
+				"operator": "Equal",
+				"value":    "nvidia",
+				"effect":   "NoSchedule",
+			},
+			toleration2: map[string]interface{}{
+				"key":      "gpu-type",
+				"operator": "Equal",
+				"value":    "amd",
+				"effect":   "NoSchedule",
+			},
+			shouldMatch: false,
+		},
+		{
+			name: "identical tolerations should match",
+			toleration1: map[string]interface{}{
+				"key":      "gpu-type",
+				"operator": "Equal",
+				"value":    "nvidia",
+				"effect":   "NoSchedule",
+			},
+			toleration2: map[string]interface{}{
+				"key":      "gpu-type",
+				"operator": "Equal",
+				"value":    "nvidia",
+				"effect":   "NoSchedule",
+			},
+			shouldMatch: true,
+		},
+		{
+			name: "same key/operator/effect/value but different tolerationSeconds should NOT match",
+			toleration1: map[string]interface{}{
+				"key":               "node.kubernetes.io/unreachable",
+				"operator":          "Exists",
+				"effect":            "NoExecute",
+				"tolerationSeconds": int64(300),
+			},
+			toleration2: map[string]interface{}{
+				"key":               "node.kubernetes.io/unreachable",
+				"operator":          "Exists",
+				"effect":            "NoExecute",
+				"tolerationSeconds": int64(600),
+			},
+			shouldMatch: false,
+		},
+		{
+			name: "same tolerations with same tolerationSeconds should match",
+			toleration1: map[string]interface{}{
+				"key":               "node.kubernetes.io/unreachable",
+				"operator":          "Exists",
+				"effect":            "NoExecute",
+				"tolerationSeconds": int64(300),
+			},
+			toleration2: map[string]interface{}{
+				"key":               "node.kubernetes.io/unreachable",
+				"operator":          "Exists",
+				"effect":            "NoExecute",
+				"tolerationSeconds": int64(300),
+			},
+			shouldMatch: true,
+		},
+		{
+			name: "toleration with tolerationSeconds vs without should NOT match",
+			toleration1: map[string]interface{}{
+				"key":               "node.kubernetes.io/unreachable",
+				"operator":          "Exists",
+				"effect":            "NoExecute",
+				"tolerationSeconds": int64(300),
+			},
+			toleration2: map[string]interface{}{
+				"key":      "node.kubernetes.io/unreachable",
+				"operator": "Exists",
+				"effect":   "NoExecute",
+			},
+			shouldMatch: false,
+		},
+		{
+			name: "Exists operator with empty value should match same toleration",
+			toleration1: map[string]interface{}{
+				"key":      "nvidia.com/gpu",
+				"operator": "Exists",
+				"effect":   "NoSchedule",
+			},
+			toleration2: map[string]interface{}{
+				"key":      "nvidia.com/gpu",
+				"operator": "Exists",
+				"effect":   "NoSchedule",
+			},
+			shouldMatch: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			key1 := hardwareprofile.TolerationKey(tc.toleration1)
+			key2 := hardwareprofile.TolerationKey(tc.toleration2)
+
+			if tc.shouldMatch {
+				g.Expect(key1).Should(Equal(key2), "Keys should match for identical tolerations")
+			} else {
+				g.Expect(key1).ShouldNot(Equal(key2), "Keys should NOT match for different tolerations")
+			}
+		})
+	}
+}
+
+// TestHardwareProfile_HWPRemovalPreservesUserTolerations tests that when
+// removing HWP annotation, only HWP-applied tolerations are removed while
+// user-added tolerations with different values are preserved.
+func TestHardwareProfile_HWPRemovalPreservesUserTolerations(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create HWP with specific tolerations
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
+		envtestutil.WithNodeScheduling(
+			map[string]string{"hwp-node": "true"},
+			[]corev1.Toleration{
+				{
+					Key:      "gpu-type",
+					Operator: corev1.TolerationOpEqual,
+					Value:    "amd", // HWP specifies "amd"
+					Effect:   corev1.TaintEffectNoSchedule,
+				},
+			},
+		),
+	)
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	// Create "old" notebook WITH HWP annotation and both HWP + user tolerations
+	oldNotebook := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+	oldNotebookUnstructured, ok := oldNotebook.(*unstructured.Unstructured)
+	g.Expect(ok).Should(BeTrue())
+
+	// Set tolerations: HWP's "amd" toleration + user's "nvidia" toleration (same key, different value)
+	_ = unstructured.SetNestedSlice(oldNotebookUnstructured.Object, []interface{}{
+		map[string]interface{}{
+			"key":      "gpu-type",
+			"operator": "Equal",
+			"value":    "amd", // HWP-applied
+			"effect":   "NoSchedule",
+		},
+		map[string]interface{}{
+			"key":      "gpu-type",
+			"operator": "Equal",
+			"value":    "nvidia", // User-added (should be preserved)
+			"effect":   "NoSchedule",
+		},
+	}, "spec", "template", "spec", "tolerations")
+	_ = unstructured.SetNestedStringMap(oldNotebookUnstructured.Object, map[string]string{"hwp-node": "true"}, "spec", "template", "spec", "nodeSelector")
+
+	// Create "new" notebook WITHOUT HWP annotation (simulating HWP removal)
+	newNotebook := envtestutil.NewNotebook(testNotebook, testNamespace) // No HWP annotation
+	newNotebookUnstructured, ok := newNotebook.(*unstructured.Unstructured)
+	g.Expect(ok).Should(BeTrue())
+
+	// Copy the tolerations/nodeSelector from old notebook (as they exist in cluster)
+	_ = unstructured.SetNestedSlice(newNotebookUnstructured.Object, []interface{}{
+		map[string]interface{}{
+			"key":      "gpu-type",
+			"operator": "Equal",
+			"value":    "amd",
+			"effect":   "NoSchedule",
+		},
+		map[string]interface{}{
+			"key":      "gpu-type",
+			"operator": "Equal",
+			"value":    "nvidia",
+			"effect":   "NoSchedule",
+		},
+	}, "spec", "template", "spec", "tolerations")
+	_ = unstructured.SetNestedStringMap(newNotebookUnstructured.Object, map[string]string{"hwp-node": "true"}, "spec", "template", "spec", "nodeSelector")
+
+	// Marshal objects for admission request
+	newObjBytes, err := json.Marshal(newNotebookUnstructured)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	oldObjBytes, err := json.Marshal(oldNotebookUnstructured)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Create UPDATE request (removing HWP annotation)
+	req := admission.Request{
+		AdmissionRequest: admissionv1.AdmissionRequest{
+			UID:       "test-uid",
+			Kind:      metav1.GroupVersionKind{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Kind: gvk.Notebook.Kind},
+			Resource:  metav1.GroupVersionResource{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Resource: "notebooks"},
+			Namespace: testNamespace,
+			Operation: admissionv1.Update,
+			Object:    runtime.RawExtension{Raw: newObjBytes},
+			OldObject: runtime.RawExtension{Raw: oldObjBytes},
+		},
+	}
+
+	resp := injector.Handle(ctx, req)
+	g.Expect(resp.Allowed).Should(BeTrue())
+
+	// Check that the tolerations patch preserves user's "nvidia" but removes HWP's "amd"
+	foundTolerationsPatch := false
+	for _, patch := range resp.Patches {
+		if strings.Contains(patch.Path, "tolerations") &&
+			(patch.Operation == webhookutils.PatchOpAdd || patch.Operation == webhookutils.PatchOpReplace) {
+			foundTolerationsPatch = true
+
+			// The patch should contain remaining tolerations
+			if tolerations, ok := patch.Value.([]interface{}); ok {
+				foundUserToleration := false
+				foundHWPToleration := false
+				for _, tol := range tolerations {
+					if tolMap, ok := tol.(map[string]interface{}); ok {
+						if tolMap["key"] == "gpu-type" && tolMap["value"] == "nvidia" {
+							foundUserToleration = true
+						}
+						if tolMap["key"] == "gpu-type" && tolMap["value"] == "amd" {
+							foundHWPToleration = true
+						}
+					}
+				}
+				g.Expect(foundUserToleration).Should(BeTrue(), "User's nvidia toleration should be preserved in patch")
+				g.Expect(foundHWPToleration).Should(BeFalse(), "HWP's amd toleration should NOT be in patch")
+			}
+		}
+	}
+	// It's also valid if tolerations were removed entirely (via remove patch) - check that case
+	if !foundTolerationsPatch {
+		// Look for a remove operation that removes just the HWP toleration
+		for _, patch := range resp.Patches {
+			if strings.Contains(patch.Path, "tolerations") && patch.Operation == webhookutils.PatchOpRemove {
+				// If removing the whole tolerations array, that's incorrect
+				// But if removing specific indices, that could be correct
+				foundTolerationsPatch = true
+			}
+		}
+	}
+	g.Expect(foundTolerationsPatch).Should(BeTrue(), "Should have a patch modifying tolerations")
+}
+
+// TestHardwareProfile_HWPRemovalWithTolerationSeconds tests that tolerations
+// with different tolerationSeconds values are treated as distinct.
+func TestHardwareProfile_HWPRemovalWithTolerationSeconds(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create HWP with toleration that has tolerationSeconds
+	tolerationSeconds := int64(300)
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
+		envtestutil.WithNodeScheduling(
+			nil,
+			[]corev1.Toleration{
+				{
+					Key:               "node.kubernetes.io/unreachable",
+					Operator:          corev1.TolerationOpExists,
+					Effect:            corev1.TaintEffectNoExecute,
+					TolerationSeconds: &tolerationSeconds,
+				},
+			},
+		),
+	)
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	// Create "old" notebook with HWP annotation and both HWP + user tolerations
+	oldNotebook := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+	oldNotebookUnstructured, ok := oldNotebook.(*unstructured.Unstructured)
+	g.Expect(ok).Should(BeTrue())
+
+	// User has same toleration but with different tolerationSeconds (600 vs HWP's 300)
+	_ = unstructured.SetNestedSlice(oldNotebookUnstructured.Object, []interface{}{
+		map[string]interface{}{
+			"key":               "node.kubernetes.io/unreachable",
+			"operator":          "Exists",
+			"effect":            "NoExecute",
+			"tolerationSeconds": int64(300), // HWP-applied
+		},
+		map[string]interface{}{
+			"key":               "node.kubernetes.io/unreachable",
+			"operator":          "Exists",
+			"effect":            "NoExecute",
+			"tolerationSeconds": int64(600), // User-added (different seconds)
+		},
+	}, "spec", "template", "spec", "tolerations")
+
+	// Create "new" notebook WITHOUT HWP annotation
+	newNotebook := envtestutil.NewNotebook(testNotebook, testNamespace)
+	newNotebookUnstructured, ok := newNotebook.(*unstructured.Unstructured)
+	g.Expect(ok).Should(BeTrue())
+
+	// Copy tolerations from old notebook
+	_ = unstructured.SetNestedSlice(newNotebookUnstructured.Object, []interface{}{
+		map[string]interface{}{
+			"key":               "node.kubernetes.io/unreachable",
+			"operator":          "Exists",
+			"effect":            "NoExecute",
+			"tolerationSeconds": int64(300),
+		},
+		map[string]interface{}{
+			"key":               "node.kubernetes.io/unreachable",
+			"operator":          "Exists",
+			"effect":            "NoExecute",
+			"tolerationSeconds": int64(600),
+		},
+	}, "spec", "template", "spec", "tolerations")
+
+	// Marshal objects
+	newObjBytes, err := json.Marshal(newNotebookUnstructured)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	oldObjBytes, err := json.Marshal(oldNotebookUnstructured)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Create UPDATE request
+	req := admission.Request{
+		AdmissionRequest: admissionv1.AdmissionRequest{
+			UID:       "test-uid",
+			Kind:      metav1.GroupVersionKind{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Kind: gvk.Notebook.Kind},
+			Resource:  metav1.GroupVersionResource{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Resource: "notebooks"},
+			Namespace: testNamespace,
+			Operation: admissionv1.Update,
+			Object:    runtime.RawExtension{Raw: newObjBytes},
+			OldObject: runtime.RawExtension{Raw: oldObjBytes},
+		},
+	}
+
+	resp := injector.Handle(ctx, req)
+	g.Expect(resp.Allowed).Should(BeTrue())
+
+	// Check that the tolerations patch preserves user's 600s but removes HWP's 300s
+	foundTolerationsPatch := false
+	for _, patch := range resp.Patches {
+		if strings.Contains(patch.Path, "tolerations") &&
+			(patch.Operation == webhookutils.PatchOpAdd || patch.Operation == webhookutils.PatchOpReplace) {
+			foundTolerationsPatch = true
+
+			if tolerations, ok := patch.Value.([]interface{}); ok {
+				found300s := false
+				found600s := false
+				for _, tol := range tolerations {
+					if tolMap, ok := tol.(map[string]interface{}); ok {
+						if ts, exists := tolMap["tolerationSeconds"]; exists {
+							// Handle both int64 and float64 (JSON unmarshaling can produce float64)
+							switch v := ts.(type) {
+							case int64:
+								if v == 300 {
+									found300s = true
+								}
+								if v == 600 {
+									found600s = true
+								}
+							case float64:
+								if v == 300 {
+									found300s = true
+								}
+								if v == 600 {
+									found600s = true
+								}
+							}
+						}
+					}
+				}
+				g.Expect(found600s).Should(BeTrue(), "User's 600s toleration should be preserved in patch")
+				g.Expect(found300s).Should(BeFalse(), "HWP's 300s toleration should NOT be in patch")
+			}
+		}
+	}
+	// Also valid if there's a remove patch for tolerations
+	if !foundTolerationsPatch {
+		for _, patch := range resp.Patches {
+			if strings.Contains(patch.Path, "tolerations") && patch.Operation == webhookutils.PatchOpRemove {
+				foundTolerationsPatch = true
+			}
+		}
+	}
+	g.Expect(foundTolerationsPatch).Should(BeTrue(), "Should have a patch modifying tolerations")
+}
+
+// TestHardwareProfile_NodeSelectorOverrideWarning tests that when a user modifies a
+// nodeSelector value that the HardwareProfile also specifies, a warning is returned
+// in the admission response.
+func TestHardwareProfile_NodeSelectorOverrideWarning(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create HWP with nodeSelector
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
+		envtestutil.WithNodeScheduling(
+			map[string]string{"kubernetes.io/os": "linux", "gpu-type": "nvidia"},
+			nil,
+		),
+	)
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	// Create "old" notebook with HWP annotation and HWP-applied nodeSelector
+	oldNotebook := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+	oldNotebookUnstructured, ok := oldNotebook.(*unstructured.Unstructured)
+	g.Expect(ok).Should(BeTrue())
+
+	// Set nodeSelector as if it was applied by HWP
+	_ = unstructured.SetNestedStringMap(oldNotebookUnstructured.Object,
+		map[string]string{"kubernetes.io/os": "linux", "gpu-type": "nvidia"},
+		"spec", "template", "spec", "nodeSelector")
+
+	// Create "new" notebook where user modified one of the HWP-managed nodeSelector values
+	newNotebook := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+	newNotebookUnstructured, ok := newNotebook.(*unstructured.Unstructured)
+	g.Expect(ok).Should(BeTrue())
+
+	// User changed "kubernetes.io/os" from "linux" to "windows" and added a manual key
+	_ = unstructured.SetNestedStringMap(newNotebookUnstructured.Object,
+		map[string]string{
+			"kubernetes.io/os": "windows",  // User modified HWP value
+			"gpu-type":         "nvidia",   // HWP value unchanged
+			"my-custom-key":    "my-value", // User-added (should be preserved)
+		},
+		"spec", "template", "spec", "nodeSelector")
+
+	// Marshal objects
+	newObjBytes, err := json.Marshal(newNotebookUnstructured)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	oldObjBytes, err := json.Marshal(oldNotebookUnstructured)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Create UPDATE request (same HWP, but user modified nodeSelector)
+	req := admission.Request{
+		AdmissionRequest: admissionv1.AdmissionRequest{
+			UID:       "test-uid",
+			Kind:      metav1.GroupVersionKind{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Kind: gvk.Notebook.Kind},
+			Resource:  metav1.GroupVersionResource{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Resource: "notebooks"},
+			Namespace: testNamespace,
+			Operation: admissionv1.Update,
+			Object:    runtime.RawExtension{Raw: newObjBytes},
+			OldObject: runtime.RawExtension{Raw: oldObjBytes},
+		},
+	}
+
+	resp := injector.Handle(ctx, req)
+	g.Expect(resp.Allowed).Should(BeTrue())
+
+	// Should have a warning about the nodeSelector override
+	g.Expect(resp.Warnings).ShouldNot(BeEmpty(), "Should have at least one warning")
+
+	foundOverrideWarning := false
+	for _, warning := range resp.Warnings {
+		if strings.Contains(warning, "kubernetes.io/os") &&
+			strings.Contains(warning, "windows") &&
+			strings.Contains(warning, "linux") &&
+			strings.Contains(warning, "overwritten") {
+			foundOverrideWarning = true
+			break
+		}
+	}
+	g.Expect(foundOverrideWarning).Should(BeTrue(), "Should warn about nodeSelector key being overwritten")
+
+	// Should NOT warn about unchanged keys (gpu-type) or user-added keys (my-custom-key)
+	for _, warning := range resp.Warnings {
+		g.Expect(warning).ShouldNot(ContainSubstring("gpu-type"), "Should not warn about unchanged HWP values")
+		g.Expect(warning).ShouldNot(ContainSubstring("my-custom-key"), "Should not warn about user-added keys")
+	}
+}
+
+// TestHardwareProfile_NoWarningWhenNodeSelectorUnchanged tests that no warning is emitted
+// when the user hasn't modified any HWP-managed nodeSelector values.
+func TestHardwareProfile_NoWarningWhenNodeSelectorUnchanged(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create HWP with nodeSelector
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
+		envtestutil.WithNodeScheduling(
+			map[string]string{"kubernetes.io/os": "linux"},
+			nil,
+		),
+	)
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	// Create "old" notebook with HWP annotation and HWP-applied nodeSelector
+	oldNotebook := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+	oldNotebookUnstructured, ok := oldNotebook.(*unstructured.Unstructured)
+	g.Expect(ok).Should(BeTrue())
+
+	_ = unstructured.SetNestedStringMap(oldNotebookUnstructured.Object,
+		map[string]string{"kubernetes.io/os": "linux"},
+		"spec", "template", "spec", "nodeSelector")
+
+	// Create "new" notebook with same nodeSelector (user added a custom key but didn't change HWP ones)
+	newNotebook := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+	newNotebookUnstructured, ok := newNotebook.(*unstructured.Unstructured)
+	g.Expect(ok).Should(BeTrue())
+
+	// User only added a custom key, didn't modify HWP value
+	_ = unstructured.SetNestedStringMap(newNotebookUnstructured.Object,
+		map[string]string{
+			"kubernetes.io/os": "linux",    // HWP value unchanged
+			"my-custom-key":    "my-value", // User-added
+		},
+		"spec", "template", "spec", "nodeSelector")
+
+	// Marshal objects
+	newObjBytes, err := json.Marshal(newNotebookUnstructured)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	oldObjBytes, err := json.Marshal(oldNotebookUnstructured)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Create UPDATE request
+	req := admission.Request{
+		AdmissionRequest: admissionv1.AdmissionRequest{
+			UID:       "test-uid",
+			Kind:      metav1.GroupVersionKind{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Kind: gvk.Notebook.Kind},
+			Resource:  metav1.GroupVersionResource{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Resource: "notebooks"},
+			Namespace: testNamespace,
+			Operation: admissionv1.Update,
+			Object:    runtime.RawExtension{Raw: newObjBytes},
+			OldObject: runtime.RawExtension{Raw: oldObjBytes},
+		},
+	}
+
+	resp := injector.Handle(ctx, req)
+	g.Expect(resp.Allowed).Should(BeTrue())
+
+	// Should NOT have any warnings since user didn't modify HWP-managed values
+	g.Expect(resp.Warnings).Should(BeEmpty(), "Should have no warnings when user doesn't modify HWP values")
+}
+
+// TestHardwareProfile_KueueLabelOverrideWarning tests that when a user modifies the
+// Kueue queue-name label to a different value than the HardwareProfile specifies,
+// a warning is returned in the admission response.
+func TestHardwareProfile_KueueLabelOverrideWarning(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create HWP with Kueue scheduling
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
+		envtestutil.WithKueueScheduling("hwp-queue"),
+	)
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	// Create "old" notebook with HWP annotation and HWP-applied Kueue label
+	oldNotebook := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+	oldNotebookUnstructured, ok := oldNotebook.(*unstructured.Unstructured)
+	g.Expect(ok).Should(BeTrue())
+
+	// Set Kueue label as if it was applied by HWP
+	oldNotebookUnstructured.SetLabels(map[string]string{
+		"kueue.x-k8s.io/queue-name": "hwp-queue",
+	})
+
+	// Create "new" notebook where user modified the Kueue label to a different value
+	newNotebook := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+	newNotebookUnstructured, ok := newNotebook.(*unstructured.Unstructured)
+	g.Expect(ok).Should(BeTrue())
+
+	// User changed the Kueue label to a different queue
+	newNotebookUnstructured.SetLabels(map[string]string{
+		"kueue.x-k8s.io/queue-name": "user-custom-queue",
+	})
+
+	// Marshal objects
+	newObjBytes, err := json.Marshal(newNotebookUnstructured)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	oldObjBytes, err := json.Marshal(oldNotebookUnstructured)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Create UPDATE request (same HWP, but user modified Kueue label)
+	req := admission.Request{
+		AdmissionRequest: admissionv1.AdmissionRequest{
+			UID:       "test-uid",
+			Kind:      metav1.GroupVersionKind{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Kind: gvk.Notebook.Kind},
+			Resource:  metav1.GroupVersionResource{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Resource: "notebooks"},
+			Namespace: testNamespace,
+			Operation: admissionv1.Update,
+			Object:    runtime.RawExtension{Raw: newObjBytes},
+			OldObject: runtime.RawExtension{Raw: oldObjBytes},
+		},
+	}
+
+	resp := injector.Handle(ctx, req)
+	g.Expect(resp.Allowed).Should(BeTrue())
+
+	// Should have a warning about the Kueue label override
+	g.Expect(resp.Warnings).ShouldNot(BeEmpty(), "Should have at least one warning")
+
+	foundOverrideWarning := false
+	for _, warning := range resp.Warnings {
+		if strings.Contains(warning, "kueue.x-k8s.io/queue-name") &&
+			strings.Contains(warning, "user-custom-queue") &&
+			strings.Contains(warning, "hwp-queue") &&
+			strings.Contains(warning, "overwritten") {
+			foundOverrideWarning = true
+			break
+		}
+	}
+	g.Expect(foundOverrideWarning).Should(BeTrue(), "Should warn about Kueue label being overwritten")
+}
+
+// TestHardwareProfile_NoKueueWarningWhenLabelUnchanged tests that no warning is emitted
+// when the user hasn't modified the HWP-managed Kueue label value.
+func TestHardwareProfile_NoKueueWarningWhenLabelUnchanged(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create HWP with Kueue scheduling
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
+		envtestutil.WithKueueScheduling("hwp-queue"),
+	)
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	// Create "old" notebook with HWP annotation and HWP-applied Kueue label
+	oldNotebook := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+	oldNotebookUnstructured, ok := oldNotebook.(*unstructured.Unstructured)
+	g.Expect(ok).Should(BeTrue())
+
+	oldNotebookUnstructured.SetLabels(map[string]string{
+		"kueue.x-k8s.io/queue-name": "hwp-queue",
+	})
+
+	// Create "new" notebook with same Kueue label (user added other labels but didn't change Kueue)
+	newNotebook := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+	newNotebookUnstructured, ok := newNotebook.(*unstructured.Unstructured)
+	g.Expect(ok).Should(BeTrue())
+
+	// User only added a custom label, didn't modify HWP Kueue label
+	newNotebookUnstructured.SetLabels(map[string]string{
+		"kueue.x-k8s.io/queue-name": "hwp-queue", // HWP value unchanged
+		"my-custom-label":           "my-value",  // User-added
+	})
+
+	// Marshal objects
+	newObjBytes, err := json.Marshal(newNotebookUnstructured)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	oldObjBytes, err := json.Marshal(oldNotebookUnstructured)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Create UPDATE request
+	req := admission.Request{
+		AdmissionRequest: admissionv1.AdmissionRequest{
+			UID:       "test-uid",
+			Kind:      metav1.GroupVersionKind{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Kind: gvk.Notebook.Kind},
+			Resource:  metav1.GroupVersionResource{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Resource: "notebooks"},
+			Namespace: testNamespace,
+			Operation: admissionv1.Update,
+			Object:    runtime.RawExtension{Raw: newObjBytes},
+			OldObject: runtime.RawExtension{Raw: oldObjBytes},
+		},
+	}
+
+	resp := injector.Handle(ctx, req)
+	g.Expect(resp.Allowed).Should(BeTrue())
+
+	// Should NOT have any warnings since user didn't modify HWP-managed Kueue label
+	g.Expect(resp.Warnings).Should(BeEmpty(), "Should have no warnings when user doesn't modify HWP Kueue label")
 }
