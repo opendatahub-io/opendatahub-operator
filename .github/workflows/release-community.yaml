@@ -22,6 +22,9 @@ env:
   OPENSHIFT_VERSIONS: ${{ github.event.inputs.openshift-versions }}
   COMMUNITY_FORK: opendatahub-io/community-operators-prod
   COMMUNITY_UPSTREAM: redhat-openshift-ecosystem/community-operators-prod
+  BRANCH_PREFIX: odh-operator-
+  COMMITTER_NAME: ODH Release Bot
+  COMMITTER_EMAIL: noreply@opendatahub.io
 
 jobs:
   create-community-release:
@@ -72,12 +75,22 @@ jobs:
         VERSION="${{ env.VERSION }}"
         ./.github/scripts/validate-bundle-csv.sh "$VERSION"
 
-    - name: Checkout community-operators-prod upstream
+    - name: Generate GitHub App Token
+      id: generate-token
+      uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+      with:
+        app-id: ${{ secrets.ODH_RELEASE_BOT_APP_ID }}
+        private-key: ${{ secrets.ODH_RELEASE_BOT_PRIVATE_KEY }}
+        owner: opendatahub-io
+        repositories: community-operators-prod
+
+    - name: Checkout community-operators-prod fork
       uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       with:
-        repository: ${{ env.COMMUNITY_UPSTREAM }}
+        repository: ${{ env.COMMUNITY_FORK }}
         path: community-operators-prod
         fetch-depth: 0
+        token: ${{ steps.generate-token.outputs.token }}
 
     - name: Copy bundle to community-operators-prod
       run: |
@@ -110,15 +123,6 @@ jobs:
           "$PREVIOUS_VERSION" \
           "$OPENSHIFT_VERSIONS"
 
-    - name: Generate GitHub App Token
-      id: generate-token
-      uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
-      with:
-        app-id: ${{ secrets.ODH_RELEASE_BOT_APP_ID }}
-        private-key: ${{ secrets.ODH_RELEASE_BOT_PRIVATE_KEY }}
-        owner: opendatahub-io
-        repositories: community-operators-prod
-
     - name: Create Pull Request
       id: create-pr
       env:
@@ -127,6 +131,9 @@ jobs:
         COMMUNITY_FORK: ${{ env.COMMUNITY_FORK }}
         COMMUNITY_UPSTREAM: ${{ env.COMMUNITY_UPSTREAM }}
         BUNDLE_DIR: community-operators-prod
+        BRANCH_PREFIX: ${{ env.BRANCH_PREFIX }}
+        COMMITTER_NAME: ${{ env.COMMITTER_NAME }}
+        COMMITTER_EMAIL: ${{ env.COMMITTER_EMAIL }}
       run: |
         ./opendatahub-operator/.github/scripts/create-community-pr.sh
     - name: Summary
