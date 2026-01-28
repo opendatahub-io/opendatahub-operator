@@ -4,11 +4,18 @@ on:
     inputs:
       version:
         type: string
-        description: The version to release (e.g., 3.1.0).
+        description: |
+          The version to release (e.g., 3.5.0 or 3.5.0-ea.1).
+          Supports EA (early access) versions with -ea.N suffix.
         required: true
       previous-version:
         type: string
-        description: The previous version to replace (e.g., 3.0.0).
+        description: |
+          The previous version to replace. For EA versions:
+          - First EA (3.5.0-ea.1): use last stable (e.g., 3.4.0)
+          - Subsequent EA (3.5.0-ea.2): use previous EA (3.5.0-ea.1)
+          - Stable after EA (3.5.0): use last EA (3.5.0-ea.N)
+          For regular releases: use previous minor/patch version (e.g., 3.4.0).
         required: true
       openshift-versions:
         type: string
