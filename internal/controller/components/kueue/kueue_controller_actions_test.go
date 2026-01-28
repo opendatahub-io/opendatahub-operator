@@ -517,6 +517,19 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 		},
 	}
 
+	// Terminating namespace - should be skipped when creating LocalQueues
+	now := metav1.Now()
+	terminatingNamespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "test-terminating-ns",
+			DeletionTimestamp: &now,
+			Finalizers:        []string{"kubernetes"},
+			Labels: map[string]string{
+				cluster.KueueManagedLabelKey: "true",
+			},
+		},
+	}
+
 	var tests = []struct {
 		name                      string
 		managedState              operatorv1.ManagementState
@@ -566,6 +579,7 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 				legacyManagedNamespace,
 				bothManagedNamespace,
 				unmanagedNamespace,
+				terminatingNamespace,
 				dsci,
 				operatorCondition,
 			}
@@ -639,6 +653,7 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 			g.Expect(slices.Contains(namespacesNames, "test-managed-ns")).Should(BeTrue())
 			g.Expect(slices.Contains(namespacesNames, "test-legacy-managed-ns")).Should(BeTrue())
 			g.Expect(slices.Contains(namespacesNames, "test-both-managed-ns")).Should(BeTrue())
+			g.Expect(slices.Contains(namespacesNames, "test-terminating-ns")).Should(BeFalse())
 		})
 	}
 }
