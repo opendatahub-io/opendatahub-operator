@@ -135,6 +135,16 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test Node Metrics Endpoint RBAC Configuration", monitoringServiceCtx.ValidateNodeMetricsEndpointRBACConfiguration},
 	}
 
+	// Add webhook tests if enabled
+	if testOpts.webhookTest {
+		testCases = append(testCases,
+			TestCase{"Validate monitoring label value enforcement on namespace", monitoringServiceCtx.ValidateMonitoringLabelValueEnforcementOnNamespace},
+			TestCase{"Validate monitoring label value enforcement on monitors", monitoringServiceCtx.ValidateMonitoringLabelValueEnforcementOnMonitors},
+			TestCase{"Validate monitors creation with custom labels", monitoringServiceCtx.ValidateMonitorsCreationWithCustomLabels},
+			TestCase{"Validate monitors monitoring label injection", monitoringServiceCtx.ValidateMonitorLabelInjection},
+		)
+	}
+
 	// Run the test suite.
 	RunTestCases(t, testCases)
 }
