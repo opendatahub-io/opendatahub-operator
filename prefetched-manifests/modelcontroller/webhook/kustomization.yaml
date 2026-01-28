@@ -15,12 +15,6 @@ patches:
       clientConfig:
         service:
           name: odh-model-controller-webhook-service
-      namespaceSelector:
-        matchExpressions:
-          - key: kubernetes.io/metadata.name
-            operator: In
-            values:
-              - maas-api
       objectSelector:
         matchLabels:
           component: tier-mapping
