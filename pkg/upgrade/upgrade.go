@@ -91,6 +91,7 @@ func CleanupExistingResource(ctx context.Context,
 	// This includes creating HardwareProfile resources and updating annotations on Notebooks and InferenceServices
 	if cluster.GetRelease().Version.Major == 3 && oldReleaseVersion.Version.Major == 2 {
 		multiErr = multierror.Append(multiErr, MigrateToInfraHardwareProfiles(ctx, cli, d.Spec.ApplicationsNamespace))
+		multiErr = multierror.Append(multiErr, MarkGatewayConfigUpgradedFrom2x(ctx, cli))
 	}
 
 	// GatewayConfig ingressMode migration: preserve LoadBalancer mode for existing 3.x deployments
@@ -584,6 +585,51 @@ func MigrateGatewayConfigIngressMode(ctx context.Context, cli client.Client) err
 	}
 
 	l.Info("GatewayConfig migrated to ingressMode=LoadBalancer")
+
+	return nil
+}
+
+// MarkGatewayConfigUpgradedFrom2x sets an annotation on GatewayConfig to indicate
+// this is a 2.x to 3.x upgrade. The gateway controller uses this to enable
+// RHODS dashboard URL redirects.
+func MarkGatewayConfigUpgradedFrom2x(ctx context.Context, cli client.Client) error {
+	l := logf.FromContext(ctx)
+
+	gatewayConfig := &unstructured.Unstructured{}
+	gatewayConfig.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   "services.platform.opendatahub.io",
+		Version: "v1alpha1",
+		Kind:    "GatewayConfig",
+	})
+
+	err := cli.Get(ctx, client.ObjectKey{Name: "default-gateway"}, gatewayConfig)
+	switch {
+	case k8serr.IsNotFound(err):
+		return nil
+	case err != nil:
+		return fmt.Errorf("failed to get GatewayConfig: %w", err)
+	}
+
+	annotations := gatewayConfig.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+
+	if annotations[gateway.UpgradedFrom2xAnnotation] == "true" {
+		return nil
+	}
+
+	l.Info("Marking GatewayConfig as upgraded from 2.x")
+
+	patch := client.MergeFrom(gatewayConfig.DeepCopy())
+	annotations[gateway.UpgradedFrom2xAnnotation] = "true"
+	gatewayConfig.SetAnnotations(annotations)
+
+	if err := cli.Patch(ctx, gatewayConfig, patch); err != nil {
+		return fmt.Errorf("failed to patch GatewayConfig with upgrade annotation: %w", err)
+	}
+
+	l.Info("GatewayConfig marked as upgraded from 2.x")
 
 	return nil
 }

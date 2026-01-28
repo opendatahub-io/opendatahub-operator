@@ -504,7 +504,7 @@ func TestComputeLegacyRedirectInfo(t *testing.T) {
 	g := NewWithT(t)
 
 	// Default subdomain enables legacy redirect with Lua-escaped pattern
-	info := computeLegacyRedirectInfo(nil, "rh-ai.apps.example.com")
+	info := computeLegacyRedirectInfo(nil, "rh-ai.apps.example.com", false)
 	g.Expect(info.CurrentSubdomain).To(Equal(DefaultGatewaySubdomain))
 	g.Expect(info.LegacySubdomain).To(Equal(LegacyGatewaySubdomain))
 	g.Expect(info.LegacySubdomainPattern).To(Equal("data%-science%-gateway"))
@@ -514,7 +514,7 @@ func TestComputeLegacyRedirectInfo(t *testing.T) {
 	legacyConfig := &serviceApi.GatewayConfig{
 		Spec: serviceApi.GatewayConfigSpec{Subdomain: LegacyGatewaySubdomain},
 	}
-	info = computeLegacyRedirectInfo(legacyConfig, "data-science-gateway.apps.example.com")
+	info = computeLegacyRedirectInfo(legacyConfig, "data-science-gateway.apps.example.com", false)
 	g.Expect(info.CurrentSubdomain).To(Equal(LegacyGatewaySubdomain))
 	g.Expect(info.LegacySubdomain).To(BeEmpty())
 	g.Expect(info.LegacyHostname).To(BeEmpty())
@@ -523,9 +523,19 @@ func TestComputeLegacyRedirectInfo(t *testing.T) {
 	customConfig := &serviceApi.GatewayConfig{
 		Spec: serviceApi.GatewayConfigSpec{Subdomain: "custom"},
 	}
-	info = computeLegacyRedirectInfo(customConfig, "custom.apps.example.com")
+	info = computeLegacyRedirectInfo(customConfig, "custom.apps.example.com", false)
 	g.Expect(info.CurrentSubdomain).To(Equal("custom"))
 	g.Expect(info.LegacyHostname).To(Equal("data-science-gateway.apps.example.com"))
+
+	// Test RHODS dashboard redirect when upgrading from 2.x
+	info = computeLegacyRedirectInfo(nil, "rh-ai.apps.example.com", true)
+	g.Expect(info.RhodsDashboardHostname).To(Equal("rhods-dashboard-redhat-ods-applications.apps.example.com"))
+	g.Expect(info.RhodsDashboardHostnamePattern).To(Equal("rhods%-dashboard%-redhat%-ods%-applications"))
+
+	// Test RHODS dashboard redirect is empty when not upgrading
+	info = computeLegacyRedirectInfo(nil, "rh-ai.apps.example.com", false)
+	g.Expect(info.RhodsDashboardHostname).To(BeEmpty())
+	g.Expect(info.RhodsDashboardHostnamePattern).To(BeEmpty())
 }
 
 // TestHPATemplateConstant tests that the HPA template constant is correctly defined.
@@ -534,4 +544,40 @@ func TestHPATemplateConstant(t *testing.T) {
 	g := NewWithT(t)
 
 	g.Expect(kubeAuthProxyHPATemplate).To(Equal("resources/kube-auth-proxy-hpa.tmpl.yaml"), "HPA template path should be correct")
+}
+
+// TestIsUpgradeFrom2x tests the isUpgradeFrom2x helper function.
+func TestIsUpgradeFrom2x(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	g.Expect(isUpgradeFrom2x(nil)).To(BeFalse())
+
+	config := &serviceApi.GatewayConfig{}
+	g.Expect(isUpgradeFrom2x(config)).To(BeFalse())
+
+	config = &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{},
+		},
+	}
+	g.Expect(isUpgradeFrom2x(config)).To(BeFalse())
+
+	config = &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{
+				UpgradedFrom2xAnnotation: "false",
+			},
+		},
+	}
+	g.Expect(isUpgradeFrom2x(config)).To(BeFalse())
+
+	config = &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{
+				UpgradedFrom2xAnnotation: "true",
+			},
+		},
+	}
+	g.Expect(isUpgradeFrom2x(config)).To(BeTrue())
 }
