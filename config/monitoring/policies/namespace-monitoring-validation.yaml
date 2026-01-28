@@ -1,0 +1,27 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: namespace-monitoring-request
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["namespaces"]
+  validations:
+    - expression: >
+        !('opendatahub.io/monitoring' in object.metadata.labels) || 
+        ('opendatahub.io/dashboard' in object.metadata.labels && object.metadata.labels['opendatahub.io/dashboard'] == 'true')
+      message: "You cannot label a Namespace with 'opendatahub.io/monitoring' unless it is also labeled 'opendatahub.io/dashboard=true'."
+      reason: Invalid
+
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: namespace-monitoring-request-binding
+spec:
+  policyName: namespace-monitoring-request
+  validationActions: ["Deny"]

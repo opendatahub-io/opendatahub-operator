@@ -40,6 +40,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
@@ -116,6 +117,9 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		OwnsGVK(gvk.Perses, reconciler.Dynamic(reconciler.CrdExists(gvk.Perses))).
 		OwnsGVK(gvk.PersesDatasource, reconciler.Dynamic(reconciler.CrdExists(gvk.PersesDatasource))).
 		OwnsGVK(gvk.PersesDashboard, reconciler.Dynamic(reconciler.CrdExists(gvk.PersesDashboard))).
+		// Cluster-scoped validation policies
+		OwnsGVK(gvk.ValidatingAdmissionPolicy).
+		OwnsGVK(gvk.ValidatingAdmissionPolicyBinding).
 		// operands - watched
 		//
 		// By default the Watches functions adds:
@@ -150,6 +154,7 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(updatePrometheusConfigMap).
 		// These are only for new monitoring stack dependent Operators
 		WithAction(addMonitoringCapability).
+		WithAction(deployMonitoringAdmissionPolicies).
 		WithAction(deployMonitoringStackWithQuerierAndRestrictions).
 		WithAction(deployTracingStack).
 		WithAction(deployAlerting).
@@ -158,6 +163,7 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(deployPersesTempoIntegration).
 		WithAction(deployPersesPrometheusIntegration).
 		WithAction(deployNodeMetricsEndpoint).
+		WithAction(kustomize.NewAction()).
 		WithAction(template.NewAction(
 			template.WithDataFn(getTemplateData),
 		)).
