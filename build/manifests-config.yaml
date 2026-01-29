@@ -9,7 +9,7 @@ map:
     src: config
     dest: kserve
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 5adab97f0e65e0416e0b32f31547e11138613dbb
+    git.commit: f0a95fadf267033a10f515c855a176a958b28775
   odh-kf-notebook-controller:
     src: components/notebook-controller/config
     dest: workbenches/kf-notebook-controller
@@ -125,10 +125,10 @@ additional_meta:
     git.commit: 36010c58f55af5ad656295035183fd6a1ac0b6a0
   odh-kserve-agent:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 5adab97f0e65e0416e0b32f31547e11138613dbb
+    git.commit: f0a95fadf267033a10f515c855a176a958b28775
   odh-kserve-router:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: 5adab97f0e65e0416e0b32f31547e11138613dbb
+    git.commit: f0a95fadf267033a10f515c855a176a958b28775
   odh-kserve-storage-initializer:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 2c9e48da0e9db6835243292881df5ca3444a1643
