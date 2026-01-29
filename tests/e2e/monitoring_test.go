@@ -140,6 +140,11 @@ func monitoringTestSuite(t *testing.T) {
 			TestCase{"Setup monitoring admission components tests", monitoringServiceCtx.ValidateMonitoringWebhookTestsSetup},
 			TestCase{"Validate monitoring label value enforcement on namespace", monitoringServiceCtx.ValidateMonitoringLabelValueEnforcementOnNamespace},
 			TestCase{"Validate monitoring label value enforcement on monitors", monitoringServiceCtx.ValidateMonitoringLabelValueEnforcementOnMonitors},
+			TestCase{"Validate webhook skips non-monitored namespace", monitoringServiceCtx.ValidateWebhookSkipsNonMonitoredNamespace},
+			TestCase{"Validate webhook skips explicitly opted-out namespace", monitoringServiceCtx.ValidateWebhookSkipsExplicitlyOptedOutNamespace},
+			TestCase{"Validate webhook respects user opt-out", monitoringServiceCtx.ValidateWebhookRespectsUserOptOut},
+			TestCase{"Validate webhook idempotency", monitoringServiceCtx.ValidateWebhookIdempotency},
+			TestCase{"Validate webhook does not inject when monitoring disabled", monitoringServiceCtx.ValidateWebhookSkipsWhenMonitoringDisabled},
 		)
 	}
 
