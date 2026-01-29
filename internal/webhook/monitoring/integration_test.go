@@ -38,6 +38,10 @@ func TestMonitoringWebhook_PodMonitor(t *testing.T) {
 	})
 	g.Expect(env.Client().Create(ctx, testNamespace)).To(Succeed())
 
+	// Create Monitoring CR (required for webhook to inject labels)
+	monitoringCR := newMonitoringCR()
+	g.Expect(env.Client().Create(ctx, monitoringCR)).To(Succeed())
+
 	// Create PodMonitor using helper - webhook should inject monitoring label
 	podMonitor := newPodMonitor(testPodMonitor, ns)
 
@@ -71,6 +75,10 @@ func TestMonitoringWebhook_ServiceMonitor(t *testing.T) {
 	})
 	g.Expect(env.Client().Create(ctx, testNamespace)).To(Succeed())
 
+	// Create Monitoring CR (required for webhook to inject labels)
+	monitoringCR := newMonitoringCR()
+	g.Expect(env.Client().Create(ctx, monitoringCR)).To(Succeed())
+
 	// Create ServiceMonitor using helper - webhook should inject monitoring label
 	serviceMonitor := newServiceMonitor(testServiceMonitor, ns)
 
@@ -101,6 +109,10 @@ func TestMonitoringWebhook_Update(t *testing.T) {
 	ns := fmt.Sprintf("test-ns-%s", xid.New().String())
 	testNamespace := newMonitoredNamespace(ns)
 	g.Expect(env.Client().Create(ctx, testNamespace)).To(Succeed())
+
+	// Create Monitoring CR (required for webhook to check monitoring is enabled)
+	monitoringCR := newMonitoringCR()
+	g.Expect(env.Client().Create(ctx, monitoringCR)).To(Succeed())
 
 	// Create PodMonitor with monitoring label explicitly set to "false"
 	// Even though namespace is monitored, webhook should respect this value
