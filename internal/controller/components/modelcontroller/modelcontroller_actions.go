@@ -24,11 +24,12 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
-func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	// early exist
 	mc, ok := rr.Instance.(*componentApi.ModelController)
 	if !ok {
@@ -46,10 +47,16 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 		mrState = operatorv1.Managed
 	}
 
+	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
+	if err != nil {
+		return err
+	}
+
 	extraParamsMap := map[string]string{
 		"nim-state":           strings.ToLower(string(nimState)),
 		"kserve-state":        strings.ToLower(string(mc.Spec.Kserve.ManagementState)),
 		"modelregistry-state": strings.ToLower(string(mrState)),
+		"app-namespace":       appNamespace,
 	}
 	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), "params.env", nil, extraParamsMap); err != nil {
 		return fmt.Errorf("failed to update images on path %s: %w", rr.Manifests[0].String(), err)
