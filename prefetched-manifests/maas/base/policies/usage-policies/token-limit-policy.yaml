@@ -18,27 +18,24 @@ spec:
         - limit: 100
           window: 1m
       when:
-        - predicate: |
-            auth.identity.tier == "free"
+        - predicate: auth.identity.tier == "free" && !request.path.endsWith("/v1/models")
       counters:
         - expression: auth.identity.userid
-    
+
     premium-user-tokens:
       rates:
         - limit: 50000
           window: 1m
       when:
-        - predicate: |
-            auth.identity.tier == "premium"
+        - predicate: auth.identity.tier == "premium" && !request.path.endsWith("/v1/models")
       counters:
         - expression: auth.identity.userid
+
     enterprise-user-tokens:
       rates:
         - limit: 100000
           window: 1m
       when:
-        - predicate: |
-            auth.identity.tier == "enterprise"
+        - predicate: auth.identity.tier == "enterprise" && !request.path.endsWith("/v1/models")
       counters:
         - expression: auth.identity.userid
-

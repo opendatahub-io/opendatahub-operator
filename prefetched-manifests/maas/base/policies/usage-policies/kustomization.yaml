@@ -6,4 +6,3 @@ metadata:
 
 resources:
 - token-limit-policy.yaml
-- rate-limit-policy.yaml
