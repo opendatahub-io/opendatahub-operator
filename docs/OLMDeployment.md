@@ -113,7 +113,7 @@ EOF
 
 # Wait for catalog to be ready
 oc wait --for=jsonpath='{.status.connectionState.lastObservedState}'=READY \
-  catalogsource/${OPERATOR_NAME}s -n ${OPERATOR_NAMESPACE} --timeout=120s
+  catalogsource/${OPERATOR_NAME}-catalog -n ${OPERATOR_NAMESPACE} --timeout=120s
 
 # Create Subscription
 cat << EOF | oc create -f -
