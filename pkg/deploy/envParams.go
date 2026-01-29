@@ -121,3 +121,43 @@ func ApplyParams(componentPath string, file string, imageParamsMap map[string]st
 
 	return nil
 }
+
+/*
+ApplyParamsWithFallback applies params.env with a uniform fallback mechanism:
+ 1. First tries: <componentPath>/overlays/<overlayName>/params.env
+ 2. Falls back to: <componentPath>/base/params.env
+
+Returns the path to the params.env file that was used (empty if neither exists).
+*/
+func ApplyParamsWithFallback(componentPath string, overlayName string, imageParamsMap map[string]string, extraParamsMaps ...map[string]string,
+) (string, error) {
+	// Platform-specific overlay
+	overlayPath := filepath.Join(componentPath, "overlays", overlayName)
+	overlayParamsFile := filepath.Join(overlayPath, "params.env")
+
+	if _, err := os.Stat(overlayParamsFile); err == nil {
+		// Overlay params.env exists, use it
+		if err := ApplyParams(overlayPath, "params.env", imageParamsMap, extraParamsMaps...); err != nil {
+			return "", fmt.Errorf("failed to apply overlay params from %s: %w", overlayParamsFile, err)
+		}
+		return overlayParamsFile, nil
+	} else if !os.IsNotExist(err) {
+		return "", fmt.Errorf("failed to check overlay params file %s: %w", overlayParamsFile, err)
+	}
+
+	// Fallback to base
+	basePath := filepath.Join(componentPath, "base")
+	baseParamsFile := filepath.Join(basePath, "params.env")
+
+	if _, err := os.Stat(baseParamsFile); err == nil {
+		// Base params.env exists, use it as fallback
+		if err := ApplyParams(basePath, "params.env", imageParamsMap, extraParamsMaps...); err != nil {
+			return "", fmt.Errorf("failed to apply base params from %s: %w", baseParamsFile, err)
+		}
+		return baseParamsFile, nil
+	} else if !os.IsNotExist(err) {
+		return "", fmt.Errorf("failed to check base params file %s: %w", baseParamsFile, err)
+	}
+
+	return "", fmt.Errorf("params.env not found: checked overlay=%s, base=%s", overlayParamsFile, baseParamsFile)
+}
