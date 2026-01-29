@@ -231,24 +231,9 @@ data:
         - source_labels: [__meta_kubernetes_namespace]
           target_label: namespace
 
-    - job_name: 'KubeRay Operator'
-      honor_labels: true
-      metrics_path: /metrics
-      scheme: http
-      kubernetes_sd_configs:
-        - role: endpoints
-          namespaces:
-            names:
-              - <odh_application_namespace>
-      relabel_configs:
-        - source_labels: [__meta_kubernetes_service_name]
-          regex: ^(kuberay-operator)$
-          target_label: kubernetes_name
-          action: keep
-        - source_labels: [__address__]
-          regex: (.+):(\d+)
-          target_label: __address__
-          replacement: ${1}:8080
+    # NOTE: KubeRay Operator scrape config has been removed for decentralized monitoring.
+    # Ray metrics are now scraped via ServiceMonitor deployed by upstream KubeRay.
+    # The mutating webhook injects opendatahub.io/monitoring=true label for OTel discovery.
 
     - job_name: 'KubeFlow Training Operator'
       honor_labels: true
@@ -1092,7 +1077,8 @@ data:
       interval: 1m
       rules:
         - alert: KubeRay Operator is not running
-          expr: absent(up{job=~'KubeRay Operator'}) or up{job=~'KubeRay Operator'} != 1
+          # Updated for decentralized monitoring - matches ServiceMonitor job name pattern
+          expr: absent(up{job=~'serviceMonitor/.*kuberay.*'}) or up{job=~'serviceMonitor/.*kuberay.*'} != 1
           labels:
             severity: warning
           annotations:
