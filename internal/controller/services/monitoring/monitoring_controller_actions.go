@@ -25,6 +25,7 @@ import (
 const (
 	// Template files.
 	MonitoringStackTemplate                       = "resources/monitoring-stack.tmpl.yaml"
+	MonitoringAdmissionPoliciesTemplate           = "resources/monitoring-admission-policies.tmpl.yaml"
 	MonitoringStackAlertmanagerRBACTemplate       = "resources/monitoringstack-alertmanager-rbac.tmpl.yaml"
 	TempoMonolithicTemplate                       = "resources/tempo-monolithic.tmpl.yaml"
 	TempoStackTemplate                            = "resources/tempo-stack.tmpl.yaml"
@@ -170,6 +171,29 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 			return updatePrometheusConfig(ctx, false, componentRules[ch.GetName()])
 		}
 	})
+}
+
+// deployMonitoringAdmissionPolicies handles deployment of admission policies for monitoring resources.
+// Base policies (label value validation) are always deployed.
+// Strict policies (namespace restrictions) are only deployed when admission.strictNamespaces is enabled.
+//
+// Note: ValidatingAdmissionPolicy is a built-in Kubernetes API resource (not a CRD) available in K8s 1.26+.
+// If the API is not available, the controller setup will fail when trying to create the watch, providing
+// a clear error message to the user that their cluster doesn't support this feature.
+func deployMonitoringAdmissionPolicies(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	_, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	// Deploy admission policy templates
+	// If the ValidatingAdmissionPolicy API doesn't exist, deployment will fail with a clear error
+	templates := []odhtypes.TemplateInfo{
+		{FS: resourcesFS, Path: MonitoringAdmissionPoliciesTemplate},
+	}
+
+	rr.Templates = append(rr.Templates, templates...)
+	return nil
 }
 
 // deployMonitoringStackWithQuerierAndRestrictions handles deployment of MonitoringStack and ThanosQuerier components.
