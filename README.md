@@ -525,6 +525,8 @@ spec:
       managementState: Removed
     mlflowoperator:
       managementState: Managed
+    sparkoperator:
+      managementState: Managed
 ```
 
 2. Enable only Dashboard and Workbenches

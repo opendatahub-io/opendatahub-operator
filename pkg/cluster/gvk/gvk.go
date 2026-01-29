@@ -339,6 +339,12 @@ var (
 		Kind:    componentApi.MLflowOperatorKind,
 	}
 
+	SparkOperator = schema.GroupVersionKind{
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.SparkOperatorKind,
+	}
+
 	CustomResourceDefinition = schema.GroupVersionKind{
 		Group:   "apiextensions.k8s.io",
 		Version: "v1",
