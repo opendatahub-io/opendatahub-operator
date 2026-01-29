@@ -53,6 +53,9 @@ metadata:
             "mlflowoperator": {
               "managementState": "Removed"
             },
+            "sparkoperator": {
+              "managementState": "Removed"
+            },
             "modelregistry": {
               "managementState": "Managed",
               "registriesNamespace": "rhoai-model-registries"
@@ -63,8 +66,11 @@ metadata:
             "workbenches": {
               "managementState": "Managed"
             },
-            "trainingoperator": {
+            "trainer": {
               "managementState": "Managed"
+            },
+            "trainingoperator": {
+              "managementState": "Removed"
             },
             "trustyai": {
               "managementState": "Managed"
@@ -74,15 +80,16 @@ metadata:
       }
     operatorframework.io/suggested-namespace: redhat-ods-operator
     operators.openshift.io/infrastructure-features: '["disconnected"]'
-    operators.operatorframework.io/internal-objects: |-
-      ["featuretrackers.features.opendatahub.io",
+    operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "dashboards.components.platform.opendatahub.io", "datasciencepipelines.components.platform.opendatahub.io",
       "kserves.components.platform.opendatahub.io", "kueues.components.platform.opendatahub.io",
       "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
       "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",
       "workbenches.components.platform.opendatahub.io", "monitorings.services.platform.opendatahub.io",
       "modelcontrollers.components.platform.opendatahub.io", "feastoperators.components.platform.opendatahub.io",
-      "llamastackoperators.components.platform.opendatahub.io", "mlflowoperators.components.platform.opendatahub.io"]
+      "llamastackoperators.components.platform.opendatahub.io", "trainers.components.platform.opendatahub.io",
+      "mlflowoperators.components.platform.opendatahub.io", "modelsasservices.components.platform.opendatahub.io",
+      "sparkoperators.components.platform.opendatahub.io"]'
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
   name: rhods-operator.v2.0.0
@@ -152,6 +159,11 @@ spec:
       kind: Kserve
       name: kserves.components.platform.opendatahub.io
       version: v1alpha1
+    - description: SparkOperator is the Schema for the sparkoperators API
+      displayName: Spark Operator
+      kind: SparkOperator
+      name: sparkoperators.components.platform.opendatahub.io
+      version: v1alpha1
     - description: Kueue is the Schema for the kueues API
       displayName: Kueue
       kind: Kueue
@@ -172,6 +184,11 @@ spec:
       kind: ModelRegistry
       name: modelregistries.components.platform.opendatahub.io
       version: v1alpha1
+    - description: ModelsAsService is the Schema for the modelsasservice API
+      displayName: Models As Service
+      kind: ModelsAsService
+      name: modelsasservices.components.platform.opendatahub.io
+      version: v1alpha1
     - description: Monitoring is the Schema for the monitorings API
       displayName: Monitoring
       kind: Monitoring
@@ -181,6 +198,11 @@ spec:
       displayName: Ray
       kind: Ray
       name: rays.components.platform.opendatahub.io
+      version: v1alpha1
+    - description: Trainer is the Schema for the trainers API
+      displayName: Trainer
+      kind: Trainer
+      name: trainers.components.platform.opendatahub.io
       version: v1alpha1
     - description: TrainingOperator is the Schema for the trainingoperators API
       displayName: Training Operator
@@ -245,6 +267,7 @@ spec:
   - featurestore
   - llamastack
   - mlflow
+  - sparkoperator
   links:
   - name: Red Hat OpenShift AI
     url: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.0

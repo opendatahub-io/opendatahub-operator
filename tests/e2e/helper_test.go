@@ -19,10 +19,12 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
 	. "github.com/onsi/gomega"
@@ -158,11 +160,11 @@ func ExtractAndExpectValue[T any](g Gomega, in any, expression string, matchers 
 }
 
 // CreateDSCI creates a DSCInitialization CR.
-func CreateDSCI(name, groupVersion string, appNamespace, monitoringNamespace string) *dsciv2.DSCInitialization {
+func CreateDSCI(name, appNamespace, monitoringNamespace string) *dsciv2.DSCInitialization {
 	return &dsciv2.DSCInitialization{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       "DSCInitialization",
-			APIVersion: groupVersion,
+			Kind:       gvk.DSCInitialization.Kind,
+			APIVersion: gvk.DSCInitialization.GroupVersion().String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -178,6 +180,34 @@ func CreateDSCI(name, groupVersion string, appNamespace, monitoringNamespace str
 				},
 			},
 			TrustedCABundle: &dsciv2.TrustedCABundleSpec{
+				ManagementState: operatorv1.Managed,
+				CustomCABundle:  "",
+			},
+		},
+	}
+}
+
+// CreateDSCIv1 creates a DSCInitialization v1 CR.
+func CreateDSCIv1(name, appNamespace, monitoringNamespace string) *dsciv1.DSCInitialization {
+	return &dsciv1.DSCInitialization{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       gvk.DSCInitializationV1.Kind,
+			APIVersion: gvk.DSCInitializationV1.GroupVersion().String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: dsciv1.DSCInitializationSpec{
+			ApplicationsNamespace: appNamespace,
+			Monitoring: serviceApi.DSCIMonitoring{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Removed, // keep rhoai branch to Managed so we can test it
+				},
+				MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
+					Namespace: monitoringNamespace,
+				},
+			},
+			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
 				ManagementState: operatorv1.Managed,
 				CustomCABundle:  "",
 			},
@@ -266,6 +296,11 @@ func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceClust
 					},
 				},
 				MLflowOperator: componentApi.DSCMLflowOperator{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				SparkOperator: componentApi.DSCSparkOperator{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},

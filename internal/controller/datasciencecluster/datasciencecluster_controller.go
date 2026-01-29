@@ -55,6 +55,7 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 		Owns(&componentApi.FeastOperator{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.LlamaStackOperator{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.MLflowOperator{}, reconciler.WithPredicates(componentsPredicate)).
+		Owns(&componentApi.SparkOperator{}, reconciler.WithPredicates(componentsPredicate)).
 		Watches(
 			&dsciv2.DSCInitialization{},
 			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
