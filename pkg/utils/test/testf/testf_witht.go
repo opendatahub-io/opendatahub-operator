@@ -8,6 +8,7 @@ import (
 	"github.com/onsi/gomega"
 	gomegaTypes "github.com/onsi/gomega/types"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -192,6 +193,15 @@ func (t *WithT) Create(
 		ctx: t.Context(),
 		g:   t.WithT,
 		f: func(ctx context.Context) (*unstructured.Unstructured, error) {
+			// Clear metadata fields that should not be set during creation
+			// These fields are managed by the API server and will cause errors if present
+			obj.SetResourceVersion("")
+			obj.SetUID("")
+			obj.SetGeneration(0)
+			obj.SetCreationTimestamp(metav1.Time{})
+			obj.SetDeletionTimestamp(nil)
+			obj.SetManagedFields(nil)
+
 			err := t.Client().Create(ctx, obj, option...)
 			if err != nil {
 				return nil, StopErr(err, "failed to create resource: %s, nn: %s", obj.GetObjectKind().GroupVersionKind(), nn.String())

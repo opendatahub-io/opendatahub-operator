@@ -298,6 +298,26 @@ func TestOdhOperator(t *testing.T) {
 	// Remove any leftover resources from previous test runs before starting
 	CleanupPreviousTestResources(t)
 
+	// FAIL-FAST: Run infrastructure health check before expensive e2e tests
+	// This saves ~87 minutes of CI time per infrastructure failure (based on 6-month audit data)
+	t.Run("Infrastructure Health Check (Pre-Flight Validation)", func(t *testing.T) {
+		tc, err := NewTestContext(t)
+		if err != nil {
+			t.Fatalf("Failed to initialize test context for health check: %v", err)
+		}
+
+		if err := InfrastructureHealthCheck(tc); err != nil {
+			t.Fatalf("Infrastructure health check FAILED - failing fast to save CI time: %v", err)
+		}
+
+		t.Logf("Infrastructure health check PASSED - proceeding with e2e tests")
+	})
+
+	// If health check failed, stop here (t.Fatalf will have already stopped execution)
+	if t.Failed() {
+		return
+	}
+
 	if testOpts.operatorControllerTest {
 		// individual test suites after the operator is running
 		mustRun(t, "Operator Manager E2E Tests", odhOperatorTestSuite)
