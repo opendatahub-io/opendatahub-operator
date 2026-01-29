@@ -76,6 +76,7 @@ var componentRules = map[string]string{
 	componentApi.ModelControllerComponentName:      "odh-model-controller",
 	componentApi.FeastOperatorComponentName:        "feastoperator",
 	componentApi.LlamaStackOperatorComponentName:   "llamastackoperator",
+	componentApi.SparkOperatorComponentName:        "spark-operator",
 }
 
 //go:embed resources

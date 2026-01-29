@@ -64,6 +64,9 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 				LlamaStackOperator: componentApi.DSCLlamaStackOperator{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
 				},
+				SparkOperator: componentApi.DSCSparkOperator{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
+				},
 			},
 		},
 	}
