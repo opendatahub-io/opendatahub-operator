@@ -218,9 +218,9 @@ relatedImages:
     - name: RELATED_IMAGE_ODH_MLSERVER_IMAGE
       value: quay.io/opendatahub/mlserver@sha256:0dcba71dffef6e16c95174f204f01d59bcf448055693a5c79b036fafbec9ac7c
       component: odh-mlserver
-#    - name: RELATED_IMAGE_ODH_MLFLOW_IMAGE
-#      value: quay.io/opendatahub/mlflow@sha256:2b028ad64974329bbce67d8cb612fa60182addd52ebdd97caeeb28deb3712f41
-#      component: odh-mlflow
+    - name: RELATED_IMAGE_ODH_MLFLOW_IMAGE
+      value: quay.io/opendatahub/mlflow@sha256:2b028ad64974329bbce67d8cb612fa60182addd52ebdd97caeeb28deb3712f41
+      component: odh-mlflow
     - name: RELATED_IMAGE_ODH_MLFLOW_OPERATOR_IMAGE
       value: quay.io/opendatahub/mlflow-operator@sha256:1830440fb16a3b338e54c40f6d74065ed18ac9c074acac3b7db798e5286899dd
       component: odh-mlflow-operator
@@ -230,6 +230,6 @@ relatedImages:
     - name: RELATED_IMAGE_ODH_TRAINING_CUDA128_TORCH29_PY312_IMAGE
       value: quay.io/opendatahub/odh-training-cuda128-torch29-py312@sha256:db0cb8218852049630421ebf6237500acf437d2e5a97ebad3a7f65fb02b6cbfc
       component: odh-training-cuda128-torch29-py312
-#    - name: RELATED_IMAGE_ODH_MOD_ARCH_MAAS_IMAGE
-#      value: quay.io/opendatahub/mod-arch-maas@sha256:b884966ed030a9c8abaace0491ee1ae3f075a9060ebaa1953c5d0bce028a8e1a
-#      component: odh-mod-arch-maas
+    - name: RELATED_IMAGE_ODH_MOD_ARCH_MAAS_IMAGE
+      value: quay.io/opendatahub/mod-arch-maas@sha256:b884966ed030a9c8abaace0491ee1ae3f075a9060ebaa1953c5d0bce028a8e1a
+      component: odh-mod-arch-maas
