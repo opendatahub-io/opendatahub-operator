@@ -159,6 +159,8 @@ spec:
       managementState: Removed
     mlflowoperator:
       managementState: Removed
+    sparkoperator:
+      managementState: Managed
 ```
 
 2. Enable only Dashboard and Workbenches(Jupyter Notebooks) in DataScienceCluster

@@ -35,3 +35,5 @@ spec:
       managementState: "Removed"
     mlflowoperator:
       managementState: "Removed"
+    sparkoperator:
+      managementState: "Removed"

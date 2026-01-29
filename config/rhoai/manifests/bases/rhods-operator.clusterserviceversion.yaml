@@ -53,6 +53,9 @@ metadata:
             "mlflowoperator": {
               "managementState": "Removed"
             },
+            "sparkoperator": {
+              "managementState": "Removed"
+            },
             "modelregistry": {
               "managementState": "Managed",
               "registriesNamespace": "rhoai-model-registries"
@@ -85,7 +88,8 @@ metadata:
       "workbenches.components.platform.opendatahub.io", "monitorings.services.platform.opendatahub.io",
       "modelcontrollers.components.platform.opendatahub.io", "feastoperators.components.platform.opendatahub.io",
       "llamastackoperators.components.platform.opendatahub.io", "trainers.components.platform.opendatahub.io",
-      "mlflowoperators.components.platform.opendatahub.io", "modelsasservices.components.platform.opendatahub.io"]'
+      "mlflowoperators.components.platform.opendatahub.io", "modelsasservices.components.platform.opendatahub.io",
+      "sparkoperators.components.platform.opendatahub.io"]'
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
   name: rhods-operator.v2.0.0
@@ -154,6 +158,11 @@ spec:
       displayName: Kserve
       kind: Kserve
       name: kserves.components.platform.opendatahub.io
+      version: v1alpha1
+    - description: SparkOperator is the Schema for the sparkoperators API
+      displayName: Spark Operator
+      kind: SparkOperator
+      name: sparkoperators.components.platform.opendatahub.io
       version: v1alpha1
     - description: Kueue is the Schema for the kueues API
       displayName: Kueue
@@ -258,6 +267,7 @@ spec:
   - featurestore
   - llamastack
   - mlflow
+  - sparkoperator
   links:
   - name: Red Hat OpenShift AI
     url: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.0

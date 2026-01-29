@@ -138,6 +138,7 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 		componentApi.MLflowOperatorComponentName:       "mlflow-operator-controller-manager",
 		componentApi.ModelRegistryComponentName:        "model-registry-operator-controller-manager",
 		componentApi.RayComponentName:                  "kuberay-operator",
+		componentApi.SparkOperatorComponentName:        "spark-operator-controller",
 		componentApi.TrainingOperatorComponentName:     "kubeflow-training-operator",
 		componentApi.TrainerComponentName:              "trainer-controller-manager",
 		// componentApi.TrustyAIComponentName:             "trustyai-service-operator-controller-manager",
