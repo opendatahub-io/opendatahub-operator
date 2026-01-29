@@ -63,8 +63,6 @@ func newPodMonitor(name, namespace string, opts ...envtestutil.ObjectOption) cli
 }
 
 // Helper function to create ServiceMonitor.
-//
-//nolint:unparam // name parameter kept for consistency with newPodMonitor and future flexibility
 func newServiceMonitor(name, namespace string, opts ...envtestutil.ObjectOption) client.Object {
 	serviceMonitor := resources.GvkToUnstructured(gvk.CoreosServiceMonitor)
 	serviceMonitor.SetName(name)
@@ -345,6 +343,134 @@ func TestInjector_SkipsObjectsMarkedForDeletion(t *testing.T) {
 	g.Expect(resp.Allowed).Should(BeTrue())
 	g.Expect(resp.Patches).Should(BeEmpty())
 	g.Expect(resp.Result.Message).Should(ContainSubstring("marked for deletion"))
+}
+
+// TestInjector_InjectsLabel tests that the monitoring label is injected into monitoring resources.
+func TestInjector_InjectsLabel(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name         string
+		resourceName string
+		gvkResource  schema.GroupVersionKind
+		createFunc   func(name, namespace string, opts ...envtestutil.ObjectOption) client.Object
+	}{
+		{
+			name:         "PodMonitor",
+			resourceName: "podmonitors",
+			gvkResource:  gvk.CoreosPodMonitor,
+			createFunc:   newPodMonitor,
+		},
+		{
+			name:         "ServiceMonitor",
+			resourceName: "servicemonitors",
+			gvkResource:  gvk.CoreosServiceMonitor,
+			createFunc:   newServiceMonitor,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			sch, ctx := setupTestEnvironment(t)
+
+			// Create namespace with monitoring label
+			ns := newMonitoredNamespace(testNamespace)
+			// Create Monitoring CR (required for injection to happen)
+			monitoringCR := newMonitoringCR()
+
+			cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(ns, monitoringCR).Build()
+			injector := createWebhookInjector(cli, sch)
+
+			// Create monitor without the monitoring label
+			monitor := tc.createFunc(testPodMonitor, testNamespace)
+
+			req := envtestutil.NewAdmissionRequest(
+				t,
+				admissionv1.Create,
+				monitor,
+				tc.gvkResource,
+				metav1.GroupVersionResource{
+					Group:    tc.gvkResource.Group,
+					Version:  tc.gvkResource.Version,
+					Resource: tc.resourceName,
+				},
+			)
+
+			resp := injector.Handle(ctx, req)
+			g.Expect(resp.Allowed).Should(BeTrue())
+			g.Expect(resp.Patches).Should(Not(BeEmpty()))
+			g.Expect(hasLabelPatch(resp.Patches)).Should(BeTrue(), "Should have monitoring label patch")
+		})
+	}
+}
+
+// TestInjector_HandlesUpdateOperations tests that update operations are handled correctly.
+func TestInjector_HandlesUpdateOperations(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create namespace with monitoring label
+	ns := newMonitoredNamespace(testNamespace)
+	// Create Monitoring CR (required for injection to happen)
+	monitoringCR := newMonitoringCR()
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(ns, monitoringCR).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	testCases := []struct {
+		name     string
+		workload client.Object
+		gvkToUse schema.GroupVersionKind
+	}{
+		{
+			name:     "PodMonitor UPDATE operation",
+			workload: newPodMonitor(testPodMonitor, testNamespace),
+			gvkToUse: gvk.CoreosPodMonitor,
+		},
+		{
+			name:     "ServiceMonitor UPDATE operation",
+			workload: newServiceMonitor(testServiceMonitor, testNamespace),
+			gvkToUse: gvk.CoreosServiceMonitor,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var resourceName string
+			if tc.gvkToUse.Kind == kindPodMonitor {
+				resourceName = testPodMonitor
+			} else {
+				resourceName = testServiceMonitor
+			}
+
+			req := envtestutil.NewAdmissionRequest(
+				t,
+				admissionv1.Update,
+				tc.workload,
+				tc.gvkToUse,
+				metav1.GroupVersionResource{
+					Group:    tc.gvkToUse.Group,
+					Version:  tc.gvkToUse.Version,
+					Resource: resourceName,
+				},
+			)
+
+			resp := injector.Handle(ctx, req)
+
+			// Verify update operation is processed correctly
+			g.Expect(resp.Allowed).Should(BeTrue())
+			g.Expect(resp.Patches).Should(Not(BeEmpty()))
+
+			// Verify specific patches are applied for update operations
+			g.Expect(resp.Result).Should(BeNil(), "Update operations should not return error results")
+			g.Expect(hasLabelPatch(resp.Patches)).Should(BeTrue(), "Should have monitoring label patch")
+		})
+	}
 }
 
 // TestInjector_PreservesExistingLabels tests that existing labels are preserved when injecting the monitoring label.
