@@ -34,6 +34,16 @@ const (
 
 	// Manifest paths.
 	BaseManifestsSourcePath = "overlays/odh"
+
+	// GatewayAuthPolicyName is the name of the AuthPolicy resource that configures
+	// authentication for the MaaS gateway. This resource needs to be deployed to
+	// the same namespace as the gateway it targets.
+	GatewayAuthPolicyName = "gateway-auth-policy"
+
+	// GatewayDestinationRuleName is the name of the DestinationRule resource that
+	// configures TLS for the MaaS gateway. This resource needs to be deployed to
+	// the same namespace as the gateway it targets.
+	GatewayDestinationRuleName = "maas-api-backend-tls"
 )
 
 var (

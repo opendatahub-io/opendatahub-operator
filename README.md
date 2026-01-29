@@ -309,6 +309,13 @@ e.g `make image-build USE_LOCAL=true"`
 
 #### Deployment
 
+##### Deployment Methods Comparison
+
+| Method | Use Case | OLM Required | Appears in OpenShift Console |
+|--------|----------|--------------|------------------------------|
+| **OLM Deployment** | Production-like, catalog-based | ✅ Yes | ✅ Yes (Operators section) |
+| **Direct Deployment** (`make deploy`) | Development, testing | ❌ No | ❌ No |
+
 **Deploying operator locally**
 
 - Define operator namespace
@@ -330,6 +337,11 @@ e.g `make image-build USE_LOCAL=true"`
   ```
 
 **Deploying operator using OLM**
+
+***Detailed Deployement instructions***
+- [OpenDataHub and RHOAI OLM Deployment](./docs/OLMDeployment.md)
+
+***Quick-Start***
 
 - To create a new bundle in defined operator namespace, run following command:
 
@@ -494,26 +506,27 @@ spec:
         managementState: Managed
       rawDeploymentServiceConfig: Headed
     kueue:
-      managementState: Unmanaged
+      managementState: Removed
     modelregistry:
       managementState: Managed
-      registriesNamespace: "odh-model-registries"
     ray:
       managementState: Managed
     trainingoperator:
       managementState: Managed
+    trainer:
+      managementState: Managed
     trustyai:
       managementState: Managed
-      eval:
-        lmeval:
-          permitCodeExecution: deny
-          permitOnline: deny
     workbenches:
       managementState: Managed
     feastoperator:
       managementState: Managed
     llamastackoperator:
       managementState: Removed
+    mlflowoperator:
+      managementState: Managed
+    sparkoperator:
+      managementState: Managed
 ```
 
 2. Enable only Dashboard and Workbenches
@@ -618,7 +631,7 @@ spec:
     type: SelfSigned
 ```
 
-This will create a gateway `data-science-gateway.apps.example.com` (using default subdomain)
+This will create a gateway `rh-ai.apps.example.com` (using default subdomain)
 
 
 For an advanced example with custom subdomain:
@@ -663,7 +676,7 @@ spec:
 - **Manual configuration needed**: Only configure this CR manually if you want to enable OIDC authentication mode or customize ingress gateway settings
 - OIDC configuration is optional and only needed when cluster is in OIDC authentication mode
 - Certificate types can be `OpenshiftDefaultIngress`, `SelfSigned`, or `Provided`
-- If `subdomain` is not specified or is empty, the default value `data-science-gateway` is used.
+- If `subdomain` is not specified or is empty, the default value `rh-ai` is used.
 - If `domain` is not specified, the cluster's default domain is used.
 - **NetworkPolicy is enabled by default** to secure kube-auth-proxy traffic. It restricts ingress to Gateway pods and monitoring namespaces only.
 

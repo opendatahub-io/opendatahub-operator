@@ -30,37 +30,20 @@ func TestNewCRObject(t *testing.T) {
 	handler := &componentHandler{}
 	g := NewWithT(t)
 
-	t.Run("creates CR with default Gateway configuration when DSC has no custom Gateway", func(t *testing.T) {
+	t.Run("creates CR with correct metadata", func(t *testing.T) {
 		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
 
 		cr := handler.NewCRObject(dsc)
 		g.Expect(cr).ShouldNot(BeNil())
 		g.Expect(cr).Should(BeAssignableToTypeOf(&componentApi.ModelsAsService{}))
 
+		// GatewayRef defaults are applied by API server (kubebuilder) or during reconciliation (validateGateway)
 		g.Expect(cr).Should(WithTransform(json.Marshal, And(
 			jq.Match(`.metadata.name == "%s"`, componentApi.ModelsAsServiceInstanceName),
 			jq.Match(`.kind == "%s"`, componentApi.ModelsAsServiceKind),
 			jq.Match(`.apiVersion == "%s"`, componentApi.GroupVersion),
 			jq.Match(`.metadata.annotations["%s"] == "%s"`, annotations.ManagementStateAnnotation, operatorv1.Managed),
-			jq.Match(`.spec.gateway.namespace == "%s"`, DefaultGatewayNamespace),
-			jq.Match(`.spec.gateway.name == "%s"`, DefaultGatewayName),
 		)))
-	})
-
-	t.Run("creates CR with custom Gateway configuration from DSC specification", func(t *testing.T) {
-		customGateway := componentApi.GatewaySpec{
-			Namespace: "custom-gateway-namespace",
-			Name:      "custom-gateway-name",
-		}
-		dsc := createDSCWithMaaSEnabledAndGateway(customGateway)
-
-		cr := handler.NewCRObject(dsc)
-		g.Expect(cr).ShouldNot(BeNil())
-
-		maasObj, ok := cr.(*componentApi.ModelsAsService)
-		g.Expect(ok).Should(BeTrue())
-		g.Expect(maasObj.Spec.Gateway.Namespace).Should(Equal("custom-gateway-namespace"))
-		g.Expect(maasObj.Spec.Gateway.Name).Should(Equal("custom-gateway-name"))
 	})
 
 	t.Run("propagates management state from DSC to ModelsAsService annotations", func(t *testing.T) {
@@ -113,14 +96,6 @@ func TestIsEnabled(t *testing.T) {
 }
 
 func createDSCWithKServeAndMaaS(kserveState, maasState operatorv1.ManagementState) *dscv2.DataScienceCluster {
-	return createDSCWithMaaSGateway(kserveState, maasState, componentApi.GatewaySpec{})
-}
-
-func createDSCWithMaaSEnabledAndGateway(gatewaySpec componentApi.GatewaySpec) *dscv2.DataScienceCluster {
-	return createDSCWithMaaSGateway(operatorv1.Managed, operatorv1.Managed, gatewaySpec)
-}
-
-func createDSCWithMaaSGateway(kserveState, maasState operatorv1.ManagementState, gatewaySpec componentApi.GatewaySpec) *dscv2.DataScienceCluster {
 	return &dscv2.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-dsc",
@@ -134,9 +109,6 @@ func createDSCWithMaaSGateway(kserveState, maasState operatorv1.ManagementState,
 					KserveCommonSpec: componentApi.KserveCommonSpec{
 						ModelsAsService: componentApi.DSCModelsAsServiceSpec{
 							ManagementState: maasState,
-							ModelsAsServiceSpec: componentApi.ModelsAsServiceSpec{
-								Gateway: gatewaySpec,
-							},
 						},
 					},
 				},

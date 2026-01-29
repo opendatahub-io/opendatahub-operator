@@ -44,6 +44,7 @@ const (
 const (
 	gatewayConfigName        = serviceApi.GatewayConfigName
 	gatewayName              = gateway.DefaultGatewayName
+	gatewaySubdomain         = gateway.DefaultGatewaySubdomain
 	gatewayClassName         = gateway.GatewayClassName
 	gatewayControllerName    = gateway.GatewayControllerName
 	gatewayNamespace         = gateway.GatewayNamespace
@@ -87,9 +88,11 @@ func gatewayTestSuite(t *testing.T) {
 		{"Validate Gateway infrastructure", gatewayCtx.ValidateGatewayInfrastructure},
 		{"Validate OAuth client and secret creation", gatewayCtx.ValidateOAuthClientAndSecret},
 		{"Validate authentication proxy deployment", gatewayCtx.ValidateAuthProxyDeployment},
+		{"Validate HorizontalPodAutoscaler creation", gatewayCtx.ValidateHPA},
 		{"Validate NetworkPolicy creation", gatewayCtx.ValidateNetworkPolicy},
 		{"Validate OAuth callback HTTPRoute", gatewayCtx.ValidateOAuthCallbackRoute},
 		{"Validate EnvoyFilter creation", gatewayCtx.ValidateEnvoyFilter},
+		{"Validate EDS endpoint discovery", gatewayCtx.ValidateEDSEndpointDiscovery},
 		{"Validate Gateway ready status", gatewayCtx.ValidateGatewayReadyStatus},
 		{"Validate unauthenticated access redirects to login", gatewayCtx.ValidateUnauthenticatedRedirect},
 	}
@@ -245,8 +248,8 @@ func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 			Namespace: gatewayNamespace,
 		}),
 		WithCondition(And(
-			// replica count
-			jq.Match(`.spec.replicas == 1`),
+			// replica count (minimum 2 for HPA)
+			jq.Match(`.spec.replicas == 2`),
 
 			// basic pod template checks
 			jq.Match(`.spec.selector.matchLabels.app == "%s"`, kubeAuthProxyName),
@@ -324,7 +327,7 @@ func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 	)
 
 	// wait for deployment readiness using TestContext helper
-	tc.EnsureDeploymentReady(types.NamespacedName{Name: kubeAuthProxyName, Namespace: gatewayNamespace}, 1)
+	tc.EnsureDeploymentReady(types.NamespacedName{Name: kubeAuthProxyName, Namespace: gatewayNamespace}, 2)
 
 	// kube-auth-proxy service
 	tc.EnsureResourceExists(
@@ -353,6 +356,57 @@ func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 	)
 
 	t.Log("kube-auth-proxy deployment and service validation completed")
+}
+
+// ValidateHPA validates the HorizontalPodAutoscaler for kube-auth-proxy.
+//
+// The HPA automatically scales kube-auth-proxy pods based on CPU utilization to handle varying load.
+// This test verifies:
+// - HPA exists with correct target deployment reference
+// - Minimum replicas is set to 2 (matching deployment initial replica count)
+// - Maximum replicas allows scaling up to 10 pods
+// - CPU utilization target is set to 70%.
+// - Scaling behavior is configured for stable scale-down and rapid scale-up.
+func (tc *GatewayTestCtx) ValidateHPA(t *testing.T) {
+	t.Helper()
+	t.Log("Validating HorizontalPodAutoscaler for kube-auth-proxy")
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.HorizontalPodAutoscaler, types.NamespacedName{
+			Name:      kubeAuthProxyName,
+			Namespace: gatewayNamespace,
+		}),
+		WithCondition(And(
+			// Target deployment reference
+			jq.Match(`.spec.scaleTargetRef.apiVersion == "apps/v1"`),
+			jq.Match(`.spec.scaleTargetRef.kind == "Deployment"`),
+			jq.Match(`.spec.scaleTargetRef.name == "%s"`, kubeAuthProxyName),
+
+			// Replica bounds
+			jq.Match(`.spec.minReplicas == 2`),
+			jq.Match(`.spec.maxReplicas == 10`),
+
+			// Scale-down behavior: 5 min stabilization, 50% reduction per minute
+			jq.Match(`.spec.behavior.scaleDown.stabilizationWindowSeconds == 300`),
+			jq.Match(`.spec.behavior.scaleDown.policies[0].type == "Percent"`),
+			jq.Match(`.spec.behavior.scaleDown.policies[0].value == 50`),
+			jq.Match(`.spec.behavior.scaleDown.policies[0].periodSeconds == 60`),
+
+			// Scale-up behavior: immediate, aggressive scaling
+			jq.Match(`.spec.behavior.scaleUp.stabilizationWindowSeconds == 0`),
+			jq.Match(`.spec.behavior.scaleUp.selectPolicy == "Max"`),
+
+			// CPU utilization metric
+			jq.Match(`.spec.metrics | length == 1`),
+			jq.Match(`.spec.metrics[0].type == "Resource"`),
+			jq.Match(`.spec.metrics[0].resource.name == "cpu"`),
+			jq.Match(`.spec.metrics[0].resource.target.type == "Utilization"`),
+			jq.Match(`.spec.metrics[0].resource.target.averageUtilization == 70`),
+		)),
+		WithCustomErrorMsg("HPA should exist with correct scaling behavior and CPU target=70%%"),
+	)
+
+	t.Log("HorizontalPodAutoscaler validation completed")
 }
 
 // ValidateOAuthCallbackRoute validates the OAuth callback HTTPRoute configuration.
@@ -407,7 +461,8 @@ func (tc *GatewayTestCtx) ValidateEnvoyFilter(t *testing.T) {
 	authProxyFQDN := getServiceFQDN(kubeAuthProxyName, gatewayNamespace)
 	authProxyHostPort := net.JoinHostPort(authProxyFQDN, strconv.Itoa(kubeAuthProxyHTTPSPort))
 	authProxyURI := "https://" + authProxyHostPort + "/oauth2/auth"
-	serviceCAPath := "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
+	// Istio auto-creates EDS clusters with this naming pattern for better load balancing
+	istioEDSClusterName := fmt.Sprintf("outbound|%d||%s", kubeAuthProxyHTTPSPort, authProxyFQDN)
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.EnvoyFilter, types.NamespacedName{
@@ -418,59 +473,72 @@ func (tc *GatewayTestCtx) ValidateEnvoyFilter(t *testing.T) {
 			// workload selector
 			jq.Match(`.spec.workloadSelector.labels."%s" == "%s"`, labels.GatewayAPI.GatewayName, gatewayName),
 
-			// config patches length
 			jq.Match(`.spec.configPatches | length == 3`),
 
-			// Patch 1: ext_authz
+			// Patch 0: Legacy subdomain redirect (data-science-gateway -> rh-ai)
 			jq.Match(`.spec.configPatches[0].applyTo == "HTTP_FILTER"`),
 			jq.Match(`.spec.configPatches[0].match.context == "GATEWAY"`),
 			jq.Match(`.spec.configPatches[0].patch.operation == "INSERT_BEFORE"`),
-			jq.Match(`.spec.configPatches[0].patch.value.name == "envoy.filters.http.ext_authz"`),
+			jq.Match(`.spec.configPatches[0].patch.value.name == "envoy.filters.http.lua.redirect"`),
+			// Note: Lua pattern uses %-escaped dashes, so we check for the redirect status and target subdomain
+			jq.Match(`.spec.configPatches[0].patch.value.typed_config.inline_code | contains("301")`),
+			jq.Match(`.spec.configPatches[0].patch.value.typed_config.inline_code | contains("%s.")`, gatewaySubdomain),
 
-			// ext_authz config - server/uri and timeout
-			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.server_uri.cluster == "%s"`, kubeAuthProxyName),
-			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.server_uri.timeout == "5s"`),
-			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.server_uri.uri == "%s"`, authProxyURI),
+			// Patch 1: ext_authz
+			jq.Match(`.spec.configPatches[1].applyTo == "HTTP_FILTER"`),
+			jq.Match(`.spec.configPatches[1].match.context == "GATEWAY"`),
+			jq.Match(`.spec.configPatches[1].patch.operation == "INSERT_BEFORE"`),
+			jq.Match(`.spec.configPatches[1].patch.value.name == "envoy.filters.http.ext_authz"`),
+
+			// ext_authz config - uses Istio's EDS cluster for better load balancing across all pods
+			jq.Match(`.spec.configPatches[1].patch.value.typed_config.http_service.server_uri.cluster == "%s"`, istioEDSClusterName),
+			jq.Match(`.spec.configPatches[1].patch.value.typed_config.http_service.server_uri.timeout == "5s"`),
+			jq.Match(`.spec.configPatches[1].patch.value.typed_config.http_service.server_uri.uri == "%s"`, authProxyURI),
 
 			// ext_authz allowed headers
-			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.authorization_request.allowed_headers.patterns[0].exact == "cookie"`),
-			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.authorization_response.allowed_client_headers.patterns[0].exact == "set-cookie"`),
-			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.authorization_response.allowed_upstream_headers.patterns | any(.exact == "x-auth-request-user")`),
-			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.authorization_response.allowed_upstream_headers.patterns | any(.exact == "x-auth-request-email")`),
-			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.authorization_response.allowed_upstream_headers.patterns | any(.exact == "x-auth-request-access-token")`),
+			jq.Match(`.spec.configPatches[1].patch.value.typed_config.http_service.authorization_request.allowed_headers.patterns[0].exact == "cookie"`),
+			jq.Match(`.spec.configPatches[1].patch.value.typed_config.http_service.authorization_response.allowed_client_headers.patterns[0].exact == "set-cookie"`),
+			jq.Match(`.spec.configPatches[1].patch.value.typed_config.http_service.authorization_response.allowed_upstream_headers.patterns | any(.exact == "x-auth-request-user")`),
+			jq.Match(`.spec.configPatches[1].patch.value.typed_config.http_service.authorization_response.allowed_upstream_headers.patterns | any(.exact == "x-auth-request-email")`),
+			jq.Match(`.spec.configPatches[1].patch.value.typed_config.http_service.authorization_response.allowed_upstream_headers.patterns | any(.exact == "x-auth-request-access-token")`),
 
 			// Patch 2: Lua filter token forwarding
-			jq.Match(`.spec.configPatches[1].applyTo == "HTTP_FILTER"`),
-			jq.Match(`.spec.configPatches[1].patch.value.name == "envoy.lua"`),
-			jq.Match(`.spec.configPatches[1].patch.value.typed_config.inline_code | contains("x-auth-request-access-token")`),
-			jq.Match(`.spec.configPatches[1].patch.value.typed_config.inline_code | contains("Bearer")`),
-			jq.Match(`.spec.configPatches[1].patch.value.typed_config.inline_code | contains("authorization")`),
-
-			// Patch 3: Cluster for kube-auth-proxy
-			jq.Match(`.spec.configPatches[2].applyTo == "CLUSTER"`),
-			jq.Match(`.spec.configPatches[2].match.context == "GATEWAY"`),
-			jq.Match(`.spec.configPatches[2].patch.operation == "ADD"`),
-			jq.Match(`.spec.configPatches[2].patch.value.name == "%s"`, kubeAuthProxyName),
-			jq.Match(`.spec.configPatches[2].patch.value.type == "STRICT_DNS"`),
-			jq.Match(`.spec.configPatches[2].patch.value.connect_timeout == "5s"`),
-
-			// cluster endpoints
-			jq.Match(`.spec.configPatches[2].patch.value.load_assignment.cluster_name == "%s"`, kubeAuthProxyName),
-			jq.Match(`.spec.configPatches[2].patch.value.load_assignment.endpoints | length == 1`),
-			jq.Match(`.spec.configPatches[2].patch.value.load_assignment.endpoints[0].lb_endpoints | length == 1`),
-			jq.Match(`.spec.configPatches[2].patch.value.load_assignment.endpoints[0].lb_endpoints[0].endpoint.address.socket_address.address == "%s"`, authProxyFQDN),
-			jq.Match(`.spec.configPatches[2].patch.value.load_assignment.endpoints[0].lb_endpoints[0].endpoint.address.socket_address.port_value == %d`, kubeAuthProxyHTTPSPort),
-
-			// TLS config for cluster
-			jq.Match(`.spec.configPatches[2].patch.value.transport_socket.name == "envoy.transport_sockets.tls"`),
-			jq.Match(`.spec.configPatches[2].patch.value.transport_socket.typed_config."@type" == "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext"`),
-			jq.Match(`.spec.configPatches[2].patch.value.transport_socket.typed_config.common_tls_context.validation_context.trusted_ca.filename == "%s"`, serviceCAPath),
-			jq.Match(`.spec.configPatches[2].patch.value.transport_socket.typed_config.sni == "%s"`, authProxyFQDN),
+			jq.Match(`.spec.configPatches[2].applyTo == "HTTP_FILTER"`),
+			jq.Match(`.spec.configPatches[2].patch.value.name == "envoy.lua"`),
+			jq.Match(`.spec.configPatches[2].patch.value.typed_config.inline_code | contains("x-auth-request-access-token")`),
+			jq.Match(`.spec.configPatches[2].patch.value.typed_config.inline_code | contains("Bearer")`),
+			jq.Match(`.spec.configPatches[2].patch.value.typed_config.inline_code | contains("authorization")`),
 		)),
 		WithCustomErrorMsg("EnvoyFilter should be properly configured for authentication"),
 	)
 
 	t.Log("EnvoyFilter validation completed")
+}
+
+// ValidateEDSEndpointDiscovery validates that the Service is properly configured for EDS.
+//
+// This test verifies:
+// - Kubernetes Service exists for kube-auth-proxy
+// - Service has correct selector labels to match auth proxy pods
+// - Service is properly configured for EDS to discover endpoints.
+func (tc *GatewayTestCtx) ValidateEDSEndpointDiscovery(t *testing.T) {
+	t.Helper()
+	t.Log("Validating EDS service configuration for kube-auth-proxy")
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Service, types.NamespacedName{
+			Name:      kubeAuthProxyName,
+			Namespace: gatewayNamespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.selector.app == "%s"`, kubeAuthProxyName),
+			jq.Match(`.spec.ports[] | select(.name == "https") | .port == %d`, kubeAuthProxyHTTPSPort),
+			jq.Match(`.spec.ports[] | select(.name == "https") | .targetPort == %d`, kubeAuthProxyHTTPSPort),
+		)),
+		WithCustomErrorMsg("kube-auth-proxy Service should exist with correct pod selector for EDS endpoint discovery"),
+	)
+
+	t.Log("EDS service configuration validation completed")
 }
 
 // ValidateGatewayReadyStatus validates Gateway resource is fully operational and ready to route traffic.
@@ -620,7 +688,7 @@ func (tc *GatewayTestCtx) getExpectedGatewayHostname(t *testing.T) string {
 			tc.cachedGatewayHostname = ""
 			return
 		}
-		tc.cachedGatewayHostname = gatewayName + "." + clusterDomain
+		tc.cachedGatewayHostname = gatewaySubdomain + "." + clusterDomain
 	})
 	if tc.cachedGatewayHostname == "" {
 		require.FailNow(t, "failed to determine cluster domain to compute gateway hostname")

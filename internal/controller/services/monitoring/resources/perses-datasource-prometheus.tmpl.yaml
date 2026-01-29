@@ -3,11 +3,17 @@ kind: PersesDatasource
 metadata:
   name: data-science-prometheus-datasource
   namespace: {{.Namespace}}
+  labels:
+    platform.opendatahub.io/part-of: monitoring
+  annotations:
+    platform.opendatahub.io/description: "Data Science specific metrics from the local MonitoringStack"
 spec:
   config:
-    default: true
+    # default: false - Cluster Prometheus is the default until decentralized collection is implemented
+    default: false
     display:
-      name: "Data Science Prometheus Datasource"
+      name: "Data Science Prometheus"
+      description: "Data Science MonitoringStack Thanos Querier - provides DS workload metrics"
     plugin:
       kind: "PrometheusDatasource"
       spec:

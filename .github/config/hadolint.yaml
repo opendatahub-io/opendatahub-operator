@@ -1,0 +1,24 @@
+---
+# ==============================================================================
+# Hadolint Configuration for Dockerfile Security Analysis
+# ==============================================================================
+#
+# PURPOSE:
+# Enforces Docker best practices and CIS Benchmark recommendations for
+# Dockerfiles. Catches common security issues like unpinned base images,
+# secrets in ENV vars, and running containers as root.
+#
+# USED BY:
+# - GitHub Actions: .github/workflows/security-full-scan.yml
+# - Local usage: hadolint --config .github/config/hadolint.yaml Dockerfile
+#
+# NOTE: Path exclusions are handled at the workflow level, not in this config.
+# The 'ignored:' key below only accepts Hadolint rule codes (e.g., DL3008).
+# ==============================================================================
+
+# Optionally disable specific Hadolint rules if they create false positives
+# Example rule codes:
+#   - DL3008  # Pin versions in apt-get install
+#   - DL3018  # Pin versions in apk add
+#   - DL3025  # Use JSON for CMD and ENTRYPOINT arguments
+ignored: []

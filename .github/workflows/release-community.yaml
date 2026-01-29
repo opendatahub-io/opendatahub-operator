@@ -22,6 +22,9 @@ env:
   OPENSHIFT_VERSIONS: ${{ github.event.inputs.openshift-versions }}
   COMMUNITY_FORK: opendatahub-io/community-operators-prod
   COMMUNITY_UPSTREAM: redhat-openshift-ecosystem/community-operators-prod
+  BRANCH_PREFIX: odh-operator-
+  COMMITTER_NAME: ODH Release Bot
+  COMMITTER_EMAIL: noreply@opendatahub.io
 
 jobs:
   create-community-release:
@@ -72,12 +75,22 @@ jobs:
         VERSION="${{ env.VERSION }}"
         ./.github/scripts/validate-bundle-csv.sh "$VERSION"
 
-    - name: Checkout community-operators-prod upstream
+    - name: Generate GitHub App Token
+      id: generate-token
+      uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+      with:
+        app-id: ${{ secrets.ODH_RELEASE_BOT_APP_ID }}
+        private-key: ${{ secrets.ODH_RELEASE_BOT_PRIVATE_KEY }}
+        owner: opendatahub-io
+        repositories: community-operators-prod
+
+    - name: Checkout community-operators-prod fork
       uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       with:
-        repository: ${{ env.COMMUNITY_UPSTREAM }}
+        repository: ${{ env.COMMUNITY_FORK }}
         path: community-operators-prod
         fetch-depth: 0
+        token: ${{ steps.generate-token.outputs.token }}
 
     - name: Copy bundle to community-operators-prod
       run: |
@@ -110,29 +123,19 @@ jobs:
           "$PREVIOUS_VERSION" \
           "$OPENSHIFT_VERSIONS"
 
-    - name: Generate GitHub App Token
-      id: generate-token
-      uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
-      with:
-        app-id: ${{ secrets.ODH_RELEASE_BOT_APP_ID }}
-        private-key: ${{ secrets.ODH_RELEASE_BOT_PRIVATE_KEY }}
-        owner: opendatahub-io
-        repositories: community-operators-prod
-
     - name: Create Pull Request
       id: create-pr
-      uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.11
-      with:
-        token: ${{ steps.generate-token.outputs.token }}
-        path: community-operators-prod
-        push-to-fork: ${{ env.COMMUNITY_FORK }}
-        base: main
-        branch: odh-operator-${{ env.VERSION }}
-        committer: ODH Release Bot <noreply@opendatahub.io>
-        author: ODH Release Bot <noreply@opendatahub.io>
-        title: "operator opendatahub-operator (${{ env.VERSION }})"
-        commit-message: |
-          Release opendatahub-operator version ${{ env.VERSION }}
+      env:
+        GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
+        VERSION: ${{ env.VERSION }}
+        COMMUNITY_FORK: ${{ env.COMMUNITY_FORK }}
+        COMMUNITY_UPSTREAM: ${{ env.COMMUNITY_UPSTREAM }}
+        BUNDLE_DIR: community-operators-prod
+        BRANCH_PREFIX: ${{ env.BRANCH_PREFIX }}
+        COMMITTER_NAME: ${{ env.COMMITTER_NAME }}
+        COMMITTER_EMAIL: ${{ env.COMMITTER_EMAIL }}
+      run: |
+        ./opendatahub-operator/.github/scripts/create-community-pr.sh
     - name: Summary
       if: steps.create-pr.outputs.pull-request-url != ''
       run: |

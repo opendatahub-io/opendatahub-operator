@@ -133,16 +133,27 @@ var (
 				componentApi.FeastOperatorComponentName:        feastOperatorTestSuite,
 				componentApi.LlamaStackOperatorComponentName:   llamastackOperatorTestSuite,
 				componentApi.MLflowOperatorComponentName:       mlflowOperatorTestSuite,
+				componentApi.SparkOperatorComponentName:        sparkOperatorTestSuite,
 			},
 			{
 				// Kueue tests depends on Workbenches, so must not run with Workbenches tests in parallel
 				componentApi.KueueComponentName: kueueTestSuite,
-				// ModelController tests depends on KServe and ModelRegistry, so must not run with KServe, ModelRegistry or TrustyAI tests in parallel
+				// ModelController tests depends on KServe and ModelRegistry, so must not run with KServe, ModelRegistry, TrustyAI or ModelsAsService tests in parallel
 				componentApi.ModelControllerComponentName: modelControllerTestSuite,
 			},
 			{
-				// TrustyAI tests depends on KServe, so must not run with Kserve or ModelController tests in parallel
+				// TrustyAI tests depends on KServe, so must not run with Kserve, ModelController or ModelsAsService tests in parallel
 				componentApi.TrustyAIComponentName: trustyAITestSuite,
+			},
+			{
+				// ModelsAsService tests depends on KServe, so must not run with Kserve, ModelController or TrustyAI tests in parallel
+				componentApi.ModelsAsServiceComponentName: modelsAsServiceTestSuite,
+			},
+			{
+				// run external operator degraded monitoring tests isolated from other component tests
+				componentApi.KserveComponentName:  kserveDegradedMonitoringTestSuite,
+				componentApi.KueueComponentName:   kueueDegradedMonitoringTestSuite,
+				componentApi.TrainerComponentName: trainerDegradedMonitoringTestSuite,
 			},
 		},
 	}
@@ -298,6 +309,11 @@ func TestOdhOperator(t *testing.T) {
 	// Run components and services test suites
 	mustRun(t, Components.String(), Components.Run)
 	mustRun(t, Services.String(), Services.Run)
+
+	// Run DSCI/DSC Webhook test suite
+	if testOpts.webhookTest {
+		mustRun(t, "DSCInitialization and DataScienceCluster Webhook E2E Tests", dscWebhookTestSuite)
+	}
 
 	// Run operator resilience test suites after functional tests
 	if testOpts.operatorResilienceTest {

@@ -131,6 +131,8 @@ func v2Tov3UpgradeDeletingDscDsciTestSuite(t *testing.T) {
 		{"validate allows DSC v1 with Kueue Unmanaged", v2Tov3UpgradeTestCtx.ValidateAllowsKueueUnmanaged},
 		{"validate allows DSC v1 with Kueue Removed", v2Tov3UpgradeTestCtx.ValidateAllowsKueueRemoved},
 		{"validate allows DSC v1 without Kueue", v2Tov3UpgradeTestCtx.ValidateAllowsWithoutKueue},
+		{"validate allows argoWorkflowsControllers datasciencepipelines DSC v1", v2Tov3UpgradeTestCtx.ValidateArgoWorkflowsControllersDatasciencepipelinesDSCV1},
+		{"v2-only components reset when patching via v1 API", v2Tov3UpgradeTestCtx.ValidateV2OnlyComponentsResetWhenPatchingViaV1API},
 	}
 
 	// Run the test suite.
@@ -910,5 +912,127 @@ func (tc *V2Tov3UpgradeTestCtx) triggerDSCIReconciliation(t *testing.T) {
 		WithMutateFunc(testf.Transform(`.spec.trustedCABundle.customCABundle = ""`)),
 		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
 		WithCustomErrorMsg("Failed to trigger DSCI reconciliation"),
+	)
+}
+
+// ValidateArgoWorkflowsControllersDatasciencepipelinesDSCV1 ensures the DataSciencePipelines component is ready if the
+// argoWorkflowsControllersSpec options are set to "Removed" when using v1 API (datasciencepipelines field).
+func (tc *V2Tov3UpgradeTestCtx) ValidateArgoWorkflowsControllersDatasciencepipelinesDSCV1(t *testing.T) {
+	t.Helper()
+
+	// Clean up any existing DataScienceCluster resources before starting
+	cleanupCoreOperatorResources(t, tc.TestContext)
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(CreateDSCI(tc.DSCInitializationNamespacedName.Name, tc.AppsNamespace, tc.MonitoringNamespace)),
+		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
+		WithCustomErrorMsg("Failed to create DSCInitialization resource %s", tc.DSCInitializationNamespacedName.Name),
+	)
+
+	dscName := "test-dsc-v1-datasciencepipelines"
+
+	// Create a DataScienceCluster v2 resource with AIPipelines set to Managed
+	dscV2 := CreateDSC(dscName, tc.WorkbenchesNamespace)
+	dscV2.Spec.Components.AIPipelines.ManagementState = operatorv1.Managed
+
+	// Expect the Validating webhook to allow the creation
+	tc.EventuallyResourceCreated(
+		WithObjectToCreate(dscV2),
+		WithCustomErrorMsg("Expected validation webhook to allow DataScienceCluster v2 with AIPipelines set to Managed"),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+	)
+
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceClusterV1, types.NamespacedName{Name: dscName}),
+		WithMutateFunc(testf.Transform(`.spec.components.datasciencepipelines.argoWorkflowsControllers.managementState = "%s"`, operatorv1.Removed)),
+		WithCondition(
+			And(
+				// Verify DSC v1 condition type exists
+				jq.Match(`.status.conditions[] | select(.type == "DataSciencePipelinesReady") | .status == "True"`),
+				// Verify DSC v2 condition type does NOT exist
+				jq.Match(`[.status.conditions[] | select(.type == "AIPipelinesReady")] | length == 0`),
+			),
+		),
+	)
+
+	// Cleanup - delete the test resource
+	tc.DeleteResource(
+		WithMinimalObject(gvk.DataScienceClusterV1, types.NamespacedName{Name: dscName}),
+		WithWaitForDeletion(true),
+	)
+	tc.DeleteResource(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithWaitForDeletion(true),
+	)
+}
+
+// ValidateV2OnlyComponentsResetWhenPatchingViaV1API documents the actual behavior that when a DSC
+// is patched via the v1 API, the v2-only components (Trainer, MLflowOperator) are reset to "Removed".
+// Task: https://issues.redhat.com/browse/RHOAIENG-44476
+//
+// This behavior occurs because:
+//  1. When patching via v1 API, the resource is first converted from the stored v2 format to v1
+//  2. The v1 schema does not have fields for v2-only components (Trainer, MLflowOperator)
+//  3. When the patched v1 resource is converted back to v2 for storage, the v2-only fields
+//     are initialized with their default values ("Removed")
+//  4. This is standard Kubernetes conversion behavior: fields not representable in an older API
+//     version are lost during round-trip conversion through that version
+//
+// Users who need to use v2-only components should use the v2 API for all operations.
+func (tc *V2Tov3UpgradeTestCtx) ValidateV2OnlyComponentsResetWhenPatchingViaV1API(t *testing.T) {
+	t.Helper()
+
+	// Clean up any existing DataScienceCluster resources before starting
+	cleanupCoreOperatorResources(t, tc.TestContext)
+
+	dscName := "test-dsc-v1-v2-conversion"
+
+	// Step 1: Create a DSC v2 resource with Trainer and MLflowOperator set to Managed
+	dscV2 := CreateDSC(dscName, tc.WorkbenchesNamespace)
+	dscV2.Spec.Components.Trainer.ManagementState = operatorv1.Managed
+	dscV2.Spec.Components.MLflowOperator.ManagementState = operatorv1.Managed
+
+	// Create the v2 DSC resource
+	tc.EventuallyResourceCreated(
+		WithObjectToCreate(dscV2),
+		WithCondition(And(
+			jq.Match(`.metadata.name == "%s"`, dscName),
+			jq.Match(`.spec.components.trainer.managementState == "Managed"`),
+			jq.Match(`.spec.components.mlflowoperator.managementState == "Managed"`),
+		)),
+		WithCustomErrorMsg("Failed to create DataScienceCluster v2 resource %s with Trainer and MLflowOperator set to Managed", dscName),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+	)
+
+	// Step 2: Patch the DSC via v1 API (only changing a v1 field, e.g., dashboard)
+	// This triggers v2 -> v1 -> v2 conversion, which causes v2-only fields to be reset.
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceClusterV1, types.NamespacedName{Name: dscName}),
+		WithMutateFunc(testf.Transform(`.spec.components.dashboard.managementState = "Managed"`)),
+		WithCondition(And(
+			jq.Match(`.metadata.name == "%s"`, dscName),
+			jq.Match(`.spec.components.dashboard.managementState == "Managed"`),
+		)),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+	)
+
+	// Step 3: Verify via v2 API that Trainer and MLflowOperator are reset to Removed
+	// This documents the expected behavior: v2-only fields are lost when patching via v1 API
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, types.NamespacedName{Name: dscName}),
+		WithCondition(And(
+			jq.Match(`.metadata.name == "%s"`, dscName),
+			jq.Match(`.spec.components.trainer.managementState == "Removed"`),
+			jq.Match(`.spec.components.mlflowoperator.managementState == "Removed"`),
+		)),
+		WithCustomErrorMsg("Trainer and MLflowOperator should be reset to Removed after patching via v1 API - v2-only fields are lost during v1 round-trip conversion"),
+		WithEventuallyTimeout(tc.TestTimeouts.shortEventuallyTimeout),
+	)
+
+	// Cleanup - delete the test resource
+	tc.DeleteResource(
+		WithMinimalObject(gvk.DataScienceCluster, types.NamespacedName{Name: dscName}),
+		WithWaitForDeletion(true),
 	)
 }

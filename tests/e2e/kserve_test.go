@@ -59,7 +59,6 @@ func kserveTestSuite(t *testing.T) {
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
 		{"Validate well-known LLMInferenceServiceConfig versioning", componentCtx.ValidateLLMInferenceServiceConfigVersioned},
-		{"Validate external operator degraded condition monitoring", componentCtx.ValidateExternalOperatorDegradedMonitoring},
 	}
 
 	// Add webhook tests if enabled
@@ -75,6 +74,25 @@ func kserveTestSuite(t *testing.T) {
 		TestCase{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	)
 	// Run the test suite.
+	RunTestCases(t, testCases)
+}
+
+// kserveDegradedMonitoringTestSuite runs only the external operator degraded monitoring tests.
+func kserveDegradedMonitoringTestSuite(t *testing.T) {
+	t.Helper()
+
+	ct, err := NewComponentTestCtx(t, &componentApi.Kserve{})
+	require.NoError(t, err)
+
+	componentCtx := KserveTestCtx{
+		ComponentTestCtx: ct,
+	}
+
+	testCases := []TestCase{
+		// we must enable the component first since this suite runs isolated from other component tests
+		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
+		{"Validate external operator degraded condition monitoring", componentCtx.ValidateExternalOperatorDegradedMonitoring},
+	}
 	RunTestCases(t, testCases)
 }
 
@@ -254,7 +272,6 @@ func (tc *KserveTestCtx) ensureLWSBaseline(t *testing.T) *unstructured.Unstructu
 // External Operator CR > Kserve Component CR > DataScienceCluster CR.
 func (tc *KserveTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.T) {
 	t.Helper()
-	t.Skip("RHOAIENG-41751: Skipping flaky external operator degraded monitoring test - under investigation")
 
 	// condition types monitored by the Kserve Component
 	testCases := []degradedConditionTestCase{

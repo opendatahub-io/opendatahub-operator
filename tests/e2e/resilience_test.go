@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strings"
 	"testing"
-	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
@@ -139,6 +138,7 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 		componentApi.MLflowOperatorComponentName:       "mlflow-operator-controller-manager",
 		componentApi.ModelRegistryComponentName:        "model-registry-operator-controller-manager",
 		componentApi.RayComponentName:                  "kuberay-operator",
+		componentApi.SparkOperatorComponentName:        "spark-operator-controller",
 		componentApi.TrainingOperatorComponentName:     "kubeflow-training-operator",
 		componentApi.TrainerComponentName:              "trainer-controller-manager",
 		// componentApi.TrustyAIComponentName:             "trustyai-service-operator-controller-manager",
@@ -186,8 +186,8 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 		slices.Collect(maps.Values(internalComponentToControllerMap)),
 	)
 
-	t.Log("Rollout deployments restart to trigger resource quota if pod already exists")
-	tc.rolloutDeployments(t, allControllers)
+	t.Log("Deleting existing pods to trigger resource quota enforcement")
+	tc.deletePodsForDeployments(t, allControllers)
 
 	t.Log("Enabling all components in DataScienceCluster")
 	tc.EventuallyResourcePatched(
@@ -591,21 +591,58 @@ func (tc *OperatorResilienceTestCtx) findAndBackupAllCRBsForServiceAccount(opera
 	return crbBackups, crbNames
 }
 
-func (tc *OperatorResilienceTestCtx) rolloutDeployment(t *testing.T, nn types.NamespacedName) {
+// deletePodsForDeployment deletes all pods belonging to a deployment.
+// This is used instead of rollout restart to avoid quota issues where
+// rolling updates get stuck waiting for new pods to be created.
+func (tc *OperatorResilienceTestCtx) deletePodsForDeployment(t *testing.T, nn types.NamespacedName) {
 	t.Helper()
 
-	t.Logf("Triggering rollout restart for deployment: %s", nn.Name)
-	tc.EventuallyResourcePatched(
-		WithMinimalObject(gvk.Deployment, nn),
-		WithMutateFunc(testf.Transform(`.spec.template.metadata.annotations["kubectl.kubernetes.io/restartedAt"] = "%s"`, time.Now().Format(time.RFC3339))),
-		WithIgnoreNotFound(true),
+	deployment := tc.getDeployment(t, nn)
+	if deployment == nil {
+		t.Logf("Deployment %s or odh-%s not found, skipping pod deletion", nn.Name, nn.Name)
+		return
+	}
+
+	// Extract matchLabels from deployment spec.selector
+	matchLabels, found, err := unstructured.NestedStringMap(deployment.Object, "spec", "selector", "matchLabels")
+	if err != nil || !found || len(matchLabels) == 0 {
+		t.Logf("No matchLabels found for deployment %s, skipping pod deletion", nn.Name)
+		return
+	}
+
+	t.Logf("Deleting pods for deployment %s with labels: %v", nn.Name, matchLabels)
+
+	tc.DeleteResources(
+		WithMinimalObject(gvk.Pod, types.NamespacedName{}),
+		WithNamespaceFilter(nn.Namespace),
+		WithDeleteAllOfOptions(client.MatchingLabels(matchLabels)),
 	)
 }
 
-func (tc *OperatorResilienceTestCtx) rolloutDeployments(t *testing.T, allControllers []string) {
+func (tc *OperatorResilienceTestCtx) getDeployment(t *testing.T, nn types.NamespacedName) *unstructured.Unstructured {
+	t.Helper()
+
+	// Fetch the deployment to get its actual selector labels
+	deployment := tc.FetchResource(
+		WithMinimalObject(gvk.Deployment, nn),
+	)
+	if deployment != nil {
+		return deployment
+	}
+
+	t.Logf("Deployment %s not found, checking for odh- prefix", nn.Name)
+
+	deployment = tc.FetchResource(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: nn.Namespace, Name: "odh-" + nn.Name}),
+	)
+	return deployment
+}
+
+// deletePodsForDeployments deletes pods for all specified deployments.
+func (tc *OperatorResilienceTestCtx) deletePodsForDeployments(t *testing.T, allControllers []string) {
 	t.Helper()
 
 	for _, deployment := range allControllers {
-		tc.rolloutDeployment(t, types.NamespacedName{Namespace: tc.AppsNamespace, Name: deployment})
+		tc.deletePodsForDeployment(t, types.NamespacedName{Namespace: tc.AppsNamespace, Name: deployment})
 	}
 }

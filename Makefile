@@ -29,7 +29,7 @@ ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	# - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 	ifeq ($(VERSION), )
-		VERSION = 3.2.0
+		VERSION = 3.3.0
 	endif
 	# Specifies the namespace where the operator pods are deployed (defaults to opendatahub-operator-system)
 	OPERATOR_NAMESPACE ?= opendatahub-operator-system
@@ -56,7 +56,7 @@ else
 	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 	# NOTE: see also the git branches for RHOAI in get_all_manifests.sh. This variable does NOT affect those
 	ifeq ($(VERSION), )
-		VERSION = 3.2.0
+		VERSION = 3.3.0
 	endif
 	# Specifies the namespace where the operator pods are deployed (defaults to redhat-ods-operator)
 	OPERATOR_NAMESPACE ?= redhat-ods-operator
@@ -200,6 +200,10 @@ default: manifests generate lint unit-test build
 help: ## Display this help.
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
+.PHONY: print-VERSION
+print-VERSION:
+	@echo $(VERSION)
+
 ##@ Development
 
 define go-mod-version
@@ -245,6 +249,11 @@ endif
 	@$(call fetch-external-crds,github.com/openshift/api,user/v1)
 	@$(call fetch-external-crds,github.com/openshift/api,config/v1,authentications)
 CLEANFILES += config/crd/bases config/rhoai/crd/bases config/crd/external config/rhoai/crd/external config/rbac/role.yaml config/rhoai/rbac/role.yaml config/webhook/manifests.yaml config/rhoai/webhook/manifests.yaml
+
+.PHONY: manifests-all
+manifests-all:
+	$(MAKE) manifests
+	$(MAKE) manifests RHOAI_PLATFORM_TYPE=rhoai
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -432,6 +441,11 @@ bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then val
 	rm -f $(BUNDLE_DIR)/manifests/rhods-operator-webhook-service_v1_service.yaml
 CLEANFILES += rhoai-bundle odh-bundle
 
+.PHONY: bundle-all
+bundle-all:
+	$(MAKE) bundle
+	$(MAKE) bundle RHOAI_PLATFORM_TYPE=rhoai
+
 # The bundle image is multi-stage to preserve the ability to build without invoking make
 # We use build args to ensure the variables are passed to the underlying internal make invocation
 .PHONY: bundle-build
@@ -492,7 +506,8 @@ catalog-clean: ## Clean up catalog files and Dockerfile
 catalog-prepare: catalog-clean opm yq ## Prepare the catalog by adding bundles to fast channel. It requires BUNDLE_IMG exists before running the target"
 	mkdir -p catalog
 	cp config/catalog/fbc-basic-template.yaml catalog/fbc-basic-template.yaml
-	./hack/update-catalog-template.sh catalog/fbc-basic-template.yaml $(BUNDLE_IMGS)
+	$(SED_COMMAND) -i 's/opendatahub-operator/$(OPERATOR_PACKAGE)/g' catalog/fbc-basic-template.yaml
+	./hack/update-catalog-template.sh catalog/fbc-basic-template.yaml $(BUNDLE_IMGS) $(YQ) $(OPERATOR_PACKAGE)
 	$(OPM) alpha render-template basic \
 		--migrate-level=bundle-object-to-csv-metadata \
 		-o yaml \

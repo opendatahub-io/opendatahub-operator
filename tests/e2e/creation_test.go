@@ -11,8 +11,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
-	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -58,25 +56,30 @@ func dscManagementTestSuite(t *testing.T) {
 		{"Validate default NetworkPolicy exist", dscTestCtx.ValidateDefaultNetworkPolicyExists},
 	}
 
-	// Append webhook-specific tests.
-	if testOpts.webhookTest {
-		webhookTests := []TestCase{
-			{"Validate creation of more than one DSCInitialization instance", dscTestCtx.ValidateDSCIDuplication},
-			{"Validate creation of more than one DataScienceCluster instance", dscTestCtx.ValidateDSCDuplication},
-			{"Validate Model Registry Configuration Changes", dscTestCtx.ValidateModelRegistryConfig},
-		}
-
-		testCases = append(testCases, TestCase{
-			name: "Webhook",
-			testFn: func(t *testing.T) {
-				t.Helper()
-				RunTestCases(t, webhookTests, WithParallel())
-			},
-		})
-	}
-
 	// Run the test suite.
 	RunTestCases(t, testCases)
+}
+
+func dscWebhookTestSuite(t *testing.T) {
+	t.Helper()
+
+	// Initialize the test context.
+	tc, err := NewTestContext(t)
+	require.NoError(t, err, "Failed to initialize test context")
+
+	// Create an instance of test context.
+	dscTestCtx := DSCTestCtx{
+		TestContext: tc,
+	}
+
+	// Define dsci/dsc webhook-specific tests.
+	webhookTests := []TestCase{
+		{"Validate creation of more than one DSCInitialization instance", dscTestCtx.ValidateDSCIDuplication},
+		{"Validate creation of more than one DataScienceCluster instance", dscTestCtx.ValidateDSCDuplication},
+		{"Validate Model Registry Configuration Changes", dscTestCtx.ValidateModelRegistryConfig},
+	}
+
+	RunTestCases(t, webhookTests, WithParallel())
 }
 
 // ValidateOperatorsInstallation ensures the required operators are installed.
@@ -137,7 +140,7 @@ func (tc *DSCTestCtx) ValidateDSCICreation(t *testing.T) {
 	t.Helper()
 
 	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(CreateDSCI(tc.DSCInitializationNamespacedName.Name, dsciv2.GroupVersion.String(), tc.AppsNamespace, tc.MonitoringNamespace)),
+		WithObjectToCreate(CreateDSCI(tc.DSCInitializationNamespacedName.Name, tc.AppsNamespace, tc.MonitoringNamespace)),
 		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
 		WithCustomErrorMsg("Failed to create DSCInitialization resource %s", tc.DSCInitializationNamespacedName.Name),
 
@@ -197,11 +200,11 @@ func (tc *DSCTestCtx) ValidateDefaultNetworkPolicyExists(t *testing.T) {
 func (tc *DSCTestCtx) ValidateDSCIDuplication(t *testing.T) {
 	t.Helper()
 
-	dup := CreateDSCI(dsciInstanceNameDuplicate, dsciv2.GroupVersion.String(), tc.AppsNamespace, tc.MonitoringNamespace)
+	dup := CreateDSCI(dsciInstanceNameDuplicate, tc.AppsNamespace, tc.MonitoringNamespace)
 	tc.EnsureResourceIsUnique(dup, "Error validating DSCInitialization duplication")
 
-	dup = CreateDSCI(dsciInstanceNameDuplicate, dsciv1.GroupVersion.String(), tc.AppsNamespace, tc.MonitoringNamespace)
-	tc.EnsureResourceIsUnique(dup, "Error validating DSCInitialization duplication v1")
+	dupv1 := CreateDSCIv1(dsciInstanceNameDuplicate, tc.AppsNamespace, tc.MonitoringNamespace)
+	tc.EnsureResourceIsUnique(dupv1, "Error validating DSCInitialization duplication v1")
 }
 
 // ValidateDSCDuplication ensures that no duplicate DataScienceCluster resource can be created.
