@@ -128,6 +128,11 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 					ManagementState: operatorv1.Removed,
 				},
 			},
+			SparkOperator: componentApi.DSCSparkOperator{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Removed,
+				},
+			},
 		},
 	}
 
@@ -159,6 +164,11 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 			FeastOperator:      c.Status.Components.FeastOperator,
 			LlamaStackOperator: c.Status.Components.LlamaStackOperator,
 			MLflowOperator: componentApi.DSCMLflowOperatorStatus{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Removed,
+				},
+			},
+			SparkOperator: componentApi.DSCSparkOperatorStatus{
 				ManagementSpec: common.ManagementSpec{
 					ManagementState: operatorv1.Removed,
 				},
