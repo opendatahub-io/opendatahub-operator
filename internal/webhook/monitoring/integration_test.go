@@ -6,6 +6,7 @@ import (
 
 	"github.com/rs/xid"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	monitoringwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/monitoring"
@@ -14,78 +15,64 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// TestMonitoringWebhook_PodMonitor tests the end-to-end webhook integration for PodMonitor.
+// TestMonitoringWebhook_LabelInjection tests the end-to-end webhook integration for monitoring resources.
 // This is a smoke test to verify the webhook is registered and functioning.
 // Detailed logic testing (edge cases, label preservation, etc.) is done in unit tests.
-func TestMonitoringWebhook_PodMonitor(t *testing.T) {
+func TestMonitoringWebhook_LabelInjection(t *testing.T) {
 	t.Parallel()
-	g := NewWithT(t)
 
-	ctx, env, teardown := envtestutil.SetupEnvAndClientWithCRDs(
-		t,
-		[]envt.RegisterWebhooksFn{monitoringwebhook.RegisterWebhooks},
-		[]envt.RegisterControllersFn{},
-		envtestutil.DefaultWebhookTimeout,
-		envtestutil.WithPodMonitor(),
-		envtestutil.WithServiceMonitor(),
-	)
-	defer teardown()
+	testCases := []struct {
+		name         string
+		resourceName string
+		createFunc   func(name, namespace string, opts ...envtestutil.ObjectOption) client.Object
+	}{
+		{
+			name:         "PodMonitor",
+			resourceName: testPodMonitor,
+			createFunc:   newPodMonitor,
+		},
+		{
+			name:         "ServiceMonitor",
+			resourceName: testServiceMonitor,
+			createFunc:   newServiceMonitor,
+		},
+	}
 
-	// Create test namespace with monitoring enabled
-	ns := fmt.Sprintf("test-ns-%s", xid.New().String())
-	testNamespace := envtestutil.NewNamespace(ns, map[string]string{
-		monitoringLabelKey: monitoringLabelValue,
-	})
-	g.Expect(env.Client().Create(ctx, testNamespace)).To(Succeed())
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
 
-	// Create Monitoring CR (required for webhook to inject labels)
-	monitoringCR := newMonitoringCR()
-	g.Expect(env.Client().Create(ctx, monitoringCR)).To(Succeed())
+			ctx, env, teardown := envtestutil.SetupEnvAndClientWithCRDs(
+				t,
+				[]envt.RegisterWebhooksFn{monitoringwebhook.RegisterWebhooks},
+				[]envt.RegisterControllersFn{},
+				envtestutil.DefaultWebhookTimeout,
+				envtestutil.WithPodMonitor(),
+				envtestutil.WithServiceMonitor(),
+			)
+			defer teardown()
 
-	// Create PodMonitor using helper - webhook should inject monitoring label
-	podMonitor := newPodMonitor(testPodMonitor, ns)
+			// Create test namespace with monitoring enabled
+			ns := fmt.Sprintf("test-ns-%s", xid.New().String())
+			testNamespace := envtestutil.NewNamespace(ns, map[string]string{
+				monitoringLabelKey: monitoringLabelValue,
+			})
+			g.Expect(env.Client().Create(ctx, testNamespace)).To(Succeed())
 
-	g.Expect(env.Client().Create(ctx, podMonitor)).To(Succeed())
+			// Create Monitoring CR (required for webhook to inject labels)
+			monitoringCR := newMonitoringCR()
+			g.Expect(env.Client().Create(ctx, monitoringCR)).To(Succeed())
 
-	// Verify monitoring label was injected by webhook using helper
-	g.Expect(hasMonitoringLabel(podMonitor)).Should(BeTrue())
-}
+			// Create monitor resource using helper - webhook should inject monitoring label
+			monitor := tc.createFunc(tc.resourceName, ns)
 
-// TestMonitoringWebhook_ServiceMonitor tests the end-to-end webhook integration for ServiceMonitor.
-// This is a smoke test to verify the webhook is registered and functioning.
-// Detailed logic testing (edge cases, label preservation, etc.) is done in unit tests.
-func TestMonitoringWebhook_ServiceMonitor(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
+			g.Expect(env.Client().Create(ctx, monitor)).To(Succeed())
 
-	ctx, env, teardown := envtestutil.SetupEnvAndClientWithCRDs(
-		t,
-		[]envt.RegisterWebhooksFn{monitoringwebhook.RegisterWebhooks},
-		[]envt.RegisterControllersFn{},
-		envtestutil.DefaultWebhookTimeout,
-		envtestutil.WithPodMonitor(),
-		envtestutil.WithServiceMonitor(),
-	)
-	defer teardown()
-
-	// Create test namespace with monitoring enabled
-	ns := fmt.Sprintf("test-ns-%s", xid.New().String())
-	testNamespace := envtestutil.NewNamespace(ns, map[string]string{
-		monitoringLabelKey: monitoringLabelValue,
-	})
-	g.Expect(env.Client().Create(ctx, testNamespace)).To(Succeed())
-
-	// Create Monitoring CR (required for webhook to inject labels)
-	monitoringCR := newMonitoringCR()
-	g.Expect(env.Client().Create(ctx, monitoringCR)).To(Succeed())
-
-	// Create ServiceMonitor using helper - webhook should inject monitoring label
-	serviceMonitor := newServiceMonitor(testServiceMonitor, ns)
-
-	g.Expect(env.Client().Create(ctx, serviceMonitor)).To(Succeed())
-
-	// Verify monitoring label was injected by webhook using helper
-	g.Expect(hasMonitoringLabel(serviceMonitor)).Should(BeTrue())
+			// Verify monitoring label was injected by webhook using helper
+			g.Expect(hasMonitoringLabel(monitor)).Should(BeTrue())
+		})
+	}
 }
 
 // TestMonitoringWebhook_Update tests that the webhook respects existing labels on UPDATE.
