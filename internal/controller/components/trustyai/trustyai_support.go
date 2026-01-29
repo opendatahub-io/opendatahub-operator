@@ -32,6 +32,7 @@ var (
 		"ragas-provider-image":               "RELATED_IMAGE_ODH_PYTHON_312_IMAGE",
 		"garak-provider-image":               "RELATED_IMAGE_ODH_TRUSTYAI_GARAK_LLS_PROVIDER_DSP_IMAGE",
 		"nemo-guardrails-image":              "RELATED_IMAGE_ODH_TRUSTYAI_NEMO_GUARDRAILS_IMAGE",
+		"evalHubImage":                       "RELATED_IMAGE_ODH_EVAL_HUB_IMAGE",
 		"kube-rbac-proxy":                    "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
 	}
 
