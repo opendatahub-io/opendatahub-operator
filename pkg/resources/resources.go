@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	routev1 "github.com/openshift/api/route/v1"
 	"gopkg.in/yaml.v3"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -26,6 +27,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
 const PlatformFieldOwner = "platform.opendatahub.io"
@@ -349,6 +352,189 @@ func StripServerMetadata(obj *unstructured.Unstructured) *unstructured.Unstructu
 
 func EncodeToString(in []byte) string {
 	return "v" + base64.RawURLEncoding.EncodeToString(in)
+}
+
+// HashParamsMap computes a deterministic hash of a params map for cache invalidation.
+// Keys are sorted to ensure consistent hashing regardless of map iteration order.
+// Returns the hash as an encoded string suitable for use as an annotation value.
+func HashParamsMap(params map[string]string) string {
+	// Sort keys for deterministic hashing
+	keys := make([]string, 0, len(params))
+	for k := range params {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+
+	hash := sha256.New()
+	for _, k := range keys {
+		hash.Write([]byte(k + "=" + params[k] + "\n"))
+	}
+	return EncodeToString(hash.Sum(nil))
+}
+
+// UpdateParamsHashAnnotation updates the instance annotation with a hash of the params map
+// to invalidate kustomize cache when params change. This ensures the ConfigMap gets updated.
+// The function fetches the latest instance from the client to ensure it has the current state.
+func UpdateParamsHashAnnotation(ctx context.Context, cli client.Client, instance client.Object, params map[string]string, annotationKey string) {
+	// Get the latest instance to ensure we have current annotations
+	key := client.ObjectKeyFromObject(instance)
+	if err := cli.Get(ctx, key, instance); err != nil {
+		// If we can't get the instance, log but don't fail - the params.env update is more important
+		logf.FromContext(ctx).V(1).Info("failed to get instance for annotation update", "error", err, "key", key)
+		return
+	}
+
+	// Compute hash of params map for cache invalidation
+	paramsHash := HashParamsMap(params)
+	currentHash := GetAnnotation(instance, annotationKey)
+	// Only update if the hash has changed to avoid unnecessary updates
+	if currentHash != paramsHash {
+		SetAnnotation(instance, annotationKey, paramsHash)
+		if err := cli.Update(ctx, instance); err != nil {
+			// Log but don't fail - the params.env update is more important
+			logf.FromContext(ctx).V(1).Info("failed to update instance annotation", "error", err, "key", key, "annotation", annotationKey)
+		}
+	}
+}
+
+// findDeploymentByComponentLabel searches for a Deployment in the resources list by component label.
+// Returns the index of the deployment if found, or -1 if not found. Also returns a list of all
+// deployment names found for debugging purposes.
+func findDeploymentByComponentLabel(
+	ctx context.Context,
+	resources []unstructured.Unstructured,
+	componentLabel string,
+) (int, []string) {
+	log := logf.FromContext(ctx)
+	var deployIdx = -1
+	var foundDeployments []string
+
+	for i, r := range resources {
+		if r.GroupVersionKind() == gvk.Deployment {
+			deploymentName := r.GetName()
+			foundDeployments = append(foundDeployments, deploymentName)
+
+			// Check if this deployment has the matching component label
+			deploymentLabels := r.GetLabels()
+			if deploymentLabels != nil && deploymentLabels[componentLabel] == "true" {
+				deployIdx = i
+				log.V(1).Info("found deployment by component label",
+					"deployment", deploymentName,
+					"componentLabel", componentLabel)
+				break
+			}
+		}
+	}
+
+	return deployIdx, foundDeployments
+}
+
+// updateDeploymentPodTemplateAnnotationHash updates the pod template annotation of a deployment
+// at the given index in the resources list with the provided hash value.
+func updateDeploymentPodTemplateAnnotationHash(
+	ctx context.Context,
+	resources []unstructured.Unstructured,
+	deployIdx int,
+	podTemplateAnnotationKey string,
+	paramsHash string,
+) error {
+	log := logf.FromContext(ctx)
+	deploymentName := resources[deployIdx].GetName()
+
+	// Convert unstructured to typed Deployment
+	deployment := &appsv1.Deployment{}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(resources[deployIdx].Object, deployment); err != nil {
+		return fmt.Errorf("failed to convert deployment to typed object: %w", err)
+	}
+
+	// Ensure annotations map exists
+	if deployment.Spec.Template.Annotations == nil {
+		deployment.Spec.Template.Annotations = make(map[string]string)
+	}
+
+	// Add the params hash to pod template annotations to trigger pod restart
+	deployment.Spec.Template.Annotations[podTemplateAnnotationKey] = paramsHash
+
+	// Convert back to unstructured and replace in resources
+	u, err := ToUnstructured(deployment)
+	if err != nil {
+		return fmt.Errorf("failed to convert deployment to unstructured: %w", err)
+	}
+
+	resources[deployIdx] = *u
+
+	log.Info("successfully updated deployment pod template annotation",
+		"deployment", deploymentName,
+		"annotation", podTemplateAnnotationKey,
+		"hash", paramsHash)
+
+	return nil
+}
+
+// UpdateDeploymentPodTemplateAnnotation updates the Deployment pod template annotation with a hash of the params map.
+// This triggers pod restart when params change. The function searches for the Deployment in the resources list
+// by component label (app.opendatahub.io/component=<componentName>). If the Deployment is not found, it logs
+// but doesn't fail (this might happen during initial setup). The function only updates the annotation if the
+// hash has changed to avoid unnecessary conversions and updates.
+func UpdateDeploymentPodTemplateAnnotation(
+	ctx context.Context,
+	resources []unstructured.Unstructured,
+	componentLabel string,
+	params map[string]string,
+	podTemplateAnnotationKey string,
+) error {
+	log := logf.FromContext(ctx)
+
+	// Find the Deployment by component label
+	deployIdx, foundDeployments := findDeploymentByComponentLabel(ctx, resources, componentLabel)
+	if deployIdx == -1 {
+		// Deployment not found, log with more details for debugging
+		log.Info("deployment not found in resources by component label, skipping pod template annotation update",
+			"componentLabel", componentLabel,
+			"annotation", podTemplateAnnotationKey,
+			"foundDeployments", foundDeployments,
+			"totalResources", len(resources))
+		return nil
+	}
+
+	deploymentName := resources[deployIdx].GetName()
+	log.V(1).Info("found deployment in resources, updating pod template annotation",
+		"deployment", deploymentName,
+		"componentLabel", componentLabel,
+		"annotation", podTemplateAnnotationKey)
+
+	// Compute hash of params map
+	paramsHash := HashParamsMap(params)
+
+	// Check current annotation value using unstructured access to avoid conversion if hash hasn't changed
+	currentHash, _, _ := unstructured.NestedString(
+		resources[deployIdx].Object,
+		"spec", "template", "metadata", "annotations", podTemplateAnnotationKey,
+	)
+
+	// Only update if the hash has changed to avoid unnecessary conversions and updates
+	if currentHash == paramsHash {
+		log.V(1).Info("deployment pod template annotation hash unchanged, skipping update",
+			"deployment", deploymentName,
+			"annotation", podTemplateAnnotationKey,
+			"hash", paramsHash)
+		return nil
+	}
+
+	log.Info("updating deployment pod template annotation with new hash",
+		"deployment", deploymentName,
+		"annotation", podTemplateAnnotationKey,
+		"oldHash", currentHash,
+		"newHash", paramsHash)
+
+	// Update the deployment pod template annotation
+	return updateDeploymentPodTemplateAnnotationHash(
+		ctx,
+		resources,
+		deployIdx,
+		podTemplateAnnotationKey,
+		paramsHash,
+	)
 }
 
 func KindForObject(scheme *runtime.Scheme, obj runtime.Object) (string, error) {
