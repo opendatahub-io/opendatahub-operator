@@ -2,6 +2,14 @@ name: FBC Processor
 run-name: FBC Processor
 on:
   workflow_dispatch:
+    inputs:
+      previous-version:
+        type: string
+        description: |
+          (Optional) Manual override for the previous version to replace.
+          If not provided, will auto-calculate based on branch version.
+          Use this for custom upgrade paths or when auto-detection fails.
+        required: false
 permissions:
   contents: write
 jobs:
@@ -18,6 +26,7 @@ jobs:
         with:
           ref: ${{ steps.get_branch.outputs.branch }}
           path: ${{ steps.get_branch.outputs.branch }}
+          fetch-depth: 0
 
       - name: Generate FBC Fragment
         id: generate-fbc-fragment
@@ -31,8 +40,14 @@ jobs:
           # Extract version from branch name (strip 'odh-' prefix)
           CURRENT_VERSION=${BRANCH_NAME#odh-}
 
-          # Calculate previous version using the new script
-          PREV_VERSION=$(.github/scripts/calculate-previous-version.sh "$CURRENT_VERSION")
+          MANUAL_PREV="${{ github.event.inputs.previous-version }}"
+          if [[ -n "$MANUAL_PREV" ]]; then
+            PREV_VERSION=$(.github/scripts/calculate-previous-version.sh "$CURRENT_VERSION" "$MANUAL_PREV")
+            echo "Using manual override for previous version"
+          else
+            PREV_VERSION=$(.github/scripts/calculate-previous-version.sh "$CURRENT_VERSION")
+            echo "Auto-calculated previous version"
+          fi
 
           echo "Current version: $CURRENT_VERSION"
           echo "Previous version: $PREV_VERSION"
