@@ -69,6 +69,9 @@ func New(opts ...ClientOpts) (client.Client, error) {
 			fakeMapper.Add(kt, meta.RESTScopeRoot)
 		case gvk.ClusterRole:
 			fakeMapper.Add(kt, meta.RESTScopeRoot)
+		// Gateway API (cluster-scoped)
+		case gvk.GatewayClass:
+			fakeMapper.Add(kt, meta.RESTScopeRoot)
 		// ODH
 		case gvk.DataScienceCluster:
 			fakeMapper.Add(kt, meta.RESTScopeRoot)
@@ -79,6 +82,8 @@ func New(opts ...ClientOpts) (client.Client, error) {
 		case gvk.DSCInitializationV1:
 			fakeMapper.Add(kt, meta.RESTScopeRoot)
 		case gvk.Auth:
+			fakeMapper.Add(kt, meta.RESTScopeRoot)
+		case gvk.GatewayConfig:
 			fakeMapper.Add(kt, meta.RESTScopeRoot)
 		default:
 			fakeMapper.Add(kt, meta.RESTScopeNamespace)

@@ -247,7 +247,13 @@ endif
 	@$(call add-crd-to-kustomization)
 	@$(call fetch-external-crds,github.com/openshift/api,route/v1)
 	@$(call fetch-external-crds,github.com/openshift/api,user/v1)
-	@$(call fetch-external-crds,github.com/openshift/api,config/v1,authentications)
+	@$(call fetch-external-crds,github.com/openshift/api,config/v1,authentications ingresses)
+	@$(call fetch-external-crds,github.com/openshift/api,oauth/v1)
+	@cp $(shell go env GOPATH)/pkg/mod/sigs.k8s.io/gateway-api@$(call go-mod-version,sigs.k8s.io/gateway-api)/config/crd/standard/*.yaml $(CONFIG_DIR)/crd/external/
+	@# Fix OpenShift CRD scopes (OpenShift API incorrectly marks them as Namespaced, but they're Cluster-scoped)
+	@sed -i'' -e 's/scope: Namespaced/scope: Cluster/' $(CONFIG_DIR)/crd/external/config.openshift.io_ingresses.yaml
+	@sed -i'' -e 's/scope: Namespaced/scope: Cluster/' $(CONFIG_DIR)/crd/external/config.openshift.io_authentications.yaml
+	@sed -i'' -e 's/scope: Namespaced/scope: Cluster/' $(CONFIG_DIR)/crd/external/oauth.openshift.io_oauthclients.yaml
 CLEANFILES += config/crd/bases config/rhoai/crd/bases config/crd/external config/rhoai/crd/external config/rbac/role.yaml config/rhoai/rbac/role.yaml config/webhook/manifests.yaml config/rhoai/webhook/manifests.yaml
 
 .PHONY: manifests-all
