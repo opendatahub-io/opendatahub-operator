@@ -16,6 +16,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -71,10 +72,11 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 }
 
 func (s *componentHandler) Init(platform common.Platform) error {
-	mp := manifestsPath(platform)
+	componentPath := odhdeploy.DefaultManifestPath + "/" + ComponentName
+	overlayName := cluster.OverlayName(platform)
 
-	if err := odhdeploy.ApplyParams(mp.String(), "params.env", imageParamMap); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", mp, err)
+	if _, err := odhdeploy.ApplyParamsWithFallback(componentPath, overlayName, imageParamMap); err != nil {
+		return fmt.Errorf("failed to update params for %s: %w", ComponentName, err)
 	}
 
 	return nil
