@@ -38,41 +38,9 @@ objects:
             - '--model=/mnt/models'
             - '--port=8000'
             - '--served-model-name={{.Name}}'
-            - '--max-model-len=$(MAX_MODEL_LEN)'
-            - '--max-num-seqs=$(MAX_BATCH_SIZE)'
           env:
             - name: HF_HOME
               value: /tmp/hf_home
-            - name: HF_HUB_OFFLINE
-              value: '0'
-            - name: FLEX_COMPUTE
-              value: SENTIENT
-            - name: FLEX_DEVICE
-              value: PF
-            - name: TOKENIZERS_PARALLELISM
-              value: 'false'
-            - name: DTLOG_LEVEL
-              value: error
-            - name: TORCH_SENDNN_LOG
-              value: CRITICAL
-            - name: VLLM_SPYRE_USE_CB
-              value: "1"
-            - name: VLLM_SPYRE_REQUIRE_PRECOMPILED_DECODERS
-              value: "1"
-            - name: TORCH_SENDNN_CACHE_ENABLE
-              value: "1"
-            - name: VLLM_SPYRE_WARMUP_PROMPT_LENS
-              value: "256"
-            - name: VLLM_SPYRE_WARMUP_NEW_TOKENS
-              value: "128"
-            - name: VLLM_SPYRE_WARMUP_BATCH_SIZES
-              value: "16"
-            # set defaults, let user override later
-            - name: MAX_MODEL_LEN
-              value: "3072"
-            - name: MAX_BATCH_SIZE
-              value: "16"
-
           ports:
             - containerPort: 8000
               protocol: TCP

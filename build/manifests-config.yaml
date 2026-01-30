@@ -39,7 +39,7 @@ map:
     src: config
     dest: modelcontroller
     git.url: https://github.com/red-hat-data-services/odh-model-controller
-    git.commit: 01c8e14fe86f49d342c11bd6e2088e7e904fc443
+    git.commit: 3b679353ae8b544be0befc45d2997c481c63b81b
   odh-model-registry-operator:
     src: config
     dest: modelregistry
@@ -113,7 +113,7 @@ additional_meta:
     git.commit: 71efe224d1e5ab1d6cab214f64affb497b1fc22e
   odh-feature-server:
     git.url: https://github.com/red-hat-data-services/feast
-    git.commit: d764fa3959f1f25177dd6525f5c7b84e53147aab
+    git.commit: e37c71b848b951524b8653d6553f491e90c0422c
   odh-llm-d-inference-scheduler:
     git.url: https://github.com/red-hat-data-services/llm-d-inference-scheduler
     git.commit: b58af9e1191544d917cf044b2e58cb90388ed4df
