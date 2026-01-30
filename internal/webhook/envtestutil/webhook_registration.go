@@ -8,6 +8,7 @@ import (
 	kueuewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/kueue"
 	notebookwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/notebook"
 	servingwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/serving"
+	monitoringwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/monitoring"
 	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
@@ -80,6 +81,17 @@ func RegisterWebhooks(mgr manager.Manager) error {
 	if err := notebookConnectionWebhook.SetupWithManager(mgr); err != nil {
 		return err
 	}
+
+	// Register Connection webhook for Notebook
+	monitoringInjector := &monitoringwebhook.Injector{
+		Client:    mgr.GetClient(),
+		Decoder:   admission.NewDecoder(mgr.GetScheme()),
+		Name:      "monitoring-injector",
+	}
+	if err := monitoringInjector.SetupWithManager(mgr); err != nil {
+		return err
+	}
+
 
 	return nil
 }
