@@ -42,6 +42,10 @@ const (
 	DefaultGatewaySubdomain = "rh-ai"                              // Default subdomain for gateway URLs
 	LegacyGatewaySubdomain  = "data-science-gateway"               // Legacy subdomain to redirect from
 
+	// RHODS Dashboard redirect for 2.x to 3.x upgrade.
+	RhodsDashboardLegacyHost = "rhods-dashboard-redhat-ods-applications"
+	UpgradedFrom2xAnnotation = "gateway.opendatahub.io/upgraded-from-2x"
+
 	// Authentication constants.
 	AuthClientID             = "data-science" // OauthClient name.
 	KubeAuthProxyName        = "kube-auth-proxy"
@@ -96,6 +100,7 @@ const (
 	networkPolicyTemplate                = "resources/kube-auth-proxy-networkpolicy.yaml"
 	ocpRouteTemplate                     = "resources/gateway-ocp-route.tmpl.yaml"
 	ocpRouteLegacyRedirectTemplate       = "resources/gateway-ocp-route-legacy-redirect.tmpl.yaml"
+	ocpRouteRhodsRedirectTemplate        = "resources/gateway-ocp-route-rhods-redirect.tmpl.yaml"
 )
 
 // GetFQDN returns the fully qualified domain name for the gateway based on the GatewayConfig.
@@ -230,7 +235,7 @@ func createGatewayClass(rr *odhtypes.ReconciliationRequest) error {
 	return rr.AddResources(gatewayClass)
 }
 
-func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, domain string, legacyDomain string, ingressMode serviceApi.IngressMode) error {
+func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, domain string, legacyInfo LegacyRedirectInfo, ingressMode serviceApi.IngressMode) error {
 	listeners := []gwapiv1.Listener{}
 
 	if certSecretName != "" {
@@ -283,8 +288,8 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 
 		// Add legacy listener for LoadBalancer mode to accept requests for legacy hostname
 		// (EnvoyFilter will redirect these to the new hostname)
-		if ingressMode != serviceApi.IngressModeOcpRoute && legacyDomain != "" {
-			legacyHostname := gwapiv1.Hostname(legacyDomain)
+		if ingressMode != serviceApi.IngressModeOcpRoute && legacyInfo.LegacyHostname != "" {
+			legacyHostname := gwapiv1.Hostname(legacyInfo.LegacyHostname)
 			legacyListener := gwapiv1.Listener{
 				Name:          "https-legacy",
 				Protocol:      gwapiv1.HTTPSProtocolType,
@@ -294,6 +299,21 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 				AllowedRoutes: allowedRoutes,
 			}
 			listeners = append(listeners, legacyListener)
+		}
+
+		// Add RHODS dashboard listener for LoadBalancer mode to accept requests for legacy RHODS URL
+		// (EnvoyFilter will redirect these to the new hostname - for 2.x to 3.x upgrade)
+		if ingressMode != serviceApi.IngressModeOcpRoute && legacyInfo.RhodsDashboardHostname != "" {
+			rhodsHostname := gwapiv1.Hostname(legacyInfo.RhodsDashboardHostname)
+			rhodsListener := gwapiv1.Listener{
+				Name:          "https-rhods-legacy",
+				Protocol:      gwapiv1.HTTPSProtocolType,
+				Port:          StandardHTTPSPort,
+				Hostname:      &rhodsHostname,
+				TLS:           tlsConfig,
+				AllowedRoutes: allowedRoutes,
+			}
+			listeners = append(listeners, rhodsListener)
 		}
 	}
 
@@ -470,15 +490,18 @@ func getCookieSettings(cookieConfig *serviceApi.CookieConfig) (string, string) {
 
 // LegacyRedirectInfo contains computed values for legacy hostname redirect functionality.
 type LegacyRedirectInfo struct {
-	CurrentSubdomain       string // The current subdomain (from config or default)
-	LegacySubdomain        string // The legacy subdomain to redirect from (empty if redirect not needed)
-	LegacySubdomainPattern string // Lua-escaped pattern for legacy subdomain matching
-	LegacyHostname         string // Full legacy hostname (empty if redirect not needed)
+	CurrentSubdomain       string
+	LegacySubdomain        string
+	LegacySubdomainPattern string
+	LegacyHostname         string
+
+	// RHODS Dashboard redirect for 2.x to 3.x upgrade.
+	RhodsDashboardHostname        string
+	RhodsDashboardHostnamePattern string
 }
 
-// computeLegacyRedirectInfo computes the subdomain and legacy hostname information
-// for redirect functionality. Returns empty legacy fields if current subdomain equals legacy.
-func computeLegacyRedirectInfo(gatewayConfig *serviceApi.GatewayConfig, hostname string) LegacyRedirectInfo {
+// computeLegacyRedirectInfo computes legacy hostname redirect info.
+func computeLegacyRedirectInfo(gatewayConfig *serviceApi.GatewayConfig, hostname string, isUpgradeFrom2x bool) LegacyRedirectInfo {
 	currentSubdomain := DefaultGatewaySubdomain
 	if gatewayConfig != nil && gatewayConfig.Spec.Subdomain != "" {
 		currentSubdomain = gatewayConfig.Spec.Subdomain
@@ -488,17 +511,31 @@ func computeLegacyRedirectInfo(gatewayConfig *serviceApi.GatewayConfig, hostname
 		CurrentSubdomain: currentSubdomain,
 	}
 
-	// Only enable legacy redirect if current subdomain differs from legacy
 	if currentSubdomain != LegacyGatewaySubdomain {
 		info.LegacySubdomain = LegacyGatewaySubdomain
-		// Escape dashes for Lua pattern matching (dash is a special character in Lua patterns)
 		info.LegacySubdomainPattern = strings.ReplaceAll(LegacyGatewaySubdomain, "-", "%-")
-		// Compute legacy hostname by replacing current subdomain with legacy subdomain
-		// Using strings.Replace with dot suffix for safer, more explicit replacement
 		info.LegacyHostname = strings.Replace(hostname, currentSubdomain+".", LegacyGatewaySubdomain+".", 1)
 	}
 
+	if isUpgradeFrom2x {
+		if idx := strings.Index(hostname, "."); idx != -1 {
+			clusterDomain := hostname[idx+1:]
+			info.RhodsDashboardHostname = RhodsDashboardLegacyHost + "." + clusterDomain
+			info.RhodsDashboardHostnamePattern = strings.ReplaceAll(RhodsDashboardLegacyHost, "-", "%-")
+		}
+	}
+
 	return info
+}
+
+// isUpgradeFrom2x checks if this is a 2.x to 3.x upgrade by looking for the
+// upgrade annotation set by the upgrade package during migration.
+func isUpgradeFrom2x(gatewayConfig *serviceApi.GatewayConfig) bool {
+	if gatewayConfig == nil {
+		return false
+	}
+	annotations := gatewayConfig.GetAnnotations()
+	return annotations != nil && annotations[UpgradedFrom2xAnnotation] == "true"
 }
 
 // calculateAuthConfigHash generates a hash of the authentication secret values
