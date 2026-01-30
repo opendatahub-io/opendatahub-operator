@@ -70,7 +70,7 @@ func getOdhDashboardConfig(ctx context.Context, cli client.Client, applicationNS
 	}
 
 	// If not found in cluster, check if it's a "not found" error
-	if !k8serr.IsNotFound(err) {
+	if !k8serr.IsNotFound(err) && !meta.IsNoMatchError(err) {
 		return nil, false, fmt.Errorf("failed to get OdhDashboardConfig from cluster: %w", err)
 	}
 
