@@ -1,0 +1,65 @@
+name: Gateway Integration Tests
+on:
+  pull_request:
+    types: [labeled, synchronize, reopened]
+    branches:
+      - main
+      - rhoai
+
+permissions:
+  contents: read
+
+jobs:
+  gateway-integration:
+    name: Gateway Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Check gateway paths
+        id: paths
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            gateway:
+              - 'internal/controller/services/gateway/**'
+              - 'api/services/v1alpha1/gateway_types.go'
+              - 'config/crd/bases/services.platform.opendatahub.io_gatewayconfigs.yaml'
+              - 'pkg/cluster/gvk/**'
+              - 'pkg/resources/**'
+              - 'Makefile'
+              - 'config/crd/external/gateway.networking.k8s.io_*.yaml'
+              - 'api/services/v1alpha1/types*.go'
+              - 'tests/e2e/gateway_test.go'
+
+      - name: Set up Go
+        if: contains(github.event.pull_request.labels.*.name, 'run-gateway-tests') || steps.paths.outputs.gateway == 'true'
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Generate manifests
+        if: contains(github.event.pull_request.labels.*.name, 'run-gateway-tests') || steps.paths.outputs.gateway == 'true'
+        run: make manifests
+
+      - name: Setup envtest
+        if: contains(github.event.pull_request.labels.*.name, 'run-gateway-tests') || steps.paths.outputs.gateway == 'true'
+        run: |
+          make envtest
+          echo "KUBEBUILDER_ASSETS=$(./bin/setup-envtest use -p path)" >> $GITHUB_ENV
+
+      - name: Run Gateway Integration Tests
+        id: run-tests
+        if: contains(github.event.pull_request.labels.*.name, 'run-gateway-tests') || steps.paths.outputs.gateway == 'true'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          go test -tags=integration -v -count=1 -timeout=10m -coverprofile=coverage.out ./internal/controller/services/gateway/... 2>&1 | tee test.log
+          echo $? > exitcode.txt
+
+      - name: Test summary and coverage
+        if: always() && (steps.run-tests.outcome == 'success' || steps.run-tests.outcome == 'failure')
+        env:
+          SUMMARY_TITLE: Gateway Integration Tests
+        run: bash .github/scripts/integration-test-summary.sh
