@@ -29,6 +29,7 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -91,15 +92,21 @@ func initialize(_ context.Context, rr *types.ReconciliationRequest) error {
 }
 
 // customizeManifests applies component-specific customizations to the manifests.
-func customizeManifests(_ context.Context, rr *types.ReconciliationRequest) error {
+func customizeManifests(ctx context.Context, rr *types.ReconciliationRequest) error {
 	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
 	}
 
+	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
+	if err != nil {
+		return err
+	}
+
 	gatewayParams := map[string]string{
 		"gateway-namespace": maas.Spec.GatewayRef.Namespace,
 		"gateway-name":      maas.Spec.GatewayRef.Name,
+		"app-namespace":     appNamespace,
 	}
 
 	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), "params.env", nil, gatewayParams); err != nil {
