@@ -20,6 +20,7 @@ import (
 	"context"
 	"embed"
 	"fmt"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -107,6 +108,15 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 	}
 
 	l.V(1).Info("creating auth proxy for gateway", "gateway", gatewayConfig.Name)
+
+	// Set default kubernetesAudiences if not specified - makes it visible to users
+	if len(gatewayConfig.Spec.KubernetesAudiences) == 0 {
+		gatewayConfig.Spec.KubernetesAudiences = []string{"kube-auth-proxy"}
+		if err := rr.Client.Update(ctx, gatewayConfig); err != nil {
+			return fmt.Errorf("failed to set default kubernetesAudiences: %w", err)
+		}
+		l.V(1).Info("set default kubernetesAudiences", "audiences", gatewayConfig.Spec.KubernetesAudiences)
+	}
 
 	authMode, err := cluster.GetClusterAuthenticationMode(ctx, rr.Client)
 	if err != nil {
@@ -199,6 +209,10 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		{
 			FS:   gatewayResources,
 			Path: kubeAuthProxyHPATemplate,
+		},
+		{
+			FS:   gatewayResources,
+			Path: kubeAuthProxyClusterRoleBindingTemplate,
 		},
 		{
 			FS:   gatewayResources,
@@ -356,6 +370,21 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	}
 	// Template needs the inverse: insecure-skip-verify is the opposite of verify
 	templateData["InsecureSkipVerify"] = !verifyProviderCert
+
+	// Add K8s service account token validation settings (default to enabled)
+	enableK8sTokenValidation := true
+	if gatewayConfig.Spec.EnableK8sTokenValidation != nil {
+		enableK8sTokenValidation = *gatewayConfig.Spec.EnableK8sTokenValidation
+	}
+	templateData["EnableK8sTokenValidation"] = enableK8sTokenValidation
+
+	// Add K8s token audiences (default to "kube-auth-proxy" if not specified)
+	kubernetesAudiences := gatewayConfig.Spec.KubernetesAudiences
+	if len(kubernetesAudiences) == 0 {
+		kubernetesAudiences = []string{"kube-auth-proxy"}
+	}
+	// Join audiences with commas for the command-line flag
+	templateData["KubernetesAudiencesJoined"] = strings.Join(kubernetesAudiences, ",")
 
 	return templateData, nil
 }
