@@ -29,8 +29,6 @@ spec:
     value: Dockerfiles/rhoai.Dockerfile
   - name: skip-checks
     value: "true"
-  - name: utils-repo-branch
-    value: "odh"
   - name: build-version-tag
     value: "odh-stable"
   - name: build-platforms
@@ -45,7 +43,7 @@ spec:
     - name: url
       value: https://github.com/opendatahub-io/odh-konflux-central.git
     - name: revision
-      value: 'konflux-poc'
+      value: 'main'
     - name: pathInRepo
       value: pipeline/operator-build.yaml
   taskRunTemplate:
