@@ -49,7 +49,7 @@ map:
     src: manifests
     dest: dashboard
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 33bc7ade479a5cffd2ee163d1346533c77cddb0b
+    git.commit: 5230648fe024841ec1fe5ffa33feea58170b794a
   odh-training-operator:
     src: manifests
     dest: trainingoperator
@@ -251,7 +251,7 @@ additional_meta:
     git.commit: 867d9323d895b4e7b918bef10f06e734028d6310
   odh-mod-arch-model-registry:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: db9ad5293c79f7898263a2763d81e3d238a67c59
+    git.commit: 5230648fe024841ec1fe5ffa33feea58170b794a
   odh-trustyai-nemo-guardrails-server:
     git.url: https://github.com/red-hat-data-services/NeMo-Guardrails
     git.commit: 3fb42ac76b3d46b4f0cb84b2c76b4e873a2933e6
@@ -260,13 +260,13 @@ additional_meta:
     git.commit: 291b2dcb0c4e76e1eb80cfc3c22d6942e772cb7c
   odh-mlflow:
     git.url: https://github.com/red-hat-data-services/mlflow
-    git.commit: 2f1ccdacd5331b1bb153bf95bedac19c9344bdef
+    git.commit: b3a455b2444051fc4738f5c3c68793eb1dcd797a
   odh-mlserver:
     git.url: https://github.com/red-hat-data-services/MLServer
     git.commit: bde329e11ec12d9ceb3339903bf28062f873d2cd
   odh-mod-arch-maas:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 33bc7ade479a5cffd2ee163d1346533c77cddb0b
+    git.commit: 5230648fe024841ec1fe5ffa33feea58170b794a
   odh-training-rocm64-torch29-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: cffca50edb2dfa64a8fc5fea2bde1160c3f42744
