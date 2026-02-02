@@ -109,7 +109,7 @@ replacements:
     kind: ConfigMap
     version: v1
     name: maas-parameters
-    fieldPath: metadata.namespace
+    fieldPath: data.app-namespace
   targets:
   - select:
       kind: AuthPolicy
