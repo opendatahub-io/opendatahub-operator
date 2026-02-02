@@ -45,6 +45,13 @@ func (e *Engine) Render(path string, opts ...RenderOptsFn) ([]unstructured.Unstr
 		if err := plugin.Transform(resMap); err != nil {
 			return nil, fmt.Errorf("failed applying namespace plugin when preparing Kustomize resources. %w", err)
 		}
+
+		// Transform URLs containing namespace patterns (e.g., .opendatahub.svc.cluster.local)
+		// to use the actual target namespace
+		urlNsPlugin := plugins.CreateURLNamespaceTransformerPlugin(ro.ns)
+		if err := urlNsPlugin.Transform(resMap); err != nil {
+			return nil, fmt.Errorf("failed applying URL namespace plugin when preparing Kustomize resources. %w", err)
+		}
 	}
 
 	if len(ro.labels) != 0 {

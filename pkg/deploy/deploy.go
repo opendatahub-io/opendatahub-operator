@@ -104,6 +104,13 @@ func DeployManifestsFromPathWithLabels(
 		return fmt.Errorf("failed applying namespace plugin when preparing Kustomize resources. %w", err)
 	}
 
+	// Transform URLs containing namespace patterns (e.g., .opendatahub.svc.cluster.local)
+	// to use the actual target namespace
+	urlNsPlugin := plugins.CreateURLNamespaceTransformerPlugin(namespace)
+	if err := urlNsPlugin.Transform(resMap); err != nil {
+		return fmt.Errorf("failed applying URL namespace plugin when preparing Kustomize resources. %w", err)
+	}
+
 	resourceLabels := map[string]string{
 		labels.ODH.Component(componentName): "true",
 		labels.K8SCommon.PartOf:             componentName,
