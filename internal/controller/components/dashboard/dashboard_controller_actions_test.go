@@ -2,6 +2,7 @@
 package dashboard
 
 import (
+	"os"
 	"testing"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -14,6 +15,7 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
@@ -146,4 +148,125 @@ func TestCreateInfraHardwareProfile(t *testing.T) {
 	g.Expect(receivedHardwareProfile.GetAnnotations()["opendatahub.io/display-name"]).Should(Equal("Test Display Name"))
 	g.Expect(receivedHardwareProfile.GetAnnotations()["opendatahub.io/description"]).Should(Equal("Test Description"))
 	g.Expect(receivedHardwareProfile.GetAnnotations()["opendatahub.io/disabled"]).Should(Equal("false"))
+}
+
+func TestDeployObservabilityManifests_WithPersesCRD_NoManifests(t *testing.T) {
+	ctx := t.Context()
+	g := NewWithT(t)
+
+	fakeSchema, err := scheme.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Register PersesDashboard GVK with the schema so the REST mapper knows about it
+	persesDashboardListGVK := schema.GroupVersionKind{
+		Group:   "perses.dev",
+		Version: "v1alpha1",
+		Kind:    "PersesDashboardList",
+	}
+	fakeSchema.AddKnownTypeWithName(gvk.PersesDashboard, &unstructured.Unstructured{})
+	fakeSchema.AddKnownTypeWithName(persesDashboardListGVK, &unstructured.UnstructuredList{})
+
+	// Create a CRD for PersesDashboard to make HasCRD check pass
+	persesDashboardCRD := &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: v1.ObjectMeta{
+			Name: "persesdashboards.perses.dev",
+		},
+		Status: apiextensionsv1.CustomResourceDefinitionStatus{
+			StoredVersions: []string{"v1alpha1"},
+		},
+	}
+
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(persesDashboardCRD),
+		fakeclient.WithScheme(fakeSchema),
+	)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := &types.ReconciliationRequest{
+		Client:    cli,
+		Manifests: []types.ManifestInfo{},
+	}
+
+	// Even with CRD present, manifests should not be added if the path doesn't exist
+	err = deployObservabilityManifests(ctx, rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(rr.Manifests).Should(BeEmpty())
+}
+
+func TestDeployObservabilityManifests_WithPersesCRD_WithManifests(t *testing.T) {
+	ctx := t.Context()
+	g := NewWithT(t)
+
+	fakeSchema, err := scheme.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Register PersesDashboard GVK with the schema so the REST mapper knows about it
+	persesDashboardListGVK := schema.GroupVersionKind{
+		Group:   "perses.dev",
+		Version: "v1alpha1",
+		Kind:    "PersesDashboardList",
+	}
+	fakeSchema.AddKnownTypeWithName(gvk.PersesDashboard, &unstructured.Unstructured{})
+	fakeSchema.AddKnownTypeWithName(persesDashboardListGVK, &unstructured.UnstructuredList{})
+
+	// Create a CRD for PersesDashboard to make HasCRD check pass
+	persesDashboardCRD := &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: v1.ObjectMeta{
+			Name: "persesdashboards.perses.dev",
+		},
+		Status: apiextensionsv1.CustomResourceDefinitionStatus{
+			StoredVersions: []string{"v1alpha1"},
+		},
+	}
+
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(persesDashboardCRD),
+		fakeclient.WithScheme(fakeSchema),
+	)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Create a temp directory to simulate the manifest path existing
+	tempDir := t.TempDir()
+	manifestPath := tempDir + "/dashboard/observability"
+	err = os.MkdirAll(manifestPath, 0755)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Directly set DefaultManifestPath to our temp directory
+	originalPath := odhdeploy.DefaultManifestPath
+	odhdeploy.DefaultManifestPath = tempDir
+	defer func() {
+		odhdeploy.DefaultManifestPath = originalPath
+	}()
+
+	rr := &types.ReconciliationRequest{
+		Client:    cli,
+		Manifests: []types.ManifestInfo{},
+	}
+
+	err = deployObservabilityManifests(ctx, rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(rr.Manifests).Should(HaveLen(1))
+	g.Expect(rr.Manifests[0].SourcePath).Should(Equal("observability"))
+}
+
+func TestDeployObservabilityManifests_WithoutPersesCRD(t *testing.T) {
+	ctx := t.Context()
+	g := NewWithT(t)
+
+	fakeSchema, err := scheme.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	cli, err := fakeclient.New(
+		fakeclient.WithScheme(fakeSchema),
+	)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := &types.ReconciliationRequest{
+		Client:    cli,
+		Manifests: []types.ManifestInfo{},
+	}
+
+	err = deployObservabilityManifests(ctx, rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(rr.Manifests).Should(BeEmpty())
 }

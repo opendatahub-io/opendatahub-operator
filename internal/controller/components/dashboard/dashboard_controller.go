@@ -98,6 +98,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			DeleteFunc:  func(tde event.TypedDeleteEvent[client.Object]) bool { return false },
 		}), reconciler.Dynamic(reconciler.CrdExists(gvk.DashboardHardwareProfile))).
 		WithAction(initialize).
+		WithAction(deployObservabilityManifests).
 		WithAction(setKustomizedParams).
 		WithAction(configureDependencies).
 		WithAction(kustomize.NewAction(

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"os"
 	"strconv"
 	"strings"
 
@@ -56,6 +57,30 @@ type DashboardHardwareProfileList struct {
 func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	rr.Manifests = []odhtypes.ManifestInfo{defaultManifestInfo(rr.Release.Name)}
 
+	return nil
+}
+
+func deployObservabilityManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	// Check if PersesDashboard CRD exists (Cluster Observability Operator installed)
+	persesDashboardExists, err := cluster.HasCRD(ctx, rr.Client, gvk.PersesDashboard)
+	if err != nil {
+		return odherrors.NewStopError("failed to check if %s CRD exists: %w", gvk.PersesDashboard, err)
+	}
+
+	if !persesDashboardExists {
+		// CRD not available, skip deployment without error
+		return nil
+	}
+
+	// Check if observability manifests exist on the filesystem
+	manifestInfo := observabilityManifestInfo()
+	if _, err := os.Stat(manifestInfo.String()); os.IsNotExist(err) {
+		// Manifests not available yet, skip deployment without error
+		return nil
+	}
+
+	// Both CRD exists AND manifests exist, add observability manifests for Perses dashboards
+	rr.Manifests = append(rr.Manifests, manifestInfo)
 	return nil
 }
 
