@@ -2,6 +2,11 @@
 #
 # Calculate the previous version for OLM upgrade path.
 #
+# IMPORTANT: This script runs AFTER release-staging.yaml has already created
+# the tag for the current version. Therefore, the "latest" tag in the repo is
+# the current release, not the previous one. We must exclude it to find the
+# actual previous release.
+#
 # Logic:
 #   1. If manual override provided: validate and use it
 #   2. Otherwise: find most recent tag (excluding current version) = previous release
@@ -37,6 +42,9 @@ if [[ -n "${PREV_VERSION_OVERRIDE}" ]]; then
 fi
 
 # Find previous version: get second-most-recent tag by excluding current version
+# NOTE: We exclude the current version because release-staging.yaml has already
+# created this tag before this script runs. Without exclusion, we'd incorrectly
+# return the current version as the "previous" version.
 prev_tag=$(git tag --list 'v*' --sort=-creatordate 2>/dev/null | \
            grep -Fxv "v${VERSION}" | head -n1)
 
