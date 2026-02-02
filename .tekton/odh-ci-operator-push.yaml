@@ -9,8 +9,9 @@ metadata:
     pipelinesascode.tekton.dev/cancel-in-progress: "false"
     pipelinesascode.tekton.dev/max-keep-runs: "3"
     build.appstudio.openshift.io/build-nudge-files: "bundle/bundle-patch.yaml"
-    pipelinesascode.tekton.dev/on-cel-expression: event == "test-comment" || ( event == "push" && target_branch
-      == "konflux-poc-2" && ".tekton/odh-ci-operator-push.yaml".pathChanged())
+    pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch
+      == "konflux-poc-2" && ".tekton/odh-ci-operator-push.yaml".pathChanged()
+    # event == "test-comment" || (
   creationTimestamp: null
   labels:
     appstudio.openshift.io/application: poc
