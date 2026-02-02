@@ -26,8 +26,8 @@ var (
 	// Maps variables in params.env files to RELATED_IMAGE_* environment variables
 	// that are injected by the operator at runtime.
 	imageParamMap = map[string]string{
-		"SPARK_OPERATOR_CONTROLLER_IMAGE": "RELATED_IMAGE_SPARK_OPERATOR",
-		"SPARK_OPERATOR_WEBHOOK_IMAGE":    "RELATED_IMAGE_SPARK_OPERATOR",
+		"SPARK_OPERATOR_CONTROLLER_IMAGE": "RELATED_IMAGE_SPARK_OPERATOR_IMAGE",
+		"SPARK_OPERATOR_WEBHOOK_IMAGE":    "RELATED_IMAGE_SPARK_OPERATOR_IMAGE",
 	}
 
 	conditionTypes = []string{
