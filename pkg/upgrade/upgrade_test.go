@@ -1588,6 +1588,55 @@ func TestAttachHardwareProfileToInferenceServices(t *testing.T) {
 		err = upgrade.AttachHardwareProfileToInferenceServices(ctx, cli, namespace, odhConfig)
 		g.Expect(err).ShouldNot(HaveOccurred())
 	})
+
+	t.Run("should skip Serverless InferenceService with deploymentMode annotation", func(t *testing.T) {
+		g := NewWithT(t)
+
+		odhConfig := createTestOdhDashboardConfig(namespace)
+		isvc := createTestInferenceService(namespace, "isvc-serverless-annotation", "")
+		isvc.SetAnnotations(map[string]string{
+			"serving.kserve.io/deploymentMode": "Serverless",
+		})
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, isvc))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = upgrade.AttachHardwareProfileToInferenceServices(ctx, cli, namespace, odhConfig)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify NO HWP annotation added (Serverless ISVC should be skipped)
+		updatedIsvc := &unstructured.Unstructured{}
+		updatedIsvc.SetGroupVersionKind(gvk.InferenceServices)
+		err = cli.Get(ctx, client.ObjectKey{Name: "isvc-serverless-annotation", Namespace: namespace}, updatedIsvc)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(updatedIsvc.GetAnnotations()).ToNot(HaveKey("opendatahub.io/hardware-profile-name"))
+	})
+
+	t.Run("should skip Serverless InferenceService with deploymentMode in status", func(t *testing.T) {
+		g := NewWithT(t)
+
+		odhConfig := createTestOdhDashboardConfig(namespace)
+		isvc := createTestInferenceService(namespace, "isvc-serverless-status", "")
+
+		// Set deploymentMode in status
+		status := map[string]interface{}{
+			"deploymentMode": "Serverless",
+		}
+		isvc.Object["status"] = status
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, isvc))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = upgrade.AttachHardwareProfileToInferenceServices(ctx, cli, namespace, odhConfig)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify NO HWP annotation added (Serverless ISVC should be skipped)
+		updatedIsvc := &unstructured.Unstructured{}
+		updatedIsvc.SetGroupVersionKind(gvk.InferenceServices)
+		err = cli.Get(ctx, client.ObjectKey{Name: "isvc-serverless-status", Namespace: namespace}, updatedIsvc)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(updatedIsvc.GetAnnotations()).ToNot(HaveKey("opendatahub.io/hardware-profile-name"))
+	})
 }
 
 // Helper function to create test Notebook.
