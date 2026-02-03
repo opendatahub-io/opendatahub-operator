@@ -37,6 +37,8 @@ spec:
   - name: additional-tags
     value:
     - '{{target_branch}}-{{revision}}'
+  - name: build-type
+    value: nightly
   pipelineRef:
     resolver: git
     params:
