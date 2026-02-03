@@ -30,7 +30,7 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["trainer"]="opendatahub-io:trainer:main@fc484ac82c87abea4e15d1ac8502146106a7fdbe:manifests"
     ["maas"]="opendatahub-io:maas-billing:main@30f93ad170ff45e8b7ef2e686bde26e5f9ad8907:deployment"
     ["mlflowoperator"]="opendatahub-io:mlflow-operator:main@35bdb14fdb75ae8ca3aac885f34bcbcd0832ab50:config"
-    ["sparkoperator"]="opendatahub-io:spark-operator:main@706671cae59deff0d83e06d43a28ed38c7645519:config"
+    ["sparkoperator"]="opendatahub-io:spark-operator:main@2242dc8dfe7320ec8eac3a48ad0c3e05d9f63467:config"
 )
 
 # RHOAI Component Manifests
