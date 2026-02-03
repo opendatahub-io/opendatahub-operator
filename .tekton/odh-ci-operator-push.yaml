@@ -46,7 +46,7 @@ spec:
     - name: revision
       value: 'main'
     - name: pathInRepo
-      value: pipeline/operator-build.yaml
+      value: pipeline/multi-arch-operator-build.yaml
   taskRunTemplate:
     serviceAccountName: build-pipeline-odh-ci-operator
   workspaces:
