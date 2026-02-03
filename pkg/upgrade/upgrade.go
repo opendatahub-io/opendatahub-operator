@@ -22,12 +22,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -72,8 +72,6 @@ var defaultResourceLimits = map[string]string{
 // TODO: remove function once we have a generic solution across all components.
 func CleanupExistingResource(ctx context.Context,
 	cli client.Client,
-	platform common.Platform,
-	oldReleaseVersion common.Release,
 ) error {
 	var multiErr *multierror.Error
 	// get DSCI CR to get application namespace
@@ -97,12 +95,27 @@ func CleanupExistingResource(ctx context.Context,
 
 	// HardwareProfile migration as described in RHOAIENG-33158 and RHOAIENG-33159
 	// This includes creating HardwareProfile resources and updating annotations on Notebooks and InferenceServices
-	if cluster.GetRelease().Version.Major == 3 && oldReleaseVersion.Version.Major == 2 {
-		multiErr = multierror.Append(multiErr, MigrateToInfraHardwareProfiles(ctx, cli, d.Spec.ApplicationsNamespace))
+	// Check if target infrastructure HardwareProfile CRD exists (indicates we should migrate)
+	hasInfraHWP, err := cluster.HasCRD(ctx, cli, gvk.HardwareProfile)
+	if err != nil {
+		multiErr = multierror.Append(multiErr, fmt.Errorf("failed to check HardwareProfile CRD: %w", err))
+	} else if hasInfraHWP {
+		// Check if source AcceleratorProfile CRD exists (indicates we have data to migrate)
+		hasAccelProfile, err := cluster.HasCRD(ctx, cli, gvk.DashboardAcceleratorProfile)
+		if err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to check AcceleratorProfile CRD: %w", err))
+		} else if hasAccelProfile {
+			// Both CRDs exist, run migration (it's idempotent)
+			multiErr = multierror.Append(multiErr, MigrateToInfraHardwareProfiles(ctx, cli, d.Spec.ApplicationsNamespace))
+		}
 	}
 
-	// GatewayConfig ingressMode migration: preserve LoadBalancer mode for existing 3.x deployments
-	if oldReleaseVersion.Version.Major == 3 {
+	// GatewayConfig ingressMode migration: preserve LoadBalancer mode for existing deployments
+	// Check if GatewayConfig CRD exists (indicates feature is available)
+	hasGatewayConfig, err := cluster.HasCRD(ctx, cli, gvk.GatewayConfig)
+	if err != nil {
+		multiErr = multierror.Append(multiErr, fmt.Errorf("failed to check GatewayConfig CRD: %w", err))
+	} else if hasGatewayConfig {
 		multiErr = multierror.Append(multiErr, MigrateGatewayConfigIngressMode(ctx, cli))
 	}
 
