@@ -14,7 +14,7 @@ metadata:
     appstudio.openshift.io/application: opendatahub-builds
     appstudio.openshift.io/component: odh-operator-ci
     pipelines.appstudio.openshift.io/type: build
-  name: odh-operator-ci-on-pull-request.yaml
+  name: odh-operator-ci-on-pull-request
   namespace: open-data-hub-tenant
 spec:
   params:
