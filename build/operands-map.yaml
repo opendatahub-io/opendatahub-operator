@@ -233,6 +233,6 @@ relatedImages:
     - name: RELATED_IMAGE_ODH_MOD_ARCH_MAAS_IMAGE
       value: quay.io/opendatahub/mod-arch-maas@sha256:b884966ed030a9c8abaace0491ee1ae3f075a9060ebaa1953c5d0bce028a8e1a
       component: odh-mod-arch-maas
-    - name: RELATED_IMAGE_SPARK_OPERATOR
+    - name: RELATED_IMAGE_SPARK_OPERATOR_IMAGE
       value: quay.io/opendatahub/spark-operator@sha256:79676b7bdf6ce0dd59bc0a9e82169f773a552ce20d87bb73d911e3bdbc10611a
       component: odh-spark-operator
