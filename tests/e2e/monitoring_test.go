@@ -28,6 +28,8 @@ const (
 	MonitoringCRName                  = "default-monitoring"
 	MonitoringStackName               = "data-science-monitoringstack"
 	OpenTelemetryCollectorName        = "data-science-collector"
+	TargetAllocatorDeploymentName     = "data-science-collector-targetallocator"
+	TargetAllocatorServiceAccount     = "data-science-collector-collector"
 	TempoMonolithicName               = "data-science-tempomonolithic"
 	TempoStackName                    = "data-science-tempostack"
 	InstrumentationName               = "data-science-instrumentation"
@@ -110,6 +112,11 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test OpenTelemetry Collector Configurations", monitoringServiceCtx.ValidateOpenTelemetryCollectorConfigurations},
 		{"Test OpenTelemetry Collector replicas", monitoringServiceCtx.ValidateMonitoringCRCollectorReplicas},
 		{"Test Metrics TLS is always enabled for Prometheus exporter", monitoringServiceCtx.ValidateMetricsTLSAlwaysEnabled},
+		{"Test Target Allocator not deployed without metrics", monitoringServiceCtx.ValidateTargetAllocatorNotDeployedWithoutMetrics},
+		{"Test Target Allocator deployment with metrics", monitoringServiceCtx.ValidateTargetAllocatorDeploymentWithMetrics},
+		{"Test Target Allocator Service and ConfigMap", monitoringServiceCtx.ValidateTargetAllocatorServiceAndConfigMap},
+		{"Test Target Allocator lifecycle", monitoringServiceCtx.ValidateTargetAllocatorLifecycle},
+		{"Test Target Allocator RBAC configuration", monitoringServiceCtx.ValidateTargetAllocatorRBACConfiguration},
 		{"Test Instrumentation CR Traces lifecycle", monitoringServiceCtx.ValidateInstrumentationCRTracesLifecycle},
 		{"Test Traces Exporters Reserved Name Validation", monitoringServiceCtx.ValidateTracesExportersReservedNameValidation},
 		{"Test ThanosQuerier deployment with metrics", monitoringServiceCtx.ValidateThanosQuerierDeployment},
@@ -464,6 +471,7 @@ func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorConfigurations(t *tes
 // ValidateMetricsTLSAlwaysEnabled validates that TLS is always enabled for the OpenTelemetry Collector Prometheus exporter.
 func (tc *MonitoringTestCtx) ValidateMetricsTLSAlwaysEnabled(t *testing.T) {
 	t.Helper()
+
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
 		tc.withMetricsConfig(),
@@ -1291,8 +1299,18 @@ func (tc *MonitoringTestCtx) cleanupTracesConfiguration() {
 }
 
 // resetMonitoringConfigToManaged completely resets monitoring configuration and sets management state to Managed.
+// It waits for any in-flight deletions to complete to ensure clean state for the next test.
 func (tc *MonitoringTestCtx) resetMonitoringConfigToManaged() {
 	tc.updateMonitoringConfig(testf.Transform(`.spec.monitoring = {"managementState": "%s"}`, operatorv1.Managed))
+
+	// Wait for OpenTelemetryCollector to be deleted if it was running with metrics/traces
+	// The controller will delete it when monitoring is reset to empty config
+	tc.EnsureResourcesGone(
+		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{
+			Name:      OpenTelemetryCollectorName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+	)
 }
 
 // resetMonitoringConfigToRemoved completely resets monitoring configuration and sets management state to Removed.
@@ -2185,4 +2203,243 @@ func (tc *MonitoringTestCtx) ValidatePersesDatasourceTLSWithS3Backend(t *testing
 func (tc *MonitoringTestCtx) ValidatePersesDatasourceTLSWithGCSBackend(t *testing.T) {
 	t.Helper()
 	tc.validatePersesDatasourceTLSWithCloudBackend(t, "gcs")
+}
+
+// ValidateTargetAllocatorNotDeployedWithoutMetrics tests that the Target Allocator is not deployed when metrics are not configured.
+func (tc *MonitoringTestCtx) ValidateTargetAllocatorNotDeployedWithoutMetrics(t *testing.T) {
+	t.Helper()
+
+	tc.ensureMonitoringCleanSlate(t, "")
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		withNoMetrics(),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(And(
+			jq.Match(`.spec.metrics == null`),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Monitoring resource should be created without metrics configuration"),
+	)
+
+	// Validate that OpenTelemetryCollectorAvailable condition is False when metrics are not configured
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(jq.Match(
+			`[.status.conditions[] | select(.type=="%s" and .status=="False")] | length==1`,
+			status.ConditionOpenTelemetryCollectorAvailable,
+		)),
+		WithCustomErrorMsg("OpenTelemetryCollectorAvailable condition should be False when metrics are not configured"),
+	)
+
+	// When both metrics and traces are disabled, OpenTelemetryCollector is not deployed
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{
+			Name:      OpenTelemetryCollectorName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+	)
+
+	// Verify Target Allocator Deployment does not exist
+	// The OpenTelemetry Operator creates a deployment named: <collector-name>-targetallocator
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      TargetAllocatorDeploymentName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+	)
+
+	tc.resetMonitoringConfigToManaged()
+}
+
+// ValidateTargetAllocatorDeploymentWithMetrics tests that the Target Allocator is deployed and ready when metrics are configured.
+func (tc *MonitoringTestCtx) ValidateTargetAllocatorDeploymentWithMetrics(t *testing.T) {
+	t.Helper()
+
+	tc.ensureMonitoringCleanSlate(t, "")
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(And(
+			jq.Match(`.spec.metrics != null`),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Monitoring resource should be updated with metrics configuration"),
+	)
+
+	// Ensure the OpenTelemetryCollector CR has targetAllocator enabled
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{
+			Name:      OpenTelemetryCollectorName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.targetAllocator.enabled == true`),
+			jq.Match(`.spec.targetAllocator.serviceAccount == "%s"`, TargetAllocatorServiceAccount),
+			jq.Match(`.spec.targetAllocator.prometheusCR.enabled == true`),
+			jq.Match(`.spec.targetAllocator.prometheusCR.podMonitorSelector.matchLabels."opendatahub.io/monitoring" == "true"`),
+			jq.Match(`.spec.targetAllocator.prometheusCR.serviceMonitorSelector.matchLabels."opendatahub.io/monitoring" == "true"`),
+		)),
+		WithCustomErrorMsg("OpenTelemetryCollector should have targetAllocator enabled with correct configuration"),
+	)
+
+	// Wait for OpenTelemetry Operator to create the Target Allocator Deployment
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      TargetAllocatorDeploymentName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.status.readyReplicas >= 1`),
+			jq.Match(`.status.conditions[] | select(.type == "Available") | .status == "True"`),
+		)),
+		WithCustomErrorMsg("Target Allocator Deployment should be created and available"),
+	)
+
+	tc.resetMonitoringConfigToManaged()
+}
+
+// ValidateTargetAllocatorServiceAndConfigMap tests that the Target Allocator Service and ConfigMap are created correctly.
+func (tc *MonitoringTestCtx) ValidateTargetAllocatorServiceAndConfigMap(t *testing.T) {
+	t.Helper()
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	// Verify Target Allocator Service is created
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Service, types.NamespacedName{
+			Name:      TargetAllocatorDeploymentName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.ports[] | select(.name == "targetallocation") | .port == 80`),
+		)),
+		WithCustomErrorMsg("Target Allocator Service should be created"),
+	)
+
+	// Note: ConfigMap is dynamically managed by OpenTelemetry Operator, so we just verify it exists
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
+			Name:      TargetAllocatorDeploymentName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCustomErrorMsg("Target Allocator ConfigMap should be created by OpenTelemetry Operator"),
+	)
+
+	tc.resetMonitoringConfigToManaged()
+}
+
+// ValidateTargetAllocatorLifecycle tests the complete lifecycle of Target Allocator deployment and cleanup.
+func (tc *MonitoringTestCtx) ValidateTargetAllocatorLifecycle(t *testing.T) {
+	t.Helper()
+
+	// Step 1: Enable metrics to deploy Target Allocator
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	// Verify Target Allocator Deployment is created
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      TargetAllocatorDeploymentName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
+		WithCustomErrorMsg("Target Allocator should be deployed when metrics are enabled"),
+	)
+
+	// Step 2: Disable metrics and verify Target Allocator is removed
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		withNoMetrics(),
+	)
+
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      TargetAllocatorDeploymentName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+	)
+
+	// Step 3: Re-enable metrics and verify Target Allocator is recreated
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      TargetAllocatorDeploymentName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
+		WithCustomErrorMsg("Target Allocator should be recreated when metrics are re-enabled"),
+	)
+
+	tc.resetMonitoringConfigToManaged()
+}
+
+// ValidateTargetAllocatorRBACConfiguration tests that Target Allocator has correct RBAC permissions.
+func (tc *MonitoringTestCtx) ValidateTargetAllocatorRBACConfiguration(t *testing.T) {
+	t.Helper()
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	// Verify ServiceAccount exists for Target Allocator
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ServiceAccount, types.NamespacedName{
+			Name:      TargetAllocatorServiceAccount,
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCustomErrorMsg("ServiceAccount for Target Allocator should exist"),
+	)
+
+	// Verify ClusterRole for Target Allocator (created by collector-rbac.tmpl.yaml)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRole, types.NamespacedName{
+			Name: "generate-processors-role",
+		}),
+		WithCondition(And(
+			// Verify it has permissions to watch ServiceMonitors and PodMonitors
+			jq.Match(`.rules[] | select(.apiGroups[] == "monitoring.coreos.com") | .resources | contains(["podmonitors", "servicemonitors"])`),
+			jq.Match(`.rules[] | select(.apiGroups[] == "monitoring.coreos.com") | .verbs | contains(["get", "list", "watch"])`),
+			// Verify it has permissions to list Endpoints (core API group)
+			jq.Match(`.rules[] | select(.apiGroups[] == "") | .resources | contains(["endpoints"])`),
+			jq.Match(`.rules[] | select(.apiGroups[] == "") | .verbs | contains(["get", "list", "watch"])`),
+			// Verify it has permissions to list EndpointSlices (discovery.k8s.io)
+			jq.Match(`.rules[] | select(.apiGroups[] == "discovery.k8s.io") | .resources | contains(["endpointslices"])`),
+			jq.Match(`.rules[] | select(.apiGroups[] == "discovery.k8s.io") | .verbs | contains(["get", "list", "watch"])`),
+		)),
+		WithCustomErrorMsg("ClusterRole should grant Target Allocator permissions to watch ServiceMonitors, PodMonitors, Endpoints, and EndpointSlices"),
+	)
+
+	// Verify ClusterRoleBinding
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
+			Name: "generate-processors-collector-rolebinding",
+		}),
+		WithCondition(And(
+			jq.Match(`.roleRef.name == "generate-processors-role"`),
+			jq.Match(`.subjects[0].name == "%s"`, TargetAllocatorServiceAccount),
+			jq.Match(`.subjects[0].namespace == "%s"`, tc.MonitoringNamespace),
+		)),
+		WithCustomErrorMsg("ClusterRoleBinding should bind Target Allocator ClusterRole to ServiceAccount"),
+	)
+
+	tc.resetMonitoringConfigToManaged()
 }
