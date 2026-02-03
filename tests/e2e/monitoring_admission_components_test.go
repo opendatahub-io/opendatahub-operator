@@ -215,3 +215,429 @@ func (tc *MonitoringTestCtx) ValidateMonitoringLabelValueEnforcementOnMonitors(t
 	tc.g.Expect(err).To(HaveOccurred(), "Validation policy should block ServiceMonitor with invalid monitoring label value")
 	tc.g.Expect(err.Error()).To(ContainSubstring("must be set to 'true' or 'false'"), "Error message should indicate valid values for ServiceMonitor")
 }
+
+// ValidateMonitorLabelInjection tests that the mutating webhook injects opendatahub.io/monitoring=true label into Monitors.
+func (tc *MonitoringTestCtx) ValidateMonitorLabelInjection(t *testing.T) {
+	t.Helper()
+
+	// Define labels for this specific test scenario
+	nsLabels := map[string]string{
+		ODHLabelMonitoring: "true",
+	}
+
+	tc.createMonitorsEnvironment(t, nsLabels, nil)
+
+	// Verify webhook injected the monitoring label into PodMonitor
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.CoreosPodMonitor, types.NamespacedName{
+			Name:      TestPodMonitorName,
+			Namespace: TestNamespaceName,
+		}),
+		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "true"`)),
+		WithCustomErrorMsg("Mutating webhook should inject opendatahub.io/monitoring=true label into PodMonitor"),
+	)
+
+	// Verify webhook injected the monitoring label into ServiceMonitor
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.CoreosServiceMonitor, types.NamespacedName{
+			Name:      TestServiceMonitorName,
+			Namespace: TestNamespaceName,
+		}),
+		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "true"`)),
+		WithCustomErrorMsg("Mutating webhook should inject opendatahub.io/monitoring=true label into ServiceMonitor"),
+	)
+}
+
+// ValidateMonitorsCreationWithCustomLabels tests that webhook preserves custom labels when injecting monitoring label on CREATE.
+func (tc *MonitoringTestCtx) ValidateMonitorsCreationWithCustomLabels(t *testing.T) {
+	t.Helper()
+
+	// Namespace is opted-in for monitoring
+	nsLabels := map[string]string{
+		ODHLabelMonitoring: "true",
+	}
+
+	// Create monitors WITH custom labels but WITHOUT monitoring label
+	customLabels := map[string]string{
+		"app":  "my-app",
+		"team": "platform",
+	}
+
+	tc.createMonitorsEnvironment(t, nsLabels, customLabels)
+
+	// Verify PodMonitor has BOTH custom labels AND injected monitoring label
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.CoreosPodMonitor, types.NamespacedName{
+			Name:      TestPodMonitorName,
+			Namespace: TestNamespaceName,
+		}),
+		WithCondition(jq.Match(`.metadata.labels."app" == "my-app"`)),
+		WithCondition(jq.Match(`.metadata.labels."team" == "platform"`)),
+		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "true"`)),
+		WithCustomErrorMsg("Webhook should inject monitoring=true AND preserve custom labels (PodMonitor)"),
+	)
+
+	// Verify ServiceMonitor has BOTH custom labels AND injected monitoring label
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.CoreosServiceMonitor, types.NamespacedName{
+			Name:      TestServiceMonitorName,
+			Namespace: TestNamespaceName,
+		}),
+		WithCondition(jq.Match(`.metadata.labels."app" == "my-app"`)),
+		WithCondition(jq.Match(`.metadata.labels."team" == "platform"`)),
+		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "true"`)),
+		WithCustomErrorMsg("Webhook should inject monitoring=true AND preserve custom labels (ServiceMonitor)"),
+	)
+}
+
+// ValidateMonitorLabelInjectionOnUpdate tests that webhook injects label on UPDATE operation.
+func (tc *MonitoringTestCtx) ValidateMonitorLabelInjectionOnUpdate(t *testing.T) {
+	t.Helper()
+
+	// Step 1: Create namespace WITHOUT monitoring label (not opted-in yet)
+	nsLabels := map[string]string{
+		"temp-label": "temp-value",
+	}
+
+	tc.createMonitorsEnvironment(t, nsLabels, nil)
+
+	// Verify monitors were created WITHOUT monitoring label
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.CoreosPodMonitor, types.NamespacedName{
+			Name:      TestPodMonitorName,
+			Namespace: TestNamespaceName,
+		}),
+		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == null`)),
+		WithCustomErrorMsg("PodMonitor should not have monitoring label when created in non-monitored namespace"),
+	)
+
+	// Step 2: Update namespace to opt-in for monitoring
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: TestNamespaceName}),
+		WithMutateFunc(testf.Transform(`.metadata.labels."opendatahub.io/monitoring" = "true"`)),
+	)
+
+	// Step 3: UPDATE the PodMonitor (trigger webhook on UPDATE operation)
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.CoreosPodMonitor, types.NamespacedName{
+			Name:      TestPodMonitorName,
+			Namespace: TestNamespaceName,
+		}),
+		WithMutateFunc(testf.Transform(`.metadata.annotations."test-update" = "trigger-webhook"`)),
+	)
+
+	// Verify webhook injected monitoring label on UPDATE
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.CoreosPodMonitor, types.NamespacedName{
+			Name:      TestPodMonitorName,
+			Namespace: TestNamespaceName,
+		}),
+		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "true"`)),
+		WithCustomErrorMsg("Webhook should inject monitoring label on UPDATE operation (PodMonitor)"),
+	)
+
+	// Step 4: UPDATE the ServiceMonitor
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.CoreosServiceMonitor, types.NamespacedName{
+			Name:      TestServiceMonitorName,
+			Namespace: TestNamespaceName,
+		}),
+		WithMutateFunc(testf.Transform(`.metadata.annotations."test-update" = "trigger-webhook"`)),
+	)
+
+	// Verify webhook injected monitoring label on UPDATE
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.CoreosServiceMonitor, types.NamespacedName{
+			Name:      TestServiceMonitorName,
+			Namespace: TestNamespaceName,
+		}),
+		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "true"`)),
+		WithCustomErrorMsg("Webhook should inject monitoring label on UPDATE operation (ServiceMonitor)"),
+	)
+}
+
+// ValidateMonitorLabelInjectionOnUpdateWithCustomLabels tests that webhook preserves custom labels on UPDATE.
+func (tc *MonitoringTestCtx) ValidateMonitorLabelInjectionOnUpdateWithCustomLabels(t *testing.T) {
+	t.Helper()
+
+	// Step 1: Create namespace WITHOUT monitoring label
+	nsLabels := map[string]string{
+		"temp-label": "temp-value",
+	}
+
+	// Create monitors WITH custom labels but no monitoring label
+	customLabels := map[string]string{
+		"app":  "my-app",
+		"team": "platform",
+	}
+
+	tc.createMonitorsEnvironment(t, nsLabels, customLabels)
+
+	// Verify PodMonitor has custom labels but NO monitoring label
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.CoreosPodMonitor, types.NamespacedName{
+			Name:      TestPodMonitorName,
+			Namespace: TestNamespaceName,
+		}),
+		WithCondition(jq.Match(`.metadata.labels."app" == "my-app"`)),
+		WithCondition(jq.Match(`.metadata.labels."team" == "platform"`)),
+		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == null`)),
+		WithCustomErrorMsg("PodMonitor should have custom labels but no monitoring label initially"),
+	)
+
+	// Step 2: Update namespace to opt-in for monitoring
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: TestNamespaceName}),
+		WithMutateFunc(testf.Transform(`.metadata.labels."opendatahub.io/monitoring" = "true"`)),
+	)
+
+	// Step 3: UPDATE the PodMonitor
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.CoreosPodMonitor, types.NamespacedName{
+			Name:      TestPodMonitorName,
+			Namespace: TestNamespaceName,
+		}),
+		WithMutateFunc(testf.Transform(`.metadata.annotations."test-update" = "trigger-webhook"`)),
+	)
+
+	// Verify webhook injected monitoring label AND preserved custom labels
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.CoreosPodMonitor, types.NamespacedName{
+			Name:      TestPodMonitorName,
+			Namespace: TestNamespaceName,
+		}),
+		WithCondition(jq.Match(`.metadata.labels."app" == "my-app"`)),
+		WithCondition(jq.Match(`.metadata.labels."team" == "platform"`)),
+		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "true"`)),
+		WithCustomErrorMsg("Webhook should inject monitoring label AND preserve custom labels on UPDATE (PodMonitor)"),
+	)
+
+	// Step 4: UPDATE the ServiceMonitor
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.CoreosServiceMonitor, types.NamespacedName{
+			Name:      TestServiceMonitorName,
+			Namespace: TestNamespaceName,
+		}),
+		WithMutateFunc(testf.Transform(`.metadata.annotations."test-update" = "trigger-webhook"`)),
+	)
+
+	// Verify webhook injected monitoring label AND preserved custom labels
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.CoreosServiceMonitor, types.NamespacedName{
+			Name:      TestServiceMonitorName,
+			Namespace: TestNamespaceName,
+		}),
+		WithCondition(jq.Match(`.metadata.labels."app" == "my-app"`)),
+		WithCondition(jq.Match(`.metadata.labels."team" == "platform"`)),
+		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "true"`)),
+		WithCustomErrorMsg("Webhook should inject monitoring label AND preserve custom labels on UPDATE (ServiceMonitor)"),
+	)
+}
+
+// ValidateWebhookSkipsNonMonitoredNamespace tests that webhook does NOT inject when namespace is not opted-in.
+func (tc *MonitoringTestCtx) ValidateWebhookSkipsNonMonitoredNamespace(t *testing.T) {
+	t.Helper()
+
+	// Define namespace WITHOUT monitoring label (not opted-in)
+	nsLabels := map[string]string{
+		"some-other-label": "value",
+	}
+
+	tc.createMonitorsEnvironment(t, nsLabels, nil)
+
+	// Verify PodMonitor does NOT have monitoring label injected
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.CoreosPodMonitor, types.NamespacedName{
+			Name:      TestPodMonitorName,
+			Namespace: TestNamespaceName,
+		}),
+		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == null`)),
+		WithCustomErrorMsg("Webhook should NOT inject monitoring label when namespace is not opted-in (PodMonitor)"),
+	)
+
+	// Verify ServiceMonitor does NOT have monitoring label injected
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.CoreosServiceMonitor, types.NamespacedName{
+			Name:      TestServiceMonitorName,
+			Namespace: TestNamespaceName,
+		}),
+		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == null`)),
+		WithCustomErrorMsg("Webhook should NOT inject monitoring label when namespace is not opted-in (ServiceMonitor)"),
+	)
+}
+
+// ValidateWebhookSkipsExplicitlyOptedOutNamespace tests that webhook does NOT inject when namespace explicitly opts out with monitoring=false.
+func (tc *MonitoringTestCtx) ValidateWebhookSkipsExplicitlyOptedOutNamespace(t *testing.T) {
+	t.Helper()
+
+	// Define namespace WITH monitoring=false (explicitly opted-out)
+	nsLabels := map[string]string{
+		ODHLabelMonitoring: "false",
+	}
+
+	tc.createMonitorsEnvironment(t, nsLabels, nil)
+
+	// Verify PodMonitor does NOT have monitoring label injected
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.CoreosPodMonitor, types.NamespacedName{
+			Name:      TestPodMonitorName,
+			Namespace: TestNamespaceName,
+		}),
+		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == null`)),
+		WithCustomErrorMsg("Webhook should NOT inject monitoring label when namespace explicitly has monitoring=false (PodMonitor)"),
+	)
+
+	// Verify ServiceMonitor does NOT have monitoring label injected
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.CoreosServiceMonitor, types.NamespacedName{
+			Name:      TestServiceMonitorName,
+			Namespace: TestNamespaceName,
+		}),
+		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == null`)),
+		WithCustomErrorMsg("Webhook should NOT inject monitoring label when namespace explicitly has monitoring=false (ServiceMonitor)"),
+	)
+}
+
+// ValidateWebhookRespectsUserOptOut tests that webhook respects user's explicit monitoring=false on monitors.
+func (tc *MonitoringTestCtx) ValidateWebhookRespectsUserOptOut(t *testing.T) {
+	t.Helper()
+
+	// Namespace is opted-in
+	nsLabels := map[string]string{
+		ODHLabelMonitoring: "true",
+	}
+
+	// User explicitly sets monitoring=false on monitors (opt-out override)
+	userOptOutLabels := map[string]string{
+		ODHLabelMonitoring: "false",
+	}
+
+	tc.createMonitorsEnvironment(t, nsLabels, userOptOutLabels)
+
+	// Verify PodMonitor STILL has monitoring=false (webhook respects user choice)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.CoreosPodMonitor, types.NamespacedName{
+			Name:      TestPodMonitorName,
+			Namespace: TestNamespaceName,
+		}),
+		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "false"`)),
+		WithCustomErrorMsg("Webhook should respect user's explicit monitoring=false on PodMonitor"),
+	)
+
+	// Verify ServiceMonitor STILL has monitoring=false (webhook respects user choice)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.CoreosServiceMonitor, types.NamespacedName{
+			Name:      TestServiceMonitorName,
+			Namespace: TestNamespaceName,
+		}),
+		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "false"`)),
+		WithCustomErrorMsg("Webhook should respect user's explicit monitoring=false on ServiceMonitor"),
+	)
+}
+
+// ValidateWebhookIdempotency tests that webhook doesn't modify monitors that already have monitoring=true.
+func (tc *MonitoringTestCtx) ValidateWebhookIdempotency(t *testing.T) {
+	t.Helper()
+
+	// Namespace is opted-in
+	nsLabels := map[string]string{
+		ODHLabelMonitoring: "true",
+	}
+
+	// Monitor already has monitoring=true
+	existingLabels := map[string]string{
+		ODHLabelMonitoring: "true",
+	}
+
+	tc.createMonitorsEnvironment(t, nsLabels, existingLabels)
+
+	// Verify PodMonitor STILL has monitoring=true (webhook is idempotent)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.CoreosPodMonitor, types.NamespacedName{
+			Name:      TestPodMonitorName,
+			Namespace: TestNamespaceName,
+		}),
+		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "true"`)),
+		WithCustomErrorMsg("Webhook should be idempotent - PodMonitor already has monitoring=true"),
+	)
+
+	// Verify ServiceMonitor STILL has monitoring=true (webhook is idempotent)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.CoreosServiceMonitor, types.NamespacedName{
+			Name:      TestServiceMonitorName,
+			Namespace: TestNamespaceName,
+		}),
+		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "true"`)),
+		WithCustomErrorMsg("Webhook should be idempotent - ServiceMonitor already has monitoring=true"),
+	)
+}
+
+// ValidateWebhookSkipsWhenMonitoringDisabled tests that webhook does not inject labels when monitoring is disabled.
+// This test verifies that the webhook checks whether the Monitoring CR exists and monitoring is enabled
+// before performing label injection. When monitoring is disabled (managementState: Removed),
+// the webhook should not inject labels even if the namespace has opendatahub.io/monitoring=true.
+func (tc *MonitoringTestCtx) ValidateWebhookSkipsWhenMonitoringDisabled(t *testing.T) {
+	t.Helper()
+
+	t.Logf("Disabling monitoring to test webhook behavior when monitoring is disabled")
+
+	// Step 1: Disable monitoring
+	tc.updateMonitoringConfig(withManagementState(operatorv1.Removed))
+
+	// Step 2: Verify Monitoring CR is deleted
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+	)
+
+	t.Logf("Monitoring disabled and Monitoring CR deleted, proceeding to test webhook behavior")
+
+	// Step 3: Create namespace with monitoring=true label (would normally trigger injection)
+	nsLabels := map[string]string{
+		ODHLabelMonitoring: "true",
+	}
+
+	// Step 4: Create monitors WITHOUT the opendatahub.io/monitoring label
+	// The webhook should NOT inject the label because monitoring is disabled
+	noLabels := map[string]string{} // No monitoring label on the monitor itself
+
+	tc.createMonitorsEnvironment(t, nsLabels, noLabels)
+
+	// Step 5: Verify PodMonitor does NOT have monitoring=true label injected
+	// Fetch the resource once and assert immediately (don't wait with Eventually)
+	podMonitor := tc.FetchResource(
+		WithMinimalObject(gvk.CoreosPodMonitor, types.NamespacedName{
+			Name:      TestPodMonitorName,
+			Namespace: TestNamespaceName,
+		}),
+	)
+	tc.g.Expect(podMonitor.GetLabels()).NotTo(HaveKey("opendatahub.io/monitoring"),
+		"Webhook should NOT inject monitoring=true when monitoring is disabled (PodMonitor)")
+
+	// Step 6: Verify ServiceMonitor does NOT have monitoring=true label injected
+	// Fetch the resource once and assert immediately (don't wait with Eventually)
+	serviceMonitor := tc.FetchResource(
+		WithMinimalObject(gvk.CoreosServiceMonitor, types.NamespacedName{
+			Name:      TestServiceMonitorName,
+			Namespace: TestNamespaceName,
+		}),
+	)
+	tc.g.Expect(serviceMonitor.GetLabels()).NotTo(HaveKey("opendatahub.io/monitoring"),
+		"Webhook should NOT inject monitoring=true when monitoring is disabled (ServiceMonitor)")
+
+	t.Logf("Webhook correctly skipped injection when monitoring was disabled")
+
+	// Cleanup: Re-enable monitoring for subsequent tests
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	// Wait for Monitoring CR to be ready again
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue)),
+		WithCustomErrorMsg("Monitoring should be re-enabled after webhook disabled test"),
+	)
+
+	t.Logf("Monitoring re-enabled successfully")
+}
