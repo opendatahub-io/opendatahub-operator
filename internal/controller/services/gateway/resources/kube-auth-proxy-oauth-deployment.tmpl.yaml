@@ -98,7 +98,6 @@ spec:
             - "--pass-access-token=true"
             - "--set-xauthrequest=true"
             - "--enable-k8s-token-validation={{.EnableK8sTokenValidation}}"
-            - "--kubernetes-audiences={{.KubernetesAudiencesJoined}}"
             - "--redirect-url={{.RedirectURL}}"
             - "--tls-cert-file={{.TLSCertsMountPath}}/tls.crt"
             - "--tls-key-file={{.TLSCertsMountPath}}/tls.key"

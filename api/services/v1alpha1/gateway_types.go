@@ -120,14 +120,6 @@ type GatewayConfigSpec struct {
 	// +optional
 	// +kubebuilder:default=true
 	EnableK8sTokenValidation *bool `json:"enableK8sTokenValidation,omitempty"`
-
-	// KubernetesAudiences specifies the required audiences for Kubernetes service account token validation.
-	// Service account tokens must be created with a matching audience to be accepted by kube-auth-proxy.
-	// Multiple audiences can be specified to support different token issuance scenarios.
-	// If not specified, defaults to ["kube-auth-proxy"].
-	// Example: oc create token my-sa --audience=kube-auth-proxy
-	// +optional
-	KubernetesAudiences []string `json:"kubernetesAudiences,omitempty"`
 }
 
 // NetworkPolicyConfig defines network policy configuration for kube-auth-proxy.
