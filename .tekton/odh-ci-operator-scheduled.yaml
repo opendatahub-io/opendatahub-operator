@@ -15,7 +15,7 @@ metadata:
     appstudio.openshift.io/application: poc
     appstudio.openshift.io/component: odh-ci-operator
     pipelines.appstudio.openshift.io/type: build
-  name: odh-ci-operator-on-push
+  name: odh-ci-operator-on-scheduled
   namespace: open-data-hub-tenant
 spec:
   params:
