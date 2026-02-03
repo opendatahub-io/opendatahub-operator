@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -342,6 +343,13 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToRemovedTransition(t *testing.T) 
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, stateRemoved)),
 		WithCondition(And(conditionsRemovedReady...)),
+		WithCircuitBreaker(20), // Fail fast after 20 consecutive failures (~100s) instead of full timeout
+		WithProgressLogging(fmt.Sprintf("Kueue state transition to %s", stateRemoved), t.Logf),
+		WithOnFailure(func() string {
+			t.Logf("\n⚠️  Kueue state transition FAILED - collecting diagnostics...")
+			diagnoseKueueStateTransitionFailure(tc.TestContext, componentName, stateRemoved)
+			return fmt.Sprintf("[COMPONENT] Kueue component failed to transition to %s state - component may be stuck", stateRemoved)
+		}),
 	)
 
 	t.Logf("Verifying default resources are still present in namespace %s.", kueueTestManagedNamespace)
@@ -989,4 +997,188 @@ func (tc *KueueTestCtx) cleanupKueueTestResources(t *testing.T) {
 		WithIgnoreNotFound(true),
 		WithWaitForDeletion(true),
 	)
+}
+
+// diagnoseKueueStateTransitionFailure provides detailed diagnostics when Kueue component
+// fails to transition to the expected state.
+func diagnoseKueueStateTransitionFailure(tc *TestContext, componentName string, expectedState operatorv1.ManagementState) {
+	tc.Logf("\n=== KUEUE STATE TRANSITION DIAGNOSTICS ===")
+	tc.Logf("Expected State: %s", expectedState)
+	tc.Logf("Component: %s", componentName)
+
+	diagnoseDataScienceClusterStatus(tc, componentName)
+	kueueList := diagnoseKueueComponentCR(tc)
+	diagnoseOCPKueueOperator(tc)
+
+	// Check for finalizers that might be blocking deletion
+	if expectedState == operatorv1.Removed && len(kueueList) > 0 {
+		tc.Logf("\n--- Checking for Blocking Finalizers ---")
+		for _, kueue := range kueueList {
+			finalizers := kueue.GetFinalizers()
+			if len(finalizers) > 0 {
+				tc.Logf("Kueue CR %s has finalizers:", kueue.GetName())
+				for _, f := range finalizers {
+					tc.Logf("  - %s", f)
+				}
+			}
+		}
+	}
+
+	// Check controller pod health
+	tc.Logf("\n--- Controller Health ---")
+	diagnoseDeletionRecoveryFailure(tc, gvk.Deployment, "rhods-operator", tc.OperatorNamespace, componentName)
+
+	tc.Logf("\n=== END KUEUE STATE TRANSITION DIAGNOSTICS ===")
+}
+
+// diagnoseDataScienceClusterStatus checks and reports DSC status.
+func diagnoseDataScienceClusterStatus(tc *TestContext, componentName string) {
+	tc.Logf("\n--- DataScienceCluster Status ---")
+	dscList := tc.FetchResources(WithMinimalObject(gvk.DataScienceCluster, types.NamespacedName{}))
+	if len(dscList) == 0 {
+		tc.Logf("⚠️  No DataScienceCluster found!")
+		return
+	}
+
+	for _, dsc := range dscList {
+		tc.Logf("DataScienceCluster: %s", dsc.GetName())
+
+		// Get component spec
+		componentSpec, found, err := unstructured.NestedMap(dsc.Object, "spec", "components", componentName)
+		switch {
+		case err != nil:
+			tc.Logf("  ⚠️  Error reading component spec: %v", err)
+		case !found:
+			tc.Logf("  ⚠️  Component %s not found in spec", componentName)
+		default:
+			managementState, _, _ := unstructured.NestedString(componentSpec, "managementState")
+			tc.Logf("  Spec ManagementState: %s", managementState)
+		}
+
+		// Get component status conditions
+		conditions, found, err := unstructured.NestedSlice(dsc.Object, "status", "conditions")
+		switch {
+		case err != nil:
+			tc.Logf("  ⚠️  Error reading status conditions: %v", err)
+		case !found:
+			tc.Logf("  ⚠️  No status conditions found")
+		default:
+			tc.Logf("  Status Conditions:")
+			logKueueRelatedConditions(tc, conditions, componentName)
+		}
+	}
+}
+
+// diagnoseKueueComponentCR checks and reports Kueue CR status.
+func diagnoseKueueComponentCR(tc *TestContext) []unstructured.Unstructured {
+	tc.Logf("\n--- Kueue Component CR Status ---")
+	kueueList := tc.FetchResources(WithMinimalObject(gvk.KueueConfigV1, types.NamespacedName{}))
+	if len(kueueList) == 0 {
+		tc.Logf("⚠️  No Kueue CR found!")
+		return nil
+	}
+
+	for _, kueue := range kueueList {
+		tc.Logf("Kueue CR: %s", kueue.GetName())
+
+		conditions, found, err := unstructured.NestedSlice(kueue.Object, "status", "conditions")
+		switch {
+		case err != nil:
+			tc.Logf("  ⚠️  Error reading conditions: %v", err)
+		case !found:
+			tc.Logf("  ⚠️  No conditions found")
+		default:
+			tc.Logf("  Conditions:")
+			logConditionsWithSymbols(tc, conditions)
+		}
+	}
+
+	return kueueList
+}
+
+// diagnoseOCPKueueOperator checks and reports OCP Kueue Operator status.
+func diagnoseOCPKueueOperator(tc *TestContext) {
+	tc.Logf("\n--- OCP Kueue Operator Status ---")
+	csvList := tc.FetchResources(
+		WithMinimalObject(gvk.ClusterServiceVersion, types.NamespacedName{Namespace: kueueOcpOperatorNamespace}),
+	)
+	if len(csvList) == 0 {
+		tc.Logf("⚠️  No ClusterServiceVersion found in namespace %s", kueueOcpOperatorNamespace)
+		return
+	}
+
+	for _, csv := range csvList {
+		csvName := csv.GetName()
+		if !strings.Contains(csvName, "kueue") {
+			continue
+		}
+
+		phase, _, _ := unstructured.NestedString(csv.Object, "status", "phase")
+		tc.Logf("OCP Kueue Operator CSV: %s", csvName)
+		tc.Logf("  Phase: %s", phase)
+
+		if phase != "Succeeded" {
+			reason, _, _ := unstructured.NestedString(csv.Object, "status", "reason")
+			message, _, _ := unstructured.NestedString(csv.Object, "status", "message")
+			if reason != "" {
+				tc.Logf("  ⚠️  Reason: %s", reason)
+			}
+			if message != "" {
+				tc.Logf("  ⚠️  Message: %s", message)
+			}
+		}
+	}
+}
+
+// logKueueRelatedConditions logs conditions related to Kueue component.
+func logKueueRelatedConditions(tc *TestContext, conditions []interface{}, componentName string) {
+	for _, condRaw := range conditions {
+		cond, ok := condRaw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		condType, _ := cond["type"].(string)
+		status, _ := cond["status"].(string)
+		reason, _ := cond["reason"].(string)
+		message, _ := cond["message"].(string)
+
+		// Highlight Kueue-related conditions
+		if strings.Contains(condType, "Kueue") || strings.Contains(condType, componentName) {
+			tc.Logf("    %s: %s", condType, status)
+			if reason != "" {
+				tc.Logf("      Reason: %s", reason)
+			}
+			if message != "" {
+				tc.Logf("      Message: %s", message)
+			}
+		}
+	}
+}
+
+// logConditionsWithSymbols logs conditions with visual status symbols.
+func logConditionsWithSymbols(tc *TestContext, conditions []interface{}) {
+	for _, condRaw := range conditions {
+		cond, ok := condRaw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		condType, _ := cond["type"].(string)
+		status, _ := cond["status"].(string)
+		reason, _ := cond["reason"].(string)
+		message, _ := cond["message"].(string)
+
+		statusSymbol := statusCheckmark
+		if status != string(metav1.ConditionTrue) {
+			statusSymbol = "✗"
+		}
+		tc.Logf("    %s %s: %s", statusSymbol, condType, status)
+		if reason != "" {
+			tc.Logf("      Reason: %s", reason)
+		}
+		if message != "" {
+			tc.Logf("      Message: %s", message)
+		}
+	}
 }

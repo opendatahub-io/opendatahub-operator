@@ -1527,6 +1527,20 @@ func (tc *MonitoringTestCtx) ValidateThanosQuerierNotDeployedWithoutMetrics(t *t
 func (tc *MonitoringTestCtx) ValidatePrometheusSelfServiceMonitorTLSFix(t *testing.T) {
 	t.Helper()
 
+	// Ensure clean slate - disable monitoring and wait for cleanup to complete
+	// This prevents race conditions with previous test cleanup in slower environments (e.g., Hypershift)
+	tc.resetMonitoringConfigToRemoved()
+
+	// Wait for Prometheus StatefulSet to be fully deleted before enabling monitoring
+	// This ensures RBAC, secrets, and other resources are fully cleaned up
+	tc.EnsureResourcesGone(
+		WithMinimalObject(gvk.StatefulSet, types.NamespacedName{
+			Name:      "prometheus-data-science-monitoringstack",
+			Namespace: tc.MonitoringNamespace,
+		}),
+	)
+
+	// Now enable monitoring with a clean state
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
 		tc.withMetricsConfig(),
@@ -1819,6 +1833,18 @@ func (tc *MonitoringTestCtx) ValidatePrometheusRestrictedResourceConfiguration(t
 	t.Helper()
 
 	dsci := tc.FetchDSCInitialization()
+
+	// Ensure clean slate - disable monitoring and wait for cleanup to complete
+	// This prevents race conditions with previous test cleanup in slower environments (e.g., Hypershift)
+	tc.resetMonitoringConfigToRemoved()
+
+	// Wait for MonitoringStack to be fully deleted before enabling monitoring
+	tc.EnsureResourcesGone(
+		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{
+			Name:      MonitoringStackName,
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+	)
 
 	// Ensure metrics are configured
 	tc.EventuallyResourceCreatedOrUpdated(

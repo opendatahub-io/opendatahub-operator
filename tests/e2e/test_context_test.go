@@ -1,8 +1,11 @@
 package e2e_test
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"slices"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -23,8 +26,10 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlcfg "sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
@@ -74,6 +79,74 @@ type TestContext struct {
 
 	// Namespaced name of the DataScienceCluster custom resource used for testing.
 	DataScienceClusterNamespacedName types.NamespacedName
+}
+
+// DeletionRecoverySnapshot captures the complete state of the cluster at a specific point
+// during deletion recovery testing, enabling root cause analysis of failures.
+type DeletionRecoverySnapshot struct {
+	Timestamp             time.Time
+	Phase                 string
+	ComponentStatus       map[string]interface{}
+	ParentComponentStatus map[string]interface{}
+	OperatorPodLogs       []string
+	RecentEvents          []string
+	DSCStatus             map[string]interface{}
+	APIServerHealth       APIHealthTimeline // Enhanced in Patch 16 for timeline tracking
+}
+
+// APIHealthMetrics captures API server health and performance metrics.
+// Deprecated: Use APIHealthTimeline for comprehensive timeline tracking.
+type APIHealthMetrics struct {
+	Latency      time.Duration
+	RecentErrors []string
+}
+
+// APIHealthTimeline tracks API performance over recent history by analyzing operator logs.
+type APIHealthTimeline struct {
+	// Current point-in-time measurement
+	CurrentLatency time.Duration
+	CurrentStatus  string // "HEALTHY", "DEGRADED", "FAILING"
+
+	// Historical data from operator logs
+	TimeWindow  time.Duration // How far back we analyzed (e.g., 5m)
+	APIErrors   []APIError    // Errors found in logs
+	APITimeouts []APITimeout  // Timeouts found in logs
+
+	// Summary
+	TotalErrors    int
+	TotalTimeouts  int
+	FirstErrorTime time.Time
+	LastErrorTime  time.Time
+
+	// Assessment
+	Assessment       string // "HEALTHY", "INTERMITTENT_DEGRADATION", "DEGRADED"
+	AssessmentReason string // Explanation of assessment
+}
+
+// APIError represents an API error found in operator logs.
+type APIError struct {
+	Timestamp time.Time
+	Operation string // "GET", "LIST", "UPDATE", etc.
+	Resource  string // Resource being accessed
+	Error     string // Error message
+}
+
+// APITimeout represents an API timeout found in operator logs.
+type APITimeout struct {
+	Timestamp time.Time
+	Operation string // "GET", "LIST", "UPDATE", etc.
+	Resource  string // Resource being accessed
+	Message   string // Full timeout message
+}
+
+// OperatorLogEntry represents a single parsed log line from operator pods.
+type OperatorLogEntry struct {
+	Timestamp time.Time
+	PodName   string
+	Level     string
+	Message   string
+	Component string
+	Fields    map[string]interface{}
 }
 
 // NewTestContext creates and initializes a new TestContext instance.
@@ -165,6 +238,12 @@ func (tc *TestContext) NewResourceOptions(opts ...ResourceOpts) *ResourceOptions
 	// Ensure ListOptions is not nil before using it
 	if ro.ListOptions == nil {
 		ro.ListOptions = &client.ListOptions{}
+	}
+
+	// If ListOptions doesn't have a namespace set but NN does, use NN's namespace
+	// This ensures list operations filter by namespace when using WithMinimalObject
+	if ro.ListOptions.Namespace == "" && ro.NN.Namespace != "" {
+		ro.ListOptions.Namespace = ro.NN.Namespace
 	}
 
 	// Ensure ClientDeleteOptions is not nil before using it
@@ -1172,6 +1251,9 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 	originalUID := originalResource.GetUID()
 	originalResourceVersion := originalResource.GetResourceVersion()
 
+	// [DIAGNOSTICS] Capture pre-deletion snapshot
+	tc.captureDeletionRecoverySnapshot(ro, "PRE-DELETE")
+
 	// Step 2: Delete the resource using standard deletion
 	tc.DeleteResource(opts...)
 
@@ -1196,6 +1278,9 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 		// If it has a different UID, it was already recreated, which is fine
 	}).Should(Succeed(), "Resource %s %s deletion was not acknowledged within timeout", ro.GVK.Kind, ro.ResourceID)
 
+	// [DIAGNOSTICS] Capture post-deletion snapshot
+	tc.captureDeletionRecoverySnapshot(ro, "POST-DELETE")
+
 	// Step 3: Wait for controller to recreate with new identity
 	// (UID-based verification automatically handles deletion acknowledgment)
 
@@ -1205,25 +1290,105 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 
 	var recreatedResource *unstructured.Unstructured
 
+	// Circuit breaker configuration and variables to fail fast instead of waiting for full timeout
+	// 30 failures * 10s polling = up to 5 minutes before counter-based circuit breaker trips
+	const failureThreshold = 30
+	// Absolute time-based circuit breaker - fail fast if no progress after 90 seconds
+	const noProgressTimeout = 90 * time.Second
+	// Reset counter only after 60s without recent checks (indicates system stall, not transient errors)
+	const resetInterval = 60 * time.Second
+
+	var consecutiveFailures int
+	var lastCheckTime time.Time
+	// Track when deletion was confirmed
+	deletionCompletedTime := time.Now()
+
 	tc.g.Eventually(func(g Gomega) {
+		now := time.Now()
+
+		// Reset circuit breaker if enough time has passed (indicates progress/recovery)
+		if !lastCheckTime.IsZero() && now.Sub(lastCheckTime) > resetInterval {
+			consecutiveFailures = 0
+		}
+		lastCheckTime = now
+
 		// Poll without nesting Eventually to avoid compounded timeouts
 		// Use direct client.Get() instead of fetchResource() to avoid nested Eventually calls
 		u, err := fetchResourceSync(ro)
-		g.Expect(err).NotTo(HaveOccurred(), "Failed to fetch %s %s", ro.GVK.Kind, ro.ResourceID)
-		g.Expect(u).NotTo(BeNil(), "Expected %s %s to be recreated", ro.GVK.Kind, ro.ResourceID)
+
+		if err != nil || u == nil {
+			consecutiveFailures++
+
+			// Time-based circuit breaker: fail fast if no progress after absolute timeout
+			// This catches "no progress" scenarios where resource is deleted but never recreated
+			timeSinceDeletion := now.Sub(deletionCompletedTime)
+			if timeSinceDeletion > noProgressTimeout {
+				// [DIAGNOSTICS] Capture failure snapshot before failing
+				tc.captureDeletionRecoverySnapshot(ro, "TIMEOUT-NO-RECREATION")
+				tc.Logf("\n[DIAGNOSTICS] Deletion recovery failed - resource not recreated after %.0fs", timeSinceDeletion.Seconds())
+
+				failureMsg := fmt.Sprintf(
+					"[CONTROLLER] %s %s not recreated after %.0fs since deletion - controller likely not watching deletion events",
+					ro.GVK.Kind,
+					ro.ResourceID,
+					timeSinceDeletion.Seconds(),
+				)
+				g.Expect(err).NotTo(HaveOccurred(), failureMsg)
+			}
+
+			// Counter-based circuit breaker: fail fast after consecutive failures
+			if consecutiveFailures >= failureThreshold {
+				failureMsg := fmt.Sprintf("[CONTROLLER] %s %s recreation failing consistently after %d attempts (%.0fs) - controller may not be responding to deletion events",
+					ro.GVK.Kind, ro.ResourceID, consecutiveFailures, float64(consecutiveFailures*5))
+				g.Expect(err).NotTo(HaveOccurred(), failureMsg)
+			}
+
+			g.Expect(err).NotTo(HaveOccurred(), "Failed to fetch %s %s", ro.GVK.Kind, ro.ResourceID)
+			g.Expect(u).NotTo(BeNil(), "Expected %s %s to be recreated", ro.GVK.Kind, ro.ResourceID)
+			return
+		}
+
 		recreatedResource = u
 
 		// Verify it's actually a new resource (different UID)
 		newUID := recreatedResource.GetUID()
 		newResourceVersion := recreatedResource.GetResourceVersion()
 
+		// Debug logging to understand what's happening
+		if newUID == originalUID {
+			consecutiveFailures++
+
+			// Circuit breaker for UID mismatch
+			if consecutiveFailures >= failureThreshold {
+				g.Expect(newUID).NotTo(Equal(originalUID),
+					"[CONTROLLER] Resource still has old UID after %d checks - deletion may not be acknowledged by controller", consecutiveFailures)
+			}
+
+			// This indicates the resource was never actually deleted, just log and continue polling
+			return
+		}
+
+		// Reset counter on success
+		consecutiveFailures = 0
+
 		g.Expect(newUID).NotTo(Equal(originalUID),
 			"Recreated resource should have different UID. Original: %s, New: %s", originalUID, newUID)
 		g.Expect(newResourceVersion).NotTo(Equal(originalResourceVersion),
 			"Recreated resource should have different ResourceVersion. Original: %s, New: %s",
 			originalResourceVersion, newResourceVersion)
-	}).Should(Succeed(),
-		"Resource %s %s was not properly recreated with new identity", ro.GVK.Kind, ro.ResourceID)
+	}).Should(Succeed(), func() string {
+		// This function runs ONLY on failure (when Eventually times out)
+		// Run diagnostics if callback is provided
+		if ro.OnFailure != nil {
+			return ro.OnFailure()
+		}
+		// Default error message with controller tag
+		return fmt.Sprintf("[CONTROLLER] Resource %s %s was not properly recreated with new identity", ro.GVK.Kind, ro.ResourceID)
+	})
+
+	// [DIAGNOSTICS] Capture post-recreation snapshot (success case)
+	tc.captureDeletionRecoverySnapshot(ro, "POST-RECREATION")
+	tc.Logf("[SUCCESS] Deletion recovery completed - resource recreated with new UID")
 
 	return recreatedResource
 }
@@ -2067,17 +2232,668 @@ func (tc *TestContext) ScaleCSVDeploymentReplicas(
 	return originalReplicas
 }
 
-func getComponentNameFromKind(kind string) (string, string) {
-	componentName := strings.ToLower(kind)
+// ==================================================================================
+// Deletion Recovery Comprehensive Diagnostics
+// ==================================================================================
 
-	componentFieldName := componentName
-	conditionKind := kind
-	const dataSciencePipelinesKind = "DataSciencePipelines"
-	const aiPipelinesFieldName = "aipipelines"
-	if kind == dataSciencePipelinesKind {
-		componentFieldName = aiPipelinesFieldName
-		conditionKind = "AIPipelines"
+const (
+	eventTypeWarning = "Warning"
+	eventTypeError   = "Error"
+
+	// API health status constants.
+	apiHealthStatusHealthy  = "HEALTHY"
+	apiHealthStatusDegraded = "DEGRADED"
+	apiHealthStatusFailing  = "FAILING"
+
+	// API health assessment constants.
+	apiHealthAssessmentHealthy                 = "HEALTHY"
+	apiHealthAssessmentIntermittentDegradation = "INTERMITTENT_DEGRADATION"
+	apiHealthAssessmentDegraded                = "DEGRADED"
+)
+
+// getKubernetesClientset creates a typed Kubernetes clientset for accessing
+// operator logs, events, and other cluster resources not available through
+// the controller-runtime client.
+func (tc *TestContext) getKubernetesClientset() (*kubernetes.Clientset, error) {
+	cfg, err := ctrlcfg.GetConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get rest config: %w", err)
 	}
 
-	return componentFieldName, conditionKind
+	clientset, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create clientset: %w", err)
+	}
+
+	return clientset, nil
+}
+
+// captureDeletionRecoverySnapshot captures comprehensive cluster state including
+// resource status, operator logs, cluster events, and API health metrics.
+//
+//nolint:unparam // Return value used for structured logging, not direct usage
+func (tc *TestContext) captureDeletionRecoverySnapshot(ro *ResourceOptions, phase string) *DeletionRecoverySnapshot {
+	tc.Logf("\n" + strings.Repeat("=", 80))
+	tc.Logf("[SNAPSHOT-%s] Capturing comprehensive cluster state at %s", phase, time.Now().Format("15:04:05"))
+	tc.Logf(strings.Repeat("=", 80))
+
+	snapshot := &DeletionRecoverySnapshot{
+		Timestamp:       time.Now(),
+		Phase:           phase,
+		ComponentStatus: make(map[string]interface{}),
+	}
+
+	// 1. Capture target resource status
+	tc.Logf("[SNAPSHOT-%s] 1/5 Capturing resource status...", phase)
+	snapshot.ComponentStatus = tc.captureResourceStatus(ro, phase)
+
+	// 2. Capture operator pod logs
+	tc.Logf("[SNAPSHOT-%s] 2/5 Capturing operator logs...", phase)
+	snapshot.OperatorPodLogs = tc.captureOperatorLogs(phase, 100)
+
+	// 3. Capture recent cluster events
+	tc.Logf("[SNAPSHOT-%s] 3/5 Capturing cluster events...", phase)
+	snapshot.RecentEvents = tc.captureRecentEvents(ro.NN.Namespace, phase, 50)
+
+	// 4. Capture DSC status (if this is a component resource)
+	tc.Logf("[SNAPSHOT-%s] 4/5 Capturing DSC status...", phase)
+	snapshot.DSCStatus = tc.captureDSCStatus(phase)
+
+	// 5. Measure API server health (enhanced in Patch 16 with timeline analysis)
+	tc.Logf("[SNAPSHOT-%s] 5/5 Measuring API server health...", phase)
+	snapshot.APIServerHealth = tc.measureAPIHealth(phase, snapshot.OperatorPodLogs)
+
+	tc.Logf(strings.Repeat("=", 80))
+	tc.Logf("[SNAPSHOT-%s] Snapshot complete - captured %d log lines, %d events",
+		phase, len(snapshot.OperatorPodLogs), len(snapshot.RecentEvents))
+	tc.Logf(strings.Repeat("=", 80) + "\n")
+
+	return snapshot
+}
+
+// captureResourceStatus captures the current status of the resource being tested.
+//
+//nolint:unparam // phase kept for consistent API across diagnostic functions
+func (tc *TestContext) captureResourceStatus(ro *ResourceOptions, phase string) map[string]interface{} {
+	u, err := fetchResourceSync(ro)
+
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			tc.Logf("  [RESOURCE] %s %s: NOT FOUND (deleted)", ro.GVK.Kind, ro.ResourceID)
+			return map[string]interface{}{
+				"found":  false,
+				"reason": "NotFound",
+			}
+		}
+		tc.Logf("  [RESOURCE] %s %s: ERROR - %v", ro.GVK.Kind, ro.ResourceID, err)
+		return map[string]interface{}{
+			"found": false,
+			"error": err.Error(),
+		}
+	}
+
+	// Defensive check: ensure u and u.Object are not nil before accessing
+	if u == nil || u.Object == nil {
+		tc.Logf("  [RESOURCE] %s %s: ERROR - resource object is nil", ro.GVK.Kind, ro.ResourceID)
+		return map[string]interface{}{
+			"found": false,
+			"error": "resource object is nil",
+		}
+	}
+
+	status, _, _ := unstructured.NestedMap(u.Object, "status")
+	tc.Logf("  [RESOURCE] %s %s: FOUND", ro.GVK.Kind, ro.ResourceID)
+	tc.Logf("    UID: %s", u.GetUID())
+	tc.Logf("    ResourceVersion: %s", u.GetResourceVersion())
+	tc.Logf("    Generation: %d", u.GetGeneration())
+
+	// Log conditions if present
+	if conditions, found, _ := unstructured.NestedSlice(status, "conditions"); found && len(conditions) > 0 {
+		tc.Logf("    Conditions:")
+		for _, cond := range conditions {
+			if condMap, ok := cond.(map[string]interface{}); ok {
+				tc.Logf("      - Type: %v, Status: %v, Reason: %v, Message: %v",
+					condMap["type"], condMap["status"], condMap["reason"], condMap["message"])
+			}
+		}
+	}
+
+	// Log replica counts for Deployments/StatefulSets
+	if ro.GVK.Kind == "Deployment" || ro.GVK.Kind == "StatefulSet" {
+		if replicas, found, _ := unstructured.NestedInt64(status, "replicas"); found {
+			tc.Logf("    Replicas: %d", replicas)
+		}
+		if readyReplicas, found, _ := unstructured.NestedInt64(status, "readyReplicas"); found {
+			tc.Logf("    ReadyReplicas: %d", readyReplicas)
+		}
+		if availableReplicas, found, _ := unstructured.NestedInt64(status, "availableReplicas"); found {
+			tc.Logf("    AvailableReplicas: %d", availableReplicas)
+		}
+	}
+
+	return map[string]interface{}{
+		"found":           true,
+		"uid":             string(u.GetUID()),
+		"resourceVersion": u.GetResourceVersion(),
+		"generation":      u.GetGeneration(),
+		"status":          status,
+	}
+}
+
+// captureOperatorLogs captures recent operator pod logs for analysis.
+//
+//nolint:unparam // phase kept for consistent API across diagnostic functions
+func (tc *TestContext) captureOperatorLogs(phase string, maxLines int) []string {
+	clientset, err := tc.getKubernetesClientset()
+	if err != nil {
+		tc.Logf("  [OPERATOR-LOGS] Failed to create clientset: %v", err)
+		return []string{fmt.Sprintf("ERROR: Failed to create clientset: %v", err)}
+	}
+
+	ctx := context.Background()
+
+	// Find operator pods
+	pods, err := clientset.CoreV1().Pods(tc.OperatorNamespace).List(ctx, metav1.ListOptions{
+		LabelSelector: "control-plane=controller-manager",
+	})
+
+	if err != nil {
+		tc.Logf("  [OPERATOR-LOGS] Failed to list operator pods: %v", err)
+		return []string{fmt.Sprintf("ERROR: Failed to list operator pods: %v", err)}
+	}
+
+	if len(pods.Items) == 0 {
+		tc.Logf("  [OPERATOR-LOGS] No operator pods found in namespace %s", tc.OperatorNamespace)
+		return []string{fmt.Sprintf("ERROR: No operator pods found in namespace %s", tc.OperatorNamespace)}
+	}
+
+	tc.Logf("  [OPERATOR-LOGS] Found %d operator pod(s)", len(pods.Items))
+
+	var allLogs []string
+	for _, pod := range pods.Items {
+		tc.Logf("  [OPERATOR-LOGS] Capturing logs from pod %s (status: %s)...", pod.Name, pod.Status.Phase)
+
+		// Get container names
+		var containerNames []string
+		for _, container := range pod.Spec.Containers {
+			containerNames = append(containerNames, container.Name)
+		}
+
+		// Capture logs from each container
+		for _, containerName := range containerNames {
+			req := clientset.CoreV1().Pods(tc.OperatorNamespace).GetLogs(pod.Name, &corev1.PodLogOptions{
+				Container: containerName,
+				TailLines: ptr.To(int64(maxLines)),
+			})
+
+			logStream, err := req.Stream(ctx)
+			if err != nil {
+				allLogs = append(allLogs, fmt.Sprintf("ERROR getting logs from %s/%s: %v", pod.Name, containerName, err))
+				continue
+			}
+
+			logBytes, err := io.ReadAll(logStream)
+			logStream.Close()
+
+			if err != nil {
+				allLogs = append(allLogs, fmt.Sprintf("ERROR reading logs from %s/%s: %v", pod.Name, containerName, err))
+				continue
+			}
+
+			logLines := strings.Split(string(logBytes), "\n")
+			relevantLines := 0
+			for _, line := range logLines {
+				line = strings.TrimSpace(line)
+				if line != "" {
+					allLogs = append(allLogs, fmt.Sprintf("[%s/%s] %s", pod.Name, containerName, line))
+					relevantLines++
+				}
+			}
+
+			tc.Logf("    Captured %d log lines from container %s", relevantLines, containerName)
+		}
+	}
+
+	tc.Logf("  [OPERATOR-LOGS] Total captured: %d log lines from %d pod(s)", len(allLogs), len(pods.Items))
+
+	// Log a sample of recent logs for immediate visibility
+	if len(allLogs) > 0 {
+		tc.Logf("  [OPERATOR-LOGS] Recent log sample (last 10 lines):")
+		sampleStart := len(allLogs) - 10
+		if sampleStart < 0 {
+			sampleStart = 0
+		}
+		for i := sampleStart; i < len(allLogs); i++ {
+			tc.Logf("    %s", allLogs[i])
+		}
+	}
+
+	return allLogs
+}
+
+// captureRecentEvents captures recent Kubernetes events in the specified namespace.
+//
+//nolint:unparam // phase kept for consistent API across diagnostic functions
+func (tc *TestContext) captureRecentEvents(namespace string, phase string, maxEvents int) []string {
+	clientset, err := tc.getKubernetesClientset()
+	if err != nil {
+		tc.Logf("  [EVENTS] Failed to create clientset: %v", err)
+		return []string{fmt.Sprintf("ERROR: Failed to create clientset: %v", err)}
+	}
+
+	ctx := context.Background()
+
+	// Get events from target namespace
+	events, err := clientset.CoreV1().Events(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		tc.Logf("  [EVENTS] Failed to list events in namespace %s: %v", namespace, err)
+		return []string{fmt.Sprintf("ERROR: Failed to list events: %v", err)}
+	}
+
+	// Also get events from operator namespace (if different)
+	var operatorEvents *corev1.EventList
+	if namespace != tc.OperatorNamespace {
+		operatorEvents, err = clientset.CoreV1().Events(tc.OperatorNamespace).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			tc.Logf("  [EVENTS] Failed to list events in operator namespace %s: %v", tc.OperatorNamespace, err)
+		} else {
+			events.Items = append(events.Items, operatorEvents.Items...)
+		}
+	}
+
+	// Sort events by last timestamp (most recent first)
+	sort.Slice(events.Items, func(i, j int) bool {
+		return events.Items[i].LastTimestamp.After(events.Items[j].LastTimestamp.Time)
+	})
+
+	tc.Logf("  [EVENTS] Found %d total events (across namespaces)", len(events.Items))
+
+	// Pre-allocate slice to avoid multiple allocations
+	capacity := maxEvents
+	if len(events.Items) < maxEvents {
+		capacity = len(events.Items)
+	}
+	eventStrings := make([]string, 0, capacity)
+	warningCount := 0
+	errorCount := 0
+
+	for i, event := range events.Items {
+		if i >= maxEvents {
+			break
+		}
+
+		eventStr := fmt.Sprintf("[%s] [%s] %s/%s: %s - %s",
+			event.LastTimestamp.Format("15:04:05"),
+			event.Type,
+			event.InvolvedObject.Kind,
+			event.InvolvedObject.Name,
+			event.Reason,
+			event.Message,
+		)
+		eventStrings = append(eventStrings, eventStr)
+
+		if event.Type == eventTypeWarning {
+			warningCount++
+		}
+		if event.Type == eventTypeError {
+			errorCount++
+		}
+	}
+
+	tc.Logf("  [EVENTS] Captured %d events (%d warnings, %d errors)", len(eventStrings), warningCount, errorCount)
+
+	// Log recent warning/error events immediately
+	if warningCount > 0 || errorCount > 0 {
+		tc.Logf("  [EVENTS] Recent warnings/errors:")
+		count := 0
+		for _, eventStr := range eventStrings {
+			if strings.Contains(eventStr, "[Warning]") || strings.Contains(eventStr, "[Error]") {
+				tc.Logf("    %s", eventStr)
+				count++
+				if count >= 5 {
+					break
+				}
+			}
+		}
+	}
+
+	return eventStrings
+}
+
+// captureDSCStatus captures the DataScienceCluster status for component context.
+//
+//nolint:unparam // phase kept for consistent API across diagnostic functions
+func (tc *TestContext) captureDSCStatus(phase string) map[string]interface{} {
+	// Try to get the default DSC
+	dsc := &dscv2.DataScienceCluster{}
+	dscKey := types.NamespacedName{Name: "default-dsc"}
+
+	err := tc.Client().Get(tc.Context(), dscKey, dsc)
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			tc.Logf("  [DSC] DataScienceCluster not found (not all tests require DSC)")
+			return map[string]interface{}{
+				"found": false,
+			}
+		}
+		tc.Logf("  [DSC] Failed to get DataScienceCluster: %v", err)
+		return map[string]interface{}{
+			"found": false,
+			"error": err.Error(),
+		}
+	}
+
+	tc.Logf("  [DSC] DataScienceCluster found: %s", dsc.Name)
+	tc.Logf("    Phase: %s", dsc.Status.Phase)
+
+	// Log component statuses
+	tc.Logf("    Components: %+v", dsc.Status.Components)
+
+	// Log conditions
+	if len(dsc.Status.Conditions) > 0 {
+		tc.Logf("    Conditions:")
+		for _, cond := range dsc.Status.Conditions {
+			tc.Logf("      - Type: %s, Status: %s, Reason: %s",
+				cond.Type, cond.Status, cond.Reason)
+		}
+	}
+
+	return map[string]interface{}{
+		"found":      true,
+		"name":       dsc.Name,
+		"phase":      dsc.Status.Phase,
+		"components": dsc.Status.Components,
+		"conditions": dsc.Status.Conditions,
+	}
+}
+
+// measureAPIHealth measures API server responsiveness and health using timeline analysis.
+// Enhanced in Patch 16 to parse operator logs for historical API health context.
+//
+//nolint:unparam // phase kept for consistent API across diagnostic functions
+func (tc *TestContext) measureAPIHealth(phase string, operatorLogs []string) APIHealthTimeline {
+	currentTime := time.Now()
+
+	// 1. Parse operator logs for historical API errors/timeouts
+	timeline := analyzeAPIHealthFromLogs(operatorLogs, currentTime)
+
+	// 2. Measure current API latency
+	clientset, err := tc.getKubernetesClientset()
+	var currentLatency time.Duration
+
+	if err != nil {
+		tc.Logf("  [API-HEALTH] Failed to create clientset for latency check: %v", err)
+		currentLatency = 0
+	} else {
+		ctx := context.Background()
+		start := time.Now()
+		_, _ = clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{Limit: 1})
+		currentLatency = time.Since(start)
+	}
+
+	// 3. Assess overall API health combining historical + current data
+	timeline.assessAPIHealth(currentLatency, currentTime)
+
+	// 4. Log comprehensive API health status
+	tc.Logf("  [API-HEALTH] Current: %s - latency: %v", timeline.CurrentStatus, currentLatency.Round(time.Millisecond))
+
+	if timeline.TotalTimeouts > 0 || timeline.TotalErrors > 0 {
+		tc.Logf("  [API-HEALTH] Assessment: %s", timeline.Assessment)
+		tc.Logf("  [API-HEALTH] Reason: %s", timeline.AssessmentReason)
+		tc.Logf("  [API-HEALTH] Recent history (last %s):", timeline.TimeWindow)
+		tc.Logf("    - Timeouts: %d", timeline.TotalTimeouts)
+		tc.Logf("    - Errors: %d", timeline.TotalErrors)
+
+		// Show recent timeouts (max 5)
+		if len(timeline.APITimeouts) > 0 {
+			tc.Logf("  [API-HEALTH] Recent timeouts:")
+			for i, timeout := range timeline.APITimeouts {
+				if i >= 5 {
+					tc.Logf("    ... and %d more", len(timeline.APITimeouts)-5)
+					break
+				}
+				tc.Logf("    [%s] %s %s",
+					timeout.Timestamp.Format("15:04:05"),
+					timeout.Operation,
+					truncateString(timeout.Message, 100))
+			}
+		}
+
+		// Show recent errors (max 3)
+		if len(timeline.APIErrors) > 0 {
+			tc.Logf("  [API-HEALTH] Recent errors:")
+			for i, apiErr := range timeline.APIErrors {
+				if i >= 3 {
+					tc.Logf("    ... and %d more", len(timeline.APIErrors)-3)
+					break
+				}
+				tc.Logf("    [%s] %s - %s",
+					apiErr.Timestamp.Format("15:04:05"),
+					apiErr.Operation,
+					truncateString(apiErr.Error, 100))
+			}
+		}
+	} else {
+		tc.Logf("  [API-HEALTH] Assessment: %s - no errors or timeouts in last %s", apiHealthAssessmentHealthy, timeline.TimeWindow)
+	}
+
+	return timeline
+}
+
+// truncateString truncates a string to maxLen characters, adding "..." if truncated.
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen-3] + "..."
+}
+
+// ==================================================================================
+// API Health Timeline Analysis (Patch 16)
+// ==================================================================================
+
+// analyzeAPIHealthFromLogs parses operator logs to extract API errors and timeouts
+// from recent history, providing timeline context for API health assessment.
+//
+
+func analyzeAPIHealthFromLogs(operatorLogs []string, currentTime time.Time) APIHealthTimeline {
+	timeline := APIHealthTimeline{
+		TimeWindow:  5 * time.Minute,
+		APIErrors:   []APIError{},
+		APITimeouts: []APITimeout{},
+	}
+
+	cutoffTime := currentTime.Add(-timeline.TimeWindow)
+
+	// Regex patterns for detecting API issues in operator logs
+	// Pattern 1: API timeout - "error retrieving resource lock: the server was unable to return a response in the time allotted"
+	timeoutPattern := `the server was unable to return a response in the time allotted`
+
+	// Pattern 2: Resource lock errors (common timeout scenario)
+	resourceLockPattern := `error retrieving resource lock`
+
+	for _, logLine := range operatorLogs {
+		// Extract timestamp from log line
+		timestamp := extractTimestampFromLog(logLine, currentTime)
+
+		// Only analyze recent logs within time window
+		if !timestamp.IsZero() && timestamp.Before(cutoffTime) {
+			continue
+		}
+
+		// Check for API timeouts
+		if strings.Contains(logLine, timeoutPattern) {
+			timeout := parseAPITimeout(logLine, timestamp)
+			timeline.APITimeouts = append(timeline.APITimeouts, timeout)
+			timeline.TotalTimeouts++
+
+			if timeline.FirstErrorTime.IsZero() || timestamp.Before(timeline.FirstErrorTime) {
+				timeline.FirstErrorTime = timestamp
+			}
+			if timestamp.After(timeline.LastErrorTime) {
+				timeline.LastErrorTime = timestamp
+			}
+		} else if strings.Contains(logLine, resourceLockPattern) && strings.Contains(logLine, "error") {
+			// Resource lock errors that aren't timeouts
+			apiErr := parseAPIError(logLine, timestamp)
+			timeline.APIErrors = append(timeline.APIErrors, apiErr)
+			timeline.TotalErrors++
+
+			if timeline.FirstErrorTime.IsZero() || timestamp.Before(timeline.FirstErrorTime) {
+				timeline.FirstErrorTime = timestamp
+			}
+			if timestamp.After(timeline.LastErrorTime) {
+				timeline.LastErrorTime = timestamp
+			}
+		}
+	}
+
+	return timeline
+}
+
+// extractTimestampFromLog attempts to extract timestamp from operator log line.
+// Operator logs typically start with timestamp like: "2026-01-21T15:22:06.566666Z"
+// or Kubernetes style: "E0121 15:22:06.566666".
+func extractTimestampFromLog(logLine string, fallback time.Time) time.Time {
+	// Try RFC3339 format first (e.g., "2026-01-21T15:22:06.566666Z")
+	if len(logLine) > 30 {
+		timestampStr := logLine[:30]
+		if t, err := time.Parse(time.RFC3339, timestampStr[:20]+"Z"); err == nil {
+			return t
+		}
+	}
+
+	// Try Kubernetes log format: "E0121 15:22:06.566666"
+	if len(logLine) > 21 && (logLine[0] == 'E' || logLine[0] == 'W' || logLine[0] == 'I') {
+		// Extract "0121 15:22:06"
+		dateTimeStr := logLine[1:18]
+		// Assume current year
+		fullDateStr := fmt.Sprintf("%d-%s-%s %s",
+			fallback.Year(),
+			dateTimeStr[0:2], // month
+			dateTimeStr[2:4], // day
+			dateTimeStr[5:],  // time
+		)
+		if t, err := time.Parse("2006-01-02 15:04:05", fullDateStr); err == nil {
+			return t
+		}
+	}
+
+	// Fallback: use current time
+	return fallback
+}
+
+// parseAPITimeout extracts timeout details from log line.
+func parseAPITimeout(logLine string, timestamp time.Time) APITimeout {
+	timeout := APITimeout{
+		Timestamp: timestamp,
+		Message:   logLine,
+		Operation: "GET", // Most timeouts are GET operations
+	}
+
+	// Try to extract resource name from "error retrieving resource lock coordination.k8s.io/v1/Lease/opendatahub-system/07ed84f7.opendatahub.io"
+	if strings.Contains(logLine, "resource lock") {
+		parts := strings.Split(logLine, "resource lock")
+		if len(parts) > 1 {
+			resourcePath := strings.TrimSpace(parts[1])
+			// Extract just the resource type and name
+			if idx := strings.Index(resourcePath, "/"); idx > 0 {
+				timeout.Resource = resourcePath
+			}
+		}
+	}
+
+	return timeout
+}
+
+// parseAPIError extracts error details from log line.
+func parseAPIError(logLine string, timestamp time.Time) APIError {
+	apiErr := APIError{
+		Timestamp: timestamp,
+		Error:     logLine,
+		Operation: "UNKNOWN",
+	}
+
+	// Try to extract operation type (GET, LIST, UPDATE, etc.)
+	for _, op := range []string{"GET", "LIST", "UPDATE", "PATCH", "DELETE", "CREATE"} {
+		if strings.Contains(strings.ToUpper(logLine), op) {
+			apiErr.Operation = op
+			break
+		}
+	}
+
+	return apiErr
+}
+
+// assessAPIHealth determines overall API health based on timeline data and current latency.
+func (t *APIHealthTimeline) assessAPIHealth(currentLatency time.Duration, currentTime time.Time) {
+	t.CurrentLatency = currentLatency
+
+	// Determine current status based on latency
+	switch {
+	case currentLatency < 50*time.Millisecond:
+		t.CurrentStatus = apiHealthStatusHealthy
+	case currentLatency < 1*time.Second:
+		t.CurrentStatus = apiHealthStatusDegraded
+	default:
+		t.CurrentStatus = apiHealthStatusFailing
+	}
+
+	// Determine overall assessment based on historical errors
+	if t.TotalTimeouts == 0 && t.TotalErrors == 0 {
+		t.Assessment = apiHealthAssessmentHealthy
+		t.AssessmentReason = fmt.Sprintf("No API errors or timeouts in last %s", t.TimeWindow)
+		return
+	}
+
+	// Calculate time since last error
+	var timeSinceLast time.Duration
+	if !t.LastErrorTime.IsZero() {
+		timeSinceLast = currentTime.Sub(t.LastErrorTime)
+	}
+
+	// Timeouts are serious - they indicate API server unresponsiveness
+	if t.TotalTimeouts > 0 {
+		if timeSinceLast < 2*time.Minute {
+			// Recent timeout - still experiencing issues
+			t.Assessment = apiHealthAssessmentDegraded
+			t.AssessmentReason = fmt.Sprintf(
+				"%d timeout(s) in last %s, most recent %s ago",
+				t.TotalTimeouts,
+				t.TimeWindow,
+				timeSinceLast.Round(time.Second),
+			)
+		} else {
+			// Timeout occurred but recovered
+			t.Assessment = apiHealthAssessmentIntermittentDegradation
+			t.AssessmentReason = fmt.Sprintf(
+				"%d timeout(s) in last %s, but recovered (last timeout %s ago, current latency %s)",
+				t.TotalTimeouts,
+				t.TimeWindow,
+				timeSinceLast.Round(time.Second),
+				t.CurrentLatency.Round(time.Millisecond),
+			)
+		}
+		return
+	}
+
+	// Multiple errors indicate persistent issues
+	if t.TotalErrors > 5 {
+		t.Assessment = apiHealthAssessmentDegraded
+		t.AssessmentReason = fmt.Sprintf(
+			"%d API error(s) in last %s",
+			t.TotalErrors,
+			t.TimeWindow,
+		)
+		return
+	}
+
+	// Few errors - likely transient
+	t.Assessment = apiHealthAssessmentIntermittentDegradation
+	t.AssessmentReason = fmt.Sprintf(
+		"%d API error(s) in last %s, currently %s",
+		t.TotalErrors,
+		t.TimeWindow,
+		t.CurrentStatus,
+	)
 }

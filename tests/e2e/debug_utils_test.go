@@ -35,9 +35,11 @@ const (
 	CreateContainerConfigError = "CreateContainerConfigError"
 	CreateContainerError       = "CreateContainerError"
 
-	// Log type constants.
-	logTypeCurrent  = "current"
-	logTypePrevious = "previous"
+	// Condition status constants for unstructured objects.
+	conditionStatusTrue = "True"
+
+	// Visual status symbols.
+	statusCheckmark = "✓"
 )
 
 var (
@@ -285,16 +287,8 @@ func debugNamespaceResources() {
 				log.Printf("  Pod %s: %s", pod.Name, pod.Status.Phase)
 				problemsFound = true
 
-				// Check pod conditions
-				for _, condition := range pod.Status.Conditions {
-					if condition.Status != corev1.ConditionTrue {
-						log.Printf("    %s: %s - %s", condition.Type, condition.Status, condition.Message)
-					}
-				}
-
-				// Show container states and get logs for problematic containers
-				logContainerStates(pod.Status.ContainerStatuses, "    ")
-				logProblematicContainerLogs(pod, ns)
+				// Run comprehensive pod diagnostics for problematic pods
+				capturePodDiagnostics(context.TODO(), ns, pod.Name)
 			}
 		}
 
@@ -369,184 +363,9 @@ func debugDeploymentPods(deploymentName, namespace string) {
 	for _, pod := range allPods {
 		log.Printf("    Pod %s: %s", pod.Name, pod.Status.Phase)
 
-		// Show pod conditions
-		for _, condition := range pod.Status.Conditions {
-			if condition.Status != corev1.ConditionTrue {
-				log.Printf("      %s: %s - %s", condition.Type, condition.Status, condition.Message)
-			}
-		}
-
-		// Show container states (waiting/terminated containers)
-		logContainerStates(pod.Status.ContainerStatuses, "      ")
-		logContainerStates(pod.Status.InitContainerStatuses, "      ")
-
-		// Get recent logs for problematic containers
-		logProblematicContainerLogs(pod, namespace)
+		// Run comprehensive pod diagnostics
+		capturePodDiagnostics(context.TODO(), namespace, pod.Name)
 	}
-}
-
-// logContainerStates logs waiting or terminated container states.
-func logContainerStates(containerStatuses []corev1.ContainerStatus, indent string) {
-	for _, containerStatus := range containerStatuses {
-		restartInfo := ""
-		if containerStatus.RestartCount > 0 {
-			restartInfo = fmt.Sprintf(" (restarts: %d)", containerStatus.RestartCount)
-		}
-
-		if containerStatus.State.Waiting != nil {
-			log.Printf("%sContainer %s waiting: %s - %s%s",
-				indent,
-				containerStatus.Name,
-				containerStatus.State.Waiting.Reason,
-				containerStatus.State.Waiting.Message,
-				restartInfo)
-		}
-		if containerStatus.State.Terminated != nil {
-			log.Printf("%sContainer %s terminated: %s - %s (exit: %d)%s",
-				indent,
-				containerStatus.Name,
-				containerStatus.State.Terminated.Reason,
-				containerStatus.State.Terminated.Message,
-				containerStatus.State.Terminated.ExitCode,
-				restartInfo)
-		}
-		if !containerStatus.Ready && containerStatus.State.Running != nil {
-			log.Printf("%sContainer %s running but not ready%s",
-				indent,
-				containerStatus.Name,
-				restartInfo)
-		}
-	}
-}
-
-// logProblematicContainerLogs retrieves recent logs for containers that are failing or restarting.
-func logProblematicContainerLogs(pod corev1.Pod, namespace string) {
-	for _, containerStatus := range pod.Status.ContainerStatuses {
-		logType := determineLogType(containerStatus)
-		if logType == "" {
-			continue
-		}
-
-		getPodContainerLogs(pod.Name, containerStatus.Name, namespace, logType)
-	}
-}
-
-// determineLogType returns the type of logs to retrieve or empty string if no logs needed.
-func determineLogType(containerStatus corev1.ContainerStatus) string {
-	// Get logs from previous crashed container (when waiting after restart)
-	if containerStatus.State.Waiting != nil && containerStatus.RestartCount > 0 {
-		return logTypePrevious
-	}
-
-	// Get current logs for terminated containers
-	if containerStatus.State.Terminated != nil {
-		return logTypeCurrent
-	}
-
-	// Get current logs for not-ready containers with restarts
-	if !containerStatus.Ready && containerStatus.RestartCount > 0 {
-		return logTypeCurrent
-	}
-
-	// Get current logs for containers in problematic waiting states (even without restarts)
-	if containerStatus.State.Waiting != nil {
-		reason := containerStatus.State.Waiting.Reason
-		if reason == CrashLoopBackOff || reason == ImagePullBackOff ||
-			reason == ErrImagePull || reason == InvalidImageName ||
-			reason == CreateContainerConfigError || reason == CreateContainerError {
-			return logTypeCurrent
-		}
-	}
-
-	// No logs needed
-	return ""
-}
-
-// getPodContainerLogs retrieves and displays the last few lines of container logs.
-func getPodContainerLogs(podName, containerName, namespace, logType string) {
-	log.Printf("        === LOGS (%s) for container %s ===", strings.ToUpper(logType), containerName)
-
-	if globalDebugClient == nil {
-		log.Printf("        No debug client available for log retrieval")
-		log.Printf("        === END LOGS ===")
-		return
-	}
-
-	logs, err := retrievePodLogs(namespace, podName, containerName, logType == "previous")
-	if err != nil {
-		log.Printf("        Failed to retrieve logs: %v", err)
-		return
-	}
-
-	if logs == "" {
-		log.Printf("        No logs available")
-		return
-	}
-
-	// Redact sensitive information before printing
-	redactedLogs := redactSensitiveInfo(logs)
-
-	// Print the last 10 lines of logs
-	logLines := strings.Split(strings.TrimSpace(redactedLogs), "\n")
-	maxLines := 10
-	startIdx := 0
-	if len(logLines) > maxLines {
-		startIdx = len(logLines) - maxLines
-	}
-
-	for i := startIdx; i < len(logLines); i++ {
-		if strings.TrimSpace(logLines[i]) != "" {
-			log.Printf("        %s", logLines[i])
-		}
-	}
-
-	log.Printf("        === END LOGS ===")
-}
-
-// retrievePodLogs gets the actual logs from a pod container using client-go.
-func retrievePodLogs(namespace, podName, containerName string, previous bool) (string, error) {
-	// Get the Kubernetes REST config
-	config, err := ctrlcfg.GetConfig()
-	if err != nil {
-		return "", fmt.Errorf("failed to get Kubernetes config: %w", err)
-	}
-
-	// Create a clientset for log access
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return "", fmt.Errorf("failed to create clientset: %w", err)
-	}
-
-	// Set log options
-	tailLines := int64(10)
-	podLogOpts := &corev1.PodLogOptions{
-		Container: containerName,
-		TailLines: &tailLines,
-		Previous:  previous,
-	}
-
-	// Get logs request
-	req := clientset.CoreV1().Pods(namespace).GetLogs(podName, podLogOpts)
-
-	// Stream logs
-	podLogs, err := req.Stream(context.TODO())
-	if err != nil {
-		return "", fmt.Errorf("error opening log stream: %w", err)
-	}
-	defer func() {
-		if closeErr := podLogs.Close(); closeErr != nil {
-			log.Printf("        Warning: failed to close log stream: %v", closeErr)
-		}
-	}()
-
-	// Read logs
-	buf := new(bytes.Buffer)
-	_, err = io.Copy(buf, podLogs)
-	if err != nil {
-		return "", fmt.Errorf("error reading logs: %w", err)
-	}
-
-	return buf.String(), nil
 }
 
 // debugOperatorStatus checks the OpenDataHub operator deployment and pods.
@@ -649,8 +468,10 @@ func logConditions(obj map[string]interface{}) {
 			condType, _ := condition["type"].(string)
 			status, _ := condition["status"].(string)
 
-			message, _ := condition["message"].(string)
-			log.Printf("  %s: %s - %s", condType, status, message)
+			if status != conditionStatusTrue {
+				message, _ := condition["message"].(string)
+				log.Printf("  %s: %s - %s", condType, status, message)
+			}
 		}
 	}
 }
@@ -770,6 +591,300 @@ func debugResourceQuotas() {
 		log.Printf("All resource quotas are within limits")
 		return
 	}
+}
+
+// capturePodDiagnostics provides comprehensive diagnostics for a specific pod,
+// including container states, logs, events, and resource usage.
+func capturePodDiagnostics(ctx context.Context, namespace, podName string) {
+	log.Printf("=== POD DIAGNOSTICS: %s/%s ===", namespace, podName)
+
+	// Get pod details
+	pod := &corev1.Pod{}
+	if err := globalDebugClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: podName}, pod); err != nil {
+		log.Printf("Failed to get pod: %v", err)
+		return
+	}
+
+	// Show pod phase and start time
+	podAge := time.Since(pod.CreationTimestamp.Time).Round(time.Second)
+	log.Printf("Pod Phase: %s (age: %s)", pod.Status.Phase, podAge)
+
+	// Show pod conditions
+	log.Printf("Pod Conditions:")
+	for _, condition := range pod.Status.Conditions {
+		statusSymbol := statusCheckmark
+		if condition.Status != corev1.ConditionTrue {
+			statusSymbol = "✗"
+		}
+		log.Printf("  %s %s: %s", statusSymbol, condition.Type, condition.Status)
+		if condition.Message != "" && condition.Status != corev1.ConditionTrue {
+			log.Printf("    Message: %s", condition.Message)
+		}
+		if condition.Reason != "" && condition.Status != corev1.ConditionTrue {
+			log.Printf("    Reason: %s", condition.Reason)
+		}
+	}
+
+	// Show detailed container states
+	log.Printf("Container Status:")
+	for _, containerStatus := range pod.Status.ContainerStatuses {
+		captureSingleContainerDiagnostics(ctx, namespace, podName, pod, containerStatus)
+	}
+
+	// Show init container states if any failed
+	for _, initStatus := range pod.Status.InitContainerStatuses {
+		if !initStatus.Ready || initStatus.RestartCount > 0 ||
+			initStatus.State.Waiting != nil || initStatus.State.Terminated != nil {
+			log.Printf("Init Container Status:")
+			captureSingleContainerDiagnostics(ctx, namespace, podName, pod, initStatus)
+		}
+	}
+
+	// Show pod events
+	capturePodEvents(ctx, namespace, podName)
+
+	// Show resource requests and limits
+	captureResourceInfo(pod)
+
+	log.Printf("=== END POD DIAGNOSTICS ===")
+}
+
+// captureSingleContainerDiagnostics captures detailed information about a single container.
+func captureSingleContainerDiagnostics(ctx context.Context, namespace, podName string, pod *corev1.Pod, containerStatus corev1.ContainerStatus) {
+	log.Printf("  Container: %s", containerStatus.Name)
+	log.Printf("    Ready: %v", containerStatus.Ready)
+	log.Printf("    Restart Count: %d", containerStatus.RestartCount)
+	log.Printf("    Image: %s", containerStatus.Image)
+
+	// Show container state with timing
+	switch {
+	case containerStatus.State.Running != nil:
+		startTime := containerStatus.State.Running.StartedAt.Time
+		runningFor := time.Since(startTime).Round(time.Second)
+		log.Printf("    State: Running (started %s ago)", runningFor)
+	case containerStatus.State.Waiting != nil:
+		log.Printf("    State: Waiting")
+		log.Printf("      Reason: %s", containerStatus.State.Waiting.Reason)
+		if containerStatus.State.Waiting.Message != "" {
+			log.Printf("      Message: %s", containerStatus.State.Waiting.Message)
+		}
+	case containerStatus.State.Terminated != nil:
+		log.Printf("    State: Terminated")
+		log.Printf("      Reason: %s", containerStatus.State.Terminated.Reason)
+		log.Printf("      Exit Code: %d", containerStatus.State.Terminated.ExitCode)
+		if containerStatus.State.Terminated.Message != "" {
+			log.Printf("      Message: %s", containerStatus.State.Terminated.Message)
+		}
+	}
+
+	// Show last termination state if container has restarted
+	if containerStatus.LastTerminationState.Terminated != nil {
+		term := containerStatus.LastTerminationState.Terminated
+		log.Printf("    Last Termination:")
+		log.Printf("      Reason: %s", term.Reason)
+		log.Printf("      Exit Code: %d", term.ExitCode)
+		if term.Message != "" {
+			log.Printf("      Message: %s", term.Message)
+		}
+	}
+
+	// Show readiness probe configuration from pod spec
+	captureReadinessProbeInfo(pod, containerStatus.Name)
+
+	// Get container logs if not ready or has restarted
+	if !containerStatus.Ready || containerStatus.RestartCount > 0 ||
+		containerStatus.State.Waiting != nil || containerStatus.State.Terminated != nil {
+		// Get current logs
+		log.Printf("    === Recent Logs (last 100 lines) ===")
+		logs, err := retrievePodLogsWithTail(ctx, namespace, podName, containerStatus.Name, false, 100)
+		switch {
+		case err != nil:
+			log.Printf("    Failed to retrieve logs: %v", err)
+		case logs == "":
+			log.Printf("    No logs available")
+		default:
+			redactedLogs := redactSensitiveInfo(logs)
+			logLines := strings.Split(strings.TrimSpace(redactedLogs), "\n")
+			for _, line := range logLines {
+				if strings.TrimSpace(line) != "" {
+					log.Printf("    %s", line)
+				}
+			}
+		}
+		log.Printf("    === End Logs ===")
+
+		// Get previous logs if restarted
+		if containerStatus.RestartCount > 0 {
+			log.Printf("    === Previous Logs (before restart, last 50 lines) ===")
+			prevLogs, err := retrievePodLogsWithTail(ctx, namespace, podName, containerStatus.Name, true, 50)
+			switch {
+			case err != nil:
+				log.Printf("    Failed to retrieve previous logs: %v", err)
+			case prevLogs == "":
+				log.Printf("    No previous logs available")
+			default:
+				redactedLogs := redactSensitiveInfo(prevLogs)
+				logLines := strings.Split(strings.TrimSpace(redactedLogs), "\n")
+				for _, line := range logLines {
+					if strings.TrimSpace(line) != "" {
+						log.Printf("    %s", line)
+					}
+				}
+			}
+			log.Printf("    === End Previous Logs ===")
+		}
+	}
+}
+
+// captureReadinessProbeInfo extracts and displays readiness probe configuration from pod spec.
+func captureReadinessProbeInfo(pod *corev1.Pod, containerName string) {
+	for _, container := range pod.Spec.Containers {
+		if container.Name == containerName && container.ReadinessProbe != nil {
+			log.Printf("    Readiness Probe:")
+			probe := container.ReadinessProbe
+
+			// Show probe type and details
+			switch {
+			case probe.HTTPGet != nil:
+				log.Printf("      Type: HTTP GET")
+				log.Printf("      Path: %s", probe.HTTPGet.Path)
+				log.Printf("      Port: %v", probe.HTTPGet.Port)
+				if probe.HTTPGet.Scheme != "" {
+					log.Printf("      Scheme: %s", probe.HTTPGet.Scheme)
+				}
+			case probe.TCPSocket != nil:
+				log.Printf("      Type: TCP Socket")
+				log.Printf("      Port: %v", probe.TCPSocket.Port)
+			case probe.Exec != nil:
+				log.Printf("      Type: Exec")
+				log.Printf("      Command: %v", probe.Exec.Command)
+			}
+
+			// Show timing configuration
+			log.Printf("      Initial Delay: %ds", probe.InitialDelaySeconds)
+			log.Printf("      Period: %ds", probe.PeriodSeconds)
+			log.Printf("      Timeout: %ds", probe.TimeoutSeconds)
+			log.Printf("      Success Threshold: %d", probe.SuccessThreshold)
+			log.Printf("      Failure Threshold: %d", probe.FailureThreshold)
+
+			return
+		}
+	}
+}
+
+// capturePodEvents retrieves and displays recent events for a pod.
+func capturePodEvents(ctx context.Context, namespace, podName string) {
+	events := &corev1.EventList{}
+	if err := globalDebugClient.List(ctx, events, client.InNamespace(namespace)); err != nil {
+		log.Printf("Failed to list events: %v", err)
+		return
+	}
+
+	// Filter events for this pod
+	var podEvents []corev1.Event
+	for _, event := range events.Items {
+		if event.InvolvedObject.Name == podName && event.InvolvedObject.Kind == "Pod" {
+			podEvents = append(podEvents, event)
+		}
+	}
+
+	if len(podEvents) == 0 {
+		log.Printf("Pod Events: No events found")
+		return
+	}
+
+	// Sort by timestamp (newest first)
+	sort.Slice(podEvents, func(i, j int) bool {
+		return podEvents[i].LastTimestamp.After(podEvents[j].LastTimestamp.Time)
+	})
+
+	log.Printf("Pod Events (most recent 10):")
+	maxEvents := 10
+	if len(podEvents) < maxEvents {
+		maxEvents = len(podEvents)
+	}
+
+	for i := range maxEvents {
+		event := podEvents[i]
+		eventAge := time.Since(event.LastTimestamp.Time).Round(time.Second)
+		eventType := "Normal"
+		if event.Type == "Warning" {
+			eventType = "WARNING"
+		}
+		log.Printf("  [%s ago] %s: %s - %s",
+			eventAge, eventType, event.Reason, event.Message)
+	}
+}
+
+// captureResourceInfo displays resource requests, limits, and actual usage.
+func captureResourceInfo(pod *corev1.Pod) {
+	log.Printf("Resource Requests and Limits:")
+
+	for _, container := range pod.Spec.Containers {
+		log.Printf("  Container: %s", container.Name)
+
+		// Show CPU requests/limits
+		if cpuReq := container.Resources.Requests[corev1.ResourceCPU]; !cpuReq.IsZero() {
+			log.Printf("    CPU Request: %s", cpuReq.String())
+		}
+		if cpuLimit := container.Resources.Limits[corev1.ResourceCPU]; !cpuLimit.IsZero() {
+			log.Printf("    CPU Limit: %s", cpuLimit.String())
+		}
+
+		// Show memory requests/limits
+		if memReq := container.Resources.Requests[corev1.ResourceMemory]; !memReq.IsZero() {
+			log.Printf("    Memory Request: %s", memReq.String())
+		}
+		if memLimit := container.Resources.Limits[corev1.ResourceMemory]; !memLimit.IsZero() {
+			log.Printf("    Memory Limit: %s", memLimit.String())
+		}
+	}
+}
+
+// retrievePodLogsWithTail retrieves pod logs with a specific tail line count.
+func retrievePodLogsWithTail(ctx context.Context, namespace, podName, containerName string, previous bool, tailLines int) (string, error) {
+	// Get the Kubernetes REST config
+	config, err := ctrlcfg.GetConfig()
+	if err != nil {
+		return "", fmt.Errorf("failed to get Kubernetes config: %w", err)
+	}
+
+	// Create a clientset for log access
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return "", fmt.Errorf("failed to create clientset: %w", err)
+	}
+
+	// Set log options
+	tailLinesInt64 := int64(tailLines)
+	podLogOpts := &corev1.PodLogOptions{
+		Container: containerName,
+		TailLines: &tailLinesInt64,
+		Previous:  previous,
+	}
+
+	// Get logs request
+	req := clientset.CoreV1().Pods(namespace).GetLogs(podName, podLogOpts)
+
+	// Stream logs
+	podLogs, err := req.Stream(ctx)
+	if err != nil {
+		return "", fmt.Errorf("error opening log stream: %w", err)
+	}
+	defer func() {
+		if closeErr := podLogs.Close(); closeErr != nil {
+			log.Printf("Warning: failed to close log stream: %v", closeErr)
+		}
+	}()
+
+	// Read logs
+	buf := new(bytes.Buffer)
+	_, err = io.Copy(buf, podLogs)
+	if err != nil {
+		return "", fmt.Errorf("error reading logs: %w", err)
+	}
+
+	return buf.String(), nil
 }
 
 func getControllerDeploymentName() string {
