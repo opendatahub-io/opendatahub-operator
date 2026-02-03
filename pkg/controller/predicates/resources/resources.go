@@ -1,46 +1,91 @@
 package resources
 
 import (
+	"math"
 	"reflect"
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
-	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 var _ predicate.Predicate = DeploymentPredicate{}
+
+// hasGVK checks if an unstructured object matches the expected GroupVersionKind.
+func hasGVK(u *unstructured.Unstructured, expected schema.GroupVersionKind) bool {
+	objGVK := u.GetObjectKind().GroupVersionKind()
+	return objGVK == expected
+}
 
 type DeploymentPredicate struct {
 	predicate.Funcs
 }
 
 // Update implements default UpdateEvent filter for validating generation change.
+// Works with both typed *appsv1.Deployment and *unstructured.Unstructured objects.
 func (DeploymentPredicate) Update(e event.UpdateEvent) bool {
 	if e.ObjectOld == nil || e.ObjectNew == nil {
 		return false
 	}
 
-	oldDeployment, ok := e.ObjectOld.(*appsv1.Deployment)
-	if !ok {
+	oldReplicas, oldReadyReplicas, oldOk := getDeploymentStatus(e.ObjectOld)
+	newReplicas, newReadyReplicas, newOk := getDeploymentStatus(e.ObjectNew)
+
+	if !oldOk || !newOk {
 		return false
 	}
 
-	newDeployment, ok := e.ObjectNew.(*appsv1.Deployment)
-	if !ok {
-		return false
+	return e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration() ||
+		oldReplicas != newReplicas ||
+		oldReadyReplicas != newReadyReplicas
+}
+
+// getDeploymentStatus extracts replicas and readyReplicas from a Deployment object.
+// Supports both typed *appsv1.Deployment and *unstructured.Unstructured.
+func getDeploymentStatus(obj client.Object) (int32, int32, bool) {
+	// Try typed Deployment first
+	if deploy, isTyped := obj.(*appsv1.Deployment); isTyped {
+		return deploy.Status.Replicas, deploy.Status.ReadyReplicas, true
 	}
 
-	return oldDeployment.Generation != newDeployment.Generation ||
-		oldDeployment.Status.Replicas != newDeployment.Status.Replicas ||
-		oldDeployment.Status.ReadyReplicas != newDeployment.Status.ReadyReplicas
+	u, ok := obj.(*unstructured.Unstructured)
+	if !ok || !hasGVK(u, gvk.Deployment) {
+		return 0, 0, false
+	}
+
+	status, found, err := unstructured.NestedMap(u.Object, "status")
+	if err != nil || !found {
+		return 0, 0, true // No status yet, but valid object
+	}
+
+	return getInt32Field(status, "replicas"), getInt32Field(status, "readyReplicas"), true
+}
+
+func getInt32Field(m map[string]interface{}, field string) int32 {
+	val, found, err := unstructured.NestedInt64(m, field)
+	if err != nil || !found {
+		return 0
+	}
+
+	if val < math.MinInt32 {
+		return math.MinInt32
+	}
+	if val > math.MaxInt32 {
+		return math.MaxInt32
+	}
+
+	return int32(val)
 }
 
 func NewDeploymentPredicate() *DeploymentPredicate {
@@ -64,36 +109,96 @@ func Deleted() predicate.Funcs {
 	}
 }
 
+func getConfigMapData(obj client.Object) (any, bool) {
+	cm, ok := obj.(*corev1.ConfigMap)
+	if ok {
+		return cm.Data, true
+	}
+
+	u, ok := obj.(*unstructured.Unstructured)
+	if !ok || !hasGVK(u, gvk.ConfigMap) {
+		return nil, false
+	}
+
+	data, _, err := unstructured.NestedFieldNoCopy(u.Object, "data")
+	if err != nil {
+		return nil, false
+	}
+	return data, true
+}
+
 // Content predicates moved from original controller.
 var CMContentChangedPredicate = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
-		oldCM, _ := e.ObjectOld.(*corev1.ConfigMap)
-		newCM, _ := e.ObjectNew.(*corev1.ConfigMap)
-		return !reflect.DeepEqual(oldCM.Data, newCM.Data)
+		oldData, oldOk := getConfigMapData(e.ObjectOld)
+		newData, newOk := getConfigMapData(e.ObjectNew)
+		if !oldOk || !newOk {
+			return false
+		}
+		return !reflect.DeepEqual(oldData, newData)
 	},
+}
+
+func getSecretData(obj client.Object) (any, bool) {
+	secret, ok := obj.(*corev1.Secret)
+	if ok {
+		return secret.Data, true
+	}
+
+	u, ok := obj.(*unstructured.Unstructured)
+	if !ok || !hasGVK(u, gvk.Secret) {
+		return nil, false
+	}
+
+	data, _, err := unstructured.NestedFieldNoCopy(u.Object, "data")
+	if err != nil {
+		return nil, false
+	}
+	return data, true
 }
 
 var SecretContentChangedPredicate = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
-		oldSecret, _ := e.ObjectOld.(*corev1.Secret)
-		newSecret, _ := e.ObjectNew.(*corev1.Secret)
-		return !reflect.DeepEqual(oldSecret.Data, newSecret.Data)
+		oldData, oldOk := getSecretData(e.ObjectOld)
+		newData, newOk := getSecretData(e.ObjectNew)
+		if !oldOk || !newOk {
+			return false
+		}
+		return !reflect.DeepEqual(oldData, newData)
 	},
 }
 
+// FIXME: is this function correct? By default CreateFunc and UpdateFunc are true.
 var DSCDeletionPredicate = predicate.Funcs{
 	DeleteFunc: func(e event.DeleteEvent) bool {
 		return true
 	},
 }
 
+func getDSC(obj client.Object) (*dscv2.DataScienceCluster, bool) {
+	if dsc, ok := obj.(*dscv2.DataScienceCluster); ok {
+		return dsc, true
+	}
+
+	u, err := resources.ToUnstructured(obj)
+	if err != nil {
+		return nil, false
+	}
+	dsc := &dscv2.DataScienceCluster{}
+	err = runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, dsc)
+	if err != nil {
+		return nil, false
+	}
+	return dsc, true
+}
+
 var DSCComponentUpdatePredicate = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
-		oldDSC, ok := e.ObjectOld.(*dscv2.DataScienceCluster)
+		oldDSC, ok := getDSC(e.ObjectOld)
 		if !ok {
 			return false
 		}
-		newDSC, ok := e.ObjectNew.(*dscv2.DataScienceCluster)
+		newDSC, ok := getDSC(e.ObjectNew)
 		if !ok {
 			return false
 		}
@@ -119,30 +224,6 @@ var DSCComponentUpdatePredicate = predicate.Funcs{
 				}
 			}
 		}
-		return false
-	},
-}
-
-var DSCIReadiness = predicate.Funcs{
-	UpdateFunc: func(e event.UpdateEvent) bool {
-		oldObj, ok := e.ObjectOld.(*dsciv2.DSCInitialization)
-		if !ok {
-			return false
-		}
-		newObj, ok := e.ObjectNew.(*dsciv2.DSCInitialization)
-		if !ok {
-			return false
-		}
-
-		return oldObj.Status.Phase != newObj.Status.Phase
-	},
-	CreateFunc: func(e event.CreateEvent) bool {
-		return false
-	},
-	DeleteFunc: func(e event.DeleteEvent) bool {
-		return false
-	},
-	GenericFunc: func(e event.GenericEvent) bool {
 		return false
 	},
 }
@@ -236,7 +317,28 @@ func GatewayStatusChanged() predicate.Predicate {
 
 // HTTPRouteReferencesGateway returns a predicate that filters HTTPRoutes referencing the specified gateway.
 func HTTPRouteReferencesGateway(gatewayName, gatewayNamespace string) predicate.Predicate {
-	referencesGateway := func(httpRoute *gwapiv1.HTTPRoute) bool {
+	getHTTPRoute := func(obj client.Object) (*gwapiv1.HTTPRoute, bool) {
+		httpRoute, ok := obj.(*gwapiv1.HTTPRoute)
+		if ok {
+			return httpRoute, true
+		}
+		u, err := resources.ToUnstructured(obj)
+		if err != nil {
+			return nil, false
+		}
+		httpRoute = &gwapiv1.HTTPRoute{}
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(u.Object, httpRoute)
+		if err != nil {
+			return nil, false
+		}
+		return httpRoute, true
+	}
+
+	referencesGateway := func(obj client.Object) bool {
+		httpRoute, ok := getHTTPRoute(obj)
+		if !ok {
+			return false
+		}
 		for _, ref := range httpRoute.Spec.ParentRefs {
 			refNamespace := gatewayNamespace
 			if ref.Namespace != nil {
@@ -251,32 +353,16 @@ func HTTPRouteReferencesGateway(gatewayName, gatewayNamespace string) predicate.
 
 	return predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
-			httpRoute, ok := e.Object.(*gwapiv1.HTTPRoute)
-			if !ok {
-				return false
-			}
-			return referencesGateway(httpRoute)
+			return referencesGateway(e.Object)
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			httpRoute, ok := e.ObjectNew.(*gwapiv1.HTTPRoute)
-			if !ok {
-				return false
-			}
-			return referencesGateway(httpRoute)
+			return referencesGateway(e.ObjectNew)
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			httpRoute, ok := e.Object.(*gwapiv1.HTTPRoute)
-			if !ok {
-				return false
-			}
-			return referencesGateway(httpRoute)
+			return referencesGateway(e.Object)
 		},
 		GenericFunc: func(e event.GenericEvent) bool {
-			httpRoute, ok := e.Object.(*gwapiv1.HTTPRoute)
-			if !ok {
-				return false
-			}
-			return referencesGateway(httpRoute)
+			return referencesGateway(e.Object)
 		},
 	}
 }
