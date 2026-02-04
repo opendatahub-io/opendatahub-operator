@@ -523,7 +523,7 @@ func getKubeAuthProxyImage() string {
 		return image
 	}
 	// Fallback for ODH development
-	return "quay.io/opendatahub/odh-kube-auth-proxy:latest"
+	return "quay.io/opendatahub/odh-kube-auth-proxy:odh-stable"
 }
 
 func getAuthProxySecretValues(
