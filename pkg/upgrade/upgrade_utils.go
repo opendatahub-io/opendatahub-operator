@@ -660,20 +660,65 @@ func containerSizeExists(sizes []ContainerSize, name string) bool {
 	return false
 }
 
-// setHardwareProfileAnnotation sets the HWP annotation on an object and updates it.
-func setHardwareProfileAnnotation(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, hwpName string, namespace string) error {
+// setHardwareProfileAnnotation sets the HWP annotations on an object and updates it.
+// It looks up the HardwareProfile to find its actual namespace. AcceleratorProfiles can only exist in:
+// 1. The same namespace as the workload, OR
+// 2. The application namespace
+//
+// If apNamespace is provided (from opendatahub.io/accelerator-profile-namespace annotation), it is used
+// as the definitive namespace. This protects against edge cases where identically named HWPs exist in
+// both the workload namespace and application namespace with different contents.
+func setHardwareProfileAnnotation(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, hwpName string, apNamespace string, applicationNS string) error {
+	log := logf.FromContext(ctx)
 	annotations := obj.GetAnnotations()
 	if annotations == nil {
 		annotations = make(map[string]string)
 	}
 	annotations[hardwareProfileNameAnnotation] = hwpName
 
-	// If hardwareprofile name starts with the containersize- prefix or is custom-serving, also set the HWP namespace annotation to the application namespace
-	if strings.HasPrefix(hwpName, containerSizeHWPPrefix) || (hwpName == "custom-serving") {
-		annotations[hardwareProfileNamespaceAnnotation] = namespace
-	}
-	obj.SetAnnotations(annotations)
+	// Find the actual namespace where the HardwareProfile exists.
+	hwpNamespace := ""
+	objNamespace := obj.GetNamespace()
 
+	// If AP namespace annotation is present, use it as the definitive namespace
+	// If not found via AP namespace annotation, search in the two valid locations
+	// This handles the edge case of identically named HWPs in different namespaces
+	if apNamespace != "" {
+		hwpNamespace = apNamespace
+	} else {
+		// Try object's namespace first (same-namespace AP reference)
+		_, err := cluster.GetHardwareProfile(ctx, cli, hwpName, objNamespace)
+		if err == nil {
+			hwpNamespace = objNamespace
+		} else if !k8serr.IsNotFound(err) {
+			return fmt.Errorf("error checking HardwareProfile in object namespace %s: %w", objNamespace, err)
+		}
+
+		// If not found in object's namespace, try application namespace
+		if hwpNamespace == "" && objNamespace != applicationNS {
+			_, err = cluster.GetHardwareProfile(ctx, cli, hwpName, applicationNS)
+			if err == nil {
+				hwpNamespace = applicationNS
+			} else if !k8serr.IsNotFound(err) {
+				return fmt.Errorf("error checking HardwareProfile in application namespace %s: %w", applicationNS, err)
+			}
+		}
+	}
+
+	// Set the namespace annotation
+	if hwpNamespace != "" {
+		annotations[hardwareProfileNamespaceAnnotation] = hwpNamespace
+		log.Info(
+			"Found HardwareProfile for migration", "hwpName", hwpName,
+			"namespace", hwpNamespace, "objectName", obj.GetName(), "objectNamespace", obj.GetNamespace(), "apNamespaceHint", apNamespace)
+	} else {
+		// If HardwareProfile not found, log a warning but still set the annotation to application namespace as a fallback
+		log.Info("HardwareProfile not found in expected namespaces, using application namespace as fallback",
+			"hwpName", hwpName, "applicationNS", applicationNS, "apNamespaceHint", apNamespace)
+		annotations[hardwareProfileNamespaceAnnotation] = applicationNS
+	}
+
+	obj.SetAnnotations(annotations)
 	return cli.Update(ctx, obj)
 }
 
