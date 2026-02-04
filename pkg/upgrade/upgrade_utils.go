@@ -57,7 +57,7 @@ func getAcceleratorProfiles(ctx context.Context, cli client.Client) ([]unstructu
 	return apList.Items, nil
 }
 
-func getOdhDashboardConfig(ctx context.Context, cli client.Client, applicationNS string) (*unstructured.Unstructured, bool, error) {
+func GetOdhDashboardConfig(ctx context.Context, cli client.Client, applicationNS string) (*unstructured.Unstructured, bool, error) {
 	log := logf.FromContext(ctx)
 	odhConfig := &unstructured.Unstructured{}
 	odhConfig.SetGroupVersionKind(gvk.OdhDashboardConfig)
@@ -70,7 +70,7 @@ func getOdhDashboardConfig(ctx context.Context, cli client.Client, applicationNS
 	}
 
 	// If not found in cluster, check if it's a "not found" error
-	if !k8serr.IsNotFound(err) {
+	if !k8serr.IsNotFound(err) && !meta.IsNoMatchError(err) {
 		return nil, false, fmt.Errorf("failed to get OdhDashboardConfig from cluster: %w", err)
 	}
 
@@ -696,4 +696,35 @@ func createHardwareProfileAnnotations(profileType, displayName, description stri
 		hardwareProfileDescriptionAnnotation:  description,
 		hardwareProfileDisabledAnnotation:     strconv.FormatBool(disabled),
 	}
+}
+
+// recordUpgradeErrorEvent creates a Kubernetes Event for the given object for any errors during the upgrade.
+func recordUpgradeErrorEvent(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, eventType, reason, message string) error {
+	now := metav1.NewTime(time.Now())
+	event := &corev1.Event{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: obj.GetName() + "-",
+			Namespace:    obj.GetNamespace(),
+		},
+		InvolvedObject: corev1.ObjectReference{
+			APIVersion: obj.GetAPIVersion(),
+			Kind:       obj.GetKind(),
+			Name:       obj.GetName(),
+			Namespace:  obj.GetNamespace(),
+			UID:        obj.GetUID(),
+		},
+		Reason:         reason,
+		Message:        message,
+		Type:           eventType,
+		FirstTimestamp: now,
+		LastTimestamp:  now,
+		Count:          1,
+		Source: corev1.EventSource{
+			Component: eventSourceComponent,
+		},
+		ReportingController: eventSourceComponent,
+		ReportingInstance:   eventSourceComponent,
+	}
+
+	return cli.Create(ctx, event)
 }
