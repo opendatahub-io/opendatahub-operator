@@ -22,11 +22,10 @@ jobs:
     steps:
       - name: Generate github-app token
         id: app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
         with:
           app-id: ${{ secrets[format('{0}_DEVOPS_APP_ID', vars.ORG_PREFIX)] }}
           private-key: ${{ secrets[format('{0}_DEVOPS_APP_PRIVATE_KEY', vars.ORG_PREFIX)] }}
-
       - name: Checkout source repo
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
