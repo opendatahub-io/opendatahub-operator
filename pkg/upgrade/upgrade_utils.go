@@ -697,3 +697,34 @@ func createHardwareProfileAnnotations(profileType, displayName, description stri
 		hardwareProfileDisabledAnnotation:     strconv.FormatBool(disabled),
 	}
 }
+
+// recordUpgradeErrorEvent creates a Kubernetes Event for the given object for any errors during the upgrade.
+func recordUpgradeErrorEvent(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, eventType, reason, message string) error {
+	now := metav1.NewTime(time.Now())
+	event := &corev1.Event{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: obj.GetName() + "-",
+			Namespace:    obj.GetNamespace(),
+		},
+		InvolvedObject: corev1.ObjectReference{
+			APIVersion: obj.GetAPIVersion(),
+			Kind:       obj.GetKind(),
+			Name:       obj.GetName(),
+			Namespace:  obj.GetNamespace(),
+			UID:        obj.GetUID(),
+		},
+		Reason:         reason,
+		Message:        message,
+		Type:           eventType,
+		FirstTimestamp: now,
+		LastTimestamp:  now,
+		Count:          1,
+		Source: corev1.EventSource{
+			Component: eventSourceComponent,
+		},
+		ReportingController: eventSourceComponent,
+		ReportingInstance:   eventSourceComponent,
+	}
+
+	return cli.Create(ctx, event)
+}
