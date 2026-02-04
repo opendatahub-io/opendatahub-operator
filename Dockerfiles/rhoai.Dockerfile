@@ -3,17 +3,18 @@ ARG GOLANG_VERSION=1.25
 
 ARG BUILDPLATFORM
 ARG TARGETPLATFORM
+ARG MANIFESTS_MODE
 
 ################################################################################
 FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi9/toolbox as manifests
 ARG USE_LOCAL=false
-ARG MANIFESTS_MODE=CI
+ARG MANIFESTS_MODE
 ARG OVERWRITE_MANIFESTS=""
 USER root
 WORKDIR /
 COPY opt/manifests/ /opt/manifests/
 COPY get_all_manifests.sh get_all_manifests.sh
-RUN if [ "${MANIFESTS_MODE}" == "RELEASE" ]; then \
+RUN if [[ "${MANIFESTS_MODE}" == "RELEASE" || "${USE_LOCAL}" != "true" ]]; then \
         rm -rf /opt/manifests/*; \
         ODH_PLATFORM_TYPE=rhoai ./get_all_manifests.sh ${OVERWRITE_MANIFESTS}; \
     elif [ "${MANIFESTS_MODE}" == "CI" ]; then \

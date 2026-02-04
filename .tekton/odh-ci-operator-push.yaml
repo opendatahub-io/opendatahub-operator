@@ -38,6 +38,9 @@ spec:
   - name: additional-tags
     value:
     - '{{target_branch}}-{{revision}}'
+  - name: build-args
+    value:
+    - MANIFESTS_MODE=CI
   pipelineRef:
     resolver: git
     params:

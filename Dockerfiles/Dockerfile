@@ -13,7 +13,7 @@ USER root
 WORKDIR /
 COPY opt/manifests/ /opt/manifests/
 COPY get_all_manifests.sh get_all_manifests.sh
-RUN if [ "${MANIFESTS_MODE}" == "RELEASE" ]; then \
+RUN if [[ "${MANIFESTS_MODE}" == "RELEASE" || "${USE_LOCAL}" != "true" ]]; then \
         rm -rf /opt/manifests/*; \
         ./get_all_manifests.sh ${OVERWRITE_MANIFESTS}; \
     elif [ "${MANIFESTS_MODE}" == "CI" ]; then \
