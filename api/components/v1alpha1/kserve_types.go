@@ -63,6 +63,7 @@ type NimSpec struct {
 	// When true, NIM integration assumes an air-gapped cluster. External API calls
 	// and the NIM model list ConfigMap creation are skipped, while status conditions
 	// are marked successful with an air-gapped message.
+	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=false
 	AirGapped bool `json:"airGapped,omitempty"`
 }
