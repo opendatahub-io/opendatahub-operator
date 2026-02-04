@@ -229,7 +229,7 @@ func MigrateToInfraHardwareProfiles(ctx context.Context, cli client.Client, appl
 	}
 
 	// Get OdhDashboardConfig to extract container sizes
-	odhConfig, found, err := getOdhDashboardConfig(ctx, cli, applicationNS)
+	odhConfig, found, err := GetOdhDashboardConfig(ctx, cli, applicationNS)
 	if err != nil {
 		return fmt.Errorf("failed to get OdhDashboardConfig: %w", err)
 	}
