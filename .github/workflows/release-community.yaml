@@ -4,12 +4,15 @@ on:
     inputs:
       version:
         type: string
-        description: The version to release (e.g., 3.1.0).
+        description: |
+          The version to release (e.g., 3.5.0 or 3.5.0-ea.1).
+          Supports EA (early access) versions with -ea.N suffix.
         required: true
       previous-version:
         type: string
-        description: The previous version to replace (e.g., 3.0.0).
-        required: true
+        description: |
+          (Optional) The previous version to replace.
+        required: false
       openshift-versions:
         type: string
         description: OpenShift version compatibility (e.g., "v4.19" or "v4.19-v4.20").
@@ -61,7 +64,28 @@ jobs:
           exit 1
         fi
         echo "OpenShift versions format is valid: $OPENSHIFT_VERSIONS"
-        
+
+    - name: Calculate or validate previous version
+      id: prev-version
+      working-directory: opendatahub-operator
+      env:
+        PREV_VERSION_INPUT: ${{ github.event.inputs.previous-version }}
+      run: |
+        VERSION="${{ env.VERSION }}"
+        # Use environment variable to prevent command injection
+        MANUAL_PREV="$PREV_VERSION_INPUT"
+
+        if [[ -n "$MANUAL_PREV" ]]; then
+          echo "Using manual override for previous version: $MANUAL_PREV"
+          PREV_VERSION=$(./.github/scripts/calculate-previous-version.sh "$VERSION" "$MANUAL_PREV")
+        else
+          echo "Auto-calculating previous version for $VERSION"
+          PREV_VERSION=$(./.github/scripts/calculate-previous-version.sh "$VERSION")
+        fi
+
+        echo "Previous version resolved to: $PREV_VERSION"
+        echo "PREVIOUS_VERSION=$PREV_VERSION" >> $GITHUB_ENV
+
     - name: Validate semver
       run: |
         VERSION="${{ env.VERSION }}"
