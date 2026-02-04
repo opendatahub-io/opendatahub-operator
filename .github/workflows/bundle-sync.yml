@@ -24,8 +24,8 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v2
         with:
-          app_id: ${{ secrets[format('{0}_DEVOPS_APP_ID', vars.ORG_PREFIX)] }}
-          private_key: ${{ secrets[format('{0}_DEVOPS_APP_PRIVATE_KEY', vars.ORG_PREFIX)] }}
+          app-id: ${{ secrets[format('{0}_DEVOPS_APP_ID', vars.ORG_PREFIX)] }}
+          private-key: ${{ secrets[format('{0}_DEVOPS_APP_PRIVATE_KEY', vars.ORG_PREFIX)] }}
 
       - name: Checkout source repo
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
@@ -74,7 +74,7 @@ jobs:
           fi
 
       - name: Commit and push the changes to release branch
-        uses: actions-js/push@master
+        uses: actions-js/push@5a7cbd780d82c0c937b5977586e641b2fd94acc5
         if: ${{ steps.bundle-change-check.outputs.bundle_changes == 'present' }}
         with:
           github_token: ${{ steps.app-token.outputs.token }}

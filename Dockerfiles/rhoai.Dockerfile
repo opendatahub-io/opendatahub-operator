@@ -19,6 +19,7 @@ RUN if [[ "${BUILD_TYPE}" == "RELEASE" && "${USE_LOCAL}" != "true" ]]; then \
         rm -rf /opt/manifests/*; \
         ODH_PLATFORM_TYPE=rhoai ./get_all_manifests.sh ${OVERWRITE_MANIFESTS}; \
     elif [ "${BUILD_TYPE}" == "CI" ]; then \
+        rm -rf /opt/manifests/*; \
         ls -la /cachi2/prefetched-manifests; \
         cp -r /cachi2/prefetched-manifests/* /opt/manifests/; \
     fi
