@@ -229,8 +229,20 @@ func cleanupDeprecatedKueueVAPB(ctx context.Context, cli client.Client) error {
 	return nil
 }
 
-// MigrateToInfraHardwareProfiles orchestrates all HardwareProfile migrations including resource creation and annotation updates.
-// This is the parent function that gets OdhDashboardConfig once and calls all child migration functions.
+// MigrateToInfraHardwareProfiles performs one-time migration from AcceleratorProfiles to HardwareProfiles.
+// This orchestrates all HardwareProfile migrations including resource creation and annotation updates.
+//
+// IMPORTANT: This migration uses Create-only semantics. Existing HardwareProfiles are never modified.
+// This preserves user customizations and prevents data loss on operator restarts.
+//
+// Behavior:
+//   - Missing HardwareProfiles are created from AcceleratorProfiles and container sizes
+//   - Existing HardwareProfiles are skipped (AlreadyExists is not an error)
+//   - User modifications to HardwareProfiles persist across migration runs
+//   - Notebook and InferenceService annotations are updated if not already set
+//
+// This function is called on every operator startup via CleanupExistingResource.
+// The Create-only approach ensures that frequent operator restarts do not overwrite user changes.
 func MigrateToInfraHardwareProfiles(ctx context.Context, cli client.Client, applicationNS string) error {
 	var multiErr *multierror.Error
 	log := logf.FromContext(ctx)

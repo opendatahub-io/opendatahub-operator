@@ -6,11 +6,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -2028,5 +2030,1277 @@ func TestCleanupExistingResourceWithCRDChecks(t *testing.T) {
 
 		err = upgrade.CleanupExistingResource(ctx, cli)
 		g.Expect(err).ShouldNot(HaveOccurred())
+	})
+}
+
+// ClusterState represents a snapshot of cluster resources for idempotence verification.
+// This struct deliberately tracks ONLY the resources modified by MigrateToInfraHardwareProfiles:
+//   - HardwareProfiles: Created during migration from AcceleratorProfiles and container sizes
+//   - NotebookAnnotations: Updated with hardware-profile-name and hardware-profile-namespace annotations
+//   - ISVCAnnotations: Updated with hardware-profile-name and hardware-profile-namespace annotations
+//
+// Other resources managed by CleanupExistingResource (RoleBindings, Deployments, etc.) are intentionally
+// excluded as they are not relevant to the HardwareProfile migration idempotence tests.
+type ClusterState struct {
+	HardwareProfiles    []infrav1.HardwareProfile
+	NotebookAnnotations map[string]map[string]string // Map: notebook name -> annotations
+	ISVCAnnotations     map[string]map[string]string // Map: ISVC name -> annotations
+}
+
+// captureClusterState captures the current state of resources modified by MigrateToInfraHardwareProfiles.
+// This function lists all HardwareProfiles in the specified namespace and captures annotations from
+// all Notebooks and InferenceServices (across all namespaces) for comparison.
+//
+// Returns:
+//   - *ClusterState: Snapshot of current cluster state
+//   - error: Any errors encountered during state capture (except NoMatchError which is ignored)
+func captureClusterState(ctx context.Context, cli client.Client, namespace string) (*ClusterState, error) {
+	state := &ClusterState{
+		NotebookAnnotations: make(map[string]map[string]string),
+		ISVCAnnotations:     make(map[string]map[string]string),
+	}
+
+	// Capture HardwareProfiles
+	var hwpList infrav1.HardwareProfileList
+	if err := cli.List(ctx, &hwpList, client.InNamespace(namespace)); err != nil {
+		return nil, fmt.Errorf("failed to list HardwareProfiles: %w", err)
+	}
+	state.HardwareProfiles = hwpList.Items
+
+	// Capture Notebook annotations
+	notebookList := &unstructured.UnstructuredList{}
+	notebookList.SetGroupVersionKind(gvk.Notebook)
+	if err := cli.List(ctx, notebookList); err != nil && !meta.IsNoMatchError(err) {
+		return nil, fmt.Errorf("failed to list notebooks: %w", err)
+	}
+	for i := range notebookList.Items {
+		nb := &notebookList.Items[i]
+		annotations := nb.GetAnnotations()
+		if annotations == nil {
+			annotations = make(map[string]string)
+		}
+		state.NotebookAnnotations[nb.GetName()] = annotations
+	}
+
+	// Capture InferenceService annotations
+	isvcList := &unstructured.UnstructuredList{}
+	isvcList.SetGroupVersionKind(gvk.InferenceServices)
+	if err := cli.List(ctx, isvcList); err != nil && !meta.IsNoMatchError(err) {
+		return nil, fmt.Errorf("failed to list InferenceServices: %w", err)
+	}
+	for i := range isvcList.Items {
+		isvc := &isvcList.Items[i]
+		annotations := isvc.GetAnnotations()
+		if annotations == nil {
+			annotations = make(map[string]string)
+		}
+		state.ISVCAnnotations[isvc.GetName()] = annotations
+	}
+
+	return state, nil
+}
+
+// compareClusterStates performs a deep comparison of two cluster states for idempotence verification.
+// This function checks that running the migration multiple times produces identical results.
+//
+// Comparison logic:
+//   - HardwareProfiles: Compares count, names, and specs using reflect.DeepEqual
+//   - Notebook/ISVC annotations: Compares all annotations except timestamps (opendatahub.io/modified-date)
+//
+// Returns:
+//   - bool: true if states are identical (idempotent), false if differences found
+//   - []string: List of specific differences found (empty if identical)
+func compareClusterStates(before, after *ClusterState) (bool, []string) {
+	var differences []string
+
+	// Compare HardwareProfiles count and names
+	if len(before.HardwareProfiles) != len(after.HardwareProfiles) {
+		differences = append(differences, fmt.Sprintf("HardwareProfile count changed: %d -> %d",
+			len(before.HardwareProfiles), len(after.HardwareProfiles)))
+	}
+
+	// Create maps for quick lookup and deep comparison
+	beforeHWPMap := make(map[string]*infrav1.HardwareProfile)
+	for i := range before.HardwareProfiles {
+		hwp := &before.HardwareProfiles[i]
+		beforeHWPMap[hwp.Name] = hwp
+	}
+	afterHWPMap := make(map[string]*infrav1.HardwareProfile)
+	for i := range after.HardwareProfiles {
+		hwp := &after.HardwareProfiles[i]
+		afterHWPMap[hwp.Name] = hwp
+	}
+
+	// Check for disappeared HardwareProfiles
+	for name := range beforeHWPMap {
+		if _, exists := afterHWPMap[name]; !exists {
+			differences = append(differences, fmt.Sprintf("HardwareProfile %s disappeared", name))
+		}
+	}
+
+	// Check for appeared HardwareProfiles
+	for name := range afterHWPMap {
+		if _, exists := beforeHWPMap[name]; !exists {
+			differences = append(differences, fmt.Sprintf("HardwareProfile %s appeared", name))
+		}
+	}
+
+	// Deep compare specs for HardwareProfiles that exist in both states
+	for name, beforeHWP := range beforeHWPMap {
+		if afterHWP, exists := afterHWPMap[name]; exists {
+			if !reflect.DeepEqual(beforeHWP.Spec, afterHWP.Spec) {
+				differences = append(differences, fmt.Sprintf("HardwareProfile %s spec changed", name))
+			}
+		}
+	}
+
+	// Compare Notebook annotations (excluding timestamp annotations)
+	notebookDiffs := compareAnnotationMaps("Notebook", before.NotebookAnnotations, after.NotebookAnnotations)
+	differences = append(differences, notebookDiffs...)
+
+	// Compare InferenceService annotations (excluding timestamp annotations)
+	isvcDiffs := compareAnnotationMaps("InferenceService", before.ISVCAnnotations, after.ISVCAnnotations)
+	differences = append(differences, isvcDiffs...)
+
+	return len(differences) == 0, differences
+}
+
+// compareAnnotationMaps compares annotations on resources (Notebooks or InferenceServices), ignoring timestamps.
+// This function provides detailed difference reporting for idempotence verification.
+//
+// Parameters:
+//   - resourceType: Type of resource being compared (e.g., "Notebook", "InferenceService")
+//   - before: Map of resource name to annotations from first state capture
+//   - after: Map of resource name to annotations from second state capture
+//
+// Returns:
+//   - []string: List of specific differences with details (added/removed/changed annotations)
+//
+// The function ignores the "opendatahub.io/modified-date" annotation as it changes on every update.
+func compareAnnotationMaps(resourceType string, before, after map[string]map[string]string) []string {
+	var differences []string
+
+	// Check for resources that disappeared
+	for name := range before {
+		if _, exists := after[name]; !exists {
+			differences = append(differences, fmt.Sprintf("%s %s disappeared", resourceType, name))
+		}
+	}
+
+	// Check for resources that appeared
+	for name := range after {
+		if _, exists := before[name]; !exists {
+			differences = append(differences, fmt.Sprintf("%s %s appeared", resourceType, name))
+		}
+	}
+
+	// Compare annotations for resources that exist in both states
+	for name, beforeAnnotations := range before {
+		afterAnnotations, exists := after[name]
+		if !exists {
+			continue // Already reported as disappeared
+		}
+
+		// Compare annotations excluding timestamps
+		for key, beforeValue := range beforeAnnotations {
+			// Skip timestamp annotations
+			if key == "opendatahub.io/modified-date" {
+				continue
+			}
+
+			afterValue, exists := afterAnnotations[key]
+			if !exists {
+				differences = append(differences, fmt.Sprintf("%s %s annotation %s was removed", resourceType, name, key))
+			} else if beforeValue != afterValue {
+				differences = append(differences, fmt.Sprintf("%s %s annotation %s changed: %q -> %q", resourceType, name, key, beforeValue, afterValue))
+			}
+		}
+
+		// Check for new annotations (excluding timestamps)
+		for key, afterValue := range afterAnnotations {
+			if key == "opendatahub.io/modified-date" {
+				continue
+			}
+			if _, exists := beforeAnnotations[key]; !exists {
+				differences = append(differences, fmt.Sprintf("%s %s annotation %s was added: %q", resourceType, name, key, afterValue))
+			}
+		}
+	}
+
+	return differences
+}
+
+// TestMigrateToInfraHardwareProfilesIdempotence verifies the idempotence of HardwareProfile migration.
+//
+// Idempotence Definition:
+// The migration function can be run multiple times without:
+//   - Producing errors (e.g., AlreadyExists on second run)
+//   - Creating duplicate resources
+//   - Changing the final cluster state (except timestamps)
+//
+// Test Strategy:
+// Each test scenario runs the migration 2-3 times and compares cluster state snapshots to ensure
+// they remain identical. The test captures HardwareProfiles, Notebook annotations, and ISVC annotations
+// before and after each run, then performs deep comparison ignoring timestamp fields.
+//
+// Test Scenarios:
+//  1. Full migration - Clean state with AcceleratorProfiles, container sizes, and workloads
+//  2. Partial completion - Some HardwareProfiles already exist
+//  3. Partial annotations - Some resources already have HWP annotations
+//  4. Already migrated - All resources fully migrated
+//  5. Concurrent changes - New resources added between migration runs
+//  6. Mixed state - Combination of migrated and non-migrated resources
+//
+// Implementation Note:
+// This test calls MigrateToInfraHardwareProfiles directly instead of CleanupExistingResource
+// because the fake client test environment doesn't include dashboard types (AcceleratorProfile,
+// OdhDashboardConfig, etc.) in its scheme, causing HasCRD checks to fail even when CRD objects
+// are created. Testing the migration function directly provides better coverage of the actual
+// migration logic while bypassing the CRD detection mechanism.
+func TestMigrateToInfraHardwareProfilesIdempotence(t *testing.T) {
+	ctx := t.Context()
+
+	t.Run("full migration idempotence", func(t *testing.T) {
+		g := NewWithT(t)
+		namespace := "test-idempotence-ns"
+
+		// Create OdhDashboardConfig
+		odhConfig := createTestOdhDashboardConfig(namespace)
+
+		// Create AcceleratorProfiles
+		ap1 := createTestAcceleratorProfile(namespace)
+		ap1.SetName("gpu-profile")
+
+		ap2 := createTestAcceleratorProfile(namespace)
+		ap2.SetName("tpu-profile")
+		spec2, _, _ := unstructured.NestedMap(ap2.Object, "spec")
+		spec2["identifier"] = "google.com/tpu"
+		spec2["displayName"] = "TPU"
+		err := unstructured.SetNestedMap(ap2.Object, spec2, "spec")
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Create Notebooks with various annotations
+		nb1 := createTestNotebook(namespace, "notebook-ap")
+		nb1.SetAnnotations(map[string]string{
+			"opendatahub.io/accelerator-name": "gpu-profile",
+		})
+
+		nb2 := createTestNotebook(namespace, "notebook-size")
+		nb2.SetAnnotations(map[string]string{
+			"notebooks.opendatahub.io/last-size-selection": "Small",
+		})
+
+		nb3 := createTestNotebook(namespace, "notebook-no-annotation")
+
+		// Create InferenceServices
+		servingRuntime := createTestServingRuntime(namespace, "runtime-with-ap")
+		servingRuntime.SetAnnotations(map[string]string{
+			"opendatahub.io/accelerator-name": "tpu-profile",
+		})
+
+		isvc1 := createTestInferenceService(namespace, "isvc-with-runtime", "runtime-with-ap")
+		isvc2 := createTestInferenceServiceWithResources(namespace, "isvc-with-matching-size", "1", "4Gi", "2", "8Gi")
+		isvc3 := createTestInferenceServiceWithResources(namespace, "isvc-custom", "3", "10Gi", "5", "20Gi")
+
+		// Create all objects
+		cli, err := fakeclient.New(fakeclient.WithObjects(
+			odhConfig, ap1, ap2,
+			nb1, nb2, nb3, servingRuntime, isvc1, isvc2, isvc3,
+		))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// First run of migration
+		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Capture state after first run
+		stateAfterFirstRun, err := captureClusterState(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify expected state after first run
+		g.Expect(len(stateAfterFirstRun.HardwareProfiles)).To(BeNumerically(">", 0), "HardwareProfiles should be created")
+
+		// Verify notebook annotations were set
+		nb1Annotations := stateAfterFirstRun.NotebookAnnotations["notebook-ap"]
+		g.Expect(nb1Annotations).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "gpu-profile-notebooks"))
+
+		nb2Annotations := stateAfterFirstRun.NotebookAnnotations["notebook-size"]
+		g.Expect(nb2Annotations).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "containersize-small-notebooks"))
+
+		// Verify InferenceService annotations were set
+		isvc1Annotations := stateAfterFirstRun.ISVCAnnotations["isvc-with-runtime"]
+		g.Expect(isvc1Annotations).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "tpu-profile-serving"))
+
+		isvc2Annotations := stateAfterFirstRun.ISVCAnnotations["isvc-with-matching-size"]
+		g.Expect(isvc2Annotations).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "containersize-small-serving"))
+
+		isvc3Annotations := stateAfterFirstRun.ISVCAnnotations["isvc-custom"]
+		g.Expect(isvc3Annotations).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "custom-serving"))
+
+		// Second run of migration (test idempotence)
+		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred(), "Second run should complete without errors")
+
+		// Capture state after second run
+		stateAfterSecondRun, err := captureClusterState(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Compare states - should be identical
+		identical, differences := compareClusterStates(stateAfterFirstRun, stateAfterSecondRun)
+		g.Expect(identical).To(BeTrue(), "States should be identical after second run. Differences: %v", differences)
+
+		// Third run to be extra sure
+		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred(), "Third run should complete without errors")
+
+		stateAfterThirdRun, err := captureClusterState(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		identical, differences = compareClusterStates(stateAfterSecondRun, stateAfterThirdRun)
+		g.Expect(identical).To(BeTrue(), "States should remain identical after third run. Differences: %v", differences)
+	})
+
+	t.Run("partial completion - some HWPs already exist", func(t *testing.T) {
+		g := NewWithT(t)
+		namespace := "test-partial-ns"
+
+		odhConfig := createTestOdhDashboardConfig(namespace)
+		ap := createTestAcceleratorProfile(namespace)
+
+		// Pre-create one of the HardwareProfiles that would be created
+		existingHWP := &infrav1.HardwareProfile{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-ap-notebooks",
+				Namespace: namespace,
+			},
+			Spec: infrav1.HardwareProfileSpec{
+				Identifiers: []infrav1.HardwareIdentifier{
+					{
+						Identifier:   "cpu",
+						ResourceType: "CPU",
+						MinCount:     intstr.FromInt(1),
+						DefaultCount: intstr.FromInt(1),
+					},
+				},
+			},
+		}
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, ap, existingHWP))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// First run - should handle existing HWP gracefully
+		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterFirstRun, err := captureClusterState(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Second run - test idempotence
+		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterSecondRun, err := captureClusterState(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		identical, differences := compareClusterStates(stateAfterFirstRun, stateAfterSecondRun)
+		g.Expect(identical).To(BeTrue(), "States should be identical. Differences: %v", differences)
+	})
+
+	t.Run("preserves user modifications to existing HWPs", func(t *testing.T) {
+		g := NewWithT(t)
+		namespace := "test-preserve-modifications-ns"
+
+		odhConfig := createTestOdhDashboardConfig(namespace)
+		ap := createTestAcceleratorProfile(namespace)
+
+		// Pre-create HWP with custom user modifications
+		// This simulates a user who has customized the HWP after initial migration
+		userCustomizedHWP := &infrav1.HardwareProfile{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-ap-notebooks",
+				Namespace: namespace,
+				Annotations: map[string]string{
+					"user-custom-annotation": "my-custom-value",
+					"user-added-label":       "important",
+				},
+			},
+			Spec: infrav1.HardwareProfileSpec{
+				Identifiers: []infrav1.HardwareIdentifier{
+					{
+						Identifier:   "cpu",
+						DisplayName:  "Custom CPU Name", // User customized
+						ResourceType: "CPU",
+						MinCount:     intstr.FromInt(999),   // User customized
+						DefaultCount: intstr.FromInt(999),   // User customized
+						MaxCount:     &intstr.IntOrString{}, // User customized
+					},
+					{
+						Identifier:   "memory",
+						DisplayName:  "Custom Memory", // User customized
+						ResourceType: "Memory",
+						MinCount:     intstr.FromString("999Gi"), // User customized
+						DefaultCount: intstr.FromString("999Gi"), // User customized
+					},
+					{
+						Identifier:   "nvidia.com/gpu",
+						DisplayName:  "nvidia.com/gpu",
+						ResourceType: "Accelerator",
+						MinCount:     intstr.FromInt(1),
+						DefaultCount: intstr.FromInt(1),
+					},
+				},
+			},
+		}
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, ap, userCustomizedHWP))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Capture user's custom spec before migration
+		var hwpBeforeMigration infrav1.HardwareProfile
+		err = cli.Get(ctx, client.ObjectKey{Name: "test-ap-notebooks", Namespace: namespace}, &hwpBeforeMigration)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// First run of migration - should NOT overwrite user's HWP
+		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify user's custom spec was preserved
+		var hwpAfterFirstRun infrav1.HardwareProfile
+		err = cli.Get(ctx, client.ObjectKey{Name: "test-ap-notebooks", Namespace: namespace}, &hwpAfterFirstRun)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify spec is identical to user's version (not overwritten)
+		g.Expect(reflect.DeepEqual(hwpBeforeMigration.Spec, hwpAfterFirstRun.Spec)).To(BeTrue(),
+			"User's custom HWP spec should be preserved, not overwritten")
+
+		// Verify user's custom annotations are preserved
+		g.Expect(hwpAfterFirstRun.Annotations).To(HaveKeyWithValue("user-custom-annotation", "my-custom-value"))
+		g.Expect(hwpAfterFirstRun.Annotations).To(HaveKeyWithValue("user-added-label", "important"))
+
+		// Second run - verify spec still unchanged (idempotent)
+		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		var hwpAfterSecondRun infrav1.HardwareProfile
+		err = cli.Get(ctx, client.ObjectKey{Name: "test-ap-notebooks", Namespace: namespace}, &hwpAfterSecondRun)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify spec remains identical across multiple runs
+		g.Expect(reflect.DeepEqual(hwpAfterFirstRun.Spec, hwpAfterSecondRun.Spec)).To(BeTrue(),
+			"User's custom HWP spec should remain unchanged across multiple migration runs")
+	})
+
+	t.Run("partial completion - some annotations already set", func(t *testing.T) {
+		g := NewWithT(t)
+		namespace := "test-partial-annotations-ns"
+
+		odhConfig := createTestOdhDashboardConfig(namespace)
+		ap := createTestAcceleratorProfile(namespace)
+
+		// Create notebooks - one already has HWP annotation, one doesn't
+		nb1 := createTestNotebook(namespace, "notebook-already-migrated")
+		nb1.SetAnnotations(map[string]string{
+			"opendatahub.io/accelerator-name":           "test-ap",
+			"opendatahub.io/hardware-profile-name":      "test-ap-notebooks",
+			"opendatahub.io/hardware-profile-namespace": namespace,
+		})
+
+		nb2 := createTestNotebook(namespace, "notebook-needs-migration")
+		nb2.SetAnnotations(map[string]string{
+			"opendatahub.io/accelerator-name": "test-ap",
+		})
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, ap, nb1, nb2))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// First run
+		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterFirstRun, err := captureClusterState(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify both notebooks have HWP annotation now
+		g.Expect(stateAfterFirstRun.NotebookAnnotations["notebook-already-migrated"]).To(
+			HaveKeyWithValue("opendatahub.io/hardware-profile-name", "test-ap-notebooks"))
+		g.Expect(stateAfterFirstRun.NotebookAnnotations["notebook-needs-migration"]).To(
+			HaveKeyWithValue("opendatahub.io/hardware-profile-name", "test-ap-notebooks"))
+
+		// Second run - test idempotence
+		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterSecondRun, err := captureClusterState(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		identical, differences := compareClusterStates(stateAfterFirstRun, stateAfterSecondRun)
+		g.Expect(identical).To(BeTrue(), "States should be identical. Differences: %v", differences)
+	})
+
+	t.Run("edge case - all already migrated", func(t *testing.T) {
+		g := NewWithT(t)
+		namespace := "test-all-migrated-ns"
+
+		odhConfig := createTestOdhDashboardConfig(namespace)
+
+		// Create notebook that already has HWP annotation
+		nb := createTestNotebook(namespace, "already-migrated-notebook")
+		nb.SetAnnotations(map[string]string{
+			"opendatahub.io/hardware-profile-name":      "some-hwp",
+			"opendatahub.io/hardware-profile-namespace": namespace,
+		})
+
+		// Create InferenceService that already has HWP annotation
+		isvc := createTestInferenceService(namespace, "already-migrated-isvc", "")
+		isvc.SetAnnotations(map[string]string{
+			"opendatahub.io/hardware-profile-name":      "custom-serving",
+			"opendatahub.io/hardware-profile-namespace": namespace,
+		})
+
+		// All HWPs already exist
+		hwp1 := &infrav1.HardwareProfile{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "some-hwp",
+				Namespace: namespace,
+			},
+		}
+
+		hwp2 := &infrav1.HardwareProfile{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "custom-serving",
+				Namespace: namespace,
+			},
+		}
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, nb, isvc, hwp1, hwp2))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// First run
+		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterFirstRun, err := captureClusterState(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Second run
+		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterSecondRun, err := captureClusterState(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		identical, differences := compareClusterStates(stateAfterFirstRun, stateAfterSecondRun)
+		g.Expect(identical).To(BeTrue(), "States should be identical. Differences: %v", differences)
+	})
+
+	t.Run("concurrent changes - new resources added between runs", func(t *testing.T) {
+		g := NewWithT(t)
+		namespace := "test-concurrent-ns"
+
+		odhConfig := createTestOdhDashboardConfig(namespace)
+		ap1 := createTestAcceleratorProfile(namespace)
+		ap1.SetName("initial-ap")
+
+		nb1 := createTestNotebook(namespace, "initial-notebook")
+		nb1.SetAnnotations(map[string]string{
+			"opendatahub.io/accelerator-name": "initial-ap",
+		})
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, ap1, nb1))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// First run
+		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterFirstRun, err := captureClusterState(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Simulate new resources being added (new AcceleratorProfile and Notebook)
+		ap2 := createTestAcceleratorProfile(namespace)
+		ap2.SetName("new-ap")
+		spec, _, _ := unstructured.NestedMap(ap2.Object, "spec")
+		spec["identifier"] = "new.com/accelerator"
+		err = unstructured.SetNestedMap(ap2.Object, spec, "spec")
+		g.Expect(err).ShouldNot(HaveOccurred())
+		err = cli.Create(ctx, ap2)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		nb2 := createTestNotebook(namespace, "new-notebook")
+		nb2.SetAnnotations(map[string]string{
+			"opendatahub.io/accelerator-name": "new-ap",
+		})
+		err = cli.Create(ctx, nb2)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Second run - should handle new resources
+		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterSecondRun, err := captureClusterState(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify new HWPs were created
+		g.Expect(len(stateAfterSecondRun.HardwareProfiles)).To(BeNumerically(">", len(stateAfterFirstRun.HardwareProfiles)))
+
+		// Verify new notebook got annotation
+		g.Expect(stateAfterSecondRun.NotebookAnnotations["new-notebook"]).To(
+			HaveKeyWithValue("opendatahub.io/hardware-profile-name", "new-ap-notebooks"))
+
+		// Third run - should be idempotent with the new state
+		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterThirdRun, err := captureClusterState(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		identical, differences := compareClusterStates(stateAfterSecondRun, stateAfterThirdRun)
+		g.Expect(identical).To(BeTrue(), "States should be identical after handling new resources. Differences: %v", differences)
+	})
+
+	t.Run("mixed state - some notebooks migrated, some not", func(t *testing.T) {
+		g := NewWithT(t)
+		namespace := "test-mixed-state-ns"
+
+		odhConfig := createTestOdhDashboardConfig(namespace)
+		ap := createTestAcceleratorProfile(namespace)
+
+		// Create mix of notebooks
+		nb1 := createTestNotebook(namespace, "nb-already-has-hwp")
+		nb1.SetAnnotations(map[string]string{
+			"opendatahub.io/hardware-profile-name": "test-ap-notebooks",
+		})
+
+		nb2 := createTestNotebook(namespace, "nb-has-ap-annotation")
+		nb2.SetAnnotations(map[string]string{
+			"opendatahub.io/accelerator-name": "test-ap",
+		})
+
+		nb3 := createTestNotebook(namespace, "nb-has-size-annotation")
+		nb3.SetAnnotations(map[string]string{
+			"notebooks.opendatahub.io/last-size-selection": "Small",
+		})
+
+		nb4 := createTestNotebook(namespace, "nb-no-annotations")
+
+		// Create mix of InferenceServices
+		servingRuntime := createTestServingRuntime(namespace, "runtime-ap")
+		servingRuntime.SetAnnotations(map[string]string{
+			"opendatahub.io/accelerator-name": "test-ap",
+		})
+
+		isvc1 := createTestInferenceService(namespace, "isvc-already-migrated", "")
+		isvc1.SetAnnotations(map[string]string{
+			"opendatahub.io/hardware-profile-name": "custom-serving",
+		})
+
+		isvc2 := createTestInferenceService(namespace, "isvc-with-runtime", "runtime-ap")
+
+		// Pre-create some HWPs
+		hwp1 := &infrav1.HardwareProfile{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-ap-notebooks",
+				Namespace: namespace,
+			},
+		}
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(
+			odhConfig, ap, nb1, nb2, nb3, nb4,
+			servingRuntime, isvc1, isvc2, hwp1,
+		))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// First run
+		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterFirstRun, err := captureClusterState(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify all notebooks now have HWP annotations
+		g.Expect(stateAfterFirstRun.NotebookAnnotations["nb-already-has-hwp"]).To(
+			HaveKey("opendatahub.io/hardware-profile-name"))
+		g.Expect(stateAfterFirstRun.NotebookAnnotations["nb-has-ap-annotation"]).To(
+			HaveKeyWithValue("opendatahub.io/hardware-profile-name", "test-ap-notebooks"))
+		g.Expect(stateAfterFirstRun.NotebookAnnotations["nb-has-size-annotation"]).To(
+			HaveKeyWithValue("opendatahub.io/hardware-profile-name", "containersize-small-notebooks"))
+
+		// nb-no-annotations should not have HWP annotation (no source to migrate from)
+		_, hasHWP := stateAfterFirstRun.NotebookAnnotations["nb-no-annotations"]["opendatahub.io/hardware-profile-name"]
+		g.Expect(hasHWP).To(BeFalse())
+
+		// Second run - test idempotence
+		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterSecondRun, err := captureClusterState(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		identical, differences := compareClusterStates(stateAfterFirstRun, stateAfterSecondRun)
+		g.Expect(identical).To(BeTrue(), "States should be identical. Differences: %v", differences)
+
+		// Third run
+		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterThirdRun, err := captureClusterState(ctx, cli, namespace)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		identical, differences = compareClusterStates(stateAfterSecondRun, stateAfterThirdRun)
+		g.Expect(identical).To(BeTrue(), "States should remain identical. Differences: %v", differences)
+	})
+
+	t.Run("empty namespace - migration skipped idempotently", func(t *testing.T) {
+		g := NewWithT(t)
+
+		odhConfig := createTestOdhDashboardConfig("test-namespace")
+		ap := createTestAcceleratorProfile("test-namespace")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, ap))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// First run with empty namespace - should skip migration
+		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, "")
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Capture state after first run
+		stateAfterFirstRun, err := captureClusterState(ctx, cli, "test-namespace")
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Should have no HardwareProfiles created
+		g.Expect(stateAfterFirstRun.HardwareProfiles).To(BeEmpty(), "No HardwareProfiles should be created when namespace is empty")
+
+		// Second run with empty namespace - should still skip migration
+		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, "")
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterSecondRun, err := captureClusterState(ctx, cli, "test-namespace")
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// States should be identical (both empty)
+		identical, differences := compareClusterStates(stateAfterFirstRun, stateAfterSecondRun)
+		g.Expect(identical).To(BeTrue(), "States should be identical when namespace is empty. Differences: %v", differences)
+
+		// Third run to be extra sure
+		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, "")
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterThirdRun, err := captureClusterState(ctx, cli, "test-namespace")
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		identical, differences = compareClusterStates(stateAfterSecondRun, stateAfterThirdRun)
+		g.Expect(identical).To(BeTrue(), "States should remain identical. Differences: %v", differences)
+	})
+}
+
+// GatewayConfigState represents a snapshot of GatewayConfig state for idempotence verification.
+type GatewayConfigState struct {
+	Exists      bool
+	IngressMode string
+}
+
+// captureGatewayConfigState captures the current state of the GatewayConfig resource.
+// Returns the ingressMode value and whether the GatewayConfig exists.
+func captureGatewayConfigState(ctx context.Context, cli client.Client) (*GatewayConfigState, error) {
+	state := &GatewayConfigState{}
+
+	gatewayConfig := &unstructured.Unstructured{}
+	gatewayConfig.SetGroupVersionKind(gvk.GatewayConfig)
+
+	err := cli.Get(ctx, client.ObjectKey{Name: "default-gateway"}, gatewayConfig)
+	if k8serr.IsNotFound(err) {
+		state.Exists = false
+		return state, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get GatewayConfig: %w", err)
+	}
+
+	state.Exists = true
+	// Error ignored: field may not exist, which is a valid state (ingressMode not yet set)
+	ingressMode, _, _ := unstructured.NestedString(gatewayConfig.Object, "spec", "ingressMode")
+	state.IngressMode = ingressMode
+
+	return state, nil
+}
+
+// compareGatewayConfigStates compares two GatewayConfig states for idempotence verification.
+// Returns true if states are identical, false otherwise with a list of differences.
+func compareGatewayConfigStates(before, after *GatewayConfigState) (bool, []string) {
+	var differences []string
+
+	if before.Exists != after.Exists {
+		differences = append(differences, fmt.Sprintf("GatewayConfig existence changed: %v -> %v", before.Exists, after.Exists))
+	}
+
+	if before.IngressMode != after.IngressMode {
+		differences = append(differences, fmt.Sprintf("ingressMode changed: %q -> %q", before.IngressMode, after.IngressMode))
+	}
+
+	return len(differences) == 0, differences
+}
+
+// TestMigrateGatewayConfigIngressModeIdempotence verifies the idempotence of GatewayConfig ingressMode migration.
+//
+// Idempotence Definition:
+// The migration function can be run multiple times without:
+//   - Producing errors (e.g., attempting to patch when already set)
+//   - Changing the final cluster state unnecessarily
+//   - Modifying resources when migration conditions are not met
+//
+// Test Strategy:
+// Each test scenario runs the migration 2-3 times and compares GatewayConfig state snapshots to ensure
+// they remain identical. The test captures the GatewayConfig's ingressMode before and after each run.
+//
+// Test Scenarios:
+//  1. No GatewayConfig exists - idempotent no-op
+//  2. GatewayConfig without ingressMode + LoadBalancer service - sets once, then no-op
+//  3. GatewayConfig already has ingressMode - always no-op
+//  4. GatewayConfig without ingressMode, no service - always no-op
+//  5. GatewayConfig without ingressMode + ClusterIP service - always no-op
+//  6. Service added between runs - handles new conditions, then idempotent
+//  7. User modifies ingressMode between runs - preserves user change
+func TestMigrateGatewayConfigIngressModeIdempotence(t *testing.T) {
+	ctx := t.Context()
+
+	t.Run("no GatewayConfig exists - idempotent no-op", func(t *testing.T) {
+		g := NewWithT(t)
+
+		cli, err := fakeclient.New()
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// First run - no GatewayConfig
+		err = upgrade.MigrateGatewayConfigIngressMode(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterFirstRun, err := captureGatewayConfigState(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(stateAfterFirstRun.Exists).To(BeFalse(), "GatewayConfig should not exist")
+
+		// Second run - should still be no-op
+		err = upgrade.MigrateGatewayConfigIngressMode(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterSecondRun, err := captureGatewayConfigState(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		identical, differences := compareGatewayConfigStates(stateAfterFirstRun, stateAfterSecondRun)
+		g.Expect(identical).To(BeTrue(), "States should be identical (both non-existent). Differences: %v", differences)
+
+		// Third run
+		err = upgrade.MigrateGatewayConfigIngressMode(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterThirdRun, err := captureGatewayConfigState(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		identical, differences = compareGatewayConfigStates(stateAfterSecondRun, stateAfterThirdRun)
+		g.Expect(identical).To(BeTrue(), "States should remain identical. Differences: %v", differences)
+	})
+
+	t.Run("GatewayConfig without ingressMode + LoadBalancer service - sets once then no-op", func(t *testing.T) {
+		g := NewWithT(t)
+
+		// Create GatewayConfig without ingressMode
+		gatewayConfig := &unstructured.Unstructured{}
+		gatewayConfig.SetGroupVersionKind(gvk.GatewayConfig)
+		gatewayConfig.SetName("default-gateway")
+		spec := map[string]interface{}{}
+		err := unstructured.SetNestedMap(gatewayConfig.Object, spec, "spec")
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Create LoadBalancer service
+		gatewayService := &corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "data-science-gateway-data-science-gateway-class",
+				Namespace: "openshift-ingress",
+			},
+			Spec: corev1.ServiceSpec{
+				Type: corev1.ServiceTypeLoadBalancer,
+			},
+		}
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(gatewayConfig, gatewayService))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// First run - should set ingressMode
+		err = upgrade.MigrateGatewayConfigIngressMode(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterFirstRun, err := captureGatewayConfigState(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(stateAfterFirstRun.Exists).To(BeTrue())
+		g.Expect(stateAfterFirstRun.IngressMode).To(Equal("LoadBalancer"), "ingressMode should be set to LoadBalancer")
+
+		// Second run - should be no-op (ingressMode already set)
+		err = upgrade.MigrateGatewayConfigIngressMode(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterSecondRun, err := captureGatewayConfigState(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		identical, differences := compareGatewayConfigStates(stateAfterFirstRun, stateAfterSecondRun)
+		g.Expect(identical).To(BeTrue(), "States should be identical after second run. Differences: %v", differences)
+
+		// Third run - should still be no-op
+		err = upgrade.MigrateGatewayConfigIngressMode(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterThirdRun, err := captureGatewayConfigState(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		identical, differences = compareGatewayConfigStates(stateAfterSecondRun, stateAfterThirdRun)
+		g.Expect(identical).To(BeTrue(), "States should remain identical. Differences: %v", differences)
+	})
+
+	t.Run("GatewayConfig already has ingressMode - always no-op", func(t *testing.T) {
+		g := NewWithT(t)
+
+		// Create GatewayConfig with ingressMode already set
+		gatewayConfig := &unstructured.Unstructured{}
+		gatewayConfig.SetGroupVersionKind(gvk.GatewayConfig)
+		gatewayConfig.SetName("default-gateway")
+		spec := map[string]interface{}{
+			"ingressMode": "LoadBalancer",
+		}
+		err := unstructured.SetNestedMap(gatewayConfig.Object, spec, "spec")
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Create LoadBalancer service
+		gatewayService := &corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "data-science-gateway-data-science-gateway-class",
+				Namespace: "openshift-ingress",
+			},
+			Spec: corev1.ServiceSpec{
+				Type: corev1.ServiceTypeLoadBalancer,
+			},
+		}
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(gatewayConfig, gatewayService))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// First run - should be no-op
+		err = upgrade.MigrateGatewayConfigIngressMode(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterFirstRun, err := captureGatewayConfigState(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(stateAfterFirstRun.Exists).To(BeTrue())
+		g.Expect(stateAfterFirstRun.IngressMode).To(Equal("LoadBalancer"), "ingressMode should remain LoadBalancer")
+
+		// Second run - should still be no-op
+		err = upgrade.MigrateGatewayConfigIngressMode(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterSecondRun, err := captureGatewayConfigState(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		identical, differences := compareGatewayConfigStates(stateAfterFirstRun, stateAfterSecondRun)
+		g.Expect(identical).To(BeTrue(), "States should be identical. Differences: %v", differences)
+
+		// Third run
+		err = upgrade.MigrateGatewayConfigIngressMode(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterThirdRun, err := captureGatewayConfigState(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		identical, differences = compareGatewayConfigStates(stateAfterSecondRun, stateAfterThirdRun)
+		g.Expect(identical).To(BeTrue(), "States should remain identical. Differences: %v", differences)
+	})
+
+	t.Run("GatewayConfig without ingressMode, no Gateway service - always no-op", func(t *testing.T) {
+		g := NewWithT(t)
+
+		// Create GatewayConfig without ingressMode
+		gatewayConfig := &unstructured.Unstructured{}
+		gatewayConfig.SetGroupVersionKind(gvk.GatewayConfig)
+		gatewayConfig.SetName("default-gateway")
+		spec := map[string]interface{}{}
+		err := unstructured.SetNestedMap(gatewayConfig.Object, spec, "spec")
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// No Gateway service created
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(gatewayConfig))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// First run - should be no-op (no service)
+		err = upgrade.MigrateGatewayConfigIngressMode(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterFirstRun, err := captureGatewayConfigState(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(stateAfterFirstRun.Exists).To(BeTrue())
+		g.Expect(stateAfterFirstRun.IngressMode).To(BeEmpty(), "ingressMode should remain empty")
+
+		// Second run - should still be no-op
+		err = upgrade.MigrateGatewayConfigIngressMode(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterSecondRun, err := captureGatewayConfigState(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		identical, differences := compareGatewayConfigStates(stateAfterFirstRun, stateAfterSecondRun)
+		g.Expect(identical).To(BeTrue(), "States should be identical. Differences: %v", differences)
+
+		// Third run
+		err = upgrade.MigrateGatewayConfigIngressMode(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterThirdRun, err := captureGatewayConfigState(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		identical, differences = compareGatewayConfigStates(stateAfterSecondRun, stateAfterThirdRun)
+		g.Expect(identical).To(BeTrue(), "States should remain identical. Differences: %v", differences)
+	})
+
+	t.Run("GatewayConfig without ingressMode + ClusterIP service - always no-op", func(t *testing.T) {
+		g := NewWithT(t)
+
+		// Create GatewayConfig without ingressMode
+		gatewayConfig := &unstructured.Unstructured{}
+		gatewayConfig.SetGroupVersionKind(gvk.GatewayConfig)
+		gatewayConfig.SetName("default-gateway")
+		spec := map[string]interface{}{}
+		err := unstructured.SetNestedMap(gatewayConfig.Object, spec, "spec")
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Create ClusterIP service (not LoadBalancer)
+		gatewayService := &corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "data-science-gateway-data-science-gateway-class",
+				Namespace: "openshift-ingress",
+			},
+			Spec: corev1.ServiceSpec{
+				Type: corev1.ServiceTypeClusterIP,
+			},
+		}
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(gatewayConfig, gatewayService))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// First run - should be no-op (not LoadBalancer)
+		err = upgrade.MigrateGatewayConfigIngressMode(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterFirstRun, err := captureGatewayConfigState(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(stateAfterFirstRun.Exists).To(BeTrue())
+		g.Expect(stateAfterFirstRun.IngressMode).To(BeEmpty(), "ingressMode should remain empty for ClusterIP service")
+
+		// Second run - should still be no-op
+		err = upgrade.MigrateGatewayConfigIngressMode(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterSecondRun, err := captureGatewayConfigState(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		identical, differences := compareGatewayConfigStates(stateAfterFirstRun, stateAfterSecondRun)
+		g.Expect(identical).To(BeTrue(), "States should be identical. Differences: %v", differences)
+
+		// Third run
+		err = upgrade.MigrateGatewayConfigIngressMode(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterThirdRun, err := captureGatewayConfigState(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		identical, differences = compareGatewayConfigStates(stateAfterSecondRun, stateAfterThirdRun)
+		g.Expect(identical).To(BeTrue(), "States should remain identical. Differences: %v", differences)
+	})
+
+	t.Run("LoadBalancer service added between runs - handles new conditions then idempotent", func(t *testing.T) {
+		g := NewWithT(t)
+
+		// Create GatewayConfig without ingressMode
+		gatewayConfig := &unstructured.Unstructured{}
+		gatewayConfig.SetGroupVersionKind(gvk.GatewayConfig)
+		gatewayConfig.SetName("default-gateway")
+		spec := map[string]interface{}{}
+		err := unstructured.SetNestedMap(gatewayConfig.Object, spec, "spec")
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// No service initially
+		cli, err := fakeclient.New(fakeclient.WithObjects(gatewayConfig))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// First run - no service, should be no-op
+		err = upgrade.MigrateGatewayConfigIngressMode(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterFirstRun, err := captureGatewayConfigState(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(stateAfterFirstRun.Exists).To(BeTrue())
+		g.Expect(stateAfterFirstRun.IngressMode).To(BeEmpty(), "ingressMode should be empty without service")
+
+		// Add LoadBalancer service
+		gatewayService := &corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "data-science-gateway-data-science-gateway-class",
+				Namespace: "openshift-ingress",
+			},
+			Spec: corev1.ServiceSpec{
+				Type: corev1.ServiceTypeLoadBalancer,
+			},
+		}
+		err = cli.Create(ctx, gatewayService)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Second run - service now exists, should set ingressMode
+		err = upgrade.MigrateGatewayConfigIngressMode(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterSecondRun, err := captureGatewayConfigState(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(stateAfterSecondRun.Exists).To(BeTrue())
+		g.Expect(stateAfterSecondRun.IngressMode).To(Equal("LoadBalancer"), "ingressMode should be set with service present")
+
+		// Third run - should be no-op (ingressMode already set)
+		err = upgrade.MigrateGatewayConfigIngressMode(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterThirdRun, err := captureGatewayConfigState(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		identical, differences := compareGatewayConfigStates(stateAfterSecondRun, stateAfterThirdRun)
+		g.Expect(identical).To(BeTrue(), "States should be identical after service addition. Differences: %v", differences)
+
+		// Fourth run - verify continued idempotence
+		err = upgrade.MigrateGatewayConfigIngressMode(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterFourthRun, err := captureGatewayConfigState(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		identical, differences = compareGatewayConfigStates(stateAfterThirdRun, stateAfterFourthRun)
+		g.Expect(identical).To(BeTrue(), "States should remain identical. Differences: %v", differences)
+	})
+
+	t.Run("user modifies ingressMode between runs - preserves user change", func(t *testing.T) {
+		g := NewWithT(t)
+
+		// Create GatewayConfig without ingressMode
+		gatewayConfig := &unstructured.Unstructured{}
+		gatewayConfig.SetGroupVersionKind(gvk.GatewayConfig)
+		gatewayConfig.SetName("default-gateway")
+		spec := map[string]interface{}{}
+		err := unstructured.SetNestedMap(gatewayConfig.Object, spec, "spec")
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Create LoadBalancer service
+		gatewayService := &corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "data-science-gateway-data-science-gateway-class",
+				Namespace: "openshift-ingress",
+			},
+			Spec: corev1.ServiceSpec{
+				Type: corev1.ServiceTypeLoadBalancer,
+			},
+		}
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(gatewayConfig, gatewayService))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// First run - should set ingressMode to LoadBalancer
+		err = upgrade.MigrateGatewayConfigIngressMode(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterFirstRun, err := captureGatewayConfigState(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(stateAfterFirstRun.IngressMode).To(Equal("LoadBalancer"))
+
+		// Simulate user changing ingressMode to a custom value
+		updatedGatewayConfig := &unstructured.Unstructured{}
+		updatedGatewayConfig.SetGroupVersionKind(gvk.GatewayConfig)
+		err = cli.Get(ctx, client.ObjectKey{Name: "default-gateway"}, updatedGatewayConfig)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = unstructured.SetNestedField(updatedGatewayConfig.Object, "Route", "spec", "ingressMode")
+		g.Expect(err).ShouldNot(HaveOccurred())
+		err = cli.Update(ctx, updatedGatewayConfig)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify user's change
+		stateAfterUserChange, err := captureGatewayConfigState(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(stateAfterUserChange.IngressMode).To(Equal("Route"), "User's custom ingressMode should be set")
+
+		// Second run - should preserve user's change (not overwrite)
+		err = upgrade.MigrateGatewayConfigIngressMode(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterSecondRun, err := captureGatewayConfigState(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		identical, differences := compareGatewayConfigStates(stateAfterUserChange, stateAfterSecondRun)
+		g.Expect(identical).To(BeTrue(), "User's custom ingressMode should be preserved. Differences: %v", differences)
+		g.Expect(stateAfterSecondRun.IngressMode).To(Equal("Route"), "User's custom ingressMode should not be overwritten")
+
+		// Third run - verify continued preservation
+		err = upgrade.MigrateGatewayConfigIngressMode(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterThirdRun, err := captureGatewayConfigState(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		identical, differences = compareGatewayConfigStates(stateAfterSecondRun, stateAfterThirdRun)
+		g.Expect(identical).To(BeTrue(), "States should remain identical. Differences: %v", differences)
+	})
+
+	t.Run("NodePort service type - always no-op", func(t *testing.T) {
+		g := NewWithT(t)
+
+		// Create GatewayConfig without ingressMode
+		gatewayConfig := &unstructured.Unstructured{}
+		gatewayConfig.SetGroupVersionKind(gvk.GatewayConfig)
+		gatewayConfig.SetName("default-gateway")
+		spec := map[string]interface{}{}
+		err := unstructured.SetNestedMap(gatewayConfig.Object, spec, "spec")
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Create NodePort service (not LoadBalancer)
+		gatewayService := &corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "data-science-gateway-data-science-gateway-class",
+				Namespace: "openshift-ingress",
+			},
+			Spec: corev1.ServiceSpec{
+				Type: corev1.ServiceTypeNodePort,
+			},
+		}
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(gatewayConfig, gatewayService))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// First run - should be no-op (not LoadBalancer)
+		err = upgrade.MigrateGatewayConfigIngressMode(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterFirstRun, err := captureGatewayConfigState(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(stateAfterFirstRun.Exists).To(BeTrue())
+		g.Expect(stateAfterFirstRun.IngressMode).To(BeEmpty(), "ingressMode should remain empty for NodePort service")
+
+		// Second run
+		err = upgrade.MigrateGatewayConfigIngressMode(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterSecondRun, err := captureGatewayConfigState(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		identical, differences := compareGatewayConfigStates(stateAfterFirstRun, stateAfterSecondRun)
+		g.Expect(identical).To(BeTrue(), "States should be identical. Differences: %v", differences)
+
+		// Third run
+		err = upgrade.MigrateGatewayConfigIngressMode(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		stateAfterThirdRun, err := captureGatewayConfigState(ctx, cli)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		identical, differences = compareGatewayConfigStates(stateAfterSecondRun, stateAfterThirdRun)
+		g.Expect(identical).To(BeTrue(), "States should remain identical. Differences: %v", differences)
 	})
 }
