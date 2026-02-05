@@ -12,7 +12,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -267,6 +269,21 @@ func TestDeployObservabilityManifests_WithoutPersesCRD(t *testing.T) {
 	}
 
 	err = deployObservabilityManifests(ctx, rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(rr.Manifests).Should(BeEmpty())
+}
+
+func TestDeployObservabilityManifests_SkippedForODH(t *testing.T) {
+	ctx := t.Context()
+	g := NewWithT(t)
+
+	// Minimal setup - should skip before any CRD check
+	rr := &types.ReconciliationRequest{
+		Release:   common.Release{Name: cluster.OpenDataHub},
+		Manifests: []types.ManifestInfo{},
+	}
+
+	err := deployObservabilityManifests(ctx, rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(rr.Manifests).Should(BeEmpty())
 }
