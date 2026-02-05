@@ -67,7 +67,7 @@ func deployObservabilityManifests(ctx context.Context, rr *odhtypes.Reconciliati
 		return odherrors.NewStopError("failed to check if %s CRD exists: %w", gvk.PersesDashboard, err)
 	}
 
-	if !persesDashboardExists {
+	if !persesDashboardCRDExists {
 		// CRD not available, skip deployment without error
 		return nil
 	}
