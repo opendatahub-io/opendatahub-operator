@@ -81,10 +81,10 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 		}
 	}
 
-	// Compute legacy hostname for LoadBalancer mode (needs second listener)
-	legacyInfo := computeLegacyRedirectInfo(gatewayConfig, hostname)
+	// Compute legacy hostname for LoadBalancer mode (needs additional listeners for redirects)
+	legacyInfo := computeLegacyRedirectInfo(gatewayConfig, hostname, isUpgradeFrom2x(gatewayConfig))
 
-	if err := createGateway(rr, certSecretName, hostname, legacyInfo.LegacyHostname, gatewayConfig.Spec.IngressMode); err != nil {
+	if err := createGateway(rr, certSecretName, hostname, legacyInfo, gatewayConfig.Spec.IngressMode); err != nil {
 		return fmt.Errorf("failed to create Gateway: %w", err)
 	}
 
@@ -297,44 +297,46 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	cookieExpire, cookieRefresh := getCookieSettings(&gatewayConfig.Spec.Cookie)
 
 	// Compute legacy redirect info for template
-	legacyInfo := computeLegacyRedirectInfo(gatewayConfig, hostname)
+	legacyInfo := computeLegacyRedirectInfo(gatewayConfig, hostname, isUpgradeFrom2x(gatewayConfig))
 
 	templateData := map[string]any{
-		"GatewayNamespace":         GatewayNamespace,
-		"GatewayName":              DefaultGatewayName,
-		"GatewayClassName":         GatewayClassName,
-		"GatewayHostname":          hostname,
-		"GatewayServiceName":       GatewayServiceFullName,
-		"KubeAuthProxyServiceName": KubeAuthProxyName,
-		"KubeAuthProxySecretsName": KubeAuthProxySecretsName,
-		"KubeAuthProxyTLSName":     KubeAuthProxyTLSName,
-		"OAuthCallbackRouteName":   OAuthCallbackRouteName,
-		"KubeAuthProxyImage":       getKubeAuthProxyImage(),
-		"AuthProxyHTTPPort":        AuthProxyHTTPPort,
-		"AuthProxyMetricsPort":     AuthProxyMetricsPort,
-		"StandardHTTPSPort":        StandardHTTPSPort,
-		"GatewayHTTPSPort":         GatewayHTTPSPort,
-		"AuthProxyOAuth2Path":      AuthProxyOAuth2Path,
-		"AuthProxyCookieName":      AuthProxyCookieName,
-		"TLSCertsVolumeName":       TLSCertsVolumeName,
-		"TLSCertsMountPath":        TLSCertsMountPath,
-		"EnvoyFilter":              AuthnFilterName,
-		"RedirectURL":              fmt.Sprintf("https://%s/oauth2/callback", hostname),
-		"DestinationRuleName":      DestinationRuleName,
-		"CookieExpire":             cookieExpire,
-		"CookieRefresh":            cookieRefresh,
-		"AuthConfigHash":           authConfigHash,
-		"AuthProxyTimeout":         getGatewayAuthProxyTimeout(gatewayConfig),
-		"ComponentLabelKey":        labels.K8SCommon.Component,
-		"ComponentLabelValue":      ComponentLabelValue,
-		"PartOfLabelKey":           labels.K8SCommon.PartOf,
-		"PartOfLabelValue":         PartOfLabelValue,
-		"PartOfGatewayConfig":      PartOfGatewayConfig,
-		"GatewayNameLabelKey":      labels.GatewayAPI.GatewayName,
-		"LegacySubdomain":          legacyInfo.LegacySubdomain,
-		"LegacySubdomainPattern":   legacyInfo.LegacySubdomainPattern,
-		"CurrentSubdomain":         legacyInfo.CurrentSubdomain,
-		"LegacyHostname":           legacyInfo.LegacyHostname,
+		"GatewayNamespace":              GatewayNamespace,
+		"GatewayName":                   DefaultGatewayName,
+		"GatewayClassName":              GatewayClassName,
+		"GatewayHostname":               hostname,
+		"GatewayServiceName":            GatewayServiceFullName,
+		"KubeAuthProxyServiceName":      KubeAuthProxyName,
+		"KubeAuthProxySecretsName":      KubeAuthProxySecretsName,
+		"KubeAuthProxyTLSName":          KubeAuthProxyTLSName,
+		"OAuthCallbackRouteName":        OAuthCallbackRouteName,
+		"KubeAuthProxyImage":            getKubeAuthProxyImage(),
+		"AuthProxyHTTPPort":             AuthProxyHTTPPort,
+		"AuthProxyMetricsPort":          AuthProxyMetricsPort,
+		"StandardHTTPSPort":             StandardHTTPSPort,
+		"GatewayHTTPSPort":              GatewayHTTPSPort,
+		"AuthProxyOAuth2Path":           AuthProxyOAuth2Path,
+		"AuthProxyCookieName":           AuthProxyCookieName,
+		"TLSCertsVolumeName":            TLSCertsVolumeName,
+		"TLSCertsMountPath":             TLSCertsMountPath,
+		"EnvoyFilter":                   AuthnFilterName,
+		"RedirectURL":                   fmt.Sprintf("https://%s/oauth2/callback", hostname),
+		"DestinationRuleName":           DestinationRuleName,
+		"CookieExpire":                  cookieExpire,
+		"CookieRefresh":                 cookieRefresh,
+		"AuthConfigHash":                authConfigHash,
+		"AuthProxyTimeout":              getGatewayAuthProxyTimeout(gatewayConfig),
+		"ComponentLabelKey":             labels.K8SCommon.Component,
+		"ComponentLabelValue":           ComponentLabelValue,
+		"PartOfLabelKey":                labels.K8SCommon.PartOf,
+		"PartOfLabelValue":              PartOfLabelValue,
+		"PartOfGatewayConfig":           PartOfGatewayConfig,
+		"GatewayNameLabelKey":           labels.GatewayAPI.GatewayName,
+		"LegacySubdomain":               legacyInfo.LegacySubdomain,
+		"LegacySubdomainPattern":        legacyInfo.LegacySubdomainPattern,
+		"CurrentSubdomain":              legacyInfo.CurrentSubdomain,
+		"LegacyHostname":                legacyInfo.LegacyHostname,
+		"RhodsDashboardHostname":        legacyInfo.RhodsDashboardHostname,
+		"RhodsDashboardHostnamePattern": legacyInfo.RhodsDashboardHostnamePattern,
 	}
 
 	// Add OIDC-specific fields only if OIDC config is present

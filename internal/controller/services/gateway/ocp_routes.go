@@ -56,6 +56,10 @@ func createOCPRoutes(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 			FS:   gatewayResources,
 			Path: ocpRouteLegacyRedirectTemplate,
 		},
+		odhtypes.TemplateInfo{
+			FS:   gatewayResources,
+			Path: ocpRouteRhodsRedirectTemplate,
+		},
 	)
 
 	return nil
