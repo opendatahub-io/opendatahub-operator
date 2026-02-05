@@ -55,15 +55,16 @@ func TestAttachHardwareProfileToInferenceServices(t *testing.T) {
 		err = upgrade.AttachHardwareProfileToInferenceServices(ctx, cli, namespace, odhConfig)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		// Verify HWP annotation matches container size
+		// Verify HWP annotation matches container size with namespace annotation
 		updatedIsvc := &unstructured.Unstructured{}
 		updatedIsvc.SetGroupVersionKind(gvk.InferenceServices)
 		err = cli.Get(ctx, client.ObjectKey{Name: "isvc-with-resources", Namespace: namespace}, updatedIsvc)
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(updatedIsvc.GetAnnotations()).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "containersize-small-serving"))
+		g.Expect(updatedIsvc.GetAnnotations()).To(HaveKeyWithValue("opendatahub.io/hardware-profile-namespace", namespace))
 	})
 
-	t.Run("should use custom-serving for non-matching resources", func(t *testing.T) {
+	t.Run("should use custom-serving for non-matching resources", func(t *testing.T) { //nolint:dupl
 		g := NewWithT(t)
 
 		odhConfig := createTestOdhDashboardConfig(t, namespace)
