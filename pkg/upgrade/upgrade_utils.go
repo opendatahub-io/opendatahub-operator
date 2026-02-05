@@ -675,50 +675,55 @@ func setHardwareProfileAnnotation(ctx context.Context, cli client.Client, obj *u
 		annotations = make(map[string]string)
 	}
 	annotations[hardwareProfileNameAnnotation] = hwpName
-
-	// Find the actual namespace where the HardwareProfile exists.
-	hwpNamespace := ""
+	var foundHWP *infrav1.HardwareProfile
+	var err error
+	// Build priority list of namespaces to search
+	// Priority: apNamespace → objNamespace → applicationNS
 	objNamespace := obj.GetNamespace()
+	var namespacesToCheck []string
 
-	// If AP namespace annotation is present, use it as the definitive namespace
-	// If not found via AP namespace annotation, search in the two valid locations
-	// This handles the edge case of identically named HWPs in different namespaces
 	if apNamespace != "" {
-		hwpNamespace = apNamespace
-	} else {
-		// Try object's namespace first (same-namespace AP reference)
-		_, err := cluster.GetHardwareProfile(ctx, cli, hwpName, objNamespace)
+		namespacesToCheck = append(namespacesToCheck, apNamespace)
+	}
+	if objNamespace != "" && objNamespace != apNamespace {
+		namespacesToCheck = append(namespacesToCheck, objNamespace)
+	}
+	if applicationNS != apNamespace && applicationNS != objNamespace {
+		namespacesToCheck = append(namespacesToCheck, applicationNS)
+	}
+
+	// Search for HWP in priority order, use first match
+	hwpNamespace := ""
+	for _, ns := range namespacesToCheck {
+		foundHWP, err = cluster.GetHardwareProfile(ctx, cli, hwpName, ns)
 		if err == nil {
-			hwpNamespace = objNamespace
+			hwpNamespace = ns
+			log.Info("Found HardwareProfile for migration",
+				"hwpName", hwpName,
+				"namespace", hwpNamespace,
+				"objectName", obj.GetName(),
+				"objectNamespace", obj.GetNamespace(),
+				"apNamespaceHint", apNamespace)
+			break
 		} else if !k8serr.IsNotFound(err) {
-			return fmt.Errorf("error checking HardwareProfile in object namespace %s: %w", objNamespace, err)
-		}
-
-		// If not found in object's namespace, try application namespace
-		if hwpNamespace == "" && objNamespace != applicationNS {
-			_, err = cluster.GetHardwareProfile(ctx, cli, hwpName, applicationNS)
-			if err == nil {
-				hwpNamespace = applicationNS
-			} else if !k8serr.IsNotFound(err) {
-				return fmt.Errorf("error checking HardwareProfile in application namespace %s: %w", applicationNS, err)
-			}
+			return fmt.Errorf("error checking HardwareProfile in namespace %s: %w", ns, err)
 		}
 	}
 
-	// Set the namespace annotation
-	if hwpNamespace != "" {
+	// foundHWP is nil if no HWP was found in any namespace
+	if foundHWP != nil {
 		annotations[hardwareProfileNamespaceAnnotation] = hwpNamespace
-		log.Info(
-			"Found HardwareProfile for migration", "hwpName", hwpName,
-			"namespace", hwpNamespace, "objectName", obj.GetName(), "objectNamespace", obj.GetNamespace(), "apNamespaceHint", apNamespace)
+		obj.SetAnnotations(annotations)
 	} else {
-		// If HardwareProfile not found, log a warning but still set the annotation to application namespace as a fallback
-		log.Info("HardwareProfile not found in expected namespaces, using application namespace as fallback",
-			"hwpName", hwpName, "applicationNS", applicationNS, "apNamespaceHint", apNamespace)
-		annotations[hardwareProfileNamespaceAnnotation] = applicationNS
+		log.Info("Skipping HardwareProfile annotation as it could not be located", "workload", obj.GetName())
+		err = recordUpgradeErrorEvent(
+			ctx, cli, obj, eventReasonHardwareProfileMigrationSkipped,
+			"Skipping HardwareProfile annotation as it could not be located")
+		if err != nil {
+			return err
+		}
 	}
 
-	obj.SetAnnotations(annotations)
 	return cli.Update(ctx, obj)
 }
 
@@ -744,7 +749,7 @@ func createHardwareProfileAnnotations(profileType, displayName, description stri
 }
 
 // recordUpgradeErrorEvent creates a Kubernetes Event for the given object for any errors during the upgrade.
-func recordUpgradeErrorEvent(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, eventType, reason, message string) error {
+func recordUpgradeErrorEvent(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, reason, message string) error {
 	now := metav1.NewTime(time.Now())
 	event := &corev1.Event{
 		ObjectMeta: metav1.ObjectMeta{
@@ -760,7 +765,7 @@ func recordUpgradeErrorEvent(ctx context.Context, cli client.Client, obj *unstru
 		},
 		Reason:         reason,
 		Message:        message,
-		Type:           eventType,
+		Type:           corev1.EventTypeWarning,
 		FirstTimestamp: now,
 		LastTimestamp:  now,
 		Count:          1,

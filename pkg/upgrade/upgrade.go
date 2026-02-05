@@ -57,7 +57,8 @@ const (
 	// ServerlessMigrationSkipped event fields.
 	eventReasonServerlessMigrationSkipped = "ServerlessMigrationSkipped"
 	eventSourceComponent                  = "opendatahub-operator"
-
+	// HardwareProfileMigrationSkipped event fields.
+	eventReasonHardwareProfileMigrationSkipped = "HardwareProfileMigrationSkipped"
 	// KServe deployment mode annotation.
 	kserveDeploymentModeAnnotationKey = "serving.kserve.io/deploymentMode"
 	kserveDeploymentModeServerless    = "Serverless"
@@ -539,7 +540,7 @@ func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Cl
 		}
 		if isServerless {
 			log.Info("Skipping HardwareProfile migration for Serverless InferenceService", "isvc", isvc.GetName(), "deploymentMode", kserveDeploymentModeServerless)
-			if err := recordUpgradeErrorEvent(ctx, cli, isvc, corev1.EventTypeWarning, eventReasonServerlessMigrationSkipped,
+			if err := recordUpgradeErrorEvent(ctx, cli, isvc, eventReasonServerlessMigrationSkipped,
 				fmt.Sprintf("Skipping HardwareProfile migration for Serverless InferenceService %s (Serverless mode not supported in RHOAI 3.x)", isvc.GetName())); err != nil {
 				log.Error(err, "Failed to record event for Serverless InferenceService", "isvc", isvc.GetName())
 			}
@@ -562,7 +563,7 @@ func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Cl
 					errStr := err.Error()
 					if strings.Contains(errStr, "deploymentMode cannot be changed") || strings.Contains(errStr, "Serverless") {
 						log.Info("Skipping HardwareProfile migration for InferenceService due to Serverless mode", "isvc", isvc.GetName(), "error", errStr)
-						if eventErr := recordUpgradeErrorEvent(ctx, cli, isvc, corev1.EventTypeWarning, eventReasonServerlessMigrationSkipped,
+						if eventErr := recordUpgradeErrorEvent(ctx, cli, isvc, eventReasonServerlessMigrationSkipped,
 							fmt.Sprintf("Skipping HardwareProfile migration due to Serverless mode incompatibility: %s", errStr)); eventErr != nil {
 							log.Error(eventErr, "Failed to record event for Serverless InferenceService", "isvc", isvc.GetName())
 						}
@@ -596,7 +597,7 @@ func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Cl
 			errStr := err.Error()
 			if strings.Contains(errStr, "deploymentMode cannot be changed") || strings.Contains(errStr, "Serverless") {
 				log.Info("Skipping HardwareProfile migration for InferenceService due to Serverless mode", "isvc", isvc.GetName(), "error", errStr)
-				if eventErr := recordUpgradeErrorEvent(ctx, cli, isvc, corev1.EventTypeWarning, eventReasonServerlessMigrationSkipped,
+				if eventErr := recordUpgradeErrorEvent(ctx, cli, isvc, eventReasonServerlessMigrationSkipped,
 					fmt.Sprintf("Skipping HardwareProfile migration due to Serverless mode incompatibility: %s", errStr)); eventErr != nil {
 					log.Error(eventErr, "Failed to record event for Serverless InferenceService", "isvc", isvc.GetName())
 				}
