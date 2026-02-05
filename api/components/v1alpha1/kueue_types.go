@@ -105,12 +105,15 @@ func (c *Kueue) SetReleaseStatus(releases []common.ComponentRelease) {
 type KueueManagementSpec struct {
 	// Set to one of the following values:
 	//
+	// - "Managed"   : present for backwards compatibility with OLM upgrades, but not supported at runtime.
+	//                 The operator will reject this value. Use "Unmanaged" or "Removed" instead.
+	//
 	// - "Unmanaged" : the operator will not deploy or manage the component's lifecycle, but may create supporting configuration resources.
 	//
 	// - "Removed"   : the operator is actively managing the component and will not install it,
 	//                 or if it is installed, the operator will try to remove it
 	//
-	// +kubebuilder:validation:Enum=Unmanaged;Removed
+	// +kubebuilder:validation:Enum=Managed;Unmanaged;Removed
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 }
 
