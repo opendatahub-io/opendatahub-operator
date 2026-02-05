@@ -49,7 +49,7 @@ map:
     src: manifests
     dest: dashboard
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: e6355653a5491347619f5dafab1139ea23e28196
+    git.commit: b2bab9016c66b48c9d42b4e2c0d8938ee5747acd
   odh-training-operator:
     src: manifests
     dest: trainingoperator
@@ -74,12 +74,12 @@ map:
     src: config
     dest: mlflowoperator
     git.url: https://github.com/red-hat-data-services/mlflow-operator
-    git.commit: 55786fab6f7e9da629efdceed6be4139c7dc6ab9
+    git.commit: 9582aeac79b6ebe13bd64c2ea93ef8dc8027bce9
   odh-maas-api:
     src: deployment
     dest: maas
     git.url: https://github.com/red-hat-data-services/models-as-a-service
-    git.commit: 21ae61cc8f32fa2dc79a2c61370287709519af88
+    git.commit: ad41d1591f48b881a5587b82143e5f3878c49dc3
 additional_meta:
   odh-trustyai-service:
     git.url: https://github.com/red-hat-data-services/trustyai-explainability
@@ -104,16 +104,16 @@ additional_meta:
     git.commit: 56fa8bcee49d6e8e6734b8de6448986a38e2582f
   odh-data-science-pipelines-argo-argoexec:
     git.url: https://github.com/red-hat-data-services/argo-workflows
-    git.commit: 4c802e89a568b4ee73677a6700da06dc38b1dfa4
+    git.commit: 3a0c66274adf82bc05728499cb4a9fed04e52223
   odh-data-science-pipelines-argo-workflowcontroller:
     git.url: https://github.com/red-hat-data-services/argo-workflows
-    git.commit: 4c802e89a568b4ee73677a6700da06dc38b1dfa4
+    git.commit: 3a0c66274adf82bc05728499cb4a9fed04e52223
   odh-model-registry:
     git.url: https://github.com/red-hat-data-services/model-registry
     git.commit: 13f902a831c6ce66161d5ba268306314669c0cf4
   odh-feature-server:
     git.url: https://github.com/red-hat-data-services/feast
-    git.commit: e37c71b848b951524b8653d6553f491e90c0422c
+    git.commit: 1dc378c5af6993dbcbbc540feb7ddaa545af505c
   odh-llm-d-inference-scheduler:
     git.url: https://github.com/red-hat-data-services/llm-d-inference-scheduler
     git.commit: b58af9e1191544d917cf044b2e58cb90388ed4df
@@ -251,7 +251,7 @@ additional_meta:
     git.commit: 867d9323d895b4e7b918bef10f06e734028d6310
   odh-mod-arch-model-registry:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: e6355653a5491347619f5dafab1139ea23e28196
+    git.commit: b2bab9016c66b48c9d42b4e2c0d8938ee5747acd
   odh-trustyai-nemo-guardrails-server:
     git.url: https://github.com/red-hat-data-services/NeMo-Guardrails
     git.commit: 3fb42ac76b3d46b4f0cb84b2c76b4e873a2933e6
