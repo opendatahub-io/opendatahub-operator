@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"os"
 	"strconv"
 	"strings"
 
@@ -77,15 +76,8 @@ func deployObservabilityManifests(ctx context.Context, rr *odhtypes.Reconciliati
 		return nil
 	}
 
-	// Check if observability manifests exist on the filesystem
-	manifestInfo := observabilityManifestInfo()
-	if _, err := os.Stat(manifestInfo.String()); os.IsNotExist(err) {
-		// Manifests not available yet, skip deployment without error
-		return nil
-	}
-
-	// Both CRD exists AND manifests exist, add observability manifests for Perses dashboards
-	rr.Manifests = append(rr.Manifests, manifestInfo)
+	// Add observability manifests for Perses dashboards
+	rr.Manifests = append(rr.Manifests, observabilityManifestInfo())
 	return nil
 }
 
