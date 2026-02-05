@@ -715,7 +715,10 @@ func setHardwareProfileAnnotation(ctx context.Context, cli client.Client, obj *u
 		annotations[hardwareProfileNamespaceAnnotation] = hwpNamespace
 		obj.SetAnnotations(annotations)
 	} else {
-		log.Info("Skipping HardwareProfile annotation as it could not be located", "workload", obj.GetName())
+		log.Info("Skipping HardwareProfile annotation as it could not be located",
+			"workload", obj.GetName(),
+			"hwpName", hwpName,
+			"searchedNamespaces", namespacesToCheck)
 		err = recordUpgradeErrorEvent(
 			ctx, cli, obj, eventReasonHardwareProfileMigrationSkipped,
 			"Skipping HardwareProfile annotation as it could not be located")
