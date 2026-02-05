@@ -110,7 +110,7 @@ additional_meta:
     git.commit: 3a0c66274adf82bc05728499cb4a9fed04e52223
   odh-model-registry:
     git.url: https://github.com/red-hat-data-services/model-registry
-    git.commit: dc3c433cf7044fc7451d59323b9770481efe043f
+    git.commit: 08d3ff07f8069fc78d356f275aa4b39cba4cf416
   odh-feature-server:
     git.url: https://github.com/red-hat-data-services/feast
     git.commit: 1dc378c5af6993dbcbbc540feb7ddaa545af505c
@@ -260,7 +260,7 @@ additional_meta:
     git.commit: 291b2dcb0c4e76e1eb80cfc3c22d6942e772cb7c
   odh-mlflow:
     git.url: https://github.com/red-hat-data-services/mlflow
-    git.commit: a699a28b707d7be7b8c0fb3e1ec014bf8588e928
+    git.commit: 30bf2db901d929a3ae93a659834244936743866d
   odh-mlserver:
     git.url: https://github.com/red-hat-data-services/MLServer
     git.commit: bde329e11ec12d9ceb3339903bf28062f873d2cd
