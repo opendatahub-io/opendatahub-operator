@@ -68,6 +68,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `gateway` _[GatewaySpec](#gatewayspec)_ | Gateway configuration for dashboard ingress |  |  |
 
 
 #### DSCDashboardStatus
@@ -309,6 +310,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `gateway` _[GatewaySpec](#gatewayspec)_ | Gateway configuration for model registry ingress |  |  |
 | `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries" | odh-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
@@ -584,6 +586,9 @@ _Appears in:_
 - [DSCDashboard](#dscdashboard)
 - [DashboardSpec](#dashboardspec)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `gateway` _[GatewaySpec](#gatewayspec)_ | Gateway configuration for dashboard ingress |  |  |
 
 
 #### DashboardCommonStatus
@@ -614,6 +619,9 @@ DashboardSpec defines the desired state of Dashboard
 _Appears in:_
 - [Dashboard](#dashboard)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `gateway` _[GatewaySpec](#gatewayspec)_ | Gateway configuration for dashboard ingress |  |  |
 
 
 #### DashboardStatus
@@ -1342,6 +1350,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
+| `gateway` _[GatewaySpec](#gatewayspec)_ | Gateway configuration for model registry ingress |  |  |
 | `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries" | odh-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
@@ -1376,6 +1385,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
+| `gateway` _[GatewaySpec](#gatewayspec)_ | Gateway configuration for model registry ingress |  |  |
 | `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries" | odh-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
@@ -3105,6 +3115,7 @@ _Appears in:_
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
+| `domain` _string_ | Domain is the computed gateway domain (subdomain + cluster domain or default)<br />This is the single source of truth for the gateway domain used by all components |  |  |
 
 
 #### IngressMode

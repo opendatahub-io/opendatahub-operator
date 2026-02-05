@@ -31,7 +31,7 @@ func (s *componentHandler) GetName() string {
 	return componentApi.ModelControllerComponentName
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
+func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
 	// extra logic to set the management .spec.component.managementState, to not leave blank {}
 	kState := operatorv1.Removed
 	if dsc.Spec.Components.Kserve.ManagementState == operatorv1.Managed {
@@ -66,7 +66,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 				ManagementState: mrState,
 			},
 		},
-	}
+	}, nil
 }
 
 // Init for set images.

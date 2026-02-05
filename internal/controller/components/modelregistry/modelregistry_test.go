@@ -2,6 +2,7 @@
 package modelregistry
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
@@ -36,8 +38,14 @@ func TestNewCRObject(t *testing.T) {
 
 	g := NewWithT(t)
 	dsc := createDSCWithModelRegistry(operatorv1.Managed)
+	gatewayConfig := &serviceApi.GatewayConfig{}
+	gatewayConfig.SetName(serviceApi.GatewayConfigName)
+	gatewayConfig.Status.Domain = "gateway.example.com"
+	cl, err := fakeclient.New(fakeclient.WithObjects(gatewayConfig))
+	g.Expect(err).To(Succeed())
 
-	cr := handler.NewCRObject(dsc)
+	cr, err := handler.NewCRObject(context.Background(), cl, dsc)
+	g.Expect(err).To(Succeed())
 	g.Expect(cr).ShouldNot(BeNil())
 	g.Expect(cr).Should(BeAssignableToTypeOf(&componentApi.ModelRegistry{}))
 

@@ -32,7 +32,7 @@ func (s *componentHandler) GetName() string {
 	return componentApi.LlamaStackOperatorComponentName
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
+func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
 	return &componentApi.LlamaStackOperator{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.LlamaStackOperatorKind,
@@ -47,7 +47,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 		Spec: componentApi.LlamaStackOperatorSpec{
 			LlamaStackOperatorCommonSpec: dsc.Spec.Components.LlamaStackOperator.LlamaStackOperatorCommonSpec,
 		},
-	}
+	}, nil
 }
 
 func (s *componentHandler) Init(p common.Platform) error {

@@ -155,7 +155,10 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 	}
 
 	return cr.ForEach(func(ch cr.ComponentHandler) error {
-		ci := ch.NewCRObject(dsc)
+		ci, err := ch.NewCRObject(ctx, rr.Client, dsc)
+		if err != nil {
+			return err
+		}
 		if ch.IsEnabled(dsc) {
 			ready, err := isComponentReady(ctx, rr.Client, ci)
 			if err != nil {
@@ -400,8 +403,11 @@ func deployAlerting(ctx context.Context, rr *odhtypes.ReconciliationRequest) err
 
 	forEachErr := cr.ForEach(func(ch cr.ComponentHandler) error {
 		componentName := ch.GetName()
-		ci := ch.NewCRObject(dsc)
-
+		ci, err := ch.NewCRObject(ctx, rr.Client, dsc)
+		if err != nil {
+			addErrors = append(addErrors, fmt.Errorf("failed to get CR for component %s: %w", componentName, err))
+			return nil // Continue processing other components
+		}
 		if ch.IsEnabled(dsc) {
 			ready, err := isComponentReady(ctx, rr.Client, ci)
 			if err != nil {
