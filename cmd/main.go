@@ -441,19 +441,12 @@ func main() { //nolint:funlen,maintidx,gocyclo
 
 	// Cleanup resources from previous v2 releases
 	cleanup := LeaderElectionRunnableFunc(func(ctx context.Context) error {
-		setupLog.Info("determine deployed release")
-		// get old release version before we create default DSCI CR
-		oldReleaseVersion, err := cluster.GetDeployedRelease(ctx, setupClient)
-		if err != nil {
-			setupLog.Error(err, "unable to get deployed release version")
-			os.Exit(1)
-		}
-
 		setupLog.Info("run upgrade task")
-		if err = upgrade.CleanupExistingResource(ctx, setupClient, platform, oldReleaseVersion); err != nil {
+		if err := upgrade.CleanupExistingResource(ctx, setupClient); err != nil {
 			setupLog.Error(err, "unable to perform cleanup")
+			return err
 		}
-		return err
+		return nil
 	})
 
 	err = mgr.Add(cleanup)
