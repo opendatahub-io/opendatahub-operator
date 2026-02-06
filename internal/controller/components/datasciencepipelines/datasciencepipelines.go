@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strconv"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -20,7 +21,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
@@ -34,15 +35,19 @@ func (s *componentHandler) GetName() string {
 	return componentApi.DataSciencePipelinesComponentName
 }
 
-func (s *componentHandler) Init(_ common.Platform) error {
+func (s *componentHandler) Init(platform common.Platform) error {
 	release := cluster.GetRelease()
 	clusterInfo := cluster.GetClusterInfo()
 	extraParams := map[string]string{
 		platformVersionParamsKey: release.Version.String(),
 		fipsEnabledParamsKey:     strconv.FormatBool(clusterInfo.FipsEnabled),
 	}
-	if err := deploy.ApplyParams(paramsPath, "params.env", imageParamMap, extraParams); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", paramsPath, err)
+
+	componentPath := filepath.Join(odhdeploy.DefaultManifestPath, ComponentName)
+	overlayName := cluster.OverlayName(platform)
+
+	if _, err := odhdeploy.ApplyParamsWithFallback(componentPath, overlayName, imageParamMap, extraParams); err != nil {
+		return fmt.Errorf("failed to update params for %s: %w", ComponentName, err)
 	}
 
 	return nil
