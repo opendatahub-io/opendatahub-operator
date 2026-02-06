@@ -660,19 +660,72 @@ func containerSizeExists(sizes []ContainerSize, name string) bool {
 	return false
 }
 
-// setHardwareProfileAnnotation sets the HWP annotation on an object and updates it.
-func setHardwareProfileAnnotation(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, hwpName string, namespace string) error {
+// setHardwareProfileAnnotation sets the HWP annotations on an object and updates it.
+// It looks up the HardwareProfile to find its actual namespace. AcceleratorProfiles can only exist in:
+// 1. The same namespace as the workload, OR
+// 2. The application namespace
+//
+// If apNamespace is provided (from opendatahub.io/accelerator-profile-namespace annotation), it is used
+// as the definitive namespace. This protects against edge cases where identically named HWPs exist in
+// both the workload namespace and application namespace with different contents.
+func setHardwareProfileAnnotation(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, hwpName string, apNamespace string, applicationNS string) error {
+	log := logf.FromContext(ctx)
 	annotations := obj.GetAnnotations()
 	if annotations == nil {
 		annotations = make(map[string]string)
 	}
 	annotations[hardwareProfileNameAnnotation] = hwpName
+	var foundHWP *infrav1.HardwareProfile
+	var err error
+	// Build priority list of namespaces to search
+	// Priority: apNamespace → objNamespace → applicationNS
+	objNamespace := obj.GetNamespace()
+	var namespacesToCheck []string
 
-	// If hardwareprofile name starts with the containersize- prefix or is custom-serving, also set the HWP namespace annotation to the application namespace
-	if strings.HasPrefix(hwpName, containerSizeHWPPrefix) || (hwpName == "custom-serving") {
-		annotations[hardwareProfileNamespaceAnnotation] = namespace
+	if apNamespace != "" {
+		namespacesToCheck = append(namespacesToCheck, apNamespace)
 	}
-	obj.SetAnnotations(annotations)
+	if objNamespace != "" && objNamespace != apNamespace {
+		namespacesToCheck = append(namespacesToCheck, objNamespace)
+	}
+	if applicationNS != apNamespace && applicationNS != objNamespace {
+		namespacesToCheck = append(namespacesToCheck, applicationNS)
+	}
+
+	// Search for HWP in priority order, use first match
+	hwpNamespace := ""
+	for _, ns := range namespacesToCheck {
+		foundHWP, err = cluster.GetHardwareProfile(ctx, cli, hwpName, ns)
+		if err == nil {
+			hwpNamespace = ns
+			log.Info("Found HardwareProfile for migration",
+				"hwpName", hwpName,
+				"namespace", hwpNamespace,
+				"objectName", obj.GetName(),
+				"objectNamespace", obj.GetNamespace(),
+				"apNamespaceHint", apNamespace)
+			break
+		} else if !k8serr.IsNotFound(err) {
+			return fmt.Errorf("error checking HardwareProfile in namespace %s: %w", ns, err)
+		}
+	}
+
+	// foundHWP is nil if no HWP was found in any namespace
+	if foundHWP != nil {
+		annotations[hardwareProfileNamespaceAnnotation] = hwpNamespace
+		obj.SetAnnotations(annotations)
+	} else {
+		log.Info("Skipping HardwareProfile annotation as it could not be located",
+			"workload", obj.GetName(),
+			"hwpName", hwpName,
+			"searchedNamespaces", namespacesToCheck)
+		err = recordUpgradeErrorEvent(
+			ctx, cli, obj, eventReasonHardwareProfileMigrationSkipped,
+			"Skipping HardwareProfile annotation as it could not be located")
+		if err != nil {
+			return err
+		}
+	}
 
 	return cli.Update(ctx, obj)
 }
@@ -699,7 +752,7 @@ func createHardwareProfileAnnotations(profileType, displayName, description stri
 }
 
 // recordUpgradeErrorEvent creates a Kubernetes Event for the given object for any errors during the upgrade.
-func recordUpgradeErrorEvent(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, eventType, reason, message string) error {
+func recordUpgradeErrorEvent(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, reason, message string) error {
 	now := metav1.NewTime(time.Now())
 	event := &corev1.Event{
 		ObjectMeta: metav1.ObjectMeta{
@@ -715,7 +768,7 @@ func recordUpgradeErrorEvent(ctx context.Context, cli client.Client, obj *unstru
 		},
 		Reason:         reason,
 		Message:        message,
-		Type:           eventType,
+		Type:           corev1.EventTypeWarning,
 		FirstTimestamp: now,
 		LastTimestamp:  now,
 		Count:          1,
