@@ -59,6 +59,28 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	return nil
 }
 
+func deployObservabilityManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	// Only deploy observability manifests for RHOAI platforms
+	if rr.Release.Name == cluster.OpenDataHub {
+		return nil
+	}
+
+	// Check if PersesDashboard CRD exists (Cluster Observability Operator installed)
+	persesDashboardCRDExists, err := cluster.HasCRD(ctx, rr.Client, gvk.PersesDashboard)
+	if err != nil {
+		return odherrors.NewStopError("failed to check if %s CRD exists: %w", gvk.PersesDashboard, err)
+	}
+
+	if !persesDashboardCRDExists {
+		// CRD not available, skip deployment without error
+		return nil
+	}
+
+	// Add observability manifests for Perses dashboards
+	rr.Manifests = append(rr.Manifests, observabilityManifestInfo())
+	return nil
+}
+
 func setKustomizedParams(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	extraParamsMap, err := computeKustomizeVariable(ctx, rr.Client, rr.Release.Name)
 	if err != nil {
