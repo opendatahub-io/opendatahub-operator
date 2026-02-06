@@ -5,7 +5,20 @@ metadata:
   namespace: {{.Namespace}}
 spec:
   replicas: {{.CollectorReplicas}}
-  mode: deployment
+  mode: statefulset
+  {{- if .Metrics }}
+  targetAllocator:
+    enabled: true
+    serviceAccount: data-science-collector-collector
+    prometheusCR:
+      enabled: true
+      podMonitorSelector:
+        matchLabels:
+          opendatahub.io/monitoring: "true"
+      serviceMonitorSelector:
+        matchLabels:
+          opendatahub.io/monitoring: "true"
+  {{- end }}
   resources:
     limits:
       cpu: {{.CollectorCPULimit}}
@@ -31,26 +44,8 @@ spec:
       {{- if .Metrics }}
       prometheus:
         config:
+          {{- if .AcceleratorMetrics }}
           scrape_configs:
-            - job_name: 'data-science-collector-prometheus'
-              bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
-              kubernetes_sd_configs:
-                - role: pod
-              metrics_path: /metrics
-              relabel_configs:
-                - action: keep
-                  regex: true
-                  source_labels: [__meta_kubernetes_pod_label_monitoring_opendatahub_io_scrape]
-                - action: replace
-                  regex: '([^:]+)(?::\d+)?'
-                  replacement: '$1:8080'
-                  source_labels: [__address__]
-                  target_label: __address__
-              scrape_interval: 30s
-              scrape_timeout: 10s
-              tls_config:
-                insecure_skip_verify: true
-            {{- if .AcceleratorMetrics }}
             - job_name: 'dcgm-exporter-accelerator-metrics'
               bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
               kubernetes_sd_configs:
@@ -133,7 +128,10 @@ spec:
               scrape_timeout: 10s
               tls_config:
                 insecure_skip_verify: true
-            {{- end }}
+          {{- else }}
+          # Target Allocator provides scrape configs dynamically for PodMonitors/ServiceMonitors
+          scrape_configs: []
+          {{- end }}
       {{- end }}
       otlp:
         protocols:
@@ -189,6 +187,7 @@ spec:
       {{ end }}
     service:
       telemetry:
+        {{- if .Metrics }}
         metrics:
           readers:
             - pull:
@@ -196,6 +195,7 @@ spec:
                   prometheus:
                     host: '0.0.0.0'
                     port: 8888
+        {{- end }}
       extensions: [bearertokenauth]
       {{- if or .Traces .Metrics }}
       pipelines:
