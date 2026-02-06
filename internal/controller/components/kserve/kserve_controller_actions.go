@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/blang/semver/v4"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -29,6 +30,19 @@ import (
 const (
 	LLMInferenceServiceConfigWellKnownAnnotationKey   = "serving.kserve.io/well-known-config"
 	LLMInferenceServiceConfigWellKnownAnnotationValue = "true"
+
+	// ServiceMesh operator constants.
+	serviceMeshOperatorSubscription = "servicemeshoperator"
+	serviceMeshOperatorPrefix       = "servicemeshoperator"
+	requiredServiceMeshMajorVersion = uint64(3)
+
+	// ServiceMesh version check condition reasons.
+	reasonServiceMeshNotInstalled = "ServiceMeshNotInstalled"
+	reasonVersionCheckPassed      = "VersionCheckPassed"
+	reasonAPIError                = "APIError"
+	reasonOperatorNotRunning      = "OperatorNotRunning"
+	reasonUnparseableVersion      = "UnparseableVersion"
+	reasonIncompatibleVersion     = "IncompatibleVersion"
 )
 
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -181,13 +195,152 @@ func versionedWellKnownLLMInferenceServiceConfigs(_ context.Context, version str
 	return nil
 }
 
-// checkPreConditions checks if there are optional operators that KServe could use.
+// extractMajorVersion parses version string and returns major version number using semver.
+// Handles standard semver formats as well as shortened versions like "v3.0", "3", etc.
+// Also supports pre-release versions (e.g., "v3.0.0-rc1") and build metadata (e.g., "v3.0.0+build123").
+func extractMajorVersion(version string) (uint64, error) {
+	v, err := semver.ParseTolerant(version)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse version %s: %w", version, err)
+	}
+	return v.Major, nil
+}
+
+// setServiceMeshConditionAndStopError sets a ServiceMeshVersionRequirement condition on the Kserve instance
+// and returns a StopError with the provided message. This helper reduces duplication in error handling paths.
+func setServiceMeshConditionAndStopError(k *componentApi.Kserve, reason, conditionMsg, stopErrorMsg string, args ...interface{}) error {
+	conditions.SetStatusCondition(k, common.Condition{
+		Type:    ServiceMeshVersionRequirement,
+		Status:  metav1.ConditionFalse,
+		Reason:  reason,
+		Message: conditionMsg,
+	})
+	return odherrors.NewStopError(stopErrorMsg, args...)
+}
+
+// validateServiceMeshOperatorVersion retrieves the ServiceMesh operator information and validates
+// that it is running version 3. Returns nil if validation passes, or an error if the operator
+// is not running, version cannot be parsed, or version is incompatible.
+func validateServiceMeshOperatorVersion(ctx context.Context, rr *odhtypes.ReconciliationRequest, k *componentApi.Kserve) error {
+	logger := logf.FromContext(ctx)
+
+	// Retrieve operator information
+	operatorInfo, err := cluster.OperatorExists(ctx, rr.Client, serviceMeshOperatorPrefix)
+	if err != nil {
+		logger.Error(err, "Failed to retrieve ServiceMesh operator version information")
+		return setServiceMeshConditionAndStopError(k,
+			reasonAPIError,
+			"Unable to retrieve ServiceMesh operator version due to API error",
+			"ServiceMesh subscription found but unable to retrieve operator version due to API error. "+
+				"Cannot proceed with KServe deployment without confirming ServiceMesh version compatibility. "+
+				"Please check API access, RBAC permissions, and that the OperatorCondition CRD is available.",
+		)
+	}
+
+	if operatorInfo == nil {
+		return setServiceMeshConditionAndStopError(k,
+			reasonOperatorNotRunning,
+			"ServiceMesh subscription found but operator is not running",
+			"OpenShift ServiceMesh subscription found but operator is not running. "+
+				"Unable to verify version requirement. "+
+				"Please ensure ServiceMesh v3.x operator is running or uninstall ServiceMesh before enabling KServe.",
+		)
+	}
+
+	// Parse and validate version
+	version := operatorInfo.Version
+	majorVersion, err := extractMajorVersion(version)
+	if err != nil {
+		return setServiceMeshConditionAndStopError(k,
+			reasonUnparseableVersion,
+			fmt.Sprintf("ServiceMesh version %s cannot be parsed", version),
+			"OpenShift ServiceMesh detected with unparseable version: %s. "+
+				"Unable to verify version requirement. "+
+				"Please ensure ServiceMesh v3.x is installed or uninstall ServiceMesh before enabling KServe.",
+			version,
+		)
+	}
+
+	// Only major version 3 is compatible
+	if majorVersion != requiredServiceMeshMajorVersion {
+		return setServiceMeshConditionAndStopError(k,
+			reasonIncompatibleVersion,
+			fmt.Sprintf("ServiceMesh version %s detected, requires v3.x", version),
+			"OpenShift ServiceMesh version %s detected. KServe requires ServiceMesh version 3.x when ServiceMesh is installed. "+
+				"Please either upgrade to ServiceMesh v3.x or uninstall ServiceMesh before enabling KServe.",
+			version,
+		)
+	}
+
+	// Version check passed - ServiceMesh v3 is installed
+	conditions.SetStatusCondition(k, common.Condition{
+		Type:    ServiceMeshVersionRequirement,
+		Status:  metav1.ConditionTrue,
+		Reason:  reasonVersionCheckPassed,
+		Message: fmt.Sprintf("OpenShift ServiceMesh version %s meets requirement (v3.x required when installed)", version),
+	})
+
+	logger.Info("ServiceMesh version check passed", "version", version, "required", "v3.x")
+	return nil
+}
+
+// checkServiceMeshVersionRequirement validates that if OpenShift ServiceMesh is installed,
+// it must be version 3. ServiceMesh is optional, but if present, only v3 is allowed.
+// Returns a StopError if ServiceMesh is installed with an incompatible version.
+func checkServiceMeshVersionRequirement(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	logger := logf.FromContext(ctx)
+
+	k, ok := rr.Instance.(*componentApi.Kserve)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.Kserve", rr.Instance)
+	}
+
+	rr.Conditions.MarkUnknown(ServiceMeshVersionRequirement)
+
+	// Check if ServiceMesh subscription exists
+	serviceMeshExists, err := cluster.SubscriptionExists(ctx, rr.Client, serviceMeshOperatorSubscription)
+	if err != nil {
+		logger.Error(err, "Failed to check for ServiceMesh subscription")
+		return setServiceMeshConditionAndStopError(k,
+			reasonAPIError,
+			"Unable to verify ServiceMesh installation due to API error",
+			"Unable to verify ServiceMesh installation due to API error. "+
+				"Cannot proceed with KServe deployment without confirming ServiceMesh compatibility. "+
+				"Please check API access, RBAC permissions, and that the Subscription CRD is available.",
+		)
+	}
+
+	if !serviceMeshExists {
+		// No ServiceMesh installed - allow deployment (ServiceMesh is optional)
+		conditions.SetStatusCondition(k, common.Condition{
+			Type:    ServiceMeshVersionRequirement,
+			Status:  metav1.ConditionTrue,
+			Reason:  reasonServiceMeshNotInstalled,
+			Message: "OpenShift ServiceMesh is not installed (optional)",
+		})
+		logger.Info("ServiceMesh not installed, allowing KServe deployment")
+		return nil
+	}
+
+	// ServiceMesh IS installed - validate it's version 3
+	return validateServiceMeshOperatorVersion(ctx, rr, k)
+}
+
+// checkPreConditions validates required and optional operator dependencies for KServe.
+// Required: If ServiceMesh is installed, it must be version 3. Deployment is blocked otherwise.
+// Optional: Checks for RHCL and LWS operators for LLMInferenceService features.
 func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	k, ok := rr.Instance.(*componentApi.Kserve)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentApi.Kserve)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a componentApi.Kserve", rr.Instance)
 	}
 
+	// Check ServiceMesh version requirement (blocking check if incompatible version found)
+	if err := checkServiceMeshVersionRequirement(ctx, rr); err != nil {
+		return err
+	}
+
+	// Check for optional operators (informational only)
 	rr.Conditions.MarkUnknown(LLMInferenceServiceDependencies)
 	rr.Conditions.MarkUnknown(LLMInferenceServiceWideEPDependencies)
 
