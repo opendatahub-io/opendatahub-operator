@@ -125,10 +125,10 @@ additional_meta:
     git.commit: 9fb7ce69eb83ae71a53cac1119c8e9e513d1a2be
   odh-kserve-agent:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: f0a95fadf267033a10f515c855a176a958b28775
+    git.commit: 16a07d66781e355a5f302f8ab6be94f8bcc6fc76
   odh-kserve-router:
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: f0a95fadf267033a10f515c855a176a958b28775
+    git.commit: 16a07d66781e355a5f302f8ab6be94f8bcc6fc76
   odh-kserve-storage-initializer:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 2c9e48da0e9db6835243292881df5ca3444a1643
