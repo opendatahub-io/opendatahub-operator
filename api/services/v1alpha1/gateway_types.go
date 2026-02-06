@@ -113,6 +113,13 @@ type GatewayConfigSpec struct {
 	// +optional
 	// +kubebuilder:default=true
 	VerifyProviderCertificate *bool `json:"verifyProviderCertificate,omitempty"`
+
+	// EnableK8sTokenValidation enables Kubernetes service account token validation via TokenReview API.
+	// When enabled, kube-auth-proxy validates bearer tokens as service account tokens alongside OAuth/OIDC authentication.
+	// This allows service accounts to authenticate via bearer tokens while human users authenticate via OAuth/OIDC.
+	// +optional
+	// +kubebuilder:default=true
+	EnableK8sTokenValidation *bool `json:"enableK8sTokenValidation,omitempty"`
 }
 
 // NetworkPolicyConfig defines network policy configuration for kube-auth-proxy.
