@@ -28,7 +28,10 @@ func TestAttachHardwareProfileToInferenceServices(t *testing.T) {
 
 		isvc := createTestInferenceService(namespace, "isvc-with-runtime", "test-runtime")
 
-		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, servingRuntime, isvc))
+		// Create the HardwareProfile that the migration expects to find
+		hwp := createTestHardwareProfile(namespace, "nvidia-gpu-serving")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, servingRuntime, isvc, hwp))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		err = upgrade.AttachHardwareProfileToInferenceServices(ctx, cli, namespace, odhConfig)
@@ -49,18 +52,22 @@ func TestAttachHardwareProfileToInferenceServices(t *testing.T) {
 		isvc := createTestInferenceServiceWithResources(namespace, "isvc-with-resources",
 			"1", "4Gi", "2", "8Gi")
 
-		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, isvc))
+		// Create the HardwareProfile that the migration expects to find
+		hwp := createTestHardwareProfile(namespace, "containersize-small-serving")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, isvc, hwp))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		err = upgrade.AttachHardwareProfileToInferenceServices(ctx, cli, namespace, odhConfig)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		// Verify HWP annotation matches container size
+		// Verify HWP annotation matches container size with namespace annotation
 		updatedIsvc := &unstructured.Unstructured{}
 		updatedIsvc.SetGroupVersionKind(gvk.InferenceServices)
 		err = cli.Get(ctx, client.ObjectKey{Name: "isvc-with-resources", Namespace: namespace}, updatedIsvc)
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(updatedIsvc.GetAnnotations()).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "containersize-small-serving"))
+		g.Expect(updatedIsvc.GetAnnotations()).To(HaveKeyWithValue("opendatahub.io/hardware-profile-namespace", namespace))
 	})
 
 	t.Run("should use custom-serving for non-matching resources", func(t *testing.T) {
@@ -70,7 +77,10 @@ func TestAttachHardwareProfileToInferenceServices(t *testing.T) {
 		isvc := createTestInferenceServiceWithResources(namespace, "isvc-custom",
 			"3", "10Gi", "5", "20Gi")
 
-		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, isvc))
+		// Create the custom-serving HardwareProfile that the migration expects to find
+		hwp := createTestHardwareProfile(namespace, "custom-serving")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, isvc, hwp))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		err = upgrade.AttachHardwareProfileToInferenceServices(ctx, cli, namespace, odhConfig)
@@ -90,7 +100,10 @@ func TestAttachHardwareProfileToInferenceServices(t *testing.T) {
 		odhConfig := createTestOdhDashboardConfig(t, namespace)
 		isvc := createTestInferenceService(namespace, "isvc-no-resources", "")
 
-		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, isvc))
+		// Create the custom-serving HardwareProfile that the migration expects to find
+		hwp := createTestHardwareProfile(namespace, "custom-serving")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, isvc, hwp))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		err = upgrade.AttachHardwareProfileToInferenceServices(ctx, cli, namespace, odhConfig)

@@ -72,7 +72,11 @@ func TestAttachHardwareProfileToNotebooks(t *testing.T) {
 			"opendatahub.io/hardware-profile-name": "already-set",
 		})
 
-		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, notebook1, notebook2, notebook3))
+		// Create the HardwareProfiles that the migration expects to find
+		hwp1 := createTestHardwareProfile(namespace, "gpu-1-notebooks")
+		hwp2 := createTestHardwareProfile(namespace, "containersize-medium-notebooks")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, notebook1, notebook2, notebook3, hwp1, hwp2))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		err = upgrade.AttachHardwareProfileToNotebooks(ctx, cli, namespace, odhConfig)

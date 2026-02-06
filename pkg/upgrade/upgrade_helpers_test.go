@@ -346,6 +346,30 @@ func createTestInferenceServiceWithResources(namespace, name, reqCpu, reqMem, li
 	return isvc
 }
 
+func createTestHardwareProfile(namespace, name string) *infrav1.HardwareProfile {
+	return &infrav1.HardwareProfile{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: infrav1.GroupVersion.String(),
+			Kind:       "HardwareProfile",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: infrav1.HardwareProfileSpec{
+			Identifiers: []infrav1.HardwareIdentifier{
+				{
+					Identifier:   "cpu",
+					DisplayName:  "cpu",
+					ResourceType: "CPU",
+					MinCount:     intstr.FromInt(1),
+					DefaultCount: intstr.FromInt(1),
+				},
+			},
+		},
+	}
+}
+
 func createTestGatewayService(serviceType corev1.ServiceType) *corev1.Service {
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -719,7 +743,10 @@ func runNotebookHWPMigrationTest(t *testing.T, ctx context.Context, namespace, n
 	notebook := createTestNotebook(namespace, notebookName)
 	notebook.SetAnnotations(initialAnnotations)
 
-	cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, notebook))
+	// Create the HardwareProfile that the migration expects to find
+	hwp := createTestHardwareProfile(namespace, expectedHWPName)
+
+	cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, notebook, hwp))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	err = upgrade.AttachHardwareProfileToNotebooks(ctx, cli, namespace, odhConfig)
