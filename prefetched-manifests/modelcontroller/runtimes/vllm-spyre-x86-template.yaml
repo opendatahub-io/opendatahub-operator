@@ -32,7 +32,7 @@ objects:
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
       containers:
-        - image: $(vllm-spyre-x86-image)
+        - image: $(vllm-spyre-image)
           name: kserve-container
           args:
             - '--model=/mnt/models'
@@ -57,10 +57,18 @@ objects:
               value: '1024'
             - name: VLLM_SPYRE_WARMUP_NEW_TOKENS
               value: '256'
+            - name: VLLM_SPYRE_REQUIRE_PRECOMPILED_DECODERS
+              value: '0'
           ports:
             - containerPort: 8000
               protocol: TCP
+          volumeMounts:
+            - name: spyre-cache
+              mountPath: /opt/ibm/spyre/models
       multiModel: false
       supportedModelFormats:
         - autoSelect: true
           name: vLLM
+      volumes:
+        - name: spyre-cache
+          emptyDir: {}

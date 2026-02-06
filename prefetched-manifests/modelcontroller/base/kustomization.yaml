@@ -115,7 +115,7 @@ replacements:
       kind: ConfigMap
       version: v1
       name: odh-model-controller-parameters
-      fieldPath: data.vllm-spyre-x86-image
+      fieldPath: data.vllm-spyre-image
     targets:
       - select:
           kind: Template
@@ -126,7 +126,7 @@ replacements:
       kind: ConfigMap
       version: v1
       name: odh-model-controller-parameters
-      fieldPath: data.vllm-spyre-s390x-image
+      fieldPath: data.vllm-spyre-image
     targets:
       - select:
           kind: Template
@@ -137,7 +137,7 @@ replacements:
       kind: ConfigMap
       version: v1
       name: odh-model-controller-parameters
-      fieldPath: data.vllm-spyre-ppc64le-image
+      fieldPath: data.vllm-spyre-image
     targets:
       - select:
           kind: Template

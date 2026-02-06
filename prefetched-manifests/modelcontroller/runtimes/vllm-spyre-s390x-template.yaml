@@ -32,7 +32,7 @@ objects:
         prometheus.io/path: /metrics
         prometheus.io/port: '8080'
       containers:
-        - image: $(vllm-spyre-s390x-image)
+        - image: $(vllm-spyre-image)
           name: kserve-container
           command:
             - /bin/bash
