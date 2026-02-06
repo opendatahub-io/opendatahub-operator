@@ -1471,6 +1471,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  | Managed | Enum: [Managed Removed] <br /> |
+| `airGapped` _boolean_ | When true, NIM integration assumes an air-gapped cluster. External API calls<br />and the NIM model list ConfigMap creation are skipped, while status conditions<br />are marked successful with an air-gapped message. | false | Optional: \{\} <br /> |
 
 
 #### RawServiceConfig
