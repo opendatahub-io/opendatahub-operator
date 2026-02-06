@@ -128,23 +128,6 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentSuccess(t *test
 func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *testing.T) {
 	t.Helper()
 
-	// To handle upstream/downstream i trimmed prefix(odh) from few controller names
-	componentToControllerMap := map[string]string{
-		componentApi.DashboardComponentName:            "dashboard",
-		componentApi.DataSciencePipelinesComponentName: "data-science-pipelines-operator-controller-manager",
-		componentApi.FeastOperatorComponentName:        "feast-operator-controller-manager",
-		componentApi.KserveComponentName:               "kserve-controller-manager",
-		componentApi.LlamaStackOperatorComponentName:   "llama-stack-k8s-operator-controller-manager",
-		componentApi.MLflowOperatorComponentName:       "mlflow-operator-controller-manager",
-		componentApi.ModelRegistryComponentName:        "model-registry-operator-controller-manager",
-		componentApi.RayComponentName:                  "kuberay-operator",
-		componentApi.SparkOperatorComponentName:        "spark-operator-controller",
-		componentApi.TrainingOperatorComponentName:     "kubeflow-training-operator",
-		componentApi.TrainerComponentName:              "trainer-controller-manager",
-		// componentApi.TrustyAIComponentName:             "trustyai-service-operator-controller-manager",
-		componentApi.WorkbenchesComponentName: "notebook-controller-manager",
-	}
-
 	// Error message includes components + internal components name
 	var internalComponentToControllerMap = map[string]string{
 		componentApi.ModelControllerComponentName: "model-controller",
