@@ -722,4 +722,10 @@ var (
 		Version: "v1",
 		Kind:    "ClusterIssuer",
 	}
+
+	SparkApplication = schema.GroupVersionKind{
+		Group:   "sparkoperator.k8s.io",
+		Version: "v1beta2",
+		Kind:    "SparkApplication",
+	}
 )
