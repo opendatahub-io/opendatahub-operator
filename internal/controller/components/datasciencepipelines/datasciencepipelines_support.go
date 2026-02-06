@@ -1,8 +1,6 @@
 package datasciencepipelines
 
 import (
-	"path"
-
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -64,8 +62,6 @@ var (
 		status.ConditionArgoWorkflowAvailable,
 		status.ConditionDeploymentsAvailable,
 	}
-
-	paramsPath = path.Join(odhdeploy.DefaultManifestPath, ComponentName, "base")
 )
 
 func manifestPath(p common.Platform) types.ManifestInfo {
