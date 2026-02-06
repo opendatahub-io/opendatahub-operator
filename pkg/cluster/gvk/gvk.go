@@ -734,4 +734,10 @@ var (
 		Version: "v1alpha1",
 		Kind:    "CoreWeaveKubernetesEngine",
 	}
+
+	SparkApplication = schema.GroupVersionKind{
+		Group:   "sparkoperator.k8s.io",
+		Version: "v1beta2",
+		Kind:    "SparkApplication",
+	}
 )
