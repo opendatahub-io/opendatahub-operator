@@ -1,0 +1,32 @@
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: monitors-namespace-validation
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["monitoring.coreos.com"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["podmonitors", "servicemonitors"]
+  validations:
+    - expression: "!has(object.metadata.labels) || !('opendatahub.io/monitoring' in object.metadata.labels)"
+      message: "Monitors in non-ODH namespaces are not allowed to have the label 'opendatahub.io/monitoring'."
+      reason: Invalid
+
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: monitors-namespace-validation-binding
+spec:
+  policyName: monitors-namespace-validation
+  validationActions: ["Deny"] 
+  matchResources:
+    namespaceSelector:
+      matchExpressions:
+        - key: opendatahub.io/dashboard
+          operator: NotIn
+          values: ["true"]
