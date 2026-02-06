@@ -40,6 +40,7 @@ const (
 	notebooks                             = "notebooks"
 	customServing                         = "custom-serving"
 	acceleratorNameAnnotation             = "opendatahub.io/accelerator-name"
+	acceleratorProfileNamespaceAnnotation = "opendatahub.io/accelerator-profile-namespace"
 	lastSizeSelectionAnnotation           = "notebooks.opendatahub.io/last-size-selection"
 	hardwareProfileNameAnnotation         = "opendatahub.io/hardware-profile-name"
 	hardwareProfileNamespaceAnnotation    = "opendatahub.io/hardware-profile-namespace"
@@ -56,7 +57,8 @@ const (
 	// ServerlessMigrationSkipped event fields.
 	eventReasonServerlessMigrationSkipped = "ServerlessMigrationSkipped"
 	eventSourceComponent                  = "opendatahub-operator"
-
+	// HardwareProfileMigrationSkipped event fields.
+	eventReasonHardwareProfileMigrationSkipped = "HardwareProfileMigrationSkipped"
 	// KServe deployment mode annotation.
 	kserveDeploymentModeAnnotationKey = "serving.kserve.io/deploymentMode"
 	kserveDeploymentModeServerless    = "Serverless"
@@ -407,12 +409,15 @@ func AttachHardwareProfileToNotebooks(ctx context.Context, cli client.Client, ap
 		}
 
 		var hwpName string
+		var hwpNamespace string
 		var migrationSource string
 
 		// Check for AcceleratorProfile annotation first (higher priority)
 		if apName := annotations[acceleratorNameAnnotation]; apName != "" {
 			// Convert to lowercase and replace spaces with dashes to comply with the hardwareprofile CRD validation
 			hwpName = fmt.Sprintf("%s-notebooks", strings.ReplaceAll(strings.ToLower(apName), " ", "-"))
+			// Get the AP namespace if specified (for cross-namespace AP references)
+			hwpNamespace = annotations[acceleratorProfileNamespaceAnnotation]
 			migrationSource = "AcceleratorProfile annotation"
 		} else if sizeSelection := annotations[lastSizeSelectionAnnotation]; sizeSelection != "" && containerSizeExists(containerSizes, sizeSelection) {
 			// Handle container size annotation migration
@@ -423,7 +428,7 @@ func AttachHardwareProfileToNotebooks(ctx context.Context, cli client.Client, ap
 
 		// Set HardwareProfile annotation if we found a migration source
 		if hwpName != "" {
-			if err := setHardwareProfileAnnotation(ctx, cli, notebook, hwpName, applicationNS); err != nil {
+			if err := setHardwareProfileAnnotation(ctx, cli, notebook, hwpName, hwpNamespace, applicationNS); err != nil {
 				multiErr = multierror.Append(multiErr, fmt.Errorf("failed to set HardwareProfile annotation for notebook %s: %w", notebook.GetName(), err))
 				continue
 			}
@@ -535,7 +540,7 @@ func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Cl
 		}
 		if isServerless {
 			log.Info("Skipping HardwareProfile migration for Serverless InferenceService", "isvc", isvc.GetName(), "deploymentMode", kserveDeploymentModeServerless)
-			if err := recordUpgradeErrorEvent(ctx, cli, isvc, corev1.EventTypeWarning, eventReasonServerlessMigrationSkipped,
+			if err := recordUpgradeErrorEvent(ctx, cli, isvc, eventReasonServerlessMigrationSkipped,
 				fmt.Sprintf("Skipping HardwareProfile migration for Serverless InferenceService %s (Serverless mode not supported in RHOAI 3.x)", isvc.GetName())); err != nil {
 				log.Error(err, "Failed to record event for Serverless InferenceService", "isvc", isvc.GetName())
 			}
@@ -551,12 +556,14 @@ func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Cl
 			}
 			if apName := runtimeAnnotations[acceleratorNameAnnotation]; apName != "" {
 				hwpName := fmt.Sprintf("%s-serving", strings.ReplaceAll(strings.ToLower(apName), " ", "-"))
-				if err := setHardwareProfileAnnotation(ctx, cli, isvc, hwpName, applicationNamespace); err != nil {
+				// Get the AP namespace if specified (for cross-namespace AP references)
+				hwpNamespace := runtimeAnnotations[acceleratorProfileNamespaceAnnotation]
+				if err := setHardwareProfileAnnotation(ctx, cli, isvc, hwpName, hwpNamespace, applicationNamespace); err != nil {
 					// If webhook rejects due to Serverless mode, record event and skip instead of error
 					errStr := err.Error()
 					if strings.Contains(errStr, "deploymentMode cannot be changed") || strings.Contains(errStr, "Serverless") {
 						log.Info("Skipping HardwareProfile migration for InferenceService due to Serverless mode", "isvc", isvc.GetName(), "error", errStr)
-						if eventErr := recordUpgradeErrorEvent(ctx, cli, isvc, corev1.EventTypeWarning, eventReasonServerlessMigrationSkipped,
+						if eventErr := recordUpgradeErrorEvent(ctx, cli, isvc, eventReasonServerlessMigrationSkipped,
 							fmt.Sprintf("Skipping HardwareProfile migration due to Serverless mode incompatibility: %s", errStr)); eventErr != nil {
 							log.Error(eventErr, "Failed to record event for Serverless InferenceService", "isvc", isvc.GetName())
 						}
@@ -585,12 +592,12 @@ func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Cl
 			}
 		}
 
-		if err := setHardwareProfileAnnotation(ctx, cli, isvc, hwpName, applicationNamespace); err != nil {
+		if err := setHardwareProfileAnnotation(ctx, cli, isvc, hwpName, "", applicationNamespace); err != nil {
 			// If webhook rejects due to Serverless mode, record event and skip instead of error
 			errStr := err.Error()
 			if strings.Contains(errStr, "deploymentMode cannot be changed") || strings.Contains(errStr, "Serverless") {
 				log.Info("Skipping HardwareProfile migration for InferenceService due to Serverless mode", "isvc", isvc.GetName(), "error", errStr)
-				if eventErr := recordUpgradeErrorEvent(ctx, cli, isvc, corev1.EventTypeWarning, eventReasonServerlessMigrationSkipped,
+				if eventErr := recordUpgradeErrorEvent(ctx, cli, isvc, eventReasonServerlessMigrationSkipped,
 					fmt.Sprintf("Skipping HardwareProfile migration due to Serverless mode incompatibility: %s", errStr)); eventErr != nil {
 					log.Error(eventErr, "Failed to record event for Serverless InferenceService", "isvc", isvc.GetName())
 				}
