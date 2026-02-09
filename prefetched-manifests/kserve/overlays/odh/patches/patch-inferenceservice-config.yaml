@@ -98,7 +98,9 @@ data:
         "kubectl.kubernetes.io/last-applied-configuration",
         "security.opendatahub.io/enable-auth",
         "networking.knative.dev/visibility",
-        "haproxy.router.openshift.io/timeout"
+        "haproxy.router.openshift.io/timeout",
+        "opendatahub.io/hardware-profile-name",
+        "opendatahub.io/hardware-profile-namespace"
       ]
      }
 
