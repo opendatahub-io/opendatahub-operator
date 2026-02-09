@@ -40,6 +40,9 @@ spec:
     - 'odh-pr-{{revision}}'
   - name: pipeline-type
     value: pull-request
+  - name: build-args
+    value:
+    - MANIFESTS_MODE=CI
   pipelineRef:
     resolver: git
     params:
