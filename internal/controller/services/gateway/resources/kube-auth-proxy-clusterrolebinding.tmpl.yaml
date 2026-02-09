@@ -11,5 +11,5 @@ roleRef:
   name: system:auth-delegator
 subjects:
   - kind: ServiceAccount
-    name: default
+    name: {{.KubeAuthProxyServiceName}}
     namespace: {{.GatewayNamespace}}
