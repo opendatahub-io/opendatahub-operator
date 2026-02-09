@@ -11,10 +11,10 @@ metadata:
       == "konflux-poc-1"
   creationTimestamp: null
   labels:
-    appstudio.openshift.io/application: opendatahub-builds
-    appstudio.openshift.io/component: odh-operator-ci
+    appstudio.openshift.io/application: poc
+    appstudio.openshift.io/component: odh-ci-operator
     pipelines.appstudio.openshift.io/type: build
-  name: odh-operator-ci-on-pull-request
+  name: odh-ci-operator-on-pull-request
   namespace: open-data-hub-tenant
 spec:
   params:
