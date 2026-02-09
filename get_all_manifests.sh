@@ -14,7 +14,7 @@ DST_MANIFESTS_DIR="./opt/manifests"
 
 # ODH Component Manifests
 declare -A ODH_COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:main@a2dd7b0647253e302d7e7ce1ce7dee3f85cf3494:manifests"
+    ["dashboard"]="opendatahub-io:odh-dashboard:main@6cc55387cc97567079683f8dce3fef7adf74a78f:manifests"
     ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@13a36ec22df4f9bf2038addd9957a988d65bcb50:components/notebook-controller/config"
     ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@13a36ec22df4f9bf2038addd9957a988d65bcb50:components/odh-notebook-controller/config"
     ["workbenches/notebooks"]="opendatahub-io:notebooks:main@db955a4bd2993d1107837cd61a9eb36e2f767b6a:manifests"
@@ -30,28 +30,28 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["trainer"]="opendatahub-io:trainer:main@fc484ac82c87abea4e15d1ac8502146106a7fdbe:manifests"
     ["maas"]="opendatahub-io:maas-billing:main@30f93ad170ff45e8b7ef2e686bde26e5f9ad8907:deployment"
     ["mlflowoperator"]="opendatahub-io:mlflow-operator:main@35bdb14fdb75ae8ca3aac885f34bcbcd0832ab50:config"
-    ["sparkoperator"]="opendatahub-io:spark-operator:main@706671cae59deff0d83e06d43a28ed38c7645519:config"
+    ["sparkoperator"]="opendatahub-io:spark-operator:main@2242dc8dfe7320ec8eac3a48ad0c3e05d9f63467:config"
 )
 
 # RHOAI Component Manifests
 declare -A RHOAI_COMPONENT_MANIFESTS=(
-    ["dashboard"]="red-hat-data-services:odh-dashboard:rhoai-3.3:manifests"
-    ["workbenches/kf-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.3:components/notebook-controller/config"
-    ["workbenches/odh-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.3:components/odh-notebook-controller/config"
-    ["workbenches/notebooks"]="red-hat-data-services:notebooks:rhoai-3.3:manifests"
-    ["kserve"]="red-hat-data-services:kserve:rhoai-3.3:config"
-    ["ray"]="red-hat-data-services:kuberay:rhoai-3.3:ray-operator/config"
-    ["trustyai"]="red-hat-data-services:trustyai-service-operator:rhoai-3.3:config"
-    ["modelregistry"]="red-hat-data-services:model-registry-operator:rhoai-3.3:config"
-    ["trainingoperator"]="red-hat-data-services:training-operator:rhoai-3.3:manifests"
-    ["datasciencepipelines"]="red-hat-data-services:data-science-pipelines-operator:rhoai-3.3:config"
-    ["modelcontroller"]="red-hat-data-services:odh-model-controller:rhoai-3.3:config"
-    ["feastoperator"]="red-hat-data-services:feast:rhoai-3.3:infra/feast-operator/config"
-    ["llamastackoperator"]="red-hat-data-services:llama-stack-k8s-operator:rhoai-3.3:config"
-    ["trainer"]="red-hat-data-services:trainer:rhoai-3.3:manifests"
-    ["maas"]="red-hat-data-services:maas-billing:rhoai-3.3:deployment"
-    ["mlflowoperator"]="red-hat-data-services:mlflow-operator:rhoai-3.3:config"
-    ["sparkoperator"]="opendatahub-io:spark-operator:main@706671cae59deff0d83e06d43a28ed38c7645519:config"
+    ["dashboard"]="red-hat-data-services:odh-dashboard:rhoai-3.4:manifests"
+    ["workbenches/kf-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.4:components/notebook-controller/config"
+    ["workbenches/odh-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.4:components/odh-notebook-controller/config"
+    ["workbenches/notebooks"]="red-hat-data-services:notebooks:rhoai-3.4:manifests"
+    ["kserve"]="red-hat-data-services:kserve:rhoai-3.4:config"
+    ["ray"]="red-hat-data-services:kuberay:rhoai-3.4:ray-operator/config"
+    ["trustyai"]="red-hat-data-services:trustyai-service-operator:rhoai-3.4:config"
+    ["modelregistry"]="red-hat-data-services:model-registry-operator:rhoai-3.4:config"
+    ["trainingoperator"]="red-hat-data-services:training-operator:rhoai-3.4:manifests"
+    ["datasciencepipelines"]="red-hat-data-services:data-science-pipelines-operator:rhoai-3.4:config"
+    ["modelcontroller"]="red-hat-data-services:odh-model-controller:rhoai-3.4:config"
+    ["feastoperator"]="red-hat-data-services:feast:rhoai-3.4:infra/feast-operator/config"
+    ["llamastackoperator"]="red-hat-data-services:llama-stack-k8s-operator:rhoai-3.4:config"
+    ["trainer"]="red-hat-data-services:trainer:rhoai-3.4:manifests"
+    ["maas"]="red-hat-data-services:maas-billing:rhoai-3.4:deployment"
+    ["mlflowoperator"]="red-hat-data-services:mlflow-operator:rhoai-3.4:config"
+    ["sparkoperator"]="red-hat-data-services:spark-operator:rhoai-3.4:config"
 )
 
 # Select the appropriate manifest based on platform type

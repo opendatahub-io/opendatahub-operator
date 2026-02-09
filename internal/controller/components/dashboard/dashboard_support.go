@@ -70,6 +70,14 @@ func bffManifestsPath() odhtypes.ManifestInfo {
 	}
 }
 
+func observabilityManifestInfo() odhtypes.ManifestInfo {
+	return odhtypes.ManifestInfo{
+		Path:       odhdeploy.DefaultManifestPath,
+		ContextDir: ComponentName,
+		SourcePath: "observability",
+	}
+}
+
 func computeKustomizeVariable(ctx context.Context, cli client.Client, platform common.Platform) (map[string]string, error) {
 	// Get the gateway domain directly from Gateway CR
 	consoleLinkDomain, err := gateway.GetGatewayDomain(ctx, cli)
