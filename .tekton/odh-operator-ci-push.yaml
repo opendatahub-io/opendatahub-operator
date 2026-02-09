@@ -1,22 +1,23 @@
 apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
-#test5
+#test4
   annotations:
     build.appstudio.openshift.io/repo: https://github.com/opendatahub-io/opendatahub-operator?rev={{revision}}
     build.appstudio.redhat.com/commit_sha: '{{revision}}'
     build.appstudio.redhat.com/target_branch: '{{target_branch}}'
     pipelinesascode.tekton.dev/cancel-in-progress: "false"
-    pipelinesascode.tekton.dev/max-keep-runs: "4"
-    pipelinesascode.tekton.dev/on-comment: "^/build odh-ci-operator"
-    pipelinesascode.tekton.dev/on-cel-expression: event == "pull-request" && target_branch
-      == "konflux-poc-1"
+    pipelinesascode.tekton.dev/max-keep-runs: "3"
+    build.appstudio.openshift.io/build-nudge-files: "bundle/bundle-patch.yaml"
+    pipelinesascode.tekton.dev/on-cel-expression: ( event == "test-comment" || ( event == "push" && target_branch
+      == "stable"
+      && !"Dockerfiles/bundle.Dockerfile".pathChanged() && ( !".tekton/**".pathChanged() || ".tekton/odh-operator-ci-push.yaml".pathChanged() ) ))
   creationTimestamp: null
   labels:
-    appstudio.openshift.io/application: poc
-    appstudio.openshift.io/component: odh-ci-operator
+    appstudio.openshift.io/application: opendatahub-builds
+    appstudio.openshift.io/component: odh-operator-ci
     pipelines.appstudio.openshift.io/type: build
-  name: odh-ci-operator-on-pull-request.yaml
+  name: odh-operator-ci-on-push
   namespace: open-data-hub-tenant
 spec:
   params:
@@ -25,11 +26,9 @@ spec:
   - name: revision
     value: '{{revision}}'
   - name: output-image
-    value: quay.io/opendatahub/opendatahub-operator:odh-pr
+    value: quay.io/opendatahub/opendatahub-operator:odh-stable
   - name: dockerfile
     value: Dockerfiles/rhoai.Dockerfile
-  - name: skip-checks
-    value: "true"
   - name: build-version-tag
     value: "odh-stable"
   - name: build-platforms
@@ -37,9 +36,10 @@ spec:
     - linux/x86_64
   - name: additional-tags
     value:
-    - 'odh-pr-{{revision}}'
-  - name: pipeline-type
-    value: pull-request
+    - '{{target_branch}}-{{revision}}'
+  - name: build-args
+    value:
+    - BUILD_TYPE=CI
   pipelineRef:
     resolver: git
     params:
