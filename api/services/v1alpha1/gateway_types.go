@@ -174,6 +174,9 @@ type CookieConfig struct {
 // GatewayConfigStatus defines the observed state of GatewayConfig
 type GatewayConfigStatus struct {
 	common.Status `json:",inline"`
+	// Domain is the computed gateway domain (subdomain + cluster domain or default)
+	// This is the single source of truth for the gateway domain used by all components
+	Domain string `json:"domain,omitempty"`
 }
 
 // +kubebuilder:object:root=true

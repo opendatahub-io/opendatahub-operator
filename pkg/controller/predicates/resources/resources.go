@@ -1,6 +1,7 @@
 package resources
 
 import (
+	"fmt"
 	"math"
 	"reflect"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -363,6 +365,58 @@ func HTTPRouteReferencesGateway(gatewayName, gatewayNamespace string) predicate.
 		},
 		GenericFunc: func(e event.GenericEvent) bool {
 			return referencesGateway(e.Object)
+		},
+	}
+}
+
+// toGatewayConfig converts a client.Object (either typed or unstructured) to a typed GatewayConfig.
+func toGatewayConfig(obj client.Object) (*serviceApi.GatewayConfig, error) {
+	// Try direct cast first (in case it's already typed)
+	if gc, ok := obj.(*serviceApi.GatewayConfig); ok {
+		return gc, nil
+	}
+
+	// Convert unstructured to typed
+	if unstr, ok := obj.(*unstructured.Unstructured); ok {
+		var gc serviceApi.GatewayConfig
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstr.Object, &gc); err != nil {
+			return nil, fmt.Errorf("failed to convert unstructured to GatewayConfig: %w", err)
+		}
+		return &gc, nil
+	}
+
+	return nil, fmt.Errorf("object is neither typed GatewayConfig nor unstructured: %T", obj)
+}
+
+// GatewayConfigDomainChanged returns a predicate that triggers reconciliation only when GatewayConfig's
+// status.Domain field changes, ignoring other GatewayConfig changes.
+// This watches the single source of truth for gateway domain that components should sync to their spec.
+func GatewayConfigDomainChanged() predicate.Predicate {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			// Always reconcile on creation to initialize domain
+			return true
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			// Reconcile on deletion so DSC can react (e.g. surface domain unavailable for Dashboard/ModelRegistry)
+			return true
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldGC, err := toGatewayConfig(e.ObjectOld)
+			if err != nil {
+				return false
+			}
+
+			newGC, err := toGatewayConfig(e.ObjectNew)
+			if err != nil {
+				return false
+			}
+
+			// Only trigger if status.Domain changed (single source of truth)
+			return oldGC.Status.Domain != newGC.Status.Domain
+		},
+		GenericFunc: func(e event.GenericEvent) bool {
+			return false
 		},
 	}
 }

@@ -81,8 +81,8 @@ func deployObservabilityManifests(ctx context.Context, rr *odhtypes.Reconciliati
 	return nil
 }
 
-func setKustomizedParams(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	extraParamsMap, err := computeKustomizeVariable(ctx, rr.Client, rr.Release.Name)
+func setKustomizedParams(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+	extraParamsMap, err := computeKustomizeVariable(rr, rr.Release.Name)
 	if err != nil {
 		return fmt.Errorf("failed to set variable for url, section-title etc: %w", err)
 	}
@@ -90,6 +90,7 @@ func setKustomizedParams(ctx context.Context, rr *odhtypes.ReconciliationRequest
 	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), "params.env", nil, extraParamsMap); err != nil {
 		return fmt.Errorf("failed to update params.env from %s : %w", rr.Manifests[0].String(), err)
 	}
+
 	return nil
 }
 

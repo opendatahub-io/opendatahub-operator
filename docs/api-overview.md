@@ -576,7 +576,7 @@ Dashboard is the Schema for the dashboards API
 
 
 
-DashboardCommonSpec spec defines the shared desired state of Dashboard
+DashboardCommonSpec spec defines the shared desired state of Dashboard (used in DSC and Dashboard CR).
 
 
 
@@ -607,13 +607,16 @@ _Appears in:_
 
 
 
-DashboardSpec defines the desired state of Dashboard
+DashboardSpec defines the desired state of Dashboard (Dashboard CR only).
 
 
 
 _Appears in:_
 - [Dashboard](#dashboard)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `gateway` _[GatewaySpec](#gatewayspec)_ | Gateway configuration for dashboard ingress (synced from GatewayConfig by the DSC controller when creating the Dashboard CR). |  |  |
 
 
 #### DashboardStatus
@@ -1332,7 +1335,7 @@ ModelRegistry is the Schema for the modelregistries API
 
 
 
-ModelRegistryCommonSpec spec defines the shared desired state of ModelRegistry
+ModelRegistryCommonSpec spec defines the shared desired state of ModelRegistry (used in DSC and ModelRegistry CR).
 
 
 
@@ -1367,7 +1370,7 @@ _Appears in:_
 
 
 
-ModelRegistrySpec defines the desired state of ModelRegistry
+ModelRegistrySpec defines the desired state of ModelRegistry (ModelRegistry CR only).
 
 
 
@@ -1377,6 +1380,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries" | odh-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `gateway` _[GatewaySpec](#gatewayspec)_ | Gateway configuration for model registry ingress (synced from GatewayConfig by the DSC controller when creating the ModelRegistry CR). |  |  |
 
 
 #### ModelRegistryStatus
@@ -3106,6 +3110,7 @@ _Appears in:_
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
+| `domain` _string_ | Domain is the computed gateway domain (subdomain + cluster domain or default)<br />This is the single source of truth for the gateway domain used by all components |  |  |
 
 
 #### IngressMode

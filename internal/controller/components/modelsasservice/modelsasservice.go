@@ -60,7 +60,7 @@ func (s *componentHandler) Init(_ common.Platform) error {
 }
 
 // NewCRObject constructs a new ModelsAsService Custom Resource.
-func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
+func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
 	// Extract ModelsAsService configuration from KServe component in DSC
 	maasConfig := dsc.Spec.Components.Kserve.ModelsAsService
 
@@ -81,7 +81,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 				annotations.ManagementStateAnnotation: string(managementState),
 			},
 		},
-	}
+	}, nil
 }
 
 // IsEnabled checks if the ModelsAsService component should be deployed.
