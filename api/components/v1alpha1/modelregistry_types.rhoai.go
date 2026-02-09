@@ -18,7 +18,7 @@ limitations under the License.
 
 package v1alpha1
 
-// ModelRegistryCommonSpec spec defines the shared desired state of ModelRegistry
+// ModelRegistryCommonSpec spec defines the shared desired state of ModelRegistry (used in DSC and ModelRegistry CR).
 type ModelRegistryCommonSpec struct {
 	// Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "rhoai-model-registries"
 	// +kubebuilder:default="rhoai-model-registries"
