@@ -73,6 +73,9 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		OwnsGVK(gvk.OdhApplication, reconciler.Dynamic()).
 		OwnsGVK(gvk.OdhDocument, reconciler.Dynamic()).
 		OwnsGVK(gvk.OdhQuickStart, reconciler.Dynamic()).
+		// PersesDashboard resources are conditionally deployed when COO is installed
+		// and should be garbage collected when dashboard is removed
+		OwnsGVK(gvk.PersesDashboard, reconciler.Dynamic(reconciler.CrdExists(gvk.PersesDashboard))).
 		// CRDs are not owned by the component and should be left on the cluster,
 		// so by default, the deploy action won't add all the annotation added to
 		// other resources. Hence, a custom handling is required in order to minimize
@@ -83,6 +86,16 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				handlers.ToNamed(componentApi.DashboardInstanceName)),
 			reconciler.WithPredicates(
 				component.ForLabel(labels.ODH.Component(componentName), labels.True)),
+		).
+		// Watch PersesDashboard CRD to trigger reconciliation when COO is installed
+		// This enables automatic deployment of observability dashboards
+		Watches(
+			&extv1.CustomResourceDefinition{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.DashboardInstanceName)),
+			reconciler.WithPredicates(predicate.NewPredicateFuncs(func(obj client.Object) bool {
+				return obj.GetName() == "persesdashboards.perses.dev"
+			})),
 		).
 		// The OdhDashboardConfig resource is expected to be created by the operator
 		// but then owned by the user so we only re-create it with factory values if
@@ -98,6 +111,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			DeleteFunc:  func(tde event.TypedDeleteEvent[client.Object]) bool { return false },
 		}), reconciler.Dynamic(reconciler.CrdExists(gvk.DashboardHardwareProfile))).
 		WithAction(initialize).
+		WithAction(deployObservabilityManifests).
 		WithAction(setKustomizedParams).
 		WithAction(configureDependencies).
 		WithAction(kustomize.NewAction(

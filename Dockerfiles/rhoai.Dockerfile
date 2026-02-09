@@ -3,18 +3,25 @@ ARG GOLANG_VERSION=1.25
 
 ARG BUILDPLATFORM
 ARG TARGETPLATFORM
+ARG BUILD_TYPE
 
 ################################################################################
 FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi9/toolbox as manifests
 ARG USE_LOCAL=false
+ARG BUILD_TYPE=RELEASE
+#Possible values of BUILD_TYPE: LOCAL - for playpen builds, RELEASE - for ODH release builds, CI - for ODH CI/Nightlies
 ARG OVERWRITE_MANIFESTS=""
 USER root
 WORKDIR /
 COPY opt/manifests/ /opt/manifests/
 COPY get_all_manifests.sh get_all_manifests.sh
-RUN if [ "${USE_LOCAL}" != "true" ]; then \
+RUN if [[ "${BUILD_TYPE}" == "RELEASE" && "${USE_LOCAL}" != "true" ]]; then \
         rm -rf /opt/manifests/*; \
         ODH_PLATFORM_TYPE=rhoai ./get_all_manifests.sh ${OVERWRITE_MANIFESTS}; \
+    elif [ "${BUILD_TYPE}" == "CI" ]; then \
+        rm -rf /opt/manifests/*; \
+        ls -la /cachi2/prefetched-manifests; \
+        cp -r /cachi2/prefetched-manifests/* /opt/manifests/; \
     fi
 
 # Clean up unwanted directories and files from manifests
