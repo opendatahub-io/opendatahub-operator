@@ -314,6 +314,7 @@ func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--set-xauthrequest=true")`),
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--email-domain=*")`),
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--upstream=static://200")`),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--enable-k8s-token-validation=true")`),
 
 			// metrics and trust store
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--metrics-address=0.0.0.0:%d")`, kubeAuthProxyMetricsPort),
