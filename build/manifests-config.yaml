@@ -1,4 +1,5 @@
 map:
+  #test
   notebooks:
     src: manifests
     dest: workbenches/notebooks
