@@ -9,7 +9,7 @@ map:
     src: config
     dest: kserve
     git.url: https://github.com/red-hat-data-services/kserve
-    git.commit: f0a95fadf267033a10f515c855a176a958b28775
+    git.commit: 16a07d66781e355a5f302f8ab6be94f8bcc6fc76
   odh-kf-notebook-controller:
     src: components/notebook-controller/config
     dest: workbenches/kf-notebook-controller
