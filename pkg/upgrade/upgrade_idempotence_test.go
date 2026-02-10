@@ -29,6 +29,10 @@ import (
 // they remain identical. The test captures HardwareProfiles, Notebook annotations, and ISVC annotations
 // before and after each run, then performs deep comparison ignoring timestamp fields.
 //
+// Important Note (RHOAIENG-49158):
+// As of RHOAIENG-49158, the migration no longer automatically annotates Notebooks and InferenceServices.
+// The migration only creates HardwareProfiles. Users must manually annotate their workloads after upgrade.
+//
 // Test Scenarios:
 //  1. Full migration - Clean state with AcceleratorProfiles, container sizes, and workloads
 //  2. Partial completion - Some HardwareProfiles already exist
@@ -108,22 +112,23 @@ func TestMigrateToInfraHardwareProfilesIdempotence_FullMigration(t *testing.T) {
 	// Verify expected state after first run
 	g.Expect(stateAfterFirstRun.HardwareProfiles).NotTo(BeEmpty(), "HardwareProfiles should be created")
 
-	// Verify notebook annotations were set
+	// Verify notebook annotations were NOT automatically set (RHOAIENG-49158)
+	// Migration no longer annotates workloads - users must do this manually
 	nb1Annotations := stateAfterFirstRun.NotebookAnnotations["notebook-ap"]
-	g.Expect(nb1Annotations).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "gpu-profile-notebooks"))
+	g.Expect(nb1Annotations).NotTo(HaveKey("opendatahub.io/hardware-profile-name"), "Migration should not auto-annotate notebooks")
 
 	nb2Annotations := stateAfterFirstRun.NotebookAnnotations["notebook-size"]
-	g.Expect(nb2Annotations).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "containersize-small-notebooks"))
+	g.Expect(nb2Annotations).NotTo(HaveKey("opendatahub.io/hardware-profile-name"), "Migration should not auto-annotate notebooks")
 
-	// Verify InferenceService annotations were set
+	// Verify InferenceService annotations were NOT automatically set (RHOAIENG-49158)
 	isvc1Annotations := stateAfterFirstRun.ISVCAnnotations["isvc-with-runtime"]
-	g.Expect(isvc1Annotations).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "tpu-profile-serving"))
+	g.Expect(isvc1Annotations).NotTo(HaveKey("opendatahub.io/hardware-profile-name"), "Migration should not auto-annotate InferenceServices")
 
 	isvc2Annotations := stateAfterFirstRun.ISVCAnnotations["isvc-with-matching-size"]
-	g.Expect(isvc2Annotations).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "containersize-small-serving"))
+	g.Expect(isvc2Annotations).NotTo(HaveKey("opendatahub.io/hardware-profile-name"), "Migration should not auto-annotate InferenceServices")
 
 	isvc3Annotations := stateAfterFirstRun.ISVCAnnotations["isvc-custom"]
-	g.Expect(isvc3Annotations).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "custom-serving"))
+	g.Expect(isvc3Annotations).NotTo(HaveKey("opendatahub.io/hardware-profile-name"), "Migration should not auto-annotate InferenceServices")
 
 	// Verify idempotence with 2 additional runs
 	verifyClusterStateIdempotence(ctx, g, cli, namespace, 2, stateAfterFirstRun)
@@ -278,11 +283,15 @@ func TestMigrateToInfraHardwareProfilesIdempotence_PartialAnnotations(t *testing
 	stateAfterFirstRun, err := captureClusterState(ctx, cli, namespace)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	// Verify both notebooks have HWP annotation now
+	// Verify migration does NOT modify notebook annotations (RHOAIENG-49158)
+	// nb1 should retain its existing HWP annotation (unchanged)
 	g.Expect(stateAfterFirstRun.NotebookAnnotations["notebook-already-migrated"]).To(
-		HaveKeyWithValue("opendatahub.io/hardware-profile-name", "test-ap-notebooks"))
-	g.Expect(stateAfterFirstRun.NotebookAnnotations["notebook-needs-migration"]).To(
-		HaveKeyWithValue("opendatahub.io/hardware-profile-name", "test-ap-notebooks"))
+		HaveKeyWithValue("opendatahub.io/hardware-profile-name", "test-ap-notebooks"),
+		"Existing HWP annotation should be preserved")
+	// nb2 should still only have the AP annotation (migration doesn't add HWP annotation)
+	g.Expect(stateAfterFirstRun.NotebookAnnotations["notebook-needs-migration"]).NotTo(
+		HaveKey("opendatahub.io/hardware-profile-name"),
+		"Migration should not auto-annotate notebooks")
 
 	// Verify idempotence with 1 additional run
 	verifyClusterStateIdempotence(ctx, g, cli, namespace, 1, stateAfterFirstRun)
@@ -385,9 +394,10 @@ func TestMigrateToInfraHardwareProfilesIdempotence_ConcurrentChanges(t *testing.
 	// Verify new HWPs were created
 	g.Expect(len(stateAfterSecondRun.HardwareProfiles)).To(BeNumerically(">", len(stateAfterFirstRun.HardwareProfiles)))
 
-	// Verify new notebook got annotation
-	g.Expect(stateAfterSecondRun.NotebookAnnotations["new-notebook"]).To(
-		HaveKeyWithValue("opendatahub.io/hardware-profile-name", "new-ap-notebooks"))
+	// Verify new notebook was NOT automatically annotated (RHOAIENG-49158)
+	g.Expect(stateAfterSecondRun.NotebookAnnotations["new-notebook"]).NotTo(
+		HaveKey("opendatahub.io/hardware-profile-name"),
+		"Migration should not auto-annotate new notebooks")
 
 	// Verify idempotence with 1 additional run
 	verifyClusterStateIdempotence(ctx, g, cli, namespace, 1, stateAfterSecondRun)
@@ -453,17 +463,22 @@ func TestMigrateToInfraHardwareProfilesIdempotence_MixedState(t *testing.T) {
 	stateAfterFirstRun, err := captureClusterState(ctx, cli, namespace)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	// Verify all notebooks now have HWP annotations
+	// Verify migration does NOT automatically add HWP annotations (RHOAIENG-49158)
+	// nb1 already had HWP annotation, so it should still be there (unchanged)
 	g.Expect(stateAfterFirstRun.NotebookAnnotations["nb-already-has-hwp"]).To(
-		HaveKey("opendatahub.io/hardware-profile-name"))
-	g.Expect(stateAfterFirstRun.NotebookAnnotations["nb-has-ap-annotation"]).To(
-		HaveKeyWithValue("opendatahub.io/hardware-profile-name", "test-ap-notebooks"))
-	g.Expect(stateAfterFirstRun.NotebookAnnotations["nb-has-size-annotation"]).To(
-		HaveKeyWithValue("opendatahub.io/hardware-profile-name", "containersize-small-notebooks"))
-
-	// nb-no-annotations should not have HWP annotation (no source to migrate from)
+		HaveKey("opendatahub.io/hardware-profile-name"),
+		"Existing HWP annotation should be preserved")
+	// nb2 should NOT get HWP annotation added (migration doesn't annotate workloads)
+	g.Expect(stateAfterFirstRun.NotebookAnnotations["nb-has-ap-annotation"]).NotTo(
+		HaveKey("opendatahub.io/hardware-profile-name"),
+		"Migration should not auto-annotate notebooks based on AP annotation")
+	// nb3 should NOT get HWP annotation added
+	g.Expect(stateAfterFirstRun.NotebookAnnotations["nb-has-size-annotation"]).NotTo(
+		HaveKey("opendatahub.io/hardware-profile-name"),
+		"Migration should not auto-annotate notebooks based on size annotation")
+	// nb4 should not have HWP annotation
 	_, hasHWP := stateAfterFirstRun.NotebookAnnotations["nb-no-annotations"]["opendatahub.io/hardware-profile-name"]
-	g.Expect(hasHWP).To(BeFalse())
+	g.Expect(hasHWP).To(BeFalse(), "Notebook with no annotations should not get HWP annotation")
 
 	// Verify idempotence with 2 additional runs
 	verifyClusterStateIdempotence(ctx, g, cli, namespace, 2, stateAfterFirstRun)

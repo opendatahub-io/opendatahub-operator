@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"strings"
 
 	"github.com/hashicorp/go-multierror"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -53,15 +52,6 @@ const (
 	featureVisibilityModelServing         = `["model-serving"]`
 	featureVisibilityWorkbench            = `["workbench"]`
 	containerSizeHWPPrefix                = "containersize-"
-
-	// ServerlessMigrationSkipped event fields.
-	eventReasonServerlessMigrationSkipped = "ServerlessMigrationSkipped"
-	eventSourceComponent                  = "opendatahub-operator"
-	// HardwareProfileMigrationSkipped event fields.
-	eventReasonHardwareProfileMigrationSkipped = "HardwareProfileMigrationSkipped"
-	// KServe deployment mode annotation.
-	kserveDeploymentModeAnnotationKey = "serving.kserve.io/deploymentMode"
-	kserveDeploymentModeServerless    = "Serverless"
 )
 
 var defaultResourceLimits = map[string]string{
@@ -95,8 +85,7 @@ func CleanupExistingResource(ctx context.Context,
 	// cleanup deprecated kueue ValidatingAdmissionPolicyBinding
 	multiErr = multierror.Append(multiErr, cleanupDeprecatedKueueVAPB(ctx, cli))
 
-	// HardwareProfile migration as described in RHOAIENG-33158 and RHOAIENG-33159
-	// This includes creating HardwareProfile resources and updating annotations on Notebooks and InferenceServices
+	// HardwareProfile migration includes creating HardwareProfile resources
 	// Check if target infrastructure HardwareProfile CRD exists (indicates we should migrate)
 	hasInfraHWP, err := cluster.HasCRD(ctx, cli, gvk.HardwareProfile)
 	if err != nil {
@@ -241,7 +230,6 @@ func cleanupDeprecatedKueueVAPB(ctx context.Context, cli client.Client) error {
 //   - Missing HardwareProfiles are created from AcceleratorProfiles and container sizes
 //   - Existing HardwareProfiles are skipped (AlreadyExists is not an error)
 //   - User modifications to HardwareProfiles persist across migration runs
-//   - Notebook and InferenceService annotations are updated if not already set
 //
 // This function is called on every operator startup via CleanupExistingResource.
 // The Create-only approach ensures that frequent operator restarts do not overwrite user changes.
@@ -271,12 +259,8 @@ func MigrateToInfraHardwareProfiles(ctx context.Context, cli client.Client, appl
 	// 2. Create 1 HardwareProfile for each container size (notebook and model server sizes)
 	multiErr = multierror.Append(multiErr, MigrateContainerSizesToHardwareProfiles(ctx, cli, applicationNS, odhConfig))
 
-	// 3. Attach HardwareProfile annotations to existing Notebooks
-	multiErr = multierror.Append(multiErr, AttachHardwareProfileToNotebooks(ctx, cli, applicationNS, odhConfig))
-
-	// 4. Attach HardwareProfile annotations to existing InferenceServices but create custom-serving HWP first.
+	// 3. Create custom-serving HardwareProfile
 	multiErr = multierror.Append(multiErr, createCustomServingHardwareProfile(ctx, cli, applicationNS))
-	multiErr = multierror.Append(multiErr, AttachHardwareProfileToInferenceServices(ctx, cli, applicationNS, odhConfig))
 
 	return multiErr.ErrorOrNil()
 }
@@ -374,71 +358,6 @@ func MigrateContainerSizesToHardwareProfiles(ctx context.Context, cli client.Cli
 	return multiErr.ErrorOrNil()
 }
 
-// AttachHardwareProfileToNotebooks migrates AcceleratorProfile and container size annotations
-// on Notebooks to HardwareProfile annotations as described in RHOAIENG-33158.
-func AttachHardwareProfileToNotebooks(ctx context.Context, cli client.Client, applicationNS string, odhConfig *unstructured.Unstructured) error {
-	log := logf.FromContext(ctx)
-	var multiErr *multierror.Error
-
-	notebooks, err := getNotebooks(ctx, cli)
-	if err != nil {
-		return fmt.Errorf("failed to get notebooks: %w", err)
-	}
-
-	if len(notebooks) == 0 {
-		log.Info("No Notebooks found, skipping annotation migration")
-		return nil
-	}
-
-	// get the size once for all notebooks.
-	containerSizes, err := getContainerSizes(odhConfig, "notebookSizes")
-	if err != nil {
-		return fmt.Errorf("failed to get container sizes: %w", err)
-	}
-
-	for _, notebook := range notebooks {
-		// Get annotations once for efficiency
-		annotations := notebook.GetAnnotations()
-		if annotations == nil {
-			annotations = map[string]string{}
-		}
-
-		// Skip if already has HardwareProfile annotation
-		if annotations[hardwareProfileNameAnnotation] != "" {
-			continue
-		}
-
-		var hwpName string
-		var hwpNamespace string
-		var migrationSource string
-
-		// Check for AcceleratorProfile annotation first (higher priority)
-		if apName := annotations[acceleratorNameAnnotation]; apName != "" {
-			// Convert to lowercase and replace spaces with dashes to comply with the hardwareprofile CRD validation
-			hwpName = fmt.Sprintf("%s-notebooks", strings.ReplaceAll(strings.ToLower(apName), " ", "-"))
-			// Get the AP namespace if specified (for cross-namespace AP references)
-			hwpNamespace = annotations[acceleratorProfileNamespaceAnnotation]
-			migrationSource = "AcceleratorProfile annotation"
-		} else if sizeSelection := annotations[lastSizeSelectionAnnotation]; sizeSelection != "" && containerSizeExists(containerSizes, sizeSelection) {
-			// Handle container size annotation migration
-			// If size doesn't exist in OdhDashboardConfig, leave annotation as-is (per requirements)
-			hwpName = fmt.Sprintf("%s%s-notebooks", containerSizeHWPPrefix, strings.ReplaceAll(strings.ToLower(sizeSelection), " ", "-"))
-			migrationSource = "container size annotation"
-		}
-
-		// Set HardwareProfile annotation if we found a migration source
-		if hwpName != "" {
-			if err := setHardwareProfileAnnotation(ctx, cli, notebook, hwpName, hwpNamespace, applicationNS); err != nil {
-				multiErr = multierror.Append(multiErr, fmt.Errorf("failed to set HardwareProfile annotation for notebook %s: %w", notebook.GetName(), err))
-				continue
-			}
-			log.Info("Migrated annotation to HardwareProfile for Notebook", "notebook", notebook.GetName(), "migrationSource", migrationSource, "hardwareProfile", hwpName)
-		}
-	}
-
-	return multiErr.ErrorOrNil()
-}
-
 func createCustomServingHardwareProfile(ctx context.Context, cli client.Client, namespace string) error {
 	log := logf.FromContext(ctx)
 	// Check if custom-serving HardwareProfile CR already exists
@@ -487,134 +406,6 @@ func createCustomServingHardwareProfile(ctx context.Context, cli client.Client, 
 		log.Info("Successfully created HardwareProfile", "name", customServing, "namespace", namespace)
 	}
 	return nil
-}
-
-// AttachHardwareProfileToInferenceServices migrates AcceleratorProfile annotations from ServingRuntimes
-// and matches container sizes on InferenceServices to HardwareProfile annotations as described in RHOAIENG-33158.
-func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Client, applicationNamespace string, odhConfig *unstructured.Unstructured) error {
-	log := logf.FromContext(ctx)
-	var multiErr *multierror.Error
-
-	inferenceServices, err := getInferenceServices(ctx, cli)
-	if err != nil {
-		return fmt.Errorf("failed to get InferenceServices: %w", err)
-	}
-
-	if len(inferenceServices) == 0 {
-		log.Info("No InferenceServices found, skipping annotation migration")
-		return nil
-	}
-
-	// get the size once for all inference services.
-	containerSizes, err := getContainerSizes(odhConfig, "modelServerSizes")
-	if err != nil {
-		return fmt.Errorf("failed to get model server sizes: %w", err)
-	}
-
-	for _, isvc := range inferenceServices {
-		// Get annotations once for efficiency
-		isvcAnnotations := isvc.GetAnnotations()
-		if isvcAnnotations == nil {
-			isvcAnnotations = map[string]string{}
-		}
-
-		// Skip if already has HardwareProfile annotation
-		if isvcAnnotations[hardwareProfileNameAnnotation] != "" {
-			continue
-		}
-
-		// Skip Serverless InferenceServices as they are not supported in RHOAI 3.x
-		// Attempting to update them causes KServe webhook to incorrectly reject with deploymentMode error
-		// Check both the annotation (primary source) and status field (fallback) to determine if ISVC is serverless
-		isServerless := false
-		deploymentModeAnnotation := isvcAnnotations[kserveDeploymentModeAnnotationKey]
-		deploymentModeStatus, statusFound, _ := unstructured.NestedString(isvc.Object, "status", "deploymentMode")
-
-		log.V(1).Info("Checking InferenceService deployment mode", "isvc", isvc.GetName(),
-			"deploymentModeAnnotation", deploymentModeAnnotation, "deploymentModeStatus", deploymentModeStatus, "statusFound", statusFound)
-
-		if deploymentModeAnnotation == kserveDeploymentModeServerless {
-			isServerless = true
-		} else if statusFound && deploymentModeStatus == kserveDeploymentModeServerless {
-			isServerless = true
-		}
-		if isServerless {
-			log.Info("Skipping HardwareProfile migration for Serverless InferenceService", "isvc", isvc.GetName(), "deploymentMode", kserveDeploymentModeServerless)
-			if err := recordUpgradeErrorEvent(ctx, cli, isvc, eventReasonServerlessMigrationSkipped,
-				fmt.Sprintf("Skipping HardwareProfile migration for Serverless InferenceService %s (Serverless mode not supported in RHOAI 3.x)", isvc.GetName())); err != nil {
-				log.Error(err, "Failed to record event for Serverless InferenceService", "isvc", isvc.GetName())
-			}
-			continue
-		}
-
-		// Check ServingRuntime for AcceleratorProfile annotation and apply to InferenceService
-		servingRuntime, err := getSRFromISVC(ctx, cli, isvc)
-		if err == nil {
-			runtimeAnnotations := servingRuntime.GetAnnotations()
-			if runtimeAnnotations == nil {
-				runtimeAnnotations = map[string]string{}
-			}
-			if apName := runtimeAnnotations[acceleratorNameAnnotation]; apName != "" {
-				hwpName := fmt.Sprintf("%s-serving", strings.ReplaceAll(strings.ToLower(apName), " ", "-"))
-				// Get the AP namespace if specified (for cross-namespace AP references)
-				hwpNamespace := runtimeAnnotations[acceleratorProfileNamespaceAnnotation]
-				if err := setHardwareProfileAnnotation(ctx, cli, isvc, hwpName, hwpNamespace, applicationNamespace); err != nil {
-					// If webhook rejects due to Serverless mode, record event and skip instead of error
-					errStr := err.Error()
-					if strings.Contains(errStr, "deploymentMode cannot be changed") || strings.Contains(errStr, "Serverless") {
-						log.Info("Skipping HardwareProfile migration for InferenceService due to Serverless mode", "isvc", isvc.GetName(), "error", errStr)
-						if eventErr := recordUpgradeErrorEvent(ctx, cli, isvc, eventReasonServerlessMigrationSkipped,
-							fmt.Sprintf("Skipping HardwareProfile migration due to Serverless mode incompatibility: %s", errStr)); eventErr != nil {
-							log.Error(eventErr, "Failed to record event for Serverless InferenceService", "isvc", isvc.GetName())
-						}
-						continue
-					}
-					multiErr = multierror.Append(multiErr, fmt.Errorf("failed to set HardwareProfile annotation for InferenceService %s: %w", isvc.GetName(), err))
-					continue
-				}
-				log.Info("Migrated ServingRuntime AP annotation to HardwareProfile annotation for InferenceService",
-					"isvc", isvc.GetName(), "runtime", servingRuntime.GetName(), "hwp", hwpName)
-				continue
-			}
-		}
-
-		// No AP found, try container size matching
-		// Default using HWProfile CR "custom-serving", update only if we find a matching size
-		hwpName := customServing
-		var matchedSize string
-
-		resources, err := getInferenceServiceResources(isvc)
-		if err == nil {
-			// Try to match resources to a container size
-			matchedSize = findContainerSizeByResources(containerSizes, resources)
-			if matchedSize != "" {
-				hwpName = fmt.Sprintf("%s%s-serving", containerSizeHWPPrefix, strings.ReplaceAll(strings.ToLower(matchedSize), " ", "-"))
-			}
-		}
-
-		if err := setHardwareProfileAnnotation(ctx, cli, isvc, hwpName, "", applicationNamespace); err != nil {
-			// If webhook rejects due to Serverless mode, record event and skip instead of error
-			errStr := err.Error()
-			if strings.Contains(errStr, "deploymentMode cannot be changed") || strings.Contains(errStr, "Serverless") {
-				log.Info("Skipping HardwareProfile migration for InferenceService due to Serverless mode", "isvc", isvc.GetName(), "error", errStr)
-				if eventErr := recordUpgradeErrorEvent(ctx, cli, isvc, eventReasonServerlessMigrationSkipped,
-					fmt.Sprintf("Skipping HardwareProfile migration due to Serverless mode incompatibility: %s", errStr)); eventErr != nil {
-					log.Error(eventErr, "Failed to record event for Serverless InferenceService", "isvc", isvc.GetName())
-				}
-				continue
-			}
-			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to set HardwareProfile annotation for InferenceService %s: %w", isvc.GetName(), err))
-		} else {
-			// Log after successful annotation setting
-			if matchedSize != "" {
-				log.Info("Set HardwareProfile annotation for InferenceService based on container size match", "isvc", isvc.GetName(), "size", matchedSize, "hardwareProfile", hwpName)
-			} else {
-				log.Info("Set HardwareProfile annotation for InferenceService with "+customServing+" HardwareProfile", "isvc", isvc.GetName(), "hardwareProfile", hwpName)
-			}
-		}
-	}
-
-	return multiErr.ErrorOrNil()
 }
 
 // MigrateGatewayConfigIngressMode preserves LoadBalancer mode for existing Gateway deployments.

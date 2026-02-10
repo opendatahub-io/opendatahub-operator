@@ -19,7 +19,6 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 
 	. "github.com/onsi/gomega"
 )
@@ -344,30 +343,6 @@ func createTestInferenceServiceWithResources(namespace, name, reqCpu, reqMem, li
 	isvc.Object["spec"] = spec
 
 	return isvc
-}
-
-func createTestHardwareProfile(namespace, name string) *infrav1.HardwareProfile {
-	return &infrav1.HardwareProfile{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: infrav1.GroupVersion.String(),
-			Kind:       "HardwareProfile",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Spec: infrav1.HardwareProfileSpec{
-			Identifiers: []infrav1.HardwareIdentifier{
-				{
-					Identifier:   "cpu",
-					DisplayName:  "cpu",
-					ResourceType: "CPU",
-					MinCount:     intstr.FromInt(1),
-					DefaultCount: intstr.FromInt(1),
-				},
-			},
-		},
-	}
 }
 
 func createTestGatewayService(serviceType corev1.ServiceType) *corev1.Service {
@@ -732,39 +707,14 @@ func validateContainerSizeHardwareProfile(g *WithT, hwp *infrav1.HardwareProfile
 	}
 }
 
-// runNotebookHWPMigrationTest is a helper function to test notebook HWP annotation migration.
-// It creates a notebook with the given annotations, runs the migration, and verifies the expected HWP annotation.
-func runNotebookHWPMigrationTest(t *testing.T, ctx context.Context, namespace, notebookName string,
-	initialAnnotations map[string]string, expectedHWPName string) {
-	t.Helper()
-	g := NewWithT(t)
-
-	odhConfig := createTestOdhDashboardConfig(t, namespace)
-	notebook := createTestNotebook(namespace, notebookName)
-	notebook.SetAnnotations(initialAnnotations)
-
-	// Create the HardwareProfile that the migration expects to find
-	hwp := createTestHardwareProfile(namespace, expectedHWPName)
-
-	cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, notebook, hwp))
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	err = upgrade.AttachHardwareProfileToNotebooks(ctx, cli, namespace, odhConfig)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	// Verify HWP annotation was added
-	updatedNotebook := &unstructured.Unstructured{}
-	updatedNotebook.SetGroupVersionKind(gvk.Notebook)
-	err = cli.Get(ctx, client.ObjectKey{Name: notebookName, Namespace: namespace}, updatedNotebook)
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(updatedNotebook.GetAnnotations()).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", expectedHWPName))
-}
-
 // ClusterState represents a snapshot of cluster resources for idempotence verification.
 // This struct deliberately tracks ONLY the resources modified by MigrateToInfraHardwareProfiles:
 //   - HardwareProfiles: Created during migration from AcceleratorProfiles and container sizes
-//   - NotebookAnnotations: Updated with hardware-profile-name and hardware-profile-namespace annotations
-//   - ISVCAnnotations: Updated with hardware-profile-name and hardware-profile-namespace annotations
+//   - NotebookAnnotations: Tracked to verify they are NOT modified by the migration
+//   - ISVCAnnotations: Tracked to verify they are NOT modified by the migration
+//
+// Note: As of RHOAIENG-49158, the migration no longer automatically annotates workloads.
+// Users must manually annotate Notebooks and InferenceServices after the upgrade.
 //
 // Other resources managed by CleanupExistingResource (RoleBindings, Deployments, etc.) are intentionally
 // excluded as they are not relevant to the HardwareProfile migration idempotence tests.
