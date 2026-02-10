@@ -202,6 +202,14 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		},
 		{
 			FS:   gatewayResources,
+			Path: kubeAuthProxyServiceAccountTemplate,
+		},
+		{
+			FS:   gatewayResources,
+			Path: kubeAuthProxyClusterRoleBindingTemplate,
+		},
+		{
+			FS:   gatewayResources,
 			Path: destinationRuleTemplate,
 		},
 	}
@@ -356,6 +364,13 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	}
 	// Template needs the inverse: insecure-skip-verify is the opposite of verify
 	templateData["InsecureSkipVerify"] = !verifyProviderCert
+
+	// Add K8s service account token validation settings (default to enabled)
+	enableK8sTokenValidation := true
+	if gatewayConfig.Spec.EnableK8sTokenValidation != nil {
+		enableK8sTokenValidation = *gatewayConfig.Spec.EnableK8sTokenValidation
+	}
+	templateData["EnableK8sTokenValidation"] = enableK8sTokenValidation
 
 	return templateData, nil
 }

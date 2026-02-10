@@ -68,6 +68,7 @@ spec:
               allowed_headers:
                 patterns:
                 - exact: cookie
+                - exact: authorization
             authorization_response:
               allowed_upstream_headers:
                 patterns:
