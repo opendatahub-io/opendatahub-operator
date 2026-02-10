@@ -14,12 +14,18 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 
 	. "github.com/onsi/gomega"
+)
+
+const (
+	// Test constants for ServiceMesh operator resources.
+	testOperatorNamespace = "openshift-operators"
 )
 
 func TestCustomizeKserveConfigMap(t *testing.T) {
@@ -339,4 +345,337 @@ func convertToUnstructured(t *testing.T, obj runtime.Object) *unstructured.Unstr
 		t.Fatalf("Failed to convert object to unstructured: %v", err)
 	}
 	return &unstructured.Unstructured{Object: u}
+}
+
+func Test_extractMajorVersion(t *testing.T) {
+	g := NewWithT(t)
+
+	tests := []struct {
+		name        string
+		version     string
+		expected    uint64
+		expectError bool
+	}{
+		{
+			name:        "version with v prefix and full semver",
+			version:     "v3.0.0",
+			expected:    3,
+			expectError: false,
+		},
+		{
+			name:        "version without v prefix",
+			version:     "3.0.0",
+			expected:    3,
+			expectError: false,
+		},
+		{
+			name:        "version with only major.minor",
+			version:     "2.6",
+			expected:    2,
+			expectError: false,
+		},
+		{
+			name:        "version with only major",
+			version:     "v3",
+			expected:    3,
+			expectError: false,
+		},
+		{
+			name:        "version 1.x.x",
+			version:     "v1.2.3",
+			expected:    1,
+			expectError: false,
+		},
+		{
+			name:        "version with pre-release tag",
+			version:     "v3.0.0-rc1",
+			expected:    3,
+			expectError: false,
+		},
+		{
+			name:        "version with build metadata",
+			version:     "v3.0.0+20130313144700",
+			expected:    3,
+			expectError: false,
+		},
+		{
+			name:        "empty version string",
+			version:     "",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "invalid version string",
+			version:     "invalid",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "version with non-numeric major",
+			version:     "vX.0.0",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "just the letter v",
+			version:     "v",
+			expected:    0,
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := extractMajorVersion(tt.version)
+
+			if tt.expectError {
+				g.Expect(err).Should(HaveOccurred())
+			} else {
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(result).Should(Equal(tt.expected))
+			}
+		})
+	}
+}
+
+func Test_checkServiceMeshVersionRequirement(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	t.Run("should allow deployment when ServiceMesh is not installed", func(t *testing.T) {
+		kserve := createKserveCR(false)
+		cli, err := fakeclient.New(fakeclient.WithObjects(kserve))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &odhtypes.ReconciliationRequest{
+			Instance:   kserve,
+			Client:     cli,
+			Conditions: conditions.NewManager(kserve, ServiceMeshVersionRequirement),
+		}
+
+		err = checkServiceMeshVersionRequirement(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		condition := rr.Conditions.GetCondition(ServiceMeshVersionRequirement)
+		g.Expect(condition.Status).Should(Equal(metav1.ConditionTrue))
+		g.Expect(condition.Reason).Should(Equal(reasonServiceMeshNotInstalled))
+		g.Expect(condition.Message).Should(ContainSubstring("not installed"))
+		g.Expect(condition.Message).Should(ContainSubstring("optional"))
+	})
+
+	t.Run("should allow deployment when ServiceMesh v3 is installed", func(t *testing.T) {
+		kserve := createKserveCR(false)
+		serviceMeshSub := createServiceMeshSubscription()
+		serviceMeshOperator := createServiceMeshOperatorCondition("v3.0.0")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(kserve, serviceMeshSub, serviceMeshOperator))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &odhtypes.ReconciliationRequest{
+			Instance:   kserve,
+			Client:     cli,
+			Conditions: conditions.NewManager(kserve, ServiceMeshVersionRequirement),
+		}
+
+		err = checkServiceMeshVersionRequirement(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		condition := rr.Conditions.GetCondition(ServiceMeshVersionRequirement)
+		g.Expect(condition.Status).Should(Equal(metav1.ConditionTrue))
+		g.Expect(condition.Reason).Should(Equal(reasonVersionCheckPassed))
+		g.Expect(condition.Message).Should(ContainSubstring("v3.0.0"))
+		g.Expect(condition.Message).Should(ContainSubstring("meets requirement"))
+	})
+
+	t.Run("should block deployment when ServiceMesh v2 is installed", func(t *testing.T) {
+		kserve := createKserveCR(false)
+		serviceMeshSub := createServiceMeshSubscription()
+		serviceMeshOperator := createServiceMeshOperatorCondition("v2.6.0")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(kserve, serviceMeshSub, serviceMeshOperator))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &odhtypes.ReconciliationRequest{
+			Instance:   kserve,
+			Client:     cli,
+			Conditions: conditions.NewManager(kserve, ServiceMeshVersionRequirement),
+		}
+
+		err = checkServiceMeshVersionRequirement(ctx, rr)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(err.Error()).Should(ContainSubstring("v2.6.0"))
+		g.Expect(err.Error()).Should(ContainSubstring("version 3.x"))
+		g.Expect(err.Error()).Should(ContainSubstring("upgrade to ServiceMesh v3.x or uninstall"))
+	})
+
+	t.Run("should block deployment when ServiceMesh v1 is installed", func(t *testing.T) {
+		kserve := createKserveCR(false)
+		serviceMeshSub := createServiceMeshSubscription()
+		serviceMeshOperator := createServiceMeshOperatorCondition("v1.2.3")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(kserve, serviceMeshSub, serviceMeshOperator))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &odhtypes.ReconciliationRequest{
+			Instance:   kserve,
+			Client:     cli,
+			Conditions: conditions.NewManager(kserve, ServiceMeshVersionRequirement),
+		}
+
+		err = checkServiceMeshVersionRequirement(ctx, rr)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(err.Error()).Should(ContainSubstring("v1.2.3"))
+		g.Expect(err.Error()).Should(ContainSubstring("version 3.x"))
+	})
+
+	t.Run("should block deployment when ServiceMesh v4 is installed", func(t *testing.T) {
+		kserve := createKserveCR(false)
+		serviceMeshSub := createServiceMeshSubscription()
+		serviceMeshOperator := createServiceMeshOperatorCondition("v4.0.0")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(kserve, serviceMeshSub, serviceMeshOperator))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &odhtypes.ReconciliationRequest{
+			Instance:   kserve,
+			Client:     cli,
+			Conditions: conditions.NewManager(kserve, ServiceMeshVersionRequirement),
+		}
+
+		err = checkServiceMeshVersionRequirement(ctx, rr)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(err.Error()).Should(ContainSubstring("v4.0.0"))
+		g.Expect(err.Error()).Should(ContainSubstring("version 3.x"))
+	})
+
+	t.Run("should allow deployment when ServiceMesh v3.1.0 is installed", func(t *testing.T) {
+		kserve := createKserveCR(false)
+		serviceMeshSub := createServiceMeshSubscription()
+		serviceMeshOperator := createServiceMeshOperatorCondition("v3.1.0")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(kserve, serviceMeshSub, serviceMeshOperator))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &odhtypes.ReconciliationRequest{
+			Instance:   kserve,
+			Client:     cli,
+			Conditions: conditions.NewManager(kserve, ServiceMeshVersionRequirement),
+		}
+
+		err = checkServiceMeshVersionRequirement(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		condition := rr.Conditions.GetCondition(ServiceMeshVersionRequirement)
+		g.Expect(condition.Status).Should(Equal(metav1.ConditionTrue))
+		g.Expect(condition.Reason).Should(Equal(reasonVersionCheckPassed))
+	})
+
+	t.Run("should block deployment when ServiceMesh subscription exists but operator not running", func(t *testing.T) {
+		kserve := createKserveCR(false)
+		serviceMeshSub := createServiceMeshSubscription()
+		// No OperatorCondition created - simulates operator not running
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(kserve, serviceMeshSub))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &odhtypes.ReconciliationRequest{
+			Instance:   kserve,
+			Client:     cli,
+			Conditions: conditions.NewManager(kserve, ServiceMeshVersionRequirement),
+		}
+
+		err = checkServiceMeshVersionRequirement(ctx, rr)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(err.Error()).Should(ContainSubstring("subscription found but operator is not running"))
+		g.Expect(err.Error()).Should(ContainSubstring("Unable to verify version requirement"))
+		g.Expect(err.Error()).Should(ContainSubstring("ensure ServiceMesh v3.x operator is running or uninstall"))
+	})
+
+	t.Run("should block deployment when version is unparseable", func(t *testing.T) {
+		kserve := createKserveCR(false)
+		serviceMeshSub := createServiceMeshSubscription()
+		serviceMeshOperator := createServiceMeshOperatorCondition("invalid-version")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(kserve, serviceMeshSub, serviceMeshOperator))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &odhtypes.ReconciliationRequest{
+			Instance:   kserve,
+			Client:     cli,
+			Conditions: conditions.NewManager(kserve, ServiceMeshVersionRequirement),
+		}
+
+		err = checkServiceMeshVersionRequirement(ctx, rr)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(err.Error()).Should(ContainSubstring("unparseable version"))
+		g.Expect(err.Error()).Should(ContainSubstring("invalid-version"))
+		g.Expect(err.Error()).Should(ContainSubstring("ensure ServiceMesh v3.x is installed or uninstall"))
+	})
+
+	t.Run("should allow deployment when ServiceMesh version without v prefix is v3", func(t *testing.T) {
+		kserve := createKserveCR(false)
+		serviceMeshSub := createServiceMeshSubscription()
+		serviceMeshOperator := createServiceMeshOperatorCondition("3.0.0")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(kserve, serviceMeshSub, serviceMeshOperator))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &odhtypes.ReconciliationRequest{
+			Instance:   kserve,
+			Client:     cli,
+			Conditions: conditions.NewManager(kserve, ServiceMeshVersionRequirement),
+		}
+
+		err = checkServiceMeshVersionRequirement(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		condition := rr.Conditions.GetCondition(ServiceMeshVersionRequirement)
+		g.Expect(condition.Status).Should(Equal(metav1.ConditionTrue))
+		g.Expect(condition.Reason).Should(Equal(reasonVersionCheckPassed))
+	})
+
+	t.Run("should return error for invalid instance type", func(t *testing.T) {
+		invalidInstance := &componentApi.Dashboard{} // Wrong type
+		invalidInstance.SetName("test-dashboard")
+		cli, err := fakeclient.New(fakeclient.WithObjects(invalidInstance))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &odhtypes.ReconciliationRequest{
+			Instance:   invalidInstance,
+			Client:     cli,
+			Conditions: conditions.NewManager(invalidInstance, ServiceMeshVersionRequirement),
+		}
+
+		err = checkServiceMeshVersionRequirement(ctx, rr)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(err.Error()).Should(ContainSubstring("not a componentApi.Kserve"))
+	})
+
+	// Note: The following scenarios would block deployment but are difficult to test with fakeclient:
+	// - API error when calling SubscriptionExists (RBAC, API server down, etc.) → BLOCKS deployment
+	// - API error when calling OperatorExists (RBAC, API server down, etc.) → BLOCKS deployment
+	// These scenarios require a mock client that can inject errors, which is beyond the scope
+	// of these unit tests. They should be covered by integration tests with real cluster conditions.
+}
+
+// createServiceMeshSubscription creates a ServiceMesh subscription for testing.
+func createServiceMeshSubscription() *v1alpha1.Subscription {
+	return &v1alpha1.Subscription{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      serviceMeshOperatorSubscription,
+			Namespace: testOperatorNamespace,
+		},
+		Spec: &v1alpha1.SubscriptionSpec{
+			Package: serviceMeshOperatorSubscription,
+		},
+	}
+}
+
+// createServiceMeshOperatorCondition creates an OperatorCondition with the specified version.
+func createServiceMeshOperatorCondition(version string) *unstructured.Unstructured {
+	operatorCondition := &unstructured.Unstructured{}
+	operatorCondition.SetGroupVersionKind(gvk.OperatorCondition)
+	operatorCondition.SetName(serviceMeshOperatorPrefix + "." + version)
+
+	return operatorCondition
 }
