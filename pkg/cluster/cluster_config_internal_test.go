@@ -213,3 +213,41 @@ func TestSetApplicationNamespace(t *testing.T) {
 		})
 	}
 }
+
+func TestOverlayName(t *testing.T) {
+	testCases := []struct {
+		name           string
+		platform       common.Platform
+		expectedResult string
+	}{
+		{
+			name:           "OpenDataHub returns odh",
+			platform:       OpenDataHub,
+			expectedResult: "odh",
+		},
+		{
+			name:           "SelfManagedRhoai returns rhoai",
+			platform:       SelfManagedRhoai,
+			expectedResult: "rhoai",
+		},
+		{
+			name:           "ManagedRhoai returns rhoai",
+			platform:       ManagedRhoai,
+			expectedResult: "rhoai",
+		},
+		{
+			name:           "Unknown platform returns odh as default",
+			platform:       common.Platform("unknown-platform"),
+			expectedResult: "odh",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := OverlayName(tc.platform)
+			if result != tc.expectedResult {
+				t.Errorf("OverlayName(%q) = %q, want %q", tc.platform, result, tc.expectedResult)
+			}
+		})
+	}
+}
