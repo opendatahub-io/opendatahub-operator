@@ -298,6 +298,40 @@ func WithDashboardHardwareProfile() CRDSetupOption {
 	}
 }
 
+// WithPodMonitor enables PodMonitor CRD registration in the test environment.
+// Note: PodMonitor types are already registered in the default scheme via monitoringv1.AddToScheme.
+func WithPodMonitor() CRDSetupOption {
+	return func(ctx context.Context, t *testing.T, env *envt.EnvT) error {
+		t.Helper()
+
+		// Create PodMonitor CRD
+		// (types are already registered in scheme via pkg/utils/test/scheme)
+		crd := MockPodMonitorCRD()
+		if err := createAndWaitForCRD(ctx, env, crd); err != nil {
+			return fmt.Errorf("failed to create and wait for PodMonitor CRD: %w", err)
+		}
+
+		return nil
+	}
+}
+
+// WithServiceMonitor enables ServiceMonitor CRD registration in the test environment.
+// Note: ServiceMonitor types are already registered in the default scheme via monitoringv1.AddToScheme.
+func WithServiceMonitor() CRDSetupOption {
+	return func(ctx context.Context, t *testing.T, env *envt.EnvT) error {
+		t.Helper()
+
+		// Create ServiceMonitor CRD
+		// (types are already registered in scheme via pkg/utils/test/scheme)
+		crd := MockServiceMonitorCRD()
+		if err := createAndWaitForCRD(ctx, env, crd); err != nil {
+			return fmt.Errorf("failed to create and wait for ServiceMonitor CRD: %w", err)
+		}
+
+		return nil
+	}
+}
+
 // =============================================================================
 // Object Creation Functions
 // =============================================================================
@@ -1036,6 +1070,68 @@ func MockDashboardHardwareProfileCRD() *apiextensionsv1.CustomResourceDefinition
 			Scope: "Namespaced",
 			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
 				Name:    "v1alpha1",
+				Served:  true,
+				Storage: true,
+				Schema: &apiextensionsv1.CustomResourceValidation{
+					OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+						Type:                   "object",
+						XPreserveUnknownFields: &preserveUnknownFields,
+					},
+				},
+			}},
+		},
+	}
+}
+
+// MockPodMonitorCRD creates a mock PodMonitor CRD for testing.
+func MockPodMonitorCRD() *apiextensionsv1.CustomResourceDefinition {
+	preserveUnknownFields := true
+
+	return &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "podmonitors.monitoring.coreos.com",
+		},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: gvk.CoreosPodMonitor.Group,
+			Names: apiextensionsv1.CustomResourceDefinitionNames{
+				Plural:   "podmonitors",
+				Singular: "podmonitor",
+				Kind:     gvk.CoreosPodMonitor.Kind,
+			},
+			Scope: "Namespaced",
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+				Name:    "v1",
+				Served:  true,
+				Storage: true,
+				Schema: &apiextensionsv1.CustomResourceValidation{
+					OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+						Type:                   "object",
+						XPreserveUnknownFields: &preserveUnknownFields,
+					},
+				},
+			}},
+		},
+	}
+}
+
+// MockServiceMonitorCRD creates a mock ServiceMonitor CRD for testing.
+func MockServiceMonitorCRD() *apiextensionsv1.CustomResourceDefinition {
+	preserveUnknownFields := true
+
+	return &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "servicemonitors.monitoring.coreos.com",
+		},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: gvk.CoreosServiceMonitor.Group,
+			Names: apiextensionsv1.CustomResourceDefinitionNames{
+				Plural:   "servicemonitors",
+				Singular: "servicemonitor",
+				Kind:     gvk.CoreosServiceMonitor.Kind,
+			},
+			Scope: "Namespaced",
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+				Name:    "v1",
 				Served:  true,
 				Storage: true,
 				Schema: &apiextensionsv1.CustomResourceValidation{
