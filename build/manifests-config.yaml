@@ -14,12 +14,12 @@ map:
     src: components/notebook-controller/config
     dest: workbenches/kf-notebook-controller
     git.url: https://github.com/red-hat-data-services/kubeflow
-    git.commit: 98f52fc99cb7bd716f8ab12ddb11c76610b97678
+    git.commit: 03684d45b41deb1a8ff8514cf897a1e95f4748ed
   odh-notebook-controller:
     src: components/odh-notebook-controller/config
     dest: workbenches/odh-notebook-controller
     git.url: https://github.com/red-hat-data-services/kubeflow
-    git.commit: 98f52fc99cb7bd716f8ab12ddb11c76610b97678
+    git.commit: 03684d45b41deb1a8ff8514cf897a1e95f4748ed
   odh-data-science-pipelines-operator-controller:
     src: config
     dest: datasciencepipelines
@@ -29,7 +29,7 @@ map:
     src: ray-operator/config
     dest: ray
     git.url: https://github.com/red-hat-data-services/kuberay
-    git.commit: 4adf7560e746757a57fc530a4d8cde0e8cbe590a
+    git.commit: 167e9c2e8cd18a1b15cffc3221b75b38cf77e9ac
   odh-trustyai-service-operator:
     src: config
     dest: trustyai
@@ -74,12 +74,12 @@ map:
     src: config
     dest: mlflowoperator
     git.url: https://github.com/red-hat-data-services/mlflow-operator
-    git.commit: 862213f8d527a9254b2a3f4496a6ccac935e70ba
+    git.commit: e1b2bf8dccc90ce21b8166467e2d7ce321f5c17c
   odh-maas-api:
     src: deployment
     dest: maas
     git.url: https://github.com/red-hat-data-services/models-as-a-service
-    git.commit: 2879a8998404f8aae89baf9142187b786e1b2308
+    git.commit: ff20c6fac2a65b2eaa64778e9cfda10896b548e5
 additional_meta:
   odh-trustyai-service:
     git.url: https://github.com/red-hat-data-services/trustyai-explainability
@@ -110,7 +110,7 @@ additional_meta:
     git.commit: 3a0c66274adf82bc05728499cb4a9fed04e52223
   odh-model-registry:
     git.url: https://github.com/red-hat-data-services/model-registry
-    git.commit: b8d982707a6e6a815a08b6770ccf3195bfdd2135
+    git.commit: 8b51ba154b5e3eecb834cc41d7f4004a27a628da
   odh-feature-server:
     git.url: https://github.com/red-hat-data-services/feast
     git.commit: 1dc378c5af6993dbcbbc540feb7ddaa545af505c
@@ -122,7 +122,7 @@ additional_meta:
     git.commit: b58af9e1191544d917cf044b2e58cb90388ed4df
   odh-must-gather:
     git.url: https://github.com/red-hat-data-services/must-gather
-    git.commit: 9fb7ce69eb83ae71a53cac1119c8e9e513d1a2be
+    git.commit: b994d6a6eaae6774fa9ef08c8eebd45c6cec14f3
   odh-kserve-agent:
     git.url: https://github.com/red-hat-data-services/kserve
     git.commit: 3833f373e5cc2c89d723c287d30128ba23771abd
