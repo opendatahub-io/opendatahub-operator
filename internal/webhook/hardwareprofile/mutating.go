@@ -38,6 +38,26 @@ const (
 	HardwareProfileNamespaceAnnotation = "opendatahub.io/hardware-profile-namespace"
 )
 
+// Container name constants.
+const (
+	LLMInferenceServiceMainContainerName = "main"
+)
+
+// NoMatchingContainerError is returned when no container matching the expected name is found.
+// For Notebooks, the container name must match the Notebook name.
+// For LLMInferenceServices, the container name must be "main".
+type NoMatchingContainerError struct {
+	WorkloadKind      string
+	WorkloadName      string
+	WorkloadNamespace string
+	ExpectedName      string
+}
+
+func (e *NoMatchingContainerError) Error() string {
+	return fmt.Sprintf("no matching main container found in %s '%s/%s': expected container name '%s'",
+		e.WorkloadKind, e.WorkloadNamespace, e.WorkloadName, e.ExpectedName)
+}
+
 // WorkloadConfig defines path configuration for different workload types.
 type WorkloadConfig struct {
 	ContainersPath   []string // .spec.identifiers from HWProfile
@@ -261,6 +281,65 @@ func (i *Injector) performHardwareProfileInjection(ctx context.Context, req *adm
 		resources.SetAnnotation(obj, HardwareProfileNamespaceAnnotation, profileNamespace)
 	}
 
+	// Early validation: Check if workload has correct container names before applying HWP
+	// CRITICAL: This validation must NEVER block admission to avoid breaking 2.x to 3.x upgrades.
+	// If validation fails, we admit with a warning and skip all HWP application.
+	if err := i.validateContainerNames(obj); err != nil {
+		var noContainerErr *NoMatchingContainerError
+		if errors.As(err, &noContainerErr) {
+			// Emit event for traceability (never blocks admission - see function implementation)
+			i.emitContainerNameWarningEvent(ctx, obj, noContainerErr, hwp.Name)
+
+			// Add warning to response - use clear language about ALL settings being skipped
+			warningMsg := fmt.Sprintf("Hardware profile '%s' was not applied: %s. "+
+				"To use this hardware profile, rename your container to '%s'. "+
+				"All hardware profile settings (identifiers, scheduling, etc.) are skipped.",
+				hwp.Name, noContainerErr.Error(), noContainerErr.ExpectedName)
+
+			log.Info("skipping all hardware profile application due to container name mismatch",
+				"workload", obj.GetName(), "kind", obj.GetKind(), "namespace", obj.GetNamespace(),
+				"expectedContainerName", noContainerErr.ExpectedName, "hardwareProfile", hwp.Name)
+
+			// Marshal and return with warning (skip all HWP application)
+			marshaledObj, marshalErr := json.Marshal(obj)
+			if marshalErr != nil {
+				// CRITICAL: Even marshal failures must not block admission during upgrades
+				log.Error(marshalErr, "Failed to marshal object after container validation, admitting anyway")
+				// Return allowed with warning - don't block on marshal error
+				resp := admission.Allowed("Admitted but marshal failed after validation")
+				resp.Warnings = []string{warningMsg, "Internal error: failed to marshal object"}
+				return resp
+			}
+			resp := admission.PatchResponseFromRaw(req.Object.Raw, marshaledObj)
+			resp.Warnings = []string{warningMsg}
+			return resp
+		}
+		// For other validation errors (e.g., failed to access containers, unexpected structure)
+		// CRITICAL: Must not block admission - emit event, warn, and skip HWP application
+		i.emitValidationErrorEvent(ctx, obj, err, hwp.Name)
+
+		warningMsg := fmt.Sprintf("Hardware profile '%s' was not applied due to validation error: %v. "+
+			"All hardware profile settings are skipped. Please check your workload structure.",
+			hwp.Name, err)
+
+		log.Info("skipping all hardware profile application due to validation error",
+			"error", err, "workload", obj.GetName(), "kind", obj.GetKind(),
+			"namespace", obj.GetNamespace(), "hardwareProfile", hwp.Name)
+
+		// Marshal and return with warning (skip all HWP application)
+		marshaledObj, marshalErr := json.Marshal(obj)
+		if marshalErr != nil {
+			// CRITICAL: Even marshal failures must not block admission during upgrades
+			log.Error(marshalErr, "Failed to marshal object after validation error, admitting anyway")
+			resp := admission.Allowed("Admitted but marshal failed after validation")
+			resp.Warnings = []string{warningMsg, "Internal error: failed to marshal object"}
+			return resp
+		}
+		resp := admission.PatchResponseFromRaw(req.Object.Raw, marshaledObj)
+		resp.Warnings = []string{warningMsg}
+		return resp
+	}
+
 	// Detect if the hardware profile changed (only on UPDATE operations)
 	profileChanged := i.detectProfileChange(req, profileName, profileNamespace)
 	if profileChanged {
@@ -345,6 +424,210 @@ func (i *Injector) detectProfileChange(req *admission.Request, newProfileName, n
 
 	// Profile changed if either name or namespace differs
 	return oldProfileName != newProfileName || oldProfileNamespace != newProfileNamespace
+}
+
+// validateContainerNames validates that the workload has the expected container name
+// for hardware profile application. This validation is performed early to provide
+// clear feedback before any modifications are made.
+//
+// Container name requirements:
+//   - Notebooks (single container): Always valid (no validation needed)
+//   - Notebooks (multiple containers): One must match the Notebook CR name
+//   - LLMInferenceServices: Must have a container named "main"
+//   - InferenceServices: Not validated (uses predictor model path, not containers)
+//
+// CRITICAL: This function should return NoMatchingContainerError for name mismatches,
+// but must be defensive about structural errors. The caller handles NoMatchingContainerError
+// as a warning, while other errors are logged and HWP application continues.
+//
+// Returns:
+//   - error: NoMatchingContainerError if validation fails, other errors for structural issues, nil otherwise
+func (i *Injector) validateContainerNames(obj *unstructured.Unstructured) error {
+	config, err := GetWorkloadConfig(obj.GetKind())
+	if err != nil {
+		// Unsupported kind - return error but caller will log and continue
+		return err
+	}
+
+	// InferenceServices use predictor.model path, not containers - skip validation
+	if obj.GetKind() == gvk.InferenceServices.Kind {
+		return nil
+	}
+
+	// Get containers from the workload
+	// If this fails, return error but caller should log and continue (defensive)
+	containers, found, err := unstructured.NestedSlice(obj.Object, config.ContainersPath...)
+	if err != nil {
+		return fmt.Errorf("failed to access containers: %w", err)
+	}
+	if !found || len(containers) == 0 {
+		return nil // No containers to validate (will be created by controller)
+	}
+
+	// Determine expected container name based on workload type
+	var expectedName string
+	switch obj.GetKind() {
+	case gvk.Notebook.Kind:
+		// For Notebooks with a single container, always valid
+		if len(containers) == 1 {
+			return nil
+		}
+		// For multiple containers, one must match the Notebook name
+		expectedName = obj.GetName()
+		for _, c := range containers {
+			m, ok := c.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			name, _ := m["name"].(string)
+			if name == expectedName {
+				return nil // Found matching container
+			}
+		}
+		// No matching container found
+		return &NoMatchingContainerError{
+			WorkloadKind:      obj.GetKind(),
+			WorkloadName:      obj.GetName(),
+			WorkloadNamespace: obj.GetNamespace(),
+			ExpectedName:      expectedName,
+		}
+
+	case gvk.LLMInferenceServiceV1Alpha1.Kind:
+		// For LLMInferenceServices, must have a container named "main"
+		expectedName = LLMInferenceServiceMainContainerName
+		for _, c := range containers {
+			m, ok := c.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			name, _ := m["name"].(string)
+			if name == expectedName {
+				return nil // Found "main" container
+			}
+		}
+		// No "main" container found
+		return &NoMatchingContainerError{
+			WorkloadKind:      obj.GetKind(),
+			WorkloadName:      obj.GetName(),
+			WorkloadNamespace: obj.GetNamespace(),
+			ExpectedName:      expectedName,
+		}
+	}
+
+	return nil
+}
+
+// emitContainerNameWarningEvent creates a Warning event on the workload to indicate
+// that hardware profile settings were not applied due to container name mismatch.
+// This provides persistent traceability for operators and users.
+//
+// CRITICAL: This function must NEVER return an error or cause admission to fail.
+// Event creation failures are logged only - they must not block the 2.x to 3.x upgrade.
+func (i *Injector) emitContainerNameWarningEvent(ctx context.Context, obj *unstructured.Unstructured,
+	noContainerErr *NoMatchingContainerError, hwpName string) {
+	log := logf.FromContext(ctx)
+
+	// Check if the client supports writing (for event creation)
+	// The client.Reader interface used in tests doesn't support Create
+	writer, ok := i.Client.(client.Writer)
+	if !ok {
+		log.V(1).Info("client does not support event creation (likely test environment)")
+		return
+	}
+
+	eventMessage := fmt.Sprintf("Hardware profile '%s' settings not applied to this workload: %s. "+
+		"Rename container to '%s' to enable hardware profile injection.",
+		hwpName, noContainerErr.Error(), noContainerErr.ExpectedName)
+
+	event := &corev1.Event{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s.%s", obj.GetName(), "hwp-container-name-mismatch"),
+			Namespace: obj.GetNamespace(),
+		},
+		InvolvedObject: corev1.ObjectReference{
+			Kind:       obj.GetKind(),
+			Namespace:  obj.GetNamespace(),
+			Name:       obj.GetName(),
+			UID:        obj.GetUID(),
+			APIVersion: obj.GetAPIVersion(),
+		},
+		Reason:  "ContainerNameMismatch",
+		Message: eventMessage,
+		Source: corev1.EventSource{
+			Component: "hardwareprofile-webhook",
+		},
+		FirstTimestamp: metav1.Now(),
+		LastTimestamp:  metav1.Now(),
+		Count:          1,
+		Type:           corev1.EventTypeWarning,
+	}
+
+	if createErr := writer.Create(ctx, event); createErr != nil {
+		// CRITICAL: Event creation failure must NEVER block admission or cause upgrade failures.
+		// We log the error but allow the admission to proceed normally.
+		log.Info("failed to create warning event for container name mismatch (non-blocking)",
+			"error", createErr, "workload", obj.GetName(), "kind", obj.GetKind())
+	} else {
+		log.V(1).Info("created warning event for container name mismatch",
+			"workload", obj.GetName(), "kind", obj.GetKind(),
+			"expectedContainerName", noContainerErr.ExpectedName)
+	}
+}
+
+// emitValidationErrorEvent creates a Warning event on the workload to indicate
+// that hardware profile settings were not applied due to a validation error
+// (typically structural issues accessing containers).
+//
+// CRITICAL: This function must NEVER return an error or cause admission to fail.
+// Event creation failures are logged only - they must not block the 2.x to 3.x upgrade.
+func (i *Injector) emitValidationErrorEvent(ctx context.Context, obj *unstructured.Unstructured,
+	validationErr error, hwpName string) {
+	log := logf.FromContext(ctx)
+
+	// Check if the client supports writing (for event creation)
+	// The client.Reader interface used in tests doesn't support Create
+	writer, ok := i.Client.(client.Writer)
+	if !ok {
+		log.V(1).Info("client does not support event creation (likely test environment)")
+		return
+	}
+
+	eventMessage := fmt.Sprintf("Hardware profile '%s' was not applied due to validation error: %v. "+
+		"Check your workload structure.",
+		hwpName, validationErr)
+
+	event := &corev1.Event{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s.%s", obj.GetName(), "hwp-validation-error"),
+			Namespace: obj.GetNamespace(),
+		},
+		InvolvedObject: corev1.ObjectReference{
+			Kind:       obj.GetKind(),
+			Namespace:  obj.GetNamespace(),
+			Name:       obj.GetName(),
+			UID:        obj.GetUID(),
+			APIVersion: obj.GetAPIVersion(),
+		},
+		Reason:  "ValidationError",
+		Message: eventMessage,
+		Source: corev1.EventSource{
+			Component: "hardwareprofile-webhook",
+		},
+		FirstTimestamp: metav1.Now(),
+		LastTimestamp:  metav1.Now(),
+		Count:          1,
+		Type:           corev1.EventTypeWarning,
+	}
+
+	if createErr := writer.Create(ctx, event); createErr != nil {
+		// CRITICAL: Event creation failure must NEVER block admission or cause upgrade failures.
+		// We log the error but allow the admission to proceed normally.
+		log.Info("failed to create warning event for validation error (non-blocking)",
+			"error", createErr, "workload", obj.GetName(), "kind", obj.GetKind())
+	} else {
+		log.V(1).Info("created warning event for validation error",
+			"workload", obj.GetName(), "kind", obj.GetKind())
+	}
 }
 
 // handleHWPRemoval handles the case where an HWP annotation is removed from a workload.
@@ -617,7 +900,7 @@ func (i *Injector) applyHardwareProfileToWorkload(ctx context.Context, obj *unst
 
 	// Apply resource requirements to containers (only if there are identifiers)
 	if len(hwp.Spec.Identifiers) > 0 {
-		if err := i.applyResourceRequirementsToWorkload(obj, hwp); err != nil {
+		if err := i.applyResourceRequirementsToWorkload(ctx, obj, hwp); err != nil {
 			return nil, fmt.Errorf("failed to apply resource requirements: %w", err)
 		}
 	}
@@ -687,7 +970,7 @@ func GetWorkloadConfig(kind string) (WorkloadConfig, error) {
 // Returns:
 //   - error: Any error encountered during resource requirement application, nil on success
 
-func (i *Injector) applyResourceRequirementsToWorkload(obj *unstructured.Unstructured, hwp *infrav1.HardwareProfile) error {
+func (i *Injector) applyResourceRequirementsToWorkload(ctx context.Context, obj *unstructured.Unstructured, hwp *infrav1.HardwareProfile) error {
 	config, err := GetWorkloadConfig(obj.GetKind())
 	if err != nil {
 		return err
@@ -698,11 +981,11 @@ func (i *Injector) applyResourceRequirementsToWorkload(obj *unstructured.Unstruc
 		// For InferenceServices, apply resources to the model object
 		return i.applyResourceRequirementsToInferenceServiceModel(obj, hwp, config.ContainersPath)
 	case gvk.Notebook.Kind:
-		// For Notebooks, apply resources to containers
-		return i.applyResourceRequirementsToContainers(obj, hwp, config.ContainersPath)
+		// For Notebooks, apply resources only to the main container (not sidecars like oauth-proxy)
+		return i.applyResourceRequirementsToContainers(ctx, obj, hwp, config.ContainersPath, notebookMainContainerIndices(obj, config.ContainersPath))
 	case gvk.LLMInferenceServiceV1Alpha1.Kind:
-		// For LLMInferenceServices, apply resources to containers
-		return i.applyResourceRequirementsToContainers(obj, hwp, config.ContainersPath)
+		// For LLMInferenceServices, apply resources only to the main container
+		return i.applyResourceRequirementsToContainers(ctx, obj, hwp, config.ContainersPath, llmInferenceServiceMainContainerIndices(obj, config.ContainersPath))
 	default:
 		// This should never happen since isExpectedKind() should catch unsupported kinds earlier
 		return fmt.Errorf("unsupported workload kind: %s", obj.GetKind())
@@ -729,8 +1012,58 @@ func (i *Injector) applyResourceRequirementsToInferenceServiceModel(obj *unstruc
 	return unstructured.SetNestedMap(obj.Object, model, modelPath...)
 }
 
-// For Notebooks, InferenceServices, and LLMInferenceServices, apply resource requirements to the containers.
-func (i *Injector) applyResourceRequirementsToContainers(obj *unstructured.Unstructured, hwp *infrav1.HardwareProfile, containersPath []string) error {
+// notebookMainContainerIndices returns the indices of the "main" container(s) for a Notebook
+// that should receive HWP resource injection. Sidecars (e.g. oauth-proxy, istio-proxy) must not
+// receive HWP resources. Returns nil to mean "all containers" (caller uses this for non-Notebook).
+// Strategy: if 1 container -> [0]; if >1 containers -> container whose name == Notebook name, else none.
+func notebookMainContainerIndices(obj *unstructured.Unstructured, containersPath []string) []int {
+	containers, found, err := unstructured.NestedSlice(obj.Object, containersPath...)
+	if err != nil || !found || len(containers) == 0 {
+		return nil
+	}
+	if len(containers) == 1 {
+		return []int{0}
+	}
+	notebookName := obj.GetName()
+	for idx, c := range containers {
+		m, ok := c.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		name, _ := m["name"].(string)
+		if name == notebookName {
+			return []int{idx}
+		}
+	}
+	return []int{} // no main container found; apply to none
+}
+
+// llmInferenceServiceMainContainerIndices returns the indices of the main container for an LLMInferenceService.
+// For LLMInferenceService, we always use the container named LLMInferenceServiceMainContainerName.
+func llmInferenceServiceMainContainerIndices(obj *unstructured.Unstructured, containersPath []string) []int {
+	containers, found, err := unstructured.NestedSlice(obj.Object, containersPath...)
+	if err != nil || !found || len(containers) == 0 {
+		return nil
+	}
+	for idx, c := range containers {
+		m, ok := c.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		name, _ := m["name"].(string)
+		if name == LLMInferenceServiceMainContainerName {
+			return []int{idx}
+		}
+	}
+	return []int{} // no main container found; apply to none
+}
+
+// applyResourceRequirementsToContainers applies resource requirements to workload containers.
+// When mainContainerIndices is non-nil (Notebook), only those indices are modified; otherwise all containers are.
+func (i *Injector) applyResourceRequirementsToContainers(ctx context.Context, obj *unstructured.Unstructured,
+	hwp *infrav1.HardwareProfile, containersPath []string, mainContainerIndices []int) error {
+	log := logf.FromContext(ctx)
+
 	// Get containers from the workload
 	containers, found, err := unstructured.NestedSlice(obj.Object, containersPath...)
 	if err != nil {
@@ -749,8 +1082,33 @@ func (i *Injector) applyResourceRequirementsToContainers(obj *unstructured.Unstr
 		}
 	}
 
-	// Apply resource requirements to each existing container
+	// When mainContainerIndices is empty (not nil), no matching main container was found
+	if mainContainerIndices != nil && len(mainContainerIndices) == 0 {
+		log.Info("No matching main container found; skipping HWP resource injection",
+			"workload", obj.GetName(), "kind", obj.GetKind(), "namespace", obj.GetNamespace())
+		return nil
+	}
+
+	// Determine which container indices to apply to
+	indicesToApply := mainContainerIndices
+	if indicesToApply == nil {
+		indicesToApply = make([]int, len(containers))
+		for j := range containers {
+			indicesToApply[j] = j
+		}
+	}
+
+	applySet := make(map[int]bool)
+	for _, idx := range indicesToApply {
+		if idx >= 0 && idx < len(containers) {
+			applySet[idx] = true
+		}
+	}
+
 	for idx, container := range containers {
+		if !applySet[idx] {
+			continue
+		}
 		if err := i.applyIdentifiersToContainer(container, hwp.Spec.Identifiers); err != nil {
 			return fmt.Errorf("failed to apply resources to container %d: %w", idx, err)
 		}
@@ -789,6 +1147,8 @@ func (i *Injector) applyIdentifiersToContainer(container interface{}, identifier
 	}
 
 	// For requests - always applies DefaultCount
+	// Note: MinCount is not used by the webhook - it's for UI validation/guidance only
+	// For non-standard resources (GPUs), DefaultCount will be used for both requests and limits
 	if err := i.applyIdentifiersToRequests(requests, identifiers, func(id infrav1.HardwareIdentifier) (intstr.IntOrString, bool) {
 		return id.DefaultCount, true
 	}); err != nil {
@@ -801,13 +1161,10 @@ func (i *Injector) applyIdentifiersToContainer(container interface{}, identifier
 		return err
 	}
 
-	// For limits - only applies MaxCount if it exists in HWProfile
-	if err := i.applyIdentifiersToRequests(limits, identifiers, func(id infrav1.HardwareIdentifier) (intstr.IntOrString, bool) {
-		if id.MaxCount == nil {
-			return intstr.IntOrString{}, false
-		}
-		return *id.MaxCount, true
-	}); err != nil {
+	// Apply limits for identifiers
+	// For extended resources (GPUs, etc.), limits must equal requests (Kubernetes requirement)
+	// For standard resources (cpu, memory, ephemeral-storage), only set limits if MaxCount is specified
+	if err := i.applyIdentifiersToLimits(requests, limits, identifiers); err != nil {
 		return err
 	}
 
@@ -853,6 +1210,57 @@ func (i *Injector) applyIdentifiersToRequests(
 			return fmt.Errorf("failed to convert resource quantity for %s: %w", identifier.Identifier, err)
 		}
 		requests[identifier.Identifier] = quantity.String()
+	}
+	return nil
+}
+
+// applyIdentifiersToLimits applies hardware identifiers to resource limits map.
+// For extended resources (anything except cpu, memory, ephemeral-storage), limits must equal requests.
+// For standard resources, only set limits if MaxCount is specified in the HardwareProfile.
+//
+// Parameters:
+//   - requests: The container's resource requests map (to read values from for extended resources)
+//   - limits: The container's resource limits map to modify
+//   - identifiers: Array of hardware identifiers from the hardware profile
+//
+// Returns:
+//   - error: Any error encountered during identifier application or quantity conversion
+func (i *Injector) applyIdentifiersToLimits(
+	requests map[string]interface{},
+	limits map[string]interface{},
+	identifiers []infrav1.HardwareIdentifier,
+) error {
+	// Standard Kubernetes resources that don't require limits to equal requests
+	standardResources := map[string]bool{
+		"cpu":               true,
+		"memory":            true,
+		"ephemeral-storage": true,
+	}
+
+	for _, identifier := range identifiers {
+		// Skip if the limit already exists (preserve existing limits)
+		if _, exists := limits[identifier.Identifier]; exists {
+			continue
+		}
+
+		// Skip if request wasn't set (either it already existed or we didn't set it)
+		requestValue, requestExists := requests[identifier.Identifier]
+		if !requestExists {
+			continue
+		}
+
+		// For extended resources (GPUs, etc.), limits must equal requests
+		// Since requests were set to DefaultCount, limits will also be DefaultCount
+		if !standardResources[identifier.Identifier] {
+			limits[identifier.Identifier] = requestValue
+		} else if identifier.MaxCount != nil {
+			// For standard resources, only set limit if MaxCount is specified in the HWP
+			quantity, err := convertIntOrStringToQuantity(*identifier.MaxCount)
+			if err != nil {
+				return fmt.Errorf("failed to convert max resource quantity for %s: %w", identifier.Identifier, err)
+			}
+			limits[identifier.Identifier] = quantity.String()
+		}
 	}
 	return nil
 }

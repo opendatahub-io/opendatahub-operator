@@ -595,7 +595,7 @@ func NewLLMInferenceService(name, namespace string, opts ...ObjectOption) client
 	// this is set in case HWprofile require resource changes, it is not necessary for Connection API
 	containers := []interface{}{
 		map[string]interface{}{
-			"name":  "llm-container",
+			"name":  "main",
 			"image": "kserve/llm-container:latest",
 		},
 	}
