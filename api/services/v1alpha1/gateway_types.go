@@ -160,6 +160,20 @@ type OIDCConfig struct {
 	// If not specified, defaults to openshift-ingress
 	// +optional
 	SecretNamespace string `json:"secretNamespace,omitempty"`
+
+	// Scope is the OAuth scope specification.
+	// If not specified, defaults to "openid profile email".
+	// For Entra ID, set to "openid profile email {client-id}/.default"
+	// to receive an access token scoped to your application.
+	// +optional
+	Scope string `json:"scope,omitempty"`
+
+	// SkipClaimsFromProfileURL skips fetching claims from the OIDC profile URL (userinfo endpoint).
+	// Set to true when the access token is not scoped to the profile endpoint's API
+	// (e.g., when using Entra ID with a custom scope, the access token cannot call Microsoft Graph).
+	// Claims are still extracted from the ID token.
+	// +optional
+	SkipClaimsFromProfileURL bool `json:"skipClaimsFromProfileURL,omitempty"`
 }
 
 // CookieConfig defines cookie settings for OAuth2 proxy

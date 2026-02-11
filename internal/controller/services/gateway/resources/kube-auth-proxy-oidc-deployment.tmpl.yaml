@@ -115,5 +115,11 @@ spec:
             - "--cookie-domain={{.GatewayHostname}}"
             - "--provider=oidc"
             - "--oidc-issuer-url={{.OIDCIssuerURL}}"
+            {{- if .OIDCScope }}
+            - "--scope={{.OIDCScope}}"
+            {{- end }}
+            {{- if .SkipClaimsFromProfileURL }}
+            - "--skip-claims-from-profile-url=true"
+            {{- end }}
             - "--skip-oidc-discovery=false"
             - "--ssl-insecure-skip-verify={{.InsecureSkipVerify}}"
