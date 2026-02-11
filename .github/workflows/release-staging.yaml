@@ -142,6 +142,7 @@ jobs:
         workflow-inputs: |
           {
             "component": "opendatahub-operator",
-            "release_branch": "odh-${{ env.VERSION }}",
+            "pr_target_branch": "odh-${{ env.VERSION }}",
+            "build_branch": "odh-${{ env.VERSION }}",
             "version": "${{ env.VERSION }}"
           }

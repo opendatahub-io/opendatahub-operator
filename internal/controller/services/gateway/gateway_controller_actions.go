@@ -202,6 +202,14 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		},
 		{
 			FS:   gatewayResources,
+			Path: kubeAuthProxyServiceAccountTemplate,
+		},
+		{
+			FS:   gatewayResources,
+			Path: kubeAuthProxyClusterRoleBindingTemplate,
+		},
+		{
+			FS:   gatewayResources,
 			Path: destinationRuleTemplate,
 		},
 	}
@@ -357,18 +365,33 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	// Template needs the inverse: insecure-skip-verify is the opposite of verify
 	templateData["InsecureSkipVerify"] = !verifyProviderCert
 
+	// Add K8s service account token validation settings (default to enabled)
+	enableK8sTokenValidation := true
+	if gatewayConfig.Spec.EnableK8sTokenValidation != nil {
+		enableK8sTokenValidation = *gatewayConfig.Spec.EnableK8sTokenValidation
+	}
+	templateData["EnableK8sTokenValidation"] = enableK8sTokenValidation
+
 	return templateData, nil
 }
 
-// This function only checks Gateway infrastructure readiness.
+// This function checks Gateway infrastructure readiness and updates status.Domain.
 // The reconciler framework automatically computes the top-level "Ready" condition
 // from "ProvisioningSucceeded" and component-specific conditions like "GatewayConfigReady".
 func syncGatewayConfigStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	// Use helper function for consistent validation
-	_, err := validateGatewayConfig(rr)
+	gatewayConfig, err := validateGatewayConfig(rr)
 	if err != nil {
 		return err
 	}
+
+	// Calculate and set domain in status (single source of truth for components).
+	// The reconciler framework persists status as part of normal reconciliation.
+	domain, err := GetGatewayDomain(ctx, rr.Client)
+	if err != nil {
+		return fmt.Errorf("failed to calculate gateway domain: %w", err)
+	}
+	gatewayConfig.Status.Domain = domain
 
 	gateway := &gwapiv1.Gateway{}
 	err = rr.Client.Get(ctx, types.NamespacedName{

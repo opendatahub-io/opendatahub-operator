@@ -38,7 +38,7 @@ func (s *componentHandler) GetName() string {
 	return componentApi.TrustyAIComponentName
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
+func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
 	// Create a proper deep copy to avoid modifying the original DSC
 	spec := componentApi.TrustyAICommonSpec{}
 
@@ -67,7 +67,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 		Spec: componentApi.TrustyAISpec{
 			TrustyAICommonSpec: spec,
 		},
-	}
+	}, nil
 }
 
 func (s *componentHandler) Init(platform common.Platform) error {

@@ -19,6 +19,7 @@ spec:
       annotations:
         opendatahub.io/secret-hash: "{{.AuthConfigHash}}"
     spec:
+      serviceAccountName: {{.KubeAuthProxyServiceName}}
       securityContext:
         runAsNonRoot: true
         seccompProfile:
@@ -97,6 +98,7 @@ spec:
             - "--skip-jwt-bearer-tokens=true"
             - "--pass-access-token=true"
             - "--set-xauthrequest=true"
+            - "--enable-k8s-token-validation={{.EnableK8sTokenValidation}}"
             - "--redirect-url={{.RedirectURL}}"
             - "--tls-cert-file={{.TLSCertsMountPath}}/tls.crt"
             - "--tls-key-file={{.TLSCertsMountPath}}/tls.key"

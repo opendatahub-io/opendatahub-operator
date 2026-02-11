@@ -155,7 +155,10 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 	}
 
 	return cr.ForEach(func(ch cr.ComponentHandler) error {
-		ci := ch.NewCRObject(dsc)
+		ci, err := ch.NewCRObject(ctx, rr.Client, dsc)
+		if err != nil {
+			return err
+		}
 		if ch.IsEnabled(dsc) {
 			ready, err := isComponentReady(ctx, rr.Client, ci)
 			if err != nil {
@@ -170,6 +173,18 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 			return updatePrometheusConfig(ctx, false, componentRules[ch.GetName()])
 		}
 	})
+}
+
+// deployMonitoringAdmissionPolicies handles deployment of admission policies for monitoring resources.
+// Base policies (label value validation) are always deployed.
+// Strict policies (namespace restrictions) are only deployed when admission.strictNamespaces is enabled.
+//
+// Note: ValidatingAdmissionPolicy is a built-in Kubernetes API resource (not a CRD) available in K8s 1.26+.
+// If the API is not available, the controller setup will fail when trying to create the watch, providing
+// a clear error message to the user that their cluster doesn't support this feature.
+func deployMonitoringAdmissionPolicies(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	// TODO: Implement admission policies deployment logic
+	return nil
 }
 
 // deployMonitoringStackWithQuerierAndRestrictions handles deployment of MonitoringStack and ThanosQuerier components.
@@ -400,8 +415,11 @@ func deployAlerting(ctx context.Context, rr *odhtypes.ReconciliationRequest) err
 
 	forEachErr := cr.ForEach(func(ch cr.ComponentHandler) error {
 		componentName := ch.GetName()
-		ci := ch.NewCRObject(dsc)
-
+		ci, err := ch.NewCRObject(ctx, rr.Client, dsc)
+		if err != nil {
+			addErrors = append(addErrors, fmt.Errorf("failed to get CR for component %s: %w", componentName, err))
+			return nil // Continue processing other components
+		}
 		if ch.IsEnabled(dsc) {
 			ready, err := isComponentReady(ctx, rr.Client, ci)
 			if err != nil {

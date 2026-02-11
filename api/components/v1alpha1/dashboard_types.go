@@ -32,17 +32,19 @@ const (
 // Check that the component implements common.PlatformObject.
 var _ common.PlatformObject = (*Dashboard)(nil)
 
-// DashboardCommonSpec spec defines the shared desired state of Dashboard
+// DashboardCommonSpec spec defines the shared desired state of Dashboard (used in DSC and Dashboard CR).
 type DashboardCommonSpec struct {
 	// dashboard spec exposed to DSC api
 	// dashboard spec exposed only to internal api
 }
 
-// DashboardSpec defines the desired state of Dashboard
+// DashboardSpec defines the desired state of Dashboard (Dashboard CR only).
 type DashboardSpec struct {
 	// dashboard spec exposed to DSC api
 	DashboardCommonSpec `json:",inline"`
-	// dashboard spec exposed only to internal api
+	// Gateway configuration for dashboard ingress (synced from GatewayConfig by the DSC controller when creating the Dashboard CR).
+	// +optional
+	Gateway *common.GatewaySpec `json:"gateway,omitempty"`
 }
 
 // DashboardCommonStatus defines the shared observed state of Dashboard
