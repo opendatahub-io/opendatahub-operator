@@ -345,6 +345,12 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"LegacyHostname":           legacyInfo.LegacyHostname,
 	}
 
+	// Add dashboard redirect template variables
+	templateData["DashboardRedirectNamespace"] = cluster.GetApplicationNamespace()
+	templateData["DashboardRouteName"] = getDashboardRouteName()
+	templateData["DashboardRedirectImage"] = getDashboardRedirectImage()
+	templateData["CreateLegacyGatewayRedirect"] = shouldCreateLegacyGatewayRedirect(gatewayConfig)
+
 	// Add OIDC-specific fields only if OIDC config is present
 	if gatewayConfig.Spec.OIDC != nil {
 		templateData["OIDCIssuerURL"] = gatewayConfig.Spec.OIDC.IssuerURL

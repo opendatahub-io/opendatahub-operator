@@ -527,6 +527,17 @@ func getKubeAuthProxyImage() string {
 	return "quay.io/opendatahub/odh-kube-auth-proxy:latest"
 }
 
+// getDashboardRedirectImage returns the nginx image for dashboard redirects.
+// For RHOAI deployments, uses the RELATED_IMAGE_NGINX_UBI9 env var.
+// For ODH or when env var not set, uses the default nginx UBI image.
+func getDashboardRedirectImage() string {
+	if image := os.Getenv("RELATED_IMAGE_NGINX_UBI9"); image != "" {
+		return image
+	}
+	// Default nginx UBI9 image
+	return "registry.redhat.io/ubi9/nginx-126:latest"
+}
+
 func getAuthProxySecretValues(
 	ctx context.Context,
 	rr *odhtypes.ReconciliationRequest,
