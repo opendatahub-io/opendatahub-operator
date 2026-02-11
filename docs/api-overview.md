@@ -3047,6 +3047,22 @@ _Appears in:_
 | `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector. If not set, it defaults<br />to 1 on single-node clusters and 2 on multi-node clusters. |  |  |
 
 
+#### DashboardRedirectConfig
+
+
+
+DashboardRedirectConfig configures automatic redirects from legacy dashboard and gateway URLs.
+
+
+
+_Appears in:_
+- [GatewayConfigSpec](#gatewayconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `enabled` _boolean_ | Enabled controls whether dashboard redirect resources are created.<br />- true: Always create redirects<br />- false: Never create redirects<br />- nil (default): Auto-detect based on existence of old routes |  |  |
+
+
 #### GatewayConfig
 
 
@@ -3093,6 +3109,7 @@ _Appears in:_
 | `providerCASecretName` _string_ | ProviderCASecretName is the name of the secret containing the CA certificate for the authentication provider<br />Used when the OAuth/OIDC provider uses a self-signed or custom CA certificate.<br />Secret must exist in the openshift-ingress namespace and contain a 'ca.crt' key with the PEM-encoded CA certificate. |  |  |
 | `verifyProviderCertificate` _boolean_ | VerifyProviderCertificate controls TLS certificate verification for the authentication provider.<br />When true (default), certificates are verified against the system trust store and providerCASecretName.<br />When false, certificate verification is disabled (development/testing only).<br />WARNING: Setting this to false disables security and should only be used in non-production environments.<br />For production use with self-signed certificates, use ProviderCASecretName instead. | true |  |
 | `enableK8sTokenValidation` _boolean_ | EnableK8sTokenValidation enables Kubernetes service account token validation via TokenReview API.<br />When enabled, kube-auth-proxy validates bearer tokens as service account tokens alongside OAuth/OIDC authentication.<br />This allows service accounts to authenticate via bearer tokens while human users authenticate via OAuth/OIDC. | true |  |
+| `dashboardRedirect` _[DashboardRedirectConfig](#dashboardredirectconfig)_ | DashboardRedirect configures automatic URL redirects for legacy dashboard and gateway routes.<br />Helps users transition from old route URLs (rhods-dashboard/odh-dashboard and data-science-gateway)<br />to the new Gateway API URLs without breaking bookmarks or hardcoded links. |  |  |
 
 
 #### GatewayConfigStatus
