@@ -72,7 +72,10 @@ func createDashboardRedirects(ctx context.Context, rr *odhtypes.ReconciliationRe
 	createLegacyGateway := shouldCreateLegacyGatewayRedirect(gatewayConfig)
 
 	l.V(1).Info("Creating dashboard redirect resources",
-		"createLegacyGatewayRedirect", createLegacyGateway)
+		"dashboardRouteName", getDashboardRouteName(),
+		"namespace", cluster.GetApplicationNamespace(),
+		"createLegacyGatewayRedirect", createLegacyGateway,
+		"currentSubdomain", getCurrentSubdomain(gatewayConfig))
 
 	// Add templates to reconciliation request
 	rr.Templates = append(rr.Templates,
@@ -97,8 +100,11 @@ func createDashboardRedirects(ctx context.Context, rr *odhtypes.ReconciliationRe
 // - Explicitly enabled via spec.dashboardRedirect.enabled = true
 // - Auto-detect (nil): Old dashboard route exists.
 func shouldCreateDashboardRedirects(ctx context.Context, rr *odhtypes.ReconciliationRequest, gc *serviceApi.GatewayConfig) (bool, error) {
+	l := logf.FromContext(ctx).WithName("shouldCreateDashboardRedirects")
+
 	// Explicit configuration takes precedence
 	if gc.Spec.DashboardRedirect != nil && gc.Spec.DashboardRedirect.Enabled != nil {
+		l.V(1).Info("Dashboard redirect explicitly configured", "enabled", *gc.Spec.DashboardRedirect.Enabled)
 		return *gc.Spec.DashboardRedirect.Enabled, nil
 	}
 
@@ -113,10 +119,37 @@ func shouldCreateDashboardRedirects(ctx context.Context, rr *odhtypes.Reconcilia
 	}, route)
 
 	if k8serr.IsNotFound(err) {
+		l.V(1).Info("Old dashboard route not found, skipping redirects",
+			"routeName", oldRouteName,
+			"namespace", appNamespace)
 		return false, nil // Old route doesn't exist - skip redirects
 	}
 	if err != nil {
+		l.Error(err, "Failed to check for old dashboard route",
+			"routeName", oldRouteName,
+			"namespace", appNamespace)
 		return false, err
+	}
+
+	// Log route discovery and current ownership for debugging SSA takeover
+	l.Info("Found existing dashboard route, will create redirects",
+		"routeName", oldRouteName,
+		"namespace", appNamespace,
+		"routeHost", route.Spec.Host)
+
+	// Log current ownership references (helps debug SSA ownership takeover)
+	if len(route.OwnerReferences) > 0 {
+		for _, owner := range route.OwnerReferences {
+			l.V(1).Info("Existing route owner reference (will be replaced by SSA)",
+				"routeName", oldRouteName,
+				"ownerKind", owner.Kind,
+				"ownerName", owner.Name,
+				"ownerUID", owner.UID,
+				"controller", owner.Controller != nil && *owner.Controller,
+				"blockOwnerDeletion", owner.BlockOwnerDeletion != nil && *owner.BlockOwnerDeletion)
+		}
+	} else {
+		l.V(1).Info("Existing route has no owner references", "routeName", oldRouteName)
 	}
 
 	return true, nil // Old route exists - create redirects
