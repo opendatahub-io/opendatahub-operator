@@ -175,6 +175,18 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 	})
 }
 
+// deployMonitoringAdmissionPolicies handles deployment of admission policies for monitoring resources.
+// Base policies (label value validation) are always deployed.
+// Strict policies (namespace restrictions) are only deployed when admission.strictNamespaces is enabled.
+//
+// Note: ValidatingAdmissionPolicy is a built-in Kubernetes API resource (not a CRD) available in K8s 1.26+.
+// If the API is not available, the controller setup will fail when trying to create the watch, providing
+// a clear error message to the user that their cluster doesn't support this feature.
+func deployMonitoringAdmissionPolicies(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	// TODO: Implement admission policies deployment logic
+	return nil
+}
+
 // deployMonitoringStackWithQuerierAndRestrictions handles deployment of MonitoringStack and ThanosQuerier components.
 // These components are deployed together as ThanosQuerier depends on MonitoringStack for proper functioning.
 func deployMonitoringStackWithQuerierAndRestrictions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
