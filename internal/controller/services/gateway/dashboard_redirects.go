@@ -58,13 +58,13 @@ func createDashboardRedirects(ctx context.Context, rr *odhtypes.ReconciliationRe
 		return nil
 	}
 
-	shouldCreate, err := shouldCreateDashboardRedirects(ctx, rr, gatewayConfig)
+	shouldCreate, err := shouldCreateDashboardRedirects(ctx, rr)
 	if err != nil {
 		return err
 	}
 
 	if !shouldCreate {
-		l.V(1).Info("Dashboard redirects disabled or not needed, skipping")
+		l.V(1).Info("Dashboard redirects not needed, skipping")
 		return nil
 	}
 
@@ -96,17 +96,9 @@ func createDashboardRedirects(ctx context.Context, rr *odhtypes.ReconciliationRe
 }
 
 // shouldCreateDashboardRedirects determines whether dashboard redirect resources should be created.
-// Returns true if:
-// - Explicitly enabled via spec.dashboardRedirect.enabled = true
-// - Auto-detect (nil): Old dashboard route exists.
-func shouldCreateDashboardRedirects(ctx context.Context, rr *odhtypes.ReconciliationRequest, gc *serviceApi.GatewayConfig) (bool, error) {
+// Uses auto-detection: returns true if old dashboard route exists.
+func shouldCreateDashboardRedirects(ctx context.Context, rr *odhtypes.ReconciliationRequest) (bool, error) {
 	l := logf.FromContext(ctx).WithName("shouldCreateDashboardRedirects")
-
-	// Explicit configuration takes precedence
-	if gc.Spec.DashboardRedirect != nil && gc.Spec.DashboardRedirect.Enabled != nil {
-		l.V(1).Info("Dashboard redirect explicitly configured", "enabled", *gc.Spec.DashboardRedirect.Enabled)
-		return *gc.Spec.DashboardRedirect.Enabled, nil
-	}
 
 	// Auto-detect: check if old dashboard route exists
 	oldRouteName := getDashboardRouteName()
