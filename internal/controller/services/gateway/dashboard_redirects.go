@@ -139,17 +139,15 @@ func shouldCreateDashboardRedirects(ctx context.Context, rr *odhtypes.Reconcilia
 }
 
 // getDashboardRouteName returns the platform-specific dashboard route name.
-// ODH: "odh-dashboard"
-// RHOAI (self-managed and managed): "rhods-dashboard".
 func getDashboardRouteName() string {
 	release := cluster.GetRelease()
 
 	switch release.Name {
 	case cluster.OpenDataHub:
-		return "odh-dashboard"
+		return DashboardRouteNameODH
 	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
-		return "rhods-dashboard"
+		return DashboardRouteNameRHOAI
 	default:
-		return "odh-dashboard" // Fallback to ODH
+		return DashboardRouteNameODH // Fallback to ODH
 	}
 }

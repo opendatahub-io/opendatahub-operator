@@ -82,6 +82,8 @@ const (
 	// Dashboard redirect constants.
 	DashboardRedirectName       = "dashboard-redirect"
 	DashboardRedirectConfigName = "dashboard-redirect-config"
+	DashboardRouteNameODH       = "odh-dashboard"   // ODH dashboard route name
+	DashboardRouteNameRHOAI     = "rhods-dashboard" // RHOAI dashboard route name
 
 	// Label constants.
 	ComponentLabelValue = "authentication"
