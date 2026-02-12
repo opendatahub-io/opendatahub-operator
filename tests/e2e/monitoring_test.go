@@ -388,19 +388,10 @@ func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorConfigurations(t *tes
 			validation: jq.Match(`.spec.config.service.pipelines | has("traces")`),
 		},
 		{
-			name: "Non-TLS Trace Ingestion (default)",
+			name: "Trace Ingestion always uses TLS via gateway",
 			transforms: []testf.TransformFn{
 				withManagementState(operatorv1.Managed),
 				withMonitoringTraces(TracesStorageBackendPV, "", "", DefaultRetention),
-			},
-			validation: jq.Match(`.spec.config.exporters."otlp/tempo".tls.insecure == true`),
-		},
-		{
-			name: "TLS Trace Ingestion (enabled)",
-			transforms: []testf.TransformFn{
-				withManagementState(operatorv1.Managed),
-				withMonitoringTraces(TracesStorageBackendPV, "", "", DefaultRetention),
-				testf.Transform(`.spec.monitoring.traces.tls.enabled = true`),
 			},
 			validation: jq.Match(`
 				(.spec.config.exporters."otlp/tempo".tls.ca_file == "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt") and
@@ -1704,7 +1695,9 @@ func (tc *MonitoringTestCtx) ValidatePersesDatasourceConfiguration(t *testing.T)
 
 	// Validate Perses datasource configuration
 	// Gateway endpoints always use HTTPS (service-ca auto-provisions TLS)
-	expectedTempoEndpoint := fmt.Sprintf("https://tempo-data-science-tempomonolithic-gateway.%s.svc.cluster.local:8080", dsci.Spec.Monitoring.Namespace)
+	// The endpoint includes the gateway path prefix for the tenant: /api/traces/v1/{tenant}/tempo
+	expectedTempoEndpoint := fmt.Sprintf("https://tempo-data-science-tempomonolithic-gateway.%s.svc.cluster.local:8080/api/traces/v1/%s/tempo",
+		dsci.Spec.Monitoring.Namespace, dsci.Spec.Monitoring.Namespace)
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: "tempo-datasource", Namespace: dsci.Spec.Monitoring.Namespace}),
@@ -1719,9 +1712,15 @@ func (tc *MonitoringTestCtx) ValidatePersesDatasourceConfiguration(t *testing.T)
 				// Validate the HTTP proxy configuration
 				jq.Match(`.spec.config.plugin.spec.proxy.kind == "HTTPProxy"`),
 				jq.Match(`.spec.config.plugin.spec.proxy.spec.url == "%s"`, expectedTempoEndpoint),
+				// Validate TLS is always enabled (gateway always uses HTTPS)
+				jq.Match(`.spec.client.tls.enable == true`),
+				jq.Match(`.spec.client.tls.caCert.name == "tempo-service-ca"`),
+				jq.Match(`.spec.client.tls.caCert.certPath == "service-ca.crt"`),
+				// Validate secret reference links the CA cert to the proxy
+				jq.Match(`.spec.config.plugin.spec.proxy.spec.secret == "tempo-datasource-secret"`),
 			),
 		),
-		WithCustomErrorMsg("PersesDatasource should have the expected configuration with TLS disabled by default"),
+		WithCustomErrorMsg("PersesDatasource should have TLS enabled with secret reference for gateway HTTPS"),
 	)
 
 	// Validate owner references
@@ -2152,7 +2151,8 @@ func (tc *MonitoringTestCtx) validatePersesDatasourceTLSWithCloudBackend(t *test
 
 	// This is the critical assertion - proves cloud backend now has TLS
 	t.Logf("Validating PersesDatasource has TLS configuration for %s backend", backend)
-	expectedTempoEndpoint := fmt.Sprintf("https://tempo-data-science-tempostack-gateway.%s.svc.cluster.local:8080", tc.MonitoringNamespace)
+	expectedTempoEndpoint := fmt.Sprintf("https://tempo-data-science-tempostack-gateway.%s.svc.cluster.local:8080/api/traces/v1/%s/tempo",
+		tc.MonitoringNamespace, tc.MonitoringNamespace)
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: "tempo-datasource", Namespace: tc.MonitoringNamespace}),
@@ -2165,6 +2165,8 @@ func (tc *MonitoringTestCtx) validatePersesDatasourceTLSWithCloudBackend(t *test
 				jq.Match(`.spec.client.tls.caCert.type == "configmap"`),
 				jq.Match(`.spec.client.tls.caCert.name == "tempo-service-ca"`),
 				jq.Match(`.spec.client.tls.caCert.certPath == "service-ca.crt"`),
+				// Validate secret reference links the CA cert to the proxy
+				jq.Match(`.spec.config.plugin.spec.proxy.spec.secret == "tempo-datasource-secret"`),
 			),
 		),
 		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
