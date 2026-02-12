@@ -1,4 +1,4 @@
-{{- if .CreateLegacyGatewayRedirect }}
+{{- if .LegacySubdomain }}
 apiVersion: route.openshift.io/v1
 kind: Route
 metadata:

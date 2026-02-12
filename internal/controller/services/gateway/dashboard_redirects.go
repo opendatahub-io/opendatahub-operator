@@ -68,30 +68,20 @@ func createDashboardRedirects(ctx context.Context, rr *odhtypes.ReconciliationRe
 		return nil
 	}
 
-	// Determine if we should create legacy gateway redirect
-	currentSubdomain := getCurrentSubdomain(gatewayConfig)
-	createLegacyGateway := currentSubdomain != LegacyGatewaySubdomain
-
 	l.V(1).Info("Creating dashboard redirect resources",
 		"dashboardRouteName", getDashboardRouteName(),
 		"namespace", cluster.GetApplicationNamespace(),
-		"createLegacyGatewayRedirect", createLegacyGateway,
-		"currentSubdomain", currentSubdomain)
+		"currentSubdomain", getCurrentSubdomain(gatewayConfig))
 
 	// Add templates to reconciliation request
+	// Note: Legacy gateway redirect template uses {{- if .LegacySubdomain }} to conditionally render
 	rr.Templates = append(rr.Templates,
 		odhtypes.TemplateInfo{FS: gatewayResources, Path: dashboardRedirectConfigMapTemplate},
 		odhtypes.TemplateInfo{FS: gatewayResources, Path: dashboardRedirectDeploymentTemplate},
 		odhtypes.TemplateInfo{FS: gatewayResources, Path: dashboardRedirectServiceTemplate},
 		odhtypes.TemplateInfo{FS: gatewayResources, Path: dashboardRedirectDashboardRouteTemplate},
+		odhtypes.TemplateInfo{FS: gatewayResources, Path: dashboardRedirectLegacyGatewayRouteTemplate},
 	)
-
-	// Conditionally add legacy gateway redirect route
-	if createLegacyGateway {
-		rr.Templates = append(rr.Templates,
-			odhtypes.TemplateInfo{FS: gatewayResources, Path: dashboardRedirectLegacyGatewayRouteTemplate},
-		)
-	}
 
 	return nil
 }
