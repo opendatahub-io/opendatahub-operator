@@ -1060,7 +1060,7 @@ func TestAddTracesTemplateData_TLS(t *testing.T) {
 			namespace:            "test-namespace",
 			expectedTLSEnabled:   false,
 			expectedHTTPProtocol: "http",
-			expectedPVEndpoint:   "https://tempo-data-science-tempomonolithic-gateway.test-namespace.svc.cluster.local:8080",
+			expectedPVEndpoint:   "https://tempo-data-science-tempomonolithic-gateway.test-namespace.svc.cluster.local:8080/api/traces/v1/test-namespace/tempo",
 		},
 		{
 			name: "PV backend with TLS explicitly disabled",
@@ -1078,7 +1078,7 @@ func TestAddTracesTemplateData_TLS(t *testing.T) {
 			namespace:            "test-namespace",
 			expectedTLSEnabled:   false,
 			expectedHTTPProtocol: "http",
-			expectedPVEndpoint:   "https://tempo-data-science-tempomonolithic-gateway.test-namespace.svc.cluster.local:8080",
+			expectedPVEndpoint:   "https://tempo-data-science-tempomonolithic-gateway.test-namespace.svc.cluster.local:8080/api/traces/v1/test-namespace/tempo",
 		},
 		{
 			name: "S3 backend with TLS disabled (default)",
@@ -1093,7 +1093,7 @@ func TestAddTracesTemplateData_TLS(t *testing.T) {
 			namespace:            "test-namespace",
 			expectedTLSEnabled:   false,
 			expectedHTTPProtocol: "http",
-			expectedS3Endpoint:   "https://tempo-data-science-tempostack-gateway.test-namespace.svc.cluster.local:8080",
+			expectedS3Endpoint:   "https://tempo-data-science-tempostack-gateway.test-namespace.svc.cluster.local:8080/api/traces/v1/test-namespace/tempo",
 		},
 		{
 			name: "S3 backend with TLS explicitly enabled",
@@ -1111,7 +1111,7 @@ func TestAddTracesTemplateData_TLS(t *testing.T) {
 			namespace:            "test-namespace",
 			expectedTLSEnabled:   true,
 			expectedHTTPProtocol: "https",
-			expectedS3Endpoint:   "https://tempo-data-science-tempostack-gateway.test-namespace.svc.cluster.local:8080",
+			expectedS3Endpoint:   "https://tempo-data-science-tempostack-gateway.test-namespace.svc.cluster.local:8080/api/traces/v1/test-namespace/tempo",
 		},
 	}
 

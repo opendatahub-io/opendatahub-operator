@@ -232,16 +232,22 @@ func addTracesTemplateData(templateData map[string]any, traces *serviceApi.Trace
 
 	// Add tempo-related data from traces.Storage fields (Storage is a struct, not a pointer)
 	// Note: Gateway endpoints always use HTTPS (service-ca auto-provisions TLS)
+	// In multitenancy/openshift mode, Tempo receivers listen on localhost only, so all
+	// external traffic (including OTel collector ingestion) must go through the gateway.
 	switch traces.Storage.Backend {
 	case serviceApi.StorageBackendPV:
-		templateData["TempoEndpoint"] = fmt.Sprintf("tempo-data-science-tempomonolithic.%s.svc.cluster.local:4317", namespace)
-		// Perses datasource query endpoint via gateway (port 8080) - always uses HTTPS (gateway is HTTPS-only)
-		templateData["TempoQueryEndpoint"] = fmt.Sprintf("https://tempo-data-science-tempomonolithic-gateway.%s.svc.cluster.local:8080", namespace)
+		templateData["TempoEndpoint"] = fmt.Sprintf("tempo-data-science-tempomonolithic-gateway.%s.svc.cluster.local:4317", namespace)
+		// Perses datasource query endpoint via gateway (port 8080) - always uses HTTPS (gateway is HTTPS-only).
+		// The gateway path prefix includes the tenant name and "tempo" path segment:
+		//   /api/traces/v1/{tenant}/tempo  ->  Perses appends /api/search etc.
+		templateData["TempoQueryEndpoint"] = fmt.Sprintf("https://tempo-data-science-tempomonolithic-gateway.%s.svc.cluster.local:8080/api/traces/v1/%s/tempo", namespace, namespace)
 		templateData["Size"] = traces.Storage.Size
 	case serviceApi.StorageBackendS3, serviceApi.StorageBackendGCS:
 		templateData["TempoEndpoint"] = fmt.Sprintf("tempo-data-science-tempostack-gateway.%s.svc.cluster.local:4317", namespace)
-		// Perses datasource query endpoint via gateway (port 8080) - always uses HTTPS (gateway is HTTPS-only)
-		templateData["TempoQueryEndpoint"] = fmt.Sprintf("https://tempo-data-science-tempostack-gateway.%s.svc.cluster.local:8080", namespace)
+		// Perses datasource query endpoint via gateway (port 8080) - always uses HTTPS (gateway is HTTPS-only).
+		// The gateway path prefix includes the tenant name and "tempo" path segment:
+		//   /api/traces/v1/{tenant}/tempo  ->  Perses appends /api/search etc.
+		templateData["TempoQueryEndpoint"] = fmt.Sprintf("https://tempo-data-science-tempostack-gateway.%s.svc.cluster.local:8080/api/traces/v1/%s/tempo", namespace, namespace)
 		templateData["Secret"] = traces.Storage.Secret
 	}
 
