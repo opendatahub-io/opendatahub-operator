@@ -120,12 +120,6 @@ type GatewayConfigSpec struct {
 	// +optional
 	// +kubebuilder:default=true
 	EnableK8sTokenValidation *bool `json:"enableK8sTokenValidation,omitempty"`
-
-	// DashboardRedirect configures automatic URL redirects for legacy dashboard and gateway routes.
-	// Helps users transition from old route URLs (rhods-dashboard/odh-dashboard and data-science-gateway)
-	// to the new Gateway API URLs without breaking bookmarks or hardcoded links.
-	// +optional
-	DashboardRedirect *DashboardRedirectConfig `json:"dashboardRedirect,omitempty"`
 }
 
 // NetworkPolicyConfig defines network policy configuration for kube-auth-proxy.
@@ -182,16 +176,6 @@ type CookieConfig struct {
 	// +optional
 	// +kubebuilder:default="1h"
 	Refresh metav1.Duration `json:"refresh,omitempty"`
-}
-
-// DashboardRedirectConfig configures automatic redirects from legacy dashboard and gateway URLs.
-type DashboardRedirectConfig struct {
-	// Enabled controls whether dashboard redirect resources are created.
-	// - true: Always create redirects
-	// - false: Never create redirects
-	// - nil (default): Auto-detect based on existence of old routes
-	// +optional
-	Enabled *bool `json:"enabled,omitempty"`
 }
 
 // GatewayConfigStatus defines the observed state of GatewayConfig
