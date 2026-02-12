@@ -79,6 +79,10 @@ const (
 	EnvClientSecret = "OAUTH2_PROXY_CLIENT_SECRET" //nolint:gosec // This is an environment variable name, not a secret
 	EnvCookieSecret = "OAUTH2_PROXY_COOKIE_SECRET" //nolint:gosec // This is an environment variable name, not a secret
 
+	// Dashboard redirect constants.
+	DashboardRedirectName       = "dashboard-redirect"
+	DashboardRedirectConfigName = "dashboard-redirect-config"
+
 	// Label constants.
 	ComponentLabelValue = "authentication"
 	PartOfLabelValue    = "data-science-gateway"

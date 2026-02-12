@@ -17,13 +17,6 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// Dashboard redirect constants.
-const (
-	dashboardRedirectName       = "dashboard-redirect"
-	dashboardRedirectConfigName = "dashboard-redirect-config"
-	legacyGatewayRouteName      = "data-science-gateway"
-)
-
 func TestDashboardRedirects(t *testing.T) {
 	testDashboardRedirects(t)
 }
@@ -64,12 +57,12 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectConfigMap(t *testing.T) {
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
-			Name:      dashboardRedirectConfigName,
+			Name:      gateway.DashboardRedirectConfigName,
 			Namespace: appNamespace,
 		}),
 		WithCondition(And(
 			// Labels
-			jq.Match(`.metadata.labels.app == "%s"`, dashboardRedirectName),
+			jq.Match(`.metadata.labels.app == "%s"`, gateway.DashboardRedirectName),
 			jq.Match(`.metadata.labels["%s"] == "%s"`, labels.PlatformPartOf, gateway.PartOfGatewayConfig),
 
 			// Owner reference to GatewayConfig
@@ -106,18 +99,18 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectDeployment(t *testing.T) {
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{
-			Name:      dashboardRedirectName,
+			Name:      gateway.DashboardRedirectName,
 			Namespace: appNamespace,
 		}),
 		WithCondition(And(
 			// Basic deployment config
 			jq.Match(`.spec.replicas == 2`),
-			jq.Match(`.spec.selector.matchLabels.app == "%s"`, dashboardRedirectName),
+			jq.Match(`.spec.selector.matchLabels.app == "%s"`, gateway.DashboardRedirectName),
 
 			// Labels
-			jq.Match(`.metadata.labels.app == "%s"`, dashboardRedirectName),
+			jq.Match(`.metadata.labels.app == "%s"`, gateway.DashboardRedirectName),
 			jq.Match(`.metadata.labels["%s"] == "%s"`, labels.PlatformPartOf, gateway.PartOfGatewayConfig),
-			jq.Match(`.spec.template.metadata.labels.app == "%s"`, dashboardRedirectName),
+			jq.Match(`.spec.template.metadata.labels.app == "%s"`, gateway.DashboardRedirectName),
 
 			// Owner reference
 			jq.Match(`.metadata.ownerReferences[] | select(.kind == "GatewayConfig") | .controller == true`),
@@ -139,7 +132,7 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectDeployment(t *testing.T) {
 			jq.Match(`.spec.template.spec.containers[0].volumeMounts[] | select(.name == "redirect-config") | .subPath == "redirect.conf"`),
 
 			// Volumes
-			jq.Match(`.spec.template.spec.volumes[] | select(.name == "redirect-config") | .configMap.name == "%s"`, dashboardRedirectConfigName),
+			jq.Match(`.spec.template.spec.volumes[] | select(.name == "redirect-config") | .configMap.name == "%s"`, gateway.DashboardRedirectConfigName),
 
 			// Resources
 			jq.Match(`.spec.template.spec.containers[0].resources.requests.cpu == "50m"`),
@@ -157,7 +150,7 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectDeployment(t *testing.T) {
 	)
 
 	// Wait for deployment readiness
-	tc.EnsureDeploymentReady(types.NamespacedName{Name: dashboardRedirectName, Namespace: appNamespace}, 2)
+	tc.EnsureDeploymentReady(types.NamespacedName{Name: gateway.DashboardRedirectName, Namespace: appNamespace}, 2)
 
 	t.Log("Dashboard redirect Deployment validation completed")
 }
@@ -171,7 +164,7 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectService(t *testing.T) {
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Service, types.NamespacedName{
-			Name:      dashboardRedirectName,
+			Name:      gateway.DashboardRedirectName,
 			Namespace: appNamespace,
 		}),
 		WithCondition(And(
@@ -179,14 +172,14 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectService(t *testing.T) {
 			jq.Match(`.spec.type == "ClusterIP"`),
 
 			// Labels
-			jq.Match(`.metadata.labels.app == "%s"`, dashboardRedirectName),
+			jq.Match(`.metadata.labels.app == "%s"`, gateway.DashboardRedirectName),
 			jq.Match(`.metadata.labels["%s"] == "%s"`, labels.PlatformPartOf, gateway.PartOfGatewayConfig),
 
 			// Owner reference
 			jq.Match(`.metadata.ownerReferences[] | select(.kind == "GatewayConfig") | .controller == true`),
 
 			// Selector
-			jq.Match(`.spec.selector.app == "%s"`, dashboardRedirectName),
+			jq.Match(`.spec.selector.app == "%s"`, gateway.DashboardRedirectName),
 
 			// Ports
 			jq.Match(`.spec.ports | length == 1`),
@@ -225,7 +218,7 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectRoutes(t *testing.T) {
 		WithCondition(And(
 			// Route target
 			jq.Match(`.spec.to.kind == "Service"`),
-			jq.Match(`.spec.to.name == "%s"`, dashboardRedirectName),
+			jq.Match(`.spec.to.name == "%s"`, gateway.DashboardRedirectName),
 			jq.Match(`.spec.to.weight == 100`),
 
 			// Port
@@ -241,7 +234,7 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectRoutes(t *testing.T) {
 			jq.Match(`.metadata.ownerReferences[] | select(.kind == "GatewayConfig") | .blockOwnerDeletion == true`),
 
 			// Labels
-			jq.Match(`.metadata.labels.app == "%s"`, dashboardRedirectName),
+			jq.Match(`.metadata.labels.app == "%s"`, gateway.DashboardRedirectName),
 			jq.Match(`.metadata.labels["%s"] == "%s"`, labels.PlatformPartOf, gateway.PartOfGatewayConfig),
 
 			// HSTS header annotation
@@ -253,18 +246,18 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectRoutes(t *testing.T) {
 	// Validate legacy gateway route (conditional based on current subdomain)
 	// Only created when current subdomain != "data-science-gateway"
 	currentSubdomain := gatewaySubdomain
-	if currentSubdomain != legacyGatewayRouteName {
+	if currentSubdomain != gateway.LegacyGatewaySubdomain {
 		t.Logf("Current gateway subdomain is %s, expecting legacy gateway redirect route to exist", currentSubdomain)
 
 		tc.EnsureResourceExists(
 			WithMinimalObject(gvk.Route, types.NamespacedName{
-				Name:      legacyGatewayRouteName,
+				Name:      gateway.LegacyGatewaySubdomain,
 				Namespace: appNamespace,
 			}),
 			WithCondition(And(
 				// Route target
 				jq.Match(`.spec.to.kind == "Service"`),
-				jq.Match(`.spec.to.name == "%s"`, dashboardRedirectName),
+				jq.Match(`.spec.to.name == "%s"`, gateway.DashboardRedirectName),
 
 				// Port
 				jq.Match(`.spec.port.targetPort == "http"`),
@@ -279,7 +272,7 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectRoutes(t *testing.T) {
 				// Labels
 				jq.Match(`.metadata.labels["%s"] == "%s"`, labels.PlatformPartOf, gateway.PartOfGatewayConfig),
 			)),
-			WithCustomErrorMsg("Legacy gateway route %s should exist when current subdomain is %s", legacyGatewayRouteName, currentSubdomain),
+			WithCustomErrorMsg("Legacy gateway route %s should exist when current subdomain is %s", gateway.LegacyGatewaySubdomain, currentSubdomain),
 		)
 	} else {
 		t.Logf("Current gateway subdomain is %s, legacy gateway redirect route should NOT be created", currentSubdomain)
