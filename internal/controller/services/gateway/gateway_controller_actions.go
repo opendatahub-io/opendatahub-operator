@@ -349,7 +349,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	templateData["DashboardRedirectNamespace"] = cluster.GetApplicationNamespace()
 	templateData["DashboardRouteName"] = getDashboardRouteName()
 	templateData["DashboardRedirectImage"] = getDashboardRedirectImage()
-	templateData["CreateLegacyGatewayRedirect"] = shouldCreateLegacyGatewayRedirect(gatewayConfig)
+	templateData["CreateLegacyGatewayRedirect"] = legacyInfo.LegacySubdomain != ""
 
 	// Add OIDC-specific fields only if OIDC config is present
 	if gatewayConfig.Spec.OIDC != nil {

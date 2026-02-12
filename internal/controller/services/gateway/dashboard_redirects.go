@@ -69,13 +69,14 @@ func createDashboardRedirects(ctx context.Context, rr *odhtypes.ReconciliationRe
 	}
 
 	// Determine if we should create legacy gateway redirect
-	createLegacyGateway := shouldCreateLegacyGatewayRedirect(gatewayConfig)
+	currentSubdomain := getCurrentSubdomain(gatewayConfig)
+	createLegacyGateway := currentSubdomain != LegacyGatewaySubdomain
 
 	l.V(1).Info("Creating dashboard redirect resources",
 		"dashboardRouteName", getDashboardRouteName(),
 		"namespace", cluster.GetApplicationNamespace(),
 		"createLegacyGatewayRedirect", createLegacyGateway,
-		"currentSubdomain", getCurrentSubdomain(gatewayConfig))
+		"currentSubdomain", currentSubdomain)
 
 	// Add templates to reconciliation request
 	rr.Templates = append(rr.Templates,
@@ -161,21 +162,4 @@ func getDashboardRouteName() string {
 	default:
 		return "odh-dashboard" // Fallback to ODH
 	}
-}
-
-// shouldCreateLegacyGatewayRedirect determines if we should create the legacy gateway redirect route.
-// Returns true if current subdomain is NOT "data-science-gateway" (meaning we need to redirect FROM legacy).
-func shouldCreateLegacyGatewayRedirect(gc *serviceApi.GatewayConfig) bool {
-	currentSubdomain := getCurrentSubdomain(gc)
-
-	// Only create legacy gateway redirect if current subdomain is NOT data-science-gateway
-	return currentSubdomain != LegacyGatewaySubdomain
-}
-
-// getCurrentSubdomain extracts the current subdomain from GatewayConfig or returns the default.
-func getCurrentSubdomain(gc *serviceApi.GatewayConfig) string {
-	if gc != nil && gc.Spec.Subdomain != "" {
-		return gc.Spec.Subdomain
-	}
-	return DefaultGatewaySubdomain
 }

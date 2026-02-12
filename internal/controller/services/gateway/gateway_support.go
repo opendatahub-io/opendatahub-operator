@@ -478,13 +478,18 @@ type LegacyRedirectInfo struct {
 	LegacyHostname         string // Full legacy hostname (empty if redirect not needed)
 }
 
+// getCurrentSubdomain extracts the current subdomain from GatewayConfig or returns the default.
+func getCurrentSubdomain(gc *serviceApi.GatewayConfig) string {
+	if gc != nil && gc.Spec.Subdomain != "" {
+		return gc.Spec.Subdomain
+	}
+	return DefaultGatewaySubdomain
+}
+
 // computeLegacyRedirectInfo computes the subdomain and legacy hostname information
 // for redirect functionality. Returns empty legacy fields if current subdomain equals legacy.
 func computeLegacyRedirectInfo(gatewayConfig *serviceApi.GatewayConfig, hostname string) LegacyRedirectInfo {
-	currentSubdomain := DefaultGatewaySubdomain
-	if gatewayConfig != nil && gatewayConfig.Spec.Subdomain != "" {
-		currentSubdomain = gatewayConfig.Spec.Subdomain
-	}
+	currentSubdomain := getCurrentSubdomain(gatewayConfig)
 
 	info := LegacyRedirectInfo{
 		CurrentSubdomain: currentSubdomain,
