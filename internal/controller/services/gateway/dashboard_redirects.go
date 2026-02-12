@@ -20,14 +20,10 @@ package gateway
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=route.openshift.io,resources=routes,verbs=get;list;watch
 
 import (
 	"context"
 
-	routev1 "github.com/openshift/api/route/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
@@ -59,16 +55,6 @@ func createDashboardRedirects(ctx context.Context, rr *odhtypes.ReconciliationRe
 		return nil
 	}
 
-	shouldCreate, err := shouldCreateDashboardRedirects(ctx, rr)
-	if err != nil {
-		return err
-	}
-
-	if !shouldCreate {
-		l.V(1).Info("Dashboard redirects not needed, skipping")
-		return nil
-	}
-
 	l.V(1).Info("Creating dashboard redirect resources",
 		"dashboardRouteName", getDashboardRouteName(),
 		"namespace", cluster.GetApplicationNamespace(),
@@ -85,58 +71,6 @@ func createDashboardRedirects(ctx context.Context, rr *odhtypes.ReconciliationRe
 	)
 
 	return nil
-}
-
-// shouldCreateDashboardRedirects determines whether dashboard redirect resources should be created.
-// Uses auto-detection: returns true if old dashboard route exists.
-func shouldCreateDashboardRedirects(ctx context.Context, rr *odhtypes.ReconciliationRequest) (bool, error) {
-	l := logf.FromContext(ctx).WithName("shouldCreateDashboardRedirects")
-
-	// Auto-detect: check if old dashboard route exists
-	oldRouteName := getDashboardRouteName()
-	appNamespace := cluster.GetApplicationNamespace()
-
-	route := &routev1.Route{}
-	err := rr.Client.Get(ctx, client.ObjectKey{
-		Name:      oldRouteName,
-		Namespace: appNamespace,
-	}, route)
-
-	if k8serr.IsNotFound(err) {
-		l.V(1).Info("Old dashboard route not found, skipping redirects",
-			"routeName", oldRouteName,
-			"namespace", appNamespace)
-		return false, nil // Old route doesn't exist - skip redirects
-	}
-	if err != nil {
-		l.Error(err, "Failed to check for old dashboard route",
-			"routeName", oldRouteName,
-			"namespace", appNamespace)
-		return false, err
-	}
-
-	// Log route discovery and current ownership for debugging SSA takeover
-	l.Info("Found existing dashboard route, will create redirects",
-		"routeName", oldRouteName,
-		"namespace", appNamespace,
-		"routeHost", route.Spec.Host)
-
-	// Log current ownership references (helps debug SSA ownership takeover)
-	if len(route.OwnerReferences) > 0 {
-		for _, owner := range route.OwnerReferences {
-			l.V(1).Info("Existing route owner reference (will be replaced by SSA)",
-				"routeName", oldRouteName,
-				"ownerKind", owner.Kind,
-				"ownerName", owner.Name,
-				"ownerUID", owner.UID,
-				"controller", owner.Controller != nil && *owner.Controller,
-				"blockOwnerDeletion", owner.BlockOwnerDeletion != nil && *owner.BlockOwnerDeletion)
-		}
-	} else {
-		l.V(1).Info("Existing route has no owner references", "routeName", oldRouteName)
-	}
-
-	return true, nil // Old route exists - create redirects
 }
 
 // getDashboardRouteName returns the platform-specific dashboard route name.
