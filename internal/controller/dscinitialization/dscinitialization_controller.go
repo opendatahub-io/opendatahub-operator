@@ -533,6 +533,10 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 
 	if tracesEnabled {
 		defaultMonitoring.Spec.Traces = dsci.Spec.Monitoring.Traces
+		// Without this, when TLS.Enabled is false, the TLS struct is not removed from the Monitoring CR and it causes an error.
+		if defaultMonitoring.Spec.Traces.TLS != nil && !defaultMonitoring.Spec.Traces.TLS.Enabled {
+			defaultMonitoring.Spec.Traces.TLS = nil
+		}
 	} else {
 		defaultMonitoring.Spec.Traces = nil
 	}

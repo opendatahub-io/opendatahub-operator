@@ -536,7 +536,8 @@ func TestHardwareProfile_UnsupportedWorkloadKind(t *testing.T) {
 	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
 	injector := createWebhookInjector(cli, sch)
 
-	// Test with a supported kind but with malformed container structure to trigger error paths
+	// Test with a supported kind but with malformed container structure
+	// This tests the upgrade-safe behavior: malformed workloads are admitted with warnings
 	notebookUnstructured := &unstructured.Unstructured{}
 	notebookUnstructured.SetGroupVersionKind(gvk.Notebook)
 	notebookUnstructured.SetName(testNotebook)
@@ -545,10 +546,10 @@ func TestHardwareProfile_UnsupportedWorkloadKind(t *testing.T) {
 		hardwareprofile.HardwareProfileNameAnnotation: testHardwareProfile,
 	})
 
-	// Set malformed spec that will cause container access to fail
+	// Set malformed spec that will cause container validation to fail
 	err := unstructured.SetNestedMap(notebookUnstructured.Object, map[string]interface{}{
 		"template": map[string]interface{}{
-			"spec": "invalid-spec-should-be-map", // This will cause an error
+			"spec": "invalid-spec-should-be-map", // This will cause a validation error
 		},
 	}, "spec")
 	g.Expect(err).ShouldNot(HaveOccurred()) // SetNestedMap should succeed
@@ -566,9 +567,11 @@ func TestHardwareProfile_UnsupportedWorkloadKind(t *testing.T) {
 	)
 
 	resp := injector.Handle(ctx, req)
-	// The webhook should fail when trying to access containers in the malformed structure
-	g.Expect(resp.Allowed).Should(BeFalse())
-	g.Expect(resp.Result.Code).Should(Equal(int32(500)))
+	// With the new upgrade-safe behavior, malformed structures are admitted with a warning
+	// rather than rejected, to avoid blocking 2.x to 3.x upgrades
+	g.Expect(resp.Allowed).Should(BeTrue(), "Should admit with warning, not reject")
+	g.Expect(resp.Warnings).ShouldNot(BeEmpty(), "Should have warning about validation error")
+	g.Expect(resp.Warnings[0]).Should(ContainSubstring("was not applied due to validation error"))
 }
 
 // test base on different workload types:
@@ -745,15 +748,15 @@ func TestHardwareProfile_ResourceInjection_Notebook(t *testing.T) {
 			expectResourcePatch: true,
 		},
 		{
-			name: "applies resources to containers without them when multiple containers exist",
+			name: "applies resources only to main container when multiple containers exist",
 			setupWorkload: func() *unstructured.Unstructured {
 				workload, ok := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
 				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
 
-				// For Notebooks, create two containers - first has CPU, second has memory, both should get missing resources
+				// For Notebooks with multiple containers, only the container matching the Notebook name gets resources
 				containers := []interface{}{
 					map[string]interface{}{
-						"name":  "main-container",
+						"name":  testNotebook, // Name matches Notebook - this is the main container
 						"image": "notebook:latest",
 						"resources": map[string]interface{}{
 							"requests": map[string]interface{}{
@@ -763,12 +766,12 @@ func TestHardwareProfile_ResourceInjection_Notebook(t *testing.T) {
 						},
 					},
 					map[string]interface{}{
-						"name":  "sidecar-container",
-						"image": "sidecar:latest",
+						"name":  "oauth-proxy", // Sidecar - should NOT get HWP resources
+						"image": "oauth-proxy:latest",
 						"resources": map[string]interface{}{
 							"requests": map[string]interface{}{
-								"memory": "2Gi",
-								// Missing CPU - should get HWP CPU
+								"memory": "64Mi",
+								"cpu":    "10m",
 							},
 						},
 					},
@@ -777,6 +780,30 @@ func TestHardwareProfile_ResourceInjection_Notebook(t *testing.T) {
 				return workload
 			},
 			expectResourcePatch: true,
+		},
+		{
+			name: "multiple containers but none match Notebook name; admits with warning",
+			setupWorkload: func() *unstructured.Unstructured {
+				workload, ok := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
+				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
+
+				// No container name matches the Notebook name -> admits with warning, no identifier injection
+				containers := []interface{}{
+					map[string]interface{}{
+						"name":      "container-a",
+						"image":     "notebook:latest",
+						"resources": map[string]interface{}{},
+					},
+					map[string]interface{}{
+						"name":      "container-b",
+						"image":     "oauth-proxy:latest",
+						"resources": map[string]interface{}{},
+					},
+				}
+				_ = unstructured.SetNestedSlice(workload.Object, containers, "spec", "template", "spec", "containers")
+				return workload
+			},
+			expectResourcePatch: false,
 		},
 	}
 
@@ -799,10 +826,114 @@ func TestHardwareProfile_ResourceInjection_Notebook(t *testing.T) {
 			)
 
 			resp := injector.Handle(ctx, req)
-			g.Expect(resp.Allowed).Should(BeTrue())
+			g.Expect(resp.Allowed).Should(BeTrue(), "All requests should be admitted")
 			g.Expect(hasResourcePatches(resp.Patches)).Should(Equal(tc.expectResourcePatch))
+
+			// When no matching container is found, expect a warning
+			if tc.name == "multiple containers but none match Notebook name; admits with warning" {
+				g.Expect(resp.Warnings).ShouldNot(BeEmpty(), "Should have warning when no matching container found")
+				g.Expect(resp.Warnings[0]).Should(ContainSubstring("was not applied"))
+				g.Expect(resp.Warnings[0]).Should(ContainSubstring(testNotebook), "Warning should mention expected container name")
+				g.Expect(resp.Warnings[0]).Should(ContainSubstring("All hardware profile settings"), "Warning should indicate all settings skipped")
+			}
+
+			// RHOAIENG-49069: when multiple containers exist, no resource patch must target the sidecar (containers/1).
+			if tc.name == "applies resources only to main container when multiple containers exist" {
+				for _, patch := range resp.Patches {
+					path := patch.Path
+					if strings.Contains(path, "/resources") {
+						g.Expect(path).Should(Not(ContainSubstring("containers/1")),
+							"Sidecar (containers/1) must NOT receive HWP resource patch; path was %s", path)
+					}
+				}
+			}
 		})
 	}
+}
+
+// TestHardwareProfile_Notebook_MainContainerOnly_NoResourcePatchForSidecar is a regression test for RHOAIENG-49069.
+// It ensures the webhook applies HWP resources only to the main container (name == Notebook name), not to sidecars.
+func TestHardwareProfile_Notebook_MainContainerOnly_NoResourcePatchForSidecar(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
+		envtestutil.WithCPUIdentifier("1", "2", "4"),
+		envtestutil.WithMemoryIdentifier("1Gi", "2Gi", "4Gi"),
+		envtestutil.WithGPUIdentifier("nvidia.com/gpu", "1", "1"), // no maxCount -> request = limit
+	)
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	containers := []interface{}{
+		map[string]interface{}{
+			"name":      testNotebook,
+			"image":     "notebook:latest",
+			"resources": map[string]interface{}{},
+		},
+		map[string]interface{}{
+			"name":  "sidecar",
+			"image": "busybox:latest",
+			"resources": map[string]interface{}{
+				"requests": map[string]interface{}{"cpu": "10m", "memory": "32Mi"},
+			},
+		},
+	}
+	workload, _ := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
+	_ = unstructured.SetNestedSlice(workload.Object, containers, "spec", "template", "spec", "containers")
+
+	req := envtestutil.NewAdmissionRequest(t, admissionv1.Create, workload, gvk.Notebook,
+		metav1.GroupVersionResource{Group: gvk.Notebook.Group, Version: gvk.Notebook.Version, Resource: "notebooks"})
+
+	resp := injector.Handle(ctx, req)
+	g.Expect(resp.Allowed).Should(BeTrue())
+	g.Expect(resp.Patches).Should(Not(BeEmpty()))
+
+	// No patch must target the sidecar's resources (containers/1).
+	for _, patch := range resp.Patches {
+		if strings.Contains(patch.Path, "/resources") {
+			g.Expect(patch.Path).Should(Not(ContainSubstring("containers/1")),
+				"RHOAIENG-49069: sidecar must not get HWP resources; path=%s", patch.Path)
+		}
+	}
+
+	// At least one resource patch should target the main container (containers/0).
+	mainContainerGotResources := false
+	for _, patch := range resp.Patches {
+		if strings.Contains(patch.Path, "containers/0") && strings.Contains(patch.Path, "/resources") {
+			mainContainerGotResources = true
+			break
+		}
+	}
+	// If the implementation uses a single replace of the full "containers" array, path might be /spec/template/spec/containers.
+	if !mainContainerGotResources {
+		for _, patch := range resp.Patches {
+			if strings.HasSuffix(patch.Path, "/containers") && patch.Value != nil {
+				if arr, ok := patch.Value.([]interface{}); ok && len(arr) >= 2 {
+					c0, _ := arr[0].(map[string]interface{})
+					c1, _ := arr[1].(map[string]interface{})
+					if c0 != nil {
+						if res, _ := c0["resources"].(map[string]interface{}); res != nil {
+							if req, _ := res["requests"].(map[string]interface{}); req != nil && req["nvidia.com/gpu"] != nil {
+								mainContainerGotResources = true
+							}
+						}
+					}
+					g.Expect(c1).Should(Not(BeNil()))
+					if c1 != nil {
+						if res, _ := c1["resources"].(map[string]interface{}); res != nil {
+							if req, _ := res["requests"].(map[string]interface{}); req != nil {
+								g.Expect(req).Should(Not(HaveKey("nvidia.com/gpu")), "Sidecar must not have GPU in requests")
+							}
+						}
+					}
+					break
+				}
+			}
+		}
+	}
+	g.Expect(mainContainerGotResources).Should(BeTrue(), "Main container (containers/0) should receive HWP resource patch")
 }
 
 // TestHardwareProfile_SupportsCrossNamespaceAccess_Notebook tests that hardware profiles can be accessed from different namespaces for Notebook workloads.
@@ -841,17 +972,19 @@ func TestHardwareProfile_SupportsCrossNamespaceAccess_Notebook(t *testing.T) {
 	g.Expect(resp.Patches).Should(Not(BeEmpty()))
 }
 
-// TestHardwareProfile_ResourceLimits_Notebook tests that hardware profiles with MaxCount are applied as limits for Notebook workloads.
+// TestHardwareProfile_ResourceLimits_Notebook tests that hardware profiles properly apply limits:
+// - Standard resources (CPU, memory) get limits from MaxCount.
+// - Extended resources (GPU) get limits equal to requests.
 func TestHardwareProfile_ResourceLimits_Notebook(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 	sch, ctx := setupTestEnvironment(t)
 
-	// Create hardware profile with CPU and memory identifiers that include limits
+	// Create hardware profile with CPU and memory identifiers that include MaxCount
 	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
 		envtestutil.WithCPUIdentifier("1", "2", "4"),                   // min: 1, default: 2, max: 4
 		envtestutil.WithMemoryIdentifier("1Gi", "2Gi", "4Gi"),          // min: 1Gi, default: 2Gi, max: 4Gi
-		envtestutil.WithGPUIdentifier("nvidia.com/gpu", "0", "1", "2"), // min: 0, default: 1, max: 2
+		envtestutil.WithGPUIdentifier("nvidia.com/gpu", "1", "1", "1"), // min: 1, default: 1, max: 1 (GPU must have equal values)
 	)
 
 	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
@@ -877,26 +1010,36 @@ func TestHardwareProfile_ResourceLimits_Notebook(t *testing.T) {
 	g.Expect(resp.Allowed).Should(BeTrue())
 	g.Expect(resp.Patches).Should(Not(BeEmpty()))
 
-	// Verify that resources were applied
+	// Verify that resources were applied with correct values
 	hasResourcesPatch := false
 	for _, patch := range resp.Patches {
 		if strings.Contains(patch.Path, "/resources") {
 			hasResourcesPatch = true
 
-			// Check if the patch value contains both requests and limits
 			if resourcesMap, ok := patch.Value.(map[string]interface{}); ok {
-				hasRequests := false
-				hasLimits := false
-
-				if requests, ok := resourcesMap["requests"].(map[string]interface{}); ok && len(requests) > 0 {
-					hasRequests = true
-				}
-				if limits, ok := resourcesMap["limits"].(map[string]interface{}); ok && len(limits) > 0 {
-					hasLimits = true
-				}
+				requests, hasRequests := resourcesMap["requests"].(map[string]interface{})
+				limits, hasLimits := resourcesMap["limits"].(map[string]interface{})
 
 				g.Expect(hasRequests).Should(BeTrue(), "Resources patch should contain requests")
 				g.Expect(hasLimits).Should(BeTrue(), "Resources patch should contain limits")
+
+				// Verify requests are set to DefaultCount
+				g.Expect(requests).Should(HaveKey("cpu"))
+				g.Expect(requests).Should(HaveKey("memory"))
+				g.Expect(requests).Should(HaveKey("nvidia.com/gpu"))
+				g.Expect(requests["cpu"]).Should(Equal("2"), "CPU request should be DefaultCount")
+				g.Expect(requests["memory"]).Should(Equal("2Gi"), "Memory request should be DefaultCount")
+				g.Expect(requests["nvidia.com/gpu"]).Should(Equal("1"), "GPU request should be DefaultCount")
+
+				// Verify limits:
+				// - CPU/Memory limits should come from MaxCount
+				// - GPU limits should equal GPU requests (extended resource requirement)
+				g.Expect(limits).Should(HaveKey("cpu"))
+				g.Expect(limits).Should(HaveKey("memory"))
+				g.Expect(limits).Should(HaveKey("nvidia.com/gpu"))
+				g.Expect(limits["cpu"]).Should(Equal("4"), "CPU limit should be MaxCount")
+				g.Expect(limits["memory"]).Should(Equal("4Gi"), "Memory limit should be MaxCount")
+				g.Expect(limits["nvidia.com/gpu"]).Should(Equal("1"), "GPU limit should equal GPU request (extended resource)")
 			}
 			break
 		}
@@ -1155,17 +1298,18 @@ func TestHardwareProfile_SupportsCrossNamespaceAccess_InferenceService(t *testin
 	g.Expect(resp.Patches).Should(Not(BeEmpty()))
 }
 
-// TestHardwareProfile_ResourceLimits_InferenceService tests that hardware profiles with MaxCount are applied as limits for InferenceService workloads.
+// TestHardwareProfile_ResourceLimits_InferenceService tests that extended resources (GPUs) get limits equal to requests,
+// while standard resources (CPU, memory) without MaxCount don't get limits.
 func TestHardwareProfile_ResourceLimits_InferenceService(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 	sch, ctx := setupTestEnvironment(t)
 
-	// Create hardware profile with CPU and memory identifiers without limits
+	// Create hardware profile with CPU and memory identifiers without MaxCount, and GPU (extended resource)
 	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
 		envtestutil.WithCPUIdentifier("1", "2"),                // min: 1, default: 2 (no max)
 		envtestutil.WithMemoryIdentifier("1Gi", "2Gi"),         // min: 1Gi, default: 2Gi (no max)
-		envtestutil.WithGPUIdentifier("adm.com/gpu", "0", "1"), // min: 0, default: 1 (no max)
+		envtestutil.WithGPUIdentifier("amd.com/gpu", "1", "1"), // min: 1, default: 1 (GPU must have equal values)
 	)
 
 	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
@@ -1197,20 +1341,27 @@ func TestHardwareProfile_ResourceLimits_InferenceService(t *testing.T) {
 		if strings.Contains(patch.Path, "/resources") {
 			hasResourcesPatch = true
 
-			// Check if the patch value contains both requests and limits
+			// Check if the patch value contains requests and limits
 			if resourcesMap, ok := patch.Value.(map[string]interface{}); ok {
-				hasRequests := false
-				hasLimits := false
-
-				if requests, ok := resourcesMap["requests"].(map[string]interface{}); ok && len(requests) > 0 {
-					hasRequests = true
-				}
-				if limits, ok := resourcesMap["limits"].(map[string]interface{}); ok && len(limits) > 0 {
-					hasLimits = true
-				}
+				requests, hasRequests := resourcesMap["requests"].(map[string]interface{})
+				limits, hasLimits := resourcesMap["limits"].(map[string]interface{})
 
 				g.Expect(hasRequests).Should(BeTrue(), "Resources patch should contain requests")
-				g.Expect(hasLimits).Should(BeFalse(), "Resources patch should not contain limits when max values are not set")
+				g.Expect(hasLimits).Should(BeTrue(), "Resources patch should contain limits for extended resources")
+
+				// Verify requests contain all resources
+				g.Expect(requests).Should(HaveKey("cpu"))
+				g.Expect(requests).Should(HaveKey("memory"))
+				g.Expect(requests).Should(HaveKey("amd.com/gpu"))
+				g.Expect(requests["cpu"]).Should(Equal("2"))
+				g.Expect(requests["memory"]).Should(Equal("2Gi"))
+				g.Expect(requests["amd.com/gpu"]).Should(Equal("1"))
+
+				// Verify limits: only GPU should have limits (extended resource), not CPU/memory (no MaxCount)
+				g.Expect(limits).Should(HaveKey("amd.com/gpu"), "Extended resource (GPU) should have limits")
+				g.Expect(limits["amd.com/gpu"]).Should(Equal("1"), "GPU limits should equal requests")
+				g.Expect(limits).ShouldNot(HaveKey("cpu"), "CPU without MaxCount should not have limits")
+				g.Expect(limits).ShouldNot(HaveKey("memory"), "Memory without MaxCount should not have limits")
 			}
 			break
 		}
@@ -1261,7 +1412,7 @@ func TestHardwareProfile_ResourceInjection_LLMInferenceService(t *testing.T) {
 				// Set existing resources that should be preserved
 				containers := []interface{}{
 					map[string]interface{}{
-						"name":  "llm-container",
+						"name":  "main",
 						"image": "opendatahub/llm-model-server:latest",
 						"resources": map[string]interface{}{
 							"requests": map[string]interface{}{
@@ -1289,7 +1440,7 @@ func TestHardwareProfile_ResourceInjection_LLMInferenceService(t *testing.T) {
 				// Set only CPU request, memory should be applied from HWP
 				containers := []interface{}{
 					map[string]interface{}{
-						"name":  "llm-container",
+						"name":  "main",
 						"image": "opendatahub/llm-model-server:latest",
 						"resources": map[string]interface{}{
 							"requests": map[string]interface{}{
@@ -1311,7 +1462,7 @@ func TestHardwareProfile_ResourceInjection_LLMInferenceService(t *testing.T) {
 
 				containers := []interface{}{
 					map[string]interface{}{
-						"name":  "llm-container",
+						"name":  "main",
 						"image": "opendatahub/llm-model-server:latest",
 						"resources": map[string]interface{}{
 							"requests": map[string]interface{}{
@@ -1325,6 +1476,25 @@ func TestHardwareProfile_ResourceInjection_LLMInferenceService(t *testing.T) {
 				return workload
 			},
 			expectResourcePatch: true,
+		},
+		{
+			name: "no container named 'main'; admits with warning",
+			setupWorkload: func() *unstructured.Unstructured {
+				workload, ok := envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
+				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
+
+				// Container not named "main" -> admits with warning, no identifier injection
+				containers := []interface{}{
+					map[string]interface{}{
+						"name":      "llm-server",
+						"image":     "opendatahub/llm-model-server:latest",
+						"resources": map[string]interface{}{},
+					},
+				}
+				_ = unstructured.SetNestedSlice(workload.Object, containers, "spec", "template", "containers")
+				return workload
+			},
+			expectResourcePatch: false,
 		},
 	}
 
@@ -1347,9 +1517,16 @@ func TestHardwareProfile_ResourceInjection_LLMInferenceService(t *testing.T) {
 			)
 
 			resp := injector.Handle(ctx, req)
-			g.Expect(resp.Allowed).Should(BeTrue())
-
+			g.Expect(resp.Allowed).Should(BeTrue(), "All requests should be admitted")
 			g.Expect(hasResourcePatches(resp.Patches)).Should(Equal(tc.expectResourcePatch))
+
+			// When no "main" container is found, expect a warning
+			if tc.name == "no container named 'main'; admits with warning" {
+				g.Expect(resp.Warnings).ShouldNot(BeEmpty(), "Should have warning when no 'main' container found")
+				g.Expect(resp.Warnings[0]).Should(ContainSubstring("was not applied"))
+				g.Expect(resp.Warnings[0]).Should(ContainSubstring("main"), "Warning should mention expected container name 'main'")
+				g.Expect(resp.Warnings[0]).Should(ContainSubstring("All hardware profile settings"), "Warning should indicate all settings skipped")
+			}
 		})
 	}
 }
@@ -1540,17 +1717,18 @@ func TestHardwareProfile_SupportsCrossNamespaceAccess_LLMInferenceService(t *tes
 	g.Expect(resp.Patches).Should(Not(BeEmpty()))
 }
 
-// TestHardwareProfile_ResourceLimits_LLMInferenceService tests that hardware profiles with MaxCount are applied as limits for LlmInferenceService workloads.
+// TestHardwareProfile_ResourceLimits_LLMInferenceService tests that extended resources (GPUs) get limits equal to requests,
+// while standard resources (CPU, memory) without MaxCount don't get limits.
 func TestHardwareProfile_ResourceLimits_LLMInferenceService(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 	sch, ctx := setupTestEnvironment(t)
 
-	// Create hardware profile with CPU and memory identifiers without limits
+	// Create hardware profile with CPU and memory identifiers without MaxCount, and GPU (extended resource)
 	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
 		envtestutil.WithCPUIdentifier("1", "2"),                // min: 1, default: 2 (no max)
 		envtestutil.WithMemoryIdentifier("1Gi", "2Gi"),         // min: 1Gi, default: 2Gi (no max)
-		envtestutil.WithGPUIdentifier("adm.com/gpu", "0", "1"), // min: 0, default: 1 (no max)
+		envtestutil.WithGPUIdentifier("amd.com/gpu", "1", "1"), // min: 1, default: 1 (GPU must have equal values)
 	)
 
 	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
@@ -1576,26 +1754,136 @@ func TestHardwareProfile_ResourceLimits_LLMInferenceService(t *testing.T) {
 	g.Expect(resp.Allowed).Should(BeTrue())
 	g.Expect(resp.Patches).Should(Not(BeEmpty()))
 
-	// Verify that resources were applied
+	// Verify that resources were applied with correct values
 	hasResourcesPatch := false
 	for _, patch := range resp.Patches {
 		if strings.Contains(patch.Path, "/resources") {
 			hasResourcesPatch = true
 
-			// Check if the patch value contains both requests and limits
 			if resourcesMap, ok := patch.Value.(map[string]interface{}); ok {
-				hasRequests := false
-				hasLimits := false
-
-				if requests, ok := resourcesMap["requests"].(map[string]interface{}); ok && len(requests) > 0 {
-					hasRequests = true
-				}
-				if limits, ok := resourcesMap["limits"].(map[string]interface{}); ok && len(limits) > 0 {
-					hasLimits = true
-				}
+				requests, hasRequests := resourcesMap["requests"].(map[string]interface{})
+				limits, hasLimits := resourcesMap["limits"].(map[string]interface{})
 
 				g.Expect(hasRequests).Should(BeTrue(), "Resources patch should contain requests")
-				g.Expect(hasLimits).Should(BeFalse(), "Resources patch should not contain limits when max values are not set")
+				g.Expect(hasLimits).Should(BeTrue(), "Resources patch should contain limits for extended resources")
+
+				// Verify requests contain all resources
+				g.Expect(requests).Should(HaveKey("cpu"))
+				g.Expect(requests).Should(HaveKey("memory"))
+				g.Expect(requests).Should(HaveKey("amd.com/gpu"))
+				g.Expect(requests["cpu"]).Should(Equal("2"))
+				g.Expect(requests["memory"]).Should(Equal("2Gi"))
+				g.Expect(requests["amd.com/gpu"]).Should(Equal("1"))
+
+				// Verify limits: only GPU should have limits (extended resource), not CPU/memory (no MaxCount)
+				g.Expect(limits).Should(HaveKey("amd.com/gpu"), "Extended resource (GPU) should have limits")
+				g.Expect(limits["amd.com/gpu"]).Should(Equal("1"), "GPU limits should equal requests")
+				g.Expect(limits).ShouldNot(HaveKey("cpu"), "CPU without MaxCount should not have limits")
+				g.Expect(limits).ShouldNot(HaveKey("memory"), "Memory without MaxCount should not have limits")
+			}
+			break
+		}
+	}
+
+	g.Expect(hasResourcesPatch).Should(BeTrue(), "Should have resources patch")
+}
+
+// TestHardwareProfile_MixedResourceLimits_Notebook tests comprehensive limits behavior:
+// - Standard resources with MaxCount get limits from MaxCount.
+// - Standard resources without MaxCount don't get limits.
+// - Extended resources always get limits equal to requests (regardless of MaxCount).
+func TestHardwareProfile_MixedResourceLimits_Notebook(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create hardware profile with mixed resource types
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
+		envtestutil.WithCPUIdentifier("1", "4", "8"),                   // standard resource WITH MaxCount
+		envtestutil.WithMemoryIdentifier("2Gi", "8Gi", "16Gi"),         // standard resource WITH MaxCount
+		envtestutil.WithGPUIdentifier("nvidia.com/gpu", "2", "2", "4"), // extended resource (GPU must have equal values)
+		envtestutil.WithResourceIdentifiers(infrav1.HardwareIdentifier{ // another extended resource without MaxCount
+			DisplayName:  "Intel QAT",
+			Identifier:   "intel.com/qat",
+			MinCount:     intstr.FromString("1"),
+			DefaultCount: intstr.FromString("1"),
+			// No MaxCount
+			ResourceType: "Accelerator",
+		}),
+		envtestutil.WithResourceIdentifiers(infrav1.HardwareIdentifier{ // standard resource WITHOUT MaxCount (ResourceType omitted per API: CPU|Memory|Accelerator only)
+			DisplayName:  "Ephemeral Storage",
+			Identifier:   "ephemeral-storage",
+			MinCount:     intstr.FromString("1Gi"),
+			DefaultCount: intstr.FromString("10Gi"),
+			// No MaxCount; ResourceType left empty - valid enum values are CPU|Memory|Accelerator only
+		}),
+	)
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	workload := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+	workloadUnstructured, ok := workload.(*unstructured.Unstructured)
+	g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
+
+	req := envtestutil.NewAdmissionRequest(
+		t,
+		admissionv1.Create,
+		workloadUnstructured,
+		gvk.Notebook,
+		metav1.GroupVersionResource{
+			Group:    gvk.Notebook.Group,
+			Version:  gvk.Notebook.Version,
+			Resource: "notebooks",
+		},
+	)
+
+	resp := injector.Handle(ctx, req)
+	g.Expect(resp.Allowed).Should(BeTrue())
+	g.Expect(resp.Patches).Should(Not(BeEmpty()))
+
+	// Verify comprehensive limits behavior
+	hasResourcesPatch := false
+	for _, patch := range resp.Patches {
+		if strings.Contains(patch.Path, "/resources") {
+			hasResourcesPatch = true
+
+			if resourcesMap, ok := patch.Value.(map[string]interface{}); ok {
+				requests, hasRequests := resourcesMap["requests"].(map[string]interface{})
+				limits, hasLimits := resourcesMap["limits"].(map[string]interface{})
+
+				g.Expect(hasRequests).Should(BeTrue(), "Resources patch should contain requests")
+				g.Expect(hasLimits).Should(BeTrue(), "Resources patch should contain limits")
+
+				// ========== Verify Requests (all should be DefaultCount) ==========
+				g.Expect(requests["cpu"]).Should(Equal("4"), "CPU request = DefaultCount")
+				g.Expect(requests["memory"]).Should(Equal("8Gi"), "Memory request = DefaultCount")
+				g.Expect(requests["nvidia.com/gpu"]).Should(Equal("2"), "GPU request = DefaultCount")
+				g.Expect(requests["intel.com/qat"]).Should(Equal("1"), "QAT request = DefaultCount")
+				g.Expect(requests["ephemeral-storage"]).Should(Equal("10Gi"), "Ephemeral storage request = DefaultCount")
+
+				// ========== Verify Limits ==========
+
+				// Standard resources WITH MaxCount → limits = MaxCount
+				g.Expect(limits).Should(HaveKey("cpu"), "CPU with MaxCount should have limits")
+				g.Expect(limits["cpu"]).Should(Equal("8"), "CPU limit should equal MaxCount (8)")
+				g.Expect(limits).Should(HaveKey("memory"), "Memory with MaxCount should have limits")
+				g.Expect(limits["memory"]).Should(Equal("16Gi"), "Memory limit should equal MaxCount (16Gi)")
+
+				// Standard resources WITHOUT MaxCount → no limits
+				g.Expect(limits).ShouldNot(HaveKey("ephemeral-storage"),
+					"Ephemeral-storage without MaxCount should NOT have limits")
+
+				// Extended resources → limits = requests (regardless of MaxCount)
+				g.Expect(limits).Should(HaveKey("nvidia.com/gpu"),
+					"GPU (extended resource) should have limits")
+				g.Expect(limits["nvidia.com/gpu"]).Should(Equal("2"),
+					"GPU limit should equal request (2), NOT MaxCount (4)")
+
+				g.Expect(limits).Should(HaveKey("intel.com/qat"),
+					"QAT (extended resource) should have limits even without MaxCount")
+				g.Expect(limits["intel.com/qat"]).Should(Equal("1"),
+					"QAT limit should equal request (1)")
 			}
 			break
 		}

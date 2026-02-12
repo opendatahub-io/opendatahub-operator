@@ -197,7 +197,7 @@ func (tc *TestContext) EnsureResourceExists(opts ...ResourceOpts) *unstructured.
 
 	var u *unstructured.Unstructured
 
-	tc.g.Eventually(func(g Gomega) {
+	eventually := tc.g.Eventually(func(g Gomega) {
 		// Use fetchResource to attempt to fetch the resource with retries
 		u, _ = fetchResource(ro)
 
@@ -212,7 +212,9 @@ func (tc *TestContext) EnsureResourceExists(opts ...ResourceOpts) *unstructured.
 			// Apply the provided condition matcher to the resource.
 			applyMatchers(g, ro.ResourceID, ro.GVK, u, nil, ro.Condition, ro.CustomErrorArgs)
 		}
-	}).Should(Succeed())
+	})
+
+	ro.applyEventuallyTimeouts(eventually).Should(Succeed())
 
 	return u
 }
@@ -235,7 +237,7 @@ func (tc *TestContext) EnsureResourceExistsConsistently(opts ...ResourceOpts) *u
 	var u *unstructured.Unstructured
 
 	// Ensure the resource exists and matches the condition consistently over the specified period.
-	tc.g.Consistently(func(g Gomega) {
+	consistently := tc.g.Consistently(func(g Gomega) {
 		// Use fetchResource to attempt to fetch the resource with retries
 		u, _ = fetchResource(ro)
 
@@ -245,12 +247,14 @@ func (tc *TestContext) EnsureResourceExistsConsistently(opts ...ResourceOpts) *u
 			defaultErrorMessageIfNone(resourceNotFoundErrorMsg, []any{ro.ResourceID, ro.GVK.Kind}, ro.CustomErrorArgs)...,
 		)
 
-		// If a condition is provided via WithCondition, apply it inside the Eventually block
+		// If a condition is provided via WithCondition, apply it inside the Consistently block
 		if ro.Condition != nil {
 			// Apply the provided condition matcher to the resource.
 			applyMatchers(g, ro.ResourceID, ro.GVK, u, nil, ro.Condition, ro.CustomErrorArgs)
 		}
-	}).Should(Succeed())
+	})
+
+	ro.applyConsistentlyTimeouts(consistently).Should(Succeed())
 
 	return u
 }
@@ -508,7 +512,7 @@ func (tc *TestContext) EnsureResourceGone(opts ...ResourceOpts) {
 	ro.IgnoreNotFound = true
 
 	// Use Eventually to retry checking the resource until it disappears or timeout occurs
-	tc.g.Eventually(func(g Gomega) {
+	eventually := tc.g.Eventually(func(g Gomega) {
 		err := tc.ensureResourceDoesNotExist(g, ro)
 
 		// Validate the error if an expected error is set
@@ -519,7 +523,9 @@ func (tc *TestContext) EnsureResourceGone(opts ...ResourceOpts) {
 
 		// For deletion checks, we expect no error (resource should be gone)
 		g.Expect(err).NotTo(HaveOccurred())
-	}).Should(Succeed())
+	})
+
+	ro.applyEventuallyTimeouts(eventually).Should(Succeed())
 }
 
 // EnsureResourcesExist ensures that a specific list of Kubernetes resources exists in the cluster.
@@ -537,7 +543,7 @@ func (tc *TestContext) EnsureResourcesExist(opts ...ResourceOpts) []unstructured
 
 	var resourcesList []unstructured.Unstructured
 
-	tc.g.Eventually(func(g Gomega) {
+	eventually := tc.g.Eventually(func(g Gomega) {
 		resourcesList, _ = fetchResourcesSync(ro)
 
 		// If a condition is provided via WithCondition, apply it inside the Eventually block
@@ -548,7 +554,9 @@ func (tc *TestContext) EnsureResourcesExist(opts ...ResourceOpts) []unstructured
 
 		// If no condition is provided, simply ensure the list is not empty
 		g.Expect(resourcesList).NotTo(BeEmpty(), resourceEmptyErrorMsg, ro.ResourceID, ro.GVK.Kind)
-	}).Should(Succeed())
+	})
+
+	ro.applyEventuallyTimeouts(eventually).Should(Succeed())
 
 	return resourcesList
 }
@@ -586,10 +594,12 @@ func (tc *TestContext) EnsureResourcesGone(opts ...ResourceOpts) {
 	ro.IgnoreNotFound = true
 
 	// Use Eventually to retry checking the resource until it disappears or timeout occurs
-	tc.g.Eventually(func(g Gomega) {
+	eventually := tc.g.Eventually(func(g Gomega) {
 		err := tc.ensureResourcesDoNotExist(g, ro)
 		g.Expect(err).NotTo(HaveOccurred())
-	}).Should(Succeed())
+	})
+
+	ro.applyEventuallyTimeouts(eventually).Should(Succeed())
 }
 
 // FetchActualSubscription gets a Subscription if it exists.
@@ -1176,7 +1186,7 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 	tc.DeleteResource(opts...)
 
 	// Step 2.5: Ensure the resource is actually deleted before looking for recreation
-	tc.g.Eventually(func(g Gomega) {
+	deletionCheck := tc.g.Eventually(func(g Gomega) {
 		// Use direct client.Get() instead of fetchResource() to avoid nested Eventually calls
 		u, err := fetchResourceSync(ro)
 		if err != nil {
@@ -1194,7 +1204,9 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 		g.Expect(u.GetUID()).NotTo(Equal(originalUID),
 			"Resource deletion not yet acknowledged: resource still exists with original UID")
 		// If it has a different UID, it was already recreated, which is fine
-	}).Should(Succeed(), "Resource %s %s deletion was not acknowledged within timeout", ro.GVK.Kind, ro.ResourceID)
+	})
+
+	ro.applyEventuallyTimeouts(deletionCheck).Should(Succeed(), "Resource %s %s deletion was not acknowledged within timeout", ro.GVK.Kind, ro.ResourceID)
 
 	// Step 3: Wait for controller to recreate with new identity
 	// (UID-based verification automatically handles deletion acknowledgment)
@@ -1205,7 +1217,7 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 
 	var recreatedResource *unstructured.Unstructured
 
-	tc.g.Eventually(func(g Gomega) {
+	recreationCheck := tc.g.Eventually(func(g Gomega) {
 		// Poll without nesting Eventually to avoid compounded timeouts
 		// Use direct client.Get() instead of fetchResource() to avoid nested Eventually calls
 		u, err := fetchResourceSync(ro)
@@ -1222,7 +1234,9 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 		g.Expect(newResourceVersion).NotTo(Equal(originalResourceVersion),
 			"Recreated resource should have different ResourceVersion. Original: %s, New: %s",
 			originalResourceVersion, newResourceVersion)
-	}).Should(Succeed(),
+	})
+
+	ro.applyEventuallyTimeouts(recreationCheck).Should(Succeed(),
 		"Resource %s %s was not properly recreated with new identity", ro.GVK.Kind, ro.ResourceID)
 
 	return recreatedResource
@@ -1511,7 +1525,7 @@ func (tc *TestContext) EnsureWebhookBlocksOperation(operation func() error, oper
 	// Create a ResourceOptions object based on the provided opts.
 	ro := tc.NewResourceOptions(opts...)
 
-	tc.g.Eventually(func(g Gomega) {
+	eventually := tc.g.Eventually(func(g Gomega) {
 		// Execute the operation that should be blocked
 		err := operation()
 
@@ -1533,7 +1547,9 @@ func (tc *TestContext) EnsureWebhookBlocksOperation(operation func() error, oper
 
 		// Validate that it's a webhook validation error, not an infrastructure issue
 		tc.validateWebhookError(g, err, operationType, ro)
-	}).Should(Succeed(), defaultErrorMessageIfNone(
+	})
+
+	ro.applyEventuallyTimeouts(eventually).Should(Succeed(), defaultErrorMessageIfNone(
 		"Failed to validate webhook blocking behavior for %s of %s resource",
 		[]any{operationType, ro.GVK.Kind},
 		ro.CustomErrorArgs,
