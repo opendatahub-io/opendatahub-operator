@@ -95,19 +95,19 @@ func (c *ExampleComponent) GetStatus() *common.Status {
 	return &c.Status.Status
 }
 
-func (c *TrainingOperator) GetConditions() []common.Condition {
+func (c *ExampleComponent) GetConditions() []common.Condition {
 	return c.Status.GetConditions()
 }
 
-func (c *TrainingOperator) SetConditions(conditions []common.Condition) {
+func (c *ExampleComponent) SetConditions(conditions []common.Condition) {
 	c.Status.SetConditions(conditions)
 }
 
-func (c *TrainingOperator) GetReleaseStatus() *[]common.ComponentRelease {
+func (c *ExampleComponent) GetReleaseStatus() *[]common.ComponentRelease {
 	return &c.Status.Releases
 }
 
-func (c *TrainingOperator) SetReleaseStatus(releases []common.ComponentRelease) {
+func (c *ExampleComponent) SetReleaseStatus(releases []common.ComponentRelease) {
 	c.Status.Releases = releases
 }
 
@@ -162,15 +162,15 @@ operators.operatorframework.io/internal-objects: '["featuretrackers.features.ope
 Add your component to the `resources` list in `PROJECT` file (if you used [component-codegen CLI](../cmd/component-codegen/README.md), it should have been already added):
 
 ```yaml
-	resources:
-	- api:
-	    crdVersion: v1alpha1
-	  controller: true
-	  domain: platform.opendatahub.io
-	  group: components
-	  kind: ExampleComponent
-	  path: github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1
-	  version: v1alpha1
+    resources:
+    - api:
+        crdVersion: v1alpha1
+      controller: true
+      domain: platform.opendatahub.io
+      group: components
+      kind: ExampleComponent
+      path: github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1
+      version: v1alpha1
 ```
 
 and run `make bundle-all` to verify your component has been correctly added to `config/manifests/bases/opendatahub-operator.clusterserviceversion.yaml` and `config/rhoai/manifests/bases/rhods-operator.clusterserviceversion.yaml`.
