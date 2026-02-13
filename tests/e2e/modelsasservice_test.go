@@ -50,11 +50,9 @@ func modelsAsServiceTestSuite(t *testing.T) {
 	testCases := []TestCase{
 		{"Validate subcomponent enabled", componentCtx.ValidateSubComponentEnabled},
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
-		// TODO: Re-enable after https://issues.redhat.com/browse/RHOAIENG-47119 resolved
-		// {"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
+		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate subcomponent releases", componentCtx.ValidateSubComponentReleases},
-		// TODO: Re-enable after https://issues.redhat.com/browse/RHOAIENG-47119 resolved
-		// {"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
+		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate subcomponent disabled", componentCtx.ValidateSubComponentDisabled},
 	}
 

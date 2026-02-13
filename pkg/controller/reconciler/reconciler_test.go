@@ -222,3 +222,69 @@ func TestConditions(t *testing.T) {
 		})
 	}
 }
+
+// TestReconcilerBuilder_WatchMethods_UseUnstructured verifies that all watch
+// registration methods (Owns, Watches, OwnsGVK, WatchesGVK) convert objects
+// to unstructured. This prevents the stale cache bug where typed and
+// unstructured informers can become out of sync.
+func TestReconcilerBuilder_WatchMethods_UseUnstructured(t *testing.T) {
+	g := NewWithT(t)
+	s := runtime.NewScheme()
+
+	envTest, err := createEnvTest(s)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	t.Cleanup(func() {
+		_ = envTest.Stop()
+	})
+
+	cfg, err := envTest.Start()
+	g.Expect(err).NotTo(HaveOccurred())
+
+	mgr, err := ctrl.NewManager(cfg, ctrl.Options{Scheme: s})
+	g.Expect(err).NotTo(HaveOccurred())
+
+	tests := []struct {
+		name       string
+		setupWatch func(*ReconcilerBuilder[*componentApi.Dashboard])
+	}{
+		{
+			name: "Owns with typed object",
+			setupWatch: func(b *ReconcilerBuilder[*componentApi.Dashboard]) {
+				b.Owns(&corev1.ConfigMap{})
+			},
+		},
+		{
+			name: "Watches with typed object",
+			setupWatch: func(b *ReconcilerBuilder[*componentApi.Dashboard]) {
+				b.Watches(&corev1.Secret{})
+			},
+		},
+		{
+			name: "OwnsGVK",
+			setupWatch: func(b *ReconcilerBuilder[*componentApi.Dashboard]) {
+				b.OwnsGVK(gvk.Deployment)
+			},
+		},
+		{
+			name: "WatchesGVK",
+			setupWatch: func(b *ReconcilerBuilder[*componentApi.Dashboard]) {
+				b.WatchesGVK(gvk.Secret)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			builder := ReconcilerFor(mgr, &componentApi.Dashboard{})
+			tt.setupWatch(builder)
+
+			g.Expect(builder.watches).To(HaveLen(1),
+				"expected exactly one watch to be registered")
+
+			_, isUnstructured := builder.watches[0].object.(*unstructured.Unstructured)
+			g.Expect(isUnstructured).To(BeTrue(),
+				"%s must use unstructured objects to prevent stale cache bugs", tt.name)
+		})
+	}
+}
