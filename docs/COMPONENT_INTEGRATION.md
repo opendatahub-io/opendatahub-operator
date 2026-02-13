@@ -9,7 +9,7 @@ The list of the currently integrated ODH components is provided [at the end of t
 
 ## Use scaffolding to create boilerplate code
 
-Integrating a new component into the Open Data Hub (ODH) operator is  easier with the [component-codegen CLI](../cmd/component-codegen/README.md). The CLI automates much of the boilerplate code and file generation, significantly reducing manual effort and ensuring consistency.
+Integrating a new component into the Open Data Hub (ODH) operator is easier with the [component-codegen CLI](../cmd/component-codegen/README.md). The CLI automates much of the boilerplate code and file generation, significantly reducing manual effort and ensuring consistency.
 
 While the CLI handles most of the heavy lifting, it’s still important to understand the purpose of each generated file. Please refer to the following sections for a detailed breakdown of the key files and their roles in the integration process.
 
@@ -159,18 +159,21 @@ operators.operatorframework.io/internal-objects: '["featuretrackers.features.ope
 
 #### Add component to the owned objects list
 
-Add your component to the `owned` list under `customresourcedefinitions` in `config/manifests/bases/opendatahub-operator.clusterserviceversion.yaml` and `config/rhoai/manifests/bases/rhods-operator.clusterserviceversion.yaml`:
+Add your component to the `resources` list in `PROJECT` file (if you used [component-codegen CLI](../cmd/component-codegen/README.md), it should have been already added):
 
 ```yaml
-    owned:
-    - description: ExampleComponent is the Schema for the examplecomponent API.
-      displayName: Your Component
-      kind: ExampleComponent
-      name: examplecomponents.components.platform.opendatahub.io
-      version: v1alpha1
+	resources:
+	- api:
+	    crdVersion: v1alpha1
+	  controller: true
+	  domain: platform.opendatahub.io
+	  group: components
+	  kind: ExampleComponent
+	  path: github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1
+	  version: v1alpha1
 ```
 
-and run `make bundle-all` to verify your component has been correctly added to the list.
+and run `make bundle-all` to verify your component has been correctly added to `config/manifests/bases/opendatahub-operator.clusterserviceversion.yaml` and `config/rhoai/manifests/bases/rhods-operator.clusterserviceversion.yaml`.
 
 #### Add Component to DataScienceCluster API spec
 
