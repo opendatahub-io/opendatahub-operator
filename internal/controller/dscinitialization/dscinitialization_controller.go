@@ -24,16 +24,11 @@ import (
 	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	routev1 "github.com/openshift/api/route/v1"
-	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	networkingv1 "k8s.io/api/networking/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
@@ -324,89 +319,94 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 }
 
+func getObject(gvk schema.GroupVersionKind) client.Object {
+	return resources.GvkToUnstructured(gvk)
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		// add predicates prevents meaningless reconciliations from being triggered
 		// not use WithEventFilter() because it conflict with secret and configmap predicate
 		For(
-			&dsciv2.DSCInitialization{},
+			getObject(gvk.DSCInitialization),
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})),
 		).
 		Owns(
-			&corev1.Namespace{},
+			getObject(gvk.Namespace),
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(
-			&corev1.Secret{},
+			getObject(gvk.Secret),
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(
-			&corev1.ConfigMap{},
+			getObject(gvk.ConfigMap),
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(
-			&networkingv1.NetworkPolicy{},
+			getObject(gvk.NetworkPolicy),
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(
-			&rbacv1.Role{},
+			getObject(gvk.Role),
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(
-			&rbacv1.RoleBinding{},
+			getObject(gvk.RoleBinding),
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(
-			&rbacv1.ClusterRole{},
+			getObject(gvk.ClusterRole),
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(
-			&rbacv1.ClusterRoleBinding{},
+			getObject(gvk.ClusterRoleBinding),
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(
-			&appsv1.Deployment{},
+			getObject(gvk.Deployment),
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(
-			&corev1.ServiceAccount{},
+			getObject(gvk.ServiceAccount),
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(
-			&corev1.Service{},
+			getObject(gvk.Service),
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(
-			&routev1.Route{},
+			getObject(gvk.Route),
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Owns(&corev1.PersistentVolumeClaim{},
+		Owns(
+			getObject(gvk.PersistentVolumeClaim),
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns( // ensure always have default one for AcceleratorProfile/HardwareProfile blocking
-			&admissionregistrationv1.ValidatingAdmissionPolicy{},
+			getObject(gvk.ValidatingAdmissionPolicy),
 		).
 		Owns( // ensure always have default one for AcceleratorProfile/HardwareProfile blocking
-			&admissionregistrationv1.ValidatingAdmissionPolicyBinding{},
+			getObject(gvk.ValidatingAdmissionPolicyBinding),
 		).
 		Owns( // ensure always have one platform's HardwareProfile in the cluster.
-			&infrav1.HardwareProfile{},
+			getObject(gvk.HardwareProfile),
 			builder.WithPredicates(rp.Deleted())).
 		Watches(
-			&dscv2.DataScienceCluster{},
+			getObject(gvk.DataScienceCluster),
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
 				return r.watchDSCResource(ctx)
 			}),
 			builder.WithPredicates(rp.DSCDeletionPredicate), // TODO: is it needed?
 		).
 		Watches(
-			&corev1.Secret{},
+			getObject(gvk.Secret),
 			handler.EnqueueRequestsFromMapFunc(r.watchMonitoringSecretResource),
 			builder.WithPredicates(rp.SecretContentChangedPredicate),
 		).
 		Watches(
-			&corev1.ConfigMap{},
+			getObject(gvk.ConfigMap),
 			handler.EnqueueRequestsFromMapFunc(r.watchMonitoringConfigMapResource),
 			builder.WithPredicates(rp.CMContentChangedPredicate),
 		).
 		Watches(
-			&serviceApi.Auth{},
+			getObject(gvk.Auth),
 			handler.EnqueueRequestsFromMapFunc(r.watchAuthResource),
 		).
 		Watches(
-			&serviceApi.GatewayConfig{},
+			getObject(gvk.GatewayConfig),
 			handler.EnqueueRequestsFromMapFunc(r.watchGatewayConfigResource),
 		).
 		Watches( // TODO: this might not be needed after v3.3.
-			&apiextensionsv1.CustomResourceDefinition{},
+			getObject(gvk.CustomResourceDefinition),
 			handler.EnqueueRequestsFromMapFunc(r.watchHWProfileCRDResource),
 			builder.WithPredicates(predicate.Or(
 				rp.CreatedOrUpdatedName("acceleratorprofiles.dashboard.opendatahub.io"),

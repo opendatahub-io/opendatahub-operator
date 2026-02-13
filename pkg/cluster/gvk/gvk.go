@@ -345,6 +345,12 @@ var (
 		Kind:    componentApi.SparkOperatorKind,
 	}
 
+	ModelsAsService = schema.GroupVersionKind{
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.ModelsAsServiceKind,
+	}
+
 	CustomResourceDefinition = schema.GroupVersionKind{
 		Group:   "apiextensions.k8s.io",
 		Version: "v1",
@@ -691,5 +697,11 @@ var (
 		Group:   "mlflow.opendatahub.io",
 		Version: "v1",
 		Kind:    "MLflow",
+	}
+
+	PersistentVolumeClaim = schema.GroupVersionKind{
+		Group:   corev1.SchemeGroupVersion.Group,
+		Version: corev1.SchemeGroupVersion.Version,
+		Kind:    "PersistentVolumeClaim",
 	}
 )
