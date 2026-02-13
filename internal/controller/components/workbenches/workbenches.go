@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -16,6 +17,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -51,21 +53,26 @@ func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *
 }
 
 func (s *componentHandler) Init(platform common.Platform) error {
-	nbcManifestInfo := notebookControllerManifestInfo(notebookControllerManifestSourcePath)
-	if err := odhdeploy.ApplyParams(nbcManifestInfo.String(), "params.env", map[string]string{
+	overlayName := cluster.OverlayName(platform)
+
+	// ODH Notebook Controller - uses standard overlay/base params.env structure
+	nbcPath := filepath.Join(odhdeploy.DefaultManifestPath, notebookControllerContextDir)
+	if _, err := odhdeploy.ApplyParamsWithFallback(nbcPath, overlayName, map[string]string{
 		"odh-notebook-controller-image": "RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE",
 		"kube-rbac-proxy":               "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
 	}); err != nil {
-		return fmt.Errorf("failed to update params.env from %s : %w", nbcManifestInfo.String(), err)
+		return fmt.Errorf("failed to update params.env from %s: %w", nbcPath, err)
 	}
 
-	kfNbcManifestInfo := kfNotebookControllerManifestInfo(kfNotebookControllerManifestSourcePath)
-	if err := odhdeploy.ApplyParams(kfNbcManifestInfo.String(), "params.env", map[string]string{
+	// Kubeflow Notebook Controller - uses non-standard path (manager/params.env instead of base/params.env)
+	kfNbcPath := filepath.Join(odhdeploy.DefaultManifestPath, kfNotebookControllerContextDir, "manager")
+	if err := odhdeploy.ApplyParams(kfNbcPath, "params.env", map[string]string{
 		"odh-kf-notebook-controller-image": "RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE",
 	}); err != nil {
-		return fmt.Errorf("failed to update params.env from %s : %w", kfNbcManifestInfo.String(), err)
+		return fmt.Errorf("failed to update params.env from %s: %w", kfNbcPath, err)
 	}
 
+	// Notebook Images - uses params-latest.env instead of params.env
 	nbImgsManifestInfo := notebookImagesManifestInfo(notebookImagesParamsPath)
 	if err := odhdeploy.ApplyParams(nbImgsManifestInfo.String(), "params-latest.env", map[string]string{
 		// CodeServer Workbench Images
@@ -109,7 +116,7 @@ func (s *componentHandler) Init(platform common.Platform) error {
 		// Pipeline Runtime Images - PyTorch+llmcompressor CUDA
 		"odh-pipeline-runtime-pytorch-llmcompressor-cuda-py312-ubi9-n": "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_LLMCOMPRESSOR_CUDA_PY312_IMAGE",
 	}); err != nil {
-		return fmt.Errorf("failed to update params-latest.env from %s : %w", nbImgsManifestInfo.String(), err)
+		return fmt.Errorf("failed to update params-latest.env from %s: %w", nbImgsManifestInfo.String(), err)
 	}
 
 	return nil

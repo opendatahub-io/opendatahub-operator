@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -16,6 +17,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -51,8 +53,11 @@ func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *
 }
 
 func (s *componentHandler) Init(platform common.Platform) error {
-	if err := odhdeploy.ApplyParams(paramsPath, "params.env", imageParamMap); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", paramsPath, err)
+	componentPath := filepath.Join(odhdeploy.DefaultManifestPath, ComponentName)
+	overlayName := cluster.OverlayName(platform)
+
+	if _, err := odhdeploy.ApplyParamsWithFallback(componentPath, overlayName, imageParamMap); err != nil {
+		return fmt.Errorf("failed to update params for %s: %w", ComponentName, err)
 	}
 
 	return nil

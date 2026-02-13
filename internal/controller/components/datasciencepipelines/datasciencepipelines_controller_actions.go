@@ -20,7 +20,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"path"
+	"path/filepath"
+	"strconv"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -125,14 +126,19 @@ func argoWorkflowsControllersOptions(ctx context.Context, rr *odhtypes.Reconcili
 		return fmt.Errorf("failed to marshal spec.argoWorkflowsControllers: %w", err)
 	}
 
+	release := cluster.GetRelease()
+	clusterInfo := cluster.GetClusterInfo()
 	extraParams := map[string]string{
 		argoWorkflowsControllersParamsKey: string(awfSpecJSON),
+		platformVersionParamsKey:          release.Version.String(),
+		fipsEnabledParamsKey:              strconv.FormatBool(clusterInfo.FipsEnabled),
 	}
 
-	paramsPath := path.Join(odhdeploy.DefaultManifestPath, ComponentName, "base")
+	componentPath := filepath.Join(odhdeploy.DefaultManifestPath, ComponentName)
+	overlayName := cluster.OverlayName(rr.Release.Name)
 
-	if err := odhdeploy.ApplyParams(paramsPath, "params.env", imageParamMap, extraParams); err != nil {
-		return fmt.Errorf("failed to update params.env: %w", err)
+	if _, err := odhdeploy.ApplyParamsWithFallback(componentPath, overlayName, imageParamMap, extraParams); err != nil {
+		return fmt.Errorf("failed to update params for %s: %w", ComponentName, err)
 	}
 
 	return nil

@@ -91,6 +91,23 @@ const (
 	unexpectedErrorMismatchMsg   = "Expected error '%v' to match the actual error '%v' for resource of kind '%s'."
 )
 
+// componentToControllerMap maps component name (ComponentName constant) to its controller deployment name.
+var componentToControllerMap = map[string]string{
+	componentApi.DashboardComponentName:            "dashboard",
+	componentApi.DataSciencePipelinesComponentName: "data-science-pipelines-operator-controller-manager",
+	componentApi.FeastOperatorComponentName:        "feast-operator-controller-manager",
+	componentApi.KserveComponentName:               "kserve-controller-manager",
+	componentApi.LlamaStackOperatorComponentName:   "llama-stack-k8s-operator-controller-manager",
+	componentApi.MLflowOperatorComponentName:       "mlflow-operator-controller-manager",
+	componentApi.ModelRegistryComponentName:        "model-registry-operator-controller-manager",
+	componentApi.RayComponentName:                  "kuberay-operator",
+	componentApi.SparkOperatorComponentName:        "spark-operator-controller",
+	componentApi.TrainingOperatorComponentName:     "kubeflow-training-operator",
+	componentApi.TrainerComponentName:              "trainer-controller-manager",
+	// componentApi.TrustyAIComponentName:          "trustyai-service-operator-controller-manager",
+	componentApi.WorkbenchesComponentName: "notebook-controller-manager",
+}
+
 // TestCaseOpts defines a function type that can be used to modify how individual test cases are executed.
 type TestCaseOpts func(t *testing.T)
 
