@@ -1,0 +1,8 @@
+# This file goes in openshift/release at:
+# clusters/hosted-mgmt/hive/pools/opendatahub/OWNERS
+#
+# Adjust the list to include your team's GitHub usernames
+approvers:
+  - opendatahub-io-ci
+reviewers:
+  - opendatahub-io-ci

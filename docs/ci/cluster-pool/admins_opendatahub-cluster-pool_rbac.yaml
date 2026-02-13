@@ -1,0 +1,38 @@
+# This file goes in openshift/release at:
+# clusters/hosted-mgmt/hive/pools/opendatahub/admins_opendatahub-cluster-pool_rbac.yaml
+#
+# Creates the namespace and RBAC for pool admins on hosted-mgmt.
+# The group "opendatahub-pool-admins" must be populated via Rover/LDAP
+# or by asking DPTP to add members.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: opendatahub-cluster-pool
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: opendatahub-pool-admins
+  namespace: opendatahub-cluster-pool
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: hive-cluster-pool-admin
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: opendatahub-pool-admins
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: opendatahub-pool-admins
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-namespace-view
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: opendatahub-pool-admins
