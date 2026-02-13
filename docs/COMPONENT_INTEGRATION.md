@@ -9,7 +9,7 @@ The list of the currently integrated ODH components is provided [at the end of t
 
 ## Use scaffolding to create boilerplate code
 
-Integrating a new component into the Open Data Hub (ODH) operator is  easier with the [component-codegen CLI](../cmd/component-codegen/README.md). The CLI automates much of the boilerplate code and file generation, significantly reducing manual effort and ensuring consistency.
+Integrating a new component into the Open Data Hub (ODH) operator is easier with the [component-codegen CLI](../cmd/component-codegen/README.md). The CLI automates much of the boilerplate code and file generation, significantly reducing manual effort and ensuring consistency.
 
 While the CLI handles most of the heavy lifting, it’s still important to understand the purpose of each generated file. Please refer to the following sections for a detailed breakdown of the key files and their roles in the integration process.
 
@@ -95,19 +95,19 @@ func (c *ExampleComponent) GetStatus() *common.Status {
 	return &c.Status.Status
 }
 
-func (c *TrainingOperator) GetConditions() []common.Condition {
+func (c *ExampleComponent) GetConditions() []common.Condition {
 	return c.Status.GetConditions()
 }
 
-func (c *TrainingOperator) SetConditions(conditions []common.Condition) {
+func (c *ExampleComponent) SetConditions(conditions []common.Condition) {
 	c.Status.SetConditions(conditions)
 }
 
-func (c *TrainingOperator) GetReleaseStatus() *[]common.ComponentRelease {
+func (c *ExampleComponent) GetReleaseStatus() *[]common.ComponentRelease {
 	return &c.Status.Releases
 }
 
-func (c *TrainingOperator) SetReleaseStatus(releases []common.ComponentRelease) {
+func (c *ExampleComponent) SetReleaseStatus(releases []common.ComponentRelease) {
 	c.Status.Releases = releases
 }
 
@@ -159,18 +159,21 @@ operators.operatorframework.io/internal-objects: '["featuretrackers.features.ope
 
 #### Add component to the owned objects list
 
-Add your component to the `owned` list under `customresourcedefinitions` in `config/manifests/bases/opendatahub-operator.clusterserviceversion.yaml` and `config/rhoai/manifests/bases/rhods-operator.clusterserviceversion.yaml`:
+Add your component to the `resources` list in `PROJECT` file (if you used [component-codegen CLI](../cmd/component-codegen/README.md), it should have been already added):
 
 ```yaml
-    owned:
-    - description: ExampleComponent is the Schema for the examplecomponent API.
-      displayName: Your Component
+    resources:
+    - api:
+        crdVersion: v1alpha1
+      controller: true
+      domain: platform.opendatahub.io
+      group: components
       kind: ExampleComponent
-      name: examplecomponents.components.platform.opendatahub.io
+      path: github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1
       version: v1alpha1
 ```
 
-and run `make bundle-all` to verify your component has been correctly added to the list.
+and run `make bundle-all` to verify your component has been correctly added to `config/manifests/bases/opendatahub-operator.clusterserviceversion.yaml` and `config/rhoai/manifests/bases/rhods-operator.clusterserviceversion.yaml`.
 
 #### Add Component to DataScienceCluster API spec
 
