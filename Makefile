@@ -253,7 +253,7 @@ CLEANFILES += config/crd/bases config/rhoai/crd/bases config/crd/external config
 .PHONY: manifests-all
 manifests-all:
 	$(MAKE) manifests
-	$(MAKE) manifests RHOAI_PLATFORM_TYPE=rhoai
+	$(MAKE) manifests ODH_PLATFORM_TYPE=rhoai
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -444,7 +444,7 @@ CLEANFILES += rhoai-bundle odh-bundle
 .PHONY: bundle-all
 bundle-all:
 	$(MAKE) bundle
-	$(MAKE) bundle RHOAI_PLATFORM_TYPE=rhoai
+	$(MAKE) bundle ODH_PLATFORM_TYPE=rhoai
 
 # The bundle image is multi-stage to preserve the ability to build without invoking make
 # We use build args to ensure the variables are passed to the underlying internal make invocation

@@ -159,11 +159,6 @@ spec:
       kind: Kserve
       name: kserves.components.platform.opendatahub.io
       version: v1alpha1
-    - description: SparkOperator is the Schema for the sparkoperators API
-      displayName: Spark Operator
-      kind: SparkOperator
-      name: sparkoperators.components.platform.opendatahub.io
-      version: v1alpha1
     - description: Kueue is the Schema for the kueues API
       displayName: Kueue
       kind: Kueue
@@ -198,6 +193,11 @@ spec:
       displayName: Ray
       kind: Ray
       name: rays.components.platform.opendatahub.io
+      version: v1alpha1
+    - description: SparkOperator is the Schema for the sparkoperators API
+      displayName: Spark Operator
+      kind: SparkOperator
+      name: sparkoperators.components.platform.opendatahub.io
       version: v1alpha1
     - description: Trainer is the Schema for the trainers API
       displayName: Trainer
