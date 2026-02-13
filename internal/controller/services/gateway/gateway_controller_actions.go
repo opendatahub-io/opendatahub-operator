@@ -348,6 +348,8 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	// Add OIDC-specific fields only if OIDC config is present
 	if gatewayConfig.Spec.OIDC != nil {
 		templateData["OIDCIssuerURL"] = gatewayConfig.Spec.OIDC.IssuerURL
+		templateData["OIDCScope"] = gatewayConfig.Spec.OIDC.Scope
+		templateData["SkipClaimsFromProfileURL"] = gatewayConfig.Spec.OIDC.SkipClaimsFromProfileURL
 	}
 
 	// Add provider CA certificate configuration if specified
