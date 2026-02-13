@@ -4,7 +4,8 @@ metadata:
   name: tempo-datasource
   namespace: {{.Namespace}}
 spec:
-{{- if .TempoTLSEnabled }}
+  # The Tempo gateway always uses HTTPS (service-CA signed cert) in multitenancy/openshift mode,
+  # so TLS verification is always required regardless of the user's explicit TLS setting.
   client:
     tls:
       enable: true
@@ -12,7 +13,6 @@ spec:
         type: configmap
         name: tempo-service-ca
         certPath: service-ca.crt
-{{- end }}
   config:
     default: false
     display:
@@ -24,6 +24,9 @@ spec:
         proxy:
           kind: HTTPProxy
           spec:
+            # Secret references the Perses secret created by the operator from client.tls config.
+            # This links the CA cert to the proxy, enabling TLS verification for the gateway.
+            secret: tempo-datasource-secret
             url: {{.TempoQueryEndpoint}}
             headers:
               X-Scope-OrgID: {{.Namespace}}

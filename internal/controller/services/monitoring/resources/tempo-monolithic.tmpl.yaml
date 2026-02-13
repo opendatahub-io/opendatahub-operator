@@ -23,24 +23,24 @@ spec:
       {{- if .Size }}
       size: "{{.Size}}"
       {{- end }}
-  {{- if .TempoTLSEnabled }}
+  {{- if and .TempoTLSEnabled .TempoCertificateSecret }}
+  # Ingestion TLS is only enabled when explicit certs are provided.
+  # In multitenancy/openshift mode, the gateway already handles external TLS,
+  # and enabling auto-provisioned receiver TLS conflicts with the gateway's
+  # localhost connections (mTLS cert CA mismatch).
   ingestion:
     otlp:
       grpc:
         tls:
           enabled: true
-          {{- if .TempoCertificateSecret }}
           certName: {{.TempoCertificateSecret}}
-          {{- end }}
           {{- if .TempoCAConfigMap }}
           caName: {{.TempoCAConfigMap}}
           {{- end }}
       http:
         tls:
           enabled: true
-          {{- if .TempoCertificateSecret }}
           certName: {{.TempoCertificateSecret}}
-          {{- end }}
           {{- if .TempoCAConfigMap }}
           caName: {{.TempoCAConfigMap}}
           {{- end }}
