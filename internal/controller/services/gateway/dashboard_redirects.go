@@ -21,8 +21,26 @@ package gateway
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 
+// Dashboard redirect feature can be disabled by setting the DISABLE_DASHBOARD_REDIRECTS
+// environment variable to "true" in the operator's Subscription:
+//
+//   apiVersion: operators.coreos.com/v1alpha1
+//   kind: Subscription
+//   metadata:
+//     name: rhods-operator
+//     namespace: redhat-ods-operator
+//   spec:
+//     config:
+//       env:
+//         - name: DISABLE_DASHBOARD_REDIRECTS
+//           value: "true"
+//
+// By default (when not set or set to any value other than "true"), dashboard redirects
+// are ENABLED and will be created when GatewayConfig.spec.ingressMode is "OcpRoute".
+
 import (
 	"context"
+	"os"
 
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -43,6 +61,12 @@ const (
 // This helps users transition from old route URLs to the new Gateway API URLs without breaking bookmarks.
 func createDashboardRedirects(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	l := logf.FromContext(ctx).WithName("createDashboardRedirects")
+
+	// Check if feature is explicitly disabled via operator environment variable
+	if os.Getenv("DISABLE_DASHBOARD_REDIRECTS") == "true" {
+		l.Info("Dashboard redirects disabled via DISABLE_DASHBOARD_REDIRECTS environment variable")
+		return nil
+	}
 
 	gatewayConfig, err := validateGatewayConfig(rr)
 	if err != nil {
