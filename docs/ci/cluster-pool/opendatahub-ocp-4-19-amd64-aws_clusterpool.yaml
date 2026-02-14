@@ -1,0 +1,53 @@
+# This file goes in openshift/release at:
+# clusters/hosted-mgmt/hive/pools/opendatahub/opendatahub-ocp-4-19-amd64-aws_clusterpool.yaml
+#
+# Cluster pool for main branch E2E jobs (OCP 4.19).
+# The imageSetRef is auto-bumped by DPTP tooling via version_lower/version_upper labels.
+#
+# AWS Account: ?
+#
+# Sizing rationale:
+#   size: 1   - keep 1 warm cluster ready (avoids 40-60 min cold-start)
+#   maxSize: 4 - burst capacity for concurrent PRs (2 E2E jobs per main PR)
+#
+# TODO: Update baseDomain to match the Route 53 hosted zone
+apiVersion: hive.openshift.io/v1
+kind: ClusterPool
+metadata:
+  creationTimestamp: null
+  labels:
+    architecture: amd64
+    cloud: aws
+    owner: opendatahub
+    product: ocp
+    region: us-east-1
+    version: "4.19"
+    version_lower: 4.19.0-0
+    version_upper: 4.20.0-0
+  name: opendatahub-ocp-4-19-amd64-aws
+  namespace: opendatahub-cluster-pool
+spec:
+  baseDomain: REPLACE_WITH_YOUR_ROUTE53_DOMAIN
+  hibernationConfig:
+    resumeTimeout: 30m0s
+  imageSetRef:
+    name: ocp-release-4.19.24-x86-64-for-4.19.0-0-to-4.20.0-0
+  installAttemptsLimit: 1
+  installConfigSecretTemplateRef:
+    name: opendatahub-install-config-aws
+  labels:
+    tp.openshift.io/owner: opendatahub
+  maxSize: 4
+  platform:
+    aws:
+      credentialsSecretRef:
+        name: opendatahub-aws-credentials
+      region: us-east-1
+  pullSecretRef:
+    name: pull-secret
+  size: 1
+  skipMachinePools: true
+status:
+  ready: 0
+  size: 0
+  standby: 0
