@@ -49,11 +49,13 @@ const platformFinalizer = "platform.opendatahub.io/finalizer"
 
 // Reconciler provides generic reconciliation functionality for ODH objects.
 type Reconciler struct {
-	Client          client.Client
+	Client client.Client
+	// used for primary resource Get so each reconcile sees latest spec (avoids cache staleness)
+	APIReader       client.Reader
+	Scheme          *runtime.Scheme
 	discoveryClient discovery.DiscoveryInterface
 	dynamicClient   dynamic.Interface
 
-	Scheme     *runtime.Scheme
 	Actions    []actions.Fn
 	Finalizer  []actions.Fn
 	Log        logr.Logger
@@ -79,12 +81,13 @@ func NewReconciler[T common.PlatformObject](mgr manager.Manager, name string, ob
 	}
 
 	cc := Reconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Log:      ctrl.Log.WithName("controllers").WithName(name),
-		Recorder: mgr.GetEventRecorderFor(name),
-		Release:  cluster.GetRelease(),
-		name:     name,
+		Client:    mgr.GetClient(),
+		APIReader: mgr.GetAPIReader(),
+		Scheme:    mgr.GetScheme(),
+		Log:       ctrl.Log.WithName("controllers").WithName(name),
+		Recorder:  mgr.GetEventRecorderFor(name),
+		Release:   cluster.GetRelease(),
+		name:      name,
 		instanceFactory: func() (common.PlatformObject, error) {
 			t := reflect.TypeOf(object).Elem()
 			res, ok := reflect.New(t).Interface().(T)
@@ -157,7 +160,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
-	if err := r.Client.Get(ctx, req.NamespacedName, res); err != nil {
+	// Read primary resource from API (not cache) so we always see the latest spec after updates.
+	reader := client.Reader(r.Client)
+	if r.APIReader != nil {
+		reader = r.APIReader
+	}
+	if err := reader.Get(ctx, req.NamespacedName, res); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
