@@ -74,6 +74,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(createEnvoyFilter).
 		WithAction(createNetworkPolicy).
 		WithAction(createOCPRoutes).
+		WithAction(createDashboardRedirects).
 		WithAction(template.NewAction(
 			template.WithDataFn(getTemplateData),
 		)).
