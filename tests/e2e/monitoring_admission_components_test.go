@@ -13,6 +13,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 
 	. "github.com/onsi/gomega"
 )
@@ -21,10 +22,6 @@ const (
 	TestNamespaceName      = "tests-monitoring-injection"
 	TestPodMonitorName     = "test-podmonitor"
 	TestServiceMonitorName = "test-servicemonitor"
-)
-
-const (
-	ODHLabelMonitoring = "opendatahub.io/monitoring"
 )
 
 // createMonitorsEnvironment sets up the namespace and monitors with specific labels.
@@ -146,7 +143,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringLabelValueEnforcementOnNamespace(
 		ObjectMeta: metav1.ObjectMeta{
 			Name: TestNamespaceName,
 			Labels: map[string]string{
-				ODHLabelMonitoring: "invalid-value", // Invalid!
+				labels.ODHLabelMonitoring: "invalid-value", // Invalid!
 			},
 		},
 	}
@@ -166,7 +163,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringLabelValueEnforcementOnMonitors(t
 
 	// Define the invalid labels we want to test
 	invalidLabels := map[string]string{
-		ODHLabelMonitoring: "invalid-value",
+		labels.ODHLabelMonitoring: "invalid-value",
 	}
 
 	// --- Test PodMonitor Validation ---
