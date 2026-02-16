@@ -140,7 +140,7 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 		componentApi.RayComponentName:                  "kuberay-operator",
 		componentApi.SparkOperatorComponentName:        "spark-operator-controller",
 		componentApi.TrainingOperatorComponentName:     "kubeflow-training-operator",
-		componentApi.TrainerComponentName:              "trainer-controller-manager",
+		componentApi.TrainerComponentName:              "kubeflow-trainer-controller-manager",
 		// componentApi.TrustyAIComponentName:             "trustyai-service-operator-controller-manager",
 		componentApi.WorkbenchesComponentName: "notebook-controller-manager",
 	}
@@ -473,8 +473,8 @@ func (tc *OperatorResilienceTestCtx) verifyDeploymentsStuckDueToQuota(t *testing
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
 		WithCondition(jq.Match(`
 			[.[] | select(
-				(.metadata.name | test("%s"; "i")) or
-				(.metadata.name | test("odh-(%s)"; "i"))
+				(.metadata.name | test("^(%s)$"; "i")) or
+				(.metadata.name | test("^odh-(%s)$"; "i"))
 			) | select((.status.readyReplicas // 0) == 0)] |
         	length == %d
 		`, strings.Join(allControllers, "|"), strings.Join(allControllers, "|"), expectedCount)),
