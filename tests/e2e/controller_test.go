@@ -80,12 +80,13 @@ type TestContextConfig struct {
 	monitoringNamespace  string
 	deletionPolicy       DeletionPolicy
 
-	operatorControllerTest bool
-	operatorResilienceTest bool
-	webhookTest            bool
-	v2tov3upgradeTest      bool
-	hardwareProfileTest    bool
-	TestTimeouts           TestTimeouts
+	cleanUpPreviousResources bool
+	operatorControllerTest   bool
+	operatorResilienceTest   bool
+	webhookTest              bool
+	v2tov3upgradeTest        bool
+	hardwareProfileTest      bool
+	TestTimeouts             TestTimeouts
 }
 
 // TestGroup defines the test groups.
@@ -295,8 +296,10 @@ func TestOdhOperator(t *testing.T) {
 
 	log.SetLogger(zap.New(zap.UseDevMode(true)))
 
-	// Remove any leftover resources from previous test runs before starting
-	CleanupPreviousTestResources(t)
+	// Remove any leftover resources from previous test runs before starting if the cleanup flag is enabled
+	if testOpts.cleanUpPreviousResources {
+		CleanupPreviousTestResources(t)
+	}
 
 	if testOpts.operatorControllerTest {
 		// individual test suites after the operator is running
@@ -397,6 +400,8 @@ func TestMain(m *testing.M) {
 		"Specify when to delete DataScienceCluster, DSCInitialization, and controllers. Options: always, on-failure, never.")
 	checkEnvVarBindingError(viper.BindEnv("deletion-policy", viper.GetEnvPrefix()+"_DELETION_POLICY"))
 
+	pflag.Bool("clean-up-previous-resources", true, "clean up previous resources before running tests")
+	checkEnvVarBindingError(viper.BindEnv("clean-up-previous-resources", viper.GetEnvPrefix()+"_CLEAN_UP_PREVIOUS_RESOURCES"))
 	pflag.Bool("test-operator-controller", true, "run operator controller tests")
 	checkEnvVarBindingError(viper.BindEnv("test-operator-controller", viper.GetEnvPrefix()+"_OPERATOR_CONTROLLER"))
 	pflag.Bool("test-operator-resilience", true, "run operator resilience tests")
@@ -454,6 +459,7 @@ func TestMain(m *testing.M) {
 		fmt.Print(err.Error())
 		os.Exit(1)
 	}
+	testOpts.cleanUpPreviousResources = viper.GetBool("clean-up-previous-resources")
 	testOpts.operatorControllerTest = viper.GetBool("test-operator-controller")
 	testOpts.operatorResilienceTest = viper.GetBool("test-operator-resilience")
 	testOpts.v2tov3upgradeTest = viper.GetBool("test-operator-v2tov3upgrade")
