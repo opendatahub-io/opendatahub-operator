@@ -184,8 +184,7 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 // If the API is not available, the controller setup will fail when trying to create the watch, providing
 // a clear error message to the user that their cluster doesn't support this feature.
 func deployMonitoringAdmissionPolicies(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	_, ok := rr.Instance.(*serviceApi.Monitoring)
-	if !ok {
+	if _, ok := rr.Instance.(*serviceApi.Monitoring); !ok {
 		return errors.New("instance is not of type *services.Monitoring")
 	}
 
