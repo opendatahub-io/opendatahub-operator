@@ -639,11 +639,15 @@ endif
 ifndef E2E_TEST_DSC_MONITORING_NAMESPACE
 export E2E_TEST_DSC_MONITORING_NAMESPACE = $(MONITORING_NAMESPACE)
 endif
+# Allow disabling component tests via E2E_TEST_COMPONENTS environment variable
+ifdef E2E_TEST_COMPONENTS
+export E2E_TEST_COMPONENTS
+endif
 ifdef ARTIFACT_DIR
 export JUNIT_OUTPUT_PATH = ${ARTIFACT_DIR}/junit_report.xml
 endif
 e2e-test:
-	go run -C ./cmd/test-retry main.go e2e --verbose --working-dir=$(CURDIR) $(if $(JUNIT_OUTPUT_PATH),--junit-output=$(JUNIT_OUTPUT_PATH)) -- ${E2E_TEST_FLAGS}
+	go run -C ./cmd/test-retry main.go e2e --verbose --working-dir=$(CURDIR) $(if $(JUNIT_OUTPUT_PATH),--junit-output=$(JUNIT_OUTPUT_PATH)) -- ${E2E_TEST_FLAGS} --test-components=false
 
 unit-test-cli:
 	go -C ./cmd/test-retry/ test ./...
