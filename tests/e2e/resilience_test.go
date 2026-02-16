@@ -467,6 +467,7 @@ func (tc *OperatorResilienceTestCtx) verifyDeploymentsStuckDueToQuota(t *testing
 	t.Helper()
 
 	expectedCount := len(allControllers)
+	allControllersMatch := strings.Join(allControllers, "|")
 
 	// Then check that the matching deployments have 0 ready replicas
 	tc.EnsureResourcesExist(
@@ -474,10 +475,11 @@ func (tc *OperatorResilienceTestCtx) verifyDeploymentsStuckDueToQuota(t *testing
 		WithCondition(jq.Match(`
 			[.[] | select(
 				(.metadata.name | test("^(%s)$"; "i")) or
-				(.metadata.name | test("^odh-(%s)$"; "i"))
+				(.metadata.name | test("^odh-(%s)$"; "i")) or
+				(.metadata.name | test("^rhods-(%s)$"; "i"))
 			) | select((.status.readyReplicas // 0) == 0)] |
         	length == %d
-		`, strings.Join(allControllers, "|"), strings.Join(allControllers, "|"), expectedCount)),
+		`, allControllersMatch, allControllersMatch, allControllersMatch, expectedCount)),
 		WithCustomErrorMsg(fmt.Sprintf("Expected all %d component deployments to have 0 ready replicas due to quota", expectedCount)),
 		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 	)
@@ -599,7 +601,7 @@ func (tc *OperatorResilienceTestCtx) deletePodsForDeployment(t *testing.T, nn ty
 
 	deployment := tc.getDeployment(t, nn)
 	if deployment == nil {
-		t.Logf("Deployment %s or odh-%s not found, skipping pod deletion", nn.Name, nn.Name)
+		t.Logf("Deployment %s or odh-%s or rhods-%s not found, skipping pod deletion", nn.Name, nn.Name, nn.Name)
 		return
 	}
 
@@ -635,6 +637,16 @@ func (tc *OperatorResilienceTestCtx) getDeployment(t *testing.T, nn types.Namesp
 	deployment = tc.FetchResource(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: nn.Namespace, Name: "odh-" + nn.Name}),
 	)
+	if deployment != nil {
+		return deployment
+	}
+
+	t.Logf("Deployment %s not found, checking for rhods- prefix", nn.Name)
+
+	deployment = tc.FetchResource(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: nn.Namespace, Name: "rhods-" + nn.Name}),
+	)
+
 	return deployment
 }
 
