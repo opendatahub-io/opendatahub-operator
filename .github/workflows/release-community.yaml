@@ -116,6 +116,17 @@ jobs:
         fetch-depth: 0
         token: ${{ steps.generate-token.outputs.token }}
 
+    - name: Sync fork with upstream
+      working-directory: community-operators-prod
+      run: |
+        echo "Syncing fork with upstream: ${{ env.COMMUNITY_UPSTREAM }}"
+        git remote add upstream "https://github.com/${{ env.COMMUNITY_UPSTREAM }}.git"
+        git fetch upstream main
+        git checkout main
+        git merge upstream/main --ff-only
+        git push origin main
+        echo "Fork synced successfully"
+
     - name: Copy bundle to community-operators-prod
       run: |
         VERSION="${{ env.VERSION }}"

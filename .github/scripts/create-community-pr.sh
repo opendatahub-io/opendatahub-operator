@@ -55,9 +55,7 @@ PR_URL=$(gh pr create \
   --title "${PR_TITLE}" \
   --head "${PR_HEAD}" \
   --base main \
-  --body "" \
-  --json url \
-  --jq '.url')
+  --body "")
 
 if [ -z "${PR_URL}" ]; then
   echo "Error: Failed to create pull request" >&2
