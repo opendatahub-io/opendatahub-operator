@@ -543,7 +543,7 @@ func getKubeAuthProxyImage() string {
 // For ODH deployments, this comes from build/operands-map.yaml.
 // Falls back to a publicly accessible UBI9 nginx S2I image for local development/testing.
 func getDashboardRedirectImage() string {
-	if image := os.Getenv("RELATED_IMAGE_NGINX_UBI9"); image != "" {
+	if image := os.Getenv("RELATED_IMAGE_NGINX_126_IMAGE"); image != "" {
 		return image
 	}
 	// Fallback for ODH development - publicly accessible UBI9 nginx S2I image

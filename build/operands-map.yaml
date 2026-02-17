@@ -233,6 +233,6 @@ relatedImages:
     - name: RELATED_IMAGE_SPARK_OPERATOR_IMAGE
       value: quay.io/opendatahub/spark-operator@sha256:79676b7bdf6ce0dd59bc0a9e82169f773a552ce20d87bb73d911e3bdbc10611a
       component: odh-spark-operator
-    - name: RELATED_IMAGE_NGINX_UBI9
+    - name: RELATED_IMAGE_NGINX_126_IMAGE
       value: registry.access.redhat.com/ubi9/nginx-126@sha256:830a7974e450e2ec93f0ca6c3a77e7ac84c2f8f71863e1ddea507ff9ee84074f
       component: nginx-ubi9
