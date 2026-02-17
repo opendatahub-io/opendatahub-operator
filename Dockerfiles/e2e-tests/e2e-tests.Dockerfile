@@ -32,8 +32,10 @@ ENV E2E_TEST_OPERATOR_NAMESPACE=opendatahub-operators
 ENV E2E_TEST_APPLICATIONS_NAMESPACE=opendatahub
 ENV E2E_TEST_WORKBENCHES_NAMESPACE=opendatahub
 ENV E2E_TEST_DSC_MONITORING_NAMESPACE=opendatahub
+ENV E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=false
+ENV E2E_TEST_DELETION_POLICY=never
 
-RUN apt-get update -y && \
+RUN apt-get update -y && apt-get upgrade -y && \
     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
     chmod +x kubectl && \
     mv kubectl /usr/local/bin/ && \
@@ -52,7 +54,9 @@ RUN chmod +x ./e2e-tests
 RUN mkdir -p results
 
 # run main go command
-CMD gotestsum --junitfile-project-name odh-operator-e2e --junitfile results/xunit_report.xml --format testname --raw-command \
--- test2json -p e2e ./e2e-tests --test.v=test2json --test.parallel=8 --deletion-policy=never \
+CMD gotestsum --junitfile-project-name odh-operator-e2e \
+--junitfile results/xunit_report.xml --format testname --raw-command \
+-- test2json -p e2e ./e2e-tests --test.v=test2json --test.parallel=8 \
+--deletion-policy=$E2E_TEST_DELETION_POLICY --clean-up-previous-resources=$E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES \
 --operator-namespace=$E2E_TEST_OPERATOR_NAMESPACE --applications-namespace=$E2E_TEST_APPLICATIONS_NAMESPACE \
 --workbenches-namespace=$E2E_TEST_WORKBENCHES_NAMESPACE --dsc-monitoring-namespace=$E2E_TEST_DSC_MONITORING_NAMESPACE
