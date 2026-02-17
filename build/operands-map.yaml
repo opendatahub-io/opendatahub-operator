@@ -1,12 +1,12 @@
 relatedImages:
 - name: RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-kf-notebook-controller-rhel9@sha256:058ef551e3af7b394a4e505a4d5dd47866e1ce0b21c5de50c0cac6fee6ac38e2"
+  value: "quay.io/rhoai/odh-kf-notebook-controller-rhel9@sha256:89bbc7f2264343c4e4817d197307f2637c104042b271ed165c8d8b8387de8829"
 - name: RELATED_IMAGE_ODH_DASHBOARD_IMAGE
   value: "quay.io/rhoai/odh-dashboard-rhel9@sha256:c1cda34c2ad4c8b4a6e5e063bb6d92ba64682d9c3bf863ab6063020063ea2f11"
 - name: RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-notebook-controller-rhel9@sha256:e31857d4d7a2679107e4f83fd9c27ff2ec69218a5bcc50905c83d5c3d4bfb3d4"
+  value: "quay.io/rhoai/odh-notebook-controller-rhel9@sha256:c9cb21a68fbe8bdc2b73cd3819ec2ad8e6ff5f0b9bba5c403ae6fedb6ff50683"
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_OPERATOR_CONTROLLER_IMAGE
-  value: "quay.io/rhoai/odh-data-science-pipelines-operator-controller-rhel9@sha256:bfb499bd306b83434ec9e16533985b5f39e81bb7cb7fb08839669b29bf385f77"
+  value: "quay.io/rhoai/odh-data-science-pipelines-operator-controller-rhel9@sha256:973860ec341c147c32b886e4006089bf00ef9634932453b470e93d5f364d3d3f"
 - name: RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-model-controller-rhel9@sha256:ff228f1615596074f820e7b6c62f0647544f0610dfe35b9f724ed374feb98f8f"
 - name: RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE
@@ -150,7 +150,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MLFLOW_IMAGE
   value: "quay.io/rhoai/odh-mlflow-rhel9@sha256:8cbe5e36907bf32d0de5f5f3fcc4a39d9676b7330d8a0a9b19287aecb10ac7c6"
 - name: RELATED_IMAGE_ODH_MLFLOW_OPERATOR_IMAGE
-  value: "quay.io/rhoai/odh-mlflow-operator-rhel9@sha256:247e58f5048b774c26a0c321c28c35015efa3f614ed77124da7f41795e8c1c4f"
+  value: "quay.io/rhoai/odh-mlflow-operator-rhel9@sha256:16d53620b4ff505ec1d51e04644b6a5678720a31be625a5d454ad6be97c37d0a"
 - name: RELATED_IMAGE_ODH_MLSERVER_IMAGE
   value: "quay.io/rhoai/odh-mlserver-rhel9@sha256:0dcba71dffef6e16c95174f204f01d59bcf448055693a5c79b036fafbec9ac7c"
 - name: RELATED_IMAGE_ODH_MOD_ARCH_MAAS_IMAGE
