@@ -1857,8 +1857,7 @@ func (tc *MonitoringTestCtx) ValidatePrometheusSecureProxyAuthentication(t *test
 		}),
 		WithCondition(And(
 			jq.Match(`.spec.template.spec.containers[0].name == "kube-rbac-proxy"`),
-			jq.Match(`.spec.template.spec.containers[0].image | contains("kube-rbac-proxy")`),
-		)),
+			jq.Match(`(.spec.template.spec.containers[0].image | contains("kube-rbac-proxy")) or (.spec.template.spec.containers[0].image | contains("kube-auth-proxy"))`))),
 		WithCustomErrorMsg("data-science-prometheus-namespace-proxy deployment should contain kube-rbac-proxy container"),
 	)
 
@@ -2056,7 +2055,7 @@ func (tc *MonitoringTestCtx) ValidateNodeMetricsEndpointRBACConfiguration(t *tes
 		}),
 		WithCondition(And(
 			jq.Match(`.spec.template.spec.containers[0].name == "kube-rbac-proxy"`),
-			jq.Match(`.spec.template.spec.containers[0].image | contains("kube-rbac-proxy")`),
+			jq.Match(`(.spec.template.spec.containers[0].image | contains("kube-rbac-proxy")) or (.spec.template.spec.containers[0].image | contains("kube-auth-proxy"))`),
 		)),
 		WithCustomErrorMsg("data-science-prometheus-cluster-proxy deployment should contain kube-rbac-proxy container"),
 	)

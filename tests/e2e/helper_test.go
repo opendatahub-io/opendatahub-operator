@@ -78,8 +78,8 @@ const (
 const (
 	ownedNamespaceNumber = 1 // Number of namespaces owned, adjust to 4 for RHOAI deployment
 
-	dsciInstanceName = "e2e-test-dsci" // Instance name for the DSCInitialization
-	dscInstanceName  = "e2e-test-dsc"  // Instance name for the DataScienceCluster
+	dsciInstanceName = "default-dsci" // Instance name for the DSCInitialization
+	dscInstanceName  = "default-dsc"  // Instance name for the DataScienceCluster
 
 	// Standard error messages format.
 	resourceNotNilErrorMsg       = "Expected a non-nil resource object but got nil."
@@ -168,6 +168,9 @@ func CreateDSCI(name, appNamespace, monitoringNamespace string) *dsciv2.DSCIniti
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
+			Labels: map[string]string{
+				"opendatahub.io/created-by-e2e-tests": "true",
+			},
 		},
 		Spec: dsciv2.DSCInitializationSpec{
 			ApplicationsNamespace: appNamespace,
@@ -196,6 +199,9 @@ func CreateDSCIv1(name, appNamespace, monitoringNamespace string) *dsciv1.DSCIni
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
+			Labels: map[string]string{
+				"opendatahub.io/created-by-e2e-tests": "true",
+			},
 		},
 		Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: appNamespace,
@@ -224,6 +230,9 @@ func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceClust
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
+			Labels: map[string]string{
+				"opendatahub.io/created-by-e2e-tests": "true",
+			},
 		},
 		Spec: dscv2.DataScienceClusterSpec{
 			Components: dscv2.Components{
@@ -318,6 +327,9 @@ func CreateDSCv1(name string, workbenchesNamespace string) *dscv1.DataScienceClu
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
+			Labels: map[string]string{
+				"opendatahub.io/created-by-e2e-tests": "true",
+			},
 		},
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{

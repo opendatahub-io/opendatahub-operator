@@ -163,13 +163,17 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedWithoutOcpKueueOperator(t *testing
 	// so first set the component as removed ...
 	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Removed)
 
+	// ... then cleanup tests resources
 	t.Logf("Cleaning up any existing Kueue test resources.")
-	// ... and then cleanup tests resources
 	tc.cleanupKueueTestResources(t)
+
+	// ... and uninstall Kueue Operator and its operands
+	t.Logf("Uninstalling Kueue operator")
+	tc.UninstallOperator(types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace})
 
 	stateUnmanaged := operatorv1.Unmanaged
 
-	// State must be Unmanaged, Ready condition must be false because ocp kueue-operator is installed
+	// State must be Unmanaged, Ready condition must be false because ocp kueue-operator is uninstalled
 	conditionsNotReady := []gTypes.GomegaMatcher{
 		// Validate that the component's management state is updated correctly
 		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, stateUnmanaged),
