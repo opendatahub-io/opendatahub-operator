@@ -465,10 +465,6 @@ func deployAlerting(ctx context.Context, rr *odhtypes.ReconciliationRequest) err
 		}
 	}
 
-	if len(addErrors) > 0 || len(cleanupErrors) > 0 {
-		return errors.New("errors occurred while adding or cleaning up prometheus rules for components")
-	}
-
 	return nil
 }
 
