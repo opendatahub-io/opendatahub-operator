@@ -29,7 +29,7 @@ map:
     src: ray-operator/config
     dest: ray
     git.url: https://github.com/red-hat-data-services/kuberay
-    git.commit: 167e9c2e8cd18a1b15cffc3221b75b38cf77e9ac
+    git.commit: c54f0ab64c1246fc72c7e310a7d5b0828b757fdd
   odh-trustyai-service-operator:
     src: config
     dest: trustyai
@@ -74,7 +74,7 @@ map:
     src: config
     dest: mlflowoperator
     git.url: https://github.com/red-hat-data-services/mlflow-operator
-    git.commit: e1b2bf8dccc90ce21b8166467e2d7ce321f5c17c
+    git.commit: 92fb066c1421ad9347d493dda6cd15171c4e702d
   odh-maas-api:
     src: deployment
     dest: maas
