@@ -348,6 +348,8 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	// Add dashboard redirect template variables (only needed for OcpRoute mode)
 	if gatewayConfig.Spec.IngressMode == serviceApi.IngressModeOcpRoute {
 		templateData["DashboardRedirectNamespace"] = cluster.GetApplicationNamespace()
+		templateData["DashboardRedirectName"] = DashboardRedirectName
+		templateData["DashboardRedirectConfigName"] = DashboardRedirectConfigName
 		templateData["DashboardRouteName"] = getDashboardRouteName()
 		templateData["DashboardRedirectImage"] = getDashboardRedirectImage()
 	}

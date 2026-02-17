@@ -4,14 +4,14 @@ metadata:
   name: {{.DashboardRouteName}}
   namespace: {{.DashboardRedirectNamespace}}
   labels:
-    app: dashboard-redirect
+    app: {{.DashboardRedirectName}}
     {{.PartOfLabelKey}}: {{.PartOfGatewayConfig}}
   annotations:
     haproxy.router.openshift.io/hsts_header: max-age=31536000;includeSubDomains;preload
 spec:
   to:
     kind: Service
-    name: dashboard-redirect
+    name: {{.DashboardRedirectName}}
     weight: 100
   port:
     targetPort: http

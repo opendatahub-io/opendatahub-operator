@@ -1,20 +1,20 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: dashboard-redirect
+  name: {{.DashboardRedirectName}}
   namespace: {{.DashboardRedirectNamespace}}
   labels:
-    app: dashboard-redirect
+    app: {{.DashboardRedirectName}}
     {{.PartOfLabelKey}}: {{.PartOfGatewayConfig}}
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: dashboard-redirect
+      app: {{.DashboardRedirectName}}
   template:
     metadata:
       labels:
-        app: dashboard-redirect
+        app: {{.DashboardRedirectName}}
         {{.PartOfLabelKey}}: {{.PartOfGatewayConfig}}
     spec:
       containers:
@@ -48,4 +48,4 @@ spec:
       volumes:
       - name: redirect-config
         configMap:
-          name: dashboard-redirect-config
+          name: {{.DashboardRedirectConfigName}}
