@@ -36,7 +36,7 @@ package gateway
 //           value: "true"
 //
 // By default (when not set or set to any value other than "true"), dashboard redirects
-// are ENABLED and will be created when GatewayConfig.spec.ingressMode is "OcpRoute".
+// are ENABLED for all Gateway configurations.
 
 import (
 	"context"
@@ -71,12 +71,6 @@ func createDashboardRedirects(ctx context.Context, rr *odhtypes.ReconciliationRe
 	gatewayConfig, err := validateGatewayConfig(rr)
 	if err != nil {
 		return err
-	}
-
-	// Only create redirects in OcpRoute mode (redirects don't make sense for LoadBalancer mode)
-	if gatewayConfig.Spec.IngressMode != serviceApi.IngressModeOcpRoute {
-		l.V(1).Info("IngressMode is not OcpRoute, skipping dashboard redirect creation")
-		return nil
 	}
 
 	l.V(1).Info("Creating dashboard redirect resources",
