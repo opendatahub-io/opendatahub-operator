@@ -22,9 +22,9 @@ import (
 )
 
 const (
-	testNamespace             = "test-model-registries"   // Namespace used for model registry testing
-	dsciInstanceNameDuplicate = "e2e-test-dsci-duplicate" // Instance name for the duplicate DSCInitialization resource
-	dscInstanceNameDuplicate  = "e2e-test-dsc-duplicate"  // Instance name for the duplicate DataScienceCluster resource
+	testNamespace             = "test-model-registries"  // Namespace used for model registry testing
+	dsciInstanceNameDuplicate = "default-dsci-duplicate" // Instance name for the duplicate DSCInitialization resource
+	dscInstanceNameDuplicate  = "default-dsc-duplicate"  // Instance name for the duplicate DataScienceCluster resource
 )
 
 // DSCTestCtx holds the context for the DSCInitialization and DataScienceCluster management tests.

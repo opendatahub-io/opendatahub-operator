@@ -84,6 +84,9 @@ func NewSubComponentTestCtx(t *testing.T, object common.PlatformObject, parentKi
 func (tc *ComponentTestCtx) ValidateComponentEnabled(t *testing.T) {
 	t.Helper()
 
+	// As these tests can be executed in a non-cleaned scenario, we need to move the component first to Removed.
+	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Removed)
+
 	// Ensure that DataScienceCluster exists and its component state is "Managed", with the "Ready" condition true.
 	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Managed)
 
