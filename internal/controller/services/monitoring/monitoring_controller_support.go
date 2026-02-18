@@ -222,12 +222,23 @@ func addTracesTemplateData(templateData map[string]any, traces *serviceApi.Trace
 	// Set TLS certificate configuration
 	if tlsEnabled {
 		// traces.TLS is guaranteed non-nil here since determineTLSEnabled returns false when TLS is nil
-		templateData["TempoCertificateSecret"] = traces.TLS.CertificateSecret
+		certSecret := traces.TLS.CertificateSecret
+		useCustomCert := certSecret != "" // Track if user provided custom cert
+
+		// WORKAROUND for Tempo Operator v0.19 serving cert bug (RHOAIENG-50079)
+		// TODO: Remove this workaround after Tempo Operator is upgraded with the fix
+		if certSecret == "" && traces.Storage.Backend == serviceApi.StorageBackendPV {
+			certSecret = "tempo-data-science-tempomonolithic-gateway-serving-cert" //nolint:gosec // Not a credential, just a cert secret name
+		}
+
+		templateData["TempoCertificateSecret"] = certSecret
 		templateData["TempoCAConfigMap"] = traces.TLS.CAConfigMap
+		templateData["TempoUseCustomCert"] = useCustomCert
 	} else {
 		// Set empty values to avoid template missing key errors
 		templateData["TempoCertificateSecret"] = ""
 		templateData["TempoCAConfigMap"] = ""
+		templateData["TempoUseCustomCert"] = false
 	}
 
 	// Add tempo-related data from traces.Storage fields (Storage is a struct, not a pointer)

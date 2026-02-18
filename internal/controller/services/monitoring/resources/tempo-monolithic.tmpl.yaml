@@ -50,7 +50,7 @@ spec:
       compactor:
         compaction:
           block_retention: {{.TracesRetention}}  # default 90days
-      {{- if .TempoCertificateSecret }}
+      {{- if .TempoUseCustomCert }}
       # Only configure HTTP TLS when explicit cert is provided
       # Otherwise, let Tempo operator handle it via OpenShift serving certs
       server:
