@@ -18,7 +18,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_MLMD_GRPC_SERVER_IMAGE
   value: "quay.io/rhoai/odh-mlmd-grpc-server-rhel9@sha256:acb463e4d63ed975fe6810d59c893e738076a2ce0a54debabfb8d6a199ec5171"
 - name: RELATED_IMAGE_ODH_ML_PIPELINES_API_SERVER_V2_IMAGE
-  value: "quay.io/rhoai/odh-ml-pipelines-api-server-v2-rhel9@sha256:e6a4444ad3fcf672e7ec88832071394576c672278d9067f85a3224ee0f086d11"
+  value: "quay.io/rhoai/odh-ml-pipelines-api-server-v2-rhel9@sha256:6122323dfa0591656638bd4d45c801aaf5cc20a40ac7f3051aa94e56f6a21988"
 - name: RELATED_IMAGE_ODH_ML_PIPELINES_PERSISTENCEAGENT_V2_IMAGE
   value: "quay.io/rhoai/odh-ml-pipelines-persistenceagent-v2-rhel9@sha256:f337a0de3bc89723f0c9b14d3b72201d39b26f0b158c6c143e24a3a39b4f9c1a"
 - name: RELATED_IMAGE_ODH_ML_PIPELINES_SCHEDULEDWORKFLOW_V2_IMAGE
@@ -32,7 +32,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_WORKFLOWCONTROLLER_IMAGE
   value: "quay.io/rhoai/odh-data-science-pipelines-argo-workflowcontroller-rhel9@sha256:2125214427c9f6d3f7e8ac9bb6ed8be080380355e41703f8000a2206ede49dfe"
 - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_IMAGE
-  value: "quay.io/rhoai/odh-model-registry-rhel9@sha256:0db4bdb2bc91406fa5939c2ce3392f1e9b57a453160257416205bc6935131f90"
+  value: "quay.io/rhoai/odh-model-registry-rhel9@sha256:1ed9aaf5128e4c0a240fd712fd68918a0b7184036198e11e9074608a55f71c7a"
 - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE
   value: "quay.io/rhoai/odh-model-registry-operator-rhel9@sha256:63ce5c5c0fe22bbe750df186ddef0436f827f6ffc02e58daa71b1ea7de9c302d"
 - name: RELATED_IMAGE_ODH_TRAINING_OPERATOR_IMAGE
@@ -163,3 +163,5 @@ relatedImages:
   value: "quay.io/rhoai/odh-cli-rhel9@sha256:30a3ffce0fcf2a9df5cb691e60f54c29cfff6156bfc21bdf10c3080ea1e348fc"
 - name: RELATED_IMAGE_ODH_CLI_IMAGE
   value: "quay.io/rhoai/odh-cli-rhel9@sha256:30a3ffce0fcf2a9df5cb691e60f54c29cfff6156bfc21bdf10c3080ea1e348fc"
+- name: RELATED_IMAGE_ODH_OPERATOR_IMAGE
+  value: quay.io/rhoai/odh-rhel9-operator@sha256:200b02a0c0ce5e25687bcca627165084920eb07386990115d739c1ad1c9d38d7
