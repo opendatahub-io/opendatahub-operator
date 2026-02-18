@@ -79,6 +79,12 @@ const (
 	EnvClientSecret = "OAUTH2_PROXY_CLIENT_SECRET" //nolint:gosec // This is an environment variable name, not a secret
 	EnvCookieSecret = "OAUTH2_PROXY_COOKIE_SECRET" //nolint:gosec // This is an environment variable name, not a secret
 
+	// Dashboard redirect constants.
+	DashboardRedirectName       = "dashboard-redirect"
+	DashboardRedirectConfigName = "dashboard-redirect-config"
+	DashboardRouteNameODH       = "odh-dashboard"   // ODH dashboard route name
+	DashboardRouteNameRHOAI     = "rhods-dashboard" // RHOAI dashboard route name
+
 	// Label constants.
 	ComponentLabelValue = "authentication"
 	PartOfLabelValue    = "data-science-gateway"
@@ -478,13 +484,18 @@ type LegacyRedirectInfo struct {
 	LegacyHostname         string // Full legacy hostname (empty if redirect not needed)
 }
 
+// getCurrentSubdomain extracts the current subdomain from GatewayConfig or returns the default.
+func getCurrentSubdomain(gc *serviceApi.GatewayConfig) string {
+	if gc != nil && gc.Spec.Subdomain != "" {
+		return gc.Spec.Subdomain
+	}
+	return DefaultGatewaySubdomain
+}
+
 // computeLegacyRedirectInfo computes the subdomain and legacy hostname information
 // for redirect functionality. Returns empty legacy fields if current subdomain equals legacy.
 func computeLegacyRedirectInfo(gatewayConfig *serviceApi.GatewayConfig, hostname string) LegacyRedirectInfo {
-	currentSubdomain := DefaultGatewaySubdomain
-	if gatewayConfig != nil && gatewayConfig.Spec.Subdomain != "" {
-		currentSubdomain = gatewayConfig.Spec.Subdomain
-	}
+	currentSubdomain := getCurrentSubdomain(gatewayConfig)
 
 	info := LegacyRedirectInfo{
 		CurrentSubdomain: currentSubdomain,
@@ -525,6 +536,33 @@ func getKubeAuthProxyImage() string {
 	}
 	// Fallback for ODH development
 	return "quay.io/opendatahub/odh-kube-auth-proxy:latest"
+}
+
+// getDashboardRedirectImage returns the nginx image for dashboard redirects.
+// For RHOAI deployments, this comes from the CSV (via RHOAI-Build-Config/bundle/additional-images-patch.yaml).
+// For ODH deployments, this comes from build/operands-map.yaml.
+// Falls back to a publicly accessible UBI9 nginx S2I image for local development/testing.
+func getDashboardRedirectImage() string {
+	if image := os.Getenv("RELATED_IMAGE_NGINX_126_IMAGE"); image != "" {
+		return image
+	}
+	// Fallback for ODH development - publicly accessible UBI9 nginx S2I image
+	// This image is identical to registry.redhat.io/ubi9/nginx-126 but does not require authentication
+	return "registry.access.redhat.com/ubi9/nginx-126:latest"
+}
+
+// getDashboardRouteName returns the platform-specific dashboard route name.
+func getDashboardRouteName() string {
+	release := cluster.GetRelease()
+
+	switch release.Name {
+	case cluster.OpenDataHub:
+		return DashboardRouteNameODH
+	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
+		return DashboardRouteNameRHOAI
+	default:
+		return DashboardRouteNameODH // Fallback to ODH
+	}
 }
 
 func getAuthProxySecretValues(
