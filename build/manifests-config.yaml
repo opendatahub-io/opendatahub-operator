@@ -227,7 +227,7 @@ additional_meta:
     git.commit: 148d2e971ea81cc908d584c5a17e8fdbd28c767e
   odh-kube-auth-proxy:
     git.url: https://github.com/red-hat-data-services/kube-auth-proxy
-    git.commit: 791bbfcc116201f3c5cd9a59c75e3835590cc97d
+    git.commit: 0c1a7866abb21e3adba9db371ea7aacba9f148a8
   odh-model-performance-data:
     git.url: https://github.com/red-hat-data-services/models-perf-benchmark-data
     git.commit: e16e20ed4a99f880c15150faefc7d90dfad6f163
