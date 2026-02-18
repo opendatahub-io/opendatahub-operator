@@ -199,7 +199,7 @@ func TestConditions(t *testing.T) {
 				g.Expect(err).Should(MatchError(tt.err))
 			}
 
-			g.Expect(result.Requeue).Should(BeFalse())
+			g.Expect(result.RequeueAfter).Should(BeZero())
 
 			di := resources.GvkToUnstructured(gvk.Dashboard)
 			di.SetName(dash.GetName())
