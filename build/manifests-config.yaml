@@ -212,7 +212,7 @@ additional_meta:
     git.commit: f91f06cf99b17c34d5355d57de346638a724cb2e
   odh-llama-stack-core:
     git.url: https://github.com/red-hat-data-services/llama-stack-distribution
-    git.commit: 8c0778f8b280609fbcfa4d3dd00cc9422ebf09c1
+    git.commit: f6331f5dc2937b5098eeeaf819cf1d65451e6f5e
   odh-workbench-jupyter-pytorch-llmcompressor-cuda-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: f88354f543ee7587cda35ae6a57f870f707fcbae
