@@ -11,9 +11,9 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 
 	. "github.com/onsi/gomega"
 )
@@ -50,16 +50,16 @@ func (tc *MonitoringTestCtx) createMonitorsEnvironment(t *testing.T, namespaceLa
 	t.Logf("Pre-test cleanup completed")
 
 	// Helper to apply metadata labels if provided
-	applyLabels := func(labels map[string]string) testf.TransformFn {
+	applyLabels := func(lbls map[string]string) testf.TransformFn {
 		return func(obj *unstructured.Unstructured) error {
-			if len(labels) == 0 {
+			if len(lbls) == 0 {
 				return nil
 			}
 			currentLabels := obj.GetLabels()
 			if currentLabels == nil {
 				currentLabels = make(map[string]string)
 			}
-			for k, v := range labels {
+			for k, v := range lbls {
 				currentLabels[k] = v
 			}
 			obj.SetLabels(currentLabels)
@@ -151,12 +151,46 @@ func (tc *MonitoringTestCtx) ValidateMonitoringLabelValueEnforcementOnNamespace(
 	// Expect this to be BLOCKED by validation policy
 	err := tc.Client().Create(tc.Context(), invalidNamespace)
 	tc.g.Expect(err).To(HaveOccurred(), "Validation policy should block namespace with invalid monitoring label value")
-	tc.g.Expect(err.Error()).To(ContainSubstring("must be set to 'true' or 'false'"), "Error message should indicate valid values")
+	tc.g.Expect(err).To(MatchError(ContainSubstring("must be set to 'true' or 'false'")), "Error message should indicate valid values")
+
+	// Explicit cleanup based on deletion policy (runs only if test reaches this point)
+	switch testOpts.deletionPolicy {
+	case DeletionPolicyAlways:
+		t.Logf("Deletion Policy: Always. Cleaning up test namespace %s", TestNamespaceName)
+		tc.DeleteResource(
+			WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: TestNamespaceName}),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+	case DeletionPolicyOnFailure:
+		if t.Failed() {
+			t.Logf("Test failed. Deletion Policy: On Failure. Cleaning up test namespace %s", TestNamespaceName)
+			tc.DeleteResource(
+				WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: TestNamespaceName}),
+				WithIgnoreNotFound(true),
+				WithWaitForDeletion(true),
+			)
+		}
+	case DeletionPolicyNever:
+		t.Logf("Deletion Policy: Never. Skipping cleanup of test namespace %s", TestNamespaceName)
+	}
 }
 
 // ValidateMonitoringLabelValueEnforcementOnMonitors tests that the validation policy blocks invalid monitoring label values.
 func (tc *MonitoringTestCtx) ValidateMonitoringLabelValueEnforcementOnMonitors(t *testing.T) {
 	t.Helper()
+
+	// Pre-test cleanup: ensure invalid monitors don't exist from prior runs
+	tc.DeleteResource(
+		WithMinimalObject(gvk.CoreosPodMonitor, types.NamespacedName{Name: "test-invalid-podmonitor", Namespace: TestNamespaceName}),
+		WithIgnoreNotFound(true),
+		WithWaitForDeletion(true),
+	)
+	tc.DeleteResource(
+		WithMinimalObject(gvk.CoreosServiceMonitor, types.NamespacedName{Name: "test-invalid-servicemonitor", Namespace: TestNamespaceName}),
+		WithIgnoreNotFound(true),
+		WithWaitForDeletion(true),
+	)
 
 	// 1. Create a valid namespace first (validation usually requires the namespace to exist)
 	tc.createMonitorsEnvironment(t, nil, nil) // Creates namespace & clean monitors. We will ignore the clean monitors.
@@ -187,7 +221,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringLabelValueEnforcementOnMonitors(t
 	// Attempt to create it - Expect Error
 	err := tc.Client().Create(tc.Context(), invalidPodMonitor)
 	tc.g.Expect(err).To(HaveOccurred(), "Validation policy should block PodMonitor with invalid monitoring label value")
-	tc.g.Expect(err.Error()).To(ContainSubstring("must be set to 'true' or 'false'"), "Error message should indicate valid values for PodMonitor")
+	tc.g.Expect(err).To(MatchError(ContainSubstring("must be set to 'true' or 'false'")), "Error message should indicate valid values for PodMonitor")
 
 	// --- Test ServiceMonitor Validation ---
 
@@ -210,5 +244,47 @@ func (tc *MonitoringTestCtx) ValidateMonitoringLabelValueEnforcementOnMonitors(t
 	// Attempt to create it - Expect Error
 	err = tc.Client().Create(tc.Context(), invalidServiceMonitor)
 	tc.g.Expect(err).To(HaveOccurred(), "Validation policy should block ServiceMonitor with invalid monitoring label value")
-	tc.g.Expect(err.Error()).To(ContainSubstring("must be set to 'true' or 'false'"), "Error message should indicate valid values for ServiceMonitor")
+	tc.g.Expect(err).To(MatchError(ContainSubstring("must be set to 'true' or 'false'")), "Error message should indicate valid values for ServiceMonitor")
+
+	// Explicit cleanup based on deletion policy (runs only if test reaches this point)
+	switch testOpts.deletionPolicy {
+	case DeletionPolicyAlways:
+		t.Logf("Deletion Policy: Always. Cleaning up test resources in namespace %s", TestNamespaceName)
+		tc.DeleteResource(
+			WithMinimalObject(gvk.CoreosPodMonitor, types.NamespacedName{Name: "test-invalid-podmonitor", Namespace: TestNamespaceName}),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+		tc.DeleteResource(
+			WithMinimalObject(gvk.CoreosServiceMonitor, types.NamespacedName{Name: "test-invalid-servicemonitor", Namespace: TestNamespaceName}),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+		tc.DeleteResource(
+			WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: TestNamespaceName}),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+	case DeletionPolicyOnFailure:
+		if t.Failed() {
+			t.Logf("Test failed. Deletion Policy: On Failure. Cleaning up test resources in namespace %s", TestNamespaceName)
+			tc.DeleteResource(
+				WithMinimalObject(gvk.CoreosPodMonitor, types.NamespacedName{Name: "test-invalid-podmonitor", Namespace: TestNamespaceName}),
+				WithIgnoreNotFound(true),
+				WithWaitForDeletion(true),
+			)
+			tc.DeleteResource(
+				WithMinimalObject(gvk.CoreosServiceMonitor, types.NamespacedName{Name: "test-invalid-servicemonitor", Namespace: TestNamespaceName}),
+				WithIgnoreNotFound(true),
+				WithWaitForDeletion(true),
+			)
+			tc.DeleteResource(
+				WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: TestNamespaceName}),
+				WithIgnoreNotFound(true),
+				WithWaitForDeletion(true),
+			)
+		}
+	case DeletionPolicyNever:
+		t.Logf("Deletion Policy: Never. Skipping cleanup of test resources in namespace %s", TestNamespaceName)
+	}
 }
