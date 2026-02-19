@@ -69,7 +69,7 @@ map:
     src: manifests
     dest: trainer
     git.url: https://github.com/red-hat-data-services/trainer
-    git.commit: d6b2e1c0572db4b66768ccc7281b07dbbeb23372
+    git.commit: 1298e056b343260331ef4d86288e5ceaacf2a069
   odh-mlflow-operator:
     src: config
     dest: mlflowoperator
@@ -119,7 +119,7 @@ additional_meta:
     git.commit: b58af9e1191544d917cf044b2e58cb90388ed4df
   odh-llm-d-routing-sidecar:
     git.url: https://github.com/red-hat-data-services/llm-d-inference-scheduler
-    git.commit: b58af9e1191544d917cf044b2e58cb90388ed4df
+    git.commit: e2aed2e65f4735f403d046bc7b2a0cd35e280365
   odh-must-gather:
     git.url: https://github.com/red-hat-data-services/must-gather
     git.commit: 2e178a6c0545f0ee72341f47d49a75d010190159
@@ -143,7 +143,7 @@ additional_meta:
     git.commit: 7deaa948e497598de8cc98401fba614c646ac02a
   odh-trustyai-vllm-orchestrator-gateway:
     git.url: https://github.com/red-hat-data-services/vllm-orchestrator-gateway
-    git.commit: 9f54f6592ed953e42df9d14df77b2fb19c693240
+    git.commit: fd0f8f43f4444332d26e2b20a4559f670baf76d2
   odh-built-in-detector:
     git.url: https://github.com/red-hat-data-services/guardrails-detectors
     git.commit: 698e2d5804d41047a5fe173ed3028e1475093eb6
@@ -221,7 +221,7 @@ additional_meta:
     git.commit: f88354f543ee7587cda35ae6a57f870f707fcbae
   odh-model-metadata-collection:
     git.url: https://github.com/red-hat-data-services/model-metadata-collection
-    git.commit: 268715141afb9bf49ae726c421cc065be6bdc993
+    git.commit: 1d4a923f8879d24b7203a9d3f6aa9ddfae97e001
   odh-mod-arch-gen-ai:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
     git.commit: 148d2e971ea81cc908d584c5a17e8fdbd28c767e
@@ -230,7 +230,7 @@ additional_meta:
     git.commit: 0c1a7866abb21e3adba9db371ea7aacba9f148a8
   odh-model-performance-data:
     git.url: https://github.com/red-hat-data-services/models-perf-benchmark-data
-    git.commit: e16e20ed4a99f880c15150faefc7d90dfad6f163
+    git.commit: f647482504711f6b3b6eb61b53e116353c8ec755
   odh-training-cuda121-torch24-py311:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 579b598e1ebb38daec15069863d403c2147587fd
