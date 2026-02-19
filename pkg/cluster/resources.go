@@ -288,30 +288,6 @@ func CreateNamespace(ctx context.Context, cli client.Client, namespace string, m
 	return desiredNamespace, nil
 }
 
-// ExecuteOnAllNamespaces executes the passed function for all namespaces in the cluster retrieved in batches.
-func ExecuteOnAllNamespaces(ctx context.Context, cli client.Client, processFunc func(*corev1.Namespace) error) error {
-	namespaces := &corev1.NamespaceList{}
-	paginateListOption := &client.ListOptions{
-		Limit: 500,
-	}
-
-	for { // loop over all paged results
-		if err := cli.List(ctx, namespaces, paginateListOption); err != nil {
-			return err
-		}
-		for i := range namespaces.Items {
-			ns := &namespaces.Items[i]
-			if err := processFunc(ns); err != nil {
-				return err
-			}
-		}
-		if paginateListOption.Continue = namespaces.GetContinue(); namespaces.GetContinue() == "" {
-			break
-		}
-	}
-	return nil
-}
-
 func CreateWithRetry(ctx context.Context, cli client.Client, obj client.Object) error {
 	log := logf.FromContext(ctx)
 	backoff := wait.Backoff{
