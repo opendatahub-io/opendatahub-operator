@@ -1,3 +1,5 @@
+//go:build !integration
+
 //nolint:testpackage
 package gateway
 

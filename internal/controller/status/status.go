@@ -132,7 +132,7 @@ const (
 	KueueStateManagedNotSupported        = "KueueStateManagedNotSupported"
 	KueueStateManagedNotSupportedMessage = "Kueue managementState Managed is not supported, please use Removed or Unmanaged"
 	KueueOperatorNotInstalleReason       = "KueueOperatorNotInstalleReason"
-	KueueOperatorNotInstalledMessage     = "Kueue operator not installed, install it or change kueue component state to Managed"
+	KueueOperatorNotInstalledMessage     = "Kueue operator not installed, install it or change kueue component state to Removed"
 )
 
 // For TrustyAI require ISVC CRD.

@@ -24,7 +24,7 @@ import (
 //nolint:lll
 
 // Validator implements webhook.AdmissionHandler for DataScienceCluster v1 validation webhooks.
-// It enforces singleton creation rules for DataScienceCluster resources and always allows their deletion.
+// It enforces singleton creation rules, validates Kueue managementState, and always allows deletion.
 type Validator struct {
 	Client  client.Reader
 	Name    string
@@ -50,8 +50,8 @@ func (v *Validator) SetupWithManager(mgr ctrl.Manager) error {
 	return nil
 }
 
-// Handle processes admission requests for create operations on DataScienceCluster v1 resources.
-// It enforces singleton rules, allowing other operations by default.
+// Handle processes admission requests for create and update operations on DataScienceCluster v1 resources.
+// It enforces singleton and managementState rules, allowing other operations by default.
 //
 // Parameters:
 //   - ctx: Context for the admission request (logger is extracted from here).
@@ -73,19 +73,19 @@ func (v *Validator) Handle(ctx context.Context, req admission.Request) admission
 
 	switch req.Operation {
 	case admissionv1.Create:
-		return validate([]validationCheck{v.denyManagementstateManaged, denyMultipleDsc}, allowMessage, ctx, v.Client, &req)
+		return validate(ctx, []validationCheck{v.denyKueueManagedState, denyMultipleDsc}, allowMessage, v.Client, &req)
 	case admissionv1.Update:
-		return validate([]validationCheck{v.denyManagementstateManaged}, allowMessage, ctx, v.Client, &req)
+		return validate(ctx, []validationCheck{v.denyKueueManagedState}, allowMessage, v.Client, &req)
 	default:
-		return admission.Allowed(allowMessage) // initialize Allowed to be true in case Operation falls into "default" case
+		return admission.Allowed(allowMessage)
 	}
 }
 
 type validationCheck func(context.Context, client.Reader, *admission.Request) admission.Response
 
-func validate(checks []validationCheck, allowedMessage string, ctx context.Context, client client.Reader, request *admission.Request) admission.Response {
+func validate(ctx context.Context, checks []validationCheck, allowedMessage string, cli client.Reader, request *admission.Request) admission.Response {
 	for _, check := range checks {
-		resp := check(ctx, client, request)
+		resp := check(ctx, cli, request)
 		if !resp.Allowed {
 			return resp
 		}
@@ -94,11 +94,11 @@ func validate(checks []validationCheck, allowedMessage string, ctx context.Conte
 	return admission.Allowed(allowedMessage)
 }
 
-func denyMultipleDsc(ctx context.Context, client client.Reader, req *admission.Request) admission.Response {
-	return webhookutils.ValidateSingletonCreation(ctx, client, req, gvk.DataScienceCluster)
+func denyMultipleDsc(ctx context.Context, cli client.Reader, req *admission.Request) admission.Response {
+	return webhookutils.ValidateSingletonCreation(ctx, cli, req, gvk.DataScienceClusterV1)
 }
 
-func (v *Validator) denyManagementstateManaged(ctx context.Context, client client.Reader, req *admission.Request) admission.Response {
+func (v *Validator) denyKueueManagedState(ctx context.Context, _ client.Reader, req *admission.Request) admission.Response {
 	dcsV1 := &dscv1.DataScienceCluster{}
 	if err := v.Decoder.DecodeRaw(req.Object, dcsV1); err != nil {
 		logf.FromContext(ctx).Error(err, "Error converting request object to "+gvk.DataScienceClusterV1.String())
