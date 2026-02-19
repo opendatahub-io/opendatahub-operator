@@ -137,7 +137,7 @@ ENVTEST_K8S_VERSION ?= $(shell go list -m -f "{{ .Version }}" k8s.io/api | awk -
 ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller-runtime | awk -F'[v.]' '{printf "release-%d.%d", $$2, $$3}')
 CRD_REF_DOCS_VERSION = 0.2.0
 # Add to tool versions section
-GINKGO_VERSION ?= v2.23.4
+GINKGO_VERSION ?= v2.27.2
 
 
 PLATFORM ?= linux/amd64
