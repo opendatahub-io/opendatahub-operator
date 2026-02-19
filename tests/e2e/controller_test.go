@@ -80,6 +80,7 @@ type TestContextConfig struct {
 	monitoringNamespace  string
 	deletionPolicy       DeletionPolicy
 
+	failFastWhenError        bool
 	cleanUpPreviousResources bool
 	operatorControllerTest   bool
 	operatorResilienceTest   bool
@@ -400,6 +401,8 @@ func TestMain(m *testing.M) {
 		"Specify when to delete DataScienceCluster, DSCInitialization, and controllers. Options: always, on-failure, never.")
 	checkEnvVarBindingError(viper.BindEnv("deletion-policy", viper.GetEnvPrefix()+"_DELETION_POLICY"))
 
+	pflag.Bool("fail-fast-on-error", true, "fail fast on error")
+	checkEnvVarBindingError(viper.BindEnv("fail-fast-on-error", viper.GetEnvPrefix()+"_FAST_FAIL_ON_ERROR"))
 	pflag.Bool("clean-up-previous-resources", true, "clean up previous resources before running tests")
 	checkEnvVarBindingError(viper.BindEnv("clean-up-previous-resources", viper.GetEnvPrefix()+"_CLEAN_UP_PREVIOUS_RESOURCES"))
 	pflag.Bool("test-operator-controller", true, "run operator controller tests")
@@ -459,6 +462,7 @@ func TestMain(m *testing.M) {
 		fmt.Print(err.Error())
 		os.Exit(1)
 	}
+	testOpts.failFastWhenError = viper.GetBool("fail-fast-on-error")
 	testOpts.cleanUpPreviousResources = viper.GetBool("clean-up-previous-resources")
 	testOpts.operatorControllerTest = viper.GetBool("test-operator-controller")
 	testOpts.operatorResilienceTest = viper.GetBool("test-operator-resilience")
@@ -509,12 +513,12 @@ func registerSchemes() {
 	}
 }
 
-// mustRun executes a test and stops execution if it fails.
+// mustRun executes a test.
 func mustRun(t *testing.T, name string, testFunc func(t *testing.T), opts ...TestCaseOpts) {
 	t.Helper()
 
-	// If the test already failed, skip running the next test
-	if t.Failed() {
+	// If the test already failed and fail-fast is enabled, skip running the next test
+	if t.Failed() && testOpts.failFastWhenError {
 		return
 	}
 
