@@ -59,7 +59,7 @@ map:
     src: infra/feast-operator/config
     dest: feastoperator
     git.url: https://github.com/red-hat-data-services/feast
-    git.commit: d764fa3959f1f25177dd6525f5c7b84e53147aab
+    git.commit: 1dc378c5af6993dbcbbc540feb7ddaa545af505c
   odh-llama-stack-k8s-operator:
     src: config
     dest: llamastackoperator
@@ -239,7 +239,7 @@ additional_meta:
     git.commit: 579b598e1ebb38daec15069863d403c2147587fd
   odh-training-cuda128-torch28-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
-    git.commit: 867d9323d895b4e7b918bef10f06e734028d6310
+    git.commit: 579b598e1ebb38daec15069863d403c2147587fd
   odh-training-rocm62-torch24-py311:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 867d9323d895b4e7b918bef10f06e734028d6310
