@@ -1,7 +1,7 @@
 map:
   notebooks:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: a2a3d89a63bf1cbdf2373c7390da220559579124
+    git.commit: ed9148427447da32c94126a30b3a64034e81628e
     src: manifests
     dest: workbenches/notebooks
     ref_type: branch
@@ -49,7 +49,7 @@ map:
     src: manifests
     dest: dashboard
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: fe48004bce843a84742c952acc7e88ee5c0a0879
+    git.commit: 6a8ef270e5f8bccab5f9561838d7aca68e45d67f
   odh-training-operator:
     src: manifests
     dest: trainingoperator
@@ -194,7 +194,7 @@ additional_meta:
     git.commit: a2a3d89a63bf1cbdf2373c7390da220559579124
   odh-workbench-jupyter-trustyai-cpu-py312:
     git.url: https://github.com/red-hat-data-services/notebooks
-    git.commit: 55700739e85a06b901028c6ede912fa7f7e1324d
+    git.commit: ed9148427447da32c94126a30b3a64034e81628e
   odh-guardrails-detector-huggingface-runtime:
     git.url: https://github.com/red-hat-data-services/guardrails-detectors
     git.commit: 698e2d5804d41047a5fe173ed3028e1475093eb6
@@ -251,7 +251,7 @@ additional_meta:
     git.commit: 579b598e1ebb38daec15069863d403c2147587fd
   odh-mod-arch-model-registry:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: 4d3ca3a709dc0d43853c00eef4d0e3f722cf1596
+    git.commit: 6a8ef270e5f8bccab5f9561838d7aca68e45d67f
   odh-trustyai-nemo-guardrails-server:
     git.url: https://github.com/red-hat-data-services/NeMo-Guardrails
     git.commit: 5de600852cd69649cb6606c2df7e335359d6b773
@@ -266,7 +266,7 @@ additional_meta:
     git.commit: 2c8e5a13ad70052318e0992e654e01635294637b
   odh-mod-arch-maas:
     git.url: https://github.com/red-hat-data-services/odh-dashboard
-    git.commit: fe48004bce843a84742c952acc7e88ee5c0a0879
+    git.commit: 6a8ef270e5f8bccab5f9561838d7aca68e45d67f
   odh-training-rocm64-torch29-py312:
     git.url: https://github.com/red-hat-data-services/distributed-workloads
     git.commit: 579b598e1ebb38daec15069863d403c2147587fd
