@@ -135,6 +135,11 @@ func (c *Client) Patch(ctx context.Context, obj client.Object, patch client.Patc
 	return c.inner.Patch(ctx, obj, patch, opts...)
 }
 
+// Apply applies the given object to the Kubernetes cluster.
+func (c *Client) Apply(ctx context.Context, obj runtime.ApplyConfiguration, opts ...client.ApplyOption) error {
+	return c.inner.Apply(ctx, obj, opts...)
+}
+
 // DeleteAllOf deletes all objects of the given type matching the given options.
 func (c *Client) DeleteAllOf(ctx context.Context, obj client.Object, opts ...client.DeleteAllOfOption) error {
 	return c.inner.DeleteAllOf(ctx, obj, opts...)
