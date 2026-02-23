@@ -1,7 +1,8 @@
 apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
-#test1
+=======
+#test5
   annotations:
     build.appstudio.openshift.io/repo: https://github.com/opendatahub-io/opendatahub-operator?rev={{revision}}
     build.appstudio.redhat.com/commit_sha: '{{revision}}'
@@ -39,6 +40,9 @@ spec:
   - name: additional-tags
     value:
     - '{{target_branch}}-{{revision}}'
+  - name: build-args
+    value:
+    - MANIFESTS_MODE=CI
   pipelineRef:
     resolver: git
     params:

@@ -212,6 +212,12 @@ relatedImages:
     - name: RELATED_IMAGE_ODH_OPERATOR_IMAGE
       value: quay.io/opendatahub/opendatahub-operator@sha256:e412c9152fcc21cea2e8d7d147c063de8bdc7b7c087ecdc712e87d29bc3e5e8f
       component: odh-operator
+<<<<<<< HEAD
+    - name: RELATED_IMAGE_ODH_OPERATOR_IMAGE
+      value: quay.io/opendatahub/opendatahub-operator@sha256:e412c9152fcc21cea2e8d7d147c063de8bdc7b7c087ecdc712e87d29bc3e5e8f
+      component: odh-operator
+=======
+>>>>>>> stable
     - name: RELATED_IMAGE_ODH_MLSERVER_IMAGE
       value: quay.io/opendatahub/mlserver@sha256:0dcba71dffef6e16c95174f204f01d59bcf448055693a5c79b036fafbec9ac7c
       component: odh-mlserver
