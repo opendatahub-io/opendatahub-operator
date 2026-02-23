@@ -22,7 +22,6 @@ import (
 	"maps"
 	"os"
 	"slices"
-	"strings"
 
 	ocappsv1 "github.com/openshift/api/apps/v1" //nolint:importas //reason: conflicts with appsv1 "k8s.io/api/apps/v1"
 	buildv1 "github.com/openshift/api/build/v1"
@@ -38,7 +37,6 @@ import (
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
-	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -55,10 +53,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	crtlmanager "sigs.k8s.io/controller-runtime/pkg/manager"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -105,6 +101,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/initialinstall"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
@@ -232,17 +229,6 @@ func registerServices() {
 }
 
 func main() { //nolint:funlen,maintidx,gocyclo
-	// Viper settings
-	viper.SetEnvPrefix("ODH_MANAGER")
-	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
-	viper.AutomaticEnv()
-
-	// define flags and env vars
-	if err := flags.AddOperatorFlagsAndEnvvars(viper.GetEnvPrefix()); err != nil {
-		fmt.Printf("Error in adding flags or binding env vars: %s", err.Error())
-		os.Exit(1)
-	}
-
 	// Register component/service suppression flags (before pflag.Parse)
 	if err := flags.RegisterComponentSuppressionFlags(slices.Collect(maps.Keys(existingComponents))); err != nil {
 		fmt.Printf("Error registering component suppression flags: %s", err.Error())
@@ -253,10 +239,9 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	// parse and bind flags
-	pflag.Parse()
-	if err := viper.BindPFlags(pflag.CommandLine); err != nil {
-		fmt.Printf("Error in binding flags: %s", err.Error())
+	oconfig, err := operatorconfig.LoadConfig()
+	if err != nil {
+		fmt.Printf("Error loading configuration: %s", err.Error())
 		os.Exit(1)
 	}
 
@@ -264,38 +249,14 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	registerComponents()
 	registerServices()
 
-	oconfig, err := LoadConfig()
-	if err != nil {
-		fmt.Printf("Error loading configuration: %s", err.Error())
-		os.Exit(1)
-	}
-
-	// After getting the zap related configs an ad hoc flag set is created so the zap BindFlags mechanism can be reused
-	zapFlagSet := flags.NewZapFlagSet()
-
-	opts := zap.Options{}
-	opts.BindFlags(zapFlagSet)
-
-	err = flags.ParseZapFlags(zapFlagSet, oconfig.ZapDevel, oconfig.ZapEncoder, oconfig.ZapLogLevel, oconfig.ZapStacktrace, oconfig.ZapTimeEncoding)
-	if err != nil {
-		fmt.Printf("Error in parsing zap flags: %s", err.Error())
-		os.Exit(1)
-	}
-
-	ctrl.SetLogger(logger.NewLogger(oconfig.LogMode, &opts))
+	ctrl.SetLogger(logger.NewLogger(oconfig.LogMode, oconfig.ZapOptions))
 
 	// root context
 	ctx := ctrl.SetupSignalHandler()
 	ctx = logf.IntoContext(ctx, setupLog)
-	// Create new uncached client to run initial setup
-	setupCfg, err := config.GetConfig()
-	if err != nil {
-		setupLog.Error(err, "error getting config for setup")
-		os.Exit(1)
-	}
 
 	// This client does not use the cache.
-	setupClient, err := client.New(setupCfg, client.Options{Scheme: scheme})
+	setupClient, err := client.New(oconfig.RestConfig, client.Options{Scheme: scheme})
 	if err != nil {
 		setupLog.Error(err, "error getting client for setup")
 		os.Exit(1)

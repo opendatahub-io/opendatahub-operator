@@ -48,15 +48,22 @@ RUN go mod download
 COPY api/ api/
 COPY internal/ internal/
 COPY cmd/main.go cmd/main.go
+COPY cmd/cloudmanager/ cmd/cloudmanager/
 COPY pkg/ pkg/
 
 # Build stripe out debug info to minimize binary size
 RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go build -a -ldflags="-s -w" -tags strictfipsruntime -o manager cmd/main.go
 
+# Build provider-specific cloudmanager binaries
+RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go build -a -ldflags="-s -w" -tags strictfipsruntime -o azurecloudmanager cmd/cloudmanager/azure/main.go
+RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go build -a -ldflags="-s -w" -tags strictfipsruntime -o coreweavecloudmanager cmd/cloudmanager/coreweave/main.go
+
 ################################################################################
 FROM --platform=$TARGETPLATFORM registry.access.redhat.com/ubi9/ubi-minimal:latest
 WORKDIR /
 COPY --from=builder /workspace/manager .
+COPY --from=builder /workspace/azurecloudmanager .
+COPY --from=builder /workspace/coreweavecloudmanager .
 COPY --chown=1001:0 --from=manifests /opt/manifests /opt/manifests
 
 # tar installed to allow easy use of "oc cp" for component dev use cases.
@@ -67,4 +74,4 @@ RUN microdnf install -y tar && microdnf clean all
 RUN chmod -R g=u /opt/manifests
 USER 1001
 
-ENTRYPOINT ["/manager"]
+CMD ["/manager"]
