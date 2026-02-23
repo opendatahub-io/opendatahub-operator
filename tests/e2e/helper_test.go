@@ -13,6 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -53,7 +54,7 @@ const (
 	certManagerOpChannel        = "stable-v1"                                // Name of cert-manager operator stable channel
 	jobSetOpName                = "job-set"                                  // Name of the JobSet Operator
 	jobSetOpNamespace           = "openshift-jobset-operator"                // Namespace for the JobSet Operator
-	jobSetOpChannel             = "tech-preview-v0.1"                        // Name of the JobSet Operator stable channel
+	jobSetOpChannel             = "stable-v1.0"                              // Name of the JobSet Operator stable channel
 	openshiftOperatorsNamespace = "openshift-operators"                      // Namespace for OpenShift Operators
 	observabilityOpName         = "cluster-observability-operator"           // Name of the Cluster Observability Operator
 	observabilityOpNamespace    = "openshift-cluster-observability-operator" // Namespace for the Cluster Observability Operator
@@ -89,6 +90,13 @@ const (
 	resourceFetchErrorMsg        = "Error occurred while fetching the resource '%s' of kind '%s': %v"
 	unexpectedErrorMismatchMsg   = "Expected error '%v' to match the actual error '%v' for resource of kind '%s'."
 )
+
+type Operator struct {
+	nn                  types.NamespacedName
+	skipOperatorGroup   bool
+	globalOperatorGroup bool
+	channel             string
+}
 
 // TestCaseOpts defines a function type that can be used to modify how individual test cases are executed.
 type TestCaseOpts func(t *testing.T)
@@ -516,6 +524,31 @@ func ParseTestFlags() error {
 func (tc *TestContext) getControllerDeploymentName() string {
 	platform := tc.FetchPlatformRelease()
 	return getControllerDeploymentNameByPlatform(platform)
+}
+
+// ensureOperatorsAreInstalled ensures the specified operators are installed using parallel test cases.
+func (tc *TestContext) ensureOperatorsAreInstalled(t *testing.T, operators []Operator) {
+	t.Helper()
+	// Create and run test cases in parallel.
+	testCases := make([]TestCase, len(operators))
+	for i, op := range operators {
+		testCases[i] = TestCase{
+			name: fmt.Sprintf("Ensure %s is installed", op.nn.Name),
+			testFn: func(t *testing.T) {
+				t.Helper()
+				switch {
+				case op.skipOperatorGroup:
+					tc.EnsureOperatorInstalledWithChannel(op.nn, op.channel)
+				case op.globalOperatorGroup:
+					tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(op.nn, op.channel)
+				default:
+					tc.EnsureOperatorInstalledWithLocalOperatorGroupAndChannel(op.nn, op.channel)
+				}
+			},
+		}
+	}
+
+	RunTestCases(t, testCases, WithParallel())
 }
 
 func getControllerDeploymentNameByPlatform(platform common.Platform) string {
