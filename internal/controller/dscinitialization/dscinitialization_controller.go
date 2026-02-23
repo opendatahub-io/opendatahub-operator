@@ -217,10 +217,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		case cluster.SelfManagedRhoai:
 			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
 				log.Info("Monitoring enabled", "cluster", "Self-Managed Mode")
-				if err = r.configureSegmentIO(ctx, instance); err != nil {
-					return reconcile.Result{}, err
-				}
-
 				if err = r.newMonitoringCR(ctx, instance); err != nil {
 					return ctrl.Result{}, err
 				}
