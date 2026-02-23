@@ -1,0 +1,23 @@
+{{- if .LegacySubdomain }}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{.LegacySubdomain}}
+  namespace: {{.DashboardRedirectNamespace}}
+  labels:
+    app: {{.DashboardRedirectName}}
+    {{.PartOfLabelKey}}: {{.PartOfGatewayConfig}}
+  annotations:
+    haproxy.router.openshift.io/hsts_header: max-age=31536000;includeSubDomains;preload
+spec:
+  to:
+    kind: Service
+    name: {{.DashboardRedirectName}}
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None
+{{- end }}

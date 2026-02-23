@@ -27,7 +27,6 @@ const (
 	CADataFieldName           = "odh-ca-bundle.crt"
 	TrustedCABundleFieldOwner = resources.PlatformFieldOwner + "/trustedcabundle"
 	PartOf                    = "opendatahub-operator"
-	NSListLimit               = 500
 )
 
 // CreateOdhTrustedCABundleConfigMap creates a configMap 'odh-trusted-ca-bundle' in given namespace with labels and data
@@ -105,6 +104,7 @@ func ShouldInjectTrustedCABundle(obj client.Object) bool {
 // dsciEventHandler creates an event handler for DSCInitialization events. When a DSCInitialization
 // resource changes, this handler enqueues reconciliation requests for all namespaces in the cluster,
 // allowing the controller to update CA Bundle configuration across all namespaces.
+// Since the namespace resource use cache, we don't need to use pagination.
 //
 // Parameters:
 //   - cli: Kubernetes client used to list namespaces
@@ -115,28 +115,18 @@ func dsciEventHandler(cli client.Client) handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
 		requests := make([]reconcile.Request, 0)
 
-		lo := client.ListOptions{
-			Limit: NSListLimit,
+		lo := client.ListOptions{}
+
+		namespaces := corev1.NamespaceList{}
+
+		if err := cli.List(ctx, &namespaces, &lo); err != nil {
+			return []reconcile.Request{}
 		}
 
-		for {
-			namespaces := corev1.NamespaceList{}
-
-			if err := cli.List(ctx, &namespaces, &lo); err != nil {
-				return []reconcile.Request{}
-			}
-
-			for _, ns := range namespaces.Items {
-				requests = append(requests, reconcile.Request{
-					NamespacedName: resources.NamespacedNameFromObject(&ns),
-				})
-			}
-
-			if namespaces.Continue == "" {
-				break
-			}
-
-			lo.Continue = namespaces.Continue
+		for _, ns := range namespaces.Items {
+			requests = append(requests, reconcile.Request{
+				NamespacedName: resources.NamespacedNameFromObject(&ns),
+			})
 		}
 
 		return requests

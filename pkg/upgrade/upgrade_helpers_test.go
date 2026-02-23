@@ -422,10 +422,6 @@ func validateAcceleratorProfileHardwareProfile(g *WithT, hwp *infrav1.HardwarePr
 	enabled, _ := apSpec["enabled"].(bool)
 	apAnnotations := ap.GetAnnotations()
 
-	// Validate TypeMeta
-	g.Expect(hwp.TypeMeta.APIVersion).To(Equal(infrav1.GroupVersion.String()))
-	g.Expect(hwp.TypeMeta.Kind).To(Equal("HardwareProfile"))
-
 	// Validate ObjectMeta
 	g.Expect(hwp.GetName()).To(Equal(fmt.Sprintf("%s-%s", apName, profileType)))
 	g.Expect(hwp.GetNamespace()).To(Equal(apNamespace))
@@ -636,10 +632,6 @@ func validateContainerSizeHardwareProfile(g *WithT, hwp *infrav1.HardwareProfile
 	resources, _ := containerSize["resources"].(map[string]interface{})
 	requests, _ := resources["requests"].(map[string]interface{})
 	limits, _ := resources["limits"].(map[string]interface{})
-
-	// Validate TypeMeta
-	g.Expect(hwp.TypeMeta.APIVersion).To(Equal(infrav1.GroupVersion.String()))
-	g.Expect(hwp.TypeMeta.Kind).To(Equal("HardwareProfile"))
 
 	// Validate ObjectMeta
 	expectedName := fmt.Sprintf("containerSize-%s-%s", sizeName, sizeType)

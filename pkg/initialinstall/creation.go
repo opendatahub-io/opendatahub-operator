@@ -47,7 +47,7 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				Kueue: componentApi.DSCKueue{
-					KueueManagementSpec: componentApi.KueueManagementSpec{ManagementState: operatorv1.Managed},
+					KueueManagementSpec: componentApi.KueueManagementSpec{ManagementState: operatorv1.Removed},
 				},
 				TrustyAI: componentApi.DSCTrustyAI{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
@@ -56,16 +56,19 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				TrainingOperator: componentApi.DSCTrainingOperator{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
 				},
 				FeastOperator: componentApi.DSCFeastOperator{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				LlamaStackOperator: componentApi.DSCLlamaStackOperator{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
 				},
 				MLflowOperator: componentApi.DSCMLflowOperator{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
+				},
+				Trainer: componentApi.DSCTrainer{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				SparkOperator: componentApi.DSCSparkOperator{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
