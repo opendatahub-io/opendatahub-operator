@@ -257,7 +257,7 @@ additional_meta:
     git.commit: 5de600852cd69649cb6606c2df7e335359d6b773
   odh-trustyai-garak-lls-provider-dsp:
     git.url: https://github.com/red-hat-data-services/llama-stack-provider-trustyai-garak
-    git.commit: 291b2dcb0c4e76e1eb80cfc3c22d6942e772cb7c
+    git.commit: 266b335427958e534c43496d690fa5ce65cad742
   odh-mlflow:
     git.url: https://github.com/red-hat-data-services/mlflow
     git.commit: 5f7d63ce8ba78b60828015878f244799c4a652b1
