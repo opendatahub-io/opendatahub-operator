@@ -195,6 +195,11 @@ func TestOAuthNetworkPolicyCreation(t *testing.T) {
 	RunNetworkPolicyCreationTest(t, GetOAuthTestSetup())
 }
 
+// TestOAuthNginxDashboardRedirectCreation validates nginx-based dashboard redirect resources (ConfigMap, Deployment, Service, Routes) in OAuth mode.
+func TestOAuthNginxDashboardRedirectCreation(t *testing.T) {
+	RunNginxDashboardRedirectCreationTest(t, GetOAuthTestSetup())
+}
+
 // TestOAuthLegacyRouteRemovedWhenSubdomainChangesToLegacy validates no legacy redirect route when subdomain is legacy from the start (delegates to RunLegacyRouteRemovedWhenSubdomainChangesToLegacyTest).
 func TestOAuthLegacyRouteRemovedWhenSubdomainChangesToLegacy(t *testing.T) {
 	RunLegacyRouteRemovedWhenSubdomainChangesToLegacyTest(t, GetOAuthTestSetup())

@@ -260,6 +260,11 @@ func TestOIDCNetworkPolicyCreation(t *testing.T) {
 	RunNetworkPolicyCreationTest(t, GetOIDCTestSetup())
 }
 
+// TestOIDCNginxDashboardRedirectCreation validates nginx-based dashboard redirect resources (ConfigMap, Deployment, Service, Routes) in OIDC mode.
+func TestOIDCNginxDashboardRedirectCreation(t *testing.T) {
+	RunNginxDashboardRedirectCreationTest(t, GetOIDCTestSetup())
+}
+
 // TestOIDCNetworkPolicyDisabled validates that no NetworkPolicy is created when ingress policy is disabled in OIDC mode (delegates to RunNetworkPolicyDisabledTest).
 func TestOIDCNetworkPolicyDisabled(t *testing.T) {
 	ensureOIDCClientSecret(t, OIDCTestEnv)
