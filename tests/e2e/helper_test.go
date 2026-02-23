@@ -53,7 +53,7 @@ const (
 	certManagerOpChannel        = "stable-v1"                                // Name of cert-manager operator stable channel
 	jobSetOpName                = "job-set"                                  // Name of the JobSet Operator
 	jobSetOpNamespace           = "openshift-jobset-operator"                // Namespace for the JobSet Operator
-	jobSetOpChannel             = "tech-preview-v0.1"                        // Name of the JobSet Operator stable channel
+	jobSetOpChannel             = "stable-v1.0"                              // Name of the JobSet Operator stable channel
 	openshiftOperatorsNamespace = "openshift-operators"                      // Namespace for OpenShift Operators
 	observabilityOpName         = "cluster-observability-operator"           // Name of the Cluster Observability Operator
 	observabilityOpNamespace    = "openshift-cluster-observability-operator" // Namespace for the Cluster Observability Operator
