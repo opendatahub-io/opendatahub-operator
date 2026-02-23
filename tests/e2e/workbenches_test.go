@@ -46,6 +46,8 @@ func workbenchesTestSuite(t *testing.T) {
 func (tc *WorkbenchesTestCtx) ValidateWorkbenchesNamespaceConfiguration(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Tier1})
+
 	// ensure the workbenches namespace exists and has the expected label
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: tc.WorkbenchesNamespace}),

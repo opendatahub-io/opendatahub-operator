@@ -72,6 +72,8 @@ func trainerDegradedMonitoringTestSuite(t *testing.T) {
 func (tc *TrainerTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Tier1})
+
 	testCases := []degradedConditionTestCase{
 		{
 			name:            "Degraded=True triggers component degradation",

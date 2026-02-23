@@ -84,6 +84,8 @@ func NewSubComponentTestCtx(t *testing.T, object common.PlatformObject, parentKi
 func (tc *ComponentTestCtx) ValidateComponentEnabled(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Smoke, Tier1})
+
 	// As these tests can be executed in a non-cleaned scenario, we need to move the component first to Removed.
 	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Removed)
 
@@ -110,6 +112,8 @@ func (tc *ComponentTestCtx) ValidateComponentEnabled(t *testing.T) {
 // ValidateComponentDisabled ensures that the component is disabled and its resources are deleted.
 func (tc *ComponentTestCtx) ValidateComponentDisabled(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Smoke, Tier1})
 
 	// Ensure that the resources associated with the component exist
 	tc.EnsureResourcesExist(WithMinimalObject(tc.GVK, tc.NamespacedName))
@@ -138,6 +142,8 @@ func (tc *ComponentTestCtx) ValidateComponentDisabled(t *testing.T) {
 func (tc *ComponentTestCtx) ValidateOperandsOwnerReferences(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Smoke})
+
 	// Ensure that the Deployment resources exist with the proper owner references
 	tc.EnsureResourcesExist(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
@@ -161,6 +167,8 @@ func (tc *ComponentTestCtx) ValidateOperandsOwnerReferences(t *testing.T) {
 func (tc *ComponentTestCtx) ValidateS3SecretCheckBucketExist(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Tier1})
+
 	// Ensure the component is actually enabled before checking for the VAP
 	// This handles cases where the component might have been temporarily disabled
 	// by other test suites (e.g., ModelController, TrustyAI) and needs time to reconcile
@@ -177,6 +185,8 @@ func (tc *ComponentTestCtx) ValidateS3SecretCheckBucketExist(t *testing.T) {
 // ValidateUpdateDeploymentsResources verifies the update of deployment replicas for the component.
 func (tc *ComponentTestCtx) ValidateUpdateDeploymentsResources(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Smoke})
 
 	// Ensure that deployments exist for the component
 	deployments := tc.EnsureResourcesExist(
@@ -242,6 +252,8 @@ func (tc *ComponentTestCtx) ValidateCRDsReinstated(t *testing.T, crds []CRD) {
 // ValidateComponentReleases ensures that the component releases exist and have valid fields.
 func (tc *ComponentTestCtx) ValidateComponentReleases(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Smoke})
 
 	componentName := strings.ToLower(tc.GVK.Kind)
 
@@ -333,6 +345,8 @@ func (tc *ComponentTestCtx) UpdateSubComponentStateInDataScienceCluster(t *testi
 func (tc *ComponentTestCtx) ValidateSubComponentEnabled(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Smoke})
+
 	if tc.ParentKind == "" || tc.SubComponentFieldName == "" {
 		t.Fatal("ValidateSubComponentEnabled called on a component without parent/subcomponent information.")
 	}
@@ -362,6 +376,8 @@ func (tc *ComponentTestCtx) ValidateSubComponentEnabled(t *testing.T) {
 // ValidateSubComponentReleases ensures that the subcomponent releases exist and have valid fields.
 func (tc *ComponentTestCtx) ValidateSubComponentReleases(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Smoke})
 
 	if tc.ParentKind == "" || tc.SubComponentFieldName == "" {
 		t.Fatal("ValidateSubComponentReleases called on a component without parent/subcomponent information.")
@@ -477,6 +493,8 @@ func (tc *ComponentTestCtx) ValidateCRDReinstatement(name string, version string
 func (tc *ComponentTestCtx) ValidateModelControllerInstance(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Smoke})
+
 	// Ensure ModelController resource exists with the expected owner references and status phase.
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.ModelController, types.NamespacedName{Name: componentApi.ModelControllerInstanceName}),
@@ -500,6 +518,8 @@ func (tc *ComponentTestCtx) ValidateModelControllerInstance(t *testing.T) {
 // The order of tests is carefully designed to handle dependencies and avoid timing issues.
 func (tc *ComponentTestCtx) ValidateAllDeletionRecovery(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Smoke, Tier1})
 
 	// Increase the global eventually timeout for deletion recovery tests
 	// Use longEventuallyTimeout to handle controller performance under load and complex resource dependencies

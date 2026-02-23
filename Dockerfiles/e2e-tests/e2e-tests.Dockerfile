@@ -27,7 +27,7 @@ RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go test -c ./test
 ################################################################################
 FROM golang:$GOLANG_VERSION
 
-# ENV vars
+# ENV vars for the go test command options
 ENV E2E_TEST_OPERATOR_NAMESPACE=opendatahub-operators
 ENV E2E_TEST_APPLICATIONS_NAMESPACE=opendatahub
 ENV E2E_TEST_WORKBENCHES_NAMESPACE=opendatahub
@@ -64,4 +64,11 @@ RUN mkdir -p results
 # run main go command
 CMD gotestsum --junitfile-project-name odh-operator-e2e \
 --junitfile results/xunit_report.xml --format testname --raw-command \
--- test2json -p e2e ./e2e-tests --test.v=test2json --test.parallel=8
+-- test2json -p e2e ./e2e-tests --test.v=test2json --test.parallel=8 \
+--deletion-policy="$E2E_TEST_DELETION_POLICY" --clean-up-previous-resources="$E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES" \
+--test-operator-controller="$E2E_TEST_OPERATOR_CONTROLLER" --test-operator-resilience="$E2E_TEST_OPERATOR_RESILIENCE" \
+--test-operator-v2tov3upgrade="$E2E_TEST_OPERATOR_V2TOV3UPGRADE" --test-hardware-profile="$E2E_TEST_HARDWARE_PROFILE" \
+--test-webhook="$E2E_TEST_WEBHOOK" --test-components="$E2E_TEST_COMPONENTS" --test-services="$E2E_TEST_SERVICES" \
+--operator-namespace="$E2E_TEST_OPERATOR_NAMESPACE" --applications-namespace="$E2E_TEST_APPLICATIONS_NAMESPACE" \
+--workbenches-namespace="$E2E_TEST_WORKBENCHES_NAMESPACE" --dsc-monitoring-namespace="$E2E_TEST_DSC_MONITORING_NAMESPACE" \
+--fail-fast-on-error="$E2E_TEST_FAIL_FAST_ON_ERROR"

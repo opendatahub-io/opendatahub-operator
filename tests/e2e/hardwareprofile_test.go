@@ -58,6 +58,8 @@ func hardwareProfileWorkloadTestSuite(t *testing.T) {
 func (tc *HardwareProfileWorkloadTestCtx) ValidateHWPToleration(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Tier1})
+
 	workloadName := "test-notebook-toleration"
 
 	// Create an empty hardware profile (empty-profile)
@@ -131,6 +133,8 @@ func (tc *HardwareProfileWorkloadTestCtx) ValidateHWPToleration(t *testing.T) {
 func (tc *HardwareProfileWorkloadTestCtx) ValidateHWPKueue(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Tier1})
+
 	workloadName := "test-notebook-kueue"
 	// Create an empty hardware profile (empty-profile)
 	hwpEmpty := tc.createEmptyHardwareProfile("empty-hwp-test-kueue")
@@ -188,6 +192,8 @@ func (tc *HardwareProfileWorkloadTestCtx) ValidateHWPKueue(t *testing.T) {
 // the HWP-applied tolerations and nodeSelector are cleaned up, but manually-added ones are preserved.
 func (tc *HardwareProfileWorkloadTestCtx) ValidateHWPAnnotationRemoval(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 
 	workloadName := "test-notebook-hwp-removal"
 
@@ -272,6 +278,8 @@ func (tc *HardwareProfileWorkloadTestCtx) ValidateHWPAnnotationRemoval(t *testin
 func (tc *HardwareProfileWorkloadTestCtx) ValidateManualTolerationPreservation(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Tier1})
+
 	workloadName := "test-notebook-manual-tol"
 
 	// Create a hardware profile with tolerations
@@ -338,6 +346,8 @@ func (tc *HardwareProfileWorkloadTestCtx) ValidateManualTolerationPreservation(t
 func (tc *HardwareProfileWorkloadTestCtx) ValidateHWPProfileSwitching(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Tier1})
+
 	workloadName := "test-notebook-profile-switch"
 
 	// Create two different hardware profiles with different tolerations
@@ -401,6 +411,8 @@ func (tc *HardwareProfileWorkloadTestCtx) ValidateHWPProfileSwitching(t *testing
 // from a workload with Kueue scheduling, the kueue.x-k8s.io/queue-name label is removed.
 func (tc *HardwareProfileWorkloadTestCtx) ValidateKueueLabelRemovalOnHWPRemoval(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 
 	workloadName := "test-notebook-kueue-removal"
 

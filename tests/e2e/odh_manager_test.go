@@ -24,7 +24,7 @@ func odhOperatorTestSuite(t *testing.T) {
 
 	// Define test cases.
 	testCases := []TestCase{
-		{name: "Validate CRDs owned by the operator", testFn: operatorTestCtx.ValidateOwnedCRDs},
+		{"Validate CRDs owned by the operator", operatorTestCtx.ValidateOwnedCRDs},
 	}
 
 	// Run the test suite.
@@ -53,6 +53,7 @@ func (tc *OperatorTestCtx) ValidateOwnedCRDs(t *testing.T) {
 		{"DataSciencePipelines CRD", "datasciencepipelines.components.platform.opendatahub.io"},
 		{"Workbenches CRD", "workbenches.components.platform.opendatahub.io"},
 		{"Kserve CRD", "kserves.components.platform.opendatahub.io"},
+		{"Models As A Service CRD", "modelsasservices.components.platform.opendatahub.io"},
 		{"ModelController CRD", "modelcontrollers.components.platform.opendatahub.io"},
 		{"Monitoring CRD", "monitorings.services.platform.opendatahub.io"},
 		{"LlamaStackOperator CRD", "llamastackoperators.components.platform.opendatahub.io"},
