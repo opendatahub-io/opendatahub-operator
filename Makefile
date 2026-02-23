@@ -266,6 +266,7 @@ CLEANFILES += config/crd/bases config/rhoai/crd/bases config/crd/external config
 manifests-all:
 	$(MAKE) manifests
 	$(MAKE) manifests ODH_PLATFORM_TYPE=rhoai
+	$(MAKE) manifests-ccm
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -659,6 +660,79 @@ e2e-test:
 
 unit-test-cli:
 	go -C ./cmd/test-retry/ test ./...
+
+##@ Cloud Controller Manager (ccm)
+
+# List of supported CCM providers
+CCM_PROVIDERS := azure coreweave
+
+# Helper functions
+ccm-config-dir = config/cloudmanager/$(1)
+ccm-paths = ./api/cloudmanager/$(1)/...;./internal/controller/cloudmanager/$(1)/...
+
+##@ CCM Code Generation
+
+.PHONY: manifests-ccm
+manifests-ccm: $(addprefix manifests-ccm-,$(CCM_PROVIDERS)) ## Generate CRDs and RBAC for all providers
+
+CCM_MANIFESTS_TARGETS := $(addprefix manifests-ccm-,$(CCM_PROVIDERS))
+.PHONY: $(CCM_MANIFESTS_TARGETS)
+$(CCM_MANIFESTS_TARGETS): manifests-ccm-%: controller-gen kustomize ## Generate CRDs and RBAC for one provider
+	$(CONTROLLER_GEN) \
+		rbac:roleName=opendatahub-$*-cloud-manager-role \
+		crd:ignoreUnexportedFields=true \
+		webhook \
+		paths="$(call ccm-paths,$*)" \
+		output:crd:artifacts:config=$(call ccm-config-dir,$*)/crd/bases \
+		output:rbac:artifacts:config=$(call ccm-config-dir,$*)/rbac \
+		output:webhook:artifacts:config=$(call ccm-config-dir,$*)/webhook
+	@mkdir -p $(call ccm-config-dir,$*)/crd/bases && \
+		cd $(call ccm-config-dir,$*)/crd/bases && \
+		rm -f kustomization.yaml && \
+		$(KUSTOMIZE) create --autodetect
+
+##@ CCM Build
+
+.PHONY: build-ccm
+build-ccm: $(addprefix build-ccm-,$(CCM_PROVIDERS)) ## Build all CCM provider binaries
+
+CCM_BUILD_TARGETS := $(addprefix build-ccm-,$(CCM_PROVIDERS))
+.PHONY: $(CCM_BUILD_TARGETS)
+$(CCM_BUILD_TARGETS): build-ccm-%: generate fmt vet ## Build one CCM binary (e.g., build-ccm-azure)
+	go build -o bin/$*cloudmanager ./cmd/cloudmanager/$*/main.go
+
+CCM_RUN_TARGETS := $(addprefix run-ccm-,$(CCM_PROVIDERS))
+.PHONY: $(CCM_RUN_TARGETS)
+$(CCM_RUN_TARGETS): run-ccm-%: generate fmt vet ## Run CCM locally (e.g., run-ccm-azure)
+	go run ./cmd/cloudmanager/$*/main.go
+
+##@ CCM Deployment
+
+CCM_INSTALL_TARGETS := $(addprefix install-ccm-,$(CCM_PROVIDERS))
+.PHONY: $(CCM_INSTALL_TARGETS)
+$(CCM_INSTALL_TARGETS): install-ccm-%: manifests-ccm-% kustomize ## Install CRDs only (e.g., install-ccm-azure)
+	$(KUSTOMIZE) build $(call ccm-config-dir,$*)/crd | kubectl apply -f -
+
+CCM_UNINSTALL_TARGETS := $(addprefix uninstall-ccm-,$(CCM_PROVIDERS))
+.PHONY: $(CCM_UNINSTALL_TARGETS)
+$(CCM_UNINSTALL_TARGETS): uninstall-ccm-%: kustomize ## Uninstall CRDs (e.g., uninstall-ccm-azure)
+	$(KUSTOMIZE) build $(call ccm-config-dir,$*)/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+
+CCM_DEPLOY_TARGETS := $(addprefix deploy-ccm-,$(CCM_PROVIDERS))
+.PHONY: $(CCM_DEPLOY_TARGETS)
+$(CCM_DEPLOY_TARGETS): deploy-ccm-%: manifests-ccm-% kustomize ## Deploy CCM to cluster (e.g., deploy-ccm-azure)
+	cd $(call ccm-config-dir,$*)/manager && \
+		cp -f kustomization.yaml.in kustomization.yaml && \
+		$(KUSTOMIZE) edit set image REPLACE_IMAGE=$(IMG)
+	$(KUSTOMIZE) build $(call ccm-config-dir,$*)/default | kubectl apply -f -
+
+CCM_UNDEPLOY_TARGETS := $(addprefix undeploy-ccm-,$(CCM_PROVIDERS))
+.PHONY: $(CCM_UNDEPLOY_TARGETS)
+$(CCM_UNDEPLOY_TARGETS): undeploy-ccm-%: kustomize ## Undeploy CCM from cluster (e.g., undeploy-ccm-azure)
+	$(KUSTOMIZE) build $(call ccm-config-dir,$*)/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+
+# Cleanup
+$(foreach p,$(CCM_PROVIDERS),$(eval CLEANFILES += $(call ccm-config-dir,$(p))/crd/bases $(call ccm-config-dir,$(p))/rbac/role.yaml))
 
 .PHONY: clean
 clean: $(GOLANGCI_LINT)
