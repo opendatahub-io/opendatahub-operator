@@ -98,6 +98,7 @@ func monitoringTestSuite(t *testing.T) {
 
 	// Define test cases.
 	testCases := []TestCase{
+		{name: "Ensure required monitoring operators are installed", testFn: monitoringServiceCtx.ValidateMonitoringOperatorsInstallation},
 		{"Auto creation of Monitoring CR", monitoringServiceCtx.ValidateMonitoringCRCreation},
 		{"Test Monitoring CR content default value", monitoringServiceCtx.ValidateMonitoringCRDefaultContent},
 		{"Test Traces default content", monitoringServiceCtx.ValidateMonitoringCRDefaultTracesContent},
@@ -143,6 +144,20 @@ func monitoringTestSuite(t *testing.T) {
 
 	// Run the test suite.
 	RunTestCases(t, testCases)
+}
+
+// ValidateMonitoringOperatorsInstallation ensures the required monitoring operators are installed.
+func (tc *MonitoringTestCtx) ValidateMonitoringOperatorsInstallation(t *testing.T) {
+	t.Helper()
+
+	// Define operators to be installed.
+	operators := []Operator{
+		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: defaultOperatorChannel},
+		{nn: types.NamespacedName{Name: opentelemetryOpName, Namespace: opentelemetryOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: defaultOperatorChannel},
+		{nn: types.NamespacedName{Name: tempoOpName, Namespace: tempoOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: defaultOperatorChannel},
+	}
+
+	tc.ensureOperatorsAreInstalled(t, operators)
 }
 
 // ValidateMonitoringCRCreation ensures that exactly one Monitoring CR exists and status to Ready.

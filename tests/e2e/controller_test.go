@@ -300,6 +300,8 @@ func TestOdhOperator(t *testing.T) {
 	// Remove any leftover resources from previous test runs before starting if the cleanup flag is enabled
 	if testOpts.cleanUpPreviousResources {
 		CleanupPreviousTestResources(t)
+		// Run DSCI/DSC management test suite
+		mustRun(t, "DSCInitialization and DataScienceCluster management E2E Tests", dscManagementTestSuite)
 	}
 
 	if testOpts.operatorControllerTest {
@@ -307,8 +309,8 @@ func TestOdhOperator(t *testing.T) {
 		mustRun(t, "Operator Manager E2E Tests", odhOperatorTestSuite)
 	}
 
-	// Run DSCI/DSC test suites
-	mustRun(t, "DSCInitialization and DataScienceCluster management E2E Tests", dscManagementTestSuite)
+	// Run DSCI/DSC test validation test suite
+	mustRun(t, "DSCInitialization and DataScienceCluster validation E2E Tests", dscValidationTestSuite)
 
 	// Run components and services test suites
 	mustRun(t, Components.String(), Components.Run)
@@ -402,7 +404,7 @@ func TestMain(m *testing.M) {
 	checkEnvVarBindingError(viper.BindEnv("deletion-policy", viper.GetEnvPrefix()+"_DELETION_POLICY"))
 
 	pflag.Bool("fail-fast-on-error", true, "fail fast on error")
-	checkEnvVarBindingError(viper.BindEnv("fail-fast-on-error", viper.GetEnvPrefix()+"_FAST_FAIL_ON_ERROR"))
+	checkEnvVarBindingError(viper.BindEnv("fail-fast-on-error", viper.GetEnvPrefix()+"_FAIL_FAST_ON_ERROR"))
 	pflag.Bool("clean-up-previous-resources", true, "clean up previous resources before running tests")
 	checkEnvVarBindingError(viper.BindEnv("clean-up-previous-resources", viper.GetEnvPrefix()+"_CLEAN_UP_PREVIOUS_RESOURCES"))
 	pflag.Bool("test-operator-controller", true, "run operator controller tests")

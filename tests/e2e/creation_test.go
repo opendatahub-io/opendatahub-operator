@@ -1,7 +1,6 @@
 package e2e_test
 
 import (
-	"fmt"
 	"testing"
 
 	gTypes "github.com/onsi/gomega/types"
@@ -51,13 +50,34 @@ func dscManagementTestSuite(t *testing.T) {
 		{"Ensure required resources are created", dscTestCtx.ValidateResourcesCreation},
 		{"Validate creation of DSCInitialization instance", dscTestCtx.ValidateDSCICreation},
 		{"Validate creation of DataScienceCluster instance", dscTestCtx.ValidateDSCCreation},
+	}
+
+	// Run the test suite.
+	RunTestCases(t, testCases)
+}
+
+// dscValidationTestSuite runs the DataScienceCluster and DSCInitialization validation test suite.
+func dscValidationTestSuite(t *testing.T) {
+	t.Helper()
+
+	// Initialize the test context.
+	tc, err := NewTestContext(t)
+	require.NoError(t, err, "Failed to initialize test context")
+
+	// Create an instance of test context.
+	dscTestCtx := DSCTestCtx{
+		TestContext: tc,
+	}
+
+	// Define test cases.
+	testCases := []TestCase{
 		{"Validate HardwareProfile resource", dscTestCtx.ValidateHardwareProfileCR},
 		{"Validate owned namespaces exist", dscTestCtx.ValidateOwnedNamespacesAllExist},
 		{"Validate default NetworkPolicy exist", dscTestCtx.ValidateDefaultNetworkPolicyExists},
 	}
 
 	// Run the test suite.
-	RunTestCases(t, testCases)
+	RunTestCases(t, testCases, WithParallel())
 }
 
 func dscWebhookTestSuite(t *testing.T) {
@@ -87,41 +107,14 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 	t.Helper()
 
 	// Define operators to be installed.
-	operators := []struct {
-		nn                  types.NamespacedName
-		skipOperatorGroup   bool
-		globalOperatorGroup bool
-		channel             string
-	}{
+	operators := []Operator{
 		{nn: types.NamespacedName{Name: certManagerOpName, Namespace: certManagerOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: certManagerOpChannel},
-		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: defaultOperatorChannel},
-		{nn: types.NamespacedName{Name: opentelemetryOpName, Namespace: opentelemetryOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: defaultOperatorChannel},
-		{nn: types.NamespacedName{Name: tempoOpName, Namespace: tempoOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: defaultOperatorChannel},
 		{nn: types.NamespacedName{Name: kuadrantOpName, Namespace: kuadrantNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: defaultOperatorChannel},
 		{nn: types.NamespacedName{Name: leaderWorkerSetOpName, Namespace: leaderWorkerSetNamespace}, skipOperatorGroup: false, globalOperatorGroup: false, channel: leaderWorkerSetChannel}, //nolint:lll
 		{nn: types.NamespacedName{Name: jobSetOpName, Namespace: jobSetOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: false, channel: jobSetOpChannel},
 	}
 
-	// Create and run test cases in parallel.
-	testCases := make([]TestCase, len(operators))
-	for i, op := range operators {
-		testCases[i] = TestCase{
-			name: fmt.Sprintf("Ensure %s is installed", op.nn.Name),
-			testFn: func(t *testing.T) {
-				t.Helper()
-				switch {
-				case op.skipOperatorGroup:
-					tc.EnsureOperatorInstalledWithChannel(op.nn, op.channel)
-				case op.globalOperatorGroup:
-					tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(op.nn, op.channel)
-				default:
-					tc.EnsureOperatorInstalledWithLocalOperatorGroupAndChannel(op.nn, op.channel)
-				}
-			},
-		}
-	}
-
-	RunTestCases(t, testCases, WithParallel())
+	tc.ensureOperatorsAreInstalled(t, operators)
 }
 
 // ValidateResourcesCreation validates the creation of the required resources.
