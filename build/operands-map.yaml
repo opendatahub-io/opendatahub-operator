@@ -104,7 +104,7 @@ relatedImages:
 - name: RELATED_IMAGE_ODH_OPENVINO_MODEL_SERVER_IMAGE
   value: "quay.io/rhoai/odh-openvino-model-server-rhel9@sha256:defd01ac5a37a6138de73a8f1b10c676a2efa617238049378f8bc63fb0eb00c6"
 - name: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
-  value: "quay.io/rhoai/odh-vllm-cpu-rhel9@sha256:b9e4011292ed3c5973cf35813158bf39b5f0f873ed58558729ebc1cb4905611f"
+  value: "quay.io/rhoai/odh-vllm-cpu-rhel9@sha256:28143934cfc07531b576e3d5c07727d17d00574c42d09a4c3d6e09c39a0e280a"
 - name: RELATED_IMAGE_ODH_VLLM_GAUDI_IMAGE
   value: "quay.io/rhoai/odh-vllm-gaudi-rhel9@sha256:29d43991da492ace70f7d1e4d53f4b180581ac1e6e32896fbcf01308cff45d6e"
 - name: RELATED_IMAGE_ODH_MODEL_REGISTRY_JOB_ASYNC_UPLOAD_IMAGE
