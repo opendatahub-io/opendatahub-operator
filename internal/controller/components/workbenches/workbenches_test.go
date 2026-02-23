@@ -2,6 +2,7 @@
 package workbenches
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -37,7 +38,8 @@ func TestNewCRObject(t *testing.T) {
 	g := NewWithT(t)
 	dsc := createDSCWithWorkbenches(operatorv1.Managed)
 
-	cr := handler.NewCRObject(dsc)
+	cr, err := handler.NewCRObject(context.Background(), nil, dsc)
+	g.Expect(err).To(Succeed())
 	g.Expect(cr).ShouldNot(BeNil())
 	g.Expect(cr).Should(BeAssignableToTypeOf(&componentApi.Workbenches{}))
 

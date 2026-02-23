@@ -20,6 +20,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 type componentHandler struct{}
@@ -47,7 +48,14 @@ func (s *componentHandler) Init(platform common.Platform) error {
 	return nil
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
+func (s *componentHandler) NewCRObject(ctx context.Context, cli client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
+	commonSpec := dsc.Spec.Components.Dashboard.DashboardCommonSpec
+	gatewayDomain, err := resources.GetGatewayDomain(ctx, cli)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"gateway domain is missing for Dashboard; the Data Science Gateway may not be ready yet—check that "+
+				"GatewayConfig exists and its status reports a domain: %w", err)
+	}
 	return &componentApi.Dashboard{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.DashboardKind,
@@ -60,9 +68,10 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 			},
 		},
 		Spec: componentApi.DashboardSpec{
-			DashboardCommonSpec: dsc.Spec.Components.Dashboard.DashboardCommonSpec,
+			DashboardCommonSpec: commonSpec,
+			Gateway:             &common.GatewaySpec{Domain: gatewayDomain},
 		},
-	}
+	}, nil
 }
 
 func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {

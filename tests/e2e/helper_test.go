@@ -23,6 +23,7 @@ import (
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -69,8 +70,6 @@ const (
 	kueueOcpOperatorChannel     = "stable-v1.2"                              // Channel for the OCP Kueue Operator
 	kuadrantOpName              = "rhcl-operator"                            // Name of the Red Hat Connectivity Link Operator subscription.
 	kuadrantNamespace           = "kuadrant-system"                          // Namespace for the Red Hat Connectivity Link Operator.
-	dashboardRouteNameODH       = "odh-dashboard"                            // Name of the ODH dashboard route
-	dashboardRouteNameRhoai     = "rhods-dashboard"                          // Name of the Rhoai dashboard route
 
 )
 
@@ -78,8 +77,8 @@ const (
 const (
 	ownedNamespaceNumber = 1 // Number of namespaces owned, adjust to 4 for RHOAI deployment
 
-	dsciInstanceName = "e2e-test-dsci" // Instance name for the DSCInitialization
-	dscInstanceName  = "e2e-test-dsc"  // Instance name for the DataScienceCluster
+	dsciInstanceName = "default-dsci" // Instance name for the DSCInitialization
+	dscInstanceName  = "default-dsc"  // Instance name for the DataScienceCluster
 
 	// Standard error messages format.
 	resourceNotNilErrorMsg       = "Expected a non-nil resource object but got nil."
@@ -168,6 +167,9 @@ func CreateDSCI(name, appNamespace, monitoringNamespace string) *dsciv2.DSCIniti
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
+			Labels: map[string]string{
+				"opendatahub.io/created-by-e2e-tests": "true",
+			},
 		},
 		Spec: dsciv2.DSCInitializationSpec{
 			ApplicationsNamespace: appNamespace,
@@ -196,6 +198,9 @@ func CreateDSCIv1(name, appNamespace, monitoringNamespace string) *dsciv1.DSCIni
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
+			Labels: map[string]string{
+				"opendatahub.io/created-by-e2e-tests": "true",
+			},
 		},
 		Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: appNamespace,
@@ -224,6 +229,9 @@ func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceClust
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
+			Labels: map[string]string{
+				"opendatahub.io/created-by-e2e-tests": "true",
+			},
 		},
 		Spec: dscv2.DataScienceClusterSpec{
 			Components: dscv2.Components{
@@ -318,6 +326,9 @@ func CreateDSCv1(name string, workbenchesNamespace string) *dscv1.DataScienceClu
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
+			Labels: map[string]string{
+				"opendatahub.io/created-by-e2e-tests": "true",
+			},
 		},
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
@@ -521,10 +532,10 @@ func getControllerDeploymentNameByPlatform(platform common.Platform) string {
 func getDashboardRouteNameByPlatform(platform common.Platform) string {
 	switch platform {
 	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
-		return dashboardRouteNameRhoai
+		return gateway.DashboardRouteNameRHOAI
 	case cluster.OpenDataHub:
-		return dashboardRouteNameODH
+		return gateway.DashboardRouteNameODH
 	default:
-		return dashboardRouteNameODH
+		return gateway.DashboardRouteNameODH
 	}
 }

@@ -12,6 +12,7 @@ import (
 	dsciv2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization/v2"
 	hardwareprofilewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/hardwareprofile"
 	kueuewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/kueue"
+	monitoringwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/monitoring"
 	notebookwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/notebook"
 	serving "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/serving"
 )
@@ -26,6 +27,7 @@ func RegisterAllWebhooks(mgr ctrl.Manager) error {
 		dsciv2webhook.RegisterWebhooks,
 		hardwareprofilewebhook.RegisterWebhooks,
 		kueuewebhook.RegisterWebhooks,
+		monitoringwebhook.RegisterWebhooks,
 		serving.RegisterWebhooks,
 		notebookwebhook.RegisterWebhooks,
 		dashboard.RegisterWebhooks,

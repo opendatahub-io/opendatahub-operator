@@ -345,6 +345,12 @@ var (
 		Kind:    componentApi.SparkOperatorKind,
 	}
 
+	ModelsAsService = schema.GroupVersionKind{
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.ModelsAsServiceKind,
+	}
+
 	CustomResourceDefinition = schema.GroupVersionKind{
 		Group:   "apiextensions.k8s.io",
 		Version: "v1",
@@ -597,6 +603,18 @@ var (
 		Kind:    "ServiceMonitor",
 	}
 
+	CoreosServiceMonitor = schema.GroupVersionKind{
+		Group:   "monitoring.coreos.com",
+		Version: "v1",
+		Kind:    "ServiceMonitor",
+	}
+
+	CoreosPodMonitor = schema.GroupVersionKind{
+		Group:   "monitoring.coreos.com",
+		Version: "v1",
+		Kind:    "PodMonitor",
+	}
+
 	PrometheusRule = schema.GroupVersionKind{
 		Group:   "monitoring.rhobs",
 		Version: "v1",
@@ -679,5 +697,11 @@ var (
 		Group:   "mlflow.opendatahub.io",
 		Version: "v1",
 		Kind:    "MLflow",
+	}
+
+	PersistentVolumeClaim = schema.GroupVersionKind{
+		Group:   corev1.SchemeGroupVersion.Group,
+		Version: corev1.SchemeGroupVersion.Version,
+		Kind:    "PersistentVolumeClaim",
 	}
 )

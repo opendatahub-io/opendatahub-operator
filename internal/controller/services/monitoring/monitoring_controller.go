@@ -116,6 +116,9 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		OwnsGVK(gvk.Perses, reconciler.Dynamic(reconciler.CrdExists(gvk.Perses))).
 		OwnsGVK(gvk.PersesDatasource, reconciler.Dynamic(reconciler.CrdExists(gvk.PersesDatasource))).
 		OwnsGVK(gvk.PersesDashboard, reconciler.Dynamic(reconciler.CrdExists(gvk.PersesDashboard))).
+		// Cluster-scoped validation policies
+		OwnsGVK(gvk.ValidatingAdmissionPolicy).
+		OwnsGVK(gvk.ValidatingAdmissionPolicyBinding).
 		// operands - watched
 		//
 		// By default the Watches functions adds:
@@ -150,6 +153,7 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(updatePrometheusConfigMap).
 		// These are only for new monitoring stack dependent Operators
 		WithAction(addMonitoringCapability).
+		WithAction(deployMonitoringAdmissionPolicies).
 		WithAction(deployMonitoringStackWithQuerierAndRestrictions).
 		WithAction(deployTracingStack).
 		WithAction(deployAlerting).
