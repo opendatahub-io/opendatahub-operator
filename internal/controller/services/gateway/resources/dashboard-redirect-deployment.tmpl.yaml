@@ -13,6 +13,8 @@ spec:
       app: {{.DashboardRedirectName}}
   template:
     metadata:
+      annotations:
+        opendatahub.io/redirect-config-hash: "{{.RedirectConfigHash}}"
       labels:
         app: {{.DashboardRedirectName}}
         {{.PartOfLabelKey}}: {{.PartOfGatewayConfig}}

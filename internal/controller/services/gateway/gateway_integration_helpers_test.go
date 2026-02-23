@@ -1495,6 +1495,8 @@ func RunNginxDashboardRedirectCreationTest(t *testing.T, setup TestSetup) {
 	g.Expect(dep.Spec.Selector.MatchLabels).To(HaveKeyWithValue("app", gateway.DashboardRedirectName))
 	g.Expect(dep.Spec.Template.Spec.Containers).NotTo(BeEmpty())
 	g.Expect(dep.Spec.Template.Spec.Containers[0].Image).NotTo(BeEmpty())
+	g.Expect(dep.Spec.Template.Annotations).To(HaveKey("opendatahub.io/redirect-config-hash"))
+	g.Expect(dep.Spec.Template.Annotations["opendatahub.io/redirect-config-hash"]).To(MatchRegexp("^[0-9a-f]{64}$"))
 
 	// Service
 	var svc corev1.Service

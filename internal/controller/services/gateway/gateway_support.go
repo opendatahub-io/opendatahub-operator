@@ -517,6 +517,14 @@ func calculateAuthConfigHash(authSecret *corev1.Secret) string {
 	return hex.EncodeToString(hash[:])
 }
 
+// CalculateRedirectConfigHash returns a hash of the gateway hostname.
+// Used as a pod annotation so deployment rollout triggers when subdomain/domain changes.
+// Hash is fixed-length (64 chars) to avoid annotation size limits from long hostnames.
+func CalculateRedirectConfigHash(hostname string) string {
+	h := sha256.Sum256([]byte(hostname))
+	return hex.EncodeToString(h[:])
+}
+
 // getKubeAuthProxyImage returns the kube-auth-proxy image from environment variable.
 // For RHOAI deployments, this comes from the CSV (via RHOAI-Build-Config/bundle/additional-images-patch.yaml).
 // For ODH deployments, this comes from config/manager/manager.yaml.

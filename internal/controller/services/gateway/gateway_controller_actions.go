@@ -348,6 +348,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	templateData["DashboardRedirectConfigName"] = DashboardRedirectConfigName
 	templateData["DashboardRouteName"] = GetDashboardRouteName()
 	templateData["DashboardRedirectImage"] = getDashboardRedirectImage()
+	templateData["RedirectConfigHash"] = CalculateRedirectConfigHash(hostname)
 
 	// Add OIDC-specific fields only if OIDC config is present
 	if gatewayConfig.Spec.OIDC != nil {
