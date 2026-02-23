@@ -52,11 +52,12 @@ jobs:
       - name: Run Gateway Integration Tests
         id: run-tests
         if: contains(github.event.pull_request.labels.*.name, 'run-gateway-tests') || steps.paths.outputs.gateway == 'true'
-        continue-on-error: true
         run: |
-          set -o pipefail
+          set +e
           go test -tags=integration -v -count=1 -timeout=10m -coverprofile=coverage.out ./internal/controller/services/gateway/... 2>&1 | tee test.log
-          echo $? > exitcode.txt
+          echo "${PIPESTATUS[0]}" > exitcode.txt
+          set -e
+          exit "$(cat exitcode.txt)"
 
       - name: Test summary and coverage
         if: always() && (steps.run-tests.outcome == 'success' || steps.run-tests.outcome == 'failure')

@@ -152,6 +152,22 @@ func getAuthProxyDeployment(ctx context.Context, cli client.Client) (*appsv1.Dep
 	return deployment, err
 }
 
+// assertOwnedByGatewayConfig asserts that the object has an owner reference to the GatewayConfig singleton.
+// Resources created by the gateway controller must be owned by GatewayConfig so they are garbage-collected when GatewayConfig is deleted.
+func assertOwnedByGatewayConfig(g *WithT, obj client.Object) {
+	refs := obj.GetOwnerReferences()
+	g.Expect(refs).NotTo(BeEmpty(), "resource %s/%s should have an owner reference to GatewayConfig", obj.GetNamespace(), obj.GetName())
+	var found bool
+	for _, ref := range refs {
+		if ref.Kind == serviceApi.GatewayConfigKind && ref.Name == serviceApi.GatewayConfigName {
+			g.Expect(ref.APIVersion).To(Equal(gvk.GatewayConfig.GroupVersion().String()), "owner ref APIVersion should be GatewayConfig group/version")
+			found = true
+			break
+		}
+	}
+	g.Expect(found).To(BeTrue(), "resource should be owned by GatewayConfig %s", serviceApi.GatewayConfigName)
+}
+
 // TestEnvContext holds envtest context, cancel, env, client, and scheme for one auth mode.
 // Shared across tests; created in TestMain.
 type TestEnvContext struct {
@@ -664,6 +680,7 @@ func RunGatewayClassCreationTest(t *testing.T, setup TestSetup) {
 
 	gc := &gwapiv1.GatewayClass{}
 	g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{Name: gateway.GatewayClassName}, gc)).To(Succeed())
+	assertOwnedByGatewayConfig(g, gc)
 	g.Expect(string(gc.Spec.ControllerName)).To(Equal(gateway.GatewayControllerName))
 }
 
@@ -685,6 +702,7 @@ func RunGatewayCreationTest(t *testing.T, setup TestSetup) {
 		Name:      gateway.DefaultGatewayName,
 		Namespace: gateway.GatewayNamespace,
 	}, gw)).To(Succeed())
+	assertOwnedByGatewayConfig(g, gw)
 	g.Expect(string(gw.Spec.GatewayClassName)).To(Equal(gateway.GatewayClassName))
 
 	hasHTTPSListener := false
@@ -717,6 +735,7 @@ func RunHTTPRouteCreationTest(t *testing.T, setup TestSetup) {
 		Name:      gateway.OAuthCallbackRouteName,
 		Namespace: gateway.GatewayNamespace,
 	}, route)).To(Succeed())
+	assertOwnedByGatewayConfig(g, route)
 
 	g.Expect(route.Spec.ParentRefs).NotTo(BeEmpty())
 	g.Expect(string(route.Spec.ParentRefs[0].Name)).To(Equal(gateway.DefaultGatewayName))
@@ -750,6 +769,7 @@ func RunServiceCreationTest(t *testing.T, setup TestSetup) {
 		Name:      gateway.KubeAuthProxyName,
 		Namespace: gateway.GatewayNamespace,
 	}, svc)).To(Succeed())
+	assertOwnedByGatewayConfig(g, svc)
 
 	// Verify selector
 	g.Expect(svc.Spec.Selector).To(HaveKeyWithValue("app", gateway.KubeAuthProxyName))
@@ -798,6 +818,7 @@ func RunAuthProxySecretCreationTest(t *testing.T, setup TestSetup, expectedClien
 		Name:      gateway.KubeAuthProxySecretsName,
 		Namespace: gateway.GatewayNamespace,
 	}, secret)).To(Succeed())
+	assertOwnedByGatewayConfig(g, secret)
 
 	g.Expect(secret.Data).To(HaveKey(gateway.EnvClientID))
 	g.Expect(secret.Data).To(HaveKey(gateway.EnvClientSecret))
@@ -828,6 +849,7 @@ func RunHPACreationTest(t *testing.T, setup TestSetup) {
 		Name:      gateway.KubeAuthProxyName,
 		Namespace: gateway.GatewayNamespace,
 	}, hpa)).To(Succeed())
+	assertOwnedByGatewayConfig(g, hpa)
 
 	// Verify scale target
 	g.Expect(hpa.Spec.ScaleTargetRef.APIVersion).To(Equal("apps/v1"))
@@ -874,6 +896,7 @@ func RunEnvoyFilterCreationTest(t *testing.T, setup TestSetup) {
 		Name:      gateway.AuthnFilterName,
 		Namespace: gateway.GatewayNamespace,
 	}, ef)).To(Succeed())
+	assertOwnedByGatewayConfig(g, ef)
 
 	selector, found, err := unstructured.NestedStringMap(ef.Object, "spec", "workloadSelector", "labels")
 	g.Expect(err).NotTo(HaveOccurred())
@@ -1238,6 +1261,7 @@ func RunDeploymentWithAllArgsTest(t *testing.T, setup TestSetup, expectedHostnam
 		Name:      gateway.KubeAuthProxyName,
 		Namespace: gateway.GatewayNamespace,
 	}, deployment)).To(Succeed())
+	assertOwnedByGatewayConfig(g, deployment)
 
 	g.Expect(*deployment.Spec.Replicas).To(Equal(int32(2)))
 	g.Expect(deployment.Spec.Selector.MatchLabels).To(HaveKeyWithValue("app", gateway.KubeAuthProxyName))
@@ -1375,6 +1399,7 @@ func RunOCPRouteCreationTest(t *testing.T, setup TestSetup, expectedHostname str
 		Name:      gateway.DefaultGatewayName,
 		Namespace: gateway.GatewayNamespace,
 	}, route)).To(Succeed())
+	assertOwnedByGatewayConfig(g, route)
 
 	g.Expect(route.Spec.Host).To(Equal(expectedHostname))
 	g.Expect(route.Spec.To.Kind).To(Equal("Service"))
@@ -1403,6 +1428,7 @@ func RunLegacyRedirectRouteCreationTest(t *testing.T, setup TestSetup, expectedL
 		Name:      legacyRouteName,
 		Namespace: gateway.GatewayNamespace,
 	}, route)).To(Succeed())
+	assertOwnedByGatewayConfig(g, route)
 	g.Expect(route.Spec.Host).To(Equal(expectedLegacyHost))
 }
 
@@ -1509,6 +1535,67 @@ func RunLoadBalancerIngressModeTest(t *testing.T, tc *TestEnvContext, spec servi
 	}, TestTimeout, TestInterval).Should(BeTrue(), "OCP Route should not exist in LoadBalancer mode (GC removes stale Routes)")
 }
 
+// RunNginxDashboardRedirectCreationTest validates that nginx-based dashboard redirect resources exist in the application namespace:
+// ConfigMap (redirect.conf with 301 to gateway host), Deployment, Service, and dashboard Route (odh-dashboard or rhods-dashboard).
+func RunNginxDashboardRedirectCreationTest(t *testing.T, setup TestSetup) {
+	g := NewWithT(t)
+	defer setup.Setup(t)()
+
+	appNs := cluster.GetApplicationNamespace()
+	nnCM := types.NamespacedName{Name: gateway.DashboardRedirectConfigName, Namespace: appNs}
+	nnApp := types.NamespacedName{Name: gateway.DashboardRedirectName, Namespace: appNs}
+
+	// ConfigMap
+	var cm corev1.ConfigMap
+	g.Eventually(func() error {
+		return setup.TC.K8sClient.Get(setup.TC.Ctx, nnCM, &cm)
+	}, TestTimeout, TestInterval).Should(Succeed())
+	assertOwnedByGatewayConfig(g, &cm)
+	g.Expect(cm.Labels).To(HaveKeyWithValue("app", gateway.DashboardRedirectName))
+	g.Expect(cm.Data).To(HaveKey("redirect.conf"))
+	redirectConf := cm.Data["redirect.conf"]
+	g.Expect(redirectConf).To(ContainSubstring("location /"))
+	g.Expect(redirectConf).To(ContainSubstring("return 301"))
+	g.Expect(redirectConf).To(ContainSubstring("$request_uri"))
+	gatewayHost, err := gateway.GetGatewayDomain(setup.TC.Ctx, setup.TC.K8sClient)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(gatewayHost).NotTo(BeEmpty())
+	g.Expect(redirectConf).To(ContainSubstring("https://" + gatewayHost))
+
+	// Deployment
+	var dep appsv1.Deployment
+	g.Eventually(func() error {
+		return setup.TC.K8sClient.Get(setup.TC.Ctx, nnApp, &dep)
+	}, TestTimeout, TestInterval).Should(Succeed())
+	assertOwnedByGatewayConfig(g, &dep)
+	g.Expect(dep.Spec.Replicas).NotTo(BeNil())
+	g.Expect(*dep.Spec.Replicas).To(BeNumerically(">=", 1))
+	g.Expect(dep.Spec.Selector.MatchLabels).To(HaveKeyWithValue("app", gateway.DashboardRedirectName))
+	g.Expect(dep.Spec.Template.Spec.Containers).NotTo(BeEmpty())
+	g.Expect(dep.Spec.Template.Spec.Containers[0].Image).NotTo(BeEmpty())
+
+	// Service
+	var svc corev1.Service
+	g.Eventually(func() error {
+		return setup.TC.K8sClient.Get(setup.TC.Ctx, nnApp, &svc)
+	}, TestTimeout, TestInterval).Should(Succeed())
+	assertOwnedByGatewayConfig(g, &svc)
+	g.Expect(svc.Spec.Selector).To(HaveKeyWithValue("app", gateway.DashboardRedirectName))
+
+	dashboardRouteName := gateway.DashboardRouteNameODH
+	if cluster.GetRelease().Name == cluster.SelfManagedRhoai || cluster.GetRelease().Name == cluster.ManagedRhoai {
+		dashboardRouteName = gateway.DashboardRouteNameRHOAI
+	}
+
+	// Route
+	var route routev1.Route
+	g.Eventually(func() error {
+		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{Name: dashboardRouteName, Namespace: appNs}, &route)
+	}, TestTimeout, TestInterval).Should(Succeed())
+	assertOwnedByGatewayConfig(g, &route)
+	g.Expect(route.Spec.To.Name).To(Equal(gateway.DashboardRedirectName))
+}
+
 // RunNetworkPolicyCreationTest validates that the NetworkPolicy is created with pod selector and ingress rules.
 func RunNetworkPolicyCreationTest(t *testing.T, setup TestSetup) {
 	g := NewWithT(t)
@@ -1589,6 +1676,7 @@ func RunDestinationRuleCreationTest(t *testing.T, setup TestSetup) {
 		Name:      gateway.DestinationRuleName,
 		Namespace: gateway.GatewayNamespace,
 	}, dr)).To(Succeed())
+	assertOwnedByGatewayConfig(g, dr)
 
 	// Verify host is wildcard
 	host, found, err := unstructured.NestedString(dr.Object, "spec", "host")
