@@ -12,7 +12,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -229,5 +231,61 @@ func TestDeployObservabilityManifests_SkippedForODH(t *testing.T) {
 
 	// For ODH platform, function should return early without error
 	err := deployObservabilityManifests(ctx, rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+}
+
+func TestDeployObservabilityManifests_SkippedForEmptyMonitoringNamespace(t *testing.T) {
+	ctx := t.Context()
+	g := NewWithT(t)
+
+	fakeSchema, err := scheme.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Register PersesDashboard GVK with the schema
+	persesDashboardListGVK := schema.GroupVersionKind{
+		Group:   "perses.dev",
+		Version: "v1alpha1",
+		Kind:    "PersesDashboardList",
+	}
+	fakeSchema.AddKnownTypeWithName(gvk.PersesDashboard, &unstructured.Unstructured{})
+	fakeSchema.AddKnownTypeWithName(persesDashboardListGVK, &unstructured.UnstructuredList{})
+
+	// Create a CRD for PersesDashboard to make HasCRD check pass
+	persesDashboardCRD := &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: v1.ObjectMeta{
+			Name: "persesdashboards.perses.dev",
+		},
+		Status: apiextensionsv1.CustomResourceDefinitionStatus{
+			StoredVersions: []string{"v1alpha1"},
+		},
+	}
+
+	// Create a DSCI with empty monitoring namespace
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: v1.ObjectMeta{
+			Name: "default-dsci",
+		},
+		Spec: dsciv2.DSCInitializationSpec{
+			Monitoring: serviceApi.DSCIMonitoring{
+				MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
+					Namespace: "", // Empty monitoring namespace
+				},
+			},
+		},
+	}
+
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(persesDashboardCRD, dsci),
+		fakeclient.WithScheme(fakeSchema),
+	)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := &types.ReconciliationRequest{
+		Client:  cli,
+		Release: common.Release{Name: cluster.SelfManagedRhoai},
+	}
+
+	// When monitoring namespace is empty, function should return early without error
+	err = deployObservabilityManifests(ctx, rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
 }

@@ -83,6 +83,11 @@ func deployObservabilityManifests(ctx context.Context, rr *odhtypes.Reconciliati
 		monitoringNamespace = cluster.DefaultMonitoringNamespaceRHOAI
 	}
 
+	// Safety check: do not deploy if monitoring namespace is empty
+	if monitoringNamespace == "" {
+		return nil
+	}
+
 	// Deploy observability manifests to monitoring namespace
 	manifestPath := observabilityManifestInfo().String()
 
