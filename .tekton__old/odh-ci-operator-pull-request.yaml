@@ -27,7 +27,7 @@ spec:
   - name: output-image
     value: quay.io/opendatahub/opendatahub-operator:odh-pr
   - name: dockerfile
-    value: Dockerfiles/Dockerfile
+    value: Dockerfiles/rhoai.Dockerfile
   - name: skip-checks
     value: "true"
   - name: build-version-tag

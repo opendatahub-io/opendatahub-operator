@@ -46,6 +46,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 	gw.OwnsGVK(gvk.GatewayClass).
 		OwnsGVK(gvk.KubernetesGateway, reconciler.WithPredicates(resources.GatewayStatusChanged())).
 		OwnsGVK(gvk.Secret).
+		OwnsGVK(gvk.ConfigMap).
 		OwnsGVK(gvk.Service).
 		OwnsGVK(gvk.Deployment).
 		OwnsGVK(gvk.HorizontalPodAutoscaler).
