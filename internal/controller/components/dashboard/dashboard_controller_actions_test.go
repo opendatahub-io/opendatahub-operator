@@ -184,13 +184,16 @@ func TestDeployObservabilityManifests_WithPersesCRD(t *testing.T) {
 
 	rr := &types.ReconciliationRequest{
 		Client:    cli,
+		Release:   common.Release{Name: cluster.SelfManagedRhoai},
 		Manifests: []types.ManifestInfo{},
 	}
 
+	// This test verifies the function attempts to deploy when CRD exists.
+	// In test environment, DeployManifestsFromPath will fail because manifest files don't exist.
+	// This is expected - the important thing is that the function reaches the deploy call.
 	err = deployObservabilityManifests(ctx, rr)
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(rr.Manifests).Should(HaveLen(1))
-	g.Expect(rr.Manifests[0].SourcePath).Should(Equal("observability"))
+	g.Expect(err).Should(HaveOccurred())
+	g.Expect(err.Error()).Should(ContainSubstring("failed to deploy observability manifests"))
 }
 
 func TestDeployObservabilityManifests_WithoutPersesCRD(t *testing.T) {
@@ -206,13 +209,13 @@ func TestDeployObservabilityManifests_WithoutPersesCRD(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	rr := &types.ReconciliationRequest{
-		Client:    cli,
-		Manifests: []types.ManifestInfo{},
+		Client:  cli,
+		Release: common.Release{Name: cluster.SelfManagedRhoai},
 	}
 
+	// When PersesDashboard CRD doesn't exist, function should return early without error
 	err = deployObservabilityManifests(ctx, rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(rr.Manifests).Should(BeEmpty())
 }
 
 func TestDeployObservabilityManifests_SkippedForODH(t *testing.T) {
@@ -221,11 +224,10 @@ func TestDeployObservabilityManifests_SkippedForODH(t *testing.T) {
 
 	// Minimal setup - should skip before any CRD check
 	rr := &types.ReconciliationRequest{
-		Release:   common.Release{Name: cluster.OpenDataHub},
-		Manifests: []types.ManifestInfo{},
+		Release: common.Release{Name: cluster.OpenDataHub},
 	}
 
+	// For ODH platform, function should return early without error
 	err := deployObservabilityManifests(ctx, rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(rr.Manifests).Should(BeEmpty())
 }

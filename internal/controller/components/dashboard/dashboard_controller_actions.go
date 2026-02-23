@@ -76,8 +76,29 @@ func deployObservabilityManifests(ctx context.Context, rr *odhtypes.Reconciliati
 		return nil
 	}
 
-	// Add observability manifests for Perses dashboards
-	rr.Manifests = append(rr.Manifests, observabilityManifestInfo())
+	// Get the monitoring namespace from DSCI
+	monitoringNamespace, err := cluster.MonitoringNamespace(ctx, rr.Client)
+	if err != nil {
+		// Fallback to default for first pass
+		monitoringNamespace = cluster.DefaultMonitoringNamespaceRHOAI
+	}
+
+	// Deploy observability manifests to monitoring namespace
+	manifestPath := observabilityManifestInfo().String()
+
+	err = odhdeploy.DeployManifestsFromPath(
+		ctx,
+		rr.Client,
+		rr.Instance,         // owner for GC
+		manifestPath,
+		monitoringNamespace, // deploy to monitoring namespace
+		ComponentName,       // "dashboard"
+		true,                // enabled
+	)
+	if err != nil {
+		return fmt.Errorf("failed to deploy observability manifests: %w", err)
+	}
+
 	return nil
 }
 
