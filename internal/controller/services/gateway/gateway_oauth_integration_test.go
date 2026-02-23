@@ -165,16 +165,6 @@ func TestOAuthEnvoyFilterLuaTokenForwarding(t *testing.T) {
 	RunEnvoyFilterLuaTokenForwardingTest(t, GetOAuthTestSetup())
 }
 
-// TestOAuthEnvoyFilterLegacyRedirectPresent validates legacy redirect EnvoyFilter in OAuth mode (delegates to RunEnvoyFilterLegacyRedirectPresentTest).
-func TestOAuthEnvoyFilterLegacyRedirectPresent(t *testing.T) {
-	RunEnvoyFilterLegacyRedirectPresentTest(t, GetOAuthTestSetup())
-}
-
-// TestOAuthEnvoyFilterLegacyRedirectOrderFirst validates legacy redirect filter order in OAuth mode (delegates to RunEnvoyFilterLegacyRedirectOrderFirstTest).
-func TestOAuthEnvoyFilterLegacyRedirectOrderFirst(t *testing.T) {
-	RunEnvoyFilterLegacyRedirectOrderFirstTest(t, GetOAuthTestSetup())
-}
-
 // TestOAuthDestinationRuleCreation validates DestinationRule creation in OAuth mode (delegates to RunDestinationRuleCreationTest).
 func TestOAuthDestinationRuleCreation(t *testing.T) {
 	RunDestinationRuleCreationTest(t, GetOAuthTestSetup())

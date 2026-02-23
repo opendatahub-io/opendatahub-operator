@@ -103,7 +103,6 @@ const (
 	kubeAuthProxyClusterRoleBindingTemplate = "resources/kube-auth-proxy-clusterrolebinding.tmpl.yaml"
 	networkPolicyTemplate                   = "resources/kube-auth-proxy-networkpolicy.yaml"
 	ocpRouteTemplate                        = "resources/gateway-ocp-route.tmpl.yaml"
-	ocpRouteLegacyRedirectTemplate          = "resources/gateway-ocp-route-legacy-redirect.tmpl.yaml"
 )
 
 // GetFQDN returns the fully qualified domain name for the gateway based on the GatewayConfig.
@@ -478,10 +477,8 @@ func getCookieSettings(cookieConfig *serviceApi.CookieConfig) (string, string) {
 
 // LegacyRedirectInfo contains computed values for legacy hostname redirect functionality.
 type LegacyRedirectInfo struct {
-	CurrentSubdomain       string // The current subdomain (from config or default)
-	LegacySubdomain        string // The legacy subdomain to redirect from (empty if redirect not needed)
-	LegacySubdomainPattern string // Lua-escaped pattern for legacy subdomain matching
-	LegacyHostname         string // Full legacy hostname (empty if redirect not needed)
+	LegacySubdomain string // The legacy subdomain to redirect from (empty if redirect not needed)
+	LegacyHostname  string // Full legacy hostname (empty if redirect not needed)
 }
 
 // getCurrentSubdomain extracts the current subdomain from GatewayConfig or returns the default.
@@ -497,17 +494,11 @@ func getCurrentSubdomain(gc *serviceApi.GatewayConfig) string {
 func computeLegacyRedirectInfo(gatewayConfig *serviceApi.GatewayConfig, hostname string) LegacyRedirectInfo {
 	currentSubdomain := getCurrentSubdomain(gatewayConfig)
 
-	info := LegacyRedirectInfo{
-		CurrentSubdomain: currentSubdomain,
-	}
+	info := LegacyRedirectInfo{}
 
 	// Only enable legacy redirect if current subdomain differs from legacy
 	if currentSubdomain != LegacyGatewaySubdomain {
 		info.LegacySubdomain = LegacyGatewaySubdomain
-		// Escape dashes for Lua pattern matching (dash is a special character in Lua patterns)
-		info.LegacySubdomainPattern = strings.ReplaceAll(LegacyGatewaySubdomain, "-", "%-")
-		// Compute legacy hostname by replacing current subdomain with legacy subdomain
-		// Using strings.Replace with dot suffix for safer, more explicit replacement
 		info.LegacyHostname = strings.Replace(hostname, currentSubdomain+".", LegacyGatewaySubdomain+".", 1)
 	}
 
@@ -551,8 +542,8 @@ func getDashboardRedirectImage() string {
 	return "registry.access.redhat.com/ubi9/nginx-126:latest"
 }
 
-// getDashboardRouteName returns the platform-specific dashboard route name.
-func getDashboardRouteName() string {
+// GetDashboardRouteName returns the platform-specific dashboard route name.
+func GetDashboardRouteName() string {
 	release := cluster.GetRelease()
 
 	switch release.Name {
