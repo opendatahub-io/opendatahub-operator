@@ -12,6 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
@@ -202,6 +203,7 @@ func TestDeployObservabilityManifests_WithPersesCRD(t *testing.T) {
 
 			rr := &types.ReconciliationRequest{
 				Client:    cli,
+				Instance:  &componentApi.Dashboard{},
 				Release:   common.Release{Name: tt.platform},
 				Manifests: []types.ManifestInfo{},
 			}
