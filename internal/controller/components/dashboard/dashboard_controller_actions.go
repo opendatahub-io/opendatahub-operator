@@ -60,11 +60,6 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 }
 
 func deployObservabilityManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	// Only deploy observability manifests for RHOAI platforms
-	if rr.Release.Name == cluster.OpenDataHub {
-		return nil
-	}
-
 	// Check if PersesDashboard CRD exists (Cluster Observability Operator installed)
 	persesDashboardCRDExists, err := cluster.HasCRD(ctx, rr.Client, gvk.PersesDashboard)
 	if err != nil {
@@ -76,11 +71,14 @@ func deployObservabilityManifests(ctx context.Context, rr *odhtypes.Reconciliati
 		return nil
 	}
 
-	// Get the monitoring namespace from DSCI
+	// Get the monitoring namespace from DSCI with platform-specific fallback
 	monitoringNamespace, err := cluster.MonitoringNamespace(ctx, rr.Client)
 	if err != nil {
-		// Fallback to default for first pass
-		monitoringNamespace = cluster.DefaultMonitoringNamespaceRHOAI
+		if rr.Release.Name == cluster.OpenDataHub {
+			monitoringNamespace = cluster.DefaultMonitoringNamespaceODH
+		} else {
+			monitoringNamespace = cluster.DefaultMonitoringNamespaceRHOAI
+		}
 	}
 
 	// Safety check: do not deploy if monitoring namespace is empty
@@ -88,13 +86,13 @@ func deployObservabilityManifests(ctx context.Context, rr *odhtypes.Reconciliati
 		return nil
 	}
 
-	// Deploy observability manifests to monitoring namespace
-	manifestPath := observabilityManifestInfo().String()
+	// Deploy platform-specific observability manifests to monitoring namespace
+	manifestPath := observabilityManifestInfo(rr.Release.Name).String()
 
 	err = odhdeploy.DeployManifestsFromPath(
 		ctx,
 		rr.Client,
-		rr.Instance,         // owner for GC
+		rr.Instance, // owner for GC
 		manifestPath,
 		monitoringNamespace, // deploy to monitoring namespace
 		ComponentName,       // "dashboard"

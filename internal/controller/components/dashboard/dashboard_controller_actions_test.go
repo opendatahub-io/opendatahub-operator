@@ -153,49 +153,67 @@ func TestCreateInfraHardwareProfile(t *testing.T) {
 }
 
 func TestDeployObservabilityManifests_WithPersesCRD(t *testing.T) {
-	ctx := t.Context()
-	g := NewWithT(t)
-
-	fakeSchema, err := scheme.New()
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	// Register PersesDashboard GVK with the schema so the REST mapper knows about it
-	persesDashboardListGVK := schema.GroupVersionKind{
-		Group:   "perses.dev",
-		Version: "v1alpha1",
-		Kind:    "PersesDashboardList",
-	}
-	fakeSchema.AddKnownTypeWithName(gvk.PersesDashboard, &unstructured.Unstructured{})
-	fakeSchema.AddKnownTypeWithName(persesDashboardListGVK, &unstructured.UnstructuredList{})
-
-	// Create a CRD for PersesDashboard to make HasCRD check pass
-	persesDashboardCRD := &apiextensionsv1.CustomResourceDefinition{
-		ObjectMeta: v1.ObjectMeta{
-			Name: "persesdashboards.perses.dev",
+	tests := []struct {
+		name     string
+		platform common.Platform
+	}{
+		{
+			name:     "RHOAI platform attempts deployment when CRD exists",
+			platform: cluster.SelfManagedRhoai,
 		},
-		Status: apiextensionsv1.CustomResourceDefinitionStatus{
-			StoredVersions: []string{"v1alpha1"},
+		{
+			name:     "ODH platform attempts deployment when CRD exists",
+			platform: cluster.OpenDataHub,
 		},
 	}
 
-	cli, err := fakeclient.New(
-		fakeclient.WithObjects(persesDashboardCRD),
-		fakeclient.WithScheme(fakeSchema),
-	)
-	g.Expect(err).ShouldNot(HaveOccurred())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := t.Context()
+			g := NewWithT(t)
 
-	rr := &types.ReconciliationRequest{
-		Client:    cli,
-		Release:   common.Release{Name: cluster.SelfManagedRhoai},
-		Manifests: []types.ManifestInfo{},
+			fakeSchema, err := scheme.New()
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			// Register PersesDashboard GVK with the schema so the REST mapper knows about it
+			persesDashboardListGVK := schema.GroupVersionKind{
+				Group:   "perses.dev",
+				Version: "v1alpha1",
+				Kind:    "PersesDashboardList",
+			}
+			fakeSchema.AddKnownTypeWithName(gvk.PersesDashboard, &unstructured.Unstructured{})
+			fakeSchema.AddKnownTypeWithName(persesDashboardListGVK, &unstructured.UnstructuredList{})
+
+			// Create a CRD for PersesDashboard to make HasCRD check pass
+			persesDashboardCRD := &apiextensionsv1.CustomResourceDefinition{
+				ObjectMeta: v1.ObjectMeta{
+					Name: "persesdashboards.perses.dev",
+				},
+				Status: apiextensionsv1.CustomResourceDefinitionStatus{
+					StoredVersions: []string{"v1alpha1"},
+				},
+			}
+
+			cli, err := fakeclient.New(
+				fakeclient.WithObjects(persesDashboardCRD),
+				fakeclient.WithScheme(fakeSchema),
+			)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			rr := &types.ReconciliationRequest{
+				Client:    cli,
+				Release:   common.Release{Name: tt.platform},
+				Manifests: []types.ManifestInfo{},
+			}
+
+			// This test verifies the function attempts to deploy when CRD exists.
+			// In test environment, DeployManifestsFromPath will fail because manifest files don't exist.
+			// This is expected - the important thing is that the function reaches the deploy call.
+			err = deployObservabilityManifests(ctx, rr)
+			g.Expect(err).Should(HaveOccurred())
+			g.Expect(err.Error()).Should(ContainSubstring("failed to deploy observability manifests"))
+		})
 	}
-
-	// This test verifies the function attempts to deploy when CRD exists.
-	// In test environment, DeployManifestsFromPath will fail because manifest files don't exist.
-	// This is expected - the important thing is that the function reaches the deploy call.
-	err = deployObservabilityManifests(ctx, rr)
-	g.Expect(err).Should(HaveOccurred())
-	g.Expect(err.Error()).Should(ContainSubstring("failed to deploy observability manifests"))
 }
 
 func TestDeployObservabilityManifests_WithoutPersesCRD(t *testing.T) {
@@ -217,20 +235,6 @@ func TestDeployObservabilityManifests_WithoutPersesCRD(t *testing.T) {
 
 	// When PersesDashboard CRD doesn't exist, function should return early without error
 	err = deployObservabilityManifests(ctx, rr)
-	g.Expect(err).ShouldNot(HaveOccurred())
-}
-
-func TestDeployObservabilityManifests_SkippedForODH(t *testing.T) {
-	ctx := t.Context()
-	g := NewWithT(t)
-
-	// Minimal setup - should skip before any CRD check
-	rr := &types.ReconciliationRequest{
-		Release: common.Release{Name: cluster.OpenDataHub},
-	}
-
-	// For ODH platform, function should return early without error
-	err := deployObservabilityManifests(ctx, rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
 }
 
