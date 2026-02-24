@@ -95,6 +95,7 @@ func gatewayTestSuite(t *testing.T) {
 		{"Validate EDS endpoint discovery", gatewayCtx.ValidateEDSEndpointDiscovery},
 		{"Validate Gateway ready status", gatewayCtx.ValidateGatewayReadyStatus},
 		{"Validate unauthenticated access redirects to login", gatewayCtx.ValidateUnauthenticatedRedirect},
+		{"Validate dashboard redirect resources", gatewayCtx.DashboardRedirectTestSuite},
 	}
 
 	RunTestCases(t, testCases)
