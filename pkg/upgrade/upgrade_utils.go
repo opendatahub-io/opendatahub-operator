@@ -549,6 +549,21 @@ func getFeatureVisibility(profileType string) string {
 	return featureVisibilityWorkbench
 }
 
+// isNamespaceManagedByKueue returns true if the namespace has Kueue management labels
+// (kueue.openshift.io/managed or kueue-managed = "true"). Used to skip HWP migration for
+// workloads that would be rejected by the Kueue webhook (RHOAIENG-50667).
+func isNamespaceManagedByKueue(ctx context.Context, cli client.Reader, namespaceName string) (bool, error) {
+	if namespaceName == "" {
+		return false, nil
+	}
+	ns := &corev1.Namespace{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: namespaceName}, ns); err != nil {
+		return false, err
+	}
+	return ns.Labels[cluster.KueueManagedLabelKey] == "true" ||
+		ns.Labels[cluster.KueueLegacyManagedLabelKey] == "true", nil
+}
+
 // getNotebooks retrieves all Notebook resources in the given namespace.
 func getNotebooks(ctx context.Context, cli client.Client) ([]*unstructured.Unstructured, error) {
 	notebookList := &unstructured.UnstructuredList{}
