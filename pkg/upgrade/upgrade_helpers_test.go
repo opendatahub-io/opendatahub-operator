@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
@@ -281,6 +282,35 @@ func createMalformedAcceleratorProfile(t *testing.T, namespace string) *unstruct
 
 	// Missing spec field
 	return ap
+}
+
+// createTestKueueManagedNamespace returns a Namespace with Kueue management labels set.
+// Used for RHOAIENG-50667 tests where the webhook would require queue-name on workloads.
+func createTestKueueManagedNamespace(name string) *corev1.Namespace {
+	ns := &corev1.Namespace{}
+	ns.SetName(name)
+	ns.Labels = map[string]string{
+		cluster.KueueManagedLabelKey: "true",
+	}
+	return ns
+}
+
+// createTestKueueManagedNamespaceLegacy returns a Namespace with the legacy Kueue label only
+// (kueue-managed = "true"). Used to verify RHOAIENG-50667 behavior when namespace uses legacy label.
+func createTestKueueManagedNamespaceLegacy(name string) *corev1.Namespace {
+	ns := &corev1.Namespace{}
+	ns.SetName(name)
+	ns.Labels = map[string]string{
+		cluster.KueueLegacyManagedLabelKey: "true",
+	}
+	return ns
+}
+
+// createTestNamespace returns a Namespace without Kueue labels (normal namespace).
+func createTestNamespace(name string) *corev1.Namespace {
+	ns := &corev1.Namespace{}
+	ns.SetName(name)
+	return ns
 }
 
 func createTestNotebook(namespace, name string) *unstructured.Unstructured {

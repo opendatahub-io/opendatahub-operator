@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -428,7 +429,40 @@ func AttachHardwareProfileToNotebooks(ctx context.Context, cli client.Client, ap
 
 		// Set HardwareProfile annotation if we found a migration source
 		if hwpName != "" {
+			// RHOAIENG-50667: Only when the Notebook's namespace is Kueue-labeled does the webhook require
+			// the queue-name label on the Notebook. Skip HWP migration only when namespace is Kueue-managed
+			// and the Notebook lacks the label; otherwise we would trigger webhook rejection and CrashLoopBackOff.
+			kueueManagedNS, err := isNamespaceManagedByKueue(ctx, cli, notebook.GetNamespace())
+			if err != nil {
+				log.Error(err, "Failed to check if namespace is Kueue-managed", "notebook", notebook.GetName(), "namespace", notebook.GetNamespace())
+				// Do not fail upgrade; continue and let setHardwareProfileAnnotation run
+			} else if kueueManagedNS {
+				notebookLabels := notebook.GetLabels()
+				if queueName := notebookLabels[cluster.KueueQueueNameLabel]; queueName == "" {
+					log.Info("Skipping HardwareProfile migration for Notebook in Kueue namespace missing queue label (RHOAIENG-50667)",
+						"notebook", notebook.GetName(), "namespace", notebook.GetNamespace())
+					msg := fmt.Sprintf("Skipping HardwareProfile migration for Notebook %s: namespace is Kueue-managed but missing required label %q "+
+						"(add the label to the Workbench to fix; see RHOAIENG-50667)", notebook.GetName(), cluster.KueueQueueNameLabel)
+					if eventErr := recordUpgradeErrorEvent(ctx, cli, notebook, eventReasonHardwareProfileMigrationSkipped, msg); eventErr != nil {
+						log.Error(eventErr, "Failed to record event for Notebook", "notebook", notebook.GetName())
+					}
+					continue
+				}
+			}
+
 			if err := setHardwareProfileAnnotation(ctx, cli, notebook, hwpName, hwpNamespace, applicationNS); err != nil {
+				// RHOAIENG-50667: If the webhook rejects the update due to Kueue label validation, do not
+				// fail the upgrade — skip this notebook, log, and record event so the operator can stay healthy.
+				errStr := err.Error()
+				if strings.Contains(errStr, "Kueue label validation failed") || (strings.Contains(errStr, "missing required label") && strings.Contains(errStr, "kueue")) {
+					log.Info("Skipping HardwareProfile migration for Notebook after Kueue webhook rejection (RHOAIENG-50667)",
+						"notebook", notebook.GetName(), "error", errStr)
+					if eventErr := recordUpgradeErrorEvent(ctx, cli, notebook, eventReasonHardwareProfileMigrationSkipped,
+						fmt.Sprintf("Skipping HardwareProfile migration for Notebook %s: %s", notebook.GetName(), errStr)); eventErr != nil {
+						log.Error(eventErr, "Failed to record event for Notebook", "notebook", notebook.GetName())
+					}
+					continue
+				}
 				multiErr = multierror.Append(multiErr, fmt.Errorf("failed to set HardwareProfile annotation for notebook %s: %w", notebook.GetName(), err))
 				continue
 			}
@@ -489,6 +523,44 @@ func createCustomServingHardwareProfile(ctx context.Context, cli client.Client, 
 	return nil
 }
 
+// isISVCServerless returns true if the InferenceService is in Serverless mode (annotation or status).
+func isISVCServerless(isvc *unstructured.Unstructured) bool {
+	annotations := isvc.GetAnnotations()
+	if annotations != nil && annotations[kserveDeploymentModeAnnotationKey] == kserveDeploymentModeServerless {
+		return true
+	}
+	status, found, _ := unstructured.NestedString(isvc.Object, "status", "deploymentMode")
+	return found && status == kserveDeploymentModeServerless
+}
+
+// handleISVCSetHWPAnnotationError handles Serverless and Kueue webhook rejection errors from
+// setHardwareProfileAnnotation. Returns true if the error was handled (caller should continue),
+// false if the caller should append to multiErr.
+func handleISVCSetHWPAnnotationError(ctx context.Context, cli client.Client, log logr.Logger, isvc *unstructured.Unstructured, err error) bool {
+	errStr := err.Error()
+	if strings.Contains(errStr, "deploymentMode cannot be changed") || strings.Contains(errStr, "Serverless") {
+		log.Info("Skipping HardwareProfile migration for InferenceService due to Serverless mode",
+			"isvc", isvc.GetName(), "error", errStr)
+		msg := fmt.Sprintf("Skipping HardwareProfile migration due to Serverless mode incompatibility: %s", errStr)
+		if eventErr := recordUpgradeErrorEvent(ctx, cli, isvc, eventReasonServerlessMigrationSkipped, msg); eventErr != nil {
+			log.Error(eventErr, "Failed to record event for Serverless InferenceService", "isvc", isvc.GetName())
+		}
+		return true
+	}
+	if strings.Contains(errStr, "Kueue label validation failed") ||
+		(strings.Contains(errStr, "missing required label") && strings.Contains(errStr, "kueue")) {
+		log.Info("Skipping HardwareProfile migration for InferenceService after Kueue webhook rejection (RHOAIENG-50667)",
+			"isvc", isvc.GetName(), "error", errStr)
+		msg := fmt.Sprintf("Skipping HardwareProfile migration for InferenceService %s: namespace is Kueue-managed but missing required label %q on the InferenceService",
+			isvc.GetName(), cluster.KueueQueueNameLabel)
+		if eventErr := recordUpgradeErrorEvent(ctx, cli, isvc, eventReasonHardwareProfileMigrationSkipped, msg); eventErr != nil {
+			log.Error(eventErr, "Failed to record event for InferenceService", "isvc", isvc.GetName())
+		}
+		return true
+	}
+	return false
+}
+
 // AttachHardwareProfileToInferenceServices migrates AcceleratorProfile annotations from ServingRuntimes
 // and matches container sizes on InferenceServices to HardwareProfile annotations as described in RHOAIENG-33158.
 func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Client, applicationNamespace string, odhConfig *unstructured.Unstructured) error {
@@ -526,25 +598,35 @@ func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Cl
 		// Skip Serverless InferenceServices as they are not supported in RHOAI 3.x
 		// Attempting to update them causes KServe webhook to incorrectly reject with deploymentMode error
 		// Check both the annotation (primary source) and status field (fallback) to determine if ISVC is serverless
-		isServerless := false
-		deploymentModeAnnotation := isvcAnnotations[kserveDeploymentModeAnnotationKey]
-		deploymentModeStatus, statusFound, _ := unstructured.NestedString(isvc.Object, "status", "deploymentMode")
-
-		log.V(1).Info("Checking InferenceService deployment mode", "isvc", isvc.GetName(),
-			"deploymentModeAnnotation", deploymentModeAnnotation, "deploymentModeStatus", deploymentModeStatus, "statusFound", statusFound)
-
-		if deploymentModeAnnotation == kserveDeploymentModeServerless {
-			isServerless = true
-		} else if statusFound && deploymentModeStatus == kserveDeploymentModeServerless {
-			isServerless = true
-		}
-		if isServerless {
-			log.Info("Skipping HardwareProfile migration for Serverless InferenceService", "isvc", isvc.GetName(), "deploymentMode", kserveDeploymentModeServerless)
-			if err := recordUpgradeErrorEvent(ctx, cli, isvc, eventReasonServerlessMigrationSkipped,
-				fmt.Sprintf("Skipping HardwareProfile migration for Serverless InferenceService %s (Serverless mode not supported in RHOAI 3.x)", isvc.GetName())); err != nil {
+		if isISVCServerless(isvc) {
+			log.Info("Skipping HardwareProfile migration for Serverless InferenceService",
+				"isvc", isvc.GetName(), "deploymentMode", kserveDeploymentModeServerless)
+			msg := fmt.Sprintf("Skipping HardwareProfile migration for Serverless InferenceService %s (Serverless mode not supported in RHOAI 3.x)", isvc.GetName())
+			if err := recordUpgradeErrorEvent(ctx, cli, isvc, eventReasonServerlessMigrationSkipped, msg); err != nil {
 				log.Error(err, "Failed to record event for Serverless InferenceService", "isvc", isvc.GetName())
 			}
 			continue
+		}
+
+		// RHOAIENG-50667: ISVCs in a Kueue-labeled namespace without the queue-name label would be rejected
+		// by the kserve-isvc-kueuelabels-validator webhook on update. Skip HWP migration, emit log and event,
+		// and do not fail the upgrade.
+		kueueManagedNS, err := isNamespaceManagedByKueue(ctx, cli, isvc.GetNamespace())
+		if err != nil {
+			log.Error(err, "Failed to check if namespace is Kueue-managed", "isvc", isvc.GetName(), "namespace", isvc.GetNamespace())
+			// Do not fail upgrade on namespace fetch error; continue and let setHardwareProfileAnnotation run
+		} else if kueueManagedNS {
+			isvcLabels := isvc.GetLabels()
+			if queueName := isvcLabels[cluster.KueueQueueNameLabel]; queueName == "" {
+				log.Info("Skipping HardwareProfile migration for InferenceService in Kueue namespace missing queue label (RHOAIENG-50667)",
+					"isvc", isvc.GetName(), "namespace", isvc.GetNamespace())
+				msg := fmt.Sprintf("Skipping HardwareProfile migration for InferenceService %s: namespace is Kueue-managed but missing required label %q on the InferenceService",
+					isvc.GetName(), cluster.KueueQueueNameLabel)
+				if eventErr := recordUpgradeErrorEvent(ctx, cli, isvc, eventReasonHardwareProfileMigrationSkipped, msg); eventErr != nil {
+					log.Error(eventErr, "Failed to record event for InferenceService", "isvc", isvc.GetName())
+				}
+				continue
+			}
 		}
 
 		// Check ServingRuntime for AcceleratorProfile annotation and apply to InferenceService
@@ -559,14 +641,7 @@ func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Cl
 				// Get the AP namespace if specified (for cross-namespace AP references)
 				hwpNamespace := runtimeAnnotations[acceleratorProfileNamespaceAnnotation]
 				if err := setHardwareProfileAnnotation(ctx, cli, isvc, hwpName, hwpNamespace, applicationNamespace); err != nil {
-					// If webhook rejects due to Serverless mode, record event and skip instead of error
-					errStr := err.Error()
-					if strings.Contains(errStr, "deploymentMode cannot be changed") || strings.Contains(errStr, "Serverless") {
-						log.Info("Skipping HardwareProfile migration for InferenceService due to Serverless mode", "isvc", isvc.GetName(), "error", errStr)
-						if eventErr := recordUpgradeErrorEvent(ctx, cli, isvc, eventReasonServerlessMigrationSkipped,
-							fmt.Sprintf("Skipping HardwareProfile migration due to Serverless mode incompatibility: %s", errStr)); eventErr != nil {
-							log.Error(eventErr, "Failed to record event for Serverless InferenceService", "isvc", isvc.GetName())
-						}
+					if handleISVCSetHWPAnnotationError(ctx, cli, log, isvc, err) {
 						continue
 					}
 					multiErr = multierror.Append(multiErr, fmt.Errorf("failed to set HardwareProfile annotation for InferenceService %s: %w", isvc.GetName(), err))
@@ -582,7 +657,6 @@ func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Cl
 		// Default using HWProfile CR "custom-serving", update only if we find a matching size
 		hwpName := customServing
 		var matchedSize string
-
 		resources, err := getInferenceServiceResources(isvc)
 		if err == nil {
 			// Try to match resources to a container size
@@ -593,23 +667,18 @@ func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Cl
 		}
 
 		if err := setHardwareProfileAnnotation(ctx, cli, isvc, hwpName, "", applicationNamespace); err != nil {
-			// If webhook rejects due to Serverless mode, record event and skip instead of error
-			errStr := err.Error()
-			if strings.Contains(errStr, "deploymentMode cannot be changed") || strings.Contains(errStr, "Serverless") {
-				log.Info("Skipping HardwareProfile migration for InferenceService due to Serverless mode", "isvc", isvc.GetName(), "error", errStr)
-				if eventErr := recordUpgradeErrorEvent(ctx, cli, isvc, eventReasonServerlessMigrationSkipped,
-					fmt.Sprintf("Skipping HardwareProfile migration due to Serverless mode incompatibility: %s", errStr)); eventErr != nil {
-					log.Error(eventErr, "Failed to record event for Serverless InferenceService", "isvc", isvc.GetName())
-				}
+			if handleISVCSetHWPAnnotationError(ctx, cli, log, isvc, err) {
 				continue
 			}
 			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to set HardwareProfile annotation for InferenceService %s: %w", isvc.GetName(), err))
 		} else {
 			// Log after successful annotation setting
 			if matchedSize != "" {
-				log.Info("Set HardwareProfile annotation for InferenceService based on container size match", "isvc", isvc.GetName(), "size", matchedSize, "hardwareProfile", hwpName)
+				log.Info("Set HardwareProfile annotation for InferenceService based on container size match",
+					"isvc", isvc.GetName(), "size", matchedSize, "hardwareProfile", hwpName)
 			} else {
-				log.Info("Set HardwareProfile annotation for InferenceService with "+customServing+" HardwareProfile", "isvc", isvc.GetName(), "hardwareProfile", hwpName)
+				log.Info("Set HardwareProfile annotation for InferenceService with "+customServing+" HardwareProfile",
+					"isvc", isvc.GetName(), "hardwareProfile", hwpName)
 			}
 		}
 	}

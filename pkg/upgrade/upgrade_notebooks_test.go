@@ -6,6 +6,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
@@ -113,5 +114,100 @@ func TestAttachHardwareProfileToNotebooks(t *testing.T) {
 
 		err = upgrade.AttachHardwareProfileToNotebooks(ctx, cli, namespace, odhConfig)
 		g.Expect(err).ShouldNot(HaveOccurred())
+	})
+
+	// RHOAIENG-50667: skip HWP migration only when namespace is Kueue-managed AND workload lacks queue label
+	t.Run("should skip Notebook in Kueue-managed namespace when notebook is missing queue label", func(t *testing.T) {
+		g := NewWithT(t)
+
+		ns := createTestKueueManagedNamespace(namespace)
+		odhConfig := createTestOdhDashboardConfig(t, namespace)
+		notebook := createTestNotebook(namespace, "notebook-kueue-ns-no-label")
+		notebook.SetAnnotations(map[string]string{"opendatahub.io/accelerator-name": "nvidia-gpu"})
+		// No kueue.x-k8s.io/queue-name label on notebook
+		hwp := createTestHardwareProfile(namespace, "nvidia-gpu-notebooks")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(ns, odhConfig, notebook, hwp))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = upgrade.AttachHardwareProfileToNotebooks(ctx, cli, namespace, odhConfig)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Notebook should NOT get HWP annotation (skipped to avoid webhook rejection)
+		updatedNotebook := &unstructured.Unstructured{}
+		updatedNotebook.SetGroupVersionKind(gvk.Notebook)
+		err = cli.Get(ctx, client.ObjectKey{Name: "notebook-kueue-ns-no-label", Namespace: namespace}, updatedNotebook)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(updatedNotebook.GetAnnotations()).ToNot(HaveKey("opendatahub.io/hardware-profile-name"))
+	})
+
+	t.Run("should migrate Notebook in Kueue-managed namespace when notebook has queue label", func(t *testing.T) {
+		g := NewWithT(t)
+
+		ns := createTestKueueManagedNamespace(namespace)
+		odhConfig := createTestOdhDashboardConfig(t, namespace)
+		notebook := createTestNotebook(namespace, "notebook-kueue-ns-with-label")
+		notebook.SetAnnotations(map[string]string{"opendatahub.io/accelerator-name": "nvidia-gpu"})
+		notebook.SetLabels(map[string]string{cluster.KueueQueueNameLabel: "my-queue"})
+		hwp := createTestHardwareProfile(namespace, "nvidia-gpu-notebooks")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(ns, odhConfig, notebook, hwp))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = upgrade.AttachHardwareProfileToNotebooks(ctx, cli, namespace, odhConfig)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		updatedNotebook := &unstructured.Unstructured{}
+		updatedNotebook.SetGroupVersionKind(gvk.Notebook)
+		err = cli.Get(ctx, client.ObjectKey{Name: "notebook-kueue-ns-with-label", Namespace: namespace}, updatedNotebook)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(updatedNotebook.GetAnnotations()).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "nvidia-gpu-notebooks"))
+	})
+
+	t.Run("should migrate Notebook in non-Kueue namespace without queue label", func(t *testing.T) {
+		g := NewWithT(t)
+
+		// Namespace exists but has no Kueue label → migration should proceed
+		ns := createTestNamespace(namespace)
+		odhConfig := createTestOdhDashboardConfig(t, namespace)
+		notebook := createTestNotebook(namespace, "notebook-non-kueue-ns")
+		notebook.SetAnnotations(map[string]string{"opendatahub.io/accelerator-name": "nvidia-gpu"})
+		// No queue label on notebook; namespace is not Kueue-managed so we still migrate
+		hwp := createTestHardwareProfile(namespace, "nvidia-gpu-notebooks")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(ns, odhConfig, notebook, hwp))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = upgrade.AttachHardwareProfileToNotebooks(ctx, cli, namespace, odhConfig)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		updatedNotebook := &unstructured.Unstructured{}
+		updatedNotebook.SetGroupVersionKind(gvk.Notebook)
+		err = cli.Get(ctx, client.ObjectKey{Name: "notebook-non-kueue-ns", Namespace: namespace}, updatedNotebook)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(updatedNotebook.GetAnnotations()).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "nvidia-gpu-notebooks"))
+	})
+
+	t.Run("should skip Notebook in namespace with legacy Kueue label when notebook is missing queue label", func(t *testing.T) {
+		g := NewWithT(t)
+
+		// Legacy label: kueue-managed = "true" (same behavior as kueue.openshift.io/managed)
+		ns := createTestKueueManagedNamespaceLegacy(namespace)
+		odhConfig := createTestOdhDashboardConfig(t, namespace)
+		notebook := createTestNotebook(namespace, "notebook-legacy-kueue-ns")
+		notebook.SetAnnotations(map[string]string{"opendatahub.io/accelerator-name": "nvidia-gpu"})
+		hwp := createTestHardwareProfile(namespace, "nvidia-gpu-notebooks")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(ns, odhConfig, notebook, hwp))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = upgrade.AttachHardwareProfileToNotebooks(ctx, cli, namespace, odhConfig)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		updatedNotebook := &unstructured.Unstructured{}
+		updatedNotebook.SetGroupVersionKind(gvk.Notebook)
+		err = cli.Get(ctx, client.ObjectKey{Name: "notebook-legacy-kueue-ns", Namespace: namespace}, updatedNotebook)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(updatedNotebook.GetAnnotations()).ToNot(HaveKey("opendatahub.io/hardware-profile-name"))
 	})
 }

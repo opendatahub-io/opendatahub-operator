@@ -1,11 +1,14 @@
 package upgrade_test
 
 import (
+	"context"
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
@@ -199,4 +202,53 @@ func TestAttachHardwareProfileToInferenceServices(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(updatedIsvc.GetAnnotations()).ToNot(HaveKey("opendatahub.io/hardware-profile-name"))
 	})
+
+	// RHOAIENG-50667: skip HWP migration only when namespace is Kueue-managed AND workload lacks queue label
+	t.Run("should skip InferenceService in Kueue-managed namespace when ISVC is missing queue label", func(t *testing.T) {
+		runISVCKueueNamespaceSkipTest(t, ctx, namespace, createTestKueueManagedNamespace(namespace), "isvc-kueue-ns-no-label")
+	})
+	t.Run("should skip InferenceService in namespace with legacy Kueue label when ISVC is missing queue label", func(t *testing.T) {
+		runISVCKueueNamespaceSkipTest(t, ctx, namespace, createTestKueueManagedNamespaceLegacy(namespace), "isvc-legacy-kueue-ns")
+	})
+
+	t.Run("should migrate InferenceService in Kueue-managed namespace when ISVC has queue label", func(t *testing.T) {
+		g := NewWithT(t)
+
+		ns := createTestKueueManagedNamespace(namespace)
+		odhConfig := createTestOdhDashboardConfig(t, namespace)
+		isvc := createTestInferenceService(namespace, "isvc-kueue-ns-with-label", "")
+		isvc.SetLabels(map[string]string{cluster.KueueQueueNameLabel: "my-queue"})
+		hwp := createTestHardwareProfile(namespace, "custom-serving")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(ns, odhConfig, isvc, hwp))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = upgrade.AttachHardwareProfileToInferenceServices(ctx, cli, namespace, odhConfig)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		updatedIsvc := &unstructured.Unstructured{}
+		updatedIsvc.SetGroupVersionKind(gvk.InferenceServices)
+		err = cli.Get(ctx, client.ObjectKey{Name: "isvc-kueue-ns-with-label", Namespace: namespace}, updatedIsvc)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(updatedIsvc.GetAnnotations()).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "custom-serving"))
+	})
+}
+
+// runISVCKueueNamespaceSkipTest runs AttachHardwareProfileToInferenceServices with an ISVC in a
+// Kueue-managed namespace (ns) without queue label, and asserts migration is skipped (no HWP annotation).
+func runISVCKueueNamespaceSkipTest(t *testing.T, ctx context.Context, namespace string, ns *corev1.Namespace, isvcName string) {
+	t.Helper()
+	g := NewWithT(t)
+	odhConfig := createTestOdhDashboardConfig(t, namespace)
+	isvc := createTestInferenceService(namespace, isvcName, "")
+	hwp := createTestHardwareProfile(namespace, "custom-serving")
+	cli, err := fakeclient.New(fakeclient.WithObjects(ns, odhConfig, isvc, hwp))
+	g.Expect(err).ShouldNot(HaveOccurred())
+	err = upgrade.AttachHardwareProfileToInferenceServices(ctx, cli, namespace, odhConfig)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	updatedIsvc := &unstructured.Unstructured{}
+	updatedIsvc.SetGroupVersionKind(gvk.InferenceServices)
+	err = cli.Get(ctx, client.ObjectKey{Name: isvcName, Namespace: namespace}, updatedIsvc)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(updatedIsvc.GetAnnotations()).ToNot(HaveKey("opendatahub.io/hardware-profile-name"))
 }
