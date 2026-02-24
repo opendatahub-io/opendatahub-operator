@@ -496,8 +496,9 @@ func (tc *GatewayTestCtx) ValidateEnvoyFilter(t *testing.T) {
 
 			// Patch 1: Lua filter token forwarding
 			jq.Match(`.spec.configPatches[1].applyTo == "HTTP_FILTER"`),
-			jq.Match(`.spec.configPatches[1].patch.value.name == "envoy.lua"`),
+			jq.Match(`.spec.configPatches[1].patch.value.name == "envoy.filters.http.lua"`),
 			jq.Match(`.spec.configPatches[1].patch.value.typed_config.inline_code | contains("x-auth-request-access-token")`),
+			jq.Match(`.spec.configPatches[1].patch.value.typed_config.inline_code | contains("x-forwarded-access-token")`),
 			jq.Match(`.spec.configPatches[1].patch.value.typed_config.inline_code | contains("Bearer")`),
 			jq.Match(`.spec.configPatches[1].patch.value.typed_config.inline_code | contains("authorization")`),
 		)),

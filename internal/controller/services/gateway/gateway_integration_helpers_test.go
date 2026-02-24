@@ -96,6 +96,17 @@ const (
 	updatedCookieRefreshArg = "--cookie-refresh=2h0m0s"
 )
 
+// EnvoyFilter filter names (canonical names from Envoy proto).
+const (
+	envoyFilterExtAuthz = "envoy.filters.http.ext_authz"
+	envoyFilterLua      = "envoy.filters.http.lua"
+)
+
+// Pod template annotation keys used by the gateway controller.
+const (
+	redirectConfigHashAnnotation = "opendatahub.io/redirect-config-hash"
+)
+
 const (
 	OAuthClusterDomain = "apps.oauth-test.example.com"
 	OIDCClusterDomain  = "apps.oidc-test.example.com"
@@ -567,13 +578,11 @@ func deleteGatewayConfigDependents(t *testing.T, ctx context.Context, cli client
 		t.Fatalf("Failed to get Gateway: %v", err)
 	}
 
-	// Delete gateway OCP Routes if they exist (openshift-ingress). We do not wait for Routes to be gone—envtest deletion can be slow;
+	// Delete gateway OCP Route if it exists. We do not wait for it to be gone—envtest deletion can be slow;
 	// tests that need "no Route" (e.g. LoadBalancer) use their own Eventually.
-	for _, name := range []string{gateway.DefaultGatewayName} {
-		route := &routev1.Route{}
-		if err := cli.Get(ctx, types.NamespacedName{Name: name, Namespace: ns}, route); err == nil {
-			_ = cli.Delete(ctx, route)
-		}
+	gwRoute := &routev1.Route{}
+	if err := cli.Get(ctx, types.NamespacedName{Name: gateway.DefaultGatewayName, Namespace: ns}, gwRoute); err == nil {
+		_ = cli.Delete(ctx, gwRoute)
 	}
 
 	// Delete dashboard redirect routes in application namespace (opendatahub).
@@ -945,7 +954,7 @@ func RunEnvoyFilterExtAuthzConfigurationTest(t *testing.T, setup TestSetup) {
 				continue
 			}
 			name, _, _ := unstructured.NestedString(patchValue, "name")
-			if name == "envoy.filters.http.ext_authz" {
+			if name == envoyFilterExtAuthz {
 				typedConfig, _, _ := unstructured.NestedMap(patchValue, "typed_config")
 				httpService, _, _ := unstructured.NestedMap(typedConfig, "http_service")
 				serverUri, _, _ := unstructured.NestedMap(httpService, "server_uri")
@@ -971,7 +980,7 @@ func RunEnvoyFilterExtAuthzConfigurationTest(t *testing.T, setup TestSetup) {
 			continue
 		}
 		name, _, _ := unstructured.NestedString(patchValue, "name")
-		if name == "envoy.filters.http.ext_authz" {
+		if name == envoyFilterExtAuthz {
 			extAuthzTypedConfig, _, _ = unstructured.NestedMap(patchValue, "typed_config")
 			break
 		}
@@ -1049,10 +1058,10 @@ func RunEnvoyFilterOrderTest(t *testing.T, setup TestSetup) {
 
 	extAuthzIndex, luaIndex := -1, -1
 	for i, name := range filterNames {
-		if name == "envoy.filters.http.ext_authz" {
+		if name == envoyFilterExtAuthz {
 			extAuthzIndex = i
 		}
-		if name == "envoy.lua" {
+		if name == envoyFilterLua {
 			luaIndex = i
 		}
 	}
@@ -1062,7 +1071,7 @@ func RunEnvoyFilterOrderTest(t *testing.T, setup TestSetup) {
 		"ext_authz filter must come before lua token forwarding filter for authentication to work correctly")
 }
 
-// RunEnvoyFilterLuaTokenForwardingTest validates that the envoy.lua filter contains token forwarding and cookie stripping.
+// RunEnvoyFilterLuaTokenForwardingTest validates that the envoy Lua filter contains token forwarding and cookie stripping.
 func RunEnvoyFilterLuaTokenForwardingTest(t *testing.T, setup TestSetup) {
 	g := NewWithT(t)
 	defer setup.Setup(t)()
@@ -1091,7 +1100,7 @@ func RunEnvoyFilterLuaTokenForwardingTest(t *testing.T, setup TestSetup) {
 			continue
 		}
 		name, _, _ := unstructured.NestedString(patchValue, "name")
-		if name == "envoy.lua" {
+		if name == envoyFilterLua {
 			typedConfig, _, _ := unstructured.NestedMap(patchValue, "typed_config")
 			luaInlineCode, _, _ = unstructured.NestedString(typedConfig, "inline_code")
 			break
@@ -1496,8 +1505,12 @@ func RunNginxDashboardRedirectCreationTest(t *testing.T, setup TestSetup) {
 	g.Expect(dep.Spec.Selector.MatchLabels).To(HaveKeyWithValue("app", gateway.DashboardRedirectName))
 	g.Expect(dep.Spec.Template.Spec.Containers).NotTo(BeEmpty())
 	g.Expect(dep.Spec.Template.Spec.Containers[0].Image).NotTo(BeEmpty())
-	g.Expect(dep.Spec.Template.Annotations).To(HaveKey("opendatahub.io/redirect-config-hash"))
-	g.Expect(dep.Spec.Template.Annotations["opendatahub.io/redirect-config-hash"]).To(MatchRegexp("^[0-9a-f]{64}$"))
+	g.Expect(dep.Spec.Template.Annotations).To(HaveKey(redirectConfigHashAnnotation))
+	actualHash := dep.Spec.Template.Annotations[redirectConfigHashAnnotation]
+	g.Expect(actualHash).To(MatchRegexp("^[0-9a-f]{64}$"))
+	expectedHash := gateway.CalculateRedirectConfigHash(gatewayHost)
+	g.Expect(actualHash).To(Equal(expectedHash),
+		"redirect-config-hash must reflect gateway hostname to ensure rollout on subdomain/domain change")
 
 	// Service
 	var svc corev1.Service
