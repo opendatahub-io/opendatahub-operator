@@ -14,10 +14,10 @@ DST_MANIFESTS_DIR="./opt/manifests"
 
 # ODH Component Manifests
 declare -A ODH_COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:main@a921252dd6419f523e46133c8284cab26a485373:manifests"
+    ["dashboard"]="opendatahub-io:odh-dashboard:main@0cd763d60da6e5593673cdaa1ea88f9063355551:manifests"
     ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@13a36ec22df4f9bf2038addd9957a988d65bcb50:components/notebook-controller/config"
     ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@13a36ec22df4f9bf2038addd9957a988d65bcb50:components/odh-notebook-controller/config"
-    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@466b6dece631ec2e06ebf6da36164cdb6274db6b:manifests"
+    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@504ab11b586e49ff8cf7f65884549a1c8330a251:manifests"
     ["kserve"]="opendatahub-io:kserve:release-v0.15@e6b5db0c3051781d7b7c29ec2b6227b6ae2a9bea:config"
     ["ray"]="opendatahub-io:kuberay:dev@b5ee4c9963783dad6a8917abfa29c4e91d8630ec:ray-operator/config"
     ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@25e144dd0f4c311c53cbe069fed18fb93fdb3a7d:config"
@@ -26,9 +26,9 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@e15bc1a4a13fed5abfa7e116617f1423d5eb5064:config"
     ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@1ecd365c4c55bacaffce7506be9df81a77d52a23:config"
     ["feastoperator"]="opendatahub-io:feast:stable@0c85e244d3182b4570164f6d66c8b106a207c070:infra/feast-operator/config"
-    ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@05aa9a7caf9759556da7932fd11e03d845b72bdf:config"
+    ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@76895fce0f00a3a7e147b7f5689a7d1b4ed5b6c9:config"
     ["trainer"]="opendatahub-io:trainer:stable@53fdd48b9156c382b60b33aa4b2f56a44c23377d:manifests"
-    ["maas"]="opendatahub-io:maas-billing:main@12a08de5abbc33b80a03b12e9e91c246f1ff1c53:deployment"
+    ["maas"]="opendatahub-io:maas-billing:main@31bd2b5e6490b85aec460a2f211f327d5bf8aec7:deployment"
     ["mlflowoperator"]="opendatahub-io:mlflow-operator:main@f0359caef15175199d91110e0748555e0e36364f:config"
     ["sparkoperator"]="opendatahub-io:spark-operator:main@141b447586a54ed1882b6e8bf26c11fa52a18514:config"
 )
