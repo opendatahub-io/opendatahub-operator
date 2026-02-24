@@ -225,16 +225,6 @@ func TestOIDCEnvoyFilterLuaTokenForwarding(t *testing.T) {
 	RunEnvoyFilterLuaTokenForwardingTest(t, GetOIDCTestSetup())
 }
 
-// TestOIDCEnvoyFilterLegacyRedirectPresent validates legacy redirect EnvoyFilter in OIDC mode (delegates to RunEnvoyFilterLegacyRedirectPresentTest).
-func TestOIDCEnvoyFilterLegacyRedirectPresent(t *testing.T) {
-	RunEnvoyFilterLegacyRedirectPresentTest(t, GetOIDCTestSetup())
-}
-
-// TestOIDCEnvoyFilterLegacyRedirectOrderFirst validates legacy redirect filter order in OIDC mode (delegates to RunEnvoyFilterLegacyRedirectOrderFirstTest).
-func TestOIDCEnvoyFilterLegacyRedirectOrderFirst(t *testing.T) {
-	RunEnvoyFilterLegacyRedirectOrderFirstTest(t, GetOIDCTestSetup())
-}
-
 // TestOIDCDestinationRuleCreation validates DestinationRule creation in OIDC mode (delegates to RunDestinationRuleCreationTest).
 func TestOIDCDestinationRuleCreation(t *testing.T) {
 	RunDestinationRuleCreationTest(t, GetOIDCTestSetup())

@@ -310,7 +310,6 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	templateData := map[string]any{
 		"GatewayNamespace":         GatewayNamespace,
 		"GatewayName":              DefaultGatewayName,
-		"GatewayClassName":         GatewayClassName,
 		"GatewayHostname":          hostname,
 		"GatewayServiceName":       GatewayServiceFullName,
 		"KubeAuthProxyServiceName": KubeAuthProxyName,
@@ -340,8 +339,6 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"PartOfGatewayConfig":      PartOfGatewayConfig,
 		"GatewayNameLabelKey":      labels.GatewayAPI.GatewayName,
 		"LegacySubdomain":          legacyInfo.LegacySubdomain,
-		"LegacySubdomainPattern":   legacyInfo.LegacySubdomainPattern,
-		"CurrentSubdomain":         legacyInfo.CurrentSubdomain,
 		"LegacyHostname":           legacyInfo.LegacyHostname,
 	}
 
@@ -349,8 +346,9 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	templateData["DashboardRedirectNamespace"] = cluster.GetApplicationNamespace()
 	templateData["DashboardRedirectName"] = DashboardRedirectName
 	templateData["DashboardRedirectConfigName"] = DashboardRedirectConfigName
-	templateData["DashboardRouteName"] = getDashboardRouteName()
+	templateData["DashboardRouteName"] = GetDashboardRouteName()
 	templateData["DashboardRedirectImage"] = getDashboardRedirectImage()
+	templateData["RedirectConfigHash"] = CalculateRedirectConfigHash(hostname)
 
 	// Add OIDC-specific fields only if OIDC config is present
 	if gatewayConfig.Spec.OIDC != nil {

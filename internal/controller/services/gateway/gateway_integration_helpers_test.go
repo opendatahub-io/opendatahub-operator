@@ -96,6 +96,17 @@ const (
 	updatedCookieRefreshArg = "--cookie-refresh=2h0m0s"
 )
 
+// EnvoyFilter filter names (canonical names from Envoy proto).
+const (
+	envoyFilterExtAuthz = "envoy.filters.http.ext_authz"
+	envoyFilterLua      = "envoy.filters.http.lua"
+)
+
+// Pod template annotation keys used by the gateway controller.
+const (
+	redirectConfigHashAnnotation = "opendatahub.io/redirect-config-hash"
+)
+
 const (
 	OAuthClusterDomain = "apps.oauth-test.example.com"
 	OIDCClusterDomain  = "apps.oidc-test.example.com"
@@ -567,11 +578,19 @@ func deleteGatewayConfigDependents(t *testing.T, ctx context.Context, cli client
 		t.Fatalf("Failed to get Gateway: %v", err)
 	}
 
-	// Delete gateway OCP Routes if they exist. We do not wait for Routes to be gone—envtest deletion can be slow;
+	// Delete gateway OCP Route if it exists. We do not wait for it to be gone—envtest deletion can be slow;
 	// tests that need "no Route" (e.g. LoadBalancer) use their own Eventually.
-	for _, name := range []string{gateway.DefaultGatewayName, gateway.DefaultGatewayName + "-legacy-redirect"} {
+	gwRoute := &routev1.Route{}
+	if err := cli.Get(ctx, types.NamespacedName{Name: gateway.DefaultGatewayName, Namespace: ns}, gwRoute); err == nil {
+		_ = cli.Delete(ctx, gwRoute)
+	}
+
+	// Delete dashboard redirect routes in application namespace (opendatahub).
+	// Platform-specific dashboard route plus legacy gateway route.
+	appsNs := cluster.GetApplicationNamespace()
+	for _, name := range []string{gateway.GetDashboardRouteName(), gateway.LegacyGatewaySubdomain} {
 		route := &routev1.Route{}
-		if err := cli.Get(ctx, types.NamespacedName{Name: name, Namespace: ns}, route); err == nil {
+		if err := cli.Get(ctx, types.NamespacedName{Name: name, Namespace: appsNs}, route); err == nil {
 			_ = cli.Delete(ctx, route)
 		}
 	}
@@ -935,7 +954,7 @@ func RunEnvoyFilterExtAuthzConfigurationTest(t *testing.T, setup TestSetup) {
 				continue
 			}
 			name, _, _ := unstructured.NestedString(patchValue, "name")
-			if name == "envoy.filters.http.ext_authz" {
+			if name == envoyFilterExtAuthz {
 				typedConfig, _, _ := unstructured.NestedMap(patchValue, "typed_config")
 				httpService, _, _ := unstructured.NestedMap(typedConfig, "http_service")
 				serverUri, _, _ := unstructured.NestedMap(httpService, "server_uri")
@@ -961,7 +980,7 @@ func RunEnvoyFilterExtAuthzConfigurationTest(t *testing.T, setup TestSetup) {
 			continue
 		}
 		name, _, _ := unstructured.NestedString(patchValue, "name")
-		if name == "envoy.filters.http.ext_authz" {
+		if name == envoyFilterExtAuthz {
 			extAuthzTypedConfig, _, _ = unstructured.NestedMap(patchValue, "typed_config")
 			break
 		}
@@ -1039,10 +1058,10 @@ func RunEnvoyFilterOrderTest(t *testing.T, setup TestSetup) {
 
 	extAuthzIndex, luaIndex := -1, -1
 	for i, name := range filterNames {
-		if name == "envoy.filters.http.ext_authz" {
+		if name == envoyFilterExtAuthz {
 			extAuthzIndex = i
 		}
-		if name == "envoy.lua" {
+		if name == envoyFilterLua {
 			luaIndex = i
 		}
 	}
@@ -1052,7 +1071,7 @@ func RunEnvoyFilterOrderTest(t *testing.T, setup TestSetup) {
 		"ext_authz filter must come before lua token forwarding filter for authentication to work correctly")
 }
 
-// RunEnvoyFilterLuaTokenForwardingTest validates that the envoy.lua filter contains token forwarding and cookie stripping.
+// RunEnvoyFilterLuaTokenForwardingTest validates that the envoy Lua filter contains token forwarding and cookie stripping.
 func RunEnvoyFilterLuaTokenForwardingTest(t *testing.T, setup TestSetup) {
 	g := NewWithT(t)
 	defer setup.Setup(t)()
@@ -1081,7 +1100,7 @@ func RunEnvoyFilterLuaTokenForwardingTest(t *testing.T, setup TestSetup) {
 			continue
 		}
 		name, _, _ := unstructured.NestedString(patchValue, "name")
-		if name == "envoy.lua" {
+		if name == envoyFilterLua {
 			typedConfig, _, _ := unstructured.NestedMap(patchValue, "typed_config")
 			luaInlineCode, _, _ = unstructured.NestedString(typedConfig, "inline_code")
 			break
@@ -1094,97 +1113,6 @@ func RunEnvoyFilterLuaTokenForwardingTest(t *testing.T, setup TestSetup) {
 	g.Expect(luaInlineCode).To(ContainSubstring("Bearer"))
 	g.Expect(luaInlineCode).To(ContainSubstring(gateway.AuthProxyCookieName))
 	g.Expect(luaInlineCode).To(ContainSubstring("cookie"))
-}
-
-// RunEnvoyFilterLegacyRedirectPresentTest validates that the envoy.filters.http.lua.redirect filter is present when subdomain is not legacy.
-func RunEnvoyFilterLegacyRedirectPresentTest(t *testing.T, setup TestSetup) {
-	g := NewWithT(t)
-	defer setup.Setup(t)()
-
-	ef := &unstructured.Unstructured{}
-	ef.SetGroupVersionKind(gvk.EnvoyFilter)
-	g.Eventually(func() error {
-		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
-			Name:      gateway.AuthnFilterName,
-			Namespace: gateway.GatewayNamespace,
-		}, ef)
-	}, TestTimeout, TestInterval).Should(Succeed())
-
-	patches, found, err := unstructured.NestedSlice(ef.Object, "spec", "configPatches")
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(found).To(BeTrue())
-
-	var luaRedirectCode string
-	for _, p := range patches {
-		patch, ok := p.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		patchValue, _, _ := unstructured.NestedMap(patch, "patch", "value")
-		if patchValue == nil {
-			continue
-		}
-		name, _, _ := unstructured.NestedString(patchValue, "name")
-		if name == "envoy.filters.http.lua.redirect" {
-			typedConfig, _, _ := unstructured.NestedMap(patchValue, "typed_config")
-			luaRedirectCode, _, _ = unstructured.NestedString(typedConfig, "inline_code")
-			break
-		}
-	}
-	g.Expect(luaRedirectCode).NotTo(BeEmpty(), "Lua redirect filter should be present when subdomain is not legacy")
-	g.Expect(luaRedirectCode).To(ContainSubstring("301"))
-	g.Expect(luaRedirectCode).To(ContainSubstring("location"))
-	g.Expect(luaRedirectCode).To(ContainSubstring("data%-science%-gateway"))
-	g.Expect(luaRedirectCode).To(ContainSubstring(gateway.DefaultGatewaySubdomain))
-}
-
-// RunEnvoyFilterLegacyRedirectOrderFirstTest validates that the legacy redirect filter is first in the filter chain.
-func RunEnvoyFilterLegacyRedirectOrderFirstTest(t *testing.T, setup TestSetup) {
-	g := NewWithT(t)
-	defer setup.Setup(t)()
-
-	ef := &unstructured.Unstructured{}
-	ef.SetGroupVersionKind(gvk.EnvoyFilter)
-	g.Eventually(func() error {
-		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
-			Name:      gateway.AuthnFilterName,
-			Namespace: gateway.GatewayNamespace,
-		}, ef)
-	}, TestTimeout, TestInterval).Should(Succeed())
-
-	patches, found, err := unstructured.NestedSlice(ef.Object, "spec", "configPatches")
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(found).To(BeTrue())
-
-	var filterNames []string
-	for _, p := range patches {
-		patch, ok := p.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		patchValue, _, _ := unstructured.NestedMap(patch, "patch", "value")
-		if patchValue == nil {
-			continue
-		}
-		name, found, _ := unstructured.NestedString(patchValue, "name")
-		if found && name != "" {
-			filterNames = append(filterNames, name)
-		}
-	}
-
-	luaRedirectIndex, extAuthzIndex := -1, -1
-	for i, name := range filterNames {
-		if name == "envoy.filters.http.lua.redirect" {
-			luaRedirectIndex = i
-		}
-		if name == "envoy.filters.http.ext_authz" {
-			extAuthzIndex = i
-		}
-	}
-	g.Expect(luaRedirectIndex).NotTo(Equal(-1), "lua redirect filter not found")
-	g.Expect(extAuthzIndex).NotTo(Equal(-1), "ext_authz filter not found")
-	g.Expect(luaRedirectIndex).To(BeNumerically("<", extAuthzIndex),
-		"Legacy redirect filter must be FIRST (before ext_authz) to redirect legacy hostnames before auth processing")
 }
 
 // RunSpecMutationCookieConfigTest updates the Cookie spec and validates that Deployment args are updated accordingly.
@@ -1409,24 +1337,26 @@ func RunOCPRouteCreationTest(t *testing.T, setup TestSetup, expectedHostname str
 	g.Expect(route.Spec.TLS.InsecureEdgeTerminationPolicy).To(Equal(routev1.InsecureEdgeTerminationPolicyRedirect))
 }
 
-// RunLegacyRedirectRouteCreationTest verifies the legacy redirect OCP Route is created with expected host.
+// RunLegacyRedirectRouteCreationTest verifies the legacy redirect Route is created in the dashboard redirect
+// namespace (opendatahub) with the expected host. Nginx handles the redirect to the current gateway URL.
 func RunLegacyRedirectRouteCreationTest(t *testing.T, setup TestSetup, expectedLegacyHost string) {
 	g := NewWithT(t)
 	defer setup.Setup(t)()
 
-	legacyRouteName := gateway.DefaultGatewayName + "-legacy-redirect"
+	legacyRouteName := gateway.LegacyGatewaySubdomain
+	legacyRouteNamespace := cluster.GetApplicationNamespace()
 	g.Eventually(func() error {
 		route := &routev1.Route{}
 		return setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      legacyRouteName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: legacyRouteNamespace,
 		}, route)
 	}, TestTimeout, TestInterval).Should(Succeed())
 
 	route := &routev1.Route{}
 	g.Expect(setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 		Name:      legacyRouteName,
-		Namespace: gateway.GatewayNamespace,
+		Namespace: legacyRouteNamespace,
 	}, route)).To(Succeed())
 	assertOwnedByGatewayConfig(g, route)
 	g.Expect(route.Spec.Host).To(Equal(expectedLegacyHost))
@@ -1446,13 +1376,14 @@ func RunLegacyRouteRemovedWhenSubdomainChangesToLegacyTest(t *testing.T, setup T
 	CreateGatewayConfig(t, setup.TC.Ctx, setup.TC.K8sClient, spec)
 	defer DeleteGatewayConfig(t, setup.TC.Ctx, setup.TC.K8sClient)
 
-	legacyRouteName := gateway.DefaultGatewayName + "-legacy-redirect"
+	legacyRouteName := gateway.LegacyGatewaySubdomain
+	legacyRouteNamespace := cluster.GetApplicationNamespace()
 
 	g.Eventually(func() bool {
 		route := &routev1.Route{}
 		err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
 			Name:      legacyRouteName,
-			Namespace: gateway.GatewayNamespace,
+			Namespace: legacyRouteNamespace,
 		}, route)
 		return k8serr.IsNotFound(err)
 	}, TestTimeout, TestInterval).Should(BeTrue(),
@@ -1555,6 +1486,7 @@ func RunNginxDashboardRedirectCreationTest(t *testing.T, setup TestSetup) {
 	g.Expect(cm.Data).To(HaveKey("redirect.conf"))
 	redirectConf := cm.Data["redirect.conf"]
 	g.Expect(redirectConf).To(ContainSubstring("location /"))
+	g.Expect(redirectConf).To(ContainSubstring("add_header Cache-Control \"no-store, no-cache, must-revalidate\""))
 	g.Expect(redirectConf).To(ContainSubstring("return 301"))
 	g.Expect(redirectConf).To(ContainSubstring("$request_uri"))
 	gatewayHost, err := gateway.GetGatewayDomain(setup.TC.Ctx, setup.TC.K8sClient)
@@ -1573,6 +1505,12 @@ func RunNginxDashboardRedirectCreationTest(t *testing.T, setup TestSetup) {
 	g.Expect(dep.Spec.Selector.MatchLabels).To(HaveKeyWithValue("app", gateway.DashboardRedirectName))
 	g.Expect(dep.Spec.Template.Spec.Containers).NotTo(BeEmpty())
 	g.Expect(dep.Spec.Template.Spec.Containers[0].Image).NotTo(BeEmpty())
+	g.Expect(dep.Spec.Template.Annotations).To(HaveKey(redirectConfigHashAnnotation))
+	actualHash := dep.Spec.Template.Annotations[redirectConfigHashAnnotation]
+	g.Expect(actualHash).To(MatchRegexp("^[0-9a-f]{64}$"))
+	expectedHash := gateway.CalculateRedirectConfigHash(gatewayHost)
+	g.Expect(actualHash).To(Equal(expectedHash),
+		"redirect-config-hash must reflect gateway hostname to ensure rollout on subdomain/domain change")
 
 	// Service
 	var svc corev1.Service

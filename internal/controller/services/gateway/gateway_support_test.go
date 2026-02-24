@@ -16,6 +16,27 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+// Test constants for domain, hostname, and auth values used across multiple tests.
+const (
+	testDomain                    = "apps.example.com"
+	testHostnameDefault           = "rh-ai.apps.example.com"
+	testHostnameLegacy            = "data-science-gateway.apps.example.com"
+	testHostnameCustom            = "abc.apps.example.com"
+	testHostnameCustomSubdomain   = "custom.apps.example.com"
+	testSubdomainCustom           = "custom"
+	testSubdomainMyGateway        = "my-gateway"
+	testGatewayName               = "test-gateway"
+	testAuthClientID              = "client-id"
+	testAuthClientSecret          = "client-secret"
+	testAuthCookieSecret          = "cookie-secret"
+	testAuthClientIDDifferent     = "different-client-id"
+	testAuthClientSecretDifferent = "different-client-secret"
+	testAuthCookieSecretDifferent = "different-cookie-secret"
+	testCookieExpireDefault       = "24h0m0s"
+	testCookieRefreshDefault      = "1h0m0s"
+	testAuthTimeoutDefault        = "5s"
+)
+
 // TestGetCertificateType tests the getCertificateType helper function.
 func TestGetCertificateType(t *testing.T) {
 	t.Parallel()
@@ -37,7 +58,7 @@ func TestGetCertificateType(t *testing.T) {
 			name: "returns default when certificate is nil",
 			gatewayConfig: &serviceApi.GatewayConfig{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-gateway",
+					Name: testGatewayName,
 				},
 				Spec: serviceApi.GatewayConfigSpec{},
 			},
@@ -48,7 +69,7 @@ func TestGetCertificateType(t *testing.T) {
 			name: "returns certificate type when specified",
 			gatewayConfig: &serviceApi.GatewayConfig{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-gateway",
+					Name: testGatewayName,
 				},
 				Spec: serviceApi.GatewayConfigSpec{
 					Certificate: &infrav1.CertificateSpec{
@@ -63,7 +84,7 @@ func TestGetCertificateType(t *testing.T) {
 			name: "returns provided certificate type",
 			gatewayConfig: &serviceApi.GatewayConfig{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-gateway",
+					Name: testGatewayName,
 				},
 				Spec: serviceApi.GatewayConfigSpec{
 					Certificate: &infrav1.CertificateSpec{
@@ -79,7 +100,7 @@ func TestGetCertificateType(t *testing.T) {
 			name: "empty certificate type defaults to OpenshiftDefaultIngress",
 			gatewayConfig: &serviceApi.GatewayConfig{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-gateway",
+					Name: testGatewayName,
 				},
 				Spec: serviceApi.GatewayConfigSpec{
 					Certificate: &infrav1.CertificateSpec{
@@ -115,7 +136,7 @@ func TestGetGatewayAuthProxyTimeout(t *testing.T) {
 		{
 			name:            "returns default when gatewayConfig is nil",
 			gatewayConfig:   nil,
-			expectedTimeout: "5s",
+			expectedTimeout: testAuthTimeoutDefault,
 			description:     "should return default 5s when gatewayConfig is nil",
 		},
 		{
@@ -123,7 +144,7 @@ func TestGetGatewayAuthProxyTimeout(t *testing.T) {
 			gatewayConfig: &serviceApi.GatewayConfig{
 				Spec: serviceApi.GatewayConfigSpec{},
 			},
-			expectedTimeout: "5s",
+			expectedTimeout: testAuthTimeoutDefault,
 			description:     "should return default 5s when no timeout specified",
 		},
 		{
@@ -164,7 +185,7 @@ func TestGetGatewayAuthProxyTimeout(t *testing.T) {
 					AuthProxyTimeout: metav1.Duration{Duration: 0},
 				},
 			},
-			expectedTimeout: "5s",
+			expectedTimeout: testAuthTimeoutDefault,
 			description:     "should return default 5s when AuthProxyTimeout is zero duration",
 		},
 		{
@@ -175,7 +196,7 @@ func TestGetGatewayAuthProxyTimeout(t *testing.T) {
 					AuthProxyTimeout: metav1.Duration{Duration: 0},
 				},
 			},
-			expectedTimeout: "5s",
+			expectedTimeout: testAuthTimeoutDefault,
 			description:     "should return default 5s when both fields are empty/zero",
 		},
 	}
@@ -197,9 +218,9 @@ func TestCalculateAuthConfigHash(t *testing.T) {
 	// Create initial secret
 	secret1 := &corev1.Secret{
 		Data: map[string][]byte{
-			"OAUTH2_PROXY_CLIENT_ID":     []byte("client-id"),
-			"OAUTH2_PROXY_CLIENT_SECRET": []byte("client-secret"),
-			"OAUTH2_PROXY_COOKIE_SECRET": []byte("cookie-secret"),
+			"OAUTH2_PROXY_CLIENT_ID":     []byte(testAuthClientID),
+			"OAUTH2_PROXY_CLIENT_SECRET": []byte(testAuthClientSecret),
+			"OAUTH2_PROXY_COOKIE_SECRET": []byte(testAuthCookieSecret),
 		},
 	}
 	hash1 := calculateAuthConfigHash(secret1)
@@ -207,9 +228,9 @@ func TestCalculateAuthConfigHash(t *testing.T) {
 	// Change client ID
 	secret2 := &corev1.Secret{
 		Data: map[string][]byte{
-			"OAUTH2_PROXY_CLIENT_ID":     []byte("different-client-id"),
-			"OAUTH2_PROXY_CLIENT_SECRET": []byte("client-secret"),
-			"OAUTH2_PROXY_COOKIE_SECRET": []byte("cookie-secret"),
+			"OAUTH2_PROXY_CLIENT_ID":     []byte(testAuthClientIDDifferent),
+			"OAUTH2_PROXY_CLIENT_SECRET": []byte(testAuthClientSecret),
+			"OAUTH2_PROXY_COOKIE_SECRET": []byte(testAuthCookieSecret),
 		},
 	}
 	hash2 := calculateAuthConfigHash(secret2)
@@ -218,9 +239,9 @@ func TestCalculateAuthConfigHash(t *testing.T) {
 	// Change client secret
 	secret3 := &corev1.Secret{
 		Data: map[string][]byte{
-			"OAUTH2_PROXY_CLIENT_ID":     []byte("client-id"),
-			"OAUTH2_PROXY_CLIENT_SECRET": []byte("different-client-secret"),
-			"OAUTH2_PROXY_COOKIE_SECRET": []byte("cookie-secret"),
+			"OAUTH2_PROXY_CLIENT_ID":     []byte(testAuthClientID),
+			"OAUTH2_PROXY_CLIENT_SECRET": []byte(testAuthClientSecretDifferent),
+			"OAUTH2_PROXY_COOKIE_SECRET": []byte(testAuthCookieSecret),
 		},
 	}
 	hash3 := calculateAuthConfigHash(secret3)
@@ -229,9 +250,9 @@ func TestCalculateAuthConfigHash(t *testing.T) {
 	// Change cookie secret
 	secret4 := &corev1.Secret{
 		Data: map[string][]byte{
-			"OAUTH2_PROXY_CLIENT_ID":     []byte("client-id"),
-			"OAUTH2_PROXY_CLIENT_SECRET": []byte("client-secret"),
-			"OAUTH2_PROXY_COOKIE_SECRET": []byte("different-cookie-secret"),
+			"OAUTH2_PROXY_CLIENT_ID":     []byte(testAuthClientID),
+			"OAUTH2_PROXY_CLIENT_SECRET": []byte(testAuthClientSecret),
+			"OAUTH2_PROXY_COOKIE_SECRET": []byte(testAuthCookieSecretDifferent),
 		},
 	}
 	hash4 := calculateAuthConfigHash(secret4)
@@ -245,13 +266,29 @@ func TestCalculateAuthConfigHash(t *testing.T) {
 	// Verify same values produce same hash (deterministic)
 	secret5 := &corev1.Secret{
 		Data: map[string][]byte{
-			"OAUTH2_PROXY_CLIENT_ID":     []byte("client-id"),
-			"OAUTH2_PROXY_CLIENT_SECRET": []byte("client-secret"),
-			"OAUTH2_PROXY_COOKIE_SECRET": []byte("cookie-secret"),
+			"OAUTH2_PROXY_CLIENT_ID":     []byte(testAuthClientID),
+			"OAUTH2_PROXY_CLIENT_SECRET": []byte(testAuthClientSecret),
+			"OAUTH2_PROXY_COOKIE_SECRET": []byte(testAuthCookieSecret),
 		},
 	}
 	hash5 := calculateAuthConfigHash(secret5)
 	g.Expect(hash5).To(Equal(hash1), "same secret values should produce same hash")
+}
+
+// TestCalculateRedirectConfigHash tests the CalculateRedirectConfigHash function.
+func TestCalculateRedirectConfigHash(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	hash1 := CalculateRedirectConfigHash(testHostnameDefault)
+	g.Expect(hash1).To(MatchRegexp("^[0-9a-f]{64}$"), "hash should be 64 hex chars")
+	g.Expect(hash1).To(HaveLen(64))
+
+	hash2 := CalculateRedirectConfigHash(testHostnameCustom)
+	g.Expect(hash2).NotTo(Equal(hash1), "different hostnames should produce different hashes")
+
+	hash3 := CalculateRedirectConfigHash(testHostnameDefault)
+	g.Expect(hash3).To(Equal(hash1), "same hostname should produce same hash")
 }
 
 // TestIsGatewayReady tests the isGatewayReady helper function.
@@ -375,10 +412,10 @@ func TestGetFQDN(t *testing.T) {
 					Name: serviceApi.GatewayConfigName,
 				},
 				Spec: serviceApi.GatewayConfigSpec{
-					Domain: "apps.example.com",
+					Domain: testDomain,
 				},
 			},
-			expectedDomain: DefaultGatewaySubdomain + ".apps.example.com",
+			expectedDomain: DefaultGatewaySubdomain + "." + testDomain,
 			expectError:    false,
 			description:    "should use user-provided domain and prepend default gateway name",
 		},
@@ -389,11 +426,11 @@ func TestGetFQDN(t *testing.T) {
 					Name: serviceApi.GatewayConfigName,
 				},
 				Spec: serviceApi.GatewayConfigSpec{
-					Domain:    "apps.example.com",
-					Subdomain: "my-gateway",
+					Domain:    testDomain,
+					Subdomain: testSubdomainMyGateway,
 				},
 			},
-			expectedDomain: "my-gateway.apps.example.com",
+			expectedDomain: testSubdomainMyGateway + "." + testDomain,
 			expectError:    false,
 			description:    "should use custom subdomain with user-provided domain",
 		},
@@ -404,11 +441,11 @@ func TestGetFQDN(t *testing.T) {
 					Name: serviceApi.GatewayConfigName,
 				},
 				Spec: serviceApi.GatewayConfigSpec{
-					Domain:    "apps.example.com",
+					Domain:    testDomain,
 					Subdomain: "   ",
 				},
 			},
-			expectedDomain: DefaultGatewaySubdomain + ".apps.example.com",
+			expectedDomain: DefaultGatewaySubdomain + "." + testDomain,
 			expectError:    false,
 			description:    "should fall back to default when subdomain is whitespace",
 		},
@@ -454,8 +491,8 @@ func TestGetCookieSettings(t *testing.T) {
 		{
 			name:            "returns defaults when cookieConfig is nil",
 			cookieConfig:    nil,
-			expectedExpire:  "24h0m0s",
-			expectedRefresh: "1h0m0s",
+			expectedExpire:  testCookieExpireDefault,
+			expectedRefresh: testCookieRefreshDefault,
 			description:     "should return 24h and 1h when cookieConfig is nil",
 		},
 		{
@@ -464,8 +501,8 @@ func TestGetCookieSettings(t *testing.T) {
 				Expire:  metav1.Duration{Duration: 0},
 				Refresh: metav1.Duration{Duration: 0},
 			},
-			expectedExpire:  "24h0m0s",
-			expectedRefresh: "1h0m0s",
+			expectedExpire:  testCookieExpireDefault,
+			expectedRefresh: testCookieRefreshDefault,
 			description:     "should return defaults when durations are zero (handles cookie: {} case)",
 		},
 		{
@@ -485,7 +522,7 @@ func TestGetCookieSettings(t *testing.T) {
 				Refresh: metav1.Duration{Duration: 0},                      // default 1h
 			},
 			expectedExpire:  "72h0m0s",
-			expectedRefresh: "1h0m0s",
+			expectedRefresh: testCookieRefreshDefault,
 			description:     "should return custom expire and default refresh",
 		},
 	}
@@ -505,29 +542,25 @@ func TestComputeLegacyRedirectInfo(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	// Default subdomain enables legacy redirect with Lua-escaped pattern
-	info := computeLegacyRedirectInfo(nil, "rh-ai.apps.example.com")
-	g.Expect(info.CurrentSubdomain).To(Equal(DefaultGatewaySubdomain))
+	// Default subdomain enables legacy redirect
+	info := computeLegacyRedirectInfo(nil, testHostnameDefault)
 	g.Expect(info.LegacySubdomain).To(Equal(LegacyGatewaySubdomain))
-	g.Expect(info.LegacySubdomainPattern).To(Equal("data%-science%-gateway"))
-	g.Expect(info.LegacyHostname).To(Equal("data-science-gateway.apps.example.com"))
+	g.Expect(info.LegacyHostname).To(Equal(testHostnameLegacy))
 
 	// Legacy subdomain disables redirect (empty legacy fields)
 	legacyConfig := &serviceApi.GatewayConfig{
 		Spec: serviceApi.GatewayConfigSpec{Subdomain: LegacyGatewaySubdomain},
 	}
-	info = computeLegacyRedirectInfo(legacyConfig, "data-science-gateway.apps.example.com")
-	g.Expect(info.CurrentSubdomain).To(Equal(LegacyGatewaySubdomain))
+	info = computeLegacyRedirectInfo(legacyConfig, testHostnameLegacy)
 	g.Expect(info.LegacySubdomain).To(BeEmpty())
 	g.Expect(info.LegacyHostname).To(BeEmpty())
 
 	// Custom subdomain still enables redirect
 	customConfig := &serviceApi.GatewayConfig{
-		Spec: serviceApi.GatewayConfigSpec{Subdomain: "custom"},
+		Spec: serviceApi.GatewayConfigSpec{Subdomain: testSubdomainCustom},
 	}
-	info = computeLegacyRedirectInfo(customConfig, "custom.apps.example.com")
-	g.Expect(info.CurrentSubdomain).To(Equal("custom"))
-	g.Expect(info.LegacyHostname).To(Equal("data-science-gateway.apps.example.com"))
+	info = computeLegacyRedirectInfo(customConfig, testHostnameCustomSubdomain)
+	g.Expect(info.LegacyHostname).To(Equal(testHostnameLegacy))
 }
 
 // TestHPATemplateConstant tests that the HPA template constant is correctly defined.
