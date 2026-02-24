@@ -1477,6 +1477,7 @@ func RunNginxDashboardRedirectCreationTest(t *testing.T, setup TestSetup) {
 	g.Expect(cm.Data).To(HaveKey("redirect.conf"))
 	redirectConf := cm.Data["redirect.conf"]
 	g.Expect(redirectConf).To(ContainSubstring("location /"))
+	g.Expect(redirectConf).To(ContainSubstring("add_header Cache-Control \"no-store, no-cache, must-revalidate\""))
 	g.Expect(redirectConf).To(ContainSubstring("return 301"))
 	g.Expect(redirectConf).To(ContainSubstring("$request_uri"))
 	gatewayHost, err := gateway.GetGatewayDomain(setup.TC.Ctx, setup.TC.K8sClient)

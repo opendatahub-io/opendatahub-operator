@@ -6,7 +6,6 @@ package gateway
 import (
 	"testing"
 
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -30,7 +29,7 @@ const (
 	testAuthClientID              = "client-id"
 	testAuthClientSecret          = "client-secret"
 	testAuthCookieSecret          = "cookie-secret"
-	testAuthClientIDDifferent      = "different-client-id"
+	testAuthClientIDDifferent     = "different-client-id"
 	testAuthClientSecretDifferent = "different-client-secret"
 	testAuthCookieSecretDifferent = "different-cookie-secret"
 	testCookieExpireDefault       = "24h0m0s"
