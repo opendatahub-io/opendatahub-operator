@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
@@ -17,31 +16,20 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestDashboardRedirects(t *testing.T) {
-	testDashboardRedirects(t)
-}
-
-func testDashboardRedirects(t *testing.T) {
+func (tc *GatewayTestCtx) DashboardRedirectTestSuite(t *testing.T) {
 	t.Helper()
 
-	ctx, err := NewTestContext(t)
-	require.NoError(t, err)
-
-	gatewayCtx := &GatewayTestCtx{
-		TestContext: ctx,
-	}
-
 	// Skip all tests if not in OcpRoute mode
-	if !gatewayCtx.isOcpRouteMode(t) {
+	if !tc.isOcpRouteMode(t) {
 		t.Skip("Dashboard redirects are only created in OcpRoute ingress mode")
 	}
 
 	testCases := []TestCase{
-		{"Validate dashboard redirect ConfigMap", gatewayCtx.ValidateDashboardRedirectConfigMap},
-		{"Validate dashboard redirect Deployment", gatewayCtx.ValidateDashboardRedirectDeployment},
-		{"Validate dashboard redirect Service", gatewayCtx.ValidateDashboardRedirectService},
-		{"Validate dashboard redirect Routes", gatewayCtx.ValidateDashboardRedirectRoutes},
-		{"Validate dashboard redirect HTTP functionality", gatewayCtx.ValidateDashboardRedirectHTTP},
+		{"ConfigMap", tc.ValidateDashboardRedirectConfigMap},
+		{"Deployment", tc.ValidateDashboardRedirectDeployment},
+		{"Service", tc.ValidateDashboardRedirectService},
+		{"Routes", tc.ValidateDashboardRedirectRoutes},
+		{"HTTP functionality", tc.ValidateDashboardRedirectHTTP},
 	}
 
 	RunTestCases(t, testCases)
@@ -143,7 +131,7 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectDeployment(t *testing.T) {
 			// Security context
 			jq.Match(`.spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation == false`),
 			jq.Match(`.spec.template.spec.containers[0].securityContext.runAsNonRoot == true`),
-			jq.Match(`.spec.template.spec.containers[0].securityContext.capabilities.drop[] | select(. == "ALL")`),
+			jq.Match(`.spec.template.spec.containers[0].securityContext.capabilities.drop | any(. == "ALL")`),
 			jq.Match(`.spec.template.spec.containers[0].securityContext.seccompProfile.type == "RuntimeDefault"`),
 		)),
 		WithCustomErrorMsg("dashboard-redirect Deployment should exist with correct nginx S2I configuration"),
