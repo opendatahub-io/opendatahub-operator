@@ -1,4 +1,4 @@
-{{- if .LegacySubdomain }}
+{{- if .LegacyHostname }}
 apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
@@ -10,6 +10,7 @@ metadata:
   annotations:
     haproxy.router.openshift.io/hsts_header: max-age=31536000;includeSubDomains;preload
 spec:
+  host: {{.LegacyHostname}}
   to:
     kind: Service
     name: {{.DashboardRedirectName}}

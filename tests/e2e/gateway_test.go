@@ -475,41 +475,33 @@ func (tc *GatewayTestCtx) ValidateEnvoyFilter(t *testing.T) {
 			// workload selector
 			jq.Match(`.spec.workloadSelector.labels."%s" == "%s"`, labels.GatewayAPI.GatewayName, gatewayName),
 
-			jq.Match(`.spec.configPatches | length == 3`),
+			jq.Match(`.spec.configPatches | length == 2`),
 
-			// Patch 0: Legacy subdomain redirect (data-science-gateway -> rh-ai)
+			// Patch 0: ext_authz
 			jq.Match(`.spec.configPatches[0].applyTo == "HTTP_FILTER"`),
 			jq.Match(`.spec.configPatches[0].match.context == "GATEWAY"`),
 			jq.Match(`.spec.configPatches[0].patch.operation == "INSERT_BEFORE"`),
-			jq.Match(`.spec.configPatches[0].patch.value.name == "envoy.filters.http.lua.redirect"`),
-			// Note: Lua pattern uses %-escaped dashes, so we check for the redirect status and target subdomain
-			jq.Match(`.spec.configPatches[0].patch.value.typed_config.inline_code | contains("301")`),
-			jq.Match(`.spec.configPatches[0].patch.value.typed_config.inline_code | contains("%s.")`, gatewaySubdomain),
-
-			// Patch 1: ext_authz
-			jq.Match(`.spec.configPatches[1].applyTo == "HTTP_FILTER"`),
-			jq.Match(`.spec.configPatches[1].match.context == "GATEWAY"`),
-			jq.Match(`.spec.configPatches[1].patch.operation == "INSERT_BEFORE"`),
-			jq.Match(`.spec.configPatches[1].patch.value.name == "envoy.filters.http.ext_authz"`),
+			jq.Match(`.spec.configPatches[0].patch.value.name == "envoy.filters.http.ext_authz"`),
 
 			// ext_authz config - uses Istio's EDS cluster for better load balancing across all pods
-			jq.Match(`.spec.configPatches[1].patch.value.typed_config.http_service.server_uri.cluster == "%s"`, istioEDSClusterName),
-			jq.Match(`.spec.configPatches[1].patch.value.typed_config.http_service.server_uri.timeout == "5s"`),
-			jq.Match(`.spec.configPatches[1].patch.value.typed_config.http_service.server_uri.uri == "%s"`, authProxyURI),
+			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.server_uri.cluster == "%s"`, istioEDSClusterName),
+			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.server_uri.timeout == "5s"`),
+			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.server_uri.uri == "%s"`, authProxyURI),
 
 			// ext_authz allowed headers
-			jq.Match(`.spec.configPatches[1].patch.value.typed_config.http_service.authorization_request.allowed_headers.patterns[0].exact == "cookie"`),
-			jq.Match(`.spec.configPatches[1].patch.value.typed_config.http_service.authorization_response.allowed_client_headers.patterns[0].exact == "set-cookie"`),
-			jq.Match(`.spec.configPatches[1].patch.value.typed_config.http_service.authorization_response.allowed_upstream_headers.patterns | any(.exact == "x-auth-request-user")`),
-			jq.Match(`.spec.configPatches[1].patch.value.typed_config.http_service.authorization_response.allowed_upstream_headers.patterns | any(.exact == "x-auth-request-email")`),
-			jq.Match(`.spec.configPatches[1].patch.value.typed_config.http_service.authorization_response.allowed_upstream_headers.patterns | any(.exact == "x-auth-request-access-token")`),
+			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.authorization_request.allowed_headers.patterns[0].exact == "cookie"`),
+			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.authorization_response.allowed_client_headers.patterns[0].exact == "set-cookie"`),
+			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.authorization_response.allowed_upstream_headers.patterns | any(.exact == "x-auth-request-user")`),
+			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.authorization_response.allowed_upstream_headers.patterns | any(.exact == "x-auth-request-email")`),
+			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.authorization_response.allowed_upstream_headers.patterns | any(.exact == "x-auth-request-access-token")`),
 
-			// Patch 2: Lua filter token forwarding
-			jq.Match(`.spec.configPatches[2].applyTo == "HTTP_FILTER"`),
-			jq.Match(`.spec.configPatches[2].patch.value.name == "envoy.lua"`),
-			jq.Match(`.spec.configPatches[2].patch.value.typed_config.inline_code | contains("x-auth-request-access-token")`),
-			jq.Match(`.spec.configPatches[2].patch.value.typed_config.inline_code | contains("Bearer")`),
-			jq.Match(`.spec.configPatches[2].patch.value.typed_config.inline_code | contains("authorization")`),
+			// Patch 1: Lua filter token forwarding
+			jq.Match(`.spec.configPatches[1].applyTo == "HTTP_FILTER"`),
+			jq.Match(`.spec.configPatches[1].patch.value.name == "envoy.filters.http.lua"`),
+			jq.Match(`.spec.configPatches[1].patch.value.typed_config.inline_code | contains("x-auth-request-access-token")`),
+			jq.Match(`.spec.configPatches[1].patch.value.typed_config.inline_code | contains("x-forwarded-access-token")`),
+			jq.Match(`.spec.configPatches[1].patch.value.typed_config.inline_code | contains("Bearer")`),
+			jq.Match(`.spec.configPatches[1].patch.value.typed_config.inline_code | contains("authorization")`),
 		)),
 		WithCustomErrorMsg("EnvoyFilter should be properly configured for authentication"),
 	)
