@@ -17,6 +17,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelcontroller"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -134,11 +135,13 @@ func (tc *ComponentTestCtx) ValidateComponentDisabled(t *testing.T) {
 	tc.EnsureResourcesGone(WithMinimalObject(tc.GVK, tc.NamespacedName))
 }
 
-// ValidateOperandsOwnerReferences ensures that all deployment resources have the correct owner references.
+// ValidateOperandsOwnerReferences ensures that all deployment resources have the correct owner
+// references and the platform type annotation (correct overlay/params.env for the platform).
 func (tc *ComponentTestCtx) ValidateOperandsOwnerReferences(t *testing.T) {
 	t.Helper()
 
-	// Ensure that the Deployment resources exist with the proper owner references
+	// Ensure that the Deployment resources exist with the proper owner references and platform annotation
+	platform := tc.FetchPlatformRelease()
 	tc.EnsureResourcesExist(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
 		WithListOptions(
@@ -151,10 +154,13 @@ func (tc *ComponentTestCtx) ValidateOperandsOwnerReferences(t *testing.T) {
 		),
 		WithCondition(
 			HaveEach(
-				jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, tc.GVK.Kind),
+				And(
+					jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, tc.GVK.Kind),
+					jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformType, string(platform)),
+				),
 			),
 		),
-		WithCustomErrorMsg("Deployment resources with correct owner references should exist"),
+		WithCustomErrorMsg("Deployment resources with correct owner references and platform annotation"),
 	)
 }
 

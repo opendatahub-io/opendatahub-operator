@@ -3,8 +3,6 @@ package datasciencepipelines
 import (
 	"context"
 	"errors"
-	"fmt"
-	"strconv"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -17,10 +15,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
@@ -34,17 +30,7 @@ func (s *componentHandler) GetName() string {
 	return componentApi.DataSciencePipelinesComponentName
 }
 
-func (s *componentHandler) Init(_ common.Platform) error {
-	release := cluster.GetRelease()
-	clusterInfo := cluster.GetClusterInfo()
-	extraParams := map[string]string{
-		platformVersionParamsKey: release.Version.String(),
-		fipsEnabledParamsKey:     strconv.FormatBool(clusterInfo.FipsEnabled),
-	}
-	if err := deploy.ApplyParams(paramsPath, "params.env", imageParamMap, extraParams); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", paramsPath, err)
-	}
-
+func (s *componentHandler) Init(platform common.Platform) error {
 	return nil
 }
 

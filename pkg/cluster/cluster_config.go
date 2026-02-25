@@ -498,3 +498,16 @@ func IsIntegratedOAuth(ctx context.Context, cli client.Reader) (bool, error) {
 	}
 	return authMode == AuthModeIntegratedOAuth, nil
 }
+
+// OverlayName returns platform name.
+func OverlayName(platform common.Platform) string {
+	switch platform {
+	case SelfManagedRhoai, ManagedRhoai:
+		return "rhoai"
+	case OpenDataHub:
+		return "odh"
+	default:
+		logf.Log.Info("unexpected platform type, defaulting overlay to 'odh'", "platform", platform)
+		return "odh"
+	}
+}
