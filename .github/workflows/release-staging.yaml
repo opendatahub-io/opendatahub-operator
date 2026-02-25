@@ -144,5 +144,6 @@ jobs:
             "component": "opendatahub-operator",
             "pr_target_branch": "odh-${{ env.VERSION }}",
             "build_branch": "odh-${{ env.VERSION }}",
-            "version": "${{ env.VERSION }}"
+            "version": "${{ env.VERSION }}",
+            "build_type": "Release"
           }

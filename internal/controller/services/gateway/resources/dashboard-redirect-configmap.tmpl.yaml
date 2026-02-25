@@ -9,5 +9,6 @@ metadata:
 data:
   redirect.conf: |
     location / {
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
         return 301 https://{{.GatewayHostname}}$request_uri;
     }
