@@ -375,9 +375,10 @@ func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorConfigurations(t *tes
 	t.Helper()
 
 	testCases := []struct {
-		name       string
-		transforms []testf.TransformFn
-		validation gTypes.GomegaMatcher
+		name                string
+		transforms          []testf.TransformFn
+		monitoringCondition gTypes.GomegaMatcher
+		validation          gTypes.GomegaMatcher
 	}{
 		{
 			name: "Basic Traces Configuration",
@@ -385,7 +386,8 @@ func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorConfigurations(t *tes
 				withManagementState(operatorv1.Managed),
 				withMonitoringTraces(TracesStorageBackendPV, "", "", DefaultRetention),
 			},
-			validation: jq.Match(`.spec.config.service.pipelines | has("traces")`),
+			monitoringCondition: jq.Match(`.spec.traces != null`),
+			validation:          jq.Match(`.spec.config.service.pipelines | has("traces")`),
 		},
 		{
 			name: "Trace Ingestion always uses TLS via gateway",
@@ -393,6 +395,7 @@ func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorConfigurations(t *tes
 				withManagementState(operatorv1.Managed),
 				withMonitoringTraces(TracesStorageBackendPV, "", "", DefaultRetention),
 			},
+			monitoringCondition: jq.Match(`.spec.traces != null`),
 			validation: jq.Match(`
 				(.spec.config.exporters."otlp/tempo".tls.ca_file == "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt") and
 				(.spec.config.exporters."otlp/tempo".auth.authenticator == "bearertokenauth")
@@ -405,6 +408,7 @@ func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorConfigurations(t *tes
 				tc.withMetricsConfig(),
 				withCustomMetricsExporters(),
 			},
+			monitoringCondition: jq.Match(`.spec.metrics != null`),
 			validation: jq.Match(`
 				(.spec.config.exporters | has("prometheus") and has("debug") and has("%s")) and
 				(.spec.config.service.pipelines.metrics.exporters | length == 3 and contains(["prometheus", "debug", "%s"]))
@@ -417,6 +421,7 @@ func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorConfigurations(t *tes
 				withMonitoringTraces(TracesStorageBackendPV, "", "", ""),
 				withCustomTracesExporters(),
 			},
+			monitoringCondition: jq.Match(`.spec.traces != null`),
 			validation: jq.Match(`
 					(.spec.config.exporters | has("debug") and has("%s") and has("%s")) and
 					(.spec.config.service.pipelines.traces.exporters | contains(["debug", "%s", "%s"]))
@@ -431,11 +436,19 @@ func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorConfigurations(t *tes
 			// Setup configuration first
 			tc.updateMonitoringConfig(testCase.transforms...)
 
-			// Wait for the monitoring service to process the configuration
+			// Wait for the monitoring service to process the configuration.
+			// The monitoringCondition ensures the Monitoring CR spec reflects the
+			// current config (e.g. traces/metrics present), preventing stale Ready
+			// status from a previous reconciliation from satisfying this check.
+			monitoringReadyCondition := And(
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+				testCase.monitoringCondition,
+			)
+
 			tc.EnsureResourceExists(
 				WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
-				WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue)),
-				WithCustomErrorMsg("Monitoring service should be ready before validating OpenTelemetry Collector"),
+				WithCondition(monitoringReadyCondition),
+				WithCustomErrorMsg("Monitoring service should be ready with expected configuration before validating OpenTelemetry Collector"),
 			)
 
 			// Ensure OpenTelemetry Collector is ready after configuration is applied
