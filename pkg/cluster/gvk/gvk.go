@@ -722,4 +722,16 @@ var (
 		Version: "v1",
 		Kind:    "ClusterIssuer",
 	}
+
+	AzureKubernetesEngine = schema.GroupVersionKind{
+		Group:   "infrastructure.opendatahub.io",
+		Version: "v1alpha1",
+		Kind:    "AzureKubernetesEngine",
+	}
+
+	CoreWeaveKubernetesEngine = schema.GroupVersionKind{
+		Group:   "infrastructure.opendatahub.io",
+		Version: "v1alpha1",
+		Kind:    "CoreWeaveKubernetesEngine",
+	}
 )

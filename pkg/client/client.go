@@ -146,15 +146,11 @@ func (c *Client) DeleteAllOf(ctx context.Context, obj client.Object, opts ...cli
 }
 
 // Status returns a client for the status subresource.
-//
-//nolint:ireturn // Required by client.Client interface
 func (c *Client) Status() client.SubResourceWriter {
 	return c.inner.Status()
 }
 
 // SubResource returns a client for the named subresource.
-//
-//nolint:ireturn // Required by client.Client interface
 func (c *Client) SubResource(subResource string) client.SubResourceClient {
 	return c.inner.SubResource(subResource)
 }
@@ -165,8 +161,6 @@ func (c *Client) Scheme() *runtime.Scheme {
 }
 
 // RESTMapper returns the REST mapper this client is using.
-//
-//nolint:ireturn // Required by client.Client interface
 func (c *Client) RESTMapper() meta.RESTMapper {
 	return c.inner.RESTMapper()
 }
