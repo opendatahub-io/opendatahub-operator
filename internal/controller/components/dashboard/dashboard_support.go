@@ -38,6 +38,12 @@ var (
 		cluster.OpenDataHub:      "/odh",
 	}
 
+	observabilitySourcePaths = map[common.Platform]string{
+		cluster.SelfManagedRhoai: "observability/rhoai",
+		cluster.ManagedRhoai:     "observability/rhoai",
+		cluster.OpenDataHub:      "observability/odh",
+	}
+
 	imagesMap = map[string]string{
 		"odh-dashboard-image":     "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
 		"model-registry-ui-image": "RELATED_IMAGE_ODH_MOD_ARCH_MODEL_REGISTRY_IMAGE",
@@ -67,11 +73,11 @@ func bffManifestsPath() odhtypes.ManifestInfo {
 	}
 }
 
-func observabilityManifestInfo() odhtypes.ManifestInfo {
+func observabilityManifestInfo(platform common.Platform) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
 		Path:       odhdeploy.DefaultManifestPath,
 		ContextDir: ComponentName,
-		SourcePath: "observability",
+		SourcePath: observabilitySourcePaths[platform],
 	}
 }
 
