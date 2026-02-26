@@ -24,6 +24,7 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -67,6 +68,8 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&routev1.Route{}).
 		Owns(&gwapiv1.HTTPRoute{}).
 		Owns(&consolev1.ConsoleLink{}).
+		// NetworkPolicy for cross-namespace communication (e.g., dashboard to perses)
+		Owns(&networkingv1.NetworkPolicy{}).
 		// Those APIs are provided by the component itself hence they should
 		// be watched dynamically
 		OwnsGVK(gvk.DashboardAcceleratorProfile, reconciler.Dynamic(reconciler.CrdExists(gvk.DashboardAcceleratorProfile))).
