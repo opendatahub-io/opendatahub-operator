@@ -17,20 +17,24 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
+	apicommon "github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // Check that the component implements common.PlatformObject.
-var _ common.PlatformObject = (*AzureKubernetesEngine)(nil)
+var _ apicommon.PlatformObject = (*AzureKubernetesEngine)(nil)
 
 // AzureKubernetesEngineSpec defines the desired state of AzureKubernetesEngine.
 type AzureKubernetesEngineSpec struct {
+	// Dependencies defines the dependency configurations for the Azure Kubernetes Engine.
+	// +optional
+	Dependencies common.Dependencies `json:"dependencies,omitempty"`
 }
 
 // AzureKubernetesEngineStatus defines the observed state of AzureKubernetesEngine.
 type AzureKubernetesEngineStatus struct {
-	common.Status `json:",inline"`
+	apicommon.Status `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
@@ -56,15 +60,15 @@ type AzureKubernetesEngineList struct {
 	Items           []AzureKubernetesEngine `json:"items"`
 }
 
-func (s *AzureKubernetesEngine) GetConditions() []common.Condition {
+func (s *AzureKubernetesEngine) GetConditions() []apicommon.Condition {
 	return s.Status.GetConditions()
 }
 
-func (s *AzureKubernetesEngine) GetStatus() *common.Status {
+func (s *AzureKubernetesEngine) GetStatus() *apicommon.Status {
 	return &s.Status.Status
 }
 
-func (c *AzureKubernetesEngine) SetConditions(conditions []common.Condition) {
+func (c *AzureKubernetesEngine) SetConditions(conditions []apicommon.Condition) {
 	c.Status.SetConditions(conditions)
 }
 
