@@ -25,7 +25,7 @@ spec:
   - name: output-image
     value: quay.io/opendatahub/opendatahub-operator:v2.31.0
   - name: dockerfile
-    value: Dockerfiles/Dockerfile
+    value: Dockerfiles/Dockerfile.odh
   - name: rebuild
     value: true
   pipelineSpec:
