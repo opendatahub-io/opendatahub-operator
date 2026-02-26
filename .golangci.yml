@@ -93,6 +93,9 @@ linters:
         - predicate.Predicate
         - client.Object
         - client.Client
+        - client.SubResourceClient
+        - client.SubResourceWriter
+        - meta.RESTMapper
         - common.PlatformObject
         - types.AsyncAssertion
         - kubernetes.Interface

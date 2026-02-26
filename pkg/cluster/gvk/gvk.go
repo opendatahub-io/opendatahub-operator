@@ -704,4 +704,16 @@ var (
 		Version: corev1.SchemeGroupVersion.Version,
 		Kind:    "PersistentVolumeClaim",
 	}
+
+	AzureKubernetesEngine = schema.GroupVersionKind{
+		Group:   "infrastructure.opendatahub.io",
+		Version: "v1alpha1",
+		Kind:    "AzureKubernetesEngine",
+	}
+
+	CoreWeaveKubernetesEngine = schema.GroupVersionKind{
+		Group:   "infrastructure.opendatahub.io",
+		Version: "v1alpha1",
+		Kind:    "CoreWeaveKubernetesEngine",
+	}
 )
