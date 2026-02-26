@@ -17,20 +17,24 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
+	apicommon "github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // Check that the component implements common.PlatformObject.
-var _ common.PlatformObject = (*CoreWeaveKubernetesEngine)(nil)
+var _ apicommon.PlatformObject = (*CoreWeaveKubernetesEngine)(nil)
 
 // CoreWeaveKubernetesEngineSpec defines the desired state of CoreWeaveKubernetesEngine.
 type CoreWeaveKubernetesEngineSpec struct {
+	// Dependencies defines the dependency configurations for the CoreWeave Kubernetes Engine.
+	// +optional
+	Dependencies common.Dependencies `json:"dependencies,omitempty"`
 }
 
 // CoreWeaveKubernetesEngineStatus defines the observed state of CoreWeaveKubernetesEngine.
 type CoreWeaveKubernetesEngineStatus struct {
-	common.Status `json:",inline"`
+	apicommon.Status `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
@@ -56,15 +60,15 @@ type CoreWeaveKubernetesEngineList struct {
 	Items           []CoreWeaveKubernetesEngine `json:"items"`
 }
 
-func (s *CoreWeaveKubernetesEngine) GetConditions() []common.Condition {
+func (s *CoreWeaveKubernetesEngine) GetConditions() []apicommon.Condition {
 	return s.Status.GetConditions()
 }
 
-func (s *CoreWeaveKubernetesEngine) GetStatus() *common.Status {
+func (s *CoreWeaveKubernetesEngine) GetStatus() *apicommon.Status {
 	return &s.Status.Status
 }
 
-func (c *CoreWeaveKubernetesEngine) SetConditions(conditions []common.Condition) {
+func (c *CoreWeaveKubernetesEngine) SetConditions(conditions []apicommon.Condition) {
 	c.Status.SetConditions(conditions)
 }
 
