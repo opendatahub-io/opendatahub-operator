@@ -1,5 +1,29 @@
 const { getLatestCommitSha } = require('./manifest-utils');
 
+/**
+ * Convert image name to RELATED_IMAGE_* env var name using convention:
+ * - Uppercase
+ * - Replace hyphens with underscores
+ * - Prefix: RELATED_IMAGE_ODH_
+ * - Suffix: _IMAGE (unless already ends with _IMAGE)
+ *
+ * Examples:
+ *   kube-auth-proxy → RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
+ *   foo-image       → RELATED_IMAGE_ODH_FOO_IMAGE (no duplication)
+ */
+function imageNameToEnvVar(imageName) {
+    const normalized = imageName
+        .toUpperCase()
+        .replace(/[-]/g, '_');
+
+    // Avoid duplication if image name already ends with _IMAGE
+    if (normalized.endsWith('_IMAGE')) {
+        return `RELATED_IMAGE_ODH_${normalized}`;
+    }
+
+    return `RELATED_IMAGE_ODH_${normalized}_IMAGE`;
+}
+
 module.exports = async ({ github, core }) => {
     const { TRACKER_URL } = process.env
     console.log(`The tracker url is: ${TRACKER_URL}`)
@@ -24,57 +48,103 @@ module.exports = async ({ github, core }) => {
 
         for (const issue of result.data) {
             const issueCommentBody = issue.body_text;
-            if (!issueCommentBody.includes("#Release#")) {
-                continue;
+            const lines = issueCommentBody.split("\n");
+
+            // Process #Release# section if present
+            if (issueCommentBody.includes("#Release#")) {
+                const releaseIdx = lines.indexOf("#Release#");
+                const componentLines = lines.slice(releaseIdx + 1);
+
+                for (const component of componentLines) {
+                    if (!regex.test(component)) {
+                        continue;
+                    }
+
+                    const [componentName, branchOrTagUrl] = component.split("|");
+                    const splitArr = branchOrTagUrl.trim().split("/");
+
+                    let idx = null;
+                    if (splitArr.includes("tag")) {
+                        idx = splitArr.indexOf("tag");
+                    } else if (splitArr.includes("tree")) {
+                        idx = splitArr.indexOf("tree");
+                    }
+
+                    const branchName = splitArr.slice(idx + 1).join("/");
+                    const repoOrg = splitArr[3];
+                    const repoName = splitArr[4];
+                    const trimmedComponentName = componentName.trim();
+                    console.log(`Processing component: ${trimmedComponentName}`);
+
+                    const commitSha = await getLatestCommitSha(github, repoOrg, repoName, branchName);
+
+                    // Handle special case for notebook-controller
+                    if (trimmedComponentName === "workbenches/notebook-controller") {
+                        core.exportVariable("component_spec_odh-notebook-controller".toLowerCase(), branchName);
+                        core.exportVariable("component_spec_kf-notebook-controller".toLowerCase(), branchName);
+                        core.exportVariable("component_org_odh-notebook-controller".toLowerCase(), repoOrg);
+                        core.exportVariable("component_org_kf-notebook-controller".toLowerCase(), repoOrg);
+
+                        if (commitSha) {
+                            core.exportVariable("component_sha_odh-notebook-controller".toLowerCase(), commitSha);
+                            core.exportVariable("component_sha_kf-notebook-controller".toLowerCase(), commitSha);
+                        }
+                    } else {
+                        const normalizedName = trimmedComponentName.toLowerCase().replace(/\//g, '-');
+                        core.exportVariable("component_spec_" + normalizedName, branchName);
+                        core.exportVariable("component_org_" + normalizedName, repoOrg);
+
+                        if (commitSha) {
+                            core.exportVariable("component_sha_" + normalizedName, commitSha);
+                            console.log(`Set SHA for ${trimmedComponentName}: ${commitSha.substring(0, 8)}`);
+                        }
+                    }
+                }
             }
 
-            const lines = issueCommentBody.split("\n");
-            const releaseIdx = lines.indexOf("#Release#");
-            const componentLines = lines.slice(releaseIdx + 1);
+            // Process #Images# section if present (independent of #Release#)
+            if (issueCommentBody.includes("#Images#")) {
+                console.log("Found #Images# section in tracker comment");
 
-            for (const component of componentLines) {
-                if (!regex.test(component)) {
-                    continue;
-                }
+                const imagesIdx = lines.indexOf("#Images#");
+                const imageLines = lines.slice(imagesIdx + 1);
 
-                const [componentName, branchOrTagUrl] = component.split("|");
-                const splitArr = branchOrTagUrl.trim().split("/");
+                // Simpler regexes for each part
+                const imageNameRegex = /^[A-Za-z0-9\-_]+$/;
+                // Support both tag-based (:tag) and digest-based (@sha256:...) image references
+                const imageRefRegex = /^[a-z0-9.\-]+(?::[0-9]+)?\/[a-zA-Z0-9_.\-\/]+(?::[a-zA-Z0-9_.\-]+|@[a-z0-9]+:[a-f0-9]+)$/;
 
-                let idx = null;
-                if (splitArr.includes("tag")) {
-                    idx = splitArr.indexOf("tag");
-                } else if (splitArr.includes("tree")) {
-                    idx = splitArr.indexOf("tree");
-                }
+                for (const imageLine of imageLines) {
+                    let trimmedLine = imageLine.trim();
 
-                const branchName = splitArr.slice(idx + 1).join("/");
-                const repoOrg = splitArr[3];
-                const repoName = splitArr[4];
-                const trimmedComponentName = componentName.trim();
-                console.log(`Processing component: ${trimmedComponentName}`);
-
-                const commitSha = await getLatestCommitSha(github, repoOrg, repoName, branchName);
-
-                // Handle special case for notebook-controller
-                if (trimmedComponentName === "workbenches/notebook-controller") {
-                    core.exportVariable("component_spec_odh-notebook-controller".toLowerCase(), branchName);
-                    core.exportVariable("component_spec_kf-notebook-controller".toLowerCase(), branchName);
-                    core.exportVariable("component_org_odh-notebook-controller".toLowerCase(), repoOrg);
-                    core.exportVariable("component_org_kf-notebook-controller".toLowerCase(), repoOrg);
-
-                    if (commitSha) {
-                        core.exportVariable("component_sha_odh-notebook-controller".toLowerCase(), commitSha);
-                        core.exportVariable("component_sha_kf-notebook-controller".toLowerCase(), commitSha);
+                    // Skip empty lines
+                    if (trimmedLine === "") {
+                        continue;
                     }
-                } else {
-                    const normalizedName = trimmedComponentName.toLowerCase().replace(/\//g, '-');
-                    core.exportVariable("component_spec_" + normalizedName, branchName);
-                    core.exportVariable("component_org_" + normalizedName, repoOrg);
 
-                    if (commitSha) {
-                        core.exportVariable("component_sha_" + normalizedName, commitSha);
-                        console.log(`Set SHA for ${trimmedComponentName}: ${commitSha.substring(0, 8)}`);
+                    // Strip leading '- ' if present (GitHub markdown bullet format)
+                    if (trimmedLine.startsWith('- ')) {
+                        trimmedLine = trimmedLine.substring(2).trim();
                     }
+
+                    const parts = trimmedLine.split("|");
+                    if (parts.length !== 2) {
+                        continue;
+                    }
+
+                    const imageName = parts[0].trim();
+                    const imageReference = parts[1].trim();
+
+                    if (!imageNameRegex.test(imageName) || !imageRefRegex.test(imageReference)) {
+                        continue;
+                    }
+
+                    console.log(`Processing operator image: ${imageName} -> ${imageReference}`);
+
+                    const envVarName = imageNameToEnvVar(imageName);
+
+                    core.exportVariable(envVarName, imageReference);
+                    console.log(`  ✓ Exported ${envVarName}=${imageReference}`);
                 }
             }
         }

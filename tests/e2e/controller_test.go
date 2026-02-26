@@ -80,12 +80,14 @@ type TestContextConfig struct {
 	monitoringNamespace  string
 	deletionPolicy       DeletionPolicy
 
-	operatorControllerTest bool
-	operatorResilienceTest bool
-	webhookTest            bool
-	v2tov3upgradeTest      bool
-	hardwareProfileTest    bool
-	TestTimeouts           TestTimeouts
+	failFastWhenError        bool
+	cleanUpPreviousResources bool
+	operatorControllerTest   bool
+	operatorResilienceTest   bool
+	webhookTest              bool
+	v2tov3upgradeTest        bool
+	hardwareProfileTest      bool
+	TestTimeouts             TestTimeouts
 }
 
 // TestGroup defines the test groups.
@@ -133,16 +135,27 @@ var (
 				componentApi.FeastOperatorComponentName:        feastOperatorTestSuite,
 				componentApi.LlamaStackOperatorComponentName:   llamastackOperatorTestSuite,
 				componentApi.MLflowOperatorComponentName:       mlflowOperatorTestSuite,
+				componentApi.SparkOperatorComponentName:        sparkOperatorTestSuite,
 			},
 			{
 				// Kueue tests depends on Workbenches, so must not run with Workbenches tests in parallel
 				componentApi.KueueComponentName: kueueTestSuite,
-				// ModelController tests depends on KServe and ModelRegistry, so must not run with KServe, ModelRegistry or TrustyAI tests in parallel
+				// ModelController tests depends on KServe and ModelRegistry, so must not run with KServe, ModelRegistry, TrustyAI or ModelsAsService tests in parallel
 				componentApi.ModelControllerComponentName: modelControllerTestSuite,
 			},
 			{
-				// TrustyAI tests depends on KServe, so must not run with Kserve or ModelController tests in parallel
+				// TrustyAI tests depends on KServe, so must not run with Kserve, ModelController or ModelsAsService tests in parallel
 				componentApi.TrustyAIComponentName: trustyAITestSuite,
+			},
+			{
+				// ModelsAsService tests depends on KServe, so must not run with Kserve, ModelController or TrustyAI tests in parallel
+				componentApi.ModelsAsServiceComponentName: modelsAsServiceTestSuite,
+			},
+			{
+				// run external operator degraded monitoring tests isolated from other component tests
+				componentApi.KserveComponentName:  kserveDegradedMonitoringTestSuite,
+				componentApi.KueueComponentName:   kueueDegradedMonitoringTestSuite,
+				componentApi.TrainerComponentName: trainerDegradedMonitoringTestSuite,
 			},
 		},
 	}
@@ -284,20 +297,29 @@ func TestOdhOperator(t *testing.T) {
 
 	log.SetLogger(zap.New(zap.UseDevMode(true)))
 
-	// Remove any leftover resources from previous test runs before starting
-	CleanupPreviousTestResources(t)
+	// Remove any leftover resources from previous test runs before starting if the cleanup flag is enabled
+	if testOpts.cleanUpPreviousResources {
+		CleanupPreviousTestResources(t)
+		// Run DSCI/DSC management test suite
+		mustRun(t, "DSCInitialization and DataScienceCluster management E2E Tests", dscManagementTestSuite)
+	}
 
 	if testOpts.operatorControllerTest {
 		// individual test suites after the operator is running
 		mustRun(t, "Operator Manager E2E Tests", odhOperatorTestSuite)
 	}
 
-	// Run DSCI/DSC test suites
-	mustRun(t, "DSCInitialization and DataScienceCluster management E2E Tests", dscManagementTestSuite)
+	// Run DSCI/DSC test validation test suite
+	mustRun(t, "DSCInitialization and DataScienceCluster validation E2E Tests", dscValidationTestSuite)
 
 	// Run components and services test suites
 	mustRun(t, Components.String(), Components.Run)
 	mustRun(t, Services.String(), Services.Run)
+
+	// Run DSCI/DSC Webhook test suite
+	if testOpts.webhookTest {
+		mustRun(t, "DSCInitialization and DataScienceCluster Webhook E2E Tests", dscWebhookTestSuite)
+	}
 
 	// Run operator resilience test suites after functional tests
 	if testOpts.operatorResilienceTest {
@@ -381,6 +403,10 @@ func TestMain(m *testing.M) {
 		"Specify when to delete DataScienceCluster, DSCInitialization, and controllers. Options: always, on-failure, never.")
 	checkEnvVarBindingError(viper.BindEnv("deletion-policy", viper.GetEnvPrefix()+"_DELETION_POLICY"))
 
+	pflag.Bool("fail-fast-on-error", true, "fail fast on error")
+	checkEnvVarBindingError(viper.BindEnv("fail-fast-on-error", viper.GetEnvPrefix()+"_FAIL_FAST_ON_ERROR"))
+	pflag.Bool("clean-up-previous-resources", true, "clean up previous resources before running tests")
+	checkEnvVarBindingError(viper.BindEnv("clean-up-previous-resources", viper.GetEnvPrefix()+"_CLEAN_UP_PREVIOUS_RESOURCES"))
 	pflag.Bool("test-operator-controller", true, "run operator controller tests")
 	checkEnvVarBindingError(viper.BindEnv("test-operator-controller", viper.GetEnvPrefix()+"_OPERATOR_CONTROLLER"))
 	pflag.Bool("test-operator-resilience", true, "run operator resilience tests")
@@ -438,6 +464,8 @@ func TestMain(m *testing.M) {
 		fmt.Print(err.Error())
 		os.Exit(1)
 	}
+	testOpts.failFastWhenError = viper.GetBool("fail-fast-on-error")
+	testOpts.cleanUpPreviousResources = viper.GetBool("clean-up-previous-resources")
 	testOpts.operatorControllerTest = viper.GetBool("test-operator-controller")
 	testOpts.operatorResilienceTest = viper.GetBool("test-operator-resilience")
 	testOpts.v2tov3upgradeTest = viper.GetBool("test-operator-v2tov3upgrade")
@@ -487,12 +515,12 @@ func registerSchemes() {
 	}
 }
 
-// mustRun executes a test and stops execution if it fails.
+// mustRun executes a test.
 func mustRun(t *testing.T, name string, testFunc func(t *testing.T), opts ...TestCaseOpts) {
 	t.Helper()
 
-	// If the test already failed, skip running the next test
-	if t.Failed() {
+	// If the test already failed and fail-fast is enabled, skip running the next test
+	if t.Failed() && testOpts.failFastWhenError {
 		return
 	}
 

@@ -57,7 +57,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
+	crtlmanager "sigs.k8s.io/controller-runtime/pkg/manager"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -81,6 +81,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/initialinstall"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
@@ -94,7 +95,9 @@ import (
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/mlflowoperator"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelcontroller"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelsasservice"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ray"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/sparkoperator"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainer"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainingoperator"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trustyai"
@@ -231,6 +234,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
+	// This client does not use the cache.
 	setupClient, err := client.New(setupCfg, client.Options{Scheme: scheme})
 	if err != nil {
 		setupLog.Error(err, "error getting client for setup")
@@ -254,13 +258,6 @@ func main() { //nolint:funlen,maintidx,gocyclo
 
 	if err := initComponents(ctx, platform); err != nil {
 		setupLog.Error(err, "unable to init components")
-		os.Exit(1)
-	}
-
-	// get old release version before we create default DSCI CR
-	oldReleaseVersion, err := cluster.GetDeployedRelease(ctx, setupClient)
-	if err != nil {
-		setupLog.Error(err, "unable to get deployed release version")
 		os.Exit(1)
 	}
 
@@ -330,7 +327,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		},
 	}
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{ // single pod does not need to have LeaderElection
+	ctrlMgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{ // single pod does not need to have LeaderElection
 		Scheme:  scheme,
 		Metrics: ctrlmetrics.Options{BindAddress: oconfig.MetricsAddr},
 		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
@@ -374,6 +371,9 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
+	// Wrap the manager to return the wrapped client from GetClient()
+	mgr := manager.New(ctrlMgr)
+
 	// Register all webhooks using the helper
 	if err := webhook.RegisterAllWebhooks(mgr); err != nil {
 		setupLog.Error(err, "unable to register webhooks")
@@ -411,13 +411,15 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	if existDSCConfig && disableDSCConfig != "false" {
 		setupLog.Info("DSCI auto creation is disabled")
 	} else {
-		var createDefaultDSCIFunc manager.RunnableFunc = func(ctx context.Context) error {
+		createDefaultDSCIFunc := LeaderElectionRunnableFunc(func(ctx context.Context) error {
+			setupLog.Info("create default DSCI")
 			err := initialinstall.CreateDefaultDSCI(ctx, setupClient, platform, oconfig.MonitoringNamespace)
 			if err != nil {
 				setupLog.Error(err, "unable to create initial setup for the operator")
 			}
 			return err
-		}
+		})
+
 		err := mgr.Add(createDefaultDSCIFunc)
 		if err != nil {
 			setupLog.Error(err, "error scheduling DSCI creation")
@@ -427,13 +429,14 @@ func main() { //nolint:funlen,maintidx,gocyclo
 
 	// Create default DSC CR for managed RHOAI
 	if platform == cluster.ManagedRhoai {
-		var createDefaultDSCFunc manager.RunnableFunc = func(ctx context.Context) error {
+		createDefaultDSCFunc := LeaderElectionRunnableFunc(func(ctx context.Context) error {
+			setupLog.Info("create default DSC")
 			err := initialinstall.CreateDefaultDSC(ctx, setupClient)
 			if err != nil {
 				setupLog.Error(err, "unable to create default DSC CR by the operator")
 			}
 			return err
-		}
+		})
 		err := mgr.Add(createDefaultDSCFunc)
 		if err != nil {
 			setupLog.Error(err, "error scheduling DSC creation")
@@ -442,14 +445,16 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 
 	// Cleanup resources from previous v2 releases
-	var cleanExistingResourceFunc manager.RunnableFunc = func(ctx context.Context) error {
-		if err = upgrade.CleanupExistingResource(ctx, setupClient, platform, oldReleaseVersion); err != nil {
+	cleanup := LeaderElectionRunnableFunc(func(ctx context.Context) error {
+		setupLog.Info("run upgrade task")
+		if err := upgrade.CleanupExistingResource(ctx, setupClient); err != nil {
 			setupLog.Error(err, "unable to perform cleanup")
+			return err
 		}
-		return err
-	}
+		return nil
+	})
 
-	err = mgr.Add(cleanExistingResourceFunc)
+	err = mgr.Add(cleanup)
 	if err != nil {
 		setupLog.Error(err, "error remove deprecated resources from previous version")
 	}
@@ -468,6 +473,23 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+//nolint:ireturn
+func LeaderElectionRunnableFunc(fn crtlmanager.RunnableFunc) crtlmanager.Runnable {
+	return &LeaderElectionRunnableWrapper{Fn: fn}
+}
+
+type LeaderElectionRunnableWrapper struct {
+	Fn crtlmanager.RunnableFunc
+}
+
+func (l *LeaderElectionRunnableWrapper) Start(ctx context.Context) error {
+	return l.Fn(ctx)
+}
+
+func (l *LeaderElectionRunnableWrapper) NeedLeaderElection() bool {
+	return true
 }
 
 func getCommonCache(platform common.Platform) (map[string]cache.Config, error) {
@@ -517,7 +539,7 @@ func createODHGeneralCacheConfig(platform common.Platform) (map[string]cache.Con
 	return namespaceConfigs, nil
 }
 
-func CreateComponentReconcilers(ctx context.Context, mgr manager.Manager) error {
+func CreateComponentReconcilers(ctx context.Context, mgr *manager.Manager) error {
 	l := logf.FromContext(ctx)
 
 	return cr.ForEach(func(ch cr.ComponentHandler) error {
@@ -530,7 +552,7 @@ func CreateComponentReconcilers(ctx context.Context, mgr manager.Manager) error 
 	})
 }
 
-func CreateServiceReconcilers(ctx context.Context, mgr manager.Manager) error {
+func CreateServiceReconcilers(ctx context.Context, mgr *manager.Manager) error {
 	log := logf.FromContext(ctx)
 
 	return sr.ForEach(func(sh sr.ServiceHandler) error {

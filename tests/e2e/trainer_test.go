@@ -36,12 +36,30 @@ func trainerTestSuite(t *testing.T) {
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
-		{"Validate external operator degraded condition monitoring", componentCtx.ValidateExternalOperatorDegradedMonitoring},
 		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
 
 	// Run the test suite.
+	RunTestCases(t, testCases)
+}
+
+// trainerDegradedMonitoringTestSuite runs only the external operator degraded monitoring tests.
+func trainerDegradedMonitoringTestSuite(t *testing.T) {
+	t.Helper()
+
+	ct, err := NewComponentTestCtx(t, &componentApi.Trainer{})
+	require.NoError(t, err)
+
+	componentCtx := TrainerTestCtx{
+		ComponentTestCtx: ct,
+	}
+
+	testCases := []TestCase{
+		// we must enable the component first since this suite runs isolated from other component tests
+		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
+		{"Validate external operator degraded condition monitoring", componentCtx.ValidateExternalOperatorDegradedMonitoring},
+	}
 	RunTestCases(t, testCases)
 }
 

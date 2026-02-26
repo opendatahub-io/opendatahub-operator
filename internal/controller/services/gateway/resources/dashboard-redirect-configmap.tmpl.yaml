@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{.DashboardRedirectConfigName}}
+  namespace: {{.DashboardRedirectNamespace}}
+  labels:
+    app: {{.DashboardRedirectName}}
+    {{.PartOfLabelKey}}: {{.PartOfGatewayConfig}}
+data:
+  redirect.conf: |
+    location / {
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        return 301 https://{{.GatewayHostname}}$request_uri;
+    }

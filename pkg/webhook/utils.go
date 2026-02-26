@@ -25,6 +25,13 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
+// JSON Patch operation constants as defined in RFC 6902.
+const (
+	PatchOpAdd     = "add"
+	PatchOpRemove  = "remove"
+	PatchOpReplace = "replace"
+)
+
 // BaseServingConnectionWebhook provides common type for both isvc and llmisvc webhooks.
 type BaseServingConnectionWebhook struct {
 	APIReader client.Reader

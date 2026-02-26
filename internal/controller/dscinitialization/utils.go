@@ -204,7 +204,8 @@ func ReconcileDefaultNetworkPolicy(
 				From: createNetworkPolicyPeer(labels.CustomizedAppNamespace, labels.True)}, {
 				From: createNetworkPolicyPeer("network.openshift.io/policy-group", "ingress")}, {
 				From: createNetworkPolicyPeer("kubernetes.io/metadata.name", "openshift-host-network")}, {
-				From: createNetworkPolicyPeer("kubernetes.io/metadata.name", "openshift-monitoring")},
+				From: createNetworkPolicyPeer("kubernetes.io/metadata.name", "openshift-monitoring")}, {
+				From: createNetworkPolicyPeer("kubernetes.io/metadata.name", "openshift-cluster-observability-operator")},
 			},
 			PolicyTypes: []networkingv1.PolicyType{
 				networkingv1.PolicyTypeIngress,

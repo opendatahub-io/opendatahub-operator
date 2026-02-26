@@ -32,11 +32,13 @@ const (
 // Check that the component implements common.PlatformObject.
 var _ common.PlatformObject = (*ModelRegistry)(nil)
 
-// ModelRegistrySpec defines the desired state of ModelRegistry
+// ModelRegistrySpec defines the desired state of ModelRegistry (ModelRegistry CR only).
 type ModelRegistrySpec struct {
 	// model registry spec exposed to DSC api
 	ModelRegistryCommonSpec `json:",inline"`
-	//  model registry spec exposed only to internal api
+	// Gateway configuration for model registry ingress (synced from GatewayConfig by the DSC controller when creating the ModelRegistry CR).
+	// +optional
+	Gateway *common.GatewaySpec `json:"gateway,omitempty"`
 }
 
 // ModelRegistryCommonStatus defines the shared observed state of ModelRegistry

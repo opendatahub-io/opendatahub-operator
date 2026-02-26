@@ -104,6 +104,14 @@ type ResourceOptions struct {
 	InvalidValue string
 	// FieldName holds the name of the field being validated by the webhook
 	FieldName string
+
+	// Timeout configuration for Eventually/Consistently assertions (per-operation, not global).
+	// These values are applied to individual Eventually/Consistently calls without mutating
+	// the shared tc.g Gomega instance.
+	EventuallyTimeout           time.Duration
+	EventuallyPollingInterval   time.Duration
+	ConsistentlyDuration        time.Duration
+	ConsistentlyPollingInterval time.Duration
 }
 
 // ResourceOpts is a function type used to configure options for the ResourceOptions object.
@@ -129,22 +137,6 @@ func WithObjectToCreate(obj client.Object) ResourceOpts {
 		ro.GVK = obj.GetObjectKind().GroupVersionKind()
 		ro.NN = types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}
 		ro.ResourceID = resources.FormatNamespacedName(ro.NN)
-	}
-}
-
-// WithFetchedObject creates a ResourceOpts function that sets the ObjFn field of the ResourceOptions to
-// fetch an existing resource by its GroupVersionKind (GVK) and NamespacedName (NN). This is useful when
-// the resource already exists and needs to be updated or patched.
-func WithFetchedObject(gvk schema.GroupVersionKind, nn types.NamespacedName) ResourceOpts {
-	return func(ro *ResourceOptions) {
-		ro.ObjFn = func(tc *TestContext) *unstructured.Unstructured {
-			u, err := tc.g.Get(gvk, nn).Get()
-			tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to fetch resource %s", nn.Name)
-			return u
-		}
-		ro.NN = nn
-		ro.GVK = gvk
-		ro.ResourceID = resources.FormatNamespacedName(nn)
 	}
 }
 
@@ -290,31 +282,35 @@ func WithCustomErrorMsg(args ...interface{}) ResourceOpts {
 	}
 }
 
-// WithEventuallyTimeout sets the default timeout for Eventually assertions.
+// WithEventuallyTimeout sets the timeout for Eventually assertions for this specific operation.
+// Unlike the previous implementation, this does not mutate the shared tc.g Gomega instance.
 func WithEventuallyTimeout(value time.Duration) ResourceOpts {
 	return func(ro *ResourceOptions) {
-		ro.tc.g.SetDefaultEventuallyTimeout(value)
+		ro.EventuallyTimeout = value
 	}
 }
 
-// WithEventuallyPollingInterval sets the default polling interval for Eventually assertions.
+// WithEventuallyPollingInterval sets the polling interval for Eventually assertions for this specific operation.
+// Unlike the previous implementation, this does not mutate the shared tc.g Gomega instance.
 func WithEventuallyPollingInterval(value time.Duration) ResourceOpts {
 	return func(ro *ResourceOptions) {
-		ro.tc.g.SetDefaultEventuallyPollingInterval(value)
+		ro.EventuallyPollingInterval = value
 	}
 }
 
-// WithConsistentlyDuration sets the default duration for Consistently assertions.
+// WithConsistentlyDuration sets the duration for Consistently assertions for this specific operation.
+// Unlike the previous implementation, this does not mutate the shared tc.g Gomega instance.
 func WithConsistentlyDuration(value time.Duration) ResourceOpts {
 	return func(ro *ResourceOptions) {
-		ro.tc.g.SetDefaultConsistentlyDuration(value)
+		ro.ConsistentlyDuration = value
 	}
 }
 
-// WithConsistentlyPollingInterval creates a ResourceOpts function that sets the polling interval for Consistently assertions.
+// WithConsistentlyPollingInterval sets the polling interval for Consistently assertions for this specific operation.
+// Unlike the previous implementation, this does not mutate the shared tc.g Gomega instance.
 func WithConsistentlyPollingInterval(value time.Duration) ResourceOpts {
 	return func(ro *ResourceOptions) {
-		ro.tc.g.SetDefaultConsistentlyPollingInterval(value)
+		ro.ConsistentlyPollingInterval = value
 	}
 }
 
@@ -349,4 +345,28 @@ func WithNamespaceFilter(namespace string) ResourceOpts {
 	return func(ro *ResourceOptions) {
 		ro.DeleteAllOfOptions = append(ro.DeleteAllOfOptions, client.InNamespace(namespace))
 	}
+}
+
+// applyEventuallyTimeouts applies per-operation timeout and polling interval to an Eventually assertion.
+// This avoids mutating the shared tc.g Gomega instance.
+func (ro *ResourceOptions) applyEventuallyTimeouts(eventually gTypes.AsyncAssertion) gTypes.AsyncAssertion {
+	if ro.EventuallyTimeout > 0 {
+		eventually = eventually.WithTimeout(ro.EventuallyTimeout)
+	}
+	if ro.EventuallyPollingInterval > 0 {
+		eventually = eventually.WithPolling(ro.EventuallyPollingInterval)
+	}
+	return eventually
+}
+
+// applyConsistentlyTimeouts applies per-operation duration and polling interval to a Consistently assertion.
+// This avoids mutating the shared tc.g Gomega instance.
+func (ro *ResourceOptions) applyConsistentlyTimeouts(consistently gTypes.AsyncAssertion) gTypes.AsyncAssertion {
+	if ro.ConsistentlyDuration > 0 {
+		consistently = consistently.WithTimeout(ro.ConsistentlyDuration)
+	}
+	if ro.ConsistentlyPollingInterval > 0 {
+		consistently = consistently.WithPolling(ro.ConsistentlyPollingInterval)
+	}
+	return consistently
 }

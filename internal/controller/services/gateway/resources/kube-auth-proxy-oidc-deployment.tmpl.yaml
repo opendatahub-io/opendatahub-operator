@@ -7,7 +7,7 @@ metadata:
     app: {{.KubeAuthProxyServiceName}}
     {{.ComponentLabelKey}}: {{.ComponentLabelValue}}
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: {{.KubeAuthProxyServiceName}}
@@ -19,6 +19,7 @@ spec:
       annotations:
         opendatahub.io/secret-hash: "{{.AuthConfigHash}}"
     spec:
+      serviceAccountName: {{.KubeAuthProxyServiceName}}
       securityContext:
         runAsNonRoot: true
         seccompProfile:
@@ -77,11 +78,10 @@ spec:
             {{- end }}
           resources:
             requests:
-              cpu: "10m"
-              memory: "32Mi"
+              cpu: "500m"
+              memory: "128Mi"
             limits:
-              cpu: "50m"
-              memory: "64Mi"
+              memory: "128Mi"
           securityContext:
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
@@ -98,6 +98,7 @@ spec:
             - "--skip-jwt-bearer-tokens=true"
             - "--pass-access-token=true"
             - "--set-xauthrequest=true"
+            - "--enable-k8s-token-validation={{.EnableK8sTokenValidation}}"
             - "--redirect-url={{.RedirectURL}}"
             - "--tls-cert-file={{.TLSCertsMountPath}}/tls.crt"
             - "--tls-key-file={{.TLSCertsMountPath}}/tls.key"

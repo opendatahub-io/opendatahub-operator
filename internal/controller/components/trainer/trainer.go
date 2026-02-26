@@ -16,7 +16,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -25,10 +24,6 @@ import (
 
 const (
 	jobSetOperator = "jobset-operator"
-)
-
-var (
-	ErrJobSetOperatorNotInstalled = odherrors.NewStopError(status.JobSetOperatorNotInstalledMessage)
 )
 
 type componentHandler struct{}
@@ -41,7 +36,7 @@ func (s *componentHandler) GetName() string {
 	return componentApi.TrainerComponentName
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
+func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
 	return &componentApi.Trainer{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.TrainerKind,
@@ -56,7 +51,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 		Spec: componentApi.TrainerSpec{
 			TrainerCommonSpec: dsc.Spec.Components.Trainer.TrainerCommonSpec,
 		},
-	}
+	}, nil
 }
 
 func (s *componentHandler) Init(platform common.Platform) error {

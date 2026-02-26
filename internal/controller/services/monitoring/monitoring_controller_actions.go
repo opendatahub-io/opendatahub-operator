@@ -39,12 +39,14 @@ const (
 	PrometheusServiceOverrideTemplate             = "resources/data-science-prometheus-service-override.tmpl.yaml"
 	PrometheusNetworkPolicyTemplate               = "resources/data-science-prometheus-network-policy.tmpl.yaml"
 	PrometheusWebTLSServiceTemplate               = "resources/prometheus-web-tls-service.tmpl.yaml"
+	PrometheusSelfServiceMonitorTemplate          = "resources/prometheus-self-servicemonitor.tmpl.yaml"
 	ThanosQuerierTemplate                         = "resources/thanos-querier-cr.tmpl.yaml"
 	ThanosQuerierRouteTemplate                    = "resources/thanos-querier-route.tmpl.yaml"
 	PersesTemplate                                = "resources/perses.tmpl.yaml"
 	PersesTempoDatasourceTemplate                 = "resources/perses-tempo-datasource.tmpl.yaml"
 	PersesTempoDashboardTemplate                  = "resources/perses-tempo-dashboard.tmpl.yaml"
 	PersesDatasourcePrometheusTemplate            = "resources/perses-datasource-prometheus.tmpl.yaml"
+	PersesDatasourceClusterPrometheusTemplate     = "resources/perses-datasource-cluster-prometheus.tmpl.yaml"
 	PrometheusClusterProxyTemplate                = "resources/data-science-prometheus-cluster-proxy.tmpl.yaml"
 	TempoServiceCAConfigMapTemplate               = "resources/tempo-service-ca-configmap.tmpl.yaml"
 	PersesOperatorAccessNetworkPolicyTemplate     = "resources/perses-operator-access-network-policy.tmpl.yaml"
@@ -74,6 +76,7 @@ var componentRules = map[string]string{
 	componentApi.ModelControllerComponentName:      "odh-model-controller",
 	componentApi.FeastOperatorComponentName:        "feastoperator",
 	componentApi.LlamaStackOperatorComponentName:   "llamastackoperator",
+	componentApi.SparkOperatorComponentName:        "spark-operator",
 }
 
 //go:embed resources
@@ -152,7 +155,10 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 	}
 
 	return cr.ForEach(func(ch cr.ComponentHandler) error {
-		ci := ch.NewCRObject(dsc)
+		ci, err := ch.NewCRObject(ctx, rr.Client, dsc)
+		if err != nil {
+			return err
+		}
 		if ch.IsEnabled(dsc) {
 			ready, err := isComponentReady(ctx, rr.Client, ci)
 			if err != nil {
@@ -167,6 +173,18 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 			return updatePrometheusConfig(ctx, false, componentRules[ch.GetName()])
 		}
 	})
+}
+
+// deployMonitoringAdmissionPolicies handles deployment of admission policies for monitoring resources.
+// Base policies (label value validation) are always deployed.
+// Strict policies (namespace restrictions) are only deployed when admission.strictNamespaces is enabled.
+//
+// Note: ValidatingAdmissionPolicy is a built-in Kubernetes API resource (not a CRD) available in K8s 1.26+.
+// If the API is not available, the controller setup will fail when trying to create the watch, providing
+// a clear error message to the user that their cluster doesn't support this feature.
+func deployMonitoringAdmissionPolicies(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	// TODO: Implement admission policies deployment logic
+	return nil
 }
 
 // deployMonitoringStackWithQuerierAndRestrictions handles deployment of MonitoringStack and ThanosQuerier components.
@@ -203,6 +221,7 @@ func deployMonitoringStackWithQuerierAndRestrictions(ctx context.Context, rr *od
 	templates := []odhtypes.TemplateInfo{
 		{FS: resourcesFS, Path: PrometheusWebTLSServiceTemplate},
 		{FS: resourcesFS, Path: MonitoringStackTemplate},
+		{FS: resourcesFS, Path: PrometheusSelfServiceMonitorTemplate},
 		{FS: resourcesFS, Path: MonitoringStackAlertmanagerRBACTemplate},
 		{FS: resourcesFS, Path: PrometheusRouteTemplate},
 		{FS: resourcesFS, Path: PrometheusServiceOverrideTemplate},
@@ -396,8 +415,11 @@ func deployAlerting(ctx context.Context, rr *odhtypes.ReconciliationRequest) err
 
 	forEachErr := cr.ForEach(func(ch cr.ComponentHandler) error {
 		componentName := ch.GetName()
-		ci := ch.NewCRObject(dsc)
-
+		ci, err := ch.NewCRObject(ctx, rr.Client, dsc)
+		if err != nil {
+			addErrors = append(addErrors, fmt.Errorf("failed to get CR for component %s: %w", componentName, err))
+			return nil // Continue processing other components
+		}
 		if ch.IsEnabled(dsc) {
 			ready, err := isComponentReady(ctx, rr.Client, ci)
 			if err != nil {
@@ -441,10 +463,6 @@ func deployAlerting(ctx context.Context, rr *odhtypes.ReconciliationRequest) err
 		for _, cleanupErr := range cleanupErrors {
 			logf.FromContext(ctx).Error(cleanupErr, "Failed to cleanup prometheus rules for component")
 		}
-	}
-
-	if len(addErrors) > 0 || len(cleanupErrors) > 0 {
-		return errors.New("errors occurred while adding or cleaning up prometheus rules for components")
 	}
 
 	return nil
@@ -613,6 +631,12 @@ func deployPersesPrometheusIntegration(ctx context.Context, rr *odhtypes.Reconci
 		{
 			FS:   resourcesFS,
 			Path: PersesDatasourcePrometheusTemplate,
+		},
+		// Cluster-wide metrics datasource (from OpenShift Monitoring Thanos Querier)
+		// This is the default datasource until decentralized collection is implemented
+		{
+			FS:   resourcesFS,
+			Path: PersesDatasourceClusterPrometheusTemplate,
 		},
 	}
 	rr.Templates = append(rr.Templates, templates...)

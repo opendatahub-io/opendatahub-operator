@@ -43,8 +43,6 @@ const (
 	kueueConditionAvailable            = "Available"
 	kueueConditionCertManagerAvailable = "CertManagerAvailable"
 
-	NSListLimit = 500
-
 	// GPU resource keys.
 	NvidiaGPUResourceKey = "nvidia.com/gpu"
 	AMDGPUResourceKey    = "amd.com/gpu"
@@ -71,13 +69,13 @@ func getManagedNamespaces(ctx context.Context, c client.Client) ([]corev1.Namesp
 	var uniqueNamespaces = make(map[string]corev1.Namespace)
 
 	// Add all namespaces with management label.
-	if err := collectNamespacesWithPagination(ctx, c, uniqueNamespaces, client.MatchingLabels{
+	if err := collectNamespaces(ctx, c, uniqueNamespaces, client.MatchingLabels{
 		cluster.KueueManagedLabelKey: "true",
 	}); err != nil {
 		return nil, err
 	}
 	// Add namespaces with legacy management label.
-	if err := collectNamespacesWithPagination(ctx, c, uniqueNamespaces, client.MatchingLabels{
+	if err := collectNamespaces(ctx, c, uniqueNamespaces, client.MatchingLabels{
 		cluster.KueueLegacyManagedLabelKey: "true",
 	}); err != nil {
 		return nil, err
@@ -91,27 +89,16 @@ func getManagedNamespaces(ctx context.Context, c client.Client) ([]corev1.Namesp
 	return managedNamespacesList, nil
 }
 
-func collectNamespacesWithPagination(ctx context.Context, c client.Client, namespaceSet map[string]corev1.Namespace, opts ...client.ListOption) error {
-	lo := client.ListOptions{
-		Limit: NSListLimit,
+// Since the namespace resource use cache, we don't need to use pagination.
+func collectNamespaces(ctx context.Context, c client.Client, namespaceSet map[string]corev1.Namespace, opts ...client.ListOption) error {
+	// Listing namespaces with management label
+	namespaces := &corev1.NamespaceList{}
+	if err := c.List(ctx, namespaces, opts...); err != nil {
+		return fmt.Errorf("failed to list namespaces: %w", err)
 	}
-	opts = append(opts, &lo)
-	for {
-		// Listing namespaces with management label
-		namespaces := &corev1.NamespaceList{}
-		if err := c.List(ctx, namespaces, opts...); err != nil {
-			return fmt.Errorf("failed to list namespaces with label %s: %w", cluster.KueueManagedLabelKey+"=true", err)
-		}
 
-		for _, ns := range namespaces.Items {
-			namespaceSet[ns.Name] = ns
-		}
-
-		if namespaces.Continue == "" {
-			break
-		}
-
-		lo.Continue = namespaces.Continue
+	for _, ns := range namespaces.Items {
+		namespaceSet[ns.Name] = ns
 	}
 	return nil
 }

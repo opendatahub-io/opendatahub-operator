@@ -68,9 +68,17 @@ rules:
     max-spaces-inside: 0
 
 ignore: |
-  vendor/
-  bin/
+  **/examples/
+  **/contrib/
+  **/scripts/
+  **/testdata/
+  **/test/
+  **/tests/
+  **/docs/
+  **/bin/
+  **/.github/workflows/
+  **/node_modules/
+  **/vendor/
   .git/
-  testdata/
   **/*.pb.go
   **/*.generated.yaml

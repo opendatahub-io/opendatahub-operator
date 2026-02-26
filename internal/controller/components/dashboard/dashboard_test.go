@@ -2,6 +2,7 @@
 package dashboard
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -15,11 +16,12 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -40,8 +42,14 @@ func TestNewCRObject(t *testing.T) {
 
 	g := NewWithT(t)
 	dsc := createDSCWithDashboard(operatorv1.Managed)
+	gatewayConfig := &serviceApi.GatewayConfig{}
+	gatewayConfig.SetName(serviceApi.GatewayConfigName)
+	gatewayConfig.Status.Domain = "gateway.example.com"
+	cl, err := fakeclient.New(fakeclient.WithObjects(gatewayConfig))
+	g.Expect(err).To(Succeed())
 
-	cr := handler.NewCRObject(dsc)
+	cr, err := handler.NewCRObject(context.Background(), cl, dsc)
+	g.Expect(err).To(Succeed())
 	g.Expect(cr).ShouldNot(BeNil())
 	g.Expect(cr).Should(BeAssignableToTypeOf(&componentApi.Dashboard{}))
 
@@ -51,6 +59,37 @@ func TestNewCRObject(t *testing.T) {
 		jq.Match(`.apiVersion == "%s"`, componentApi.GroupVersion),
 		jq.Match(`.metadata.annotations["%s"] == "%s"`, annotations.ManagementStateAnnotation, operatorv1.Managed),
 	)))
+}
+
+func TestNewCRObject_ReturnsError_WhenGatewayDomainMissing(t *testing.T) {
+	handler := &componentHandler{}
+	g := NewWithT(t)
+	dsc := createDSCWithDashboard(operatorv1.Managed)
+
+	t.Run("returns error when GatewayConfig does not exist", func(t *testing.T) {
+		cl, err := fakeclient.New()
+		g.Expect(err).To(Succeed())
+
+		cr, err := handler.NewCRObject(context.Background(), cl, dsc)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(cr).To(BeNil())
+		g.Expect(err.Error()).To(ContainSubstring("gateway domain is missing for Dashboard"))
+		g.Expect(err.Error()).To(ContainSubstring("GatewayConfig"))
+	})
+
+	t.Run("returns error when GatewayConfig exists but Status.Domain is empty", func(t *testing.T) {
+		gatewayConfig := &serviceApi.GatewayConfig{}
+		gatewayConfig.SetName(serviceApi.GatewayConfigName)
+		// Status.Domain left empty
+		cl, err := fakeclient.New(fakeclient.WithObjects(gatewayConfig))
+		g.Expect(err).To(Succeed())
+
+		cr, err := handler.NewCRObject(context.Background(), cl, dsc)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(cr).To(BeNil())
+		g.Expect(err.Error()).To(ContainSubstring("gateway domain is missing for Dashboard"))
+		g.Expect(err.Error()).To(ContainSubstring("GatewayConfig"))
+	})
 }
 
 func TestIsEnabled(t *testing.T) {
@@ -105,7 +144,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dashboard))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+		cs, err := handler.UpdateDSCStatus(ctx, &odhtypes.ReconciliationRequest{
 			Client:     cli,
 			Instance:   dsc,
 			Conditions: conditions.NewManager(dsc, ReadyConditionType),
@@ -132,7 +171,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dashboard))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+		cs, err := handler.UpdateDSCStatus(ctx, &odhtypes.ReconciliationRequest{
 			Client:     cli,
 			Instance:   dsc,
 			Conditions: conditions.NewManager(dsc, ReadyConditionType),
@@ -158,7 +197,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+		cs, err := handler.UpdateDSCStatus(ctx, &odhtypes.ReconciliationRequest{
 			Client:     cli,
 			Instance:   dsc,
 			Conditions: conditions.NewManager(dsc, ReadyConditionType),
@@ -184,7 +223,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+		cs, err := handler.UpdateDSCStatus(ctx, &odhtypes.ReconciliationRequest{
 			Client:     cli,
 			Instance:   dsc,
 			Conditions: conditions.NewManager(dsc, ReadyConditionType),
@@ -242,7 +281,7 @@ func TestComputeKustomizeVariable(t *testing.T) {
 		{
 			name:              "OpenDataHub platform with default domain",
 			platform:          cluster.OpenDataHub,
-			expectedURL:       "https://data-science-gateway." + defaultDomain + "/",
+			expectedURL:       "https://" + gateway.DefaultGatewaySubdomain + "." + defaultDomain + "/",
 			expectedTitle:     "OpenShift Open Data Hub",
 			gatewayConfigFunc: defaultGatewayConfig, // Use default GatewayConfig (no custom domain)
 			clusterDomain:     defaultDomain,
@@ -250,7 +289,7 @@ func TestComputeKustomizeVariable(t *testing.T) {
 		{
 			name:              "RHOAI platform with custom domain",
 			platform:          cluster.SelfManagedRhoai,
-			expectedURL:       "https://data-science-gateway." + customDomain + "/",
+			expectedURL:       "https://" + gateway.DefaultGatewaySubdomain + "." + customDomain + "/",
 			expectedTitle:     "OpenShift Self Managed Services",
 			gatewayConfigFunc: customGatewayConfig,
 			clusterDomain:     defaultDomain, // Should be ignored due to custom domain
@@ -258,7 +297,7 @@ func TestComputeKustomizeVariable(t *testing.T) {
 		{
 			name:              "Managed RHOAI platform with default domain",
 			platform:          cluster.ManagedRhoai,
-			expectedURL:       "https://data-science-gateway." + managedDomain + "/",
+			expectedURL:       "https://" + gateway.DefaultGatewaySubdomain + "." + managedDomain + "/",
 			expectedTitle:     "OpenShift Managed Services",
 			gatewayConfigFunc: defaultGatewayConfig,
 			clusterDomain:     managedDomain,
@@ -270,7 +309,6 @@ func TestComputeKustomizeVariable(t *testing.T) {
 
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := t.Context()
 
 			// Pre-allocate slice with known capacity for better performance
 			objects := make([]client.Object, 0, 2)
@@ -288,7 +326,37 @@ func TestComputeKustomizeVariable(t *testing.T) {
 			cli, err := fakeclient.New(fakeclient.WithObjects(objects...))
 			g.Expect(err).ShouldNot(HaveOccurred())
 
-			result, err := computeKustomizeVariable(ctx, cli, tt.platform)
+			// Calculate expected domain based on test case
+			// This simulates what syncDomainFromGateway would do in real reconciliation
+			var expectedDomain string
+			if gc := tt.gatewayConfigFunc(); gc != nil {
+				if gc.Spec.Domain != "" {
+					subdomain := gc.Spec.Subdomain
+					if subdomain == "" {
+						subdomain = gateway.DefaultGatewaySubdomain
+					}
+					expectedDomain = subdomain + "." + gc.Spec.Domain
+				} else {
+					expectedDomain = gateway.DefaultGatewaySubdomain + "." + tt.clusterDomain
+				}
+			} else {
+				expectedDomain = gateway.DefaultGatewaySubdomain + "." + tt.clusterDomain
+			}
+
+			// Create Dashboard instance with gateway domain pre-populated (as DSC controller would do)
+			dashboard := &componentApi.Dashboard{
+				Spec: componentApi.DashboardSpec{
+					Gateway: &common.GatewaySpec{
+						Domain: expectedDomain,
+					},
+				},
+			}
+			rr := &odhtypes.ReconciliationRequest{
+				Client:   cli,
+				Instance: dashboard,
+			}
+
+			result, err := computeKustomizeVariable(rr, tt.platform)
 
 			if tt.expectError {
 				g.Expect(err).Should(HaveOccurred())
@@ -298,6 +366,7 @@ func TestComputeKustomizeVariable(t *testing.T) {
 			g.Expect(err).ShouldNot(HaveOccurred())
 			g.Expect(result).Should(HaveKeyWithValue("dashboard-url", tt.expectedURL))
 			g.Expect(result).Should(HaveKeyWithValue("section-title", tt.expectedTitle))
+			g.Expect(result).Should(HaveKey("gateway-domain"))
 		})
 	}
 }
@@ -305,16 +374,26 @@ func TestComputeKustomizeVariable(t *testing.T) {
 func TestComputeKustomizeVariableError(t *testing.T) {
 	t.Parallel() // Enable parallel execution for better performance
 	g := NewWithT(t)
-	ctx := t.Context()
 
 	// Create a client with no objects to simulate GatewayConfig not found
 	cli, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	// Test error handling with better error message validation
-	_, err = computeKustomizeVariable(ctx, cli, cluster.OpenDataHub)
-	g.Expect(err).Should(HaveOccurred(), "Should fail when cluster domain cannot be determined")
-	g.Expect(err.Error()).Should(ContainSubstring("error getting gateway domain"), "Error should contain expected message")
+	// Create Dashboard instance with Gateway but empty Domain (tests runtime validation)
+	dashboard := &componentApi.Dashboard{
+		Spec: componentApi.DashboardSpec{
+			Gateway: &common.GatewaySpec{Domain: ""},
+		},
+	}
+	rr := &odhtypes.ReconciliationRequest{
+		Client:   cli,
+		Instance: dashboard,
+	}
+
+	// Test error handling - should fail fast when Spec.Gateway.Domain is empty
+	_, err = computeKustomizeVariable(rr, cluster.OpenDataHub)
+	g.Expect(err).Should(HaveOccurred(), "Should fail when dashboard.Spec.Gateway.Domain is empty")
+	g.Expect(err.Error()).Should(ContainSubstring("gateway domain is missing for Dashboard"), "Error should contain expected message")
 }
 
 func createDSCWithDashboard(managementState operatorv1.ManagementState) *dscv2.DataScienceCluster {
@@ -331,6 +410,7 @@ func createDashboardCR(ready bool) *componentApi.Dashboard {
 	c := componentApi.Dashboard{}
 	c.SetGroupVersionKind(gvk.Dashboard)
 	c.SetName(componentApi.DashboardInstanceName)
+	c.Spec.Gateway = &common.GatewaySpec{Domain: "test.example.com"}
 
 	if ready {
 		c.Status.Conditions = []common.Condition{{

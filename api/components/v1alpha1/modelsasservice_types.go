@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -52,16 +53,25 @@ type ModelsAsService struct {
 
 // ModelsAsServiceSpec defines the desired state of ModelsAsService
 type ModelsAsServiceSpec struct {
-	Gateway GatewaySpec `json:"gateway,omitempty"`
+	// GatewayRef specifies which Gateway (Gateway API) to use for exposing model endpoints.
+	// If omitted, defaults to openshift-ingress/maas-default-gateway.
+	// +kubebuilder:validation:Optional
+	GatewayRef GatewayRef `json:"gatewayRef,omitempty"`
 }
 
-// GatewaySpec defines the reference to the global Gateway (Gw API) where
+// GatewayRef defines the reference to the global Gateway (Gw API) where
 // models should be published to when exposed as services.
-type GatewaySpec struct {
-	// Namespace is the namespace name where the gateway.networking.k8s.io/v1/Gateway resource is.
+type GatewayRef struct {
+	// Namespace is the namespace where the Gateway resource is located.
+	// +kubebuilder:default="openshift-ingress"
+	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
+	// +kubebuilder:validation:MaxLength=63
 	Namespace string `json:"namespace,omitempty"`
 
-	// Name is the name of the gateway.networking.k8s.io/v1/Gateway resource.
+	// Name is the name of the Gateway resource.
+	// +kubebuilder:default="maas-default-gateway"
+	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
+	// +kubebuilder:validation:MaxLength=63
 	Name string `json:"name,omitempty"`
 }
 
@@ -92,4 +102,16 @@ func (c *ModelsAsService) GetConditions() []common.Condition {
 
 func (c *ModelsAsService) SetConditions(conditions []common.Condition) {
 	c.Status.SetConditions(conditions)
+}
+
+// DSCModelsAsServiceSpec enables ModelsAsService integration
+type DSCModelsAsServiceSpec struct {
+	// +kubebuilder:validation:Enum=Managed;Removed
+	// +kubebuilder:default=Removed
+	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
+}
+
+// DSCModelsAsServiceStatus contains the observed state of the ModelsAsService exposed in the DSC instance
+type DSCModelsAsServiceStatus struct {
+	common.ManagementSpec `json:",inline"`
 }

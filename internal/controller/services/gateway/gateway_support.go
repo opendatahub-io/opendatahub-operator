@@ -35,10 +35,12 @@ const (
 
 const (
 	// Gateway infrastructure constants.
-	GatewayNamespace      = "openshift-ingress"                  // Namespace where Gateway resources are deployed
-	GatewayClassName      = "data-science-gateway-class"         // GatewayClass name for data science gateways
-	GatewayControllerName = "openshift.io/gateway-controller/v1" // OpenShift Gateway API controller name
-	DefaultGatewayName    = "data-science-gateway"               // Default gateway name used across all platforms
+	GatewayNamespace        = "openshift-ingress"                  // Namespace where Gateway resources are deployed
+	GatewayClassName        = "data-science-gateway-class"         // GatewayClass name for gateway resources
+	GatewayControllerName   = "openshift.io/gateway-controller/v1" // OpenShift Gateway API controller name
+	DefaultGatewayName      = "data-science-gateway"               // Default gateway resource name
+	DefaultGatewaySubdomain = "rh-ai"                              // Default subdomain for gateway URLs
+	LegacyGatewaySubdomain  = "data-science-gateway"               // Legacy subdomain to redirect from
 
 	// Authentication constants.
 	AuthClientID             = "data-science" // OauthClient name.
@@ -77,6 +79,12 @@ const (
 	EnvClientSecret = "OAUTH2_PROXY_CLIENT_SECRET" //nolint:gosec // This is an environment variable name, not a secret
 	EnvCookieSecret = "OAUTH2_PROXY_COOKIE_SECRET" //nolint:gosec // This is an environment variable name, not a secret
 
+	// Dashboard redirect constants.
+	DashboardRedirectName       = "dashboard-redirect"
+	DashboardRedirectConfigName = "dashboard-redirect-config"
+	DashboardRouteNameODH       = "odh-dashboard"   // ODH dashboard route name
+	DashboardRouteNameRHOAI     = "rhods-dashboard" // RHOAI dashboard route name
+
 	// Label constants.
 	ComponentLabelValue = "authentication"
 	PartOfLabelValue    = "data-science-gateway"
@@ -84,26 +92,29 @@ const (
 )
 
 const (
-	envoyFilterTemplate                  = "resources/envoyfilter-authn.tmpl.yaml"
-	destinationRuleTemplate              = "resources/kube-auth-proxy-destinationrule-tls.tmpl.yaml"
-	kubeAuthProxyDeploymentOidcTemplate  = "resources/kube-auth-proxy-oidc-deployment.tmpl.yaml"
-	kubeAuthProxyDeploymentOauthTemplate = "resources/kube-auth-proxy-oauth-deployment.tmpl.yaml"
-	kubeAuthProxyServiceTemplate         = "resources/kube-auth-proxy-svc.tmpl.yaml"
-	kubeAuthProxyHTTPRouteTemplate       = "resources/kube-auth-proxy-httproute.tmpl.yaml"
-	networkPolicyTemplate                = "resources/kube-auth-proxy-networkpolicy.yaml"
-	ocpRouteTemplate                     = "resources/gateway-ocp-route.tmpl.yaml"
+	envoyFilterTemplate                     = "resources/envoyfilter-authn.tmpl.yaml"
+	destinationRuleTemplate                 = "resources/kube-auth-proxy-destinationrule-tls.tmpl.yaml"
+	kubeAuthProxyDeploymentOidcTemplate     = "resources/kube-auth-proxy-oidc-deployment.tmpl.yaml"
+	kubeAuthProxyDeploymentOauthTemplate    = "resources/kube-auth-proxy-oauth-deployment.tmpl.yaml"
+	kubeAuthProxyServiceTemplate            = "resources/kube-auth-proxy-svc.tmpl.yaml"
+	kubeAuthProxyHTTPRouteTemplate          = "resources/kube-auth-proxy-httproute.tmpl.yaml"
+	kubeAuthProxyHPATemplate                = "resources/kube-auth-proxy-hpa.tmpl.yaml"
+	kubeAuthProxyServiceAccountTemplate     = "resources/kube-auth-proxy-serviceaccount.tmpl.yaml"
+	kubeAuthProxyClusterRoleBindingTemplate = "resources/kube-auth-proxy-clusterrolebinding.tmpl.yaml"
+	networkPolicyTemplate                   = "resources/kube-auth-proxy-networkpolicy.yaml"
+	ocpRouteTemplate                        = "resources/gateway-ocp-route.tmpl.yaml"
 )
 
 // GetFQDN returns the fully qualified domain name for the gateway based on the GatewayConfig.
 // It constructs the FQDN by combining the subdomain (or default) with either the user-specified
 // domain or the cluster domain.
 func GetFQDN(ctx context.Context, cli client.Client, gatewayConfig *serviceApi.GatewayConfig) (string, error) {
-	subdomain := DefaultGatewayName
+	subdomain := DefaultGatewaySubdomain
 
 	if gatewayConfig != nil {
 		subdomain = strings.TrimSpace(gatewayConfig.Spec.Subdomain)
 		if subdomain == "" {
-			subdomain = DefaultGatewayName
+			subdomain = DefaultGatewaySubdomain
 		}
 
 		baseDomain := strings.TrimSpace(gatewayConfig.Spec.Domain)
@@ -196,8 +207,8 @@ func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 		}
 		return secretName, nil
 	case infrav1.SelfSigned:
-		hostname := fmt.Sprintf("%s.%s", DefaultGatewayName, domain)
-		if err := cluster.CreateSelfSignedCertificate(ctx, rr.Client, secretName, hostname, GatewayNamespace,
+		// domain parameter already contains the full FQDN (subdomain.baseDomain) from GetFQDN
+		if err := cluster.CreateSelfSignedCertificate(ctx, rr.Client, secretName, domain, GatewayNamespace,
 			cluster.WithLabels( // add label easy to know it is from us.
 				labels.PlatformPartOf, ServiceName,
 			),
@@ -226,7 +237,7 @@ func createGatewayClass(rr *odhtypes.ReconciliationRequest) error {
 	return rr.AddResources(gatewayClass)
 }
 
-func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, domain string, ingressMode serviceApi.IngressMode) error {
+func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, domain string, legacyDomain string, ingressMode serviceApi.IngressMode) error {
 	listeners := []gwapiv1.Listener{}
 
 	if certSecretName != "" {
@@ -246,24 +257,28 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 			},
 		}
 
+		tlsConfig := &gwapiv1.GatewayTLSConfig{
+			Mode: &httpsMode,
+			CertificateRefs: []gwapiv1.SecretObjectReference{
+				{
+					Name: gwapiv1.ObjectName(certSecretName),
+				},
+			},
+		}
+
+		allowedRoutes := &gwapiv1.AllowedRoutes{
+			Namespaces: &gwapiv1.RouteNamespaces{
+				From:     &allowedNamespaces,
+				Selector: namespaceSelector,
+			},
+		}
+
 		httpsListener := gwapiv1.Listener{
-			Name:     "https",
-			Protocol: gwapiv1.HTTPSProtocolType,
-			Port:     StandardHTTPSPort,
-			TLS: &gwapiv1.GatewayTLSConfig{
-				Mode: &httpsMode,
-				CertificateRefs: []gwapiv1.SecretObjectReference{
-					{
-						Name: gwapiv1.ObjectName(certSecretName),
-					},
-				},
-			},
-			AllowedRoutes: &gwapiv1.AllowedRoutes{
-				Namespaces: &gwapiv1.RouteNamespaces{
-					From:     &allowedNamespaces,
-					Selector: namespaceSelector,
-				},
-			},
+			Name:          "https",
+			Protocol:      gwapiv1.HTTPSProtocolType,
+			Port:          StandardHTTPSPort,
+			TLS:           tlsConfig,
+			AllowedRoutes: allowedRoutes,
 		}
 
 		if ingressMode != serviceApi.IngressModeOcpRoute {
@@ -272,6 +287,21 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 		}
 
 		listeners = append(listeners, httpsListener)
+
+		// Add legacy listener for LoadBalancer mode to accept requests for legacy hostname
+		// (EnvoyFilter will redirect these to the new hostname)
+		if ingressMode != serviceApi.IngressModeOcpRoute && legacyDomain != "" {
+			legacyHostname := gwapiv1.Hostname(legacyDomain)
+			legacyListener := gwapiv1.Listener{
+				Name:          "https-legacy",
+				Protocol:      gwapiv1.HTTPSProtocolType,
+				Port:          StandardHTTPSPort,
+				Hostname:      &legacyHostname,
+				TLS:           tlsConfig,
+				AllowedRoutes: allowedRoutes,
+			}
+			listeners = append(listeners, legacyListener)
+		}
 	}
 
 	gateway := &gwapiv1.Gateway{
@@ -445,6 +475,36 @@ func getCookieSettings(cookieConfig *serviceApi.CookieConfig) (string, string) {
 	return expire, refresh
 }
 
+// LegacyRedirectInfo contains computed values for legacy hostname redirect functionality.
+type LegacyRedirectInfo struct {
+	LegacySubdomain string // The legacy subdomain to redirect from (empty if redirect not needed)
+	LegacyHostname  string // Full legacy hostname (empty if redirect not needed)
+}
+
+// getCurrentSubdomain extracts the current subdomain from GatewayConfig or returns the default.
+func getCurrentSubdomain(gc *serviceApi.GatewayConfig) string {
+	if gc != nil && gc.Spec.Subdomain != "" {
+		return gc.Spec.Subdomain
+	}
+	return DefaultGatewaySubdomain
+}
+
+// computeLegacyRedirectInfo computes the subdomain and legacy hostname information
+// for redirect functionality. Returns empty legacy fields if current subdomain equals legacy.
+func computeLegacyRedirectInfo(gatewayConfig *serviceApi.GatewayConfig, hostname string) LegacyRedirectInfo {
+	currentSubdomain := getCurrentSubdomain(gatewayConfig)
+
+	info := LegacyRedirectInfo{}
+
+	// Only enable legacy redirect if current subdomain differs from legacy
+	if currentSubdomain != LegacyGatewaySubdomain {
+		info.LegacySubdomain = LegacyGatewaySubdomain
+		info.LegacyHostname = strings.Replace(hostname, currentSubdomain+".", LegacyGatewaySubdomain+".", 1)
+	}
+
+	return info
+}
+
 // calculateAuthConfigHash generates a hash of the authentication secret values
 // to detect changes that should trigger a kube-auth-proxy pod restart.
 func calculateAuthConfigHash(authSecret *corev1.Secret) string {
@@ -457,6 +517,14 @@ func calculateAuthConfigHash(authSecret *corev1.Secret) string {
 	return hex.EncodeToString(hash[:])
 }
 
+// CalculateRedirectConfigHash returns a hash of the gateway hostname.
+// Used as a pod annotation so deployment rollout triggers when subdomain/domain changes.
+// Hash is fixed-length (64 chars) to avoid annotation size limits from long hostnames.
+func CalculateRedirectConfigHash(hostname string) string {
+	h := sha256.Sum256([]byte(hostname))
+	return hex.EncodeToString(h[:])
+}
+
 // getKubeAuthProxyImage returns the kube-auth-proxy image from environment variable.
 // For RHOAI deployments, this comes from the CSV (via RHOAI-Build-Config/bundle/additional-images-patch.yaml).
 // For ODH deployments, this comes from config/manager/manager.yaml.
@@ -467,6 +535,33 @@ func getKubeAuthProxyImage() string {
 	}
 	// Fallback for ODH development
 	return "quay.io/opendatahub/odh-kube-auth-proxy:latest"
+}
+
+// getDashboardRedirectImage returns the nginx image for dashboard redirects.
+// For RHOAI deployments, this comes from the CSV (via RHOAI-Build-Config/bundle/additional-images-patch.yaml).
+// For ODH deployments, this comes from build/operands-map.yaml.
+// Falls back to a publicly accessible UBI9 nginx S2I image for local development/testing.
+func getDashboardRedirectImage() string {
+	if image := os.Getenv("RELATED_IMAGE_NGINX_126_IMAGE"); image != "" {
+		return image
+	}
+	// Fallback for ODH development - publicly accessible UBI9 nginx S2I image
+	// This image is identical to registry.redhat.io/ubi9/nginx-126 but does not require authentication
+	return "registry.access.redhat.com/ubi9/nginx-126:latest"
+}
+
+// GetDashboardRouteName returns the platform-specific dashboard route name.
+func GetDashboardRouteName() string {
+	release := cluster.GetRelease()
+
+	switch release.Name {
+	case cluster.OpenDataHub:
+		return DashboardRouteNameODH
+	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
+		return DashboardRouteNameRHOAI
+	default:
+		return DashboardRouteNameODH // Fallback to ODH
+	}
 }
 
 func getAuthProxySecretValues(

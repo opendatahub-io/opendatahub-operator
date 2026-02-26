@@ -1,7 +1,6 @@
 package e2e_test
 
 import (
-	"slices"
 	"strings"
 	"testing"
 
@@ -13,11 +12,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -62,7 +59,6 @@ func kserveTestSuite(t *testing.T) {
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
 		{"Validate well-known LLMInferenceServiceConfig versioning", componentCtx.ValidateLLMInferenceServiceConfigVersioned},
-		{"Validate external operator degraded condition monitoring", componentCtx.ValidateExternalOperatorDegradedMonitoring},
 	}
 
 	// Add webhook tests if enabled
@@ -78,6 +74,25 @@ func kserveTestSuite(t *testing.T) {
 		TestCase{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	)
 	// Run the test suite.
+	RunTestCases(t, testCases)
+}
+
+// kserveDegradedMonitoringTestSuite runs only the external operator degraded monitoring tests.
+func kserveDegradedMonitoringTestSuite(t *testing.T) {
+	t.Helper()
+
+	ct, err := NewComponentTestCtx(t, &componentApi.Kserve{})
+	require.NoError(t, err)
+
+	componentCtx := KserveTestCtx{
+		ComponentTestCtx: ct,
+	}
+
+	testCases := []TestCase{
+		// we must enable the component first since this suite runs isolated from other component tests
+		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
+		{"Validate external operator degraded condition monitoring", componentCtx.ValidateExternalOperatorDegradedMonitoring},
+	}
 	RunTestCases(t, testCases)
 }
 
@@ -191,12 +206,6 @@ func (tc *KserveTestCtx) createConnectionSecret(secretName, namespace string) {
 // have names prefixed with a semver version.
 func (tc *KserveTestCtx) ValidateLLMInferenceServiceConfigVersioned(t *testing.T) {
 	t.Helper()
-
-	if slices.Contains([]common.Platform{cluster.ManagedRhoai, cluster.SelfManagedRhoai}, tc.FetchPlatformRelease()) {
-		t.Skip("Kserve changes for this test is not synced to RHOAI branch yet, " +
-			"remove skip once https://github.com/opendatahub-io/kserve/commit/41864a46c3b0a573674820c966666e09c16549d9 " +
-			"is propagated to RHOAI.")
-	}
 
 	// Validate that all well-known LLMInferenceServiceConfig resources have versioned names
 	// Expected format: vX-Y-Z-<config-name> where X, Y, Z are numbers

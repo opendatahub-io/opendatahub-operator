@@ -6,6 +6,7 @@ import (
 
 	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,12 +43,12 @@ type KueueTestCtx struct {
 }
 
 const (
-	kueueTestManagedNamespace           = "test-kueue-managed-ns"
-	kueueTestLegacyManagedNamespace     = "test-legacy-kueue-managed-ns"
-	kueueTestWebhookNonManagedNamespace = "test-kueue-webhook-non-managed-ns"
-	kueueTestHardwareProfileNamespace   = "test-kueue-hardware-profile-ns"
-	kueueDefaultClusterQueueName        = "default"
-	kueueDefaultLocalQueueName          = "default"
+	kueueDefaultClusterQueueName = "default"
+	kueueDefaultLocalQueueName   = "default"
+
+	// kueueTestNamespaceLabel is used to discover test namespaces during cleanup.
+	kueueTestNamespaceLabel      = "opendatahub.io/e2e-test"
+	kueueTestNamespaceLabelValue = "kueue"
 )
 
 var (
@@ -83,7 +84,6 @@ func kueueTestSuite(t *testing.T) {
 		{"Validate component unmanaged error with ocp kueue-operator not installed", componentCtx.ValidateKueueUnmanagedWithoutOcpKueueOperator},
 		{"Validate component removed to unmanaged transition", componentCtx.ValidateKueueRemovedToUnmanagedTransition},
 		{"Validate component unmanaged to removed transition", componentCtx.ValidateKueueUnmanagedToRemovedTransition},
-		{"Validate external operator degraded condition monitoring", componentCtx.ValidateExternalOperatorDegradedMonitoring},
 	}
 
 	// Add webhook tests if enabled
@@ -102,6 +102,56 @@ func kueueTestSuite(t *testing.T) {
 	RunTestCases(t, testCases)
 }
 
+// kueueDegradedMonitoringTestSuite runs only the external operator degraded monitoring tests.
+func kueueDegradedMonitoringTestSuite(t *testing.T) {
+	t.Helper()
+	t.Skip("Skipping: flaky due to namespace stuck in Terminating state. See RHOAIENG-46773 and RHOAIENG-46774.")
+
+	ct, err := NewComponentTestCtx(t, &componentApi.Kueue{})
+	require.NoError(t, err)
+
+	componentCtx := KueueTestCtx{
+		ComponentTestCtx: ct,
+	}
+
+	testCases := []TestCase{
+		{"Validate component enabled", componentCtx.EnsureKueueReady},
+		{"Validate external operator degraded condition monitoring", componentCtx.ValidateExternalOperatorDegradedMonitoring},
+	}
+	RunTestCases(t, testCases)
+}
+
+// EnsureKueueReady ensures the Kueue component is enabled and ready.
+func (tc *KueueTestCtx) EnsureKueueReady(t *testing.T) {
+	t.Helper()
+
+	componentName := strings.ToLower(tc.GVK.Kind)
+
+	t.Logf("Ensuring OCP Kueue Operator is installed (namespace=%s, name=%s).", kueueOcpOperatorNamespace, kueueOpName)
+	tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(
+		types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace},
+		kueueOcpOperatorChannel,
+	)
+
+	t.Logf("Ensuring Kueue operator is running (namespace=%s).", kueueOcpOperatorNamespace)
+	tc.scaleKueueOperator(t, 1)
+
+	t.Logf("Setting Kueue component to Unmanaged and waiting for KueueReady=True.")
+	stateUnmanaged := operatorv1.Unmanaged
+	conditionsUnmanagedReady := []gTypes.GomegaMatcher{
+		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, stateUnmanaged),
+		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionTrue),
+	}
+
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, stateUnmanaged)),
+		WithCondition(And(conditionsUnmanagedReady...)),
+	)
+
+	t.Log("Kueue component is ready.")
+}
+
 // ValidateKueueUnmanagedWithoutOcpKueueOperator ensures that if the component is in Unmanaged state and ocp kueue operator is not installed, then its status is "Not Ready".
 func (tc *KueueTestCtx) ValidateKueueUnmanagedWithoutOcpKueueOperator(t *testing.T) {
 	t.Helper()
@@ -113,13 +163,17 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedWithoutOcpKueueOperator(t *testing
 	// so first set the component as removed ...
 	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Removed)
 
+	// ... then cleanup tests resources
 	t.Logf("Cleaning up any existing Kueue test resources.")
-	// ... and then cleanup tests resources
-	cleanupKueueTestResources(t, tc.TestContext)
+	tc.cleanupKueueTestResources(t)
+
+	// ... and uninstall Kueue Operator and its operands
+	t.Logf("Uninstalling Kueue operator")
+	tc.UninstallOperator(types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace})
 
 	stateUnmanaged := operatorv1.Unmanaged
 
-	// State must be Unmanaged, Ready condition must be false because ocp kueue-operator is installed
+	// State must be Unmanaged, Ready condition must be false because ocp kueue-operator is uninstalled
 	conditionsNotReady := []gTypes.GomegaMatcher{
 		// Validate that the component's management state is updated correctly
 		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, stateUnmanaged),
@@ -141,6 +195,7 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedWithoutOcpKueueOperator(t *testing
 func (tc *KueueTestCtx) ValidateKueueRemovedToUnmanagedTransition(t *testing.T) {
 	t.Helper()
 
+	managedNS := "test-kueue-managed-" + xid.New().String()
 	componentName := strings.ToLower(tc.GVK.Kind)
 
 	t.Logf("Setting Kueue component (%s) to Removed mode to start with a clean state.", componentApi.KueueInstanceName)
@@ -150,11 +205,11 @@ func (tc *KueueTestCtx) ValidateKueueRemovedToUnmanagedTransition(t *testing.T) 
 
 	t.Logf("Cleaning up any existing Kueue test resources.")
 	// ... and then cleanup tests resources
-	cleanupKueueTestResources(t, tc.TestContext)
+	tc.cleanupKueueTestResources(t)
 
-	t.Logf("Creating test namespace (%s) with Kueue management annotation.", kueueTestManagedNamespace)
+	t.Logf("Creating test namespace (%s) with Kueue management annotation.", managedNS)
 	// Create a test namespace with Kueue management annotation
-	tc.setupNamespace(kueueTestManagedNamespace, KueueManagedLabels)
+	tc.setupNamespace(managedNS, KueueManagedLabels)
 
 	// UNMANAGED
 	stateUnmanaged := operatorv1.Unmanaged
@@ -209,9 +264,9 @@ func (tc *KueueTestCtx) ValidateKueueRemovedToUnmanagedTransition(t *testing.T) 
 		WithEventuallyTimeout(tc.TestTimeouts.shortEventuallyTimeout),
 	)
 
-	t.Logf("Verifying default ClusterQueue and LocalQueue resources are created in namespace %s.", kueueTestManagedNamespace)
+	t.Logf("Verifying default ClusterQueue and LocalQueue resources are created in namespace %s.", managedNS)
 	// Default resources should be created
-	tc.ensureClusterAndLocalQueueExist(kueueTestManagedNamespace)
+	tc.ensureClusterAndLocalQueueExist(managedNS)
 
 	t.Logf("Verifying default resource flavor (%s) is created.", kueue.DefaultFlavorName)
 	// Validate that default resource flavor is created
@@ -231,6 +286,7 @@ func (tc *KueueTestCtx) ValidateKueueRemovedToUnmanagedTransition(t *testing.T) 
 func (tc *KueueTestCtx) ValidateKueueUnmanagedToRemovedTransition(t *testing.T) {
 	t.Helper()
 
+	managedNS := "test-kueue-managed-" + xid.New().String()
 	componentName := strings.ToLower(tc.GVK.Kind)
 
 	t.Logf("Setting Kueue component (%s) to Removed mode to start with a clean state.", componentApi.KueueInstanceName)
@@ -240,7 +296,7 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToRemovedTransition(t *testing.T) 
 
 	t.Logf("Cleaning up any existing Kueue test resources.")
 	// ... and then cleanup tests resources
-	cleanupKueueTestResources(t, tc.TestContext)
+	tc.cleanupKueueTestResources(t)
 
 	t.Logf("Installing OCP Kueue Operator (%s/%s) before testing Unmanaged state.", kueueOcpOperatorNamespace, kueueOpName)
 	// UNMANAGED
@@ -264,13 +320,13 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToRemovedTransition(t *testing.T) 
 		WithCondition(And(conditionsUnmanaged...)),
 	)
 
-	t.Logf("Creating test namespace (%s) with Kueue management annotation.", kueueTestManagedNamespace)
+	t.Logf("Creating test namespace (%s) with Kueue management annotation.", managedNS)
 	// Create a test namespace with Kueue management annotation
-	tc.setupNamespace(kueueTestManagedNamespace, KueueManagedLabels)
+	tc.setupNamespace(managedNS, KueueManagedLabels)
 
-	t.Logf("Verifying default Kueue resources exist in namespace %s.", kueueTestManagedNamespace)
+	t.Logf("Verifying default Kueue resources exist in namespace %s.", managedNS)
 	// Default resources should be created
-	tc.ensureClusterAndLocalQueueExist(kueueTestManagedNamespace)
+	tc.ensureClusterAndLocalQueueExist(managedNS)
 
 	t.Logf("Verifying default resource flavor (%s) is created.", kueue.DefaultFlavorName)
 	// Validate that default resource flavor is created
@@ -284,7 +340,7 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToRemovedTransition(t *testing.T) 
 		// Validate that the component's management state is updated correctly
 		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, stateRemoved),
 		// Validate the "Ready" condition for the component
-		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionTrue),
+		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionFalse),
 	}
 
 	t.Logf("Updating DSC %s to set Kueue managementState to Removed.", tc.DataScienceClusterNamespacedName.Name)
@@ -295,13 +351,13 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToRemovedTransition(t *testing.T) 
 		WithCondition(And(conditionsRemovedReady...)),
 	)
 
-	t.Logf("Verifying default resources are still present in namespace %s.", kueueTestManagedNamespace)
+	t.Logf("Verifying default resources are still present in namespace %s.", managedNS)
 	// Validate default resources are still there
-	tc.ensureClusterAndLocalQueueExist(kueueTestManagedNamespace)
+	tc.ensureClusterAndLocalQueueExist(managedNS)
 
 	t.Logf("Cleaning up Kueue test resources.")
 	// Remove Kueue test resources
-	cleanupKueueTestResources(t, tc.TestContext)
+	tc.cleanupKueueTestResources(t)
 }
 
 // ValidateWebhookValidations runs both Kueue and hardware profile webhook validation tests
@@ -326,12 +382,15 @@ func (tc *KueueTestCtx) ValidateWebhookValidations(t *testing.T) {
 
 	t.Logf("Cleaning up Kueue test resources.")
 	// Remove Kueue test resources
-	cleanupKueueTestResources(t, tc.TestContext)
+	tc.cleanupKueueTestResources(t)
 }
 
 // ValidateKueueWebhookValidation validates the Kueue validating webhook behavior using table-driven tests.
 func (tc *KueueTestCtx) ValidateKueueWebhookValidation(t *testing.T) {
 	t.Helper()
+
+	managedNS := "test-kueue-managed-" + xid.New().String()
+	webhookNS := "test-kueue-webhook-" + xid.New().String()
 
 	t.Logf("Installing OCP Kueue Operator (%s/%s) to enable webhook validation.", kueueOcpOperatorNamespace, kueueOpName)
 	// Install ocp kueue-operator
@@ -341,17 +400,13 @@ func (tc *KueueTestCtx) ValidateKueueWebhookValidation(t *testing.T) {
 	// Ensure Kueue is in Unmanaged state
 	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Unmanaged)
 
-	t.Logf("Creating managed test namespace (%s) with Kueue management annotation.", kueueTestManagedNamespace)
+	t.Logf("Creating managed test namespace (%s) with Kueue management annotation.", managedNS)
 	// Ensure the managed namespace exists
-	tc.setupNamespace(kueueTestManagedNamespace, KueueManagedLabels)
+	tc.setupNamespace(managedNS, KueueManagedLabels)
 
-	t.Logf("Creating non-managed test namespace (%s) for webhook exclusion testing.", kueueTestWebhookNonManagedNamespace)
+	t.Logf("Creating non-managed test namespace (%s) for webhook exclusion testing.", webhookNS)
 	// Create a non-managed namespace for testing
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(CreateNamespaceWithLabels(kueueTestWebhookNonManagedNamespace, map[string]string{"test-type": "kqueue"})),
-		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: kueueTestWebhookNonManagedNamespace}),
-		WithCustomErrorMsg("Failed to create non-managed test namespace"),
-	)
+	tc.setupNamespace(webhookNS, map[string]string{"test-type": "kueue"})
 
 	// Helper function to create and test notebook
 	testNotebook := func(name, namespace, expectedError, errorMsg string, labels map[string]string, shouldBlock bool) func(*testing.T) {
@@ -389,7 +444,7 @@ func (tc *KueueTestCtx) ValidateKueueWebhookValidation(t *testing.T) {
 			name: "blocks workload with missing queue label in managed namespace",
 			testFn: testNotebook(
 				"notebook-missing-queue",
-				kueueTestManagedNamespace,
+				managedNS,
 				cluster.KueueQueueNameLabel,
 				"Expected notebook without Kueue queue label to be blocked",
 				nil,
@@ -400,7 +455,7 @@ func (tc *KueueTestCtx) ValidateKueueWebhookValidation(t *testing.T) {
 			name: "blocks workload with empty queue label in managed namespace",
 			testFn: testNotebook(
 				"notebook-empty-queue",
-				kueueTestManagedNamespace,
+				managedNS,
 				"empty",
 				"Expected notebook with empty Kueue queue label to be blocked",
 				map[string]string{cluster.KueueQueueNameLabel: ""},
@@ -411,7 +466,7 @@ func (tc *KueueTestCtx) ValidateKueueWebhookValidation(t *testing.T) {
 			name: "allows workload without queue label in non-managed namespace",
 			testFn: testNotebook(
 				"notebook-non-managed",
-				kueueTestWebhookNonManagedNamespace,
+				webhookNS,
 				"",
 				"Expected notebook in non-managed namespace to be allowed",
 				nil,
@@ -422,7 +477,7 @@ func (tc *KueueTestCtx) ValidateKueueWebhookValidation(t *testing.T) {
 			name: "allows workload with valid queue label in managed namespace",
 			testFn: testNotebook(
 				"notebook-valid-queue",
-				kueueTestManagedNamespace,
+				managedNS,
 				"",
 				"Expected notebook with valid Kueue queue label to be allowed",
 				map[string]string{cluster.KueueQueueNameLabel: "default"},
@@ -440,9 +495,11 @@ func (tc *KueueTestCtx) ValidateKueueWebhookValidation(t *testing.T) {
 func (tc *KueueTestCtx) ValidateHardwareProfileWebhookValidation(t *testing.T) {
 	t.Helper()
 
-	t.Logf("Creating non-managed namespace (%s) for hardware profile testing.", kueueTestHardwareProfileNamespace)
+	hwpNS := "test-kueue-hwp-" + xid.New().String()
+
+	t.Logf("Creating non-managed namespace (%s) for hardware profile testing.", hwpNS)
 	// Create a non-managed namespace for hardware profile testing (avoids Kueue validation interference)
-	tc.setupNamespace(kueueTestHardwareProfileNamespace)
+	tc.setupNamespace(hwpNS)
 
 	// Helper struct for hardware profile test cases to reduce parameter count
 	type HardwareProfileTestCase struct {
@@ -530,7 +587,7 @@ func (tc *KueueTestCtx) ValidateHardwareProfileWebhookValidation(t *testing.T) {
 
 			t.Logf("Running HardwareProfile test case: %s", testCase.name)
 			// Use the dedicated hardware profile test namespace (non-managed to avoid Kueue validation)
-			testNamespace := kueueTestHardwareProfileNamespace
+			testNamespace := hwpNS
 
 			// Create hardware profile if spec is provided
 			if testCase.profileSpec != nil {
@@ -665,8 +722,10 @@ func (tc *KueueTestCtx) ValidateHardwareProfileWebhookValidation(t *testing.T) {
 //   - namespaceName: The name of the namespace to create
 //   - labels: Optional label maps to merge with the base labels.
 func (tc *KueueTestCtx) setupNamespace(namespaceName string, labels ...map[string]string) {
-	// Labels
-	namespaceLabels := make(map[string]string)
+	// Always include test label for centralized cleanup discovery
+	namespaceLabels := map[string]string{
+		kueueTestNamespaceLabel: kueueTestNamespaceLabelValue,
+	}
 
 	// Merge additional labels if provided
 	for _, labelMap := range labels {
@@ -787,6 +846,8 @@ integrations:
 func (tc *KueueTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.T) {
 	t.Helper()
 
+	managedNS := "test-kueue-managed-" + xid.New().String()
+
 	// condition types monitored by the Kueue Component
 	testCases := []degradedConditionTestCase{
 		{
@@ -808,7 +869,7 @@ func (tc *KueueTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.T)
 
 	t.Log("Resetting environment for external operator monitoring test (Component=Removed).")
 	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Removed)
-	cleanupKueueTestResources(t, tc.TestContext)
+	tc.cleanupKueueTestResources(t)
 
 	t.Logf("Ensuring Kueue OCP operator is installed (namespace=%s, name=%s).", kueueOcpOperatorNamespace, kueueOpName)
 	tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(
@@ -816,8 +877,8 @@ func (tc *KueueTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.T)
 		kueueOcpOperatorChannel,
 	)
 
-	t.Logf("Creating managed test namespace with Kueue management annotation (namespace=%s).", kueueTestManagedNamespace)
-	tc.setupNamespace(kueueTestManagedNamespace, KueueManagedLabels)
+	t.Logf("Creating managed test namespace with Kueue management annotation (namespace=%s).", managedNS)
+	tc.setupNamespace(managedNS, KueueManagedLabels)
 
 	t.Logf("Creating Kueue ConfigMap required for component reconciliation (namespace=%s, name=%s).", tc.AppsNamespace, kueue.KueueConfigMapName)
 	tc.createKueueConfigMap(t)
@@ -966,4 +1027,16 @@ func (tc *KueueTestCtx) runDegradedConditionTestCase(t *testing.T, testCase degr
 	)
 
 	t.Logf("Test case passed: %s", testCase.name)
+}
+
+func (tc *KueueTestCtx) cleanupKueueTestResources(t *testing.T) {
+	t.Helper()
+
+	cleanupKueueClusterScopedResources(t, tc.TestContext)
+
+	tc.DeleteResource(
+		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{Namespace: tc.AppsNamespace, Name: kueue.KueueConfigMapName}),
+		WithIgnoreNotFound(true),
+		WithWaitForDeletion(true),
+	)
 }

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{.DashboardRedirectName}}
+  namespace: {{.DashboardRedirectNamespace}}
+  labels:
+    app: {{.DashboardRedirectName}}
+    {{.PartOfLabelKey}}: {{.PartOfGatewayConfig}}
+spec:
+  type: ClusterIP
+  selector:
+    app: {{.DashboardRedirectName}}
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    protocol: TCP

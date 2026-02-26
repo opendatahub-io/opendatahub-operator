@@ -2,6 +2,7 @@
 package modelregistry
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
@@ -36,8 +38,14 @@ func TestNewCRObject(t *testing.T) {
 
 	g := NewWithT(t)
 	dsc := createDSCWithModelRegistry(operatorv1.Managed)
+	gatewayConfig := &serviceApi.GatewayConfig{}
+	gatewayConfig.SetName(serviceApi.GatewayConfigName)
+	gatewayConfig.Status.Domain = "gateway.example.com"
+	cl, err := fakeclient.New(fakeclient.WithObjects(gatewayConfig))
+	g.Expect(err).To(Succeed())
 
-	cr := handler.NewCRObject(dsc)
+	cr, err := handler.NewCRObject(context.Background(), cl, dsc)
+	g.Expect(err).To(Succeed())
 	g.Expect(cr).ShouldNot(BeNil())
 	g.Expect(cr).Should(BeAssignableToTypeOf(&componentApi.ModelRegistry{}))
 
@@ -47,6 +55,37 @@ func TestNewCRObject(t *testing.T) {
 		jq.Match(`.apiVersion == "%s"`, componentApi.GroupVersion),
 		jq.Match(`.metadata.annotations["%s"] == "%s"`, annotations.ManagementStateAnnotation, operatorv1.Managed),
 	)))
+}
+
+func TestNewCRObject_ReturnsError_WhenGatewayDomainMissing(t *testing.T) {
+	handler := &componentHandler{}
+	g := NewWithT(t)
+	dsc := createDSCWithModelRegistry(operatorv1.Managed)
+
+	t.Run("returns error when GatewayConfig does not exist", func(t *testing.T) {
+		cl, err := fakeclient.New()
+		g.Expect(err).To(Succeed())
+
+		cr, err := handler.NewCRObject(context.Background(), cl, dsc)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(cr).To(BeNil())
+		g.Expect(err.Error()).To(ContainSubstring("gateway domain is missing for ModelRegistry"))
+		g.Expect(err.Error()).To(ContainSubstring("GatewayConfig"))
+	})
+
+	t.Run("returns error when GatewayConfig exists but Status.Domain is empty", func(t *testing.T) {
+		gatewayConfig := &serviceApi.GatewayConfig{}
+		gatewayConfig.SetName(serviceApi.GatewayConfigName)
+		// Status.Domain left empty
+		cl, err := fakeclient.New(fakeclient.WithObjects(gatewayConfig))
+		g.Expect(err).To(Succeed())
+
+		cr, err := handler.NewCRObject(context.Background(), cl, dsc)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(cr).To(BeNil())
+		g.Expect(err.Error()).To(ContainSubstring("gateway domain is missing for ModelRegistry"))
+		g.Expect(err.Error()).To(ContainSubstring("GatewayConfig"))
+	})
 }
 
 func TestIsEnabled(t *testing.T) {
@@ -213,6 +252,7 @@ func createModelRegistryCR(ready bool) *componentApi.ModelRegistry {
 	c := componentApi.ModelRegistry{}
 	c.SetGroupVersionKind(gvk.ModelRegistry)
 	c.SetName(componentApi.ModelRegistryInstanceName)
+	c.Spec.Gateway = &common.GatewaySpec{Domain: "test.example.com"}
 
 	if ready {
 		c.Status.Conditions = []common.Condition{{

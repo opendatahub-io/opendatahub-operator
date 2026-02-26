@@ -25,6 +25,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/mlflowoperator"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 
@@ -68,7 +69,7 @@ func TestComputeKustomizeVariable(t *testing.T) {
 		{
 			name:              "OpenDataHub platform with default domain",
 			platform:          cluster.OpenDataHub,
-			expectedURL:       "https://data-science-gateway." + defaultDomain + "/",
+			expectedURL:       "https://" + gateway.DefaultGatewaySubdomain + "." + defaultDomain + "/",
 			expectedTitle:     "OpenShift Open Data Hub",
 			gatewayConfigFunc: defaultGatewayConfig, // Use default GatewayConfig (no custom domain)
 			clusterDomain:     defaultDomain,
@@ -76,7 +77,7 @@ func TestComputeKustomizeVariable(t *testing.T) {
 		{
 			name:              "RHOAI platform with custom domain",
 			platform:          cluster.SelfManagedRhoai,
-			expectedURL:       "https://data-science-gateway." + customDomain + "/",
+			expectedURL:       "https://" + gateway.DefaultGatewaySubdomain + "." + customDomain + "/",
 			expectedTitle:     "OpenShift Self Managed Services",
 			gatewayConfigFunc: customGatewayConfig,
 			clusterDomain:     defaultDomain, // Should be ignored due to custom domain

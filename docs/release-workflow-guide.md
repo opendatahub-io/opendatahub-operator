@@ -11,11 +11,12 @@ The OpenDataHub operator development and release process spans two main reposito
 
 ## Upstream Development and Release Workflow
 
-There are three long-lived branches:
+There are four long-lived branches:
 
 * `main` the primary development branch where all changes land first
 * `stable` the staging branch for changes before they reach downstream
 * `rhoai` the branch tracking downstream (productization) changes
+* `stable-2.x` the branch for the `2.x` release changes
 
 ### Main Branch Overview
 
@@ -30,6 +31,12 @@ There are three long-lived branches:
 
 * A dedicated `rhoai` branch exists to track downstream-related changes.
 * Changes are automatically synced from `stable` to `rhoai` every 2 hours.
+
+### Stable-2.x Branch Overview
+
+* The `stable-2.x` branch tracks the `2.x` release series.
+* Changes are automatically synced from `stable-2.x` to the downstream branch `rhoai-2.25`.
+* All the changes targeted for RHOAI 2.X must land in this branch.
 
 ### Release Branches Overview
 
@@ -146,6 +153,34 @@ On the **code freeze date (Friday)**, each team must:
   ```
 
 > **Note**: The comment format must comply with the expected structure to be parsed by the release automation tool.
+
+#### Operator-Level Images
+
+For operator-level images (non-component images like `kube-auth-proxy`), teams can include an additional section in their tracker comment:
+
+```text
+#Images#
+image-name|full-image-reference
+```
+
+**Example:**
+```text
+#Images#
+kube-auth-proxy|quay.io/opendatahub/odh-kube-auth-proxy:v1.2.3
+```
+
+This section is optional. If present, the release automation will:
+- Parse the image references from the `#Images#` section
+- Update the `RELATED_IMAGE_*` environment variables in `config/manager/manager.yaml`
+- Flow these image references through to the operator bundle/CSV automatically
+
+> **Note**: Image names are automatically converted to environment variable names using a naming convention:
+> - Uppercase the image name
+> - Replace hyphens with underscores
+> - Add prefix `RELATED_IMAGE_ODH_` and suffix `_IMAGE`
+> - Example: `kube-auth-proxy` → `RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE`
+>
+> **No code changes needed** to add a new operator-level image - just add it to the tracker comment!
 
 **Code freeze** occurs on **Friday**, and the **actual release** occurs on the **following Monday**.
 

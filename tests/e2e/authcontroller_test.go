@@ -27,16 +27,16 @@ const (
 	systemAuthenticatedGroup = "system:authenticated"
 
 	// Role names used for RBAC configuration.
-	adminGroupRoleName = "admingroup-role"
+	adminGroupRoleName = "data-science-admingroup-role"
 
 	// RoleBinding names to bind roles to specific groups.
-	adminGroupRoleBindingName = "admingroup-rolebinding"
+	adminGroupRoleBindingName = "data-science-admingroup-rolebinding"
 
 	// ClusterRole and ClusterRoleBinding names for group access at cluster level.
-	adminGroupClusterRoleName          = "admingroupcluster-role"
-	adminGroupClusterRoleBindingName   = "admingroupcluster-rolebinding"
-	allowedGroupClusterRoleName        = "allowedgroupcluster-role"
-	allowedGroupClusterRoleBindingName = "allowedgroupcluster-rolebinding"
+	adminGroupClusterRoleName          = "data-science-admingroupcluster-role"
+	adminGroupClusterRoleBindingName   = "data-science-admingroupcluster-rolebinding"
+	allowedGroupClusterRoleName        = "data-science-allowedgroupcluster-role"
+	allowedGroupClusterRoleBindingName = "data-science-allowedgroupcluster-rolebinding"
 )
 
 type AuthControllerTestCtx struct {

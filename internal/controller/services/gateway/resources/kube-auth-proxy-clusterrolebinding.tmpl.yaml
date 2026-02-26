@@ -1,0 +1,15 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{.KubeAuthProxyServiceName}}-tokenreview
+  labels:
+    {{.ComponentLabelKey}}: {{.ComponentLabelValue}}
+    {{.PartOfLabelKey}}: {{.PartOfGatewayConfig}}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: {{.KubeAuthProxyServiceName}}
+    namespace: {{.GatewayNamespace}}

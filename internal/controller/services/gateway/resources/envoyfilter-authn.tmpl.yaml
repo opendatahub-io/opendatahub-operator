@@ -10,6 +10,7 @@ spec:
     labels:
       {{.GatewayNameLabelKey}}: {{.GatewayName}}
   configPatches:
+  # ext_authz for authentication
   - applyTo: HTTP_FILTER
     match:
       context: GATEWAY
@@ -29,12 +30,14 @@ spec:
           http_service:
             server_uri:
               uri: https://{{.KubeAuthProxyServiceName}}.{{.GatewayNamespace}}.svc.cluster.local:{{.GatewayHTTPSPort}}/oauth2/auth
-              cluster: {{.KubeAuthProxyServiceName}}
+              # Use Istio's auto-created EDS cluster for better load balancing across all pods
+              cluster: outbound|{{.GatewayHTTPSPort}}||{{.KubeAuthProxyServiceName}}.{{.GatewayNamespace}}.svc.cluster.local
               timeout: {{.AuthProxyTimeout}}
             authorization_request:
               allowed_headers:
                 patterns:
                 - exact: cookie
+                - exact: authorization
             authorization_response:
               allowed_upstream_headers:
                 patterns:
@@ -44,6 +47,7 @@ spec:
               allowed_client_headers:
                 patterns:
                 - exact: set-cookie
+  # Lua for token forwarding after auth
   - applyTo: HTTP_FILTER
     match:
       context: GATEWAY
@@ -56,7 +60,7 @@ spec:
     patch:
       operation: INSERT_BEFORE
       value:
-        name: envoy.lua
+        name: envoy.filters.http.lua
         typed_config:
           "@type": "type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua"
           inline_code: |
@@ -106,30 +110,3 @@ spec:
               end
               -- If no auth token present, preserve cookies (needed for ext_authz authentication)
             end
-  - applyTo: CLUSTER
-    match:
-      context: GATEWAY
-    patch:
-      operation: ADD
-      value:
-        name: {{.KubeAuthProxyServiceName}}
-        type: STRICT_DNS
-        connect_timeout: {{.AuthProxyTimeout}}
-        transport_socket:
-          name: envoy.transport_sockets.tls
-          typed_config:
-            "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-            common_tls_context:
-              validation_context:
-                trusted_ca:
-                  filename: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
-            sni: {{.KubeAuthProxyServiceName}}.{{.GatewayNamespace}}.svc.cluster.local
-        load_assignment:
-          cluster_name: {{.KubeAuthProxyServiceName}}
-          endpoints:
-          - lb_endpoints:
-            - endpoint:
-                address:
-                  socket_address:
-                    address: {{.KubeAuthProxyServiceName}}.{{.GatewayNamespace}}.svc.cluster.local
-                    port_value: {{.GatewayHTTPSPort}}

@@ -8,7 +8,7 @@
 language: "en-US"
 early_access: false
 
-tone_instructions: "Categorize findings accurately: '🔒 Security Findings' for actual security vulnerabilities (secrets, RBAC issues, injection, OWASP Top 10, CVEs), '⚠️ Code Quality' for bugs/errors/reliability issues (NameError, type errors, logic bugs), '💡 Suggestions' for best practices/style/improvements. Prioritize security vulnerabilities. Be specific with remediation examples."
+tone_instructions: "Categorize: Security (secrets, RBAC, injection, OWASP, CVEs), Code Quality (bugs, type errors), Suggestions. Prioritize security. For all security issues: provide CVE/CWE IDs, severity rating, exploit scenario, and detailed remediation code snippets."
 
 reviews:
   profile: chill  # Focused feedback for PoC - less overwhelming, builds trust first

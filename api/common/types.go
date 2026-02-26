@@ -22,6 +22,18 @@ type ManagementSpec struct {
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 }
 
+// GatewaySpec defines the gateway configuration for components.
+// This is a shared type used across Dashboard, ModelRegistry, and potentially other components.
+// +kubebuilder:object:generate=true
+type GatewaySpec struct {
+	// Domain is the fully qualified domain name for the gateway.
+	// Example: "rhods-dashboard.apps.example.com"
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$`
+	Domain string `json:"domain"`
+}
+
 // ConditionSeverity expresses the severity of a Condition Type failing.
 type ConditionSeverity string
 

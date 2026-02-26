@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -64,6 +65,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
 		// operands - openshift
 		Owns(&routev1.Route{}).
+		Owns(&gwapiv1.HTTPRoute{}).
 		Owns(&consolev1.ConsoleLink{}).
 		// Those APIs are provided by the component itself hence they should
 		// be watched dynamically
@@ -71,6 +73,9 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		OwnsGVK(gvk.OdhApplication, reconciler.Dynamic()).
 		OwnsGVK(gvk.OdhDocument, reconciler.Dynamic()).
 		OwnsGVK(gvk.OdhQuickStart, reconciler.Dynamic()).
+		// PersesDashboard resources are conditionally deployed when COO is installed
+		// and should be garbage collected when dashboard is removed
+		OwnsGVK(gvk.PersesDashboard, reconciler.Dynamic(reconciler.CrdExists(gvk.PersesDashboard))).
 		// CRDs are not owned by the component and should be left on the cluster,
 		// so by default, the deploy action won't add all the annotation added to
 		// other resources. Hence, a custom handling is required in order to minimize
@@ -81,6 +86,16 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				handlers.ToNamed(componentApi.DashboardInstanceName)),
 			reconciler.WithPredicates(
 				component.ForLabel(labels.ODH.Component(componentName), labels.True)),
+		).
+		// Watch PersesDashboard CRD to trigger reconciliation when COO is installed
+		// This enables automatic deployment of observability dashboards
+		Watches(
+			&extv1.CustomResourceDefinition{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.DashboardInstanceName)),
+			reconciler.WithPredicates(predicate.NewPredicateFuncs(func(obj client.Object) bool {
+				return obj.GetName() == "persesdashboards.perses.dev"
+			})),
 		).
 		// The OdhDashboardConfig resource is expected to be created by the operator
 		// but then owned by the user so we only re-create it with factory values if
@@ -96,6 +111,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			DeleteFunc:  func(tde event.TypedDeleteEvent[client.Object]) bool { return false },
 		}), reconciler.Dynamic(reconciler.CrdExists(gvk.DashboardHardwareProfile))).
 		WithAction(initialize).
+		WithAction(deployObservabilityManifests).
 		WithAction(setKustomizedParams).
 		WithAction(configureDependencies).
 		WithAction(kustomize.NewAction(

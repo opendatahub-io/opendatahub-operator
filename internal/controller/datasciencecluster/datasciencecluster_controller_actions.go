@@ -67,7 +67,7 @@ func watchDataScienceClusters(ctx context.Context, cli client.Client) []reconcil
 	return requests
 }
 
-func provisionComponents(_ context.Context, rr *odhtype.ReconciliationRequest) error {
+func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
@@ -76,12 +76,17 @@ func provisionComponents(_ context.Context, rr *odhtype.ReconciliationRequest) e
 	// force gc to run
 	rr.Generated = true
 
+	// ForEach continues on component errors; all enabled components are
+	// still provisioned, but any error causes this reconcile to fail and retry.
 	err := cr.ForEach(func(component cr.ComponentHandler) error {
 		if !component.IsEnabled(instance) {
 			return nil
 		}
 
-		ci := component.NewCRObject(instance)
+		ci, err := component.NewCRObject(ctx, rr.Client, instance)
+		if err != nil {
+			return err
+		}
 		if err := rr.AddResources(ci); err != nil {
 			return err
 		}

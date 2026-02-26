@@ -9,7 +9,7 @@ The list of the currently integrated ODH components is provided [at the end of t
 
 ## Use scaffolding to create boilerplate code
 
-Integrating a new component into the Open Data Hub (ODH) operator is  easier with the [component-codegen CLI](../cmd/component-codegen/README.md). The CLI automates much of the boilerplate code and file generation, significantly reducing manual effort and ensuring consistency.
+Integrating a new component into the Open Data Hub (ODH) operator is easier with the [component-codegen CLI](../cmd/component-codegen/README.md). The CLI automates much of the boilerplate code and file generation, significantly reducing manual effort and ensuring consistency.
 
 While the CLI handles most of the heavy lifting, it’s still important to understand the purpose of each generated file. Please refer to the following sections for a detailed breakdown of the key files and their roles in the integration process.
 
@@ -95,19 +95,19 @@ func (c *ExampleComponent) GetStatus() *common.Status {
 	return &c.Status.Status
 }
 
-func (c *TrainingOperator) GetConditions() []common.Condition {
+func (c *ExampleComponent) GetConditions() []common.Condition {
 	return c.Status.GetConditions()
 }
 
-func (c *TrainingOperator) SetConditions(conditions []common.Condition) {
+func (c *ExampleComponent) SetConditions(conditions []common.Condition) {
 	c.Status.SetConditions(conditions)
 }
 
-func (c *TrainingOperator) GetReleaseStatus() *[]common.ComponentRelease {
+func (c *ExampleComponent) GetReleaseStatus() *[]common.ComponentRelease {
 	return &c.Status.Releases
 }
 
-func (c *TrainingOperator) SetReleaseStatus(releases []common.ComponentRelease) {
+func (c *ExampleComponent) SetReleaseStatus(releases []common.ComponentRelease) {
 	c.Status.Releases = releases
 }
 
@@ -143,6 +143,37 @@ type DSCExampleComponentStatus struct {
 ```
 
 Alternatively, you can refer to the existing integrated component APIs located within `api/component/v1alpha1` directory.
+
+#### Define internal resources for the new component
+
+Component CRDs can be marked as internal to hide them from users in the OperatorHub UI. While some internal resources can still be edited by users if needed, resources visible in the UI represent the primary configuration points that users are expected to interact with. Most component resources should be internal unless they require direct user configuration. 
+
+To mark your component as internal, update `config/manifests/bases/opendatahub-operator.clusterserviceversion.yaml` and `config/rhoai/manifests/bases/rhods-operator.clusterserviceversion.yaml`to add your component's CRD to the `operators.operatorframework.io/internal-objects` annotation:
+
+```yaml
+operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
+  "dashboards.components.platform.opendatahub.io", "datasciencepipelines.components.platform.opendatahub.io",
+  ...
+  "examplecomponents.components.platform.opendatahub.io"]'
+```
+
+#### Add component to the owned objects list
+
+Add your component to the `resources` list in `PROJECT` file (if you used [component-codegen CLI](../cmd/component-codegen/README.md), it should have been already added):
+
+```yaml
+    resources:
+    - api:
+        crdVersion: v1alpha1
+      controller: true
+      domain: platform.opendatahub.io
+      group: components
+      kind: ExampleComponent
+      path: github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1
+      version: v1alpha1
+```
+
+and run `make bundle-all` to verify your component has been correctly added to `config/manifests/bases/opendatahub-operator.clusterserviceversion.yaml` and `config/rhoai/manifests/bases/rhods-operator.clusterserviceversion.yaml`.
 
 #### Add Component to DataScienceCluster API spec
 
@@ -345,5 +376,7 @@ Currently integrated components are:
 - [TrustyAI](https://github.com/opendatahub-io/trustyai-service-operator)
 - [Workbenches](https://github.com/opendatahub-io/notebooks)
 - [Feast Operator](https://github.com/opendatahub-io/feast)
+- [MLflow Operator](https://github.com/opendatahub-io/mlflow-operator)
+- [Spark Operator](https://github.com/opendatahub-io/spark-operator)
 
 The particular controller implementations for the listed components are located in the `internal/controller/components` directory and the corresponding internal component APIs are located in `api/component/v1alpha1`.

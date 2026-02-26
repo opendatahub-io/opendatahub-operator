@@ -32,7 +32,7 @@ func (s *componentHandler) GetName() string {
 	return componentApi.MLflowOperatorComponentName
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
+func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
 	return &componentApi.MLflowOperator{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.MLflowOperatorKind,
@@ -47,12 +47,12 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 		Spec: componentApi.MLflowOperatorSpec{
 			MLflowOperatorCommonSpec: dsc.Spec.Components.MLflowOperator.MLflowOperatorCommonSpec,
 		},
-	}
+	}, nil
 }
 
 func (s *componentHandler) Init(platform common.Platform) error {
-	if err := odhdeploy.ApplyParams(manifestPath(platform).String(), "params.env", imageParamMap); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", manifestPath(platform), err)
+	if err := odhdeploy.ApplyParams(paramsPath, "params.env", imageParamMap); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", paramsPath, err)
 	}
 
 	return nil

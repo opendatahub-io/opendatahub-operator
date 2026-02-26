@@ -25,12 +25,303 @@ jobs:
   kube-linter:
     name: kube-linter
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write  # For SARIF upload
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       - name: Set up Go env
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
           go-version-file: go.mod
-      - name: kube-lint
-        run:
-          make kube-lint
+
+      - name: Install kube-linter
+        run: |
+          # Install pre-built binary from GitHub Releases (avoids supply chain risk)
+          set -euo pipefail
+          KUBE_LINTER_VERSION="v0.8.1"
+          KUBE_LINTER_ASSET="kube-linter-linux.tar.gz"
+          KUBE_LINTER_URL="https://github.com/stackrox/kube-linter/releases/download/${KUBE_LINTER_VERSION}/kube-linter-linux.tar.gz"
+          KUBE_LINTER_SHA256="49629abaf0ae3283e9437214a2bea4bf4029008744e05471c85dd3872464f50b"
+
+          curl -sSfL --max-time 300 -o "${KUBE_LINTER_ASSET}" "${KUBE_LINTER_URL}"
+          echo "${KUBE_LINTER_SHA256}  ${KUBE_LINTER_ASSET}" | sha256sum -c -
+          tar -xzf "${KUBE_LINTER_ASSET}" kube-linter
+          sudo mv kube-linter /usr/local/bin/
+          kube-linter version
+          rm -f "${KUBE_LINTER_ASSET}"
+
+      # Run kube-linter with SARIF output for GitHub Security tab integration
+      - name: Run kube-linter (SARIF output)
+        id: kubelinter_sarif
+        run: |
+          set -euo pipefail
+          # Prepare manifests
+          make prepare
+          TMP_FILE=$(mktemp /tmp/kube-lint.XXXXXX.yaml)
+          ./bin/kustomize build config/manifests > "$TMP_FILE"
+
+          # Run kube-linter with SARIF format for GitHub Security tab
+          # Redirect stderr to avoid contaminating SARIF output
+          kube-linter lint \
+            --config .kube-linter.yaml \
+            --format sarif \
+            "$TMP_FILE" > kube-linter.sarif 2>kube-linter.stderr || true
+
+          # Validate SARIF file before upload
+          if [ -f kube-linter.sarif ] && [ -s kube-linter.sarif ]; then
+            if jq -e . kube-linter.sarif >/dev/null 2>&1; then
+              echo "✅ Valid SARIF output generated"
+              echo "sarif_valid=true" >> $GITHUB_OUTPUT
+            else
+              echo "⚠️ Invalid SARIF JSON - skipping upload"
+              cat kube-linter.stderr || true
+              echo "sarif_valid=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "⚠️ SARIF file empty or missing"
+            cat kube-linter.stderr || true
+            echo "sarif_valid=false" >> $GITHUB_OUTPUT
+          fi
+
+          rm -f "$TMP_FILE" kube-linter.stderr
+        continue-on-error: true
+
+      # Upload SARIF to GitHub Security tab
+      - name: Upload kube-linter SARIF results
+        if: always() && steps.kubelinter_sarif.outputs.sarif_valid == 'true'
+        uses: github/codeql-action/upload-sarif@1b168cd39490f61582a9beae412bb7057a6b2c4e  # v4.31.8
+        with:
+          sarif_file: kube-linter.sarif
+          category: kube-linter
+
+      # Run kube-linter with severity-based blocking (CRITICAL/HIGH only)
+      # MEDIUM and LOW findings are reported but don't block PRs
+      - name: Run kube-linter (blocking check - CRITICAL/HIGH only)
+        run: |
+          set -euo pipefail
+          # Prepare manifests
+          make prepare
+          TMP_FILE=$(mktemp /tmp/kube-lint.XXXXXX.yaml)
+          ./bin/kustomize build config/manifests > "$TMP_FILE"
+
+          # Run kube-linter with JSON output for severity filtering
+          kube-linter lint \
+            --config .kube-linter.yaml \
+            --format json \
+            "$TMP_FILE" > kube-linter-pr-check.json || true
+
+          # Install PyYAML for baseline loading (required for yaml.safe_load)
+          python3 -m pip install --quiet --user "pyyaml==6.0.3"
+
+          # Analyze findings and block only on CRITICAL/HIGH
+          python3 - <<'EOF'
+          import json
+          import sys
+          import yaml
+
+          # Severity mapping (matches generate-security-report.py)
+          # ⚠️ IMPORTANT: These must stay synchronized with .github/scripts/generate-security-report.py lines 384-401
+          # If you update this, update that file too! Drift causes security gaps.
+          CRITICAL_CHECKS = {
+              'cluster-admin-role-binding', 'privileged-container',
+              'host-network', 'host-pid', 'host-ipc', 'docker-sock',
+              'access-to-create-pods', 'privilege-escalation-container',
+              'run-as-non-root', 'no-read-only-root-fs', 'privileged-ports'
+          }
+          HIGH_CHECKS = {
+              'access-to-secrets', 'wildcard-in-rules', 'sensitive-host-mounts',
+              'writable-host-mount', 'unsafe-proc-mount', 'unsafe-sysctls',
+              'default-service-account', 'env-var-secret', 'read-secret-from-env-var',
+              'drop-net-raw-capability', 'exposed-services', 'non-isolated-pod',
+              'ssh-port', 'latest-tag', 'no-system-group-binding'
+          }
+          MEDIUM_CHECKS = {
+              'no-liveness-probe', 'no-readiness-probe',
+              'unset-cpu-requirements', 'unset-memory-requirements',
+              'use-namespace', 'non-existent-service-account'
+          }
+
+          # Load acknowledged findings baseline (if exists)
+          # Teams can acknowledge findings that aren't real issues to prevent repeated reports
+          # Supports: .github/config/security-baseline.yaml (v2.0), .security-baseline.json (v2.0 legacy), .kube-linter-baseline.json (v1.0)
+          baseline_findings = set()
+          baseline_file_used = None
+
+          # Try unified YAML baseline first (version 2.0 - preferred format)
+          try:
+              with open('.github/config/security-baseline.yaml') as f:
+                  baseline = yaml.safe_load(f) or {}
+                  if not isinstance(baseline, dict):
+                      baseline = {}
+                  findings_list = baseline.get('kube-linter', [])
+                  baseline_file_used = '.github/config/security-baseline.yaml'
+          except FileNotFoundError:
+              # Fall back to JSON unified baseline (version 2.0 - backward compat)
+              try:
+                  with open('.security-baseline.json') as f:
+                      baseline = json.load(f) or {}
+                      if not isinstance(baseline, dict):
+                          baseline = {}
+                      findings_list = baseline.get('kube-linter', [])
+                      baseline_file_used = '.security-baseline.json'
+              except (FileNotFoundError, json.JSONDecodeError):
+                  # Fall back to legacy kube-linter baseline (version 1.0)
+                  try:
+                      with open('.kube-linter-baseline.json') as f:
+                          baseline = json.load(f) or {}
+                          if not isinstance(baseline, dict):
+                              baseline = {}
+                          findings_list = baseline.get('acknowledged_findings', [])
+                          baseline_file_used = '.kube-linter-baseline.json'
+                  except (FileNotFoundError, json.JSONDecodeError):
+                      findings_list = []
+                      baseline_file_used = None
+
+          # Process baseline findings
+          for finding in findings_list:
+              check = finding.get('check')
+              obj = finding.get('object', {})
+              # Create tuple for matching: (check, kind, name, namespace)
+              baseline_key = (check, obj.get('kind'), obj.get('name'), obj.get('namespace'))
+              baseline_findings.add(baseline_key)
+
+          if baseline_file_used:
+              print(f"\nℹ️  Loaded {len(baseline_findings)} acknowledged findings from {baseline_file_used}")
+          else:
+              print("\nℹ️  No baseline file found - validating all findings")
+
+          # Operator infrastructure RBAC that requires broad permissions
+          # These are excluded from certain checks, but component RBAC is still validated
+          # Uses (Kind, Name, Namespace) tuples to prevent name-only spoofing (CWE-693)
+          OPERATOR_INFRASTRUCTURE = {
+              # (kind, name, namespace) - None for cluster-scoped resources
+              ('ClusterRole', 'controller-manager-role', None),
+              ('ClusterRoleBinding', 'controller-manager-rolebinding', None),
+              ('ClusterRole', 'opendatahub-operator-controller-manager-role', None),
+              ('ClusterRoleBinding', 'opendatahub-operator-controller-manager-rolebinding', None),
+          }
+
+          # Checks to skip for operator infrastructure only
+          OPERATOR_EXEMPT_CHECKS = {
+              'access-to-create-pods',  # Operator deploys workload pods
+              'wildcard-in-rules',      # Operator needs dynamic CRD management
+              'access-to-secrets'       # Operator manages component credentials
+          }
+
+          try:
+              with open('kube-linter-pr-check.json') as f:
+                  data = json.load(f)
+          except FileNotFoundError:
+              print("❌ ERROR: kube-linter output not found - failing check to prevent bypass")
+              sys.exit(1)
+          except json.JSONDecodeError as e:
+              print(f"❌ ERROR: Failed to parse kube-linter JSON: {e}")
+              print("   Failing check to prevent bypass - ensure kube-linter runs successfully")
+              sys.exit(1)
+
+          reports = data.get('Reports', [])
+
+          critical_findings = []
+          high_findings = []
+          medium_findings = []
+          low_count = 0
+          filtered_count = 0
+          baselined_count = 0
+
+          for report in reports:
+              check_name = report.get('Check', 'unknown')
+              obj = report.get('Object', {}).get('K8sObject', {})
+              obj_name = obj.get('Name', 'unknown')
+              obj_kind = obj.get('GroupVersionKind', {}).get('Kind', 'unknown')
+              obj_namespace = obj.get('Namespace') or None  # None for cluster-scoped
+
+              # Check if this finding is in the acknowledged baseline
+              baseline_key = (check_name, obj_kind, obj_name, obj_namespace)
+              if baseline_key in baseline_findings:
+                  baselined_count += 1
+                  continue
+
+              # Filter out operator infrastructure for exempt checks (structural identity matching)
+              if check_name in OPERATOR_EXEMPT_CHECKS and (obj_kind, obj_name, obj_namespace) in OPERATOR_INFRASTRUCTURE:
+                  filtered_count += 1
+                  continue
+
+              if check_name in CRITICAL_CHECKS:
+                  critical_findings.append(report)
+              elif check_name in HIGH_CHECKS:
+                  high_findings.append(report)
+              elif check_name in MEDIUM_CHECKS:
+                  medium_findings.append(report)
+              else:
+                  low_count += 1
+
+          # Print summary
+          print("\n" + "="*80)
+          print("🔍 Kube-linter PR Check Results")
+          print("="*80)
+
+          if baselined_count > 0:
+              print(f"\nℹ️  Filtered {baselined_count} acknowledged findings (see {baseline_file_used})")
+
+          if filtered_count > 0:
+              print(f"\nℹ️  Filtered {filtered_count} operator infrastructure findings")
+              print("   (controller-manager RBAC exempt from pod/secret/wildcard checks)")
+
+          if critical_findings:
+              print(f"\n🔴 CRITICAL: {len(critical_findings)} findings (BLOCKING)")
+              for finding in critical_findings:
+                  obj = finding.get('Object', {}).get('K8sObject', {})
+                  name = obj.get('Name', 'unknown')
+                  kind = obj.get('GroupVersionKind', {}).get('Kind', 'unknown')
+                  check = finding.get('Check', 'unknown')
+                  msg = finding.get('Diagnostic', {}).get('Message', '')
+                  print(f"  ❌ {kind}/{name}: {check}")
+                  print(f"     {msg}")
+
+          if high_findings:
+              print(f"\n🟠 HIGH: {len(high_findings)} findings (BLOCKING)")
+              for finding in high_findings:
+                  obj = finding.get('Object', {}).get('K8sObject', {})
+                  name = obj.get('Name', 'unknown')
+                  kind = obj.get('GroupVersionKind', {}).get('Kind', 'unknown')
+                  check = finding.get('Check', 'unknown')
+                  msg = finding.get('Diagnostic', {}).get('Message', '')
+                  print(f"  ❌ {kind}/{name}: {check}")
+                  print(f"     {msg}")
+
+          if medium_findings:
+              print(f"\n🟡 MEDIUM: {len(medium_findings)} findings (non-blocking)")
+              for finding in medium_findings:
+                  obj = finding.get('Object', {}).get('K8sObject', {})
+                  name = obj.get('Name', 'unknown')
+                  kind = obj.get('GroupVersionKind', {}).get('Kind', 'unknown')
+                  check = finding.get('Check', 'unknown')
+                  msg = finding.get('Diagnostic', {}).get('Message', '')
+                  print(f"  ⚠️  {kind}/{name}: {check}")
+                  print(f"     {msg}")
+
+          if low_count > 0:
+              print(f"\n🔵 LOW: {low_count} findings (non-blocking)")
+              print("   ℹ️  See SARIF results in Security tab for details")
+
+          # Block PR only on CRITICAL or HIGH
+          if critical_findings or high_findings:
+              print("\n" + "="*80)
+              print("❌ PR BLOCKED: Fix CRITICAL/HIGH findings to proceed")
+              print("="*80)
+              sys.exit(1)
+          elif medium_findings or low_count > 0:
+              print("\n" + "="*80)
+              print("✅ PR CHECK PASSED (MEDIUM/LOW findings don't block)")
+              print("📋 Please address these findings in a follow-up PR")
+              print("="*80)
+              sys.exit(0)
+          else:
+              print("\n" + "="*80)
+              print("✅ ALL CHECKS PASSED - No kube-linter findings")
+              print("="*80)
+              sys.exit(0)
+          EOF
+
+          rm -f "$TMP_FILE" kube-linter-pr-check.json

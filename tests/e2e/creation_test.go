@@ -1,7 +1,6 @@
 package e2e_test
 
 import (
-	"fmt"
 	"testing"
 
 	gTypes "github.com/onsi/gomega/types"
@@ -11,8 +10,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
-	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -24,9 +21,9 @@ import (
 )
 
 const (
-	testNamespace             = "test-model-registries"   // Namespace used for model registry testing
-	dsciInstanceNameDuplicate = "e2e-test-dsci-duplicate" // Instance name for the duplicate DSCInitialization resource
-	dscInstanceNameDuplicate  = "e2e-test-dsc-duplicate"  // Instance name for the duplicate DataScienceCluster resource
+	testNamespace             = "test-model-registries"  // Namespace used for model registry testing
+	dsciInstanceNameDuplicate = "default-dsci-duplicate" // Instance name for the duplicate DSCInitialization resource
+	dscInstanceNameDuplicate  = "default-dsc-duplicate"  // Instance name for the duplicate DataScienceCluster resource
 )
 
 // DSCTestCtx holds the context for the DSCInitialization and DataScienceCluster management tests.
@@ -49,73 +46,60 @@ func dscManagementTestSuite(t *testing.T) {
 
 	// Define test cases.
 	testCases := []TestCase{
-		{"Ensure required operators with custom channels are installed", dscTestCtx.ValidateOperatorsWithCustomChannelsInstallation},
 		{"Ensure required operators are installed", dscTestCtx.ValidateOperatorsInstallation},
 		{"Ensure required resources are created", dscTestCtx.ValidateResourcesCreation},
 		{"Validate creation of DSCInitialization instance", dscTestCtx.ValidateDSCICreation},
 		{"Validate creation of DataScienceCluster instance", dscTestCtx.ValidateDSCCreation},
-		{"Validate HardwareProfile resource", dscTestCtx.ValidateHardwareProfileCR},
-		{"Validate owned namespaces exist", dscTestCtx.ValidateOwnedNamespacesAllExist},
-		{"Validate default NetworkPolicy exist", dscTestCtx.ValidateDefaultNetworkPolicyExists},
-	}
-
-	// Append webhook-specific tests.
-	if testOpts.webhookTest {
-		webhookTests := []TestCase{
-			{"Validate creation of more than one DSCInitialization instance", dscTestCtx.ValidateDSCIDuplication},
-			{"Validate creation of more than one DataScienceCluster instance", dscTestCtx.ValidateDSCDuplication},
-			{"Validate Model Registry Configuration Changes", dscTestCtx.ValidateModelRegistryConfig},
-		}
-
-		testCases = append(testCases, TestCase{
-			name: "Webhook",
-			testFn: func(t *testing.T) {
-				t.Helper()
-				RunTestCases(t, webhookTests, WithParallel())
-			},
-		})
 	}
 
 	// Run the test suite.
 	RunTestCases(t, testCases)
 }
 
-func (tc *DSCTestCtx) ValidateOperatorsWithCustomChannelsInstallation(t *testing.T) {
+// dscValidationTestSuite runs the DataScienceCluster and DSCInitialization validation test suite.
+func dscValidationTestSuite(t *testing.T) {
 	t.Helper()
 
-	// Define operators to be installed.
-	operators := []struct {
-		nn                  types.NamespacedName
-		skipOperatorGroup   bool
-		globalOperatorGroup bool
-		channel             string
-	}{
-		{nn: types.NamespacedName{Name: leaderWorkerSetOpName, Namespace: leaderWorkerSetNamespace},
-			skipOperatorGroup: false, globalOperatorGroup: false, channel: leaderWorkerSetChannel},
-		{nn: types.NamespacedName{Name: jobSetOpName, Namespace: jobSetOpNamespace},
-			skipOperatorGroup: false, globalOperatorGroup: false, channel: jobSetOpChannel},
+	// Initialize the test context.
+	tc, err := NewTestContext(t)
+	require.NoError(t, err, "Failed to initialize test context")
+
+	// Create an instance of test context.
+	dscTestCtx := DSCTestCtx{
+		TestContext: tc,
 	}
 
-	// Create and run test cases in parallel.
-	testCases := make([]TestCase, len(operators))
-	for i, op := range operators {
-		testCases[i] = TestCase{
-			name: fmt.Sprintf("Ensure %s is installed", op.nn.Name),
-			testFn: func(t *testing.T) {
-				t.Helper()
-				switch {
-				case op.skipOperatorGroup:
-					tc.EnsureOperatorInstalledWithChannel(op.nn, op.channel)
-				case op.globalOperatorGroup:
-					tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(op.nn, op.channel)
-				default:
-					tc.EnsureOperatorInstalledWithLocalOperatorGroupAndChannel(op.nn, op.channel)
-				}
-			},
-		}
+	// Define test cases.
+	testCases := []TestCase{
+		{"Validate HardwareProfile resource", dscTestCtx.ValidateHardwareProfileCR},
+		{"Validate owned namespaces exist", dscTestCtx.ValidateOwnedNamespacesAllExist},
+		{"Validate default NetworkPolicy exist", dscTestCtx.ValidateDefaultNetworkPolicyExists},
 	}
 
+	// Run the test suite.
 	RunTestCases(t, testCases, WithParallel())
+}
+
+func dscWebhookTestSuite(t *testing.T) {
+	t.Helper()
+
+	// Initialize the test context.
+	tc, err := NewTestContext(t)
+	require.NoError(t, err, "Failed to initialize test context")
+
+	// Create an instance of test context.
+	dscTestCtx := DSCTestCtx{
+		TestContext: tc,
+	}
+
+	// Define dsci/dsc webhook-specific tests.
+	webhookTests := []TestCase{
+		{"Validate creation of more than one DSCInitialization instance", dscTestCtx.ValidateDSCIDuplication},
+		{"Validate creation of more than one DataScienceCluster instance", dscTestCtx.ValidateDSCDuplication},
+		{"Validate Model Registry Configuration Changes", dscTestCtx.ValidateModelRegistryConfig},
+	}
+
+	RunTestCases(t, webhookTests, WithParallel())
 }
 
 // ValidateOperatorsInstallation ensures the required operators are installed.
@@ -123,39 +107,14 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 	t.Helper()
 
 	// Define operators to be installed.
-	operators := []struct {
-		nn                  types.NamespacedName
-		skipOperatorGroup   bool
-		globalOperatorGroup bool
-		channel             string
-	}{
+	operators := []Operator{
 		{nn: types.NamespacedName{Name: certManagerOpName, Namespace: certManagerOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: certManagerOpChannel},
-		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: defaultOperatorChannel},
-		{nn: types.NamespacedName{Name: opentelemetryOpName, Namespace: opentelemetryOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: defaultOperatorChannel},
-		{nn: types.NamespacedName{Name: tempoOpName, Namespace: tempoOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: defaultOperatorChannel},
 		{nn: types.NamespacedName{Name: kuadrantOpName, Namespace: kuadrantNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: defaultOperatorChannel},
+		{nn: types.NamespacedName{Name: leaderWorkerSetOpName, Namespace: leaderWorkerSetNamespace}, skipOperatorGroup: false, globalOperatorGroup: false, channel: leaderWorkerSetChannel}, //nolint:lll
+		{nn: types.NamespacedName{Name: jobSetOpName, Namespace: jobSetOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: false, channel: jobSetOpChannel},
 	}
 
-	// Create and run test cases in parallel.
-	testCases := make([]TestCase, len(operators))
-	for i, op := range operators {
-		testCases[i] = TestCase{
-			name: fmt.Sprintf("Ensure %s is installed", op.nn.Name),
-			testFn: func(t *testing.T) {
-				t.Helper()
-				switch {
-				case op.skipOperatorGroup:
-					tc.EnsureOperatorInstalledWithChannel(op.nn, op.channel)
-				case op.globalOperatorGroup:
-					tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(op.nn, op.channel)
-				default:
-					tc.EnsureOperatorInstalledWithLocalOperatorGroupAndChannel(op.nn, op.channel)
-				}
-			},
-		}
-	}
-
-	RunTestCases(t, testCases, WithParallel())
+	tc.ensureOperatorsAreInstalled(t, operators)
 }
 
 // ValidateResourcesCreation validates the creation of the required resources.
@@ -174,7 +133,7 @@ func (tc *DSCTestCtx) ValidateDSCICreation(t *testing.T) {
 	t.Helper()
 
 	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(CreateDSCI(tc.DSCInitializationNamespacedName.Name, dsciv2.GroupVersion.String(), tc.AppsNamespace, tc.MonitoringNamespace)),
+		WithObjectToCreate(CreateDSCI(tc.DSCInitializationNamespacedName.Name, tc.AppsNamespace, tc.MonitoringNamespace)),
 		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
 		WithCustomErrorMsg("Failed to create DSCInitialization resource %s", tc.DSCInitializationNamespacedName.Name),
 
@@ -234,11 +193,11 @@ func (tc *DSCTestCtx) ValidateDefaultNetworkPolicyExists(t *testing.T) {
 func (tc *DSCTestCtx) ValidateDSCIDuplication(t *testing.T) {
 	t.Helper()
 
-	dup := CreateDSCI(dsciInstanceNameDuplicate, dsciv2.GroupVersion.String(), tc.AppsNamespace, tc.MonitoringNamespace)
+	dup := CreateDSCI(dsciInstanceNameDuplicate, tc.AppsNamespace, tc.MonitoringNamespace)
 	tc.EnsureResourceIsUnique(dup, "Error validating DSCInitialization duplication")
 
-	dup = CreateDSCI(dsciInstanceNameDuplicate, dsciv1.GroupVersion.String(), tc.AppsNamespace, tc.MonitoringNamespace)
-	tc.EnsureResourceIsUnique(dup, "Error validating DSCInitialization duplication v1")
+	dupv1 := CreateDSCIv1(dsciInstanceNameDuplicate, tc.AppsNamespace, tc.MonitoringNamespace)
+	tc.EnsureResourceIsUnique(dupv1, "Error validating DSCInitialization duplication v1")
 }
 
 // ValidateDSCDuplication ensures that no duplicate DataScienceCluster resource can be created.

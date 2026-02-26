@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-multierror"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -145,9 +146,30 @@ func (b *ReconcilerBuilder[T]) WithFinalizer(value actions.Fn) *ReconcilerBuilde
 	return b
 }
 
+func (b *ReconcilerBuilder[T]) toUnstructured(object client.Object) (*unstructured.Unstructured, error) {
+	// If already unstructured, return as-is
+	if u, ok := object.(*unstructured.Unstructured); ok {
+		return u, nil
+	}
+
+	// Get the GVK from the scheme for the typed object
+	gvk, err := b.mgr.GetClient().GroupVersionKindFor(object)
+	if err != nil {
+		return nil, fmt.Errorf("unable to determine GVK for object: %w", err)
+	}
+
+	return resources.GvkToUnstructured(gvk), nil
+}
+
 func (b *ReconcilerBuilder[T]) Watches(object client.Object, opts ...WatchOpts) *ReconcilerBuilder[T] {
+	u, err := b.toUnstructured(object)
+	if err != nil {
+		b.errors = multierror.Append(b.errors, fmt.Errorf("failed to convert object to unstructured for Watches: %w", err))
+		return b
+	}
+
 	in := watchInput{}
-	in.object = object
+	in.object = u
 	in.owned = false
 
 	for _, opt := range opts {
@@ -174,13 +196,20 @@ func (b *ReconcilerBuilder[T]) Watches(object client.Object, opts ...WatchOpts) 
 	return b
 }
 
+// WatchesGVK registers a watch for resources identified by GVK.
 func (b *ReconcilerBuilder[T]) WatchesGVK(gvk schema.GroupVersionKind, opts ...WatchOpts) *ReconcilerBuilder[T] {
 	return b.Watches(resources.GvkToUnstructured(gvk), opts...)
 }
 
 func (b *ReconcilerBuilder[T]) Owns(object client.Object, opts ...WatchOpts) *ReconcilerBuilder[T] {
+	u, err := b.toUnstructured(object)
+	if err != nil {
+		b.errors = multierror.Append(b.errors, fmt.Errorf("failed to convert object to unstructured for Owns: %w", err))
+		return b
+	}
+
 	in := watchInput{}
-	in.object = object
+	in.object = u
 	in.owned = true
 
 	for _, opt := range opts {
@@ -191,7 +220,7 @@ func (b *ReconcilerBuilder[T]) Owns(object client.Object, opts ...WatchOpts) *Re
 		in.eventHandler = handler.EnqueueRequestForOwner(
 			b.mgr.GetScheme(),
 			b.mgr.GetRESTMapper(),
-			b.input.object,
+			resources.GvkToUnstructured(b.input.gvk),
 			handler.OnlyControllerOwner(),
 		)
 	}
@@ -210,6 +239,7 @@ func (b *ReconcilerBuilder[T]) WithEventFilter(p predicate.Predicate) *Reconcile
 	return b
 }
 
+// OwnsGVK registers a watch for owned resources identified by GVK.
 func (b *ReconcilerBuilder[T]) OwnsGVK(gvk schema.GroupVersionKind, opts ...WatchOpts) *ReconcilerBuilder[T] {
 	return b.Owns(resources.GvkToUnstructured(gvk), opts...)
 }
@@ -246,7 +276,7 @@ func (b *ReconcilerBuilder[T]) Build(_ context.Context) (*Reconciler, error) {
 		)))
 	}
 
-	c = c.For(b.input.object, forOpts...)
+	c = c.For(resources.GvkToUnstructured(b.input.gvk), forOpts...)
 
 	for i := range b.watches {
 		if b.watches[i].owned {

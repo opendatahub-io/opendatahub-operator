@@ -32,7 +32,7 @@ func (s *componentHandler) GetName() string {
 	return componentApi.WorkbenchesComponentName
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
+func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
 	return &componentApi.Workbenches{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.WorkbenchesKind,
@@ -47,7 +47,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 		Spec: componentApi.WorkbenchesSpec{
 			WorkbenchesCommonSpec: dsc.Spec.Components.Workbenches.WorkbenchesCommonSpec,
 		},
-	}
+	}, nil
 }
 
 func (s *componentHandler) Init(platform common.Platform) error {

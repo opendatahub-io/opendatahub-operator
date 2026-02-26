@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -22,12 +23,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -40,6 +41,7 @@ const (
 	notebooks                             = "notebooks"
 	customServing                         = "custom-serving"
 	acceleratorNameAnnotation             = "opendatahub.io/accelerator-name"
+	acceleratorProfileNamespaceAnnotation = "opendatahub.io/accelerator-profile-namespace"
 	lastSizeSelectionAnnotation           = "notebooks.opendatahub.io/last-size-selection"
 	hardwareProfileNameAnnotation         = "opendatahub.io/hardware-profile-name"
 	hardwareProfileNamespaceAnnotation    = "opendatahub.io/hardware-profile-namespace"
@@ -52,6 +54,15 @@ const (
 	featureVisibilityModelServing         = `["model-serving"]`
 	featureVisibilityWorkbench            = `["workbench"]`
 	containerSizeHWPPrefix                = "containersize-"
+
+	// ServerlessMigrationSkipped event fields.
+	eventReasonServerlessMigrationSkipped = "ServerlessMigrationSkipped"
+	eventSourceComponent                  = "opendatahub-operator"
+	// HardwareProfileMigrationSkipped event fields.
+	eventReasonHardwareProfileMigrationSkipped = "HardwareProfileMigrationSkipped"
+	// KServe deployment mode annotation.
+	kserveDeploymentModeAnnotationKey = "serving.kserve.io/deploymentMode"
+	kserveDeploymentModeServerless    = "Serverless"
 )
 
 var defaultResourceLimits = map[string]string{
@@ -64,8 +75,6 @@ var defaultResourceLimits = map[string]string{
 // TODO: remove function once we have a generic solution across all components.
 func CleanupExistingResource(ctx context.Context,
 	cli client.Client,
-	platform common.Platform,
-	oldReleaseVersion common.Release,
 ) error {
 	var multiErr *multierror.Error
 	// get DSCI CR to get application namespace
@@ -89,12 +98,27 @@ func CleanupExistingResource(ctx context.Context,
 
 	// HardwareProfile migration as described in RHOAIENG-33158 and RHOAIENG-33159
 	// This includes creating HardwareProfile resources and updating annotations on Notebooks and InferenceServices
-	if cluster.GetRelease().Version.Major == 3 && oldReleaseVersion.Version.Major == 2 {
-		multiErr = multierror.Append(multiErr, MigrateToInfraHardwareProfiles(ctx, cli, d.Spec.ApplicationsNamespace))
+	// Check if target infrastructure HardwareProfile CRD exists (indicates we should migrate)
+	hasInfraHWP, err := cluster.HasCRD(ctx, cli, gvk.HardwareProfile)
+	if err != nil {
+		multiErr = multierror.Append(multiErr, fmt.Errorf("failed to check HardwareProfile CRD: %w", err))
+	} else if hasInfraHWP {
+		// Check if source AcceleratorProfile CRD exists (indicates we have data to migrate)
+		hasAccelProfile, err := cluster.HasCRD(ctx, cli, gvk.DashboardAcceleratorProfile)
+		if err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to check AcceleratorProfile CRD: %w", err))
+		} else if hasAccelProfile {
+			// Both CRDs exist, run migration (it's idempotent)
+			multiErr = multierror.Append(multiErr, MigrateToInfraHardwareProfiles(ctx, cli, d.Spec.ApplicationsNamespace))
+		}
 	}
 
-	// GatewayConfig ingressMode migration: preserve LoadBalancer mode for existing 3.x deployments
-	if oldReleaseVersion.Version.Major == 3 {
+	// GatewayConfig ingressMode migration: preserve LoadBalancer mode for existing deployments
+	// Check if GatewayConfig CRD exists (indicates feature is available)
+	hasGatewayConfig, err := cluster.HasCRD(ctx, cli, gvk.GatewayConfig)
+	if err != nil {
+		multiErr = multierror.Append(multiErr, fmt.Errorf("failed to check GatewayConfig CRD: %w", err))
+	} else if hasGatewayConfig {
 		multiErr = multierror.Append(multiErr, MigrateGatewayConfigIngressMode(ctx, cli))
 	}
 
@@ -208,8 +232,20 @@ func cleanupDeprecatedKueueVAPB(ctx context.Context, cli client.Client) error {
 	return nil
 }
 
-// MigrateToInfraHardwareProfiles orchestrates all HardwareProfile migrations including resource creation and annotation updates.
-// This is the parent function that gets OdhDashboardConfig once and calls all child migration functions.
+// MigrateToInfraHardwareProfiles performs one-time migration from AcceleratorProfiles to HardwareProfiles.
+// This orchestrates all HardwareProfile migrations including resource creation and annotation updates.
+//
+// IMPORTANT: This migration uses Create-only semantics. Existing HardwareProfiles are never modified.
+// This preserves user customizations and prevents data loss on operator restarts.
+//
+// Behavior:
+//   - Missing HardwareProfiles are created from AcceleratorProfiles and container sizes
+//   - Existing HardwareProfiles are skipped (AlreadyExists is not an error)
+//   - User modifications to HardwareProfiles persist across migration runs
+//   - Notebook and InferenceService annotations are updated if not already set
+//
+// This function is called on every operator startup via CleanupExistingResource.
+// The Create-only approach ensures that frequent operator restarts do not overwrite user changes.
 func MigrateToInfraHardwareProfiles(ctx context.Context, cli client.Client, applicationNS string) error {
 	var multiErr *multierror.Error
 	log := logf.FromContext(ctx)
@@ -221,7 +257,7 @@ func MigrateToInfraHardwareProfiles(ctx context.Context, cli client.Client, appl
 	}
 
 	// Get OdhDashboardConfig to extract container sizes
-	odhConfig, found, err := getOdhDashboardConfig(ctx, cli, applicationNS)
+	odhConfig, found, err := GetOdhDashboardConfig(ctx, cli, applicationNS)
 	if err != nil {
 		return fmt.Errorf("failed to get OdhDashboardConfig: %w", err)
 	}
@@ -374,12 +410,15 @@ func AttachHardwareProfileToNotebooks(ctx context.Context, cli client.Client, ap
 		}
 
 		var hwpName string
+		var hwpNamespace string
 		var migrationSource string
 
 		// Check for AcceleratorProfile annotation first (higher priority)
 		if apName := annotations[acceleratorNameAnnotation]; apName != "" {
 			// Convert to lowercase and replace spaces with dashes to comply with the hardwareprofile CRD validation
 			hwpName = fmt.Sprintf("%s-notebooks", strings.ReplaceAll(strings.ToLower(apName), " ", "-"))
+			// Get the AP namespace if specified (for cross-namespace AP references)
+			hwpNamespace = annotations[acceleratorProfileNamespaceAnnotation]
 			migrationSource = "AcceleratorProfile annotation"
 		} else if sizeSelection := annotations[lastSizeSelectionAnnotation]; sizeSelection != "" && containerSizeExists(containerSizes, sizeSelection) {
 			// Handle container size annotation migration
@@ -390,7 +429,40 @@ func AttachHardwareProfileToNotebooks(ctx context.Context, cli client.Client, ap
 
 		// Set HardwareProfile annotation if we found a migration source
 		if hwpName != "" {
-			if err := setHardwareProfileAnnotation(ctx, cli, notebook, hwpName, applicationNS); err != nil {
+			// RHOAIENG-50667: Only when the Notebook's namespace is Kueue-labeled does the webhook require
+			// the queue-name label on the Notebook. Skip HWP migration only when namespace is Kueue-managed
+			// and the Notebook lacks the label; otherwise we would trigger webhook rejection and CrashLoopBackOff.
+			kueueManagedNS, err := isNamespaceManagedByKueue(ctx, cli, notebook.GetNamespace())
+			if err != nil {
+				log.Error(err, "Failed to check if namespace is Kueue-managed", "notebook", notebook.GetName(), "namespace", notebook.GetNamespace())
+				// Do not fail upgrade; continue and let setHardwareProfileAnnotation run
+			} else if kueueManagedNS {
+				notebookLabels := notebook.GetLabels()
+				if queueName := notebookLabels[cluster.KueueQueueNameLabel]; queueName == "" {
+					log.Info("Skipping HardwareProfile migration for Notebook in Kueue namespace missing queue label (RHOAIENG-50667)",
+						"notebook", notebook.GetName(), "namespace", notebook.GetNamespace())
+					msg := fmt.Sprintf("Skipping HardwareProfile migration for Notebook %s: namespace is Kueue-managed but missing required label %q "+
+						"(add the label to the Workbench to fix; see RHOAIENG-50667)", notebook.GetName(), cluster.KueueQueueNameLabel)
+					if eventErr := recordUpgradeErrorEvent(ctx, cli, notebook, eventReasonHardwareProfileMigrationSkipped, msg); eventErr != nil {
+						log.Error(eventErr, "Failed to record event for Notebook", "notebook", notebook.GetName())
+					}
+					continue
+				}
+			}
+
+			if err := setHardwareProfileAnnotation(ctx, cli, notebook, hwpName, hwpNamespace, applicationNS); err != nil {
+				// RHOAIENG-50667: If the webhook rejects the update due to Kueue label validation, do not
+				// fail the upgrade — skip this notebook, log, and record event so the operator can stay healthy.
+				errStr := err.Error()
+				if strings.Contains(errStr, "Kueue label validation failed") || (strings.Contains(errStr, "missing required label") && strings.Contains(errStr, "kueue")) {
+					log.Info("Skipping HardwareProfile migration for Notebook after Kueue webhook rejection (RHOAIENG-50667)",
+						"notebook", notebook.GetName(), "error", errStr)
+					if eventErr := recordUpgradeErrorEvent(ctx, cli, notebook, eventReasonHardwareProfileMigrationSkipped,
+						fmt.Sprintf("Skipping HardwareProfile migration for Notebook %s: %s", notebook.GetName(), errStr)); eventErr != nil {
+						log.Error(eventErr, "Failed to record event for Notebook", "notebook", notebook.GetName())
+					}
+					continue
+				}
 				multiErr = multierror.Append(multiErr, fmt.Errorf("failed to set HardwareProfile annotation for notebook %s: %w", notebook.GetName(), err))
 				continue
 			}
@@ -451,6 +523,44 @@ func createCustomServingHardwareProfile(ctx context.Context, cli client.Client, 
 	return nil
 }
 
+// isISVCServerless returns true if the InferenceService is in Serverless mode (annotation or status).
+func isISVCServerless(isvc *unstructured.Unstructured) bool {
+	annotations := isvc.GetAnnotations()
+	if annotations != nil && annotations[kserveDeploymentModeAnnotationKey] == kserveDeploymentModeServerless {
+		return true
+	}
+	status, found, _ := unstructured.NestedString(isvc.Object, "status", "deploymentMode")
+	return found && status == kserveDeploymentModeServerless
+}
+
+// handleISVCSetHWPAnnotationError handles Serverless and Kueue webhook rejection errors from
+// setHardwareProfileAnnotation. Returns true if the error was handled (caller should continue),
+// false if the caller should append to multiErr.
+func handleISVCSetHWPAnnotationError(ctx context.Context, cli client.Client, log logr.Logger, isvc *unstructured.Unstructured, err error) bool {
+	errStr := err.Error()
+	if strings.Contains(errStr, "deploymentMode cannot be changed") || strings.Contains(errStr, "Serverless") {
+		log.Info("Skipping HardwareProfile migration for InferenceService due to Serverless mode",
+			"isvc", isvc.GetName(), "error", errStr)
+		msg := fmt.Sprintf("Skipping HardwareProfile migration due to Serverless mode incompatibility: %s", errStr)
+		if eventErr := recordUpgradeErrorEvent(ctx, cli, isvc, eventReasonServerlessMigrationSkipped, msg); eventErr != nil {
+			log.Error(eventErr, "Failed to record event for Serverless InferenceService", "isvc", isvc.GetName())
+		}
+		return true
+	}
+	if strings.Contains(errStr, "Kueue label validation failed") ||
+		(strings.Contains(errStr, "missing required label") && strings.Contains(errStr, "kueue")) {
+		log.Info("Skipping HardwareProfile migration for InferenceService after Kueue webhook rejection (RHOAIENG-50667)",
+			"isvc", isvc.GetName(), "error", errStr)
+		msg := fmt.Sprintf("Skipping HardwareProfile migration for InferenceService %s: namespace is Kueue-managed but missing required label %q on the InferenceService",
+			isvc.GetName(), cluster.KueueQueueNameLabel)
+		if eventErr := recordUpgradeErrorEvent(ctx, cli, isvc, eventReasonHardwareProfileMigrationSkipped, msg); eventErr != nil {
+			log.Error(eventErr, "Failed to record event for InferenceService", "isvc", isvc.GetName())
+		}
+		return true
+	}
+	return false
+}
+
 // AttachHardwareProfileToInferenceServices migrates AcceleratorProfile annotations from ServingRuntimes
 // and matches container sizes on InferenceServices to HardwareProfile annotations as described in RHOAIENG-33158.
 func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Client, applicationNamespace string, odhConfig *unstructured.Unstructured) error {
@@ -485,6 +595,40 @@ func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Cl
 			continue
 		}
 
+		// Skip Serverless InferenceServices as they are not supported in RHOAI 3.x
+		// Attempting to update them causes KServe webhook to incorrectly reject with deploymentMode error
+		// Check both the annotation (primary source) and status field (fallback) to determine if ISVC is serverless
+		if isISVCServerless(isvc) {
+			log.Info("Skipping HardwareProfile migration for Serverless InferenceService",
+				"isvc", isvc.GetName(), "deploymentMode", kserveDeploymentModeServerless)
+			msg := fmt.Sprintf("Skipping HardwareProfile migration for Serverless InferenceService %s (Serverless mode not supported in RHOAI 3.x)", isvc.GetName())
+			if err := recordUpgradeErrorEvent(ctx, cli, isvc, eventReasonServerlessMigrationSkipped, msg); err != nil {
+				log.Error(err, "Failed to record event for Serverless InferenceService", "isvc", isvc.GetName())
+			}
+			continue
+		}
+
+		// RHOAIENG-50667: ISVCs in a Kueue-labeled namespace without the queue-name label would be rejected
+		// by the kserve-isvc-kueuelabels-validator webhook on update. Skip HWP migration, emit log and event,
+		// and do not fail the upgrade.
+		kueueManagedNS, err := isNamespaceManagedByKueue(ctx, cli, isvc.GetNamespace())
+		if err != nil {
+			log.Error(err, "Failed to check if namespace is Kueue-managed", "isvc", isvc.GetName(), "namespace", isvc.GetNamespace())
+			// Do not fail upgrade on namespace fetch error; continue and let setHardwareProfileAnnotation run
+		} else if kueueManagedNS {
+			isvcLabels := isvc.GetLabels()
+			if queueName := isvcLabels[cluster.KueueQueueNameLabel]; queueName == "" {
+				log.Info("Skipping HardwareProfile migration for InferenceService in Kueue namespace missing queue label (RHOAIENG-50667)",
+					"isvc", isvc.GetName(), "namespace", isvc.GetNamespace())
+				msg := fmt.Sprintf("Skipping HardwareProfile migration for InferenceService %s: namespace is Kueue-managed but missing required label %q on the InferenceService",
+					isvc.GetName(), cluster.KueueQueueNameLabel)
+				if eventErr := recordUpgradeErrorEvent(ctx, cli, isvc, eventReasonHardwareProfileMigrationSkipped, msg); eventErr != nil {
+					log.Error(eventErr, "Failed to record event for InferenceService", "isvc", isvc.GetName())
+				}
+				continue
+			}
+		}
+
 		// Check ServingRuntime for AcceleratorProfile annotation and apply to InferenceService
 		servingRuntime, err := getSRFromISVC(ctx, cli, isvc)
 		if err == nil {
@@ -494,7 +638,12 @@ func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Cl
 			}
 			if apName := runtimeAnnotations[acceleratorNameAnnotation]; apName != "" {
 				hwpName := fmt.Sprintf("%s-serving", strings.ReplaceAll(strings.ToLower(apName), " ", "-"))
-				if err := setHardwareProfileAnnotation(ctx, cli, isvc, hwpName, applicationNamespace); err != nil {
+				// Get the AP namespace if specified (for cross-namespace AP references)
+				hwpNamespace := runtimeAnnotations[acceleratorProfileNamespaceAnnotation]
+				if err := setHardwareProfileAnnotation(ctx, cli, isvc, hwpName, hwpNamespace, applicationNamespace); err != nil {
+					if handleISVCSetHWPAnnotationError(ctx, cli, log, isvc, err) {
+						continue
+					}
 					multiErr = multierror.Append(multiErr, fmt.Errorf("failed to set HardwareProfile annotation for InferenceService %s: %w", isvc.GetName(), err))
 					continue
 				}
@@ -505,10 +654,9 @@ func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Cl
 		}
 
 		// No AP found, try container size matching
-		// Default usign HWProfile CR "custom-serving", update only if we find a matching size
+		// Default using HWProfile CR "custom-serving", update only if we find a matching size
 		hwpName := customServing
 		var matchedSize string
-
 		resources, err := getInferenceServiceResources(isvc)
 		if err == nil {
 			// Try to match resources to a container size
@@ -518,14 +666,19 @@ func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Cl
 			}
 		}
 
-		if err := setHardwareProfileAnnotation(ctx, cli, isvc, hwpName, applicationNamespace); err != nil {
+		if err := setHardwareProfileAnnotation(ctx, cli, isvc, hwpName, "", applicationNamespace); err != nil {
+			if handleISVCSetHWPAnnotationError(ctx, cli, log, isvc, err) {
+				continue
+			}
 			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to set HardwareProfile annotation for InferenceService %s: %w", isvc.GetName(), err))
 		} else {
 			// Log after successful annotation setting
 			if matchedSize != "" {
-				log.Info("Set HardwareProfile annotation for InferenceService based on container size match", "isvc", isvc.GetName(), "size", matchedSize, "hardwareProfile", hwpName)
+				log.Info("Set HardwareProfile annotation for InferenceService based on container size match",
+					"isvc", isvc.GetName(), "size", matchedSize, "hardwareProfile", hwpName)
 			} else {
-				log.Info("Set HardwareProfile annotation for InferenceService with "+customServing+" HardwareProfile", "isvc", isvc.GetName(), "hardwareProfile", hwpName)
+				log.Info("Set HardwareProfile annotation for InferenceService with "+customServing+" HardwareProfile",
+					"isvc", isvc.GetName(), "hardwareProfile", hwpName)
 			}
 		}
 	}

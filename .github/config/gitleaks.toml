@@ -1,0 +1,19 @@
+# Gitleaks configuration for opendatahub-operator
+# Documentation: https://github.com/gitleaks/gitleaks#configuration
+
+title = "Gitleaks configuration for opendatahub-operator"
+
+[allowlist]
+description = "Allowlisted files - test fixtures and mock data"
+
+# Exclude paths using regex patterns
+paths = [
+  # All testdata directories (contain mock Kubernetes secrets, test configs)
+  '''.*/testdata/.*''',
+  
+  # All test files (may contain mock credentials for testing)
+  '''.*_test\.go$''',
+  '''.*_mock\.go$'''
+]
+
+# No custom rules needed - using Gitleaks defaults

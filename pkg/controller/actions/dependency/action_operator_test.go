@@ -15,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency"
@@ -57,6 +58,7 @@ func TestDependencyAction(t *testing.T) {
 		name                string
 		setupOperatorCR     func(g *WithT, ns string) *unstructured.Unstructured
 		filter              dependency.DegradedConditionFilterFunc
+		severity            common.ConditionSeverity // empty = Error (default)
 		expectedAvailable   bool
 		expectedMsgContains []string
 	}{
@@ -159,6 +161,18 @@ func TestDependencyAction(t *testing.T) {
 			expectedAvailable:   false,
 			expectedMsgContains: []string{"Dependencies degraded", "Degraded=True", "First error", "Available=False", "Second error"},
 		},
+		{
+			name: "info severity",
+			setupOperatorCR: func(g *WithT, ns string) *unstructured.Unstructured {
+				operatorCR := createOperatorCR(xid.New().String(), ns, testOperatorGVK)
+				setCondition(g, operatorCR, "Degraded", "True", "InfoFailed", "Info-level failure")
+				createAndUpdateStatus(ctx, g, cli, operatorCR)
+				return operatorCR
+			},
+			severity:            common.ConditionSeverityInfo,
+			expectedAvailable:   false,
+			expectedMsgContains: []string{"Dependencies degraded", "Degraded=True"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -195,6 +209,7 @@ func TestDependencyAction(t *testing.T) {
 				OperatorGVK: testOperatorGVK,
 				CRNamespace: nsn,
 				Filter:      tt.filter,
+				Severity:    tt.severity,
 			}
 			if operatorCR != nil {
 				config.CRName = operatorCR.GetName()
@@ -213,17 +228,18 @@ func TestDependencyAction(t *testing.T) {
 			err := action(ctx, rr)
 			g.Expect(err).NotTo(HaveOccurred())
 
-			cond := condManager.GetCondition(status.ConditionDependenciesAvailable)
-			g.Expect(cond).NotTo(BeNil())
+			gotCond := condManager.GetCondition(status.ConditionDependenciesAvailable)
+			g.Expect(gotCond).NotTo(BeNil())
 
 			if tt.expectedAvailable {
-				g.Expect(cond.Status).To(Equal(metav1.ConditionTrue))
+				g.Expect(gotCond.Status).To(Equal(metav1.ConditionTrue))
 			} else {
-				g.Expect(cond.Status).To(Equal(metav1.ConditionFalse))
-				g.Expect(cond.Reason).To(Equal("DependencyDegraded"))
+				g.Expect(gotCond.Status).To(Equal(metav1.ConditionFalse))
+				g.Expect(gotCond.Reason).To(Equal("DependencyDegraded"))
 				for _, substr := range tt.expectedMsgContains {
-					g.Expect(cond.Message).To(ContainSubstring(substr))
+					g.Expect(gotCond.Message).To(ContainSubstring(substr))
 				}
+				g.Expect(gotCond.Severity).To(Equal(tt.severity))
 			}
 		})
 	}
@@ -353,6 +369,68 @@ func TestDependencyAction_VariableCRName(t *testing.T) {
 	cond := condManager.GetCondition(status.ConditionDependenciesAvailable)
 	g.Expect(cond).NotTo(BeNil())
 	g.Expect(cond.Status).To(Equal(metav1.ConditionFalse))
+}
+
+// TestDependencyAction_MissingCRD verifies that DependenciesAvailable is True
+// when the external operator's CRD is not installed.
+func TestDependencyAction_MissingCRD(t *testing.T) {
+	g := NewWithT(t)
+
+	envTest, err := envt.New()
+	g.Expect(err).NotTo(HaveOccurred())
+	t.Cleanup(func() { _ = envTest.Stop() })
+
+	ctx := context.Background()
+	cli := envTest.Client()
+
+	nonExistentGVK := schema.GroupVersionKind{
+		Group:   "nonexistent.opendatahub.io",
+		Version: "v1",
+		Kind:    "NonExistentOperator",
+	}
+
+	tests := []struct {
+		name   string
+		crName string
+	}{
+		{"with CRName specified", "any-name"},
+		{"with CRName empty", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			instance := &componentApi.Kueue{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: xid.New().String(),
+				},
+			}
+
+			condManager := cond.NewManager(instance, status.ConditionDependenciesAvailable)
+			rr := &types.ReconciliationRequest{
+				Client:     cli,
+				Instance:   instance,
+				Conditions: condManager,
+			}
+
+			action := dependency.NewAction(
+				dependency.MonitorOperator(dependency.OperatorConfig{
+					OperatorGVK: nonExistentGVK,
+					CRName:      tt.crName,
+					CRNamespace: "any-namespace",
+				}),
+			)
+
+			err := action(ctx, rr)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			gotCond := condManager.GetCondition(status.ConditionDependenciesAvailable)
+			g.Expect(gotCond).NotTo(BeNil())
+			g.Expect(gotCond.Status).To(Equal(metav1.ConditionTrue),
+				"DependenciesAvailable should be True when CRD doesn't exist")
+		})
+	}
 }
 
 // Helper functions

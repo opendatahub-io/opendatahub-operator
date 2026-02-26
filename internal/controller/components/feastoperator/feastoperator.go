@@ -32,7 +32,7 @@ func (s *componentHandler) GetName() string {
 	return componentApi.FeastOperatorComponentName
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
+func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
 	return &componentApi.FeastOperator{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.FeastOperatorKind,
@@ -47,7 +47,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 		Spec: componentApi.FeastOperatorSpec{
 			FeastOperatorCommonSpec: dsc.Spec.Components.FeastOperator.FeastOperatorCommonSpec,
 		},
-	}
+	}, nil
 }
 
 func (s *componentHandler) Init(p common.Platform) error {

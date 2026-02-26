@@ -6,6 +6,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
@@ -17,10 +18,8 @@ import (
 type ComponentHandler interface {
 	Init(platform common.Platform) error
 	GetName() string
-	// NewCRObject constructs components specific Custom Resource
-	// e.g. Dashboard in datasciencecluster.opendatahub.io group
-	// It returns interface, but it simplifies DSC reconciler code a lot
-	NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject
+	// NewCRObject returns the component CR; if it returns an error, reconciliation fails (e.g. Dashboard/ModelRegistry when gateway domain is unavailable).
+	NewCRObject(ctx context.Context, cli client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error)
 	NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error
 	// UpdateDSCStatus updates the component specific status part of the DSC
 	UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error)

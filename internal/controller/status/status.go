@@ -132,7 +132,7 @@ const (
 	KueueStateManagedNotSupported        = "KueueStateManagedNotSupported"
 	KueueStateManagedNotSupportedMessage = "Kueue managementState Managed is not supported, please use Removed or Unmanaged"
 	KueueOperatorNotInstalleReason       = "KueueOperatorNotInstalleReason"
-	KueueOperatorNotInstalledMessage     = "Kueue operator not installed, install it or change kueue component state to Managed"
+	KueueOperatorNotInstalledMessage     = "Kueue operator not installed, install it or change kueue component state to Removed"
 )
 
 // For TrustyAI require ISVC CRD.
@@ -181,7 +181,9 @@ To uninstall it, you should delete all RayClusters resources from the cluster, d
 // For JobSet operator checks.
 const (
 	JobSetOperatorNotInstalledMessage = "JobSet operator not installed, please install it first"
-	JobSetCRDMissingMessage           = "JobSet CRD does not exist, please create JobSetOperator CR to proceed"
+	JobSetCRDMissingMessage           = "JobSet CRD does not exist, please inspect JobSetOperator CR status conditions or JobSet controller Pod logs for more details"
+	JobSetOperatorCRNotFoundMessage   = "JobSetOperator CR with name 'cluster' not found, please create it first"
+	JobSetOperatorCRWrongNameMessage  = "JobSetOperator CR found with name '%s' (expected 'cluster'), please ensure the CR is named 'cluster'"
 )
 
 // setConditions is a helper function to set multiple conditions at once.

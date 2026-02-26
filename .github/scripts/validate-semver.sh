@@ -2,22 +2,20 @@
 
 set -euo pipefail
 
-sem_ver_pattern="^[vV](0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(\\-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?(\\+[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$"
+VERSION=${1:-}
 
-die () {
-    echo >&2 "$@"
-    exit 1
-}
+if [[ -z "${VERSION}" ]]; then
+  echo >&2 "Usage: $0 <version>"
+  echo >&2 "Example: $0 v3.1.0"
+  exit 1
+fi
 
-validate_semantic_versioning() {
-  version=$1
+SEMVER_PATTERN="^[vV](0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(\\-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?(\\+[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$"
 
-  if [[ ${version} == "" ]]; then
-    die "Undefined version. Please use semantic versioning https://semver.org/."
-  fi
+if [[ ! "${VERSION}" =~ $SEMVER_PATTERN ]]; then
+  echo >&2 "Error: '${VERSION}' does not match semantic versioning."
+  echo >&2 "Please ensure it conforms with https://semver.org/ and starts with 'v' prefix."
+  exit 1
+fi
 
-  # Ensure defined version matches semver rules
-  if [[ ! "${version}" =~ $sem_ver_pattern ]]; then
-    die "\`${version}\` you defined as a version does not match semantic versioning. Please make sure it conforms with https://semver.org/ and make sure it starts with v prefix."
-  fi
-}
+echo "Version ${VERSION} is valid"

@@ -104,7 +104,7 @@ jobs:
             No e2e tests were added/updated as part of this PR.
 
             **Action required from the PR author:** Please either:
-            1. Add or update e2e tests relevant to the PR changes in the `tests/e2e/` directory, OR
+            1. Add or update e2e tests relevant to the PR changes in the `tests/e2e/` or `Dockerfiles/e2e-tests/` directories, OR
             2. Evaluate the possibility of opting-out of this requirement:
                1. Inspect the [opt-out guidelines](https://github.com/opendatahub-io/opendatahub-operator/blob/main/docs/e2e-update-requirement-guidelines.md), to determine if the nature of the PR changes allows for skipping this requirement
                2. If opt-out is applicable, please proceed to provide justification in the PR description (`#### E2E update requirement opt-out justification` section)

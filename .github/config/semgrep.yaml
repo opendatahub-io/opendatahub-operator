@@ -51,6 +51,19 @@
 #   semgrep scan --config /src/semgrep.yaml /src
 # ==============================================================================
 
+# Global path exclusions (applied to all rules)
+# Excludes test fixtures, examples, documentation, and development scripts
+paths:
+  exclude:
+    - "examples/**"           # Example configurations with mock credentials
+    - "contrib/**"            # Contributed scripts and local development configs
+    - "**/testdata/**"        # Test fixture data with mock secrets
+    - "**/*_test.go"          # Go test files with mock credentials
+    - "**/*_mock.go"          # Go mock files with test data
+    - "test/**"               # Test directories
+    - "docs/**"               # Documentation with example code snippets
+    - "bin/**"                # Compiled binaries
+
 rules:
   # ============================================================================
   # SECRETS DETECTION (Backup for Gitleaks)
@@ -467,15 +480,67 @@ rules:
 
   - id: operator-run-as-root
     patterns:
-      - pattern-not: |
-          securityContext:
+      # Match Pods and controller resources (Deployment, StatefulSet, Job, DaemonSet, CronJob)
+      - pattern-either:
+          # Direct Pod
+          - pattern: |
+              kind: Pod
+              ...
+              spec:
+                ...
+          # Deployment/StatefulSet/DaemonSet
+          - pattern: |
+              kind: $KIND
+              ...
+              spec:
+                ...
+                template:
+                  spec:
+                    ...
+          # Job
+          - pattern: |
+              kind: Job
+              ...
+              spec:
+                template:
+                  spec:
+                    ...
+          # CronJob
+          - pattern: |
+              kind: CronJob
+              ...
+              spec:
+                jobTemplate:
+                  spec:
+                    template:
+                      spec:
+                        ...
+      # Exclude if pod/template-level runAsNonRoot is set
+      - pattern-not-inside: |
+          spec:
             ...
-            runAsNonRoot: true
-            ...
-      - pattern-inside: |
-          kind: Pod
-          ...
-    message: "Pod missing runAsNonRoot security context. Containers should not run as root."
+            securityContext:
+              ...
+              runAsNonRoot: true
+              ...
+      # Exclude if pod template-level runAsNonRoot is set (for controllers)
+      - pattern-not-inside: |
+          template:
+            spec:
+              ...
+              securityContext:
+                ...
+                runAsNonRoot: true
+                ...
+      # Exclude if all containers have runAsNonRoot set
+      - pattern-not-inside: |
+          containers:
+            - ...
+              securityContext:
+                ...
+                runAsNonRoot: true
+                ...
+    message: "Resource missing runAsNonRoot security context. Set runAsNonRoot: true at pod-level or container-level to prevent running as root."
     severity: WARNING
     languages: [yaml]
     metadata:
@@ -519,7 +584,7 @@ rules:
       cwe: "CWE-94: Code Injection"
 
   - id: shell-missing-quotes-dangerous
-    pattern-regex: '(rm|cp|mv|eval|chmod|chown|kill|pkill)\s+[^|;]*\$[A-Za-z_][A-Za-z0-9_]*(?![}"\x27])'
+    pattern-regex: '(rm|cp|mv|eval|chmod|chown|kill|pkill)\s+[^|;]*(?<!["''\\])\$[A-Za-z_][A-Za-z0-9_]*'
     message: "Unquoted variable in dangerous command. Use double quotes: \"$VAR\""
     severity: ERROR
     languages: [bash, sh]

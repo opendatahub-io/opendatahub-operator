@@ -42,6 +42,10 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		},
 		{
 			FS:   resourcesFS,
+			Path: AdminGroupIngressRoleTemplate,
+		},
+		{
+			FS:   resourcesFS,
 			Path: AdminGroupClusterRoleTemplate,
 		},
 		{
@@ -53,17 +57,11 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	return nil
 }
 
-func bindRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, groups []string, roleBindingName string, roleName string) error {
-	// Fetch application namespace from DSCI.
-	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
-	if err != nil {
-		return err
-	}
-
+func bindRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, groups []string, roleBindingName string, roleName string, namespace string) error {
 	groupsToBind := []rbacv1.Subject{}
 	for _, e := range groups {
 		// we want to disallow adding system:authenticated to the adminGroups
-		if roleName == "admingroup-role" && e == "system:authenticated" || e == "" {
+		if roleName == "data-science-admingroup-role" && e == "system:authenticated" || e == "" {
 			log := logf.FromContext(ctx)
 			log.Info("skipping adding invalid group to RoleBinding")
 			continue
@@ -79,7 +77,7 @@ func bindRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, groups []
 	rb := &rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      roleBindingName,
-			Namespace: appNamespace,
+			Namespace: namespace,
 		},
 		Subjects: groupsToBind,
 		RoleRef: rbacv1.RoleRef{
@@ -88,7 +86,7 @@ func bindRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, groups []
 			Name:     roleName,
 		},
 	}
-	err = rr.AddResources(rb)
+	err := rr.AddResources(rb)
 	if err != nil {
 		return errors.New("error creating RoleBinding for group")
 	}
@@ -100,7 +98,7 @@ func bindClusterRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, gr
 	groupsToBind := []rbacv1.Subject{}
 	for _, e := range groups {
 		// we want to disallow adding system:authenticated to the adminGroups
-		if roleName == "admingroupcluster-role" && e == "system:authenticated" || e == "" {
+		if roleName == "data-science-admingroupcluster-role" && e == "system:authenticated" || e == "" {
 			log := logf.FromContext(ctx)
 			log.Info("skipping adding invalid group to ClusterRoleBinding")
 			continue
@@ -139,17 +137,28 @@ func managePermissions(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 		return errors.New("instance is not of type *services.Auth")
 	}
 
-	err := bindRole(ctx, rr, ai.Spec.AdminGroups, "admingroup-rolebinding", "admingroup-role")
+	// Fetch application namespace from DSCI.
+	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
 	if err != nil {
 		return err
 	}
 
-	err = bindClusterRole(ctx, rr, ai.Spec.AdminGroups, "admingroupcluster-rolebinding", "admingroupcluster-role")
+	err = bindRole(ctx, rr, ai.Spec.AdminGroups, "data-science-admingroup-rolebinding", "data-science-admingroup-role", appNamespace)
 	if err != nil {
 		return err
 	}
 
-	err = bindClusterRole(ctx, rr, ai.Spec.AllowedGroups, "allowedgroupcluster-rolebinding", "allowedgroupcluster-role")
+	err = bindRole(ctx, rr, ai.Spec.AdminGroups, "data-science-admingroup-ingress-rolebinding", "data-science-admingroup-ingress-role", "openshift-ingress")
+	if err != nil {
+		return err
+	}
+
+	err = bindClusterRole(ctx, rr, ai.Spec.AdminGroups, "data-science-admingroupcluster-rolebinding", "data-science-admingroupcluster-role")
+	if err != nil {
+		return err
+	}
+
+	err = bindClusterRole(ctx, rr, ai.Spec.AllowedGroups, "data-science-allowedgroupcluster-rolebinding", "data-science-allowedgroupcluster-role")
 	if err != nil {
 		return err
 	}

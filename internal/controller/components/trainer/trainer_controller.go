@@ -25,6 +25,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -65,7 +66,10 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				handlers.ToNamed(componentApi.TrainerInstanceName),
 			),
 			reconciler.WithPredicates(
-				dependent.New(dependent.WithWatchStatus(true)),
+				predicate.Or(
+					dependent.New(dependent.WithWatchStatus(true)),
+					resources.CreatedOrUpdatedOrDeletedNamed("cluster"),
+				),
 			),
 			reconciler.Dynamic(reconciler.CrdExists(gvk.JobSetOperatorV1))).
 		WithAction(checkPreConditions).

@@ -17,9 +17,9 @@ spec:
     kueue:
       managementState: "Removed"
     trainingoperator:
-      managementState: "Managed"
-    trainer:
       managementState: "Removed"
+    trainer:
+      managementState: "Managed"
     ray:
       managementState: "Managed"
     workbenches:
@@ -34,4 +34,6 @@ spec:
     llamastackoperator:
       managementState: "Removed"
     mlflowoperator:
+      managementState: "Removed"
+    sparkoperator:
       managementState: "Removed"
