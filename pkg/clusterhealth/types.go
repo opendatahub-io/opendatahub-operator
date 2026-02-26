@@ -1,6 +1,12 @@
 package clusterhealth
 
-import "time"
+import (
+	"time"
+
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+)
 
 // SectionResult carries the result of one health-check section: optional error and typed data.
 // Partial failures set Error and may still populate Data with what was collected.
@@ -24,10 +30,10 @@ type Report struct {
 	DSC         SectionResult[CRConditionsSection] `json:"dsc"`
 }
 
-// Placeholder section types (to be filled per ARCHITECTURE.md).
 // NodesSection: node conditions and resource allocation.
 type NodesSection struct {
-	Nodes []NodeInfo `json:"nodes"`
+	Nodes []NodeInfo    `json:"nodes"`
+	Data  []corev1.Node `json:"data,omitempty"` // raw Node list (e.g. .Status for NodeStatus) for tests or fields we don't parse
 }
 
 // NodeInfo holds summary info for one node.
@@ -49,6 +55,7 @@ type ConditionSummary struct {
 // DeploymentsSection: deployment readiness per namespace.
 type DeploymentsSection struct {
 	ByNamespace map[string][]DeploymentInfo `json:"byNamespace"`
+	Data        []appsv1.Deployment         `json:"data,omitempty"` // raw Deployment list for tests or fields we don't parse
 }
 
 // DeploymentInfo holds readiness and conditions for one deployment.
@@ -63,6 +70,7 @@ type DeploymentInfo struct {
 // PodsSection: pod phases and container states.
 type PodsSection struct {
 	ByNamespace map[string][]PodInfo `json:"byNamespace"`
+	Data        []corev1.Pod         `json:"data,omitempty"` // raw Pod list for tests or fields we don't parse
 }
 
 // PodInfo holds phase and container summary for one pod.
@@ -84,7 +92,8 @@ type ContainerInfo struct {
 
 // EventsSection: recent (e.g. warning) events.
 type EventsSection struct {
-	Events []EventInfo `json:"events"`
+	Events []EventInfo    `json:"events"`
+	Data   []corev1.Event `json:"data,omitempty"` // raw Event list for tests or fields we don't parse
 }
 
 // EventInfo holds one event for reporting.
@@ -101,6 +110,7 @@ type EventInfo struct {
 // QuotasSection: resource quota usage per namespace.
 type QuotasSection struct {
 	ByNamespace map[string][]ResourceQuotaInfo `json:"byNamespace"`
+	Data        []corev1.ResourceQuota         `json:"data,omitempty"` // raw ResourceQuota list for tests or fields we don't parse
 }
 
 // ResourceQuotaInfo holds used/hard and exceeded resources for one quota.
@@ -114,14 +124,22 @@ type ResourceQuotaInfo struct {
 
 // OperatorSection: operator deployment and pod status.
 type OperatorSection struct {
-	Deployment *DeploymentInfo `json:"deployment"`
-	Pods       []PodInfo       `json:"pods"`
+	Deployment *DeploymentInfo      `json:"deployment"`
+	Pods       []PodInfo            `json:"pods"`
+	Data       *OperatorSectionData `json:"data,omitempty"` // raw Deployment and Pods for tests or fields we don't parse
+}
+
+// OperatorSectionData holds raw Kubernetes objects for the operator section.
+type OperatorSectionData struct {
+	Deployment *appsv1.Deployment `json:"deployment,omitempty"`
+	Pods       []corev1.Pod       `json:"pods,omitempty"`
 }
 
 // CRConditionsSection: conditions from a CR (DSCI or DSC).
 type CRConditionsSection struct {
-	Name       string             `json:"name"`
-	Conditions []ConditionSummary `json:"conditions"`
+	Name       string                     `json:"name"`
+	Conditions []ConditionSummary         `json:"conditions"`
+	Data       *unstructured.Unstructured `json:"data,omitempty"` // raw CR for tests or fields we don't parse
 }
 
 // Healthy returns true if the report has no section errors (all checks succeeded or returned partial data without a fatal error).
