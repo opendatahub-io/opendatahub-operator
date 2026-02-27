@@ -22,6 +22,7 @@ import (
 // Controller defines the core interface for a controller in the OpenDataHub Operator.
 type Controller interface {
 	// Owns returns true if the controller manages resources of the specified GroupVersionKind.
+	// This is used for static ownership declared via .Owns() in the builder.
 	Owns(gvk schema.GroupVersionKind) bool
 
 	// GetClient returns a controller-runtime client used to interact with the Kubernetes API.
@@ -32,6 +33,13 @@ type Controller interface {
 
 	// GetDynamicClient returns a client-go dynamic client for working with unstructured resources.
 	GetDynamicClient() dynamic.Interface
+
+	// IsDynamicOwnershipEnabled returns true if the controller has dynamic ownership enabled.
+	IsDynamicOwnershipEnabled() bool
+
+	// IsExcludedFromOwnership returns true if the GVK should not have owner references set.
+	// This is used to share exclusion configuration between deploy and dynamicownership actions.
+	IsExcludedFromOwnership(gvk schema.GroupVersionKind) bool
 }
 
 type ResourceObject interface {

@@ -53,6 +53,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -328,8 +329,9 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 
 	ctrlMgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{ // single pod does not need to have LeaderElection
-		Scheme:  scheme,
-		Metrics: ctrlmetrics.Options{BindAddress: oconfig.MetricsAddr},
+		Scheme:         scheme,
+		MapperProvider: apiutil.NewDynamicRESTMapper,
+		Metrics:        ctrlmetrics.Options{BindAddress: oconfig.MetricsAddr},
 		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
 			Port: 9443,
 			// TLSOpts: , // TODO: it was not set in the old code
