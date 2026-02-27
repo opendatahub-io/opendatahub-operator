@@ -13,6 +13,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
@@ -42,23 +44,22 @@ func (r *SetupControllerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return fmt.Errorf("failed to get operator namespace: %w", err)
 	}
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&corev1.ConfigMap{}, builder.WithPredicates(r.filterDeleteConfigMap(operatorNs))).
+		For(resources.GvkToUnstructured(gvk.ConfigMap), builder.WithPredicates(r.filterDeleteConfigMap(operatorNs))).
 		Complete(r)
 }
 
 func (r *SetupControllerReconciler) filterDeleteConfigMap(operatorNs string) predicate.Funcs {
 	filter := func(obj client.Object) bool {
-		cm, ok := obj.(*corev1.ConfigMap)
-
-		if !ok {
+		_, isCM := obj.(*corev1.ConfigMap)
+		if !isCM && obj.GetObjectKind().GroupVersionKind() != gvk.ConfigMap {
 			return false
 		}
 
-		if cm.Namespace != operatorNs {
+		if obj.GetNamespace() != operatorNs {
 			return false
 		}
 
-		if cm.Labels[upgrade.DeleteConfigMapLabel] != "true" {
+		if obj.GetLabels()[upgrade.DeleteConfigMapLabel] != "true" {
 			return false
 		}
 
