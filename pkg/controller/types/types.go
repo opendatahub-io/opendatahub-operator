@@ -10,6 +10,7 @@ import (
 	"path"
 
 	"github.com/go-logr/logr"
+	helm "github.com/k8s-manifest-kit/renderer-helm/pkg"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
@@ -78,12 +79,8 @@ type HookFn func(ctx context.Context, rr *ReconciliationRequest) error
 
 // HelmChartInfo describes a Helm chart to render.
 type HelmChartInfo struct {
-	// Chart reference - can be OCI URI (oci://registry/chart) or local path
-	Chart string
-	// ReleaseName for the Helm release
-	ReleaseName string
-	// Values to pass to the chart
-	Values map[string]any
+	helm.Source
+
 	// PreApply hooks run before this chart's resources are deployed.
 	// Hooks are executed in order; execution stops on the first error.
 	PreApply []HookFn
@@ -243,7 +240,11 @@ func Hash(rr *ReconciliationRequest) ([]byte, error) {
 		}
 		if rr.HelmCharts[i].Values != nil {
 			// json marshal the values to ensure the order is deterministic
-			b, err := json.Marshal(rr.HelmCharts[i].Values)
+			values, err := rr.HelmCharts[i].Values(context.TODO())
+			if err != nil {
+				return nil, fmt.Errorf("failed to get helm chart values: %w", err)
+			}
+			b, err := json.Marshal(values)
 			if err != nil {
 				return nil, fmt.Errorf("failed to hash helm chart values: %w", err)
 			}

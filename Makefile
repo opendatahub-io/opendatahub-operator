@@ -321,6 +321,7 @@ api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-
 	$(CRD_REF_DOCS) --source-path ./ --output-path ./docs/api-overview.md --renderer markdown --config ./crd-ref-docs.config.yaml && \
 	grep -Ev '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md && \
 	$(SED_COMMAND) -i "s|](#managementstate)|](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)|g" ./docs/api-overview.md
+	$(CRD_REF_DOCS) --source-path ./api/cloudmanager/ --output-path ./docs/cloudmanager-api-overview.md --renderer markdown --config ./crd-ref-docs.cloudmanager.config.yaml
 
 .PHONY: ginkgo
 ginkgo: $(GINKGO)

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/blang/semver/v4"
+	helmRenderer "github.com/k8s-manifest-kit/renderer-helm/pkg"
 	"github.com/operator-framework/api/pkg/lib/version"
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/mock"
@@ -73,9 +74,11 @@ func TestNewReconcileAction_RendersAndDeploys(t *testing.T) {
 
 	action := newTestReconcileAction()
 	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
-		Chart:       filepath.Join("testdata", "test-chart"),
-		ReleaseName: testReleaseName,
-		Values:      map[string]any{"namespace": ns},
+		Source: helmRenderer.Source{
+			Chart:       filepath.Join("testdata", "test-chart"),
+			ReleaseName: testReleaseName,
+			Values:      helmRenderer.Values(map[string]any{"namespace": ns}),
+		},
 	}})
 
 	err = action(ctx, rr)
@@ -100,9 +103,11 @@ func TestNewReconcileAction_ExecutesPreApplyHooks(t *testing.T) {
 
 	action := newTestReconcileAction()
 	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
-		Chart:       filepath.Join("testdata", "test-chart"),
-		ReleaseName: testReleaseName,
-		Values:      map[string]any{"namespace": ns},
+		Source: helmRenderer.Source{
+			Chart:       filepath.Join("testdata", "test-chart"),
+			ReleaseName: testReleaseName,
+			Values:      helmRenderer.Values(map[string]any{"namespace": ns}),
+		},
 		PreApply: []types.HookFn{func(ctx context.Context, rr *types.ReconciliationRequest) error {
 			preHookCalled = true
 			resourceCountAtPreHook = len(rr.Resources)
@@ -137,9 +142,11 @@ func TestNewReconcileAction_ExecutesPostApplyHooks(t *testing.T) {
 
 	action := newTestReconcileAction()
 	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
-		Chart:       filepath.Join("testdata", "test-chart"),
-		ReleaseName: testReleaseName,
-		Values:      map[string]any{"namespace": ns},
+		Source: helmRenderer.Source{
+			Chart:       filepath.Join("testdata", "test-chart"),
+			ReleaseName: testReleaseName,
+			Values:      helmRenderer.Values(map[string]any{"namespace": ns}),
+		},
 		PostApply: []types.HookFn{func(ctx context.Context, rr *types.ReconciliationRequest) error {
 			// Verify the resource was already deployed before post-apply runs
 			checkTestChartDeployedResources(t, g, ctx, rr.Client, ns, testReleaseName)
@@ -162,9 +169,11 @@ func TestNewReconcileAction_PreApplyHookCanModifyResources(t *testing.T) {
 
 	action := newTestReconcileAction()
 	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
-		Chart:       filepath.Join("testdata", "test-chart"),
-		ReleaseName: testReleaseName,
-		Values:      map[string]any{"namespace": ns},
+		Source: helmRenderer.Source{
+			Chart:       filepath.Join("testdata", "test-chart"),
+			ReleaseName: testReleaseName,
+			Values:      helmRenderer.Values(map[string]any{"namespace": ns}),
+		},
 		PreApply: []types.HookFn{func(_ context.Context, rr *types.ReconciliationRequest) error {
 			// Add an extra ConfigMap via the hook
 			extra := unstructured.Unstructured{}
@@ -202,9 +211,11 @@ func TestNewReconcileAction_PreApplyHookErrorStopsPipeline(t *testing.T) {
 
 	action := newTestReconcileAction()
 	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
-		Chart:       filepath.Join("testdata", "test-chart"),
-		ReleaseName: testReleaseName,
-		Values:      map[string]any{"namespace": ns},
+		Source: helmRenderer.Source{
+			Chart:       filepath.Join("testdata", "test-chart"),
+			ReleaseName: testReleaseName,
+			Values:      helmRenderer.Values(map[string]any{"namespace": ns}),
+		},
 		PreApply: []types.HookFn{func(_ context.Context, _ *types.ReconciliationRequest) error {
 			return hookErr
 		}},
@@ -234,9 +245,11 @@ func TestNewReconcileAction_PostApplyHookErrorPropagates(t *testing.T) {
 
 	action := newTestReconcileAction()
 	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
-		Chart:       filepath.Join("testdata", "test-chart"),
-		ReleaseName: testReleaseName,
-		Values:      map[string]any{"namespace": ns},
+		Source: helmRenderer.Source{
+			Chart:       filepath.Join("testdata", "test-chart"),
+			ReleaseName: testReleaseName,
+			Values:      helmRenderer.Values(map[string]any{"namespace": ns}),
+		},
 		PostApply: []types.HookFn{func(_ context.Context, _ *types.ReconciliationRequest) error {
 			return hookErr
 		}},
@@ -266,9 +279,11 @@ func TestNewReconcileAction_MultipleCharts(t *testing.T) {
 	action := newTestReconcileAction()
 	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{
 		{
-			Chart:       filepath.Join("testdata", "test-chart"),
-			ReleaseName: releaseName1,
-			Values:      map[string]any{"namespace": ns1},
+			Source: helmRenderer.Source{
+				Chart:       filepath.Join("testdata", "test-chart"),
+				ReleaseName: releaseName1,
+				Values:      helmRenderer.Values(map[string]any{"namespace": ns1}),
+			},
 			PreApply: []types.HookFn{func(_ context.Context, _ *types.ReconciliationRequest) error {
 				hookOrder = append(hookOrder, "chart-one-pre")
 				return nil
@@ -279,9 +294,11 @@ func TestNewReconcileAction_MultipleCharts(t *testing.T) {
 			}},
 		},
 		{
-			Chart:       filepath.Join("testdata", "test-chart"),
-			ReleaseName: releaseName2,
-			Values:      map[string]any{"namespace": ns2},
+			Source: helmRenderer.Source{
+				Chart:       filepath.Join("testdata", "test-chart"),
+				ReleaseName: releaseName2,
+				Values:      helmRenderer.Values(map[string]any{"namespace": ns2}),
+			},
 			PreApply: []types.HookFn{func(_ context.Context, _ *types.ReconciliationRequest) error {
 				hookOrder = append(hookOrder, "chart-two-pre")
 				return nil

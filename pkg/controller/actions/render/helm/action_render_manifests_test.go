@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	helmRenderer "github.com/k8s-manifest-kit/renderer-helm/pkg"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/xid"
 
@@ -39,11 +40,13 @@ func TestRenderHelmChartActionWithLabelsAndAnnotations(t *testing.T) {
 		rr := types.ReconciliationRequest{
 			Instance: &ccmv1alpha1.AzureKubernetesEngine{},
 			HelmCharts: []types.HelmChartInfo{{
-				Chart:       chartDir,
-				ReleaseName: "test-release",
-				Values: map[string]any{
-					"replicaCount": 3,
-					"namespace":    ns,
+				Source: helmRenderer.Source{
+					Chart:       chartDir,
+					ReleaseName: "test-release",
+					Values: helmRenderer.Values(map[string]any{
+						"replicaCount": 3,
+						"namespace":    ns,
+					}),
 				},
 			}},
 		}
@@ -89,11 +92,13 @@ func TestRenderHelmChartWithCacheAction(t *testing.T) {
 		rr := types.ReconciliationRequest{
 			Instance: &d,
 			HelmCharts: []types.HelmChartInfo{{
-				Chart:       chartDir,
-				ReleaseName: "test-release",
-				Values: map[string]any{
-					"replicaCount": 2,
-					"namespace":    ns,
+				Source: helmRenderer.Source{
+					Chart:       chartDir,
+					ReleaseName: "test-release",
+					Values: helmRenderer.Values(map[string]any{
+						"replicaCount": 2,
+						"namespace":    ns,
+					}),
 				},
 			}},
 		}
@@ -141,17 +146,21 @@ func TestRenderMultipleHelmCharts(t *testing.T) {
 		Instance: &ccmv1alpha1.AzureKubernetesEngine{},
 		HelmCharts: []types.HelmChartInfo{
 			{
-				Chart:       chartDir,
-				ReleaseName: "release-one",
-				Values: map[string]any{
-					"namespace": ns1,
+				Source: helmRenderer.Source{
+					Chart:       chartDir,
+					ReleaseName: "release-one",
+					Values: helmRenderer.Values(map[string]any{
+						"namespace": ns1,
+					}),
 				},
 			},
 			{
-				Chart:       chartDir,
-				ReleaseName: "release-two",
-				Values: map[string]any{
-					"namespace": ns2,
+				Source: helmRenderer.Source{
+					Chart:       chartDir,
+					ReleaseName: "release-two",
+					Values: helmRenderer.Values(map[string]any{
+						"namespace": ns2,
+					}),
 				},
 			},
 		},
@@ -185,10 +194,12 @@ func TestCRDAndCRRender(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Instance: &ccmv1alpha1.AzureKubernetesEngine{},
 		HelmCharts: []types.HelmChartInfo{{
-			Chart:       chartDir,
-			ReleaseName: "test-crd-release",
-			Values: map[string]any{
-				"namespace": ns,
+			Source: helmRenderer.Source{
+				Chart:       chartDir,
+				ReleaseName: "test-crd-release",
+				Values: helmRenderer.Values(map[string]any{
+					"namespace": ns,
+				}),
 			},
 		}},
 	}

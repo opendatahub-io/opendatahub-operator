@@ -5,6 +5,8 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/k8s-manifest-kit/engine/pkg/transformer/meta/annotations"
+	"github.com/k8s-manifest-kit/engine/pkg/transformer/meta/labels"
 	engineTypes "github.com/k8s-manifest-kit/engine/pkg/types"
 	helm "github.com/k8s-manifest-kit/renderer-helm/pkg"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -24,12 +26,11 @@ const ChartReleaseAnnotation = "opendatahub.io/helm-release"
 // for further processing. The Action can cache the results in memory to avoid doing
 // a full manifest rendering when not needed.
 type Action struct {
-	cacher            resourcecacher.ResourceCacher
-	cache             bool
-	labels            map[string]string
-	annotations       map[string]string
-	transformers      []engineTypes.Transformer
-	sourceAnnotations bool
+	cacher       resourcecacher.ResourceCacher
+	cache        bool
+	labels       map[string]string
+	annotations  map[string]string
+	transformers []engineTypes.Transformer
 }
 
 type ActionOpts func(*Action)
@@ -93,12 +94,6 @@ func WithTransformers(transformers ...engineTypes.Transformer) ActionOpts {
 	}
 }
 
-func WithSourceAnnotations(enabled bool) ActionOpts {
-	return func(a *Action) {
-		a.sourceAnnotations = enabled
-	}
-}
-
 func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error {
 	return a.cacher.Render(ctx, rr, a.render)
 }
@@ -108,25 +103,20 @@ func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) (r
 
 	charts := make([]helm.Source, 0, len(rr.HelmCharts))
 	for _, chart := range rr.HelmCharts {
-		charts = append(charts, helm.Source{
-			Chart:       chart.Chart,
-			ReleaseName: chart.ReleaseName,
-			Values:      helm.Values(chart.Values),
-			// TODO: credentials management. Should chart already be in the container image?
-		})
+		charts = append(charts, chart.Source)
 	}
 
 	helmOptions := helm.RendererOptions{
 		Strict:       true,
-		Transformers: a.transformers,
+		Transformers: slices.Clone(a.transformers),
 		// TODO: add source annotations. Before it, make the source annotations configurable.
 	}
 
 	if a.annotations != nil {
-		helmOptions.Transformers = append(helmOptions.Transformers, a.annotationTransformer())
+		helmOptions.Transformers = append(helmOptions.Transformers, annotations.Set(a.annotations))
 	}
 	if a.labels != nil {
-		helmOptions.Transformers = append(helmOptions.Transformers, a.labelTransformer())
+		helmOptions.Transformers = append(helmOptions.Transformers, labels.Set(a.labels))
 	}
 
 	renderer, err := helm.New(charts, helmOptions)
