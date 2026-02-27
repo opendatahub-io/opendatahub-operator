@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 
+	helm "github.com/k8s-manifest-kit/renderer-helm/pkg"
+
 	ccmcommon "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
@@ -24,9 +26,11 @@ func BuildHelmCharts(deps ccmcommon.Dependencies) []types.HelmChartInfo {
 		{
 			policy: deps.CertManager.ManagementPolicy,
 			chart: types.HelmChartInfo{
-				Chart:       filepath.Join(DefaultChartsPath, "cert-manager-operator"),
-				ReleaseName: "cert-manager-operator",
-				Values:      map[string]any{},
+				Source: helm.Source{
+					Chart:       filepath.Join(DefaultChartsPath, "cert-manager-operator"),
+					ReleaseName: "cert-manager-operator",
+					Values:      helm.Values(map[string]any{}),
+				},
 				PreApply: []types.HookFn{
 					CreateNamespaceHook("cert-manager-operator"),
 					CreateNamespaceHook("cert-manager"),
@@ -36,9 +40,11 @@ func BuildHelmCharts(deps ccmcommon.Dependencies) []types.HelmChartInfo {
 		{
 			policy: deps.LWS.ManagementPolicy,
 			chart: types.HelmChartInfo{
-				Chart:       filepath.Join(DefaultChartsPath, "lws-operator"),
-				ReleaseName: "lws-operator",
-				Values:      map[string]any{},
+				Source: helm.Source{
+					Chart:       filepath.Join(DefaultChartsPath, "lws-operator"),
+					ReleaseName: "lws-operator",
+					Values:      helm.Values(map[string]any{}),
+				},
 				PreApply: []types.HookFn{
 					CreateNamespaceHook("openshift-lws-operator"),
 				},
@@ -47,9 +53,11 @@ func BuildHelmCharts(deps ccmcommon.Dependencies) []types.HelmChartInfo {
 		{
 			policy: deps.SailOperator.ManagementPolicy,
 			chart: types.HelmChartInfo{
-				Chart:       filepath.Join(DefaultChartsPath, "sail-operator"),
-				ReleaseName: "sail-operator",
-				Values:      map[string]any{},
+				Source: helm.Source{
+					Chart:       filepath.Join(DefaultChartsPath, "sail-operator"),
+					ReleaseName: "sail-operator",
+					Values:      helm.Values(map[string]any{}),
+				},
 				PreApply: []types.HookFn{
 					CreateNamespaceHook("istio-system"),
 				},

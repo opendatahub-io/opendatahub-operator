@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/blang/semver/v4"
+	helm "github.com/k8s-manifest-kit/renderer-helm/pkg"
 	"github.com/operator-framework/api/pkg/lib/version"
 	"github.com/rs/xid"
 	corev1 "k8s.io/api/core/v1"
@@ -140,15 +141,17 @@ func TestHash_HelmChartValuesIsDeterministic(t *testing.T) {
 				Version: version.OperatorVersion{Version: semver.Version{Major: 1}},
 			},
 			HelmCharts: []types.HelmChartInfo{{
-				Chart:       "oci://example.com/chart",
-				ReleaseName: "test",
-				Values: map[string]any{
-					"z_key": "last",
-					"a_key": "first",
-					"nested": map[string]any{
-						"beta":  2,
-						"alpha": 1,
-					},
+				Source: helm.Source{
+					Chart:       "oci://example.com/chart",
+					ReleaseName: "test",
+					Values: helm.Values(map[string]any{
+						"z_key": "last",
+						"a_key": "first",
+						"nested": map[string]any{
+							"beta":  2,
+							"alpha": 1,
+						},
+					}),
 				},
 			}},
 		}

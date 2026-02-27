@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package v1alpha1 contains API Schema definitions for the Azure Cloud Manager v1alpha1 API group.
+// Package v1alpha1 contains API Schema definitions for the infrastructure v1alpha1 API group.
 // +kubebuilder:object:generate=true
 // +groupName=infrastructure.opendatahub.io
 package v1alpha1

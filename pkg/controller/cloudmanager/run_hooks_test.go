@@ -6,6 +6,7 @@ import (
 	"errors"
 	"testing"
 
+	helmRenderer "github.com/k8s-manifest-kit/renderer-helm/pkg"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -27,7 +28,9 @@ func TestRunHooks(t *testing.T) {
 		rr := &types.ReconciliationRequest{
 			HelmCharts: []types.HelmChartInfo{
 				{
-					ReleaseName: "chart-1",
+					Source: helmRenderer.Source{
+						ReleaseName: "chart-1",
+					},
 					PreApply: []types.HookFn{
 						func(_ context.Context, _ *types.ReconciliationRequest) error {
 							order = append(order, "chart-1")
@@ -36,7 +39,9 @@ func TestRunHooks(t *testing.T) {
 					},
 				},
 				{
-					ReleaseName: "chart-2",
+					Source: helmRenderer.Source{
+						ReleaseName: "chart-2",
+					},
 					PreApply: []types.HookFn{
 						func(_ context.Context, _ *types.ReconciliationRequest) error {
 							order = append(order, "chart-2")
@@ -45,7 +50,9 @@ func TestRunHooks(t *testing.T) {
 					},
 				},
 				{
-					ReleaseName: "chart-3",
+					Source: helmRenderer.Source{
+						ReleaseName: "chart-3",
+					},
 					PreApply: []types.HookFn{
 						func(_ context.Context, _ *types.ReconciliationRequest) error {
 							order = append(order, "chart-3")
@@ -68,7 +75,9 @@ func TestRunHooks(t *testing.T) {
 		rr := &types.ReconciliationRequest{
 			HelmCharts: []types.HelmChartInfo{
 				{
-					ReleaseName: "chart-1",
+					Source: helmRenderer.Source{
+						ReleaseName: "chart-1",
+					},
 					PreApply: []types.HookFn{
 						func(_ context.Context, _ *types.ReconciliationRequest) error {
 							order = append(order, "chart-1-hook-1")
@@ -81,7 +90,9 @@ func TestRunHooks(t *testing.T) {
 					},
 				},
 				{
-					ReleaseName: "chart-2",
+					Source: helmRenderer.Source{
+						ReleaseName: "chart-2",
+					},
 					PreApply: []types.HookFn{
 						func(_ context.Context, _ *types.ReconciliationRequest) error {
 							order = append(order, "chart-2-hook-1")
@@ -105,7 +116,9 @@ func TestRunHooks(t *testing.T) {
 		rr := &types.ReconciliationRequest{
 			HelmCharts: []types.HelmChartInfo{
 				{
-					ReleaseName: "chart-1",
+					Source: helmRenderer.Source{
+						ReleaseName: "chart-1",
+					},
 					PreApply: []types.HookFn{
 						func(_ context.Context, _ *types.ReconciliationRequest) error {
 							executed = append(executed, "chart-1")
@@ -114,7 +127,9 @@ func TestRunHooks(t *testing.T) {
 					},
 				},
 				{
-					ReleaseName: "chart-2",
+					Source: helmRenderer.Source{
+						ReleaseName: "chart-2",
+					},
 					PreApply: []types.HookFn{
 						func(_ context.Context, _ *types.ReconciliationRequest) error {
 							executed = append(executed, "chart-2")
@@ -123,7 +138,9 @@ func TestRunHooks(t *testing.T) {
 					},
 				},
 				{
-					ReleaseName: "chart-3",
+					Source: helmRenderer.Source{
+						ReleaseName: "chart-3",
+					},
 					PreApply: []types.HookFn{
 						func(_ context.Context, _ *types.ReconciliationRequest) error {
 							executed = append(executed, "chart-3")
@@ -147,7 +164,9 @@ func TestRunHooks(t *testing.T) {
 		rr := &types.ReconciliationRequest{
 			HelmCharts: []types.HelmChartInfo{
 				{
-					ReleaseName: "chart-1",
+					Source: helmRenderer.Source{
+						ReleaseName: "chart-1",
+					},
 					PreApply: []types.HookFn{
 						func(_ context.Context, _ *types.ReconciliationRequest) error {
 							executed = append(executed, "hook-1")
@@ -177,9 +196,13 @@ func TestRunHooks(t *testing.T) {
 
 		rr := &types.ReconciliationRequest{
 			HelmCharts: []types.HelmChartInfo{
-				{ReleaseName: "chart-1", PreApply: nil},
+				{Source: helmRenderer.Source{
+					ReleaseName: "chart-1",
+				}, PreApply: nil},
 				{
-					ReleaseName: "chart-2",
+					Source: helmRenderer.Source{
+						ReleaseName: "chart-2",
+					},
 					PreApply: []types.HookFn{
 						nil,
 						func(_ context.Context, _ *types.ReconciliationRequest) error {
@@ -189,7 +212,9 @@ func TestRunHooks(t *testing.T) {
 						nil,
 					},
 				},
-				{ReleaseName: "chart-3", PreApply: nil},
+				{Source: helmRenderer.Source{
+					ReleaseName: "chart-3",
+				}, PreApply: nil},
 			},
 		}
 
@@ -215,7 +240,9 @@ func TestRunHooks(t *testing.T) {
 		rr := &types.ReconciliationRequest{
 			HelmCharts: []types.HelmChartInfo{
 				{
-					ReleaseName: "chart-1",
+					Source: helmRenderer.Source{
+						ReleaseName: "chart-1",
+					},
 					PostApply: []types.HookFn{
 						func(_ context.Context, _ *types.ReconciliationRequest) error {
 							order = append(order, "chart-1")
@@ -224,7 +251,9 @@ func TestRunHooks(t *testing.T) {
 					},
 				},
 				{
-					ReleaseName: "chart-2",
+					Source: helmRenderer.Source{
+						ReleaseName: "chart-2",
+					},
 					PostApply: []types.HookFn{
 						func(_ context.Context, _ *types.ReconciliationRequest) error {
 							order = append(order, "chart-2")
@@ -247,7 +276,9 @@ func TestRunHooks(t *testing.T) {
 		rr := &types.ReconciliationRequest{
 			HelmCharts: []types.HelmChartInfo{
 				{
-					ReleaseName: "my-chart",
+					Source: helmRenderer.Source{
+						ReleaseName: "my-chart",
+					},
 					PostApply: []types.HookFn{
 						func(_ context.Context, _ *types.ReconciliationRequest) error {
 							return sentinel
