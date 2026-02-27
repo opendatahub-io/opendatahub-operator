@@ -761,3 +761,353 @@ func TestDeployOwnerRef(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(updatedCRD.GetOwnerReferences()).Should(BeEmpty())
 }
+
+func TestDeployDynamicOwnership_SetsOwnerReferences(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := t.Context()
+	ns := xid.New().String()
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Create namespace for resources
+	err = cl.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Create the owner instance
+	instance := &componentApi.Dashboard{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       componentApi.DashboardInstanceName,
+			UID:        "test-uid-12345",
+			Generation: 1,
+		},
+	}
+	instance.SetGroupVersionKind(gvk.Dashboard)
+
+	// Resources to deploy
+	configMap, err := resources.ToUnstructured(&corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "ConfigMap",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-cm",
+			Namespace: ns,
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	secret, err := resources.ToUnstructured(&corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "Secret",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-secret",
+			Namespace: ns,
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := types.ReconciliationRequest{
+		Client:   cl,
+		Instance: instance,
+		Release: common.Release{
+			Name: cluster.OpenDataHub,
+			Version: version.OperatorVersion{Version: semver.Version{
+				Major: 1, Minor: 2, Patch: 3,
+			}},
+		},
+		Resources: []unstructured.Unstructured{*configMap, *secret},
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			// Simulate dynamic ownership enabled
+			m.On("IsDynamicOwnershipEnabled").Return(true)
+			// No GVKs are excluded
+			m.On("IsExcludedFromOwnership", mock.Anything).Return(false)
+		}),
+	}
+
+	action := deploy.NewAction()
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Verify ConfigMap has owner reference
+	cm := resources.GvkToUnstructured(gvk.ConfigMap)
+	err = cl.Get(ctx, apimachinery.NamespacedName{Namespace: ns, Name: "test-cm"}, cm)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(cm.GetOwnerReferences()).Should(HaveLen(1))
+	g.Expect(cm.GetOwnerReferences()[0].Kind).Should(Equal(instance.GroupVersionKind().Kind))
+
+	// Verify Secret has owner reference
+	sec := resources.GvkToUnstructured(gvk.Secret)
+	err = cl.Get(ctx, apimachinery.NamespacedName{Namespace: ns, Name: "test-secret"}, sec)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(sec.GetOwnerReferences()).Should(HaveLen(1))
+	g.Expect(sec.GetOwnerReferences()[0].Kind).Should(Equal(instance.GroupVersionKind().Kind))
+}
+
+func TestDeployDynamicOwnership_ExcludesGVKs(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := t.Context()
+	ns := xid.New().String()
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Create namespace
+	err = cl.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	instance := &componentApi.Dashboard{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       componentApi.DashboardInstanceName,
+			UID:        "test-uid-12345",
+			Generation: 1,
+		},
+	}
+	instance.SetGroupVersionKind(gvk.Dashboard)
+
+	// ConfigMap will be owned, Secret will be excluded
+	configMap, err := resources.ToUnstructured(&corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "ConfigMap",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-cm",
+			Namespace: ns,
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	secret, err := resources.ToUnstructured(&corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "Secret",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-secret",
+			Namespace: ns,
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := types.ReconciliationRequest{
+		Client:   cl,
+		Instance: instance,
+		Release: common.Release{
+			Name: cluster.OpenDataHub,
+			Version: version.OperatorVersion{Version: semver.Version{
+				Major: 1, Minor: 2, Patch: 3,
+			}},
+		},
+		Resources: []unstructured.Unstructured{*configMap, *secret},
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("IsDynamicOwnershipEnabled").Return(true)
+			// Exclude Secret from ownership
+			m.On("IsExcludedFromOwnership", gvk.Secret).Return(true)
+			m.On("IsExcludedFromOwnership", gvk.ConfigMap).Return(false)
+		}),
+	}
+
+	action := deploy.NewAction()
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Verify ConfigMap has owner reference (not excluded)
+	cm := resources.GvkToUnstructured(gvk.ConfigMap)
+	err = cl.Get(ctx, apimachinery.NamespacedName{Namespace: ns, Name: "test-cm"}, cm)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(cm.GetOwnerReferences()).Should(HaveLen(1))
+
+	// Verify Secret does NOT have owner reference (excluded)
+	sec := resources.GvkToUnstructured(gvk.Secret)
+	err = cl.Get(ctx, apimachinery.NamespacedName{Namespace: ns, Name: "test-secret"}, sec)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(sec.GetOwnerReferences()).Should(BeEmpty(), "Excluded GVK should not have owner reference")
+}
+
+func TestDeployDynamicOwnership_FallsBackToStaticOwnership(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := t.Context()
+	ns := xid.New().String()
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = cl.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	instance := &componentApi.Dashboard{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       componentApi.DashboardInstanceName,
+			UID:        "test-uid-12345",
+			Generation: 1,
+		},
+	}
+	instance.SetGroupVersionKind(gvk.Dashboard)
+
+	// ConfigMap is statically owned, Secret is not
+	configMap, err := resources.ToUnstructured(&corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "ConfigMap",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-cm",
+			Namespace: ns,
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	secret, err := resources.ToUnstructured(&corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "Secret",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-secret",
+			Namespace: ns,
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := types.ReconciliationRequest{
+		Client:   cl,
+		Instance: instance,
+		Release: common.Release{
+			Name: cluster.OpenDataHub,
+			Version: version.OperatorVersion{Version: semver.Version{
+				Major: 1, Minor: 2, Patch: 3,
+			}},
+		},
+		Resources: []unstructured.Unstructured{*configMap, *secret},
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			// Dynamic ownership disabled
+			m.On("IsDynamicOwnershipEnabled").Return(false)
+			m.On("IsExcludedFromOwnership", mock.Anything).Return(false)
+			// Static ownership: ConfigMap is owned, Secret is not
+			m.On("Owns", gvk.ConfigMap).Return(true)
+			m.On("Owns", gvk.Secret).Return(false)
+		}),
+	}
+
+	action := deploy.NewAction()
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Verify ConfigMap has owner reference (statically owned)
+	cm := resources.GvkToUnstructured(gvk.ConfigMap)
+	err = cl.Get(ctx, apimachinery.NamespacedName{Namespace: ns, Name: "test-cm"}, cm)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(cm.GetOwnerReferences()).Should(HaveLen(1))
+
+	// Verify Secret does NOT have owner reference (not statically owned)
+	sec := resources.GvkToUnstructured(gvk.Secret)
+	err = cl.Get(ctx, apimachinery.NamespacedName{Namespace: ns, Name: "test-secret"}, sec)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(sec.GetOwnerReferences()).Should(BeEmpty(), "Non-owned GVK should not have owner reference")
+}
+
+func TestDeployDynamicOwnership_CRDsExcludedByDefault(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := t.Context()
+	ns := xid.New().String()
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = cl.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	instance := &componentApi.Dashboard{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       componentApi.DashboardInstanceName,
+			UID:        "test-uid-12345",
+			Generation: 1,
+		},
+	}
+	instance.SetGroupVersionKind(gvk.Dashboard)
+
+	configMap, err := resources.ToUnstructured(&corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "ConfigMap",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-cm",
+			Namespace: ns,
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	crd, err := resources.ToUnstructured(&apiextensionsv1.CustomResourceDefinition{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: apiextensionsv1.SchemeGroupVersion.String(),
+			Kind:       "CustomResourceDefinition",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "testresources.test.opendatahub.io",
+		},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: "test.opendatahub.io",
+			Names: apiextensionsv1.CustomResourceDefinitionNames{
+				Kind:     "TestResource",
+				ListKind: "TestResourceList",
+				Plural:   "testresources",
+				Singular: "testresource",
+			},
+			Scope: apiextensionsv1.NamespaceScoped,
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
+				{
+					Name:    "v1",
+					Served:  true,
+					Storage: true,
+					Schema: &apiextensionsv1.CustomResourceValidation{
+						OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+							Type: "object",
+						},
+					},
+				},
+			},
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := types.ReconciliationRequest{
+		Client:   cl,
+		Instance: instance,
+		Release: common.Release{
+			Name: cluster.OpenDataHub,
+			Version: version.OperatorVersion{Version: semver.Version{
+				Major: 1, Minor: 2, Patch: 3,
+			}},
+		},
+		Resources: []unstructured.Unstructured{*crd, *configMap},
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("IsDynamicOwnershipEnabled").Return(true)
+			m.On("IsExcludedFromOwnership", mock.Anything).Return(false)
+		}),
+	}
+
+	action := deploy.NewAction()
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Verify CRD does NOT have owner reference
+	obj := resources.GvkToUnstructured(gvk.CustomResourceDefinition)
+	err = cl.Get(ctx, apimachinery.NamespacedName{Name: "testresources.test.opendatahub.io"}, obj)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(obj.GetOwnerReferences()).Should(BeEmpty(), "CRDs should not have owner references")
+
+	// Verify ConfigMap has owner reference
+	cm := resources.GvkToUnstructured(gvk.ConfigMap)
+	err = cl.Get(ctx, apimachinery.NamespacedName{Namespace: ns, Name: "test-cm"}, cm)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(cm.GetOwnerReferences()).Should(HaveLen(1))
+	g.Expect(cm.GetOwnerReferences()[0].Kind).Should(Equal(instance.GroupVersionKind().Kind))
+}

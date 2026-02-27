@@ -73,9 +73,30 @@ func (m *MockController) GetDynamicClient() dynamic.Interface {
 	return m.Called().Get(0).(dynamic.Interface)
 }
 
+func (m *MockController) IsDynamicOwnershipEnabled() bool {
+	args := m.Called()
+	if len(args) == 0 {
+		return false
+	}
+	return args.Bool(0)
+}
+
+func (m *MockController) IsExcludedFromOwnership(gvk schema.GroupVersionKind) bool {
+	args := m.Called(gvk)
+	if len(args) == 0 {
+		return false
+	}
+	return args.Bool(0)
+}
+
 func NewMockController(f func(m *MockController)) *MockController {
 	m := new(MockController)
 	f(m)
+
+	// Set default expectations for commonly used methods if not already set by the callback.
+	// This allows tests to override with specific expectations before these defaults.
+	m.On("IsExcludedFromOwnership", mock.Anything).Return(false).Maybe()
+	m.On("IsDynamicOwnershipEnabled").Return(false).Maybe()
 
 	return m
 }
