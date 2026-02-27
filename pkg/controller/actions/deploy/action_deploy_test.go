@@ -252,6 +252,57 @@ func TestDeployNotOwnedCreate(t *testing.T) {
 	))
 }
 
+func TestDeployErrorFormat(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := t.Context()
+	ns := xid.New().String()
+	name := xid.New().String()
+
+	// Use an unsupported deploy mode to force a deploy error and exercise the
+	// error message format introduced in run().
+	action := deploy.NewAction(
+		deploy.WithMode(deploy.Mode("invalid")),
+	)
+
+	obj, err := resources.ToUnstructured(&appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: appsv1.SchemeGroupVersion.String(),
+			Kind:       "Deployment",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := types.ReconciliationRequest{
+		Client: cl,
+		Instance: &componentApi.Dashboard{
+			ObjectMeta: metav1.ObjectMeta{
+				Generation: 1,
+			},
+		},
+		Release: common.Release{
+			Name: cluster.OpenDataHub,
+			Version: version.OperatorVersion{Version: semver.Version{
+				Major: 1, Minor: 2, Patch: 3,
+			}}},
+		Resources: []unstructured.Unstructured{*obj},
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("Owns", mock.Anything).Return(false)
+		}),
+	}
+
+	err = action(ctx, &rr)
+	g.Expect(err).Should(HaveOccurred())
+	g.Expect(err.Error()).Should(ContainSubstring("failure deploying resource " + ns + "/" + name))
+}
+
 func TestDeployDeOwn(t *testing.T) {
 	g := NewWithT(t)
 
