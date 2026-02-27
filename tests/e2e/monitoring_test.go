@@ -139,6 +139,8 @@ func monitoringTestSuite(t *testing.T) {
 	if testOpts.webhookTest {
 		testCases = append(testCases,
 			TestCase{"Setup monitoring admission components tests", monitoringServiceCtx.ValidateMonitoringWebhookTestsSetup},
+			TestCase{"Validate monitoring label value enforcement on namespace", monitoringServiceCtx.ValidateMonitoringLabelValueEnforcementOnNamespace},
+			TestCase{"Validate monitoring label value enforcement on monitors", monitoringServiceCtx.ValidateMonitoringLabelValueEnforcementOnMonitors},
 		)
 	}
 
