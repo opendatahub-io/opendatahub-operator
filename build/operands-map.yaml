@@ -179,6 +179,10 @@ relatedImages:
     - name: RELATED_IMAGE_ODH_MAAS_API_IMAGE
       value: quay.io/opendatahub/maas-api@sha256:e83852905c7c4f65699daaad9d1f90e56f8f6b7477e6a11d76f31ae91b711197
       component: odh-maas-api
+    # Placeholder: real digest will be populated by Konflux once the first maas-controller build completes
+    - name: RELATED_IMAGE_ODH_MAAS_CONTROLLER_IMAGE
+      value: quay.io/opendatahub/maas-controller@sha256:0000000000000000000000000000000000000000000000000000000000000000
+      component: odh-maas-controller
     - name: RELATED_IMAGE_ODH_TRUSTYAI_RAGAS_LLS_PROVIDER_DSP_IMAGE
       value: quay.io/opendatahub/llama-stack-provider-ragas@sha256:627f4d4c2910869f4da07db7eaddd8cec89e862d71f90bdf14b61fbbb4935be0
       component: odh-trustyai-ragas-lls-provider-dsp
