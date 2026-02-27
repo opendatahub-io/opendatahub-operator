@@ -633,6 +633,29 @@ check-prometheus-alert-unit-tests: $(PROMETHEUS_ALERT_RULES)
 	./tests/prometheus_unit_tests/scripts/check_alert_tests.sh $(PROMETHEUS_RULES_DIR) $(ALERT_SEVERITY)
 CLEANFILES += $(PROMETHEUS_ALERT_RULES)
 
+# cluster-health runs cluster health checks and fails if the cluster is not healthy.
+# Uses the same E2E_TEST_* env vars as e2e-test. Run automatically before e2e-test.
+.PHONY: cluster-health
+cluster-health:
+# Specifies the namespace where the operator pods are deployed
+ifndef E2E_TEST_OPERATOR_NAMESPACE
+export E2E_TEST_OPERATOR_NAMESPACE = $(OPERATOR_NAMESPACE)
+endif
+# Specifies the namespace where the component deployments are deployed
+ifndef E2E_TEST_APPLICATIONS_NAMESPACE
+export E2E_TEST_APPLICATIONS_NAMESPACE = $(APPLICATIONS_NAMESPACE)
+endif
+# Specifies the namespace where the workbenches are deployed
+ifndef E2E_TEST_WORKBENCHES_NAMESPACE
+export E2E_TEST_WORKBENCHES_NAMESPACE = $(WORKBENCHES_NAMESPACE)
+endif
+# Specifies the namespace where monitoring is deployed
+ifndef E2E_TEST_DSC_MONITORING_NAMESPACE
+export E2E_TEST_DSC_MONITORING_NAMESPACE = $(MONITORING_NAMESPACE)
+endif
+cluster-health:
+	go run ./cmd/health-check
+
 .PHONY: e2e-test
 e2e-test:
 # Specifies the namespace where the operator pods are deployed
