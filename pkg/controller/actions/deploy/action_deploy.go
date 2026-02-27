@@ -159,7 +159,7 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 		}
 
 		if err != nil {
-			return fmt.Errorf("failure deploying resource %s: %w", res, err)
+			return fmt.Errorf("failure deploying resource %s/%s: %w", res.GetNamespace(), res.GetName(), err)
 		}
 
 		if ok {
