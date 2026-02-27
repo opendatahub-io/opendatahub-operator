@@ -16,6 +16,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	cond "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -56,9 +57,15 @@ type OperatorConfig struct {
 	Severity common.ConditionSeverity
 }
 
+// CRDConfig defines configuration for checking that a required CRD is registered on the cluster.
+type CRDConfig struct {
+	GVK schema.GroupVersionKind
+}
+
 // Action monitors dependent operators for degraded conditions and propagates them to the component CR.
 type Action struct {
-	configs []OperatorConfig
+	configs    []OperatorConfig
+	crdConfigs []CRDConfig
 }
 
 // ActionOpts is a functional option for configuring the Action.
@@ -87,6 +94,22 @@ func (a *Action) run(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 			if config.Severity == "" || config.Severity == common.ConditionSeverityError {
 				hasErrorSeverity = true
 			}
+		}
+	}
+
+	for _, config := range a.crdConfigs {
+		has, err := cluster.HasCRD(ctx, rr.Client, config.GVK)
+		if err != nil {
+			// Log and continue - monitoring failures should not block reconciliation.
+			logger := ctrlLog.FromContext(ctx)
+			logger.V(3).Info("Failed to check CRD presence for dependency monitoring",
+				"gvk", config.GVK.String(),
+				"error", err.Error())
+			continue
+		}
+		if !has {
+			allDegraded = append(allDegraded, config.GVK.Kind+": CRD not found")
+			hasErrorSeverity = true
 		}
 	}
 
@@ -125,8 +148,11 @@ func (a *Action) collectDegradedConditions(ctx context.Context, rr *odhtypes.Rec
 		}, externalCR)
 	}
 
-	if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
-		// Operator or CRD not installed - not degraded
+	if meta.IsNoMatchError(err) {
+		return nil
+	}
+	if k8serr.IsNotFound(err) {
+		// Operator CR absent but CRD is registered — not degraded
 		return nil
 	}
 	if err != nil {
