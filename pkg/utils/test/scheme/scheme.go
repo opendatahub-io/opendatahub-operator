@@ -16,6 +16,8 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	ccmAzureV1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/azure/v1alpha1"
+	ccmCoreweaveV1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/coreweave/v1alpha1"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
@@ -49,6 +51,8 @@ var (
 		admissionv1.AddToScheme,
 		infrav1.AddToScheme,
 		gwapiv1.Install,
+		ccmAzureV1alpha1.AddToScheme,
+		ccmCoreweaveV1alpha1.AddToScheme,
 	}
 )
 

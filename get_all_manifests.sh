@@ -3,6 +3,7 @@ set -e
 
 GITHUB_URL="https://github.com"
 DST_MANIFESTS_DIR="./opt/manifests"
+DST_CHARTS_DIR="./opt/charts"
 
 # {ODH,RHOAI}_COMPONENT_MANIFESTS are lists of components repositories info to fetch the manifests
 # in the format of "repo-org:repo-name:ref-name:source-folder" and key is the target folder under manifests/
@@ -54,18 +55,41 @@ declare -A RHOAI_COMPONENT_MANIFESTS=(
     ["sparkoperator"]="red-hat-data-services:spark-operator:rhoai-3.4:config"
 )
 
+# {ODH,RHOAI}_COMPONENT_CHARTS are lists of chart repositories info to fetch helm charts
+# in the same format as manifests: "repo-org:repo-name:ref-name:source-folder"
+# key is the target folder under charts/
+
+# ODH Component Charts
+declare -A ODH_COMPONENT_CHARTS=(
+    ["cert-manager-operator"]="opendatahub-io:rhaii-on-xks:main@1494329fb4cab6b5cae8a1d3f752fc0e26b45e48:charts/cert-manager-operator"
+    ["lws-operator"]="opendatahub-io:rhaii-on-xks:main@1494329fb4cab6b5cae8a1d3f752fc0e26b45e48:charts/lws-operator"
+    ["sail-operator"]="opendatahub-io:rhaii-on-xks:main@1494329fb4cab6b5cae8a1d3f752fc0e26b45e48:charts/sail-operator"
+)
+
+# RHOAI Component Charts
+declare -A RHOAI_COMPONENT_CHARTS=(
+)
+
 # Select the appropriate manifest based on platform type
 if [ "${ODH_PLATFORM_TYPE:-OpenDataHub}" = "OpenDataHub" ]; then
-    echo "Cloning manifests for ODH"
+    echo "Cloning manifests and charts for ODH"
     declare -A COMPONENT_MANIFESTS=()
     for key in "${!ODH_COMPONENT_MANIFESTS[@]}"; do
         COMPONENT_MANIFESTS["$key"]="${ODH_COMPONENT_MANIFESTS[$key]}"
     done
+    declare -A COMPONENT_CHARTS=()
+    for key in "${!ODH_COMPONENT_CHARTS[@]}"; do
+        COMPONENT_CHARTS["$key"]="${ODH_COMPONENT_CHARTS[$key]}"
+    done
 else
-    echo "Cloning manifests for RHOAI"
+    echo "Cloning manifests and charts for RHOAI"
     declare -A COMPONENT_MANIFESTS=()
     for key in "${!RHOAI_COMPONENT_MANIFESTS[@]}"; do
         COMPONENT_MANIFESTS["$key"]="${RHOAI_COMPONENT_MANIFESTS[$key]}"
+    done
+    declare -A COMPONENT_CHARTS=()
+    for key in "${!RHOAI_COMPONENT_CHARTS[@]}"; do
+        COMPONENT_CHARTS["$key"]="${RHOAI_COMPONENT_CHARTS[$key]}"
     done
 fi
 
@@ -173,9 +197,10 @@ function git_fetch_ref()
     popd &>/dev/null
 }
 
-download_manifest() {
+download_repo_content() {
     local key=$1
     local repo_info=$2
+    local dst_dir=$3
     echo -e "\033[32mCloning repo \033[33m${key}\033[32m:\033[0m ${repo_info}"
     IFS=':' read -r -a repo_info <<< "${repo_info}"
 
@@ -186,12 +211,12 @@ download_manifest() {
     target_path="${key}"
 
     repo_url="${GITHUB_URL}/${repo_org}/${repo_name}"
-    repo_dir=${TMP_DIR}/${key}
+    repo_dir=${TMP_DIR}/${dst_dir}/${key}
 
     if [[ -v USE_LOCAL ]] && [[ -e ../${repo_name} ]]; then
         echo "copying from adjacent checkout ..."
-        mkdir -p ${DST_MANIFESTS_DIR}/${target_path}
-        cp -rf "../${repo_name}/${source_path}"/* ${DST_MANIFESTS_DIR}/${target_path}
+        mkdir -p ${dst_dir}/${target_path}
+        cp -rf "../${repo_name}/${source_path}"/* ${dst_dir}/${target_path}
         return
     fi
 
@@ -200,8 +225,16 @@ download_manifest() {
         return 1
     fi
 
-    mkdir -p ${DST_MANIFESTS_DIR}/${target_path}
-    cp -rf ${repo_dir}/${source_path}/* ${DST_MANIFESTS_DIR}/${target_path}
+    mkdir -p ${dst_dir}/${target_path}
+    cp -rf ${repo_dir}/${source_path}/* ${dst_dir}/${target_path}
+}
+
+download_manifest() {
+    download_repo_content "$1" "$2" "${DST_MANIFESTS_DIR}"
+}
+
+download_chart() {
+    download_repo_content "$1" "$2" "${DST_CHARTS_DIR}"
 }
 
 # Track background job PIDs +declare -a pids=()
@@ -220,6 +253,24 @@ done
 if [ $failed -eq 1 ]; then
     echo "One or more downloads failed"
     exit 1
+fi
+
+# Download charts in parallel
+if [ ${#COMPONENT_CHARTS[@]} -gt 0 ]; then
+    declare -a chart_pids=()
+    for key in "${!COMPONENT_CHARTS[@]}"; do
+        download_chart "$key" "${COMPONENT_CHARTS[$key]}" &
+        chart_pids+=($!)
+    done
+    for pid in "${chart_pids[@]}"; do
+        if ! wait "$pid"; then
+            failed=1
+        fi
+    done
+    if [ $failed -eq 1 ]; then
+        echo "One or more chart downloads failed"
+        exit 1
+    fi
 fi
 
 for key in "${!PLATFORM_MANIFESTS[@]}"; do

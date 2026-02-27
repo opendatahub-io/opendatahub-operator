@@ -1,0 +1,12 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: opendatahub-azure-cloud-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: opendatahub-azure-cloud-manager-role
+subjects:
+- kind: ServiceAccount
+  name: opendatahub-azure-cloud-manager-operator
+  namespace: system

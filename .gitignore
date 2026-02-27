@@ -53,7 +53,7 @@ components/gcp-click-to-deploy/src/user_config/**
 **/reg_tmp
 scripts/gke/build/**
 
-opt/manifests/
+opt/
 
 cover.out
 
@@ -80,6 +80,10 @@ config/rhoai/rbac/role.yaml
 config/rhoai/webhook/manifests.yaml
 rhoai-bundle/
 odh-bundle/
+config/cloudmanager/*/crd/bases
+config/cloudmanager/*/rbac/role.yaml
+config/cloudmanager/*/webhook/manifests.yaml
+config/cloudmanager/*/manager/kustomization.yaml
 
 # Ignore binary files
 cmd/component-codegen/component-codegen

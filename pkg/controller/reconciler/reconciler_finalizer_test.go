@@ -51,7 +51,6 @@ type MockManager struct {
 func (f *MockManager) GetClient() client.Client   { return f.client }
 func (f *MockManager) GetScheme() *runtime.Scheme { return f.scheme }
 
-//nolint:ireturn // Returns stdlib interface required by manager.Manager
 func (f *MockManager) GetRESTMapper() meta.RESTMapper { return f.mapper }
 func (f *MockManager) GetConfig() *rest.Config        { return &rest.Config{} }
 
