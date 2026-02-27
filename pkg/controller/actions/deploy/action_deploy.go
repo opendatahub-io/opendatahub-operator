@@ -9,6 +9,7 @@ import (
 
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -218,6 +219,8 @@ func (a *Action) deployCRD(
 		return false, nil
 	}
 
+	// Deep copy to avoid modifying rr.Resources (which may be used by subsequent actions)
+	obj = *obj.DeepCopy()
 	// backup copy for caching
 	origObj := obj.DeepCopy()
 
@@ -289,6 +292,8 @@ func (a *Action) deploy(
 		return false, nil
 	}
 
+	// Deep copy to avoid modifying rr.Resources (which may be used by subsequent actions)
+	obj = *obj.DeepCopy()
 	// backup copy for caching
 	origObj := obj.DeepCopy()
 
@@ -308,7 +313,7 @@ func (a *Action) deploy(
 		}
 
 	default:
-		owned := rr.Controller.Owns(obj.GroupVersionKind())
+		owned := a.shouldOwn(rr, obj.GroupVersionKind())
 		if owned {
 			if err := ctrl.SetControllerReference(rr.Instance, &obj, rr.Client.Scheme()); err != nil {
 				return false, err
@@ -488,6 +493,24 @@ func (a *Action) apply(
 	}
 
 	return obj, nil
+}
+
+// shouldOwn determines whether the action should set an owner reference on a resource.
+// When dynamic ownership is enabled, it returns true for all GVKs except excluded ones.
+// When dynamic ownership is disabled, it delegates to the controller's static ownership check.
+func (a *Action) shouldOwn(rr *odhTypes.ReconciliationRequest, objGVK schema.GroupVersionKind) bool {
+	// Check if GVK is excluded via controller (shared config from builder)
+	if rr.Controller.IsExcludedFromOwnership(objGVK) {
+		return false
+	}
+
+	if rr.Controller.IsDynamicOwnershipEnabled() {
+		// In dynamic ownership mode, default to owned
+		return true
+	}
+
+	// Fallback to static ownership check
+	return rr.Controller.Owns(objGVK)
 }
 
 func NewAction(opts ...ActionOpts) actions.Fn {
