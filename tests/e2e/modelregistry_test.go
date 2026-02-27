@@ -45,6 +45,8 @@ func modelRegistryTestSuite(t *testing.T) {
 func (tc *ModelRegistryTestCtx) ValidateSpec(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Smoke})
+
 	// Retrieve the DataScienceCluster instance.
 	dsc := tc.FetchDataScienceCluster()
 
@@ -58,6 +60,8 @@ func (tc *ModelRegistryTestCtx) ValidateSpec(t *testing.T) {
 // ValidateCRDReinstated ensures that required CRDs are reinstated if deleted.
 func (tc *ModelRegistryTestCtx) ValidateCRDReinstated(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 
 	crds := []CRD{
 		{Name: "modelregistries.modelregistry.opendatahub.io", Version: ""},

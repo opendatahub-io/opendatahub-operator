@@ -71,6 +71,8 @@ func operatorResilienceTestSuite(t *testing.T) {
 func (tc *OperatorResilienceTestCtx) ValidateOperatorDeployment(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Tier1})
+
 	deploymentName := tc.getControllerDeploymentName()
 
 	// Verify if the operator deployment is created and healthy
@@ -83,6 +85,8 @@ func (tc *OperatorResilienceTestCtx) ValidateOperatorDeployment(t *testing.T) {
 // ValidateLeaderElectionBehavior validates that leader election works correctly when the current leader pod is deleted.
 func (tc *OperatorResilienceTestCtx) ValidateLeaderElectionBehavior(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 
 	// Find and delete current leader
 	originalLeader := tc.findLeaderPodFromLeases()
@@ -112,6 +116,8 @@ func (tc *OperatorResilienceTestCtx) ValidateLeaderElectionBehavior(t *testing.T
 func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentSuccess(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Tier1})
+
 	componentName := componentApi.DashboardComponentName
 
 	tc.EventuallyResourcePatched(
@@ -127,6 +133,8 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentSuccess(t *test
 // ValidateComponentsDeploymentFailure simulates component deployment failure using restrictive resource quota.
 func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 
 	// To handle upstream/downstream i trimmed prefix(odh) from few controller names
 	componentToControllerMap := map[string]string{
@@ -241,6 +249,8 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 func (tc *OperatorResilienceTestCtx) ValidateMissingComponentsCRDHandling(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Tier1})
+
 	crdTestingName := "dashboards.components.platform.opendatahub.io"
 	crd := tc.FetchResource(
 		WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: crdTestingName}),
@@ -312,6 +322,8 @@ func (tc *OperatorResilienceTestCtx) ValidateMissingComponentsCRDHandling(t *tes
 
 func (tc *OperatorResilienceTestCtx) ValidateRBACRestrictionHandling(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 
 	// Get the predictable ServiceAccount name based on deployment name
 	deploymentName := tc.getControllerDeploymentName()

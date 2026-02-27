@@ -76,6 +76,8 @@ func authControllerTestSuite(t *testing.T) {
 func (tc *AuthControllerTestCtx) ValidateAuthSystemInitialization(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Smoke})
+
 	expectedAdminGroup := tc.getExpectedAdminGroupForPlatform()
 
 	// 1. Validate that exactly one Auth CR exists with correct default content
@@ -121,6 +123,8 @@ func (tc *AuthControllerTestCtx) ValidateAuthSystemInitialization(t *testing.T) 
 func (tc *AuthControllerTestCtx) ValidateAddingGroups(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Tier1})
+
 	testAdminGroup := "aTestAdminGroup"
 	testAllowedGroup := "aTestAllowedGroup"
 
@@ -146,6 +150,8 @@ func (tc *AuthControllerTestCtx) ValidateAddingGroups(t *testing.T) {
 // ValidateRemovingGroups removes groups from Auth CR and validates the changes.
 func (tc *AuthControllerTestCtx) ValidateRemovingGroups(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 
 	// Get the expected admin group for the current platform
 	expectedGroup := tc.getExpectedAdminGroupForPlatform()
@@ -176,6 +182,8 @@ func (tc *AuthControllerTestCtx) ValidateRemovingGroups(t *testing.T) {
 // CEL validation by attempting to update the existing Auth resource with invalid values.
 func (tc *AuthControllerTestCtx) ValidateCELBlocksInvalidGroupsViaUpdate(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 
 	// Test cases for different invalid update scenarios
 	testCases := []struct {
@@ -220,6 +228,8 @@ func (tc *AuthControllerTestCtx) ValidateCELBlocksInvalidGroupsViaUpdate(t *test
 // Since Auth resources must be named "auth", we test by updating the existing resource.
 func (tc *AuthControllerTestCtx) ValidateCELAllowsValidGroups(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 
 	testCases := []struct {
 		name        string

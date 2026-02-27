@@ -20,6 +20,7 @@ import (
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	opmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 )
@@ -43,6 +44,13 @@ func (et *EnvT) createManager() error {
 	// Ensure the manager uses the correct scheme for all registered types.
 	if mgrOpts.Scheme == nil {
 		mgrOpts.Scheme = et.s
+	}
+
+	// Enable unstructured caching to match production configuration (cmd/main.go).
+	// The wrapped manager (opmanager.New) converts typed reads to unstructured,
+	// so the cache must serve unstructured reads for consistency.
+	if mgrOpts.Client.Cache == nil {
+		mgrOpts.Client.Cache = &client.CacheOptions{Unstructured: true}
 	}
 
 	// After envtest is started, retrieve the webhook server options (host, port, cert dir)
@@ -75,6 +83,7 @@ func (et *EnvT) createManager() error {
 	if err != nil {
 		return fmt.Errorf("failed to create manager: %w", err)
 	}
+	mgr = opmanager.New(mgr)
 	et.mgr = mgr
 	for _, reg := range et.registerWebhooks {
 		if err := reg(mgr); err != nil {

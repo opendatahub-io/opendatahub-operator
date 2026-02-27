@@ -106,6 +106,8 @@ func dscWebhookTestSuite(t *testing.T) {
 func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Smoke})
+
 	// Define operators to be installed.
 	operators := []Operator{
 		{nn: types.NamespacedName{Name: certManagerOpName, Namespace: certManagerOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: certManagerOpChannel},
@@ -121,6 +123,8 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 func (tc *DSCTestCtx) ValidateResourcesCreation(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Smoke})
+
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithObjectToCreate(CreateJobSetOperator()),
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Available") | .status == "True"`)),
@@ -131,6 +135,8 @@ func (tc *DSCTestCtx) ValidateResourcesCreation(t *testing.T) {
 // ValidateDSCICreation validates the creation of a DSCInitialization.
 func (tc *DSCTestCtx) ValidateDSCICreation(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Smoke})
 
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithObjectToCreate(CreateDSCI(tc.DSCInitializationNamespacedName.Name, tc.AppsNamespace, tc.MonitoringNamespace)),
@@ -147,6 +153,8 @@ func (tc *DSCTestCtx) ValidateDSCICreation(t *testing.T) {
 func (tc *DSCTestCtx) ValidateDSCCreation(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Smoke})
+
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithObjectToCreate(CreateDSC(tc.DataScienceClusterNamespacedName.Name, tc.WorkbenchesNamespace)),
 		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
@@ -161,6 +169,8 @@ func (tc *DSCTestCtx) ValidateDSCCreation(t *testing.T) {
 // ValidateOwnedNamespacesAllExist verifies that the owned namespaces exist.
 func (tc *DSCTestCtx) ValidateOwnedNamespacesAllExist(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Smoke})
 
 	// Ensure namespaces with the owned namespace label exist.
 	tc.EnsureResourcesExist(
@@ -180,6 +190,8 @@ func (tc *DSCTestCtx) ValidateOwnedNamespacesAllExist(t *testing.T) {
 func (tc *DSCTestCtx) ValidateDefaultNetworkPolicyExists(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Smoke})
+
 	dsci := tc.FetchDSCInitialization()
 
 	// Ensure namespaces with the owned namespace label exist.
@@ -193,6 +205,8 @@ func (tc *DSCTestCtx) ValidateDefaultNetworkPolicyExists(t *testing.T) {
 func (tc *DSCTestCtx) ValidateDSCIDuplication(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Smoke})
+
 	dup := CreateDSCI(dsciInstanceNameDuplicate, tc.AppsNamespace, tc.MonitoringNamespace)
 	tc.EnsureResourceIsUnique(dup, "Error validating DSCInitialization duplication")
 
@@ -204,6 +218,8 @@ func (tc *DSCTestCtx) ValidateDSCIDuplication(t *testing.T) {
 func (tc *DSCTestCtx) ValidateDSCDuplication(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Smoke})
+
 	dsc := CreateDSC(dscInstanceNameDuplicate, tc.WorkbenchesNamespace)
 	tc.EnsureResourceIsUnique(dsc, "Error validating DataScienceCluster duplication")
 
@@ -214,6 +230,8 @@ func (tc *DSCTestCtx) ValidateDSCDuplication(t *testing.T) {
 // ValidateModelRegistryConfig validates the ModelRegistry configuration changes based on ManagementState.
 func (tc *DSCTestCtx) ValidateModelRegistryConfig(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 
 	// Retrieve the DataScienceCluster object.
 	dsc := tc.FetchDataScienceCluster()
@@ -258,6 +276,8 @@ func (tc *DSCTestCtx) UpdateRegistriesNamespace(targetNamespace, expectedValue s
 
 func (tc *DSCTestCtx) ValidateHardwareProfileCR(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Smoke})
 
 	// verifed default hardwareprofile exists and api version is correct on v1.
 	tc.EnsureResourceExists(

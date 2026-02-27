@@ -82,6 +82,8 @@ func (tc *TrustyAITestCtx) ValidateComponentDisabled(t *testing.T) {
 func (tc *TrustyAITestCtx) ValidateTrustyAIPreCheck(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Tier1})
+
 	// Step 1: Disable KServe → TrustyAI should detect missing dependency
 	tc.setKserveState(operatorv1.Removed, false)
 

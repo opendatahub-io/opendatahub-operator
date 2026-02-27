@@ -83,6 +83,7 @@ func gatewayTestSuite(t *testing.T) {
 		TestContext: ctx,
 	}
 
+	// Define test cases.
 	testCases := []TestCase{
 		{"Validate GatewayConfig creation", gatewayCtx.ValidateGatewayConfig},
 		{"Validate Gateway infrastructure", gatewayCtx.ValidateGatewayInfrastructure},
@@ -116,6 +117,8 @@ func makeCookieDomain(hostname string) string {
 // ValidateGatewayConfig ensures the GatewayConfig CR exists and is properly configured.
 func (tc *GatewayTestCtx) ValidateGatewayConfig(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Smoke})
 	t.Log("Validating GatewayConfig resource")
 
 	// Common validation: Ready status and ownership
@@ -135,6 +138,8 @@ func (tc *GatewayTestCtx) ValidateGatewayConfig(t *testing.T) {
 // ValidateGatewayInfrastructure validates Gateway API resources (GatewayClass, Gateway, TLS).
 func (tc *GatewayTestCtx) ValidateGatewayInfrastructure(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 	t.Log("Validating Gateway infrastructure resources")
 
 	t.Log("Validating GatewayClass resource")
@@ -179,6 +184,8 @@ func (tc *GatewayTestCtx) ValidateGatewayInfrastructure(t *testing.T) {
 // ValidateOAuthClientAndSecret validates OpenShift OAuth client and proxy secret creation.
 func (tc *GatewayTestCtx) ValidateOAuthClientAndSecret(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 	t.Log("Validating OAuth client and secret creation")
 
 	expectedGatewayHostname := tc.getExpectedGatewayHostname(t)
@@ -236,6 +243,8 @@ func (tc *GatewayTestCtx) ValidateOAuthClientAndSecret(t *testing.T) {
 // - TLS certificates are properly mounted.
 func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 	t.Log("Validating kube-auth-proxy deployment and service")
 
 	expectedGatewayHostname := tc.getExpectedGatewayHostname(t)
@@ -371,6 +380,8 @@ func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 // - Scaling behavior is configured for stable scale-down and rapid scale-up.
 func (tc *GatewayTestCtx) ValidateHPA(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 	t.Log("Validating HorizontalPodAutoscaler for kube-auth-proxy")
 
 	tc.EnsureResourceExists(
@@ -414,6 +425,8 @@ func (tc *GatewayTestCtx) ValidateHPA(t *testing.T) {
 // ValidateOAuthCallbackRoute validates the OAuth callback HTTPRoute configuration.
 func (tc *GatewayTestCtx) ValidateOAuthCallbackRoute(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 	t.Log("Validating OAuth callback HTTPRoute")
 
 	tc.EnsureResourceExists(
@@ -458,6 +471,8 @@ func (tc *GatewayTestCtx) ValidateOAuthCallbackRoute(t *testing.T) {
 // ValidateEnvoyFilter validates the EnvoyFilter for external authorization.
 func (tc *GatewayTestCtx) ValidateEnvoyFilter(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 	t.Log("Validating EnvoyFilter for authentication")
 
 	authProxyFQDN := getServiceFQDN(kubeAuthProxyName, gatewayNamespace)
@@ -517,6 +532,8 @@ func (tc *GatewayTestCtx) ValidateEnvoyFilter(t *testing.T) {
 // - Service is properly configured for EDS to discover endpoints.
 func (tc *GatewayTestCtx) ValidateEDSEndpointDiscovery(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 	t.Log("Validating EDS service configuration for kube-auth-proxy")
 
 	tc.EnsureResourceExists(
@@ -538,6 +555,8 @@ func (tc *GatewayTestCtx) ValidateEDSEndpointDiscovery(t *testing.T) {
 // ValidateGatewayReadyStatus validates Gateway resource is fully operational and ready to route traffic.
 func (tc *GatewayTestCtx) ValidateGatewayReadyStatus(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Smoke})
 	t.Log("Validating Gateway ready status")
 
 	// Core validation: Gateway is Accepted, Programmed, and has routes attached
@@ -570,6 +589,8 @@ func (tc *GatewayTestCtx) ValidateGatewayReadyStatus(t *testing.T) {
 // that is attached to the Gateway, providing a real route to test authentication against.
 func (tc *GatewayTestCtx) ValidateUnauthenticatedRedirect(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 
 	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.DashboardKind)
 	defer tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.DashboardKind)
@@ -763,6 +784,8 @@ func getServiceFQDN(serviceName, namespace string) string {
 // ValidateNetworkPolicy validates the NetworkPolicy resource for kube-auth-proxy.
 func (tc *GatewayTestCtx) ValidateNetworkPolicy(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 	t.Log("Validating NetworkPolicy for kube-auth-proxy")
 
 	tc.EnsureResourceExists(

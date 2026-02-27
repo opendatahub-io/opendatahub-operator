@@ -56,6 +56,8 @@ func dashboardTestSuite(t *testing.T) {
 func (tc *DashboardTestCtx) ValidateOperandsDynamicallyWatchedResources(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Smoke})
+
 	// Generate unique platform type values
 	newPt := xid.New().String()
 	oldPt := ""
@@ -94,6 +96,8 @@ func (tc *DashboardTestCtx) ValidateOperandsDynamicallyWatchedResources(t *testi
 func (tc *DashboardTestCtx) ValidateCRDReinstated(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Tier1})
+
 	crds := []CRD{
 		{Name: "odhapplications.dashboard.opendatahub.io", Version: ""},
 		{Name: "odhdocuments.dashboard.opendatahub.io", Version: ""},
@@ -119,6 +123,8 @@ func (tc *DashboardTestCtx) ValidateAllDeletionRecovery(t *testing.T) {
 func (tc *DashboardTestCtx) ValidateHardwareProfileCreationBlockedByWebHook(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Tier1})
+
 	testHWPName := "test-hwp-" + xid.New().String()
 	// Create the HardwareProfile object
 	// not use EventuallyResourceCreatedOrUpdated to skip timeout and should expect failure
@@ -138,6 +144,8 @@ func (tc *DashboardTestCtx) ValidateHardwareProfileCreationBlockedByWebHook(t *t
 // todo: remove this when CRD is not included
 func (tc *DashboardTestCtx) ValidateAcceleratorProfileCreationBlockedByWebHook(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 
 	testAPName := "test-ap-" + xid.New().String()
 	apProfile := &unstructured.Unstructured{}

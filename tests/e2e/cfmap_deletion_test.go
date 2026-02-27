@@ -46,8 +46,8 @@ func cfgMapDeletionTestSuite(t *testing.T) {
 
 	// Define test cases
 	testCases := []TestCase{
-		{name: "Validate creation of configmap with deletion disabled", testFn: cfgMapDeletionTestCtx.ValidateDSCDeletionUsingConfigMap},
-		{name: "Validate that owned namespaces are not deleted", testFn: cfgMapDeletionTestCtx.ValidateOwnedNamespacesAllExist},
+		{"Validate creation of configmap with deletion disabled", cfgMapDeletionTestCtx.ValidateDSCDeletionUsingConfigMap},
+		{"Validate that owned namespaces are not deleted", cfgMapDeletionTestCtx.ValidateOwnedNamespacesAllExist},
 	}
 
 	// Run the test suite
@@ -57,6 +57,8 @@ func cfgMapDeletionTestSuite(t *testing.T) {
 // ValidateDSCDeletionUsingConfigMap tests the deletion of DataScienceCluster based on the config map setting.
 func (tc *CfgMapDeletionTestCtx) ValidateDSCDeletionUsingConfigMap(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 
 	// Create or update the deletion config map
 	enableDeletion := "false"
@@ -86,6 +88,8 @@ func (tc *CfgMapDeletionTestCtx) ValidateDSCDeletionUsingConfigMap(t *testing.T)
 // ValidateOwnedNamespacesAllExist verifies that the owned namespaces exist.
 func (tc *CfgMapDeletionTestCtx) ValidateOwnedNamespacesAllExist(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 
 	// Ensure namespaces with the owned namespace label exist
 	tc.EnsureResourcesExist(

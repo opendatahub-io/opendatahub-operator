@@ -19,17 +19,19 @@ import (
 func (tc *GatewayTestCtx) DashboardRedirectTestSuite(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Tier1})
+
 	// Skip all tests if not in OcpRoute mode
 	if !tc.isOcpRouteMode(t) {
 		t.Skip("Dashboard redirects are only created in OcpRoute ingress mode")
 	}
 
 	testCases := []TestCase{
-		{"ConfigMap", tc.ValidateDashboardRedirectConfigMap},
-		{"Deployment", tc.ValidateDashboardRedirectDeployment},
-		{"Service", tc.ValidateDashboardRedirectService},
-		{"Routes", tc.ValidateDashboardRedirectRoutes},
-		{"HTTP functionality", tc.ValidateDashboardRedirectHTTP},
+		{"Validate dashboard redirect ConfigMap", tc.ValidateDashboardRedirectConfigMap},
+		{"Validate dashboard redirect Deployment", tc.ValidateDashboardRedirectDeployment},
+		{"Validate dashboard redirect Service", tc.ValidateDashboardRedirectService},
+		{"Validate dashboard redirect Routes", tc.ValidateDashboardRedirectRoutes},
+		{"Validate dashboard redirect HTTP functionality", tc.ValidateDashboardRedirectHTTP},
 	}
 
 	RunTestCases(t, testCases)
@@ -39,6 +41,8 @@ func (tc *GatewayTestCtx) DashboardRedirectTestSuite(t *testing.T) {
 func (tc *GatewayTestCtx) ValidateDashboardRedirectConfigMap(t *testing.T) {
 	t.Helper()
 	t.Log("Validating dashboard redirect ConfigMap")
+
+	skipUnless(t, []TestTag{Tier1})
 
 	appNamespace := tc.AppsNamespace
 	expectedGatewayHostname := tc.getExpectedGatewayHostname(t)
@@ -81,6 +85,7 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectConfigMap(t *testing.T) {
 // - Proper security context and resource limits.
 func (tc *GatewayTestCtx) ValidateDashboardRedirectDeployment(t *testing.T) {
 	t.Helper()
+	skipUnless(t, []TestTag{Tier1})
 	t.Log("Validating dashboard redirect Deployment")
 
 	appNamespace := tc.AppsNamespace
@@ -146,6 +151,7 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectDeployment(t *testing.T) {
 // ValidateDashboardRedirectService validates the redirect service configuration.
 func (tc *GatewayTestCtx) ValidateDashboardRedirectService(t *testing.T) {
 	t.Helper()
+	skipUnless(t, []TestTag{Tier1})
 	t.Log("Validating dashboard redirect Service")
 
 	appNamespace := tc.AppsNamespace
@@ -192,6 +198,7 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectService(t *testing.T) {
 // - Routes have GatewayConfig owner references (verifies SSA ownership takeover).
 func (tc *GatewayTestCtx) ValidateDashboardRedirectRoutes(t *testing.T) {
 	t.Helper()
+	skipUnless(t, []TestTag{Tier1})
 	t.Log("Validating dashboard redirect Routes")
 
 	appNamespace := tc.AppsNamespace
@@ -277,6 +284,7 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectRoutes(t *testing.T) {
 // - Path is preserved in redirect ($request_uri works correctly).
 func (tc *GatewayTestCtx) ValidateDashboardRedirectHTTP(t *testing.T) {
 	t.Helper()
+	skipUnless(t, []TestTag{Tier1})
 	t.Log("Validating dashboard redirect HTTP functionality")
 
 	dashboardRouteName := getDashboardRouteNameByPlatform(tc.FetchPlatformRelease())

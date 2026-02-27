@@ -142,17 +142,23 @@ func v2Tov3UpgradeDeletingDscDsciTestSuite(t *testing.T) {
 func (tc *V2Tov3UpgradeTestCtx) ValidateCodeFlareResourcePreservation(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Tier1})
+
 	tc.validateComponentResourcePreservation(t, gvk.CodeFlare, defaultCodeFlareComponentName)
 }
 
 func (tc *V2Tov3UpgradeTestCtx) ValidateModelMeshServingResourcePreservation(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Tier1})
+
 	tc.validateComponentResourcePreservation(t, gvk.ModelMeshServing, defaultModelMeshServingComponentName)
 }
 
 func (tc *V2Tov3UpgradeTestCtx) DatascienceclusterV1CreationAndRead(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 
 	// Clean up any existing DataScienceCluster and DSCInitialization resources before starting
 	cleanupCoreOperatorResources(t, tc.TestContext)
@@ -216,6 +222,8 @@ func (tc *V2Tov3UpgradeTestCtx) DatascienceclusterV1CreationAndRead(t *testing.T
 
 func (tc *V2Tov3UpgradeTestCtx) DscinitializationV1CreationAndRead(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 
 	// Clean up any existing DataScienceCluster and DSCInitialization resources before starting
 	cleanupCoreOperatorResources(t, tc.TestContext)
@@ -286,6 +294,8 @@ func (tc *V2Tov3UpgradeTestCtx) DscinitializationV1CreationAndRead(t *testing.T)
 func (tc *V2Tov3UpgradeTestCtx) HardwareProfileV1Alpha1ToV1VersionUpgrade(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Tier1})
+
 	hardwareProfileName := "test-hardware-profile-v1alpha1-to-v1"
 
 	// should be able to create v1alpha1 HWProfile resource.
@@ -340,6 +350,8 @@ func (tc *V2Tov3UpgradeTestCtx) HardwareProfileV1Alpha1ToV1VersionUpgrade(t *tes
 
 func (tc *V2Tov3UpgradeTestCtx) HardwareProfileV1ToV1Alpha1VersionConversion(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 
 	hardwareProfileName := "test-hardware-profile-v1-to-v1alpha1"
 
@@ -413,6 +425,8 @@ func (tc *V2Tov3UpgradeTestCtx) validateComponentResourcePreservation(t *testing
 
 func (tc *V2Tov3UpgradeTestCtx) ValidateRayRaiseErrorIfCodeFlarePresent(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 
 	dsc := tc.FetchDataScienceCluster()
 	existingComponent := tc.operatorManagedComponent(gvk.CodeFlare, defaultCodeFlareComponentName, dsc)
@@ -516,6 +530,8 @@ func (tc *V2Tov3UpgradeTestCtx) updateComponentStateInDataScienceCluster(t *test
 // DataScienceCluster v1 resources with Kueue managementState set to "Managed".
 func (tc *V2Tov3UpgradeTestCtx) ValidateDeniesKueueManaged(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 
 	// Clean up any existing DataScienceCluster resources before starting
 	cleanupCoreOperatorResources(t, tc.TestContext)
@@ -651,6 +667,8 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateDeniesKueueManagedUpdate(t *testing.T) {
 func (tc *V2Tov3UpgradeTestCtx) ValidateAllowsKueueUnmanaged(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Tier1})
+
 	// Clean up any existing DataScienceCluster resources before starting
 	cleanupCoreOperatorResources(t, tc.TestContext)
 
@@ -716,6 +734,8 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateAllowsKueueUnmanaged(t *testing.T) {
 // DataScienceCluster v1 resources with Kueue managementState set to "Removed".
 func (tc *V2Tov3UpgradeTestCtx) ValidateAllowsKueueRemoved(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 
 	// Clean up any existing DataScienceCluster resources before starting
 	cleanupCoreOperatorResources(t, tc.TestContext)
@@ -783,6 +803,8 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateAllowsKueueRemoved(t *testing.T) {
 func (tc *V2Tov3UpgradeTestCtx) ValidateAllowsWithoutKueue(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Tier1})
+
 	// Clean up any existing DataScienceCluster resources before starting
 	cleanupCoreOperatorResources(t, tc.TestContext)
 
@@ -846,6 +868,8 @@ func (tc *V2Tov3UpgradeTestCtx) createCRD(crdsToCreate []CRDToCreate) {
 
 func (tc *V2Tov3UpgradeTestCtx) ValidateServiceMeshResourcePreservation(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 
 	nn := types.NamespacedName{
 		Name: defaultServiceMeshName,
@@ -920,6 +944,8 @@ func (tc *V2Tov3UpgradeTestCtx) triggerDSCIReconciliation(t *testing.T) {
 func (tc *V2Tov3UpgradeTestCtx) ValidateArgoWorkflowsControllersDatasciencepipelinesDSCV1(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, []TestTag{Tier1})
+
 	// Clean up any existing DataScienceCluster resources before starting
 	cleanupCoreOperatorResources(t, tc.TestContext)
 
@@ -981,6 +1007,8 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateArgoWorkflowsControllersDatasciencepipel
 // Users who need to use v2-only components should use the v2 API for all operations.
 func (tc *V2Tov3UpgradeTestCtx) ValidateV2OnlyComponentsResetWhenPatchingViaV1API(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, []TestTag{Tier1})
 
 	// Clean up any existing DataScienceCluster resources before starting
 	cleanupCoreOperatorResources(t, tc.TestContext)

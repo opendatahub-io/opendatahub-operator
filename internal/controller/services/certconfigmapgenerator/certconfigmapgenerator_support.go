@@ -10,6 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -151,20 +152,28 @@ func dsciPredicates(_ client.Client) predicate.Funcs {
 		},
 
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			dsciOld, ok := e.ObjectOld.(*dsciv2.DSCInitialization)
-			if !ok {
-				return false
-			}
-			dsciNew, ok := e.ObjectNew.(*dsciv2.DSCInitialization)
-			if !ok {
-				return false
-			}
+			oldBundle := getTrustedCABundle(e.ObjectOld)
+			newBundle := getTrustedCABundle(e.ObjectNew)
 
-			return !reflect.DeepEqual(dsciOld.Spec.TrustedCABundle, dsciNew.Spec.TrustedCABundle)
+			return !reflect.DeepEqual(oldBundle, newBundle)
 		},
 
 		DeleteFunc: func(deleteEvent event.DeleteEvent) bool {
 			return false
 		},
+	}
+}
+
+// getTrustedCABundle extracts the TrustedCABundle field from a DSCInitialization object.
+// It handles both typed (*dsciv2.DSCInitialization) and unstructured objects.
+func getTrustedCABundle(obj client.Object) any {
+	switch o := obj.(type) {
+	case *dsciv2.DSCInitialization:
+		return o.Spec.TrustedCABundle
+	case *unstructured.Unstructured:
+		val, _, _ := unstructured.NestedFieldCopy(o.Object, "spec", "trustedCABundle")
+		return val
+	default:
+		return nil
 	}
 }
