@@ -40,8 +40,8 @@ const DefaultWebhookTimeout = 30 * time.Second
 
 // defaultCRDInstallOptions provides consistent configuration for waiting on CRD establishment.
 var defaultCRDInstallOptions = envtest.CRDInstallOptions{
-	PollInterval: 100 * time.Millisecond,
-	MaxTime:      30 * time.Second,
+	PollInterval: envt.DefaultPollInterval,
+	MaxTime:      envt.DefaultMaxWait,
 }
 
 // =============================================================================
