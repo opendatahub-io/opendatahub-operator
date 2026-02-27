@@ -30,6 +30,44 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+func TestInitialize(t *testing.T) {
+	tests := []struct {
+		name               string
+		clusterType        string
+		expectedSourcePath string
+	}{
+		{
+			name:               "OpenShift cluster uses default ODH manifest source path",
+			clusterType:        cluster.ClusterTypeOpenShift,
+			expectedSourcePath: kserveManifestSourcePath,
+		},
+		{
+			name:               "Kubernetes cluster uses xKS manifest source path",
+			clusterType:        cluster.ClusterTypeKubernetes,
+			expectedSourcePath: kserveManifestSourcePathXKS,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			ctx := t.Context()
+
+			cluster.SetClusterInfo(cluster.ClusterInfo{Type: tt.clusterType})
+			t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+			rr := &odhtypes.ReconciliationRequest{}
+
+			err := initialize(ctx, rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+			g.Expect(rr.Manifests).Should(HaveLen(2))
+			g.Expect(rr.Manifests[0].SourcePath).Should(Equal(tt.expectedSourcePath))
+			g.Expect(rr.Manifests[0].ContextDir).Should(Equal(componentName))
+			g.Expect(rr.Manifests[1].ContextDir).Should(Equal("connectionAPI"))
+		})
+	}
+}
+
 func TestCustomizeKserveConfigMap(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()

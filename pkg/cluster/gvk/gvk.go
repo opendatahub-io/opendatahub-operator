@@ -682,6 +682,12 @@ var (
 		Kind:    "Instrumentation",
 	}
 
+	OpenshiftTemplate = schema.GroupVersionKind{
+		Group:   "template.openshift.io",
+		Version: "v1",
+		Kind:    "Template",
+	}
+
 	ServiceMonitor = schema.GroupVersionKind{
 		Group:   "monitoring.rhobs",
 		Version: "v1",

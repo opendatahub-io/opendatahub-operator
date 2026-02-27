@@ -75,7 +75,7 @@ func Dynamic(predicates ...DynamicPredicate) WatchOpts {
 	}
 }
 
-// crdExists is a DynamicPredicate that cheks if a given crd identified by its gvk exists.
+// crdExists is a DynamicPredicate that checks if a given crd identified by its gvk exists.
 func CrdExists(crdGvk schema.GroupVersionKind) DynamicPredicate {
 	return func(ctx context.Context, request *types.ReconciliationRequest) bool {
 		if hasCrd, err := cluster.HasCRD(ctx, request.Client, crdGvk); err != nil {
@@ -83,6 +83,14 @@ func CrdExists(crdGvk schema.GroupVersionKind) DynamicPredicate {
 		} else {
 			return hasCrd
 		}
+	}
+}
+
+// ClusterIsOpenShift is a DynamicPredicate that returns true when the operator
+// is running on an OpenShift cluster.
+func ClusterIsOpenShift() DynamicPredicate {
+	return func(_ context.Context, _ *types.ReconciliationRequest) bool {
+		return cluster.GetClusterInfo().Type == cluster.ClusterTypeOpenShift
 	}
 }
 
