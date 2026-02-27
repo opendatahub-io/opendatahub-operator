@@ -11,6 +11,7 @@ ARG OVERWRITE_MANIFESTS=""
 USER root
 WORKDIR /
 COPY opt/manifests/ /opt/manifests/
+COPY opt/charts/ /opt/charts/
 COPY get_all_manifests.sh get_all_manifests.sh
 RUN if [ "${USE_LOCAL}" != "true" ]; then \
         rm -rf /opt/manifests/*; \
@@ -65,13 +66,14 @@ COPY --from=builder /workspace/manager .
 COPY --from=builder /workspace/azurecloudmanager .
 COPY --from=builder /workspace/coreweavecloudmanager .
 COPY --chown=1001:0 --from=manifests /opt/manifests /opt/manifests
+COPY --chown=1001:0 --from=manifests /opt/charts /opt/charts
 
 # tar installed to allow easy use of "oc cp" for component dev use cases.
 # See hack/component-dev/README.md in the source repo for more info.
 RUN microdnf install -y tar && microdnf clean all
 
 # Recursive change all files
-RUN chmod -R g=u /opt/manifests
+RUN chmod -R g=u /opt/manifests /opt/charts
 USER 1001
 
 CMD ["/manager"]
