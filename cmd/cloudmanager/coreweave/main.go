@@ -25,6 +25,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -64,9 +65,11 @@ func main() {
 		Metrics: ctrlmetrics.Options{
 			BindAddress: oconfig.MetricsAddr,
 		},
+		MapperProvider:         apiutil.NewDynamicRESTMapper,
 		HealthProbeBindAddress: oconfig.HealthProbeAddr,
 		LeaderElection:         oconfig.LeaderElection,
 		LeaderElectionID:       "coreweave.cloudmanager.opendatahub.io",
+		// TODO: setup cache
 		Client: client.Options{
 			Cache: &client.CacheOptions{
 				Unstructured: true,

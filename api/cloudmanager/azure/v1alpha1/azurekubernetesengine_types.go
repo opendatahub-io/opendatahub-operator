@@ -22,6 +22,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	AzureKubernetesEngineKind         = "AzureKubernetesEngine"
+	AzureKubernetesEngineInstanceName = "default-azurekubernetesengine"
+)
+
 // Check that the component implements common.PlatformObject.
 var _ apicommon.PlatformObject = (*AzureKubernetesEngine)(nil)
 
@@ -40,6 +45,7 @@ type AzureKubernetesEngineStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-azurekubernetesengine'",message="AzureKubernetesEngine name must be default-azurekubernetesengine"
 
 // AzureKubernetesEngine is the Schema for the azurekubernetesengines API.
 // It represents the configuration for an Azure Kubernetes Service (AKS) cluster.

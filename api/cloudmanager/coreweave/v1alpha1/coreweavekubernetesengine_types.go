@@ -22,6 +22,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	CoreWeaveKubernetesEngineKind         = "CoreWeaveKubernetesEngine"
+	CoreWeaveKubernetesEngineInstanceName = "default-coreweavekubernetesengine"
+)
+
 // Check that the component implements common.PlatformObject.
 var _ apicommon.PlatformObject = (*CoreWeaveKubernetesEngine)(nil)
 
@@ -40,9 +45,10 @@ type CoreWeaveKubernetesEngineStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-coreweavekubernetesengine'",message="CoreWeaveKubernetesEngine name must be default-coreweavekubernetesengine"
 
 // CoreWeaveKubernetesEngine is the Schema for the CoreWeaveKubernetesEngines API.
-// It represents the configuration for an Azure Kubernetes Service (AKS) cluster.
+// It represents the configuration for a CoreWeave Kubernetes Engine cluster.
 type CoreWeaveKubernetesEngine struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
