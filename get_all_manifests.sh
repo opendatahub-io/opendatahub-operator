@@ -14,11 +14,11 @@ DST_MANIFESTS_DIR="./opt/manifests"
 
 # ODH Component Manifests
 declare -A ODH_COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:main@2a23ccd4a33780598d7f2e377a3a43f3f29e61f5:manifests"
+    ["dashboard"]="opendatahub-io:odh-dashboard:main@cccdf74c9e9775fb30b8bf89ceca16dd1eb0c4b4:manifests"
     ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@13a36ec22df4f9bf2038addd9957a988d65bcb50:components/notebook-controller/config"
     ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@13a36ec22df4f9bf2038addd9957a988d65bcb50:components/odh-notebook-controller/config"
-    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@8dcf5e6f57810de18ac8b91fe01dcf6f50304daf:manifests"
-    ["kserve"]="opendatahub-io:kserve:release-v0.15@32fd8e3a9ca234912e3705e535def5a8d9b9e8b2:config"
+    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@3c7287e887d6d728867db6d5997f9a397a2ef08c:manifests"
+    ["kserve"]="opendatahub-io:kserve:release-v0.15@d4e245ee1a99c3928958d57780465412d9c863d0:config"
     ["ray"]="opendatahub-io:kuberay:dev@b5ee4c9963783dad6a8917abfa29c4e91d8630ec:ray-operator/config"
     ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@25e144dd0f4c311c53cbe069fed18fb93fdb3a7d:config"
     ["modelregistry"]="opendatahub-io:model-registry-operator:main@b263854a456ec1c51e82d7cd2f6295e5bf36e3a4:config"
@@ -28,7 +28,7 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["feastoperator"]="opendatahub-io:feast:stable@0c85e244d3182b4570164f6d66c8b106a207c070:infra/feast-operator/config"
     ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@76895fce0f00a3a7e147b7f5689a7d1b4ed5b6c9:config"
     ["trainer"]="opendatahub-io:trainer:stable@53fdd48b9156c382b60b33aa4b2f56a44c23377d:manifests"
-    ["maas"]="opendatahub-io:maas-billing:main@ae050cb6297ba2b3f35515b0adeadb1a5cd1afa9:deployment"
+    ["maas"]="opendatahub-io:maas-billing:main@6121b84b3c3f7a867c3fbc2df8a3d07eaf7d33c0:deployment"
     ["mlflowoperator"]="opendatahub-io:mlflow-operator:main@85463288e7740629c8ed3754da91c81cec57d380:config"
     ["sparkoperator"]="opendatahub-io:spark-operator:main@141b447586a54ed1882b6e8bf26c11fa52a18514:config"
 )
