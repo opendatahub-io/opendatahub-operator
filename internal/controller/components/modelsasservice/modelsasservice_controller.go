@@ -85,6 +85,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		)).
 		// WithAction(releases.NewAction()). // TODO: Do we need this? How to fix annotation of "platform.opendatahub.io/version:0.0.0"
 		WithAction(configureGatewayNamespaceResources).
+		WithAction(manageMaasApiRBAC).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).

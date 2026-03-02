@@ -44,6 +44,15 @@ const (
 	// configures TLS for the MaaS gateway. This resource needs to be deployed to
 	// the same namespace as the gateway it targets.
 	GatewayDestinationRuleName = "maas-api-backend-tls"
+
+	// MaasApiServiceAccountName is the name of the ServiceAccount used by the maas-api deployment.
+	MaasApiServiceAccountName = "maas-api"
+	// MaasApiClusterRoleName is the name of the ClusterRole that grants maas-api list/get/watch on MaaS CRs.
+	MaasApiClusterRoleName = "maas-api-cluster-role"
+	// MaasApiClusterRoleBindingName is the name of the ClusterRoleBinding that binds the role to maas-api SA.
+	MaasApiClusterRoleBindingName = "maas-api-cluster-role-binding"
+	// MaasCRDAPIGroup is the API group for MaaS custom resources (maassubscriptions, maasmodels).
+	MaasCRDAPIGroup = "maas.opendatahub.io"
 )
 
 var (

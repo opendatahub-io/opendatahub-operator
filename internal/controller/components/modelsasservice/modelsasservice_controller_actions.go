@@ -22,7 +22,9 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
+	rbacv1 "k8s.io/api/rbac/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -33,6 +35,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 // validateGateway validates the Gateway specification in the ModelsAsService resource.
@@ -200,4 +203,57 @@ func configureDestinationRule(log logr.Logger, resource *unstructured.Unstructur
 		"newNamespace", gatewayNamespace)
 
 	resource.SetNamespace(gatewayNamespace)
+}
+
+// manageMaasApiRBAC adds a ClusterRole and ClusterRoleBinding so the maas-api ServiceAccount
+// can list/get/watch maassubscriptions and maasmodels (maas.opendatahub.io) at cluster scope.
+// This fixes RBAC when the MaaS manifests do not grant these permissions.
+func manageMaasApiRBAC(ctx context.Context, rr *types.ReconciliationRequest) error {
+	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
+	if err != nil {
+		return err
+	}
+
+	cr := &rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: MaasApiClusterRoleName,
+			Labels: map[string]string{
+				labels.ODH.Component(ComponentName): labels.True,
+			},
+		},
+		Rules: []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{MaasCRDAPIGroup},
+				Resources: []string{"maassubscriptions", "maasmodels"},
+				Verbs:     []string{"list", "get", "watch"},
+			},
+		},
+	}
+
+	crb := &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: MaasApiClusterRoleBindingName,
+			Labels: map[string]string{
+				labels.ODH.Component(ComponentName): labels.True,
+			},
+		},
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      rbacv1.ServiceAccountKind,
+				Namespace: appNamespace,
+				Name:      MaasApiServiceAccountName,
+				APIGroup:  "",
+			},
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: gvk.ClusterRole.Group,
+			Kind:     gvk.ClusterRole.Kind,
+			Name:     MaasApiClusterRoleName,
+		},
+	}
+
+	if err := rr.AddResources(cr, crb); err != nil {
+		return fmt.Errorf("failed to add maas-api RBAC resources: %w", err)
+	}
+	return nil
 }
