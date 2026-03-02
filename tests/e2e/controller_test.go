@@ -74,6 +74,7 @@ func ParseDeletionPolicy(dp string) (DeletionPolicy, error) {
 
 // Struct to store test configurations.
 type TestContextConfig struct {
+	tag                  string
 	operatorNamespace    string
 	appsNamespace        string
 	workbenchesNamespace string
@@ -403,6 +404,9 @@ func TestMain(m *testing.M) {
 		"Specify when to delete DataScienceCluster, DSCInitialization, and controllers. Options: always, on-failure, never.")
 	checkEnvVarBindingError(viper.BindEnv("deletion-policy", viper.GetEnvPrefix()+"_DELETION_POLICY"))
 
+	pflag.String("tag", "All", "Tag to run tests for. Options: All, Smoke, Tier1")
+	checkEnvVarBindingError(viper.BindEnv("tag", viper.GetEnvPrefix()+"_TAG"))
+
 	pflag.Bool("fail-fast-on-error", true, "fail fast on error")
 	checkEnvVarBindingError(viper.BindEnv("fail-fast-on-error", viper.GetEnvPrefix()+"_FAIL_FAST_ON_ERROR"))
 	pflag.Bool("clean-up-previous-resources", true, "clean up previous resources before running tests")
@@ -454,6 +458,11 @@ func TestMain(m *testing.M) {
 		defaultEventuallyPollInterval:   viper.GetDuration("defaultEventuallyPollInterval"),
 		defaultConsistentlyTimeout:      viper.GetDuration("defaultConsistentlyTimeout"),
 		defaultConsistentlyPollInterval: viper.GetDuration("defaultConsistentlyPollInterval"),
+	}
+	testOpts.tag = viper.GetString("tag")
+	if !slices.Contains(allowedTags, TestTag(testOpts.tag)) {
+		fmt.Printf("Unknown tag: %s. Valid tags are: %v\n", testOpts.tag, allowedTags)
+		os.Exit(1)
 	}
 	testOpts.operatorNamespace = viper.GetString("operator-namespace")
 	testOpts.appsNamespace = viper.GetString("applications-namespace")

@@ -125,7 +125,7 @@ func kueueDegradedMonitoringTestSuite(t *testing.T) {
 func (tc *KueueTestCtx) EnsureKueueReady(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	componentName := strings.ToLower(tc.GVK.Kind)
 
@@ -158,7 +158,7 @@ func (tc *KueueTestCtx) EnsureKueueReady(t *testing.T) {
 func (tc *KueueTestCtx) ValidateKueueUnmanagedWithoutOcpKueueOperator(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	componentName := strings.ToLower(tc.GVK.Kind)
 
@@ -199,7 +199,7 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedWithoutOcpKueueOperator(t *testing
 func (tc *KueueTestCtx) ValidateKueueRemovedToUnmanagedTransition(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Smoke})
+	skipUnless(t, Smoke)
 
 	managedNS := "test-kueue-managed-" + xid.New().String()
 	componentName := strings.ToLower(tc.GVK.Kind)
@@ -292,7 +292,7 @@ func (tc *KueueTestCtx) ValidateKueueRemovedToUnmanagedTransition(t *testing.T) 
 func (tc *KueueTestCtx) ValidateKueueUnmanagedToRemovedTransition(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Smoke})
+	skipUnless(t, Smoke)
 
 	managedNS := "test-kueue-managed-" + xid.New().String()
 	componentName := strings.ToLower(tc.GVK.Kind)
@@ -373,7 +373,7 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToRemovedTransition(t *testing.T) 
 func (tc *KueueTestCtx) ValidateWebhookValidations(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	t.Logf("Setting Workbenches component to Managed to install Notebook CRD for webhook tests.")
 	// Enable Workbenches component to ensure Notebook CRD is available for webhook tests
@@ -779,7 +779,7 @@ func (tc *KueueTestCtx) ensureClusterAndLocalQueueExist(localQueueNamespaceName 
 func (tc *KueueTestCtx) ValidateKueueComponentDisabled(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Smoke, Tier1})
+	skipUnless(t, Smoke, Tier1)
 
 	t.Logf("Setting DSC component %s to Removed state.", componentApi.KueueInstanceName)
 	// Ensure that DataScienceCluster exists and its component state is "Removed", with the "Ready" condition false.
@@ -858,7 +858,7 @@ integrations:
 func (tc *KueueTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	managedNS := "test-kueue-managed-" + xid.New().String()
 

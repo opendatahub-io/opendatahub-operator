@@ -118,7 +118,7 @@ func makeCookieDomain(hostname string) string {
 func (tc *GatewayTestCtx) ValidateGatewayConfig(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Smoke})
+	skipUnless(t, Smoke)
 	t.Log("Validating GatewayConfig resource")
 
 	// Common validation: Ready status and ownership
@@ -139,7 +139,7 @@ func (tc *GatewayTestCtx) ValidateGatewayConfig(t *testing.T) {
 func (tc *GatewayTestCtx) ValidateGatewayInfrastructure(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 	t.Log("Validating Gateway infrastructure resources")
 
 	t.Log("Validating GatewayClass resource")
@@ -185,7 +185,7 @@ func (tc *GatewayTestCtx) ValidateGatewayInfrastructure(t *testing.T) {
 func (tc *GatewayTestCtx) ValidateOAuthClientAndSecret(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 	t.Log("Validating OAuth client and secret creation")
 
 	expectedGatewayHostname := tc.getExpectedGatewayHostname(t)
@@ -244,7 +244,7 @@ func (tc *GatewayTestCtx) ValidateOAuthClientAndSecret(t *testing.T) {
 func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 	t.Log("Validating kube-auth-proxy deployment and service")
 
 	expectedGatewayHostname := tc.getExpectedGatewayHostname(t)
@@ -381,7 +381,7 @@ func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 func (tc *GatewayTestCtx) ValidateHPA(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 	t.Log("Validating HorizontalPodAutoscaler for kube-auth-proxy")
 
 	tc.EnsureResourceExists(
@@ -426,7 +426,7 @@ func (tc *GatewayTestCtx) ValidateHPA(t *testing.T) {
 func (tc *GatewayTestCtx) ValidateOAuthCallbackRoute(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 	t.Log("Validating OAuth callback HTTPRoute")
 
 	tc.EnsureResourceExists(
@@ -472,7 +472,7 @@ func (tc *GatewayTestCtx) ValidateOAuthCallbackRoute(t *testing.T) {
 func (tc *GatewayTestCtx) ValidateEnvoyFilter(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 	t.Log("Validating EnvoyFilter for authentication")
 
 	authProxyFQDN := getServiceFQDN(kubeAuthProxyName, gatewayNamespace)
@@ -533,7 +533,7 @@ func (tc *GatewayTestCtx) ValidateEnvoyFilter(t *testing.T) {
 func (tc *GatewayTestCtx) ValidateEDSEndpointDiscovery(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 	t.Log("Validating EDS service configuration for kube-auth-proxy")
 
 	tc.EnsureResourceExists(
@@ -556,7 +556,7 @@ func (tc *GatewayTestCtx) ValidateEDSEndpointDiscovery(t *testing.T) {
 func (tc *GatewayTestCtx) ValidateGatewayReadyStatus(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Smoke})
+	skipUnless(t, Smoke)
 	t.Log("Validating Gateway ready status")
 
 	// Core validation: Gateway is Accepted, Programmed, and has routes attached
@@ -590,7 +590,7 @@ func (tc *GatewayTestCtx) ValidateGatewayReadyStatus(t *testing.T) {
 func (tc *GatewayTestCtx) ValidateUnauthenticatedRedirect(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.DashboardKind)
 	defer tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.DashboardKind)
@@ -785,7 +785,7 @@ func getServiceFQDN(serviceName, namespace string) string {
 func (tc *GatewayTestCtx) ValidateNetworkPolicy(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 	t.Log("Validating NetworkPolicy for kube-auth-proxy")
 
 	tc.EnsureResourceExists(
