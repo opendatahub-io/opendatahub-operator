@@ -230,7 +230,7 @@ func IsSingleNodeCluster(ctx context.Context, cli client.Client) bool {
 	}
 
 	isSNO := infra.Status.ControlPlaneTopology == configv1.SingleReplicaTopologyMode
-	logf.FromContext(ctx).V(1).Info("detected cluster topology", "controlPlaneTopology", infra.Status.ControlPlaneTopology, "isSNO", isSNO)
+	logf.FromContext(ctx).Info("detected cluster topology", "controlPlaneTopology", infra.Status.ControlPlaneTopology, "isSNO", isSNO)
 	return isSNO
 }
 
@@ -259,17 +259,17 @@ func GetClusterServiceVersion(ctx context.Context, c client.Client, namespace st
 func detectSelfManaged(ctx context.Context, cli client.Client) (common.Platform, error) {
 	l := logf.FromContext(ctx).WithName(PlatformDetectionLogName)
 	check := RhodsOperatorPrefix + " OperatorCondition"
-	l.V(1).Info("detecting platform", "check", check)
+	l.Info("detecting platform", "check", check)
 	operatorInfo, err := OperatorExists(ctx, cli, RhodsOperatorPrefix)
 	if err != nil {
-		l.V(1).Info("OperatorExists failed, defaulting to "+string(OpenDataHub), "error", err)
+		l.Info("OperatorExists failed, defaulting to "+string(OpenDataHub), "error", err)
 		return OpenDataHub, err
 	}
 	if operatorInfo != nil {
-		l.V(1).Info("detected platform", "platform", SelfManagedRhoai, "operatorVersion", operatorInfo.Version)
+		l.Info("detected platform", "platform", SelfManagedRhoai, "operatorVersion", operatorInfo.Version)
 		return SelfManagedRhoai, nil
 	}
-	l.V(1).Info("detected platform", "platform", OpenDataHub, "reason", RhodsOperatorPrefix+" not found")
+	l.Info("detected platform", "platform", OpenDataHub, "reason", RhodsOperatorPrefix+" not found")
 	return OpenDataHub, nil
 }
 
@@ -280,19 +280,19 @@ func detectManagedRhoai(ctx context.Context, cli client.Client) (common.Platform
 	operatorNs, err := GetOperatorNamespace()
 	if err != nil {
 		operatorNs = DefaultOperatorNamespaceCatalog
-		l.V(1).Info("using default operator namespace for catalog lookup", "namespace", operatorNs, "reason", err)
+		l.Info("using default operator namespace for catalog lookup", "namespace", operatorNs, "reason", err)
 	}
-	l.V(1).Info("checking for managed RHOAI catalog", "catalog", ManagedRhoaiCatalogName, "namespace", operatorNs)
+	l.Info("checking for managed RHOAI catalog", "catalog", ManagedRhoaiCatalogName, "namespace", operatorNs)
 	err = cli.Get(ctx, client.ObjectKey{Name: ManagedRhoaiCatalogName, Namespace: operatorNs}, catalogSource)
 	if err != nil {
 		if k8serr.IsNotFound(err) {
-			l.V(1).Info("managed RHOAI catalog not found, not ManagedRhoai", "catalog", ManagedRhoaiCatalogName)
+			l.Info("managed RHOAI catalog not found, not ManagedRhoai", "catalog", ManagedRhoaiCatalogName)
 		} else {
-			l.V(1).Info("failed to get catalog source", "catalog", ManagedRhoaiCatalogName, "error", err)
+			l.Info("failed to get catalog source", "catalog", ManagedRhoaiCatalogName, "error", err)
 		}
 		return OpenDataHub, client.IgnoreNotFound(err)
 	}
-	l.V(1).Info("detected platform", "platform", ManagedRhoai, "catalog", ManagedRhoaiCatalogName)
+	l.Info("detected platform", "platform", ManagedRhoai, "catalog", ManagedRhoaiCatalogName)
 	return ManagedRhoai, nil
 }
 
@@ -301,17 +301,17 @@ func getPlatform(ctx context.Context, cli client.Client) (common.Platform, error
 	envPlatform := os.Getenv(ODHPlatformTypeEnv)
 	switch envPlatform {
 	case "OpenDataHub":
-		l.V(1).Info("platform set from environment", "platform", OpenDataHub, "source", ODHPlatformTypeEnv)
+		l.Info("platform set from environment", "platform", OpenDataHub, "source", ODHPlatformTypeEnv)
 		return OpenDataHub, nil
 	case "ManagedRHOAI":
-		l.V(1).Info("platform set from environment", "platform", ManagedRhoai, "source", ODHPlatformTypeEnv)
+		l.Info("platform set from environment", "platform", ManagedRhoai, "source", ODHPlatformTypeEnv)
 		return ManagedRhoai, nil
 	case "SelfManagedRHOAI":
-		l.V(1).Info("platform set from environment", "platform", SelfManagedRhoai, "source", ODHPlatformTypeEnv)
+		l.Info("platform set from environment", "platform", SelfManagedRhoai, "source", ODHPlatformTypeEnv)
 		return SelfManagedRhoai, nil
 	default:
 		// fall back to detect platform if ODH_PLATFORM_TYPE env is not provided in CSV or set to ""
-		l.V(1).Info(ODHPlatformTypeEnv+" not set or unknown, detecting platform", "value", envPlatform)
+		l.Info(ODHPlatformTypeEnv+" not set or unknown, detecting platform", "value", envPlatform)
 		platform, err := detectManagedRhoai(ctx, cli)
 		if err != nil {
 			return OpenDataHub, err
@@ -436,7 +436,7 @@ func setApplicationNamespace(ctx context.Context, cli client.Client) error {
 
 	if platform == ManagedRhoai {
 		clusterConfig.ApplicationNamespace = DefaultApplicationNamespaceRHOAI
-		l.V(1).Info("application namespace set", "platform", platform, "namespace", DefaultApplicationNamespaceRHOAI)
+		l.Info("application namespace set", "platform", platform, "namespace", DefaultApplicationNamespaceRHOAI)
 		return nil
 	}
 	namespaceList := &corev1.NamespaceList{}
@@ -453,15 +453,15 @@ func setApplicationNamespace(ctx context.Context, cli client.Client) error {
 		// No labeled namespace found, use platform default
 		if platform == SelfManagedRhoai {
 			clusterConfig.ApplicationNamespace = DefaultApplicationNamespaceRHOAI
-			l.V(1).Info("application namespace set from platform default (no labeled namespace)", "platform", platform, "namespace", DefaultApplicationNamespaceRHOAI)
+			l.Info("application namespace set from platform default (no labeled namespace)", "platform", platform, "namespace", DefaultApplicationNamespaceRHOAI)
 		} else {
 			clusterConfig.ApplicationNamespace = DefaultApplicationNamespaceODH
-			l.V(1).Info("application namespace set from platform default (no labeled namespace)", "platform", platform, "namespace", DefaultApplicationNamespaceODH)
+			l.Info("application namespace set from platform default (no labeled namespace)", "platform", platform, "namespace", DefaultApplicationNamespaceODH)
 		}
 	case 1:
 		// One labeled namespace found, use it
 		clusterConfig.ApplicationNamespace = namespaceList.Items[0].Name
-		l.V(1).Info("application namespace set from labeled namespace", "namespace", namespaceList.Items[0].Name, "label", ApplicationNamespaceLabelKey+"=true")
+		l.Info("application namespace set from labeled namespace", "namespace", namespaceList.Items[0].Name, "label", ApplicationNamespaceLabelKey+"=true")
 	default:
 		// Multiple labeled namespaces found, this is an error
 		return fmt.Errorf("only one namespace with label %s=true is supported", ApplicationNamespaceLabelKey)

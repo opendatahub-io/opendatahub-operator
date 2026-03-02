@@ -158,7 +158,7 @@ func TestSetApplicationNamespace(t *testing.T) {
 				},
 			},
 			expectError: true,
-			errorMsg:    "only one namespace with label opendatahub.io/application-namespace: true is supported",
+			errorMsg:    "only one namespace with label opendatahub.io/application-namespace=true is supported",
 		},
 	}
 
