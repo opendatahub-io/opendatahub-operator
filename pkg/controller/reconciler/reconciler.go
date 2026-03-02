@@ -45,15 +45,14 @@ func WithConditionsManagerFactory(happy string, dependents ...string) Reconciler
 	}
 }
 
-// TODO: make it unexported
-// WithDynamicOwnership enables dynamic ownership mode for the reconciler.
+// withDynamicOwnership enables dynamic ownership mode for the reconciler.
 // When enabled, the controller will automatically track ownership of resources
 // that are deployed, without requiring explicit .Owns() declarations.
 //
 // Use ExcludeGVKs to specify GVKs that should not have owner references set:
 //
-//	WithDynamicOwnership(ExcludeGVKs(gvk.Secret, gvk.CustomResourceDefinition))
-func WithDynamicOwnership(opts ...DynamicOwnershipOption) ReconcilerOpt {
+//	withDynamicOwnership(ExcludeGVKs(gvk.Secret, gvk.CustomResourceDefinition))
+func withDynamicOwnership(opts ...DynamicOwnershipOption) ReconcilerOpt {
 	return func(reconciler *Reconciler) {
 		reconciler.dynamicOwnershipEnabled = true
 

@@ -342,7 +342,7 @@ func (b *ReconcilerBuilder[T]) Build(_ context.Context) (*Reconciler, error) {
 		WithConditionsManagerFactory(b.happyCondition, b.dependentConditions...),
 	}
 	if b.dynamicOwnership {
-		opts = append(opts, WithDynamicOwnership(ExcludeGVKs(b.excludeFromOwnership...)))
+		opts = append(opts, withDynamicOwnership(ExcludeGVKs(b.excludeFromOwnership...)))
 	}
 
 	r, err := NewReconciler(b.mgr, name, obj, opts...)

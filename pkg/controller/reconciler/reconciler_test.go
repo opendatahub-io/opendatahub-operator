@@ -304,7 +304,7 @@ func TestNewReconciler_WithDynamicOwnership(t *testing.T) {
 
 	t.Run("dynamic ownership enabled with option", func(t *testing.T) {
 		r, err := NewReconciler(mgr, "test", &componentApi.Dashboard{},
-			WithDynamicOwnership(),
+			withDynamicOwnership(),
 		)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(r.IsDynamicOwnershipEnabled()).To(BeTrue())
@@ -312,7 +312,7 @@ func TestNewReconciler_WithDynamicOwnership(t *testing.T) {
 
 	t.Run("dynamic ownership with excluded GVKs", func(t *testing.T) {
 		r, err := NewReconciler(mgr, "test", &componentApi.Dashboard{},
-			WithDynamicOwnership(ExcludeGVKs(gvk.ConfigMap, gvk.Secret)),
+			withDynamicOwnership(ExcludeGVKs(gvk.ConfigMap, gvk.Secret)),
 		)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(r.IsDynamicOwnershipEnabled()).To(BeTrue())
