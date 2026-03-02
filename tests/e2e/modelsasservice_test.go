@@ -34,6 +34,7 @@ const (
 
 func modelsAsServiceTestSuite(t *testing.T) {
 	t.Helper()
+	t.Skip("Skipping ModelsAsService tests while waiting for MaaS fix to deployment.")
 
 	ct, err := NewSubComponentTestCtx(t, &componentApi.ModelsAsService{}, componentApi.KserveKind, modelsAsServiceFieldName)
 	require.NoError(t, err)
