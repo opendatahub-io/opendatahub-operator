@@ -91,7 +91,12 @@ func DeployManifestsFromPathWithLabels(
 		if !os.IsNotExist(err) {
 			return err
 		}
-		manifestPath = filepath.Join(manifestPath, "default")
+		defaultPath := filepath.Join(manifestPath, "default")
+		ctrl.Log.Info("kustomization.yaml not found, rolling back to default overlay path",
+			"originalPath", manifestPath,
+			"defaultPath", defaultPath,
+			"component", componentName)
+		manifestPath = defaultPath
 	}
 
 	resMap, err = k.Run(fs, manifestPath)

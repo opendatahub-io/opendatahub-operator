@@ -20,6 +20,24 @@ const (
 	// DefaultMonitoringNamespaceRHOAI defines default namespace for monitoring.
 	DefaultMonitoringNamespaceRHOAI = "redhat-ods-monitoring"
 
+	// DefaultApplicationNamespaceODH defines default application namespace for ODH.
+	DefaultApplicationNamespaceODH = "opendatahub"
+	// DefaultApplicationNamespaceRHOAI defines default application namespace for RHOAI.
+	DefaultApplicationNamespaceRHOAI = "redhat-ods-applications"
+
+	// ODHPlatformTypeEnv is the environment variable used to set platform (OpenDataHub, ManagedRHOAI, SelfManagedRHOAI).
+	ODHPlatformTypeEnv = "ODH_PLATFORM_TYPE"
+	// PlatformDetectionLogName is the logger name used for platform detection logs.
+	PlatformDetectionLogName = "platform-detection"
+	// RhodsOperatorPrefix is the operator prefix used to detect Self-Managed RHOAI.
+	RhodsOperatorPrefix = "rhods-operator"
+	// DefaultOperatorNamespaceCatalog is the default namespace for catalog lookup when operator namespace is unknown.
+	DefaultOperatorNamespaceCatalog = "redhat-ods-operator"
+	// ManagedRhoaiCatalogName is the CatalogSource name used to detect Managed RHOAI.
+	ManagedRhoaiCatalogName = "addon-managed-odh-catalog"
+	// ApplicationNamespaceLabelKey is the label key for the application namespace.
+	ApplicationNamespaceLabelKey = "opendatahub.io/application-namespace"
+
 	// Default cluster-scope Authentication CR name.
 	ClusterAuthenticationObj = "cluster"
 

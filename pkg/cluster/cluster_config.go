@@ -257,38 +257,61 @@ func GetClusterServiceVersion(ctx context.Context, c client.Client, namespace st
 
 // detectSelfManaged detects if it is Self Managed Rhoai or OpenDataHub.
 func detectSelfManaged(ctx context.Context, cli client.Client) (common.Platform, error) {
-	operatorInfo, err := OperatorExists(ctx, cli, "rhods-operator")
+	l := logf.FromContext(ctx).WithName(PlatformDetectionLogName)
+	check := RhodsOperatorPrefix + " OperatorCondition"
+	l.V(1).Info("detecting platform", "check", check)
+	operatorInfo, err := OperatorExists(ctx, cli, RhodsOperatorPrefix)
+	if err != nil {
+		l.V(1).Info("OperatorExists failed, defaulting to "+string(OpenDataHub), "error", err)
+		return OpenDataHub, err
+	}
 	if operatorInfo != nil {
+		l.V(1).Info("detected platform", "platform", SelfManagedRhoai, "operatorVersion", operatorInfo.Version)
 		return SelfManagedRhoai, nil
 	}
-
-	return OpenDataHub, err
+	l.V(1).Info("detected platform", "platform", OpenDataHub, "reason", RhodsOperatorPrefix+" not found")
+	return OpenDataHub, nil
 }
 
 // detectManagedRhoai checks if catsrc CR add-on exists ManagedRhoai.
 func detectManagedRhoai(ctx context.Context, cli client.Client) (common.Platform, error) {
+	l := logf.FromContext(ctx).WithName(PlatformDetectionLogName)
 	catalogSource := &ofapiv1alpha1.CatalogSource{}
 	operatorNs, err := GetOperatorNamespace()
 	if err != nil {
-		operatorNs = "redhat-ods-operator"
+		operatorNs = DefaultOperatorNamespaceCatalog
+		l.V(1).Info("using default operator namespace for catalog lookup", "namespace", operatorNs, "reason", err)
 	}
-	err = cli.Get(ctx, client.ObjectKey{Name: "addon-managed-odh-catalog", Namespace: operatorNs}, catalogSource)
+	l.V(1).Info("checking for managed RHOAI catalog", "catalog", ManagedRhoaiCatalogName, "namespace", operatorNs)
+	err = cli.Get(ctx, client.ObjectKey{Name: ManagedRhoaiCatalogName, Namespace: operatorNs}, catalogSource)
 	if err != nil {
+		if k8serr.IsNotFound(err) {
+			l.V(1).Info("managed RHOAI catalog not found, not ManagedRhoai", "catalog", ManagedRhoaiCatalogName)
+		} else {
+			l.V(1).Info("failed to get catalog source", "catalog", ManagedRhoaiCatalogName, "error", err)
+		}
 		return OpenDataHub, client.IgnoreNotFound(err)
 	}
+	l.V(1).Info("detected platform", "platform", ManagedRhoai, "catalog", ManagedRhoaiCatalogName)
 	return ManagedRhoai, nil
 }
 
 func getPlatform(ctx context.Context, cli client.Client) (common.Platform, error) {
-	switch os.Getenv("ODH_PLATFORM_TYPE") {
+	l := logf.FromContext(ctx).WithName(PlatformDetectionLogName)
+	envPlatform := os.Getenv(ODHPlatformTypeEnv)
+	switch envPlatform {
 	case "OpenDataHub":
+		l.V(1).Info("platform set from environment", "platform", OpenDataHub, "source", ODHPlatformTypeEnv)
 		return OpenDataHub, nil
 	case "ManagedRHOAI":
+		l.V(1).Info("platform set from environment", "platform", ManagedRhoai, "source", ODHPlatformTypeEnv)
 		return ManagedRhoai, nil
 	case "SelfManagedRHOAI":
+		l.V(1).Info("platform set from environment", "platform", SelfManagedRhoai, "source", ODHPlatformTypeEnv)
 		return SelfManagedRhoai, nil
 	default:
 		// fall back to detect platform if ODH_PLATFORM_TYPE env is not provided in CSV or set to ""
+		l.V(1).Info(ODHPlatformTypeEnv+" not set or unknown, detecting platform", "value", envPlatform)
 		platform, err := detectManagedRhoai(ctx, cli)
 		if err != nil {
 			return OpenDataHub, err
@@ -314,6 +337,7 @@ func getRelease(ctx context.Context, cli client.Client) (common.Release, error) 
 		return initRelease, err
 	}
 	initRelease.Name = platform
+	logf.FromContext(ctx).WithName(PlatformDetectionLogName).Info("release platform resolved", "platform", platform)
 
 	// For unit-tests
 	if os.Getenv("CI") == "true" {
@@ -407,16 +431,17 @@ func setManagedMonitoringNamespace(ctx context.Context, cli client.Client) error
 }
 
 func setApplicationNamespace(ctx context.Context, cli client.Client) error {
+	l := logf.FromContext(ctx).WithName(PlatformDetectionLogName)
 	platform := clusterConfig.Release.Name
-	defaultRHOAIApplicationNamespace := "redhat-ods-applications"
 
 	if platform == ManagedRhoai {
-		clusterConfig.ApplicationNamespace = defaultRHOAIApplicationNamespace
+		clusterConfig.ApplicationNamespace = DefaultApplicationNamespaceRHOAI
+		l.V(1).Info("application namespace set", "platform", platform, "namespace", DefaultApplicationNamespaceRHOAI)
 		return nil
 	}
 	namespaceList := &corev1.NamespaceList{}
 	labelSelector := client.MatchingLabels{
-		"opendatahub.io/application-namespace": "true",
+		ApplicationNamespaceLabelKey: "true",
 	}
 
 	if err := cli.List(ctx, namespaceList, labelSelector); err != nil {
@@ -427,16 +452,19 @@ func setApplicationNamespace(ctx context.Context, cli client.Client) error {
 	case 0:
 		// No labeled namespace found, use platform default
 		if platform == SelfManagedRhoai {
-			clusterConfig.ApplicationNamespace = defaultRHOAIApplicationNamespace
+			clusterConfig.ApplicationNamespace = DefaultApplicationNamespaceRHOAI
+			l.V(1).Info("application namespace set from platform default (no labeled namespace)", "platform", platform, "namespace", DefaultApplicationNamespaceRHOAI)
 		} else {
-			clusterConfig.ApplicationNamespace = "opendatahub"
+			clusterConfig.ApplicationNamespace = DefaultApplicationNamespaceODH
+			l.V(1).Info("application namespace set from platform default (no labeled namespace)", "platform", platform, "namespace", DefaultApplicationNamespaceODH)
 		}
 	case 1:
 		// One labeled namespace found, use it
 		clusterConfig.ApplicationNamespace = namespaceList.Items[0].Name
+		l.V(1).Info("application namespace set from labeled namespace", "namespace", namespaceList.Items[0].Name, "label", ApplicationNamespaceLabelKey+"=true")
 	default:
 		// Multiple labeled namespaces found, this is an error
-		return errors.New("only one namespace with label opendatahub.io/application-namespace: true is supported")
+		return fmt.Errorf("only one namespace with label %s=true is supported", ApplicationNamespaceLabelKey)
 	}
 
 	return nil
@@ -451,9 +479,9 @@ func GetApplicationNamespace() string {
 
 	switch clusterConfig.Release.Name {
 	case SelfManagedRhoai, ManagedRhoai:
-		return "redhat-ods-applications"
+		return DefaultApplicationNamespaceRHOAI
 	default:
-		return "opendatahub"
+		return DefaultApplicationNamespaceODH
 	}
 }
 
