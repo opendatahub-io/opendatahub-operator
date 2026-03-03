@@ -10,7 +10,11 @@ import (
 	"path/filepath"
 	"time"
 
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
@@ -23,6 +27,13 @@ import (
 	opmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
+)
+
+const (
+	// DefaultPollInterval is how often envt helpers poll for resource readiness.
+	DefaultPollInterval = 100 * time.Millisecond
+	// DefaultMaxWait is the maximum time envt helpers wait for resource readiness.
+	DefaultMaxWait = 30 * time.Second
 )
 
 type OptionFn func(in *EnvT)
@@ -314,7 +325,7 @@ func (et *EnvT) WaitForWebhookServer(ctx context.Context) error {
 	addrPort := fmt.Sprintf("%s:%d", host, port)
 
 	// setup ticker for polling the webhook server
-	ticker := time.NewTicker(100 * time.Millisecond)
+	ticker := time.NewTicker(DefaultPollInterval)
 	defer ticker.Stop()
 
 	// setup dialer
@@ -340,6 +351,63 @@ func (et *EnvT) WaitForWebhookServer(ctx context.Context) error {
 			continue
 		}
 	}
+}
+
+// RegisterCRD installs a minimal CRD in the envtest API server and waits until it is
+// established. The returned object can be used by the caller for cleanup.
+// If the CRD already exists it is returned as-is without waiting.
+func (et *EnvT) RegisterCRD(
+	ctx context.Context,
+	gvkDef schema.GroupVersionKind,
+	plural, singular string,
+	scope apiextensionsv1.ResourceScope,
+) (*apiextensionsv1.CustomResourceDefinition, error) {
+	crd := &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: plural + "." + gvkDef.Group,
+		},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: gvkDef.Group,
+			Names: apiextensionsv1.CustomResourceDefinitionNames{
+				Kind:     gvkDef.Kind,
+				ListKind: gvkDef.Kind + "List",
+				Plural:   plural,
+				Singular: singular,
+			},
+			Scope: scope,
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
+				{
+					Name:    gvkDef.Version,
+					Served:  true,
+					Storage: true,
+					Schema: &apiextensionsv1.CustomResourceValidation{
+						OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+							Type: "object",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	if err := et.cli.Create(ctx, crd); err != nil {
+		if !k8serr.IsAlreadyExists(err) {
+			return nil, fmt.Errorf("failed to create CRD %s: %w", crd.Name, err)
+		}
+		if err := et.cli.Get(ctx, client.ObjectKeyFromObject(crd), crd); err != nil {
+			return nil, fmt.Errorf("failed to get existing CRD %s: %w", crd.Name, err)
+		}
+		return crd, nil
+	}
+
+	if err := envtest.WaitForCRDs(et.cfg, []*apiextensionsv1.CustomResourceDefinition{crd}, envtest.CRDInstallOptions{
+		PollInterval: DefaultPollInterval,
+		MaxTime:      DefaultMaxWait,
+	}); err != nil {
+		return nil, fmt.Errorf("CRD %s not established: %w", crd.Name, err)
+	}
+
+	return crd, nil
 }
 
 // BypassHandler wraps a handler and allows bypassing validation based on a custom function.
