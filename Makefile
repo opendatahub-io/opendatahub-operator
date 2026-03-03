@@ -680,6 +680,30 @@ endif
 e2e-test:
 	go run -C ./cmd/test-retry main.go e2e --verbose --working-dir=$(CURDIR) $(if $(JUNIT_OUTPUT_PATH),--junit-output=$(JUNIT_OUTPUT_PATH)) -- ${E2E_TEST_FLAGS}
 
+.PHONY: e2e-test-single
+e2e-test-single:
+# Run a single E2E test function (usage: make e2e-test-single TEST="<test-path>")
+ifndef TEST
+	$(error TEST is required. Usage: make e2e-test-single TEST="TestOdhOperator/Component_Tests/dashboard/Validate component enabled")
+endif
+	@echo "Running single test: $(TEST)"
+	E2E_TEST_DELETION_POLICY=never E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=false go test ./tests/e2e/ -run "$(TEST)" -timeout=10m -v
+
+.PHONY: e2e-setup-cluster
+e2e-setup-cluster:
+# Setup cluster prerequisites (DSCI/DSC) by running e2e-test with most suites disabled
+# (operator-controller tests may still execute unless explicitly disabled)
+	@echo "Creating DSCI and DSC with all services enabled..."
+	@$(MAKE) e2e-test \
+		-e E2E_TEST_COMPONENTS=false \
+		-e E2E_TEST_SERVICES=false \
+		-e E2E_TEST_WEBHOOK=false \
+		-e E2E_TEST_OPERATOR_RESILIENCE=false \
+		-e E2E_TEST_OPERATOR_V2TOV3UPGRADE=false \
+		-e E2E_TEST_HARDWARE_PROFILE=false \
+		-e E2E_TEST_DELETION_POLICY=never \
+		-e E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=true
+
 unit-test-cli:
 	go -C ./cmd/test-retry/ test ./...
 
