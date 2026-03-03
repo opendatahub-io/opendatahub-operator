@@ -80,7 +80,7 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 	return nil
 }
 
-func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { //nolint:unparam
 	rr.Manifests = append(rr.Manifests, manifestPath())
 	return nil
 }

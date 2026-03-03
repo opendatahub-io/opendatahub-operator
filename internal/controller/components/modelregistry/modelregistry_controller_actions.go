@@ -13,7 +13,7 @@ import (
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
-func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { //nolint:unparam
 	rr.Manifests = []odhtypes.ManifestInfo{
 		baseManifestInfo(BaseManifestsSourcePath),
 		extraManifestInfo(BaseManifestsSourcePath),
@@ -22,7 +22,7 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	return nil
 }
 
-func customizeManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func customizeManifests(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	mr, ok := rr.Instance.(*componentApi.ModelRegistry)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.ModelRegistry)", rr.Instance)
@@ -66,7 +66,7 @@ func computeKustomizeVariable(rr *odhtypes.ReconciliationRequest) (map[string]st
 	}, nil
 }
 
-func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func configureDependencies(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	mr, ok := rr.Instance.(*componentApi.ModelRegistry)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.ModelRegistry)", rr.Instance)

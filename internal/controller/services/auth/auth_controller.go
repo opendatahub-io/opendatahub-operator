@@ -27,16 +27,12 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 )
 
-//nolint:gochecknoinits
-func init() {
-	sr.Add(&ServiceHandler{})
-}
+func NewHandler() *ServiceHandler { return &ServiceHandler{} }
 
 type ServiceHandler struct {
 }

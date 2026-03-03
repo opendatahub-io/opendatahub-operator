@@ -9,17 +9,13 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
-	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
 )
 
 const (
 	ServiceName = "setupcontroller"
 )
 
-//nolint:gochecknoinits
-func init() {
-	sr.Add(&serviceHandler{})
-}
+func NewHandler() *serviceHandler { return &serviceHandler{} }
 
 type serviceHandler struct {
 }

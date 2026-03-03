@@ -31,7 +31,7 @@ const (
 	LLMInferenceServiceConfigWellKnownAnnotationValue = "true"
 )
 
-func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { //nolint:unparam
 	rr.Manifests = []odhtypes.ManifestInfo{
 		kserveManifestInfo(kserveManifestSourcePath),
 		{
@@ -85,7 +85,7 @@ func cleanUpTemplatedResources(ctx context.Context, rr *odhtypes.ReconciliationR
 	return nil
 }
 
-func customizeKserveConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func customizeKserveConfigMap(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	k, ok := rr.Instance.(*componentApi.Kserve)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.Kserve", rr.Instance)
