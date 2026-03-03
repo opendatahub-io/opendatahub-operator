@@ -58,7 +58,7 @@ func hardwareProfileWorkloadTestSuite(t *testing.T) {
 func (tc *HardwareProfileWorkloadTestCtx) ValidateHWPToleration(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	workloadName := "test-notebook-toleration"
 
@@ -133,7 +133,7 @@ func (tc *HardwareProfileWorkloadTestCtx) ValidateHWPToleration(t *testing.T) {
 func (tc *HardwareProfileWorkloadTestCtx) ValidateHWPKueue(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	workloadName := "test-notebook-kueue"
 	// Create an empty hardware profile (empty-profile)
@@ -193,7 +193,7 @@ func (tc *HardwareProfileWorkloadTestCtx) ValidateHWPKueue(t *testing.T) {
 func (tc *HardwareProfileWorkloadTestCtx) ValidateHWPAnnotationRemoval(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	workloadName := "test-notebook-hwp-removal"
 
@@ -278,7 +278,7 @@ func (tc *HardwareProfileWorkloadTestCtx) ValidateHWPAnnotationRemoval(t *testin
 func (tc *HardwareProfileWorkloadTestCtx) ValidateManualTolerationPreservation(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	workloadName := "test-notebook-manual-tol"
 
@@ -346,7 +346,7 @@ func (tc *HardwareProfileWorkloadTestCtx) ValidateManualTolerationPreservation(t
 func (tc *HardwareProfileWorkloadTestCtx) ValidateHWPProfileSwitching(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	workloadName := "test-notebook-profile-switch"
 
@@ -412,7 +412,7 @@ func (tc *HardwareProfileWorkloadTestCtx) ValidateHWPProfileSwitching(t *testing
 func (tc *HardwareProfileWorkloadTestCtx) ValidateKueueLabelRemovalOnHWPRemoval(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	workloadName := "test-notebook-kueue-removal"
 

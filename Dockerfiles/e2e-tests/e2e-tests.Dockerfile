@@ -42,6 +42,7 @@ ENV E2E_TEST_HARDWARE_PROFILE=true
 ENV E2E_TEST_WEBHOOK=true
 ENV E2E_TEST_COMPONENTS=true
 ENV E2E_TEST_SERVICES=true
+ENV E2E_TEST_TAG=All
 
 RUN apt-get update -y && apt-get upgrade -y && \
     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
@@ -71,4 +72,4 @@ CMD gotestsum --junitfile-project-name odh-operator-e2e \
 --test-webhook="$E2E_TEST_WEBHOOK" --test-components="$E2E_TEST_COMPONENTS" --test-services="$E2E_TEST_SERVICES" \
 --operator-namespace="$E2E_TEST_OPERATOR_NAMESPACE" --applications-namespace="$E2E_TEST_APPLICATIONS_NAMESPACE" \
 --workbenches-namespace="$E2E_TEST_WORKBENCHES_NAMESPACE" --dsc-monitoring-namespace="$E2E_TEST_DSC_MONITORING_NAMESPACE" \
---fail-fast-on-error="$E2E_TEST_FAIL_FAST_ON_ERROR"
+--fail-fast-on-error="$E2E_TEST_FAIL_FAST_ON_ERROR" --tag="$E2E_TEST_TAG"

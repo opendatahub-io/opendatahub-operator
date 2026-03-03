@@ -150,7 +150,7 @@ func monitoringTestSuite(t *testing.T) {
 func (tc *MonitoringTestCtx) ValidateMonitoringOperatorsInstallation(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	// Define operators to be installed.
 	operators := []Operator{
@@ -166,7 +166,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringOperatorsInstallation(t *testing.
 func (tc *MonitoringTestCtx) ValidateMonitoringCRCreation(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	tc.updateMonitoringConfig(withManagementState(operatorv1.Managed))
 
@@ -189,7 +189,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCRCreation(t *testing.T) {
 func (tc *MonitoringTestCtx) ValidateMonitoringCRDefaultContent(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	// Ensure that the Monitoring resource exists.
 	tc.EnsureResourceExists(
@@ -213,7 +213,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCRDefaultContent(t *testing.T) {
 func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsWhenSet(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	// Update DSCI to set metrics - ensure managementState remains Managed
 	tc.updateMonitoringConfig(
@@ -239,7 +239,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsWhenSet(t *testing.
 func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsConfiguration(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	// Use EnsureResourceExists with jq matchers for cleaner validation
 	tc.EnsureResourceExists(
@@ -266,7 +266,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsConfiguration(t *te
 func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsReplicasUpdate(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	// Update DSCI to set replicas to 1 (must include either storage or resources due to CEL validation rule)
 	replicasTransforms := append(
@@ -293,7 +293,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsReplicasUpdate(t *t
 func (tc *MonitoringTestCtx) ValidateCELBlocksInvalidMonitoringConfigs(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	testCases := []struct {
 		name        string
@@ -347,7 +347,7 @@ func (tc *MonitoringTestCtx) ValidateCELBlocksInvalidMonitoringConfigs(t *testin
 func (tc *MonitoringTestCtx) ValidateCELAllowsValidMonitoringConfigs(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	testCases := []struct {
 		name        string
@@ -390,7 +390,7 @@ func (tc *MonitoringTestCtx) ValidateCELAllowsValidMonitoringConfigs(t *testing.
 func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorConfigurations(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	testCases := []struct {
 		name                string
@@ -491,7 +491,7 @@ func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorConfigurations(t *tes
 func (tc *MonitoringTestCtx) ValidateMetricsTLSAlwaysEnabled(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
 		tc.withMetricsConfig(),
@@ -560,7 +560,7 @@ func (tc *MonitoringTestCtx) ValidateMetricsTLSAlwaysEnabled(t *testing.T) {
 func (tc *MonitoringTestCtx) ValidateMonitoringCRCollectorReplicas(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	defaultReplicas := tc.expectedDefaultReplicas
 	testReplicas := defaultReplicas + 1 // Test with one more replica than default
@@ -598,7 +598,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCRCollectorReplicas(t *testing.T)
 func (tc *MonitoringTestCtx) ValidateMonitoringCRDefaultTracesContent(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	// Ensure monitoring is enabled (might have been disabled by previous test)
 	tc.updateMonitoringConfig(withManagementState(operatorv1.Managed))
@@ -618,7 +618,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCRDefaultTracesContent(t *testing
 func (tc *MonitoringTestCtx) ValidateTempoMonolithicCRCreation(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	// Update DSCI to set traces with PV backend
 	tc.updateMonitoringConfig(
@@ -666,7 +666,7 @@ func (tc *MonitoringTestCtx) ValidateTempoMonolithicCRCreation(t *testing.T) {
 func (tc *MonitoringTestCtx) ValidateTempoStackCRCreationWithCloudStorage(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	testCases := []struct {
 		name                string
@@ -703,7 +703,7 @@ func (tc *MonitoringTestCtx) ValidateTempoStackCRCreationWithCloudStorage(t *tes
 func (tc *MonitoringTestCtx) ValidateInstrumentationCRTracesLifecycle(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	// Ensure clean slate before starting
 	tc.ensureMonitoringCleanSlate(t, "")
@@ -754,7 +754,7 @@ func (tc *MonitoringTestCtx) ValidateInstrumentationCRTracesLifecycle(t *testing
 func (tc *MonitoringTestCtx) ValidateTracesExportersReservedNameValidation(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	// Attempt to set traces configuration with a reserved exporter name
 	tc.updateMonitoringConfig(
@@ -782,7 +782,7 @@ func (tc *MonitoringTestCtx) ValidateTracesExportersReservedNameValidation(t *te
 func (tc *MonitoringTestCtx) ValidatePrometheusRulesLifecycle(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	// First, ensure dashboard is disabled to establish a known initial state.
 	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, gvk.Dashboard.Kind)
@@ -815,7 +815,7 @@ func (tc *MonitoringTestCtx) ValidatePrometheusRulesLifecycle(t *testing.T) {
 func (tc *MonitoringTestCtx) ValidatePersesCRCreation(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
@@ -837,7 +837,7 @@ func (tc *MonitoringTestCtx) ValidatePersesCRCreation(t *testing.T) {
 func (tc *MonitoringTestCtx) ValidatePersesCRConfiguration(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Perses, types.NamespacedName{Name: PersesName, Namespace: tc.MonitoringNamespace}),
@@ -873,7 +873,7 @@ func (tc *MonitoringTestCtx) ValidatePersesCRConfiguration(t *testing.T) {
 func (tc *MonitoringTestCtx) ValidatePersesLifecycle(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
@@ -921,7 +921,7 @@ func (tc *MonitoringTestCtx) ValidatePersesLifecycle(t *testing.T) {
 func (tc *MonitoringTestCtx) ValidatePersesNotDeployedWithoutMetricsOrTraces(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	tc.ensureMonitoringCleanSlate(t, "")
 
@@ -961,7 +961,7 @@ func (tc *MonitoringTestCtx) ValidatePersesNotDeployedWithoutMetricsOrTraces(t *
 func (tc *MonitoringTestCtx) ValidatePersesNetworkPolicy(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
@@ -987,7 +987,7 @@ func (tc *MonitoringTestCtx) ValidatePersesNetworkPolicy(t *testing.T) {
 func (tc *MonitoringTestCtx) ValidatePersesDatasourceWithPrometheus(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	// Enable monitoring with metrics configuration to deploy both Perses and Prometheus
 	tc.updateMonitoringConfig(
@@ -1050,7 +1050,7 @@ func (tc *MonitoringTestCtx) ValidatePersesDatasourceWithPrometheus(t *testing.T
 func (tc *MonitoringTestCtx) ValidatePersesDatasourceLifecycle(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	// Step 1: Enable monitoring with metrics to deploy datasource
 	tc.updateMonitoringConfig(
@@ -1120,7 +1120,7 @@ func (tc *MonitoringTestCtx) ValidatePersesDatasourceLifecycle(t *testing.T) {
 func (tc *MonitoringTestCtx) ValidateMonitoringServiceDisabled(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	// Ensure clean slate - previous tests may have left TempoMonolithic with TLS enabled
 	// and already in deletion state, which prevents our controller from updating it
@@ -1503,7 +1503,7 @@ func withMonitoringTraces(backend, secret, size, retention string) testf.Transfo
 func (tc *MonitoringTestCtx) ValidateThanosQuerierDeployment(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	// Ensure clean slate before starting
 	tc.ensureMonitoringCleanSlate(t, "")
@@ -1559,7 +1559,7 @@ func (tc *MonitoringTestCtx) ValidateThanosQuerierDeployment(t *testing.T) {
 func (tc *MonitoringTestCtx) ValidateThanosQuerierNotDeployedWithoutMetrics(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	// Ensure clean slate before starting
 	tc.ensureMonitoringCleanSlate(t, "")
@@ -1606,7 +1606,7 @@ func (tc *MonitoringTestCtx) ValidateThanosQuerierNotDeployedWithoutMetrics(t *t
 func (tc *MonitoringTestCtx) ValidatePrometheusSelfServiceMonitorTLSFix(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
@@ -1678,7 +1678,7 @@ func (tc *MonitoringTestCtx) ValidatePrometheusSelfServiceMonitorTLSFix(t *testi
 func (tc *MonitoringTestCtx) ValidatePersesDatasourceCreationWithTraces(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	// Skip if PersesDatasource CRD is not installed
 	ctx := context.Background()
@@ -1744,7 +1744,7 @@ func (tc *MonitoringTestCtx) ValidatePersesDatasourceCreationWithTraces(t *testi
 func (tc *MonitoringTestCtx) ValidatePersesDatasourceConfiguration(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	// Skip if PersesDatasource CRD is not installed
 	ctx := context.Background()
@@ -1911,7 +1911,7 @@ func (tc *MonitoringTestCtx) validatePrometheusNamespaceProxyResourcesCommon(t *
 func (tc *MonitoringTestCtx) ValidatePrometheusRestrictedResourceConfiguration(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	dsci := tc.FetchDSCInitialization()
 
@@ -1933,7 +1933,7 @@ func (tc *MonitoringTestCtx) ValidatePrometheusRestrictedResourceConfiguration(t
 func (tc *MonitoringTestCtx) ValidatePrometheusSecureProxyAuthentication(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	dsci := tc.FetchDSCInitialization()
 
@@ -2004,7 +2004,7 @@ func (tc *MonitoringTestCtx) ValidatePrometheusSecureProxyAuthentication(t *test
 func (tc *MonitoringTestCtx) ValidateNodeMetricsEndpointDeployment(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	dsci := tc.FetchDSCInitialization()
 
@@ -2077,7 +2077,7 @@ func (tc *MonitoringTestCtx) ValidateNodeMetricsEndpointDeployment(t *testing.T)
 func (tc *MonitoringTestCtx) ValidateNodeMetricsEndpointRBACConfiguration(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	dsci := tc.FetchDSCInitialization()
 
@@ -2265,7 +2265,7 @@ func (tc *MonitoringTestCtx) validatePersesDatasourceTLSWithCloudBackend(t *test
 func (tc *MonitoringTestCtx) ValidatePersesDatasourceTLSWithS3Backend(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 	tc.validatePersesDatasourceTLSWithCloudBackend(t, "s3")
 }
 
@@ -2273,6 +2273,6 @@ func (tc *MonitoringTestCtx) ValidatePersesDatasourceTLSWithS3Backend(t *testing
 func (tc *MonitoringTestCtx) ValidatePersesDatasourceTLSWithGCSBackend(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 	tc.validatePersesDatasourceTLSWithCloudBackend(t, "gcs")
 }

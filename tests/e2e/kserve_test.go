@@ -100,7 +100,7 @@ func kserveDegradedMonitoringTestSuite(t *testing.T) {
 func (tc *KserveTestCtx) ValidateSpec(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Smoke})
+	skipUnless(t, Smoke)
 
 	// Retrieve the DataScienceCluster instance.
 	dsc := tc.FetchDataScienceCluster()
@@ -119,7 +119,7 @@ func (tc *KserveTestCtx) ValidateSpec(t *testing.T) {
 func (tc *KserveTestCtx) ValidateNoKserveFeatureTrackers(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Smoke})
+	skipUnless(t, Smoke)
 
 	tc.EnsureResourcesDoNotExist(
 		WithMinimalObject(gvk.FeatureTracker, tc.NamespacedName),
@@ -140,7 +140,7 @@ func (tc *KserveTestCtx) ValidateNoKserveFeatureTrackers(t *testing.T) {
 func (tc *KserveTestCtx) ValidateConnectionWebhookInjection(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	// Ensure KServe is in Managed state to enable webhook functionality
 	tc.ValidateComponentEnabled(t)
@@ -213,7 +213,7 @@ func (tc *KserveTestCtx) createConnectionSecret(secretName, namespace string) {
 func (tc *KserveTestCtx) ValidateLLMInferenceServiceConfigVersioned(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	// Validate that all well-known LLMInferenceServiceConfig resources have versioned names
 	// Expected format: vX-Y-Z-<config-name> where X, Y, Z are numbers
@@ -281,7 +281,7 @@ func (tc *KserveTestCtx) ensureLWSBaseline(t *testing.T) *unstructured.Unstructu
 func (tc *KserveTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	// condition types monitored by the Kserve Component
 	testCases := []degradedConditionTestCase{
