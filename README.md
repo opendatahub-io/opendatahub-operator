@@ -736,6 +736,7 @@ Evn vars can be set to configure e2e tests:
 | E2E_TEST_HARDWARE_PROFILE            | To configure the execution of hardware profile tests, useful for testing hardware profile functionality for v1 and v1alpha1                                                                                  | `true`                        |
 | E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES | To configure the cleaning-up of the previous resources in the cluster. This flag is quite useful to test custom scenarios, as well as running the tests after upgrade, to keep the previous DSC and test it. | `true`                        |
 | E2E_TEST_FAIL_FAST_ON_ERROR          | To configure the fail fast of the e2e tests when a test is failing.                                                                                                                                          | `true`                        |
+| E2E_TEST_TAG                         | Tag to run tests for. Options: `All`, `Smoke`, `Tier1`.                                                                                                                                                      | `All`                         |
 | E2E_TEST_FLAGS                       | Alternatively the above configurations can be passed to e2e-tests as flags using this env var (see flags table below)                                                                                        |                               |
 
 Alternatively the above configurations can be passed to e2e-tests as flags by setting up `E2E_TEST_FLAGS` variable. Following table lists all the available flags:
@@ -758,6 +759,7 @@ Alternatively the above configurations can be passed to e2e-tests as flags by se
 | --test-hardware-profile       | To configure the execution of hardware profile tests, useful for testing hardware profile functionality between v1 and v1alpha1                                                                              | `true`                        |
 | --clean-up-previous-resources | To configure the cleaning-up of the previous resources in the cluster. This flag is quite useful to test custom scenarios, as well as running the tests after upgrade, to keep the previous DSC and test it. | `true`                        |
 | --fail-fast-on-error          | To configure the fail fast of the e2e tests when a test is failing.                                                                                                                                          | `true`                        |
+| --tag                         | Tag to run tests for. Options: `All`, `Smoke`, `Tier1`.                                                                                                                                                      | `All`                         |
 
 <details>
 <summary>Running E2E tests with custom application namespace</summary>

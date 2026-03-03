@@ -71,7 +71,7 @@ func operatorResilienceTestSuite(t *testing.T) {
 func (tc *OperatorResilienceTestCtx) ValidateOperatorDeployment(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	deploymentName := tc.getControllerDeploymentName()
 
@@ -86,7 +86,7 @@ func (tc *OperatorResilienceTestCtx) ValidateOperatorDeployment(t *testing.T) {
 func (tc *OperatorResilienceTestCtx) ValidateLeaderElectionBehavior(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	// Find and delete current leader
 	originalLeader := tc.findLeaderPodFromLeases()
@@ -116,7 +116,7 @@ func (tc *OperatorResilienceTestCtx) ValidateLeaderElectionBehavior(t *testing.T
 func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentSuccess(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	componentName := componentApi.DashboardComponentName
 
@@ -134,7 +134,7 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentSuccess(t *test
 func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	// To handle upstream/downstream i trimmed prefix(odh) from few controller names
 	componentToControllerMap := map[string]string{
@@ -249,7 +249,7 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 func (tc *OperatorResilienceTestCtx) ValidateMissingComponentsCRDHandling(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	crdTestingName := "dashboards.components.platform.opendatahub.io"
 	crd := tc.FetchResource(
@@ -323,7 +323,7 @@ func (tc *OperatorResilienceTestCtx) ValidateMissingComponentsCRDHandling(t *tes
 func (tc *OperatorResilienceTestCtx) ValidateRBACRestrictionHandling(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	// Get the predictable ServiceAccount name based on deployment name
 	deploymentName := tc.getControllerDeploymentName()

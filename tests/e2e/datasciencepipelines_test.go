@@ -49,7 +49,7 @@ func dataSciencePipelinesTestSuite(t *testing.T) {
 func (tc *DataSciencePipelinesTestCtx) ValidateConditions(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Smoke})
+	skipUnless(t, Smoke)
 
 	// Ensure the DataSciencePipelines resource has the "ArgoWorkflowAvailable" condition set to "True".
 	tc.ValidateComponentCondition(
@@ -64,7 +64,7 @@ func (tc *DataSciencePipelinesTestCtx) ValidateConditions(t *testing.T) {
 func (tc *DataSciencePipelinesTestCtx) ValidateArgoWorkflowsControllersOptions(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, []TestTag{Tier1})
+	skipUnless(t, Tier1)
 
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
