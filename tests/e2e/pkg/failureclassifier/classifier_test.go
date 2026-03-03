@@ -605,6 +605,24 @@ func TestClassify_Operator(t *testing.T) {
 			wantConfidence:  ConfidenceHigh,
 		},
 		{
+			name: "operator deployment scaled to zero",
+			report: &clusterhealth.Report{
+				Operator: clusterhealth.SectionResult[clusterhealth.OperatorSection]{
+					Data: clusterhealth.OperatorSection{
+						Deployment: &clusterhealth.DeploymentInfo{
+							Name:     "odh-controller",
+							Ready:    0,
+							Replicas: 0,
+						},
+					},
+				},
+			},
+			wantCategory:    CategoryInfrastructure,
+			wantSubcategory: "operator",
+			wantErrorCode:   CodeOperator,
+			wantConfidence:  ConfidenceHigh,
+		},
+		{
 			name: "operator pod not running",
 			report: &clusterhealth.Report{
 				Operator: clusterhealth.SectionResult[clusterhealth.OperatorSection]{

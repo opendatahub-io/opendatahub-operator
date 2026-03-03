@@ -81,7 +81,6 @@ type TestContextConfig struct {
 	monitoringNamespace  string
 	deletionPolicy       DeletionPolicy
 
-	failFastWhenError                bool
 	cleanUpPreviousResources         bool
 	dependantOperatorsManagementTest bool
 	dscManagementTest                bool
@@ -90,6 +89,8 @@ type TestContextConfig struct {
 	webhookTest                      bool
 	v2tov3upgradeTest                bool
 	hardwareProfileTest              bool
+	circuitBreakerEnabled            bool
+	circuitBreakerThreshold          int
 	TestTimeouts                     TestTimeouts
 }
 
@@ -300,6 +301,28 @@ func TestOdhOperator(t *testing.T) {
 
 	log.SetLogger(zap.New(zap.UseDevMode(true)))
 
+	if testOpts.circuitBreakerEnabled {
+		healthChecker := NewClusterHealthChecker()
+		circuitBreaker = NewCircuitBreaker(
+			testOpts.circuitBreakerThreshold,
+			healthChecker,
+		)
+		t.Cleanup(func() {
+			circuitBreaker.LogSummary()
+			if circuitBreaker.TotalTrips() > 0 {
+				t.Fatalf("Circuit breaker tripped: %s", circuitBreaker.TripReason())
+			}
+		})
+
+		preflight := healthChecker.Check()
+		if !preflight.Healthy {
+			circuitBreaker.ForceTrip(fmt.Sprintf(
+				"Pre-flight health check failed: [%s]",
+				strings.Join(preflight.Issues, "; ")))
+			return
+		}
+	}
+
 	// Remove any leftover resources from previous test runs before starting if the cleanup flag is enabled
 	if testOpts.cleanUpPreviousResources {
 		CleanupPreviousTestResources(t)
@@ -423,8 +446,6 @@ func TestMain(m *testing.M) {
 	pflag.String("tag", "All", "Tag to run tests for. Options: "+strings.Join(tagNames, ", "))
 	checkEnvVarBindingError(viper.BindEnv("tag", viper.GetEnvPrefix()+"_TAG"))
 
-	pflag.Bool("fail-fast-on-error", true, "fail fast on error")
-	checkEnvVarBindingError(viper.BindEnv("fail-fast-on-error", viper.GetEnvPrefix()+"_FAIL_FAST_ON_ERROR"))
 	pflag.Bool("clean-up-previous-resources", true, "clean up previous resources before running tests")
 	checkEnvVarBindingError(viper.BindEnv("clean-up-previous-resources", viper.GetEnvPrefix()+"_CLEAN_UP_PREVIOUS_RESOURCES"))
 	pflag.Bool("test-operator-controller", true, "run operator controller tests")
@@ -441,6 +462,11 @@ func TestMain(m *testing.M) {
 	checkEnvVarBindingError(viper.BindEnv("test-hardware-profile", viper.GetEnvPrefix()+"_HARDWARE_PROFILE"))
 	pflag.Bool("test-webhook", true, "run webhook tests")
 	checkEnvVarBindingError(viper.BindEnv("test-webhook", viper.GetEnvPrefix()+"_WEBHOOK"))
+
+	pflag.Bool("circuit-breaker", true, "enable circuit breaker to halt tests on infrastructure failures")
+	checkEnvVarBindingError(viper.BindEnv("circuit-breaker", viper.GetEnvPrefix()+"_CIRCUIT_BREAKER"))
+	pflag.Int("circuit-breaker-threshold", 3, "consecutive test failures before health-checking for infrastructure problems")
+	checkEnvVarBindingError(viper.BindEnv("circuit-breaker-threshold", viper.GetEnvPrefix()+"_CIRCUIT_BREAKER_THRESHOLD"))
 
 	// Component flags
 	componentNames := strings.Join(Components.Names(), ", ")
@@ -493,7 +519,6 @@ func TestMain(m *testing.M) {
 		fmt.Print(err.Error())
 		os.Exit(1)
 	}
-	testOpts.failFastWhenError = viper.GetBool("fail-fast-on-error")
 	testOpts.cleanUpPreviousResources = viper.GetBool("clean-up-previous-resources")
 	testOpts.operatorControllerTest = viper.GetBool("test-operator-controller")
 	testOpts.dependantOperatorsManagementTest = viper.GetBool("test-dependant-operators-management")
@@ -502,6 +527,8 @@ func TestMain(m *testing.M) {
 	testOpts.v2tov3upgradeTest = viper.GetBool("test-operator-v2tov3upgrade")
 	testOpts.hardwareProfileTest = viper.GetBool("test-hardware-profile")
 	testOpts.webhookTest = viper.GetBool("test-webhook")
+	testOpts.circuitBreakerEnabled = viper.GetBool("circuit-breaker")
+	testOpts.circuitBreakerThreshold = viper.GetInt("circuit-breaker-threshold")
 	Components.enabled = viper.GetBool("test-components")
 	Components.flags = viper.GetStringSlice("test-component")
 	Services.enabled = viper.GetBool("test-services")
@@ -546,27 +573,46 @@ func registerSchemes() {
 	}
 }
 
-// mustRun executes a test.
+// mustRun executes a test and records its result to the circuit breaker.
+// After each failure, the failure classifier (run by HandleTestFailure) determines
+// whether the failure is infrastructure-related or test-logic. Only infrastructure
+// failures are recorded to the circuit breaker's consecutive failure counter.
+//
+// Running tests in parallel with WithParallel makes t.Run return before the
+// subtest finishes, so results from parallel subtests are not recorded.
 func mustRun(t *testing.T, name string, testFunc func(t *testing.T), opts ...TestCaseOpts) {
 	t.Helper()
 
-	// If the test already failed and fail-fast is enabled, skip running the next test
-	if t.Failed() && testOpts.failFastWhenError {
+	if circuitBreaker.IsOpen() {
+		t.Run(name, func(t *testing.T) {
+			t.Helper()
+			circuitBreaker.SkipIfOpen(t)
+		})
 		return
 	}
 
-	if !t.Run(name, func(t *testing.T) {
+	parallel := len(opts) > 0
+	testExecuted := false
+	wasSkipped := false
+
+	passed := t.Run(name, func(t *testing.T) {
+		testExecuted = true
 		for _, opt := range opts {
 			opt(t)
 		}
-		// Set up panic handler for each test group
 		defer HandleGlobalPanic()
+		defer func() { wasSkipped = t.Skipped() }()
 		testFunc(t)
-	}) {
-		// Run diagnostics on test failure
+	})
+
+	if !passed {
 		HandleTestFailure(name)
 		t.Logf("Stopping: %s test failed.", name)
 		t.Fail()
+	}
+
+	if testExecuted && !parallel && !wasSkipped {
+		circuitBreaker.RecordResult(passed, &lastClassification)
 	}
 }
 
