@@ -65,12 +65,13 @@ type ModelsAsServiceSpec struct {
 
 // APIKeysConfig defines configuration options for API key management.
 type APIKeysConfig struct {
-	// MaxExpiration is the maximum allowed expiration duration for API keys.
+	// MaxExpirationDays is the maximum allowed expiration in days for API keys.
 	// When set, users cannot create API keys with expiration longer than this value.
-	// Must be a positive duration (e.g., "720h" for 30 days, "2160h" for 90 days).
+	// Examples: 30 (one month), 90 (three months), 365 (one year).
 	// If not set, no expiration limit is enforced.
 	// +kubebuilder:validation:Optional
-	MaxExpiration *metav1.Duration `json:"maxExpiration,omitempty"`
+	// +kubebuilder:validation:Minimum=1
+	MaxExpirationDays *int32 `json:"maxExpirationDays,omitempty"`
 }
 
 // GatewayRef defines the reference to the global Gateway (Gw API) where

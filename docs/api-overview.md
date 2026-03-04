@@ -48,7 +48,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `maxExpiration` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#duration-v1-meta)_ | MaxExpiration is the maximum allowed expiration duration for API keys.<br />When set, users cannot create API keys with expiration longer than this value.<br />Must be a positive duration (e.g., "720h" for 30 days, "2160h" for 90 days).<br />If not set, no expiration limit is enforced. |  | Optional: \{\} <br /> |
+| `maxExpirationDays` _integer_ | MaxExpirationDays is the maximum allowed expiration in days for API keys.<br />When set, users cannot create API keys with expiration longer than this value.<br />Examples: 30 (one month), 90 (three months), 365 (one year).<br />If not set, no expiration limit is enforced. |  | Minimum: 1 <br />Optional: \{\} <br /> |
 
 
 #### ArgoWorkflowsControllersSpec
