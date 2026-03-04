@@ -57,6 +57,20 @@ type ModelsAsServiceSpec struct {
 	// If omitted, defaults to openshift-ingress/maas-default-gateway.
 	// +kubebuilder:validation:Optional
 	GatewayRef GatewayRef `json:"gatewayRef,omitempty"`
+
+	// APIKeys contains configuration for API key management.
+	// +kubebuilder:validation:Optional
+	APIKeys *APIKeysConfig `json:"apiKeys,omitempty"`
+}
+
+// APIKeysConfig defines configuration options for API key management.
+type APIKeysConfig struct {
+	// MaxExpiration is the maximum allowed expiration duration for API keys.
+	// When set, users cannot create API keys with expiration longer than this value.
+	// Format: duration string (e.g., "720h" for 30 days, "2160h" for 90 days).
+	// If not set, no expiration limit is enforced.
+	// +kubebuilder:validation:Optional
+	MaxExpiration *metav1.Duration `json:"maxExpiration,omitempty"`
 }
 
 // GatewayRef defines the reference to the global Gateway (Gw API) where
