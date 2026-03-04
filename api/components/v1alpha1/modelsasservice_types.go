@@ -64,7 +64,6 @@ type ModelsAsServiceSpec struct {
 }
 
 // APIKeysConfig defines configuration options for API key management.
-// +kubebuilder:validation:XValidation:rule="!has(self.maxExpiration) || self.maxExpiration > duration('0s')",message="maxExpiration must be a positive duration when specified"
 type APIKeysConfig struct {
 	// MaxExpiration is the maximum allowed expiration duration for API keys.
 	// When set, users cannot create API keys with expiration longer than this value.
