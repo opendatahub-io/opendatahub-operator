@@ -53,7 +53,7 @@ type DashboardHardwareProfileList struct {
 	Items []DashboardHardwareProfile `json:"items"`
 }
 
-func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { //nolint:unparam
 	rr.Manifests = []odhtypes.ManifestInfo{defaultManifestInfo(rr.Release.Name)}
 
 	return nil

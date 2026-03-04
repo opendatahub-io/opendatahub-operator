@@ -83,7 +83,7 @@ func validateGatewayExists(ctx context.Context, rr *types.ReconciliationRequest,
 }
 
 // initialize sets up the manifests for the ModelsAsService component.
-func initialize(_ context.Context, rr *types.ReconciliationRequest) error {
+func initialize(_ context.Context, rr *types.ReconciliationRequest) error { //nolint:unparam
 	rr.Manifests = []types.ManifestInfo{
 		baseManifestInfo(BaseManifestsSourcePath),
 	}
