@@ -49,10 +49,10 @@ func TestDynamicOwnershipAction_SkipsWhenDisabled(t *testing.T) {
 
 	obj := createConfigMap(t, g, name, ns)
 
-	watchRegistrarCalled := false
+	watchRegisterFnCalled := false
 	action := dynamicownership.NewAction(
 		func(_ client.Object, _ handler.EventHandler, _ ...predicate.Predicate) error {
-			watchRegistrarCalled = true
+			watchRegisterFnCalled = true
 			return nil
 		},
 		gvk.Dashboard,
@@ -73,7 +73,7 @@ func TestDynamicOwnershipAction_SkipsWhenDisabled(t *testing.T) {
 
 	err = action(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(watchRegistrarCalled).To(BeFalse(), "Watch registrar should not be called when dynamic ownership is disabled")
+	g.Expect(watchRegisterFnCalled).To(BeFalse(), "Watch registrar should not be called when dynamic ownership is disabled")
 }
 
 func TestDynamicOwnershipAction(t *testing.T) {
@@ -91,10 +91,10 @@ func TestDynamicOwnershipAction(t *testing.T) {
 	secret := createSecret(t, g, secretName, ns)
 	deployment := createDeployment(t, g, deploymentName, ns)
 
-	watchRegistrarCalledWithObjects := map[string]bool{}
+	watchRegisterFnCalledWithObjects := map[string]bool{}
 	action := dynamicownership.NewAction(
 		func(obj client.Object, _ handler.EventHandler, _ ...predicate.Predicate) error {
-			watchRegistrarCalledWithObjects[obj.GetObjectKind().GroupVersionKind().String()] = true
+			watchRegisterFnCalledWithObjects[obj.GetObjectKind().GroupVersionKind().String()] = true
 			return nil
 		},
 		gvk.Dashboard,
@@ -119,10 +119,10 @@ func TestDynamicOwnershipAction(t *testing.T) {
 
 	err = action(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(watchRegistrarCalledWithObjects).To(HaveLen(1), "Watch registrar should be called only for non-statically owned GVK")
-	g.Expect(watchRegistrarCalledWithObjects[gvk.ConfigMap.String()]).To(BeFalse(), "Watch registrar should NOT be called for statically owned ConfigMap")
-	g.Expect(watchRegistrarCalledWithObjects[gvk.Secret.String()]).To(BeTrue(), "Watch registrar should be called for non-statically owned Secret")
-	g.Expect(watchRegistrarCalledWithObjects[gvk.Deployment.String()]).To(BeFalse(), "Watch registrar should be NOT called for excluded Deployment")
+	g.Expect(watchRegisterFnCalledWithObjects).To(HaveLen(1), "Watch registrar should be called only for non-statically owned GVK")
+	g.Expect(watchRegisterFnCalledWithObjects[gvk.ConfigMap.String()]).To(BeFalse(), "Watch registrar should NOT be called for statically owned ConfigMap")
+	g.Expect(watchRegisterFnCalledWithObjects[gvk.Secret.String()]).To(BeTrue(), "Watch registrar should be called for non-statically owned Secret")
+	g.Expect(watchRegisterFnCalledWithObjects[gvk.Deployment.String()]).To(BeFalse(), "Watch registrar should be NOT called for excluded Deployment")
 }
 
 func TestDynamicOwnershipAction_CRDWatch(t *testing.T) {

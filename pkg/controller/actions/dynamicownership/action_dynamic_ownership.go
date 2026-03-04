@@ -23,8 +23,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
-// WatchRegistrar is a function type for registering watches dynamically.
-type WatchRegistrar func(obj client.Object, eventHandler handler.EventHandler, predicates ...predicate.Predicate) error
+// WatchRegisterFunc is a function type for registering watches dynamically.
+type WatchRegisterFunc func(obj client.Object, eventHandler handler.EventHandler, predicates ...predicate.Predicate) error
 
 // ResourceMatcher is a function that determines if a resource matches a certain criteria.
 type ResourceMatcher func(res *unstructured.Unstructured) bool
@@ -64,7 +64,7 @@ type watchKey struct {
 
 // Action registers watches dynamically for deployed resources.
 type Action struct {
-	watchRegistrar        WatchRegistrar
+	watchRegisterFn       WatchRegisterFunc
 	ownerGVK              schema.GroupVersionKind
 	managedByFalseMatcher ResourceMatcher
 	gvkPredicates         map[schema.GroupVersionKind][]predicate.Predicate
@@ -128,7 +128,7 @@ func (a *Action) registerWatchIfNeeded(
 
 	// Register the watch
 	obj := resources.GvkToUnstructured(resGVK)
-	if err := a.watchRegistrar(obj, eventHandler, watchPredicates...); err != nil {
+	if err := a.watchRegisterFn(obj, eventHandler, watchPredicates...); err != nil {
 		return false, err
 	}
 
@@ -245,7 +245,7 @@ func (a *Action) registerCRDWatch(rr *types.ReconciliationRequest, crdName strin
 	obj := resources.GvkToUnstructured(gvk.CustomResourceDefinition)
 	eventHandler := handlers.ToNamed(rr.Instance.GetName())
 	namePredicate := resourcespredicates.CreatedOrUpdatedOrDeletedNamed(crdName)
-	if err := a.watchRegistrar(obj, eventHandler, namePredicate); err != nil {
+	if err := a.watchRegisterFn(obj, eventHandler, namePredicate); err != nil {
 		return fmt.Errorf("failed to register CRD watch for %s: %w", crdName, err)
 	}
 
@@ -258,12 +258,12 @@ func (a *Action) registerCRDWatch(rr *types.ReconciliationRequest, crdName strin
 // NewAction creates a new dynamic ownership action.
 // This action should run after the deploy action to register watches for deployed resources.
 func NewAction(
-	watchRegistrar WatchRegistrar,
+	watchRegisterFn WatchRegisterFunc,
 	ownerGVK schema.GroupVersionKind,
 	opts ...Option,
 ) actions.Fn {
 	action := Action{
-		watchRegistrar:        watchRegistrar,
+		watchRegisterFn:       watchRegisterFn,
 		ownerGVK:              ownerGVK,
 		managedByFalseMatcher: DefaultManagedByFalseMatcher,
 		gvkPredicates:         make(map[schema.GroupVersionKind][]predicate.Predicate),
