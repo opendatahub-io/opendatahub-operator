@@ -634,7 +634,9 @@ check-prometheus-alert-unit-tests: $(PROMETHEUS_ALERT_RULES)
 CLEANFILES += $(PROMETHEUS_ALERT_RULES)
 
 # Cluster health targets (cluster-health, cluster-health-*, etc.) are in cmd/health-check/Makefile.
+ifneq (,$(wildcard cmd/health-check/Makefile))
 include cmd/health-check/Makefile
+endif
 
 .PHONY: e2e-test
 e2e-test:
