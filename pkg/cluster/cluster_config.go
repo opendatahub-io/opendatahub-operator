@@ -40,12 +40,6 @@ var clusterConfig struct {
 	ClusterInfo          ClusterInfo
 }
 
-// IsDSCIDisabled returns true if the DSCI controller has been suppressed via
-// RHAI_DISABLE_DSCI_RESOURCE or the equivalent CLI flag.
-func IsDSCIDisabled() bool {
-	return viper.GetBool("disable-dsci-resource")
-}
-
 type InstallConfig struct {
 	FIPS bool `json:"fips"`
 }
@@ -186,11 +180,11 @@ func getOCPVersion(ctx context.Context, c client.Client) (version.OperatorVersio
 	if err := c.Get(ctx, client.ObjectKey{
 		Name: OpenShiftVersionObj,
 	}, clusterVersion); err != nil {
-		return version.OperatorVersion{}, errors.New("unable to get OCP version")
+		return version.OperatorVersion{}, fmt.Errorf("unable to get OCP version: %w", err)
 	}
 	v, err := semver.ParseTolerant(clusterVersion.Status.History[0].Version)
 	if err != nil {
-		return version.OperatorVersion{}, errors.New("unable to parse OCP version")
+		return version.OperatorVersion{}, fmt.Errorf("unable to parse OCP version: %w", err)
 	}
 	return version.OperatorVersion{Version: v}, nil
 }
@@ -293,6 +287,9 @@ func getPlatform(ctx context.Context, cli client.Client) (common.Platform, error
 		return ManagedRhoai, nil
 	case "SelfManagedRHOAI":
 		return SelfManagedRhoai, nil
+	case string(XKS):
+		// Non-OpenShift Kubernetes deployment (AKS, CoreWeave, EKS, …).
+		return XKS, nil
 	default:
 		// fall back to detect platform if ODH_PLATFORM_TYPE env is not provided in CSV or set to ""
 		platform, err := detectManagedRhoai(ctx, cli)
@@ -350,16 +347,22 @@ func getClusterInfo(ctx context.Context, cli client.Client) (ClusterInfo, error)
 		Version: version.OperatorVersion{
 			Version: semver.Version{},
 		},
-		Type:        "OpenShift",
+		Type:        ClusterTypeOpenShift, // default; overridden below if needed
 		FipsEnabled: false,
 	}
 
-	// Set OCP version — if the ClusterVersion CRD is absent this is not an
-	// OpenShift cluster (e.g. xKS), so treat it as generic Kubernetes.
+	// XKS platform (set by the CCM Helm chart) means a non-OpenShift Kubernetes
+	// deployment (AKS, CoreWeave, EKS, …).  Skip OCP API detection immediately.
+	if clusterConfig.Release.Name == XKS {
+		c.Type = ClusterTypeKubernetes
+		return c, nil
+	}
+
+	// Auto-detect: if the ClusterVersion CRD is absent this is not OpenShift.
 	ocpVersion, err := getOCPVersion(ctx, cli)
 	if err != nil {
 		if meta.IsNoMatchError(err) {
-			c.Type = "Kubernetes"
+			c.Type = ClusterTypeKubernetes
 			return c, nil
 		}
 		return c, err
@@ -412,7 +415,7 @@ func setManagedMonitoringNamespace(ctx context.Context, cli client.Client) error
 	switch platform {
 	case ManagedRhoai, SelfManagedRhoai:
 		viper.SetDefault("dsc-monitoring-namespace", DefaultMonitoringNamespaceRHOAI)
-	case OpenDataHub:
+	case OpenDataHub, XKS:
 		viper.SetDefault("dsc-monitoring-namespace", DefaultMonitoringNamespaceODH)
 	}
 	return nil
@@ -461,6 +464,14 @@ func SetRHAIApplicationNamespace(ns string) {
 	if ns != "" {
 		clusterConfig.ApplicationNamespace = ns
 	}
+}
+
+// GetRHAIApplicationsNamespace returns the value of RHAI_APPLICATIONS_NAMESPACE if
+// explicitly configured, or empty string if not set.
+// Used by ApplicationNamespace() to short-circuit DSCI queries when the namespace
+// is injected externally (e.g. on vanilla Kubernetes via the CCM Helm chart).
+func GetRHAIApplicationsNamespace() string {
+	return viper.GetString("rhai-applications-namespace")
 }
 
 // GetApplicationNamespace returns the application namespace for the platform.

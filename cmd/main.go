@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -278,6 +279,22 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	// If RHAI_APPLICATIONS_NAMESPACE is explicitly configured (via env var or CLI flag),
 	// it overrides the platform-detected namespace set during cluster.Init().
 	cluster.SetRHAIApplicationNamespace(oconfig.RHAIApplicationNamespace)
+
+	// Validate RHAI_APPLICATIONS_NAMESPACE against the detected cluster type.
+	// On non-OpenShift clusters DSCI is absent so the namespace must be injected explicitly.
+	// On OpenShift the namespace is managed by DSCI and must not be overridden here.
+	isOpenShift := cluster.GetClusterInfo().Type == cluster.ClusterTypeOpenShift
+	switch {
+	case !isOpenShift && oconfig.RHAIApplicationNamespace == "":
+		setupLog.Error(errors.New("RHAI_APPLICATIONS_NAMESPACE must be set on non-OpenShift clusters"), "invalid configuration")
+		os.Exit(1)
+	case isOpenShift && oconfig.RHAIApplicationNamespace != "":
+		setupLog.Error(fmt.Errorf(
+			"RHAI_APPLICATIONS_NAMESPACE (%q) must not be set on OpenShift; use DSCI spec.applicationsNamespace instead",
+			oconfig.RHAIApplicationNamespace,
+		), "invalid configuration")
+		os.Exit(1)
+	}
 
 	// Get operator platform
 	release := cluster.GetRelease()
