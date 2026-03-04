@@ -31,6 +31,13 @@ func AddOperatorFlagsAndEnvvars(envvarPrefix string) error {
 		return err
 	}
 
+	// RHAI-specific config: uses RHAI_ prefix (not ODH_MANAGER_) to separate
+	// cloud-controller-managed settings from standard operator settings.
+	pflag.String("rhai-applications-namespace", "", "The namespace where RHAI application components are deployed. If unset, the operator uses a platform-specific default.")
+	if err := viper.BindEnv("rhai-applications-namespace", "RHAI_APPLICATIONS_NAMESPACE"); err != nil {
+		return err
+	}
+
 	// zap logging flags
 	// these are taken from https://github.com/kubernetes-sigs/controller-runtime/blob/4161b012d114e6c1ea861fd8afcebf7ba2417b49/pkg/log/zap/zap.go#L255
 	// and need to be kept in sync.

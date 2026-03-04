@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/spf13/viper"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -11,6 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 )
 
 func TestGetApplicationNamespace(t *testing.T) {
@@ -209,6 +211,177 @@ func TestSetApplicationNamespace(t *testing.T) {
 			result := GetApplicationNamespace()
 			if result != tc.expectedNamespace {
 				t.Errorf("Application namespace = %q, want %q", result, tc.expectedNamespace)
+			}
+		})
+	}
+}
+
+func TestSetApplicationNamespace_RHAIOverride(t *testing.T) {
+	testCases := []struct {
+		name              string
+		rhaiNamespace     string
+		platform          common.Platform
+		labeledNamespace  string
+		expectedNamespace string
+	}{
+		{
+			name:              "SetApplicationNamespace overrides ManagedRhoai default",
+			rhaiNamespace:     "my-custom-namespace",
+			platform:          ManagedRhoai,
+			expectedNamespace: "my-custom-namespace",
+		},
+		{
+			name:              "SetApplicationNamespace overrides SelfManagedRhoai default",
+			rhaiNamespace:     "my-custom-namespace",
+			platform:          SelfManagedRhoai,
+			expectedNamespace: "my-custom-namespace",
+		},
+		{
+			name:              "SetApplicationNamespace overrides labeled namespace",
+			rhaiNamespace:     "my-custom-namespace",
+			platform:          OpenDataHub,
+			labeledNamespace:  "labeled-ns",
+			expectedNamespace: "my-custom-namespace",
+		},
+		{
+			name:              "Empty SetApplicationNamespace keeps platform default",
+			rhaiNamespace:     "",
+			platform:          OpenDataHub,
+			expectedNamespace: "opendatahub",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			scheme := runtime.NewScheme()
+			_ = corev1.AddToScheme(scheme)
+
+			var objs []client.Object
+			if tc.labeledNamespace != "" {
+				objs = append(objs, &corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: tc.labeledNamespace,
+						Labels: map[string]string{
+							"opendatahub.io/application-namespace": "true",
+						},
+					},
+				})
+			}
+
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithObjects(objs...).
+				Build()
+
+			clusterConfig.Release.Name = tc.platform
+			defer func() {
+				clusterConfig.ApplicationNamespace = ""
+				clusterConfig.Release.Name = ""
+			}()
+
+			// Simulate cluster.Init() detecting the platform namespace
+			ctx := context.Background()
+			if err := setApplicationNamespace(ctx, fakeClient); err != nil {
+				t.Fatalf("setApplicationNamespace failed: %v", err)
+			}
+
+			// Simulate main.go calling SetRHAIApplicationNamespace with the Viper-loaded value
+			SetRHAIApplicationNamespace(tc.rhaiNamespace)
+
+			result := GetApplicationNamespace()
+			if result != tc.expectedNamespace {
+				t.Errorf("GetApplicationNamespace() = %q, want %q", result, tc.expectedNamespace)
+			}
+		})
+	}
+}
+
+func TestApplicationNamespaceFallback(t *testing.T) {
+	testCases := []struct {
+		name              string
+		cachedNamespace   string
+		platform          common.Platform
+		dsciDisabled      bool
+		dsciNamespace     string
+		expectedNamespace string
+		expectError       bool
+	}{
+		{
+			name:              "returns cached namespace when DSCI disabled (RHAI_DISABLE_DSCI_RESOURCE=true)",
+			cachedNamespace:   "my-rhai-ns",
+			platform:          OpenDataHub,
+			dsciDisabled:      true,
+			dsciNamespace:     "",
+			expectedNamespace: "my-rhai-ns",
+		},
+		{
+			name:              "returns platform default when DSCI disabled and no cached namespace",
+			cachedNamespace:   "",
+			platform:          OpenDataHub,
+			dsciDisabled:      true,
+			dsciNamespace:     "",
+			expectedNamespace: "opendatahub",
+		},
+		{
+			name:              "returns DSCI namespace when DSCI enabled and DSCI exists",
+			cachedNamespace:   "my-rhai-ns",
+			platform:          OpenDataHub,
+			dsciDisabled:      false,
+			dsciNamespace:     "dsci-app-ns",
+			expectedNamespace: "dsci-app-ns",
+		},
+		{
+			name:            "propagates error when DSCI enabled but not found (no silent fallback)",
+			cachedNamespace: "my-cached-ns",
+			platform:        OpenDataHub,
+			dsciDisabled:    false,
+			dsciNamespace:   "",
+			expectError:     true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			scheme := runtime.NewScheme()
+			_ = corev1.AddToScheme(scheme)
+			_ = dsciv2.AddToScheme(scheme)
+
+			var objs []client.Object
+			if tc.dsciNamespace != "" {
+				objs = append(objs, &dsciv2.DSCInitialization{
+					ObjectMeta: metav1.ObjectMeta{Name: "default"},
+					Spec:       dsciv2.DSCInitializationSpec{ApplicationsNamespace: tc.dsciNamespace},
+				})
+			}
+
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithObjects(objs...).
+				Build()
+
+			clusterConfig.Release.Name = tc.platform
+			clusterConfig.ApplicationNamespace = tc.cachedNamespace
+			viper.Set("disable-dsci-resource", tc.dsciDisabled)
+			defer func() {
+				clusterConfig.ApplicationNamespace = ""
+				clusterConfig.Release.Name = ""
+				viper.Set("disable-dsci-resource", false)
+			}()
+
+			ctx := context.Background()
+			result, err := ApplicationNamespace(ctx, fakeClient)
+
+			if tc.expectError {
+				if err == nil {
+					t.Errorf("Expected error but got nil (result=%q)", result)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+			if result != tc.expectedNamespace {
+				t.Errorf("ApplicationNamespace() = %q, want %q", result, tc.expectedNamespace)
 			}
 		})
 	}

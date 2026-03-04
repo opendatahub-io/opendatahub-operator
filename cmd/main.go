@@ -188,12 +188,13 @@ func initServices(_ context.Context, p common.Platform) error {
 
 // Create a config struct with viper's mapstructure.
 type OperatorConfig struct {
-	MetricsAddr         string `mapstructure:"metrics-bind-address"`
-	HealthProbeAddr     string `mapstructure:"health-probe-bind-address"`
-	LeaderElection      bool   `mapstructure:"leader-elect"`
-	MonitoringNamespace string `mapstructure:"dsc-monitoring-namespace"`
-	LogMode             string `mapstructure:"log-mode"`
-	PprofAddr           string `mapstructure:"pprof-bind-address"`
+	MetricsAddr              string `mapstructure:"metrics-bind-address"`
+	HealthProbeAddr          string `mapstructure:"health-probe-bind-address"`
+	LeaderElection           bool   `mapstructure:"leader-elect"`
+	MonitoringNamespace      string `mapstructure:"dsc-monitoring-namespace"`
+	LogMode                  string `mapstructure:"log-mode"`
+	PprofAddr                string `mapstructure:"pprof-bind-address"`
+	RHAIApplicationNamespace string `mapstructure:"rhai-applications-namespace"`
 
 	// Zap logging configuration
 	ZapDevel        bool   `mapstructure:"zap-devel"`
@@ -273,6 +274,10 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		setupLog.Error(err, "unable to initialize cluster config")
 		os.Exit(1)
 	}
+
+	// If RHAI_APPLICATIONS_NAMESPACE is explicitly configured (via env var or CLI flag),
+	// it overrides the platform-detected namespace set during cluster.Init().
+	cluster.SetRHAIApplicationNamespace(oconfig.RHAIApplicationNamespace)
 
 	// Get operator platform
 	release := cluster.GetRelease()

@@ -40,6 +40,12 @@ var clusterConfig struct {
 	ClusterInfo          ClusterInfo
 }
 
+// IsDSCIDisabled returns true if the DSCI controller has been suppressed via
+// RHAI_DISABLE_DSCI_RESOURCE or the equivalent CLI flag.
+func IsDSCIDisabled() bool {
+	return viper.GetBool("disable-dsci-resource")
+}
+
 type InstallConfig struct {
 	FIPS bool `json:"fips"`
 }
@@ -328,8 +334,8 @@ func getRelease(ctx context.Context, cli client.Client) (common.Release, error) 
 		return initRelease, err
 	}
 	csv, err := GetClusterServiceVersion(ctx, cli, operatorNamespace)
-	if k8serr.IsNotFound(err) {
-		// hide not found, return default
+	if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
+		// CSV not found or OLM CRDs absent (no OLM installed) — not an error condition
 		return initRelease, nil
 	}
 	if err != nil {
@@ -347,9 +353,15 @@ func getClusterInfo(ctx context.Context, cli client.Client) (ClusterInfo, error)
 		Type:        "OpenShift",
 		FipsEnabled: false,
 	}
-	// Set OCP
+
+	// Set OCP version — if the ClusterVersion CRD is absent this is not an
+	// OpenShift cluster (e.g. xKS), so treat it as generic Kubernetes.
 	ocpVersion, err := getOCPVersion(ctx, cli)
 	if err != nil {
+		if meta.IsNoMatchError(err) {
+			c.Type = "Kubernetes"
+			return c, nil
+		}
 		return c, err
 	}
 	c.Version = ocpVersion
@@ -440,6 +452,15 @@ func setApplicationNamespace(ctx context.Context, cli client.Client) error {
 	}
 
 	return nil
+}
+
+// SetRHAIApplicationNamespace explicitly sets the application namespace, overriding any
+// platform-detected value. Called from main with the value loaded via Viper
+// (RHAI_APPLICATIONS_NAMESPACE env var or CLI flag). A non-empty value always wins.
+func SetRHAIApplicationNamespace(ns string) {
+	if ns != "" {
+		clusterConfig.ApplicationNamespace = ns
+	}
 }
 
 // GetApplicationNamespace returns the application namespace for the platform.
