@@ -61,6 +61,10 @@ func AddOperatorFlagsAndEnvvars(envvarPrefix string) error {
 		return err
 	}
 
+	if err := addResourceSuppressionFlags(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
