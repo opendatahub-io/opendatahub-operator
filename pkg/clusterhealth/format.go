@@ -143,8 +143,11 @@ func (r *Report) summaryDeployments() string {
 	if len(byNs) == 0 {
 		return "no deployments"
 	}
-	total, notReady := 0, 0
+	total, notReady, namespacesWithItems := 0, 0, 0
 	for _, infos := range byNs {
+		if len(infos) > 0 {
+			namespacesWithItems++
+		}
 		for _, d := range infos {
 			total++
 			if d.Replicas > 0 && d.Ready != d.Replicas {
@@ -153,9 +156,9 @@ func (r *Report) summaryDeployments() string {
 		}
 	}
 	if notReady == 0 {
-		return fmt.Sprintf("%d deployments in %d namespaces", total, len(byNs))
+		return fmt.Sprintf("%d deployments in %d namespaces", total, namespacesWithItems)
 	}
-	return fmt.Sprintf("%d deployments in %d namespaces, %d not ready", total, len(byNs), notReady)
+	return fmt.Sprintf("%d deployments in %d namespaces, %d not ready", total, namespacesWithItems, notReady)
 }
 
 func (r *Report) summaryPods() string {
@@ -166,8 +169,11 @@ func (r *Report) summaryPods() string {
 	if len(byNs) == 0 {
 		return "no pods"
 	}
-	total, notRunning := 0, 0
+	total, notRunning, namespacesWithItems := 0, 0, 0
 	for _, infos := range byNs {
+		if len(infos) > 0 {
+			namespacesWithItems++
+		}
 		for _, p := range infos {
 			total++
 			if p.Phase != "Running" {
@@ -176,9 +182,9 @@ func (r *Report) summaryPods() string {
 		}
 	}
 	if notRunning == 0 {
-		return fmt.Sprintf("%d pods in %d namespaces", total, len(byNs))
+		return fmt.Sprintf("%d pods in %d namespaces", total, namespacesWithItems)
 	}
-	return fmt.Sprintf("%d pods in %d namespaces, %d not Running", total, len(byNs), notRunning)
+	return fmt.Sprintf("%d pods in %d namespaces, %d not Running", total, namespacesWithItems, notRunning)
 }
 
 func (r *Report) summaryEvents() string {
@@ -200,8 +206,11 @@ func (r *Report) summaryQuotas() string {
 	if len(byNs) == 0 {
 		return "no quotas"
 	}
-	total, exceeded := 0, 0
+	total, exceeded, namespacesWithItems := 0, 0, 0
 	for _, infos := range byNs {
+		if len(infos) > 0 {
+			namespacesWithItems++
+		}
 		for _, q := range infos {
 			total++
 			if len(q.Exceeded) > 0 {
@@ -210,9 +219,9 @@ func (r *Report) summaryQuotas() string {
 		}
 	}
 	if exceeded == 0 {
-		return fmt.Sprintf("%d quotas in %d namespaces", total, len(byNs))
+		return fmt.Sprintf("%d quotas in %d namespaces", total, namespacesWithItems)
 	}
-	return fmt.Sprintf("%d quotas in %d namespaces, %d exceeded", total, len(byNs), exceeded)
+	return fmt.Sprintf("%d quotas in %d namespaces, %d exceeded", total, namespacesWithItems, exceeded)
 }
 
 func (r *Report) summaryOperator() string {
