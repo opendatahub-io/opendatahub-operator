@@ -61,8 +61,9 @@ func runOperatorSection(ctx context.Context, c client.Client, op OperatorConfig)
 		out.Data.Data.Pods = rawPods
 	}
 
-	if deploy.Status.Replicas > 0 && deploy.Status.ReadyReplicas != deploy.Status.Replicas {
-		errs = append(errs, fmt.Sprintf("operator deployment %s: %d/%d ready", op.Name, deploy.Status.ReadyReplicas, deploy.Status.Replicas))
+	desired := desiredReplicas(deploy)
+	if desired > 0 && deploy.Status.ReadyReplicas < desired {
+		errs = append(errs, fmt.Sprintf("operator deployment %s: %d/%d ready", op.Name, deploy.Status.ReadyReplicas, desired))
 	}
 	for _, p := range out.Data.Pods {
 		if p.Phase != string(corev1.PodRunning) {
@@ -150,8 +151,9 @@ func runDependentOperatorCheck(ctx context.Context, c client.Client, name, names
 		return out
 	}
 	out.Pods = pods
-	if deploy.Status.Replicas > 0 && deploy.Status.ReadyReplicas != deploy.Status.Replicas {
-		out.Error = fmt.Sprintf("deployment %d/%d ready", deploy.Status.ReadyReplicas, deploy.Status.Replicas)
+	desired := desiredReplicas(deploy)
+	if desired > 0 && deploy.Status.ReadyReplicas < desired {
+		out.Error = fmt.Sprintf("deployment %d/%d ready", deploy.Status.ReadyReplicas, desired)
 	}
 	for _, p := range out.Pods {
 		if p.Phase != string(corev1.PodRunning) {

@@ -1,6 +1,8 @@
 package clusterhealth
 
 import (
+	"strings"
+
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -46,6 +48,10 @@ func (n NamespaceConfig) List() []string {
 	if n.Monitoring != "" {
 		out = append(out, n.Monitoring)
 	}
-	out = append(out, n.Extra...)
+	for _, s := range n.Extra {
+		if trimmed := strings.TrimSpace(s); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
 	return out
 }

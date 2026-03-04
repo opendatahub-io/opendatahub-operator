@@ -55,7 +55,7 @@ func listRecentEventsInNamespace(ctx context.Context, c client.Client, namespace
 	raw := make([]corev1.Event, 0, len(list.Items))
 	for i := range list.Items {
 		e := &list.Items[i]
-		if e.LastTimestamp.Time.Before(cutoff) {
+		if eventLastTime(e).Before(cutoff) {
 			continue
 		}
 		infos = append(infos, eventToInfo(e))
@@ -64,11 +64,16 @@ func listRecentEventsInNamespace(ctx context.Context, c client.Client, namespace
 	return infos, raw, nil
 }
 
-func eventToInfo(e *corev1.Event) EventInfo {
-	lastTime := e.LastTimestamp.Time
-	if lastTime.IsZero() && !e.EventTime.IsZero() {
-		lastTime = e.EventTime.Time
+// eventLastTime returns the effective last time for an event (LastTimestamp with EventTime fallback).
+func eventLastTime(e *corev1.Event) time.Time {
+	t := e.LastTimestamp.Time
+	if t.IsZero() && !e.EventTime.IsZero() {
+		t = e.EventTime.Time
 	}
+	return t
+}
+
+func eventToInfo(e *corev1.Event) EventInfo {
 	return EventInfo{
 		Namespace: e.Namespace,
 		Kind:      e.InvolvedObject.Kind,
@@ -76,6 +81,6 @@ func eventToInfo(e *corev1.Event) EventInfo {
 		Type:      e.Type,
 		Reason:    e.Reason,
 		Message:   e.Message,
-		LastTime:  lastTime,
+		LastTime:  eventLastTime(e),
 	}
 }

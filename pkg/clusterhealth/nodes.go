@@ -57,18 +57,37 @@ func nodeToNodeInfo(node *corev1.Node) NodeInfo {
 	info.Allocatable = formatResourceList(node.Status.Allocatable)
 	info.Capacity = formatResourceList(node.Status.Capacity)
 
-	// Only pressure=True is unhealthy; pressure=False is healthy.
-	var reasons []string
+	var pressureReasons []string
+	var notReady string
+	var otherReasons []string
 	for _, c := range node.Status.Conditions {
-		if c.Type != corev1.NodeMemoryPressure && c.Type != corev1.NodeDiskPressure && c.Type != corev1.NodePIDPressure {
-			continue
-		}
-		if c.Status == corev1.ConditionTrue {
-			reasons = append(reasons, string(c.Type))
+		switch c.Type {
+		case corev1.NodeMemoryPressure, corev1.NodeDiskPressure, corev1.NodePIDPressure:
+			if c.Status == corev1.ConditionTrue {
+				pressureReasons = append(pressureReasons, string(c.Type))
+			}
+		case corev1.NodeReady:
+			if c.Status == corev1.ConditionFalse || c.Status == corev1.ConditionUnknown {
+				notReady = "Ready=" + string(c.Status)
+			}
+		case corev1.NodeNetworkUnavailable:
+			if c.Status == corev1.ConditionTrue {
+				otherReasons = append(otherReasons, "network unavailable")
+			}
 		}
 	}
-	if len(reasons) > 0 {
-		info.UnhealthyReason = "resource pressure: " + strings.Join(reasons, ", ")
+	var parts []string
+	if len(pressureReasons) > 0 {
+		parts = append(parts, "resource pressure: "+strings.Join(pressureReasons, ", "))
+	}
+	if notReady != "" {
+		parts = append(parts, notReady)
+	}
+	if len(otherReasons) > 0 {
+		parts = append(parts, strings.Join(otherReasons, ", "))
+	}
+	if len(parts) > 0 {
+		info.UnhealthyReason = strings.Join(parts, "; ")
 	}
 	return info
 }

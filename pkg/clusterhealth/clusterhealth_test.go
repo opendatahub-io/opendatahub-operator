@@ -34,6 +34,7 @@ func TestNamespaceConfig_List(t *testing.T) {
 		{"extra only", NamespaceConfig{Extra: []string{"kube-system"}}, []string{"kube-system"}},
 		{"apps and extra", NamespaceConfig{Apps: "apps", Extra: []string{"op-ns", "kube-system"}}, []string{"apps", "op-ns", "kube-system"}},
 		{"apps, monitoring, extra", NamespaceConfig{Apps: "apps", Monitoring: "mon", Extra: []string{"kube-system"}}, []string{"apps", "mon", "kube-system"}},
+		{"extra skips empty and whitespace", NamespaceConfig{Extra: []string{"", "  ", "valid-ns", "\t", "other"}}, []string{"valid-ns", "other"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -118,6 +119,39 @@ func TestNodeToNodeInfo(t *testing.T) {
 	}
 	if info2.UnhealthyReason != "resource pressure: NodeMemoryPressure" && info2.UnhealthyReason != "resource pressure: MemoryPressure" {
 		t.Errorf("UnhealthyReason = %q", info2.UnhealthyReason)
+	}
+
+	notReadyNode := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "node-3"},
+		Status: corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{
+				{Type: corev1.NodeReady, Status: corev1.ConditionFalse},
+				{Type: corev1.NodeMemoryPressure, Status: corev1.ConditionFalse},
+			},
+		},
+	}
+	info3 := nodeToNodeInfo(notReadyNode)
+	if info3.UnhealthyReason == "" {
+		t.Error("UnhealthyReason want non-empty for Ready=False")
+	}
+	if info3.UnhealthyReason != "Ready=False" {
+		t.Errorf("UnhealthyReason = %q, want Ready=False", info3.UnhealthyReason)
+	}
+
+	unknownReadyNode := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "node-4"},
+		Status: corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{
+				{Type: corev1.NodeReady, Status: corev1.ConditionUnknown},
+			},
+		},
+	}
+	info4 := nodeToNodeInfo(unknownReadyNode)
+	if info4.UnhealthyReason == "" {
+		t.Error("UnhealthyReason want non-empty for Ready=Unknown")
+	}
+	if info4.UnhealthyReason != "Ready=Unknown" {
+		t.Errorf("UnhealthyReason = %q, want Ready=Unknown", info4.UnhealthyReason)
 	}
 }
 

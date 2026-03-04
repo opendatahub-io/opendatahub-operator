@@ -60,12 +60,20 @@ func listDeploymentsInNamespace(ctx context.Context, c client.Client, namespace 
 	return infos, list.Items, nil
 }
 
+// desiredReplicas returns the deployment's desired replica count from spec (default 1 if nil).
+func desiredReplicas(d *appsv1.Deployment) int32 {
+	if d.Spec.Replicas == nil {
+		return 1
+	}
+	return *d.Spec.Replicas
+}
+
 func deploymentToInfo(d *appsv1.Deployment) DeploymentInfo {
 	info := DeploymentInfo{
 		Namespace: d.Namespace,
 		Name:      d.Name,
 		Ready:     d.Status.ReadyReplicas,
-		Replicas:  d.Status.Replicas,
+		Replicas:  desiredReplicas(d),
 	}
 	for _, c := range d.Status.Conditions {
 		if c.Status != corev1.ConditionTrue {
