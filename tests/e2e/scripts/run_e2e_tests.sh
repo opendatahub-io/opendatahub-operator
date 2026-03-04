@@ -1,0 +1,97 @@
+#!/bin/bash
+set -euo pipefail
+
+# Validation functions
+validate_bool() {
+    local var_name=$1
+    local value=${!var_name}
+    case "$value" in
+        true|false|0|1) return 0 ;;
+        *) echo "Error: $var_name must be true/false or 0/1, got '$value'" >&2; exit 1 ;;
+    esac
+}
+
+validate_namespace() {
+    local var_name=$1
+    local value=${!var_name}
+    # K8s namespace regex: lowercase alphanumeric characters or '-', must start and end with alphanumeric
+    if [[ ! "$value" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ ]]; then
+        echo "Error: $var_name must be a valid Kubernetes namespace, got '$value'" >&2; exit 1
+    fi
+}
+
+validate_deletion_policy() {
+    local var_name=$1
+    local value=${!var_name}
+    case "$value" in
+        never|always|on-success) return 0 ;;
+        *) echo "Error: $var_name must be 'never', 'always', or 'on-success', got '$value'" >&2; exit 1 ;;
+    esac
+}
+
+validate_tag() {
+    local var_name=$1
+    local value=${!var_name}
+    # Tags limited to alphanumeric, '-' and '_'
+    if [[ ! "$value" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo "Error: $var_name contains unsafe characters, got '$value'" >&2; exit 1
+    fi
+}
+
+# Set defaults and validate
+: "${E2E_TEST_DELETION_POLICY:=never}"
+validate_deletion_policy E2E_TEST_DELETION_POLICY
+
+: "${E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES:=false}"
+validate_bool E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES
+
+: "${E2E_TEST_OPERATOR_CONTROLLER:=true}"
+validate_bool E2E_TEST_OPERATOR_CONTROLLER
+
+: "${E2E_TEST_OPERATOR_RESILIENCE:=true}"
+validate_bool E2E_TEST_OPERATOR_RESILIENCE
+
+: "${E2E_TEST_OPERATOR_V2TOV3UPGRADE:=true}"
+validate_bool E2E_TEST_OPERATOR_V2TOV3UPGRADE
+
+: "${E2E_TEST_HARDWARE_PROFILE:=true}"
+validate_bool E2E_TEST_HARDWARE_PROFILE
+
+: "${E2E_TEST_WEBHOOK:=true}"
+validate_bool E2E_TEST_WEBHOOK
+
+: "${E2E_TEST_COMPONENTS:=true}"
+validate_bool E2E_TEST_COMPONENTS
+
+: "${E2E_TEST_SERVICES:=true}"
+validate_bool E2E_TEST_SERVICES
+
+: "${E2E_TEST_OPERATOR_NAMESPACE:=opendatahub-operators}"
+validate_namespace E2E_TEST_OPERATOR_NAMESPACE
+
+: "${E2E_TEST_APPLICATIONS_NAMESPACE:=opendatahub}"
+validate_namespace E2E_TEST_APPLICATIONS_NAMESPACE
+
+: "${E2E_TEST_WORKBENCHES_NAMESPACE:=opendatahub}"
+validate_namespace E2E_TEST_WORKBENCHES_NAMESPACE
+
+: "${E2E_TEST_DSC_MONITORING_NAMESPACE:=opendatahub}"
+validate_namespace E2E_TEST_DSC_MONITORING_NAMESPACE
+
+: "${E2E_TEST_FAIL_FAST_ON_ERROR:=false}"
+validate_bool E2E_TEST_FAIL_FAST_ON_ERROR
+
+: "${E2E_TEST_TAG:=All}"
+validate_tag E2E_TEST_TAG
+
+# Run gotestsum with the environment variables and any additional arguments
+exec gotestsum --junitfile-project-name odh-operator-e2e \
+  --junitfile results/xunit_report.xml --format testname --raw-command \
+  -- test2json -p e2e ./e2e-tests --test.v=test2json --test.parallel=8 \
+  --deletion-policy="$E2E_TEST_DELETION_POLICY" --clean-up-previous-resources="$E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES" \
+  --test-operator-controller="$E2E_TEST_OPERATOR_CONTROLLER" --test-operator-resilience="$E2E_TEST_OPERATOR_RESILIENCE" \
+  --test-operator-v2tov3upgrade="$E2E_TEST_OPERATOR_V2TOV3UPGRADE" --test-hardware-profile="$E2E_TEST_HARDWARE_PROFILE" \
+  --test-webhook="$E2E_TEST_WEBHOOK" --test-components="$E2E_TEST_COMPONENTS" --test-services="$E2E_TEST_SERVICES" \
+  --operator-namespace="$E2E_TEST_OPERATOR_NAMESPACE" --applications-namespace="$E2E_TEST_APPLICATIONS_NAMESPACE" \
+  --workbenches-namespace="$E2E_TEST_WORKBENCHES_NAMESPACE" --dsc-monitoring-namespace="$E2E_TEST_DSC_MONITORING_NAMESPACE" \
+  --fail-fast-on-error="$E2E_TEST_FAIL_FAST_ON_ERROR" --tag="$E2E_TEST_TAG" "$@"
