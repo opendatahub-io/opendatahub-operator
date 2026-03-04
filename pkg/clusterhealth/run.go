@@ -21,6 +21,14 @@ func Run(ctx context.Context, cfg Config) (*Report, error) {
 	report := &Report{CollectedAt: collectedAt}
 	run := cfg.sectionsToRun()
 
+	// Record which sections ran so PrettyPrint can show only those.
+	sectionOrder := []string{SectionNodes, SectionDeployments, SectionPods, SectionEvents, SectionQuotas, SectionOperator, SectionDSCI, SectionDSC}
+	for _, name := range sectionOrder {
+		if run[name] {
+			report.SectionsRun = append(report.SectionsRun, name)
+		}
+	}
+
 	// Run each section independently when selected; failures in one do not block others.
 	if run[SectionNodes] {
 		report.Nodes = runNodesSection(ctx, cfg.Client, cfg.Namespaces)

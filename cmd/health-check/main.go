@@ -22,18 +22,19 @@ const (
 	envOperatorNamespace     = "E2E_TEST_OPERATOR_NAMESPACE"
 	envApplicationsNamespace = "E2E_TEST_APPLICATIONS_NAMESPACE"
 	envOperatorDeployment    = "E2E_TEST_OPERATOR_DEPLOYMENT_NAME"
+	envMonitoringNamespace   = "E2E_TEST_DSC_MONITORING_NAMESPACE"
 	defaultOperatorNS        = "opendatahub-operator-system"
 	defaultAppsNS            = "opendatahub"
 	defaultOperatorDeploy    = "opendatahub-operator-controller-manager"
-	dsciName                 = "default-dsci"
-	dscName                  = "default-dsc"
+	defaultMonitoringNS      = "opendatahub"
 )
 
 func main() {
 	outputJSON := flag.Bool("json", false, "Output report as JSON")
+	longFormat := flag.Bool("l", false, "Long format: list conditions and details per section (like ls -l)")
 	layerFlag := flag.String("layer", "",
-		"Run only these layers, comma-separated (e.g. infrastructure or workload). "+
-			"infrastructure=nodes,quotas; workload=deployments,pods,events,operator,dsci,dsc")
+		"Run only these layers, comma-separated (e.g. infrastructure, workload, operator). "+
+			"infrastructure=nodes,quotas; workload=deployments,pods,events,operator,dsci,dsc; operator=operator,dsci,dsc")
 	sectionsFlag := flag.String("sections", "", "Comma-separated list of sections to run (e.g. nodes,quotas or deployments,pods). Overrides -layer.")
 	flag.Parse()
 
@@ -67,7 +68,9 @@ func main() {
 			os.Exit(1)
 		}
 	} else {
-		printReport(report)
+		fmt.Printf("Cluster health check at %s\n\n", report.CollectedAt.Format("2006-01-02 15:04:05"))
+		fmt.Print(report.PrettyPrint(*longFormat))
+		fmt.Printf("\nOverall: %s\n", healthyStr(report.Healthy()))
 	}
 
 	if report.Healthy() {
@@ -76,10 +79,18 @@ func main() {
 	os.Exit(1)
 }
 
+func healthyStr(healthy bool) string {
+	if healthy {
+		return "healthy"
+	}
+	return "unhealthy"
+}
+
 func loadConfig(layerFlag, sectionsFlag string) clusterhealth.Config {
 	operatorNS := getEnv(envOperatorNamespace, defaultOperatorNS)
 	appsNS := getEnv(envApplicationsNamespace, defaultAppsNS)
 	operatorDeploy := getEnv(envOperatorDeployment, defaultOperatorDeploy)
+	monitoringNS := getEnv(envMonitoringNamespace, defaultMonitoringNS)
 
 	cfg := clusterhealth.Config{
 		Operator: clusterhealth.OperatorConfig{
@@ -87,11 +98,13 @@ func loadConfig(layerFlag, sectionsFlag string) clusterhealth.Config {
 			Name:      operatorDeploy,
 		},
 		Namespaces: clusterhealth.NamespaceConfig{
-			Apps:  appsNS,
-			Extra: []string{"kube-system"},
+			Apps:       appsNS,
+			Monitoring: monitoringNS,
+			Extra:      []string{"kube-system"},
 		},
-		DSCI: types.NamespacedName{Name: dsciName},
-		DSC:  types.NamespacedName{Name: dscName},
+		// DSCI and DSC are singletons; empty name means "discover the instance on the cluster".
+		DSCI: types.NamespacedName{},
+		DSC:  types.NamespacedName{},
 	}
 
 	if sectionsFlag != "" {
@@ -114,30 +127,4 @@ func getEnv(key, fallback string) string {
 		return strings.TrimSpace(v)
 	}
 	return fallback
-}
-
-func printReport(r *clusterhealth.Report) {
-	fmt.Printf("Cluster health check at %s\n", r.CollectedAt.Format("2006-01-02 15:04:05"))
-	healthy := r.Healthy()
-	fmt.Printf("Healthy: %v\n", healthy)
-	if !healthy {
-		sections := []struct {
-			name   string
-			errStr string
-		}{
-			{"Nodes", r.Nodes.Error},
-			{"Deployments", r.Deployments.Error},
-			{"Pods", r.Pods.Error},
-			{"Events", r.Events.Error},
-			{"Quotas", r.Quotas.Error},
-			{"Operator", r.Operator.Error},
-			{"DSCI", r.DSCI.Error},
-			{"DSC", r.DSC.Error},
-		}
-		for _, s := range sections {
-			if s.errStr != "" {
-				fmt.Printf("  %s: %s\n", s.name, s.errStr)
-			}
-		}
-	}
 }
