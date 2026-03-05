@@ -211,11 +211,11 @@ download_repo_content() {
     target_path="${key}"
 
     repo_url="${GITHUB_URL}/${repo_org}/${repo_name}"
-    repo_dir=${TMP_DIR}/${dst_dir}/${key}
+    repo_dir="${TMP_DIR}/${dst_dir}/${key}"
 
     if [[ -v USE_LOCAL ]] && [[ -e ../${repo_name} ]]; then
         echo "copying from adjacent checkout ..."
-        mkdir -p ${dst_dir}/${target_path}
+        mkdir -p "${dst_dir}/${target_path}"
         cp -rf "../${repo_name}/${source_path}"/* ${dst_dir}/${target_path}
         return
     fi
@@ -225,8 +225,8 @@ download_repo_content() {
         return 1
     fi
 
-    mkdir -p ${dst_dir}/${target_path}
-    cp -rf ${repo_dir}/${source_path}/* ${dst_dir}/${target_path}
+    mkdir -p "${dst_dir}/${target_path}"
+    cp -rf "${repo_dir}/${source_path}"/* "${dst_dir}/${target_path}"
 }
 
 download_manifest() {

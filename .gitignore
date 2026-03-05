@@ -87,3 +87,4 @@ config/cloudmanager/*/manager/kustomization.yaml
 
 # Ignore binary files
 cmd/component-codegen/component-codegen
+/cloudmanager

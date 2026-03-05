@@ -39,10 +39,7 @@ func BuildHelmCharts(deps ccmcommon.Dependencies) []types.HelmChartInfo {
 						"operatorNamespace": NamespaceCertManagerOperator,
 					}),
 				},
-				PreApply: []types.HookFn{
-					CreateNamespaceHook(NamespaceCertManagerOperator),
-					CreateNamespaceHook("cert-manager"),
-				},
+				PreApply: []types.HookFn{},
 			},
 		},
 		{
@@ -55,9 +52,7 @@ func BuildHelmCharts(deps ccmcommon.Dependencies) []types.HelmChartInfo {
 						"namespace": NamespaceLWSOperator,
 					}),
 				},
-				PreApply: []types.HookFn{
-					CreateNamespaceHook(NamespaceLWSOperator),
-				},
+				PreApply: []types.HookFn{},
 			},
 		},
 		{
@@ -70,9 +65,7 @@ func BuildHelmCharts(deps ccmcommon.Dependencies) []types.HelmChartInfo {
 						"namespace": NamespaceSailOperator,
 					}),
 				},
-				PreApply: []types.HookFn{
-					CreateNamespaceHook(NamespaceSailOperator),
-				},
+				PreApply: []types.HookFn{},
 			},
 		},
 	}

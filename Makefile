@@ -719,17 +719,13 @@ $(CCM_MANIFESTS_TARGETS): manifests-ccm-%: controller-gen kustomize ## Generate 
 ##@ CCM Build
 
 .PHONY: build-ccm
-build-ccm: $(addprefix build-ccm-,$(CCM_PROVIDERS)) ## Build all CCM provider binaries
-
-CCM_BUILD_TARGETS := $(addprefix build-ccm-,$(CCM_PROVIDERS))
-.PHONY: $(CCM_BUILD_TARGETS)
-$(CCM_BUILD_TARGETS): build-ccm-%: generate fmt vet ## Build one CCM binary (e.g., build-ccm-azure)
-	go build -o bin/$*cloudmanager ./cmd/cloudmanager/$*/main.go
+build-ccm: generate fmt vet ## Build the cloudmanager binary
+	go build -o bin/cloudmanager ./cmd/cloudmanager/
 
 CCM_RUN_TARGETS := $(addprefix run-ccm-,$(CCM_PROVIDERS))
 .PHONY: $(CCM_RUN_TARGETS)
 $(CCM_RUN_TARGETS): run-ccm-%: generate fmt vet ## Run CCM locally (e.g., run-ccm-azure)
-	DEFAULT_CHARTS_PATH=$(DEFAULT_CHARTS_PATH) go run ./cmd/cloudmanager/$*/main.go
+	DEFAULT_CHARTS_PATH=$(DEFAULT_CHARTS_PATH) go run ./cmd/cloudmanager/ $*
 
 ##@ CCM Deployment
 

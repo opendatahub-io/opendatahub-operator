@@ -6,10 +6,18 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 )
 
-func CacheOptions(scheme *runtime.Scheme) cache.Options {
-	cacheOptions := cache.Options{
+// DefaultCacheOptions builds cache.Options for the given scheme, watching the default
+// managed namespaces shared by all cloud managers.
+func DefaultCacheOptions(scheme *runtime.Scheme) cache.Options {
+	nsConfig := map[string]cache.Config{
+		NamespaceCertManagerOperator: {},
+		NamespaceLWSOperator:         {},
+		NamespaceSailOperator:        {},
+	}
+
+	defaultCacheOptions := cache.Options{
 		Scheme:            scheme,
-		DefaultNamespaces: getManagedNamespaces(nil),
+		DefaultNamespaces: nsConfig,
 		DefaultTransform: func(in any) (any, error) {
 			// Nilcheck managed fields to avoid hitting https://github.com/kubernetes/kubernetes/issues/124337
 			if obj, err := meta.Accessor(in); err == nil && obj.GetManagedFields() != nil {
@@ -20,19 +28,5 @@ func CacheOptions(scheme *runtime.Scheme) cache.Options {
 		},
 	}
 
-	return cacheOptions
-}
-
-func getManagedNamespaces(additionalConfig map[string]cache.Config) map[string]cache.Config {
-	cacheConfig := map[string]cache.Config{
-		NamespaceCertManagerOperator: {},
-		NamespaceLWSOperator:         {},
-		NamespaceSailOperator:        {},
-	}
-
-	for ns, cfg := range additionalConfig {
-		cacheConfig[ns] = cfg
-	}
-
-	return cacheConfig
+	return defaultCacheOptions
 }

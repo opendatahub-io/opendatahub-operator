@@ -36,7 +36,7 @@ type Config struct {
 }
 
 // LoadConfig loads complete operator configuration including flags parsing and rest.Config loading.
-// This is the main entry point for configuration initialization.
+// This is the main entry point for configuration initialization when using pflag directly (not cobra).
 func LoadConfig() (*Config, error) {
 	// Define flags and env vars
 	if err := flags.AddOperatorFlagsAndEnvvars(viper.GetEnvPrefix()); err != nil {
@@ -49,6 +49,13 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("error binding flags: %w", err)
 	}
 
+	return BuildConfig()
+}
+
+// BuildConfig builds the operator configuration from viper values.
+// It assumes that flags have already been parsed and bound to viper (e.g. by cobra).
+// Use LoadConfig instead if you need flag registration and parsing.
+func BuildConfig() (*Config, error) {
 	// Unmarshal configuration from Viper
 	var operatorConfig Config
 	if err := viper.Unmarshal(&operatorConfig); err != nil {

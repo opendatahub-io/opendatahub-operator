@@ -17,6 +17,7 @@ require (
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.68.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/rs/xid v1.6.0
+	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.11.1
@@ -79,6 +80,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/itchyny/timefmt-go v0.1.7 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/k8s-manifest-kit/pkg v0.2.1-0.20260302085906-6946a2e8e1d5 // indirect

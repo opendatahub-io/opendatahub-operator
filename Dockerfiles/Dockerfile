@@ -55,16 +55,14 @@ COPY pkg/ pkg/
 # Build stripe out debug info to minimize binary size
 RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go build -a -ldflags="-s -w" -tags strictfipsruntime -o manager cmd/main.go
 
-# Build provider-specific cloudmanager binaries
-RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go build -a -ldflags="-s -w" -tags strictfipsruntime -o azurecloudmanager cmd/cloudmanager/azure/main.go
-RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go build -a -ldflags="-s -w" -tags strictfipsruntime -o coreweavecloudmanager cmd/cloudmanager/coreweave/main.go
+# Build cloudmanager binary
+RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go build -a -ldflags="-s -w" -tags strictfipsruntime -o cloudmanager ./cmd/cloudmanager/
 
 ################################################################################
 FROM --platform=$TARGETPLATFORM registry.access.redhat.com/ubi9/ubi-minimal:latest
 WORKDIR /
 COPY --from=builder /workspace/manager .
-COPY --from=builder /workspace/azurecloudmanager .
-COPY --from=builder /workspace/coreweavecloudmanager .
+COPY --from=builder /workspace/cloudmanager .
 COPY --chown=1001:0 --from=manifests /opt/manifests /opt/manifests
 COPY --chown=1001:0 --from=manifests /opt/charts /opt/charts
 

@@ -54,7 +54,7 @@ spec:
           type: RuntimeDefault
       containers:
       - command:
-        - /coreweavecloudmanager
+        - /cloudmanager
         env:
           - name: OPERATOR_NAMESPACE
             valueFrom:
@@ -63,6 +63,7 @@ spec:
           - name: DEFAULT_CHARTS_PATH
             value: /opt/charts
         args:
+        - coreweave
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=0.0.0.0:8080
         - --leader-elect
