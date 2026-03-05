@@ -1,0 +1,12 @@
+apiVersion: infrastructure.opendatahub.io/v1alpha1
+kind: AzureKubernetesEngine
+metadata:
+  name: default-azurekubernetesengine
+spec:
+  dependencies:
+    certManager:
+      managementPolicy: Managed
+    lws:
+      managementPolicy: Managed
+    sailOperator:
+      managementPolicy: Managed
