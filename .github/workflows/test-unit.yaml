@@ -29,7 +29,8 @@ jobs:
         env:
           TEST_SRC: ./internal/... ./pkg/...
         run: |
-          make manifests
+          make manifests-all
+          make get-manifests
           make unit-test
 
       - name: Upload results to Codecov

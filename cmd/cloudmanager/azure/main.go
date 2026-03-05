@@ -19,10 +19,9 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
-	"k8s.io/apimachinery/pkg/runtime"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"github.com/spf13/viper"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
@@ -32,22 +31,23 @@ import (
 
 	ccmv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/azure/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/azure"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 )
 
 var (
-	scheme   = runtime.NewScheme()
+	scheme   = common.NewScheme(ccmv1alpha1.AddToScheme)
 	setupLog = ctrl.Log.WithName("setup")
 )
 
-func init() { //nolint:gochecknoinits
-	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(ccmv1alpha1.AddToScheme(scheme))
-}
-
 func main() {
+	// Setup Viper
+	viper.SetEnvPrefix("CLOUD_MANAGER")
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+	viper.AutomaticEnv()
+
 	oconfig, err := operatorconfig.LoadConfig()
 	if err != nil {
 		fmt.Printf("Error loading configuration: %s", err.Error())
@@ -69,7 +69,7 @@ func main() {
 		HealthProbeBindAddress: oconfig.HealthProbeAddr,
 		LeaderElection:         oconfig.LeaderElection,
 		LeaderElectionID:       "azure.cloudmanager.opendatahub.io",
-		// TODO: setup cache
+		Cache:                  common.CacheOptions(scheme),
 		Client: client.Options{
 			Cache: &client.CacheOptions{
 				Unstructured: true,

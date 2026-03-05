@@ -80,6 +80,7 @@ endif
 
 IMAGE_BUILDER ?= podman
 DEFAULT_MANIFESTS_PATH ?= opt/manifests
+DEFAULT_CHARTS_PATH ?= opt/charts
 CGO_ENABLED ?= 1
 USE_LOCAL = false
 
@@ -137,7 +138,7 @@ ENVTEST_K8S_VERSION ?= $(shell go list -m -f "{{ .Version }}" k8s.io/api | awk -
 ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller-runtime | awk -F'[v.]' '{printf "release-%d.%d", $$2, $$3}')
 CRD_REF_DOCS_VERSION = 0.2.0
 # Add to tool versions section
-GINKGO_VERSION ?= v2.27.2
+GINKGO_VERSION ?= v2.28.1
 
 
 PLATFORM ?= linux/amd64
@@ -692,7 +693,7 @@ CCM_PROVIDERS := azure coreweave
 
 # Helper functions
 ccm-config-dir = config/cloudmanager/$(1)
-ccm-paths = ./api/cloudmanager/$(1)/...;./internal/controller/cloudmanager/$(1)/...
+ccm-paths = ./api/cloudmanager/$(1)/...;./internal/controller/cloudmanager/$(1)/...;./internal/controller/cloudmanager/common/...
 
 ##@ CCM Code Generation
 
@@ -728,7 +729,7 @@ $(CCM_BUILD_TARGETS): build-ccm-%: generate fmt vet ## Build one CCM binary (e.g
 CCM_RUN_TARGETS := $(addprefix run-ccm-,$(CCM_PROVIDERS))
 .PHONY: $(CCM_RUN_TARGETS)
 $(CCM_RUN_TARGETS): run-ccm-%: generate fmt vet ## Run CCM locally (e.g., run-ccm-azure)
-	go run ./cmd/cloudmanager/$*/main.go
+	DEFAULT_CHARTS_PATH=$(DEFAULT_CHARTS_PATH) go run ./cmd/cloudmanager/$*/main.go
 
 ##@ CCM Deployment
 

@@ -12,13 +12,12 @@ import (
 	ccmv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/coreweave/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/cloudmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 func NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	_, err := reconciler.ReconcilerFor(mgr, &ccmv1alpha1.CoreWeaveKubernetesEngine{}).
+		// TODO: use dynamic owned resources once merged: https://github.com/opendatahub-io/opendatahub-operator/pull/3188
 		Owns(&corev1.Secret{}).
 		Owns(&corev1.ServiceAccount{}).
 		Owns(&corev1.Service{}).
@@ -30,10 +29,8 @@ func NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		Watches(
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(
-				handlers.ToNamed(ccmv1alpha1.CoreWeaveKubernetesEngineKind)),
-			reconciler.WithPredicates(
-				// TODO:
-				component.ForLabel(labels.ODH.Component(ccmv1alpha1.CoreWeaveKubernetesEngineKind), labels.True)),
+				handlers.ToNamed(ccmv1alpha1.CoreWeaveKubernetesEngineInstanceName)),
+			// TODO: add CRD predicate
 		).
 		WithAction(initialize).
 		WithAction(cloudmanager.NewReconcileAction()).

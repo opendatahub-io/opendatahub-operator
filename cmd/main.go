@@ -22,6 +22,7 @@ import (
 	"maps"
 	"os"
 	"slices"
+	"strings"
 
 	ocappsv1 "github.com/openshift/api/apps/v1" //nolint:importas //reason: conflicts with appsv1 "k8s.io/api/apps/v1"
 	buildv1 "github.com/openshift/api/build/v1"
@@ -229,6 +230,11 @@ func registerServices() {
 }
 
 func main() { //nolint:funlen,maintidx,gocyclo
+	// Setup Viper
+	viper.SetEnvPrefix("ODH_MANAGER")
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+	viper.AutomaticEnv()
+
 	// Register component/service suppression flags (before pflag.Parse)
 	if err := flags.RegisterComponentSuppressionFlags(slices.Collect(maps.Keys(existingComponents))); err != nil {
 		fmt.Printf("Error registering component suppression flags: %s", err.Error())

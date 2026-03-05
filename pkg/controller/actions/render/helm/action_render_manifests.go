@@ -5,11 +5,11 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/k8s-manifest-kit/engine/pkg/postrenderer"
 	"github.com/k8s-manifest-kit/engine/pkg/transformer/meta/annotations"
 	"github.com/k8s-manifest-kit/engine/pkg/transformer/meta/labels"
 	engineTypes "github.com/k8s-manifest-kit/engine/pkg/types"
 	helm "github.com/k8s-manifest-kit/renderer-helm/pkg"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/resourcecacher"
@@ -18,9 +18,6 @@ import (
 )
 
 const rendererEngine = "helm"
-
-// ChartReleaseAnnotation is used to tag rendered resources with their source chart.
-const ChartReleaseAnnotation = "opendatahub.io/helm-release"
 
 // Action takes a set of Helm chart specifications and renders them as Unstructured resources
 // for further processing. The Action can cache the results in memory to avoid doing
@@ -99,8 +96,6 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 }
 
 func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) (resources.UnstructuredList, error) {
-	result := make(resources.UnstructuredList, 0)
-
 	charts := make([]helm.Source, 0, len(rr.HelmCharts))
 	for _, chart := range rr.HelmCharts {
 		charts = append(charts, chart.Source)
@@ -109,6 +104,9 @@ func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) (r
 	helmOptions := helm.RendererOptions{
 		Strict:       true,
 		Transformers: slices.Clone(a.transformers),
+		PostRenderers: []engineTypes.PostRenderer{
+			postrenderer.ApplyOrder(),
+		},
 		// TODO: add source annotations. Before it, make the source annotations configurable.
 	}
 
@@ -125,35 +123,7 @@ func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) (r
 	}
 
 	// TODO: manage render time values
-	objects, err := renderer.Process(ctx, map[string]any{})
-	if err != nil {
-		return nil, err
-	}
-
-	result = append(result, objects...)
-
-	// Sort resources to ensure proper installation order (CRDs before CRs)
-	sortByInstallOrder(result)
-
-	return result, nil
-}
-
-// sortByInstallOrder sorts resources so that CRDs come before other resources.
-// This ensures that CRDs are installed before any CRs that depend on them.
-func sortByInstallOrder(resources []unstructured.Unstructured) {
-	slices.SortStableFunc(resources, func(a, b unstructured.Unstructured) int {
-		aIsCRD := a.GetKind() == "CustomResourceDefinition"
-		bIsCRD := b.GetKind() == "CustomResourceDefinition"
-
-		switch {
-		case aIsCRD && !bIsCRD:
-			return -1
-		case !aIsCRD && bIsCRD:
-			return 1
-		default:
-			return 0
-		}
-	})
+	return renderer.Process(ctx, map[string]any{})
 }
 
 // NewAction creates a new Helm rendering action.

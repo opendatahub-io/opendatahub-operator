@@ -1,7 +1,7 @@
 apiVersion: infrastructure.opendatahub.io/v1alpha1
 kind: AzureKubernetesEngine
 metadata:
-  name: opendatahub-azure-kubernetes-engine
+  name: default-azurekubernetesengine
 spec:
   dependencies:
     certManager:

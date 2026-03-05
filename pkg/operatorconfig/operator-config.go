@@ -2,7 +2,6 @@ package operatorconfig
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -39,11 +38,6 @@ type Config struct {
 // LoadConfig loads complete operator configuration including flags parsing and rest.Config loading.
 // This is the main entry point for configuration initialization.
 func LoadConfig() (*Config, error) {
-	// Setup Viper
-	viper.SetEnvPrefix("ODH_MANAGER")
-	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
-	viper.AutomaticEnv()
-
 	// Define flags and env vars
 	if err := flags.AddOperatorFlagsAndEnvvars(viper.GetEnvPrefix()); err != nil {
 		return nil, fmt.Errorf("error adding flags or binding env vars: %w", err)

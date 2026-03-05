@@ -134,6 +134,9 @@ linters:
       - linters:
           - containedctx
         path: pkg/utils/test/testf/(.+)\.go
+      - linters:
+          - lll
+        path: internal/controller/cloudmanager/common/kubebuilder_rbac.go
     paths:
       - api
       - third_party$

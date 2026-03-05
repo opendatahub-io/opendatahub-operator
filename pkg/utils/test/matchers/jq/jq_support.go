@@ -135,10 +135,13 @@ func toType(in any) (any, error) {
 	}
 
 	switch reflect.TypeOf(in).Kind() {
-	case reflect.Map:
-		return in, nil
-	case reflect.Slice:
-		return in, nil
+	case reflect.Map, reflect.Slice:
+		data, err := json.Marshal(in)
+		if err != nil {
+			return nil, fmt.Errorf("unable to marshal object: %w", err)
+		}
+
+		return byteToType(data)
 	default:
 		return nil, fmt.Errorf("unsuported type:\n%s", format.Object(in, 1))
 	}
@@ -147,6 +150,9 @@ func toType(in any) (any, error) {
 // normalizeObject round-trips a map through JSON to normalize numeric types
 // (e.g. int64 → float64/int) so they match gojq literal types.
 func normalizeObject(obj map[string]any) (any, error) {
+	if obj == nil {
+		return obj, nil
+	}
 	data, err := json.Marshal(obj)
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal object: %w", err)
