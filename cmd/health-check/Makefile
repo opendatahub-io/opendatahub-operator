@@ -27,43 +27,6 @@ cluster-health-json:
 cluster-health-l:
 	go run ./cmd/health-check -l
 
-# cluster-health-<section> runs health check for a single section (nodes, deployments, pods, events, quotas, operator, dsci, dsc).
-.PHONY: cluster-health-nodes cluster-health-deployments cluster-health-pods cluster-health-events cluster-health-quotas cluster-health-operator cluster-health-dsci cluster-health-dsc
-cluster-health-nodes:
-	go run ./cmd/health-check -sections=nodes
-cluster-health-deployments:
-	go run ./cmd/health-check -sections=deployments
-cluster-health-pods:
-	go run ./cmd/health-check -sections=pods
-cluster-health-events:
-	go run ./cmd/health-check -sections=events
-cluster-health-quotas:
-	go run ./cmd/health-check -sections=quotas
-cluster-health-operator:
-	go run ./cmd/health-check -sections=operator
-cluster-health-dsci:
-	go run ./cmd/health-check -sections=dsci
-cluster-health-dsc:
-	go run ./cmd/health-check -sections=dsc
-
-# Long format for each section (conditions and details).
-.PHONY: cluster-health-nodes-l cluster-health-deployments-l cluster-health-pods-l cluster-health-events-l cluster-health-quotas-l cluster-health-operator-l cluster-health-dsci-l cluster-health-dsc-l
-cluster-health-nodes-l:
-	go run ./cmd/health-check -sections=nodes -l
-cluster-health-deployments-l:
-	go run ./cmd/health-check -sections=deployments -l
-cluster-health-pods-l:
-	go run ./cmd/health-check -sections=pods -l
-cluster-health-events-l:
-	go run ./cmd/health-check -sections=events -l
-cluster-health-quotas-l:
-	go run ./cmd/health-check -sections=quotas -l
-cluster-health-operator-l:
-	go run ./cmd/health-check -sections=operator -l
-cluster-health-dsci-l:
-	go run ./cmd/health-check -sections=dsci -l
-cluster-health-dsc-l:
-	go run ./cmd/health-check -sections=dsc -l
 
 # Run by layer: infrastructure (nodes, quotas), workload (deployments, pods, events, operator, dsci, dsc), operator (operator, dsci, dsc).
 .PHONY: cluster-health-infrastructure cluster-health-workload cluster-health-operator-layer

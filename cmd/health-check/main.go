@@ -1,5 +1,6 @@
 // health-check runs cluster health checks and exits 0 if the cluster is healthy, 1 otherwise.
-// It uses the same environment variables as the e2e tests so it can be run before e2e (e.g. from Makefile).
+// Configuration can be set via flags or environment variables; flags take precedence.
+// Use -help to see options and defaults (env vars are documented there).
 package main
 
 import (
@@ -36,9 +37,26 @@ func main() {
 		"Run only these layers, comma-separated (e.g. infrastructure, workload, operator). "+
 			"infrastructure=nodes,quotas; workload=deployments,pods,events,operator,dsci,dsc; operator=operator,dsci,dsc")
 	sectionsFlag := flag.String("sections", "", "Comma-separated list of sections to run (e.g. nodes,quotas or deployments,pods). Overrides -layer.")
+
+	// Configuration: flag default is env var (or static default).
+	operatorNamespace := flag.String("operator-namespace", getEnvDefault(envOperatorNamespace, defaultOperatorNS),
+		fmt.Sprintf("Namespace the operator is deployed to. Default: Env(%s) or %q", envOperatorNamespace, defaultOperatorNS))
+	applicationsNamespace := flag.String("applications-namespace", getEnvDefault(envApplicationsNamespace, defaultAppsNS),
+		fmt.Sprintf("Applications namespace (deployments, pods, events, quotas). Default: Env(%s) or %q", envApplicationsNamespace, defaultAppsNS))
+	operatorDeployment := flag.String("operator-deployment", getEnvDefault(envOperatorDeployment, defaultOperatorDeploy),
+		fmt.Sprintf("Operator deployment name. Default: Env(%s) or %q", envOperatorDeployment, defaultOperatorDeploy))
+	monitoringNamespace := flag.String("monitoring-namespace", getEnvDefault(envMonitoringNamespace, defaultMonitoringNS),
+		fmt.Sprintf("Monitoring namespace. Default: Env(%s) or %q", envMonitoringNamespace, defaultMonitoringNS))
+
 	flag.Parse()
 
-	cfg := loadConfig(*layerFlag, *sectionsFlag)
+	if err := validateConfig(*operatorNamespace, *applicationsNamespace, *operatorDeployment, *monitoringNamespace); err != nil {
+		fmt.Fprintf(os.Stderr, "health-check: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Set the listed env var or pass the corresponding flag. Run -help for details.\n")
+		os.Exit(1)
+	}
+
+	cfg := loadConfig(*operatorNamespace, *applicationsNamespace, *operatorDeployment, *monitoringNamespace, *layerFlag, *sectionsFlag)
 
 	kubeConfig, err := ctrl.GetConfig()
 	if err != nil {
@@ -86,12 +104,7 @@ func healthyStr(healthy bool) string {
 	return "unhealthy"
 }
 
-func loadConfig(layerFlag, sectionsFlag string) clusterhealth.Config {
-	operatorNS := getEnv(envOperatorNamespace, defaultOperatorNS)
-	appsNS := getEnv(envApplicationsNamespace, defaultAppsNS)
-	operatorDeploy := getEnv(envOperatorDeployment, defaultOperatorDeploy)
-	monitoringNS := getEnv(envMonitoringNamespace, defaultMonitoringNS)
-
+func loadConfig(operatorNS, appsNS, operatorDeploy, monitoringNS, layerFlag, sectionsFlag string) clusterhealth.Config {
 	cfg := clusterhealth.Config{
 		Operator: clusterhealth.OperatorConfig{
 			Namespace: operatorNS,
@@ -122,7 +135,30 @@ func loadConfig(layerFlag, sectionsFlag string) clusterhealth.Config {
 	return cfg
 }
 
-func getEnv(key, fallback string) string {
+// validateConfig returns an error if any required configuration is empty (e.g. env var not set and no flag).
+func validateConfig(operatorNS, appsNS, operatorDeploy, monitoringNS string) error {
+	var missing []string
+	if strings.TrimSpace(operatorNS) == "" {
+		missing = append(missing, fmt.Sprintf("operator-namespace (set %s or -operator-namespace)", envOperatorNamespace))
+	}
+	if strings.TrimSpace(appsNS) == "" {
+		missing = append(missing, fmt.Sprintf("applications-namespace (set %s or -applications-namespace)", envApplicationsNamespace))
+	}
+	if strings.TrimSpace(operatorDeploy) == "" {
+		missing = append(missing, fmt.Sprintf("operator-deployment (set %s or -operator-deployment)", envOperatorDeployment))
+	}
+	if strings.TrimSpace(monitoringNS) == "" {
+		missing = append(missing, fmt.Sprintf("monitoring-namespace (set %s or -monitoring-namespace)", envMonitoringNamespace))
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	return fmt.Errorf("missing required configuration: %s", strings.Join(missing, "; "))
+}
+
+// getEnvDefault returns the env var value if set and non-empty (trimmed), otherwise fallback.
+// Used to populate flag defaults so -help shows env-backed defaults.
+func getEnvDefault(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return strings.TrimSpace(v)
 	}

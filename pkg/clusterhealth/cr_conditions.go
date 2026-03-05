@@ -10,22 +10,18 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
-func runDSCISection(ctx context.Context, c client.Client, nn types.NamespacedName) SectionResult[CRConditionsSection] {
-	return runCRConditionsSection(ctx, c, gvk.DSCInitialization, nn)
-}
+// CR conditions health check: one generic flow — fetch CR by GVK, sanity checks, then Kind-specific unhealthy logic.
+// (1) Fetch by GVK (direct Get if name set, else singleton discovery via List).
+// (2) Common sanity: handle errors, not found, parse status.conditions.
+// (3) Kind-specific unhealthy checks via registry in cr_helpers.go (default: any condition not True).
+// To add a new CR: call runCRConditionsSection from run.go with its GVK and nn; register an UnhealthyChecker in cr_helpers if needed.
 
-func runDSCSection(ctx context.Context, c client.Client, nn types.NamespacedName) SectionResult[CRConditionsSection] {
-	return runCRConditionsSection(ctx, c, gvk.DataScienceCluster, nn)
-}
-
+// runCRConditionsSection is the single generic runner for CR condition health checks.
 func runCRConditionsSection(ctx context.Context, c client.Client, objGVK schema.GroupVersionKind, nn types.NamespacedName) SectionResult[CRConditionsSection] {
 	var out SectionResult[CRConditionsSection]
-	// DSCI and DSC are singletons; if no name is given, discover the single instance on the cluster.
-	obj, err := getDSCIOrDSCCR(ctx, c, objGVK, nn)
+	obj, err := getCRByGVK(ctx, c, objGVK, nn)
 	if err != nil {
 		out.Error = err.Error()
 		out.Data.Conditions = []ConditionSummary{}
@@ -46,125 +42,13 @@ func runCRConditionsSection(ctx context.Context, c client.Client, objGVK schema.
 	out.Data.Data = obj
 
 	var unhealthyMsgs []string
-	switch objGVK.Kind {
-	case "DataScienceCluster":
-		unhealthyMsgs = dscUnhealthyConditions(obj.Object, conditions)
-	case "DSCInitialization":
-		unhealthyMsgs = dsciUnhealthyConditions(conditions)
-	default:
+	if checker := getUnhealthyChecker(objGVK.Kind); checker != nil {
+		unhealthyMsgs = checker(obj.Object, conditions)
+	} else {
 		unhealthyMsgs = defaultUnhealthyConditions(conditions)
 	}
 	if len(unhealthyMsgs) > 0 {
 		out.Error = fmt.Sprintf("%s unhealthy conditions: %s", out.Data.Name, strings.Join(unhealthyMsgs, "; "))
-	}
-	return out
-}
-
-// dscUnhealthyConditions returns condition strings that count as unhealthy for DSC.
-// We only report unhealthy for a component if it is not Removed.
-func dscUnhealthyConditions(obj map[string]interface{}, conditions []ConditionSummary) []string {
-	removed := dscRemovedComponentNames(obj)
-	out := make([]string, 0, len(conditions))
-	for _, cond := range conditions {
-		if conditionStatusIsTrue(cond.Status) {
-			continue
-		}
-		// Skip if the controller message says the component is Removed
-		if conditionMessageIndicatesRemoved(cond.Message) {
-			continue
-		}
-		// Check all possible spec keys (v1 vs v2 use different names, e.g. datasciencepipelines vs aipipelines).
-		componentKeys := conditionTypeToDSCComponentKeys(cond.Type)
-		skip := false
-		for _, key := range componentKeys {
-			if removed[key] {
-				skip = true
-				break
-			}
-		}
-		if skip {
-			continue // component is Removed; ignore its readiness
-		}
-		out = append(out, fmt.Sprintf("%s=%s", cond.Type, cond.Status))
-	}
-	return out
-}
-
-// conditionMessageIndicatesRemoved returns true when the condition message indicates we should not report (component Removed or dependency not managed).
-func conditionMessageIndicatesRemoved(message string) bool {
-	s := strings.ToLower(strings.TrimSpace(message))
-	if strings.Contains(s, "managementstate is set to removed") {
-		return true
-	}
-	// subcomponents like ModelsAsService have a dependency on the parent component (e.g. KServe)
-	if strings.Contains(s, "is not managed") {
-		return true
-	}
-	return false
-}
-
-// dscRemovedComponentNames returns the set of component keys (e.g. "dashboard", "kueue") that have managementState "Removed".
-// Reads from both spec.components and status.components (keys stored lowercase for lookup).
-func dscRemovedComponentNames(obj map[string]interface{}) map[string]bool {
-	removed := make(map[string]bool)
-	for _, path := range [][]string{{"spec", "components"}, {"status", "components"}} {
-		components, found, _ := unstructured.NestedMap(obj, path...)
-		if !found {
-			continue
-		}
-		for name, val := range components {
-			comp, ok := val.(map[string]interface{})
-			if !ok {
-				continue
-			}
-			ms, _, _ := unstructured.NestedString(comp, "managementState")
-			if ms == "" {
-				ms, _, _ = unstructured.NestedString(comp, "managementSpec", "managementState")
-			}
-			if strings.EqualFold(strings.TrimSpace(ms), "Removed") {
-				removed[strings.ToLower(strings.TrimSpace(name))] = true
-			}
-		}
-	}
-	return removed
-}
-
-// conditionTypeToDSCComponentKeys returns all possible spec.components keys for this condition type.
-// DSC v1 and v2 use different JSON keys for the same component (e.g. "datasciencepipelines" vs "aipipelines"),
-// so we check all possibilities when deciding if a component is Removed.
-func conditionTypeToDSCComponentKeys(conditionType string) []string {
-	s := strings.TrimSpace(conditionType)
-	if s == "Ready" || s == "ComponentsReady" {
-		return nil
-	}
-	if !strings.HasSuffix(s, "Ready") {
-		return nil
-	}
-	base := strings.ToLower(s[:len(s)-len("Ready")])
-	// v1 uses "datasciencepipelines", v2 uses "aipipelines"; condition can be DataSciencePipelinesReady or AIPipelinesReady.
-	if base == "datasciencepipelines" || base == "aipipelines" {
-		return []string{"datasciencepipelines", "aipipelines"}
-	}
-	return []string{base}
-}
-
-// dsciUnhealthyConditions returns condition strings that count as unhealthy for DSCI.
-// We ignore Progressing and Upgradeable. We report unhealthy only when Degraded is True.
-func dsciUnhealthyConditions(conditions []ConditionSummary) []string {
-	out := make([]string, 0, len(conditions))
-	for _, cond := range conditions {
-		switch strings.TrimSpace(cond.Type) {
-		case "Progressing", "Upgradeable":
-			continue
-		case "Degraded":
-			if conditionStatusIsTrue(cond.Status) {
-				out = append(out, fmt.Sprintf("%s=%s", cond.Type, cond.Status))
-			}
-			continue
-		}
-		if !conditionStatusIsTrue(cond.Status) {
-			out = append(out, fmt.Sprintf("%s=%s", cond.Type, cond.Status))
-		}
 	}
 	return out
 }
@@ -180,7 +64,10 @@ func defaultUnhealthyConditions(conditions []ConditionSummary) []string {
 	return out
 }
 
-func getDSCIOrDSCCR(ctx context.Context, c client.Client, objGVK schema.GroupVersionKind, nn types.NamespacedName) (*unstructured.Unstructured, error) {
+// getCRByGVK fetches a CR by GroupVersionKind and optional namespaced name.
+// If nn.Name is set, it does a direct Get. If nn.Name is empty, it lists the Kind and returns the first item (singleton discovery).
+// Caller handles NotFound, list empty, and other errors.
+func getCRByGVK(ctx context.Context, c client.Client, objGVK schema.GroupVersionKind, nn types.NamespacedName) (*unstructured.Unstructured, error) {
 	if nn.Name != "" {
 		obj := &unstructured.Unstructured{}
 		obj.SetGroupVersionKind(objGVK)
@@ -196,7 +83,7 @@ func getDSCIOrDSCCR(ctx context.Context, c client.Client, objGVK schema.GroupVer
 		}
 		return obj, nil
 	}
-	// Discover singleton: list all and take the first.
+	// Singleton discovery: list all and take the first.
 	list := &unstructured.UnstructuredList{}
 	list.SetGroupVersionKind(schema.GroupVersionKind{
 		Group:   objGVK.Group,
