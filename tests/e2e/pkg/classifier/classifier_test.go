@@ -1,3 +1,4 @@
+//nolint:testpackage
 package classifier
 
 import (
@@ -6,7 +7,27 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth"
 )
 
-func TestClassify(t *testing.T) {
+func assertClassification(t *testing.T, got FailureClassification, wantCategory, wantSubcategory string, wantErrorCode int, wantConfidence string) {
+	t.Helper()
+
+	if got.Category != wantCategory {
+		t.Errorf("Category = %q, want %q", got.Category, wantCategory)
+	}
+	if got.Subcategory != wantSubcategory {
+		t.Errorf("Subcategory = %q, want %q", got.Subcategory, wantSubcategory)
+	}
+	if got.ErrorCode != wantErrorCode {
+		t.Errorf("ErrorCode = %d, want %d", got.ErrorCode, wantErrorCode)
+	}
+	if got.Confidence != wantConfidence {
+		t.Errorf("Confidence = %q, want %q", got.Confidence, wantConfidence)
+	}
+	if len(got.Evidence) == 0 {
+		t.Error("Evidence should not be empty")
+	}
+}
+
+func TestClassify_NilAndCleanReport(t *testing.T) {
 	tests := []struct {
 		name            string
 		report          *clusterhealth.Report
@@ -32,6 +53,35 @@ func TestClassify(t *testing.T) {
 			wantConfidence:  ConfidenceMedium,
 		},
 		{
+			name: "all sections errored returns unknown",
+			report: &clusterhealth.Report{
+				Pods:        clusterhealth.SectionResult[clusterhealth.PodsSection]{Error: "fail"},
+				Events:      clusterhealth.SectionResult[clusterhealth.EventsSection]{Error: "fail"},
+				Quotas:      clusterhealth.SectionResult[clusterhealth.QuotasSection]{Error: "fail"},
+				Nodes:       clusterhealth.SectionResult[clusterhealth.NodesSection]{Error: "fail"},
+				Deployments: clusterhealth.SectionResult[clusterhealth.DeploymentsSection]{Error: "fail"},
+			},
+			wantCategory:    CategoryUnknown,
+			wantSubcategory: "unclassifiable",
+			wantErrorCode:   CodeUnclassifiable,
+			wantConfidence:  ConfidenceLow,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Classify(tt.report)
+			assertClassification(t, got, tt.wantCategory, tt.wantSubcategory, tt.wantErrorCode, tt.wantConfidence)
+		})
+	}
+}
+
+func TestClassify_ImagePull(t *testing.T) {
+	tests := []struct {
+		name   string
+		report *clusterhealth.Report
+	}{
+		{
 			name: "ImagePullBackOff in waiting container",
 			report: &clusterhealth.Report{
 				Pods: clusterhealth.SectionResult[clusterhealth.PodsSection]{
@@ -50,10 +100,6 @@ func TestClassify(t *testing.T) {
 					},
 				},
 			},
-			wantCategory:    CategoryInfrastructure,
-			wantSubcategory: "image-pull",
-			wantErrorCode:   CodeImagePull,
-			wantConfidence:  ConfidenceMedium,
 		},
 		{
 			name: "ErrImagePull in waiting container",
@@ -73,11 +119,23 @@ func TestClassify(t *testing.T) {
 					},
 				},
 			},
-			wantCategory:    CategoryInfrastructure,
-			wantSubcategory: "image-pull",
-			wantErrorCode:   CodeImagePull,
-			wantConfidence:  ConfidenceMedium,
 		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Classify(tt.report)
+			assertClassification(t, got, CategoryInfrastructure, "image-pull", CodeImagePull, ConfidenceMedium)
+		})
+	}
+}
+
+func TestClassify_PodStartup(t *testing.T) {
+	tests := []struct {
+		name           string
+		report         *clusterhealth.Report
+		wantConfidence string
+	}{
 		{
 			name: "CrashLoopBackOff in waiting container",
 			report: &clusterhealth.Report{
@@ -96,33 +154,7 @@ func TestClassify(t *testing.T) {
 					},
 				},
 			},
-			wantCategory:    CategoryInfrastructure,
-			wantSubcategory: "pod-startup",
-			wantErrorCode:   CodePodStartup,
-			wantConfidence:  ConfidenceMedium,
-		},
-		{
-			name: "OOMKilled in terminated container",
-			report: &clusterhealth.Report{
-				Pods: clusterhealth.SectionResult[clusterhealth.PodsSection]{
-					Data: clusterhealth.PodsSection{
-						ByNamespace: map[string][]clusterhealth.PodInfo{
-							"test-ns": {
-								{
-									Name: "oom-pod",
-									Containers: []clusterhealth.ContainerInfo{
-										{Name: "main", Terminated: "OOMKilled"},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			wantCategory:    CategoryInfrastructure,
-			wantSubcategory: "quota-oom",
-			wantErrorCode:   CodeQuotaOOM,
-			wantConfidence:  ConfidenceMedium,
+			wantConfidence: ConfidenceMedium,
 		},
 		{
 			name: "pod stuck in Pending",
@@ -137,11 +169,47 @@ func TestClassify(t *testing.T) {
 					},
 				},
 			},
-			wantCategory:    CategoryInfrastructure,
-			wantSubcategory: "pod-startup",
-			wantErrorCode:   CodePodStartup,
-			wantConfidence:  ConfidenceHigh,
+			wantConfidence: ConfidenceHigh,
 		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Classify(tt.report)
+			assertClassification(t, got, CategoryInfrastructure, "pod-startup", CodePodStartup, tt.wantConfidence)
+		})
+	}
+}
+
+func TestClassify_OOMKilled(t *testing.T) {
+	report := &clusterhealth.Report{
+		Pods: clusterhealth.SectionResult[clusterhealth.PodsSection]{
+			Data: clusterhealth.PodsSection{
+				ByNamespace: map[string][]clusterhealth.PodInfo{
+					"test-ns": {
+						{
+							Name: "oom-pod",
+							Containers: []clusterhealth.ContainerInfo{
+								{Name: "main", Terminated: "OOMKilled"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	got := Classify(report)
+	assertClassification(t, got, CategoryInfrastructure, "quota-oom", CodeQuotaOOM, ConfidenceMedium)
+}
+
+func TestClassify_Events(t *testing.T) {
+	tests := []struct {
+		name            string
+		report          *clusterhealth.Report
+		wantSubcategory string
+		wantErrorCode   int
+	}{
 		{
 			name: "NetworkNotReady event",
 			report: &clusterhealth.Report{
@@ -153,10 +221,8 @@ func TestClassify(t *testing.T) {
 					},
 				},
 			},
-			wantCategory:    CategoryInfrastructure,
 			wantSubcategory: "network",
 			wantErrorCode:   CodeNetwork,
-			wantConfidence:  ConfidenceMedium,
 		},
 		{
 			name: "network not ready in event message",
@@ -169,10 +235,8 @@ func TestClassify(t *testing.T) {
 					},
 				},
 			},
-			wantCategory:    CategoryInfrastructure,
 			wantSubcategory: "network",
 			wantErrorCode:   CodeNetwork,
-			wantConfidence:  ConfidenceMedium,
 		},
 		{
 			name: "FailedAttachVolume event",
@@ -185,10 +249,8 @@ func TestClassify(t *testing.T) {
 					},
 				},
 			},
-			wantCategory:    CategoryInfrastructure,
 			wantSubcategory: "storage",
 			wantErrorCode:   CodeStorage,
-			wantConfidence:  ConfidenceMedium,
 		},
 		{
 			name: "FailedMount event",
@@ -201,10 +263,8 @@ func TestClassify(t *testing.T) {
 					},
 				},
 			},
-			wantCategory:    CategoryInfrastructure,
 			wantSubcategory: "storage",
 			wantErrorCode:   CodeStorage,
-			wantConfidence:  ConfidenceMedium,
 		},
 		{
 			name: "storage pattern in event message",
@@ -217,51 +277,132 @@ func TestClassify(t *testing.T) {
 					},
 				},
 			},
-			wantCategory:    CategoryInfrastructure,
 			wantSubcategory: "storage",
 			wantErrorCode:   CodeStorage,
-			wantConfidence:  ConfidenceMedium,
 		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Classify(tt.report)
+			assertClassification(t, got, CategoryInfrastructure, tt.wantSubcategory, tt.wantErrorCode, ConfidenceMedium)
+		})
+	}
+}
+
+func TestClassify_Quota(t *testing.T) {
+	report := &clusterhealth.Report{
+		Quotas: clusterhealth.SectionResult[clusterhealth.QuotasSection]{
+			Data: clusterhealth.QuotasSection{
+				ByNamespace: map[string][]clusterhealth.ResourceQuotaInfo{
+					"test-ns": {
+						{
+							Namespace: "test-ns",
+							Name:      "compute-quota",
+							Exceeded:  []string{"cpu"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	got := Classify(report)
+	assertClassification(t, got, CategoryInfrastructure, "quota-oom", CodeQuotaOOM, ConfidenceHigh)
+}
+
+func TestClassify_NodePressure(t *testing.T) {
+	report := &clusterhealth.Report{
+		Nodes: clusterhealth.SectionResult[clusterhealth.NodesSection]{
+			Data: clusterhealth.NodesSection{
+				Nodes: []clusterhealth.NodeInfo{
+					{Name: "worker-1", UnhealthyReason: "MemoryPressure: True"},
+				},
+			},
+		},
+	}
+
+	got := Classify(report)
+	assertClassification(t, got, CategoryInfrastructure, "node-pressure", CodeNodePressure, ConfidenceHigh)
+}
+
+func TestClassify_ClusterDistress(t *testing.T) {
+	tests := []struct {
+		name   string
+		report *clusterhealth.Report
+	}{
 		{
-			name: "quota exceeded",
+			name: "unrecognized waiting reason",
 			report: &clusterhealth.Report{
-				Quotas: clusterhealth.SectionResult[clusterhealth.QuotasSection]{
-					Data: clusterhealth.QuotasSection{
-						ByNamespace: map[string][]clusterhealth.ResourceQuotaInfo{
+				Pods: clusterhealth.SectionResult[clusterhealth.PodsSection]{
+					Data: clusterhealth.PodsSection{
+						ByNamespace: map[string][]clusterhealth.PodInfo{
 							"test-ns": {
 								{
-									Namespace: "test-ns",
-									Name:      "compute-quota",
-									Exceeded:  []string{"cpu"},
+									Name: "broken-pod",
+									Containers: []clusterhealth.ContainerInfo{
+										{Name: "main", Waiting: "RunContainerError: something went wrong"},
+									},
 								},
 							},
 						},
 					},
 				},
 			},
-			wantCategory:    CategoryInfrastructure,
-			wantSubcategory: "quota-oom",
-			wantErrorCode:   CodeQuotaOOM,
-			wantConfidence:  ConfidenceHigh,
 		},
 		{
-			name: "unhealthy node",
+			name: "unrecognized terminated reason",
 			report: &clusterhealth.Report{
-				Nodes: clusterhealth.SectionResult[clusterhealth.NodesSection]{
-					Data: clusterhealth.NodesSection{
-						Nodes: []clusterhealth.NodeInfo{
-							{Name: "worker-1", UnhealthyReason: "MemoryPressure: True"},
+				Pods: clusterhealth.SectionResult[clusterhealth.PodsSection]{
+					Data: clusterhealth.PodsSection{
+						ByNamespace: map[string][]clusterhealth.PodInfo{
+							"test-ns": {
+								{
+									Name: "error-pod",
+									Containers: []clusterhealth.ContainerInfo{
+										{Name: "main", Terminated: "Error: exit code 1"},
+									},
+								},
+							},
 						},
 					},
 				},
 			},
-			wantCategory:    CategoryInfrastructure,
-			wantSubcategory: "node-pressure",
-			wantErrorCode:   CodeNodePressure,
-			wantConfidence:  ConfidenceHigh,
 		},
 		{
-			name: "priority: image pull wins over node pressure",
+			name: "unready deployment",
+			report: &clusterhealth.Report{
+				Deployments: clusterhealth.SectionResult[clusterhealth.DeploymentsSection]{
+					Data: clusterhealth.DeploymentsSection{
+						ByNamespace: map[string][]clusterhealth.DeploymentInfo{
+							"test-ns": {
+								{Namespace: "test-ns", Name: "my-deploy", Ready: 0, Replicas: 3},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Classify(tt.report)
+			assertClassification(t, got, CategoryInfrastructure, "cluster-distress", CodeInfraUnknown, ConfidenceLow)
+		})
+	}
+}
+
+func TestClassify_Priority(t *testing.T) {
+	tests := []struct {
+		name            string
+		report          *clusterhealth.Report
+		wantSubcategory string
+		wantErrorCode   int
+		wantConfidence  string
+	}{
+		{
+			name: "image pull wins over node pressure",
 			report: &clusterhealth.Report{
 				Pods: clusterhealth.SectionResult[clusterhealth.PodsSection]{
 					Data: clusterhealth.PodsSection{
@@ -285,7 +426,6 @@ func TestClassify(t *testing.T) {
 					},
 				},
 			},
-			wantCategory:    CategoryInfrastructure,
 			wantSubcategory: "image-pull",
 			wantErrorCode:   CodeImagePull,
 			wantConfidence:  ConfidenceMedium,
@@ -304,88 +444,9 @@ func TestClassify(t *testing.T) {
 					},
 				},
 			},
-			wantCategory:    CategoryInfrastructure,
 			wantSubcategory: "node-pressure",
 			wantErrorCode:   CodeNodePressure,
 			wantConfidence:  ConfidenceHigh,
-		},
-		{
-			name: "all sections errored returns unknown",
-			report: &clusterhealth.Report{
-				Pods:        clusterhealth.SectionResult[clusterhealth.PodsSection]{Error: "fail"},
-				Events:      clusterhealth.SectionResult[clusterhealth.EventsSection]{Error: "fail"},
-				Quotas:      clusterhealth.SectionResult[clusterhealth.QuotasSection]{Error: "fail"},
-				Nodes:       clusterhealth.SectionResult[clusterhealth.NodesSection]{Error: "fail"},
-				Deployments: clusterhealth.SectionResult[clusterhealth.DeploymentsSection]{Error: "fail"},
-			},
-			wantCategory:    CategoryUnknown,
-			wantSubcategory: "unclassifiable",
-			wantErrorCode:   CodeUnclassifiable,
-			wantConfidence:  ConfidenceLow,
-		},
-		{
-			name: "unrecognized waiting reason triggers cluster-distress",
-			report: &clusterhealth.Report{
-				Pods: clusterhealth.SectionResult[clusterhealth.PodsSection]{
-					Data: clusterhealth.PodsSection{
-						ByNamespace: map[string][]clusterhealth.PodInfo{
-							"test-ns": {
-								{
-									Name: "broken-pod",
-									Containers: []clusterhealth.ContainerInfo{
-										{Name: "main", Waiting: "RunContainerError: something went wrong"},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			wantCategory:    CategoryInfrastructure,
-			wantSubcategory: "cluster-distress",
-			wantErrorCode:   CodeInfraUnknown,
-			wantConfidence:  ConfidenceLow,
-		},
-		{
-			name: "unrecognized terminated reason triggers cluster-distress",
-			report: &clusterhealth.Report{
-				Pods: clusterhealth.SectionResult[clusterhealth.PodsSection]{
-					Data: clusterhealth.PodsSection{
-						ByNamespace: map[string][]clusterhealth.PodInfo{
-							"test-ns": {
-								{
-									Name: "error-pod",
-									Containers: []clusterhealth.ContainerInfo{
-										{Name: "main", Terminated: "Error: exit code 1"},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			wantCategory:    CategoryInfrastructure,
-			wantSubcategory: "cluster-distress",
-			wantErrorCode:   CodeInfraUnknown,
-			wantConfidence:  ConfidenceLow,
-		},
-		{
-			name: "unready deployment triggers cluster-distress",
-			report: &clusterhealth.Report{
-				Deployments: clusterhealth.SectionResult[clusterhealth.DeploymentsSection]{
-					Data: clusterhealth.DeploymentsSection{
-						ByNamespace: map[string][]clusterhealth.DeploymentInfo{
-							"test-ns": {
-								{Namespace: "test-ns", Name: "my-deploy", Ready: 0, Replicas: 3},
-							},
-						},
-					},
-				},
-			},
-			wantCategory:    CategoryInfrastructure,
-			wantSubcategory: "cluster-distress",
-			wantErrorCode:   CodeInfraUnknown,
-			wantConfidence:  ConfidenceLow,
 		},
 		{
 			name: "specific pattern wins over cluster-distress catch-all",
@@ -411,7 +472,6 @@ func TestClassify(t *testing.T) {
 					},
 				},
 			},
-			wantCategory:    CategoryInfrastructure,
 			wantSubcategory: "image-pull",
 			wantErrorCode:   CodeImagePull,
 			wantConfidence:  ConfidenceMedium,
@@ -435,7 +495,6 @@ func TestClassify(t *testing.T) {
 					},
 				},
 			},
-			wantCategory:    CategoryInfrastructure,
 			wantSubcategory: "image-pull",
 			wantErrorCode:   CodeImagePull,
 			wantConfidence:  ConfidenceMedium,
@@ -445,21 +504,7 @@ func TestClassify(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := Classify(tt.report)
-			if got.Category != tt.wantCategory {
-				t.Errorf("Category = %q, want %q", got.Category, tt.wantCategory)
-			}
-			if got.Subcategory != tt.wantSubcategory {
-				t.Errorf("Subcategory = %q, want %q", got.Subcategory, tt.wantSubcategory)
-			}
-			if got.ErrorCode != tt.wantErrorCode {
-				t.Errorf("ErrorCode = %d, want %d", got.ErrorCode, tt.wantErrorCode)
-			}
-			if got.Confidence != tt.wantConfidence {
-				t.Errorf("Confidence = %q, want %q", got.Confidence, tt.wantConfidence)
-			}
-			if len(got.Evidence) == 0 {
-				t.Error("Evidence should not be empty")
-			}
+			assertClassification(t, got, CategoryInfrastructure, tt.wantSubcategory, tt.wantErrorCode, tt.wantConfidence)
 		})
 	}
 }

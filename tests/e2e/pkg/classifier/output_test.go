@@ -1,3 +1,4 @@
+//nolint:testpackage
 package classifier
 
 import (
@@ -29,7 +30,10 @@ func TestEmitClassification(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	_, err := io.Copy(&buf, r)
+	if err != nil {
+		t.Fatalf("failed to copy stdout: %v", err)
+	}
 	output := buf.String()
 
 	// Verify the structured line is present

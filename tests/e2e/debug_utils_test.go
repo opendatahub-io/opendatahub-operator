@@ -25,6 +25,20 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/e2e/pkg/classifier"
 )
 
+const (
+	// Container waiting reason constants (commonly used values in Kubernetes).
+	CrashLoopBackOff           = "CrashLoopBackOff"
+	ImagePullBackOff           = "ImagePullBackOff"
+	ErrImagePull               = "ErrImagePull"
+	InvalidImageName           = "InvalidImageName"
+	CreateContainerConfigError = "CreateContainerConfigError"
+	CreateContainerError       = "CreateContainerError"
+
+	// Log type constants.
+	logTypeCurrent  = "current"
+	logTypePrevious = "previous"
+)
+
 var (
 	// Regex patterns for common secrets in logs.
 	authBearerPattern = regexp.MustCompile(`(?i)(Authorization:\s*Bearer\s+)[^\s]+`)
@@ -366,24 +380,30 @@ func logProblematicContainerLogs(pods []corev1.Pod) {
 	}
 }
 
-// determineLogType returns "current" or "previous" depending on the container state,
-// or empty string if no logs are needed.
-func determineLogType(cs corev1.ContainerStatus) string {
-	if cs.State.Waiting != nil && cs.RestartCount > 0 {
-		return "previous"
+// determineLogType returns the type of logs to retrieve or empty string if no logs needed.
+func determineLogType(containerStatus corev1.ContainerStatus) string {
+	// Get logs from previous crashed container (when waiting after restart)
+	if containerStatus.State.Waiting != nil && containerStatus.RestartCount > 0 {
+		return logTypePrevious
 	}
-	if cs.State.Terminated != nil {
-		return "current"
+
+	// Get current logs for terminated containers
+	if containerStatus.State.Terminated != nil {
+		return logTypeCurrent
 	}
-	if !cs.Ready && cs.RestartCount > 0 {
-		return "current"
+
+	// Get current logs for not-ready containers with restarts
+	if !containerStatus.Ready && containerStatus.RestartCount > 0 {
+		return logTypeCurrent
 	}
-	if cs.State.Waiting != nil {
-		reason := cs.State.Waiting.Reason
-		switch reason {
-		case "CrashLoopBackOff", "ImagePullBackOff", "ErrImagePull",
-			"InvalidImageName", "CreateContainerConfigError", "CreateContainerError":
-			return "current"
+
+	// Get current logs for containers in problematic waiting states (even without restarts)
+	if containerStatus.State.Waiting != nil {
+		reason := containerStatus.State.Waiting.Reason
+		if reason == CrashLoopBackOff || reason == ImagePullBackOff ||
+			reason == ErrImagePull || reason == InvalidImageName ||
+			reason == CreateContainerConfigError || reason == CreateContainerError {
+			return logTypeCurrent
 		}
 	}
 
