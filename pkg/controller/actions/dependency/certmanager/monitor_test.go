@@ -1,4 +1,4 @@
-package dependency_test
+package certmanager_test
 
 import (
 	"context"
@@ -6,27 +6,27 @@ import (
 
 	"github.com/rs/xid"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency"
+	certmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	cond "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
 	. "github.com/onsi/gomega"
 )
 
-// TestCertManagerCRDPredicate verifies that CertManagerCRDPredicate matches the three core
-// cert-manager CRDs and rejects unrelated objects.
-func TestCertManagerCRDPredicate(t *testing.T) {
-	pred := dependency.CertManagerCRDPredicate()
+// TestCRDPredicate verifies that CRDPredicate matches the three core cert-manager CRDs
+// and rejects unrelated objects.
+func TestCRDPredicate(t *testing.T) {
+	pred := certmanager.CRDPredicate()
 
 	makeCRD := func(name string) *unstructured.Unstructured {
 		u := &unstructured.Unstructured{}
@@ -68,28 +68,19 @@ func createCRD(t *testing.T, g *WithT, ctx context.Context, envTest *envt.EnvT,
 	gvkDef schema.GroupVersionKind, plural, singular string, scope apiextensionsv1.ResourceScope,
 ) {
 	t.Helper()
-
 	crd, err := envTest.RegisterCRD(ctx, gvkDef, plural, singular, scope)
 	g.Expect(err).NotTo(HaveOccurred())
-
-	t.Cleanup(func() {
-		g.Eventually(func() error {
-			return envTest.Client().Delete(ctx, crd)
-		}).Should(Or(
-			Not(HaveOccurred()),
-			MatchError(k8serr.IsNotFound, "IsNotFound"),
-		))
-	})
+	envt.CleanupDelete(t, g, ctx, envTest.Client(), crd)
 }
 
-// TestMonitorCertManagerCRDs verifies the MonitorCertManagerCRDs convenience function, which
-// pre-configures monitoring for the three core cert-manager CRDs.
+// TestMonitorCRDs verifies that MonitorCRDs pre-configures monitoring for the three core
+// cert-manager CRDs.
 //
 // Each subtest uses its own envtest instance rather than sharing one across subtests.
 // HasCRD relies on the REST mapper, whose discovery cache refreshes asynchronously after
 // CRD deletion. A shared instance cannot guarantee the mapper reflects zero CRDs at the
 // start of the "absent CRDs" case when other subtests registered CRDs beforehand.
-func TestMonitorCertManagerCRDs(t *testing.T) {
+func TestMonitorCRDs(t *testing.T) {
 	tests := []struct {
 		name                   string
 		setupCRDs              func(t *testing.T, g *WithT, ctx context.Context, envTest *envt.EnvT)
@@ -111,9 +102,9 @@ func TestMonitorCertManagerCRDs(t *testing.T) {
 			name: "present CRDs yield healthy",
 			setupCRDs: func(t *testing.T, g *WithT, ctx context.Context, envTest *envt.EnvT) {
 				t.Helper()
-				createCRD(t, g, ctx, envTest, gvk.CertManagerCertificate, "certificates", "certificate", apiextensionsv1.NamespaceScoped)
-				createCRD(t, g, ctx, envTest, gvk.CertManagerIssuer, "issuers", "issuer", apiextensionsv1.NamespaceScoped)
-				createCRD(t, g, ctx, envTest, gvk.CertManagerClusterIssuer, "clusterissuers", "clusterissuer", apiextensionsv1.ClusterScoped)
+				createCRD(t, g, ctx, envTest, gvk.CertManagerCertificate, certManagerCertificatePlural, certManagerCertificateSingular, apiextensionsv1.NamespaceScoped)
+				createCRD(t, g, ctx, envTest, gvk.CertManagerIssuer, certManagerIssuerPlural, certManagerIssuerSingular, apiextensionsv1.NamespaceScoped)
+				createCRD(t, g, ctx, envTest, gvk.CertManagerClusterIssuer, certManagerClusterIssuerPlural, certManagerClusterIssuerSingular, apiextensionsv1.ClusterScoped)
 			},
 			expectedAvailable: true,
 		},
@@ -121,7 +112,7 @@ func TestMonitorCertManagerCRDs(t *testing.T) {
 			name: "mix of present and absent CRDs",
 			setupCRDs: func(t *testing.T, g *WithT, ctx context.Context, envTest *envt.EnvT) {
 				t.Helper()
-				createCRD(t, g, ctx, envTest, gvk.CertManagerCertificate, "certificates", "certificate", apiextensionsv1.NamespaceScoped)
+				createCRD(t, g, ctx, envTest, gvk.CertManagerCertificate, certManagerCertificatePlural, certManagerCertificateSingular, apiextensionsv1.NamespaceScoped)
 				// Issuer and ClusterIssuer CRDs intentionally not created
 			},
 			expectedAvailable:      false,
@@ -145,11 +136,11 @@ func TestMonitorCertManagerCRDs(t *testing.T) {
 				tt.setupCRDs(t, g, ctx, envTest)
 			}
 
-			instance := &componentApi.Kueue{ObjectMeta: metav1.ObjectMeta{Name: xid.New().String()}}
+			instance := &scheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Name: xid.New().String()}}
 			condManager := cond.NewManager(instance, status.ConditionDependenciesAvailable)
 			rr := &types.ReconciliationRequest{Client: cli, Instance: instance, Conditions: condManager}
 
-			action := dependency.NewAction(dependency.MonitorCertManagerCRDs())
+			action := dependency.NewAction(certmanager.MonitorCRDs())
 			err = action(ctx, rr)
 			g.Expect(err).NotTo(HaveOccurred())
 
