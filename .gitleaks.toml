@@ -48,3 +48,10 @@
     # Test certificate and key files
     '''tests/data/.*\.(pem|crt|key)$''',
   ]
+
+  # Known test/placeholder credentials used in documentation and tests
+  regexes = [
+    '''database-password\s*:\s*"?(The)?BlurstOfTimes"?''',
+    '''database-user\s*:\s*"?mlmduser"?''',
+    '''database-user\s*:\s*"?modelregistryuser"?''',
+  ]
