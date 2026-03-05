@@ -103,6 +103,8 @@ cfg.OnlySections = []string{
   - **Error**: non-empty if the check failed or found an unhealthy state.
   - **Data**: typed section data (e.g. `NodesSection`, `DeploymentsSection`, `CRConditionsSection`).
 
+  For DSCI and DSC (CR condition sections), Error is set when the CR is not found, when `status.conditions` is malformed (e.g. not a slice), or when conditions indicate unhealthy.
+
 **Healthy()** returns true only when every section has no error. Partial failures (e.g. one namespace list fails) still populate other sections and set the failed section’s `Error`.
 
 ### PrettyPrint
@@ -112,6 +114,31 @@ cfg.OnlySections = []string{
 ### Operator section and dependent operators
 
 The operator section checks the main operator deployment and **all known dependent operators** (see the main repo README "External Operators (Prerequisites)" table). For each dependent we look for deployments in its known namespace; if any exist we treat it as installed. Every known dependent is listed in `report.Operator.Data.DependentOperators` with `Installed` true or false (and when installed: name, deployment, pods, error). Not-installed dependents are recorded but do not cause a section error.
+
+### Adding a CR condition check
+
+To add health checks for a new Custom Resource (CR) that has `status.conditions` (same shape as DSCI/DSC), wire it through the following. Use DSCI/DSC as the reference implementation.
+
+1. **GVK** (`pkg/cluster/gvk`): Ensure the CR’s `schema.GroupVersionKind` is defined (e.g. `MyCR`). The `Kind` string is used to look up an optional unhealthy checker.
+
+2. **Section constant and layers** (`pkg/clusterhealth/sections.go`):
+   - Add a section constant, e.g. `SectionMyCR = "mycr"`.
+   - Add the section to `layerSections` for any layers that should include it (e.g. `LayerWorkload`, `LayerOperator`).
+   - Add it to the default list in `sectionsToRun()` (the slice passed to `sliceToSet` when no `OnlySections`/`Layers` are set).
+
+3. **Config** (`pkg/clusterhealth/config.go`): Add a field for the CR’s namespaced name, e.g. `MyCR types.NamespacedName`. Empty name means “discover singleton via List”.
+
+4. **Report and Healthy()** (`pkg/clusterhealth/types.go`): Add a field to `Report`, e.g. `MyCR SectionResult[CRConditionsSection]`, and include `r.MyCR.Error == ""` in `Healthy()`.
+
+5. **Run** (`pkg/clusterhealth/run.go`): Append the new section name to `sectionOrder`. Add a conditional: `if run[SectionMyCR] { report.MyCR = runCRConditionsSection(ctx, cfg.Client, gvk.MyCR, cfg.MyCR) }`.
+
+6. **Format** (`pkg/clusterhealth/format.go`): Add an entry to `sectionDisplayOrder`. In `sectionStatusForKey` and `sectionSummaryForKey`, add a case for the new section (status from `r.MyCR.Error`, summary e.g. name + condition count). In `longDetailsForSection`, add a case that calls `r.longDetailsCRConditions(r.MyCR.Data.Name, r.MyCR.Data.Conditions)`.
+
+7. **Optional – custom unhealthy logic** (`pkg/clusterhealth/cr_helpers.go`): By default, any condition with `status != True` is reported as unhealthy. To override (e.g. ignore certain condition types or respect `managementState: Removed`), add an entry to `kindUnhealthyCheckers` keyed by the CR’s **Kind** and implement an `UnhealthyChecker`: `func(obj map[string]interface{}, conditions []ConditionSummary) []string` returning messages for conditions that count as unhealthy.
+
+8. **CLI** (`cmd/health-check/main.go`): In `loadConfig`, set the new Config field (e.g. `MyCR: types.NamespacedName{}`). The `-sections` and `-layer` flags already accept section names by string, so the new section is selectable as soon as it appears in `sections.go`.
+
+The CR must expose `status.conditions` as a slice of objects with `type`, `status`, and optional `message`. If `status.conditions` is missing, the section gets no error and empty conditions; if it is present but malformed (e.g. not a slice), the section’s `Error` is set.
 
 ## CLI
 
@@ -133,5 +160,5 @@ Makefile targets (from repo root, see `cmd/health-check/Makefile`):
 - `make cluster-health-json` — JSON output
 - `make cluster-health-infrastructure`, `make cluster-health-workload`, `make cluster-health-operator-layer` — by layer (infrastructure = nodes + quotas; workload = deployments, pods, events, operator, DSCI, DSC; operator = operator, DSCI, DSC)
 - `make cluster-health-infrastructure-l`, `make cluster-health-workload-l`, `make cluster-health-operator-layer-l` — by layer, long format
-- `make cluster-health-nodes`, `make cluster-health-dsc`, etc. — single section
-- `make cluster-health-dsc-l`, etc. — single section, long format
+
+To run a single section (e.g. nodes or dsc), use the CLI: `go run ./cmd/health-check -sections=nodes` or `-sections=dsc -l` for long format.
