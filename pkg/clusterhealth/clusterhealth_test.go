@@ -206,19 +206,20 @@ func TestQuantityExceedsOrEqual(t *testing.T) {
 
 func TestParseConditionsFromUnstructured(t *testing.T) {
 	tests := []struct {
-		name string
-		obj  map[string]interface{}
-		want int
+		name    string
+		obj     map[string]interface{}
+		wantN   int
+		wantErr bool
 	}{
-		{"no status", map[string]interface{}{}, 0},
-		{"no conditions", map[string]interface{}{"status": map[string]interface{}{}}, 0},
+		{"no status", map[string]interface{}{}, 0, false},
+		{"no conditions", map[string]interface{}{"status": map[string]interface{}{}}, 0, false},
 		{"one condition", map[string]interface{}{
 			"status": map[string]interface{}{
 				"conditions": []interface{}{
 					map[string]interface{}{"type": "Ready", "status": "True", "message": "ok"},
 				},
 			},
-		}, 1},
+		}, 1, false},
 		{"two conditions", map[string]interface{}{
 			"status": map[string]interface{}{
 				"conditions": []interface{}{
@@ -226,13 +227,24 @@ func TestParseConditionsFromUnstructured(t *testing.T) {
 					map[string]interface{}{"type": "B", "status": "False", "message": "bad"},
 				},
 			},
-		}, 2},
+		}, 2, false},
+		{"malformed conditions not a slice", map[string]interface{}{
+			"status": map[string]interface{}{"conditions": "not-a-slice"},
+		}, 0, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := parseConditionsFromUnstructured(tt.obj)
-			if len(got) != tt.want {
-				t.Errorf("parseConditionsFromUnstructured() returned %d conditions, want %d", len(got), tt.want)
+			got, err := parseConditionsFromUnstructured(tt.obj)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("parseConditionsFromUnstructured() err = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			n := 0
+			if got != nil {
+				n = len(got)
+			}
+			if n != tt.wantN {
+				t.Errorf("parseConditionsFromUnstructured() returned %d conditions, want %d", n, tt.wantN)
 			}
 		})
 	}
@@ -243,7 +255,10 @@ func TestParseConditionsFromUnstructured(t *testing.T) {
 			},
 		},
 	}
-	conds := parseConditionsFromUnstructured(obj)
+	conds, err := parseConditionsFromUnstructured(obj)
+	if err != nil {
+		t.Fatalf("parseConditionsFromUnstructured() err = %v", err)
+	}
 	if len(conds) != 1 || conds[0].Type != "Ready" || conds[0].Status != "True" || conds[0].Message != "ok" {
 		t.Errorf("parseConditionsFromUnstructured() = %+v", conds)
 	}
@@ -324,6 +339,36 @@ func TestRun_DSCSection_NoInstanceFound(t *testing.T) {
 	}
 	if !strings.Contains(report.DSC.Error, "no DataScienceCluster found") {
 		t.Errorf("DSC.Error should contain 'no DataScienceCluster found'; got %q", report.DSC.Error)
+	}
+}
+
+func TestRun_DSCSection_MalformedConditionsReportsError(t *testing.T) {
+	sch := scheme.Scheme
+	_ = corev1.AddToScheme(sch)
+	_ = appsv1.AddToScheme(sch)
+	// DSC with status.conditions that is not a slice (malformed).
+	dsc := &unstructured.Unstructured{}
+	dsc.SetGroupVersionKind(gvk.DataScienceCluster)
+	dsc.SetName("default-dsc")
+	dsc.Object["status"] = map[string]interface{}{"conditions": "not-a-slice"}
+	cl := fake.NewClientBuilder().WithScheme(sch).WithObjects(dsc).Build()
+	cfg := Config{
+		Client:       cl,
+		Namespaces:   NamespaceConfig{},
+		Operator:     OperatorConfig{},
+		DSCI:         types.NamespacedName{},
+		DSC:          types.NamespacedName{},
+		OnlySections: []string{SectionDSC},
+	}
+	report, err := Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if report.DSC.Error == "" {
+		t.Error("DSC section should have Error when status.conditions is malformed")
+	}
+	if !strings.Contains(report.DSC.Error, "failed to parse") {
+		t.Errorf("DSC.Error should indicate parse failure; got %q", report.DSC.Error)
 	}
 }
 

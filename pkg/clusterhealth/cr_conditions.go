@@ -34,7 +34,12 @@ func runCRConditionsSection(ctx context.Context, c client.Client, objGVK schema.
 	}
 	out.Data.Name = obj.GetName()
 
-	conditions := parseConditionsFromUnstructured(obj.Object)
+	conditions, err := parseConditionsFromUnstructured(obj.Object)
+	if err != nil {
+		out.Error = fmt.Sprintf("failed to parse %s status.conditions: %v", out.Data.Name, err)
+		out.Data.Conditions = []ConditionSummary{}
+		return out
+	}
 	if conditions == nil {
 		conditions = []ConditionSummary{}
 	}
@@ -103,10 +108,17 @@ func conditionStatusIsTrue(status string) bool {
 	return strings.EqualFold(strings.TrimSpace(status), "True")
 }
 
-func parseConditionsFromUnstructured(obj map[string]interface{}) []ConditionSummary {
-	conditions, found, _ := unstructured.NestedSlice(obj, "status", "conditions")
+// parseConditionsFromUnstructured extracts status.conditions from an unstructured object.
+// It returns (nil, nil) when status.conditions is absent (not found); callers treat that as "no conditions".
+// It returns (nil, err) when status.conditions exists but is malformed (e.g. not a slice), so callers can
+// report a parsing error instead of treating the CR as healthy.
+func parseConditionsFromUnstructured(obj map[string]interface{}) ([]ConditionSummary, error) {
+	conditions, found, err := unstructured.NestedSlice(obj, "status", "conditions")
+	if err != nil {
+		return nil, err
+	}
 	if !found {
-		return nil
+		return nil, nil
 	}
 	out := make([]ConditionSummary, 0, len(conditions))
 	for _, raw := range conditions {
@@ -119,5 +131,5 @@ func parseConditionsFromUnstructured(obj map[string]interface{}) []ConditionSumm
 		message, _ := m["message"].(string)
 		out = append(out, ConditionSummary{Type: condType, Status: status, Message: message})
 	}
-	return out
+	return out, nil
 }
