@@ -21,7 +21,10 @@ func TestEmitClassification(t *testing.T) {
 
 	// Capture stdout
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Failed to create pipe: %v", err)
+	}
 	os.Stdout = w
 
 	EmitClassification(fc, "TestSomething")
@@ -30,7 +33,7 @@ func TestEmitClassification(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	_, err := io.Copy(&buf, r)
+	_, err = io.Copy(&buf, r)
 	if err != nil {
 		t.Fatalf("failed to copy stdout: %v", err)
 	}

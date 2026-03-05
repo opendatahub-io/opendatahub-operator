@@ -142,7 +142,10 @@ func runDiagnosticsAndClassify(testName string) {
 		DSC:  types.NamespacedName{Name: dscInstanceName},
 	}
 
-	report, err := clusterhealth.Run(context.TODO(), cfg)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	report, err := clusterhealth.Run(ctx, cfg)
 	if err != nil {
 		log.Printf("ERROR: Failed to collect diagnostics: %v", err)
 		return
