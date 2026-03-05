@@ -216,7 +216,7 @@ download_repo_content() {
     if [[ -v USE_LOCAL ]] && [[ -e ../${repo_name} ]]; then
         echo "copying from adjacent checkout ..."
         mkdir -p "${dst_dir}/${target_path}"
-        cp -rf "../${repo_name}/${source_path}"/* ${dst_dir}/${target_path}
+        cp -rf "../${repo_name}/${source_path}"/* "${dst_dir}/${target_path}"
         return
     fi
 
