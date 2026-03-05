@@ -93,6 +93,9 @@ linters:
         - predicate.Predicate
         - client.Object
         - client.Client
+        - client.SubResourceClient
+        - client.SubResourceWriter
+        - meta.RESTMapper
         - common.PlatformObject
         - types.AsyncAssertion
         - kubernetes.Interface
@@ -131,6 +134,9 @@ linters:
       - linters:
           - containedctx
         path: pkg/utils/test/testf/(.+)\.go
+      - linters:
+          - lll
+        path: internal/controller/cloudmanager/common/kubebuilder_rbac.go
     paths:
       - api
       - third_party$
