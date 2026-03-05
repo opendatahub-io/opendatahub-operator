@@ -74,4 +74,4 @@ RUN microdnf install -y tar && microdnf clean all
 RUN chmod -R g=u /opt/manifests /opt/charts
 USER 1001
 
-CMD ["/manager"]
+ENTRYPOINT ["/manager"]
