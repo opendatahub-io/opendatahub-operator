@@ -595,13 +595,13 @@ func TestConfigureConfigHashAnnotation(t *testing.T) {
 	t.Run("Config Hash Annotation", func(t *testing.T) {
 		t.Run("should add config hash annotation to deployment when ConfigMap exists", func(t *testing.T) {
 			// Create ConfigMap
-			configMap := createConfigMap(MaaSParametersConfigMapName, "opendatahub", map[string]string{
+			configMap := createConfigMap("opendatahub", map[string]string{
 				"gateway-namespace": "openshift-ingress",
 				"gateway-name":      "maas-default-gateway",
 			})
 
 			// Create Deployment
-			deployment := createDeployment(MaaSAPIDeploymentName, "opendatahub")
+			deployment := createDeployment("opendatahub")
 
 			rr := &types.ReconciliationRequest{
 				Resources: []unstructured.Unstructured{configMap, deployment},
@@ -622,12 +622,12 @@ func TestConfigureConfigHashAnnotation(t *testing.T) {
 
 		t.Run("should update hash when ConfigMap data changes", func(t *testing.T) {
 			// First ConfigMap
-			configMap1 := createConfigMap(MaaSParametersConfigMapName, "opendatahub", map[string]string{
+			configMap1 := createConfigMap("opendatahub", map[string]string{
 				"gateway-namespace":           "openshift-ingress",
 				"gateway-name":                "maas-default-gateway",
 				"api-key-max-expiration-days": "30",
 			})
-			deployment1 := createDeployment(MaaSAPIDeploymentName, "opendatahub")
+			deployment1 := createDeployment("opendatahub")
 
 			rr1 := &types.ReconciliationRequest{
 				Resources: []unstructured.Unstructured{configMap1, deployment1},
@@ -644,12 +644,12 @@ func TestConfigureConfigHashAnnotation(t *testing.T) {
 			hash1 := dep1.Spec.Template.Annotations[annotationKey]
 
 			// Second ConfigMap with different data
-			configMap2 := createConfigMap(MaaSParametersConfigMapName, "opendatahub", map[string]string{
+			configMap2 := createConfigMap("opendatahub", map[string]string{
 				"gateway-namespace":           "openshift-ingress",
 				"gateway-name":                "maas-default-gateway",
 				"api-key-max-expiration-days": "90", // Changed!
 			})
-			deployment2 := createDeployment(MaaSAPIDeploymentName, "opendatahub")
+			deployment2 := createDeployment("opendatahub")
 
 			rr2 := &types.ReconciliationRequest{
 				Resources: []unstructured.Unstructured{configMap2, deployment2},
@@ -670,7 +670,7 @@ func TestConfigureConfigHashAnnotation(t *testing.T) {
 
 		t.Run("should succeed silently when ConfigMap is not found", func(t *testing.T) {
 			// Only Deployment, no ConfigMap
-			deployment := createDeployment(MaaSAPIDeploymentName, "opendatahub")
+			deployment := createDeployment("opendatahub")
 
 			rr := &types.ReconciliationRequest{
 				Resources: []unstructured.Unstructured{deployment},
@@ -682,7 +682,7 @@ func TestConfigureConfigHashAnnotation(t *testing.T) {
 
 		t.Run("should succeed silently when Deployment is not found", func(t *testing.T) {
 			// Only ConfigMap, no Deployment
-			configMap := createConfigMap(MaaSParametersConfigMapName, "opendatahub", map[string]string{
+			configMap := createConfigMap("opendatahub", map[string]string{
 				"gateway-namespace": "openshift-ingress",
 			})
 
@@ -710,14 +710,15 @@ func TestConfigureConfigHashAnnotation(t *testing.T) {
 }
 
 // createConfigMap creates an unstructured ConfigMap resource for testing.
-func createConfigMap(name, namespace string, data map[string]string) unstructured.Unstructured {
+// Uses MaaSParametersConfigMapName as the name.
+func createConfigMap(namespace string, data map[string]string) unstructured.Unstructured {
 	cm := &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
 			Kind:       "ConfigMap",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
+			Name:      MaaSParametersConfigMapName,
 			Namespace: namespace,
 		},
 		Data: data,
@@ -728,14 +729,15 @@ func createConfigMap(name, namespace string, data map[string]string) unstructure
 }
 
 // createDeployment creates an unstructured Deployment resource for testing.
-func createDeployment(name, namespace string) unstructured.Unstructured {
+// Uses MaaSAPIDeploymentName as the name.
+func createDeployment(namespace string) unstructured.Unstructured {
 	dep := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "apps/v1",
 			Kind:       "Deployment",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
+			Name:      MaaSAPIDeploymentName,
 			Namespace: namespace,
 		},
 		Spec: appsv1.DeploymentSpec{
