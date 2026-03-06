@@ -19,18 +19,16 @@ const (
 	LayerInfrastructure = "infrastructure"
 	// LayerWorkload is on-cluster components: deployments, pods, events, operator, DSCI, DSC.
 	LayerWorkload = "workload"
+	// LayerOperator is operator and CRs: operator deployment, DSCI, DSC.
+	LayerOperator = "operator"
 )
 
-// layerSections maps each layer to its section names.
 var layerSections = map[string][]string{
 	LayerInfrastructure: {SectionNodes, SectionQuotas},
 	LayerWorkload:       {SectionDeployments, SectionPods, SectionEvents, SectionOperator, SectionDSCI, SectionDSC},
+	LayerOperator:       {SectionOperator, SectionDSCI, SectionDSC},
 }
 
-// sectionsToRun returns the set of section names to run based on cfg.
-// If OnlySections is non-empty, that list is used (after expanding any layer names).
-// If Layers is non-empty (and OnlySections is empty), sections from those layers are used.
-// Otherwise all sections are run.
 func (c *Config) sectionsToRun() map[string]bool {
 	if len(c.OnlySections) > 0 {
 		return sliceToSet(expandSectionList(c.OnlySections))
@@ -48,14 +46,12 @@ func (c *Config) sectionsToRun() map[string]bool {
 		}
 		return sliceToSet(list)
 	}
-	// run all
 	return sliceToSet([]string{
 		SectionNodes, SectionDeployments, SectionPods, SectionEvents,
 		SectionQuotas, SectionOperator, SectionDSCI, SectionDSC,
 	})
 }
 
-// expandSectionList expands any layer names in list to their section names.
 func expandSectionList(list []string) []string {
 	var out []string
 	for _, name := range list {

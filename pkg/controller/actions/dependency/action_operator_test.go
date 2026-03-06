@@ -22,6 +22,7 @@ import (
 	cond "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
@@ -38,6 +39,12 @@ var testOperatorGVK = schema.GroupVersionKind{
 	Kind:    "TestOperator",
 }
 
+var testClusterOperatorGVK = schema.GroupVersionKind{
+	Group:   "test.opendatahub.io",
+	Version: "v1",
+	Kind:    "TestClusterOperator",
+}
+
 func TestDependencyAction(t *testing.T) {
 	g := NewWithT(t)
 
@@ -52,15 +59,16 @@ func TestDependencyAction(t *testing.T) {
 	cli := envTest.Client()
 
 	// Create CRD once for all test cases
-	createTestOperatorCRD(t, g, ctx, cli)
+	createTestOperatorCRD(t, g, ctx, envTest)
 
 	tests := []struct {
-		name                string
-		setupOperatorCR     func(g *WithT, ns string) *unstructured.Unstructured
-		filter              dependency.DegradedConditionFilterFunc
-		severity            common.ConditionSeverity // empty = Error (default)
-		expectedAvailable   bool
-		expectedMsgContains []string
+		name                   string
+		setupOperatorCR        func(g *WithT, ns string) *unstructured.Unstructured
+		filter                 dependency.DegradedConditionFilterFunc
+		severity               common.ConditionSeverity
+		expectedAvailable      bool
+		expectedMsgContains    []string
+		expectedMsgNotContains []string
 	}{
 		{
 			name: "Degraded=True",
@@ -70,6 +78,7 @@ func TestDependencyAction(t *testing.T) {
 				createAndUpdateStatus(ctx, g, cli, operatorCR)
 				return operatorCR
 			},
+			severity:            common.ConditionSeverityError,
 			expectedAvailable:   false,
 			expectedMsgContains: []string{"Dependencies degraded", testOperatorGVK.Kind, "Degraded=True", "TestFailed", "Test failure message"},
 		},
@@ -81,6 +90,7 @@ func TestDependencyAction(t *testing.T) {
 				createAndUpdateStatus(ctx, g, cli, operatorCR)
 				return operatorCR
 			},
+			severity:            common.ConditionSeverityError,
 			expectedAvailable:   false,
 			expectedMsgContains: []string{"Dependencies degraded", testOperatorGVK.Kind, "Ready=False", "NotReady", "Waiting for something"},
 		},
@@ -92,6 +102,7 @@ func TestDependencyAction(t *testing.T) {
 				createAndUpdateStatus(ctx, g, cli, operatorCR)
 				return operatorCR
 			},
+			severity:            common.ConditionSeverityError,
 			expectedAvailable:   false,
 			expectedMsgContains: []string{"Dependencies degraded", testOperatorGVK.Kind, "Available=False", "Unavailable", "Service unavailable"},
 		},
@@ -103,6 +114,7 @@ func TestDependencyAction(t *testing.T) {
 				createAndUpdateStatus(ctx, g, cli, operatorCR)
 				return operatorCR
 			},
+			severity:          common.ConditionSeverityError,
 			expectedAvailable: true,
 		},
 		{
@@ -113,6 +125,7 @@ func TestDependencyAction(t *testing.T) {
 				createAndUpdateStatus(ctx, g, cli, operatorCR)
 				return operatorCR
 			},
+			severity:          common.ConditionSeverityError,
 			expectedAvailable: true,
 		},
 		{
@@ -120,6 +133,7 @@ func TestDependencyAction(t *testing.T) {
 			setupOperatorCR: func(g *WithT, ns string) *unstructured.Unstructured {
 				return nil
 			},
+			severity:          common.ConditionSeverityError,
 			expectedAvailable: true,
 		},
 		{
@@ -130,6 +144,7 @@ func TestDependencyAction(t *testing.T) {
 				g.Expect(err).NotTo(HaveOccurred())
 				return operatorCR
 			},
+			severity:          common.ConditionSeverityError,
 			expectedAvailable: true,
 		},
 		{
@@ -143,6 +158,7 @@ func TestDependencyAction(t *testing.T) {
 			filter: func(condType, status string) bool {
 				return condType == "CustomError" && status == "True"
 			},
+			severity:            common.ConditionSeverityError,
 			expectedAvailable:   false,
 			expectedMsgContains: []string{"Dependencies degraded", testOperatorGVK.Kind, "CustomError=True", "ErrorOccurred", "Custom error"},
 		},
@@ -158,8 +174,10 @@ func TestDependencyAction(t *testing.T) {
 				createAndUpdateStatus(ctx, g, cli, operatorCR)
 				return operatorCR
 			},
-			expectedAvailable:   false,
-			expectedMsgContains: []string{"Dependencies degraded", "Degraded=True", "First error", "Available=False", "Second error"},
+			severity:               common.ConditionSeverityError,
+			expectedAvailable:      false,
+			expectedMsgContains:    []string{"Dependencies degraded", "Degraded=True", "First error", "Available=False", "Second error"},
+			expectedMsgNotContains: []string{"Ready=True"},
 		},
 		{
 			name: "info severity",
@@ -239,6 +257,9 @@ func TestDependencyAction(t *testing.T) {
 				for _, substr := range tt.expectedMsgContains {
 					g.Expect(gotCond.Message).To(ContainSubstring(substr))
 				}
+				for _, substr := range tt.expectedMsgNotContains {
+					g.Expect(gotCond.Message).NotTo(ContainSubstring(substr))
+				}
 				g.Expect(gotCond.Severity).To(Equal(tt.severity))
 			}
 		})
@@ -265,8 +286,9 @@ func TestDependencyAction_MultipleOperators(t *testing.T) {
 		},
 	}
 	g.Expect(cli.Create(ctx, &ns)).NotTo(HaveOccurred())
+	t.Cleanup(func() { _ = cli.Delete(ctx, &ns) })
 
-	createTestOperatorCRD(t, g, ctx, cli)
+	createTestOperatorCRD(t, g, ctx, envTest)
 
 	operator1 := createOperatorCR(xid.New().String(), nsn, testOperatorGVK)
 	setCondition(g, operator1, "Ready", "True", "Ready", "Ready")
@@ -307,68 +329,94 @@ func TestDependencyAction_MultipleOperators(t *testing.T) {
 	err = action(ctx, rr)
 	g.Expect(err).NotTo(HaveOccurred())
 
-	cond := condManager.GetCondition(status.ConditionDependenciesAvailable)
-	g.Expect(cond).NotTo(BeNil())
-	g.Expect(cond.Status).To(Equal(metav1.ConditionFalse))
-	g.Expect(cond.Reason).To(Equal("DependencyDegraded"))
-	g.Expect(cond.Message).To(ContainSubstring(testOperatorGVK.Kind))
-	g.Expect(cond.Message).To(ContainSubstring("Degraded=True"))
+	gotCond := condManager.GetCondition(status.ConditionDependenciesAvailable)
+	g.Expect(gotCond).NotTo(BeNil())
+	g.Expect(gotCond.Status).To(Equal(metav1.ConditionFalse))
+	g.Expect(gotCond.Reason).To(Equal("DependencyDegraded"))
+	g.Expect(gotCond.Message).To(ContainSubstring(testOperatorGVK.Kind))
+	g.Expect(gotCond.Message).To(ContainSubstring("Degraded=True"))
 }
 
+// TestDependencyAction_VariableCRName verifies that getFirstCR correctly discovers operator CRs
+// when CRName is not specified, for both namespace-scoped and cluster-scoped resources.
 func TestDependencyAction_VariableCRName(t *testing.T) {
 	g := NewWithT(t)
 
 	envTest, err := envt.New()
 	g.Expect(err).NotTo(HaveOccurred())
-
-	t.Cleanup(func() {
-		_ = envTest.Stop()
-	})
+	t.Cleanup(func() { _ = envTest.Stop() })
 
 	ctx := context.Background()
 	cli := envTest.Client()
 	nsn := xid.New().String()
 
-	ns := corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: nsn,
-		},
-	}
+	ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: nsn}}
 	g.Expect(cli.Create(ctx, &ns)).NotTo(HaveOccurred())
+	t.Cleanup(func() { _ = cli.Delete(ctx, &ns) })
 
-	createTestOperatorCRD(t, g, ctx, cli)
+	// Register namespace-scoped CRD (testOperatorGVK) and cluster-scoped CRD.
+	createTestOperatorCRD(t, g, ctx, envTest)
+	createTestClusterOperatorCRD(t, g, ctx, envTest)
 
-	operatorCR := createOperatorCR(xid.New().String(), nsn, testOperatorGVK)
-	setCondition(g, operatorCR, "Degraded", "True", "TestReason", "Test message")
-	createAndUpdateStatus(ctx, g, cli, operatorCR)
-	t.Cleanup(func() { _ = cli.Delete(ctx, operatorCR) })
+	t.Run("namespace-scoped CR discovered without CRName", func(t *testing.T) {
+		g := NewWithT(t)
 
-	instance := &componentApi.Kueue{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: xid.New().String(),
-		},
-	}
+		operatorCR := createOperatorCR(xid.New().String(), nsn, testOperatorGVK)
+		setCondition(g, operatorCR, "Degraded", "True", "TestReason", "Test message")
+		createAndUpdateStatus(ctx, g, cli, operatorCR)
+		t.Cleanup(func() { _ = cli.Delete(ctx, operatorCR) })
 
-	condManager := cond.NewManager(instance, status.ConditionDependenciesAvailable)
-	rr := &types.ReconciliationRequest{
-		Client:     cli,
-		Instance:   instance,
-		Conditions: condManager,
-	}
+		instance := &componentApi.Kueue{ObjectMeta: metav1.ObjectMeta{Name: xid.New().String()}}
+		condManager := cond.NewManager(instance, status.ConditionDependenciesAvailable)
+		rr := &types.ReconciliationRequest{Client: cli, Instance: instance, Conditions: condManager}
 
-	action := dependency.NewAction(
-		dependency.MonitorOperator(dependency.OperatorConfig{
+		action := dependency.NewAction(dependency.MonitorOperator(dependency.OperatorConfig{
 			OperatorGVK: testOperatorGVK,
 			CRNamespace: nsn,
-		}),
-	)
+		}))
 
-	err = action(ctx, rr)
-	g.Expect(err).NotTo(HaveOccurred())
+		err := action(ctx, rr)
+		g.Expect(err).NotTo(HaveOccurred())
 
-	cond := condManager.GetCondition(status.ConditionDependenciesAvailable)
-	g.Expect(cond).NotTo(BeNil())
-	g.Expect(cond.Status).To(Equal(metav1.ConditionFalse))
+		gotCond := condManager.GetCondition(status.ConditionDependenciesAvailable)
+		g.Expect(gotCond).NotTo(BeNil())
+		g.Expect(gotCond.Status).To(Equal(metav1.ConditionFalse))
+		g.Expect(gotCond.Reason).To(Equal("DependencyDegraded"))
+		g.Expect(gotCond.Message).To(ContainSubstring(testOperatorGVK.Kind))
+		g.Expect(gotCond.Message).To(ContainSubstring("Degraded=True"))
+		g.Expect(gotCond.Message).To(ContainSubstring("TestReason"))
+	})
+
+	t.Run("cluster-scoped CR discovered without CRName", func(t *testing.T) {
+		g := NewWithT(t)
+
+		cr := &unstructured.Unstructured{}
+		cr.SetGroupVersionKind(testClusterOperatorGVK)
+		cr.SetName(xid.New().String())
+		setCondition(g, cr, "Degraded", "True", "ClusterFailed", "Cluster-scoped failure")
+		createAndUpdateStatus(ctx, g, cli, cr)
+		t.Cleanup(func() { _ = cli.Delete(ctx, cr) })
+
+		instance := &componentApi.Kueue{ObjectMeta: metav1.ObjectMeta{Name: xid.New().String()}}
+		condManager := cond.NewManager(instance, status.ConditionDependenciesAvailable)
+		rr := &types.ReconciliationRequest{Client: cli, Instance: instance, Conditions: condManager}
+
+		// CRNamespace is intentionally empty — this exercises the cluster-scoped list path.
+		action := dependency.NewAction(dependency.MonitorOperator(dependency.OperatorConfig{
+			OperatorGVK: testClusterOperatorGVK,
+		}))
+
+		err := action(ctx, rr)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		gotCond := condManager.GetCondition(status.ConditionDependenciesAvailable)
+		g.Expect(gotCond).NotTo(BeNil())
+		g.Expect(gotCond.Status).To(Equal(metav1.ConditionFalse))
+		g.Expect(gotCond.Reason).To(Equal("DependencyDegraded"))
+		g.Expect(gotCond.Message).To(ContainSubstring(testClusterOperatorGVK.Kind))
+		g.Expect(gotCond.Message).To(ContainSubstring("Degraded=True"))
+		g.Expect(gotCond.Message).To(ContainSubstring("ClusterFailed"))
+	})
 }
 
 // TestDependencyAction_MissingCRD verifies that DependenciesAvailable is True
@@ -433,83 +481,107 @@ func TestDependencyAction_MissingCRD(t *testing.T) {
 	}
 }
 
-// Helper functions
+// TestMonitorCRD verifies that MonitorCRD correctly reports CRD presence and respects Severity.
+//
+// Each subtest uses its own envtest instance rather than sharing one across subtests.
+// HasCRD relies on the REST mapper, whose discovery cache refreshes asynchronously after
+// CRD deletion. A shared instance cannot guarantee the mapper reflects zero CRDs at the
+// start of the "absent CRD" case when other subtests registered CRDs beforehand.
+func TestMonitorCRD(t *testing.T) {
+	testCRDGVK := schema.GroupVersionKind{
+		Group:   "test.opendatahub.io",
+		Version: "v1",
+		Kind:    "TestResource",
+	}
 
-func createTestOperatorCRD(t *testing.T, g *WithT, ctx context.Context, cli client.Client) {
-	t.Helper()
-
-	crd := apiextensionsv1.CustomResourceDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "testoperators." + testOperatorGVK.Group,
+	tests := []struct {
+		name              string
+		registerCRD       bool
+		severity          common.ConditionSeverity
+		expectedAvailable bool
+		expectedSeverity  common.ConditionSeverity
+	}{
+		{
+			name:              "absent CRD yields degraded with error severity by default",
+			registerCRD:       false,
+			expectedAvailable: false,
+			expectedSeverity:  common.ConditionSeverityError,
 		},
-		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
-			Group: testOperatorGVK.Group,
-			Names: apiextensionsv1.CustomResourceDefinitionNames{
-				Kind:     testOperatorGVK.Kind,
-				ListKind: testOperatorGVK.Kind + "List",
-				Plural:   "testoperators",
-				Singular: "testoperator",
-			},
-			Scope: apiextensionsv1.NamespaceScoped,
-			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
-				{
-					Name:    testOperatorGVK.Version,
-					Served:  true,
-					Storage: true,
-					Schema: &apiextensionsv1.CustomResourceValidation{
-						OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
-							Type: "object",
-							Properties: map[string]apiextensionsv1.JSONSchemaProps{
-								"spec": {
-									Type:                   "object",
-									XPreserveUnknownFields: pointer(true),
-								},
-								"status": {
-									Type:                   "object",
-									XPreserveUnknownFields: pointer(true),
-								},
-							},
-						},
-					},
-					Subresources: &apiextensionsv1.CustomResourceSubresources{
-						Status: &apiextensionsv1.CustomResourceSubresourceStatus{},
-					},
-				},
-			},
+		{
+			name:              "absent CRD with info severity yields degraded but not blocking",
+			registerCRD:       false,
+			severity:          common.ConditionSeverityInfo,
+			expectedAvailable: false,
+			expectedSeverity:  common.ConditionSeverityInfo,
+		},
+		{
+			name:              "present CRD yields healthy",
+			registerCRD:       true,
+			severity:          common.ConditionSeverityError,
+			expectedAvailable: true,
 		},
 	}
 
-	t.Cleanup(func() {
-		g.Eventually(func() error {
-			return cli.Delete(ctx, &crd)
-		}).Should(Or(
-			Not(HaveOccurred()),
-			MatchError(k8serr.IsNotFound, "IsNotFound"),
-		))
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
 
-	err := cli.Create(ctx, &crd)
-	if err != nil && !k8serr.IsAlreadyExists(err) {
-		g.Expect(err).NotTo(HaveOccurred())
-	}
+			envTest, err := envt.New()
+			g.Expect(err).NotTo(HaveOccurred())
+			t.Cleanup(func() { _ = envTest.Stop() })
 
-	// Wait for CRD to be established
-	g.Eventually(func() bool {
-		err := cli.Get(ctx, client.ObjectKeyFromObject(&crd), &crd)
-		if err != nil {
-			return false
-		}
-		for _, cond := range crd.Status.Conditions {
-			if cond.Type == apiextensionsv1.Established && cond.Status == apiextensionsv1.ConditionTrue {
-				return true
+			ctx := context.Background()
+			cli := envTest.Client()
+
+			if tt.registerCRD {
+				crd, err := envTest.RegisterCRD(ctx, testCRDGVK, "testresources", "testresource", apiextensionsv1.NamespaceScoped)
+				g.Expect(err).NotTo(HaveOccurred())
+				t.Cleanup(func() {
+					g.Eventually(func() error {
+						return cli.Delete(ctx, crd)
+					}).Should(Or(Not(HaveOccurred()), MatchError(k8serr.IsNotFound, "IsNotFound")))
+				})
 			}
-		}
-		return false
-	}).Should(BeTrue(), "CRD should be established")
+
+			instance := &scheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Name: xid.New().String()}}
+			condManager := cond.NewManager(instance, status.ConditionDependenciesAvailable)
+			rr := &types.ReconciliationRequest{Client: cli, Instance: instance, Conditions: condManager}
+
+			action := dependency.NewAction(dependency.MonitorCRD(dependency.CRDConfig{
+				GVK:      testCRDGVK,
+				Severity: tt.severity,
+			}))
+			err = action(ctx, rr)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			gotCond := condManager.GetCondition(status.ConditionDependenciesAvailable)
+			g.Expect(gotCond).NotTo(BeNil())
+
+			if tt.expectedAvailable {
+				g.Expect(gotCond.Status).To(Equal(metav1.ConditionTrue))
+			} else {
+				g.Expect(gotCond.Status).To(Equal(metav1.ConditionFalse))
+				g.Expect(gotCond.Message).To(ContainSubstring(testCRDGVK.Kind))
+				g.Expect(gotCond.Severity).To(Equal(tt.expectedSeverity))
+			}
+		})
+	}
 }
 
-func pointer[T any](v T) *T {
-	return &v
+// Helper functions
+
+func createTestOperatorCRD(t *testing.T, g *WithT, ctx context.Context, envTest *envt.EnvT) {
+	t.Helper()
+	crd, err := envTest.RegisterCRD(ctx, testOperatorGVK, "testoperators", "testoperator", apiextensionsv1.NamespaceScoped, envt.WithPermissiveSchema())
+	g.Expect(err).NotTo(HaveOccurred())
+	envt.CleanupDelete(t, g, ctx, envTest.Client(), crd)
+}
+
+func createTestClusterOperatorCRD(t *testing.T, g *WithT, ctx context.Context, envTest *envt.EnvT) {
+	t.Helper()
+	crd, err := envTest.RegisterCRD(ctx, testClusterOperatorGVK, "testclusteroperators", "testclusteroperator", apiextensionsv1.ClusterScoped, envt.WithPermissiveSchema())
+	g.Expect(err).NotTo(HaveOccurred())
+	envt.CleanupDelete(t, g, ctx, envTest.Client(), crd)
 }
 
 func createOperatorCR(name, namespace string, gvk schema.GroupVersionKind) *unstructured.Unstructured {
@@ -539,15 +611,17 @@ func setMultipleConditions(g *WithT, cr *unstructured.Unstructured, conditions [
 
 func createAndUpdateStatus(ctx context.Context, g *WithT, cli client.Client, cr *unstructured.Unstructured) {
 	// Store the status before creation (it will be stripped)
-	statusObj, hasStatus, _ := unstructured.NestedMap(cr.Object, "status")
+	statusObj, hasStatus, err := unstructured.NestedMap(cr.Object, "status")
+	g.Expect(err).NotTo(HaveOccurred())
 
 	// Create the CR (status is ignored)
-	err := cli.Create(ctx, cr)
+	err = cli.Create(ctx, cr)
 	g.Expect(err).NotTo(HaveOccurred())
 
 	if hasStatus {
 		// Re-apply the status and update it
-		_ = unstructured.SetNestedMap(cr.Object, statusObj, "status")
+		err = unstructured.SetNestedMap(cr.Object, statusObj, "status")
+		g.Expect(err).NotTo(HaveOccurred())
 		err = cli.Status().Update(ctx, cr)
 		g.Expect(err).NotTo(HaveOccurred())
 	}
