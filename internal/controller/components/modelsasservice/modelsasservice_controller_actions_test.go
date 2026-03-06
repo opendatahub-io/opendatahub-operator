@@ -470,3 +470,118 @@ func createFakeClientWithoutGateway() client.Client {
 		WithScheme(scheme).
 		Build()
 }
+
+func TestAPIKeyConfiguration(t *testing.T) {
+	g := NewWithT(t)
+
+	t.Run("API Key MaxExpirationDays Configuration", func(t *testing.T) {
+		t.Run("should include maxExpirationDays in params when specified", func(t *testing.T) {
+			maxDays := int32(30)
+			maas := &componentApi.ModelsAsService{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: componentApi.ModelsAsServiceInstanceName,
+				},
+				Spec: componentApi.ModelsAsServiceSpec{
+					GatewayRef: componentApi.GatewayRef{
+						Namespace: "test-namespace",
+						Name:      "test-gateway",
+					},
+					APIKeys: &componentApi.APIKeysConfig{
+						MaxExpirationDays: &maxDays,
+					},
+				},
+			}
+
+			// Verify the APIKeys config is correctly set
+			g.Expect(maas.Spec.APIKeys).ShouldNot(BeNil())
+			g.Expect(maas.Spec.APIKeys.MaxExpirationDays).ShouldNot(BeNil())
+			g.Expect(*maas.Spec.APIKeys.MaxExpirationDays).Should(Equal(int32(30)))
+		})
+
+		t.Run("should allow nil APIKeys config (uses default)", func(t *testing.T) {
+			maas := &componentApi.ModelsAsService{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: componentApi.ModelsAsServiceInstanceName,
+				},
+				Spec: componentApi.ModelsAsServiceSpec{
+					GatewayRef: componentApi.GatewayRef{
+						Namespace: "test-namespace",
+						Name:      "test-gateway",
+					},
+					APIKeys: nil,
+				},
+			}
+
+			// Verify APIKeys is nil (will use default from params.env)
+			g.Expect(maas.Spec.APIKeys).Should(BeNil())
+		})
+
+		t.Run("should allow APIKeys with nil MaxExpirationDays (uses default)", func(t *testing.T) {
+			maas := &componentApi.ModelsAsService{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: componentApi.ModelsAsServiceInstanceName,
+				},
+				Spec: componentApi.ModelsAsServiceSpec{
+					GatewayRef: componentApi.GatewayRef{
+						Namespace: "test-namespace",
+						Name:      "test-gateway",
+					},
+					APIKeys: &componentApi.APIKeysConfig{
+						MaxExpirationDays: nil,
+					},
+				},
+			}
+
+			// Verify APIKeys exists but MaxExpirationDays is nil
+			g.Expect(maas.Spec.APIKeys).ShouldNot(BeNil())
+			g.Expect(maas.Spec.APIKeys.MaxExpirationDays).Should(BeNil())
+		})
+
+		t.Run("should accept zero value for maxExpirationDays (fallback to default)", func(t *testing.T) {
+			maxDays := int32(0)
+			maas := &componentApi.ModelsAsService{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: componentApi.ModelsAsServiceInstanceName,
+				},
+				Spec: componentApi.ModelsAsServiceSpec{
+					GatewayRef: componentApi.GatewayRef{
+						Namespace: "test-namespace",
+						Name:      "test-gateway",
+					},
+					APIKeys: &componentApi.APIKeysConfig{
+						MaxExpirationDays: &maxDays,
+					},
+				},
+			}
+
+			// Verify zero is accepted (maas-api will fallback to default value)
+			g.Expect(maas.Spec.APIKeys).ShouldNot(BeNil())
+			g.Expect(maas.Spec.APIKeys.MaxExpirationDays).ShouldNot(BeNil())
+			g.Expect(*maas.Spec.APIKeys.MaxExpirationDays).Should(Equal(int32(0)))
+		})
+
+		t.Run("should accept various valid maxExpirationDays values", func(t *testing.T) {
+			testCases := []int32{1, 7, 30, 90, 365}
+
+			for _, days := range testCases {
+				maxDays := days
+				maas := &componentApi.ModelsAsService{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: componentApi.ModelsAsServiceInstanceName,
+					},
+					Spec: componentApi.ModelsAsServiceSpec{
+						GatewayRef: componentApi.GatewayRef{
+							Namespace: "test-namespace",
+							Name:      "test-gateway",
+						},
+						APIKeys: &componentApi.APIKeysConfig{
+							MaxExpirationDays: &maxDays,
+						},
+					},
+				}
+
+				g.Expect(*maas.Spec.APIKeys.MaxExpirationDays).Should(Equal(days))
+			}
+		})
+	})
+}

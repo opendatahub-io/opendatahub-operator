@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/go-logr/logr"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -93,6 +94,8 @@ func initialize(_ context.Context, rr *types.ReconciliationRequest) error { //no
 
 // customizeManifests applies component-specific customizations to the manifests.
 func customizeManifests(ctx context.Context, rr *types.ReconciliationRequest) error {
+	log := logf.FromContext(ctx)
+
 	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
@@ -103,14 +106,20 @@ func customizeManifests(ctx context.Context, rr *types.ReconciliationRequest) er
 		return err
 	}
 
-	gatewayParams := map[string]string{
+	params := map[string]string{
 		"gateway-namespace": maas.Spec.GatewayRef.Namespace,
 		"gateway-name":      maas.Spec.GatewayRef.Name,
 		"app-namespace":     appNamespace,
 	}
 
-	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), "params.env", nil, gatewayParams); err != nil {
-		return fmt.Errorf("failed to update Gateway params on path %s: %w", rr.Manifests[0].String(), err)
+	// Add API key configuration if specified
+	if maas.Spec.APIKeys != nil && maas.Spec.APIKeys.MaxExpirationDays != nil {
+		params["api-key-max-expiration-days"] = strconv.FormatInt(int64(*maas.Spec.APIKeys.MaxExpirationDays), 10)
+		log.V(4).Info("Configuring API key max expiration days", "value", *maas.Spec.APIKeys.MaxExpirationDays)
+	}
+
+	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), "params.env", nil, params); err != nil {
+		return fmt.Errorf("failed to update params on path %s: %w", rr.Manifests[0].String(), err)
 	}
 
 	return nil
