@@ -2,6 +2,7 @@
 package modelsasservice
 
 import (
+	"fmt"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -592,7 +593,7 @@ func TestConfigureConfigHashAnnotation(t *testing.T) {
 			err = runtime.DefaultUnstructuredConverter.FromUnstructured(rr.Resources[1].Object, dep)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
-			annotationKey := labels.ODHAppPrefix + "/MaaSConfigHash"
+			annotationKey := labels.ODHAppPrefix + "/maas-config-hash"
 			g.Expect(dep.Spec.Template.Annotations).Should(HaveKey(annotationKey))
 			g.Expect(dep.Spec.Template.Annotations[annotationKey]).ShouldNot(BeEmpty())
 		})
@@ -617,7 +618,7 @@ func TestConfigureConfigHashAnnotation(t *testing.T) {
 			err = runtime.DefaultUnstructuredConverter.FromUnstructured(rr1.Resources[1].Object, dep1)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
-			annotationKey := labels.ODHAppPrefix + "/MaaSConfigHash"
+			annotationKey := labels.ODHAppPrefix + "/maas-config-hash"
 			hash1 := dep1.Spec.Template.Annotations[annotationKey]
 
 			// Second ConfigMap with different data
@@ -701,12 +702,16 @@ func createConfigMap(data map[string]string) unstructured.Unstructured {
 		Data: data,
 	}
 
-	u, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(cm)
+	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(cm)
+	if err != nil {
+		panic(fmt.Sprintf("failed to convert ConfigMap to unstructured: %v", err))
+	}
 	return unstructured.Unstructured{Object: u}
 }
 
 // createDeployment creates an unstructured Deployment resource for testing.
 // Uses MaaSAPIDeploymentName and "opendatahub" namespace.
+// Note: Template.Annotations is left nil to test the nil-initialization branch.
 func createDeployment() unstructured.Unstructured {
 	dep := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
@@ -719,9 +724,7 @@ func createDeployment() unstructured.Unstructured {
 		},
 		Spec: appsv1.DeploymentSpec{
 			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{},
-				},
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
@@ -734,6 +737,9 @@ func createDeployment() unstructured.Unstructured {
 		},
 	}
 
-	u, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(dep)
+	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(dep)
+	if err != nil {
+		panic(fmt.Sprintf("failed to convert Deployment to unstructured: %v", err))
+	}
 	return unstructured.Unstructured{Object: u}
 }

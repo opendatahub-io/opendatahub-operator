@@ -228,7 +228,6 @@ func configureConfigHashAnnotation(ctx context.Context, rr *types.Reconciliation
 
 	// Find the maas-parameters ConfigMap
 	var configMap *corev1.ConfigMap
-	var configMapIdx int
 	for idx := range rr.Resources {
 		resource := &rr.Resources[idx]
 		if resource.GroupVersionKind() == gvk.ConfigMap && resource.GetName() == MaaSParametersConfigMapName {
@@ -237,7 +236,6 @@ func configureConfigHashAnnotation(ctx context.Context, rr *types.Reconciliation
 				return fmt.Errorf("failed to convert ConfigMap: %w", err)
 			}
 			configMap = cm
-			configMapIdx = idx
 			break
 		}
 	}
@@ -280,7 +278,7 @@ func configureConfigHashAnnotation(ctx context.Context, rr *types.Reconciliation
 	}
 
 	// Add the config hash annotation to the pod template
-	annotationKey := labels.ODHAppPrefix + "/MaaSConfigHash"
+	annotationKey := labels.ODHAppPrefix + "/maas-config-hash"
 	deployment.Spec.Template.Annotations[annotationKey] = configHash
 
 	log.V(4).Info("Added config hash annotation to Deployment",
@@ -294,13 +292,6 @@ func configureConfigHashAnnotation(ctx context.Context, rr *types.Reconciliation
 		return fmt.Errorf("failed to convert Deployment back to unstructured: %w", err)
 	}
 	rr.Resources[deploymentIdx].Object = u
-
-	// Also update the ConfigMap in resources (in case it was modified)
-	cmU, err := runtime.DefaultUnstructuredConverter.ToUnstructured(configMap)
-	if err != nil {
-		return fmt.Errorf("failed to convert ConfigMap back to unstructured: %w", err)
-	}
-	rr.Resources[configMapIdx].Object = cmU
 
 	return nil
 }
