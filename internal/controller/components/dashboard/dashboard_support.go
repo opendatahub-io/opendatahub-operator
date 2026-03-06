@@ -49,6 +49,7 @@ var (
 		"model-registry-ui-image": "RELATED_IMAGE_ODH_MOD_ARCH_MODEL_REGISTRY_IMAGE",
 		"gen-ai-ui-image":         "RELATED_IMAGE_ODH_MOD_ARCH_GEN_AI_IMAGE",
 		"maas-ui-image":           "RELATED_IMAGE_ODH_MOD_ARCH_MAAS_IMAGE",
+		"eval-hub-ui-image":       "RELATED_IMAGE_ODH_MOD_ARCH_EVAL_HUB_IMAGE",
 		"kube-rbac-proxy":         "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
 	}
 
