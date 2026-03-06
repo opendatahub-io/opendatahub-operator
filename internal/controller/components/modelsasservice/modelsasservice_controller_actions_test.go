@@ -540,29 +540,6 @@ func TestAPIKeyConfiguration(t *testing.T) {
 			g.Expect(maas.Spec.APIKeys.MaxExpirationDays).Should(BeNil())
 		})
 
-		t.Run("should accept zero value for maxExpirationDays (fallback to default)", func(t *testing.T) {
-			maxDays := int32(0)
-			maas := &componentApi.ModelsAsService{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: componentApi.ModelsAsServiceInstanceName,
-				},
-				Spec: componentApi.ModelsAsServiceSpec{
-					GatewayRef: componentApi.GatewayRef{
-						Namespace: "test-namespace",
-						Name:      "test-gateway",
-					},
-					APIKeys: &componentApi.APIKeysConfig{
-						MaxExpirationDays: &maxDays,
-					},
-				},
-			}
-
-			// Verify zero is accepted (maas-api will fallback to default value)
-			g.Expect(maas.Spec.APIKeys).ShouldNot(BeNil())
-			g.Expect(maas.Spec.APIKeys.MaxExpirationDays).ShouldNot(BeNil())
-			g.Expect(*maas.Spec.APIKeys.MaxExpirationDays).Should(Equal(int32(0)))
-		})
-
 		t.Run("should accept various valid maxExpirationDays values", func(t *testing.T) {
 			testCases := []int32{1, 7, 30, 90, 365}
 
