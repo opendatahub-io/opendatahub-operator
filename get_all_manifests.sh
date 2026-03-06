@@ -29,7 +29,7 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["feastoperator"]="opendatahub-io:feast:stable@0c85e244d3182b4570164f6d66c8b106a207c070:infra/feast-operator/config"
     ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@76895fce0f00a3a7e147b7f5689a7d1b4ed5b6c9:config"
     ["trainer"]="opendatahub-io:trainer:stable@53fdd48b9156c382b60b33aa4b2f56a44c23377d:manifests"
-    ["maas"]="opendatahub-io:maas-billing:main@65934beb1a79c01d2f5f067f4591be181b8de579:deployment"
+    ["maas"]="opendatahub-io:models-as-a-service:stable@ca4793d207f67cca07918562628b2261dc2344c0:deployment"
     ["mlflowoperator"]="opendatahub-io:mlflow-operator:main@4733c77208cc572d1fd102a1d112f49243557936:config"
     ["sparkoperator"]="opendatahub-io:spark-operator:main@141b447586a54ed1882b6e8bf26c11fa52a18514:config"
 )
