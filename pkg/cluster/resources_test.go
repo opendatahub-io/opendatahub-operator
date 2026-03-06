@@ -244,6 +244,50 @@ func TestHasCRDWithVersion(t *testing.T) {
 	})
 }
 
+func TestIsAPIAvailable(t *testing.T) {
+	t.Run("should return true for core resources", func(t *testing.T) {
+		g := NewWithT(t)
+		cli, err := fakeclient.New()
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		available, err := cluster.IsAPIAvailable(cli, gvk.ConfigMap)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(available).To(BeTrue(), "ConfigMap (core resource) should be available")
+
+		available, err = cluster.IsAPIAvailable(cli, gvk.Secret)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(available).To(BeTrue(), "Secret (core resource) should be available")
+	})
+
+	t.Run("should return true for CR with existing CRD", func(t *testing.T) {
+		g := NewWithT(t)
+
+		// fakeclient registers the Dashboard CRD in its scheme and RESTMapper
+		cli, err := fakeclient.New()
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		available, err := cluster.IsAPIAvailable(cli, gvk.Dashboard)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(available).To(BeTrue(), "Dashboard (CR with registered CRD) should be available")
+	})
+
+	t.Run("should return false for CR with non-existent CRD", func(t *testing.T) {
+		g := NewWithT(t)
+		cli, err := fakeclient.New()
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		unknownGVK := schema.GroupVersionKind{
+			Group:   "unknown.example.com",
+			Version: "v1",
+			Kind:    "UnknownResource",
+		}
+
+		available, err := cluster.IsAPIAvailable(cli, unknownGVK)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(available).To(BeFalse(), "Unknown CR (no CRD) should not be available")
+	})
+}
+
 func TestListConfigMapUsingGVK(t *testing.T) {
 	ctx := t.Context()
 

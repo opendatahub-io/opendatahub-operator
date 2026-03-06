@@ -347,6 +347,33 @@ func HasCRD(ctx context.Context, cli client.Client, gvk schema.GroupVersionKind)
 	return HasCRDWithVersion(ctx, cli, gvk.GroupKind(), gvk.Version)
 }
 
+// IsAPIAvailable reports whether the given GVK is registered in the cluster's REST API,
+// by querying the RESTMapper (discovery cache).
+//
+// Unlike HasCRD, this works for both custom resources and built-in Kubernetes types
+// (ConfigMap, Deployment, etc.), but it does not verify whether a CRD object actually
+// exists, is terminating, or has the requested version stored. The RESTMapper cache
+// will lag behind recent CRD deletions, as cache is only updated on cache miss.
+//
+// Prefer HasCRD when reacting to CRD lifecycle events (install, upgrade, deletion).
+// Use this function for stable, well-established resource types where a lightweight
+// API presence check is sufficient.
+//
+// Returns:
+//   - (true, nil) if the API is available
+//   - (false, nil) if the API is not available (no matching resource type found)
+//   - (false, error) if there was a transient error (e.g., discovery or RBAC failure)
+func IsAPIAvailable(cli client.Client, gvk schema.GroupVersionKind) (bool, error) {
+	_, err := cli.RESTMapper().RESTMapping(gvk.GroupKind(), gvk.Version)
+	if err != nil {
+		if meta.IsNoMatchError(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 // HasCRDWithVersion checks if a CustomResourceDefinition (CRD) exists with the specified version.
 // It verifies the CRD's existence, ensures that the version is stored, and checks if the CRD is under deletion.
 //

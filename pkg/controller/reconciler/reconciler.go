@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sync"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -45,6 +46,23 @@ func WithConditionsManagerFactory(happy string, dependents ...string) Reconciler
 	}
 }
 
+// withDynamicOwnership enables dynamic ownership mode for the reconciler.
+// When enabled, the controller will automatically track ownership of resources
+// that are deployed, without requiring explicit .Owns() declarations.
+func withDynamicOwnership(opts ...DynamicOwnershipOption) ReconcilerOpt {
+	return func(reconciler *Reconciler) {
+		reconciler.dynamicOwnershipEnabled = true
+
+		cfg := &dynamicOwnershipConfig{}
+		for _, opt := range opts {
+			opt(cfg)
+		}
+		for _, g := range cfg.excludeGVKs {
+			reconciler.excludeFromDynamicOwnership[g] = struct{}{}
+		}
+	}
+}
+
 const platformFinalizer = "platform.opendatahub.io/finalizer"
 
 // Reconciler provides generic reconciliation functionality for ODH objects.
@@ -61,10 +79,13 @@ type Reconciler struct {
 	Recorder   record.EventRecorder
 	Release    common.Release
 
-	name                     string
-	instanceFactory          func() (common.PlatformObject, error)
-	conditionsManagerFactory func(common.ConditionsAccessor) *conditions.Manager
-	gvks                     map[schema.GroupVersionKind]gvkInfo
+	name                        string
+	instanceFactory             func() (common.PlatformObject, error)
+	conditionsManagerFactory    func(common.ConditionsAccessor) *conditions.Manager
+	gvks                        map[schema.GroupVersionKind]gvkInfo
+	dynamicGvks                 sync.Map
+	dynamicOwnershipEnabled     bool
+	excludeFromDynamicOwnership map[schema.GroupVersionKind]struct{}
 }
 
 // NewReconciler creates a new reconciler for the given type.
@@ -97,9 +118,10 @@ func NewReconciler[T common.PlatformObject](mgr manager.Manager, name string, ob
 		conditionsManagerFactory: func(accessor common.ConditionsAccessor) *conditions.Manager {
 			return conditions.NewManager(accessor, status.ConditionTypeReady)
 		},
-		gvks:            make(map[schema.GroupVersionKind]gvkInfo),
-		dynamicClient:   dynamicCli,
-		discoveryClient: discoveryCli,
+		gvks:                        make(map[schema.GroupVersionKind]gvkInfo),
+		excludeFromDynamicOwnership: make(map[schema.GroupVersionKind]struct{}),
+		dynamicClient:               dynamicCli,
+		discoveryClient:             discoveryCli,
 	}
 
 	for _, opt := range opts {
@@ -135,9 +157,33 @@ func (r *Reconciler) AddOwnedType(gvk schema.GroupVersionKind) {
 	}
 }
 
+// AddDynamicOwnedType registers a GVK as dynamically owned by this controller.
+// This is called by the dynamic ownership action after registering a watch for a resource type.
+// Once added, Owns() will return true for this GVK.
+func (r *Reconciler) AddDynamicOwnedType(gvk schema.GroupVersionKind) {
+	r.dynamicGvks.Store(gvk, struct{}{})
+}
+
 func (r *Reconciler) Owns(gvk schema.GroupVersionKind) bool {
+	// Check static ownership first
 	i, ok := r.gvks[gvk]
-	return ok && i.owned
+	if ok && i.owned {
+		return true
+	}
+	// Check dynamic ownership
+	_, ok = r.dynamicGvks.Load(gvk)
+	return ok
+}
+
+// IsDynamicOwnershipEnabled returns true if the controller has dynamic ownership enabled.
+func (r *Reconciler) IsDynamicOwnershipEnabled() bool {
+	return r.dynamicOwnershipEnabled
+}
+
+// IsExcludedFromDynamicOwnership returns true if the GVK should not have owner references set.
+func (r *Reconciler) IsExcludedFromDynamicOwnership(gvk schema.GroupVersionKind) bool {
+	_, excluded := r.excludeFromDynamicOwnership[gvk]
+	return excluded
 }
 
 func (r *Reconciler) AddAction(action actions.Fn) {
