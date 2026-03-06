@@ -9,6 +9,16 @@ const (
 	SelfManagedRhoai common.Platform = "OpenShift AI Self-Managed"
 	// OpenDataHub defines display name in csv.
 	OpenDataHub common.Platform = "Open Data Hub"
+	// XKS is the ODH_PLATFORM_TYPE value set by the CCM Helm chart for non-OpenShift
+	// Kubernetes deployments.  It acts as an umbrella that covers AKS, CoreWeave, EKS,
+	// and any other vanilla-Kubernetes target.
+	XKS common.Platform = "XKS"
+
+	// ClusterTypeOpenShift identifies an OpenShift cluster.
+	ClusterTypeOpenShift = "OpenShift"
+	// ClusterTypeKubernetes identifies a plain/vanilla Kubernetes cluster.
+	// Set when ODH_PLATFORM_TYPE=XKS.
+	ClusterTypeKubernetes = "Kubernetes"
 
 	// DefaultNotebooksNamespaceODH defines default namespace for notebooks.
 	DefaultNotebooksNamespaceODH = "opendatahub"
