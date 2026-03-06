@@ -15,7 +15,6 @@ import (
 var DefaultChartsPath = os.Getenv("DEFAULT_CHARTS_PATH")
 
 const (
-	NamespaceCertManager         = "cert-manager"
 	NamespaceCertManagerOperator = "cert-manager-operator"
 	NamespaceLWSOperator         = "openshift-lws-operator"
 	NamespaceSailOperator        = "istio-system"
@@ -40,10 +39,7 @@ func BuildHelmCharts(deps ccmcommon.Dependencies) []types.HelmChartInfo {
 						"operatorNamespace": NamespaceCertManagerOperator,
 					}),
 				},
-				PreApply: []types.HookFn{
-					CreateNamespaceHook(NamespaceCertManagerOperator),
-					CreateNamespaceHook(NamespaceCertManager),
-				},
+				PreApply: []types.HookFn{},
 			},
 		},
 		{
@@ -56,9 +52,7 @@ func BuildHelmCharts(deps ccmcommon.Dependencies) []types.HelmChartInfo {
 						"namespace": NamespaceLWSOperator,
 					}),
 				},
-				PreApply: []types.HookFn{
-					CreateNamespaceHook(NamespaceLWSOperator),
-				},
+				PreApply: []types.HookFn{},
 			},
 		},
 		{
@@ -71,9 +65,7 @@ func BuildHelmCharts(deps ccmcommon.Dependencies) []types.HelmChartInfo {
 						"namespace": NamespaceSailOperator,
 					}),
 				},
-				PreApply: []types.HookFn{
-					CreateNamespaceHook(NamespaceSailOperator),
-				},
+				PreApply: []types.HookFn{},
 			},
 		},
 	}

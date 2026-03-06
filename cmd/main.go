@@ -252,20 +252,20 @@ func main() { //nolint:funlen,maintidx,gocyclo
 
 	// If RHAI_APPLICATIONS_NAMESPACE is explicitly configured (via env var or CLI flag),
 	// it overrides the platform-detected namespace set during cluster.Init().
-	cluster.SetRHAIApplicationNamespace(oconfig.RHAIApplicationNamespace)
+	rhaiNS := flags.GetRHAIApplicationsNamespace()
+	cluster.SetRHAIApplicationNamespace(rhaiNS)
 
-	// Validate RHAI_APPLICATIONS_NAMESPACE against the detected cluster type.
-	// On non-OpenShift clusters DSCI is absent so the namespace must be injected explicitly.
-	// On OpenShift the namespace is managed by DSCI and must not be overridden here.
-	isOpenShift := cluster.GetClusterInfo().Type == cluster.ClusterTypeOpenShift
+	// Validate RHAI_APPLICATIONS_NAMESPACE against DSCI enablement.
+	// When DSCI is disabled (non-OpenShift) the namespace must be injected explicitly.
+	// When DSCI is enabled (OpenShift) the namespace is managed by DSCI and must not be overridden here.
 	switch {
-	case !isOpenShift && oconfig.RHAIApplicationNamespace == "":
-		setupLog.Error(errors.New("RHAI_APPLICATIONS_NAMESPACE must be set on non-OpenShift clusters"), "invalid configuration")
+	case !flags.IsDSCIEnabled() && rhaiNS == "":
+		setupLog.Error(errors.New("RHAI_APPLICATIONS_NAMESPACE must be set when DSCI is disabled"), "invalid configuration")
 		os.Exit(1)
-	case isOpenShift && oconfig.RHAIApplicationNamespace != "":
+	case flags.IsDSCIEnabled() && rhaiNS != "":
 		setupLog.Error(fmt.Errorf(
-			"RHAI_APPLICATIONS_NAMESPACE (%q) must not be set on OpenShift; use DSCI spec.applicationsNamespace instead",
-			oconfig.RHAIApplicationNamespace,
+			"RHAI_APPLICATIONS_NAMESPACE (%q) must not be set when DSCI is enabled; use DSCI spec.applicationsNamespace instead",
+			rhaiNS,
 		), "invalid configuration")
 		os.Exit(1)
 	}

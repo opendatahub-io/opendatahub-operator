@@ -2,6 +2,7 @@ package flags
 
 import (
 	"flag"
+	"strings"
 
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -33,7 +34,9 @@ func AddOperatorFlagsAndEnvvars(envvarPrefix string) error {
 
 	// RHAI-specific config: uses RHAI_ prefix (not ODH_MANAGER_) to separate
 	// cloud-controller-managed settings from standard operator settings.
-	pflag.String("rhai-applications-namespace", "", "The namespace where RHAI application components are deployed. If unset, the operator uses a platform-specific default.")
+	pflag.String("rhai-applications-namespace", "",
+		"The namespace where RHAI application components are deployed. "+
+			"Required on non-OpenShift clusters; must be unset on OpenShift (use DSCI spec.applicationsNamespace).")
 	if err := viper.BindEnv("rhai-applications-namespace", "RHAI_APPLICATIONS_NAMESPACE"); err != nil {
 		return err
 	}
@@ -97,4 +100,10 @@ func ParseZapFlags(zapFlagSet *flag.FlagSet, zapDevel bool, zapEncoder string, z
 		zapFlagsValues = append(zapFlagsValues, "--zap-time-encoding="+zapTimeEncoding)
 	}
 	return zapFlagSet.Parse(zapFlagsValues)
+}
+
+// GetRHAIApplicationsNamespace returns the configured RHAI applications namespace,
+// with surrounding whitespace trimmed.
+func GetRHAIApplicationsNamespace() string {
+	return strings.TrimSpace(viper.GetString("rhai-applications-namespace"))
 }
