@@ -824,7 +824,7 @@ func TestDeployDynamicOwnership_SetsOwnerReferences(t *testing.T) {
 			// Simulate dynamic ownership enabled
 			m.On("IsDynamicOwnershipEnabled").Return(true)
 			// No GVKs are excluded
-			m.On("IsExcludedFromOwnership", mock.Anything).Return(false)
+			m.On("IsExcludedFromDynamicOwnership", mock.Anything).Return(false)
 		}),
 	}
 
@@ -907,8 +907,8 @@ func TestDeployDynamicOwnership_ExcludesGVKs(t *testing.T) {
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
 			m.On("IsDynamicOwnershipEnabled").Return(true)
 			// Exclude Secret from ownership
-			m.On("IsExcludedFromOwnership", gvk.Secret).Return(true)
-			m.On("IsExcludedFromOwnership", gvk.ConfigMap).Return(false)
+			m.On("IsExcludedFromDynamicOwnership", gvk.Secret).Return(true)
+			m.On("IsExcludedFromDynamicOwnership", gvk.ConfigMap).Return(false)
 		}),
 	}
 
@@ -988,7 +988,7 @@ func TestDeployDynamicOwnership_FallsBackToStaticOwnership(t *testing.T) {
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
 			// Dynamic ownership disabled
 			m.On("IsDynamicOwnershipEnabled").Return(false)
-			m.On("IsExcludedFromOwnership", mock.Anything).Return(false)
+			m.On("IsExcludedFromDynamicOwnership", mock.Anything).Return(false)
 			// Static ownership: ConfigMap is owned, Secret is not
 			m.On("Owns", gvk.ConfigMap).Return(true)
 			m.On("Owns", gvk.Secret).Return(false)
@@ -1090,7 +1090,7 @@ func TestDeployDynamicOwnership_CRDsExcludedByDefault(t *testing.T) {
 		Resources: []unstructured.Unstructured{*crd, *configMap},
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
 			m.On("IsDynamicOwnershipEnabled").Return(true)
-			m.On("IsExcludedFromOwnership", mock.Anything).Return(false)
+			m.On("IsExcludedFromDynamicOwnership", mock.Anything).Return(false)
 		}),
 	}
 

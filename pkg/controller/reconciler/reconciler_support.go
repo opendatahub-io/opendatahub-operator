@@ -158,8 +158,12 @@ type dynamicOwnershipConfig struct {
 	gvkPredicates map[schema.GroupVersionKind][]predicate.Predicate
 }
 
-// ExcludeGVKs specifies GVKs that should not have owner references set.
-// These resources will be deployed but will not be owned by the controller.
+// ExcludeGVKs excludes GVKs from dynamic ownership. Excluded GVKs will not get
+// owner references or watches from the dynamic ownership action. They will still
+// be deployed, but the user is responsible for managing watches explicitly
+// (e.g., via .Watches()/.WatchesGVK() for non-owned resources, or .Owns()/.OwnsGVK()
+// for owned resources).
+// Static ownership via .Owns()/.OwnsGVK() takes precedence over this exclusion.
 //
 // Example:
 //
@@ -195,7 +199,8 @@ func WithGVKPredicates(gvkPredicates map[schema.GroupVersionKind][]predicate.Pre
 // that are deployed, without requiring explicit .Owns() declarations.
 // This also enables watch registration for dynamically owned resources.
 //
-// Use ExcludeGVKs to specify GVKs that should not have owner references set:
+// Use ExcludeGVKs to exclude GVKs from dynamic ownership. Static ownership
+// via .Owns()/.OwnsGVK() takes precedence over exclusion:
 //
 //	.WithDynamicOwnership(
 //	    reconciler.ExcludeGVKs(gvk.Secret),
@@ -365,6 +370,8 @@ func (b *ReconcilerBuilder[T]) Build(_ context.Context) (*Reconciler, error) {
 
 	c = c.For(resources.GvkToUnstructured(b.input.gvk), forOpts...)
 
+	var staticOwnedGVKs []schema.GroupVersionKind
+
 	for i := range b.watches {
 		if b.watches[i].owned {
 			kinds, _, err := b.mgr.GetScheme().ObjectKinds(b.watches[i].object)
@@ -375,6 +382,8 @@ func (b *ReconcilerBuilder[T]) Build(_ context.Context) (*Reconciler, error) {
 			for i := range kinds {
 				r.AddOwnedType(kinds[i])
 			}
+
+			staticOwnedGVKs = append(staticOwnedGVKs, kinds...)
 		}
 
 		// if the watch is dynamic, then the watcher will be registered
@@ -421,6 +430,11 @@ func (b *ReconcilerBuilder[T]) Build(_ context.Context) (*Reconciler, error) {
 		dynamicOpts := []dynamicownership.Option{}
 		if b.dynamicOwnershipGVKPreds != nil {
 			dynamicOpts = append(dynamicOpts, dynamicownership.WithGVKPredicates(b.dynamicOwnershipGVKPreds))
+		}
+
+		// Pre-register statically owned GVKs to prevent duplicate watch registration
+		if len(staticOwnedGVKs) > 0 {
+			dynamicOpts = append(dynamicOpts, dynamicownership.WithPreRegistered(staticOwnedGVKs...))
 		}
 
 		r.AddAction(

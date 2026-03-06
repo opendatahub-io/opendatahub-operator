@@ -496,21 +496,33 @@ func (a *Action) apply(
 }
 
 // shouldOwn determines whether the action should set an owner reference on a resource.
-// When dynamic ownership is enabled, it returns true for all GVKs except excluded ones.
-// When dynamic ownership is disabled, it delegates to the controller's static ownership check.
+//
+// Static ownership (from .Owns()/.OwnsGVK() in the builder) always takes precedence.
+// ExcludeGVKs is a DynamicOwnershipOption and only gates the dynamic registration path.
+//
+// Note: CRDs are routed to deployCRD() by the run() method and never reach
+// this function. CRDs do not get owner references.
 func (a *Action) shouldOwn(rr *odhTypes.ReconciliationRequest, objGVK schema.GroupVersionKind) bool {
-	// Check if GVK is excluded via controller (shared config from builder)
-	if rr.Controller.IsExcludedFromOwnership(objGVK) {
-		return false
-	}
-
-	if rr.Controller.IsDynamicOwnershipEnabled() {
-		// In dynamic ownership mode, default to owned
+	// Static and dynamic ownership from previous cycles always wins
+	if rr.Controller.Owns(objGVK) {
 		return true
 	}
 
-	// Fallback to static ownership check
-	return rr.Controller.Owns(objGVK)
+	// Exclusion only gates the dynamic path below — it does not override
+	// static ownership checked above. ExcludeGVKs is a DynamicOwnershipOption.
+	if rr.Controller.IsExcludedFromDynamicOwnership(objGVK) {
+		return false
+	}
+
+	// In dynamic ownership mode, register the type as dynamically owned so that
+	// subsequent actions in this same reconciliation cycle (e.g., GC) can query
+	// Owns() and get the correct result. AddDynamicOwnedType is idempotent.
+	if rr.Controller.IsDynamicOwnershipEnabled() {
+		rr.Controller.AddDynamicOwnedType(objGVK)
+		return true
+	}
+
+	return false
 }
 
 func NewAction(opts ...ActionOpts) actions.Fn {

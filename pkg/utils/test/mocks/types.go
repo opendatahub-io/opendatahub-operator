@@ -81,12 +81,16 @@ func (m *MockController) IsDynamicOwnershipEnabled() bool {
 	return args.Bool(0)
 }
 
-func (m *MockController) IsExcludedFromOwnership(gvk schema.GroupVersionKind) bool {
+func (m *MockController) IsExcludedFromDynamicOwnership(gvk schema.GroupVersionKind) bool {
 	args := m.Called(gvk)
 	if len(args) == 0 {
 		return false
 	}
 	return args.Bool(0)
+}
+
+func (m *MockController) AddDynamicOwnedType(gvk schema.GroupVersionKind) {
+	m.Called(gvk)
 }
 
 func NewMockController(f func(m *MockController)) *MockController {
@@ -95,8 +99,10 @@ func NewMockController(f func(m *MockController)) *MockController {
 
 	// Set default expectations for commonly used methods if not already set by the callback.
 	// This allows tests to override with specific expectations before these defaults.
-	m.On("IsExcludedFromOwnership", mock.Anything).Return(false).Maybe()
+	m.On("Owns", mock.Anything).Return(false).Maybe()
+	m.On("IsExcludedFromDynamicOwnership", mock.Anything).Return(false).Maybe()
 	m.On("IsDynamicOwnershipEnabled").Return(false).Maybe()
+	m.On("AddDynamicOwnedType", mock.Anything).Return().Maybe()
 
 	return m
 }

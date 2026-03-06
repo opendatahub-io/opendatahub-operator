@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sync"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -48,10 +49,6 @@ func WithConditionsManagerFactory(happy string, dependents ...string) Reconciler
 // withDynamicOwnership enables dynamic ownership mode for the reconciler.
 // When enabled, the controller will automatically track ownership of resources
 // that are deployed, without requiring explicit .Owns() declarations.
-//
-// Use ExcludeGVKs to specify GVKs that should not have owner references set:
-//
-//	withDynamicOwnership(ExcludeGVKs(gvk.Secret, gvk.CustomResourceDefinition))
 func withDynamicOwnership(opts ...DynamicOwnershipOption) ReconcilerOpt {
 	return func(reconciler *Reconciler) {
 		reconciler.dynamicOwnershipEnabled = true
@@ -86,7 +83,8 @@ type Reconciler struct {
 	instanceFactory             func() (common.PlatformObject, error)
 	conditionsManagerFactory    func(common.ConditionsAccessor) *conditions.Manager
 	gvks                        map[schema.GroupVersionKind]gvkInfo
-	dynamicOwnershipEnabled     bool // when true, automatically track ownership of deployed resources
+	dynamicGvks                 sync.Map
+	dynamicOwnershipEnabled     bool
 	excludeFromDynamicOwnership map[schema.GroupVersionKind]struct{}
 }
 
@@ -159,9 +157,22 @@ func (r *Reconciler) AddOwnedType(gvk schema.GroupVersionKind) {
 	}
 }
 
+// AddDynamicOwnedType registers a GVK as dynamically owned by this controller.
+// This is called by the dynamic ownership action after registering a watch for a resource type.
+// Once added, Owns() will return true for this GVK.
+func (r *Reconciler) AddDynamicOwnedType(gvk schema.GroupVersionKind) {
+	r.dynamicGvks.Store(gvk, struct{}{})
+}
+
 func (r *Reconciler) Owns(gvk schema.GroupVersionKind) bool {
+	// Check static ownership first
 	i, ok := r.gvks[gvk]
-	return ok && i.owned
+	if ok && i.owned {
+		return true
+	}
+	// Check dynamic ownership
+	_, ok = r.dynamicGvks.Load(gvk)
+	return ok
 }
 
 // IsDynamicOwnershipEnabled returns true if the controller has dynamic ownership enabled.
@@ -169,8 +180,8 @@ func (r *Reconciler) IsDynamicOwnershipEnabled() bool {
 	return r.dynamicOwnershipEnabled
 }
 
-// IsExcludedFromOwnership returns true if the GVK should not have owner references set.
-func (r *Reconciler) IsExcludedFromOwnership(gvk schema.GroupVersionKind) bool {
+// IsExcludedFromDynamicOwnership returns true if the GVK should not have owner references set.
+func (r *Reconciler) IsExcludedFromDynamicOwnership(gvk schema.GroupVersionKind) bool {
 	_, excluded := r.excludeFromDynamicOwnership[gvk]
 	return excluded
 }

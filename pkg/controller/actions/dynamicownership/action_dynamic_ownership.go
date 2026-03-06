@@ -3,6 +3,7 @@ package dynamicownership
 import (
 	"context"
 	"fmt"
+	"maps"
 	"sync"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -51,15 +52,26 @@ func WithManagedByFalseMatcher(matcher ResourceMatcher) Option {
 // These predicates will be used instead of the default predicates for the specified GVKs.
 func WithGVKPredicates(gvkPredicates map[schema.GroupVersionKind][]predicate.Predicate) Option {
 	return func(a *Action) {
-		a.gvkPredicates = gvkPredicates
+		maps.Copy(a.gvkPredicates, gvkPredicates)
+	}
+}
+
+// WithPreRegistered pre-populates the watched map with GVKs that already have
+// watches registered by the controller builder (via .Owns() or .OwnsGVK()).
+// This prevents the dynamic ownership action from registering duplicate watches.
+func WithPreRegistered(gvks ...schema.GroupVersionKind) Option {
+	return func(a *Action) {
+		for _, g := range gvks {
+			a.watched.Store(watchKey{gvk: g, owned: true}, struct{}{})
+		}
 	}
 }
 
 // watchKey identifies a unique watch registration.
-// We need separate watches for normal resources vs managed-by-false resources.
+// We need separate watches for owned resources vs non-owned (managed-by-false) resources.
 type watchKey struct {
-	gvk            schema.GroupVersionKind
-	managedByFalse bool
+	gvk   schema.GroupVersionKind
+	owned bool
 }
 
 // Action registers watches dynamically for deployed resources.
@@ -73,14 +85,13 @@ type Action struct {
 	mu                    sync.Mutex
 }
 
-// isWatched returns true if the GVK with the given managed-by-false status is already being watched.
-func (a *Action) isWatched(rr *types.ReconciliationRequest, gvk schema.GroupVersionKind, managedByFalse bool) bool {
-	// For normal resources (not managed-by-false), check static ownership from builder
-	if !managedByFalse && rr.Controller.Owns(gvk) {
-		return true
-	}
-	// Check dynamic watches registered by this action
-	key := watchKey{gvk: gvk, managedByFalse: managedByFalse}
+// isWatched returns true if a watch for this GVK and ownership type is already registered.
+// It checks only the internal a.watched state, not rr.Controller.Owns(), because the
+// deploy action may have already called AddDynamicOwnedType() (making Owns() return true)
+// before any watch is actually registered. Static GVKs from the builder are pre-populated
+// via WithPreRegistered.
+func (a *Action) isWatched(gvk schema.GroupVersionKind, owned bool) bool {
+	key := watchKey{gvk: gvk, owned: owned}
 	_, ok := a.watched.Load(key)
 	return ok
 }
@@ -114,7 +125,7 @@ func (a *Action) registerCRDWatchIfNeeded(rr *types.ReconciliationRequest, crdNa
 func (a *Action) registerWatchIfNeeded(
 	rr *types.ReconciliationRequest,
 	resGVK schema.GroupVersionKind,
-	isManagedByFalse bool,
+	isOwned bool,
 	eventHandler handler.EventHandler,
 	watchPredicates []predicate.Predicate,
 ) (bool, error) {
@@ -122,7 +133,7 @@ func (a *Action) registerWatchIfNeeded(
 	defer a.mu.Unlock()
 
 	// Re-check under lock to avoid duplicate registration
-	if a.isWatched(rr, resGVK, isManagedByFalse) {
+	if a.isWatched(resGVK, isOwned) {
 		return false, nil
 	}
 
@@ -132,9 +143,15 @@ func (a *Action) registerWatchIfNeeded(
 		return false, err
 	}
 
-	// Mark as watched internally
-	key := watchKey{gvk: resGVK, managedByFalse: isManagedByFalse}
+	// Track the watch registration
+	key := watchKey{gvk: resGVK, owned: isOwned}
 	a.watched.Store(key, struct{}{})
+
+	if isOwned {
+		// Also register as dynamically owned so Owns() returns true.
+		// Idempotent — deploy may have already called this.
+		rr.Controller.AddDynamicOwnedType(resGVK)
+	}
 
 	return true, nil
 }
@@ -148,36 +165,42 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 	l := logf.FromContext(ctx)
 
 	// Track what we've seen in this run to avoid duplicate processing
-	// We need to track normal and managed-by-false resources separately
+	// We need to track owned and non-owned resources separately
 	seenKeys := make(map[watchKey]struct{})
 
 	for i := range rr.Resources {
 		res := &rr.Resources[i]
 		resGVK := res.GroupVersionKind()
 
-		// Skip if excluded (shared config from builder)
-		if rr.Controller.IsExcludedFromOwnership(resGVK) {
+		// Skip if excluded (shared config from builder).
+		// Excluded GVKs intentionally have no watch registered by the dynamic ownership action.
+		// If the user needs reconciliation triggered by changes to excluded resources,
+		// they must set up watches explicitly (e.g., via .Owns, .OwnsGVK(), .Watches() or .WatchesGVK() in the builder).
+		if rr.Controller.IsExcludedFromDynamicOwnership(resGVK) {
 			continue
 		}
 
-		// For CRDs, check if we should watch by name
+		// For CRDs, register a name-based watch (not owner-reference-based) because CRDs
+		// are cluster-scoped and do not have owner references set by the deploy action.
+		// CRDs can be excluded from ownership like any other GVK via ExcludeGVKs().
+		// If excluded, no name-based watch is registered either.
 		if resGVK == gvk.CustomResourceDefinition {
 			crdName := res.GetName()
 			registered, err := a.registerCRDWatchIfNeeded(rr, crdName)
 			if err != nil {
-				l.Error(err, "Failed to register CRD watch", "name", crdName)
-				// Continue - don't fail the entire reconciliation for watch errors
-			} else if registered {
+				return fmt.Errorf("failed to register CRD watch for %s: %w", crdName, err)
+			}
+			if registered {
 				l.V(3).Info("Registered dynamic CRD watch by name", "crdName", crdName)
 			}
 			continue
 		}
 
-		// Determine if this is a managed-by-false resource
-		isManagedByFalse := a.managedByFalseMatcher(res)
+		// Determine if this resource is owned
+		isOwned := !a.managedByFalseMatcher(res)
 
 		// Create the watch key for this resource type
-		key := watchKey{gvk: resGVK, managedByFalse: isManagedByFalse}
+		key := watchKey{gvk: resGVK, owned: isOwned}
 
 		// Skip if already processed in this run
 		if _, seen := seenKeys[key]; seen {
@@ -185,8 +208,8 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 		}
 		seenKeys[key] = struct{}{}
 
-		// Skip if already watched (static or dynamic) - quick check without lock
-		if a.isWatched(rr, resGVK, isManagedByFalse) {
+		// Skip if already watched - quick check without lock
+		if a.isWatched(resGVK, isOwned) {
 			continue
 		}
 
@@ -203,11 +226,7 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 		var eventHandler handler.EventHandler
 		var watchPredicates []predicate.Predicate
 
-		if isManagedByFalse {
-			// For managed-by: false resources, use a handler that only triggers on delete
-			eventHandler = handlers.ToNamed(rr.Instance.GetName())
-			watchPredicates = []predicate.Predicate{resourcespredicates.Deleted()}
-		} else {
+		if isOwned {
 			// For normal owned resources, use EnqueueRequestForOwner
 			eventHandler = handler.EnqueueRequestForOwner(
 				rr.Client.Scheme(),
@@ -221,17 +240,24 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 			} else {
 				watchPredicates = []predicate.Predicate{predicates.DefaultPredicate}
 			}
+		} else {
+			// Watch only for deletion so the controller can recreate the resource if deleted.
+			// Note: we cannot filter by managed-by-false annotation here because the deploy
+			// action removes the annotation before creating the resource on the cluster.
+			// This means when both owned and non-owned resources of the same GVK exist,
+			// this watch may fire for owned resource deletions too, causing a redundant
+			// (but harmless) reconciliation.
+			eventHandler = handlers.ToNamed(rr.Instance.GetName())
+			watchPredicates = []predicate.Predicate{resourcespredicates.Deleted()}
 		}
 
 		// Register the watch atomically (re-checks under lock to prevent duplicates)
-		registered, err := a.registerWatchIfNeeded(rr, resGVK, isManagedByFalse, eventHandler, watchPredicates)
+		registered, err := a.registerWatchIfNeeded(rr, resGVK, isOwned, eventHandler, watchPredicates)
 		if err != nil {
-			l.Error(err, "Failed to register watch for dynamic ownership", "gvk", resGVK, "managedByFalse", isManagedByFalse)
-			// Continue - don't fail the entire reconciliation for watch errors
-			continue
+			return fmt.Errorf("failed to register watch for %s (owned=%t): %w", resGVK, isOwned, err)
 		}
 		if registered {
-			l.V(3).Info("Registered dynamic watch", "gvk", resGVK, "managedByFalse", isManagedByFalse)
+			l.V(3).Info("Registered dynamic watch", "gvk", resGVK, "owned", isOwned)
 		}
 	}
 
@@ -256,7 +282,22 @@ func (a *Action) registerCRDWatch(rr *types.ReconciliationRequest, crdName strin
 }
 
 // NewAction creates a new dynamic ownership action.
-// This action should run after the deploy action to register watches for deployed resources.
+//
+// This action should run after the deploy action to register watches for
+// deployed resources. It iterates rr.Resources and:
+//   - For excluded GVKs: skips entirely (no watch, no ownership). The user
+//     is responsible for setting up watches for excluded resources.
+//   - For CRDs: registers a name-based watch using the CRD's metadata name.
+//   - For non-owned (managed-by-false) resources: registers a delete-only watch
+//     so the controller can recreate the resource if deleted. These resources
+//     are NOT marked as owned (Owns() returns false), protecting them from GC.
+//     Note: the managed-by annotation is removed by the deploy action before
+//     creating the resource, so annotation-based event filtering is not
+//     possible. When both owned and non-owned resources of the same GVK exist,
+//     the delete-only watch may fire for owned resource deletions too, causing
+//     a redundant (but harmless) reconciliation.
+//   - For owned resources: registers a watch with EnqueueRequestForOwner and
+//     marks the GVK as dynamically owned via AddDynamicOwnedType().
 func NewAction(
 	watchRegisterFn WatchRegisterFunc,
 	ownerGVK schema.GroupVersionKind,

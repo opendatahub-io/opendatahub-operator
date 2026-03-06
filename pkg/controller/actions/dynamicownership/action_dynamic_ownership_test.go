@@ -98,6 +98,8 @@ func TestDynamicOwnershipAction(t *testing.T) {
 			return nil
 		},
 		gvk.Dashboard,
+		// ConfigMap is statically owned (pre-registered), so it should not trigger a new watch
+		dynamicownership.WithPreRegistered(gvk.ConfigMap),
 	)
 
 	rr := types.ReconciliationRequest{
@@ -110,19 +112,24 @@ func TestDynamicOwnershipAction(t *testing.T) {
 		Resources: []unstructured.Unstructured{*cm, *secret, *deployment},
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
 			m.On("IsDynamicOwnershipEnabled").Return(true)
-			m.On("IsExcludedFromOwnership", gvk.Deployment).Return(true)
-			m.On("IsExcludedFromOwnership", mock.Anything).Return(false)
-			m.On("Owns", gvk.ConfigMap).Return(true)  // Statically owned, already watched
-			m.On("Owns", mock.Anything).Return(false) // Any other GVK is not statically owned
+			m.On("IsExcludedFromDynamicOwnership", gvk.Deployment).Return(true)
+			m.On("IsExcludedFromDynamicOwnership", mock.Anything).Return(false)
 		}),
 	}
 
 	err = action(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(watchRegisterFnCalledWithObjects).To(HaveLen(1), "Watch registrar should be called only for non-statically owned GVK")
-	g.Expect(watchRegisterFnCalledWithObjects[gvk.ConfigMap.String()]).To(BeFalse(), "Watch registrar should NOT be called for statically owned ConfigMap")
-	g.Expect(watchRegisterFnCalledWithObjects[gvk.Secret.String()]).To(BeTrue(), "Watch registrar should be called for non-statically owned Secret")
+	g.Expect(watchRegisterFnCalledWithObjects).To(HaveLen(1), "Watch registrar should be called only for non-pre-registered GVK")
+	g.Expect(watchRegisterFnCalledWithObjects[gvk.ConfigMap.String()]).To(BeFalse(), "Watch registrar should NOT be called for pre-registered ConfigMap")
+	g.Expect(watchRegisterFnCalledWithObjects[gvk.Secret.String()]).To(BeTrue(), "Watch registrar should be called for non-pre-registered Secret")
 	g.Expect(watchRegisterFnCalledWithObjects[gvk.Deployment.String()]).To(BeFalse(), "Watch registrar should be NOT called for excluded Deployment")
+
+	// Verify AddDynamicOwnedType is called for the dynamically watched Secret
+	mockCtrl, ok := rr.Controller.(*mocks.MockController)
+	g.Expect(ok).To(BeTrue())
+	mockCtrl.AssertCalled(t, "AddDynamicOwnedType", gvk.Secret)
+	mockCtrl.AssertNotCalled(t, "AddDynamicOwnedType", gvk.ConfigMap)
+	mockCtrl.AssertNotCalled(t, "AddDynamicOwnedType", gvk.Deployment)
 }
 
 func TestDynamicOwnershipAction_CRDWatch(t *testing.T) {
@@ -167,8 +174,7 @@ func TestDynamicOwnershipAction_CRDWatch(t *testing.T) {
 		Resources: []unstructured.Unstructured{*crd, *cm},
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
 			m.On("IsDynamicOwnershipEnabled").Return(true)
-			m.On("IsExcludedFromOwnership", mock.Anything).Return(false)
-			m.On("Owns", mock.Anything).Return(false) // Nothing is statically owned
+			m.On("IsExcludedFromDynamicOwnership", mock.Anything).Return(false)
 		}),
 	}
 
@@ -191,6 +197,12 @@ func TestDynamicOwnershipAction_CRDWatch(t *testing.T) {
 	}
 	g.Expect(otherCalls).To(HaveLen(1))
 	g.Expect(otherCalls[0].gvk).To(Equal(gvk.ConfigMap.String()))
+
+	// AddDynamicOwnedType should be called for ConfigMap (normal resource) but not for CRDs
+	mockCtrl, ok := rr.Controller.(*mocks.MockController)
+	g.Expect(ok).To(BeTrue())
+	mockCtrl.AssertCalled(t, "AddDynamicOwnedType", gvk.ConfigMap)
+	mockCtrl.AssertNotCalled(t, "AddDynamicOwnedType", gvk.CustomResourceDefinition)
 }
 
 func TestDynamicOwnershipAction_ManagedByFalseWithSameGVK(t *testing.T) {
@@ -235,8 +247,7 @@ func TestDynamicOwnershipAction_ManagedByFalseWithSameGVK(t *testing.T) {
 		Resources: []unstructured.Unstructured{*regularCM, *managedFalseCM},
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
 			m.On("IsDynamicOwnershipEnabled").Return(true)
-			m.On("IsExcludedFromOwnership", mock.Anything).Return(false)
-			m.On("Owns", mock.Anything).Return(false) // Nothing is statically owned
+			m.On("IsExcludedFromDynamicOwnership", mock.Anything).Return(false)
 		}),
 	}
 
@@ -255,6 +266,13 @@ func TestDynamicOwnershipAction_ManagedByFalseWithSameGVK(t *testing.T) {
 	g.Expect(managedFalseWatchPredicate.Create(event.TypedCreateEvent[client.Object]{Object: managedFalseCM})).To(BeFalse())
 	g.Expect(managedFalseWatchPredicate.Update(event.TypedUpdateEvent[client.Object]{ObjectOld: managedFalseCM, ObjectNew: managedFalseCM})).To(BeFalse())
 	g.Expect(managedFalseWatchPredicate.Delete(event.TypedDeleteEvent[client.Object]{Object: managedFalseCM})).To(BeTrue())
+
+	// AddDynamicOwnedType should be called once for the regular ConfigMap only.
+	// Managed-by-false resources are tracked internally, not as owned types.
+	mockCtrl, ok := rr.Controller.(*mocks.MockController)
+	g.Expect(ok).To(BeTrue())
+	mockCtrl.AssertNumberOfCalls(t, "AddDynamicOwnedType", 1)
+	mockCtrl.AssertCalled(t, "AddDynamicOwnedType", gvk.ConfigMap)
 }
 
 func TestDynamicOwnershipAction_CRDWatchDeduplication(t *testing.T) {
@@ -287,8 +305,7 @@ func TestDynamicOwnershipAction_CRDWatchDeduplication(t *testing.T) {
 		Resources: []unstructured.Unstructured{*crd1, *crd2},
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
 			m.On("IsDynamicOwnershipEnabled").Return(true)
-			m.On("IsExcludedFromOwnership", mock.Anything).Return(false)
-			m.On("Owns", mock.Anything).Return(false)
+			m.On("IsExcludedFromDynamicOwnership", mock.Anything).Return(false)
 		}),
 	}
 
@@ -352,8 +369,7 @@ func TestDynamicOwnershipAction_WithCustomManagedByFalseMatcher(t *testing.T) {
 		Resources: []unstructured.Unstructured{*cm, *secret},
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
 			m.On("IsDynamicOwnershipEnabled").Return(true)
-			m.On("IsExcludedFromOwnership", mock.Anything).Return(false)
-			m.On("Owns", mock.Anything).Return(false) // Nothing is statically owned
+			m.On("IsExcludedFromDynamicOwnership", mock.Anything).Return(false)
 		}),
 	}
 
@@ -430,8 +446,7 @@ func TestDynamicOwnershipAction_WithGVKPredicates(t *testing.T) {
 		Resources: []unstructured.Unstructured{*cm, *deployment},
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
 			m.On("IsDynamicOwnershipEnabled").Return(true)
-			m.On("IsExcludedFromOwnership", mock.Anything).Return(false)
-			m.On("Owns", mock.Anything).Return(false) // Nothing is statically owned
+			m.On("IsExcludedFromDynamicOwnership", mock.Anything).Return(false)
 		}),
 	}
 
@@ -461,6 +476,67 @@ func TestDynamicOwnershipAction_WithGVKPredicates(t *testing.T) {
 	g.Expect(cmCall.predicates[0].Create(event.TypedCreateEvent[client.Object]{Object: cm})).To(BeTrue())
 	g.Expect(cmCall.predicates[0].Update(event.TypedUpdateEvent[client.Object]{ObjectOld: cm, ObjectNew: cm})).To(BeTrue())
 	g.Expect(cmCall.predicates[0].Delete(event.TypedDeleteEvent[client.Object]{Object: cm})).To(BeTrue())
+}
+
+func TestDynamicOwnershipAction_DynamicOwnsDedup(t *testing.T) {
+	g := NewWithT(t)
+	ctx := context.Background()
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	ns := xid.New().String()
+	secretName := xid.New().String()
+
+	secret := createSecret(t, g, secretName, ns)
+
+	watchCallCount := 0
+	action := dynamicownership.NewAction(
+		func(_ client.Object, _ handler.EventHandler, _ ...predicate.Predicate) error {
+			watchCallCount++
+			return nil
+		},
+		gvk.Dashboard,
+	)
+
+	// First reconciliation: watch should be registered
+	rr := types.ReconciliationRequest{
+		Client: cl,
+		Instance: &componentApi.Dashboard{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-dashboard",
+			},
+		},
+		Resources: []unstructured.Unstructured{*secret},
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("IsDynamicOwnershipEnabled").Return(true)
+			m.On("IsExcludedFromDynamicOwnership", mock.Anything).Return(false)
+		}),
+	}
+
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(watchCallCount).To(Equal(1), "Should register watch on first reconciliation")
+
+	mockCtrl, ok := rr.Controller.(*mocks.MockController)
+	g.Expect(ok).To(BeTrue())
+	mockCtrl.AssertCalled(t, "AddDynamicOwnedType", gvk.Secret)
+
+	// Second reconciliation: watch should NOT be re-registered because
+	// the action's internal a.watched state persists across runs.
+	watchCallCount = 0
+	rr.Controller = mocks.NewMockController(func(m *mocks.MockController) {
+		m.On("IsDynamicOwnershipEnabled").Return(true)
+		m.On("IsExcludedFromDynamicOwnership", mock.Anything).Return(false)
+	})
+
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(watchCallCount).To(Equal(0), "Should not re-register watch for already watched GVK")
+
+	mockCtrl, ok = rr.Controller.(*mocks.MockController)
+	g.Expect(ok).To(BeTrue())
+	mockCtrl.AssertNotCalled(t, "AddDynamicOwnedType", mock.Anything)
 }
 
 func createConfigMap(t *testing.T, g Gomega, name, ns string) *unstructured.Unstructured {

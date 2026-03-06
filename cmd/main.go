@@ -352,7 +352,9 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 
 	ctrlMgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{ // single pod does not need to have LeaderElection
-		Scheme:         scheme,
+		Scheme: scheme,
+		// This is the default mapper provider, we define it to ensure it remains
+		// consistent with controller-runtime updates. It is needed for the action dynamicownership.
 		MapperProvider: apiutil.NewDynamicRESTMapper,
 		Metrics:        ctrlmetrics.Options{BindAddress: oconfig.MetricsAddr},
 		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
