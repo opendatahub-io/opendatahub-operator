@@ -187,32 +187,6 @@ func initServices(_ context.Context, p common.Platform) error {
 	})
 }
 
-// Create a config struct with viper's mapstructure.
-type OperatorConfig struct {
-	MetricsAddr              string `mapstructure:"metrics-bind-address"`
-	HealthProbeAddr          string `mapstructure:"health-probe-bind-address"`
-	LeaderElection           bool   `mapstructure:"leader-elect"`
-	MonitoringNamespace      string `mapstructure:"dsc-monitoring-namespace"`
-	LogMode                  string `mapstructure:"log-mode"`
-	PprofAddr                string `mapstructure:"pprof-bind-address"`
-	RHAIApplicationNamespace string `mapstructure:"rhai-applications-namespace"`
-
-	// Zap logging configuration
-	ZapDevel        bool   `mapstructure:"zap-devel"`
-	ZapEncoder      string `mapstructure:"zap-encoder"`
-	ZapLogLevel     string `mapstructure:"zap-log-level"`
-	ZapStacktrace   string `mapstructure:"zap-stacktrace-level"`
-	ZapTimeEncoding string `mapstructure:"zap-time-encoding"`
-}
-
-func LoadConfig() (*OperatorConfig, error) {
-	var operatorConfig OperatorConfig
-	if err := viper.Unmarshal(&operatorConfig); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal operator manager config: %w", err)
-	}
-	return &operatorConfig, nil
-}
-
 func registerComponents() {
 	for name, handler := range existingComponents {
 		cr.Add(handler)

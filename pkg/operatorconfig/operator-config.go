@@ -15,12 +15,13 @@ import (
 // OperatorConfig defines the operator manager configuration loaded from environment
 // variables and flags via Viper.
 type Config struct {
-	MetricsAddr         string `mapstructure:"metrics-bind-address"`
-	HealthProbeAddr     string `mapstructure:"health-probe-bind-address"`
-	LeaderElection      bool   `mapstructure:"leader-elect"`
-	MonitoringNamespace string `mapstructure:"dsc-monitoring-namespace"`
-	LogMode             string `mapstructure:"log-mode"`
-	PprofAddr           string `mapstructure:"pprof-bind-address"`
+	MetricsAddr              string `mapstructure:"metrics-bind-address"`
+	HealthProbeAddr          string `mapstructure:"health-probe-bind-address"`
+	LeaderElection           bool   `mapstructure:"leader-elect"`
+	MonitoringNamespace      string `mapstructure:"dsc-monitoring-namespace"`
+	LogMode                  string `mapstructure:"log-mode"`
+	PprofAddr                string `mapstructure:"pprof-bind-address"`
+	RHAIApplicationNamespace string `mapstructure:"rhai-applications-namespace"`
 
 	// Zap logging configuration
 	ZapDevel        bool   `mapstructure:"zap-devel"`
