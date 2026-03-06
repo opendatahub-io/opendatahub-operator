@@ -128,11 +128,14 @@ func runDiagnosticsOnce(key string, testName string) {
 // runDiagnosticsAndClassify collects cluster health data via clusterhealth.Run(),
 // logs the report for CI visibility, and classifies the failure.
 func runDiagnosticsAndClassify(testName string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
 	cfg := clusterhealth.Config{
 		Client: globalDebugClient,
 		Operator: clusterhealth.OperatorConfig{
 			Namespace: testOpts.operatorNamespace,
-			Name:      getControllerDeploymentName(),
+			Name:      getControllerDeploymentName(ctx),
 		},
 		Namespaces: clusterhealth.NamespaceConfig{
 			Apps:  testOpts.appsNamespace,
@@ -142,12 +145,13 @@ func runDiagnosticsAndClassify(testName string) {
 		DSC:  types.NamespacedName{Name: dscInstanceName},
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-
 	report, err := clusterhealth.Run(ctx, cfg)
 	if err != nil {
 		log.Printf("ERROR: Failed to collect diagnostics: %v", err)
+		fc := classifier.Classify(nil)
+		fc.Evidence = append(fc.Evidence, fmt.Sprintf("clusterhealth.Run error: %v", err))
+		classifier.EmitClassification(fc, testName)
+		lastClassification.Store(&fc)
 		return
 	}
 
@@ -474,8 +478,11 @@ func retrievePodLogs(namespace, podName, containerName string, previous bool) (s
 	// Get logs request
 	req := clientset.CoreV1().Pods(namespace).GetLogs(podName, podLogOpts)
 
-	// Stream logs
-	podLogs, err := req.Stream(context.TODO())
+	// Stream logs with a bounded timeout to prevent indefinite hangs
+	logCtx, logCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer logCancel()
+
+	podLogs, err := req.Stream(logCtx)
 	if err != nil {
 		return "", fmt.Errorf("error opening log stream: %w", err)
 	}
@@ -495,10 +502,10 @@ func retrievePodLogs(namespace, podName, containerName string, previous bool) (s
 	return buf.String(), nil
 }
 
-func getDSCI() *unstructured.Unstructured {
+func getDSCI(ctx context.Context) *unstructured.Unstructured {
 	dsci := &unstructured.Unstructured{}
 	dsci.SetGroupVersionKind(gvk.DSCInitialization)
-	err := globalDebugClient.Get(context.TODO(), types.NamespacedName{Name: dsciInstanceName}, dsci)
+	err := globalDebugClient.Get(ctx, types.NamespacedName{Name: dsciInstanceName}, dsci)
 	if err != nil {
 		log.Printf("Failed to get DSCI: %v", err)
 		return nil
@@ -506,9 +513,9 @@ func getDSCI() *unstructured.Unstructured {
 	return dsci
 }
 
-func getControllerDeploymentName() string {
+func getControllerDeploymentName(ctx context.Context) string {
 	defaultControllerDeploymentName := controllerDeploymentODH
-	dsci := getDSCI()
+	dsci := getDSCI(ctx)
 	if dsci == nil {
 		return defaultControllerDeploymentName
 	}
