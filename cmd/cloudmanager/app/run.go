@@ -49,6 +49,8 @@ func Run(_ *cobra.Command, provider Provider) error {
 		Metrics: ctrlmetrics.Options{
 			BindAddress: cfg.MetricsAddr,
 		},
+		// This is the default mapper provider, we define it to ensure it remains
+		// consistent with controller-runtime updates. It is needed for the action dynamicownership.
 		MapperProvider:         apiutil.NewDynamicRESTMapper,
 		HealthProbeBindAddress: cfg.HealthProbeAddr,
 		LeaderElection:         cfg.LeaderElection,

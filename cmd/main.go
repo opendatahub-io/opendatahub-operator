@@ -55,6 +55,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	crtlmanager "sigs.k8s.io/controller-runtime/pkg/manager"
@@ -351,8 +352,11 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 
 	ctrlMgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{ // single pod does not need to have LeaderElection
-		Scheme:  scheme,
-		Metrics: ctrlmetrics.Options{BindAddress: oconfig.MetricsAddr},
+		Scheme: scheme,
+		// This is the default mapper provider, we define it to ensure it remains
+		// consistent with controller-runtime updates. It is needed for the action dynamicownership.
+		MapperProvider: apiutil.NewDynamicRESTMapper,
+		Metrics:        ctrlmetrics.Options{BindAddress: oconfig.MetricsAddr},
 		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
 			Port: 9443,
 			// TLSOpts: , // TODO: it was not set in the old code
