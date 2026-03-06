@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -186,31 +187,6 @@ func initServices(_ context.Context, p common.Platform) error {
 	})
 }
 
-// Create a config struct with viper's mapstructure.
-type OperatorConfig struct {
-	MetricsAddr         string `mapstructure:"metrics-bind-address"`
-	HealthProbeAddr     string `mapstructure:"health-probe-bind-address"`
-	LeaderElection      bool   `mapstructure:"leader-elect"`
-	MonitoringNamespace string `mapstructure:"dsc-monitoring-namespace"`
-	LogMode             string `mapstructure:"log-mode"`
-	PprofAddr           string `mapstructure:"pprof-bind-address"`
-
-	// Zap logging configuration
-	ZapDevel        bool   `mapstructure:"zap-devel"`
-	ZapEncoder      string `mapstructure:"zap-encoder"`
-	ZapLogLevel     string `mapstructure:"zap-log-level"`
-	ZapStacktrace   string `mapstructure:"zap-stacktrace-level"`
-	ZapTimeEncoding string `mapstructure:"zap-time-encoding"`
-}
-
-func LoadConfig() (*OperatorConfig, error) {
-	var operatorConfig OperatorConfig
-	if err := viper.Unmarshal(&operatorConfig); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal operator manager config: %w", err)
-	}
-	return &operatorConfig, nil
-}
-
 func registerComponents() {
 	for name, handler := range existingComponents {
 		cr.Add(handler)
@@ -271,6 +247,26 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	err = cluster.Init(ctx, setupClient)
 	if err != nil {
 		setupLog.Error(err, "unable to initialize cluster config")
+		os.Exit(1)
+	}
+
+	// If RHAI_APPLICATIONS_NAMESPACE is explicitly configured (via env var or CLI flag),
+	// it overrides the platform-detected namespace set during cluster.Init().
+	rhaiNS := flags.GetRHAIApplicationsNamespace()
+	cluster.SetRHAIApplicationNamespace(rhaiNS)
+
+	// Validate RHAI_APPLICATIONS_NAMESPACE against DSCI enablement.
+	// When DSCI is disabled (non-OpenShift) the namespace must be injected explicitly.
+	// When DSCI is enabled (OpenShift) the namespace is managed by DSCI and must not be overridden here.
+	switch {
+	case !flags.IsDSCIEnabled() && rhaiNS == "":
+		setupLog.Error(errors.New("RHAI_APPLICATIONS_NAMESPACE must be set when DSCI is disabled"), "invalid configuration")
+		os.Exit(1)
+	case flags.IsDSCIEnabled() && rhaiNS != "":
+		setupLog.Error(fmt.Errorf(
+			"RHAI_APPLICATIONS_NAMESPACE (%q) must not be set when DSCI is enabled; use DSCI spec.applicationsNamespace instead",
+			rhaiNS,
+		), "invalid configuration")
 		os.Exit(1)
 	}
 

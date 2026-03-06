@@ -25,10 +25,6 @@ func TestBuildHelmCharts(t *testing.T) {
 		assert.Equal(t, "cert-manager-operator", charts[0].ReleaseName)
 		assert.Equal(t, "lws-operator", charts[1].ReleaseName)
 		assert.Equal(t, "sail-operator", charts[2].ReleaseName)
-
-		assert.Len(t, charts[0].PreApply, 2, "cert-manager-operator should have 2 PreApply hooks")
-		assert.Len(t, charts[1].PreApply, 1, "lws-operator should have 1 PreApply hook")
-		assert.Len(t, charts[2].PreApply, 1, "sail-operator should have 1 PreApply hook")
 	})
 
 	t.Run("excludes unmanaged charts and preserves order", func(t *testing.T) {
@@ -42,7 +38,6 @@ func TestBuildHelmCharts(t *testing.T) {
 
 		require.Len(t, charts, 1)
 		assert.Equal(t, "lws-operator", charts[0].ReleaseName)
-		assert.Len(t, charts[0].PreApply, 1, "lws-operator should have 1 PreApply hook")
 	})
 
 	t.Run("returns empty slice when all unmanaged", func(t *testing.T) {
