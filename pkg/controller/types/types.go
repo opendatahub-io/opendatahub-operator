@@ -1,13 +1,16 @@
 package types
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"path"
 
 	"github.com/go-logr/logr"
+	helm "github.com/k8s-manifest-kit/renderer-helm/pkg"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
@@ -71,6 +74,21 @@ type TemplateInfo struct {
 	Annotations map[string]string
 }
 
+// HookFn is the signature for pre/post apply hooks.
+type HookFn func(ctx context.Context, rr *ReconciliationRequest) error
+
+// HelmChartInfo describes a Helm chart to render.
+type HelmChartInfo struct {
+	helm.Source
+
+	// PreApply hooks run before this chart's resources are deployed.
+	// Hooks are executed in order; execution stops on the first error.
+	PreApply []HookFn
+	// PostApply hooks run after this chart's resources are deployed.
+	// Hooks are executed in order; execution stops on the first error.
+	PostApply []HookFn
+}
+
 type ReconciliationRequest struct {
 	Client     client.Client
 	Controller Controller
@@ -99,8 +117,9 @@ type ReconciliationRequest struct {
 	//
 	// and use the scheme as discriminator for the rendering engine
 	//
-	Templates []TemplateInfo
-	Resources []unstructured.Unstructured
+	Templates  []TemplateInfo
+	HelmCharts []HelmChartInfo
+	Resources  []unstructured.Unstructured
 
 	// TODO: this has been added to reduce GC work and only run when
 	//       resources have been generated. It should be removed and
@@ -210,6 +229,28 @@ func Hash(rr *ReconciliationRequest) ([]byte, error) {
 	for i := range rr.Templates {
 		if _, err := hash.Write([]byte(rr.Templates[i].Path)); err != nil {
 			return nil, fmt.Errorf("failed to hash template: %w", err)
+		}
+	}
+	for i := range rr.HelmCharts {
+		if _, err := hash.Write([]byte(rr.HelmCharts[i].Chart)); err != nil {
+			return nil, fmt.Errorf("failed to hash helm chart: %w", err)
+		}
+		if _, err := hash.Write([]byte(rr.HelmCharts[i].ReleaseName)); err != nil {
+			return nil, fmt.Errorf("failed to hash helm chart release name: %w", err)
+		}
+		if rr.HelmCharts[i].Values != nil {
+			// json marshal the values to ensure the order is deterministic
+			values, err := rr.HelmCharts[i].Values(context.TODO())
+			if err != nil {
+				return nil, fmt.Errorf("failed to get helm chart values: %w", err)
+			}
+			b, err := json.Marshal(values)
+			if err != nil {
+				return nil, fmt.Errorf("failed to hash helm chart values: %w", err)
+			}
+			if _, err := hash.Write(b); err != nil {
+				return nil, fmt.Errorf("failed to hash helm chart values: %w", err)
+			}
 		}
 	}
 

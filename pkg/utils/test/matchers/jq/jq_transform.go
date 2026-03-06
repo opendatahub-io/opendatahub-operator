@@ -2,6 +2,7 @@ package jq
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/itchyny/gojq"
 )
@@ -39,7 +40,17 @@ func ExtractValue[T any](in any, expression string) (T, error) {
 
 	result, ok = v.(T)
 	if !ok {
-		return result, fmt.Errorf("result value is not of the expected type (expected:%T, got:%T", result, v)
+		// JSON unmarshaling represents all numbers as float64. Attempt
+		// numeric conversion so callers can use ExtractValue[int] and
+		// similar integer types without knowing about this detail.
+		rv := reflect.ValueOf(v)
+		rt := reflect.TypeFor[T]()
+
+		if rv.CanConvert(rt) {
+			result, _ = rv.Convert(rt).Interface().(T)
+		} else {
+			return result, fmt.Errorf("result value is not of the expected type (expected:%T, got:%T", result, v)
+		}
 	}
 
 	return result, nil

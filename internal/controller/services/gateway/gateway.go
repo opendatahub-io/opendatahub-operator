@@ -5,13 +5,9 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
-	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
 )
 
-//nolint:gochecknoinits
-func init() {
-	sr.Add(&ServiceHandler{})
-}
+func NewHandler() *ServiceHandler { return &ServiceHandler{} }
 
 // ServiceHandler implements the ServiceHandler interface for Gateway services.
 // It manages the lifecycle of GatewayConfig resources and their associated infrastructure.

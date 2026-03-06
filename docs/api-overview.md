@@ -35,6 +35,22 @@ Package v1 contains API Schema definitions for the components v1 API group
 
 
 
+#### APIKeysConfig
+
+
+
+APIKeysConfig defines configuration options for API key management.
+
+
+
+_Appears in:_
+- [ModelsAsServiceSpec](#modelsasservicespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `maxExpirationDays` _integer_ | MaxExpirationDays is the maximum allowed expiration in days for API keys.<br />When set, users cannot create API keys with expiration longer than this value.<br />Examples: 30 (one month), 90 (three months), 365 (one year).<br />If not set, no expiration limit is enforced. |  | Minimum: 1 <br />Optional: \{\} <br /> |
+
+
 #### ArgoWorkflowsControllersSpec
 
 
@@ -1438,6 +1454,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `gatewayRef` _[GatewayRef](#gatewayref)_ | GatewayRef specifies which Gateway (Gateway API) to use for exposing model endpoints.<br />If omitted, defaults to openshift-ingress/maas-default-gateway. |  | Optional: \{\} <br /> |
+| `apiKeys` _[APIKeysConfig](#apikeysconfig)_ | APIKeys contains configuration for API key management. |  | Optional: \{\} <br /> |
 
 
 #### ModelsAsServiceStatus
