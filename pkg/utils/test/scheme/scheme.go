@@ -53,6 +53,7 @@ var (
 		gwapiv1.Install,
 		ccmAzureV1alpha1.AddToScheme,
 		ccmCoreweaveV1alpha1.AddToScheme,
+		addTestTypesToScheme,
 	}
 )
 
