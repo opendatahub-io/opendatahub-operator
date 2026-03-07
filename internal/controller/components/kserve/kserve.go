@@ -15,7 +15,6 @@ import (
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -51,22 +50,18 @@ type componentHandler struct{}
 func NewHandler() *componentHandler { return &componentHandler{} }
 
 // Init updates params.env files with image overrides and cert-manager configuration.
-// TODO: When CCM lands on OpenShift, consider switching from platform gating to a CRD
-// presence check (cluster.HasCRD for cert-manager.io/v1/ClusterIssuer).
-func (s *componentHandler) Init(platform common.Platform) error {
+func (s *componentHandler) Init(_ common.Platform) error {
 	mp := kserveManifestInfo(kserveManifestSourcePath)
 
 	if err := odhdeploy.ApplyParams(mp.String(), "params.env", imageParamMap); err != nil {
 		return fmt.Errorf("failed to update images on path %s: %w", mp, err)
 	}
 
-	// On xKS, additionally inject cert-manager issuer params into the odh-xks overlay.
+	// Apply cert-manager issuer params to the xKS overlay.
 	// ApplyParams safely no-ops if the overlay's params.env does not exist on disk.
-	if platform == cluster.XKS {
-		xksMP := kserveManifestInfo(kserveManifestSourcePathXKS)
-		if err := odhdeploy.ApplyParams(xksMP.String(), "params.env", nil, buildCertManagerParams()); err != nil {
-			return fmt.Errorf("failed to update cert-manager params on path %s: %w", xksMP, err)
-		}
+	xksMP := kserveManifestInfo(kserveManifestSourcePathXKS)
+	if err := odhdeploy.ApplyParams(xksMP.String(), "params.env", certManagerParamMap); err != nil {
+		return fmt.Errorf("failed to update cert-manager params on path %s: %w", xksMP, err)
 	}
 
 	return nil

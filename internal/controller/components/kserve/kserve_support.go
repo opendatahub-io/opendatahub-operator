@@ -21,7 +21,6 @@ import (
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/env"
 )
 
 var (
@@ -37,6 +36,18 @@ var (
 		"kserve-llm-d-routing-sidecar":     "RELATED_IMAGE_ODH_LLM_D_ROUTING_SIDECAR_IMAGE",
 		"kube-rbac-proxy":                  "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
 	}
+
+	// certManagerParamMap maps keys in the xKS overlay params.env to the RHAI_*
+	// env vars that can override them. Defaults are defined in the kustomize
+	// overlay itself (config/overlays/odh-xks/params.env in the kserve repo).
+	certManagerParamMap = map[string]string{
+		"NAMESPACE":                 "RHAI_APPLICATIONS_NAMESPACE",
+		"ISSUER_REF_NAME":           "RHAI_ISSUER_REF_NAME",
+		"ISSUER_REF_KIND":           "RHAI_ISSUER_REF_KIND",
+		"CA_SECRET_NAME":            "RHAI_CA_SECRET_NAME",
+		"CA_SECRET_NAMESPACE":       "RHAI_CA_SECRET_NAMESPACE",
+		"ISTIO_CA_CERTIFICATE_PATH": "RHAI_ISTIO_CA_CERTIFICATE_PATH",
+	}
 )
 
 const (
@@ -44,40 +55,6 @@ const (
 	lwsConditionTargetConfigControllerDegraded = "TargetConfigControllerDegraded"
 	lwsConditionAvailable                      = "Available"
 )
-
-const (
-	// Env var names for cert-manager issuer configuration, set by CCM/Helm chart.
-	envIssuerRefName          = "RHAI_ISSUER_REF_NAME"
-	envIssuerRefKind          = "RHAI_ISSUER_REF_KIND"
-	envCASecretName           = "RHAI_CA_SECRET_NAME"      //nolint:gosec // env var name, not a credential
-	envCASecretNamespace      = "RHAI_CA_SECRET_NAMESPACE" //nolint:gosec // env var name, not a credential
-	envIstioCACertificatePath = "RHAI_ISTIO_CA_CERTIFICATE_PATH"
-	envApplicationsNamespace  = "RHAI_APPLICATIONS_NAMESPACE"
-
-	// Default values matching the standard CCM PKI bootstrap.
-	defaultIssuerRefName          = "opendatahub-ca-issuer"
-	defaultIssuerRefKind          = "ClusterIssuer"
-	defaultIssuerRefGroup         = "cert-manager.io"
-	defaultCASecretName           = "opendatahub-ca" //nolint:gosec // default secret name, not a credential value
-	defaultCASecretNamespace      = "cert-manager"
-	defaultIstioCACertificatePath = "/var/run/secrets/opendatahub/ca.crt"
-	defaultApplicationsNamespace  = "opendatahub"
-)
-
-// buildCertManagerParams constructs the cert-manager issuer parameters for injection
-// into the xKS overlay's params.env. All values have defaults matching the standard
-// CCM PKI setup and can be overridden via RHAI_* env vars.
-func buildCertManagerParams() map[string]string {
-	return map[string]string{
-		"NAMESPACE":                 env.GetOrDefault(envApplicationsNamespace, defaultApplicationsNamespace),
-		"ISSUER_REF_NAME":           env.GetOrDefault(envIssuerRefName, defaultIssuerRefName),
-		"ISSUER_REF_KIND":           env.GetOrDefault(envIssuerRefKind, defaultIssuerRefKind),
-		"ISSUER_REF_GROUP":          defaultIssuerRefGroup,
-		"CA_SECRET_NAME":            env.GetOrDefault(envCASecretName, defaultCASecretName),
-		"CA_SECRET_NAMESPACE":       env.GetOrDefault(envCASecretNamespace, defaultCASecretNamespace),
-		"ISTIO_CA_CERTIFICATE_PATH": env.GetOrDefault(envIstioCACertificatePath, defaultIstioCACertificatePath),
-	}
-}
 
 func kserveManifestInfo(sourcePath string) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
