@@ -9,6 +9,7 @@ import (
 
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -218,6 +219,8 @@ func (a *Action) deployCRD(
 		return false, nil
 	}
 
+	// Deep copy to avoid modifying rr.Resources (which may be used by subsequent actions)
+	obj = *obj.DeepCopy()
 	// backup copy for caching
 	origObj := obj.DeepCopy()
 
@@ -289,6 +292,8 @@ func (a *Action) deploy(
 		return false, nil
 	}
 
+	// Deep copy to avoid modifying rr.Resources (which may be used by subsequent actions)
+	obj = *obj.DeepCopy()
 	// backup copy for caching
 	origObj := obj.DeepCopy()
 
@@ -308,7 +313,7 @@ func (a *Action) deploy(
 		}
 
 	default:
-		owned := rr.Controller.Owns(obj.GroupVersionKind())
+		owned := a.shouldOwn(rr, obj.GroupVersionKind())
 		if owned {
 			if err := ctrl.SetControllerReference(rr.Instance, &obj, rr.Client.Scheme()); err != nil {
 				return false, err
@@ -488,6 +493,36 @@ func (a *Action) apply(
 	}
 
 	return obj, nil
+}
+
+// shouldOwn determines whether the action should set an owner reference on a resource.
+//
+// Static ownership (from .Owns()/.OwnsGVK() in the builder) always takes precedence.
+// ExcludeGVKs is a DynamicOwnershipOption and only gates the dynamic registration path.
+//
+// Note: CRDs are routed to deployCRD() by the run() method and never reach
+// this function. CRDs do not get owner references.
+func (a *Action) shouldOwn(rr *odhTypes.ReconciliationRequest, objGVK schema.GroupVersionKind) bool {
+	// Static and dynamic ownership from previous cycles always wins
+	if rr.Controller.Owns(objGVK) {
+		return true
+	}
+
+	// Exclusion only gates the dynamic path below — it does not override
+	// static ownership checked above. ExcludeGVKs is a DynamicOwnershipOption.
+	if rr.Controller.IsExcludedFromDynamicOwnership(objGVK) {
+		return false
+	}
+
+	// In dynamic ownership mode, register the type as dynamically owned so that
+	// subsequent actions in this same reconciliation cycle (e.g., GC) can query
+	// Owns() and get the correct result. AddDynamicOwnedType is idempotent.
+	if rr.Controller.IsDynamicOwnershipEnabled() {
+		rr.Controller.AddDynamicOwnedType(objGVK)
+		return true
+	}
+
+	return false
 }
 
 func NewAction(opts ...ActionOpts) actions.Fn {

@@ -8,8 +8,10 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"testing"
 	"time"
 
+	"github.com/onsi/gomega"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,6 +20,7 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -353,14 +356,51 @@ func (et *EnvT) WaitForWebhookServer(ctx context.Context) error {
 	}
 }
 
-// RegisterCRD installs a minimal CRD in the envtest API server and waits until it is
-// established. The returned object can be used by the caller for cleanup.
+// CleanupDelete registers a t.Cleanup function that deletes obj from the cluster
+// and blocks until the object is fully gone, including after any finalizers have run.
+func CleanupDelete(t *testing.T, g *gomega.WithT, ctx context.Context, cli client.Client, obj client.Object) {
+	t.Helper()
+	t.Cleanup(func() {
+		err := cli.Delete(ctx, obj)
+		if err != nil && !k8serr.IsNotFound(err) {
+			g.Expect(err).NotTo(gomega.HaveOccurred())
+		}
+		g.Eventually(func() error {
+			return cli.Get(ctx, client.ObjectKeyFromObject(obj), obj)
+		}).WithTimeout(DefaultMaxWait).WithPolling(DefaultPollInterval).Should(
+			gomega.MatchError(k8serr.IsNotFound, "IsNotFound"),
+		)
+	})
+}
+
+// CRDOption configures how RegisterCRD constructs the CRD.
+type CRDOption func(*apiextensionsv1.CustomResourceDefinition)
+
+// WithPermissiveSchema configures the CRD to allow arbitrary fields in spec and status
+// via XPreserveUnknownFields, and enables the status subresource. Use this when tests
+// need to write structured data (e.g. conditions) into the CR.
+func WithPermissiveSchema() CRDOption {
+	return func(crd *apiextensionsv1.CustomResourceDefinition) {
+		v := &crd.Spec.Versions[0]
+		v.Schema.OpenAPIV3Schema.Properties = map[string]apiextensionsv1.JSONSchemaProps{
+			"spec":   {Type: "object", XPreserveUnknownFields: ptr.To(true)},
+			"status": {Type: "object", XPreserveUnknownFields: ptr.To(true)},
+		}
+		v.Subresources = &apiextensionsv1.CustomResourceSubresources{
+			Status: &apiextensionsv1.CustomResourceSubresourceStatus{},
+		}
+	}
+}
+
+// RegisterCRD installs a CRD in the envtest API server and waits until it is established.
+// The returned object can be used by the caller for cleanup.
 // If the CRD already exists it is returned as-is without waiting.
 func (et *EnvT) RegisterCRD(
 	ctx context.Context,
 	gvkDef schema.GroupVersionKind,
 	plural, singular string,
 	scope apiextensionsv1.ResourceScope,
+	opts ...CRDOption,
 ) (*apiextensionsv1.CustomResourceDefinition, error) {
 	crd := &apiextensionsv1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
@@ -388,6 +428,10 @@ func (et *EnvT) RegisterCRD(
 				},
 			},
 		},
+	}
+
+	for _, opt := range opts {
+		opt(crd)
 	}
 
 	if err := et.cli.Create(ctx, crd); err != nil {

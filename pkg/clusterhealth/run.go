@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"time"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
 // Run runs all health checks and returns a Report. Config.Client and namespace
@@ -20,6 +22,14 @@ func Run(ctx context.Context, cfg Config) (*Report, error) {
 	collectedAt := time.Now()
 	report := &Report{CollectedAt: collectedAt}
 	run := cfg.sectionsToRun()
+
+	// Record which sections ran so PrettyPrint can show only those.
+	sectionOrder := []string{SectionNodes, SectionDeployments, SectionPods, SectionEvents, SectionQuotas, SectionOperator, SectionDSCI, SectionDSC}
+	for _, name := range sectionOrder {
+		if run[name] {
+			report.SectionsRun = append(report.SectionsRun, name)
+		}
+	}
 
 	// Run each section independently when selected; failures in one do not block others.
 	if run[SectionNodes] {
@@ -41,10 +51,10 @@ func Run(ctx context.Context, cfg Config) (*Report, error) {
 		report.Operator = runOperatorSection(ctx, cfg.Client, cfg.Operator)
 	}
 	if run[SectionDSCI] {
-		report.DSCI = runDSCISection(ctx, cfg.Client, cfg.DSCI)
+		report.DSCI = runCRConditionsSection(ctx, cfg.Client, gvk.DSCInitialization, cfg.DSCI)
 	}
 	if run[SectionDSC] {
-		report.DSC = runDSCSection(ctx, cfg.Client, cfg.DSC)
+		report.DSC = runCRConditionsSection(ctx, cfg.Client, gvk.DataScienceCluster, cfg.DSC)
 	}
 
 	return report, nil

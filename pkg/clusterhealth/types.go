@@ -19,6 +19,9 @@ type SectionResult[T any] struct {
 // are recorded per section.
 type Report struct {
 	CollectedAt time.Time `json:"collectedAt"`
+	// SectionsRun is the list of section names that were executed (e.g. when using OnlySections or Layers).
+	// Empty or nil means all sections were run. Used by PrettyPrint to show only those rows.
+	SectionsRun []string `json:"sectionsRun,omitempty"`
 
 	Nodes       SectionResult[NodesSection]        `json:"nodes"`
 	Deployments SectionResult[DeploymentsSection]  `json:"deployments"`
@@ -30,13 +33,11 @@ type Report struct {
 	DSC         SectionResult[CRConditionsSection] `json:"dsc"`
 }
 
-// NodesSection: node conditions and resource allocation.
 type NodesSection struct {
 	Nodes []NodeInfo    `json:"nodes"`
 	Data  []corev1.Node `json:"data,omitempty"` // raw Node list (e.g. .Status for NodeStatus) for tests or fields we don't parse
 }
 
-// NodeInfo holds summary info for one node.
 type NodeInfo struct {
 	Name            string             `json:"name"`
 	Conditions      []ConditionSummary `json:"conditions"`
@@ -45,20 +46,17 @@ type NodeInfo struct {
 	UnhealthyReason string             `json:"unhealthyReason,omitempty"` // non-empty if node is in a bad state
 }
 
-// ConditionSummary is a minimal condition for reporting.
 type ConditionSummary struct {
 	Type    string `json:"type"`
 	Status  string `json:"status"`
 	Message string `json:"message"`
 }
 
-// DeploymentsSection: deployment readiness per namespace.
 type DeploymentsSection struct {
 	ByNamespace map[string][]DeploymentInfo `json:"byNamespace"`
 	Data        []appsv1.Deployment         `json:"data,omitempty"` // raw Deployment list for tests or fields we don't parse
 }
 
-// DeploymentInfo holds readiness and conditions for one deployment.
 type DeploymentInfo struct {
 	Namespace  string             `json:"namespace"`
 	Name       string             `json:"name"`
@@ -67,13 +65,11 @@ type DeploymentInfo struct {
 	Conditions []ConditionSummary `json:"conditions"`
 }
 
-// PodsSection: pod phases and container states.
 type PodsSection struct {
 	ByNamespace map[string][]PodInfo `json:"byNamespace"`
 	Data        []corev1.Pod         `json:"data,omitempty"` // raw Pod list for tests or fields we don't parse
 }
 
-// PodInfo holds phase and container summary for one pod.
 type PodInfo struct {
 	Namespace  string          `json:"namespace"`
 	Name       string          `json:"name"`
@@ -81,7 +77,6 @@ type PodInfo struct {
 	Containers []ContainerInfo `json:"containers"`
 }
 
-// ContainerInfo holds ready/restart and state for one container.
 type ContainerInfo struct {
 	Name         string `json:"name"`
 	Ready        bool   `json:"ready"`
@@ -90,13 +85,11 @@ type ContainerInfo struct {
 	Terminated   string `json:"terminated"` // reason/exit if terminated
 }
 
-// EventsSection: recent (e.g. warning) events.
 type EventsSection struct {
 	Events []EventInfo    `json:"events"`
 	Data   []corev1.Event `json:"data,omitempty"` // raw Event list for tests or fields we don't parse
 }
 
-// EventInfo holds one event for reporting.
 type EventInfo struct {
 	Namespace string    `json:"namespace"`
 	Kind      string    `json:"kind"`
@@ -107,13 +100,11 @@ type EventInfo struct {
 	LastTime  time.Time `json:"lastTime"`
 }
 
-// QuotasSection: resource quota usage per namespace.
 type QuotasSection struct {
 	ByNamespace map[string][]ResourceQuotaInfo `json:"byNamespace"`
 	Data        []corev1.ResourceQuota         `json:"data,omitempty"` // raw ResourceQuota list for tests or fields we don't parse
 }
 
-// ResourceQuotaInfo holds used/hard and exceeded resources for one quota.
 type ResourceQuotaInfo struct {
 	Namespace string            `json:"namespace"`
 	Name      string            `json:"name"`
@@ -122,20 +113,26 @@ type ResourceQuotaInfo struct {
 	Exceeded  []string          `json:"exceeded"`
 }
 
-// OperatorSection: operator deployment and pod status.
 type OperatorSection struct {
-	Deployment *DeploymentInfo      `json:"deployment"`
-	Pods       []PodInfo            `json:"pods"`
-	Data       *OperatorSectionData `json:"data,omitempty"` // raw Deployment and Pods for tests or fields we don't parse
+	Deployment         *DeploymentInfo           `json:"deployment"`
+	Pods               []PodInfo                 `json:"pods"`
+	DependentOperators []DependentOperatorResult `json:"dependentOperators,omitempty"`
+	Data               *OperatorSectionData      `json:"data,omitempty"` // raw Deployment and Pods for tests or fields we don't parse
 }
 
-// OperatorSectionData holds raw Kubernetes objects for the operator section.
+type DependentOperatorResult struct {
+	Name       string          `json:"name"`
+	Installed  bool            `json:"installed"` // true if a deployment was found in the dependent's namespace
+	Deployment *DeploymentInfo `json:"deployment,omitempty"`
+	Pods       []PodInfo       `json:"pods,omitempty"`
+	Error      string          `json:"error,omitempty"`
+}
+
 type OperatorSectionData struct {
 	Deployment *appsv1.Deployment `json:"deployment,omitempty"`
 	Pods       []corev1.Pod       `json:"pods,omitempty"`
 }
 
-// CRConditionsSection: conditions from a CR (DSCI or DSC).
 type CRConditionsSection struct {
 	Name       string                     `json:"name"`
 	Conditions []ConditionSummary         `json:"conditions"`

@@ -2,6 +2,7 @@ package dependency
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -29,6 +30,9 @@ const (
 	availableConditionType = "Available"
 	readyConditionType     = "Ready"
 )
+
+// errOperatorCRNotFound is returned by getFirstCR when the CR list is empty.
+var errOperatorCRNotFound = errors.New("operator CR not found")
 
 // DegradedConditionFilterFunc defines a function that returns true if the condition indicates a degraded state.
 type DegradedConditionFilterFunc func(conditionType string, status string) bool
@@ -59,22 +63,45 @@ type OperatorConfig struct {
 
 // CRDConfig defines configuration for checking that a required CRD is registered on the cluster.
 type CRDConfig struct {
+	// GVK identifies the CRD to check for cluster registration.
 	GVK schema.GroupVersionKind
+
+	// Severity determines how a missing CRD affects component readiness.
+	// Use ConditionSeverityError (default) for required CRDs that block the component.
+	// Use ConditionSeverityInfo for optional CRDs where absence is informational only.
+	Severity common.ConditionSeverity
 }
 
-// Action monitors dependent operators for degraded conditions and propagates them to the component CR.
-type Action struct {
+// action monitors dependent operators for degraded conditions and propagates them to the component CR.
+type action struct {
 	configs    []OperatorConfig
 	crdConfigs []CRDConfig
 }
 
-// ActionOpts is a functional option for configuring the Action.
-type ActionOpts func(*Action)
+// ActionOpts is a functional option for configuring the dependency action.
+type ActionOpts func(*action)
 
 // MonitorOperator adds an operator to monitor for degraded conditions.
 func MonitorOperator(config OperatorConfig) ActionOpts {
-	return func(a *Action) {
+	return func(a *action) {
 		a.configs = append(a.configs, config)
+	}
+}
+
+// MonitorCRD adds a CRD presence check to the action. If the specified CRD is absent
+// from the cluster, DependenciesAvailable is set to False.
+func MonitorCRD(config CRDConfig) ActionOpts {
+	return func(a *action) {
+		a.crdConfigs = append(a.crdConfigs, config)
+	}
+}
+
+// Combine returns a single ActionOpts that applies all given opts in order.
+func Combine(opts ...ActionOpts) ActionOpts {
+	return func(a *action) {
+		for _, opt := range opts {
+			opt(a)
+		}
 	}
 }
 
@@ -82,7 +109,7 @@ func MonitorOperator(config OperatorConfig) ActionOpts {
 // It aggregates degraded conditions from all configured operators into a single
 // DependenciesAvailable condition, allowing users to see upstream failures
 // that may be blocking their component from working correctly.
-func (a *Action) run(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func (a *action) run(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	var allDegraded []string
 	hasErrorSeverity := false
 
@@ -90,8 +117,7 @@ func (a *Action) run(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 		degraded := a.collectDegradedConditions(ctx, rr, config)
 		if len(degraded) > 0 {
 			allDegraded = append(allDegraded, degraded...)
-			// Error severity is "" (default), Info is "Info"
-			if config.Severity == "" || config.Severity == common.ConditionSeverityError {
+			if config.Severity != common.ConditionSeverityInfo {
 				hasErrorSeverity = true
 			}
 		}
@@ -109,7 +135,9 @@ func (a *Action) run(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 		}
 		if !has {
 			allDegraded = append(allDegraded, config.GVK.Kind+": CRD not found")
-			hasErrorSeverity = true
+			if config.Severity != common.ConditionSeverityInfo {
+				hasErrorSeverity = true
+			}
 		}
 	}
 
@@ -133,8 +161,8 @@ func (a *Action) run(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 
 // collectDegradedConditions detects when an external operator dependency is unhealthy.
 // Returns an empty slice if the operator is healthy, not installed, or cannot be checked.
-// Errors are logged instead of returned so that monitoring don't break reconciliation.
-func (a *Action) collectDegradedConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest, config OperatorConfig) []string {
+// Errors are logged instead of returned so that monitoring failures do not break reconciliation.
+func (a *action) collectDegradedConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest, config OperatorConfig) []string {
 	externalCR := &unstructured.Unstructured{}
 	externalCR.SetGroupVersionKind(config.OperatorGVK)
 
@@ -151,7 +179,7 @@ func (a *Action) collectDegradedConditions(ctx context.Context, rr *odhtypes.Rec
 	if meta.IsNoMatchError(err) {
 		return nil
 	}
-	if k8serr.IsNotFound(err) {
+	if k8serr.IsNotFound(err) || errors.Is(err, errOperatorCRNotFound) {
 		// Operator CR absent but CRD is registered — not degraded
 		return nil
 	}
@@ -226,7 +254,7 @@ func (a *Action) collectDegradedConditions(ctx context.Context, rr *odhtypes.Rec
 	return degradedConditions
 }
 
-func (a *Action) getFirstCR(ctx context.Context, rr *odhtypes.ReconciliationRequest, config OperatorConfig, out *unstructured.Unstructured) error {
+func (a *action) getFirstCR(ctx context.Context, rr *odhtypes.ReconciliationRequest, config OperatorConfig, out *unstructured.Unstructured) error {
 	// Support both namespace-scoped and cluster-scoped operator CRs:
 	// namespace-scoped operators set CRNamespace, cluster-scoped ones leave it empty.
 	list := &unstructured.UnstructuredList{}
@@ -248,10 +276,7 @@ func (a *Action) getFirstCR(ctx context.Context, rr *odhtypes.ReconciliationRequ
 	}
 
 	if len(list.Items) == 0 {
-		return k8serr.NewNotFound(schema.GroupResource{
-			Group:    config.OperatorGVK.Group,
-			Resource: config.OperatorGVK.Kind,
-		}, "")
+		return errOperatorCRNotFound
 	}
 
 	// If multiple CRs are present, selection is arbitrary; log a warning.
@@ -278,18 +303,14 @@ func DefaultDegradedConditionFilter(condType, condStatus string) bool {
 	return false
 }
 
-// NewAction creates an action that surfaces external operator failures to users.
-//
-// RHOAI components depend on external operators (Kueue, JobSet, LeaderWorkerSet).
-// When these operators are degraded, the RHOAI component cannot function properly.
-// This action monitors their health and blocks component readiness when dependencies
-// fail, surfacing the upstream error to users rather than leaving them guessing.
+// NewAction creates an action that monitors external operator health and propagates
+// degraded conditions to the caller's DependenciesAvailable status condition.
 func NewAction(opts ...ActionOpts) actions.Fn {
-	action := Action{}
+	a := action{}
 
 	for _, opt := range opts {
-		opt(&action)
+		opt(&a)
 	}
 
-	return action.run
+	return a.run
 }
