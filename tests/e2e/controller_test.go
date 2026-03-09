@@ -404,7 +404,11 @@ func TestMain(m *testing.M) {
 		"Specify when to delete DataScienceCluster, DSCInitialization, and controllers. Options: always, on-failure, never.")
 	checkEnvVarBindingError(viper.BindEnv("deletion-policy", viper.GetEnvPrefix()+"_DELETION_POLICY"))
 
-	pflag.String("tag", "All", "Tag to run tests for. Options: All, Smoke, Tier1")
+	tagNames := make([]string, 0, len(allowedTags))
+	for _, tag := range allowedTags {
+		tagNames = append(tagNames, string(tag))
+	}
+	pflag.String("tag", "All", "Tag to run tests for. Options: "+strings.Join(tagNames, ", "))
 	checkEnvVarBindingError(viper.BindEnv("tag", viper.GetEnvPrefix()+"_TAG"))
 
 	pflag.Bool("fail-fast-on-error", true, "fail fast on error")
