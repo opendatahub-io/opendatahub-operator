@@ -62,9 +62,6 @@ func reportIsComplete(report *clusterhealth.Report) bool {
 // classifyFromPods checks container states and pod phases.
 // Covers: image-pull, pod-startup, OOM subcategories.
 func classifyFromPods(report *clusterhealth.Report) *FailureClassification {
-	if report.Pods.Error != "" {
-		return nil
-	}
 	for _, pods := range report.Pods.Data.ByNamespace {
 		for _, pod := range pods {
 			for _, container := range pod.Containers {
@@ -104,9 +101,6 @@ func classifyFromPods(report *clusterhealth.Report) *FailureClassification {
 // classifyFromEvents checks event reasons/messages for network and storage patterns.
 // Covers: network, storage subcategories.
 func classifyFromEvents(report *clusterhealth.Report) *FailureClassification {
-	if report.Events.Error != "" {
-		return nil
-	}
 	for _, event := range report.Events.Data.Events {
 		if networkEventReasons[event.Reason] || containsNetworkPattern(event.Message) {
 			return &FailureClassification{
@@ -133,9 +127,6 @@ func classifyFromEvents(report *clusterhealth.Report) *FailureClassification {
 // classifyFromQuotas checks resource quota violations.
 // Covers: quota-oom subcategory.
 func classifyFromQuotas(report *clusterhealth.Report) *FailureClassification {
-	if report.Quotas.Error != "" {
-		return nil
-	}
 	for _, quotas := range report.Quotas.Data.ByNamespace {
 		for _, q := range quotas {
 			if len(q.Exceeded) > 0 {
@@ -155,9 +146,6 @@ func classifyFromQuotas(report *clusterhealth.Report) *FailureClassification {
 // classifyFromNodes checks node conditions.
 // Covers: node-pressure subcategory.
 func classifyFromNodes(report *clusterhealth.Report) *FailureClassification {
-	if report.Nodes.Error != "" {
-		return nil
-	}
 	for _, node := range report.Nodes.Data.Nodes {
 		if node.UnhealthyReason != "" {
 			return &FailureClassification{
@@ -176,27 +164,25 @@ func classifyFromNodes(report *clusterhealth.Report) *FailureClassification {
 // match a specific pattern. This catches unrecognized container errors and unready
 // deployments.
 func classifyClusterDistress(report *clusterhealth.Report) *FailureClassification {
-	if report.Pods.Error == "" {
-		for _, pods := range report.Pods.Data.ByNamespace {
-			for _, pod := range pods {
-				for _, c := range pod.Containers {
-					if c.Waiting != "" {
-						return &FailureClassification{
-							Category:    CategoryInfrastructure,
-							Subcategory: "cluster-distress",
-							ErrorCode:   CodeInfraUnknown,
-							Evidence:    []string{fmt.Sprintf("container %s/%s in unrecognized waiting state: %s", pod.Name, c.Name, c.Waiting)},
-							Confidence:  ConfidenceLow,
-						}
+	for _, pods := range report.Pods.Data.ByNamespace {
+		for _, pod := range pods {
+			for _, c := range pod.Containers {
+				if c.Waiting != "" {
+					return &FailureClassification{
+						Category:    CategoryInfrastructure,
+						Subcategory: "cluster-distress",
+						ErrorCode:   CodeInfraUnknown,
+						Evidence:    []string{fmt.Sprintf("container %s/%s in unrecognized waiting state: %s", pod.Name, c.Name, c.Waiting)},
+						Confidence:  ConfidenceLow,
 					}
-					if c.Terminated != "" {
-						return &FailureClassification{
-							Category:    CategoryInfrastructure,
-							Subcategory: "cluster-distress",
-							ErrorCode:   CodeInfraUnknown,
-							Evidence:    []string{fmt.Sprintf("container %s/%s terminated: %s", pod.Name, c.Name, c.Terminated)},
-							Confidence:  ConfidenceLow,
-						}
+				}
+				if c.Terminated != "" {
+					return &FailureClassification{
+						Category:    CategoryInfrastructure,
+						Subcategory: "cluster-distress",
+						ErrorCode:   CodeInfraUnknown,
+						Evidence:    []string{fmt.Sprintf("container %s/%s terminated: %s", pod.Name, c.Name, c.Terminated)},
+						Confidence:  ConfidenceLow,
 					}
 				}
 			}
@@ -204,17 +190,15 @@ func classifyClusterDistress(report *clusterhealth.Report) *FailureClassificatio
 	}
 
 	// Check for unready deployments.
-	if report.Deployments.Error == "" {
-		for _, deploys := range report.Deployments.Data.ByNamespace {
-			for _, d := range deploys {
-				if d.Ready < d.Replicas {
-					return &FailureClassification{
-						Category:    CategoryInfrastructure,
-						Subcategory: "cluster-distress",
-						ErrorCode:   CodeInfraUnknown,
-						Evidence:    []string{fmt.Sprintf("deployment %s/%s not ready: %d/%d replicas", d.Namespace, d.Name, d.Ready, d.Replicas)},
-						Confidence:  ConfidenceLow,
-					}
+	for _, deploys := range report.Deployments.Data.ByNamespace {
+		for _, d := range deploys {
+			if d.Ready < d.Replicas {
+				return &FailureClassification{
+					Category:    CategoryInfrastructure,
+					Subcategory: "cluster-distress",
+					ErrorCode:   CodeInfraUnknown,
+					Evidence:    []string{fmt.Sprintf("deployment %s/%s not ready: %d/%d replicas", d.Namespace, d.Name, d.Ready, d.Replicas)},
+					Confidence:  ConfidenceLow,
 				}
 			}
 		}
