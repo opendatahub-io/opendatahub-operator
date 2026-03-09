@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"os"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -17,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -36,19 +38,41 @@ var (
 		"kserve-llm-d-routing-sidecar":     "RELATED_IMAGE_ODH_LLM_D_ROUTING_SIDECAR_IMAGE",
 		"kube-rbac-proxy":                  "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
 	}
-
-	// certManagerParamMap maps keys in the xKS overlay params.env to the RHAI_*
-	// env vars that can override them. Defaults are defined in the kustomize
-	// overlay itself (config/overlays/odh-xks/params.env in the kserve repo).
-	certManagerParamMap = map[string]string{
-		"NAMESPACE":                 "RHAI_APPLICATIONS_NAMESPACE",
-		"ISSUER_REF_NAME":           "RHAI_ISSUER_REF_NAME",
-		"ISSUER_REF_KIND":           "RHAI_ISSUER_REF_KIND",
-		"CA_SECRET_NAME":            "RHAI_CA_SECRET_NAME",
-		"CA_SECRET_NAMESPACE":       "RHAI_CA_SECRET_NAMESPACE",
-		"ISTIO_CA_CERTIFICATE_PATH": "RHAI_ISTIO_CA_CERTIFICATE_PATH",
-	}
 )
+
+// buildCertManagerParams returns the cert-manager configuration to inject into the
+// xKS overlay params.env. For PKI resources the operator bootstraps (issuer, CA secret),
+// DefaultBootstrapConfig provides the defaults so the operator is the single source of
+// truth — not the kustomize overlay. RHAI_* env vars take precedence over these defaults,
+// allowing external PKI (e.g. cloud controller manager) to be wired in without code changes.
+// NAMESPACE and ISTIO_CA_CERTIFICATE_PATH are only injected when their env vars are set,
+// as they are not bootstrap-owned resources.
+func buildCertManagerParams() map[string]string {
+	bc := certmanager.DefaultBootstrapConfig()
+
+	getEnvOrDefault := func(envVar, defaultVal string) string {
+		if v := os.Getenv(envVar); v != "" {
+			return v
+		}
+		return defaultVal
+	}
+
+	params := map[string]string{
+		"ISSUER_REF_NAME":     getEnvOrDefault("RHAI_ISSUER_REF_NAME", bc.CAIssuerName),
+		"ISSUER_REF_KIND":     getEnvOrDefault("RHAI_ISSUER_REF_KIND", "ClusterIssuer"),
+		"CA_SECRET_NAME":      getEnvOrDefault("RHAI_CA_SECRET_NAME", bc.CertName),
+		"CA_SECRET_NAMESPACE": getEnvOrDefault("RHAI_CA_SECRET_NAMESPACE", bc.CertManagerNamespace),
+	}
+
+	if ns := os.Getenv("RHAI_APPLICATIONS_NAMESPACE"); ns != "" {
+		params["NAMESPACE"] = ns
+	}
+	if path := os.Getenv("RHAI_ISTIO_CA_CERTIFICATE_PATH"); path != "" {
+		params["ISTIO_CA_CERTIFICATE_PATH"] = path
+	}
+
+	return params
+}
 
 const (
 	lwsConditionDegraded                       = "Degraded"

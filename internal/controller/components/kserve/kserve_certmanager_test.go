@@ -16,7 +16,14 @@ func TestInit_InjectsCertManagerParamsFromEnv(t *testing.T) {
 	g := NewWithT(t)
 
 	// Clear all RHAI_* env vars to make the test hermetic.
-	for _, envVar := range certManagerParamMap {
+	for _, envVar := range []string{
+		"RHAI_APPLICATIONS_NAMESPACE",
+		"RHAI_ISSUER_REF_NAME",
+		"RHAI_ISSUER_REF_KIND",
+		"RHAI_CA_SECRET_NAME",
+		"RHAI_CA_SECRET_NAMESPACE",
+		"RHAI_ISTIO_CA_CERTIFICATE_PATH",
+	} {
 		t.Setenv(envVar, "")
 	}
 
@@ -71,7 +78,14 @@ func TestInit_PreservesDefaultsWhenEnvVarsUnset(t *testing.T) {
 	g := NewWithT(t)
 
 	// Clear all RHAI_* env vars.
-	for _, envVar := range certManagerParamMap {
+	for _, envVar := range []string{
+		"RHAI_APPLICATIONS_NAMESPACE",
+		"RHAI_ISSUER_REF_NAME",
+		"RHAI_ISSUER_REF_KIND",
+		"RHAI_CA_SECRET_NAME",
+		"RHAI_CA_SECRET_NAMESPACE",
+		"RHAI_ISTIO_CA_CERTIFICATE_PATH",
+	} {
 		t.Setenv(envVar, "")
 	}
 
@@ -100,7 +114,7 @@ ISTIO_CA_CERTIFICATE_PATH=/var/run/secrets/opendatahub/ca.crt
 	g.Expect(os.WriteFile(filepath.Join(odhDir, "params.env"), []byte(""), 0o600)).Should(Succeed())
 
 	handler := &componentHandler{}
-	err := handler.Init(cluster.OpenDataHub)
+	err := handler.Init(cluster.XKS)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// No env vars set → params.env should remain unchanged.
@@ -123,7 +137,7 @@ func TestInit_NoErrorWhenXKSOverlayMissing(t *testing.T) {
 	g.Expect(os.WriteFile(filepath.Join(odhDir, "params.env"), []byte(""), 0o600)).Should(Succeed())
 
 	handler := &componentHandler{}
-	err := handler.Init(cluster.OpenDataHub)
+	err := handler.Init(cluster.XKS)
 	// ApplyParams safely no-ops when params.env doesn't exist.
 	g.Expect(err).ShouldNot(HaveOccurred())
 }
