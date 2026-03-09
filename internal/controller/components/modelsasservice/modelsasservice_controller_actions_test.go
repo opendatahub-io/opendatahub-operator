@@ -2,8 +2,11 @@
 package modelsasservice
 
 import (
+	"fmt"
 	"testing"
 
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -14,6 +17,7 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 
 	. "github.com/onsi/gomega"
 )
@@ -469,4 +473,273 @@ func createFakeClientWithoutGateway() client.Client {
 	return fake.NewClientBuilder().
 		WithScheme(scheme).
 		Build()
+}
+
+func TestAPIKeyConfiguration(t *testing.T) {
+	g := NewWithT(t)
+
+	t.Run("API Key MaxExpirationDays Configuration", func(t *testing.T) {
+		t.Run("should include maxExpirationDays in params when specified", func(t *testing.T) {
+			maxDays := int32(30)
+			maas := &componentApi.ModelsAsService{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: componentApi.ModelsAsServiceInstanceName,
+				},
+				Spec: componentApi.ModelsAsServiceSpec{
+					GatewayRef: componentApi.GatewayRef{
+						Namespace: "test-namespace",
+						Name:      "test-gateway",
+					},
+					APIKeys: &componentApi.APIKeysConfig{
+						MaxExpirationDays: &maxDays,
+					},
+				},
+			}
+
+			// Verify the APIKeys config is correctly set
+			g.Expect(maas.Spec.APIKeys).ShouldNot(BeNil())
+			g.Expect(maas.Spec.APIKeys.MaxExpirationDays).ShouldNot(BeNil())
+			g.Expect(*maas.Spec.APIKeys.MaxExpirationDays).Should(Equal(int32(30)))
+		})
+
+		t.Run("should allow nil APIKeys config (uses default)", func(t *testing.T) {
+			maas := &componentApi.ModelsAsService{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: componentApi.ModelsAsServiceInstanceName,
+				},
+				Spec: componentApi.ModelsAsServiceSpec{
+					GatewayRef: componentApi.GatewayRef{
+						Namespace: "test-namespace",
+						Name:      "test-gateway",
+					},
+					APIKeys: nil,
+				},
+			}
+
+			// Verify APIKeys is nil (will use default from params.env)
+			g.Expect(maas.Spec.APIKeys).Should(BeNil())
+		})
+
+		t.Run("should allow APIKeys with nil MaxExpirationDays (uses default)", func(t *testing.T) {
+			maas := &componentApi.ModelsAsService{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: componentApi.ModelsAsServiceInstanceName,
+				},
+				Spec: componentApi.ModelsAsServiceSpec{
+					GatewayRef: componentApi.GatewayRef{
+						Namespace: "test-namespace",
+						Name:      "test-gateway",
+					},
+					APIKeys: &componentApi.APIKeysConfig{
+						MaxExpirationDays: nil,
+					},
+				},
+			}
+
+			// Verify APIKeys exists but MaxExpirationDays is nil
+			g.Expect(maas.Spec.APIKeys).ShouldNot(BeNil())
+			g.Expect(maas.Spec.APIKeys.MaxExpirationDays).Should(BeNil())
+		})
+
+		t.Run("should accept various valid maxExpirationDays values", func(t *testing.T) {
+			testCases := []int32{1, 7, 30, 90, 365}
+
+			for _, days := range testCases {
+				maxDays := days
+				maas := &componentApi.ModelsAsService{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: componentApi.ModelsAsServiceInstanceName,
+					},
+					Spec: componentApi.ModelsAsServiceSpec{
+						GatewayRef: componentApi.GatewayRef{
+							Namespace: "test-namespace",
+							Name:      "test-gateway",
+						},
+						APIKeys: &componentApi.APIKeysConfig{
+							MaxExpirationDays: &maxDays,
+						},
+					},
+				}
+
+				g.Expect(*maas.Spec.APIKeys.MaxExpirationDays).Should(Equal(days))
+			}
+		})
+	})
+}
+
+func TestConfigureConfigHashAnnotation(t *testing.T) {
+	g := NewWithT(t)
+
+	t.Run("Config Hash Annotation", func(t *testing.T) {
+		t.Run("should add config hash annotation to deployment when ConfigMap exists", func(t *testing.T) {
+			// Create ConfigMap
+			configMap := createConfigMap(map[string]string{
+				"gateway-namespace": "openshift-ingress",
+				"gateway-name":      "maas-default-gateway",
+			})
+
+			// Create Deployment
+			deployment := createDeployment()
+
+			rr := &types.ReconciliationRequest{
+				Resources: []unstructured.Unstructured{configMap, deployment},
+			}
+
+			err := configureConfigHashAnnotation(t.Context(), rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			// Verify the deployment has the annotation
+			dep := &appsv1.Deployment{}
+			err = runtime.DefaultUnstructuredConverter.FromUnstructured(rr.Resources[1].Object, dep)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			annotationKey := labels.ODHAppPrefix + "/maas-config-hash"
+			g.Expect(dep.Spec.Template.Annotations).Should(HaveKey(annotationKey))
+			g.Expect(dep.Spec.Template.Annotations[annotationKey]).ShouldNot(BeEmpty())
+		})
+
+		t.Run("should update hash when ConfigMap data changes", func(t *testing.T) {
+			// First ConfigMap
+			configMap1 := createConfigMap(map[string]string{
+				"gateway-namespace":           "openshift-ingress",
+				"gateway-name":                "maas-default-gateway",
+				"api-key-max-expiration-days": "30",
+			})
+			deployment1 := createDeployment()
+
+			rr1 := &types.ReconciliationRequest{
+				Resources: []unstructured.Unstructured{configMap1, deployment1},
+			}
+
+			err := configureConfigHashAnnotation(t.Context(), rr1)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			dep1 := &appsv1.Deployment{}
+			err = runtime.DefaultUnstructuredConverter.FromUnstructured(rr1.Resources[1].Object, dep1)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			annotationKey := labels.ODHAppPrefix + "/maas-config-hash"
+			hash1 := dep1.Spec.Template.Annotations[annotationKey]
+
+			// Second ConfigMap with different data
+			configMap2 := createConfigMap(map[string]string{
+				"gateway-namespace":           "openshift-ingress",
+				"gateway-name":                "maas-default-gateway",
+				"api-key-max-expiration-days": "90", // Changed!
+			})
+			deployment2 := createDeployment()
+
+			rr2 := &types.ReconciliationRequest{
+				Resources: []unstructured.Unstructured{configMap2, deployment2},
+			}
+
+			err = configureConfigHashAnnotation(t.Context(), rr2)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			dep2 := &appsv1.Deployment{}
+			err = runtime.DefaultUnstructuredConverter.FromUnstructured(rr2.Resources[1].Object, dep2)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			hash2 := dep2.Spec.Template.Annotations[annotationKey]
+
+			// Hashes should be different
+			g.Expect(hash1).ShouldNot(Equal(hash2))
+		})
+
+		t.Run("should succeed silently when ConfigMap is not found", func(t *testing.T) {
+			// Only Deployment, no ConfigMap
+			deployment := createDeployment()
+
+			rr := &types.ReconciliationRequest{
+				Resources: []unstructured.Unstructured{deployment},
+			}
+
+			err := configureConfigHashAnnotation(t.Context(), rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+		})
+
+		t.Run("should succeed silently when Deployment is not found", func(t *testing.T) {
+			// Only ConfigMap, no Deployment
+			configMap := createConfigMap(map[string]string{
+				"gateway-namespace": "openshift-ingress",
+			})
+
+			rr := &types.ReconciliationRequest{
+				Resources: []unstructured.Unstructured{configMap},
+			}
+
+			err := configureConfigHashAnnotation(t.Context(), rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+		})
+
+		t.Run("should produce consistent hash for same data", func(t *testing.T) {
+			data := map[string]string{
+				"b-key": "value-b",
+				"a-key": "value-a",
+				"c-key": "value-c",
+			}
+
+			hash1 := hashConfigMapData(data)
+			hash2 := hashConfigMapData(data)
+
+			g.Expect(hash1).Should(Equal(hash2))
+		})
+	})
+}
+
+// createConfigMap creates an unstructured ConfigMap resource for testing.
+// Uses MaaSParametersConfigMapName and "opendatahub" namespace.
+func createConfigMap(data map[string]string) unstructured.Unstructured {
+	cm := &corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "ConfigMap",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      MaaSParametersConfigMapName,
+			Namespace: "opendatahub",
+		},
+		Data: data,
+	}
+
+	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(cm)
+	if err != nil {
+		panic(fmt.Sprintf("failed to convert ConfigMap to unstructured: %v", err))
+	}
+	return unstructured.Unstructured{Object: u}
+}
+
+// createDeployment creates an unstructured Deployment resource for testing.
+// Uses MaaSAPIDeploymentName and "opendatahub" namespace.
+// Note: Template.Annotations is left nil to test the nil-initialization branch.
+func createDeployment() unstructured.Unstructured {
+	dep := &appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "apps/v1",
+			Kind:       "Deployment",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      MaaSAPIDeploymentName,
+			Namespace: "opendatahub",
+		},
+		Spec: appsv1.DeploymentSpec{
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "maas-api",
+							Image: "quay.io/opendatahub/maas-api:latest",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(dep)
+	if err != nil {
+		panic(fmt.Sprintf("failed to convert Deployment to unstructured: %v", err))
+	}
+	return unstructured.Unstructured{Object: u}
 }
