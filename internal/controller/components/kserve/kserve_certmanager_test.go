@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 
 	. "github.com/onsi/gomega"
@@ -17,12 +18,11 @@ func TestInit_InjectsCertManagerParamsFromEnv(t *testing.T) {
 
 	// Clear all RHAI_* env vars to make the test hermetic.
 	for _, envVar := range []string{
-		"RHAI_APPLICATIONS_NAMESPACE",
-		"RHAI_ISSUER_REF_NAME",
-		"RHAI_ISSUER_REF_KIND",
-		"RHAI_CA_SECRET_NAME",
-		"RHAI_CA_SECRET_NAMESPACE",
-		"RHAI_ISTIO_CA_CERTIFICATE_PATH",
+		certmanager.EnvCAIssuerName,
+		certmanager.EnvIssuerRefKind,
+		certmanager.EnvCertName,
+		certmanager.EnvCertManagerNS,
+		certmanager.EnvIstioCACertPath,
 	} {
 		t.Setenv(envVar, "")
 	}
@@ -51,9 +51,8 @@ ISTIO_CA_CERTIFICATE_PATH=/var/run/secrets/opendatahub/ca.crt
 	g.Expect(os.MkdirAll(odhDir, 0o755)).Should(Succeed())
 	g.Expect(os.WriteFile(filepath.Join(odhDir, "params.env"), []byte(""), 0o600)).Should(Succeed())
 
-	// Override two params via env vars; the rest should stay at kustomize defaults.
-	t.Setenv("RHAI_ISSUER_REF_NAME", "test-issuer")
-	t.Setenv("RHAI_APPLICATIONS_NAMESPACE", "test-ns")
+	// Override issuer via env var; the rest should stay at defaults.
+	t.Setenv(certmanager.EnvCAIssuerName, "test-issuer")
 
 	handler := &componentHandler{}
 	err := handler.Init(cluster.XKS)
@@ -65,7 +64,8 @@ ISTIO_CA_CERTIFICATE_PATH=/var/run/secrets/opendatahub/ca.crt
 
 	content := string(data)
 	g.Expect(content).Should(ContainSubstring("ISSUER_REF_NAME=test-issuer"))
-	g.Expect(content).Should(ContainSubstring("NAMESPACE=test-ns"))
+	// NAMESPACE comes from cluster.GetApplicationNamespace() (defaults to "opendatahub" in tests).
+	g.Expect(content).Should(ContainSubstring("NAMESPACE=opendatahub"))
 	// Unset env vars → kustomize defaults preserved.
 	g.Expect(content).Should(ContainSubstring("ISSUER_REF_KIND=ClusterIssuer"))
 	g.Expect(content).Should(ContainSubstring("ISSUER_REF_GROUP=cert-manager.io"))
@@ -79,12 +79,11 @@ func TestInit_PreservesDefaultsWhenEnvVarsUnset(t *testing.T) {
 
 	// Clear all RHAI_* env vars.
 	for _, envVar := range []string{
-		"RHAI_APPLICATIONS_NAMESPACE",
-		"RHAI_ISSUER_REF_NAME",
-		"RHAI_ISSUER_REF_KIND",
-		"RHAI_CA_SECRET_NAME",
-		"RHAI_CA_SECRET_NAMESPACE",
-		"RHAI_ISTIO_CA_CERTIFICATE_PATH",
+		certmanager.EnvCAIssuerName,
+		certmanager.EnvIssuerRefKind,
+		certmanager.EnvCertName,
+		certmanager.EnvCertManagerNS,
+		certmanager.EnvIstioCACertPath,
 	} {
 		t.Setenv(envVar, "")
 	}

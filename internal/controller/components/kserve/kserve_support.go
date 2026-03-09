@@ -18,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -41,34 +42,29 @@ var (
 )
 
 // buildCertManagerParams returns the cert-manager configuration to inject into the
-// xKS overlay params.env. For PKI resources the operator bootstraps (issuer, CA secret),
-// DefaultBootstrapConfig provides the defaults so the operator is the single source of
-// truth — not the kustomize overlay. RHAI_* env vars take precedence over these defaults,
-// allowing external PKI (e.g. cloud controller manager) to be wired in without code changes.
-// NAMESPACE and ISTIO_CA_CERTIFICATE_PATH are only injected when their env vars are set,
-// as they are not bootstrap-owned resources.
+// xKS overlay params.env. Bootstrap-owned fields (issuer, CA secret) are resolved via
+// certmanager.ResolveBootstrapConfig so the operator is the single source of truth.
+// NAMESPACE uses cluster.GetApplicationNamespace() for platform-aware resolution.
+// ISTIO_CA_CERTIFICATE_PATH is only injected when its env var is set.
 func buildCertManagerParams() map[string]string {
-	bc := certmanager.DefaultBootstrapConfig()
-
-	getEnvOrDefault := func(envVar, defaultVal string) string {
-		if v := os.Getenv(envVar); v != "" {
-			return v
-		}
-		return defaultVal
-	}
+	rc := certmanager.ResolveBootstrapConfig()
 
 	params := map[string]string{
-		"ISSUER_REF_NAME":     getEnvOrDefault("RHAI_ISSUER_REF_NAME", bc.CAIssuerName),
-		"ISSUER_REF_KIND":     getEnvOrDefault("RHAI_ISSUER_REF_KIND", "ClusterIssuer"),
-		"CA_SECRET_NAME":      getEnvOrDefault("RHAI_CA_SECRET_NAME", bc.CertName),
-		"CA_SECRET_NAMESPACE": getEnvOrDefault("RHAI_CA_SECRET_NAMESPACE", bc.CertManagerNamespace),
+		"ISSUER_REF_NAME":     rc.CAIssuerName,
+		"ISSUER_REF_KIND":     certmanager.DefaultIssuerRefKind,
+		"CA_SECRET_NAME":      rc.CertName,
+		"CA_SECRET_NAMESPACE": rc.CertManagerNamespace,
+		"NAMESPACE":           cluster.GetApplicationNamespace(),
 	}
 
-	if ns := os.Getenv("RHAI_APPLICATIONS_NAMESPACE"); ns != "" {
-		params["NAMESPACE"] = ns
-	}
-	if path := os.Getenv("RHAI_ISTIO_CA_CERTIFICATE_PATH"); path != "" {
-		params["ISTIO_CA_CERTIFICATE_PATH"] = path
+	// Env-only overrides: written only when the env var is set.
+	for key, envVar := range map[string]string{
+		"ISSUER_REF_KIND":           certmanager.EnvIssuerRefKind,
+		"ISTIO_CA_CERTIFICATE_PATH": certmanager.EnvIstioCACertPath,
+	} {
+		if v := os.Getenv(envVar); v != "" {
+			params[key] = v
+		}
 	}
 
 	return params

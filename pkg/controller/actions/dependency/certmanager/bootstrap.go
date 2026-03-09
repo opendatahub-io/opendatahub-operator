@@ -17,6 +17,7 @@ package certmanager
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
@@ -63,6 +64,37 @@ func DefaultBootstrapConfig() BootstrapConfig {
 		CertManagerNamespace: "cert-manager",
 		CAIssuerName:         "opendatahub-ca-issuer",
 	}
+}
+
+// Environment variable names for overriding the default cert-manager PKI configuration.
+// These are used by the operator and downstream components (e.g. KServe params.env injection)
+// to allow external PKI (e.g. cloud controller manager) without code changes.
+const (
+	EnvCAIssuerName      = "RHAI_ISSUER_REF_NAME"
+	EnvIssuerRefKind     = "RHAI_ISSUER_REF_KIND"
+	EnvCertName          = "RHAI_CA_SECRET_NAME"
+	EnvCertManagerNS     = "RHAI_CA_SECRET_NAMESPACE"
+	EnvIstioCACertPath   = "RHAI_ISTIO_CA_CERTIFICATE_PATH"
+	DefaultIssuerRefKind = "ClusterIssuer"
+)
+
+// ResolveBootstrapConfig returns a BootstrapConfig with environment variable overrides applied.
+// For each bootstrap-owned field, if the corresponding RHAI_* env var is set, it takes precedence
+// over the default. This is the single source of truth for resolved PKI configuration.
+func ResolveBootstrapConfig() BootstrapConfig {
+	bc := DefaultBootstrapConfig()
+
+	for envVar, field := range map[string]*string{
+		EnvCAIssuerName:  &bc.CAIssuerName,
+		EnvCertName:      &bc.CertName,
+		EnvCertManagerNS: &bc.CertManagerNamespace,
+	} {
+		if v := os.Getenv(envVar); v != "" {
+			*field = v
+		}
+	}
+
+	return bc
 }
 
 // NewBootstrapAction returns a reusable pipeline action that adds the cert-manager PKI trust
