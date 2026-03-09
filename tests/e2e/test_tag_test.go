@@ -8,9 +8,11 @@ const (
 	All   TestTag = "All"
 	Smoke TestTag = "Smoke"
 	Tier1 TestTag = "Tier1"
+	Tier2 TestTag = "Tier2"
+	Tier3 TestTag = "Tier3"
 )
 
-var allowedTags = []TestTag{All, Smoke, Tier1}
+var allowedTags = []TestTag{All, Smoke, Tier1, Tier2, Tier3}
 
 func skipUnless(t *testing.T, tags ...TestTag) {
 	t.Helper()
