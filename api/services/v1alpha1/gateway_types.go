@@ -17,16 +17,17 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 )
 
 const (
 	GatewayServiceName = "gateway"
-	// GatewayInstanceName the name of the GatewayConfig instance singleton.
-	// value should match whats set in the XValidation below
+	// GatewayConfigName is the name of the GatewayConfig instance singleton.
+	// value should match what's set in the XValidation below
 	GatewayConfigName = "default-gateway"
 	GatewayConfigKind = "GatewayConfig"
 )

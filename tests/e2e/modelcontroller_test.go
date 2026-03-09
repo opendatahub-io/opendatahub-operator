@@ -57,6 +57,8 @@ func modelControllerTestSuite(t *testing.T) {
 func (tc *ModelControllerTestCtx) ValidateComponentEnabled(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, Smoke, Tier1)
+
 	// Ensure Kserve and ModelRegistry components are set as Managed in DataScienceCluster.
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
@@ -81,6 +83,8 @@ func (tc *ModelControllerTestCtx) ValidateComponentEnabled(t *testing.T) {
 // ValidateComponentDisabled validates that the components are disabled.
 func (tc *ModelControllerTestCtx) ValidateComponentDisabled(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, Smoke, Tier1)
 
 	// Ensure Kserve and ModelRegistry components are set as Removed in DataScienceCluster.
 	tc.EventuallyResourcePatched(

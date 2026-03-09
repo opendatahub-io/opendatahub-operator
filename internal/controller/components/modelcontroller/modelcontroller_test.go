@@ -13,6 +13,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kserve"
+	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
@@ -21,13 +23,17 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
-	// side import for component registry.
-	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kserve"
-
 	. "github.com/onsi/gomega"
 )
 
+func setupTest(_ testing.TB) {
+	// This is needed because modelcontroller is enabled only if kserv is enabled,
+	// and for that at least kserve must be present in the components registry.
+	cr.Add(kserve.NewHandler())
+}
+
 func TestGetName(t *testing.T) {
+	setupTest(t)
 	g := NewWithT(t)
 	handler := &componentHandler{}
 
@@ -36,6 +42,7 @@ func TestGetName(t *testing.T) {
 }
 
 func TestNewCRObject(t *testing.T) {
+	setupTest(t)
 	handler := &componentHandler{}
 
 	tests := []struct {
@@ -95,6 +102,7 @@ func TestNewCRObject(t *testing.T) {
 }
 
 func TestIsEnabled(t *testing.T) {
+	setupTest(t)
 	handler := &componentHandler{}
 
 	tests := []struct {
@@ -134,6 +142,7 @@ func TestIsEnabled(t *testing.T) {
 }
 
 func TestUpdateDSCStatus(t *testing.T) {
+	setupTest(t)
 	handler := &componentHandler{}
 
 	t.Run("should handle enabled component with ready ModelController CR", func(t *testing.T) {

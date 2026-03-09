@@ -1,0 +1,61 @@
+package clusterhealth
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+)
+
+// Run runs all health checks and returns a Report. Config.Client and namespace
+// configuration must be set by the caller; no globals are used.
+//
+// Run always returns a non-nil Report when err is nil. It returns an error only
+// when the report cannot be built at all (e.g. nil client). Partial failures are
+// recorded per section in the Report (SectionResult.Error and optional Data).
+func Run(ctx context.Context, cfg Config) (*Report, error) {
+	if cfg.Client == nil {
+		return nil, errors.New("clusterhealth: client is required")
+	}
+
+	collectedAt := time.Now()
+	report := &Report{CollectedAt: collectedAt}
+	run := cfg.sectionsToRun()
+
+	// Record which sections ran so PrettyPrint can show only those.
+	sectionOrder := []string{SectionNodes, SectionDeployments, SectionPods, SectionEvents, SectionQuotas, SectionOperator, SectionDSCI, SectionDSC}
+	for _, name := range sectionOrder {
+		if run[name] {
+			report.SectionsRun = append(report.SectionsRun, name)
+		}
+	}
+
+	// Run each section independently when selected; failures in one do not block others.
+	if run[SectionNodes] {
+		report.Nodes = runNodesSection(ctx, cfg.Client, cfg.Namespaces)
+	}
+	if run[SectionDeployments] {
+		report.Deployments = runDeploymentsSection(ctx, cfg.Client, cfg.Namespaces)
+	}
+	if run[SectionPods] {
+		report.Pods = runPodsSection(ctx, cfg.Client, cfg.Namespaces)
+	}
+	if run[SectionEvents] {
+		report.Events = runEventsSection(ctx, cfg.Client, cfg.Namespaces, collectedAt)
+	}
+	if run[SectionQuotas] {
+		report.Quotas = runQuotasSection(ctx, cfg.Client, cfg.Namespaces)
+	}
+	if run[SectionOperator] {
+		report.Operator = runOperatorSection(ctx, cfg.Client, cfg.Operator)
+	}
+	if run[SectionDSCI] {
+		report.DSCI = runCRConditionsSection(ctx, cfg.Client, gvk.DSCInitialization, cfg.DSCI)
+	}
+	if run[SectionDSC] {
+		report.DSC = runCRConditionsSection(ctx, cfg.Client, gvk.DataScienceCluster, cfg.DSC)
+	}
+
+	return report, nil
+}

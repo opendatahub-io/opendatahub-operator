@@ -84,7 +84,7 @@ var componentRules = map[string]string{
 var resourcesFS embed.FS
 
 // initialize handles all pre-deployment configurations.
-func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { //nolint:unparam
 	// Only set prometheus configmap path
 	rr.Manifests = []odhtypes.ManifestInfo{
 		{
@@ -644,7 +644,7 @@ func deployPersesPrometheusIntegration(ctx context.Context, rr *odhtypes.Reconci
 	return nil
 }
 
-func deployNodeMetricsEndpoint(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func deployNodeMetricsEndpoint(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
 	if !ok {
 		return errors.New("instance is not of type *services.Monitoring")

@@ -100,13 +100,13 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 	return nil
 }
 
-func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { //nolint:unparam
 	rr.Manifests = append(rr.Manifests, manifestPath(rr.Release.Name))
 
 	return nil
 }
 
-func argoWorkflowsControllersOptions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func argoWorkflowsControllersOptions(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	dsp, ok := rr.Instance.(*componentApi.DataSciencePipelines)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.DataSciencePipelines)", rr.Instance)

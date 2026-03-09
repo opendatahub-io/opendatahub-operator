@@ -27,22 +27,6 @@ RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go test -c ./test
 ################################################################################
 FROM golang:$GOLANG_VERSION
 
-# ENV vars
-ENV E2E_TEST_OPERATOR_NAMESPACE=opendatahub-operators
-ENV E2E_TEST_APPLICATIONS_NAMESPACE=opendatahub
-ENV E2E_TEST_WORKBENCHES_NAMESPACE=opendatahub
-ENV E2E_TEST_DSC_MONITORING_NAMESPACE=opendatahub
-ENV E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=false
-ENV E2E_TEST_DELETION_POLICY=never
-ENV E2E_TEST_FAIL_FAST_ON_ERROR=false
-ENV E2E_TEST_OPERATOR_CONTROLLER=true
-ENV E2E_TEST_OPERATOR_RESILIENCE=true
-ENV E2E_TEST_OPERATOR_V2TOV3UPGRADE=true
-ENV E2E_TEST_HARDWARE_PROFILE=true
-ENV E2E_TEST_WEBHOOK=true
-ENV E2E_TEST_COMPONENTS=true
-ENV E2E_TEST_SERVICES=true
-
 RUN apt-get update -y && apt-get upgrade -y && \
     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
     chmod +x kubectl && \
@@ -56,12 +40,11 @@ RUN go install gotest.tools/gotestsum@latest \
 WORKDIR /e2e
 
 COPY --from=builder /workspace/e2e-tests .
+COPY tests/e2e/scripts/run_e2e_tests.sh /e2e/run_e2e_tests.sh
 
-RUN chmod +x ./e2e-tests
+RUN chmod +x ./e2e-tests /e2e/run_e2e_tests.sh
 
 RUN mkdir -p results
 
 # run main go command
-CMD gotestsum --junitfile-project-name odh-operator-e2e \
---junitfile results/xunit_report.xml --format testname --raw-command \
--- test2json -p e2e ./e2e-tests --test.v=test2json --test.parallel=8
+ENTRYPOINT ["/e2e/run_e2e_tests.sh"]

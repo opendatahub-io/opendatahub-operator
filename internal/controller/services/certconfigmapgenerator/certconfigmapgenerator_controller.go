@@ -19,7 +19,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
@@ -111,9 +110,9 @@ func NewWithManager(_ context.Context, mgr ctrl.Manager) error {
 		// In the future, we should implement an opt-in mechanism to selectively cache
 		// namespaces using label selectors. This would allow us to use a dedicated
 		// cache for this controller and separate ones for components and services.
-		source.TypedKind[client.Object, ctrl.Request](
+		source.TypedKind[client.Object](
 			mgr.GetCache(),
-			&corev1.Namespace{},
+			resources.GvkToUnstructured(gvk.Namespace),
 			handlers.RequestFromObject(),
 			respredicates.AnnotationChanged(annotation.InjectionOfCABundleAnnotatoion),
 		),
@@ -130,7 +129,7 @@ func NewWithManager(_ context.Context, mgr ctrl.Manager) error {
 		//
 		// Leveraging PartialObjectMetadata minimizes API server load and reduces network traffic
 		// by fetching only metadata instead of the full object.
-		source.TypedKind[client.Object, ctrl.Request](
+		source.TypedKind[client.Object](
 			targetCache,
 			resources.GvkToPartial(gvk.ConfigMap),
 			handlers.Fn(func(_ context.Context, obj client.Object) []reconcile.Request {
@@ -149,16 +148,16 @@ func NewWithManager(_ context.Context, mgr ctrl.Manager) error {
 	b = b.WatchesRawSource(
 		// The DSCInitialization singleton is shared across nearly all controllers.
 		// It uses the manager's shared cache to prevent the creation of redundant informers.
-		source.TypedKind[client.Object, ctrl.Request](
+		source.TypedKind[client.Object](
 			mgr.GetCache(),
-			&dsciv2.DSCInitialization{},
+			resources.GvkToUnstructured(gvk.DSCInitialization),
 			dsciEventHandler(r.sharedClient),
 			dsciPredicates(r.sharedClient),
 		),
 	)
 
 	return b.Complete(
-		reconcile.AsReconciler[*corev1.Namespace](r.sharedClient, &r),
+		reconcile.AsReconciler(r.sharedClient, &r),
 	)
 }
 

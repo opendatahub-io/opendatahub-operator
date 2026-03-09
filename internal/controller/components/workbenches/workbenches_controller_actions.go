@@ -12,7 +12,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
-func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { //nolint:unparam
 	rr.Manifests = []odhtypes.ManifestInfo{
 		notebookControllerManifestInfo(notebookControllerManifestSourcePath),
 		kfNotebookControllerManifestInfo(kfNotebookControllerManifestSourcePath),
@@ -22,7 +22,7 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	return nil
 }
 
-func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func configureDependencies(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	workbench, ok := rr.Instance.(*componentApi.Workbenches)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.Workbenches", rr.Instance)
@@ -51,7 +51,7 @@ func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationReque
 	return nil
 }
 
-func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func updateStatus(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	workbench, ok := rr.Instance.(*componentApi.Workbenches)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.Workbenches", rr.Instance)
