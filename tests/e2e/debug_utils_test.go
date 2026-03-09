@@ -83,6 +83,13 @@ func redactSensitiveInfo(logContent string) string {
 	return result
 }
 
+// redactEvidence applies redactSensitiveInfo to each evidence string in a classification.
+func redactEvidence(fc *classifier.FailureClassification) {
+	for i, e := range fc.Evidence {
+		fc.Evidence[i] = redactSensitiveInfo(e)
+	}
+}
+
 // HandleGlobalPanic is a panic recovery handler that runs comprehensive
 // cluster diagnostics when tests panic. It should be called with defer
 // in TestMain or BeforeSuite.
@@ -150,6 +157,7 @@ func runDiagnosticsAndClassify(testName string) {
 		log.Printf("ERROR: Failed to collect diagnostics: %v", err)
 		fc := classifier.Classify(nil)
 		fc.Evidence = append(fc.Evidence, fmt.Sprintf("clusterhealth.Run error: %v", err))
+		redactEvidence(&fc)
 		classifier.EmitClassification(fc, testName)
 		lastClassification.Store(&fc)
 		return
@@ -158,6 +166,7 @@ func runDiagnosticsAndClassify(testName string) {
 	logReport(report)
 
 	fc := classifier.Classify(report)
+	redactEvidence(&fc)
 	classifier.EmitClassification(fc, testName)
 	lastClassification.Store(&fc)
 }
