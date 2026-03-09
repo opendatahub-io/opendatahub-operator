@@ -18,12 +18,20 @@ package modelsasservice
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/go-logr/logr"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -33,6 +41,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 // validateGateway validates the Gateway specification in the ModelsAsService resource.
@@ -93,6 +102,8 @@ func initialize(_ context.Context, rr *types.ReconciliationRequest) error { //no
 
 // customizeManifests applies component-specific customizations to the manifests.
 func customizeManifests(ctx context.Context, rr *types.ReconciliationRequest) error {
+	log := logf.FromContext(ctx)
+
 	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
@@ -103,14 +114,20 @@ func customizeManifests(ctx context.Context, rr *types.ReconciliationRequest) er
 		return err
 	}
 
-	gatewayParams := map[string]string{
+	params := map[string]string{
 		"gateway-namespace": maas.Spec.GatewayRef.Namespace,
 		"gateway-name":      maas.Spec.GatewayRef.Name,
 		"app-namespace":     appNamespace,
 	}
 
-	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), "params.env", nil, gatewayParams); err != nil {
-		return fmt.Errorf("failed to update Gateway params on path %s: %w", rr.Manifests[0].String(), err)
+	// Add API key configuration if specified
+	if maas.Spec.APIKeys != nil && maas.Spec.APIKeys.MaxExpirationDays != nil {
+		params["api-key-max-expiration-days"] = strconv.FormatInt(int64(*maas.Spec.APIKeys.MaxExpirationDays), 10)
+		log.V(4).Info("Configuring API key max expiration days", "value", *maas.Spec.APIKeys.MaxExpirationDays)
+	}
+
+	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), "params.env", nil, params); err != nil {
+		return fmt.Errorf("failed to update params on path %s: %w", rr.Manifests[0].String(), err)
 	}
 
 	return nil
@@ -200,4 +217,105 @@ func configureDestinationRule(log logr.Logger, resource *unstructured.Unstructur
 		"newNamespace", gatewayNamespace)
 
 	resource.SetNamespace(gatewayNamespace)
+}
+
+// configureConfigHashAnnotation adds a hash annotation to the maas-api Deployment
+// to trigger rolling restarts when the ConfigMap changes.
+// This is necessary because env vars sourced via valueFrom.configMapKeyRef
+// do not automatically trigger pod restarts when the ConfigMap is updated.
+func configureConfigHashAnnotation(ctx context.Context, rr *types.ReconciliationRequest) error {
+	log := logf.FromContext(ctx)
+
+	// Find the maas-parameters ConfigMap
+	var configMap *corev1.ConfigMap
+	for idx := range rr.Resources {
+		resource := &rr.Resources[idx]
+		if resource.GroupVersionKind() == gvk.ConfigMap && resource.GetName() == MaaSParametersConfigMapName {
+			cm := &corev1.ConfigMap{}
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(resource.Object, cm); err != nil {
+				return fmt.Errorf("failed to convert ConfigMap: %w", err)
+			}
+			configMap = cm
+			break
+		}
+	}
+
+	if configMap == nil {
+		log.V(1).Info("ConfigMap not found in rendered resources, skipping config hash annotation",
+			"expectedName", MaaSParametersConfigMapName)
+		return nil
+	}
+
+	// Compute hash of the ConfigMap data
+	configHash := hashConfigMapData(configMap.Data)
+	log.V(4).Info("Computed ConfigMap hash", "hash", configHash, "configMap", configMap.Name)
+
+	// Find the maas-api Deployment
+	var deployment *appsv1.Deployment
+	var deploymentIdx int
+	for idx := range rr.Resources {
+		resource := &rr.Resources[idx]
+		if resource.GroupVersionKind() == gvk.Deployment && resource.GetName() == MaaSAPIDeploymentName {
+			dep := &appsv1.Deployment{}
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(resource.Object, dep); err != nil {
+				return fmt.Errorf("failed to convert Deployment: %w", err)
+			}
+			deployment = dep
+			deploymentIdx = idx
+			break
+		}
+	}
+
+	if deployment == nil {
+		log.V(1).Info("Deployment not found in rendered resources, skipping config hash annotation",
+			"expectedName", MaaSAPIDeploymentName)
+		return nil
+	}
+
+	// Initialize annotations map if nil
+	if deployment.Spec.Template.Annotations == nil {
+		deployment.Spec.Template.Annotations = make(map[string]string)
+	}
+
+	// Add the config hash annotation to the pod template
+	annotationKey := labels.ODHAppPrefix + "/maas-config-hash"
+	deployment.Spec.Template.Annotations[annotationKey] = configHash
+
+	log.V(4).Info("Added config hash annotation to Deployment",
+		"deployment", deployment.Name,
+		"annotation", annotationKey,
+		"hash", configHash)
+
+	// Convert back to unstructured and update in resources
+	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(deployment)
+	if err != nil {
+		return fmt.Errorf("failed to convert Deployment back to unstructured: %w", err)
+	}
+	rr.Resources[deploymentIdx].Object = u
+
+	return nil
+}
+
+// hashConfigMapData computes a SHA256 hash of the ConfigMap data.
+// The hash is computed from sorted key-value pairs to ensure consistency.
+func hashConfigMapData(data map[string]string) string {
+	// Sort keys for consistent hashing
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	// Build a string representation of the data
+	var sb strings.Builder
+	for _, k := range keys {
+		sb.WriteString(k)
+		sb.WriteString("=")
+		sb.WriteString(data[k])
+		sb.WriteString("\n")
+	}
+
+	// Compute SHA256 hash
+	hash := sha256.Sum256([]byte(sb.String()))
+	return hex.EncodeToString(hash[:])
 }
