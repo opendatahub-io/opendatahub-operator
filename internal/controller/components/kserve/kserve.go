@@ -32,6 +32,7 @@ const (
 	LegacyComponentName = "kserve"
 
 	ReadyConditionType                    = componentApi.KserveKind + status.ReadySuffix
+	ServiceMeshVersionRequirement         = componentApi.KserveKind + "ServiceMeshVersionRequirement"
 	LLMInferenceServiceDependencies       = componentApi.KserveKind + "LLMInferenceServiceDependencies"
 	LLMInferenceServiceWideEPDependencies = componentApi.KserveKind + "LLMInferenceServiceWideEPDependencies"
 	rhclOperatorSubscription              = "rhcl-operator"
@@ -43,6 +44,7 @@ var (
 	conditionTypes = []string{
 		status.ConditionDeploymentsAvailable,
 		status.ConditionDependenciesAvailable,
+		ServiceMeshVersionRequirement,
 	}
 )
 
@@ -117,6 +119,9 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 			cs = rc.Status
 		} else {
 			cs = metav1.ConditionFalse
+		}
+		if smCondition := conditions.FindStatusCondition(c.GetStatus(), ServiceMeshVersionRequirement); smCondition != nil {
+			rr.Conditions.MarkFrom(ServiceMeshVersionRequirement, *smCondition)
 		}
 		if rhclCondition := conditions.FindStatusCondition(c.GetStatus(), LLMInferenceServiceDependencies); rhclCondition != nil {
 			rr.Conditions.MarkFrom(LLMInferenceServiceDependencies, *rhclCondition)
