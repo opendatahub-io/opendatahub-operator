@@ -8,7 +8,6 @@ import (
 	ccmv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/azure/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/cloudmanager/app"
 	azurectrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/azure"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
 )
 
 // NewCmd returns the cobra command for the Azure cloud manager.
@@ -31,7 +30,7 @@ func NewCmd() *cobra.Command {
 	return cmd
 }
 
-func cacheOptions(scheme *runtime.Scheme) cache.Options {
-	defaultCacheOptions := common.DefaultCacheOptions(scheme)
-	return defaultCacheOptions
+func cacheOptions(scheme *runtime.Scheme) (cache.Options, error) {
+	kind := ccmv1alpha1.AzureKubernetesEngineKind
+	return app.DefaultCacheOptions(scheme, kind)
 }
