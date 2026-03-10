@@ -8,6 +8,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/helm"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 // reconcileAction holds the configuration for the combined reconcile action.
@@ -49,12 +51,12 @@ func NewReconcileAction(opts ...ReconcileActionOpts) actions.Fn {
 	deployAction := deploy.NewAction(action.deployOpts...)
 
 	return func(ctx context.Context, rr *types.ReconciliationRequest) error {
-		// 1. Render Helm charts (populates rr.Resources)
+		// Render Helm charts (populates rr.Resources)
 		if err := helmRender(ctx, rr); err != nil {
 			return fmt.Errorf("helm render failed: %w", err)
 		}
 
-		// 2. Execute pre-apply hooks
+		// Execute pre-apply hooks
 		err := runHooks(ctx, rr, func(c *types.HelmChartInfo) []types.HookFn {
 			return c.PreApply
 		})
@@ -62,12 +64,21 @@ func NewReconcileAction(opts ...ReconcileActionOpts) actions.Fn {
 			return err
 		}
 
-		// 3. Deploy resources via SSA
+		// Set infrastructure label on all rendered resources
+		kind, err := resources.KindForObject(rr.Client.Scheme(), rr.Instance)
+		if err != nil {
+			return fmt.Errorf("failed to get instance kind: %w", err)
+		}
+		for i := range rr.Resources {
+			resources.SetLabel(&rr.Resources[i], labels.InfrastructurePartOf, labels.NormalizePartOfValue(kind))
+		}
+
+		// Deploy resources via SSA
 		if err := deployAction(ctx, rr); err != nil {
 			return fmt.Errorf("deploy failed: %w", err)
 		}
 
-		// 4. Execute post-apply hooks
+		// Execute post-apply hooks
 		err = runHooks(ctx, rr, func(c *types.HelmChartInfo) []types.HookFn {
 			return c.PostApply
 		})

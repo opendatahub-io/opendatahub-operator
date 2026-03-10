@@ -9,6 +9,7 @@ import (
 	ccmcommon "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
 	ccmv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/coreweave/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
@@ -44,6 +45,26 @@ func TestCoreWeaveKubernetesEngine(t *testing.T) {
 		wt.Get(gvk.Deployment, types.NamespacedName{
 			Name: "servicemesh-operator3", Namespace: "istio-system",
 		}).Eventually().Should(Not(BeNil()))
+	})
+
+	t.Run("sets infrastructure label on deployed resources", func(t *testing.T) {
+		wt := tc.NewWithT(t)
+
+		createCoreweaveCR(t, wt, ccmcommon.Dependencies{
+			CertManager: ccmcommon.CertManagerDependency{ManagementPolicy: ccmcommon.Managed},
+		})
+
+		nn := types.NamespacedName{Name: ccmv1alpha1.CoreWeaveKubernetesEngineInstanceName}
+
+		wt.Get(gvk.CoreWeaveKubernetesEngine, nn).Eventually().Should(
+			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`),
+		)
+
+		wt.Get(gvk.Deployment, types.NamespacedName{
+			Name: "cert-manager-operator-controller-manager", Namespace: "cert-manager-operator",
+		}).Eventually().Should(
+			jq.Match(`.metadata.labels."%s" == "coreweavekubernetesengine"`, labels.InfrastructurePartOf),
+		)
 	})
 }
 

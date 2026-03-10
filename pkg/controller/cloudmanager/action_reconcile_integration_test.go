@@ -23,6 +23,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/helm"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/cloudmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/mocks"
 
@@ -261,6 +263,34 @@ func TestNewReconcileAction_PostApplyHookErrorPropagates(t *testing.T) {
 	g.Expect(errors.Is(err, hookErr)).Should(BeTrue())
 
 	checkTestChartDeployedResources(t, g, ctx, cl, ns, testReleaseName)
+}
+
+func TestNewReconcileAction_SetsInfrastructureLabel(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+	ns := xid.New().String()
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	action := newTestReconcileAction()
+	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
+		Source: helmRenderer.Source{
+			Chart:       filepath.Join("testdata", "test-chart"),
+			ReleaseName: testReleaseName,
+			Values:      helmRenderer.Values(map[string]any{"namespace": ns}),
+		},
+	}})
+
+	err = action(ctx, rr)
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(rr.Resources).Should(HaveLen(1))
+
+	for _, res := range rr.Resources {
+		g.Expect(resources.GetLabel(&res, labels.InfrastructurePartOf)).
+			Should(Equal("azurekubernetesengine"))
+	}
 }
 
 func TestNewReconcileAction_MultipleCharts(t *testing.T) {
