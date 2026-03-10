@@ -66,6 +66,8 @@ func BuildHelmCharts(deps ccmcommon.Dependencies) []types.HelmChartInfo {
 					}),
 				},
 				PreApply: []types.HookFn{},
+				// TODO(OSSM-12397): Remove PostApply hook once the sail-operator ships a fix.
+				PostApply: []types.HookFn{AnnotateIstioWebhooksHook()},
 			},
 		},
 	}
