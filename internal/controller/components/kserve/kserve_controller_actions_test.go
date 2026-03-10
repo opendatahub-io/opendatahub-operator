@@ -7,13 +7,17 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -339,4 +343,161 @@ func convertToUnstructured(t *testing.T, obj runtime.Object) *unstructured.Unstr
 		t.Fatalf("Failed to convert object to unstructured: %v", err)
 	}
 	return &unstructured.Unstructured{Object: u}
+}
+
+func TestAnnotateIstioWebhooks(t *testing.T) {
+	xksRelease := common.Release{Name: cluster.XKS}
+
+	t.Run("should skip on non-xKS platforms", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		mutatingWH := &admissionregistrationv1.MutatingWebhookConfiguration{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: istioSidecarInjectorWebhook,
+			},
+		}
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(mutatingWH))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &odhtypes.ReconciliationRequest{
+			Client:  cli,
+			Release: common.Release{Name: cluster.SelfManagedRhoai},
+		}
+
+		err = annotateIstioWebhooks(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify webhook was NOT annotated
+		updatedMutating := &admissionregistrationv1.MutatingWebhookConfiguration{}
+		err = cli.Get(ctx, types.NamespacedName{Name: istioSidecarInjectorWebhook}, updatedMutating)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(updatedMutating.Annotations).ShouldNot(HaveKey(sailOperatorIgnoreAnnotation))
+	})
+
+	t.Run("should annotate webhooks on xKS when they exist without annotation", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		mutatingWH := &admissionregistrationv1.MutatingWebhookConfiguration{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: istioSidecarInjectorWebhook,
+			},
+		}
+		validatingWH := &admissionregistrationv1.ValidatingWebhookConfiguration{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: istioValidatorWebhook,
+			},
+		}
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(mutatingWH, validatingWH))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &odhtypes.ReconciliationRequest{
+			Client:  cli,
+			Release: xksRelease,
+		}
+
+		err = annotateIstioWebhooks(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify mutating webhook was annotated
+		updatedMutating := &admissionregistrationv1.MutatingWebhookConfiguration{}
+		err = cli.Get(ctx, types.NamespacedName{Name: istioSidecarInjectorWebhook}, updatedMutating)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(updatedMutating.Annotations).Should(HaveKeyWithValue(sailOperatorIgnoreAnnotation, "true"))
+
+		// Verify validating webhook was annotated
+		updatedValidating := &admissionregistrationv1.ValidatingWebhookConfiguration{}
+		err = cli.Get(ctx, types.NamespacedName{Name: istioValidatorWebhook}, updatedValidating)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(updatedValidating.Annotations).Should(HaveKeyWithValue(sailOperatorIgnoreAnnotation, "true"))
+	})
+
+	t.Run("should be a no-op when webhooks already have the annotation", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		mutatingWH := &admissionregistrationv1.MutatingWebhookConfiguration{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: istioSidecarInjectorWebhook,
+				Annotations: map[string]string{
+					sailOperatorIgnoreAnnotation: "true",
+				},
+			},
+		}
+		validatingWH := &admissionregistrationv1.ValidatingWebhookConfiguration{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: istioValidatorWebhook,
+				Annotations: map[string]string{
+					sailOperatorIgnoreAnnotation: "true",
+				},
+			},
+		}
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(mutatingWH, validatingWH))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &odhtypes.ReconciliationRequest{
+			Client:  cli,
+			Release: xksRelease,
+		}
+
+		err = annotateIstioWebhooks(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify annotations are still present
+		updatedMutating := &admissionregistrationv1.MutatingWebhookConfiguration{}
+		err = cli.Get(ctx, types.NamespacedName{Name: istioSidecarInjectorWebhook}, updatedMutating)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(updatedMutating.Annotations).Should(HaveKeyWithValue(sailOperatorIgnoreAnnotation, "true"))
+	})
+
+	t.Run("should be a no-op when webhooks do not exist on xKS", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		cli, err := fakeclient.New()
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &odhtypes.ReconciliationRequest{
+			Client:  cli,
+			Release: xksRelease,
+		}
+
+		err = annotateIstioWebhooks(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+	})
+
+	t.Run("should preserve existing annotations when adding the ignore annotation", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		mutatingWH := &admissionregistrationv1.MutatingWebhookConfiguration{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: istioSidecarInjectorWebhook,
+				Annotations: map[string]string{
+					"existing-annotation": "existing-value",
+				},
+			},
+		}
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(mutatingWH))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &odhtypes.ReconciliationRequest{
+			Client:  cli,
+			Release: xksRelease,
+		}
+
+		err = annotateIstioWebhooks(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		updatedMutating := &admissionregistrationv1.MutatingWebhookConfiguration{}
+		err = cli.Get(ctx, types.NamespacedName{Name: istioSidecarInjectorWebhook}, updatedMutating)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(updatedMutating.Annotations).Should(HaveKeyWithValue(sailOperatorIgnoreAnnotation, "true"))
+		g.Expect(updatedMutating.Annotations).Should(HaveKeyWithValue("existing-annotation", "existing-value"))
+	})
 }

@@ -153,6 +153,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
+		WithAction(annotateIstioWebhooks).
 		WithAction(deployments.NewAction()).
 		// must be the final action
 		WithAction(gc.NewAction(gc.WithUnremovables(gvk.LLMInferenceServiceConfigV1Alpha1))).

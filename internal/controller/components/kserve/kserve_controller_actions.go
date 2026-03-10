@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"strings"
 
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -29,6 +31,11 @@ import (
 const (
 	LLMInferenceServiceConfigWellKnownAnnotationKey   = "serving.kserve.io/well-known-config"
 	LLMInferenceServiceConfigWellKnownAnnotationValue = "true"
+
+	sailOperatorIgnoreAnnotation = "sailoperator.io/ignore"
+
+	istioSidecarInjectorWebhook = "istio-sidecar-injector"
+	istioValidatorWebhook       = "istio-validator-istio-system"
 )
 
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { //nolint:unparam
@@ -178,6 +185,74 @@ func versionedWellKnownLLMInferenceServiceConfigs(_ context.Context, version str
 			rr.Resources[i] = *u
 		}
 	}
+	return nil
+}
+
+// annotateIstioWebhooks works around a sail-operator bug (OSSM-12397) where webhook
+// configuration updates trigger an infinite Helm reinstall loop on vanilla Kubernetes.
+// It adds the sailoperator.io/ignore=true annotation to the two webhooks that istiod
+// creates (istio-sidecar-injector and istio-validator-istio-system), telling the
+// sail-operator to stop watching them.
+//
+// TODO(OSSM-12397): Remove this workaround once the sail-operator ships a fix.
+// Tracking: https://issues.redhat.com/browse/RHOAIENG-52246
+//
+// Only runs on xKS platforms where the sail-operator is used.
+// Annotation failures are logged but do not block reconciliation, since this
+// is a workaround rather than a core requirement.
+func annotateIstioWebhooks(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	if rr.Release.Name != cluster.XKS {
+		return nil
+	}
+
+	logger := logf.FromContext(ctx)
+
+	// Errors are intentionally not returned here because this is a temporary
+	// workaround (see TODO above). Failing to annotate a webhook should not
+	// block KServe reconciliation; the annotation will be retried on the next
+	// reconciliation loop.
+	if err := ensureSailOperatorIgnoreAnnotation(
+		ctx, rr.Client, istioSidecarInjectorWebhook, &admissionregistrationv1.MutatingWebhookConfiguration{},
+	); err != nil {
+		logger.Error(err, "Failed to annotate webhook (non-fatal)", "name", istioSidecarInjectorWebhook)
+	}
+
+	if err := ensureSailOperatorIgnoreAnnotation(
+		ctx, rr.Client, istioValidatorWebhook, &admissionregistrationv1.ValidatingWebhookConfiguration{},
+	); err != nil {
+		logger.Error(err, "Failed to annotate webhook (non-fatal)", "name", istioValidatorWebhook)
+	}
+
+	return nil
+}
+
+func ensureSailOperatorIgnoreAnnotation(ctx context.Context, c client.Client, name string, obj client.Object) error {
+	logger := logf.FromContext(ctx)
+
+	if err := c.Get(ctx, types.NamespacedName{Name: name}, obj); err != nil {
+		if k8serr.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+
+	annotations := obj.GetAnnotations()
+	if annotations[sailOperatorIgnoreAnnotation] == "true" {
+		return nil
+	}
+
+	annotationPatch := client.RawPatch(types.MergePatchType,
+		[]byte(`{"metadata":{"annotations":{"`+sailOperatorIgnoreAnnotation+`":"true"}}}`))
+
+	if err := c.Patch(ctx, obj, annotationPatch); err != nil {
+		return err
+	}
+
+	logger.Info("Annotated webhook with sailoperator.io/ignore=true",
+		"kind", obj.GetObjectKind().GroupVersionKind().Kind,
+		"name", name,
+	)
+
 	return nil
 }
 
