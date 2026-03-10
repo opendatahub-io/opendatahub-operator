@@ -18,8 +18,6 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
 func TestNamespaceConfig_List(t *testing.T) {
@@ -284,7 +282,7 @@ func TestRun_DSCSection_ReadyFalseReportsUnhealthy(t *testing.T) {
 
 	// DSC is a singleton; empty name triggers discovery (list and use first).
 	dsc := &unstructured.Unstructured{}
-	dsc.SetGroupVersionKind(gvk.DataScienceCluster)
+	dsc.SetGroupVersionKind(DataScienceClusterGVK)
 	dsc.SetName("default-dsc")
 	dsc.Object["status"] = map[string]interface{}{
 		"conditions": []interface{}{
@@ -294,11 +292,12 @@ func TestRun_DSCSection_ReadyFalseReportsUnhealthy(t *testing.T) {
 
 	cl := fake.NewClientBuilder().WithScheme(sch).WithObjects(dsc).Build()
 	cfg := Config{
-		Client:       cl,
-		Namespaces:   NamespaceConfig{},
-		Operator:     OperatorConfig{},
-		DSCI:         types.NamespacedName{},
-		DSC:          types.NamespacedName{}, // discover singleton
+		Client:     cl,
+		Namespaces: NamespaceConfig{},
+		Operator:   OperatorConfig{},
+		DSCI:       types.NamespacedName{},
+		DSC:        types.NamespacedName{},
+
 		OnlySections: []string{SectionDSC},
 	}
 	report, err := Run(context.Background(), cfg)
@@ -323,11 +322,12 @@ func TestRun_DSCSection_NoInstanceFound(t *testing.T) {
 	// No DSC in the cluster; discovery (empty name) should report "no DataScienceCluster found".
 	cl := fake.NewClientBuilder().WithScheme(sch).Build()
 	cfg := Config{
-		Client:       cl,
-		Namespaces:   NamespaceConfig{},
-		Operator:     OperatorConfig{},
-		DSCI:         types.NamespacedName{},
-		DSC:          types.NamespacedName{},
+		Client:     cl,
+		Namespaces: NamespaceConfig{},
+		Operator:   OperatorConfig{},
+		DSCI:       types.NamespacedName{},
+		DSC:        types.NamespacedName{},
+
 		OnlySections: []string{SectionDSC},
 	}
 	report, err := Run(context.Background(), cfg)
@@ -348,16 +348,17 @@ func TestRun_DSCSection_MalformedConditionsReportsError(t *testing.T) {
 	_ = appsv1.AddToScheme(sch)
 	// DSC with status.conditions that is not a slice (malformed).
 	dsc := &unstructured.Unstructured{}
-	dsc.SetGroupVersionKind(gvk.DataScienceCluster)
+	dsc.SetGroupVersionKind(DataScienceClusterGVK)
 	dsc.SetName("default-dsc")
 	dsc.Object["status"] = map[string]interface{}{"conditions": "not-a-slice"}
 	cl := fake.NewClientBuilder().WithScheme(sch).WithObjects(dsc).Build()
 	cfg := Config{
-		Client:       cl,
-		Namespaces:   NamespaceConfig{},
-		Operator:     OperatorConfig{},
-		DSCI:         types.NamespacedName{},
-		DSC:          types.NamespacedName{},
+		Client:     cl,
+		Namespaces: NamespaceConfig{},
+		Operator:   OperatorConfig{},
+		DSCI:       types.NamespacedName{},
+		DSC:        types.NamespacedName{},
+
 		OnlySections: []string{SectionDSC},
 	}
 	report, err := Run(context.Background(), cfg)
@@ -379,7 +380,7 @@ func TestRun_DSCSection_RemovedComponentIgnored(t *testing.T) {
 	// DSC with Kueue Removed and KueueReady=False: we should not report unhealthy for Kueue.
 	// Dashboard Managed and DashboardReady=False: we should report unhealthy.
 	dsc := &unstructured.Unstructured{}
-	dsc.SetGroupVersionKind(gvk.DataScienceCluster)
+	dsc.SetGroupVersionKind(DataScienceClusterGVK)
 	dsc.SetName("default-dsc")
 	dsc.Object["spec"] = map[string]interface{}{
 		"components": map[string]interface{}{
@@ -395,9 +396,10 @@ func TestRun_DSCSection_RemovedComponentIgnored(t *testing.T) {
 	}
 	cl := fake.NewClientBuilder().WithScheme(sch).WithObjects(dsc).Build()
 	cfg := Config{
-		Client:       cl,
-		DSCI:         types.NamespacedName{},
-		DSC:          types.NamespacedName{},
+		Client: cl,
+		DSCI:   types.NamespacedName{},
+		DSC:    types.NamespacedName{},
+
 		OnlySections: []string{SectionDSC},
 	}
 	report, err := Run(context.Background(), cfg)
@@ -421,7 +423,7 @@ func TestRun_DSCSection_RemovedComponentKeyCaseInsensitive(t *testing.T) {
 	_ = appsv1.AddToScheme(sch)
 	// CR with component key "Kueue" (capital K) and Removed: we should still ignore KueueReady=False.
 	dsc := &unstructured.Unstructured{}
-	dsc.SetGroupVersionKind(gvk.DataScienceCluster)
+	dsc.SetGroupVersionKind(DataScienceClusterGVK)
 	dsc.SetName("default-dsc")
 	dsc.Object["spec"] = map[string]interface{}{
 		"components": map[string]interface{}{
@@ -435,9 +437,10 @@ func TestRun_DSCSection_RemovedComponentKeyCaseInsensitive(t *testing.T) {
 	}
 	cl := fake.NewClientBuilder().WithScheme(sch).WithObjects(dsc).Build()
 	cfg := Config{
-		Client:       cl,
-		DSCI:         types.NamespacedName{},
-		DSC:          types.NamespacedName{},
+		Client: cl,
+		DSCI:   types.NamespacedName{},
+		DSC:    types.NamespacedName{},
+
 		OnlySections: []string{SectionDSC},
 	}
 	report, err := Run(context.Background(), cfg)
@@ -454,7 +457,7 @@ func TestRun_DSCSection_RemovedAIPipelinesV1V2Alias(t *testing.T) {
 	_ = appsv1.AddToScheme(sch)
 	// v2 CR uses spec.components.aipipelines; condition can be AIPipelinesReady. Should not report when Removed.
 	dsc := &unstructured.Unstructured{}
-	dsc.SetGroupVersionKind(gvk.DataScienceCluster)
+	dsc.SetGroupVersionKind(DataScienceClusterGVK)
 	dsc.SetName("default-dsc")
 	dsc.Object["spec"] = map[string]interface{}{
 		"components": map[string]interface{}{
@@ -468,9 +471,10 @@ func TestRun_DSCSection_RemovedAIPipelinesV1V2Alias(t *testing.T) {
 	}
 	cl := fake.NewClientBuilder().WithScheme(sch).WithObjects(dsc).Build()
 	cfg := Config{
-		Client:       cl,
-		DSCI:         types.NamespacedName{},
-		DSC:          types.NamespacedName{},
+		Client: cl,
+		DSCI:   types.NamespacedName{},
+		DSC:    types.NamespacedName{},
+
 		OnlySections: []string{SectionDSC},
 	}
 	report, err := Run(context.Background(), cfg)
@@ -508,7 +512,7 @@ func TestRun_DSCISection_DegradedReported(t *testing.T) {
 	_ = appsv1.AddToScheme(sch)
 	// DSCI with Degraded=True should report unhealthy; Progressing=True alone should not.
 	dsci := &unstructured.Unstructured{}
-	dsci.SetGroupVersionKind(gvk.DSCInitialization)
+	dsci.SetGroupVersionKind(DSCInitializationGVK)
 	dsci.SetName("default-dsci")
 	dsci.Object["status"] = map[string]interface{}{
 		"conditions": []interface{}{
@@ -518,9 +522,10 @@ func TestRun_DSCISection_DegradedReported(t *testing.T) {
 	}
 	cl := fake.NewClientBuilder().WithScheme(sch).WithObjects(dsci).Build()
 	cfg := Config{
-		Client:       cl,
-		DSCI:         types.NamespacedName{},
-		DSC:          types.NamespacedName{},
+		Client: cl,
+		DSCI:   types.NamespacedName{},
+		DSC:    types.NamespacedName{},
+
 		OnlySections: []string{SectionDSCI},
 	}
 	report, err := Run(context.Background(), cfg)
@@ -541,7 +546,7 @@ func TestRun_DSCISection_ProgressingIgnored(t *testing.T) {
 	_ = appsv1.AddToScheme(sch)
 	// DSCI with only Progressing=True (no Degraded): should not report unhealthy.
 	dsci := &unstructured.Unstructured{}
-	dsci.SetGroupVersionKind(gvk.DSCInitialization)
+	dsci.SetGroupVersionKind(DSCInitializationGVK)
 	dsci.SetName("default-dsci")
 	dsci.Object["status"] = map[string]interface{}{
 		"conditions": []interface{}{
@@ -551,9 +556,10 @@ func TestRun_DSCISection_ProgressingIgnored(t *testing.T) {
 	}
 	cl := fake.NewClientBuilder().WithScheme(sch).WithObjects(dsci).Build()
 	cfg := Config{
-		Client:       cl,
-		DSCI:         types.NamespacedName{},
-		DSC:          types.NamespacedName{},
+		Client: cl,
+		DSCI:   types.NamespacedName{},
+		DSC:    types.NamespacedName{},
+
 		OnlySections: []string{SectionDSCI},
 	}
 	report, err := Run(context.Background(), cfg)

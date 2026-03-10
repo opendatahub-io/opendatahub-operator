@@ -119,18 +119,18 @@ The operator section checks the main operator deployment and **all known depende
 
 To add health checks for a new Custom Resource (CR) that has `status.conditions` (same shape as DSCI/DSC), wire it through the following. Use DSCI/DSC as the reference implementation.
 
-1. **GVK** (`pkg/cluster/gvk`): Ensure the CR’s `schema.GroupVersionKind` is defined (e.g. `MyCR`). The `Kind` string is used to look up an optional unhealthy checker.
+1. **GVK** (`pkg/clusterhealth/types.go`): Add a package-level `schema.GroupVersionKind` var for the CR (e.g. `MyCRGVK`). The `Kind` string is used to look up an optional unhealthy checker.
 
 2. **Section constant and layers** (`pkg/clusterhealth/sections.go`):
    - Add a section constant, e.g. `SectionMyCR = "mycr"`.
    - Add the section to `layerSections` for any layers that should include it (e.g. `LayerWorkload`, `LayerOperator`).
    - Add it to the default list in `sectionsToRun()` (the slice passed to `sliceToSet` when no `OnlySections`/`Layers` are set).
 
-3. **Config** (`pkg/clusterhealth/config.go`): Add a field for the CR’s namespaced name, e.g. `MyCR types.NamespacedName`. Empty name means “discover singleton via List”.
+3. **Config** (`pkg/clusterhealth/config.go`): Add a field for the CR's namespaced name, e.g. `MyCR types.NamespacedName`. Empty name means "discover singleton via List".
 
 4. **Report and Healthy()** (`pkg/clusterhealth/types.go`): Add a field to `Report`, e.g. `MyCR SectionResult[CRConditionsSection]`, and include `r.MyCR.Error == ""` in `Healthy()`.
 
-5. **Run** (`pkg/clusterhealth/run.go`): Append the new section name to `sectionOrder`. Add a conditional: `if run[SectionMyCR] { report.MyCR = runCRConditionsSection(ctx, cfg.Client, gvk.MyCR, cfg.MyCR) }`.
+5. **Run** (`pkg/clusterhealth/run.go`): Append the new section name to `sectionOrder`. Add a conditional: `if run[SectionMyCR] { report.MyCR = runCRConditionsSection(ctx, cfg.Client, MyCRGVK, cfg.MyCR) }`.
 
 6. **Format** (`pkg/clusterhealth/format.go`): Add an entry to `sectionDisplayOrder`. In `sectionStatusForKey` and `sectionSummaryForKey`, add a case for the new section (status from `r.MyCR.Error`, summary e.g. name + condition count). In `longDetailsForSection`, add a case that calls `r.longDetailsCRConditions(r.MyCR.Data.Name, r.MyCR.Data.Conditions)`.
 

@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"time"
-
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
 // Run runs all health checks and returns a Report. Config.Client and namespace
@@ -51,10 +49,10 @@ func Run(ctx context.Context, cfg Config) (*Report, error) {
 		report.Operator = runOperatorSection(ctx, cfg.Client, cfg.Operator)
 	}
 	if run[SectionDSCI] {
-		report.DSCI = runCRConditionsSection(ctx, cfg.Client, gvk.DSCInitialization, cfg.DSCI)
+		report.DSCI = runCRConditionsSection(ctx, cfg.Client, DSCInitializationGVK, cfg.DSCI)
 	}
 	if run[SectionDSC] {
-		report.DSC = runCRConditionsSection(ctx, cfg.Client, gvk.DataScienceCluster, cfg.DSC)
+		report.DSC = runCRConditionsSection(ctx, cfg.Client, DataScienceClusterGVK, cfg.DSC)
 	}
 
 	return report, nil
