@@ -21,7 +21,7 @@ type Provider struct {
 	// NewReconciler creates and registers the provider's controller with the manager.
 	NewReconciler func(ctx context.Context, mgr ctrl.Manager) error
 	// CacheOptions returns the provider-specific cache configuration.
-	CacheOptions func(scheme *runtime.Scheme) cache.Options
+	CacheOptions func(scheme *runtime.Scheme) (cache.Options, error)
 	// ClientOptions returns the provider-specific client configuration.
 	// It always sets the unstructured cache to true.
 	ClientOptions func() client.Options
