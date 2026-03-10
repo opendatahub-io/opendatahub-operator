@@ -45,14 +45,15 @@ var (
 	}
 
 	imagesMap = map[string]string{
-		"odh-dashboard-image":     "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
-		"model-registry-ui-image": "RELATED_IMAGE_ODH_MOD_ARCH_MODEL_REGISTRY_IMAGE",
-		"gen-ai-ui-image":         "RELATED_IMAGE_ODH_MOD_ARCH_GEN_AI_IMAGE",
-		"mlflow-ui-image":         "RELATED_IMAGE_ODH_MOD_ARCH_MLFLOW_IMAGE",
-		"maas-ui-image":           "RELATED_IMAGE_ODH_MOD_ARCH_MAAS_IMAGE",
-		"eval-hub-ui-image":       "RELATED_IMAGE_ODH_MOD_ARCH_EVAL_HUB_IMAGE",
-		"automl-ui-image":         "RELATED_IMAGE_ODH_MOD_ARCH_AUTOML_IMAGE",
-		"kube-rbac-proxy":         "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
+		"odh-dashboard-image":      "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
+		"model-registry-ui-image":  "RELATED_IMAGE_ODH_MOD_ARCH_MODEL_REGISTRY_IMAGE",
+		"gen-ai-ui-image":          "RELATED_IMAGE_ODH_MOD_ARCH_GEN_AI_IMAGE",
+		"mlflow-ui-image":          "RELATED_IMAGE_ODH_MOD_ARCH_MLFLOW_IMAGE",
+		"maas-ui-image":            "RELATED_IMAGE_ODH_MOD_ARCH_MAAS_IMAGE",
+		"eval-hub-ui-image":        "RELATED_IMAGE_ODH_MOD_ARCH_EVAL_HUB_IMAGE",
+		"kube-rbac-proxy":          "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
+		"images-jobs-async-upload": "RELATED_IMAGE_ODH_MODEL_REGISTRY_JOB_ASYNC_UPLOAD_IMAGE",
+    "automl-ui-image":         "RELATED_IMAGE_ODH_MOD_ARCH_AUTOML_IMAGE",
 	}
 
 	conditionTypes = []string{
