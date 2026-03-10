@@ -177,10 +177,10 @@ relatedImages:
       value: quay.io/opendatahub/odh-kube-auth-proxy@sha256:a528c85ba07a473250d72119de75b65b5d1cc6f0ce5d61abcfe89b3bb20d2839
       component: odh-kube-auth-proxy
     - name: RELATED_IMAGE_ODH_MAAS_API_IMAGE
-      value: quay.io/opendatahub/maas-api@sha256:e83852905c7c4f65699daaad9d1f90e56f8f6b7477e6a11d76f31ae91b711197
+      value: quay.io/opendatahub/maas-api@sha256-86245d343714bf9e87b96b6d23ec958a1aa03e1aa5e481402da3249a9e06d625
       component: odh-maas-api
     - name: RELATED_IMAGE_ODH_MAAS_CONTROLLER_IMAGE
-      value: quay.io/opendatahub/maas-controller@sha256:e83852905c7c4f65699daaad9d1f90e56f8f6b7477e6a11d76f31ae91b711197
+      value: quay.io/opendatahub/maas-controller@sha256-ad00d3ce4490f9d3c4b3f84ed68e28872c1d3ca81b8922d6f358e4b6914584c4
       component: odh-maas-api
     - name: RELATED_IMAGE_ODH_TRUSTYAI_RAGAS_LLS_PROVIDER_DSP_IMAGE
       value: quay.io/opendatahub/llama-stack-provider-ragas@sha256:627f4d4c2910869f4da07db7eaddd8cec89e862d71f90bdf14b61fbbb4935be0
