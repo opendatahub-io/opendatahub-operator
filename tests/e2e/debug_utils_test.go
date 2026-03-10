@@ -13,6 +13,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
@@ -515,8 +516,13 @@ func getDSCI(ctx context.Context) *unstructured.Unstructured {
 	dsci := &unstructured.Unstructured{}
 	dsci.SetGroupVersionKind(gvk.DSCInitialization)
 	err := globalDebugClient.Get(ctx, types.NamespacedName{Name: dsciInstanceName}, dsci)
-	if err != nil {
+	if err != nil && !k8serr.IsNotFound(err) {
 		log.Printf("Failed to get DSCI: %v", err)
+		return nil
+	}
+
+	if k8serr.IsNotFound(err) {
+		log.Printf("No DSCI instance found")
 		return nil
 	}
 	return dsci

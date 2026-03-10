@@ -2,9 +2,16 @@ package classifier
 
 import (
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth"
 )
+
+// PendingThreshold is the minimum duration a pod must be in Pending phase
+// before it is classified as "stuck pending". Pods pending for less than this
+// are assumed to be starting up normally.
+const PendingThreshold = 60 * time.Second
 
 // Classify inspects a clusterhealth Report and categorizes the failure.
 // If report is nil, returns unknown/unclassifiable/3000/low.
@@ -19,6 +26,9 @@ func Classify(report *clusterhealth.Report) FailureClassification {
 		classifyFromEvents,
 		classifyFromQuotas,
 		classifyFromNodes,
+		classifyFromOperator,
+		classifyFromDSCI,
+		classifyFromDSC,
 	}
 
 	for _, fn := range sectionClassifiers {
@@ -56,7 +66,10 @@ func reportIsComplete(report *clusterhealth.Report) bool {
 		report.Nodes.Error == "" &&
 		report.Events.Error == "" &&
 		report.Quotas.Error == "" &&
-		report.Deployments.Error == ""
+		report.Deployments.Error == "" &&
+		report.Operator.Error == "" &&
+		report.DSCI.Error == "" &&
+		report.DSC.Error == ""
 }
 
 // classifyFromPods checks container states and pod phases.
@@ -84,12 +97,12 @@ func classifyFromPods(report *clusterhealth.Report) *FailureClassification {
 					}
 				}
 			}
-			if pod.Phase == "Pending" {
+			if pod.Phase == "Pending" && !pod.CreatedAt.IsZero() && time.Since(pod.CreatedAt) > PendingThreshold {
 				return &FailureClassification{
 					Category:    CategoryInfrastructure,
 					Subcategory: "pod-startup",
 					ErrorCode:   CodePodStartup,
-					Evidence:    []string{fmt.Sprintf("pod %s stuck in Pending", pod.Name)},
+					Evidence:    []string{fmt.Sprintf("pod %s stuck in Pending for %s", pod.Name, time.Since(pod.CreatedAt).Truncate(time.Second))},
 					Confidence:  ConfidenceHigh,
 				}
 			}
@@ -176,7 +189,7 @@ func classifyClusterDistress(report *clusterhealth.Report) *FailureClassificatio
 						Confidence:  ConfidenceLow,
 					}
 				}
-				if c.Terminated != "" {
+				if c.Terminated != "" && !isSuccessfulTermination(c.Terminated) {
 					return &FailureClassification{
 						Category:    CategoryInfrastructure,
 						Subcategory: "cluster-distress",
@@ -205,6 +218,68 @@ func classifyClusterDistress(report *clusterhealth.Report) *FailureClassificatio
 	}
 
 	return nil
+}
+
+// classifyFromOperator checks the operator deployment and pod status.
+func classifyFromOperator(report *clusterhealth.Report) *FailureClassification {
+	if report.Operator.Error != "" {
+		return nil // section errored, skip
+	}
+	if d := report.Operator.Data.Deployment; d != nil && d.Ready < d.Replicas {
+		return &FailureClassification{
+			Category:    CategoryInfrastructure,
+			Subcategory: "operator",
+			ErrorCode:   CodeInfraUnknown,
+			Evidence:    []string{fmt.Sprintf("operator deployment %s not ready: %d/%d replicas", d.Name, d.Ready, d.Replicas)},
+			Confidence:  ConfidenceHigh,
+		}
+	}
+	for _, pod := range report.Operator.Data.Pods {
+		if pod.Phase != "Running" && pod.Phase != "Succeeded" {
+			return &FailureClassification{
+				Category:    CategoryInfrastructure,
+				Subcategory: "operator",
+				ErrorCode:   CodeInfraUnknown,
+				Evidence:    []string{fmt.Sprintf("operator pod %s in phase %s", pod.Name, pod.Phase)},
+				Confidence:  ConfidenceHigh,
+			}
+		}
+	}
+	return nil
+}
+
+// classifyFromDSCI checks the DSCInitialization CR conditions.
+func classifyFromDSCI(report *clusterhealth.Report) *FailureClassification {
+	return classifyFromCRConditions("DSCI", report.DSCI)
+}
+
+// classifyFromDSC checks the DataScienceCluster CR conditions.
+func classifyFromDSC(report *clusterhealth.Report) *FailureClassification {
+	return classifyFromCRConditions("DSC", report.DSC)
+}
+
+// classifyFromCRConditions checks a CR conditions section for unhealthy conditions.
+func classifyFromCRConditions(name string, section clusterhealth.SectionResult[clusterhealth.CRConditionsSection]) *FailureClassification {
+	if section.Error == "" {
+		return nil // no error means healthy or section not run
+	}
+	if section.Data.Name == "" {
+		return nil // CR not found, can't classify
+	}
+	return &FailureClassification{
+		Category:    CategoryInfrastructure,
+		Subcategory: strings.ToLower(name) + "-unhealthy",
+		ErrorCode:   CodeInfraUnknown,
+		Evidence:    []string{fmt.Sprintf("%s %s unhealthy: %s", name, section.Data.Name, section.Error)},
+		Confidence:  ConfidenceMedium,
+	}
+}
+
+// isSuccessfulTermination returns true if the terminated string indicates
+// a container that completed successfully (exit code 0). The terminated
+// string format from clusterhealth is "{Reason} (exit {Code})[: {Message}]".
+func isSuccessfulTermination(terminated string) bool {
+	return strings.Contains(terminated, "(exit 0)")
 }
 
 // unknown returns the default unclassifiable result.

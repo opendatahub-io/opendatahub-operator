@@ -3,6 +3,7 @@ package classifier
 
 import (
 	"testing"
+	"time"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth"
 )
@@ -166,7 +167,7 @@ func TestClassify_PodStartup(t *testing.T) {
 					Data: clusterhealth.PodsSection{
 						ByNamespace: map[string][]clusterhealth.PodInfo{
 							"test-ns": {
-								{Name: "pending-pod", Phase: "Pending"},
+								{Name: "pending-pod", Phase: "Pending", CreatedAt: time.Now().Add(-2 * PendingThreshold)},
 							},
 						},
 					},
@@ -203,7 +204,7 @@ func TestClassify_OOMKilled(t *testing.T) {
 	}
 
 	got := Classify(report)
-	assertClassification(t, got, CategoryInfrastructure, "quota-oom", CodeQuotaOOM, ConfidenceMedium)
+	assertClassification(t, got, CategoryInfrastructure, "container-oom", CodeContainerOOM, ConfidenceMedium)
 }
 
 func TestClassify_Events(t *testing.T) {
@@ -487,8 +488,9 @@ func TestClassify_Priority(t *testing.T) {
 						ByNamespace: map[string][]clusterhealth.PodInfo{
 							"test-ns": {
 								{
-									Name:  "pull-pod",
-									Phase: "Pending",
+									Name:      "pull-pod",
+									Phase:     "Pending",
+									CreatedAt: time.Now().Add(-2 * PendingThreshold),
 									Containers: []clusterhealth.ContainerInfo{
 										{Name: "main", Waiting: "ImagePullBackOff"},
 									},

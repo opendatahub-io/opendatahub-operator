@@ -30,6 +30,7 @@ const (
 	CodeQuotaOOM       = 1004
 	CodeNodePressure   = 1005
 	CodeStorage        = 1006
+	CodeContainerOOM   = 1007
 	CodeInfraUnknown   = 1099
 	CodeTestFailure    = 2001
 	CodeUnclassifiable = 3000
@@ -65,7 +66,7 @@ var waitingPatterns = []classificationPattern{
 
 // Patterns matched against container Terminated message text (substring match).
 var terminatedPatterns = []classificationPattern{
-	{"OOMKilled", "quota-oom", CodeQuotaOOM},
+	{"OOMKilled", "container-oom", CodeContainerOOM},
 }
 
 // Event reason patterns indicating network issues (exact match on event Reason field).
