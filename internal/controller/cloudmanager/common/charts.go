@@ -20,17 +20,23 @@ const (
 	NamespaceSailOperator        = "istio-system"
 )
 
-// BuildHelmCharts returns the default charts filtered by management policy,
-// in deterministic installation order.
-func BuildHelmCharts(deps ccmcommon.Dependencies) []types.HelmChartInfo {
-	type entry struct {
-		policy ccmcommon.ManagementPolicy
-		chart  types.HelmChartInfo
-	}
+// chartDef describes a single Helm chart together with its target namespace
+// and a function that extracts the chart's management policy from Dependencies.
+type chartDef struct {
+	namespace string
+	policyFn  func(ccmcommon.Dependencies) ccmcommon.ManagementPolicy
+	chart     types.HelmChartInfo
+}
 
-	all := []entry{
+// allChartDefs is the single source of truth for all charts and their target
+// namespaces. Both ManagedNamespaces and BuildHelmCharts derive from this list.
+func allChartDefs() []chartDef {
+	return []chartDef{
 		{
-			policy: deps.CertManager.ManagementPolicy,
+			namespace: NamespaceCertManagerOperator,
+			policyFn: func(d ccmcommon.Dependencies) ccmcommon.ManagementPolicy {
+				return d.CertManager.ManagementPolicy
+			},
 			chart: types.HelmChartInfo{
 				Source: helm.Source{
 					Chart:       filepath.Join(DefaultChartsPath, "cert-manager-operator"),
@@ -43,7 +49,10 @@ func BuildHelmCharts(deps ccmcommon.Dependencies) []types.HelmChartInfo {
 			},
 		},
 		{
-			policy: deps.LWS.ManagementPolicy,
+			namespace: NamespaceLWSOperator,
+			policyFn: func(d ccmcommon.Dependencies) ccmcommon.ManagementPolicy {
+				return d.LWS.ManagementPolicy
+			},
 			chart: types.HelmChartInfo{
 				Source: helm.Source{
 					Chart:       filepath.Join(DefaultChartsPath, "lws-operator"),
@@ -56,7 +65,10 @@ func BuildHelmCharts(deps ccmcommon.Dependencies) []types.HelmChartInfo {
 			},
 		},
 		{
-			policy: deps.SailOperator.ManagementPolicy,
+			namespace: NamespaceSailOperator,
+			policyFn: func(d ccmcommon.Dependencies) ccmcommon.ManagementPolicy {
+				return d.SailOperator.ManagementPolicy
+			},
 			chart: types.HelmChartInfo{
 				Source: helm.Source{
 					Chart:       filepath.Join(DefaultChartsPath, "sail-operator"),
@@ -69,11 +81,32 @@ func BuildHelmCharts(deps ccmcommon.Dependencies) []types.HelmChartInfo {
 			},
 		},
 	}
+}
 
+// ManagedNamespaces returns all namespaces the cache must watch,
+// derived from the central chart registry.
+func ManagedNamespaces() []string {
+	seen := make(map[string]struct{})
+	var namespaces []string
+
+	for _, def := range allChartDefs() {
+		if _, ok := seen[def.namespace]; !ok {
+			seen[def.namespace] = struct{}{}
+			namespaces = append(namespaces, def.namespace)
+		}
+	}
+
+	return namespaces
+}
+
+// BuildHelmCharts returns the default charts filtered by management policy,
+// in deterministic installation order.
+func BuildHelmCharts(deps ccmcommon.Dependencies) []types.HelmChartInfo {
 	var charts []types.HelmChartInfo
-	for _, e := range all {
-		if e.policy != ccmcommon.Unmanaged {
-			charts = append(charts, e.chart)
+
+	for _, def := range allChartDefs() {
+		if def.policyFn(deps) != ccmcommon.Unmanaged {
+			charts = append(charts, def.chart)
 		}
 	}
 
