@@ -17,7 +17,6 @@ package certmanager
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
@@ -77,25 +76,6 @@ const (
 	EnvIstioCACertPath   = "RHAI_ISTIO_CA_CERTIFICATE_PATH"
 	DefaultIssuerRefKind = "ClusterIssuer"
 )
-
-// ResolveBootstrapConfig returns a BootstrapConfig with environment variable overrides applied.
-// For each bootstrap-owned field, if the corresponding RHAI_* env var is set, it takes precedence
-// over the default. This is the single source of truth for resolved PKI configuration.
-func ResolveBootstrapConfig() BootstrapConfig {
-	bc := DefaultBootstrapConfig()
-
-	for envVar, field := range map[string]*string{
-		EnvCAIssuerName:  &bc.CAIssuerName,
-		EnvCertName:      &bc.CertName,
-		EnvCertManagerNS: &bc.CertManagerNamespace,
-	} {
-		if v := os.Getenv(envVar); v != "" {
-			*field = v
-		}
-	}
-
-	return bc
-}
 
 // NewBootstrapAction returns a reusable pipeline action that adds the cert-manager PKI trust
 // chain resources to the reconciliation request for deployment by the pipeline's deploy action.

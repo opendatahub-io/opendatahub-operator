@@ -42,24 +42,27 @@ var (
 )
 
 // buildCertManagerParams returns the cert-manager configuration to inject into the
-// xKS overlay params.env. Bootstrap-owned fields (issuer, CA secret) are resolved via
-// certmanager.ResolveBootstrapConfig so the operator is the single source of truth.
+// xKS overlay params.env. Defaults come from certmanager.DefaultBootstrapConfig();
+// each RHAI_* env var, when set, overrides the corresponding default.
 // NAMESPACE uses cluster.GetApplicationNamespace() for platform-aware resolution.
 // ISTIO_CA_CERTIFICATE_PATH is only injected when its env var is set.
 func buildCertManagerParams() map[string]string {
-	rc := certmanager.ResolveBootstrapConfig()
+	bc := certmanager.DefaultBootstrapConfig()
 
 	params := map[string]string{
-		"ISSUER_REF_NAME":     rc.CAIssuerName,
+		"ISSUER_REF_NAME":     bc.CAIssuerName,
 		"ISSUER_REF_KIND":     certmanager.DefaultIssuerRefKind,
-		"CA_SECRET_NAME":      rc.CertName,
-		"CA_SECRET_NAMESPACE": rc.CertManagerNamespace,
+		"CA_SECRET_NAME":      bc.CertName,
+		"CA_SECRET_NAMESPACE": bc.CertManagerNamespace,
 		"NAMESPACE":           cluster.GetApplicationNamespace(),
 	}
 
-	// Env-only overrides: written only when the env var is set.
+	// Env var overrides: written only when the env var is set.
 	for key, envVar := range map[string]string{
+		"ISSUER_REF_NAME":           certmanager.EnvCAIssuerName,
 		"ISSUER_REF_KIND":           certmanager.EnvIssuerRefKind,
+		"CA_SECRET_NAME":            certmanager.EnvCertName,
+		"CA_SECRET_NAMESPACE":       certmanager.EnvCertManagerNS,
 		"ISTIO_CA_CERTIFICATE_PATH": certmanager.EnvIstioCACertPath,
 	} {
 		if v := os.Getenv(envVar); v != "" {
