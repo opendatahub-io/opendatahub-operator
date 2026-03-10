@@ -18,6 +18,7 @@ const (
 	NamespaceCertManagerOperator = "cert-manager-operator"
 	NamespaceLWSOperator         = "openshift-lws-operator"
 	NamespaceSailOperator        = "istio-system"
+	NamespaceKubeSystem          = "kube-system"
 )
 
 // chartDef describes a single Helm chart together with its target namespace
