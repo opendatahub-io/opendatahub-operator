@@ -31,6 +31,9 @@ const (
 	CodeNodePressure   = 1005
 	CodeStorage        = 1006
 	CodeContainerOOM   = 1007
+	CodeOperator       = 1008
+	CodeDSCI           = 1009
+	CodeDSC            = 1010
 	CodeInfraUnknown   = 1099
 	CodeTestFailure    = 2001
 	CodeUnclassifiable = 3000

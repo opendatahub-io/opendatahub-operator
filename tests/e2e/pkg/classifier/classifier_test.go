@@ -161,7 +161,7 @@ func TestClassify_PodStartup(t *testing.T) {
 			wantConfidence: ConfidenceMedium,
 		},
 		{
-			name: "pod stuck in Pending",
+			name: "pod stuck in Pending beyond threshold",
 			report: &clusterhealth.Report{
 				Pods: clusterhealth.SectionResult[clusterhealth.PodsSection]{
 					Data: clusterhealth.PodsSection{
@@ -181,6 +181,40 @@ func TestClassify_PodStartup(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := Classify(tt.report)
 			assertClassification(t, got, CategoryInfrastructure, "pod-startup", CodePodStartup, tt.wantConfidence)
+		})
+	}
+}
+
+func TestClassify_PendingBelowThreshold(t *testing.T) {
+	tests := []struct {
+		name      string
+		createdAt time.Time
+	}{
+		{
+			name:      "recently created pod not classified as stuck",
+			createdAt: time.Now().Add(-5 * time.Second),
+		},
+		{
+			name:      "zero CreatedAt not classified as stuck",
+			createdAt: time.Time{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			report := &clusterhealth.Report{
+				Pods: clusterhealth.SectionResult[clusterhealth.PodsSection]{
+					Data: clusterhealth.PodsSection{
+						ByNamespace: map[string][]clusterhealth.PodInfo{
+							"test-ns": {
+								{Name: "pending-pod", Phase: "Pending", CreatedAt: tt.createdAt},
+							},
+						},
+					},
+				},
+			}
+			got := Classify(report)
+			assertClassification(t, got, CategoryTest, "test-failure", CodeTestFailure, ConfidenceMedium)
 		})
 	}
 }
@@ -510,6 +544,215 @@ func TestClassify_Priority(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := Classify(tt.report)
 			assertClassification(t, got, CategoryInfrastructure, tt.wantSubcategory, tt.wantErrorCode, tt.wantConfidence)
+		})
+	}
+}
+
+func TestClassify_Operator(t *testing.T) {
+	tests := []struct {
+		name            string
+		report          *clusterhealth.Report
+		wantCategory    string
+		wantSubcategory string
+		wantErrorCode   int
+		wantConfidence  string
+	}{
+		{
+			name: "operator deployment not ready",
+			report: &clusterhealth.Report{
+				Operator: clusterhealth.SectionResult[clusterhealth.OperatorSection]{
+					Data: clusterhealth.OperatorSection{
+						Deployment: &clusterhealth.DeploymentInfo{
+							Name:     "odh-controller",
+							Ready:    0,
+							Replicas: 1,
+						},
+					},
+				},
+			},
+			wantCategory:    CategoryInfrastructure,
+			wantSubcategory: "operator",
+			wantErrorCode:   CodeOperator,
+			wantConfidence:  ConfidenceHigh,
+		},
+		{
+			name: "operator pod not running",
+			report: &clusterhealth.Report{
+				Operator: clusterhealth.SectionResult[clusterhealth.OperatorSection]{
+					Data: clusterhealth.OperatorSection{
+						Deployment: &clusterhealth.DeploymentInfo{
+							Name:     "odh-controller",
+							Ready:    1,
+							Replicas: 1,
+						},
+						Pods: []clusterhealth.PodInfo{
+							{Name: "odh-controller-abc", Phase: "CrashLoopBackOff"},
+						},
+					},
+				},
+			},
+			wantCategory:    CategoryInfrastructure,
+			wantSubcategory: "operator",
+			wantErrorCode:   CodeOperator,
+			wantConfidence:  ConfidenceHigh,
+		},
+		{
+			name: "operator section errored is skipped",
+			report: &clusterhealth.Report{
+				Operator: clusterhealth.SectionResult[clusterhealth.OperatorSection]{
+					Error: "failed to get operator",
+				},
+			},
+			wantCategory:    CategoryUnknown,
+			wantSubcategory: "unclassifiable",
+			wantErrorCode:   CodeUnclassifiable,
+			wantConfidence:  ConfidenceLow,
+		},
+		{
+			name: "healthy operator classifies as test failure",
+			report: &clusterhealth.Report{
+				Operator: clusterhealth.SectionResult[clusterhealth.OperatorSection]{
+					Data: clusterhealth.OperatorSection{
+						Deployment: &clusterhealth.DeploymentInfo{
+							Name:     "odh-controller",
+							Ready:    1,
+							Replicas: 1,
+						},
+						Pods: []clusterhealth.PodInfo{
+							{Name: "odh-controller-abc", Phase: "Running"},
+						},
+					},
+				},
+			},
+			wantCategory:    CategoryTest,
+			wantSubcategory: "test-failure",
+			wantErrorCode:   CodeTestFailure,
+			wantConfidence:  ConfidenceMedium,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Classify(tt.report)
+			assertClassification(t, got, tt.wantCategory, tt.wantSubcategory, tt.wantErrorCode, tt.wantConfidence)
+		})
+	}
+}
+
+func TestClassify_DSCI(t *testing.T) {
+	tests := []struct {
+		name            string
+		report          *clusterhealth.Report
+		wantCategory    string
+		wantSubcategory string
+		wantErrorCode   int
+		wantConfidence  string
+	}{
+		{
+			name: "DSCI unhealthy conditions",
+			report: &clusterhealth.Report{
+				DSCI: clusterhealth.SectionResult[clusterhealth.CRConditionsSection]{
+					Error: "Degraded: True - component X is degraded",
+					Data: clusterhealth.CRConditionsSection{
+						Name: "default-dsci",
+					},
+				},
+			},
+			wantCategory:    CategoryInfrastructure,
+			wantSubcategory: "dsci-unhealthy",
+			wantErrorCode:   CodeDSCI,
+			wantConfidence:  ConfidenceMedium,
+		},
+		{
+			name: "DSCI error but CR not found is skipped",
+			report: &clusterhealth.Report{
+				DSCI: clusterhealth.SectionResult[clusterhealth.CRConditionsSection]{
+					Error: "not found",
+				},
+			},
+			wantCategory:    CategoryUnknown,
+			wantSubcategory: "unclassifiable",
+			wantErrorCode:   CodeUnclassifiable,
+			wantConfidence:  ConfidenceLow,
+		},
+		{
+			name: "DSCI healthy classifies as test failure",
+			report: &clusterhealth.Report{
+				DSCI: clusterhealth.SectionResult[clusterhealth.CRConditionsSection]{
+					Data: clusterhealth.CRConditionsSection{
+						Name: "default-dsci",
+					},
+				},
+			},
+			wantCategory:    CategoryTest,
+			wantSubcategory: "test-failure",
+			wantErrorCode:   CodeTestFailure,
+			wantConfidence:  ConfidenceMedium,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Classify(tt.report)
+			assertClassification(t, got, tt.wantCategory, tt.wantSubcategory, tt.wantErrorCode, tt.wantConfidence)
+		})
+	}
+}
+
+func TestClassify_DSC(t *testing.T) {
+	report := &clusterhealth.Report{
+		DSC: clusterhealth.SectionResult[clusterhealth.CRConditionsSection]{
+			Error: "component dashboard: Ready=False",
+			Data: clusterhealth.CRConditionsSection{
+				Name: "default-dsc",
+			},
+		},
+	}
+
+	got := Classify(report)
+	assertClassification(t, got, CategoryInfrastructure, "dsc-unhealthy", CodeDSC, ConfidenceMedium)
+}
+
+func TestClassify_SuccessfulTerminationNotFlagged(t *testing.T) {
+	report := &clusterhealth.Report{
+		Pods: clusterhealth.SectionResult[clusterhealth.PodsSection]{
+			Data: clusterhealth.PodsSection{
+				ByNamespace: map[string][]clusterhealth.PodInfo{
+					"test-ns": {
+						{
+							Name: "init-pod",
+							Containers: []clusterhealth.ContainerInfo{
+								{Name: "setup", Terminated: "Completed (exit 0)"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	got := Classify(report)
+	assertClassification(t, got, CategoryTest, "test-failure", CodeTestFailure, ConfidenceMedium)
+}
+
+func TestIsSuccessfulTermination(t *testing.T) {
+	tests := []struct {
+		terminated string
+		want       bool
+	}{
+		{"Completed (exit 0)", true},
+		{"Completed (exit 0): done", true},
+		{"Error (exit 0)", true},
+		{"OOMKilled (exit 137)", false},
+		{"Error (exit 1)", false},
+		{"", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.terminated, func(t *testing.T) {
+			if got := isSuccessfulTermination(tt.terminated); got != tt.want {
+				t.Errorf("isSuccessfulTermination(%q) = %v, want %v", tt.terminated, got, tt.want)
+			}
 		})
 	}
 }

@@ -229,7 +229,7 @@ func classifyFromOperator(report *clusterhealth.Report) *FailureClassification {
 		return &FailureClassification{
 			Category:    CategoryInfrastructure,
 			Subcategory: "operator",
-			ErrorCode:   CodeInfraUnknown,
+			ErrorCode:   CodeOperator,
 			Evidence:    []string{fmt.Sprintf("operator deployment %s not ready: %d/%d replicas", d.Name, d.Ready, d.Replicas)},
 			Confidence:  ConfidenceHigh,
 		}
@@ -239,7 +239,7 @@ func classifyFromOperator(report *clusterhealth.Report) *FailureClassification {
 			return &FailureClassification{
 				Category:    CategoryInfrastructure,
 				Subcategory: "operator",
-				ErrorCode:   CodeInfraUnknown,
+				ErrorCode:   CodeOperator,
 				Evidence:    []string{fmt.Sprintf("operator pod %s in phase %s", pod.Name, pod.Phase)},
 				Confidence:  ConfidenceHigh,
 			}
@@ -250,16 +250,16 @@ func classifyFromOperator(report *clusterhealth.Report) *FailureClassification {
 
 // classifyFromDSCI checks the DSCInitialization CR conditions.
 func classifyFromDSCI(report *clusterhealth.Report) *FailureClassification {
-	return classifyFromCRConditions("DSCI", report.DSCI)
+	return classifyFromCRConditions("DSCI", report.DSCI, CodeDSCI)
 }
 
 // classifyFromDSC checks the DataScienceCluster CR conditions.
 func classifyFromDSC(report *clusterhealth.Report) *FailureClassification {
-	return classifyFromCRConditions("DSC", report.DSC)
+	return classifyFromCRConditions("DSC", report.DSC, CodeDSC)
 }
 
 // classifyFromCRConditions checks a CR conditions section for unhealthy conditions.
-func classifyFromCRConditions(name string, section clusterhealth.SectionResult[clusterhealth.CRConditionsSection]) *FailureClassification {
+func classifyFromCRConditions(name string, section clusterhealth.SectionResult[clusterhealth.CRConditionsSection], errorCode int) *FailureClassification {
 	if section.Error == "" {
 		return nil // no error means healthy or section not run
 	}
@@ -269,7 +269,7 @@ func classifyFromCRConditions(name string, section clusterhealth.SectionResult[c
 	return &FailureClassification{
 		Category:    CategoryInfrastructure,
 		Subcategory: strings.ToLower(name) + "-unhealthy",
-		ErrorCode:   CodeInfraUnknown,
+		ErrorCode:   errorCode,
 		Evidence:    []string{fmt.Sprintf("%s %s unhealthy: %s", name, section.Data.Name, section.Error)},
 		Confidence:  ConfidenceMedium,
 	}
