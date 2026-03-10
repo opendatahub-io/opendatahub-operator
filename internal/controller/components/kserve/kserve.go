@@ -38,6 +38,10 @@ const (
 	rhclOperatorSubscription              = "rhcl-operator"
 	lwsOperatorSubscription               = "leader-worker-set"
 	subNotFound                           = "Subscription not found"
+
+	// For WVA.
+	LLMWorkVariantAutoscallingDepedencies = componentApi.KserveKind + "LLMWorkVariantAutoscallingDepedencies"
+	cmaOperatorSubscription               = "openshift-custom-metrics-autoscaler-operator"
 )
 
 var conditionTypes = []string{
@@ -130,6 +134,9 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		}
 		if lwsCondition := conditions.FindStatusCondition(c.GetStatus(), LLMInferenceServiceWideEPDependencies); lwsCondition != nil {
 			rr.Conditions.MarkFrom(LLMInferenceServiceWideEPDependencies, *lwsCondition)
+		}
+		if cmaCondition := conditions.FindStatusCondition(c.GetStatus(), LLMWorkVariantAutoscallingDepedencies); cmaCondition != nil {
+			rr.Conditions.MarkFrom(LLMWorkVariantAutoscallingDepedencies, *cmaCondition)
 		}
 	} else {
 		rr.Conditions.MarkFalse(

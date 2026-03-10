@@ -604,6 +604,12 @@ var (
 		Kind:    "InferenceModel",
 	}
 
+	VariantAutoscaling = schema.GroupVersionKind{
+		Group:   "llmd.ai",
+		Version: "v1alpha1",
+		Kind:    "VariantAutoscaling",
+	}
+
 	OperatorCondition = schema.GroupVersionKind{
 		Group:   "operators.coreos.com",
 		Version: "v2",

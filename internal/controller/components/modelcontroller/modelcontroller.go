@@ -59,6 +59,7 @@ func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *
 			Kserve: &componentApi.ModelControllerKerveSpec{
 				ManagementState: kState,
 				NIM:             dsc.Spec.Components.Kserve.NIM,
+				WVA:             dsc.Spec.Components.Kserve.WVA,
 			},
 			ModelRegistry: &componentApi.ModelControllerMRSpec{
 				ManagementState: mrState,

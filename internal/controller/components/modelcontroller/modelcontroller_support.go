@@ -45,3 +45,11 @@ func manifestsPath() types.ManifestInfo {
 		SourcePath: "base",
 	}
 }
+
+func wvaManifestsPath() types.ManifestInfo {
+	return types.ManifestInfo{
+		Path:       odhdeploy.DefaultManifestPath,
+		ContextDir: "wva",
+		SourcePath: "openshift",
+	}
+}

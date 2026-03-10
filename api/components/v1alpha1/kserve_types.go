@@ -53,6 +53,8 @@ type KserveCommonSpec struct {
 	NIM NimSpec `json:"nim,omitempty"`
 	// Configures and enables Models as a Service integration
 	ModelsAsService DSCModelsAsServiceSpec `json:"modelsAsService,omitempty"`
+	// Configures and enables workload-variant-autoscaler (WVA) integration
+	WVA WVASpec `json:"wva,omitempty"`
 }
 
 // nimSpec enables NVIDIA NIM integration
@@ -66,6 +68,13 @@ type NimSpec struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=false
 	AirGapped bool `json:"airGapped,omitempty"`
+}
+
+// WVASpec enables workload-variant-autoscaler integration
+type WVASpec struct {
+	// +kubebuilder:validation:Enum=Managed;Removed
+	// +kubebuilder:default=Removed
+	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 }
 
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.

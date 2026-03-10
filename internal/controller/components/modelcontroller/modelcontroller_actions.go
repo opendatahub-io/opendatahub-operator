@@ -36,11 +36,20 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	}
 	rr.Manifests = append(rr.Manifests, manifestsPath())
 
+	// handle NIM
 	nimState := operatorv1.Removed
 	if mc.Spec.Kserve.ManagementState == operatorv1.Managed {
 		nimState = mc.Spec.Kserve.NIM.ManagementState
 	}
 
+	// handle WVA
+	if mc.Spec.Kserve.ManagementState == operatorv1.Managed {
+		if mc.Spec.Kserve.WVA.ManagementState == operatorv1.Managed {
+			rr.Manifests = append(rr.Manifests, wvaManifestsPath())
+		}
+	}
+
+	// handle ModelReg
 	mrState := operatorv1.Removed
 	if mc.Spec.ModelRegistry != nil && mc.Spec.ModelRegistry.ManagementState == operatorv1.Managed {
 		mrState = operatorv1.Managed

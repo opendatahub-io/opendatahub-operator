@@ -22,6 +22,11 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const (
+	// wvaDeploymentName is the name of the WVA controller manager deployment.
+	wvaDeploymentName = "workload-variant-autoscaler-controller-manager"
+)
+
 type ModelControllerTestCtx struct {
 	*ComponentTestCtx
 }
@@ -39,6 +44,8 @@ func modelControllerTestSuite(t *testing.T) {
 	// Define test cases.
 	testCases := []TestCase{
 		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
+		{"Validate WVA deployment when enabled", componentCtx.ValidateWVADeployment},
+		{"Validate WVA ConfigMap is configurable and recovers from deletion", componentCtx.ValidateWVAConfigMapUserConfigurable},
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
@@ -80,6 +87,111 @@ func (tc *ModelControllerTestCtx) ValidateComponentEnabled(t *testing.T) {
 	)
 }
 
+// ValidateWVADeployment validates that the WVA deployment exists when WVA is set to Managed.
+func (tc *ModelControllerTestCtx) ValidateWVADeployment(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke, Tier1)
+
+	// Ensure WVA is set to Managed in DataScienceCluster.
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(
+			testf.TransformPipeline(
+				testf.Transform(`.spec.components.%s.wva.managementState = "%s"`, componentApi.KserveComponentName, operatorv1.Managed),
+			),
+		),
+	)
+
+	// Ensure WVA deployment exists and is ready.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      wvaDeploymentName,
+			Namespace: tc.AppsNamespace,
+		}),
+		WithCondition(
+			And(
+				jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.ModelController.Kind),
+				jq.Match(`.status.conditions[] | select(.type == "Available") | .status == "True"`),
+			),
+		),
+	)
+}
+
+// ValidateWVAConfigMapUserConfigurable validates user can update CM workload-variant-autoscaler-saturation-scaling-config
+// which wont get reconciled by Operator. Also validates that if deleted, it gets recreated with default data.
+func (tc *ModelControllerTestCtx) ValidateWVAConfigMapUserConfigurable(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke, Tier1)
+
+	const (
+		wvaConfigMapName          = "workload-variant-autoscaler-saturation-scaling-config"
+		queueSpareTriggerOriginal = "3" // we can start with this accordig to current default and update or remove test later
+		queueSpareTriggerModified = "2"
+	)
+
+	// Ensure WVA ConfigMap exists first with original value
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
+			Name:      wvaConfigMapName,
+			Namespace: tc.AppsNamespace,
+		}),
+		WithCondition(
+			jq.Match(`.data.default | contains("queueSpareTrigger: %s")`, queueSpareTriggerOriginal),
+		),
+	)
+
+	// Modify the ConfigMap data to change queueSpareTrigger from 3 to 2
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
+			Name:      wvaConfigMapName,
+			Namespace: tc.AppsNamespace,
+		}),
+		WithMutateFunc(
+			testf.TransformPipeline(
+				testf.Transform(`.data.default |= sub("queueSpareTrigger: %s"; "queueSpareTrigger: %s")`, queueSpareTriggerOriginal, queueSpareTriggerModified),
+			),
+		),
+	)
+
+	// Verify the change persists and is NOT reconciled back by the operator
+	// The ConfigMap should remain modified, proving it's user-configurable
+	tc.EnsureResourceExistsConsistently(
+		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
+			Name:      wvaConfigMapName,
+			Namespace: tc.AppsNamespace,
+		}),
+		WithCondition(
+			jq.Match(`.data.default | contains("queueSpareTrigger: %s")`, queueSpareTriggerModified),
+		),
+	)
+
+	// Restore to original value for subsequent tests
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
+			Name:      wvaConfigMapName,
+			Namespace: tc.AppsNamespace,
+		}),
+		WithMutateFunc(
+			testf.TransformPipeline(
+				testf.Transform(`.data.default |= sub("queueSpareTrigger: %s"; "queueSpareTrigger: %s")`, queueSpareTriggerModified, queueSpareTriggerOriginal),
+			),
+		),
+	)
+
+	// Test if CM gets deleted by user it gets recreated by the operator with default
+	tc.EnsureResourceDeletedThenRecreated(
+		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
+			Name:      wvaConfigMapName,
+			Namespace: tc.AppsNamespace,
+		}),
+		WithCondition(
+			jq.Match(`.data.default | contains("queueSpareTrigger: %s")`, queueSpareTriggerOriginal),
+		),
+	)
+}
+
 // ValidateComponentDisabled validates that the components are disabled.
 func (tc *ModelControllerTestCtx) ValidateComponentDisabled(t *testing.T) {
 	t.Helper()
@@ -87,6 +199,7 @@ func (tc *ModelControllerTestCtx) ValidateComponentDisabled(t *testing.T) {
 	skipUnless(t, Smoke, Tier1)
 
 	// Ensure Kserve and ModelRegistry components are set as Removed in DataScienceCluster.
+	// in this case we can leave WVA to any value
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(
@@ -147,5 +260,13 @@ func (tc *ModelControllerTestCtx) verifyResourcesNotDeployed() {
 				}.AsSelector(),
 			},
 		),
+	)
+
+	// Ensure WVA deployment is removed when component is disabled
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      wvaDeploymentName,
+			Namespace: tc.AppsNamespace,
+		}),
 	)
 }
