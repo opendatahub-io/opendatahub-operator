@@ -33,6 +33,9 @@ and configure these applications.
   - [Run functional Tests](#run-functional-tests)
   - [Run e2e Tests](#run-e2e-tests)
     - [Configuring e2e Tests](#configuring-e2e-tests)
+    - [Cluster Setup for E2E](#cluster-setup-for-e2e)
+    - [Running a Single E2E Test](#running-a-single-e2e-test)
+    - [Change-to-Test Mapping](#change-to-test-mapping)
     - [E2E Tips/FAQ](#e2e-tipsfaq)
   - [Run Integration tests (Jenkins pipeline)](#run-integration-tests-jenkins-pipeline)
   - [Run Prometheus Unit Tests for Alerts](#run-prometheus-unit-tests-for-alerts)
@@ -813,6 +816,40 @@ Example commands to run test suite excluding tests for ray `component`:
 make e2e-test -e E2E_TEST_OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_COMPONENT=!ray
 ```
 
+#### Cluster Setup for E2E
+
+Before running any single E2E test, DSCI and DSC resources must exist. Use this setup command to create DSCI and DSC and run operator controller tests to make sure everything is ready:
+```shell
+make e2e-setup-cluster
+```
+
+This runs `e2e-test` with component tests, webhook tests, services tests, resilience tests, upgrade tests, and hardware profile tests
+disabled, deletion policy set to `never`, and cleanup enabled. After setup completes, you can run individual
+component or service tests against the prepared cluster.
+
+#### Running a Single E2E Test
+
+Use `e2e-test-single` to run a single test function by its full path. The test path follows the format
+`TestOdhOperator/<group>/<component-or-service>/<test-name>`:
+
+```shell
+# Run a single component test
+make e2e-test-single TEST="TestOdhOperator/Component_Tests/dashboard/Validate component enabled"
+
+# Run a single service test
+make e2e-test-single TEST="TestOdhOperator/Service_Tests/monitoring/Validate.*Prometheus"
+
+# Run a single test matching a pattern (regex supported)
+make e2e-test-single TEST="TestOdhOperator/Component_Tests/mlflowoperator/Validate update operand resources"
+```
+
+```shell
+go test -v -run "TestOdhOperator/Component_Tests/dashboard/Validate component enabled" ./tests/e2e/ --timeout=15m
+```
+
+**Note:** `e2e-test-single` does **not** create DSCI/DSC or handle component dependencies. Ensure prerequisites
+exist before running (see [Cluster Setup for E2E](#cluster-setup-for-e2e)).
+
 Additionally specific env vars can be used to configure tests timeouts
 
 | Timeouts Env var                         | Description                                                                             | Default value |
@@ -823,6 +860,40 @@ Additionally specific env vars can be used to configure tests timeouts
 | E2E_TEST_DEFAULTEVENTUALLYPOLLINTERVAL   | Polling interval for Eventually; overrides Gomega's default of 10 milliseconds.         | `2s`          |
 | E2E_TEST_DEFAULTCONSISTENTLYTIMEOUT      | Duration used for Consistently; overrides Gomega's default of 2 seconds.                | `10s`         |
 | E2E_TEST_DEFAULTCONSISTENTLYPOLLINTERVAL | Polling interval for Consistently; overrides Gomega's default of 50 milliseconds.       | `2s`          |
+
+#### Change-to-Test Mapping
+
+Quick reference: "I changed code in directory X — which E2E test(s) should I run?"
+
+| What You Changed | Pre-Test Steps | E2E Test Command |
+|---|---|---|
+| `internal/controller/components/<comp>/` | None | `make e2e-test -e E2E_TEST_COMPONENT=<comp>` |
+| `internal/controller/services/<svc>/` | None | `make e2e-test -e E2E_TEST_SERVICE=<svc>` |
+| `api/components/v1alpha1/<comp>_types.go` | `make generate manifests api-docs` | `make e2e-test -e E2E_TEST_COMPONENT=<comp>` |
+| `api/datasciencecluster/`, `api/dscinitialization/` | `make generate manifests api-docs` | `make e2e-test` (full suite) |
+| `internal/controller/datasciencecluster/` or `dscinitialization/` | None | `make e2e-test` (full suite) |
+| `pkg/`, `config/`, `cmd/main.go` | None | `make e2e-test` (full suite) |
+| `opt/manifests/<comp>/` | None | `make e2e-test -e E2E_TEST_COMPONENT=<comp>` |
+
+**Components with dependencies** — include dependencies in `E2E_TEST_COMPONENT`:
+
+| Component | Dependencies | E2E Command |
+|---|---|---|
+| kueue | workbenches | `make e2e-test -e E2E_TEST_COMPONENT=workbenches,kueue` |
+| modelcontroller | kserve, modelregistry | `make e2e-test -e E2E_TEST_COMPONENT=kserve,modelregistry,modelcontroller` |
+| modelsasservice | kserve | `make e2e-test -e E2E_TEST_COMPONENT=kserve,modelsasservice` |
+| trustyai | kserve | `make e2e-test -e E2E_TEST_COMPONENT=kserve,trustyai` |
+
+**Webhook directory mapping** — webhook dirs don't always match their component:
+
+| Webhook Directory | Test Command |
+|---|---|
+| `webhook/serving/` | `E2E_TEST_COMPONENT=kserve` |
+| `webhook/notebook/` | `E2E_TEST_COMPONENT=workbenches` |
+| `webhook/kueue/` | `E2E_TEST_COMPONENT=workbenches,kueue` |
+| `webhook/dashboard/` | `E2E_TEST_COMPONENT=dashboard` |
+| `webhook/monitoring/` | `E2E_TEST_SERVICE=monitoring` |
+| `webhook/datasciencecluster/`, `webhook/dscinitialization/` | `make e2e-test` (full suite) |
 
 #### E2E Tips/FAQ
 
@@ -888,9 +959,15 @@ make e2e-test -e E2E_TEST_FLAGS="--test-operator-controller=false --test-webhook
 <details>
 <summary>How do I run a specific test?</summary>
 
+Use the `e2e-test-single` target:
+
 ```shell
-go test -v -run "TestOdhOperator/Operator_Resilience_E2E_Tests/Validate_components_deployment_failure" ./tests/e2e --timeout=15m
+make e2e-test-single TEST="TestOdhOperator/Component_Tests/dashboard/Validate component enabled"
+make e2e-test-single TEST="TestOdhOperator/Service_Tests/monitoring/Validate.*Prometheus"
 ```
+
+
+See [Running a Single E2E Test](#running-a-single-e2e-test) for more details.
 
 </details>
 
