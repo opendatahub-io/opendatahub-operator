@@ -15,10 +15,10 @@ DST_CHARTS_DIR="./opt/charts"
 
 # ODH Component Manifests
 declare -A ODH_COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:main@e2db4dc595726ef9c8e0f3e0f5bc12c8c432a9be:manifests"
-    ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@9fee9abf9be86b5bd3eb0c5b931971c6ea045512:components/notebook-controller/config"
-    ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@9fee9abf9be86b5bd3eb0c5b931971c6ea045512:components/odh-notebook-controller/config"
-    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@22ba611b81bc772f5b5acb8b7d025fe651ca253f:manifests"
+    ["dashboard"]="opendatahub-io:odh-dashboard:main@8fd0fb1101d3baa61f9c4395113edcf541b29d9c:manifests"
+    ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@0fc24b48fad6af13d64ff6bf930d101964b5c588:components/notebook-controller/config"
+    ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@0fc24b48fad6af13d64ff6bf930d101964b5c588:components/odh-notebook-controller/config"
+    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@7611fab5c6d20a1e8ac9736c7c3139201ee5629a:manifests"
     ["kserve"]="opendatahub-io:kserve:release-v0.15@16eab1e915a430bf8913e9abd4e58160a351fb21:config"
     ["ray"]="opendatahub-io:kuberay:dev@b5ee4c9963783dad6a8917abfa29c4e91d8630ec:ray-operator/config"
     ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@25e144dd0f4c311c53cbe069fed18fb93fdb3a7d:config"
@@ -29,9 +29,9 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["feastoperator"]="opendatahub-io:feast:stable@0c85e244d3182b4570164f6d66c8b106a207c070:infra/feast-operator/config"
     ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@76895fce0f00a3a7e147b7f5689a7d1b4ed5b6c9:config"
     ["trainer"]="opendatahub-io:trainer:stable@6b4be8aa3c4a12cf81b94bba4aca5d9b3e52d906:manifests"
-    ["maas"]="opendatahub-io:maas-billing:main@84a2cf4c58956c622a47f5dfa5a8e1644fbfb276:deployment"
+    ["maas"]="opendatahub-io:maas-billing:main@5176c31080d18250b1a4f098d6aa42ceeb1e41d4:deployment"
     ["mlflowoperator"]="opendatahub-io:mlflow-operator:main@73d47227a74fdd550973207d602925a3b4c0d873:config"
-    ["sparkoperator"]="opendatahub-io:spark-operator:main@3e9970520b3bdacf420be2ef1b4cc9ae24aa1236:config"
+    ["sparkoperator"]="opendatahub-io:spark-operator:main@70f27864ad516c34bc17ada57c5058d632eda6db:config"
 )
 
 # RHOAI Component Manifests
