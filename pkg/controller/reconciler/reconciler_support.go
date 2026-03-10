@@ -324,6 +324,19 @@ func (b *ReconcilerBuilder[T]) WithEventFilter(p predicate.Predicate) *Reconcile
 	return b
 }
 
+// ComposeWith composes the builder with the provided configuration function.
+// fn receives the builder and may call any builder method on it — actions,
+// watches, conditions, and finalizers registered inside fn are all applied.
+// Actions land at this call position in the pipeline; watches, conditions,
+// and other registrations are position-independent.
+//
+// fn runs immediately when ComposeWith is called, not when Build() is called.
+// Passing a nil fn panics immediately.
+func (b *ReconcilerBuilder[T]) ComposeWith(fn func(*ReconcilerBuilder[T])) *ReconcilerBuilder[T] {
+	fn(b)
+	return b
+}
+
 // OwnsGVK registers a watch for owned resources identified by GVK.
 func (b *ReconcilerBuilder[T]) OwnsGVK(gvk schema.GroupVersionKind, opts ...WatchOpts) *ReconcilerBuilder[T] {
 	return b.Owns(resources.GvkToUnstructured(gvk), opts...)
