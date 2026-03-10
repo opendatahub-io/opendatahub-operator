@@ -51,6 +51,7 @@ var (
 		"mlflow-ui-image":         "RELATED_IMAGE_ODH_MOD_ARCH_MLFLOW_IMAGE",
 		"maas-ui-image":           "RELATED_IMAGE_ODH_MOD_ARCH_MAAS_IMAGE",
 		"eval-hub-ui-image":       "RELATED_IMAGE_ODH_MOD_ARCH_EVAL_HUB_IMAGE",
+		"automl-ui-image":         "RELATED_IMAGE_ODH_MOD_ARCH_AUTOML_IMAGE",
 		"kube-rbac-proxy":         "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
 	}
 
