@@ -46,7 +46,7 @@ func Classify(report *clusterhealth.Report) FailureClassification {
 
 	// The report is complete and no infrastructure issues were found.
 	// The failure is likely in the test itself.
-	if reportIsComplete(report) {
+	if report.Healthy() {
 		return FailureClassification{
 			Category:    CategoryTest,
 			Subcategory: "test-failure",
@@ -59,18 +59,6 @@ func Classify(report *clusterhealth.Report) FailureClassification {
 	return unknown()
 }
 
-// reportIsComplete returns true if the key sections were collected without errors.
-// If any section errored, we can't be confident the cluster is actually healthy.
-func reportIsComplete(report *clusterhealth.Report) bool {
-	return report.Pods.Error == "" &&
-		report.Nodes.Error == "" &&
-		report.Events.Error == "" &&
-		report.Quotas.Error == "" &&
-		report.Deployments.Error == "" &&
-		report.Operator.Error == "" &&
-		report.DSCI.Error == "" &&
-		report.DSC.Error == ""
-}
 
 // classifyFromPods checks container states and pod phases.
 // Covers: image-pull, pod-startup, OOM subcategories.
@@ -222,9 +210,6 @@ func classifyClusterDistress(report *clusterhealth.Report) *FailureClassificatio
 
 // classifyFromOperator checks the operator deployment and pod status.
 func classifyFromOperator(report *clusterhealth.Report) *FailureClassification {
-	if report.Operator.Error != "" {
-		return nil // section errored, skip
-	}
 	if d := report.Operator.Data.Deployment; d != nil && d.Ready < d.Replicas {
 		return &FailureClassification{
 			Category:    CategoryInfrastructure,
@@ -259,12 +244,12 @@ func classifyFromDSC(report *clusterhealth.Report) *FailureClassification {
 }
 
 // classifyFromCRConditions checks a CR conditions section for unhealthy conditions.
+// The Error field in clusterhealth sections can indicate either a collection failure
+// or an unhealthy CR state, so we require both a non-empty Error (something is wrong)
+// and a non-empty Name (the CR was actually found) before classifying.
 func classifyFromCRConditions(name string, section clusterhealth.SectionResult[clusterhealth.CRConditionsSection], errorCode int) *FailureClassification {
-	if section.Error == "" {
-		return nil // no error means healthy or section not run
-	}
-	if section.Data.Name == "" {
-		return nil // CR not found, can't classify
+	if section.Error == "" || section.Data.Name == "" {
+		return nil
 	}
 	return &FailureClassification{
 		Category:    CategoryInfrastructure,
