@@ -50,6 +50,7 @@ ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	GO_RUN_ARGS=-tags=odh
 	RHAII_CONFIG_DIR=config/rhaii
 	RHAII_DEFAULT_CONFIG_DIR=$(RHAII_CONFIG_DIR)/odh
+	RHAII_KIND_CONFIG_DIR=$(RHAII_CONFIG_DIR)/odh-kind
 	RHAII_LOCAL_CONFIG_DIR=$(RHAII_CONFIG_DIR)/odh-local
 	CCM_DEPLOY_OVERLAY=default
 	CCM_LOCAL_OVERLAY=local
@@ -83,6 +84,7 @@ else
 	GO_RUN_ARGS=-tags=rhoai
 	RHAII_CONFIG_DIR=config/rhaii/rhoai
 	RHAII_DEFAULT_CONFIG_DIR=$(RHAII_CONFIG_DIR)/default
+	RHAII_KIND_CONFIG_DIR=$(RHAII_CONFIG_DIR)/default
 	RHAII_LOCAL_CONFIG_DIR=$(RHAII_CONFIG_DIR)/default
 	CCM_DEPLOY_OVERLAY=rhoai
 	CCM_LOCAL_OVERLAY=rhoai
@@ -406,6 +408,10 @@ deploy: prepare ## Deploy controller to the K8s cluster specified in ~/.kube/con
 .PHONY: deploy-rhaii
 deploy-rhaii: prepare ## Deploy controller in rhaii mode (only KServe) to the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build $(RHAII_DEFAULT_CONFIG_DIR) | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
+
+.PHONY: deploy-rhaii-kind
+deploy-rhaii-kind: prepare ## Deploy controller in rhaii mode (only KServe, no webhook) to the K8s cluster specified in ~/.kube/config.
+	$(KUSTOMIZE) build $(RHAII_KIND_CONFIG_DIR) | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
 
 .PHONY: deploy-rhaii-local
 deploy-rhaii-local: prepare ## Deploy controller in rhaii mode (only KServe, local image pull policy) to the K8s cluster specified in ~/.kube/config.
