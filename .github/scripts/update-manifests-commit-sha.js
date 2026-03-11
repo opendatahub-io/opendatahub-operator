@@ -7,7 +7,7 @@ module.exports = async function ({ github, core }) {
   const updates = [];
 
   // Process both ODH and RHOAI platforms
-  for (const components of [parsedManifests.odh, parsedManifests.rhoai]) {
+  for (const components of [parsedManifests.odh, parsedManifests.rhoai, parsedManifests.odhCharts, parsedManifests.rhoaiCharts]) {
     // Filter to only components with branch@sha format
     const componentsWithSha = [];
     for (const componentInfo of components) {
