@@ -7,11 +7,9 @@ import (
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -29,18 +27,9 @@ import (
 // and schedules their cleanup for the end of the test.
 func createBootstrapCRDs(t *testing.T, g *WithT, ctx context.Context, envTest *envt.EnvT) {
 	t.Helper()
-	for _, def := range []struct {
-		gvkDef   schema.GroupVersionKind
-		plural   string
-		singular string
-		scope    apiextensionsv1.ResourceScope
-	}{
-		{gvk.CertManagerCertificate, certManagerCertificatePlural, certManagerCertificateSingular, apiextensionsv1.NamespaceScoped},
-		{gvk.CertManagerIssuer, certManagerIssuerPlural, certManagerIssuerSingular, apiextensionsv1.NamespaceScoped},
-		{gvk.CertManagerClusterIssuer, certManagerClusterIssuerPlural, certManagerClusterIssuerSingular, apiextensionsv1.ClusterScoped},
-	} {
-		crd, err := envTest.RegisterCRD(ctx, def.gvkDef, def.plural, def.singular, def.scope, envt.WithPermissiveSchema())
-		g.Expect(err).NotTo(HaveOccurred())
+	crds, err := envTest.RegisterCertManagerCRDs(ctx, envt.WithPermissiveSchema())
+	g.Expect(err).NotTo(HaveOccurred())
+	for _, crd := range crds {
 		envt.CleanupDelete(t, g, ctx, envTest.Client(), crd)
 	}
 }
