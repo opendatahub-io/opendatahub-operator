@@ -65,6 +65,18 @@ func DefaultBootstrapConfig() BootstrapConfig {
 	}
 }
 
+// Environment variable names for overriding the default cert-manager PKI configuration.
+// These are used by the operator and downstream components (e.g. KServe params.env injection)
+// to allow external PKI (e.g. cloud controller manager) without code changes.
+const (
+	EnvCAIssuerName      = "RHAI_ISSUER_REF_NAME"
+	EnvIssuerRefKind     = "RHAI_ISSUER_REF_KIND"
+	EnvCertName          = "RHAI_CA_SECRET_NAME"
+	EnvCertManagerNS     = "RHAI_CA_SECRET_NAMESPACE"
+	EnvIstioCACertPath   = "RHAI_ISTIO_CA_CERTIFICATE_PATH"
+	DefaultIssuerRefKind = "ClusterIssuer"
+)
+
 // NewBootstrapAction returns a reusable pipeline action that adds the cert-manager PKI trust
 // chain resources to the reconciliation request for deployment by the pipeline's deploy action.
 // The chain consists of a self-signed ClusterIssuer (config.IssuerName), a root CA Certificate
