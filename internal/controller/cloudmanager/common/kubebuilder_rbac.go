@@ -39,3 +39,8 @@ package common
 
 // sail-operator
 // +kubebuilder:rbac:groups="sail-operator.io",resources=istios,verbs=get;list;watch;create;patch;update;delete
+
+// Webhook annotations for sail-operator workaround (OSSM-12397)
+// TODO(OSSM-12397): Remove once the sail-operator ships a fix.
+// +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=mutatingwebhookconfigurations,verbs=get;patch
+// +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=validatingwebhookconfigurations,verbs=get;patch
