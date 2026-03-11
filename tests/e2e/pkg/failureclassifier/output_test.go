@@ -1,5 +1,5 @@
 //nolint:testpackage
-package classifier
+package failureclassifier
 
 import (
 	"bytes"

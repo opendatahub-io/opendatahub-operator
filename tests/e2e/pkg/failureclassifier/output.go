@@ -1,4 +1,4 @@
-package classifier
+package failureclassifier
 
 import (
 	"encoding/json"

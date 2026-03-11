@@ -1,5 +1,5 @@
 //nolint:testpackage
-package classifier
+package failureclassifier
 
 import (
 	"testing"
@@ -537,6 +537,35 @@ func TestClassify_Priority(t *testing.T) {
 			wantSubcategory: "image-pull",
 			wantErrorCode:   CodeImagePull,
 			wantConfidence:  ConfidenceMedium,
+		},
+		{
+			name: "node pressure wins over pod distress",
+			report: &clusterhealth.Report{
+				Pods: clusterhealth.SectionResult[clusterhealth.PodsSection]{
+					Data: clusterhealth.PodsSection{
+						ByNamespace: map[string][]clusterhealth.PodInfo{
+							"test-ns": {
+								{
+									Name: "broken-pod",
+									Containers: []clusterhealth.ContainerInfo{
+										{Name: "main", Waiting: "RunContainerError: something went wrong"},
+									},
+								},
+							},
+						},
+					},
+				},
+				Nodes: clusterhealth.SectionResult[clusterhealth.NodesSection]{
+					Data: clusterhealth.NodesSection{
+						Nodes: []clusterhealth.NodeInfo{
+							{Name: "worker-1", UnhealthyReason: "MemoryPressure: True"},
+						},
+					},
+				},
+			},
+			wantSubcategory: "node-pressure",
+			wantErrorCode:   CodeNodePressure,
+			wantConfidence:  ConfidenceHigh,
 		},
 	}
 

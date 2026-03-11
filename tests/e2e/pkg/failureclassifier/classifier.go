@@ -1,4 +1,4 @@
-package classifier
+package failureclassifier
 
 import (
 	"fmt"
@@ -20,9 +20,17 @@ func Classify(report *clusterhealth.Report) FailureClassification {
 		return unknown()
 	}
 
-	// Per-section classifiers, ordered by priority (first match wins).
+	// classifyFromPods returns both a specific match (known pattern) and a
+	// deferred distress signal (unrecognized issue). We use the specific
+	// match immediately if found, and defer the distress signal until after
+	// all other classifiers have had a chance to find something more specific.
+	specific, podDistress := classifyFromPods(report)
+	if specific != nil {
+		return *specific
+	}
+
+	// Remaining section classifiers, ordered by priority (first match wins).
 	sectionClassifiers := []func(*clusterhealth.Report) *FailureClassification{
-		classifyFromPods,
 		classifyFromEvents,
 		classifyFromQuotas,
 		classifyFromNodes,
@@ -37,10 +45,9 @@ func Classify(report *clusterhealth.Report) FailureClassification {
 		}
 	}
 
-	// Catch-all: check for any signs of cluster distress that didn't match
-	// a specific pattern above (e.g., unrecognized waiting reason, unready
-	// deployments, non-OOM terminated containers, high restart counts).
-	if fc := classifyClusterDistress(report); fc != nil {
+	// Catch-all: use the deferred pod distress signal if we found one during
+	// the pod scan, or check for unready deployments.
+	if fc := classifyClusterDistress(report, podDistress); fc != nil {
 		return *fc
 	}
 
@@ -59,10 +66,13 @@ func Classify(report *clusterhealth.Report) FailureClassification {
 	return unknown()
 }
 
+// classifyFromPods checks container states and pod phases in a single pass.
+// Returns two values:
+//   - specific: a classification from a known pattern (image-pull, OOM, etc.) — returned immediately by the caller.
+//   - distress: the first unrecognized container issue found — deferred until after all other classifiers run.
+func classifyFromPods(report *clusterhealth.Report) (*FailureClassification, *FailureClassification) {
+	var distress *FailureClassification
 
-// classifyFromPods checks container states and pod phases.
-// Covers: image-pull, pod-startup, OOM subcategories.
-func classifyFromPods(report *clusterhealth.Report) *FailureClassification {
 	for _, pods := range report.Pods.Data.ByNamespace {
 		for _, pod := range pods {
 			for _, container := range pod.Containers {
@@ -73,7 +83,7 @@ func classifyFromPods(report *clusterhealth.Report) *FailureClassification {
 						ErrorCode:   match.errorCode,
 						Evidence:    []string{fmt.Sprintf("container %s/%s waiting: %s", pod.Name, container.Name, container.Waiting)},
 						Confidence:  ConfidenceMedium,
-					}
+					}, nil
 				}
 				if match := matchesPattern(container.Terminated, terminatedPatterns); match != nil {
 					return &FailureClassification{
@@ -82,6 +92,26 @@ func classifyFromPods(report *clusterhealth.Report) *FailureClassification {
 						ErrorCode:   match.errorCode,
 						Evidence:    []string{fmt.Sprintf("container %s/%s terminated: %s", pod.Name, container.Name, container.Terminated)},
 						Confidence:  ConfidenceMedium,
+					}, nil
+				}
+				// Stash first unrecognized distress signal for deferred use.
+				if distress == nil {
+					if container.Waiting != "" {
+						distress = &FailureClassification{
+							Category:    CategoryInfrastructure,
+							Subcategory: "cluster-distress",
+							ErrorCode:   CodeInfraUnknown,
+							Evidence:    []string{fmt.Sprintf("container %s/%s in unrecognized waiting state: %s", pod.Name, container.Name, container.Waiting)},
+							Confidence:  ConfidenceLow,
+						}
+					} else if container.Terminated != "" && !isSuccessfulTermination(container.Terminated) {
+						distress = &FailureClassification{
+							Category:    CategoryInfrastructure,
+							Subcategory: "cluster-distress",
+							ErrorCode:   CodeInfraUnknown,
+							Evidence:    []string{fmt.Sprintf("container %s/%s terminated: %s", pod.Name, container.Name, container.Terminated)},
+							Confidence:  ConfidenceLow,
+						}
 					}
 				}
 			}
@@ -92,11 +122,11 @@ func classifyFromPods(report *clusterhealth.Report) *FailureClassification {
 					ErrorCode:   CodePodStartup,
 					Evidence:    []string{fmt.Sprintf("pod %s stuck in Pending for %s", pod.Name, time.Since(pod.CreatedAt).Truncate(time.Second))},
 					Confidence:  ConfidenceHigh,
-				}
+				}, nil
 			}
 		}
 	}
-	return nil
+	return nil, distress
 }
 
 // classifyFromEvents checks event reasons/messages for network and storage patterns.
@@ -161,33 +191,11 @@ func classifyFromNodes(report *clusterhealth.Report) *FailureClassification {
 	return nil
 }
 
-// classifyClusterDistress checks for any signs of cluster problems that didn't
-// match a specific pattern. This catches unrecognized container errors and unready
-// deployments.
-func classifyClusterDistress(report *clusterhealth.Report) *FailureClassification {
-	for _, pods := range report.Pods.Data.ByNamespace {
-		for _, pod := range pods {
-			for _, c := range pod.Containers {
-				if c.Waiting != "" {
-					return &FailureClassification{
-						Category:    CategoryInfrastructure,
-						Subcategory: "cluster-distress",
-						ErrorCode:   CodeInfraUnknown,
-						Evidence:    []string{fmt.Sprintf("container %s/%s in unrecognized waiting state: %s", pod.Name, c.Name, c.Waiting)},
-						Confidence:  ConfidenceLow,
-					}
-				}
-				if c.Terminated != "" && !isSuccessfulTermination(c.Terminated) {
-					return &FailureClassification{
-						Category:    CategoryInfrastructure,
-						Subcategory: "cluster-distress",
-						ErrorCode:   CodeInfraUnknown,
-						Evidence:    []string{fmt.Sprintf("container %s/%s terminated: %s", pod.Name, c.Name, c.Terminated)},
-						Confidence:  ConfidenceLow,
-					}
-				}
-			}
-		}
+// classifyClusterDistress uses the pre-computed pod distress signal (if any)
+// and checks for unready deployments. This avoids re-iterating over pods.
+func classifyClusterDistress(report *clusterhealth.Report, podDistress *FailureClassification) *FailureClassification {
+	if podDistress != nil {
+		return podDistress
 	}
 
 	// Check for unready deployments.

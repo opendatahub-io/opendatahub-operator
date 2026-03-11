@@ -23,7 +23,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth"
-	"github.com/opendatahub-io/opendatahub-operator/v2/tests/e2e/pkg/classifier"
+	"github.com/opendatahub-io/opendatahub-operator/v2/tests/e2e/pkg/failureclassifier"
 )
 
 const (
@@ -59,7 +59,7 @@ var (
 	// lastPanicDiagTS helps suppress duplicate failure diagnostics immediately after a panic.
 	lastPanicDiagTS atomic.Int64
 	// lastClassification stores the most recent failure classification for circuit breaker consumption.
-	lastClassification atomic.Pointer[classifier.FailureClassification]
+	lastClassification atomic.Pointer[failureclassifier.FailureClassification]
 )
 
 // SetGlobalDebugClient sets the Kubernetes client for global debugging.
@@ -85,7 +85,7 @@ func redactSensitiveInfo(logContent string) string {
 }
 
 // redactEvidence applies redactSensitiveInfo to each evidence string in a classification.
-func redactEvidence(fc *classifier.FailureClassification) {
+func redactEvidence(fc *failureclassifier.FailureClassification) {
 	for i, e := range fc.Evidence {
 		fc.Evidence[i] = redactSensitiveInfo(e)
 	}
@@ -156,19 +156,19 @@ func runDiagnosticsAndClassify(testName string) {
 	report, err := clusterhealth.Run(ctx, cfg)
 	if err != nil {
 		log.Printf("ERROR: Failed to collect diagnostics: %v", err)
-		fc := classifier.Classify(nil)
+		fc := failureclassifier.Classify(nil)
 		fc.Evidence = append(fc.Evidence, fmt.Sprintf("clusterhealth.Run error: %v", err))
 		redactEvidence(&fc)
-		classifier.EmitClassification(fc, testName)
+		failureclassifier.EmitClassification(fc, testName)
 		lastClassification.Store(&fc)
 		return
 	}
 
 	logReport(report)
 
-	fc := classifier.Classify(report)
+	fc := failureclassifier.Classify(report)
 	redactEvidence(&fc)
-	classifier.EmitClassification(fc, testName)
+	failureclassifier.EmitClassification(fc, testName)
 	lastClassification.Store(&fc)
 }
 
