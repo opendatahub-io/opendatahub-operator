@@ -1,0 +1,110 @@
+name: KinD ODH E2E Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  get-merge-commit:
+    name: Get merge commit
+    uses: ./.github/workflows/get-merge-commit.yaml
+
+  kind-odh-e2e-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      IMAGE_BUILDER: docker
+      IMG: opendatahub-operator:pr-${{ github.event.number }}
+      CLUSTER_NAME: kind-odh-${{ github.event.number }}-${{ github.run_id }}-${{ github.run_attempt }}
+      OPERATOR_NAMESPACE: opendatahub-operator-system
+      KIND_CONFIG_PATH: kind-config.yaml
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          ref: ${{ needs.get-merge-commit.outputs.mergedSha }}
+
+      - name: Set up Go
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Create custom KinD config
+        run: |
+          cat > ${{ env.KIND_CONFIG_PATH }} <<EOF
+          # six nodes (three control + three workers) cluster config
+          kind: Cluster
+          apiVersion: kind.x-k8s.io/v1alpha4
+          nodes:
+            - role: control-plane
+            - role: control-plane
+            - role: control-plane
+            - role: worker
+            - role: worker
+            - role: worker
+          EOF
+
+      - name: Create KinD Cluster
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        with:
+          cluster_name: ${{ env.CLUSTER_NAME }}
+          config: ${{ env.KIND_CONFIG_PATH }}
+
+      - name: Build Operator Image
+        run: |
+          make image-build
+
+      - name: Load Operator Image into the KinD Cluster
+        run: |
+          kind load docker-image ${{ env.IMG }} --name ${{ env.CLUSTER_NAME }}
+
+      - name: Install CRDs
+        run: |
+          make install
+
+      - name: Deploy Operator
+        run: |
+          # The image is uploaded to the KinD cluster, so we need to use the local image instead of trying to pull it from a remote registry.
+          sed -i 's|imagePullPolicy: Always|imagePullPolicy: IfNotPresent|g' config/manager/manager.yaml
+          
+          make deploy
+
+      - name: Verify Operator Installation
+        run: |
+          echo "Waiting for operator deployment to be available..."
+  
+          for i in $(seq 1 30); do
+            echo "[$(date +%H:%M:%S)] Verifying state... ($i/30)"
+
+            READY=$(kubectl get deployment opendatahub-operator-controller-manager -n ${{ env.OPERATOR_NAMESPACE }} -o jsonpath='{.status.readyReplicas}')
+            DESIRED=$(kubectl get deployment opendatahub-operator-controller-manager -n ${{ env.OPERATOR_NAMESPACE }} -o jsonpath='{.spec.replicas}')
+
+            echo "Ready replicas: ${READY:-0} / $DESIRED"
+
+            if [ "${READY}" == "$DESIRED" ]; then
+              echo "✅ Deployment ready!"
+              break
+            fi
+
+            if [ $i -eq 30 ]; then
+              echo "❌ Timeout."
+              kubectl describe pods -n ${{ env.OPERATOR_NAMESPACE }}
+              kubectl logs deployment/opendatahub-operator-controller-manager -n ${{ env.OPERATOR_NAMESPACE }} --all-containers --tail=100
+              exit 1
+            fi
+
+            sleep 10
+          done
+          kubectl get deployments -n ${{ env.OPERATOR_NAMESPACE }}
+          # kubectl wait --for=condition=Available deployment/opendatahub-operator-controller-manager -n ${{ env.OPERATOR_NAMESPACE }} --timeout=600s
+          echo "Listing pods in ${{ env.OPERATOR_NAMESPACE }}:"
+          kubectl get pods -n ${{ env.OPERATOR_NAMESPACE }}
+          echo "Checking installed CRDs:"
+          kubectl get crds | grep opendatahub.io
+
+      - name: Run E2E Tests
+        run: |
+          make e2e-test -e E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=false -e E2E_TEST_DEPENDANT_OPERATORS_MANAGEMENT=false -e E2E_TEST_WEBHOOK=false -e E2E_TEST_COMPONENT="kserve" -e E2E_TEST_SERVICES=false -e E2E_TEST_OPERATOR_RESILIENCE=false -e E2E_TEST_OPERATOR_V2TOV3UPGRADE=false -e E2E_TEST_HARDWARE_PROFILE=false

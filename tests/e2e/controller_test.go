@@ -81,14 +81,16 @@ type TestContextConfig struct {
 	monitoringNamespace  string
 	deletionPolicy       DeletionPolicy
 
-	failFastWhenError        bool
-	cleanUpPreviousResources bool
-	operatorControllerTest   bool
-	operatorResilienceTest   bool
-	webhookTest              bool
-	v2tov3upgradeTest        bool
-	hardwareProfileTest      bool
-	TestTimeouts             TestTimeouts
+	failFastWhenError                bool
+	cleanUpPreviousResources         bool
+	dependantOperatorsManagementTest bool
+	dscManagementTest                bool
+	operatorControllerTest           bool
+	operatorResilienceTest           bool
+	webhookTest                      bool
+	v2tov3upgradeTest                bool
+	hardwareProfileTest              bool
+	TestTimeouts                     TestTimeouts
 }
 
 // TestGroup defines the test groups.
@@ -301,6 +303,13 @@ func TestOdhOperator(t *testing.T) {
 	// Remove any leftover resources from previous test runs before starting if the cleanup flag is enabled
 	if testOpts.cleanUpPreviousResources {
 		CleanupPreviousTestResources(t)
+	}
+
+	if testOpts.dependantOperatorsManagementTest {
+		mustRun(t, "Dependant Operators Management E2E Tests", dependantOperatorsManagementTestSuite)
+	}
+
+	if testOpts.dscManagementTest {
 		// Run DSCI/DSC management test suite
 		mustRun(t, "DSCInitialization and DataScienceCluster management E2E Tests", dscManagementTestSuite)
 	}
@@ -417,6 +426,10 @@ func TestMain(m *testing.M) {
 	checkEnvVarBindingError(viper.BindEnv("clean-up-previous-resources", viper.GetEnvPrefix()+"_CLEAN_UP_PREVIOUS_RESOURCES"))
 	pflag.Bool("test-operator-controller", true, "run operator controller tests")
 	checkEnvVarBindingError(viper.BindEnv("test-operator-controller", viper.GetEnvPrefix()+"_OPERATOR_CONTROLLER"))
+	pflag.Bool("test-dependant-operators-management", true, "run dependant operators management tests")
+	checkEnvVarBindingError(viper.BindEnv("test-dependant-operators-management", viper.GetEnvPrefix()+"_DEPENDANT_OPERATORS_MANAGEMENT"))
+	pflag.Bool("test-dsc-management", true, "run DSCI/DSC management tests")
+	checkEnvVarBindingError(viper.BindEnv("test-dsc-management", viper.GetEnvPrefix()+"_DSC_MANAGEMENT"))
 	pflag.Bool("test-operator-resilience", true, "run operator resilience tests")
 	checkEnvVarBindingError(viper.BindEnv("test-operator-resilience", viper.GetEnvPrefix()+"_OPERATOR_RESILIENCE"))
 	pflag.Bool("test-operator-v2tov3upgrade", true, "run V2 to V3 upgrade tests")
@@ -480,6 +493,8 @@ func TestMain(m *testing.M) {
 	testOpts.failFastWhenError = viper.GetBool("fail-fast-on-error")
 	testOpts.cleanUpPreviousResources = viper.GetBool("clean-up-previous-resources")
 	testOpts.operatorControllerTest = viper.GetBool("test-operator-controller")
+	testOpts.dependantOperatorsManagementTest = viper.GetBool("test-dependant-operators-management")
+	testOpts.dscManagementTest = viper.GetBool("test-dsc-management")
 	testOpts.operatorResilienceTest = viper.GetBool("test-operator-resilience")
 	testOpts.v2tov3upgradeTest = viper.GetBool("test-operator-v2tov3upgrade")
 	testOpts.hardwareProfileTest = viper.GetBool("test-hardware-profile")

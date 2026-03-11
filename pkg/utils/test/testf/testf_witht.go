@@ -127,7 +127,7 @@ func (t *WithT) List(
 
 			err := t.Client().List(ctx, &items, option...)
 			if err != nil {
-				return nil, StopErr(err, "failed to list resource: %s", gvk)
+				return nil, err
 			}
 
 			return items.Items, nil
@@ -163,7 +163,9 @@ func (t *WithT) Get(
 			case k8serr.IsNotFound(err):
 				return nil, nil
 			case err != nil:
-				return nil, StopErr(err, "failed to get resource: %s, nn: %s", gvk, nn.String())
+				// Do not use StopErr for NoMatchError, as it may be a temporary issue or expected in some environments (e.g. KinD)
+				// The caller should decide how to handle it.
+				return nil, err
 			default:
 				return &u, nil
 			}
