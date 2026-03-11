@@ -6,6 +6,7 @@ metadata:
   labels:
     {{.PartOfLabelKey}}: {{.PartOfLabelValue}}
     {{.ComponentLabelKey}}: {{.ComponentLabelValue}}
+    {{.IstioRevisionLabel}}: {{.IstioRevisionValue}}
 spec:
   host: "*"
   trafficPolicy:

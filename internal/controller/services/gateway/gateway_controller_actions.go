@@ -336,6 +336,8 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"ComponentLabelValue":      ComponentLabelValue,
 		"PartOfLabelKey":           labels.K8SCommon.PartOf,
 		"PartOfLabelValue":         PartOfLabelValue,
+		"IstioRevisionLabel":       IstioRevisionLabel,
+		"IstioRevisionValue":       IstioRevisionValue,
 		"PartOfGatewayConfig":      PartOfGatewayConfig,
 		"GatewayNameLabelKey":      labels.GatewayAPI.GatewayName,
 		"LegacySubdomain":          legacyInfo.LegacySubdomain,
