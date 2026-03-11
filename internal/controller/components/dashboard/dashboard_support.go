@@ -54,6 +54,7 @@ var (
 		"kube-rbac-proxy":          "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
 		"images-jobs-async-upload": "RELATED_IMAGE_ODH_MODEL_REGISTRY_JOB_ASYNC_UPLOAD_IMAGE",
 		"automl-ui-image":          "RELATED_IMAGE_ODH_MOD_ARCH_AUTOML_IMAGE",
+		"autorag-ui-image":         "RELATED_IMAGE_ODH_MOD_ARCH_AUTORAG_IMAGE",
 	}
 
 	conditionTypes = []string{
