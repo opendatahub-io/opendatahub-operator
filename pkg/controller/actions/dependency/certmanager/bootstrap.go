@@ -1,16 +1,13 @@
-// This file bootstraps the cert-manager PKI trust chain required by downstream components.
+// This file bootstraps the cert-manager PKI trust chain.
 // The chain consists of three cert-manager resources:
 //
-//   - Self-signed ClusterIssuer (opendatahub-selfsigned-issuer): a bootstrap issuer
-//     with no upstream authority. Its sole purpose is to sign the root CA certificate.
+//   - Self-signed ClusterIssuer: a bootstrap issuer with no external signing authority.
+//     Its only job is to sign the root CA certificate.
 //
-//   - Root CA Certificate (opendatahub-ca): a certificate marked isCA=true, issued by
-//     the self-signed issuer. cert-manager stores the resulting key and certificate in
-//     a Secret of the same name in the cert-manager namespace.
+//   - Root CA Certificate: a CA certificate (isCA=true), issued by the self-signed issuer.
 //
-//   - CA-backed ClusterIssuer (opendatahub-ca-issuer): references the Secret produced
-//     by the root CA Certificate. Downstream components (e.g. KServe) use this issuer
-//     to request their own leaf certificates, so they trust the same root CA.
+//   - CA-backed ClusterIssuer: references the Secret that cert-manager creates for the
+//     root CA Certificate. Other components use this issuer to get their own certificates.
 
 package certmanager
 
@@ -18,24 +15,35 @@ import (
 	"context"
 	"fmt"
 
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
-// caRootDuration is the validity period of the opendatahub-ca root CA certificate.
-// This value is intentionally long; the appropriate validity, key algorithm, and renewal
-// strategy will be defined in future changes. cert-manager schedules renewal
-// at 2/3 of this duration by default.
+// caRootDuration is the validity period of the root CA certificate.
+// This value is intentionally long. The renewal strategy will be defined in future changes.
 const caRootDuration = "876000h"
 
-// BootstrapConfig holds the resource names that form the cert-manager PKI trust chain.
-// The names are part of the API contract between the operator and downstream components
-// (for example, KServe references opendatahub-ca-issuer by name). Use DefaultBootstrapConfig
-// in production; override only for testing or non-standard cert-manager installations.
+// Core cert-manager CRD resource names.
+const (
+	certManagerCertificateCRD   = "certificates.cert-manager.io"
+	certManagerIssuerCRD        = "issuers.cert-manager.io"
+	certManagerClusterIssuerCRD = "clusterissuers.cert-manager.io"
+)
+
+// BootstrapConfig holds the resource names to create a PKI trust chain using cert-manager.
+// The default values from [DefaultBootstrapConfig] should be good for most cases, overriding only for testing.
 type BootstrapConfig struct {
 	// IssuerName is the name of the self-signed ClusterIssuer used to bootstrap the root CA certificate.
 	IssuerName string
@@ -43,14 +51,12 @@ type BootstrapConfig struct {
 	// CertName is the name of the root CA Certificate and the Secret that cert-manager creates for it.
 	CertName string
 
-	// CertManagerNamespace is the namespace where cert-manager is installed. The root CA
-	// Certificate is created here so that cert-manager places the resulting Secret in this
-	// namespace, where the CA-backed ClusterIssuer can find it. cert-manager ClusterIssuers
-	// can only reference Secrets in the cert-manager controller's own namespace.
+	// CertManagerNamespace is the namespace where cert-manager is installed.
+	// The root CA Certificate is created in this namespace.
 	CertManagerNamespace string
 
-	// CAIssuerName is the name of the CA-backed ClusterIssuer. Downstream components use this
-	// issuer to request their own leaf certificates.
+	// CAIssuerName is the name of the CA-backed ClusterIssuer. Other components use this
+	// issuer to get their own certificates.
 	CAIssuerName string
 }
 
@@ -65,18 +71,28 @@ func DefaultBootstrapConfig() BootstrapConfig {
 	}
 }
 
+// Environment variable names for overriding the default cert-manager PKI configuration.
+// These are used by the operator and downstream components (e.g. KServe params.env injection)
+// to allow external PKI (e.g. cloud controller manager) without code changes.
+const (
+	EnvCAIssuerName      = "RHAI_ISSUER_REF_NAME"
+	EnvIssuerRefKind     = "RHAI_ISSUER_REF_KIND"
+	EnvCertName          = "RHAI_CA_SECRET_NAME"
+	EnvCertManagerNS     = "RHAI_CA_SECRET_NAMESPACE"
+	EnvIstioCACertPath   = "RHAI_ISTIO_CA_CERTIFICATE_PATH"
+	DefaultIssuerRefKind = "ClusterIssuer"
+)
+
 // NewBootstrapAction returns a reusable pipeline action that adds the cert-manager PKI trust
 // chain resources to the reconciliation request for deployment by the pipeline's deploy action.
-// The chain consists of a self-signed ClusterIssuer (config.IssuerName), a root CA Certificate
-// (config.CertName) issued by it, and a CA-backed ClusterIssuer (config.CAIssuerName) that
-// downstream components use to request leaf certificates.
+//
+// The chain consists of:
+//
+// - a self-signed ClusterIssuer
+// - a root CA Certificate
+// - a CA-backed ClusterIssuer
 //
 // The action is a no-op when cert-manager CRDs (ClusterIssuer or Certificate) are absent on the cluster.
-// Pair this action with MonitorCRDs() earlier in the pipeline to surface missing CRDs to users
-// via the DependenciesAvailable condition.
-//
-// Resources are owned and garbage-collected by the wiring controller's standard deploy and
-// gc pipeline actions, following the same lifecycle as all other ODH-managed resources.
 func NewBootstrapAction(config BootstrapConfig) actions.Fn {
 	return func(ctx context.Context, rr *types.ReconciliationRequest) error {
 		hasClusterIssuer, err := cluster.HasCRD(ctx, rr.Client, gvk.CertManagerClusterIssuer)
@@ -91,17 +107,17 @@ func NewBootstrapAction(config BootstrapConfig) actions.Fn {
 			return nil
 		}
 
-		issuer, err := selfSignedIssuer(config)
+		issuer, err := createSelfSignedIssuer(config)
 		if err != nil {
 			return err
 		}
 
-		caCert, err := rootCACertificate(config)
+		caCert, err := createRootCACertificate(config)
 		if err != nil {
 			return err
 		}
 
-		caIssuer, err := caBackedIssuer(config)
+		caIssuer, err := createCABackedIssuer(config)
 		if err != nil {
 			return err
 		}
@@ -110,8 +126,8 @@ func NewBootstrapAction(config BootstrapConfig) actions.Fn {
 	}
 }
 
-// selfSignedIssuer returns the bootstrap ClusterIssuer that signs the root CA certificate.
-func selfSignedIssuer(config BootstrapConfig) (*unstructured.Unstructured, error) {
+// createSelfSignedIssuer returns the bootstrap ClusterIssuer that signs the root CA certificate.
+func createSelfSignedIssuer(config BootstrapConfig) (*unstructured.Unstructured, error) {
 	u := &unstructured.Unstructured{}
 	u.SetGroupVersionKind(gvk.CertManagerClusterIssuer)
 	u.SetName(config.IssuerName)
@@ -123,10 +139,7 @@ func selfSignedIssuer(config BootstrapConfig) (*unstructured.Unstructured, error
 	return u, nil
 }
 
-// rootCACertificate returns the root CA Certificate resource. cert-manager processes this
-// Certificate and places the resulting CA key and certificate in a Secret of the same name
-// in config.CertManagerNamespace, where caBackedIssuer can reference it.
-func rootCACertificate(config BootstrapConfig) (*unstructured.Unstructured, error) {
+func createRootCACertificate(config BootstrapConfig) (*unstructured.Unstructured, error) {
 	u := &unstructured.Unstructured{}
 	u.SetGroupVersionKind(gvk.CertManagerCertificate)
 	u.SetName(config.CertName)
@@ -136,8 +149,8 @@ func rootCACertificate(config BootstrapConfig) (*unstructured.Unstructured, erro
 		"commonName": config.CertName,
 		"secretName": config.CertName,
 		"duration":   caRootDuration,
-		// Explicit usages override cert-manager's leaf-oriented defaults
-		// (digital signature + key encipherment). A root CA only needs cert sign.
+		// cert-manager's default usages include key encipherment, which a CA does not need.
+		// Only cert sign is required here.
 		"usages": []any{"cert sign"},
 		"issuerRef": map[string]any{
 			"name":  config.IssuerName,
@@ -150,9 +163,9 @@ func rootCACertificate(config BootstrapConfig) (*unstructured.Unstructured, erro
 	return u, nil
 }
 
-// caBackedIssuer returns the CA-backed ClusterIssuer that downstream components use to request
-// leaf certificates. It references the Secret created by the root CA Certificate.
-func caBackedIssuer(config BootstrapConfig) (*unstructured.Unstructured, error) {
+// createCABackedIssuer returns the CA-backed ClusterIssuer that other components use to request
+// certificates. It references the Secret created by the root CA Certificate.
+func createCABackedIssuer(config BootstrapConfig) (*unstructured.Unstructured, error) {
 	u := &unstructured.Unstructured{}
 	u.SetGroupVersionKind(gvk.CertManagerClusterIssuer)
 	u.SetName(config.CAIssuerName)
@@ -164,4 +177,63 @@ func caBackedIssuer(config BootstrapConfig) (*unstructured.Unstructured, error) 
 		return nil, fmt.Errorf("failed to set spec on CA-backed ClusterIssuer: %w", err)
 	}
 	return u, nil
+}
+
+// MonitorCRDs returns a dependency.ActionOpts that checks whether the three core cert-manager
+// CRDs (Certificate, Issuer, ClusterIssuer) are registered on the cluster. If any CRD
+// is absent, DependenciesAvailable is set to False.
+//
+// Must cover exactly the same CRDs as CRDPredicate. If a CRD is added here, add the
+// corresponding name to the constants block above and update CRDPredicate.
+func MonitorCRDs() dependency.ActionOpts {
+	return dependency.Combine(
+		dependency.MonitorCRD(dependency.CRDConfig{GVK: gvk.CertManagerCertificate}),
+		dependency.MonitorCRD(dependency.CRDConfig{GVK: gvk.CertManagerIssuer}),
+		dependency.MonitorCRD(dependency.CRDConfig{GVK: gvk.CertManagerClusterIssuer}),
+	)
+}
+
+// CRDPredicate returns a predicate that matches CustomResourceDefinition events for
+// the three core cert-manager CRDs.
+//
+// Must cover exactly the same CRDs as MonitorCRDs. If a CRD is added to MonitorCRDs,
+// add the corresponding name to the constants block above and update this predicate.
+func CRDPredicate() predicate.Predicate {
+	return predicate.NewPredicateFuncs(func(obj client.Object) bool {
+		switch obj.GetName() {
+		case certManagerCertificateCRD, certManagerIssuerCRD, certManagerClusterIssuerCRD:
+			return true
+		}
+		return false
+	})
+}
+
+// Bootstrap returns a builder configurator that registers all cert-manager bootstrapping
+// concerns onto the builder:
+//
+// - a cert-manager CRDs watch to trigger reconciliation,
+// - a monitoring action to set the DependenciesAvailable condition,
+// - a bootstrap action to deploy the PKI trust chain,
+// - a condition to set the DependenciesAvailable status.
+//
+// instanceName is the controller's singleton instance name, used to route CRD watch events
+// to the correct reconciler queue via handlers.ToNamed.
+//
+// [BootstrapConfig] is the configuration for the cert-manager PKI trust chain.
+//
+// Use with [reconciler.ComposeWith]. T must be supplied explicitly because Go cannot infer
+// it from the function arguments:
+//
+//	b.ComposeWith(certmanager.Bootstrap[*MyControllerType](instanceName, certmanager.DefaultBootstrapConfig()))
+func Bootstrap[T common.PlatformObject](instanceName string, config BootstrapConfig) func(*reconciler.ReconcilerBuilder[T]) {
+	return func(b *reconciler.ReconcilerBuilder[T]) {
+		b.Watches(
+			&extv1.CustomResourceDefinition{},
+			reconciler.WithEventHandler(handlers.ToNamed(instanceName)),
+			reconciler.WithPredicates(CRDPredicate()),
+		).
+			WithAction(dependency.NewAction(MonitorCRDs())).
+			WithAction(NewBootstrapAction(config)).
+			WithConditions(status.ConditionDependenciesAvailable)
+	}
 }

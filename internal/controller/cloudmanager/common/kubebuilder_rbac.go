@@ -37,5 +37,14 @@ package common
 // cert-manager
 // +kubebuilder:rbac:groups="operator.openshift.io",resources=certmanagers,verbs=get;list;watch;create;patch;update;delete
 
+// cert-manager PKI resources (ClusterIssuer and Certificate are created by the bootstrap action).
+// +kubebuilder:rbac:groups="cert-manager.io",resources=clusterissuers,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="cert-manager.io",resources=certificates,verbs=get;list;watch;create;update;patch;delete
+
 // sail-operator
 // +kubebuilder:rbac:groups="sail-operator.io",resources=istios,verbs=get;list;watch;create;patch;update;delete
+
+// Webhook annotations for sail-operator workaround (OSSM-12397)
+// TODO(OSSM-12397): Remove once the sail-operator ships a fix.
+// +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=mutatingwebhookconfigurations,verbs=get;list;watch;patch
+// +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=validatingwebhookconfigurations,verbs=get;list;watch;patch
