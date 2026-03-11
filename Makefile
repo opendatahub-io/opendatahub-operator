@@ -743,6 +743,21 @@ e2e-setup-cluster:
 		-e E2E_TEST_DELETION_POLICY=never \
 		-e E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=true
 
+##@ KinD Cluster Management
+
+CLUSTER_NAME ?= kind-odh
+KIND_CONFIG_PATH ?= config/kind/kind-config.yaml
+
+.PHONY: kind-create
+kind-create: ## Create KinD Cluster
+	@echo "Creating KinD cluster: $(CLUSTER_NAME) using config $(KIND_CONFIG_PATH)"
+	kind create cluster --name $(CLUSTER_NAME) --config $(KIND_CONFIG_PATH)
+
+.PHONY: kind-delete
+kind-delete: ## Delete KinD Cluster
+	@echo "Deleting KinD cluster: $(CLUSTER_NAME)"
+	kind delete cluster --name $(CLUSTER_NAME)
+
 unit-test-cli:
 	go -C ./cmd/test-retry/ test ./...
 
