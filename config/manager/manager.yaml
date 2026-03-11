@@ -51,6 +51,27 @@ spec:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+      - name: copy-manifests
+        image: REPLACE_IMAGE:latest
+        imagePullPolicy: Always
+        command: ["cp", "-r", "/opt/manifests-template/.", "/opt/manifests/"]
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - "ALL"
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            cpu: 100m
+            memory: 256Mi
+        volumeMounts:
+        - name: manifests
+          mountPath: /opt/manifests
       containers:
       - command:
         - /manager
@@ -78,6 +99,7 @@ spec:
             name: http
         securityContext:
           allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
           capabilities:
             drop:
               - "ALL"
@@ -102,5 +124,18 @@ spec:
           requests:
             cpu: 100m
             memory: 780Mi
+        volumeMounts:
+        - name: manifests
+          mountPath: /opt/manifests
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: manifests
+        emptyDir:
+          sizeLimit: 256Mi
+      - name: tmp
+        emptyDir:
+          medium: Memory
+          sizeLimit: 10Mi
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10
