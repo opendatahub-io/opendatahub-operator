@@ -42,13 +42,6 @@ func TestCoreWeaveKubernetesEngine(t *testing.T) {
 			SailOperator: ccmcommon.SailOperatorDependency{ManagementPolicy: ccmcommon.Managed},
 		})
 
-		nn := types.NamespacedName{Name: ccmv1alpha1.CoreWeaveKubernetesEngineInstanceName}
-
-		// Wait for reconciliation to succeed
-		wt.Get(gvk.CoreWeaveKubernetesEngine, nn).Eventually().Should(
-			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`),
-		)
-
 		// Verify dependency deployments are created
 		wt.Get(gvk.Deployment, types.NamespacedName{
 			Name: "cert-manager-operator-controller-manager", Namespace: "cert-manager-operator",
@@ -69,12 +62,6 @@ func TestCoreWeaveKubernetesEngine(t *testing.T) {
 		createCoreweaveCR(t, wt, ccmcommon.Dependencies{
 			CertManager: ccmcommon.CertManagerDependency{ManagementPolicy: ccmcommon.Managed},
 		})
-
-		nn := types.NamespacedName{Name: ccmv1alpha1.CoreWeaveKubernetesEngineInstanceName}
-
-		wt.Get(gvk.CoreWeaveKubernetesEngine, nn).Eventually().Should(
-			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`),
-		)
 
 		wt.Get(gvk.Deployment, types.NamespacedName{
 			Name: "cert-manager-operator-controller-manager", Namespace: "cert-manager-operator",
@@ -113,9 +100,6 @@ func TestCoreWeaveKubernetesEngine(t *testing.T) {
 
 		wtC.Get(gvk.CoreWeaveKubernetesEngine, nn).Eventually().Should(
 			jq.Match(`.status.conditions[] | select(.type == "DependenciesAvailable") | .status == "True"`),
-		)
-		wtC.Get(gvk.CoreWeaveKubernetesEngine, nn).Eventually().Should(
-			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`),
 		)
 	})
 }

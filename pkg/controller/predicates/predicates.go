@@ -4,6 +4,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/generation"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 )
 
 var (
@@ -15,6 +16,12 @@ var (
 	// metadata (labels, annotations) have changed.
 	DefaultPredicate = predicate.Or(
 		generation.New(),
+		predicate.LabelChangedPredicate{},
+		predicate.AnnotationChangedPredicate{},
+	)
+
+	DefaultDeploymentPredicate = predicate.Or(
+		resources.NewDeploymentPredicate(),
 		predicate.LabelChangedPredicate{},
 		predicate.AnnotationChangedPredicate{},
 	)
