@@ -42,7 +42,10 @@ package common
 // +kubebuilder:rbac:groups="cert-manager.io",resources=certificates,verbs=get;list;watch;create;update;patch;delete
 
 // sail-operator
-// +kubebuilder:rbac:groups="sail-operator.io",resources=istios,verbs=get;list;watch;create;patch;update;delete
+// +kubebuilder:rbac:groups="sailoperator.io",resources=istios,verbs=get;list;watch;create;patch;update;delete
+
+// lws-operator
+// +kubebuilder:rbac:groups="operator.openshift.io",resources=leaderworkersetoperators,verbs=get;list;watch;create;patch;update;delete
 
 // Webhook annotations for sail-operator workaround (OSSM-12397)
 // TODO(OSSM-12397): Remove once the sail-operator ships a fix.
