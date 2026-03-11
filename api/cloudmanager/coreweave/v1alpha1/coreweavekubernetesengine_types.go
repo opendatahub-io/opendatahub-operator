@@ -46,6 +46,9 @@ type CoreWeaveKubernetesEngineStatus struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
 // +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-coreweavekubernetesengine'",message="CoreWeaveKubernetesEngine name must be default-coreweavekubernetesengine"
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
+// +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
+// +kubebuilder:printcolumn:name="Deps Available",type=string,JSONPath=`.status.conditions[?(@.type=="DependenciesAvailable")].status`,description="DependenciesAvailable"
 
 // CoreWeaveKubernetesEngine is the Schema for the CoreWeaveKubernetesEngines API.
 // It represents the configuration for a CoreWeave Kubernetes Engine cluster.
