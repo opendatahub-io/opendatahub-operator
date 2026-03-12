@@ -295,7 +295,7 @@ func (tc *MonitoringTestCtx) ValidateMonitorLabelInjection(t *testing.T) {
 
 	// Define labels for this specific test scenario
 	nsLabels := map[string]string{
-		ODHLabelMonitoring: "true",
+		labels.ODHLabelMonitoring: "true",
 	}
 
 	tc.createMonitorsEnvironment(t, nsLabels, nil)
@@ -319,6 +319,48 @@ func (tc *MonitoringTestCtx) ValidateMonitorLabelInjection(t *testing.T) {
 		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "true"`)),
 		WithCustomErrorMsg("Mutating webhook should inject opendatahub.io/monitoring=true label into ServiceMonitor"),
 	)
+
+	// Explicit cleanup based on deletion policy (runs only if test reaches this point)
+	switch testOpts.deletionPolicy {
+	case DeletionPolicyAlways:
+		t.Logf("Deletion Policy: Always. Cleaning up test resources in namespace %s", TestNamespaceName)
+		tc.DeleteResource(
+			WithMinimalObject(gvk.CoreosPodMonitor, types.NamespacedName{Name: TestPodMonitorName, Namespace: TestNamespaceName}),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+		tc.DeleteResource(
+			WithMinimalObject(gvk.CoreosServiceMonitor, types.NamespacedName{Name: TestServiceMonitorName, Namespace: TestNamespaceName}),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+		tc.DeleteResource(
+			WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: TestNamespaceName}),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+	case DeletionPolicyOnFailure:
+		if t.Failed() {
+			t.Logf("Test failed. Deletion Policy: On Failure. Cleaning up test resources in namespace %s", TestNamespaceName)
+			tc.DeleteResource(
+				WithMinimalObject(gvk.CoreosPodMonitor, types.NamespacedName{Name: TestPodMonitorName, Namespace: TestNamespaceName}),
+				WithIgnoreNotFound(true),
+				WithWaitForDeletion(true),
+			)
+			tc.DeleteResource(
+				WithMinimalObject(gvk.CoreosServiceMonitor, types.NamespacedName{Name: TestServiceMonitorName, Namespace: TestNamespaceName}),
+				WithIgnoreNotFound(true),
+				WithWaitForDeletion(true),
+			)
+			tc.DeleteResource(
+				WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: TestNamespaceName}),
+				WithIgnoreNotFound(true),
+				WithWaitForDeletion(true),
+			)
+		}
+	case DeletionPolicyNever:
+		t.Logf("Deletion Policy: Never. Skipping cleanup of test resources in namespace %s", TestNamespaceName)
+	}
 }
 
 // ValidateMonitorsCreationWithCustomLabels tests that webhook preserves custom labels when injecting monitoring label on CREATE.
@@ -327,7 +369,7 @@ func (tc *MonitoringTestCtx) ValidateMonitorsCreationWithCustomLabels(t *testing
 
 	// Namespace is opted-in for monitoring
 	nsLabels := map[string]string{
-		ODHLabelMonitoring: "true",
+		labels.ODHLabelMonitoring: "true",
 	}
 
 	// Create monitors WITH custom labels but WITHOUT monitoring label
@@ -361,6 +403,48 @@ func (tc *MonitoringTestCtx) ValidateMonitorsCreationWithCustomLabels(t *testing
 		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "true"`)),
 		WithCustomErrorMsg("Webhook should inject monitoring=true AND preserve custom labels (ServiceMonitor)"),
 	)
+
+	// Explicit cleanup based on deletion policy (runs only if test reaches this point)
+	switch testOpts.deletionPolicy {
+	case DeletionPolicyAlways:
+		t.Logf("Deletion Policy: Always. Cleaning up test resources in namespace %s", TestNamespaceName)
+		tc.DeleteResource(
+			WithMinimalObject(gvk.CoreosPodMonitor, types.NamespacedName{Name: TestPodMonitorName, Namespace: TestNamespaceName}),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+		tc.DeleteResource(
+			WithMinimalObject(gvk.CoreosServiceMonitor, types.NamespacedName{Name: TestServiceMonitorName, Namespace: TestNamespaceName}),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+		tc.DeleteResource(
+			WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: TestNamespaceName}),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+	case DeletionPolicyOnFailure:
+		if t.Failed() {
+			t.Logf("Test failed. Deletion Policy: On Failure. Cleaning up test resources in namespace %s", TestNamespaceName)
+			tc.DeleteResource(
+				WithMinimalObject(gvk.CoreosPodMonitor, types.NamespacedName{Name: TestPodMonitorName, Namespace: TestNamespaceName}),
+				WithIgnoreNotFound(true),
+				WithWaitForDeletion(true),
+			)
+			tc.DeleteResource(
+				WithMinimalObject(gvk.CoreosServiceMonitor, types.NamespacedName{Name: TestServiceMonitorName, Namespace: TestNamespaceName}),
+				WithIgnoreNotFound(true),
+				WithWaitForDeletion(true),
+			)
+			tc.DeleteResource(
+				WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: TestNamespaceName}),
+				WithIgnoreNotFound(true),
+				WithWaitForDeletion(true),
+			)
+		}
+	case DeletionPolicyNever:
+		t.Logf("Deletion Policy: Never. Skipping cleanup of test resources in namespace %s", TestNamespaceName)
+	}
 }
 
 // ValidateMonitorLabelInjectionOnUpdate tests that webhook injects label on UPDATE operation.
@@ -427,6 +511,48 @@ func (tc *MonitoringTestCtx) ValidateMonitorLabelInjectionOnUpdate(t *testing.T)
 		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "true"`)),
 		WithCustomErrorMsg("Webhook should inject monitoring label on UPDATE operation (ServiceMonitor)"),
 	)
+
+	// Explicit cleanup based on deletion policy (runs only if test reaches this point)
+	switch testOpts.deletionPolicy {
+	case DeletionPolicyAlways:
+		t.Logf("Deletion Policy: Always. Cleaning up test resources in namespace %s", TestNamespaceName)
+		tc.DeleteResource(
+			WithMinimalObject(gvk.CoreosPodMonitor, types.NamespacedName{Name: TestPodMonitorName, Namespace: TestNamespaceName}),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+		tc.DeleteResource(
+			WithMinimalObject(gvk.CoreosServiceMonitor, types.NamespacedName{Name: TestServiceMonitorName, Namespace: TestNamespaceName}),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+		tc.DeleteResource(
+			WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: TestNamespaceName}),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+	case DeletionPolicyOnFailure:
+		if t.Failed() {
+			t.Logf("Test failed. Deletion Policy: On Failure. Cleaning up test resources in namespace %s", TestNamespaceName)
+			tc.DeleteResource(
+				WithMinimalObject(gvk.CoreosPodMonitor, types.NamespacedName{Name: TestPodMonitorName, Namespace: TestNamespaceName}),
+				WithIgnoreNotFound(true),
+				WithWaitForDeletion(true),
+			)
+			tc.DeleteResource(
+				WithMinimalObject(gvk.CoreosServiceMonitor, types.NamespacedName{Name: TestServiceMonitorName, Namespace: TestNamespaceName}),
+				WithIgnoreNotFound(true),
+				WithWaitForDeletion(true),
+			)
+			tc.DeleteResource(
+				WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: TestNamespaceName}),
+				WithIgnoreNotFound(true),
+				WithWaitForDeletion(true),
+			)
+		}
+	case DeletionPolicyNever:
+		t.Logf("Deletion Policy: Never. Skipping cleanup of test resources in namespace %s", TestNamespaceName)
+	}
 }
 
 // ValidateMonitorLabelInjectionOnUpdateWithCustomLabels tests that webhook preserves custom labels on UPDATE.
@@ -505,6 +631,48 @@ func (tc *MonitoringTestCtx) ValidateMonitorLabelInjectionOnUpdateWithCustomLabe
 		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "true"`)),
 		WithCustomErrorMsg("Webhook should inject monitoring label AND preserve custom labels on UPDATE (ServiceMonitor)"),
 	)
+
+	// Explicit cleanup based on deletion policy (runs only if test reaches this point)
+	switch testOpts.deletionPolicy {
+	case DeletionPolicyAlways:
+		t.Logf("Deletion Policy: Always. Cleaning up test resources in namespace %s", TestNamespaceName)
+		tc.DeleteResource(
+			WithMinimalObject(gvk.CoreosPodMonitor, types.NamespacedName{Name: TestPodMonitorName, Namespace: TestNamespaceName}),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+		tc.DeleteResource(
+			WithMinimalObject(gvk.CoreosServiceMonitor, types.NamespacedName{Name: TestServiceMonitorName, Namespace: TestNamespaceName}),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+		tc.DeleteResource(
+			WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: TestNamespaceName}),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+	case DeletionPolicyOnFailure:
+		if t.Failed() {
+			t.Logf("Test failed. Deletion Policy: On Failure. Cleaning up test resources in namespace %s", TestNamespaceName)
+			tc.DeleteResource(
+				WithMinimalObject(gvk.CoreosPodMonitor, types.NamespacedName{Name: TestPodMonitorName, Namespace: TestNamespaceName}),
+				WithIgnoreNotFound(true),
+				WithWaitForDeletion(true),
+			)
+			tc.DeleteResource(
+				WithMinimalObject(gvk.CoreosServiceMonitor, types.NamespacedName{Name: TestServiceMonitorName, Namespace: TestNamespaceName}),
+				WithIgnoreNotFound(true),
+				WithWaitForDeletion(true),
+			)
+			tc.DeleteResource(
+				WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: TestNamespaceName}),
+				WithIgnoreNotFound(true),
+				WithWaitForDeletion(true),
+			)
+		}
+	case DeletionPolicyNever:
+		t.Logf("Deletion Policy: Never. Skipping cleanup of test resources in namespace %s", TestNamespaceName)
+	}
 }
 
 // ValidateWebhookSkipsNonMonitoredNamespace tests that webhook does NOT inject when namespace is not opted-in.
