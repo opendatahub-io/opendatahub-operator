@@ -180,6 +180,51 @@ func TestRenderMultipleHelmCharts(t *testing.T) {
 	))
 }
 
+func TestCRDInCrdsDirIsNotTemplated(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := t.Context()
+	ns := xid.New().String()
+	chartDir := filepath.Join("testdata", "with-crds-dir")
+
+	action := helm.NewAction(
+		helm.WithCache(false),
+	)
+
+	rr := types.ReconciliationRequest{
+		Instance: &ccmv1alpha1.AzureKubernetesEngine{},
+		HelmCharts: []types.HelmChartInfo{{
+			Source: helmRenderer.Source{
+				Chart:       chartDir,
+				ReleaseName: "test-crds-dir",
+				Values: helmRenderer.Values(map[string]any{
+					"namespace": ns,
+				}),
+			},
+		}},
+	}
+
+	err := action(ctx, &rr)
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(rr.Resources).Should(HaveLen(2))
+
+	// CRDs from crds/ directory are not template-rendered by the Helm engine,
+	// they are decoded as raw YAML. They should appear first in the output.
+	g.Expect(rr.Resources[0]).Should(And(
+		jq.Match(`.kind == "CustomResourceDefinition"`),
+		jq.Match(`.metadata.name == "testresources.test.opendatahub.io"`),
+	))
+
+	// Templates from templates/ directory are rendered through the Helm engine
+	g.Expect(rr.Resources[1]).Should(And(
+		jq.Match(`.kind == "TestResource"`),
+		jq.Match(`.metadata.namespace == "%s"`, ns),
+		jq.Match(`.metadata.name == "test-crds-dir-instance"`),
+		jq.Match(`.spec.message == "Hello from test-crds-dir"`),
+	))
+}
+
 func TestCRDAndCRRender(t *testing.T) {
 	g := NewWithT(t)
 
