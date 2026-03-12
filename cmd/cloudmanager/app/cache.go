@@ -13,7 +13,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 // DefaultCacheOptions builds cache.Options for the given scheme, watching the default
@@ -36,6 +38,14 @@ func DefaultCacheOptions(scheme *runtime.Scheme) (cache.Options, error) {
 		Label: labelSelector,
 	}
 
+	roleBindingCacheNamespaces := make(map[string]cache.Config, len(nsConfig)+1)
+	for ns, cfg := range nsConfig {
+		roleBindingCacheNamespaces[ns] = cfg
+	}
+	roleBindingCacheNamespaces[common.NamespaceKubeSystem] = cache.Config{
+		LabelSelector: labelSelector,
+	}
+
 	return cache.Options{
 		Scheme:            scheme,
 		DefaultNamespaces: nsConfig,
@@ -43,6 +53,9 @@ func DefaultCacheOptions(scheme *runtime.Scheme) (cache.Options, error) {
 			&rbacv1.ClusterRole{}:             clusterScopedConfig,
 			&rbacv1.ClusterRoleBinding{}:      clusterScopedConfig,
 			&extv1.CustomResourceDefinition{}: clusterScopedConfig,
+			resources.GvkToUnstructured(gvk.RoleBinding): {
+				Namespaces: roleBindingCacheNamespaces,
+			},
 		},
 		DefaultTransform: func(in any) (any, error) {
 			// Nilcheck managed fields to avoid hitting https://github.com/kubernetes/kubernetes/issues/124337
