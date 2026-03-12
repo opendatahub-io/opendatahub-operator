@@ -3,8 +3,10 @@ package workbenches
 import (
 	"path"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -14,9 +16,7 @@ const (
 
 	ReadyConditionType = componentApi.WorkbenchesKind + status.ReadySuffix
 
-	notebooksPath                    = "notebooks"
-	notebookImagesManifestSourcePath = "overlays/additional"
-	notebookImagesParamsPath         = "base"
+	notebooksPath = "notebooks"
 
 	notebookControllerPath               = "odh-notebook-controller"
 	notebookControllerManifestSourcePath = "base"
@@ -34,6 +34,18 @@ var (
 	notebookControllerContextDir   = path.Join(ComponentName, notebookControllerPath)
 	kfNotebookControllerContextDir = path.Join(ComponentName, kfNotebookControllerPath)
 	notebookContextDir             = path.Join(ComponentName, notebooksPath)
+
+	notebookImagesManifestSourcePath = map[common.Platform]string{
+		cluster.SelfManagedRhoai: "rhoai/overlays/additional",
+		cluster.ManagedRhoai:     "rhoai/overlays/additional",
+		cluster.OpenDataHub:      "odh/overlays/additional",
+	}
+
+	notebookImagesParamsPath = map[common.Platform]string{
+		cluster.SelfManagedRhoai: "rhoai/base",
+		cluster.ManagedRhoai:     "rhoai/base",
+		cluster.OpenDataHub:      "odh/base",
+	}
 )
 
 var (

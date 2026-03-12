@@ -63,7 +63,7 @@ func (s *componentHandler) Init(platform common.Platform) error {
 		return fmt.Errorf("failed to update params.env from %s : %w", kfNbcManifestInfo.String(), err)
 	}
 
-	nbImgsManifestInfo := notebookImagesManifestInfo(notebookImagesParamsPath)
+	nbImgsManifestInfo := notebookImagesManifestInfo(notebookImagesParamsPath[platform])
 	if err := odhdeploy.ApplyParams(nbImgsManifestInfo.String(), "params-latest.env", map[string]string{
 		// CodeServer Workbench Images
 		"odh-workbench-codeserver-datascience-cpu-py312-ubi9-n": "RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_DATASCIENCE_CPU_PY312_IMAGE",
