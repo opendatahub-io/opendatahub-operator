@@ -2,8 +2,6 @@ package coreweave
 
 import (
 	"github.com/spf13/cobra"
-	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
 
 	ccmv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/coreweave/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/cloudmanager/app"
@@ -22,15 +20,9 @@ func NewCmd() *cobra.Command {
 				AddToScheme:      ccmv1alpha1.AddToScheme,
 				LeaderElectionID: "coreweave.cloudmanager.opendatahub.io",
 				NewReconciler:    coreweavectrl.NewReconciler,
-				CacheOptions:     cacheOptions,
 			})
 		},
 	}
 
 	return cmd
-}
-
-func cacheOptions(scheme *runtime.Scheme) (cache.Options, error) {
-	kind := ccmv1alpha1.CoreWeaveKubernetesEngineKind
-	return app.DefaultCacheOptions(scheme, kind)
 }

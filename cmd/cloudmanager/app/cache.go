@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/selection"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -17,21 +18,19 @@ import (
 
 // DefaultCacheOptions builds cache.Options for the given scheme, watching the default
 // managed namespaces shared by all cloud managers and filtering cluster-scoped
-// resources by the infrastructure part-of label.
-func DefaultCacheOptions(scheme *runtime.Scheme, kind string) (cache.Options, error) {
-	infraPartOfValue := labels.NormalizePartOfValue(kind)
-	if infraPartOfValue == "" {
-		return cache.Options{}, fmt.Errorf("infraPartOfValue must not be empty for label %s", labels.InfrastructurePartOf)
-	}
-
+// resources by the existence of the infrastructure part-of label.
+func DefaultCacheOptions(scheme *runtime.Scheme) (cache.Options, error) {
 	nsConfig := make(map[string]cache.Config, len(common.ManagedNamespaces()))
 	for _, ns := range common.ManagedNamespaces() {
 		nsConfig[ns] = cache.Config{}
 	}
 
-	labelSelector := k8slabels.Set{
-		labels.InfrastructurePartOf: infraPartOfValue,
-	}.AsSelector()
+	requirement, err := k8slabels.NewRequirement(labels.InfrastructurePartOf, selection.Exists, nil)
+	if err != nil {
+		return cache.Options{}, fmt.Errorf("failed to create label requirement for %s: %w", labels.InfrastructurePartOf, err)
+	}
+
+	labelSelector := k8slabels.NewSelector().Add(*requirement)
 
 	clusterScopedConfig := cache.ByObject{
 		Label: labelSelector,

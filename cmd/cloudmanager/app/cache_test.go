@@ -18,58 +18,36 @@ func TestDefaultCacheOptions(t *testing.T) {
 	g := NewWithT(t)
 	s := runtime.NewScheme()
 
-	t.Run("label selector matches correct value", func(t *testing.T) {
+	t.Run("label selector matches resources with infrastructure label", func(t *testing.T) {
 		g := NewWithT(t)
 
-		opts, err := app.DefaultCacheOptions(s, "azurekubernetesengine")
+		opts, err := app.DefaultCacheOptions(s)
 		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(opts.ByObject).ToNot(BeEmpty(), "expected at least one selector for cluster-scoped resource types")
 
 		for obj, byObj := range opts.ByObject {
-			matching := k8slabels.Set{
+			withLabel := k8slabels.Set{
 				labels.InfrastructurePartOf: "azurekubernetesengine",
 			}
-			g.Expect(byObj.Label.Matches(matching)).To(BeTrue(),
-				"label selector for %T should match %v", obj, matching)
+			g.Expect(byObj.Label.Matches(withLabel)).To(BeTrue(),
+				"label selector for %T should match resources with %s label", obj, labels.InfrastructurePartOf)
 
-			nonMatching := k8slabels.Set{
+			withDifferentValue := k8slabels.Set{
 				labels.InfrastructurePartOf: "coreweavekubernetesengine",
 			}
-			g.Expect(byObj.Label.Matches(nonMatching)).To(BeFalse(),
-				"label selector for %T should not match %v", obj, nonMatching)
-		}
-	})
+			g.Expect(byObj.Label.Matches(withDifferentValue)).To(BeTrue(),
+				"label selector for %T should match resources with any %s value", obj, labels.InfrastructurePartOf)
 
-	t.Run("normalizes infraPartOfValue to lowercase and trimmed", func(t *testing.T) {
-		g := NewWithT(t)
-
-		opts, err := app.DefaultCacheOptions(s, "  AzureKubernetesEngine  ")
-		g.Expect(err).ShouldNot(HaveOccurred())
-
-		for obj, byObj := range opts.ByObject {
-			matching := k8slabels.Set{
-				labels.InfrastructurePartOf: "azurekubernetesengine",
+			withoutLabel := k8slabels.Set{
+				"some-other-label": "value",
 			}
-			g.Expect(byObj.Label.Matches(matching)).To(BeTrue(),
-				"label selector for %T should match normalized value %v", obj, matching)
+			g.Expect(byObj.Label.Matches(withoutLabel)).To(BeFalse(),
+				"label selector for %T should not match resources without %s label", obj, labels.InfrastructurePartOf)
 		}
-	})
-
-	t.Run("returns error on empty infraPartOfValue", func(t *testing.T) {
-		g := NewWithT(t)
-
-		_, err := app.DefaultCacheOptions(s, "")
-		g.Expect(err).Should(HaveOccurred())
-	})
-
-	t.Run("returns error on whitespace-only infraPartOfValue", func(t *testing.T) {
-		g := NewWithT(t)
-
-		_, err := app.DefaultCacheOptions(s, "   ")
-		g.Expect(err).Should(HaveOccurred())
 	})
 
 	t.Run("uses provided scheme", func(t *testing.T) {
-		opts, err := app.DefaultCacheOptions(s, "azurekubernetesengine")
+		opts, err := app.DefaultCacheOptions(s)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		g.Expect(opts.Scheme).To(Equal(s))
@@ -78,7 +56,7 @@ func TestDefaultCacheOptions(t *testing.T) {
 	t.Run("DefaultTransform clears ManagedFields", func(t *testing.T) {
 		g := NewWithT(t)
 
-		opts, err := app.DefaultCacheOptions(s, "azurekubernetesengine")
+		opts, err := app.DefaultCacheOptions(s)
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(opts.DefaultTransform).ShouldNot(BeNil())
 
