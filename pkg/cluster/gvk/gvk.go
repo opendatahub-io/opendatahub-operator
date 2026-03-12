@@ -495,9 +495,21 @@ var (
 		Kind:    "LLMInferenceServiceConfig",
 	}
 
+	LLMInferenceServiceConfigV1Alpha2 = schema.GroupVersionKind{
+		Group:   "serving.kserve.io",
+		Version: "v1alpha2",
+		Kind:    "LLMInferenceServiceConfig",
+	}
+
 	LLMInferenceServiceV1Alpha1 = schema.GroupVersionKind{
 		Group:   "serving.kserve.io",
 		Version: "v1alpha1",
+		Kind:    "LLMInferenceService",
+	}
+
+	LLMInferenceServiceV1Alpha2 = schema.GroupVersionKind{
+		Group:   "serving.kserve.io",
+		Version: "v1alpha2",
 		Kind:    "LLMInferenceService",
 	}
 
