@@ -406,20 +406,17 @@ func (a *Action) patch(
 
 	switch obj.GroupVersionKind() {
 	case gvk.Deployment:
-		// For deployments, we allow the user to change some parameters, such as
-		// container resources and replicas except:
-		// - If the resource does not exist (the resource must be created)
-		// - If the resource is forcefully marked as managed by the operator via
-		//   annotations (i.e. to bring it back to the default values)
-		if old == nil || resources.GetAnnotation(old, annotations.ManagedByODHOperator) == "true" {
+		if old == nil {
 			break
 		}
 
-		// To preserve backward compatibility with the current model, fields are being
-		// removed, hence not included in the final PATCH. Ideally with should leverage
-		// Server-Side Apply.
-		//
-		// Ideally deployed resources should be configured only via the platform API
+		if resources.GetAnnotation(old, annotations.ManagedByODHOperator) == "true" {
+			if err := RevertManagedDeploymentDrift(ctx, cli, obj, old); err != nil {
+				return nil, fmt.Errorf("failed to prepare managed Deployment %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
+			}
+			break
+		}
+
 		if err := RemoveDeploymentsResources(obj); err != nil {
 			return nil, fmt.Errorf("failed to apply allow list to Deployment %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
 		}
@@ -473,7 +470,17 @@ func (a *Action) apply(
 		// - If the resource does not exist (the resource must be created)
 		// - If the resource is forcefully marked as managed by the operator via
 		//   annotations (i.e. to bring it back to the default values)
-		if old == nil || resources.GetAnnotation(old, annotations.ManagedByODHOperator) == "true" {
+		if old == nil {
+			break
+		}
+
+		if resources.GetAnnotation(old, annotations.ManagedByODHOperator) == "true" {
+			// When explicitly managed, conditionally apply Strategic Merge Patch to remove user modifications.
+			// Only patches when drift is detected: manifest and deployed values differ for resources or replicas.
+			// NOTE: Strategic Merge Patch clears user-owned fields that SSA cannot remove, then SSA (line 500) applies manifest with operator ownership.
+			if err := RevertManagedDeploymentDrift(ctx, cli, obj, old); err != nil {
+				return nil, fmt.Errorf("failed to prepare managed Deployment %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
+			}
 			break
 		}
 

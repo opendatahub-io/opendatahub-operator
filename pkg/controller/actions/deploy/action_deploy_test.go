@@ -16,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -35,6 +36,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/mocks"
@@ -102,6 +104,204 @@ func TestDeployAction(t *testing.T) {
 		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformVersion, "1.2.3"),
 		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformType, string(cluster.OpenDataHub)),
 	))
+}
+
+// Helper to create a test deployment with optional resources and replicas.
+func createTestDeployment(namespace string, replicas *int32, cpuLimit string) *appsv1.Deployment {
+	dep := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-deploy", Namespace: namespace},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: replicas,
+			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "test"}},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "test"}},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name:  "test",
+						Image: "test:latest",
+					}},
+				},
+			},
+		},
+	}
+	if cpuLimit != "" {
+		dep.Spec.Template.Spec.Containers[0].Resources = corev1.ResourceRequirements{
+			Limits: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse(cpuLimit)},
+		}
+	}
+	return dep
+}
+
+func TestRevertManagedDeploymentDrift_ClearsResources(t *testing.T) {
+	g := NewWithT(t)
+	ctx := context.Background()
+
+	// Shared envtest setup for all subtests
+	et, err := envt.New()
+	g.Expect(err).NotTo(HaveOccurred())
+	t.Cleanup(func() { _ = et.Stop() })
+
+	cli := et.Client()
+	s := et.Scheme()
+
+	// Subtest 1: Clears resources when deployed has them but manifest doesn't
+	t.Run("clears resources", func(t *testing.T) {
+		g := NewWithT(t)
+
+		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-ns-clear-resources"}}
+		err = cli.Create(ctx, ns)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		deployed := createTestDeployment("test-ns-clear-resources", nil, "200m")
+		err = cli.Create(ctx, deployed)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		manifestTyped := createTestDeployment("test-ns-clear-resources", nil, "")
+		manifestTyped.TypeMeta = metav1.TypeMeta{
+			APIVersion: appsv1.SchemeGroupVersion.String(),
+			Kind:       "Deployment",
+		}
+
+		manifestUnstructured, err := resources.ObjectToUnstructured(s, manifestTyped)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		// Remove resources field (no validation needed since we created this deployment)
+		containers, _, err := unstructured.NestedSlice(manifestUnstructured.Object, "spec", "template", "spec", "containers")
+		g.Expect(err).NotTo(HaveOccurred())
+		container, ok := containers[0].(map[string]interface{})
+		g.Expect(ok).To(BeTrue(), "container should be a map")
+		delete(container, "resources")
+		_ = unstructured.SetNestedSlice(manifestUnstructured.Object, containers, "spec", "template", "spec", "containers")
+
+		deployedUnstructured, err := resources.ObjectToUnstructured(s, deployed)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		err = deploy.RevertManagedDeploymentDrift(ctx, cli, manifestUnstructured, deployedUnstructured)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		result := &appsv1.Deployment{}
+		err = cli.Get(ctx, client.ObjectKey{Namespace: "test-ns-clear-resources", Name: "test-deploy"}, result)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		g.Expect(result.Spec.Template.Spec.Containers[0].Resources.Limits).To(BeEmpty(), "Resources should be cleared")
+		g.Expect(result.Spec.Template.Spec.Containers[0].Resources.Requests).To(BeEmpty(), "Resources should be cleared")
+	})
+
+	// Subtest 2: Replicas drift
+	t.Run("replicas drift", func(t *testing.T) {
+		g := NewWithT(t)
+
+		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-ns-replicas"}}
+		err = cli.Create(ctx, ns)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		replicas := int32(3)
+		deployed := createTestDeployment("test-ns-replicas", &replicas, "")
+		err = cli.Create(ctx, deployed)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		manifestTyped := createTestDeployment("test-ns-replicas", nil, "")
+		manifestTyped.TypeMeta = metav1.TypeMeta{
+			APIVersion: appsv1.SchemeGroupVersion.String(),
+			Kind:       "Deployment",
+		}
+
+		manifestUnstructured, err := resources.ObjectToUnstructured(s, manifestTyped)
+		g.Expect(err).NotTo(HaveOccurred())
+		unstructured.RemoveNestedField(manifestUnstructured.Object, "spec", "replicas")
+
+		deployedUnstructured, err := resources.ObjectToUnstructured(s, deployed)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		err = deploy.RevertManagedDeploymentDrift(ctx, cli, manifestUnstructured, deployedUnstructured)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		result := &appsv1.Deployment{}
+		err = cli.Get(ctx, client.ObjectKey{Namespace: "test-ns-replicas", Name: "test-deploy"}, result)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		g.Expect(*result.Spec.Replicas).To(Equal(int32(1)), "Replicas should be reset to Kubernetes default (1)")
+	})
+
+	// Subtest 3: No drift
+	t.Run("no drift", func(t *testing.T) {
+		g := NewWithT(t)
+
+		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-ns-nodrift"}}
+		err = cli.Create(ctx, ns)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		deployed := createTestDeployment("test-ns-nodrift", nil, "")
+		err = cli.Create(ctx, deployed)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		manifestTyped := createTestDeployment("test-ns-nodrift", nil, "")
+		manifestTyped.TypeMeta = metav1.TypeMeta{
+			APIVersion: appsv1.SchemeGroupVersion.String(),
+			Kind:       "Deployment",
+		}
+
+		manifestUnstructured, err := resources.ObjectToUnstructured(s, manifestTyped)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		// Remove resources field (no validation needed since we created this deployment)
+		containers, _, err := unstructured.NestedSlice(manifestUnstructured.Object, "spec", "template", "spec", "containers")
+		g.Expect(err).NotTo(HaveOccurred())
+		container, ok := containers[0].(map[string]interface{})
+		g.Expect(ok).To(BeTrue(), "container should be a map")
+		delete(container, "resources")
+		_ = unstructured.SetNestedSlice(manifestUnstructured.Object, containers, "spec", "template", "spec", "containers")
+		unstructured.RemoveNestedField(manifestUnstructured.Object, "spec", "replicas")
+
+		deployedUnstructured, err := resources.ObjectToUnstructured(s, deployed)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		originalResourceVersion := deployed.ResourceVersion
+
+		err = deploy.RevertManagedDeploymentDrift(ctx, cli, manifestUnstructured, deployedUnstructured)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		result := &appsv1.Deployment{}
+		err = cli.Get(ctx, client.ObjectKey{Namespace: "test-ns-nodrift", Name: "test-deploy"}, result)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		g.Expect(result.ResourceVersion).To(Equal(originalResourceVersion), "ResourceVersion should be unchanged when no drift")
+	})
+
+	// Subtest 4: Both have resources but differ
+	t.Run("both have resources but differ", func(t *testing.T) {
+		g := NewWithT(t)
+
+		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-ns-both-resources"}}
+		err = cli.Create(ctx, ns)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		deployed := createTestDeployment("test-ns-both-resources", nil, "200m")
+		err = cli.Create(ctx, deployed)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		manifestTyped := createTestDeployment("test-ns-both-resources", nil, "100m")
+		manifestTyped.TypeMeta = metav1.TypeMeta{
+			APIVersion: appsv1.SchemeGroupVersion.String(),
+			Kind:       "Deployment",
+		}
+
+		manifestUnstructured, err := resources.ObjectToUnstructured(s, manifestTyped)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		deployedUnstructured, err := resources.ObjectToUnstructured(s, deployed)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		err = deploy.RevertManagedDeploymentDrift(ctx, cli, manifestUnstructured, deployedUnstructured)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		result := &appsv1.Deployment{}
+		err = cli.Get(ctx, client.ObjectKey{Namespace: "test-ns-both-resources", Name: "test-deploy"}, result)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		g.Expect(result.Spec.Template.Spec.Containers[0].Resources.Limits).To(
+			HaveKeyWithValue(corev1.ResourceCPU, resource.MustParse("100m")), "Resources should be updated to manifest values")
+	})
 }
 
 func TestDeployNotOwnedSkip(t *testing.T) {
