@@ -10,6 +10,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	monitoringwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/monitoring"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 
 	. "github.com/onsi/gomega"
@@ -56,7 +57,7 @@ func TestMonitoringWebhook_LabelInjection(t *testing.T) {
 			// Create test namespace with monitoring enabled
 			ns := fmt.Sprintf("test-ns-%s", xid.New().String())
 			testNamespace := envtestutil.NewNamespace(ns, map[string]string{
-				monitoringLabelKey: monitoringLabelValue,
+				labels.ODHLabelMonitoring: monitoringLabelValue,
 			})
 			g.Expect(env.Client().Create(ctx, testNamespace)).To(Succeed())
 
@@ -108,18 +109,18 @@ func TestMonitoringWebhook_Update(t *testing.T) {
 	g.Expect(ok).Should(BeTrue(), "podMonitor should be *unstructured.Unstructured")
 
 	// Set monitoring label to "false" before creation
-	labels := podMonitorUnstructured.GetLabels()
-	if labels == nil {
-		labels = make(map[string]string)
+	lbls := podMonitorUnstructured.GetLabels()
+	if lbls == nil {
+		lbls = make(map[string]string)
 	}
-	labels[monitoringLabelKey] = "false"
-	podMonitorUnstructured.SetLabels(labels)
+	lbls[labels.ODHLabelMonitoring] = "false"
+	podMonitorUnstructured.SetLabels(lbls)
 
 	g.Expect(env.Client().Create(ctx, podMonitor)).To(Succeed())
 
 	// Verify webhook respected the "false" value (didn't overwrite it)
 	currentLabels := podMonitorUnstructured.GetLabels()
-	g.Expect(currentLabels[monitoringLabelKey]).Should(Equal("false"))
+	g.Expect(currentLabels[labels.ODHLabelMonitoring]).Should(Equal("false"))
 
 	// Update the PodMonitor spec
 	spec := map[string]interface{}{
@@ -136,7 +137,7 @@ func TestMonitoringWebhook_Update(t *testing.T) {
 
 	// Verify webhook still respects the "false" value on UPDATE
 	updatedLabels := podMonitorUnstructured.GetLabels()
-	g.Expect(updatedLabels[monitoringLabelKey]).Should(Equal("false"))
+	g.Expect(updatedLabels[labels.ODHLabelMonitoring]).Should(Equal("false"))
 }
 
 // TestMonitoringWebhook_NamespaceNotMonitored verifies webhook doesn't inject
