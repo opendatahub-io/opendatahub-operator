@@ -249,6 +249,8 @@ func WithLlmInferenceService() CRDSetupOption {
 		// Register LlmInferenceService types
 		env.Scheme().AddKnownTypeWithName(gvk.LLMInferenceServiceV1Alpha1, &unstructured.Unstructured{})
 		env.Scheme().AddKnownTypeWithName(gvk.LLMInferenceServiceV1Alpha1.GroupVersion().WithKind("LlmInferenceServiceList"), &unstructured.UnstructuredList{})
+		env.Scheme().AddKnownTypeWithName(gvk.LLMInferenceServiceV1Alpha2, &unstructured.Unstructured{})
+		env.Scheme().AddKnownTypeWithName(gvk.LLMInferenceServiceV1Alpha2.GroupVersion().WithKind("LlmInferenceServiceList"), &unstructured.UnstructuredList{})
 
 		// Create LlmInferenceService CRD
 		crd := MockLlmInferenceServiceCRD()
@@ -1005,18 +1007,30 @@ func MockLlmInferenceServiceCRD() *apiextensionsv1.CustomResourceDefinition {
 				Kind:     "LLMInferenceService",
 			},
 			Scope: "Namespaced",
-			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
-				Name:    "v1alpha1",
-				Served:  true,
-				Storage: true,
-				Schema: &apiextensionsv1.CustomResourceValidation{
-					OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
-						Type: "object",
-						// This allows any structure
-						XPreserveUnknownFields: &preserveUnknownFields,
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
+				{
+					Name:    "v1alpha1",
+					Served:  true,
+					Storage: true,
+					Schema: &apiextensionsv1.CustomResourceValidation{
+						OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+							Type:                   "object",
+							XPreserveUnknownFields: &preserveUnknownFields,
+						},
 					},
 				},
-			}},
+				{
+					Name:    "v1alpha2",
+					Served:  true,
+					Storage: false,
+					Schema: &apiextensionsv1.CustomResourceValidation{
+						OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+							Type:                   "object",
+							XPreserveUnknownFields: &preserveUnknownFields,
+						},
+					},
+				},
+			},
 		},
 	}
 }
