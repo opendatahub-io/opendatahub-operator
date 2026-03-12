@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrl "sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -37,6 +38,7 @@ func main() {
 		"Run only these layers, comma-separated (e.g. infrastructure, workload, operator). "+
 			"infrastructure=nodes,quotas; workload=deployments,pods,events,operator,dsci,dsc; operator=operator,dsci,dsc")
 	sectionsFlag := flag.String("sections", "", "Comma-separated list of sections to run (e.g. nodes,quotas or deployments,pods). Overrides -layer.")
+	logLines := flag.Int64("log-lines", 50, "Number of log tail lines to capture per unhealthy container. 0 = default (50), negative = disable log capture.")
 
 	// Configuration: flag default is env var (or static default).
 	operatorNamespace := flag.String("operator-namespace", getEnvDefault(envOperatorNamespace, defaultOperatorNS),
@@ -71,6 +73,17 @@ func main() {
 		os.Exit(1)
 	}
 	cfg.Client = c
+	cfg.LogTailLines = *logLines
+
+	if *logLines >= 0 {
+		clientset, csErr := kubernetes.NewForConfig(kubeConfig)
+		if csErr != nil {
+			fmt.Fprintf(os.Stderr, "health-check: clientset (for pod logs): %v\n", csErr)
+			fmt.Fprintf(os.Stderr, "Continuing without log capture.\n")
+		} else {
+			cfg.Clientset = clientset
+		}
+	}
 
 	report, err := clusterhealth.Run(context.Background(), cfg)
 	if err != nil {
