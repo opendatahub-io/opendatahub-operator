@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"slices"
 
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -22,8 +24,9 @@ import (
 // managed namespaces shared by all cloud managers and filtering cluster-scoped
 // resources by the existence of the infrastructure part-of label.
 func DefaultCacheOptions(scheme *runtime.Scheme) (cache.Options, error) {
-	nsConfig := make(map[string]cache.Config, len(common.ManagedNamespaces()))
-	for _, ns := range common.ManagedNamespaces() {
+	managedNamespaces := common.ManagedNamespaces()
+	nsConfig := make(map[string]cache.Config, len(managedNamespaces))
+	for _, ns := range managedNamespaces {
 		nsConfig[ns] = cache.Config{}
 	}
 
@@ -46,6 +49,9 @@ func DefaultCacheOptions(scheme *runtime.Scheme) (cache.Options, error) {
 		LabelSelector: labelSelector,
 	}
 
+	certManagerNamespace := certmanager.DefaultBootstrapConfig().CertManagerNamespace
+	certManagerCacheOption := cacheOptionsWithAdditionalNamespaces(managedNamespaces, certManagerNamespace)
+
 	return cache.Options{
 		Scheme:            scheme,
 		DefaultNamespaces: nsConfig,
@@ -59,6 +65,7 @@ func DefaultCacheOptions(scheme *runtime.Scheme) (cache.Options, error) {
 			resources.GvkToUnstructured(gvk.RoleBinding): {
 				Namespaces: roleBindingCacheNamespaces,
 			},
+			resources.GvkToUnstructured(gvk.CertManagerCertificate): certManagerCacheOption,
 		},
 		DefaultTransform: func(in any) (any, error) {
 			// Nilcheck managed fields to avoid hitting https://github.com/kubernetes/kubernetes/issues/124337
@@ -69,4 +76,15 @@ func DefaultCacheOptions(scheme *runtime.Scheme) (cache.Options, error) {
 			return in, nil
 		},
 	}, nil
+}
+
+func cacheOptionsWithAdditionalNamespaces(managedNamespaces []string, otherNamespaces ...string) cache.ByObject {
+	namespaces := slices.Concat(managedNamespaces, otherNamespaces)
+	nsConfig := make(map[string]cache.Config, len(namespaces))
+	for _, ns := range namespaces {
+		nsConfig[ns] = cache.Config{}
+	}
+	return cache.ByObject{
+		Namespaces: nsConfig,
+	}
 }
