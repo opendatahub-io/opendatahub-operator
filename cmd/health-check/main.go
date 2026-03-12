@@ -74,9 +74,9 @@ func main() {
 		os.Exit(1)
 	}
 	cfg.Client = c
-	cfg.LogTailLines = *logLines
-
-	if *logLines >= 0 {
+	needLogs := (*longFormat || *outputJSON) && *logLines >= 0
+	if needLogs {
+		cfg.LogTailLines = *logLines
 		clientset, csErr := kubernetes.NewForConfig(kubeConfig)
 		if csErr != nil {
 			fmt.Fprintf(os.Stderr, "health-check: clientset (for pod logs): %v\n", csErr)

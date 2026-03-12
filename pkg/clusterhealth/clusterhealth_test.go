@@ -852,6 +852,15 @@ func TestRedactSensitiveInfo(t *testing.T) {
 		{"access key", "access-key=AKIA123456", "access-key=[REDACTED]"},
 		{"multiple secrets", "password=abc token=def", "password=[REDACTED] token=[REDACTED]"},
 		{"case insensitive", "PASSWORD=mysecret", "PASSWORD=[REDACTED]"},
+		{"json password", `{"password":"mysecret"}`, `{"password":"[REDACTED]"}`},
+		{"json token", `{"token":"abc123"}`, `{"token":"[REDACTED]"}`},
+		{"json secret", `{"secret":"s3cret"}`, `{"secret":"[REDACTED]"}`},
+		{"json api_key", `{"api_key":"mykey123"}`, `{"api_key":"[REDACTED]"}`},
+		{"json access_key", `{"access_key":"AKIA123"}`, `{"access_key":"[REDACTED]"}`},
+		{"json authorization", `{"authorization":"Bearer xyz"}`, `{"authorization":"[REDACTED]"}`},
+		{"json credentials", `{"credentials":"creds123"}`, `{"credentials":"[REDACTED]"}`},
+		{"json with spaces", `{"token" : "spaced"}`, `{"token" : "[REDACTED]"}`},
+		{"json mixed with text", `level=info {"password":"leak"} done`, `level=info {"password":"[REDACTED]"} done`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
