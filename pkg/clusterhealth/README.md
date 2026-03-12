@@ -152,9 +152,9 @@ The CR must expose `status.conditions` as a slice of objects with `type`, `statu
 The `cmd/health-check` binary uses this library. Set the same env vars as e2e (`E2E_TEST_OPERATOR_NAMESPACE`, `E2E_TEST_APPLICATIONS_NAMESPACE`, `E2E_TEST_WORKBENCHES_NAMESPACE`, `E2E_TEST_DSC_MONITORING_NAMESPACE`), then:
 
 ```bash
-go run ./cmd/health-check              # all sections, summary (with log capture)
+go run ./cmd/health-check              # all sections, summary (no log capture)
 go run ./cmd/health-check -l          # all sections, long format (conditions/details + container logs)
-go run ./cmd/health-check -json       # full report as JSON (includes logs in ContainerInfo)
+go run ./cmd/health-check -json       # full report as JSON (includes container logs)
 go run ./cmd/health-check -log-lines=20  # capture 20 lines per container (default 50)
 go run ./cmd/health-check -log-lines=-1  # disable log capture
 go run ./cmd/health-check -layer=infrastructure
