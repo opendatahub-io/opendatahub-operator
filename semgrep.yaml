@@ -42,7 +42,7 @@ rules:
 
       If this is a test fixture or example:
         - Add comment: # nosemgrep: generic-hardcoded-secret
-        - Or use obviously fake values: password = "REPLACE_ME"
+        - Or use obviously fake values: password = "FAKE"
     patterns:
       - pattern-regex: |-
           (?i)(password|passwd|pwd|secret|token|api[_-]?key|private[_-]?key)\s*[:=]+\s*["'][^"']{8,}["']
@@ -71,7 +71,7 @@ rules:
         - Enable AWS CloudTrail for key usage monitoring
 
       False Positive: If this is documentation/example, replace with:
-        AKIAIOSFODNN7EXAMPLE (official AWS example key)
+        AKIA...EXAMPLE (redacted AWS example key)
     pattern-regex: 'AKIA[0-9A-Z]{16}'
     metadata:
       cwe: "CWE-798"
@@ -773,6 +773,10 @@ rules:
           patterns:
             - pattern-not: ${{ secrets.$SECRET }}
             - pattern-not: ${{ env.$ENV }}
+    paths:
+      include:
+        - "**/.github/workflows/*.yml"
+        - "**/.github/workflows/*.yaml"
     metadata:
       cwe: "CWE-798"
       category: "security"
@@ -1047,13 +1051,25 @@ rules:
     patterns:
       - pattern-either:
           - pattern: |
-              const $VAR = "password"
+              $VAR := $VALUE
           - pattern: |
-              const $VAR = "secret"
+              const $VAR = $VALUE
           - pattern: |
-              const $VAR = "token"
-          - pattern: |
-              var $VAR = "Bearer ..."
+              var $VAR = $VALUE
+      - metavariable-regex:
+          metavariable: $VAR
+          regex: (?i)(password|passwd|secret|token|api[_-]?key|private[_-]?key|credentials?)
+      - metavariable-regex:
+          metavariable: $VALUE
+          regex: '"[^"]{8,}"'
+      - pattern-not: |
+          $VAR := os.Getenv("...")
+      - pattern-not: |
+          var $VAR = os.Getenv("...")
+      - pattern-not: |
+          const $VAR = os.Getenv("...")
+      - pattern-not: |
+          $VAR, $_ := os.LookupEnv("...")
     metadata:
       cwe: "CWE-798"
       owasp: "A07:2021"
