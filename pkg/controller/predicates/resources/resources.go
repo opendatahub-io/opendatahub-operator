@@ -36,6 +36,7 @@ type DeploymentPredicate struct {
 
 // Update implements default UpdateEvent filter for validating generation change.
 // Works with both typed *appsv1.Deployment and *unstructured.Unstructured objects.
+// Also triggers reconciliation when labels or annotations change.
 func (DeploymentPredicate) Update(e event.UpdateEvent) bool {
 	if e.ObjectOld == nil || e.ObjectNew == nil {
 		return false
@@ -50,7 +51,9 @@ func (DeploymentPredicate) Update(e event.UpdateEvent) bool {
 
 	return e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration() ||
 		oldReplicas != newReplicas ||
-		oldReadyReplicas != newReadyReplicas
+		oldReadyReplicas != newReadyReplicas ||
+		predicate.LabelChangedPredicate{}.Update(e) ||
+		predicate.AnnotationChangedPredicate{}.Update(e)
 }
 
 // getDeploymentStatus extracts replicas and readyReplicas from a Deployment object.

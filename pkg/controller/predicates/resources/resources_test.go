@@ -182,6 +182,69 @@ func TestDeploymentPredicateUpdate(t *testing.T) {
 			},
 			want: true,
 		},
+		{
+			name: "managed annotation changed",
+			old: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Generation: 1,
+					Annotations: map[string]string{
+						"opendatahub.io/managed": "true",
+					},
+				},
+				Status: appsv1.DeploymentStatus{Replicas: 2, ReadyReplicas: 2},
+			},
+			new: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Generation: 1,
+					Annotations: map[string]string{
+						"opendatahub.io/managed": "false",
+					},
+				},
+				Status: appsv1.DeploymentStatus{Replicas: 2, ReadyReplicas: 2},
+			},
+			want: true,
+		},
+		{
+			name: "managed annotation added",
+			old: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Generation: 1,
+				},
+				Status: appsv1.DeploymentStatus{Replicas: 2, ReadyReplicas: 2},
+			},
+			new: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Generation: 1,
+					Annotations: map[string]string{
+						"opendatahub.io/managed": "true",
+					},
+				},
+				Status: appsv1.DeploymentStatus{Replicas: 2, ReadyReplicas: 2},
+			},
+			want: true,
+		},
+		{
+			name: "managed annotation unchanged - no trigger",
+			old: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Generation: 1,
+					Annotations: map[string]string{
+						"opendatahub.io/managed": "true",
+					},
+				},
+				Status: appsv1.DeploymentStatus{Replicas: 2, ReadyReplicas: 2},
+			},
+			new: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Generation: 1,
+					Annotations: map[string]string{
+						"opendatahub.io/managed": "true",
+					},
+				},
+				Status: appsv1.DeploymentStatus{Replicas: 2, ReadyReplicas: 2},
+			},
+			want: false,
+		},
 	}
 
 	unstructuredDeployment := func(t *testing.T, g *WithT, deployment *appsv1.Deployment) *unstructured.Unstructured {
