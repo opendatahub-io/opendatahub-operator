@@ -39,12 +39,22 @@ var problematicWaitingReasons = map[string]bool{
 }
 
 var redactionPatterns = []*regexp.Regexp{
+	// Header-style: Authorization: Bearer <token>
 	regexp.MustCompile(`(?i)(Authorization:\s*Bearer\s+)[^\s]+`),
+	// key=value and key: value (unquoted values)
 	regexp.MustCompile(`(?i)(password[=:\s]+)[^\s&"']+`),
 	regexp.MustCompile(`(?i)(token[=:\s]+)[^\s&"']+`),
 	regexp.MustCompile(`(?i)(secret[=:\s]+)[^\s&"']+`),
 	regexp.MustCompile(`(?i)(api[_-]?key[=:\s]+)[^\s&"']+`),
 	regexp.MustCompile(`(?i)(access[_-]?key[=:\s]+)[^\s&"']+`),
+	// JSON-structured: {"password":"value"} or {"token": "value"}
+	regexp.MustCompile(`(?i)("password"\s*:\s*")[^"]*(")`),
+	regexp.MustCompile(`(?i)("token"\s*:\s*")[^"]*(")`),
+	regexp.MustCompile(`(?i)("secret"\s*:\s*")[^"]*(")`),
+	regexp.MustCompile(`(?i)("api[_-]?key"\s*:\s*")[^"]*(")`),
+	regexp.MustCompile(`(?i)("access[_-]?key"\s*:\s*")[^"]*(")`),
+	regexp.MustCompile(`(?i)("authorization"\s*:\s*")[^"]*(")`),
+	regexp.MustCompile(`(?i)("credential[s]?"\s*:\s*")[^"]*(")`),
 }
 
 // determineLogType decides whether to fetch logs for a container and whether
@@ -78,7 +88,7 @@ func determineLogType(c ContainerInfo) string {
 func redactSensitiveInfo(logContent string) string {
 	result := logContent
 	for _, p := range redactionPatterns {
-		result = p.ReplaceAllString(result, "${1}[REDACTED]")
+		result = p.ReplaceAllString(result, "${1}[REDACTED]${2}")
 	}
 	return result
 }
