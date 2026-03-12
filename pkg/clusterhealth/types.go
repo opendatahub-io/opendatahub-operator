@@ -110,6 +110,9 @@ type ContainerInfo struct {
 	RequestsMemory *int64 `json:"requestsMemory,omitempty"` // in bytes
 	LimitsCPU      *int64 `json:"limitsCPU,omitempty"`      // in millicores
 	LimitsMemory   *int64 `json:"limitsMemory,omitempty"`   // in bytes
+	Logs         string `json:"logs,omitempty"`        // tail of recent logs for problematic containers
+	LogError     string `json:"logError,omitempty"`    // set when log fetch failed
+	LogPrevious  bool   `json:"logPrevious,omitempty"` // true when Logs are from the previous container instance
 }
 
 type EventsSection struct {

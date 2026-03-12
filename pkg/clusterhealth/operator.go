@@ -25,7 +25,7 @@ var dependentOperatorNamespaces = []struct{ name, namespace string }{
 	{"kuadrant", "kuadrant-system"},
 }
 
-func runOperatorSection(ctx context.Context, c client.Client, op OperatorConfig) SectionResult[OperatorSection] {
+func runOperatorSection(ctx context.Context, c client.Client, op OperatorConfig, logCfg logConfig) SectionResult[OperatorSection] {
 	var out SectionResult[OperatorSection]
 	var errs []string
 
@@ -57,6 +57,7 @@ func runOperatorSection(ctx context.Context, c client.Client, op OperatorConfig)
 		return out
 	}
 	out.Data.Pods = pods
+	captureLogsForPods(ctx, logCfg.clientset, logCfg.tailLines, out.Data.Pods)
 	if out.Data.Data != nil {
 		out.Data.Data.Pods = rawPods
 	}
