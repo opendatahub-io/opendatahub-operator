@@ -37,6 +37,7 @@ func TestCoreWeaveKubernetesEngine(t *testing.T) {
 		wt := tc.NewWithT(t)
 
 		createCoreweaveCR(t, wt, ccmcommon.Dependencies{
+			GatewayAPI:   ccmcommon.GatewayAPIDependency{ManagementPolicy: ccmcommon.Managed},
 			CertManager:  ccmcommon.CertManagerDependency{ManagementPolicy: ccmcommon.Managed},
 			LWS:          ccmcommon.LWSDependency{ManagementPolicy: ccmcommon.Managed},
 			SailOperator: ccmcommon.SailOperatorDependency{ManagementPolicy: ccmcommon.Managed},
