@@ -3,6 +3,7 @@ package common
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	helm "github.com/k8s-manifest-kit/renderer-helm/pkg"
 
@@ -32,6 +33,18 @@ type chartDef struct {
 // namespaces. Both ManagedNamespaces and BuildHelmCharts derive from this list.
 func allChartDefs() []chartDef {
 	return []chartDef{
+		{
+			policyFn: func(d ccmcommon.Dependencies) ccmcommon.ManagementPolicy {
+				return d.GatewayAPI.ManagementPolicy
+			},
+			chart: types.HelmChartInfo{
+				Source: helm.Source{
+					Chart:       filepath.Join(DefaultChartsPath, "gateway-api"),
+					ReleaseName: "gateway-api",
+					Values:      helm.Values(map[string]any{}),
+				},
+			},
+		},
 		{
 			namespace: NamespaceCertManagerOperator,
 			policyFn: func(d ccmcommon.Dependencies) ccmcommon.ManagementPolicy {
@@ -92,6 +105,9 @@ func ManagedNamespaces() []string {
 	var namespaces []string
 
 	for _, def := range allChartDefs() {
+		if strings.TrimSpace(def.namespace) == "" {
+			continue
+		}
 		if _, ok := seen[def.namespace]; !ok {
 			seen[def.namespace] = struct{}{}
 			namespaces = append(namespaces, def.namespace)
