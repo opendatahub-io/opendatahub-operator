@@ -5,7 +5,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	hardwareprofilewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/hardwareprofile"
-	kueuewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/kueue"
 	notebookwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/notebook"
 	servingwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/serving"
 	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
@@ -24,15 +23,17 @@ import (
 //   - Testing any workflow that creates resources matching multiple webhook selectors
 //   - You need all webhooks to be available to avoid "webhook endpoint not found" errors
 func RegisterWebhooks(mgr manager.Manager) error {
-	// Register Kueue webhook for all resource types
-	kueueValidator := &kueuewebhook.Validator{
-		Client:  mgr.GetAPIReader(),
-		Decoder: admission.NewDecoder(mgr.GetScheme()),
-		Name:    "kueue-validating",
-	}
-	if err := kueueValidator.SetupWithManager(mgr); err != nil {
-		return err
-	}
+	// NOTE: kueue validating webhook registration is disabled.
+	// To re-enable, uncomment the block below and restore the kueuewebhook import.
+	//
+	// kueueValidator := &kueuewebhook.Validator{
+	// 	Client:  mgr.GetAPIReader(),
+	// 	Decoder: admission.NewDecoder(mgr.GetScheme()),
+	// 	Name:    "kueue-validating",
+	// }
+	// if err := kueueValidator.SetupWithManager(mgr); err != nil {
+	// 	return err
+	// }
 
 	// Register Hardware Profile webhook
 	hardwareProfileInjector := &hardwareprofilewebhook.Injector{

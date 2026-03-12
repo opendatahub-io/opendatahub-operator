@@ -4,7 +4,6 @@ package kueue
 
 import (
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // RegisterWebhooks registers the webhooks for kueue label validation.
@@ -14,14 +13,17 @@ import (
 //
 // Returns:
 //   - error: Any error encountered during webhook registration.
-func RegisterWebhooks(mgr ctrl.Manager) error {
-	if err := (&Validator{
-		Client:  mgr.GetAPIReader(),
-		Decoder: admission.NewDecoder(mgr.GetScheme()),
-		Name:    "kueue-validating",
-	}).SetupWithManager(mgr); err != nil {
-		return err
-	}
+func RegisterWebhooks(_ ctrl.Manager) error {
+	// NOTE: kueue validating webhook is disabled. To re-enable, uncomment the
+	// lines below and restore the +kubebuilder:webhook: markers in validating.go.
+	//
+	// if err := (&Validator{
+	// 	Client:  mgr.GetAPIReader(),
+	// 	Decoder: admission.NewDecoder(mgr.GetScheme()),
+	// 	Name:    "kueue-validating",
+	// }).SetupWithManager(mgr); err != nil {
+	// 	return err
+	// }
 
 	return nil
 }
