@@ -6,15 +6,11 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/azure"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
 	testscheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
@@ -67,42 +63,16 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	tc, err = testf.NewTestContext(
-		testf.WithRestConfig(cfg),
-		testf.WithScheme(s),
-		testf.WithContext(ctx),
-		testf.WithTOptions(
-			testf.WithEventuallyTimeout(2*time.Minute),
-			testf.WithEventuallyPollingInterval(250*time.Millisecond),
-		),
-	)
+	tc, err = newAzureTestContext(ctx, cfg, s)
 	if err != nil {
 		logf.Log.Error(err, "failed to create test context")
 		os.Exit(1)
 	}
 
-	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
-		Scheme:         s,
-		LeaderElection: false,
-		Metrics: ctrlmetrics.Options{
-			BindAddress: "0",
-		},
-	})
-	if err != nil {
-		logf.Log.Error(err, "failed to create manager")
+	if err := startAzureManager(ctx, cfg, s, false); err != nil {
+		logf.Log.Error(err, "failed to start manager")
 		os.Exit(1)
 	}
-
-	if err := azure.NewReconciler(ctx, mgr); err != nil {
-		logf.Log.Error(err, "failed to create reconciler")
-		os.Exit(1)
-	}
-
-	go func() {
-		if err := mgr.Start(ctx); err != nil {
-			logf.Log.Error(err, "failed to start manager")
-		}
-	}()
 
 	code := m.Run()
 

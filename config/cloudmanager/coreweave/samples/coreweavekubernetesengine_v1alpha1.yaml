@@ -4,6 +4,8 @@ metadata:
   name: default-coreweavekubernetesengine
 spec:
   dependencies:
+    gatewayAPI:
+      managementPolicy: Managed
     certManager:
       managementPolicy: Managed
     lws:

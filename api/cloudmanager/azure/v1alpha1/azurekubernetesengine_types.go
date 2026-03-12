@@ -46,6 +46,9 @@ type AzureKubernetesEngineStatus struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
 // +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-azurekubernetesengine'",message="AzureKubernetesEngine name must be default-azurekubernetesengine"
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
+// +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
+// +kubebuilder:printcolumn:name="Deps Available",type=string,JSONPath=`.status.conditions[?(@.type=="DependenciesAvailable")].status`,description="DependenciesAvailable"
 
 // AzureKubernetesEngine is the Schema for the azurekubernetesengines API.
 // It represents the configuration for an Azure Kubernetes Service (AKS) cluster.

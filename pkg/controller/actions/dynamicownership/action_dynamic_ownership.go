@@ -238,7 +238,11 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 			if customPredicates, ok := a.gvkPredicates[resGVK]; ok {
 				watchPredicates = customPredicates
 			} else {
-				watchPredicates = []predicate.Predicate{predicates.DefaultPredicate}
+				if resGVK == gvk.Deployment {
+					watchPredicates = []predicate.Predicate{predicates.DefaultDeploymentPredicate}
+				} else {
+					watchPredicates = []predicate.Predicate{predicates.DefaultPredicate}
+				}
 			}
 		} else {
 			// Watch only for deletion so the controller can recreate the resource if deleted.

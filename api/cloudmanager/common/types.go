@@ -24,6 +24,10 @@ type LWSConfiguration struct{}
 // +kubebuilder:object:generate=true
 type SailOperatorConfiguration struct{}
 
+// GatewayAPIConfiguration defines the configuration for the Gateway API dependency.
+// +kubebuilder:object:generate=true
+type GatewayAPIConfiguration struct{}
+
 // CertManagerDependency defines the cert-manager operator dependency.
 // +kubebuilder:object:generate=true
 type CertManagerDependency struct {
@@ -66,6 +70,20 @@ type SailOperatorDependency struct {
 	Configuration SailOperatorConfiguration `json:"configuration,omitempty"`
 }
 
+// GatewayAPIDependency defines the Gateway API dependency.
+// +kubebuilder:object:generate=true
+type GatewayAPIDependency struct {
+	// ManagementPolicy determines whether the operator manages this dependency.
+	// Managed: the operator installs and reconciles the dependency.
+	// Unmanaged: the operator does not manage the dependency; the user is responsible.
+	// +kubebuilder:default=Managed
+	ManagementPolicy ManagementPolicy `json:"managementPolicy,omitempty"`
+
+	// Configuration for the Gateway API.
+	// +optional
+	Configuration GatewayAPIConfiguration `json:"configuration,omitempty"`
+}
+
 // Dependencies defines the dependency configurations for cloud manager operators.
 // +kubebuilder:object:generate=true
 type Dependencies struct {
@@ -80,4 +98,8 @@ type Dependencies struct {
 	// SailOperator defines the Sail operator (Istio) dependency.
 	// +optional
 	SailOperator SailOperatorDependency `json:"sailOperator,omitempty"`
+
+	// GatewayAPI defines the Gateway API dependency.
+	// +optional
+	GatewayAPI GatewayAPIDependency `json:"gatewayAPI,omitempty"`
 }

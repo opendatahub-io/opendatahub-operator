@@ -4,18 +4,25 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/helm"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
+var ConditionsTypes = []string{
+	status.ConditionDeploymentsAvailable,
+}
+
 // reconcileAction holds the configuration for the combined reconcile action.
 type reconcileAction struct {
 	helmOpts   []helm.ActionOpts
 	deployOpts []deploy.ActionOpts
+	resourceID string
 }
 
 // ReconcileActionOpts configures the combined reconcile action.
@@ -36,12 +43,21 @@ func WithDeployOptions(opts ...deploy.ActionOpts) ReconcileActionOpts {
 }
 
 // NewReconcileAction creates a combined action that:
-// 1. Renders Helm charts
-// 2. Runs PreApply hooks from HelmCharts
-// 3. Deploys resources via SSA
-// 4. Runs PostApply hooks from HelmCharts.
-func NewReconcileAction(opts ...ReconcileActionOpts) actions.Fn {
-	action := reconcileAction{}
+// - Renders Helm charts
+// - Runs PreApply hooks from HelmCharts
+// - Sets infrastructure labels on rendered resources
+// - Deploys resources via SSA
+// - Runs PostApply hooks from HelmCharts
+// - Checks deployment status.
+func NewReconcileAction(resourceID string, opts ...ReconcileActionOpts) actions.Fn {
+	resourceID = labels.NormalizePartOfValue(resourceID)
+	if resourceID == "" {
+		panic("resourceID is required")
+	}
+
+	action := reconcileAction{
+		resourceID: resourceID,
+	}
 
 	for _, opt := range opts {
 		opt(&action)
@@ -49,6 +65,12 @@ func NewReconcileAction(opts ...ReconcileActionOpts) actions.Fn {
 
 	helmRender := helm.NewAction(action.helmOpts...)
 	deployAction := deploy.NewAction(action.deployOpts...)
+	deploymentsAction := deployments.NewAction(
+		deployments.InNamespaceFn(func(_ context.Context, _ *types.ReconciliationRequest) (string, error) {
+			return "", nil
+		}),
+		deployments.WithSelectorLabel(labels.InfrastructurePartOf, action.resourceID),
+	)
 
 	return func(ctx context.Context, rr *types.ReconciliationRequest) error {
 		// Render Helm charts (populates rr.Resources)
@@ -65,12 +87,8 @@ func NewReconcileAction(opts ...ReconcileActionOpts) actions.Fn {
 		}
 
 		// Set infrastructure label on all rendered resources
-		kind, err := resources.KindForObject(rr.Client.Scheme(), rr.Instance)
-		if err != nil {
-			return fmt.Errorf("failed to get instance kind: %w", err)
-		}
 		for i := range rr.Resources {
-			resources.SetLabel(&rr.Resources[i], labels.InfrastructurePartOf, labels.NormalizePartOfValue(kind))
+			resources.SetLabel(&rr.Resources[i], labels.InfrastructurePartOf, action.resourceID)
 		}
 
 		// Deploy resources via SSA
@@ -84,6 +102,12 @@ func NewReconcileAction(opts ...ReconcileActionOpts) actions.Fn {
 		})
 		if err != nil {
 			return err
+		}
+
+		// Check deployments
+		// TODO: the monitoring should be set per dependency to improve user experience
+		if err := deploymentsAction(ctx, rr); err != nil {
+			return fmt.Errorf("deployments check failed: %w", err)
 		}
 
 		return nil

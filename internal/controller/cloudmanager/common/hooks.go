@@ -9,7 +9,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
@@ -19,14 +18,6 @@ const (
 	istioSidecarInjectorWebhook = "istio-sidecar-injector"
 	istioValidatorWebhook       = "istio-validator-istio-system"
 )
-
-// CreateNamespaceHook returns a hook that ensures a namespace exists.
-func CreateNamespaceHook(namespace string) types.HookFn {
-	return func(ctx context.Context, rr *types.ReconciliationRequest) error {
-		_, err := cluster.CreateNamespace(ctx, rr.Client, namespace)
-		return err
-	}
-}
 
 // AnnotateIstioWebhooksHook returns a PostApply hook that annotates Istio
 // webhooks with sailoperator.io/ignore=true to work around a sail-operator
