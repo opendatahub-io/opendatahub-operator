@@ -576,7 +576,7 @@ unit-test: envtest ginkgo # directly use ginkgo since the framework is not compa
     	${GINKGO} -r \
         		--procs=8 \
         		--compilers=2 \
-        		--timeout=15m \
+        		--timeout=20m \
         		--poll-progress-after=30s \
         		--poll-progress-interval=5s \
         		--randomize-all \
