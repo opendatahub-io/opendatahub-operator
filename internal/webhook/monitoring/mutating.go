@@ -23,6 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
@@ -177,7 +178,7 @@ func (i *Injector) performMonitoringInjection(ctx context.Context, req *admissio
 
 	namespaceLabels := ns.GetLabels()
 
-	if isMonitoredNamespace, exists := namespaceLabels["opendatahub.io/monitoring"]; exists {
+	if isMonitoredNamespace, exists := namespaceLabels[labels.ODHLabelMonitoring]; exists {
 		if isMonitoredNamespace == "true" {
 			log.V(1).Info("Performing monitoring injection",
 				"resource", obj.GetName(),
@@ -208,15 +209,15 @@ func (i *Injector) performMonitoringInjection(ctx context.Context, req *admissio
 				"namespace", resourceNamespace)
 
 			// Inject opendatahub.io/monitoring=true label only if not already set
-			labels := obj.GetLabels()
-			if labels == nil {
-				labels = make(map[string]string)
+			lbls := obj.GetLabels()
+			if lbls == nil {
+				lbls = make(map[string]string)
 			}
 			// Only set the label if it doesn't already exist (respect user-set values)
-			if _, exists := labels["opendatahub.io/monitoring"]; !exists {
-				labels["opendatahub.io/monitoring"] = "true"
+			if _, exists := lbls[labels.ODHLabelMonitoring]; !exists {
+				lbls[labels.ODHLabelMonitoring] = "true"
 			}
-			obj.SetLabels(labels)
+			obj.SetLabels(lbls)
 
 			// Marshal the modified object
 			marshaledObj, err := json.Marshal(obj)
