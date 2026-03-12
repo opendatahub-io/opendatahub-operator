@@ -675,6 +675,12 @@ var (
 		Kind:    "RateLimitPolicy",
 	}
 
+	TelemetryPolicyv1alpha1 = schema.GroupVersionKind{
+		Group:   "extensions.kuadrant.io",
+		Version: "v1alpha1",
+		Kind:    "TelemetryPolicy",
+	}
+
 	AuthConfigv1beta3 = schema.GroupVersionKind{
 		Group:   "authorino.kuadrant.io",
 		Version: "v1beta3",
