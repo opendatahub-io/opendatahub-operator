@@ -560,7 +560,7 @@ rules:
     languages: [yaml]
     severity: WARNING
     message: |
-      Pod explicitly enables automountServiceAccountToken (CWE-200).
+      Workload explicitly enables automountServiceAccountToken (CWE-200).
 
       When enabled, the ServiceAccount token is mounted into the pod at
       /var/run/secrets/kubernetes.io/serviceaccount/token. If the pod is
@@ -568,12 +568,54 @@ rules:
 
       Remediation: Set automountServiceAccountToken: false if the pod doesn't
       need Kubernetes API access (most application pods don't).
-    patterns:
-      - pattern: |
-          automountServiceAccountToken: true
-      - pattern-inside: |
-          kind: Pod
-          ...
+    pattern-either:
+      # Match Pod directly
+      - patterns:
+          - pattern: |
+              automountServiceAccountToken: true
+          - pattern-inside: |
+              kind: Pod
+              ...
+      # Match Deployment, StatefulSet, DaemonSet, ReplicaSet pod template
+      - patterns:
+          - pattern: |
+              automountServiceAccountToken: true
+          - pattern-inside: |
+              kind: $KIND
+              ...
+              spec:
+                ...
+                template:
+                  ...
+          - metavariable-regex:
+              metavariable: $KIND
+              regex: (Deployment|StatefulSet|DaemonSet|ReplicaSet)
+      # Match Job pod template
+      - patterns:
+          - pattern: |
+              automountServiceAccountToken: true
+          - pattern-inside: |
+              kind: Job
+              ...
+              spec:
+                ...
+                template:
+                  ...
+      # Match CronJob pod template (nested under jobTemplate)
+      - patterns:
+          - pattern: |
+              automountServiceAccountToken: true
+          - pattern-inside: |
+              kind: CronJob
+              ...
+              spec:
+                ...
+                jobTemplate:
+                  ...
+                  spec:
+                    ...
+                    template:
+                      ...
     metadata:
       cwe: "CWE-200"
       category: "security"
@@ -582,7 +624,7 @@ rules:
     languages: [yaml]
     severity: WARNING
     message: |
-      Pod uses default ServiceAccount (CWE-250).
+      Workload uses default ServiceAccount (CWE-250).
 
       The default ServiceAccount may have more permissions than needed.
       Each workload should use a dedicated ServiceAccount with minimal RBAC
@@ -594,12 +636,14 @@ rules:
         metadata:
           name: my-app-sa
     pattern-either:
+      # Match Pod directly — explicit default
       - pattern: |
           kind: Pod
           ...
           spec:
             ...
             serviceAccountName: default
+      # Match Pod directly — no SA specified
       - patterns:
           - pattern: |
               kind: Pod
@@ -608,6 +652,90 @@ rules:
                 ...
           - pattern-not: |
               serviceAccountName: $SA
+      # Match controllers — explicit default
+      - patterns:
+          - pattern: |
+              spec:
+                ...
+                template:
+                  ...
+                  spec:
+                    ...
+                    serviceAccountName: default
+          - pattern-inside: |
+              kind: $KIND
+              ...
+          - metavariable-regex:
+              metavariable: $KIND
+              regex: (Deployment|StatefulSet|DaemonSet|ReplicaSet|Job)
+      # Match controllers — no SA specified (implicit default)
+      - patterns:
+          - pattern: |
+              spec:
+                ...
+                template:
+                  ...
+                  spec:
+                    ...
+          - pattern-not: |
+              spec:
+                ...
+                template:
+                  ...
+                  spec:
+                    ...
+                    serviceAccountName: $SA
+          - pattern-inside: |
+              kind: $KIND
+              ...
+          - metavariable-regex:
+              metavariable: $KIND
+              regex: (Deployment|StatefulSet|DaemonSet|ReplicaSet|Job)
+      # Match CronJob — explicit default
+      - patterns:
+          - pattern: |
+              spec:
+                ...
+                jobTemplate:
+                  ...
+                  spec:
+                    ...
+                    template:
+                      ...
+                      spec:
+                        ...
+                        serviceAccountName: default
+          - pattern-inside: |
+              kind: CronJob
+              ...
+      # Match CronJob — no SA specified (implicit default)
+      - patterns:
+          - pattern: |
+              spec:
+                ...
+                jobTemplate:
+                  ...
+                  spec:
+                    ...
+                    template:
+                      ...
+                      spec:
+                        ...
+          - pattern-not: |
+              spec:
+                ...
+                jobTemplate:
+                  ...
+                  spec:
+                    ...
+                    template:
+                      ...
+                      spec:
+                        ...
+                        serviceAccountName: $SA
+          - pattern-inside: |
+              kind: CronJob
+              ...
     metadata:
       cwe: "CWE-250"
       category: "security"
@@ -678,11 +806,11 @@ rules:
           env:
             TITLE: ${{ github.event.pull_request.title }}
     patterns:
-      - pattern-regex: 'run:.*\$\{\{\s*github\.(head_ref|event\.(issue|pull_request|discussion|review|review_comment|comment)\.(title|body|head\.ref|head\.label)|event\.head_commit\.message|event\.commits\[\d+\]\.message)\s*\}\}'
+      - pattern-regex: 'run:\s*(?:[|>][-+]?)?[\s\S]*?\$\{\{\s*github\.(head_ref|event\.(issue|pull_request|discussion|review|review_comment|comment)\.(title|body|head\.ref|head\.label)|event\.head_commit\.message|event\.commits\[\d+\]\.message)\s*\}\}'
     paths:
       include:
-        - ".github/workflows/*.yml"
-        - ".github/workflows/*.yaml"
+        - "**/.github/workflows/*.yml"
+        - "**/.github/workflows/*.yaml"
     metadata:
       cwe: "CWE-78"
       owasp: "A03:2021 - Injection"
@@ -716,12 +844,11 @@ rules:
         - If checkout is needed, use merge commit: refs/pull/${{ github.event.number }}/merge
         - Add persist-credentials: false to limit token scope
     patterns:
-      - pattern-regex: 'pull_request_target'
-      - pattern-regex: 'ref:\s*\$\{\{.*pull_request\.head\.(sha|ref)\s*\}\}'
+      - pattern-regex: 'pull_request_target[\s\S]*?uses:\s*actions/checkout@[^\n]*\n(\s+\w+:.*\n)*\s+ref:\s*\$\{\{[^\}]*pull_request\.head\.(sha|ref)\s*\}\}'
     paths:
       include:
-        - ".github/workflows/*.yml"
-        - ".github/workflows/*.yaml"
+        - "**/.github/workflows/*.yml"
+        - "**/.github/workflows/*.yaml"
     metadata:
       cwe: "CWE-829"
       category: "security"
