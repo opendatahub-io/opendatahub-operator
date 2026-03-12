@@ -74,6 +74,7 @@ type PodInfo struct {
 	Namespace  string          `json:"namespace"`
 	Name       string          `json:"name"`
 	Phase      string          `json:"phase"`
+	CreatedAt  time.Time       `json:"createdAt"`
 	Containers []ContainerInfo `json:"containers"`
 }
 
