@@ -439,7 +439,7 @@ func TestInjector_HandlesUpdateOperations(t *testing.T) {
 			t.Parallel()
 
 			var resourceName string
-			if tc.gvkToUse.Kind == kindPodMonitor {
+			if tc.gvkToUse == gvk.CoreosPodMonitor {
 				resourceName = testPodMonitor
 			} else {
 				resourceName = testServiceMonitor
@@ -528,7 +528,7 @@ func TestInjector_RespectsExistingMonitoringLabel(t *testing.T) {
 			name:      "CREATE PodMonitor - Label already true",
 			operation: admissionv1.Create,
 			workload: newPodMonitor(testPodMonitor, testNamespace, func(obj client.Object) {
-				obj.SetLabels(map[string]string{monitoringLabelKey: "true"})
+				obj.SetLabels(map[string]string{labels.ODHLabelMonitoring: "true"})
 			}),
 			gvkToUse:      gvk.CoreosPodMonitor,
 			namespace:     newMonitoredNamespace(testNamespace),
@@ -538,7 +538,7 @@ func TestInjector_RespectsExistingMonitoringLabel(t *testing.T) {
 			name:      "CREATE PodMonitor - Label already false",
 			operation: admissionv1.Create,
 			workload: newPodMonitor(testPodMonitor, testNamespace, func(obj client.Object) {
-				obj.SetLabels(map[string]string{monitoringLabelKey: "false"})
+				obj.SetLabels(map[string]string{labels.ODHLabelMonitoring: "false"})
 			}),
 			gvkToUse:      gvk.CoreosPodMonitor,
 			namespace:     newMonitoredNamespace(testNamespace),
@@ -548,7 +548,7 @@ func TestInjector_RespectsExistingMonitoringLabel(t *testing.T) {
 			name:      "CREATE ServiceMonitor - Label already true",
 			operation: admissionv1.Create,
 			workload: newServiceMonitor(testServiceMonitor, testNamespace, func(obj client.Object) {
-				obj.SetLabels(map[string]string{monitoringLabelKey: "true"})
+				obj.SetLabels(map[string]string{labels.ODHLabelMonitoring: "true"})
 			}),
 			gvkToUse:      gvk.CoreosServiceMonitor,
 			namespace:     newMonitoredNamespace(testNamespace),
@@ -558,7 +558,7 @@ func TestInjector_RespectsExistingMonitoringLabel(t *testing.T) {
 			name:      "CREATE ServiceMonitor - Label already false",
 			operation: admissionv1.Create,
 			workload: newServiceMonitor(testServiceMonitor, testNamespace, func(obj client.Object) {
-				obj.SetLabels(map[string]string{monitoringLabelKey: "false"})
+				obj.SetLabels(map[string]string{labels.ODHLabelMonitoring: "false"})
 			}),
 			gvkToUse:      gvk.CoreosServiceMonitor,
 			namespace:     newMonitoredNamespace(testNamespace),
@@ -568,7 +568,7 @@ func TestInjector_RespectsExistingMonitoringLabel(t *testing.T) {
 			name:      "UPDATE PodMonitor - Label already true",
 			operation: admissionv1.Update,
 			workload: newPodMonitor(testPodMonitor, testNamespace, func(obj client.Object) {
-				obj.SetLabels(map[string]string{monitoringLabelKey: "true"})
+				obj.SetLabels(map[string]string{labels.ODHLabelMonitoring: "true"})
 			}),
 			gvkToUse:      gvk.CoreosPodMonitor,
 			namespace:     newMonitoredNamespace(testNamespace),
@@ -578,7 +578,7 @@ func TestInjector_RespectsExistingMonitoringLabel(t *testing.T) {
 			name:      "UPDATE PodMonitor - Label already false",
 			operation: admissionv1.Update,
 			workload: newPodMonitor(testPodMonitor, testNamespace, func(obj client.Object) {
-				obj.SetLabels(map[string]string{monitoringLabelKey: "false"})
+				obj.SetLabels(map[string]string{labels.ODHLabelMonitoring: "false"})
 			}),
 			gvkToUse:      gvk.CoreosPodMonitor,
 			namespace:     newMonitoredNamespace(testNamespace),
@@ -588,7 +588,7 @@ func TestInjector_RespectsExistingMonitoringLabel(t *testing.T) {
 			name:      "UPDATE ServiceMonitor - Label already true",
 			operation: admissionv1.Update,
 			workload: newServiceMonitor(testServiceMonitor, testNamespace, func(obj client.Object) {
-				obj.SetLabels(map[string]string{monitoringLabelKey: "true"})
+				obj.SetLabels(map[string]string{labels.ODHLabelMonitoring: "true"})
 			}),
 			gvkToUse:      gvk.CoreosServiceMonitor,
 			namespace:     newMonitoredNamespace(testNamespace),
@@ -598,7 +598,7 @@ func TestInjector_RespectsExistingMonitoringLabel(t *testing.T) {
 			name:      "UPDATE ServiceMonitor - Label already false",
 			operation: admissionv1.Update,
 			workload: newServiceMonitor(testServiceMonitor, testNamespace, func(obj client.Object) {
-				obj.SetLabels(map[string]string{monitoringLabelKey: "false"})
+				obj.SetLabels(map[string]string{labels.ODHLabelMonitoring: "false"})
 			}),
 			gvkToUse:      gvk.CoreosServiceMonitor,
 			namespace:     newMonitoredNamespace(testNamespace),
@@ -615,7 +615,7 @@ func TestInjector_RespectsExistingMonitoringLabel(t *testing.T) {
 			injector := createWebhookInjector(cli, sch)
 
 			var resourceName string
-			if tc.gvkToUse.Kind == kindPodMonitor {
+			if tc.gvkToUse == gvk.CoreosPodMonitor {
 				resourceName = testPodMonitor
 			} else {
 				resourceName = testServiceMonitor
