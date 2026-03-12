@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -21,7 +22,16 @@ type Config struct {
 	OnlySections []string
 	// Layers limits which sections to run. Empty or nil = run all.
 	Layers []string
+	// Clientset enables pod log capture for unhealthy containers. When nil, log
+	// capture is skipped and ContainerInfo.Logs stays empty. The controller-runtime
+	// client.Client does not support log streaming, so a separate clientset is needed.
+	Clientset *kubernetes.Clientset
+	// LogTailLines is the number of log lines to capture per problematic container.
+	// Zero means use the default (50). Negative means skip log capture entirely.
+	LogTailLines int64
 }
+
+const defaultLogTailLines int64 = 50
 
 // OperatorConfig configures which operator deployment and namespace to check.
 // The deployment name is supplied by the caller (e.g. from platform: ODH vs RHODS operator).
