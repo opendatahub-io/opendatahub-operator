@@ -18,6 +18,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/monitoring"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
@@ -28,11 +29,7 @@ const (
 	testNamespace        = "test-ns"
 	testPodMonitor       = "test-podmonitor"
 	testServiceMonitor   = "test-servicemonitor"
-	monitoringLabelKey   = "opendatahub.io/monitoring"
 	monitoringLabelValue = "true"
-	kindPodMonitor       = "PodMonitor"
-	kindServiceMonitor   = "ServiceMonitor"
-	kindPod              = "Pod"
 )
 
 // Helper functions for test simplification.
@@ -40,14 +37,14 @@ const (
 // newMonitoredNamespace creates a namespace with monitoring enabled.
 func newMonitoredNamespace(name string) *corev1.Namespace {
 	return envtestutil.NewNamespace(name, map[string]string{
-		monitoringLabelKey: monitoringLabelValue,
+		labels.ODHLabelMonitoring: monitoringLabelValue,
 	})
 }
 
 // hasMonitoringLabel checks if the object has the monitoring label set to "true".
 func hasMonitoringLabel(obj client.Object) bool {
-	labels := obj.GetLabels()
-	return labels != nil && labels[monitoringLabelKey] == monitoringLabelValue
+	lbls := obj.GetLabels()
+	return lbls != nil && lbls[labels.ODHLabelMonitoring] == monitoringLabelValue
 }
 
 // Helper function to create PodMonitor.
@@ -105,7 +102,7 @@ func hasLabelPatch(patches []jsonpatch.JsonPatchOperation) bool {
 	for _, patch := range patches {
 		if patch.Path == "/metadata/labels" || patch.Path == "/metadata/labels/opendatahub.io~1monitoring" {
 			if labelMap, ok := patch.Value.(map[string]interface{}); ok {
-				if val, exists := labelMap[monitoringLabelKey]; exists && val == monitoringLabelValue {
+				if val, exists := labelMap[labels.ODHLabelMonitoring]; exists && val == monitoringLabelValue {
 					return true
 				}
 			}
@@ -168,7 +165,7 @@ func TestInjector_AllowsRequests(t *testing.T) {
 			injector := createWebhookInjector(cli, sch)
 
 			var resourceName string
-			if tc.gvkToUse.Kind == kindPodMonitor {
+			if tc.gvkToUse == gvk.CoreosPodMonitor {
 				resourceName = testPodMonitor
 			} else {
 				resourceName = testServiceMonitor
@@ -261,7 +258,7 @@ func TestInjector_ErrorPaths(t *testing.T) {
 					Namespace: testNamespace,
 				},
 			},
-			gvkToUse:      schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Pod"},
+			gvkToUse:      gvk.Pod,
 			namespace:     newMonitoredNamespace(testNamespace),
 			expectAllowed: false,
 			expectMessage: "unexpected kind: Pod",
@@ -275,9 +272,9 @@ func TestInjector_ErrorPaths(t *testing.T) {
 
 			var gvrToUse metav1.GroupVersionResource
 			switch tc.gvkToUse.Kind {
-			case kindPod:
+			case gvk.Pod.Kind:
 				gvrToUse = metav1.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
-			case kindPodMonitor:
+			case gvk.CoreosPodMonitor.Kind:
 				gvrToUse = metav1.GroupVersionResource{
 					Group:    tc.gvkToUse.Group,
 					Version:  tc.gvkToUse.Version,
