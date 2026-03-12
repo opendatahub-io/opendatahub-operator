@@ -16,7 +16,7 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { /
 	rr.Manifests = []odhtypes.ManifestInfo{
 		notebookControllerManifestInfo(notebookControllerManifestSourcePath),
 		kfNotebookControllerManifestInfo(kfNotebookControllerManifestSourcePath),
-		notebookImagesManifestInfo(notebookImagesManifestSourcePath),
+		notebookImagesManifestInfo(notebookImagesManifestSourcePath[rr.Release.Name]),
 	}
 
 	return nil

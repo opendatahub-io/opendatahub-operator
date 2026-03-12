@@ -19,9 +19,11 @@ import (
 
 	ccmv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/azure/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/helm"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/cloudmanager"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -31,19 +33,25 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-const testReleaseName = "test"
+const (
+	testReleaseName = "test"
+	testResourceID  = "testresourceid"
+)
 
 func newTestReconcileAction() func(context.Context, *types.ReconciliationRequest) error {
 	return cloudmanager.NewReconcileAction(
+		testResourceID,
 		cloudmanager.WithDeployOptions(),
 		cloudmanager.WithHelmOptions(helm.WithCache(false)),
 	)
 }
 
 func newTestReconciliationRequest(cl client.Client, charts []types.HelmChartInfo) *types.ReconciliationRequest {
-	return &types.ReconciliationRequest{
+	instance := &ccmv1alpha1.AzureKubernetesEngine{}
+
+	rr := &types.ReconciliationRequest{
 		Client:   cl,
-		Instance: &ccmv1alpha1.AzureKubernetesEngine{},
+		Instance: instance,
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
 			m.On("Owns", mock.Anything).Return(false)
 		}),
@@ -55,6 +63,10 @@ func newTestReconciliationRequest(cl client.Client, charts []types.HelmChartInfo
 		},
 		HelmCharts: charts,
 	}
+
+	rr.Conditions = conditions.NewManager(instance, status.ConditionTypeReady)
+
+	return rr
 }
 
 func checkTestChartDeployedResources(t *testing.T, g *WithT, ctx context.Context, cl client.Client, ns, releaseName string) {
@@ -289,7 +301,7 @@ func TestNewReconcileAction_SetsInfrastructureLabel(t *testing.T) {
 
 	for _, res := range rr.Resources {
 		g.Expect(resources.GetLabel(&res, labels.InfrastructurePartOf)).
-			Should(Equal("azurekubernetesengine"))
+			Should(Equal(testResourceID))
 	}
 }
 
