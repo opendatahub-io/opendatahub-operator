@@ -60,6 +60,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// Third-party CRDs that may not be available in all environments.
 		OwnsGVK(gvk.AuthPolicyv1, reconciler.Dynamic(reconciler.CrdExists(gvk.AuthPolicyv1))).
 		OwnsGVK(gvk.DestinationRule, reconciler.Dynamic(reconciler.CrdExists(gvk.DestinationRule))).
+		OwnsGVK(gvk.TelemetryPolicyv1alpha1, reconciler.Dynamic(reconciler.CrdExists(gvk.TelemetryPolicyv1alpha1))).
 		Watches(
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(
@@ -85,6 +86,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		)).
 		// WithAction(releases.NewAction()). // TODO: Do we need this? How to fix annotation of "platform.opendatahub.io/version:0.0.0"
 		WithAction(configureGatewayNamespaceResources).
+		WithAction(configureTelemetryPolicy).
 		WithAction(configureConfigHashAnnotation).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
