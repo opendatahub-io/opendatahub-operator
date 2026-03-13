@@ -917,6 +917,14 @@ func RunEnvoyFilterCreationTest(t *testing.T, setup TestSetup) {
 	}, ef)).To(Succeed())
 	assertOwnedByGatewayConfig(g, ef)
 
+	// Verify Istio revision label so OSSM webhook receives this resource (avoids default-validator rejection when another Istio is present).
+	labels, found, err := unstructured.NestedStringMap(ef.Object, "metadata", "labels")
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(found).To(BeTrue(), "EnvoyFilter should have metadata.labels")
+	g.Expect(labels).To(HaveKey(gateway.IstioRevisionLabel))
+	g.Expect(labels[gateway.IstioRevisionLabel]).To(Equal(gateway.IstioRevisionValue),
+		"EnvoyFilter must have istio.io/rev=%s so OSSM webhook validates it and default Istio webhook does not", gateway.IstioRevisionValue)
+
 	selector, found, err := unstructured.NestedStringMap(ef.Object, "spec", "workloadSelector", "labels")
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(found).To(BeTrue())
@@ -1615,6 +1623,14 @@ func RunDestinationRuleCreationTest(t *testing.T, setup TestSetup) {
 		Namespace: gateway.GatewayNamespace,
 	}, dr)).To(Succeed())
 	assertOwnedByGatewayConfig(g, dr)
+
+	// Verify Istio revision label so OSSM webhook receives this resource (avoids default-validator rejection when another Istio is present).
+	labels, found, err := unstructured.NestedStringMap(dr.Object, "metadata", "labels")
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(found).To(BeTrue(), "DestinationRule should have metadata.labels")
+	g.Expect(labels).To(HaveKey(gateway.IstioRevisionLabel))
+	g.Expect(labels[gateway.IstioRevisionLabel]).To(Equal(gateway.IstioRevisionValue),
+		"DestinationRule must have istio.io/rev=%s so OSSM webhook validates it and default Istio webhook does not", gateway.IstioRevisionValue)
 
 	// Verify host is wildcard
 	host, found, err := unstructured.NestedString(dr.Object, "spec", "host")

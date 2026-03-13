@@ -5,6 +5,7 @@ metadata:
   namespace: {{.GatewayNamespace}}
   labels:
     {{.ComponentLabelKey}}: {{.ComponentLabelValue}}
+    {{.IstioRevisionLabel}}: {{.IstioRevisionValue}}
 spec:
   workloadSelector:
     labels:
