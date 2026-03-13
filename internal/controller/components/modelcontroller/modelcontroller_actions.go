@@ -23,7 +23,11 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -65,4 +69,31 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	}
 
 	return nil
+}
+
+func checkSubscriptionDependencies() actions.Fn {
+	return func(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+		mc, ok := rr.Instance.(*componentApi.ModelController)
+		if !ok {
+			return fmt.Errorf("resource instance %v is not a componentApi.ModelController)", rr.Instance)
+		}
+
+		// Only check KEDA subscription if WVA is enabled
+		if mc.Spec.Kserve.ManagementState == operatorv1.Managed && mc.Spec.Kserve.WVA.ManagementState == operatorv1.Managed {
+			return dependency.NewSubscriptionAction(
+				dependency.CheckSubscriptionGroup(dependency.SubscriptionGroupConfig{
+					ConditionType: LLMDWVADependencies,
+					Subscriptions: []dependency.SubscriptionDependency{
+						{Name: cmaOperatorSubscription, DisplayName: "Custom Metrics Autoscaler"},
+					},
+					ClusterTypes: []string{cluster.ClusterTypeOpenShift},
+					Reason:       subNotFound,
+					Message:      "Warning: %s not installed, WorkloadVariantAutoscaler cannot be used in Keda mode, ensure UWM is enabled for HPA",
+					Severity:     common.ConditionSeverityInfo,
+				}),
+			)(ctx, rr)
+		}
+
+		return nil
+	}
 }

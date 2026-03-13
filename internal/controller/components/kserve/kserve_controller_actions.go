@@ -297,15 +297,5 @@ func checkSubscriptionDependencies() actions.Fn {
 			Message:      "Warning: %s not installed, Wide Expert Parallelism with LLMInferenceService cannot be used",
 			Severity:     common.ConditionSeverityInfo,
 		}),
-		dependency.CheckSubscriptionGroup(dependency.SubscriptionGroupConfig{
-			ConditionType: LLMWorkVariantAutoscallingDepedencies,
-			Subscriptions: []dependency.SubscriptionDependency{
-				{Name: cmaOperatorSubscription, DisplayName: "Custom Metrics Autoscaler"},
-			},
-			ClusterTypes: []string{cluster.ClusterTypeOpenShift},
-			Reason:       subNotFound,
-			Message:      "Warning: %s not installed, llm-d WorkloadVariantAutoscaller cannot be used in Keda mode, ensure UWM is enabled for HPA",
-			Severity:     common.ConditionSeverityInfo,
-		}),
 	)
 }

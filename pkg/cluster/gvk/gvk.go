@@ -29,6 +29,7 @@ import (
 const (
 	LeaderWorkerSetOperatorCRDname = "leaderworkersetoperators.operator.openshift.io"
 	SubscriptionCRDname            = "subscriptions.operators.coreos.com"
+	VariantAutoscalingCRDname      = "variantautoscalings.llmd.ai"
 )
 
 var (

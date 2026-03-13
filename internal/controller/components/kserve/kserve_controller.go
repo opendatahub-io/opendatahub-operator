@@ -115,7 +115,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				predicate.Or(
 					resources.CreatedOrUpdatedOrDeletedNamed(rhclOperatorSubscription),
 					resources.CreatedOrUpdatedOrDeletedNamed(lwsOperatorSubscription),
-					resources.CreatedOrUpdatedOrDeletedNamed(cmaOperatorSubscription),
 				),
 			),
 			reconciler.Dynamic(reconciler.CrdExists(gvk.Subscription))).

@@ -28,8 +28,10 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
@@ -65,9 +67,22 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithEventHandler(
 				handlers.ToNamed(componentApi.ModelControllerInstanceName)),
 			reconciler.WithPredicates(
-				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
+				predicate.Or(
+					component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True),
+					resources.CreatedOrUpdatedOrDeletedNamed(gvk.VariantAutoscalingCRDname),
+				),
+			),
 		).
+		WatchesGVK(gvk.Subscription,
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.ModelControllerInstanceName),
+			),
+			reconciler.WithPredicates(
+				resources.CreatedOrUpdatedOrDeletedNamed(cmaOperatorSubscription),
+			),
+			reconciler.Dynamic(reconciler.CrdExists(gvk.Subscription))).
 		WithAction(initialize).
+		WithAction(checkSubscriptionDependencies()).
 		WithAction(kustomize.NewAction(
 			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),

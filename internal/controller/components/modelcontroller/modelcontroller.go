@@ -107,6 +107,9 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		} else {
 			cs = metav1.ConditionFalse
 		}
+		if wvaCondition := conditions.FindStatusCondition(c.GetStatus(), LLMDWVADependencies); wvaCondition != nil {
+			rr.Conditions.MarkFrom(LLMDWVADependencies, *wvaCondition)
+		}
 	} else {
 		rr.Conditions.MarkFalse(
 			ReadyConditionType,
