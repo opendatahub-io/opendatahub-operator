@@ -27,7 +27,7 @@ var (
 		"vllm-cuda-image":         "RELATED_IMAGE_RHAIIS_VLLM_CUDA_IMAGE",
 		"vllm-cpu-image":          "RELATED_IMAGE_ODH_VLLM_CPU_IMAGE",
 		"vllm-cpu-x86-image":      "RELATED_IMAGE_RHAIIS_VLLM_CPU_IMAGE",
-		"vllm-gaudi-image":        "RELATED_IMAGE_RHAIIS_VLLM_GAUDI_IMAGE",
+		"vllm-gaudi-image":        "RELATED_IMAGE_RHAII_VLLM_GAUDI_IMAGE",
 		"vllm-rocm-image":         "RELATED_IMAGE_RHAIIS_VLLM_ROCM_IMAGE",
 		"vllm-spyre-image":        "RELATED_IMAGE_RHAIIS_VLLM_SPYRE_IMAGE",
 		"guardrails-detector-huggingface-runtime-image": "RELATED_IMAGE_ODH_GUARDRAILS_DETECTOR_HUGGINGFACE_RUNTIME_IMAGE",
