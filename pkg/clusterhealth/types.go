@@ -6,6 +6,21 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+)
+
+// GVKs for the ODH custom resources checked by the DSCI and DSC sections.
+var (
+	DSCInitializationGVK = schema.GroupVersionKind{
+		Group:   "dscinitialization.opendatahub.io",
+		Version: "v2",
+		Kind:    "DSCInitialization",
+	}
+	DataScienceClusterGVK = schema.GroupVersionKind{
+		Group:   "datasciencecluster.opendatahub.io",
+		Version: "v2",
+		Kind:    "DataScienceCluster",
+	}
 )
 
 // SectionResult carries the result of one health-check section: optional error and typed data.
