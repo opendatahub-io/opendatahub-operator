@@ -16,6 +16,11 @@ const (
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
 	// deployment to the new component name, so keep it around till we figure out a solution.
 	LegacyComponentName = "odh-model-controller"
+
+	// For WVA.
+	LLMDWVADependencies     = "LLM-D-WVADependencies"
+	cmaOperatorSubscription = "openshift-custom-metrics-autoscaler-operator"
+	subNotFound             = "Subscription not found"
 )
 
 var (
@@ -35,6 +40,8 @@ var (
 
 	conditionTypes = []string{
 		status.ConditionDeploymentsAvailable,
+		status.ConditionDependenciesAvailable,
+		LLMDWVADependencies,
 	}
 )
 
@@ -43,5 +50,13 @@ func manifestsPath() types.ManifestInfo {
 		Path:       odhdeploy.DefaultManifestPath,
 		ContextDir: ComponentName,
 		SourcePath: "base",
+	}
+}
+
+func wvaManifestsPath() types.ManifestInfo {
+	return types.ManifestInfo{
+		Path:       odhdeploy.DefaultManifestPath,
+		ContextDir: "wva",
+		SourcePath: "openshift",
 	}
 }
