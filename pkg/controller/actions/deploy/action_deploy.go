@@ -30,6 +30,9 @@ const (
 	ModeSSA   Mode = "ssa"
 )
 
+// SortFn defines a function that reorders resources before deployment.
+type SortFn func(ctx context.Context, resources []unstructured.Unstructured) ([]unstructured.Unstructured, error)
+
 // Action deploys the resources that are included in the ReconciliationRequest using
 // the same create or patch machinery implemented as part of deploy.DeployManifestsFromPath.
 type Action struct {
@@ -38,6 +41,7 @@ type Action struct {
 	labels      map[string]string
 	annotations map[string]string
 	cache       *Cache
+	sortFn      SortFn
 }
 
 type ActionOpts func(*Action)
@@ -104,7 +108,28 @@ func WithCache(opts ...CacheOpt) ActionOpts {
 	}
 }
 
+// WithSortFn sets a custom sort function to reorder resources before deploying.
+func WithSortFn(fn SortFn) ActionOpts {
+	return func(action *Action) {
+		action.sortFn = fn
+	}
+}
+
+// WithApplyOrder is a convenience option that sorts resources into
+// dependency order (CRDs first, webhooks last) before deploying.
+func WithApplyOrder() ActionOpts {
+	return WithSortFn(resources.SortByApplyOrder)
+}
+
 func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) error {
+	if a.sortFn != nil {
+		sorted, err := a.sortFn(ctx, rr.Resources)
+		if err != nil {
+			return fmt.Errorf("failed to sort resources: %w", err)
+		}
+		rr.Resources = sorted
+	}
+
 	// cleanup old entries if needed
 	if a.cache != nil {
 		a.cache.Sync()
