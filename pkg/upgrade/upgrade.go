@@ -24,7 +24,6 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -77,22 +76,21 @@ func CleanupExistingResource(ctx context.Context,
 	cli client.Client,
 ) error {
 	var multiErr *multierror.Error
-	// get DSCI CR to get application namespace
-	dsciList := &dsciv2.DSCInitializationList{}
-	if err := cli.List(ctx, dsciList); err != nil {
+	// get application namespace
+	applicationNS, err := cluster.ApplicationNamespace(ctx, cli)
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			return nil
+		}
 		return err
 	}
-	if len(dsciList.Items) == 0 {
-		return nil
-	}
-	d := &dsciList.Items[0]
 
 	// Cleanup of deprecated default RoleBinding resources
-	deprecatedDefaultRoleBinding := []string{d.Spec.ApplicationsNamespace}
-	multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, d.Spec.ApplicationsNamespace, deprecatedDefaultRoleBinding, &rbacv1.RoleBindingList{}))
+	deprecatedDefaultRoleBinding := []string{applicationNS}
+	multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, applicationNS, deprecatedDefaultRoleBinding, &rbacv1.RoleBindingList{}))
 
 	// cleanup model controller legacy deployment
-	multiErr = multierror.Append(multiErr, cleanupModelControllerLegacyDeployment(ctx, cli, d.Spec.ApplicationsNamespace))
+	multiErr = multierror.Append(multiErr, cleanupModelControllerLegacyDeployment(ctx, cli, applicationNS))
 	// cleanup deprecated kueue ValidatingAdmissionPolicyBinding
 	multiErr = multierror.Append(multiErr, cleanupDeprecatedKueueVAPB(ctx, cli))
 
@@ -109,7 +107,7 @@ func CleanupExistingResource(ctx context.Context,
 			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to check AcceleratorProfile CRD: %w", err))
 		} else if hasAccelProfile {
 			// Both CRDs exist, run migration (it's idempotent)
-			multiErr = multierror.Append(multiErr, MigrateToInfraHardwareProfiles(ctx, cli, d.Spec.ApplicationsNamespace))
+			multiErr = multierror.Append(multiErr, MigrateToInfraHardwareProfiles(ctx, cli, applicationNS))
 		}
 	}
 
