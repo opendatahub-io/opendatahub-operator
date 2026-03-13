@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"fmt"
+	"net"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -36,9 +37,9 @@ const (
 	maasPostgresName     = "postgres"
 	maasPostgresImage    = "registry.redhat.io/rhel9/postgresql-15:latest"
 	maasPostgresUser     = "maas"
-	maasPostgresPassword = "maas-e2e-test"
+	maasPostgresPassword = "maas-e2e-test" //nolint:gosec // test-only credential, not a real secret
 	maasPostgresDB       = "maas"
-	maasDBConfigSecret   = "maas-db-config"
+	maasDBConfigSecret   = "maas-db-config" //nolint:gosec // secret name reference, not a credential
 )
 
 func modelsAsServiceTestSuite(t *testing.T) {
@@ -127,8 +128,8 @@ func (tc *ModelsAsServiceTestCtx) createMaaSPostgres(t *testing.T) {
 	)
 
 	// Create the maas-db-config secret with the connection URL
-	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s?sslmode=disable",
-		maasPostgresUser, maasPostgresPassword, maasPostgresName, maasPostgresDB)
+	dbURL := fmt.Sprintf("postgresql://%s:%s@%s/%s?sslmode=disable",
+		maasPostgresUser, maasPostgresPassword, net.JoinHostPort(maasPostgresName, "5432"), maasPostgresDB)
 
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.Secret, types.NamespacedName{Name: maasDBConfigSecret, Namespace: ns}),
