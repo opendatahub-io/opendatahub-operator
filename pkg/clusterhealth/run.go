@@ -22,6 +22,7 @@ func Run(ctx context.Context, cfg Config) (*Report, error) {
 	collectedAt := time.Now()
 	report := &Report{CollectedAt: collectedAt}
 	run := cfg.sectionsToRun()
+	lc := logConfig{clientset: cfg.Clientset, tailLines: cfg.LogTailLines}
 
 	// Record which sections ran so PrettyPrint can show only those.
 	sectionOrder := []string{SectionNodes, SectionDeployments, SectionPods, SectionEvents, SectionQuotas, SectionOperator, SectionDSCI, SectionDSC}
@@ -39,7 +40,7 @@ func Run(ctx context.Context, cfg Config) (*Report, error) {
 		report.Deployments = runDeploymentsSection(ctx, cfg.Client, cfg.Namespaces)
 	}
 	if run[SectionPods] {
-		report.Pods = runPodsSection(ctx, cfg.Client, cfg.Namespaces)
+		report.Pods = runPodsSection(ctx, cfg.Client, cfg.Namespaces, lc)
 	}
 	if run[SectionEvents] {
 		report.Events = runEventsSection(ctx, cfg.Client, cfg.Namespaces, collectedAt)
@@ -48,7 +49,7 @@ func Run(ctx context.Context, cfg Config) (*Report, error) {
 		report.Quotas = runQuotasSection(ctx, cfg.Client, cfg.Namespaces)
 	}
 	if run[SectionOperator] {
-		report.Operator = runOperatorSection(ctx, cfg.Client, cfg.Operator)
+		report.Operator = runOperatorSection(ctx, cfg.Client, cfg.Operator, lc)
 	}
 	if run[SectionDSCI] {
 		report.DSCI = runCRConditionsSection(ctx, cfg.Client, gvk.DSCInitialization, cfg.DSCI)

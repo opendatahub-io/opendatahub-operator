@@ -13,6 +13,7 @@ import (
 	"context"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrl "sigs.k8s.io/controller-runtime/pkg/client/config"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -22,8 +23,12 @@ import (
 kubeConfig, _ := ctrl.GetConfig()
 c, _ := client.New(kubeConfig, client.Options{Scheme: clientgoscheme.Scheme})
 
+// Optional: create a clientset for pod log capture
+clientset, _ := kubernetes.NewForConfig(kubeConfig)
+
 cfg := clusterhealth.Config{
 	Client:   c,
+	Clientset: clientset, // enables log capture for unhealthy containers; nil = skip
 	Operator: clusterhealth.OperatorConfig{Namespace: "op-ns", Name: "op-deploy"},
 	Namespaces: clusterhealth.NamespaceConfig{
 		Apps:       "my-apps",
@@ -70,6 +75,8 @@ for _, cond := range report.DSC.Data.Conditions {
 - **DSCI / DSC**: `types.NamespacedName`. Leave empty to discover the singleton DSCI/DSC on the cluster; set to check a specific CR.
 - **OnlySections**: run only these sections (see Section constants). Overrides `Layers` when non-empty.
 - **Layers**: run sections from these layers (see Layer constants). Ignored if `OnlySections` is set.
+- **Clientset** (optional): `*kubernetes.Clientset` for pod log capture. When set, the library captures the tail of container logs for unhealthy pods (CrashLoopBackOff, terminated, not-ready with restarts, etc.). When nil, log capture is silently skipped. The controller-runtime `client.Client` does not support log streaming, so a separate clientset is needed.
+- **LogTailLines** (optional): number of log lines per container. Default 50 (when 0). Negative disables log capture.
 
 ### Running a subset of sections
 
@@ -145,9 +152,11 @@ The CR must expose `status.conditions` as a slice of objects with `type`, `statu
 The `cmd/health-check` binary uses this library. Set the same env vars as e2e (`E2E_TEST_OPERATOR_NAMESPACE`, `E2E_TEST_APPLICATIONS_NAMESPACE`, `E2E_TEST_WORKBENCHES_NAMESPACE`, `E2E_TEST_DSC_MONITORING_NAMESPACE`), then:
 
 ```bash
-go run ./cmd/health-check              # all sections, summary
-go run ./cmd/health-check -l          # all sections, long format (conditions/details)
-go run ./cmd/health-check -json       # full report as JSON
+go run ./cmd/health-check              # all sections, summary (no log capture)
+go run ./cmd/health-check -l          # all sections, long format (conditions/details + container logs)
+go run ./cmd/health-check -json       # full report as JSON (includes container logs)
+go run ./cmd/health-check -log-lines=20  # capture 20 lines per container (default 50)
+go run ./cmd/health-check -log-lines=-1  # disable log capture
 go run ./cmd/health-check -layer=infrastructure
 go run ./cmd/health-check -layer=operator
 go run ./cmd/health-check -sections=nodes,dsci,dsc -l
