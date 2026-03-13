@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	rbacv1 "k8s.io/api/rbac/v1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -14,6 +15,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/cloudmanager/app"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 
 	. "github.com/onsi/gomega"
@@ -31,31 +33,48 @@ func TestDefaultCacheOptions(t *testing.T) {
 		g.Expect(opts.ByObject).ToNot(BeEmpty(), "expected at least one selector for cluster-scoped resource types")
 
 		for obj, byObj := range opts.ByObject {
-			if obj.GetObjectKind().GroupVersionKind() == gvk.RoleBinding {
+			objGVK := obj.GetObjectKind().GroupVersionKind()
+
+			// Typed k8s objects (e.g. *extv1.CustomResourceDefinition) return an empty
+			// GVK from GetObjectKind(), so use a type assertion for those.
+			// Unstructured objects (from GvkToUnstructured) have their GVK set.
+			switch {
+			case isObjectType[*extv1.CustomResourceDefinition](obj):
 				g.Expect(byObj.Label).To(BeNil(),
-					"RoleBinding should use per-namespace label selectors, not a top-level label selector")
-				continue
-			}
-			g.Expect(byObj.Label).ToNot(BeNil(),
-				"label selector for %T should not be nil", obj)
+					"CustomResourceDefinition should not have a top-level label selector")
+				g.Expect(byObj.Namespaces).To(BeEmpty(),
+					"CustomResourceDefinition should not have per-namespace config")
 
-			withLabel := k8slabels.Set{
-				labels.InfrastructurePartOf: "azurekubernetesengine",
-			}
-			g.Expect(byObj.Label.Matches(withLabel)).To(BeTrue(),
-				"label selector for %T should match resources with %s label", obj, labels.InfrastructurePartOf)
+			case objGVK == gvk.RoleBinding:
+				g.Expect(byObj.Label).To(BeNil(),
+					"%s should not have a top-level label selector", objGVK)
 
-			withDifferentValue := k8slabels.Set{
-				labels.InfrastructurePartOf: "coreweavekubernetesengine",
-			}
-			g.Expect(byObj.Label.Matches(withDifferentValue)).To(BeTrue(),
-				"label selector for %T should match resources with any %s value", obj, labels.InfrastructurePartOf)
+			case objGVK == gvk.CertManagerCertificate:
+				g.Expect(byObj.Label).To(BeNil(),
+					"%s should not have a top-level label selector", objGVK)
 
-			withoutLabel := k8slabels.Set{
-				"some-other-label": "value",
+			default:
+				g.Expect(byObj.Label).ToNot(BeNil(),
+					"label selector for %T should not be nil", obj)
+
+				withLabel := k8slabels.Set{
+					labels.InfrastructurePartOf: "azurekubernetesengine",
+				}
+				g.Expect(byObj.Label.Matches(withLabel)).To(BeTrue(),
+					"label selector for %T should match resources with %s label", obj, labels.InfrastructurePartOf)
+
+				withDifferentValue := k8slabels.Set{
+					labels.InfrastructurePartOf: "coreweavekubernetesengine",
+				}
+				g.Expect(byObj.Label.Matches(withDifferentValue)).To(BeTrue(),
+					"label selector for %T should match resources with any %s value", obj, labels.InfrastructurePartOf)
+
+				withoutLabel := k8slabels.Set{
+					"some-other-label": "value",
+				}
+				g.Expect(byObj.Label.Matches(withoutLabel)).To(BeFalse(),
+					"label selector for %T should not match resources without %s label", obj, labels.InfrastructurePartOf)
 			}
-			g.Expect(byObj.Label.Matches(withoutLabel)).To(BeFalse(),
-				"label selector for %T should not match resources without %s label", obj, labels.InfrastructurePartOf)
 		}
 	})
 
@@ -125,6 +144,23 @@ func TestDefaultCacheOptions(t *testing.T) {
 			"kube-system label selector should not match resources without %s label", labels.InfrastructurePartOf)
 	})
 
+	t.Run("CertManagerCertificate cache covers managed namespaces and cert-manager namespace", func(t *testing.T) {
+		g := NewWithT(t)
+
+		opts, err := app.DefaultCacheOptions(s)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cmByObj := findByObjectGVK(g, opts.ByObject, gvk.CertManagerCertificate)
+
+		certManagerNamespace := certmanager.DefaultBootstrapConfig().CertManagerNamespace
+		expectedNS := append(common.ManagedNamespaces(), certManagerNamespace)
+		g.Expect(cmByObj.Namespaces).To(HaveLen(len(expectedNS)))
+		for _, ns := range expectedNS {
+			g.Expect(cmByObj.Namespaces).To(HaveKey(ns),
+				"CertManagerCertificate namespaces should include %s", ns)
+		}
+	})
+
 	t.Run("RoleBinding cache does not filter managed namespaces by label selector", func(t *testing.T) {
 		g := NewWithT(t)
 
@@ -139,6 +175,11 @@ func TestDefaultCacheOptions(t *testing.T) {
 				"managed namespace %s should not have a label selector", ns)
 		}
 	})
+}
+
+func isObjectType[T any](obj client.Object) bool {
+	_, ok := obj.(T)
+	return ok
 }
 
 func findByObjectGVK(g Gomega, byObject map[client.Object]cache.ByObject, target schema.GroupVersionKind) cache.ByObject {

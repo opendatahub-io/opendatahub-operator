@@ -14,6 +14,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -22,8 +23,9 @@ import (
 // managed namespaces shared by all cloud managers and filtering cluster-scoped
 // resources by the existence of the infrastructure part-of label.
 func DefaultCacheOptions(scheme *runtime.Scheme) (cache.Options, error) {
-	nsConfig := make(map[string]cache.Config, len(common.ManagedNamespaces()))
-	for _, ns := range common.ManagedNamespaces() {
+	managedNamespaces := common.ManagedNamespaces()
+	nsConfig := make(map[string]cache.Config, len(managedNamespaces))
+	for _, ns := range managedNamespaces {
 		nsConfig[ns] = cache.Config{}
 	}
 
@@ -38,13 +40,14 @@ func DefaultCacheOptions(scheme *runtime.Scheme) (cache.Options, error) {
 		Label: labelSelector,
 	}
 
-	roleBindingCacheNamespaces := make(map[string]cache.Config, len(nsConfig)+1)
-	for ns, cfg := range nsConfig {
-		roleBindingCacheNamespaces[ns] = cfg
-	}
-	roleBindingCacheNamespaces[common.NamespaceKubeSystem] = cache.Config{
-		LabelSelector: labelSelector,
-	}
+	roleBindingCacheOption := cacheOptionsWithAdditionalNamespaces(managedNamespaces, map[string]cache.Config{
+		common.NamespaceKubeSystem: {LabelSelector: labelSelector},
+	})
+
+	certManagerNamespace := certmanager.DefaultBootstrapConfig().CertManagerNamespace
+	certManagerCacheOption := cacheOptionsWithAdditionalNamespaces(managedNamespaces, map[string]cache.Config{
+		certManagerNamespace: {},
+	})
 
 	return cache.Options{
 		Scheme:            scheme,
@@ -55,10 +58,9 @@ func DefaultCacheOptions(scheme *runtime.Scheme) (cache.Options, error) {
 			// TODO: consider using a metadata-only cache for CRDs to reduce memory
 			// usage now that all CRDs are cached (not just labeled ones).
 			// See controller-runtime's support for metadata-only informers.
-			&extv1.CustomResourceDefinition{}: {},
-			resources.GvkToUnstructured(gvk.RoleBinding): {
-				Namespaces: roleBindingCacheNamespaces,
-			},
+			&extv1.CustomResourceDefinition{}:                       {},
+			resources.GvkToUnstructured(gvk.RoleBinding):            roleBindingCacheOption,
+			resources.GvkToUnstructured(gvk.CertManagerCertificate): certManagerCacheOption,
 		},
 		DefaultTransform: func(in any) (any, error) {
 			// Nilcheck managed fields to avoid hitting https://github.com/kubernetes/kubernetes/issues/124337
@@ -69,4 +71,17 @@ func DefaultCacheOptions(scheme *runtime.Scheme) (cache.Options, error) {
 			return in, nil
 		},
 	}, nil
+}
+
+func cacheOptionsWithAdditionalNamespaces(managedNamespaces []string, extras map[string]cache.Config) cache.ByObject {
+	nsConfig := make(map[string]cache.Config, len(managedNamespaces)+len(extras))
+	for _, ns := range managedNamespaces {
+		nsConfig[ns] = cache.Config{}
+	}
+	for ns, cfg := range extras {
+		nsConfig[ns] = cfg
+	}
+	return cache.ByObject{
+		Namespaces: nsConfig,
+	}
 }
