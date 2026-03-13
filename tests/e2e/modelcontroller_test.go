@@ -167,19 +167,6 @@ func (tc *ModelControllerTestCtx) ValidateWVAConfigMapUserConfigurable(t *testin
 		),
 	)
 
-	// Restore to original value for subsequent tests
-	tc.EventuallyResourcePatched(
-		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
-			Name:      wvaConfigMapName,
-			Namespace: tc.AppsNamespace,
-		}),
-		WithMutateFunc(
-			testf.TransformPipeline(
-				testf.Transform(`.data.default |= sub("queueSpareTrigger: %s"; "queueSpareTrigger: %s")`, queueSpareTriggerModified, queueSpareTriggerOriginal),
-			),
-		),
-	)
-
 	// Test if CM gets deleted by user it gets recreated by the operator with default
 	tc.EnsureResourceDeletedThenRecreated(
 		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{

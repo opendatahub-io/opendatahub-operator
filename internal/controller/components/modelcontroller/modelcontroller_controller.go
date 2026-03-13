@@ -81,6 +81,19 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				resources.CreatedOrUpdatedOrDeletedNamed(cmaOperatorSubscription),
 			),
 			reconciler.Dynamic(reconciler.CrdExists(gvk.Subscription))).
+		// This get deleted configmap e.g workload-variant-autoscaler-saturation-scaling-config re-created
+		Watches(
+			&corev1.ConfigMap{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.ModelControllerInstanceName),
+			),
+			reconciler.WithPredicates(
+				predicate.And(
+					resources.Deleted(),
+					component.ForLabel("app.kubernetes.io/name", "workload-variant-autoscaler"),
+				),
+			),
+		).
 		WithAction(initialize).
 		WithAction(checkSubscriptionDependencies()).
 		WithAction(kustomize.NewAction(
