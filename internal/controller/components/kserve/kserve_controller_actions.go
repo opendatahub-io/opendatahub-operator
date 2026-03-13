@@ -32,8 +32,13 @@ const (
 )
 
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { //nolint:unparam
+	sourcePath := kserveManifestSourcePath
+	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
+		sourcePath = kserveManifestSourcePathXKS
+	}
+
 	rr.Manifests = []odhtypes.ManifestInfo{
-		kserveManifestInfo(kserveManifestSourcePath),
+		kserveManifestInfo(sourcePath),
 		{
 			Path:       odhdeploy.DefaultManifestPath,
 			ContextDir: "connectionAPI",
