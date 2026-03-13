@@ -1111,3 +1111,162 @@ func TestDeployDynamicOwnership_CRDsExcludedByDefault(t *testing.T) {
 	g.Expect(cm.GetOwnerReferences()).Should(HaveLen(1))
 	g.Expect(cm.GetOwnerReferences()[0].Kind).Should(Equal(instance.GroupVersionKind().Kind))
 }
+
+func TestWithSortFn(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := t.Context()
+	ns := xid.New().String()
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	var sortCalled bool
+	var sortInput []string
+
+	action := deploy.NewAction(
+		deploy.WithSortFn(func(ctx context.Context, res []unstructured.Unstructured) ([]unstructured.Unstructured, error) {
+			sortCalled = true
+			for _, r := range res {
+				sortInput = append(sortInput, r.GetKind())
+			}
+			// Reverse the order to prove sorting was applied
+			reversed := make([]unstructured.Unstructured, len(res))
+			for i, r := range res {
+				reversed[len(res)-1-i] = r
+			}
+			return reversed, nil
+		}),
+	)
+
+	obj1, err := resources.ToUnstructured(&corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       gvk.ConfigMap.Kind,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cm-1",
+			Namespace: ns,
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	obj2, err := resources.ToUnstructured(&appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: appsv1.SchemeGroupVersion.String(),
+			Kind:       gvk.Deployment.Kind,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "deploy-1",
+			Namespace: ns,
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := types.ReconciliationRequest{
+		Client: cl,
+		Instance: &componentApi.Dashboard{
+			ObjectMeta: metav1.ObjectMeta{
+				Generation: 1,
+			},
+		},
+		Release: common.Release{
+			Name: cluster.OpenDataHub,
+			Version: version.OperatorVersion{Version: semver.Version{
+				Major: 1, Minor: 2, Patch: 3,
+			}},
+		},
+		Resources: []unstructured.Unstructured{*obj1, *obj2},
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("Owns", mock.Anything).Return(false)
+		}),
+	}
+
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(sortCalled).To(BeTrue(), "sort function should have been called")
+	g.Expect(sortInput).To(Equal([]string{gvk.ConfigMap.Kind, gvk.Deployment.Kind}))
+
+	// Verify resources were reordered (reversed by our sort fn)
+	g.Expect(rr.Resources[0].GetKind()).To(Equal(gvk.Deployment.Kind))
+	g.Expect(rr.Resources[1].GetKind()).To(Equal(gvk.ConfigMap.Kind))
+
+	// Verify both resources were deployed
+	err = cl.Get(ctx, apimachinery.NamespacedName{Namespace: ns, Name: "cm-1"}, resources.GvkToUnstructured(gvk.ConfigMap))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = cl.Get(ctx, apimachinery.NamespacedName{Namespace: ns, Name: "deploy-1"}, resources.GvkToUnstructured(gvk.Deployment))
+	g.Expect(err).ShouldNot(HaveOccurred())
+}
+
+func TestWithApplyOrder(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := t.Context()
+	ns := xid.New().String()
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	action := deploy.NewAction(
+		deploy.WithApplyOrder(),
+	)
+
+	obj1, err := resources.ToUnstructured(&appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: appsv1.SchemeGroupVersion.String(),
+			Kind:       "Deployment",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "deploy-1",
+			Namespace: ns,
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	obj2, err := resources.ToUnstructured(&corev1.Namespace{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "Namespace",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-ns-" + xid.New().String(),
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Input order: Deployment, Namespace (wrong order)
+	rr := types.ReconciliationRequest{
+		Client: cl,
+		Instance: &componentApi.Dashboard{
+			ObjectMeta: metav1.ObjectMeta{
+				Generation: 1,
+			},
+		},
+		Release: common.Release{
+			Name: cluster.OpenDataHub,
+			Version: version.OperatorVersion{Version: semver.Version{
+				Major: 1, Minor: 2, Patch: 3,
+			}},
+		},
+		Resources: []unstructured.Unstructured{*obj1, *obj2},
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("Owns", mock.Anything).Return(false)
+		}),
+	}
+
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Verify resources were reordered: Namespace before Deployment
+	g.Expect(rr.Resources[0].GetKind()).To(Equal(gvk.Namespace.Kind))
+	g.Expect(rr.Resources[1].GetKind()).To(Equal(gvk.Deployment.Kind))
+
+	// Verify both resources were deployed
+	err = cl.Get(ctx, apimachinery.NamespacedName{Namespace: ns, Name: "deploy-1"}, resources.GvkToUnstructured(gvk.Deployment))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = cl.Get(ctx, apimachinery.NamespacedName{Name: obj2.GetName()}, resources.GvkToUnstructured(gvk.Namespace))
+	g.Expect(err).ShouldNot(HaveOccurred())
+}
