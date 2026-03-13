@@ -236,6 +236,7 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="template.openshift.io",resources=templates,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="config.openshift.io",resources=ingresses,verbs=get
 /* KEDA (CMA) InferenceService autoscaling */
+// +kubebuilder:rbac:groups=keda.sh,resources=kedacontrollers,verbs=get;list;watch
 // +kubebuilder:rbac:groups=keda.sh,resources=triggerauthentications,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=metrics.k8s.io,resources=pods;nodes,verbs=get;list;watch
 /* LLM-d */

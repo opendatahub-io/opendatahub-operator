@@ -26,6 +26,12 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 )
 
+const (
+	LeaderWorkerSetOperatorCRDname = "leaderworkersetoperators.operator.openshift.io"
+	SubscriptionCRDname            = "subscriptions.operators.coreos.com"
+	VariantAutoscalingCRDname      = "variantautoscalings.llmd.ai"
+)
+
 var (
 	Namespace = schema.GroupVersionKind{
 		Group:   "",
@@ -517,6 +523,12 @@ var (
 		Group:   "inference.networking.x-k8s.io",
 		Version: "v1alpha2",
 		Kind:    "InferenceModel",
+	}
+
+	VariantAutoscaling = schema.GroupVersionKind{
+		Group:   "llmd.ai",
+		Version: "v1alpha1",
+		Kind:    "VariantAutoscaling",
 	}
 
 	OperatorCondition = schema.GroupVersionKind{

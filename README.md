@@ -504,6 +504,8 @@ spec:
       managementState: Managed
       nim:
         managementState: Managed
+      wva:
+        managementState: Removed
       rawDeploymentServiceConfig: Headed
     kueue:
       managementState: Removed
