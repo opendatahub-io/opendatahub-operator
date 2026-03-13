@@ -48,6 +48,27 @@ spec:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+      - name: copy-manifests
+        image: REPLACE_IMAGE:latest-rhoai
+        imagePullPolicy: Always
+        command: ["cp", "-r", "--preserve=mode,timestamps", "/opt/manifests-template/.", "/opt/manifests/"]
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - "ALL"
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            cpu: 100m
+            memory: 256Mi
+        volumeMounts:
+        - name: manifests
+          mountPath: /opt/manifests
       containers:
       - name: rhods-operator
         command:
@@ -70,6 +91,7 @@ spec:
         imagePullPolicy: Always
         securityContext:
           allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
           capabilities:
             drop:
               - "ALL"
@@ -94,5 +116,12 @@ spec:
           requests:
             cpu: 500m
             memory: 256Mi
+        volumeMounts:
+        - name: manifests
+          mountPath: /opt/manifests
+      volumes:
+      - name: manifests
+        emptyDir:
+          sizeLimit: 256Mi
       serviceAccountName: redhat-ods-operator-controller-manager
       terminationGracePeriodSeconds: 10
