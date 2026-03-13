@@ -34,7 +34,7 @@ const (
 
 	// PostgreSQL constants for the MaaS database dependency.
 	// Reference: https://github.com/opendatahub-io/models-as-a-service/blob/main/scripts/deploy.sh
-	maasPostgresName     = "postgres"
+	maasPostgresName     = "maas-postgres"
 	maasPostgresImage    = "registry.redhat.io/rhel9/postgresql-15:latest"
 	maasPostgresUser     = "maas"
 	maasPostgresPassword = "maas-e2e-test" //nolint:gosec // test-only credential, not a real secret
