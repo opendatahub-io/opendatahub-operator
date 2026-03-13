@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"fmt"
+	"net"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -11,6 +12,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelsasservice"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 )
 
@@ -30,11 +32,19 @@ const (
 	// Gateway class for OpenShift default ingress controller.
 	// Reference: https://github.com/opendatahub-io/models-as-a-service/blob/main/deployment/base/networking/maas/maas-gateway-api.yaml
 	maasGatewayClassName = "openshift-default"
+
+	// PostgreSQL constants for the MaaS database dependency.
+	// Reference: https://github.com/opendatahub-io/models-as-a-service/blob/main/scripts/deploy.sh
+	maasPostgresName     = "maas-postgres"
+	maasPostgresImage    = "registry.redhat.io/rhel9/postgresql-15:latest"
+	maasPostgresUser     = "maas"
+	maasPostgresPassword = "maas-e2e-test" //nolint:gosec // test-only credential, not a real secret
+	maasPostgresDB       = "maas"
+	maasDBConfigSecret   = "maas-db-config" //nolint:gosec // secret name reference, not a credential
 )
 
 func modelsAsServiceTestSuite(t *testing.T) {
 	t.Helper()
-	t.Skip("Skipping ModelsAsService tests while waiting for MaaS fix to deployment.")
 
 	ct, err := NewSubComponentTestCtx(t, &componentApi.ModelsAsService{}, componentApi.KserveKind, modelsAsServiceFieldName)
 	require.NoError(t, err)
@@ -43,7 +53,10 @@ func modelsAsServiceTestSuite(t *testing.T) {
 		ComponentTestCtx: ct,
 	}
 
-	// Setup: Create the MaaS Gateway before running tests
+	// Setup: Create PostgreSQL and the MaaS Gateway before running tests.
+	// PostgreSQL must be created before enabling the component because
+	// maas-api reads the maas-db-config secret on startup.
+	componentCtx.createMaaSPostgres(t)
 	componentCtx.createMaaSGateway(t)
 
 	// Note: per e2e convention, do not cleanup resources; leave state for debugging.
@@ -58,6 +71,86 @@ func modelsAsServiceTestSuite(t *testing.T) {
 	}
 
 	RunTestCases(t, testCases)
+}
+
+// createMaaSPostgres creates a minimal PostgreSQL instance and the maas-db-config secret
+// required by the maas-api component. This mirrors the POC-grade setup from:
+// https://github.com/opendatahub-io/models-as-a-service/blob/main/scripts/deploy.sh
+func (tc *ModelsAsServiceTestCtx) createMaaSPostgres(t *testing.T) {
+	t.Helper()
+
+	ns := tc.AppsNamespace
+	t.Logf("Creating MaaS PostgreSQL instance in namespace %s", ns)
+
+	// Create the postgres Deployment
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Name: maasPostgresName, Namespace: ns}),
+		WithTransforms(
+			testf.Transform(`.metadata.labels = {"app": "%s"}`, maasPostgresName),
+			testf.Transform(`.spec.replicas = 1`),
+			testf.Transform(`.spec.selector.matchLabels = {"app": "%s"}`, maasPostgresName),
+			testf.Transform(`.spec.template.metadata.labels = {"app": "%s"}`, maasPostgresName),
+			testf.Transform(`.spec.template.spec.containers = [
+				{
+					"name": "postgres",
+					"image": "%s",
+					"env": [
+						{"name": "POSTGRESQL_USER", "value": "%s"},
+						{"name": "POSTGRESQL_PASSWORD", "value": "%s"},
+						{"name": "POSTGRESQL_DATABASE", "value": "%s"}
+					],
+					"ports": [{"containerPort": 5432}],
+					"volumeMounts": [{"name": "data", "mountPath": "/var/lib/pgsql/data"}],
+					"resources": {
+						"requests": {"memory": "256Mi", "cpu": "100m"},
+						"limits": {"memory": "512Mi", "cpu": "500m"}
+					},
+					"readinessProbe": {
+						"exec": {"command": ["/usr/libexec/check-container"]},
+						"initialDelaySeconds": 5,
+						"periodSeconds": 5
+					}
+				}
+			]`, maasPostgresImage, maasPostgresUser, maasPostgresPassword, maasPostgresDB),
+			testf.Transform(`.spec.template.spec.volumes = [{"name": "data", "emptyDir": {}}]`),
+		),
+		WithCustomErrorMsg("Failed to create PostgreSQL Deployment"),
+	)
+
+	// Create the postgres Service
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.Service, types.NamespacedName{Name: maasPostgresName, Namespace: ns}),
+		WithTransforms(
+			testf.Transform(`.metadata.labels = {"app": "%s"}`, maasPostgresName),
+			testf.Transform(`.spec.selector = {"app": "%s"}`, maasPostgresName),
+			testf.Transform(`.spec.ports = [{"port": 5432, "targetPort": 5432}]`),
+		),
+		WithCustomErrorMsg("Failed to create PostgreSQL Service"),
+	)
+
+	// Create the maas-db-config secret with the connection URL
+	dbURL := fmt.Sprintf("postgresql://%s:%s@%s/%s?sslmode=disable",
+		maasPostgresUser, maasPostgresPassword, net.JoinHostPort(maasPostgresName, "5432"), maasPostgresDB)
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.Secret, types.NamespacedName{Name: maasDBConfigSecret, Namespace: ns}),
+		WithTransforms(
+			testf.Transform(`.stringData = {"DB_CONNECTION_URL": "%s"}`, dbURL),
+		),
+		WithCustomErrorMsg("Failed to create maas-db-config Secret"),
+	)
+
+	// Wait for the postgres deployment to become available before proceeding,
+	// since maas-api reads the database on startup. Use EnsureResourceExists
+	// (which polls via Eventually) rather than EnsureDeploymentReady (point-in-time)
+	// because the image pull may take time on first run.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Name: maasPostgresName, Namespace: ns}),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Available") | .status == "True"`)),
+		WithCustomErrorMsg("PostgreSQL Deployment %s/%s should be available", ns, maasPostgresName),
+	)
+
+	t.Logf("MaaS PostgreSQL instance and maas-db-config secret created in namespace %s", ns)
 }
 
 // createMaaSGateway creates the maas-default-gateway Gateway resource required by ModelsAsService.
