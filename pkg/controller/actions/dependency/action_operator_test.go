@@ -18,6 +18,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency"
 	cond "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -563,6 +564,164 @@ func TestMonitorCRD(t *testing.T) {
 				g.Expect(gotCond.Status).To(Equal(metav1.ConditionFalse))
 				g.Expect(gotCond.Message).To(ContainSubstring(testCRDGVK.Kind))
 				g.Expect(gotCond.Severity).To(Equal(tt.expectedSeverity))
+			}
+		})
+	}
+}
+
+func TestMonitorOperator_ClusterTypeFiltering(t *testing.T) {
+	g := NewWithT(t)
+
+	envTest, err := envt.New()
+	g.Expect(err).NotTo(HaveOccurred())
+	t.Cleanup(func() { _ = envTest.Stop() })
+
+	ctx := context.Background()
+	cli := envTest.Client()
+
+	createTestOperatorCRD(t, g, ctx, envTest)
+
+	tests := []struct {
+		name               string
+		clusterType        string
+		configClusterTypes []string
+		expectedAvailable  bool
+	}{
+		{
+			name:               "degraded operator with matching ClusterType is detected",
+			clusterType:        cluster.ClusterTypeOpenShift,
+			configClusterTypes: []string{cluster.ClusterTypeOpenShift},
+			expectedAvailable:  false,
+		},
+		{
+			name:               "degraded operator with non-matching ClusterType is skipped",
+			clusterType:        cluster.ClusterTypeKubernetes,
+			configClusterTypes: []string{cluster.ClusterTypeOpenShift},
+			expectedAvailable:  true,
+		},
+		{
+			name:               "degraded operator with empty ClusterTypes always runs",
+			clusterType:        cluster.ClusterTypeKubernetes,
+			configClusterTypes: nil,
+			expectedAvailable:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			cluster.SetClusterInfo(cluster.ClusterInfo{Type: tt.clusterType})
+			t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+			nsn := xid.New().String()
+			ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: nsn}}
+			g.Expect(cli.Create(ctx, &ns)).NotTo(HaveOccurred())
+			t.Cleanup(func() { _ = cli.Delete(ctx, &ns) })
+
+			operatorCR := createOperatorCR(xid.New().String(), nsn, testOperatorGVK)
+			setCondition(g, operatorCR, "Degraded", "True", "TestFailed", "Test failure message")
+			createAndUpdateStatus(ctx, g, cli, operatorCR)
+			t.Cleanup(func() { _ = cli.Delete(ctx, operatorCR) })
+
+			instance := &componentApi.Kueue{ObjectMeta: metav1.ObjectMeta{Name: xid.New().String()}}
+			condManager := cond.NewManager(instance, status.ConditionDependenciesAvailable)
+			rr := &types.ReconciliationRequest{Client: cli, Instance: instance, Conditions: condManager}
+
+			action := dependency.NewAction(dependency.MonitorOperator(dependency.OperatorConfig{
+				OperatorGVK:  testOperatorGVK,
+				CRName:       operatorCR.GetName(),
+				CRNamespace:  nsn,
+				ClusterTypes: tt.configClusterTypes,
+			}))
+
+			err := action(ctx, rr)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			gotCond := condManager.GetCondition(status.ConditionDependenciesAvailable)
+			g.Expect(gotCond).NotTo(BeNil())
+
+			if tt.expectedAvailable {
+				g.Expect(gotCond.Status).To(Equal(metav1.ConditionTrue))
+			} else {
+				g.Expect(gotCond.Status).To(Equal(metav1.ConditionFalse))
+				g.Expect(gotCond.Message).To(ContainSubstring("Degraded=True"))
+			}
+		})
+	}
+}
+
+// TestMonitorCRD_ClusterTypeFiltering verifies that CRD checks respect ClusterTypes filtering.
+//
+// Each subtest uses its own envtest instance because HasCRD relies on the REST mapper,
+// whose discovery cache refreshes asynchronously after CRD deletion.
+func TestMonitorCRD_ClusterTypeFiltering(t *testing.T) {
+	testCRDGVK := schema.GroupVersionKind{
+		Group:   "test.opendatahub.io",
+		Version: "v1",
+		Kind:    "TestClusterTypeResource",
+	}
+
+	tests := []struct {
+		name               string
+		clusterType        string
+		configClusterTypes []string
+		expectedAvailable  bool
+	}{
+		{
+			name:               "absent CRD with matching ClusterType is detected",
+			clusterType:        cluster.ClusterTypeOpenShift,
+			configClusterTypes: []string{cluster.ClusterTypeOpenShift},
+			expectedAvailable:  false,
+		},
+		{
+			name:               "absent CRD with non-matching ClusterType is skipped",
+			clusterType:        cluster.ClusterTypeKubernetes,
+			configClusterTypes: []string{cluster.ClusterTypeOpenShift},
+			expectedAvailable:  true,
+		},
+		{
+			name:               "absent CRD with empty ClusterTypes always runs",
+			clusterType:        cluster.ClusterTypeKubernetes,
+			configClusterTypes: nil,
+			expectedAvailable:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			cluster.SetClusterInfo(cluster.ClusterInfo{Type: tt.clusterType})
+			t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+			envTest, err := envt.New()
+			g.Expect(err).NotTo(HaveOccurred())
+			t.Cleanup(func() { _ = envTest.Stop() })
+
+			ctx := context.Background()
+			cli := envTest.Client()
+
+			instance := &scheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Name: xid.New().String()}}
+			condManager := cond.NewManager(instance, status.ConditionDependenciesAvailable)
+			rr := &types.ReconciliationRequest{Client: cli, Instance: instance, Conditions: condManager}
+
+			action := dependency.NewAction(dependency.MonitorCRD(dependency.CRDConfig{
+				GVK:          testCRDGVK,
+				ClusterTypes: tt.configClusterTypes,
+			}))
+
+			err = action(ctx, rr)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			gotCond := condManager.GetCondition(status.ConditionDependenciesAvailable)
+			g.Expect(gotCond).NotTo(BeNil())
+
+			if tt.expectedAvailable {
+				g.Expect(gotCond.Status).To(Equal(metav1.ConditionTrue))
+			} else {
+				g.Expect(gotCond.Status).To(Equal(metav1.ConditionFalse))
+				g.Expect(gotCond.Message).To(ContainSubstring(testCRDGVK.Kind))
 			}
 		})
 	}
