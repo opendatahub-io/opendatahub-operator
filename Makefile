@@ -232,8 +232,8 @@ endef
 # Add all CRD base files to kustomization.yaml, skipping kustomization.yaml itself
 # and avoiding duplicates by checking if each resource is already present
 define add-crd-to-kustomization
-mkdir -p $(CONFIG_DIR)/crd/bases && \
-cd $(CONFIG_DIR)/crd/bases && \
+mkdir -p $(1) && \
+cd $(1) && \
 rm -f kustomization.yaml && \
 $(KUSTOMIZE) create --autodetect && \
 cd -
@@ -245,7 +245,7 @@ ifneq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	$(CONTROLLER_GEN) rbac:roleName=controller-manager-role paths="./..." output:rbac:artifacts:config=config/rbac
 endif
 	$(CONTROLLER_GEN) $(CONTROLLER_GEN_TAGS) rbac:roleName=$(ROLE_NAME) crd:ignoreUnexportedFields=true webhook paths="./..." output:crd:artifacts:config=$(CONFIG_DIR)/crd/bases output:rbac:artifacts:config=$(CONFIG_DIR)/rbac output:webhook:artifacts:config=$(CONFIG_DIR)/webhook
-	@$(call add-crd-to-kustomization)
+	@$(call add-crd-to-kustomization,$(CONFIG_DIR)/crd/bases)
 	@$(call fetch-external-crds,github.com/openshift/api,route/v1)
 	@$(call fetch-external-crds,github.com/openshift/api,user/v1)
 	@$(call fetch-external-crds,github.com/openshift/api,config/v1,authentications ingresses)
@@ -261,7 +261,11 @@ endif
 	@$(SED_COMMAND) -i'' -e 's/scope: Namespaced/scope: Cluster/' $(CONFIG_DIR)/crd/external/config.openshift.io_ingresses.yaml
 	@$(SED_COMMAND) -i'' -e 's/scope: Namespaced/scope: Cluster/' $(CONFIG_DIR)/crd/external/config.openshift.io_authentications.yaml
 	@$(SED_COMMAND) -i'' -e 's/scope: Namespaced/scope: Cluster/' $(CONFIG_DIR)/crd/external/oauth.openshift.io_oauthclients.yaml
-CLEANFILES += config/crd/bases config/rhoai/crd/bases config/crd/external config/rhoai/crd/external config/rbac/role.yaml config/rhoai/rbac/role.yaml config/webhook/manifests.yaml config/rhoai/webhook/manifests.yaml
+	@# Copy KServe CRD to rhaii overlay and generate kustomization
+	@mkdir -p config/rhaii/crd/bases
+	@cp config/crd/bases/components.platform.opendatahub.io_kserves.yaml config/rhaii/crd/bases/
+	@$(call add-crd-to-kustomization,config/rhaii/crd/bases)
+CLEANFILES += config/crd/bases config/rhoai/crd/bases config/rhaii/crd/bases config/crd/external config/rhoai/crd/external config/rbac/role.yaml config/rhoai/rbac/role.yaml config/webhook/manifests.yaml config/rhoai/webhook/manifests.yaml
 
 .PHONY: manifests-all
 manifests-all:
@@ -386,6 +390,14 @@ uninstall: prepare ## Uninstall CRDs from the K8s cluster specified in ~/.kube/c
 .PHONY: deploy
 deploy: prepare ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build $(CONFIG_DIR)/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
+
+.PHONY: deploy-rhaii
+deploy-rhaii: prepare ## Deploy controller in rhaii mode (only KServe) to the K8s cluster specified in ~/.kube/config.
+	$(KUSTOMIZE) build config/rhaii | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
+
+.PHONY: undeploy-rhaii
+undeploy-rhaii: prepare ## Undeploy rhaii controller from the K8s cluster specified in ~/.kube/config.
+	$(KUSTOMIZE) build config/rhaii | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: undeploy
 undeploy: prepare ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.

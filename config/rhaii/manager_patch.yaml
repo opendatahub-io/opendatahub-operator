@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-manager
+  namespace: system
+spec:
+  template:
+    spec:
+      containers:
+      - name: manager
+        env:
+        - name: RHAI_DISABLE_DSC_RESOURCE
+          value: 'true'
+        - name: RHAI_DISABLE_DSCI_RESOURCE
+          value: 'true'
+        # Components (all disabled except kserve)
+        - name: RHAI_DISABLE_DASHBOARD_COMPONENT
+          value: 'true'
+        - name: RHAI_DISABLE_DATASCIENCEPIPELINES_COMPONENT
+          value: 'true'
+        - name: RHAI_DISABLE_FEASTOPERATOR_COMPONENT
+          value: 'true'
+        - name: RHAI_DISABLE_KUEUE_COMPONENT
+          value: 'true'
+        - name: RHAI_DISABLE_LLAMASTACKOPERATOR_COMPONENT
+          value: 'true'
+        - name: RHAI_DISABLE_MLFLOWOPERATOR_COMPONENT
+          value: 'true'
+        - name: RHAI_DISABLE_MODELCONTROLLER_COMPONENT
+          value: 'true'
+        - name: RHAI_DISABLE_MODELREGISTRY_COMPONENT
+          value: 'true'
+        - name: RHAI_DISABLE_MODELSASSERVICE_COMPONENT
+          value: 'true'
+        - name: RHAI_DISABLE_RAY_COMPONENT
+          value: 'true'
+        - name: RHAI_DISABLE_SPARKOPERATOR_COMPONENT
+          value: 'true'
+        - name: RHAI_DISABLE_TRAINER_COMPONENT
+          value: 'true'
+        - name: RHAI_DISABLE_TRAININGOPERATOR_COMPONENT
+          value: 'true'
+        - name: RHAI_DISABLE_TRUSTYAI_COMPONENT
+          value: 'true'
+        - name: RHAI_DISABLE_WORKBENCHES_COMPONENT
+          value: 'true'
+        # Services (all disabled)
+        - name: RHAI_DISABLE_AUTH_SERVICE
+          value: 'true'
+        - name: RHAI_DISABLE_CERTCONFIGMAPGENERATOR_SERVICE
+          value: 'true'
+        - name: RHAI_DISABLE_GATEWAY_SERVICE
+          value: 'true'
+        - name: RHAI_DISABLE_MONITORING_SERVICE
+          value: 'true'
+        - name: RHAI_DISABLE_SETUPCONTROLLER_SERVICE
+          value: 'true'
+        - name: RHAI_APPLICATIONS_NAMESPACE
+          value: opendatahub
