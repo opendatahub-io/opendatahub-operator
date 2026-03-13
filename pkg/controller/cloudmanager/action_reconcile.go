@@ -64,7 +64,7 @@ func NewReconcileAction(resourceID string, opts ...ReconcileActionOpts) actions.
 	}
 
 	helmRender := helm.NewAction(action.helmOpts...)
-	deployAction := deploy.NewAction(action.deployOpts...)
+	deployAction := deploy.NewAction(append(action.deployOpts, deploy.WithApplyOrder())...)
 	deploymentsAction := deployments.NewAction(
 		deployments.InNamespaceFn(func(_ context.Context, _ *types.ReconciliationRequest) (string, error) {
 			return "", nil

@@ -2,7 +2,6 @@ package app
 
 import (
 	"fmt"
-	"slices"
 
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -41,16 +40,14 @@ func DefaultCacheOptions(scheme *runtime.Scheme) (cache.Options, error) {
 		Label: labelSelector,
 	}
 
-	roleBindingCacheNamespaces := make(map[string]cache.Config, len(nsConfig)+1)
-	for ns, cfg := range nsConfig {
-		roleBindingCacheNamespaces[ns] = cfg
-	}
-	roleBindingCacheNamespaces[common.NamespaceKubeSystem] = cache.Config{
-		LabelSelector: labelSelector,
-	}
+	roleBindingCacheOption := cacheOptionsWithAdditionalNamespaces(managedNamespaces, map[string]cache.Config{
+		common.NamespaceKubeSystem: {LabelSelector: labelSelector},
+	})
 
 	certManagerNamespace := certmanager.DefaultBootstrapConfig().CertManagerNamespace
-	certManagerCacheOption := cacheOptionsWithAdditionalNamespaces(managedNamespaces, certManagerNamespace)
+	certManagerCacheOption := cacheOptionsWithAdditionalNamespaces(managedNamespaces, map[string]cache.Config{
+		certManagerNamespace: {},
+	})
 
 	return cache.Options{
 		Scheme:            scheme,
@@ -61,10 +58,8 @@ func DefaultCacheOptions(scheme *runtime.Scheme) (cache.Options, error) {
 			// TODO: consider using a metadata-only cache for CRDs to reduce memory
 			// usage now that all CRDs are cached (not just labeled ones).
 			// See controller-runtime's support for metadata-only informers.
-			&extv1.CustomResourceDefinition{}: {},
-			resources.GvkToUnstructured(gvk.RoleBinding): {
-				Namespaces: roleBindingCacheNamespaces,
-			},
+			&extv1.CustomResourceDefinition{}:                       {},
+			resources.GvkToUnstructured(gvk.RoleBinding):            roleBindingCacheOption,
 			resources.GvkToUnstructured(gvk.CertManagerCertificate): certManagerCacheOption,
 		},
 		DefaultTransform: func(in any) (any, error) {
@@ -78,11 +73,13 @@ func DefaultCacheOptions(scheme *runtime.Scheme) (cache.Options, error) {
 	}, nil
 }
 
-func cacheOptionsWithAdditionalNamespaces(managedNamespaces []string, otherNamespaces ...string) cache.ByObject {
-	namespaces := slices.Concat(managedNamespaces, otherNamespaces)
-	nsConfig := make(map[string]cache.Config, len(namespaces))
-	for _, ns := range namespaces {
+func cacheOptionsWithAdditionalNamespaces(managedNamespaces []string, extras map[string]cache.Config) cache.ByObject {
+	nsConfig := make(map[string]cache.Config, len(managedNamespaces)+len(extras))
+	for _, ns := range managedNamespaces {
 		nsConfig[ns] = cache.Config{}
+	}
+	for ns, cfg := range extras {
+		nsConfig[ns] = cfg
 	}
 	return cache.ByObject{
 		Namespaces: nsConfig,
