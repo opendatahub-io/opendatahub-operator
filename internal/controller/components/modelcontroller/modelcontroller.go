@@ -61,6 +61,7 @@ func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *
 			Kserve: &componentApi.ModelControllerKerveSpec{
 				ManagementState: kState,
 				NIM:             dsc.Spec.Components.Kserve.NIM,
+				WVA:             dsc.Spec.Components.Kserve.WVA,
 			},
 			ModelRegistry: &componentApi.ModelControllerMRSpec{
 				ManagementState: mrState,
@@ -107,6 +108,9 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 			cs = rc.Status
 		} else {
 			cs = metav1.ConditionFalse
+		}
+		if wvaCondition := conditions.FindStatusCondition(c.GetStatus(), LLMDWVADependencies); wvaCondition != nil {
+			rr.Conditions.MarkFrom(LLMDWVADependencies, *wvaCondition)
 		}
 	} else {
 		rr.Conditions.MarkFalse(
