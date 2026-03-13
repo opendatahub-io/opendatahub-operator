@@ -75,7 +75,7 @@ func allChartDefs() []chartDef {
 						"namespace": NamespaceLWSOperator,
 					}),
 				},
-				PreApply: []types.HookFn{},
+				PreApply: []types.HookFn{SkipCRDIfPresent(ServiceMonitorCRDName)},
 			},
 		},
 		{

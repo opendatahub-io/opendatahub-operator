@@ -50,9 +50,12 @@ func DefaultCacheOptions(scheme *runtime.Scheme) (cache.Options, error) {
 		Scheme:            scheme,
 		DefaultNamespaces: nsConfig,
 		ByObject: map[client.Object]cache.ByObject{
-			&rbacv1.ClusterRole{}:             clusterScopedConfig,
-			&rbacv1.ClusterRoleBinding{}:      clusterScopedConfig,
-			&extv1.CustomResourceDefinition{}: clusterScopedConfig,
+			&rbacv1.ClusterRole{}:        clusterScopedConfig,
+			&rbacv1.ClusterRoleBinding{}: clusterScopedConfig,
+			// TODO: consider using a metadata-only cache for CRDs to reduce memory
+			// usage now that all CRDs are cached (not just labeled ones).
+			// See controller-runtime's support for metadata-only informers.
+			&extv1.CustomResourceDefinition{}: {},
 			resources.GvkToUnstructured(gvk.RoleBinding): {
 				Namespaces: roleBindingCacheNamespaces,
 			},
