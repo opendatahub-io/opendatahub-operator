@@ -143,6 +143,12 @@ func GetClusterInfo() ClusterInfo {
 	return clusterConfig.ClusterInfo
 }
 
+// SetClusterInfo overrides the cluster information. Intended for use in tests
+// to control the cluster type without requiring a live cluster.
+func SetClusterInfo(info ClusterInfo) {
+	clusterConfig.ClusterInfo = info
+}
+
 func GetDomain(ctx context.Context, c client.Client) (string, error) {
 	ingress := &unstructured.Unstructured{}
 	ingress.SetGroupVersionKind(gvk.OpenshiftIngress)

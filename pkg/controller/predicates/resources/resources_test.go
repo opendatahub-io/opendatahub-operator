@@ -937,16 +937,21 @@ func TestCreatedOrUpdatedOrDeletedNamePrefixed(t *testing.T) {
 		testCreate:      true,
 		testUpdate:      true,
 		testDelete:      true,
-		testGeneric:     false, // Generic always returns true
+		testGeneric:     false, // Generic always returns false, tested below
 	})
 
-	// FIXME: is correct to always return true with Generic predicate?
 	t.Run("Generic", func(t *testing.T) {
 		t.Parallel()
 
 		g := NewWithT(t)
 
-		g.Expect(pred.Generic(event.GenericEvent{})).To(BeTrue())
+		g.Expect(pred.Generic(event.GenericEvent{
+			Object: &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "test-pod"}},
+		})).To(BeFalse())
+
+		g.Expect(pred.Generic(event.GenericEvent{
+			Object: &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "other-pod"}},
+		})).To(BeFalse())
 	})
 }
 
