@@ -12,6 +12,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelsasservice"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 )
 
@@ -139,9 +140,15 @@ func (tc *ModelsAsServiceTestCtx) createMaaSPostgres(t *testing.T) {
 		WithCustomErrorMsg("Failed to create maas-db-config Secret"),
 	)
 
-	// Wait for the postgres pod to be ready before proceeding, since maas-api
-	// reads the database on startup.
-	tc.EnsureDeploymentReady(types.NamespacedName{Name: maasPostgresName, Namespace: ns}, 1)
+	// Wait for the postgres deployment to become available before proceeding,
+	// since maas-api reads the database on startup. Use EnsureResourceExists
+	// (which polls via Eventually) rather than EnsureDeploymentReady (point-in-time)
+	// because the image pull may take time on first run.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Name: maasPostgresName, Namespace: ns}),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Available") | .status == "True"`)),
+		WithCustomErrorMsg("PostgreSQL Deployment %s/%s should be available", ns, maasPostgresName),
+	)
 
 	t.Logf("MaaS PostgreSQL instance and maas-db-config secret created in namespace %s", ns)
 }
