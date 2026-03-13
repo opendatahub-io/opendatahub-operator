@@ -27,6 +27,9 @@ map:
   odh-model-controller:
     src: config
     dest: modelcontroller
+  odh-workload-variant-autoscaler-controller:
+    src: config
+    dest: wva
   odh-model-registry-operator:
     src: config
     dest: modelregistry
