@@ -30,6 +30,7 @@ var (
 	imageParamMap = map[string]string{
 		"kserve-agent":                     "RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE",
 		"kserve-controller":                "RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE",
+		"llmisvc-controller":               "RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE",
 		"kserve-router":                    "RELATED_IMAGE_ODH_KSERVE_ROUTER_IMAGE",
 		"kserve-storage-initializer":       "RELATED_IMAGE_ODH_KSERVE_STORAGE_INITIALIZER_IMAGE",
 		"kserve-llm-d":                     "RELATED_IMAGE_RHAIIS_VLLM_CUDA_IMAGE", // Default image (Nvidia CUDA)
