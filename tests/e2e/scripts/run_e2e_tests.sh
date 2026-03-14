@@ -88,7 +88,7 @@ validate_tag E2E_TEST_TAG
 # Run gotestsum with the environment variables and any additional arguments
 exec gotestsum --junitfile-project-name odh-operator-e2e \
   --junitfile results/xunit_report.xml --format testname --raw-command \
-  -- test2json -p e2e ./e2e-tests --test.v=test2json --test.parallel=8 \
+  -- test2json -t -p e2e ./e2e-tests --test.v=test2json --test.parallel=8 \
   --deletion-policy="$E2E_TEST_DELETION_POLICY" --clean-up-previous-resources="$E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES" \
   --test-operator-controller="$E2E_TEST_OPERATOR_CONTROLLER" --test-operator-resilience="$E2E_TEST_OPERATOR_RESILIENCE" \
   --test-operator-v2tov3upgrade="$E2E_TEST_OPERATOR_V2TOV3UPGRADE" --test-hardware-profile="$E2E_TEST_HARDWARE_PROFILE" \
