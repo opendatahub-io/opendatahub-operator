@@ -50,6 +50,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -309,26 +310,8 @@ func main() { //nolint:funlen,maintidx,gocyclo
 			&corev1.ConfigMap{}: {
 				Namespaces: oDHCache,
 			},
-			// For domain to get OpenshiftIngress and default cert
-			&operatorv1.IngressController{}: {
-				Field: fields.Set{"metadata.name": "default"}.AsSelector(),
-			},
-			// For authentication CR "cluster"
-			&configv1.Authentication{}: {
-				Field: fields.Set{"metadata.name": cluster.ClusterAuthenticationObj}.AsSelector(),
-			},
 			// for prometheus and black-box deployment and ones we owns
 			&appsv1.Deployment{}: {
-				Namespaces: oDHCache,
-			},
-			// kueue + monitoring need prometheusrules
-			&promv1.PrometheusRule{}: {
-				Namespaces: oDHCache,
-			},
-			&promv1.ServiceMonitor{}: {
-				Namespaces: oDHCache,
-			},
-			&routev1.Route{}: {
 				Namespaces: oDHCache,
 			},
 			&networkingv1.NetworkPolicy{}: {
@@ -350,6 +333,23 @@ func main() { //nolint:funlen,maintidx,gocyclo
 			return in, nil
 		},
 	}
+
+	// OpenShift-specific cache filters: only register when running on OpenShift
+	if cluster.GetClusterInfo().Type == cluster.ClusterTypeOpenShift {
+		cacheOptions.ByObject[&operatorv1.IngressController{}] = cache.ByObject{
+			Field: fields.Set{"metadata.name": "default"}.AsSelector(),
+		}
+		cacheOptions.ByObject[&configv1.Authentication{}] = cache.ByObject{
+			Field: fields.Set{"metadata.name": cluster.ClusterAuthenticationObj}.AsSelector(),
+		}
+		cacheOptions.ByObject[&routev1.Route{}] = cache.ByObject{
+			Namespaces: oDHCache,
+		}
+	}
+
+	// Prometheus operator cache filters: only register when the API is available
+	addCacheIfAvailable(setupClient, cacheOptions.ByObject, &promv1.PrometheusRule{}, gvk.PrometheusRule, cache.ByObject{Namespaces: oDHCache})
+	addCacheIfAvailable(setupClient, cacheOptions.ByObject, &promv1.ServiceMonitor{}, gvk.ServiceMonitor, cache.ByObject{Namespaces: oDHCache})
 
 	ctrlMgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{ // single pod does not need to have LeaderElection
 		Scheme: scheme,
@@ -575,6 +575,15 @@ func createODHGeneralCacheConfig(platform common.Platform) (map[string]cache.Con
 	namespaceConfigs["openshift-ingress"] = cache.Config{}   // for gateway auth proxy resources
 
 	return namespaceConfigs, nil
+}
+
+// addCacheIfAvailable adds obj to the ByObject cache map only when its API is
+// present on the cluster. This prevents startup failures on clusters that do
+// not have the corresponding CRD installed (e.g. Prometheus operator on vanilla K8s).
+func addCacheIfAvailable(cli client.Client, byObject map[client.Object]cache.ByObject, obj client.Object, g schema.GroupVersionKind, opts cache.ByObject) {
+	if ok, _ := cluster.IsAPIAvailable(cli, g); ok {
+		byObject[obj] = opts
+	}
 }
 
 func CreateComponentReconcilers(ctx context.Context, mgr *manager.Manager) error {

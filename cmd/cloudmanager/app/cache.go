@@ -24,10 +24,6 @@ import (
 // resources by the existence of the infrastructure part-of label.
 func DefaultCacheOptions(scheme *runtime.Scheme) (cache.Options, error) {
 	managedNamespaces := common.ManagedNamespaces()
-	nsConfig := make(map[string]cache.Config, len(managedNamespaces))
-	for _, ns := range managedNamespaces {
-		nsConfig[ns] = cache.Config{}
-	}
 
 	requirement, err := k8slabels.NewRequirement(labels.InfrastructurePartOf, selection.Exists, nil)
 	if err != nil {
@@ -44,23 +40,25 @@ func DefaultCacheOptions(scheme *runtime.Scheme) (cache.Options, error) {
 		common.NamespaceKubeSystem: {LabelSelector: labelSelector},
 	})
 
-	certManagerNamespace := certmanager.DefaultBootstrapConfig().CertManagerNamespace
-	certManagerCacheOption := cacheOptionsWithAdditionalNamespaces(managedNamespaces, map[string]cache.Config{
-		certManagerNamespace: {},
-	})
+	defaultNsConfig := make(map[string]cache.Config, len(managedNamespaces))
+	for _, ns := range managedNamespaces {
+		defaultNsConfig[ns] = cache.Config{}
+	}
+	defaultNsConfig[certmanager.DefaultBootstrapConfig().CertManagerNamespace] = cache.Config{
+		LabelSelector: labelSelector,
+	}
 
 	return cache.Options{
 		Scheme:            scheme,
-		DefaultNamespaces: nsConfig,
+		DefaultNamespaces: defaultNsConfig,
 		ByObject: map[client.Object]cache.ByObject{
 			&rbacv1.ClusterRole{}:        clusterScopedConfig,
 			&rbacv1.ClusterRoleBinding{}: clusterScopedConfig,
 			// TODO: consider using a metadata-only cache for CRDs to reduce memory
 			// usage now that all CRDs are cached (not just labeled ones).
 			// See controller-runtime's support for metadata-only informers.
-			&extv1.CustomResourceDefinition{}:                       {},
-			resources.GvkToUnstructured(gvk.RoleBinding):            roleBindingCacheOption,
-			resources.GvkToUnstructured(gvk.CertManagerCertificate): certManagerCacheOption,
+			&extv1.CustomResourceDefinition{}:            {},
+			resources.GvkToUnstructured(gvk.RoleBinding): roleBindingCacheOption,
 		},
 		DefaultTransform: func(in any) (any, error) {
 			// Nilcheck managed fields to avoid hitting https://github.com/kubernetes/kubernetes/issues/124337
