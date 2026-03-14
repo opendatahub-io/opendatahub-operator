@@ -16,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -102,6 +103,125 @@ func TestDeployAction(t *testing.T) {
 		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformVersion, "1.2.3"),
 		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformType, string(cluster.OpenDataHub)),
 	))
+}
+
+func TestPrepareManagedDeployment_ClearsResources(t *testing.T) {
+	g := NewWithT(t)
+	ctx := context.Background()
+
+	// Setup envtest
+	s := runtime.NewScheme()
+	utilruntime.Must(appsv1.AddToScheme(s))
+	utilruntime.Must(corev1.AddToScheme(s))
+	utilruntime.Must(componentApi.AddToScheme(s))
+
+	projectDir, err := envtestutil.FindProjectRoot()
+	g.Expect(err).NotTo(HaveOccurred())
+
+	envTest := &envtest.Environment{
+		CRDInstallOptions: envtest.CRDInstallOptions{
+			Scheme: s,
+			Paths: []string{
+				filepath.Join(projectDir, "config", "crd", "bases"),
+			},
+			ErrorIfPathMissing: true,
+			CleanUpAfterUse:    false,
+		},
+	}
+
+	t.Cleanup(func() { _ = envTest.Stop() })
+
+	cfg, err := envTest.Start()
+	g.Expect(err).NotTo(HaveOccurred())
+
+	cli, err := client.New(cfg, client.Options{Scheme: s})
+	g.Expect(err).NotTo(HaveOccurred())
+
+	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-ns"}}
+	err = cli.Create(ctx, ns)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	// Create deployed deployment WITH user-added resources
+	deployed := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-deploy", Namespace: "test-ns"},
+		Spec: appsv1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "test"}},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "test"}},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name:  "test",
+						Image: "test:latest",
+						Resources: corev1.ResourceRequirements{
+							Limits: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("200m")},
+						},
+					}},
+				},
+			},
+		},
+	}
+	err = cli.Create(ctx, deployed)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	// Fetch the deployed object from cluster
+	deployedFromCluster := &appsv1.Deployment{}
+	err = cli.Get(ctx, client.ObjectKey{Namespace: "test-ns", Name: "test-deploy"}, deployedFromCluster)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	// Create manifest WITHOUT resources (desired state)
+
+	manifestTyped := &appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: appsv1.SchemeGroupVersion.String(),
+			Kind:       "Deployment",
+		},
+		ObjectMeta: metav1.ObjectMeta{Name: "test-deploy", Namespace: "test-ns"},
+		Spec: appsv1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "test"}},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "test"}},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name:  "test",
+						Image: "test:latest",
+					}},
+				},
+			},
+		},
+	}
+
+	manifestUnstructured, err := resources.ObjectToUnstructured(s, manifestTyped)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	// Ensure resources field is completely absent (not just empty struct)
+	containers, found, err := unstructured.NestedSlice(manifestUnstructured.Object, "spec", "template", "spec", "containers")
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(found).To(BeTrue())
+	container0, ok := containers[0].(map[string]interface{})
+	g.Expect(ok).To(BeTrue(), "Container should be a map")
+	delete(container0, "resources") // Explicitly remove resources field
+	err = unstructured.SetNestedSlice(manifestUnstructured.Object, containers, "spec", "template", "spec", "containers")
+	g.Expect(err).NotTo(HaveOccurred())
+
+	deployedUnstructured, err := resources.ObjectToUnstructured(s, deployedFromCluster)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	// Verify deployed has resources before patch
+	g.Expect(deployedFromCluster.Spec.Template.Spec.Containers[0].Resources.Limits).To(
+		HaveKeyWithValue(corev1.ResourceCPU, resource.MustParse("200m")))
+
+	// Call PrepareManagedDeployment
+	err = deploy.PrepareManagedDeployment(ctx, cli, manifestUnstructured, deployedUnstructured)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	// Verify resources were cleared by fetching the updated deployment
+	result := &appsv1.Deployment{}
+	err = cli.Get(ctx, client.ObjectKey{Namespace: "test-ns", Name: "test-deploy"}, result)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	// Verify resources cleared
+	g.Expect(result.Spec.Template.Spec.Containers[0].Resources.Limits).To(BeEmpty(), "Resources should be cleared by Strategic Merge Patch")
+	g.Expect(result.Spec.Template.Spec.Containers[0].Resources.Requests).To(BeEmpty(), "Resources should be cleared by Strategic Merge Patch")
 }
 
 func TestDeployNotOwnedSkip(t *testing.T) {
