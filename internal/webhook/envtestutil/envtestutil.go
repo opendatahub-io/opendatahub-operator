@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -30,6 +32,7 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/hardwareprofile"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/dsc/compare"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 )
@@ -434,6 +437,57 @@ func NewDSCV1(name string, opts ...func(*dscv1.DataScienceCluster)) *dscv1.DataS
 		opt(dsc)
 	}
 	return dsc
+}
+
+// =============================================================================
+// DSC Component Configuration Helpers
+// =============================================================================
+
+// WithAllV2OnlyComponentsRemoved returns an option function that sets all v2-only components to Removed.
+// This is useful for tests that need all v2-only components in Removed state.
+// Uses reflection to dynamically detect v2-only components, so it automatically handles new v2-only components.
+func WithAllV2OnlyComponentsRemoved() func(*dscv2.DataScienceCluster) {
+	return func(dsc *dscv2.DataScienceCluster) {
+		// Get v2-only component field names from shared utility
+		v2OnlyFieldNames := compare.GetV2OnlyComponentFieldNames()
+
+		// Use reflection to set each v2-only component to Removed
+		componentsValue := reflect.ValueOf(&dsc.Spec.Components).Elem()
+
+		for _, fieldName := range v2OnlyFieldNames {
+			field := componentsValue.FieldByName(fieldName)
+			if !field.IsValid() {
+				continue // Skip if field doesn't exist (shouldn't happen)
+			}
+
+			// Get the ManagementState field of this component
+			managementStateField := field.FieldByName("ManagementState")
+			if managementStateField.IsValid() && managementStateField.CanSet() {
+				managementStateField.Set(reflect.ValueOf(operatorv1.Removed))
+			}
+		}
+	}
+}
+
+// WithTrainerManaged returns an option function that sets Trainer to Managed.
+func WithTrainerManaged() func(*dscv2.DataScienceCluster) {
+	return func(dsc *dscv2.DataScienceCluster) {
+		dsc.Spec.Components.Trainer.ManagementState = operatorv1.Managed
+	}
+}
+
+// WithMLflowOperatorManaged returns an option function that sets MLflowOperator to Managed.
+func WithMLflowOperatorManaged() func(*dscv2.DataScienceCluster) {
+	return func(dsc *dscv2.DataScienceCluster) {
+		dsc.Spec.Components.MLflowOperator.ManagementState = operatorv1.Managed
+	}
+}
+
+// WithSparkOperatorManaged returns an option function that sets SparkOperator to Managed.
+func WithSparkOperatorManaged() func(*dscv2.DataScienceCluster) {
+	return func(dsc *dscv2.DataScienceCluster) {
+		dsc.Spec.Components.SparkOperator.ManagementState = operatorv1.Managed
+	}
 }
 
 // NewAuth creates an Auth object with the given name, namespace, and groups for use in tests.
@@ -915,6 +969,7 @@ func NewAdmissionRequest(
 			UID:       "test-uid",
 			Kind:      metav1.GroupVersionKind{Group: kind.Group, Version: kind.Version, Kind: kind.Kind},
 			Resource:  resource,
+			Name:      obj.GetName(),
 			Namespace: obj.GetNamespace(),
 			Operation: op,
 			Object:    runtime.RawExtension{Raw: objBytes},

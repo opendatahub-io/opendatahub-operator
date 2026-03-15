@@ -1028,8 +1028,38 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateV2OnlyComponentsResetWhenPatchingViaV1AP
 		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
 	)
 
-	// Step 2: Patch the DSC via v1 API (only changing a v1 field, e.g., dashboard)
-	// This triggers v2 -> v1 -> v2 conversion, which causes v2-only fields to be reset.
+	// Step 2: Attempt to patch the DSC via v1 API - this should be BLOCKED by the validating webhook
+	// Fix for RHOAIENG-44476: v1 webhook now prevents data loss by blocking v1 PATCH when v2-only components are Managed
+	tc.EnsureWebhookBlocksResourceUpdate(
+		WithMinimalObject(gvk.DataScienceClusterV1, types.NamespacedName{Name: dscName}),
+		WithMutateFunc(testf.Transform(`.spec.components.dashboard.managementState = "Managed"`)),
+		WithCustomErrorMsg("Expected v1 API PATCH to be blocked by webhook when v2-only components (Trainer, MLflowOperator) are Managed"),
+	)
+
+	// Step 3: Verify via v2 API that v2-only components are still Managed (not reset)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, types.NamespacedName{Name: dscName}),
+		WithCondition(And(
+			jq.Match(`.metadata.name == "%s"`, dscName),
+			jq.Match(`.spec.components.trainer.managementState == "Managed"`),
+			jq.Match(`.spec.components.mlflowoperator.managementState == "Managed"`),
+		)),
+		WithCustomErrorMsg("Trainer and MLflowOperator should remain Managed after blocked v1 PATCH - webhook protected against data loss"),
+		WithEventuallyTimeout(tc.TestTimeouts.shortEventuallyTimeout),
+	)
+
+	// Step 4: Disable v2-only components via v2 API
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, types.NamespacedName{Name: dscName}),
+		WithMutateFunc(testf.Transform(`.spec.components.trainer.managementState = "Removed" | .spec.components.mlflowoperator.managementState = "Removed"`)),
+		WithCondition(And(
+			jq.Match(`.spec.components.trainer.managementState == "Removed"`),
+			jq.Match(`.spec.components.mlflowoperator.managementState == "Removed"`),
+		)),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+	)
+
+	// Step 5: Now v1 PATCH should succeed (no v2-only components are Managed)
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceClusterV1, types.NamespacedName{Name: dscName}),
 		WithMutateFunc(testf.Transform(`.spec.components.dashboard.managementState = "Managed"`)),
@@ -1038,19 +1068,6 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateV2OnlyComponentsResetWhenPatchingViaV1AP
 			jq.Match(`.spec.components.dashboard.managementState == "Managed"`),
 		)),
 		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
-	)
-
-	// Step 3: Verify via v2 API that Trainer and MLflowOperator are reset to Removed
-	// This documents the expected behavior: v2-only fields are lost when patching via v1 API
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DataScienceCluster, types.NamespacedName{Name: dscName}),
-		WithCondition(And(
-			jq.Match(`.metadata.name == "%s"`, dscName),
-			jq.Match(`.spec.components.trainer.managementState == "Removed"`),
-			jq.Match(`.spec.components.mlflowoperator.managementState == "Removed"`),
-		)),
-		WithCustomErrorMsg("Trainer and MLflowOperator should be reset to Removed after patching via v1 API - v2-only fields are lost during v1 round-trip conversion"),
-		WithEventuallyTimeout(tc.TestTimeouts.shortEventuallyTimeout),
 	)
 
 	// Cleanup - delete the test resource
