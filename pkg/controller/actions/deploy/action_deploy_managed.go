@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -29,11 +30,6 @@ import (
 // Fields PRESENT in manifest:
 //   - Handled natively by SSA with ForceOwnership (no Strategic Merge Patch needed)
 //   - SSA automatically reverts user modifications when the field exists in the manifest
-//
-// Behavior:
-//   - Only patches when actual drift is detected (deployed != manifest)
-//   - Returns early without patching if values already match
-//   - Avoids unnecessary patches on every reconcile
 func RevertManagedDeploymentDrift(
 	ctx context.Context,
 	cli client.Client,
@@ -50,9 +46,6 @@ func RevertManagedDeploymentDrift(
 
 	containersPath := []string{"spec", "template", "spec", "containers"}
 	replicasPath := []string{"spec", "replicas"}
-
-	// Check if there's any drift to fix
-	needsPatch := false
 
 	// Check container resources drift
 	objContainers, objFound, err := unstructured.NestedSlice(obj.Object, containersPath...)
@@ -90,34 +83,24 @@ func RevertManagedDeploymentDrift(
 
 				// Check resource drift between manifest and deployed
 				objResources, objHasResources := objContainerMap["resources"]
+				if objHasResources {
+					objHasResources = !isEmptyResourceMap(objResources)
+				}
 				_, oldHasResources := oldContainerMap["resources"]
 
 				if oldHasResources && !objHasResources {
-					// Scenario 1: Deployed has resources but manifest doesn't - clear resources
-					needsPatch = true
-					containerName, ok := objName.(string)
-					if !ok {
-						continue
-					}
-					containerPatches = append(containerPatches, map[string]interface{}{
-						"name":      containerName,
-						"resources": nil,
-					})
+					// Deployed has resources but manifest doesn't - clear resources
+					containerPatches = appendClearResourcesPatch(containerPatches, objName)
 				} else if objHasResources && oldHasResources {
-					// Both have resources - always set manifest values.
-					// Strategic Merge Patch is a no-op if they already match.
-					needsPatch = true
-					containerName, ok := objName.(string)
-					if !ok {
-						continue
+					oldResources := oldContainerMap["resources"]
+					if !equality.Semantic.DeepEqual(objResources, oldResources) {
+						// Build a merged resource patch: manifest values + null for user-added keys.
+						// This removes user-added fields in a single SMP write.
+						if patch := buildResourcesPatch(objName, objResources, oldResources); patch != nil {
+							containerPatches = append(containerPatches, patch)
+						}
 					}
-					containerPatches = append(containerPatches, map[string]interface{}{
-						"name":      containerName,
-						"resources": objResources,
-					})
 				}
-				// Scenario 3: Manifest has resources, deployed doesn't - handled by SSA (no Strategic Merge Patch needed)
-				// Scenario 4: Both don't have resources - no patch needed
 				break
 			}
 		}
@@ -134,13 +117,10 @@ func RevertManagedDeploymentDrift(
 		return fmt.Errorf("failed to get replicas from deployed object: %w", err)
 	}
 
-	if oldHasReplicas && !objHasReplicas {
-		// Drift detected: old has replicas but manifest doesn't
-		needsPatch = true
-	}
+	replicaPatchNeeded := oldHasReplicas && !objHasReplicas
 
 	// Only apply Strategic Merge Patch if there's actual drift
-	if !needsPatch {
+	if !replicaPatchNeeded && len(containerPatches) == 0 {
 		return nil
 	}
 
@@ -160,7 +140,7 @@ func RevertManagedDeploymentDrift(
 	}
 
 	// Only include replicas if needed
-	if oldHasReplicas && !objHasReplicas {
+	if replicaPatchNeeded {
 		// Remove replicas field to revert user modifications (Kubernetes will default to 1)
 		spec["replicas"] = nil
 	}
@@ -175,4 +155,56 @@ func RevertManagedDeploymentDrift(
 	}
 
 	return nil
+}
+
+func isEmptyResourceMap(v interface{}) bool {
+	m, ok := v.(map[string]interface{})
+	return ok && len(m) == 0
+}
+
+func buildResourcesPatch(name, manifestResources, deployedResources interface{}) map[string]interface{} {
+	containerName, ok := name.(string)
+	if !ok {
+		return nil
+	}
+	manifestMap, ok := manifestResources.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	deployedMap, ok := deployedResources.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	resources := make(map[string]interface{})
+	for _, field := range []string{"requests", "limits"} {
+		manifest, manifestFound := manifestMap[field].(map[string]interface{})
+		deployed, deployedFound := deployedMap[field].(map[string]interface{})
+		if !manifestFound && !deployedFound {
+			continue
+		}
+		merged := make(map[string]interface{}, len(manifest)+len(deployed))
+		for key, val := range manifest {
+			merged[key] = val
+		}
+		for key := range deployed {
+			if _, exists := manifest[key]; !exists {
+				merged[key] = nil
+			}
+		}
+		if len(merged) > 0 {
+			resources[field] = merged
+		}
+	}
+	return map[string]interface{}{"name": containerName, "resources": resources}
+}
+
+func appendClearResourcesPatch(patches []map[string]interface{}, name interface{}) []map[string]interface{} {
+	containerName, ok := name.(string)
+	if !ok {
+		return patches
+	}
+	return append(patches, map[string]interface{}{
+		"name":      containerName,
+		"resources": nil,
+	})
 }
