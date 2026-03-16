@@ -20,8 +20,6 @@ import (
 	"context"
 	"strings"
 
-	templatev1 "github.com/openshift/api/template/v1"
-	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -63,17 +61,18 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&rbacv1.RoleBinding{}).
 		Owns(&rbacv1.ClusterRole{}).
 		Owns(&rbacv1.ClusterRoleBinding{}).
-		// The ovms template gets a new resourceVersion periodically without any other
-		// changes. The compareHashPredicate ensures that we don't needlessly enqueue
-		// requests if there are no changes that we don't care about.
-		Owns(&templatev1.Template{}, reconciler.WithPredicates(hash.Updated())).
 		Owns(&networkingv1.NetworkPolicy{}).
-		Owns(&monitoringv1.ServiceMonitor{}).
 		Owns(&admissionregistrationv1.MutatingWebhookConfiguration{}).
 		Owns(&admissionregistrationv1.ValidatingWebhookConfiguration{}).
 		Owns(&admissionregistrationv1.ValidatingAdmissionPolicy{}).
 		Owns(&admissionregistrationv1.ValidatingAdmissionPolicyBinding{}).
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
+
+		// The ovms template gets a new resourceVersion periodically without any other
+		// changes. The compareHashPredicate ensures that we don't needlessly enqueue
+		// requests if there are no changes that we don't care about.
+		OwnsGVK(gvk.OpenshiftTemplate, reconciler.WithPredicates(hash.Updated()), reconciler.Dynamic(reconciler.ClusterIsOpenShift())).
+		OwnsGVK(gvk.CoreosServiceMonitor, reconciler.Dynamic(reconciler.CrdExists(gvk.CoreosServiceMonitor))).
 
 		// operands - dynamically owned
 		OwnsGVK(gvk.InferencePoolV1alpha2, reconciler.Dynamic(reconciler.CrdExists(gvk.InferencePoolV1alpha2))).
@@ -155,6 +154,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		}).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
+			deploy.WithApplyOrder(),
 		)).
 		WithAction(deployments.NewAction()).
 		// must be the final action

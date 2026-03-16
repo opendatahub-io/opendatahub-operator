@@ -569,7 +569,7 @@ test: unit-test e2e-test
 .PHONY: unit-test
 unit-test: envtest ginkgo # directly use ginkgo since the framework is not compatible with go test parallel
 	@if [ ! -d "$(CONFIG_DIR)/crd/bases" ]; then \
-		echo "Error: $(CONFIG_DIR)/crd/bases folder does not exist. Please run 'make manifests' first."; \
+		echo "Error: $(CONFIG_DIR)/crd/bases folder does not exist. Please run 'make manifests-all' first."; \
 		exit 1; \
 	fi
 	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \

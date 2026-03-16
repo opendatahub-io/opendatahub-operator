@@ -14,6 +14,8 @@ spec:
       managementState: "Managed"
       nim:
         managementState: "Managed"
+      wva:
+        managementState: "Removed"
     kueue:
       managementState: "Removed"
     trainingoperator:

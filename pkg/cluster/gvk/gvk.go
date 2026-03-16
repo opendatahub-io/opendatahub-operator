@@ -29,6 +29,7 @@ import (
 const (
 	LeaderWorkerSetOperatorCRDname = "leaderworkersetoperators.operator.openshift.io"
 	SubscriptionCRDname            = "subscriptions.operators.coreos.com"
+	VariantAutoscalingCRDname      = "variantautoscalings.llmd.ai"
 )
 
 var (
@@ -604,6 +605,12 @@ var (
 		Kind:    "InferenceModel",
 	}
 
+	VariantAutoscaling = schema.GroupVersionKind{
+		Group:   "llmd.ai",
+		Version: "v1alpha1",
+		Kind:    "VariantAutoscaling",
+	}
+
 	OperatorCondition = schema.GroupVersionKind{
 		Group:   "operators.coreos.com",
 		Version: "v2",
@@ -680,6 +687,12 @@ var (
 		Group:   "opentelemetry.io",
 		Version: "v1alpha1",
 		Kind:    "Instrumentation",
+	}
+
+	OpenshiftTemplate = schema.GroupVersionKind{
+		Group:   "template.openshift.io",
+		Version: "v1",
+		Kind:    "Template",
 	}
 
 	ServiceMonitor = schema.GroupVersionKind{
