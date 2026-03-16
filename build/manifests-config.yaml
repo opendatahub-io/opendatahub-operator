@@ -27,9 +27,12 @@ map:
   odh-model-controller:
     src: config
     dest: modelcontroller
-  odh-workload-variant-autoscaler-controller:
+  workload-variant-autoscaler:
     src: config
     dest: wva
+    git.url: https://github.com/opendatahub-io/workload-variant-autoscaler
+    ref_type: branch
+    branch: main
   odh-model-registry-operator:
     src: config
     dest: modelregistry
