@@ -29,11 +29,6 @@ import (
 // Fields PRESENT in manifest:
 //   - Handled natively by SSA with ForceOwnership (no Strategic Merge Patch needed)
 //   - SSA automatically reverts user modifications when the field exists in the manifest
-//
-// Behavior:
-//   - Only patches when actual drift is detected (deployed != manifest)
-//   - Returns early without patching if values already match
-//   - Avoids unnecessary patches on every reconcile
 func RevertManagedDeploymentDrift(
 	ctx context.Context,
 	cli client.Client,
@@ -89,11 +84,11 @@ func RevertManagedDeploymentDrift(
 				}
 
 				// Check resource drift between manifest and deployed
-				objResources, objHasResources := objContainerMap["resources"]
+				_, objHasResources := objContainerMap["resources"]
 				_, oldHasResources := oldContainerMap["resources"]
 
 				if oldHasResources && !objHasResources {
-					// Scenario 1: Deployed has resources but manifest doesn't - clear resources
+					// Deployed has resources but manifest doesn't - clear resources
 					needsPatch = true
 					containerName, ok := objName.(string)
 					if !ok {
@@ -103,21 +98,7 @@ func RevertManagedDeploymentDrift(
 						"name":      containerName,
 						"resources": nil,
 					})
-				} else if objHasResources && oldHasResources {
-					// Both have resources - always set manifest values.
-					// Strategic Merge Patch is a no-op if they already match.
-					needsPatch = true
-					containerName, ok := objName.(string)
-					if !ok {
-						continue
-					}
-					containerPatches = append(containerPatches, map[string]interface{}{
-						"name":      containerName,
-						"resources": objResources,
-					})
 				}
-				// Scenario 3: Manifest has resources, deployed doesn't - handled by SSA (no Strategic Merge Patch needed)
-				// Scenario 4: Both don't have resources - no patch needed
 				break
 			}
 		}
