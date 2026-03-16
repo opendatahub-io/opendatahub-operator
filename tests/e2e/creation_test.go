@@ -31,8 +31,8 @@ type DSCTestCtx struct {
 	*TestContext
 }
 
-// dscManagementTestSuite runs the DataScienceCluster and DSCInitialization management test suite.
-func dscManagementTestSuite(t *testing.T) {
+// dependantOperatorsManagementTestSuite runs the dependant operators management test suite.
+func dependantOperatorsManagementTestSuite(t *testing.T) {
 	t.Helper()
 
 	// disruptive tests are only supported on tier3 clusters
@@ -51,6 +51,30 @@ func dscManagementTestSuite(t *testing.T) {
 	testCases := []TestCase{
 		{"Ensure required operators are installed", dscTestCtx.ValidateOperatorsInstallation},
 		{"Ensure required resources are created", dscTestCtx.ValidateResourcesCreation},
+	}
+
+	// Run the test suite.
+	RunTestCases(t, testCases)
+}
+
+// dscManagementTestSuite runs the DataScienceCluster and DSCInitialization management test suite.
+func dscManagementTestSuite(t *testing.T) {
+	t.Helper()
+
+	// disruptive tests are only supported on tier3 clusters
+	skipUnless(t, Tier3)
+
+	// Initialize the test context.
+	tc, err := NewTestContext(t)
+	require.NoError(t, err, "Failed to initialize test context")
+
+	// Create an instance of test context.
+	dscTestCtx := DSCTestCtx{
+		TestContext: tc,
+	}
+
+	// Define test cases.
+	testCases := []TestCase{
 		{"Validate creation of DSCInitialization instance", dscTestCtx.ValidateDSCICreation},
 		{"Validate creation of DataScienceCluster instance", dscTestCtx.ValidateDSCCreation},
 	}
