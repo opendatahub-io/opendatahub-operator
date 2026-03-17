@@ -2,6 +2,7 @@ package cloudmanager
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -49,10 +50,10 @@ func WithDeployOptions(opts ...deploy.ActionOpts) ReconcileActionOpts {
 // - Deploys resources via SSA
 // - Runs PostApply hooks from HelmCharts
 // - Checks deployment status.
-func NewReconcileAction(resourceID string, opts ...ReconcileActionOpts) actions.Fn {
+func NewReconcileAction(resourceID string, opts ...ReconcileActionOpts) (actions.Fn, error) {
 	resourceID = labels.NormalizePartOfValue(resourceID)
 	if resourceID == "" {
-		panic("resourceID is required")
+		return nil, errors.New("resourceID is required")
 	}
 
 	action := reconcileAction{
@@ -111,5 +112,5 @@ func NewReconcileAction(resourceID string, opts ...ReconcileActionOpts) actions.
 		}
 
 		return nil
-	}
+	}, nil
 }

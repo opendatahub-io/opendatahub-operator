@@ -357,6 +357,33 @@ func TestReconcilerBuilder_ComposeWith(t *testing.T) {
 	})
 }
 
+func TestReconcilerBuilder_WithActionE(t *testing.T) {
+	t.Run("adds action when no error", func(t *testing.T) {
+		g := NewWithT(t)
+		noop := func(_ context.Context, _ *odhtype.ReconciliationRequest) error { return nil }
+		b := &ReconcilerBuilder[*componentApi.Dashboard]{}
+		b.WithActionE(noop, nil)
+		g.Expect(b.actions).To(HaveLen(1))
+		g.Expect(b.errors).ToNot(HaveOccurred())
+	})
+
+	t.Run("accumulates error and skips action", func(t *testing.T) {
+		g := NewWithT(t)
+		b := &ReconcilerBuilder[*componentApi.Dashboard]{}
+		b.WithActionE(nil, errors.New("action init failed"))
+		g.Expect(b.actions).To(BeEmpty())
+		g.Expect(b.errors).To(HaveOccurred())
+	})
+
+	t.Run("error surfaces in Build()", func(t *testing.T) {
+		g := NewWithT(t)
+		b := &ReconcilerBuilder[*componentApi.Dashboard]{}
+		b.WithActionE(nil, errors.New("action init failed"))
+		_, buildErr := b.Build(context.Background())
+		g.Expect(buildErr).To(MatchError(ContainSubstring("action init failed")))
+	})
+}
+
 func TestNewReconciler_WithDynamicOwnership(t *testing.T) {
 	g := NewWithT(t)
 

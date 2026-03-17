@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -15,6 +16,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	certmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
@@ -36,6 +38,10 @@ func Run(_ *cobra.Command, provider Provider) error {
 
 	if err := provider.Validate(); err != nil {
 		return fmt.Errorf("invalid provider configuration: %w", err)
+	}
+
+	if err := validateRequiredEnvVars(); err != nil {
+		return err
 	}
 
 	scheme := newScheme(provider.AddToScheme)
@@ -92,6 +98,20 @@ func Run(_ *cobra.Command, provider Provider) error {
 		return fmt.Errorf("problem running manager: %w", err)
 	}
 
+	return nil
+}
+
+// requiredEnvVars lists environment variables that must be set for any cloud manager provider.
+var requiredEnvVars = []string{
+	certmanager.EnvOperatorNamespace,
+}
+
+func validateRequiredEnvVars() error {
+	for _, env := range requiredEnvVars {
+		if os.Getenv(env) == "" {
+			return fmt.Errorf("required environment variable %s is not set", env)
+		}
+	}
 	return nil
 }
 
