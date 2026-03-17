@@ -158,6 +158,14 @@ func WithRegisterControllers(funcs ...RegisterControllersFn) OptionFn {
 	}
 }
 
+// WithCRDPaths sets custom paths for loading CRD manifests.
+// If not set, defaults to "<project_root>/config/crd/bases".
+func WithCRDPaths(paths ...string) OptionFn {
+	return func(in *EnvT) {
+		in.crdPaths = paths
+	}
+}
+
 // New creates and configures a new EnvT test environment.
 // Applies all provided OptionFn options, sets up CRDs, webhooks, and the envtest environment.
 // Returns the configured EnvT, or an error if setup fails.
@@ -184,12 +192,15 @@ func New(opts ...OptionFn) (*EnvT, error) {
 		result.root = root
 	}
 
+	crdPaths := result.crdPaths
+	if len(crdPaths) == 0 {
+		crdPaths = []string{filepath.Join(result.root, "config", "crd", "bases")}
+	}
+
 	result.Env = envtest.Environment{
 		CRDInstallOptions: envtest.CRDInstallOptions{
-			Scheme: result.s,
-			Paths: []string{
-				filepath.Join(result.root, "config", "crd", "bases"),
-			},
+			Scheme:             result.s,
+			Paths:              crdPaths,
 			ErrorIfPathMissing: true,
 			CleanUpAfterUse:    false,
 		},
@@ -242,6 +253,7 @@ func New(opts ...OptionFn) (*EnvT, error) {
 
 type EnvT struct {
 	root                string
+	crdPaths            []string
 	withManager         bool
 	managerOpts         *manager.Options
 	registerWebhooks    []RegisterWebhooksFn
