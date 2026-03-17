@@ -62,6 +62,9 @@ spec:
                 fieldPath: metadata.namespace
           - name: DEFAULT_CHARTS_PATH
             value: /opt/charts
+          # Must match the namespace in config/rhaii/operator/kustomization.yaml
+          - name: RHAI_OPERATOR_NAMESPACE
+            value: opendatahub-operator-system
         args:
         - coreweave
         - --health-probe-bind-address=:8081

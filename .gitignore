@@ -80,6 +80,8 @@ config/rhoai/crd/bases
 config/rhoai/crd/external
 config/rhoai/rbac/role.yaml
 config/rhoai/webhook/manifests.yaml
+config/rhaii/crd/bases
+config/rhaii/webhook/manifests.yaml
 rhoai-bundle/
 odh-bundle/
 config/cloudmanager/*/crd/bases
