@@ -96,12 +96,12 @@ func (tc *SparkOperatorTestCtx) createSparkPiApplication(name, namespace string)
 			"spec": map[string]interface{}{
 				"type":                "Scala",
 				"mode":                "cluster",
-				"image":               "apache/spark:3.5.7-java17-python3",
+				"image":               "quay.io/opendatahub/data-processing:Spark-v4.0.1",
 				"imagePullPolicy":     "IfNotPresent",
 				"mainClass":           "org.apache.spark.examples.SparkPi",
-				"mainApplicationFile": "local:///opt/spark/examples/jars/spark-examples_2.12-3.5.7.jar",
+				"mainApplicationFile": "local:///opt/spark/examples/jars/spark-examples_2.13-4.0.1.jar",
 				"arguments":           []interface{}{"1000"},
-				"sparkVersion":        "3.5.7",
+				"sparkVersion":        "4.0.1",
 				"restartPolicy": map[string]interface{}{
 					"type": "Never",
 				},
@@ -120,7 +120,7 @@ func (tc *SparkOperatorTestCtx) createSparkPiApplication(name, namespace string)
 				},
 				"driver": map[string]interface{}{
 					"labels": map[string]interface{}{
-						"version": "3.5.7",
+						"version": "4.0.1",
 					},
 					"cores":           int64(1),
 					"coreLimit":       "1200m",
@@ -136,7 +136,7 @@ func (tc *SparkOperatorTestCtx) createSparkPiApplication(name, namespace string)
 				},
 				"executor": map[string]interface{}{
 					"labels": map[string]interface{}{
-						"version": "3.5.7",
+						"version": "4.0.1",
 					},
 					"instances":       int64(1),
 					"cores":           int64(1),
