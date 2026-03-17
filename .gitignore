@@ -56,6 +56,8 @@ scripts/gke/build/**
 opt/
 
 cover.out
+covmeta*
+covcounters*
 
 config/manager/kustomization.yaml
 config/rhoai/manager/kustomization.yaml

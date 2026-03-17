@@ -33,6 +33,8 @@ import (
 )
 
 func TestAzureKubernetesEngine(t *testing.T) {
+	requireCharts(t)
+
 	t.Run("deploys managed dependencies", func(t *testing.T) {
 		wt := tc.NewWithT(t)
 
@@ -108,6 +110,8 @@ func TestAzureKubernetesEngine(t *testing.T) {
 // TestAzureKubernetesEngineWithoutCertManager tests cert-manager CRD absence and dynamic
 // registration. Each sub-test uses an isolated envtest to start with zero cert-manager CRDs.
 func TestAzureKubernetesEngineWithoutCertManager(t *testing.T) {
+	requireCharts(t)
+
 	logf.SetLogger(zap.New(zap.WriteTo(io.Discard), zap.UseDevMode(true)))
 
 	t.Run("reports DependenciesAvailable=False and Ready=False when cert-manager CRDs absent", func(t *testing.T) {
