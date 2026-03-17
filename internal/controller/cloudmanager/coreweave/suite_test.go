@@ -2,6 +2,7 @@ package coreweave_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -17,13 +18,30 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 )
 
-var tc *testf.TestContext
+var (
+	tc             *testf.TestContext
+	chartsNotFound bool
+)
+
+func requireCharts(t *testing.T) {
+	t.Helper()
+
+	if chartsNotFound {
+		t.Fatal("opt/charts not populated, run 'make get-manifests'")
+	}
+}
 
 func TestMain(m *testing.M) {
-	ctx, cancel := context.WithCancel(context.Background())
-
 	logf.SetLogger(zap.New(zap.WriteTo(io.Discard), zap.UseDevMode(true)))
 
+	teardown := setupEnv()
+	code := m.Run()
+	teardown()
+
+	os.Exit(code)
+}
+
+func setupEnv() func() {
 	rootPath, pathErr := envtestutil.FindProjectRoot()
 	if pathErr != nil {
 		logf.Log.Error(pathErr, "failed to find project root")
@@ -32,10 +50,19 @@ func TestMain(m *testing.M) {
 
 	// Point DefaultChartsPath to the real charts bundled in opt/charts.
 	chartsPath := filepath.Join(rootPath, "opt", "charts")
-	if _, err := os.Stat(chartsPath); os.IsNotExist(err) {
-		logf.Log.Error(err, "opt/charts directory not found, run 'make get-manifests' first")
+	entries, err := os.ReadDir(chartsPath)
+	if err != nil && !os.IsNotExist(err) {
+		logf.Log.Error(err, "failed to read opt/charts directory")
 		os.Exit(1)
 	}
+	if len(entries) == 0 || (len(entries) == 1 && entries[0].Name() == ".gitkeep") {
+		logf.Log.Error(errors.New("opt/charts is not populated"), "run 'make get-manifests' first")
+		chartsNotFound = true
+
+		return func() {}
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
 
 	common.DefaultChartsPath = chartsPath
 
@@ -74,12 +101,10 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	code := m.Run()
-
-	cancel()
-	if err := envTestEnv.Stop(); err != nil {
-		logf.Log.Error(err, "failed to stop test environment")
+	return func() {
+		cancel()
+		if err := envTestEnv.Stop(); err != nil {
+			logf.Log.Error(err, "failed to stop test environment")
+		}
 	}
-
-	os.Exit(code)
 }
