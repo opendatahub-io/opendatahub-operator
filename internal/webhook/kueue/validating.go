@@ -29,7 +29,7 @@ import (
 // - kubeflow.org/v1: pytorchjobs, notebooks
 // - ray.io/v1 and v1alpha1: rayjobs, rayclusters
 // - serving.kserve.io/v1beta1: inferenceservices
-// - serving.kserve.io/v1alpha1: llminferenceservices
+// - serving.kserve.io/v1alpha1,v1alpha2: llminferenceservices
 //
 // NOTE: The kueue validating webhook is currently disabled. To re-enable it,
 // restore the +kubebuilder:webhook: prefix on the marker lines below and
@@ -38,7 +38,7 @@ import (
 // webhook:path=/validate-kueue,mutating=false,failurePolicy=fail,sideEffects=None,groups=kubeflow.org,resources=pytorchjobs;notebooks,verbs=create;update,versions=v1,name=kubeflow-kueuelabels-validator.opendatahub.io,admissionReviewVersions=v1
 // webhook:path=/validate-kueue,mutating=false,failurePolicy=fail,sideEffects=None,groups=ray.io,resources=rayjobs;rayclusters,verbs=create;update,versions=v1;v1alpha1,name=ray-kueuelabels-validator.opendatahub.io,admissionReviewVersions=v1
 // webhook:path=/validate-kueue,mutating=false,failurePolicy=fail,sideEffects=None,groups=serving.kserve.io,resources=inferenceservices,verbs=create;update,versions=v1beta1,name=kserve-isvc-kueuelabels-validator.opendatahub.io,admissionReviewVersions=v1
-// webhook:path=/validate-kueue,mutating=false,failurePolicy=fail,sideEffects=None,groups=serving.kserve.io,resources=llminferenceservices,verbs=create;update,versions=v1alpha1,name=kserve-llmisvc-kueuelabels-validator.opendatahub.io,admissionReviewVersions=v1
+// webhook:path=/validate-kueue,mutating=false,failurePolicy=fail,sideEffects=None,groups=serving.kserve.io,resources=llminferenceservices,verbs=create;update,versions=v1alpha1;v1alpha2,name=kserve-llmisvc-kueuelabels-validator.opendatahub.io,admissionReviewVersions=v1
 //nolint:lll
 
 var (
@@ -143,6 +143,7 @@ func isExpectedKind(kind metav1.GroupVersionKind) bool {
 		gvk.RayClusterV1,                // ray.io/v1/RayCluster
 		gvk.InferenceServices,           // serving.kserve.io/v1beta1/InferenceService
 		gvk.LLMInferenceServiceV1Alpha1, // serving.kserve.io/v1alpha1/LLMInferenceService
+		gvk.LLMInferenceServiceV1Alpha2, // serving.kserve.io/v1alpha2/LLMInferenceService
 	}
 
 	requestGVK := schema.GroupVersionKind{
