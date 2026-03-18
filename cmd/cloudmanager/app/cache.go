@@ -36,16 +36,20 @@ func DefaultCacheOptions(scheme *runtime.Scheme) (cache.Options, error) {
 		Label: labelSelector,
 	}
 
+	defaultCacheConfig := cache.Config{LabelSelector: labelSelector}
+
 	roleBindingCacheOption := cacheOptionsWithAdditionalNamespaces(managedNamespaces, map[string]cache.Config{
-		common.NamespaceKubeSystem: {LabelSelector: labelSelector},
+		common.NamespaceKubeSystem: defaultCacheConfig,
 	})
 
 	defaultNsConfig := make(map[string]cache.Config, len(managedNamespaces))
 	for _, ns := range managedNamespaces {
-		defaultNsConfig[ns] = cache.Config{}
+		defaultNsConfig[ns] = defaultCacheConfig
 	}
-	defaultNsConfig[certmanager.DefaultBootstrapConfig().CertManagerNamespace] = cache.Config{
-		LabelSelector: labelSelector,
+	bootstrapConfig := certmanager.DefaultBootstrapConfig()
+	defaultNsConfig[bootstrapConfig.CertManagerNamespace] = defaultCacheConfig
+	if operatorConfig := certmanager.BootstrapOperatorCertConfig(); operatorConfig.Namespace != "" {
+		defaultNsConfig[operatorConfig.Namespace] = defaultCacheConfig
 	}
 
 	return cache.Options{

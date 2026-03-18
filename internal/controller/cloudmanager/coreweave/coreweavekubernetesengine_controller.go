@@ -27,8 +27,10 @@ func NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		).
 		WithAction(initialize).
 		ComposeWith(certmanager.Bootstrap[*ccmv1alpha1.CoreWeaveKubernetesEngine](
-			ccmv1alpha1.CoreWeaveKubernetesEngineInstanceName, certmanager.DefaultBootstrapConfig())).
-		WithAction(cloudmanager.NewReconcileAction(resourceID)).
+			ccmv1alpha1.CoreWeaveKubernetesEngineInstanceName,
+			certmanager.DefaultBootstrapConfig(certmanager.WithOperatorCert()),
+		)).
+		WithActionE(cloudmanager.NewReconcileAction(resourceID)).
 		WithConditions(cloudmanager.ConditionsTypes...).
 		Build(ctx)
 	if err != nil {

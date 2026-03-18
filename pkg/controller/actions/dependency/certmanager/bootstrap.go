@@ -8,12 +8,17 @@
 //
 //   - CA-backed ClusterIssuer: references the Secret that cert-manager creates for the
 //     root CA Certificate. Other components use this issuer to get their own certificates.
+//
+// When the operator namespace is configured, the bootstrap
+// also creates a webhook serving Certificate issued by the CA-backed ClusterIssuer.
 
 package certmanager
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -42,6 +47,26 @@ const (
 	certManagerClusterIssuerCRD = "clusterissuers.cert-manager.io"
 )
 
+var OperatorNamespace = os.Getenv(EnvOperatorNamespace)
+
+// OperatorCertConfig groups the configuration for the operator's webhook serving certificate.
+// When Namespace is empty, no webhook Certificate is created.
+type OperatorCertConfig struct {
+	// Namespace is the namespace where the operator is deployed.
+	// When empty, no webhook Certificate is created.
+	Namespace string
+
+	// WebhookCertName is the name of the cert-manager Certificate resource for the webhook.
+	WebhookCertName string
+
+	// WebhookCertSecretName is the name of the Secret that cert-manager populates
+	// with the webhook TLS certificate. Must match the operator deployment's volume mount.
+	WebhookCertSecretName string
+
+	// WebhookServiceName is the name of the webhook Service, used to construct DNS SANs.
+	WebhookServiceName string
+}
+
 // BootstrapConfig holds the resource names to create a PKI trust chain using cert-manager.
 // The default values from [DefaultBootstrapConfig] should be good for most cases, overriding only for testing.
 type BootstrapConfig struct {
@@ -58,17 +83,59 @@ type BootstrapConfig struct {
 	// CAIssuerName is the name of the CA-backed ClusterIssuer. Other components use this
 	// issuer to get their own certificates.
 	CAIssuerName string
+
+	// OperatorCertConfig holds the configuration for the operator's webhook serving certificate.
+	// When OperatorCertConfig.Namespace is empty, no webhook Certificate is created.
+	OperatorCertConfig *OperatorCertConfig
+}
+
+// BootstrapConfigOpt is a functional option for [DefaultBootstrapConfig].
+type BootstrapConfigOpt func(*BootstrapConfig)
+
+// WithOperatorCert enables creation of the operator's webhook serving Certificate
+// using the defaults from DefaultOperatorCertConfig.
+func WithOperatorCert() BootstrapConfigOpt {
+	return func(c *BootstrapConfig) {
+		c.OperatorCertConfig = BootstrapOperatorCertConfig()
+	}
 }
 
 // DefaultBootstrapConfig returns the standard ODH PKI bootstrap configuration.
 // These names are part of the API contract with downstream components.
-func DefaultBootstrapConfig() BootstrapConfig {
-	return BootstrapConfig{
+//
+// By default, Operator is nil and no webhook Certificate is created.
+// Use [WithOperatorCert] to enable the operator webhook certificate.
+func DefaultBootstrapConfig(opts ...BootstrapConfigOpt) BootstrapConfig {
+	config := BootstrapConfig{
 		IssuerName:           "opendatahub-selfsigned-issuer",
 		CertName:             "opendatahub-ca",
 		CertManagerNamespace: "cert-manager",
 		CAIssuerName:         "opendatahub-ca-issuer",
 	}
+	for _, opt := range opts {
+		opt(&config)
+	}
+	return config
+}
+
+// BootstrapOperatorCertConfig returns the default operator webhook certificate configuration,
+// reading overrides from environment variables. The caller must set Namespace (or use
+// RHAI_OPERATOR_NAMESPACE) before attaching it to a BootstrapConfig.
+func BootstrapOperatorCertConfig() *OperatorCertConfig {
+	return &OperatorCertConfig{
+		Namespace:             OperatorNamespace,
+		WebhookCertName:       "opendatahub-operator-webhook-cert",
+		WebhookCertSecretName: envOrDefault(EnvOperatorWebhookCertSecretName, "opendatahub-operator-controller-webhook-cert"),
+		WebhookServiceName:    envOrDefault(EnvOperatorWebhookServiceName, "opendatahub-operator-webhook-service"),
+	}
+}
+
+// envOrDefault returns the value of the named environment variable or fallback if unset/empty.
+func envOrDefault(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
 }
 
 // Environment variable names for overriding the default cert-manager PKI configuration.
@@ -81,6 +148,10 @@ const (
 	EnvCertManagerNS     = "RHAI_CA_SECRET_NAMESPACE"
 	EnvIstioCACertPath   = "RHAI_ISTIO_CA_CERTIFICATE_PATH"
 	DefaultIssuerRefKind = "ClusterIssuer"
+
+	EnvOperatorNamespace             = "RHAI_OPERATOR_NAMESPACE"
+	EnvOperatorWebhookCertSecretName = "RHAI_WEBHOOK_CERT_SECRET_NAME" //nolint:gosec
+	EnvOperatorWebhookServiceName    = "RHAI_WEBHOOK_SERVICE_NAME"
 )
 
 // NewBootstrapAction returns a reusable pipeline action that adds the cert-manager PKI trust
@@ -91,9 +162,14 @@ const (
 // - a self-signed ClusterIssuer
 // - a root CA Certificate
 // - a CA-backed ClusterIssuer
+// - (optional) a webhook serving Certificate, when Operator.Namespace is set
 //
 // The action is a no-op when cert-manager CRDs (ClusterIssuer or Certificate) are absent on the cluster.
-func NewBootstrapAction(config BootstrapConfig) actions.Fn {
+func NewBootstrapAction(config BootstrapConfig) (actions.Fn, error) {
+	if config.OperatorCertConfig != nil && config.OperatorCertConfig.Namespace == "" {
+		return nil, errors.New("operator namespace must not be empty when operator cert config generation is set")
+	}
+
 	return func(ctx context.Context, rr *types.ReconciliationRequest) error {
 		hasClusterIssuer, err := cluster.HasCRD(ctx, rr.Client, gvk.CertManagerClusterIssuer)
 		if err != nil {
@@ -122,8 +198,18 @@ func NewBootstrapAction(config BootstrapConfig) actions.Fn {
 			return err
 		}
 
-		return rr.AddResources(issuer, caCert, caIssuer)
-	}
+		resources := []client.Object{issuer, caCert, caIssuer}
+
+		if config.OperatorCertConfig != nil {
+			webhookCert, err := createWebhookCertificate(config)
+			if err != nil {
+				return err
+			}
+			resources = append(resources, webhookCert)
+		}
+
+		return rr.AddResources(resources...)
+	}, nil
 }
 
 // createSelfSignedIssuer returns the bootstrap ClusterIssuer that signs the root CA certificate.
@@ -159,6 +245,30 @@ func createRootCACertificate(config BootstrapConfig) (*unstructured.Unstructured
 		},
 	}, "spec"); err != nil {
 		return nil, fmt.Errorf("failed to set spec on root CA Certificate: %w", err)
+	}
+	return u, nil
+}
+
+// createWebhookCertificate returns a cert-manager Certificate for the operator's webhook
+// serving TLS. It is issued by the CA-backed ClusterIssuer from the bootstrap chain.
+func createWebhookCertificate(config BootstrapConfig) (*unstructured.Unstructured, error) {
+	u := &unstructured.Unstructured{}
+	u.SetGroupVersionKind(gvk.CertManagerCertificate)
+	u.SetName(config.OperatorCertConfig.WebhookCertName)
+	u.SetNamespace(config.OperatorCertConfig.Namespace)
+	if err := unstructured.SetNestedMap(u.Object, map[string]any{
+		"secretName": config.OperatorCertConfig.WebhookCertSecretName,
+		"dnsNames": []any{
+			fmt.Sprintf("%s.%s.svc", config.OperatorCertConfig.WebhookServiceName, config.OperatorCertConfig.Namespace),
+			fmt.Sprintf("%s.%s.svc.cluster.local", config.OperatorCertConfig.WebhookServiceName, config.OperatorCertConfig.Namespace),
+		},
+		"issuerRef": map[string]any{
+			"name":  config.CAIssuerName,
+			"kind":  gvk.CertManagerClusterIssuer.Kind,
+			"group": gvk.CertManagerClusterIssuer.Group,
+		},
+	}, "spec"); err != nil {
+		return nil, fmt.Errorf("failed to set spec on webhook Certificate: %w", err)
 	}
 	return u, nil
 }
@@ -233,7 +343,7 @@ func Bootstrap[T common.PlatformObject](instanceName string, config BootstrapCon
 			reconciler.WithPredicates(CRDPredicate()),
 		).
 			WithAction(dependency.NewAction(MonitorCRDs())).
-			WithAction(NewBootstrapAction(config)).
+			WithActionE(NewBootstrapAction(config)).
 			WithConditions(status.ConditionDependenciesAvailable)
 	}
 }
