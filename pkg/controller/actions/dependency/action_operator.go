@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
+	"k8s.io/apiextensions-apiserver/pkg/apihelpers"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -54,6 +57,11 @@ type OperatorConfig struct {
 	// If nil, DefaultDegradedConditionFilter is used.
 	Filter DegradedConditionFilterFunc
 
+	// ClusterTypes restricts this check to run only on specific cluster types
+	// (e.g. cluster.ClusterTypeOpenShift). If empty, the check runs on all
+	// cluster types.
+	ClusterTypes []string
+
 	// Severity determines how degraded conditions affect component readiness.
 	// Use ConditionSeverityError ("") for required dependencies (affects Ready).
 	// Use ConditionSeverityInfo for optional dependencies (informational only).
@@ -65,6 +73,11 @@ type OperatorConfig struct {
 type CRDConfig struct {
 	// GVK identifies the CRD to check for cluster registration.
 	GVK schema.GroupVersionKind
+
+	// ClusterTypes restricts this check to run only on specific cluster types
+	// (e.g. cluster.ClusterTypeOpenShift). If empty, the check runs on all
+	// cluster types.
+	ClusterTypes []string
 
 	// Severity determines how a missing CRD affects component readiness.
 	// Use ConditionSeverityError (default) for required CRDs that block the component.
@@ -112,8 +125,13 @@ func Combine(opts ...ActionOpts) ActionOpts {
 func (a *action) run(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	var allDegraded []string
 	hasErrorSeverity := false
+	clusterType := cluster.GetClusterInfo().Type
 
 	for _, config := range a.configs {
+		if len(config.ClusterTypes) > 0 && !slices.Contains(config.ClusterTypes, clusterType) {
+			continue
+		}
+
 		degraded := a.collectDegradedConditions(ctx, rr, config)
 		if len(degraded) > 0 {
 			allDegraded = append(allDegraded, degraded...)
@@ -124,7 +142,11 @@ func (a *action) run(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 	}
 
 	for _, config := range a.crdConfigs {
-		has, err := cluster.HasCRD(ctx, rr.Client, config.GVK)
+		if len(config.ClusterTypes) > 0 && !slices.Contains(config.ClusterTypes, clusterType) {
+			continue
+		}
+
+		has, err := hasCRDWithVersion(ctx, rr.Client, config.GVK.GroupKind(), config.GVK.Version)
 		if err != nil {
 			// Log and continue - monitoring failures should not block reconciliation.
 			logger := ctrlLog.FromContext(ctx)
@@ -313,4 +335,30 @@ func NewAction(opts ...ActionOpts) actions.Fn {
 	}
 
 	return a.run
+}
+
+// TODO: use the cluster.HasCRD function instead. But that function also checks
+// the CRD stored version, which should be the one checked. To understand why that
+// check.
+// Actually, it's failing the check on security.istio.io, since the stored version is v1beta1
+// but KServe monitor is on v1.
+func hasCRDWithVersion(ctx context.Context, cli client.Client, gk schema.GroupKind, version string) (bool, error) {
+	m, err := cli.RESTMapper().RESTMapping(gk, version)
+	if err != nil {
+		if meta.IsNoMatchError(err) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	crd, err := cluster.GetCRD(ctx, cli, m.Resource.GroupResource().String())
+	switch {
+	case err != nil:
+		return false, client.IgnoreNotFound(err)
+	case apihelpers.IsCRDConditionTrue(&crd, apiextensionsv1.Terminating):
+		return false, nil
+	default:
+		return true, nil
+	}
 }

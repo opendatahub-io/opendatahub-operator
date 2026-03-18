@@ -2,16 +2,15 @@ package certmanager_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -29,18 +28,9 @@ import (
 // and schedules their cleanup for the end of the test.
 func createBootstrapCRDs(t *testing.T, g *WithT, ctx context.Context, envTest *envt.EnvT) {
 	t.Helper()
-	for _, def := range []struct {
-		gvkDef   schema.GroupVersionKind
-		plural   string
-		singular string
-		scope    apiextensionsv1.ResourceScope
-	}{
-		{gvk.CertManagerCertificate, certManagerCertificatePlural, certManagerCertificateSingular, apiextensionsv1.NamespaceScoped},
-		{gvk.CertManagerIssuer, certManagerIssuerPlural, certManagerIssuerSingular, apiextensionsv1.NamespaceScoped},
-		{gvk.CertManagerClusterIssuer, certManagerClusterIssuerPlural, certManagerClusterIssuerSingular, apiextensionsv1.ClusterScoped},
-	} {
-		crd, err := envTest.RegisterCRD(ctx, def.gvkDef, def.plural, def.singular, def.scope, envt.WithPermissiveSchema())
-		g.Expect(err).NotTo(HaveOccurred())
+	crds, err := envTest.RegisterCertManagerCRDs(ctx, envt.WithPermissiveSchema())
+	g.Expect(err).NotTo(HaveOccurred())
+	for _, crd := range crds {
 		envt.CleanupDelete(t, g, ctx, envTest.Client(), crd)
 	}
 }
@@ -70,6 +60,13 @@ func getRootCACertificate(ctx context.Context, cli client.Client, name, namespac
 	return u, cli.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, u)
 }
 
+// getWebhookCertificate fetches the webhook cert-manager Certificate by name and namespace.
+func getWebhookCertificate(ctx context.Context, cli client.Client, name, namespace string) (*unstructured.Unstructured, error) {
+	u := &unstructured.Unstructured{}
+	u.SetGroupVersionKind(gvk.CertManagerCertificate)
+	return u, cli.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, u)
+}
+
 // TestBootstrapCertManagerPKI verifies that NewBootstrapAction adds the cert-manager PKI trust
 // chain resources to the reconciliation request, which are then applied by the deploy action.
 //
@@ -91,7 +88,8 @@ func TestBootstrapCertManagerPKI(t *testing.T) {
 		ctx := context.Background()
 		rr := &types.ReconciliationRequest{Client: envTest.Client()}
 
-		action := certmanager.NewBootstrapAction(config)
+		action, err := certmanager.NewBootstrapAction(config)
+		g.Expect(err).NotTo(HaveOccurred())
 		err = action(ctx, rr)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(rr.Resources).To(BeEmpty(), "no resources should be queued when CRDs are absent")
@@ -118,7 +116,8 @@ func TestBootstrapCertManagerPKI(t *testing.T) {
 		m.On("Owns", mock.Anything).Return(false)
 	})
 
-	bootstrapAction := certmanager.NewBootstrapAction(config)
+	bootstrapAction, err := certmanager.NewBootstrapAction(config)
+	g.Expect(err).NotTo(HaveOccurred())
 	deployAction := deploy.NewAction(deploy.WithFieldOwner("test-certmanager-bootstrap"))
 
 	// runPipeline creates a fresh reconciliation request and runs bootstrap followed by deploy.
@@ -240,5 +239,122 @@ func TestBootstrapCertManagerPKI(t *testing.T) {
 
 		_, err = getClusterIssuer(ctx, cli, config.CAIssuerName)
 		g.Expect(err).NotTo(HaveOccurred(), "CA-backed ClusterIssuer should be recreated by the pipeline")
+	})
+
+	t.Run("does not create webhook Certificate when Operator is nil", func(t *testing.T) {
+		g := NewWithT(t)
+
+		rr := &types.ReconciliationRequest{Client: cli, Instance: instance, Controller: controller}
+		action, err := certmanager.NewBootstrapAction(config)
+		g.Expect(err).NotTo(HaveOccurred())
+		err = action(ctx, rr)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(rr.Resources).To(HaveLen(3), "only the 3 PKI resources should be queued")
+	})
+}
+
+// TestBootstrapWebhookCertificate verifies that NewBootstrapAction creates the operator webhook
+// Certificate when Operator is configured.
+func TestBootstrapWebhookCertificate(t *testing.T) {
+	operatorNamespace := "test-operator-ns-" + xid.New().String()
+
+	config := certmanager.DefaultBootstrapConfig(certmanager.WithOperatorCert())
+	config.OperatorCertConfig.Namespace = operatorNamespace
+
+	g := NewWithT(t)
+
+	envTest, err := envt.New()
+	g.Expect(err).NotTo(HaveOccurred())
+	t.Cleanup(func() { _ = envTest.Stop() })
+
+	ctx := context.Background()
+	cli := envTest.Client()
+
+	createBootstrapCRDs(t, g, ctx, envTest)
+	createBootstrapNamespace(t, g, ctx, cli, config.CertManagerNamespace)
+	createBootstrapNamespace(t, g, ctx, cli, operatorNamespace)
+
+	instance := &scheme.TestPlatformObject{ObjectMeta: metav1.ObjectMeta{Name: xid.New().String()}}
+	controller := mocks.NewMockController(func(m *mocks.MockController) {
+		m.On("Owns", mock.Anything).Return(false)
+	})
+
+	bootstrapAction, err := certmanager.NewBootstrapAction(config)
+	g.Expect(err).NotTo(HaveOccurred())
+	deployAction := deploy.NewAction(deploy.WithFieldOwner("test-webhook-cert"))
+
+	runPipeline := func() error {
+		rr := &types.ReconciliationRequest{Client: cli, Instance: instance, Controller: controller}
+		if err := bootstrapAction(ctx, rr); err != nil {
+			return err
+		}
+		return deployAction(ctx, rr)
+	}
+
+	g.Expect(runPipeline()).NotTo(HaveOccurred())
+
+	t.Run("creates webhook Certificate with correct spec", func(t *testing.T) {
+		g := NewWithT(t)
+
+		cert, err := getWebhookCertificate(ctx, cli, config.OperatorCertConfig.WebhookCertName, operatorNamespace)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		secretName, _, err := unstructured.NestedString(cert.Object, "spec", "secretName")
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(secretName).To(Equal(config.OperatorCertConfig.WebhookCertSecretName))
+
+		issuerRefName, _, err := unstructured.NestedString(cert.Object, "spec", "issuerRef", "name")
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(issuerRefName).To(Equal(config.CAIssuerName))
+
+		issuerRefKind, _, err := unstructured.NestedString(cert.Object, "spec", "issuerRef", "kind")
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(issuerRefKind).To(Equal("ClusterIssuer"))
+
+		dnsNames, _, err := unstructured.NestedStringSlice(cert.Object, "spec", "dnsNames")
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(dnsNames).To(ConsistOf(
+			fmt.Sprintf("%s.%s.svc", config.OperatorCertConfig.WebhookServiceName, operatorNamespace),
+			fmt.Sprintf("%s.%s.svc.cluster.local", config.OperatorCertConfig.WebhookServiceName, operatorNamespace),
+		))
+	})
+
+	t.Run("idempotent when applied twice", func(t *testing.T) {
+		g := NewWithT(t)
+
+		g.Expect(runPipeline()).NotTo(HaveOccurred())
+
+		_, err := getWebhookCertificate(ctx, cli, config.OperatorCertConfig.WebhookCertName, operatorNamespace)
+		g.Expect(err).NotTo(HaveOccurred())
+	})
+
+	t.Run("recreates externally deleted webhook Certificate", func(t *testing.T) {
+		g := NewWithT(t)
+
+		cert := &unstructured.Unstructured{}
+		cert.SetGroupVersionKind(gvk.CertManagerCertificate)
+		cert.SetName(config.OperatorCertConfig.WebhookCertName)
+		cert.SetNamespace(operatorNamespace)
+		err := cli.Delete(ctx, cert)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		_, err = getWebhookCertificate(ctx, cli, config.OperatorCertConfig.WebhookCertName, operatorNamespace)
+		g.Expect(k8serr.IsNotFound(err)).To(BeTrue(), "webhook Certificate should be gone after deletion")
+
+		g.Expect(runPipeline()).NotTo(HaveOccurred())
+
+		_, err = getWebhookCertificate(ctx, cli, config.OperatorCertConfig.WebhookCertName, operatorNamespace)
+		g.Expect(err).NotTo(HaveOccurred(), "webhook Certificate should be recreated by the pipeline")
+	})
+
+	t.Run("returns error when operator namespace is empty", func(t *testing.T) {
+		g := NewWithT(t)
+
+		emptyNSConfig := certmanager.DefaultBootstrapConfig(certmanager.WithOperatorCert())
+		emptyNSConfig.OperatorCertConfig.Namespace = ""
+
+		_, err := certmanager.NewBootstrapAction(emptyNSConfig)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("operator namespace must not be empty"))
 	})
 }

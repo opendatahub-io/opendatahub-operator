@@ -31,9 +31,12 @@ type DSCTestCtx struct {
 	*TestContext
 }
 
-// dscManagementTestSuite runs the DataScienceCluster and DSCInitialization management test suite.
-func dscManagementTestSuite(t *testing.T) {
+// dependantOperatorsManagementTestSuite runs the dependant operators management test suite.
+func dependantOperatorsManagementTestSuite(t *testing.T) {
 	t.Helper()
+
+	// disruptive tests are only supported on tier3 clusters
+	skipUnless(t, Tier3)
 
 	// Initialize the test context.
 	tc, err := NewTestContext(t)
@@ -48,6 +51,30 @@ func dscManagementTestSuite(t *testing.T) {
 	testCases := []TestCase{
 		{"Ensure required operators are installed", dscTestCtx.ValidateOperatorsInstallation},
 		{"Ensure required resources are created", dscTestCtx.ValidateResourcesCreation},
+	}
+
+	// Run the test suite.
+	RunTestCases(t, testCases)
+}
+
+// dscManagementTestSuite runs the DataScienceCluster and DSCInitialization management test suite.
+func dscManagementTestSuite(t *testing.T) {
+	t.Helper()
+
+	// disruptive tests are only supported on tier3 clusters
+	skipUnless(t, Tier3)
+
+	// Initialize the test context.
+	tc, err := NewTestContext(t)
+	require.NoError(t, err, "Failed to initialize test context")
+
+	// Create an instance of test context.
+	dscTestCtx := DSCTestCtx{
+		TestContext: tc,
+	}
+
+	// Define test cases.
+	testCases := []TestCase{
 		{"Validate creation of DSCInitialization instance", dscTestCtx.ValidateDSCICreation},
 		{"Validate creation of DataScienceCluster instance", dscTestCtx.ValidateDSCCreation},
 	}
@@ -106,8 +133,6 @@ func dscWebhookTestSuite(t *testing.T) {
 func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, Smoke)
-
 	// Define operators to be installed.
 	operators := []Operator{
 		{nn: types.NamespacedName{Name: certManagerOpName, Namespace: certManagerOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: certManagerOpChannel},
@@ -123,8 +148,6 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 func (tc *DSCTestCtx) ValidateResourcesCreation(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, Smoke)
-
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithObjectToCreate(CreateJobSetOperator()),
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Available") | .status == "True"`)),
@@ -135,8 +158,6 @@ func (tc *DSCTestCtx) ValidateResourcesCreation(t *testing.T) {
 // ValidateDSCICreation validates the creation of a DSCInitialization.
 func (tc *DSCTestCtx) ValidateDSCICreation(t *testing.T) {
 	t.Helper()
-
-	skipUnless(t, Smoke)
 
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithObjectToCreate(CreateDSCI(tc.DSCInitializationNamespacedName.Name, tc.AppsNamespace, tc.MonitoringNamespace)),
@@ -152,8 +173,6 @@ func (tc *DSCTestCtx) ValidateDSCICreation(t *testing.T) {
 // ValidateDSCCreation validates the creation of a DataScienceCluster.
 func (tc *DSCTestCtx) ValidateDSCCreation(t *testing.T) {
 	t.Helper()
-
-	skipUnless(t, Smoke)
 
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithObjectToCreate(CreateDSC(tc.DataScienceClusterNamespacedName.Name, tc.WorkbenchesNamespace)),

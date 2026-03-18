@@ -19,29 +19,43 @@ import (
 
 	ccmv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/azure/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/helm"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/cloudmanager"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/mocks"
 
 	. "github.com/onsi/gomega"
 )
 
-const testReleaseName = "test"
+const (
+	testReleaseName = "test"
+	testResourceID  = "testresourceid"
+)
 
-func newTestReconcileAction() func(context.Context, *types.ReconciliationRequest) error {
-	return cloudmanager.NewReconcileAction(
+func newTestReconcileAction(t *testing.T) func(context.Context, *types.ReconciliationRequest) error {
+	t.Helper()
+	g := NewWithT(t)
+	action, err := cloudmanager.NewReconcileAction(
+		testResourceID,
 		cloudmanager.WithDeployOptions(),
 		cloudmanager.WithHelmOptions(helm.WithCache(false)),
 	)
+	g.Expect(err).NotTo(HaveOccurred())
+	return action
 }
 
 func newTestReconciliationRequest(cl client.Client, charts []types.HelmChartInfo) *types.ReconciliationRequest {
-	return &types.ReconciliationRequest{
+	instance := &ccmv1alpha1.AzureKubernetesEngine{}
+
+	rr := &types.ReconciliationRequest{
 		Client:   cl,
-		Instance: &ccmv1alpha1.AzureKubernetesEngine{},
+		Instance: instance,
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
 			m.On("Owns", mock.Anything).Return(false)
 		}),
@@ -53,6 +67,10 @@ func newTestReconciliationRequest(cl client.Client, charts []types.HelmChartInfo
 		},
 		HelmCharts: charts,
 	}
+
+	rr.Conditions = conditions.NewManager(instance, status.ConditionTypeReady)
+
+	return rr
 }
 
 func checkTestChartDeployedResources(t *testing.T, g *WithT, ctx context.Context, cl client.Client, ns, releaseName string) {
@@ -72,7 +90,7 @@ func TestNewReconcileAction_RendersAndDeploys(t *testing.T) {
 	cl, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	action := newTestReconcileAction()
+	action := newTestReconcileAction(t)
 	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
 		Source: helmRenderer.Source{
 			Chart:       filepath.Join("testdata", "test-chart"),
@@ -101,7 +119,7 @@ func TestNewReconcileAction_ExecutesPreApplyHooks(t *testing.T) {
 	var resourceCountAtPreHook int
 	var resourceNotDeployedAtPreHook bool
 
-	action := newTestReconcileAction()
+	action := newTestReconcileAction(t)
 	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
 		Source: helmRenderer.Source{
 			Chart:       filepath.Join("testdata", "test-chart"),
@@ -140,7 +158,7 @@ func TestNewReconcileAction_ExecutesPostApplyHooks(t *testing.T) {
 	cl, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	action := newTestReconcileAction()
+	action := newTestReconcileAction(t)
 	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
 		Source: helmRenderer.Source{
 			Chart:       filepath.Join("testdata", "test-chart"),
@@ -167,7 +185,7 @@ func TestNewReconcileAction_PreApplyHookCanModifyResources(t *testing.T) {
 	cl, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	action := newTestReconcileAction()
+	action := newTestReconcileAction(t)
 	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
 		Source: helmRenderer.Source{
 			Chart:       filepath.Join("testdata", "test-chart"),
@@ -209,7 +227,7 @@ func TestNewReconcileAction_PreApplyHookErrorStopsPipeline(t *testing.T) {
 
 	hookErr := errors.New("pre-apply failed")
 
-	action := newTestReconcileAction()
+	action := newTestReconcileAction(t)
 	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
 		Source: helmRenderer.Source{
 			Chart:       filepath.Join("testdata", "test-chart"),
@@ -243,7 +261,7 @@ func TestNewReconcileAction_PostApplyHookErrorPropagates(t *testing.T) {
 
 	hookErr := errors.New("post-apply failed")
 
-	action := newTestReconcileAction()
+	action := newTestReconcileAction(t)
 	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
 		Source: helmRenderer.Source{
 			Chart:       filepath.Join("testdata", "test-chart"),
@@ -263,6 +281,34 @@ func TestNewReconcileAction_PostApplyHookErrorPropagates(t *testing.T) {
 	checkTestChartDeployedResources(t, g, ctx, cl, ns, testReleaseName)
 }
 
+func TestNewReconcileAction_SetsInfrastructureLabel(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+	ns := xid.New().String()
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	action := newTestReconcileAction(t)
+	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
+		Source: helmRenderer.Source{
+			Chart:       filepath.Join("testdata", "test-chart"),
+			ReleaseName: testReleaseName,
+			Values:      helmRenderer.Values(map[string]any{"namespace": ns}),
+		},
+	}})
+
+	err = action(ctx, rr)
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(rr.Resources).Should(HaveLen(1))
+
+	for _, res := range rr.Resources {
+		g.Expect(resources.GetLabel(&res, labels.InfrastructurePartOf)).
+			Should(Equal(testResourceID))
+	}
+}
+
 func TestNewReconcileAction_MultipleCharts(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
@@ -276,7 +322,7 @@ func TestNewReconcileAction_MultipleCharts(t *testing.T) {
 
 	var hookOrder []string
 
-	action := newTestReconcileAction()
+	action := newTestReconcileAction(t)
 	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{
 		{
 			Source: helmRenderer.Source{
@@ -324,4 +370,11 @@ func TestNewReconcileAction_MultipleCharts(t *testing.T) {
 		"chart-one-pre", "chart-two-pre",
 		"chart-one-post", "chart-two-post",
 	}))
+}
+
+func TestNewReconcileAction_RejectsEmptyResourceID(t *testing.T) {
+	g := NewWithT(t)
+	action, err := cloudmanager.NewReconcileAction("   ")
+	g.Expect(err).To(MatchError(ContainSubstring("resourceID is required")))
+	g.Expect(action).To(BeNil())
 }

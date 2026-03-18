@@ -63,6 +63,7 @@ func podToInfo(pod *corev1.Pod) PodInfo {
 		Namespace: pod.Namespace,
 		Name:      pod.Name,
 		Phase:     string(pod.Status.Phase),
+		CreatedAt: pod.CreationTimestamp.Time,
 	}
 	for i := range pod.Status.ContainerStatuses {
 		info.Containers = append(info.Containers, containerStatusToInfo(&pod.Status.ContainerStatuses[i]))

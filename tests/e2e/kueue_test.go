@@ -397,6 +397,7 @@ func (tc *KueueTestCtx) ValidateWebhookValidations(t *testing.T) {
 
 // ValidateKueueWebhookValidation validates the Kueue validating webhook behavior using table-driven tests.
 func (tc *KueueTestCtx) ValidateKueueWebhookValidation(t *testing.T) {
+	t.Skip("kueue validating webhook is disabled")
 	t.Helper()
 
 	managedNS := "test-kueue-managed-" + xid.New().String()

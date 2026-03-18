@@ -2,8 +2,13 @@ package app
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
@@ -11,7 +16,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
+	certmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
@@ -35,7 +40,11 @@ func Run(_ *cobra.Command, provider Provider) error {
 		return fmt.Errorf("invalid provider configuration: %w", err)
 	}
 
-	scheme := common.NewScheme(provider.AddToScheme)
+	if err := validateRequiredEnvVars(); err != nil {
+		return err
+	}
+
+	scheme := newScheme(provider.AddToScheme)
 
 	clientOptions := provider.ClientOptions()
 	if clientOptions.Cache == nil {
@@ -43,6 +52,11 @@ func Run(_ *cobra.Command, provider Provider) error {
 	}
 	// The unstructured cache must be used.
 	clientOptions.Cache.Unstructured = true
+
+	cacheOptions, err := provider.CacheOptions(scheme)
+	if err != nil {
+		return fmt.Errorf("unable to get cache options: %w", err)
+	}
 
 	mgrOpts := ctrl.Options{
 		Scheme: scheme,
@@ -55,7 +69,7 @@ func Run(_ *cobra.Command, provider Provider) error {
 		HealthProbeBindAddress: cfg.HealthProbeAddr,
 		LeaderElection:         cfg.LeaderElection,
 		LeaderElectionID:       provider.LeaderElectionID,
-		Cache:                  provider.CacheOptions(scheme),
+		Cache:                  cacheOptions,
 		Client:                 clientOptions,
 	}
 
@@ -85,4 +99,31 @@ func Run(_ *cobra.Command, provider Provider) error {
 	}
 
 	return nil
+}
+
+// requiredEnvVars lists environment variables that must be set for any cloud manager provider.
+var requiredEnvVars = []string{
+	certmanager.EnvOperatorNamespace,
+}
+
+func validateRequiredEnvVars() error {
+	for _, env := range requiredEnvVars {
+		if os.Getenv(env) == "" {
+			return fmt.Errorf("required environment variable %s is not set", env)
+		}
+	}
+	return nil
+}
+
+func newScheme(addToSchemes ...func(*runtime.Scheme) error) *runtime.Scheme {
+	scheme := runtime.NewScheme()
+
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(apiextensionsv1.AddToScheme(scheme))
+
+	for _, addToScheme := range addToSchemes {
+		utilruntime.Must(addToScheme(scheme))
+	}
+
+	return scheme
 }

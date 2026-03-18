@@ -276,6 +276,23 @@ func CreatedOrUpdatedOrDeletedNamePrefixed(namePrefix string) predicate.Predicat
 		DeleteFunc: func(e event.TypedDeleteEvent[client.Object]) bool {
 			return strings.HasPrefix(e.Object.GetName(), namePrefix)
 		},
+		GenericFunc: func(e event.TypedGenericEvent[client.Object]) bool {
+			return false
+		},
+	}
+}
+
+func CreatedOrUpdatedOrDeletedNameSuffixed(nameSuffix string) predicate.Predicate {
+	return predicate.Funcs{
+		CreateFunc: func(e event.TypedCreateEvent[client.Object]) bool {
+			return strings.HasSuffix(e.Object.GetName(), nameSuffix)
+		},
+		UpdateFunc: func(e event.TypedUpdateEvent[client.Object]) bool {
+			return strings.HasSuffix(e.ObjectNew.GetName(), nameSuffix)
+		},
+		DeleteFunc: func(e event.TypedDeleteEvent[client.Object]) bool {
+			return strings.HasSuffix(e.Object.GetName(), nameSuffix)
+		},
 	}
 }
 

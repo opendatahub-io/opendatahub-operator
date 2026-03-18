@@ -57,10 +57,11 @@ type ModelControllerSpec struct {
 	ModelRegistry *ModelControllerMRSpec    `json:"modelRegistry,omitempty"`
 }
 
-// a mini version of the DSCKserve only keeps management and NIM spec
+// a mini version of the DSCKserve only keeps management, NIM, and WVA spec
 type ModelControllerKerveSpec struct {
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 	NIM             NimSpec                    `json:"nim,omitempty"`
+	WVA             WVASpec                    `json:"wva,omitempty"`
 }
 
 // a mini version of the DSCModelMeshServing only keeps management spec

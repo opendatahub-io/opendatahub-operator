@@ -62,6 +62,8 @@ type V2Tov3UpgradeTestCtx struct {
 func v2Tov3UpgradeTestSuite(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, Tier1)
+
 	tc, err := NewTestContext(t)
 	require.NoError(t, err)
 
@@ -114,6 +116,8 @@ func hardwareProfileTestSuite(t *testing.T) {
 func v2Tov3UpgradeDeletingDscDsciTestSuite(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, Tier3)
+
 	tc, err := NewTestContext(t)
 	require.NoError(t, err)
 
@@ -142,23 +146,17 @@ func v2Tov3UpgradeDeletingDscDsciTestSuite(t *testing.T) {
 func (tc *V2Tov3UpgradeTestCtx) ValidateCodeFlareResourcePreservation(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, Tier1)
-
 	tc.validateComponentResourcePreservation(t, gvk.CodeFlare, defaultCodeFlareComponentName)
 }
 
 func (tc *V2Tov3UpgradeTestCtx) ValidateModelMeshServingResourcePreservation(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, Tier1)
-
 	tc.validateComponentResourcePreservation(t, gvk.ModelMeshServing, defaultModelMeshServingComponentName)
 }
 
 func (tc *V2Tov3UpgradeTestCtx) DatascienceclusterV1CreationAndRead(t *testing.T) {
 	t.Helper()
-
-	skipUnless(t, Tier1)
 
 	// Clean up any existing DataScienceCluster and DSCInitialization resources before starting
 	cleanupCoreOperatorResources(t, tc.TestContext)
@@ -222,8 +220,6 @@ func (tc *V2Tov3UpgradeTestCtx) DatascienceclusterV1CreationAndRead(t *testing.T
 
 func (tc *V2Tov3UpgradeTestCtx) DscinitializationV1CreationAndRead(t *testing.T) {
 	t.Helper()
-
-	skipUnless(t, Tier1)
 
 	// Clean up any existing DataScienceCluster and DSCInitialization resources before starting
 	cleanupCoreOperatorResources(t, tc.TestContext)
@@ -294,8 +290,6 @@ func (tc *V2Tov3UpgradeTestCtx) DscinitializationV1CreationAndRead(t *testing.T)
 func (tc *V2Tov3UpgradeTestCtx) HardwareProfileV1Alpha1ToV1VersionUpgrade(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, Tier1)
-
 	hardwareProfileName := "test-hardware-profile-v1alpha1-to-v1"
 
 	// should be able to create v1alpha1 HWProfile resource.
@@ -350,8 +344,6 @@ func (tc *V2Tov3UpgradeTestCtx) HardwareProfileV1Alpha1ToV1VersionUpgrade(t *tes
 
 func (tc *V2Tov3UpgradeTestCtx) HardwareProfileV1ToV1Alpha1VersionConversion(t *testing.T) {
 	t.Helper()
-
-	skipUnless(t, Tier1)
 
 	hardwareProfileName := "test-hardware-profile-v1-to-v1alpha1"
 
@@ -425,8 +417,6 @@ func (tc *V2Tov3UpgradeTestCtx) validateComponentResourcePreservation(t *testing
 
 func (tc *V2Tov3UpgradeTestCtx) ValidateRayRaiseErrorIfCodeFlarePresent(t *testing.T) {
 	t.Helper()
-
-	skipUnless(t, Tier1)
 
 	dsc := tc.FetchDataScienceCluster()
 	existingComponent := tc.operatorManagedComponent(gvk.CodeFlare, defaultCodeFlareComponentName, dsc)
@@ -531,7 +521,7 @@ func (tc *V2Tov3UpgradeTestCtx) updateComponentStateInDataScienceCluster(t *test
 func (tc *V2Tov3UpgradeTestCtx) ValidateDeniesKueueManaged(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, Tier1)
+	skipUnless(t, Tier3)
 
 	// Clean up any existing DataScienceCluster resources before starting
 	cleanupCoreOperatorResources(t, tc.TestContext)
@@ -667,8 +657,6 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateDeniesKueueManagedUpdate(t *testing.T) {
 func (tc *V2Tov3UpgradeTestCtx) ValidateAllowsKueueUnmanaged(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, Tier1)
-
 	// Clean up any existing DataScienceCluster resources before starting
 	cleanupCoreOperatorResources(t, tc.TestContext)
 
@@ -734,8 +722,6 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateAllowsKueueUnmanaged(t *testing.T) {
 // DataScienceCluster v1 resources with Kueue managementState set to "Removed".
 func (tc *V2Tov3UpgradeTestCtx) ValidateAllowsKueueRemoved(t *testing.T) {
 	t.Helper()
-
-	skipUnless(t, Tier1)
 
 	// Clean up any existing DataScienceCluster resources before starting
 	cleanupCoreOperatorResources(t, tc.TestContext)
@@ -803,8 +789,6 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateAllowsKueueRemoved(t *testing.T) {
 func (tc *V2Tov3UpgradeTestCtx) ValidateAllowsWithoutKueue(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, Tier1)
-
 	// Clean up any existing DataScienceCluster resources before starting
 	cleanupCoreOperatorResources(t, tc.TestContext)
 
@@ -868,8 +852,6 @@ func (tc *V2Tov3UpgradeTestCtx) createCRD(crdsToCreate []CRDToCreate) {
 
 func (tc *V2Tov3UpgradeTestCtx) ValidateServiceMeshResourcePreservation(t *testing.T) {
 	t.Helper()
-
-	skipUnless(t, Tier1)
 
 	nn := types.NamespacedName{
 		Name: defaultServiceMeshName,
@@ -944,8 +926,6 @@ func (tc *V2Tov3UpgradeTestCtx) triggerDSCIReconciliation(t *testing.T) {
 func (tc *V2Tov3UpgradeTestCtx) ValidateArgoWorkflowsControllersDatasciencepipelinesDSCV1(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, Tier1)
-
 	// Clean up any existing DataScienceCluster resources before starting
 	cleanupCoreOperatorResources(t, tc.TestContext)
 
@@ -1008,8 +988,6 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateArgoWorkflowsControllersDatasciencepipel
 func (tc *V2Tov3UpgradeTestCtx) ValidateV2OnlyComponentsResetWhenPatchingViaV1API(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, Tier1)
-
 	// Clean up any existing DataScienceCluster resources before starting
 	cleanupCoreOperatorResources(t, tc.TestContext)
 
@@ -1033,8 +1011,38 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateV2OnlyComponentsResetWhenPatchingViaV1AP
 		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
 	)
 
-	// Step 2: Patch the DSC via v1 API (only changing a v1 field, e.g., dashboard)
-	// This triggers v2 -> v1 -> v2 conversion, which causes v2-only fields to be reset.
+	// Step 2: Attempt to patch the DSC via v1 API - this should be BLOCKED by the validating webhook
+	// Fix for RHOAIENG-44476: v1 webhook now prevents data loss by blocking v1 PATCH when v2-only components are Managed
+	tc.EnsureWebhookBlocksResourceUpdate(
+		WithMinimalObject(gvk.DataScienceClusterV1, types.NamespacedName{Name: dscName}),
+		WithMutateFunc(testf.Transform(`.spec.components.dashboard.managementState = "Managed"`)),
+		WithCustomErrorMsg("Expected v1 API PATCH to be blocked by webhook when v2-only components (Trainer, MLflowOperator) are Managed"),
+	)
+
+	// Step 3: Verify via v2 API that v2-only components are still Managed (not reset)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, types.NamespacedName{Name: dscName}),
+		WithCondition(And(
+			jq.Match(`.metadata.name == "%s"`, dscName),
+			jq.Match(`.spec.components.trainer.managementState == "Managed"`),
+			jq.Match(`.spec.components.mlflowoperator.managementState == "Managed"`),
+		)),
+		WithCustomErrorMsg("Trainer and MLflowOperator should remain Managed after blocked v1 PATCH - webhook protected against data loss"),
+		WithEventuallyTimeout(tc.TestTimeouts.shortEventuallyTimeout),
+	)
+
+	// Step 4: Disable v2-only components via v2 API
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, types.NamespacedName{Name: dscName}),
+		WithMutateFunc(testf.Transform(`.spec.components.trainer.managementState = "Removed" | .spec.components.mlflowoperator.managementState = "Removed"`)),
+		WithCondition(And(
+			jq.Match(`.spec.components.trainer.managementState == "Removed"`),
+			jq.Match(`.spec.components.mlflowoperator.managementState == "Removed"`),
+		)),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+	)
+
+	// Step 5: Now v1 PATCH should succeed (no v2-only components are Managed)
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceClusterV1, types.NamespacedName{Name: dscName}),
 		WithMutateFunc(testf.Transform(`.spec.components.dashboard.managementState = "Managed"`)),
@@ -1043,19 +1051,6 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateV2OnlyComponentsResetWhenPatchingViaV1AP
 			jq.Match(`.spec.components.dashboard.managementState == "Managed"`),
 		)),
 		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
-	)
-
-	// Step 3: Verify via v2 API that Trainer and MLflowOperator are reset to Removed
-	// This documents the expected behavior: v2-only fields are lost when patching via v1 API
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DataScienceCluster, types.NamespacedName{Name: dscName}),
-		WithCondition(And(
-			jq.Match(`.metadata.name == "%s"`, dscName),
-			jq.Match(`.spec.components.trainer.managementState == "Removed"`),
-			jq.Match(`.spec.components.mlflowoperator.managementState == "Removed"`),
-		)),
-		WithCustomErrorMsg("Trainer and MLflowOperator should be reset to Removed after patching via v1 API - v2-only fields are lost during v1 round-trip conversion"),
-		WithEventuallyTimeout(tc.TestTimeouts.shortEventuallyTimeout),
 	)
 
 	// Cleanup - delete the test resource

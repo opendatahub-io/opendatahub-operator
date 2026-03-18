@@ -22,9 +22,10 @@ import (
 )
 
 const (
-	componentName            = componentApi.KserveComponentName
-	kserveConfigMapName      = "inferenceservice-config"
-	kserveManifestSourcePath = "overlays/odh"
+	componentName               = componentApi.KserveComponentName
+	kserveConfigMapName         = "inferenceservice-config"
+	kserveManifestSourcePath    = "overlays/odh"
+	kserveManifestSourcePathXKS = "overlays/odh-xks"
 
 	// LegacyComponentName is the name of the component that is assigned to deployments
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
@@ -39,24 +40,30 @@ const (
 	subNotFound                           = "Subscription not found"
 )
 
-var (
-	conditionTypes = []string{
-		status.ConditionDeploymentsAvailable,
-		status.ConditionDependenciesAvailable,
-	}
-)
+var conditionTypes = []string{
+	status.ConditionDeploymentsAvailable,
+	status.ConditionDependenciesAvailable,
+}
 
 type componentHandler struct{}
 
 func NewHandler() *componentHandler { return &componentHandler{} }
 
-// Init to set oauth image.
-func (s *componentHandler) Init(platform common.Platform) error {
+// Init updates params.env files with image overrides and cert-manager configuration.
+func (s *componentHandler) Init(_ common.Platform) error {
 	mp := kserveManifestInfo(kserveManifestSourcePath)
 
 	if err := odhdeploy.ApplyParams(mp.String(), "params.env", imageParamMap); err != nil {
 		return fmt.Errorf("failed to update images on path %s: %w", mp, err)
 	}
+
+	// Apply cert-manager issuer params to the xKS overlay.
+	// ApplyParams safely no-ops if the overlay's params.env does not exist on disk.
+	xksMP := kserveManifestInfo(kserveManifestSourcePathXKS)
+	if err := odhdeploy.ApplyParams(xksMP.String(), "params.env", nil, buildCertManagerParams()); err != nil {
+		return fmt.Errorf("failed to update cert-manager params on path %s: %w", xksMP, err)
+	}
+
 	return nil
 }
 

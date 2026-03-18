@@ -2,12 +2,9 @@ package coreweave
 
 import (
 	"github.com/spf13/cobra"
-	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
 
 	ccmv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/coreweave/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/cloudmanager/app"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
 	coreweavectrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/coreweave"
 )
 
@@ -23,15 +20,9 @@ func NewCmd() *cobra.Command {
 				AddToScheme:      ccmv1alpha1.AddToScheme,
 				LeaderElectionID: "coreweave.cloudmanager.opendatahub.io",
 				NewReconciler:    coreweavectrl.NewReconciler,
-				CacheOptions:     cacheOptions,
 			})
 		},
 	}
 
 	return cmd
-}
-
-func cacheOptions(scheme *runtime.Scheme) cache.Options {
-	defaultCacheOptions := common.DefaultCacheOptions(scheme)
-	return defaultCacheOptions
 }

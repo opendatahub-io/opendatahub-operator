@@ -1,16 +1,21 @@
 package labels
 
+import "strings"
+
 const (
-	ODHAppPrefix           = "app.opendatahub.io"
-	ODHPlatformPrefix      = "platform.opendatahub.io"
-	InjectTrustCA          = "config.openshift.io/inject-trusted-cabundle"
-	SecurityEnforce        = "pod-security.kubernetes.io/enforce"
-	ClusterMonitoring      = "openshift.io/cluster-monitoring"
-	PlatformPartOf         = ODHPlatformPrefix + "/part-of"
-	PlatformDependency     = ODHPlatformPrefix + "/dependency"
-	Platform               = "platform"
-	True                   = "true"
-	CustomizedAppNamespace = "opendatahub.io/application-namespace"
+	ODHAppPrefix            = "app.opendatahub.io"
+	ODHPlatformPrefix       = "platform.opendatahub.io"
+	ODHInfrastructurePrefix = "infrastructure.opendatahub.io"
+	InjectTrustCA           = "config.openshift.io/inject-trusted-cabundle"
+	SecurityEnforce         = "pod-security.kubernetes.io/enforce"
+	ClusterMonitoring       = "openshift.io/cluster-monitoring"
+	PlatformPartOf          = ODHPlatformPrefix + "/part-of"
+	PlatformDependency      = ODHPlatformPrefix + "/dependency"
+	InfrastructurePartOf    = ODHInfrastructurePrefix + "/part-of"
+	Platform                = "platform"
+	True                    = "true"
+	CustomizedAppNamespace  = "opendatahub.io/application-namespace"
+	ODHLabelMonitoring      = "opendatahub.io/monitoring"
 )
 
 // K8SCommon keeps common kubernetes labels [1]
@@ -42,4 +47,11 @@ var ODH = struct {
 	Component: func(name string) string {
 		return ODHAppPrefix + "/" + name
 	},
+}
+
+// NormalizePartOfValue normalizes a string into the value used for part-of
+// labels.  Both the cache selector and the reconcile action must agree on this
+// normalisation so that the informer cache matches the resources the reconciler creates.
+func NormalizePartOfValue(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
 }

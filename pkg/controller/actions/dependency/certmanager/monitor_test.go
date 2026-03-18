@@ -63,16 +63,6 @@ func TestCRDPredicate(t *testing.T) {
 	}
 }
 
-// createCRD registers a CRD via envTest and wires up cleanup.
-func createCRD(t *testing.T, g *WithT, ctx context.Context, envTest *envt.EnvT,
-	gvkDef schema.GroupVersionKind, plural, singular string, scope apiextensionsv1.ResourceScope,
-) {
-	t.Helper()
-	crd, err := envTest.RegisterCRD(ctx, gvkDef, plural, singular, scope)
-	g.Expect(err).NotTo(HaveOccurred())
-	envt.CleanupDelete(t, g, ctx, envTest.Client(), crd)
-}
-
 // TestMonitorCRDs verifies that MonitorCRDs pre-configures monitoring for the three core
 // cert-manager CRDs.
 //
@@ -102,9 +92,8 @@ func TestMonitorCRDs(t *testing.T) {
 			name: "present CRDs yield healthy",
 			setupCRDs: func(t *testing.T, g *WithT, ctx context.Context, envTest *envt.EnvT) {
 				t.Helper()
-				createCRD(t, g, ctx, envTest, gvk.CertManagerCertificate, certManagerCertificatePlural, certManagerCertificateSingular, apiextensionsv1.NamespaceScoped)
-				createCRD(t, g, ctx, envTest, gvk.CertManagerIssuer, certManagerIssuerPlural, certManagerIssuerSingular, apiextensionsv1.NamespaceScoped)
-				createCRD(t, g, ctx, envTest, gvk.CertManagerClusterIssuer, certManagerClusterIssuerPlural, certManagerClusterIssuerSingular, apiextensionsv1.ClusterScoped)
+				_, err := envTest.RegisterCertManagerCRDs(ctx)
+				g.Expect(err).NotTo(HaveOccurred())
 			},
 			expectedAvailable: true,
 		},
@@ -112,8 +101,9 @@ func TestMonitorCRDs(t *testing.T) {
 			name: "mix of present and absent CRDs",
 			setupCRDs: func(t *testing.T, g *WithT, ctx context.Context, envTest *envt.EnvT) {
 				t.Helper()
-				createCRD(t, g, ctx, envTest, gvk.CertManagerCertificate, certManagerCertificatePlural, certManagerCertificateSingular, apiextensionsv1.NamespaceScoped)
-				// Issuer and ClusterIssuer CRDs intentionally not created
+				_, err := envTest.RegisterCRD(ctx, gvk.CertManagerCertificate, "certificates", "certificate", apiextensionsv1.NamespaceScoped)
+				g.Expect(err).NotTo(HaveOccurred())
+				// Issuer and ClusterIssuer CRDs intentionally not registered
 			},
 			expectedAvailable:      false,
 			expectedMsgContains:    []string{gvk.CertManagerIssuer.Kind, gvk.CertManagerClusterIssuer.Kind},

@@ -43,6 +43,7 @@ func createDSCWithKueueState(state operatorv1.ManagementState) *dscv2.DataScienc
 
 // TestKueueWebhook_DeniesWhenDecoderNotInitialized tests that the webhook returns an error when the decoder is nil.
 func TestKueueWebhook_DeniesWhenDecoderNotInitialized(t *testing.T) {
+	t.Skip("kueue validating webhook is disabled")
 	t.Parallel()
 	g := NewWithT(t)
 	ctx := t.Context()
@@ -80,6 +81,7 @@ func TestKueueWebhook_DeniesWhenDecoderNotInitialized(t *testing.T) {
 
 // TestKueueWebhook_DeniesUnexpectedKind tests that the webhook properly rejects requests with unexpected kinds.
 func TestKueueWebhook_DeniesUnexpectedKind(t *testing.T) {
+	t.Skip("kueue validating webhook is disabled")
 	t.Parallel()
 	g := NewWithT(t)
 	ctx := t.Context()
@@ -121,6 +123,7 @@ func TestKueueWebhook_DeniesUnexpectedKind(t *testing.T) {
 
 // TestKueueWebhook_AcceptsExpectedKinds tests that the webhook properly accepts requests with expected kinds.
 func TestKueueWebhook_AcceptsExpectedKinds(t *testing.T) {
+	t.Skip("kueue validating webhook is disabled")
 	t.Parallel()
 	g := NewWithT(t)
 	ctx := t.Context()
@@ -286,6 +289,7 @@ func TestKueueWebhook_AcceptsExpectedKinds(t *testing.T) {
 // It verifies that workloads are properly validated based on namespace labels, DSC state, and required Kueue labels
 // using table-driven tests and a fake client.
 func TestKueueWebhook_ValidatingWebhook(t *testing.T) {
+	t.Skip("kueue validating webhook is disabled")
 	t.Parallel()
 	g := NewWithT(t)
 	ctx := t.Context()

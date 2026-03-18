@@ -75,7 +75,7 @@ func Dynamic(predicates ...DynamicPredicate) WatchOpts {
 	}
 }
 
-// crdExists is a DynamicPredicate that cheks if a given crd identified by its gvk exists.
+// crdExists is a DynamicPredicate that checks if a given crd identified by its gvk exists.
 func CrdExists(crdGvk schema.GroupVersionKind) DynamicPredicate {
 	return func(ctx context.Context, request *types.ReconciliationRequest) bool {
 		if hasCrd, err := cluster.HasCRD(ctx, request.Client, crdGvk); err != nil {
@@ -83,6 +83,14 @@ func CrdExists(crdGvk schema.GroupVersionKind) DynamicPredicate {
 		} else {
 			return hasCrd
 		}
+	}
+}
+
+// ClusterIsOpenShift is a DynamicPredicate that returns true when the operator
+// is running on an OpenShift cluster.
+func ClusterIsOpenShift() DynamicPredicate {
+	return func(_ context.Context, _ *types.ReconciliationRequest) bool {
+		return cluster.GetClusterInfo().Type == cluster.ClusterTypeOpenShift
 	}
 }
 
@@ -141,6 +149,21 @@ func (b *ReconcilerBuilder[T]) WithInstanceName(instanceName string) *Reconciler
 }
 
 func (b *ReconcilerBuilder[T]) WithAction(value actions.Fn) *ReconcilerBuilder[T] {
+	b.actions = append(b.actions, value)
+	return b
+}
+
+// WithActionE is like WithAction but accepts a (Fn, error) pair from action
+// constructors. If err is non-nil, the error is collected and surfaced by Build().
+func (b *ReconcilerBuilder[T]) WithActionE(value actions.Fn, err error) *ReconcilerBuilder[T] {
+	if err != nil {
+		b.errors = multierror.Append(b.errors, err)
+		return b
+	}
+	if value == nil {
+		b.errors = multierror.Append(b.errors, errors.New("WithActionE: action must not be nil"))
+		return b
+	}
 	b.actions = append(b.actions, value)
 	return b
 }
@@ -321,6 +344,19 @@ func (b *ReconcilerBuilder[T]) Owns(object client.Object, opts ...WatchOpts) *Re
 
 func (b *ReconcilerBuilder[T]) WithEventFilter(p predicate.Predicate) *ReconcilerBuilder[T] {
 	b.predicates = append(b.predicates, p)
+	return b
+}
+
+// ComposeWith composes the builder with the provided configuration function.
+// fn receives the builder and may call any builder method on it — actions,
+// watches, conditions, and finalizers registered inside fn are all applied.
+// Actions land at this call position in the pipeline; watches, conditions,
+// and other registrations are position-independent.
+//
+// fn runs immediately when ComposeWith is called, not when Build() is called.
+// Passing a nil fn panics immediately.
+func (b *ReconcilerBuilder[T]) ComposeWith(fn func(*ReconcilerBuilder[T])) *ReconcilerBuilder[T] {
+	fn(b)
 	return b
 }
 

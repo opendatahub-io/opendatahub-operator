@@ -16,6 +16,11 @@ const (
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
 	// deployment to the new component name, so keep it around till we figure out a solution.
 	LegacyComponentName = "odh-model-controller"
+
+	// For WVA.
+	LLMDWVADependencies     = "LLM-D-WVADependencies"
+	cmaOperatorSubscription = "openshift-custom-metrics-autoscaler-operator"
+	subNotFound             = "Subscription not found"
 )
 
 var (
@@ -27,7 +32,7 @@ var (
 		"vllm-cuda-image":         "RELATED_IMAGE_RHAIIS_VLLM_CUDA_IMAGE",
 		"vllm-cpu-image":          "RELATED_IMAGE_ODH_VLLM_CPU_IMAGE",
 		"vllm-cpu-x86-image":      "RELATED_IMAGE_RHAIIS_VLLM_CPU_IMAGE",
-		"vllm-gaudi-image":        "RELATED_IMAGE_ODH_VLLM_GAUDI_IMAGE",
+		"vllm-gaudi-image":        "RELATED_IMAGE_RHAII_VLLM_GAUDI_IMAGE",
 		"vllm-rocm-image":         "RELATED_IMAGE_RHAIIS_VLLM_ROCM_IMAGE",
 		"vllm-spyre-image":        "RELATED_IMAGE_RHAIIS_VLLM_SPYRE_IMAGE",
 		"guardrails-detector-huggingface-runtime-image": "RELATED_IMAGE_ODH_GUARDRAILS_DETECTOR_HUGGINGFACE_RUNTIME_IMAGE",
@@ -35,6 +40,8 @@ var (
 
 	conditionTypes = []string{
 		status.ConditionDeploymentsAvailable,
+		status.ConditionDependenciesAvailable,
+		LLMDWVADependencies,
 	}
 )
 
@@ -43,5 +50,13 @@ func manifestsPath() types.ManifestInfo {
 		Path:       odhdeploy.DefaultManifestPath,
 		ContextDir: ComponentName,
 		SourcePath: "base",
+	}
+}
+
+func wvaManifestsPath() types.ManifestInfo {
+	return types.ManifestInfo{
+		Path:       odhdeploy.DefaultManifestPath,
+		ContextDir: "wva",
+		SourcePath: "openshift",
 	}
 }

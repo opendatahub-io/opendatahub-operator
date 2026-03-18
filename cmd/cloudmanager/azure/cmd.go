@@ -2,13 +2,10 @@ package azure
 
 import (
 	"github.com/spf13/cobra"
-	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
 
 	ccmv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/azure/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/cloudmanager/app"
 	azurectrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/azure"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
 )
 
 // NewCmd returns the cobra command for the Azure cloud manager.
@@ -23,15 +20,9 @@ func NewCmd() *cobra.Command {
 				AddToScheme:      ccmv1alpha1.AddToScheme,
 				LeaderElectionID: "azure.cloudmanager.opendatahub.io",
 				NewReconciler:    azurectrl.NewReconciler,
-				CacheOptions:     cacheOptions,
 			})
 		},
 	}
 
 	return cmd
-}
-
-func cacheOptions(scheme *runtime.Scheme) cache.Options {
-	defaultCacheOptions := common.DefaultCacheOptions(scheme)
-	return defaultCacheOptions
 }

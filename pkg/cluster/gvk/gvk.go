@@ -26,6 +26,12 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 )
 
+const (
+	LeaderWorkerSetOperatorCRDname = "leaderworkersetoperators.operator.openshift.io"
+	SubscriptionCRDname            = "subscriptions.operators.coreos.com"
+	VariantAutoscalingCRDname      = "variantautoscalings.llmd.ai"
+)
+
 var (
 	Namespace = schema.GroupVersionKind{
 		Group:   "",
@@ -363,6 +369,8 @@ var (
 		Kind:    "Lease",
 	}
 
+	// networking.istio.io.
+
 	DestinationRule = schema.GroupVersionKind{
 		Group:   "networking.istio.io",
 		Version: "v1",
@@ -375,6 +383,44 @@ var (
 		Kind:    "EnvoyFilter",
 	}
 
+	IstioGateway = schema.GroupVersionKind{
+		Group:   "networking.istio.io",
+		Version: "v1",
+		Kind:    "Gateway",
+	}
+
+	ProxyConfig = schema.GroupVersionKind{
+		Group:   "networking.istio.io",
+		Version: "v1beta1",
+		Kind:    "ProxyConfig",
+	}
+
+	ServiceEntry = schema.GroupVersionKind{
+		Group:   "networking.istio.io",
+		Version: "v1",
+		Kind:    "ServiceEntry",
+	}
+
+	Sidecar = schema.GroupVersionKind{
+		Group:   "networking.istio.io",
+		Version: "v1",
+		Kind:    "Sidecar",
+	}
+
+	WorkloadEntry = schema.GroupVersionKind{
+		Group:   "networking.istio.io",
+		Version: "v1",
+		Kind:    "WorkloadEntry",
+	}
+
+	WorkloadGroup = schema.GroupVersionKind{
+		Group:   "networking.istio.io",
+		Version: "v1",
+		Kind:    "WorkloadGroup",
+	}
+
+	// security.istio.io.
+
 	AuthorizationPolicy = schema.GroupVersionKind{
 		Group:   "security.istio.io",
 		Version: "v1",
@@ -385,6 +431,34 @@ var (
 		Group:   "security.istio.io",
 		Version: "v1beta1",
 		Kind:    "AuthorizationPolicy",
+	}
+
+	PeerAuthentication = schema.GroupVersionKind{
+		Group:   "security.istio.io",
+		Version: "v1",
+		Kind:    "PeerAuthentication",
+	}
+
+	RequestAuthentication = schema.GroupVersionKind{
+		Group:   "security.istio.io",
+		Version: "v1",
+		Kind:    "RequestAuthentication",
+	}
+
+	// telemetry.istio.io.
+
+	Telemetry = schema.GroupVersionKind{
+		Group:   "telemetry.istio.io",
+		Version: "v1",
+		Kind:    "Telemetry",
+	}
+
+	// extensions.istio.io.
+
+	WasmPlugin = schema.GroupVersionKind{
+		Group:   "extensions.istio.io",
+		Version: "v1alpha1",
+		Kind:    "WasmPlugin",
 	}
 
 	GatewayConfig = schema.GroupVersionKind{
@@ -423,6 +497,16 @@ var (
 		Kind:    serviceApi.AuthKind,
 	}
 
+	// leaderworkerset.x-k8s.io.
+
+	LeaderWorkerSetV1 = schema.GroupVersionKind{
+		Group:   "leaderworkerset.x-k8s.io",
+		Version: "v1",
+		Kind:    "LeaderWorkerSet",
+	}
+
+	// kueue.x-k8s.io.
+
 	MultiKueueConfigV1Alpha1 = schema.GroupVersionKind{
 		Group:   "kueue.x-k8s.io",
 		Version: "v1alpha1",
@@ -433,24 +517,6 @@ var (
 		Group:   "kueue.x-k8s.io",
 		Version: "v1alpha1",
 		Kind:    "MultiKueueCluster",
-	}
-
-	KueueConfigV1 = schema.GroupVersionKind{
-		Group:   "kueue.openshift.io",
-		Version: "v1",
-		Kind:    "Kueue",
-	}
-
-	LeaderWorkerSetOperatorV1 = schema.GroupVersionKind{
-		Group:   "operator.openshift.io",
-		Version: "v1",
-		Kind:    "LeaderWorkerSetOperator",
-	}
-
-	JobSetOperatorV1 = schema.GroupVersionKind{
-		Group:   "operator.openshift.io",
-		Version: "v1",
-		Kind:    "JobSetOperator",
 	}
 
 	LocalQueue = schema.GroupVersionKind{
@@ -469,6 +535,26 @@ var (
 		Group:   "kueue.x-k8s.io",
 		Version: "v1beta1",
 		Kind:    "ResourceFlavor",
+	}
+
+	KueueConfigV1 = schema.GroupVersionKind{
+		Group:   "kueue.openshift.io",
+		Version: "v1",
+		Kind:    "Kueue",
+	}
+
+	// operator.openshift.io.
+
+	LeaderWorkerSetOperatorV1 = schema.GroupVersionKind{
+		Group:   "operator.openshift.io",
+		Version: "v1",
+		Kind:    "LeaderWorkerSetOperator",
+	}
+
+	JobSetOperatorV1 = schema.GroupVersionKind{
+		Group:   "operator.openshift.io",
+		Version: "v1",
+		Kind:    "JobSetOperator",
 	}
 
 	InferenceServices = schema.GroupVersionKind{
@@ -517,6 +603,12 @@ var (
 		Group:   "inference.networking.x-k8s.io",
 		Version: "v1alpha2",
 		Kind:    "InferenceModel",
+	}
+
+	VariantAutoscaling = schema.GroupVersionKind{
+		Group:   "llmd.ai",
+		Version: "v1alpha1",
+		Kind:    "VariantAutoscaling",
 	}
 
 	OperatorCondition = schema.GroupVersionKind{
@@ -595,6 +687,12 @@ var (
 		Group:   "opentelemetry.io",
 		Version: "v1alpha1",
 		Kind:    "Instrumentation",
+	}
+
+	OpenshiftTemplate = schema.GroupVersionKind{
+		Group:   "template.openshift.io",
+		Version: "v1",
+		Kind:    "Template",
 	}
 
 	ServiceMonitor = schema.GroupVersionKind{
@@ -705,10 +803,18 @@ var (
 		Kind:    "PersistentVolumeClaim",
 	}
 
+	// cert-manager.io.
+
 	CertManagerCertificate = schema.GroupVersionKind{
 		Group:   "cert-manager.io",
 		Version: "v1",
 		Kind:    "Certificate",
+	}
+
+	CertManagerCertificateRequest = schema.GroupVersionKind{
+		Group:   "cert-manager.io",
+		Version: "v1",
+		Kind:    "CertificateRequest",
 	}
 
 	CertManagerIssuer = schema.GroupVersionKind{

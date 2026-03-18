@@ -3,7 +3,6 @@ package kserve
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -18,8 +17,9 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -32,8 +32,13 @@ const (
 )
 
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { //nolint:unparam
+	sourcePath := kserveManifestSourcePath
+	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
+		sourcePath = kserveManifestSourcePathXKS
+	}
+
 	rr.Manifests = []odhtypes.ManifestInfo{
-		kserveManifestInfo(kserveManifestSourcePath),
+		kserveManifestInfo(sourcePath),
 		{
 			Path:       odhdeploy.DefaultManifestPath,
 			ContextDir: "connectionAPI",
@@ -181,61 +186,116 @@ func versionedWellKnownLLMInferenceServiceConfigs(_ context.Context, version str
 	return nil
 }
 
-// checkPreConditions checks if there are optional operators that KServe could use.
-func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	k, ok := rr.Instance.(*componentApi.Kserve)
-	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentApi.Kserve)", rr.Instance)
-	}
+func checkOperatorAndCRDDependencies() actions.Fn {
+	return dependency.NewAction(
+		dependency.MonitorOperator(dependency.OperatorConfig{
+			OperatorGVK: gvk.LeaderWorkerSetOperatorV1,
+			Severity:    common.ConditionSeverityInfo,
+			Filter:      lwsConditionFilter,
+		}),
+		// networking.istio.io.
+		dependency.MonitorCRD(dependency.CRDConfig{
+			GVK:          gvk.DestinationRule,
+			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
+		}),
+		dependency.MonitorCRD(dependency.CRDConfig{
+			GVK:          gvk.EnvoyFilter,
+			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
+		}),
+		dependency.MonitorCRD(dependency.CRDConfig{
+			GVK:          gvk.IstioGateway,
+			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
+		}),
+		dependency.MonitorCRD(dependency.CRDConfig{
+			GVK:          gvk.ProxyConfig,
+			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
+		}),
+		dependency.MonitorCRD(dependency.CRDConfig{
+			GVK:          gvk.ServiceEntry,
+			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
+		}),
+		dependency.MonitorCRD(dependency.CRDConfig{
+			GVK:          gvk.Sidecar,
+			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
+		}),
+		dependency.MonitorCRD(dependency.CRDConfig{
+			GVK:          gvk.WorkloadEntry,
+			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
+		}),
+		dependency.MonitorCRD(dependency.CRDConfig{
+			GVK:          gvk.WorkloadGroup,
+			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
+		}),
+		// security.istio.io.
+		dependency.MonitorCRD(dependency.CRDConfig{
+			GVK:          gvk.AuthorizationPolicy,
+			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
+		}),
+		dependency.MonitorCRD(dependency.CRDConfig{
+			GVK:          gvk.PeerAuthentication,
+			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
+		}),
+		dependency.MonitorCRD(dependency.CRDConfig{
+			GVK:          gvk.RequestAuthentication,
+			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
+		}),
+		// telemetry.istio.io.
+		dependency.MonitorCRD(dependency.CRDConfig{
+			GVK:          gvk.Telemetry,
+			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
+		}),
+		// extensions.istio.io.
+		dependency.MonitorCRD(dependency.CRDConfig{
+			GVK:          gvk.WasmPlugin,
+			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
+		}),
+		// cert-manager.io.
+		dependency.MonitorCRD(dependency.CRDConfig{
+			GVK:          gvk.CertManagerCertificate,
+			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
+		}),
+		dependency.MonitorCRD(dependency.CRDConfig{
+			GVK:          gvk.CertManagerCertificateRequest,
+			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
+		}),
+		dependency.MonitorCRD(dependency.CRDConfig{
+			GVK:          gvk.CertManagerIssuer,
+			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
+		}),
+		dependency.MonitorCRD(dependency.CRDConfig{
+			GVK:          gvk.CertManagerClusterIssuer,
+			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
+		}),
+		// leaderworkerset.x-k8s.io.
+		dependency.MonitorCRD(dependency.CRDConfig{
+			GVK:          gvk.LeaderWorkerSetV1,
+			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
+		}),
+	)
+}
 
-	rr.Conditions.MarkUnknown(LLMInferenceServiceDependencies)
-	rr.Conditions.MarkUnknown(LLMInferenceServiceWideEPDependencies)
-
-	rhclFound, err := cluster.SubscriptionExists(ctx, rr.Client, rhclOperatorSubscription)
-	if err != nil && !k8serr.IsNotFound(err) {
-		return fmt.Errorf("failed to check Red Hat Connectivity Link subscription: %w", err)
-	}
-	lwsFound, err := cluster.SubscriptionExists(ctx, rr.Client, lwsOperatorSubscription)
-	if err != nil && !k8serr.IsNotFound(err) {
-		return fmt.Errorf("failed to check Leader Worker Set subscription: %w", err)
-	}
-	// LLMInferenceService requires only the RHCL operator
-	if rhclFound {
-		conditions.SetStatusCondition(k, common.Condition{
-			Type:   LLMInferenceServiceDependencies,
-			Status: metav1.ConditionTrue,
-		})
-	} else {
-		conditions.SetStatusCondition(k, common.Condition{
-			Type:     LLMInferenceServiceDependencies,
-			Status:   metav1.ConditionFalse,
-			Reason:   subNotFound,
-			Message:  "Warning: Red Hat Connectivity Link is not installed, LLMInferenceService cannot be used",
-			Severity: common.ConditionSeverityInfo,
-		})
-	}
-	// Wide Expert Parallelism requires both RHCL and LWS operators
-	if rhclFound && lwsFound {
-		conditions.SetStatusCondition(k, common.Condition{
-			Type:   LLMInferenceServiceWideEPDependencies,
-			Status: metav1.ConditionTrue,
-		})
-	} else {
-		// Build message indicating which dependencies are missing
-		var missing []string
-		if !rhclFound {
-			missing = append(missing, "Red Hat Connectivity Link")
-		}
-		if !lwsFound {
-			missing = append(missing, "LeaderWorkerSet")
-		}
-		conditions.SetStatusCondition(k, common.Condition{
-			Type:     LLMInferenceServiceWideEPDependencies,
-			Status:   metav1.ConditionFalse,
-			Reason:   subNotFound,
-			Message:  fmt.Sprintf("Warning: %s not installed, Wide Expert Parallelism with LLMInferenceService cannot be used", strings.Join(missing, " and ")),
-			Severity: common.ConditionSeverityInfo,
-		})
-	}
-	return nil
+func checkSubscriptionDependencies() actions.Fn {
+	return dependency.NewSubscriptionAction(
+		dependency.CheckSubscriptionGroup(dependency.SubscriptionGroupConfig{
+			ConditionType: LLMInferenceServiceDependencies,
+			Subscriptions: []dependency.SubscriptionDependency{
+				{Name: rhclOperatorSubscription, DisplayName: "Red Hat Connectivity Link"},
+			},
+			ClusterTypes: []string{cluster.ClusterTypeOpenShift},
+			Reason:       subNotFound,
+			Message:      "Warning: %s is not installed, LLMInferenceService cannot be used",
+			Severity:     common.ConditionSeverityInfo,
+		}),
+		dependency.CheckSubscriptionGroup(dependency.SubscriptionGroupConfig{
+			ConditionType: LLMInferenceServiceWideEPDependencies,
+			Subscriptions: []dependency.SubscriptionDependency{
+				{Name: rhclOperatorSubscription, DisplayName: "Red Hat Connectivity Link"},
+				{Name: lwsOperatorSubscription, DisplayName: "LeaderWorkerSet"},
+			},
+			ClusterTypes: []string{cluster.ClusterTypeOpenShift},
+			Reason:       subNotFound,
+			Message:      "Warning: %s not installed, Wide Expert Parallelism with LLMInferenceService cannot be used",
+			Severity:     common.ConditionSeverityInfo,
+		}),
+	)
 }

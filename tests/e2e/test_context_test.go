@@ -1178,7 +1178,12 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 	ro := tc.NewResourceOptions(opts...)
 
 	// Step 1: Capture original resource metadata
-	originalResource := tc.EnsureResourceExists(opts...)
+	originalResource, err := fetchResourceSync(ro)
+	if err != nil {
+		tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to fetch resource %s %s before deletion", ro.GVK.Kind, ro.ResourceID)
+	}
+	tc.g.Expect(originalResource).NotTo(BeNil(), "Resource %s %s should exist before deletion", ro.GVK.Kind, ro.ResourceID)
+
 	originalUID := originalResource.GetUID()
 	originalResourceVersion := originalResource.GetResourceVersion()
 
@@ -1234,6 +1239,11 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 		g.Expect(newResourceVersion).NotTo(Equal(originalResourceVersion),
 			"Recreated resource should have different ResourceVersion. Original: %s, New: %s",
 			originalResourceVersion, newResourceVersion)
+
+		// If a condition is provided, check it on the recreated resource
+		if ro.Condition != nil {
+			applyMatchers(g, ro.ResourceID, ro.GVK, recreatedResource, nil, ro.Condition, ro.CustomErrorArgs)
+		}
 	})
 
 	ro.applyEventuallyTimeouts(recreationCheck).Should(Succeed(),

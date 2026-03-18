@@ -283,6 +283,107 @@ func TestReconcilerBuilder_WatchMethods_UseUnstructured(t *testing.T) {
 	}
 }
 
+func TestReconcilerBuilder_ComposeWith(t *testing.T) {
+	g := NewWithT(t)
+
+	et, err := envt.New(envt.WithManager(ctrl.Options{
+		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
+	}))
+	g.Expect(err).NotTo(HaveOccurred())
+	t.Cleanup(func() { _ = et.Stop() })
+
+	mgr := et.Manager()
+
+	t.Run("fn is called with the builder", func(t *testing.T) {
+		g := NewWithT(t)
+		called := false
+		b := ReconcilerFor(mgr, &componentApi.Dashboard{})
+		b.ComposeWith(func(b *ReconcilerBuilder[*componentApi.Dashboard]) {
+			called = true
+		})
+		g.Expect(called).To(BeTrue())
+	})
+
+	t.Run("returns the same builder", func(t *testing.T) {
+		g := NewWithT(t)
+		b := ReconcilerFor(mgr, &componentApi.Dashboard{})
+		result := b.ComposeWith(func(*ReconcilerBuilder[*componentApi.Dashboard]) {})
+		g.Expect(result).To(BeIdenticalTo(b))
+	})
+
+	t.Run("actions registered inside fn land at call position", func(t *testing.T) {
+		g := NewWithT(t)
+		noop := func(_ context.Context, _ *odhtype.ReconciliationRequest) error { return nil }
+		b := ReconcilerFor(mgr, &componentApi.Dashboard{})
+		b.WithAction(noop)
+		b.ComposeWith(func(b *ReconcilerBuilder[*componentApi.Dashboard]) {
+			b.WithAction(noop)
+			b.WithAction(noop)
+		})
+		b.WithAction(noop)
+		g.Expect(b.actions).To(HaveLen(4))
+	})
+
+	t.Run("multiple ComposeWith calls compose correctly", func(t *testing.T) {
+		g := NewWithT(t)
+		noop := func(_ context.Context, _ *odhtype.ReconciliationRequest) error { return nil }
+		b := ReconcilerFor(mgr, &componentApi.Dashboard{})
+		b.ComposeWith(func(b *ReconcilerBuilder[*componentApi.Dashboard]) {
+			b.WithAction(noop)
+		}).ComposeWith(func(b *ReconcilerBuilder[*componentApi.Dashboard]) {
+			b.WithAction(noop)
+			b.WithAction(noop)
+		})
+		g.Expect(b.actions).To(HaveLen(3))
+	})
+
+	t.Run("nil fn panics immediately", func(t *testing.T) {
+		g := NewWithT(t)
+		b := ReconcilerFor(mgr, &componentApi.Dashboard{})
+		g.Expect(func() {
+			b.ComposeWith(nil)
+		}).To(Panic())
+	})
+
+	t.Run("errors from fn surface in b.errors and are returned by Build()", func(t *testing.T) {
+		g := NewWithT(t)
+		injected := errors.New("injected error")
+		b := ReconcilerFor(mgr, &componentApi.Dashboard{})
+		b.ComposeWith(func(b *ReconcilerBuilder[*componentApi.Dashboard]) {
+			b.errors = injected
+		})
+		_, buildErr := b.Build(context.Background())
+		g.Expect(buildErr).To(MatchError(ContainSubstring(injected.Error())))
+	})
+}
+
+func TestReconcilerBuilder_WithActionE(t *testing.T) {
+	t.Run("adds action when no error", func(t *testing.T) {
+		g := NewWithT(t)
+		noop := func(_ context.Context, _ *odhtype.ReconciliationRequest) error { return nil }
+		b := &ReconcilerBuilder[*componentApi.Dashboard]{}
+		b.WithActionE(noop, nil)
+		g.Expect(b.actions).To(HaveLen(1))
+		g.Expect(b.errors).ToNot(HaveOccurred())
+	})
+
+	t.Run("accumulates error and skips action", func(t *testing.T) {
+		g := NewWithT(t)
+		b := &ReconcilerBuilder[*componentApi.Dashboard]{}
+		b.WithActionE(nil, errors.New("action init failed"))
+		g.Expect(b.actions).To(BeEmpty())
+		g.Expect(b.errors).To(HaveOccurred())
+	})
+
+	t.Run("error surfaces in Build()", func(t *testing.T) {
+		g := NewWithT(t)
+		b := &ReconcilerBuilder[*componentApi.Dashboard]{}
+		b.WithActionE(nil, errors.New("action init failed"))
+		_, buildErr := b.Build(context.Background())
+		g.Expect(buildErr).To(MatchError(ContainSubstring("action init failed")))
+	})
+}
+
 func TestNewReconciler_WithDynamicOwnership(t *testing.T) {
 	g := NewWithT(t)
 
