@@ -38,12 +38,16 @@ const (
 	testResourceID  = "testresourceid"
 )
 
-func newTestReconcileAction() func(context.Context, *types.ReconciliationRequest) error {
-	return cloudmanager.NewReconcileAction(
+func newTestReconcileAction(t *testing.T) func(context.Context, *types.ReconciliationRequest) error {
+	t.Helper()
+	g := NewWithT(t)
+	action, err := cloudmanager.NewReconcileAction(
 		testResourceID,
 		cloudmanager.WithDeployOptions(),
 		cloudmanager.WithHelmOptions(helm.WithCache(false)),
 	)
+	g.Expect(err).NotTo(HaveOccurred())
+	return action
 }
 
 func newTestReconciliationRequest(cl client.Client, charts []types.HelmChartInfo) *types.ReconciliationRequest {
@@ -86,7 +90,7 @@ func TestNewReconcileAction_RendersAndDeploys(t *testing.T) {
 	cl, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	action := newTestReconcileAction()
+	action := newTestReconcileAction(t)
 	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
 		Source: helmRenderer.Source{
 			Chart:       filepath.Join("testdata", "test-chart"),
@@ -115,7 +119,7 @@ func TestNewReconcileAction_ExecutesPreApplyHooks(t *testing.T) {
 	var resourceCountAtPreHook int
 	var resourceNotDeployedAtPreHook bool
 
-	action := newTestReconcileAction()
+	action := newTestReconcileAction(t)
 	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
 		Source: helmRenderer.Source{
 			Chart:       filepath.Join("testdata", "test-chart"),
@@ -154,7 +158,7 @@ func TestNewReconcileAction_ExecutesPostApplyHooks(t *testing.T) {
 	cl, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	action := newTestReconcileAction()
+	action := newTestReconcileAction(t)
 	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
 		Source: helmRenderer.Source{
 			Chart:       filepath.Join("testdata", "test-chart"),
@@ -181,7 +185,7 @@ func TestNewReconcileAction_PreApplyHookCanModifyResources(t *testing.T) {
 	cl, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	action := newTestReconcileAction()
+	action := newTestReconcileAction(t)
 	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
 		Source: helmRenderer.Source{
 			Chart:       filepath.Join("testdata", "test-chart"),
@@ -223,7 +227,7 @@ func TestNewReconcileAction_PreApplyHookErrorStopsPipeline(t *testing.T) {
 
 	hookErr := errors.New("pre-apply failed")
 
-	action := newTestReconcileAction()
+	action := newTestReconcileAction(t)
 	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
 		Source: helmRenderer.Source{
 			Chart:       filepath.Join("testdata", "test-chart"),
@@ -257,7 +261,7 @@ func TestNewReconcileAction_PostApplyHookErrorPropagates(t *testing.T) {
 
 	hookErr := errors.New("post-apply failed")
 
-	action := newTestReconcileAction()
+	action := newTestReconcileAction(t)
 	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
 		Source: helmRenderer.Source{
 			Chart:       filepath.Join("testdata", "test-chart"),
@@ -285,7 +289,7 @@ func TestNewReconcileAction_SetsInfrastructureLabel(t *testing.T) {
 	cl, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	action := newTestReconcileAction()
+	action := newTestReconcileAction(t)
 	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
 		Source: helmRenderer.Source{
 			Chart:       filepath.Join("testdata", "test-chart"),
@@ -318,7 +322,7 @@ func TestNewReconcileAction_MultipleCharts(t *testing.T) {
 
 	var hookOrder []string
 
-	action := newTestReconcileAction()
+	action := newTestReconcileAction(t)
 	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{
 		{
 			Source: helmRenderer.Source{
@@ -366,4 +370,11 @@ func TestNewReconcileAction_MultipleCharts(t *testing.T) {
 		"chart-one-pre", "chart-two-pre",
 		"chart-one-post", "chart-two-post",
 	}))
+}
+
+func TestNewReconcileAction_RejectsEmptyResourceID(t *testing.T) {
+	g := NewWithT(t)
+	action, err := cloudmanager.NewReconcileAction("   ")
+	g.Expect(err).To(MatchError(ContainSubstring("resourceID is required")))
+	g.Expect(action).To(BeNil())
 }

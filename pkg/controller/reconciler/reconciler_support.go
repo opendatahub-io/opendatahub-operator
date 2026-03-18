@@ -153,6 +153,21 @@ func (b *ReconcilerBuilder[T]) WithAction(value actions.Fn) *ReconcilerBuilder[T
 	return b
 }
 
+// WithActionE is like WithAction but accepts a (Fn, error) pair from action
+// constructors. If err is non-nil, the error is collected and surfaced by Build().
+func (b *ReconcilerBuilder[T]) WithActionE(value actions.Fn, err error) *ReconcilerBuilder[T] {
+	if err != nil {
+		b.errors = multierror.Append(b.errors, err)
+		return b
+	}
+	if value == nil {
+		b.errors = multierror.Append(b.errors, errors.New("WithActionE: action must not be nil"))
+		return b
+	}
+	b.actions = append(b.actions, value)
+	return b
+}
+
 func (b *ReconcilerBuilder[T]) WithFinalizer(value actions.Fn) *ReconcilerBuilder[T] {
 	b.finalizers = append(b.finalizers, value)
 	return b
