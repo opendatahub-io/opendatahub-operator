@@ -698,7 +698,6 @@ func createMonitoringStackCRD() *extv1.CustomResourceDefinition {
 			},
 		},
 		Status: extv1.CustomResourceDefinitionStatus{
-			StoredVersions: []string{"v1alpha1"},
 			Conditions: []extv1.CustomResourceDefinitionCondition{
 				{
 					Type:   extv1.Established,
@@ -735,7 +734,6 @@ func createThanosQuerierCRD() *extv1.CustomResourceDefinition {
 			},
 		},
 		Status: extv1.CustomResourceDefinitionStatus{
-			StoredVersions: []string{"v1alpha1"},
 			Conditions: []extv1.CustomResourceDefinitionCondition{
 				{
 					Type:   extv1.Established,
