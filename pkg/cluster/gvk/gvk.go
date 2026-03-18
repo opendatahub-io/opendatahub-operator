@@ -733,7 +733,7 @@ var (
 
 	Perses = schema.GroupVersionKind{
 		Group:   "perses.dev",
-		Version: "v1alpha1",
+		Version: "v1alpha2",
 		Kind:    "Perses",
 	}
 
@@ -751,13 +751,13 @@ var (
 
 	PersesDatasource = schema.GroupVersionKind{
 		Group:   "perses.dev",
-		Version: "v1alpha1",
+		Version: "v1alpha2",
 		Kind:    "PersesDatasource",
 	}
 
 	PersesDashboard = schema.GroupVersionKind{
 		Group:   "perses.dev",
-		Version: "v1alpha1",
+		Version: "v1alpha2",
 		Kind:    "PersesDashboard",
 	}
 

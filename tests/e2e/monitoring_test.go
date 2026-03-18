@@ -801,6 +801,17 @@ func (tc *MonitoringTestCtx) ValidatePersesCRCreation(t *testing.T) {
 		tc.withMetricsConfig(),
 	)
 
+	// Wait for the Monitoring CR to confirm Perses is available.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(And(
+			jq.Match(`.spec.metrics != null`),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionPersesAvailable, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Monitoring CR should be ready with Perses available before validating Perses CR"),
+	)
+
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Perses, types.NamespacedName{Name: PersesName, Namespace: tc.MonitoringNamespace}),
 		WithCondition(And(
@@ -816,12 +827,29 @@ func (tc *MonitoringTestCtx) ValidatePersesCRCreation(t *testing.T) {
 func (tc *MonitoringTestCtx) ValidatePersesCRConfiguration(t *testing.T) {
 	t.Helper()
 
+	// Ensure monitoring is configured with metrics to make this test self-sufficient.
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	// Wait for the Monitoring CR to confirm Perses is available with current config.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(And(
+			jq.Match(`.spec.metrics != null`),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionPersesAvailable, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Monitoring CR should be ready with Perses available before validating configuration"),
+	)
+
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Perses, types.NamespacedName{Name: PersesName, Namespace: tc.MonitoringNamespace}),
 		WithCondition(And(
 			jq.Match(`.spec.containerPort == 8080`),
 			jq.Match(`.spec.config.database.file != null`),
-			jq.Match(`.spec.storage.size == "1Gi"`),
+			jq.Match(`.spec.storage.pvcTemplate.resources.requests.storage == "1Gi"`),
 			jq.Match(`.metadata.labels["platform.opendatahub.io/part-of"] == "monitoring"`),
 		)),
 		WithCustomErrorMsg("Perses CR configuration validation failed"),
