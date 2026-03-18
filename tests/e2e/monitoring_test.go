@@ -117,12 +117,10 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test Instrumentation CR Traces lifecycle", monitoringServiceCtx.ValidateInstrumentationCRTracesLifecycle},
 		{"Test Traces Exporters Reserved Name Validation", monitoringServiceCtx.ValidateTracesExportersReservedNameValidation},
 		{"Test ThanosQuerier deployment with metrics", monitoringServiceCtx.ValidateThanosQuerierDeployment},
-		{"Test ThanosQuerier not deployed without metrics", monitoringServiceCtx.ValidateThanosQuerierNotDeployedWithoutMetrics},
 		{"Test Prometheus Self ServiceMonitor TLS Fix", monitoringServiceCtx.ValidatePrometheusSelfServiceMonitorTLSFix},
 		{"Test Perses deployment when monitoring is managed", monitoringServiceCtx.ValidatePersesCRCreation},
 		{"Test Perses CR configuration", monitoringServiceCtx.ValidatePersesCRConfiguration},
 		{"Test Perses lifecycle", monitoringServiceCtx.ValidatePersesLifecycle},
-		{"Test Perses not deployed without metrics or traces", monitoringServiceCtx.ValidatePersesNotDeployedWithoutMetricsOrTraces},
 		{"Test Perses NetworkPolicy creation", monitoringServiceCtx.ValidatePersesNetworkPolicy},
 		{"Test Perses Datasource Creation with Traces", monitoringServiceCtx.ValidatePersesDatasourceCreationWithTraces},
 		{"Test Perses Datasource Configuration", monitoringServiceCtx.ValidatePersesDatasourceConfiguration},
@@ -132,14 +130,31 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test Perses Datasource TLS with GCS backend", monitoringServiceCtx.ValidatePersesDatasourceTLSWithGCSBackend},
 		{"Validate CEL blocks invalid monitoring configs", monitoringServiceCtx.ValidateCELBlocksInvalidMonitoringConfigs},
 		{"Validate CEL allows valid monitoring configs", monitoringServiceCtx.ValidateCELAllowsValidMonitoringConfigs},
-		{"Validate monitoring service disabled", monitoringServiceCtx.ValidateMonitoringServiceDisabled},
 		{"Test Namespace Restricted Metrics Access", monitoringServiceCtx.ValidatePrometheusRestrictedResourceConfiguration},
 		{"Test Prometheus Secure Proxy Authentication", monitoringServiceCtx.ValidatePrometheusSecureProxyAuthentication},
 		{"Test Node Metrics Endpoint Deployment", monitoringServiceCtx.ValidateNodeMetricsEndpointDeployment},
 		{"Test Node Metrics Endpoint RBAC Configuration", monitoringServiceCtx.ValidateNodeMetricsEndpointRBACConfiguration},
 	}
 
+	// NEGATIVE TESTS: these validate behavior when monitoring subsystems are disabled.
+	// Each does ensureMonitoringCleanSlate (full teardown + rebuild without the target
+	// subsystem), so they are grouped here to avoid disrupting tests above that need
+	// monitoring active. They must run before the final teardown.
+	testCases = append(testCases,
+		TestCase{"Test ThanosQuerier not deployed without metrics", monitoringServiceCtx.ValidateThanosQuerierNotDeployedWithoutMetrics},
+		TestCase{"Test Perses not deployed without metrics or traces", monitoringServiceCtx.ValidatePersesNotDeployedWithoutMetricsOrTraces},
+	)
+
+	// TEARDOWN: must be the last monitoring test. Disables the monitoring service and
+	// verifies all resources are cleaned up. Tests that require monitoring to be active
+	// MUST appear above this point -- never after this append.
+	testCases = append(testCases,
+		TestCase{"Validate monitoring service disabled", monitoringServiceCtx.ValidateMonitoringServiceDisabled},
+	)
+
 	if testOpts.webhookTest {
+		// Re-enables monitoring after teardown so webhook tests start with
+		// monitoring in Managed state.
 		testCases = append(testCases,
 			TestCase{"Setup monitoring admission components tests", monitoringServiceCtx.ValidateMonitoringWebhookTestsSetup},
 			TestCase{"Validate monitoring label value enforcement on namespace", monitoringServiceCtx.ValidateMonitoringLabelValueEnforcementOnNamespace},
