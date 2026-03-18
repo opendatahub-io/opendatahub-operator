@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"testing"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -35,6 +36,7 @@ func workbenchesTestSuite(t *testing.T) {
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
+		{"Validate MLflow integration", componentCtx.ValidateMLflowIntegration},
 		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
@@ -70,4 +72,78 @@ func (tc *WorkbenchesTestCtx) ValidateWorkbenchesNamespaceConfiguration(t *testi
 			),
 		),
 	)
+}
+
+func (tc *WorkbenchesTestCtx) ValidateMLflowIntegration(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier2)
+
+	g := tc.NewWithT(t)
+
+	const notebookControllerParamsConfigMap = "odh-notebook-controller-image-parameters"
+
+	// Get the current DSC
+	dsc := tc.FetchDataScienceCluster()
+
+	// Verify MLflowOperator is in Removed state (default for e2e tests)
+	g.Expect(dsc.Spec.Components.MLflowOperator.ManagementState).To(Equal(operatorv1.Removed),
+		"MLflowOperator should be in Removed state by default")
+
+	// Ensure the Workbenches component is still ready with MLflowOperator in Removed state
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Workbenches, types.NamespacedName{Name: componentApi.WorkbenchesInstanceName}),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`)),
+	)
+
+	// Verify the notebook controller deployment exists and is available
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      "notebook-controller-deployment",
+			Namespace: tc.AppsNamespace,
+		}),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Available") | .status == "True"`)),
+	)
+
+	// Verify mlflow-enabled is "false" when MLflowOperator is Removed
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
+			Name:      notebookControllerParamsConfigMap,
+			Namespace: tc.AppsNamespace,
+		}),
+		WithCondition(jq.Match(`.data["mlflow-enabled"] == "false"`)),
+		WithCustomErrorMsg("mlflow-enabled should be 'false' when MLflowOperator is Removed"),
+	)
+
+	t.Log("Verified mlflow-enabled is 'false' when MLflowOperator is Removed")
+
+	// Test the Managed path: enable MLflowOperator and verify mlflow-enabled becomes "true"
+	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.MLflowOperatorKind)
+
+	// Verify mlflow-enabled is "true" when MLflowOperator is Managed
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
+			Name:      notebookControllerParamsConfigMap,
+			Namespace: tc.AppsNamespace,
+		}),
+		WithCondition(jq.Match(`.data["mlflow-enabled"] == "true"`)),
+		WithCustomErrorMsg("mlflow-enabled should be 'true' when MLflowOperator is Managed"),
+	)
+
+	t.Log("Verified mlflow-enabled is 'true' when MLflowOperator is Managed")
+
+	// Restore MLflowOperator to Removed state
+	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.MLflowOperatorKind)
+
+	// Verify mlflow-enabled returns to "false" when MLflowOperator is Removed again
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
+			Name:      notebookControllerParamsConfigMap,
+			Namespace: tc.AppsNamespace,
+		}),
+		WithCondition(jq.Match(`.data["mlflow-enabled"] == "false"`)),
+		WithCustomErrorMsg("mlflow-enabled should return to 'false' when MLflowOperator is Removed again"),
+	)
+
+	t.Log("Workbenches component successfully integrates with MLflowOperator state changes")
 }
