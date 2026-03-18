@@ -11,4 +11,19 @@ patches:
   patch: |
     - op: add
       path: /metadata/annotations/cert-manager.io~1inject-ca-from
-      value: opendatahub-operator-system/opendatahub-operator-webhook-serving-cert
+      value: opendatahub-operator-system/opendatahub-operator-webhook-cert
+# Patch service labels and selector to match main ODH operator
+- target:
+    kind: Service
+    name: webhook-service
+  patch: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: webhook-service
+      labels:
+        app.kubernetes.io/created-by: opendatahub-operator
+        app.kubernetes.io/part-of: opendatahub-operator
+    spec:
+      selector:
+        name: opendatahub-operator

@@ -8,5 +8,5 @@ roleRef:
   name: opendatahub-coreweave-cloud-manager-role
 subjects:
 - kind: ServiceAccount
-  name: opendatahub-coreweave-cloud-manager-operator
+  name: coreweave-cloud-manager-operator
   namespace: system

@@ -48,6 +48,11 @@ ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	CONTROLLER_GEN_TAGS=--load-build-tags=odh
 	CONFIG_DIR=config
 	GO_RUN_ARGS=-tags=odh
+	RHAII_CONFIG_DIR=config/rhaii
+	RHAII_DEFAULT_CONFIG_DIR=$(RHAII_CONFIG_DIR)/odh
+	RHAII_LOCAL_CONFIG_DIR=$(RHAII_CONFIG_DIR)/odh-local
+	CCM_DEPLOY_OVERLAY=default
+	CCM_LOCAL_OVERLAY=local
 else
 	# VERSION defines the project version for the bundle.
 	# Update this value when you upgrade the version of your project.
@@ -76,6 +81,11 @@ else
 	CONTROLLER_GEN_TAGS=--load-build-tags=rhoai
 	CONFIG_DIR=config/rhoai
 	GO_RUN_ARGS=-tags=rhoai
+	RHAII_CONFIG_DIR=config/rhaii/rhoai
+	RHAII_DEFAULT_CONFIG_DIR=$(RHAII_CONFIG_DIR)/default
+	RHAII_LOCAL_CONFIG_DIR=$(RHAII_CONFIG_DIR)/default
+	CCM_DEPLOY_OVERLAY=rhoai
+	CCM_LOCAL_OVERLAY=rhoai
 endif
 
 IMAGE_BUILDER ?= podman
@@ -240,7 +250,7 @@ cd -
 endef
 
 .PHONY: manifests
-manifests: controller-gen kustomize ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+manifests: controller-gen kustomize yq ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 ifneq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	$(CONTROLLER_GEN) rbac:roleName=controller-manager-role paths="./..." output:rbac:artifacts:config=config/rbac
 endif
@@ -261,11 +271,11 @@ endif
 	@$(SED_COMMAND) -i'' -e 's/scope: Namespaced/scope: Cluster/' $(CONFIG_DIR)/crd/external/config.openshift.io_ingresses.yaml
 	@$(SED_COMMAND) -i'' -e 's/scope: Namespaced/scope: Cluster/' $(CONFIG_DIR)/crd/external/config.openshift.io_authentications.yaml
 	@$(SED_COMMAND) -i'' -e 's/scope: Namespaced/scope: Cluster/' $(CONFIG_DIR)/crd/external/oauth.openshift.io_oauthclients.yaml
-	@# Copy KServe CRD to rhaii overlay and generate kustomization
+	@# Copy KServe CRD to shared rhaii overlay and generate kustomization
 	@mkdir -p config/rhaii/crd/bases
 	@cp config/crd/bases/components.platform.opendatahub.io_kserves.yaml config/rhaii/crd/bases/
 	@$(call add-crd-to-kustomization,config/rhaii/crd/bases)
-	@# Generate rhaii webhook manifests with only KServe connection webhooks
+	@# Generate shared rhaii webhook manifests with only KServe connection webhooks
 	@$(YQ) eval 'select(.kind == "MutatingWebhookConfiguration") | .webhooks = [.webhooks[] | select(.name == "connection-isvc.opendatahub.io" or .name == "connection-llmisvc.opendatahub.io")]' config/webhook/manifests.yaml > config/rhaii/webhook/manifests.yaml
 CLEANFILES += config/crd/bases config/rhoai/crd/bases config/rhaii/crd/bases config/crd/external config/rhoai/crd/external config/rbac/role.yaml config/rhoai/rbac/role.yaml config/webhook/manifests.yaml config/rhoai/webhook/manifests.yaml config/rhaii/webhook/manifests.yaml
 
@@ -395,15 +405,15 @@ deploy: prepare ## Deploy controller to the K8s cluster specified in ~/.kube/con
 
 .PHONY: deploy-rhaii
 deploy-rhaii: prepare ## Deploy controller in rhaii mode (only KServe) to the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/rhaii/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
+	$(KUSTOMIZE) build $(RHAII_DEFAULT_CONFIG_DIR) | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
 
 .PHONY: deploy-rhaii-local
 deploy-rhaii-local: prepare ## Deploy controller in rhaii mode (only KServe, local image pull policy) to the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/rhaii/local | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
+	$(KUSTOMIZE) build $(RHAII_LOCAL_CONFIG_DIR) | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
 
 .PHONY: undeploy-rhaii
 undeploy-rhaii: prepare ## Undeploy rhaii controller from the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/rhaii/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+	$(KUSTOMIZE) build $(RHAII_DEFAULT_CONFIG_DIR) | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: undeploy
 undeploy: prepare ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.

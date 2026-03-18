@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: opendatahub-azure-cloud-manager-operator
+  name: azure-cloud-manager-operator
   namespace: system
 spec:
   template:

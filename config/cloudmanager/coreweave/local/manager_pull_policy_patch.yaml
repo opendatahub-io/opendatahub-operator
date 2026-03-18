@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: opendatahub-coreweave-cloud-manager-operator
+  name: coreweave-cloud-manager-operator
   namespace: system
 spec:
   template:
