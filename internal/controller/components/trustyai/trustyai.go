@@ -42,6 +42,9 @@ func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *
 	// Copy eval section exactly as it exists in the DSC
 	spec.Eval = dsc.Spec.Components.TrustyAI.Eval
 
+	// Copy MCPGuardrailsMode
+	spec.MCPGuardrailsMode = dsc.Spec.Components.TrustyAI.MCPGuardrailsMode
+
 	// Ensure defaults are applied when strings are empty
 	if spec.Eval.LMEval.PermitCodeExecution == "" {
 		spec.Eval.LMEval.PermitCodeExecution = EvalPermissionDeny
@@ -72,6 +75,11 @@ func (s *componentHandler) Init(platform common.Platform) error {
 
 	if err := odhdeploy.ApplyParams(mp.String(), "params.env", imageParamMap); err != nil {
 		return fmt.Errorf("failed to update images on path %s: %w", mp, err)
+	}
+
+	mcpGuardrailsMP := mcpGuardrailsManifestInfo()
+	if err := odhdeploy.ApplyParams(mcpGuardrailsMP.String(), "params.env", imageParamMap); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", mcpGuardrailsMP, err)
 	}
 
 	return nil
