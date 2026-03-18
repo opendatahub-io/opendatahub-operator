@@ -810,7 +810,7 @@ rules:
           env:
             TITLE: ${{ github.event.pull_request.title }}
     patterns:
-      - pattern-regex: 'run:\s*(?:[|>][-+]?)?[\s\S]*?\$\{\{\s*github\.(head_ref|event\.(issue|pull_request|discussion|review|review_comment|comment)\.(title|body|head\.ref|head\.label)|event\.head_commit\.message|event\.commits\[\d+\]\.message)\s*\}\}'
+      - pattern-regex: 'run:\s*(?:[|>][-+]?\n(?:[ \t]+[^\n]*\n)*|[^\n]*)\$\{\{\s*github\.(head_ref|event\.(issue|pull_request|discussion|review|review_comment|comment)\.(title|body|head\.ref|head\.label)|event\.head_commit\.message|event\.commits\[\d+\]\.message)\s*\}\}'
     paths:
       include:
         - "**/.github/workflows/*.yml"
@@ -848,7 +848,7 @@ rules:
         - If checkout is needed, use merge commit: refs/pull/${{ github.event.number }}/merge
         - Add persist-credentials: false to limit token scope
     patterns:
-      - pattern-regex: 'pull_request_target[\s\S]*?uses:\s*actions/checkout@[^\n]*\n(\s+\w+:.*\n)*\s+ref:\s*\$\{\{[^\}]*pull_request\.head\.(sha|ref)\s*\}\}'
+      - pattern-regex: 'pull_request_target[\s\S]*?uses:\s*actions/checkout@[^\n]*\n(\s+[\w-]+:.*\n)*\s+ref:\s*\$\{\{[^\}]*pull_request\.head\.(sha|ref)\s*\}\}'
     paths:
       include:
         - "**/.github/workflows/*.yml"
@@ -1066,8 +1066,6 @@ rules:
           $VAR := os.Getenv("...")
       - pattern-not: |
           var $VAR = os.Getenv("...")
-      - pattern-not: |
-          const $VAR = os.Getenv("...")
       - pattern-not: |
           $VAR, $_ := os.LookupEnv("...")
     metadata:
@@ -1869,7 +1867,7 @@ rules:
       Remediation: Always quote variables in file operations:
         rm "$FILE"         # correct
         rm $FILE           # dangerous
-    pattern-regex: '(rm|cp|mv|eval|chmod|chown|kill|pkill)\s+[^|;]*(?<!["''\\])\$[A-Za-z_][A-Za-z0-9_]*'
+    pattern-regex: '(rm|cp|mv|eval|chmod|chown|kill|pkill)\s+[^|;]*(?<!["''\\])\$(?:\{[A-Za-z_][A-Za-z0-9_]*(?:[:\-\+\?=][^}]*)?\}|[A-Za-z_][A-Za-z0-9_]*)'
     metadata:
       cwe: "CWE-78"
       category: "security"
