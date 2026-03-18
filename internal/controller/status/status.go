@@ -124,11 +124,7 @@ const (
 	DataSciencePipelinesArgoWorkflowsCRDMissingMessage = "Argo Workflows controllers are not managed by this operator, but the CRD is missing"
 )
 
-// For Kueue MultiKueue CRD.
 const (
-	MultiKueueCRDReason  = "MultiKueueCRDV1Alpha1Exist"
-	MultiKueueCRDMessage = "Kueue CRDs MultiKueueConfig v1alpha1 and/or MultiKueueCluster v1alpha1 exist, please remove them to proceed"
-
 	KueueStateManagedNotSupported        = "KueueStateManagedNotSupported"
 	KueueStateManagedNotSupportedMessage = "Kueue managementState Managed is not supported, please use Removed or Unmanaged"
 	KueueOperatorNotInstalleReason       = "KueueOperatorNotInstalleReason"

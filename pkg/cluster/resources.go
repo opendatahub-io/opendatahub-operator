@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"slices"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -375,7 +374,14 @@ func IsAPIAvailable(cli client.Client, gvk schema.GroupVersionKind) (bool, error
 }
 
 // HasCRDWithVersion checks if a CustomResourceDefinition (CRD) exists with the specified version.
-// It verifies the CRD's existence, ensures that the version is stored, and checks if the CRD is under deletion.
+// It verifies the CRD's existence via the RESTMapper (which only resolves served versions),
+// fetches the CRD object to confirm it hasn't been deleted, and checks if the CRD is under deletion.
+//
+// This function intentionally does not check Status.StoredVersions, as that field reflects
+// which API versions have objects persisted in etcd — an internal detail that does not
+// determine whether a version is usable. A CRD can serve a version without having any
+// objects stored in it, and conversely may have removed a version from StoredVersions
+// after a storage migration while still serving it.
 //
 // Parameters:
 //   - ctx: The context for the request.
@@ -385,7 +391,7 @@ func IsAPIAvailable(cli client.Client, gvk schema.GroupVersionKind) (bool, error
 //
 // Returns:
 //   - (true, nil) if the CRD with the specified version exists and is not terminating.
-//   - (false, nil) if the CRD does not exist, does not store the requested version, or is terminating.
+//   - (false, nil) if the CRD does not exist, the version is not served, or the CRD is terminating.
 //   - (false, error) if there was an error fetching the CRD.
 func HasCRDWithVersion(ctx context.Context, cli client.Client, gk schema.GroupKind, version string) (bool, error) {
 	m, err := cli.RESTMapper().RESTMapping(gk, version)
@@ -402,8 +408,6 @@ func HasCRDWithVersion(ctx context.Context, cli client.Client, gk schema.GroupKi
 	case err != nil:
 		return false, client.IgnoreNotFound(err)
 	case apihelpers.IsCRDConditionTrue(&crd, apiextensionsv1.Terminating):
-		return false, nil
-	case !slices.Contains(crd.Status.StoredVersions, version):
 		return false, nil
 	default:
 		return true, nil

@@ -372,9 +372,6 @@ func TestHasCRD(t *testing.T) {
 				Storage: true,
 			}},
 		},
-		Status: apiextensionsv1.CustomResourceDefinitionStatus{
-			StoredVersions: []string{crdGVK.Version},
-		},
 	}
 
 	cli, err := fakeclient.New(

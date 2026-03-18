@@ -620,7 +620,7 @@ func convertToUnstructured(t *testing.T, obj runtime.Object) *unstructured.Unstr
 }
 
 // fakeclientWithCRDs builds a fake client whose RESTMapper knows about the
-// given GVKs and that contains matching CRD objects with StoredVersions set,
+// given GVKs and that contains matching CRD objects,
 // so that cluster.HasCRD returns true for each of them.
 func fakeclientWithCRDs(gvks []schema.GroupVersionKind) (client.Client, error) {
 	s, err := testscheme.New()
@@ -642,9 +642,6 @@ func fakeclientWithCRDs(gvks []schema.GroupVersionKind) (client.Client, error) {
 
 		crdObjs = append(crdObjs, &apiextensionsv1.CustomResourceDefinition{
 			ObjectMeta: metav1.ObjectMeta{Name: crdName},
-			Status: apiextensionsv1.CustomResourceDefinitionStatus{
-				StoredVersions: []string{item.Version},
-			},
 		})
 	}
 
