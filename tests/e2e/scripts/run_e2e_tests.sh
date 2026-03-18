@@ -91,15 +91,65 @@ validate_bool E2E_TEST_FAIL_FAST_ON_ERROR
 : "${E2E_TEST_TAG:=All}"
 validate_tag E2E_TEST_TAG
 
-# Run gotestsum with the environment variables and any additional arguments
-exec gotestsum --junitfile-project-name odh-operator-e2e \
-  --junitfile results/xunit_report.xml --format testname --raw-command \
-  -- test2json -t -p e2e ./e2e-tests --test.v=test2json --test.parallel=8 \
-  --deletion-policy="$E2E_TEST_DELETION_POLICY" --clean-up-previous-resources="$E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES" \
-  --test-operator-controller="$E2E_TEST_OPERATOR_CONTROLLER" --test-dependant-operators-management="$E2E_TEST_DEPENDANT_OPERATORS_MANAGEMENT" \
-  --test-dsc-management="$E2E_TEST_DSC_MANAGEMENT" --test-operator-resilience="$E2E_TEST_OPERATOR_RESILIENCE" \
-  --test-operator-v2tov3upgrade="$E2E_TEST_OPERATOR_V2TOV3UPGRADE" --test-hardware-profile="$E2E_TEST_HARDWARE_PROFILE" \
-  --test-webhook="$E2E_TEST_WEBHOOK" --test-components="$E2E_TEST_COMPONENTS" --test-services="$E2E_TEST_SERVICES" \
-  --operator-namespace="$E2E_TEST_OPERATOR_NAMESPACE" --applications-namespace="$E2E_TEST_APPLICATIONS_NAMESPACE" \
-  --workbenches-namespace="$E2E_TEST_WORKBENCHES_NAMESPACE" --dsc-monitoring-namespace="$E2E_TEST_DSC_MONITORING_NAMESPACE" \
-  --fail-fast-on-error="$E2E_TEST_FAIL_FAST_ON_ERROR" --tag="$E2E_TEST_TAG" "$@"
+# Toggle for JUnit XML enrichment with failure classification
+: "${USE_TEST_RETRY:=false}"
+validate_bool USE_TEST_RETRY
+
+# Choose test runner based on USE_TEST_RETRY flag
+if [ "$USE_TEST_RETRY" = "true" ] || [ "$USE_TEST_RETRY" = "1" ]; then
+  echo "Using test-retry for JUnit enrichment with failure classification"
+
+  # Run with test-retry (enriched JUnit XML with <properties>)
+  # Note: No --filter flag (uses custom e2e flags like --tag, --test-operator-controller instead)
+  exec test-retry e2e \
+    --command ./e2e-tests \
+    --filter "" \
+    --path /e2e \
+    --max-retries 3 \
+    --junit-output results/xunit_report.xml \
+    --verbose \
+    -- --test.parallel=8 \
+    --deletion-policy="$E2E_TEST_DELETION_POLICY" \
+    --clean-up-previous-resources="$E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES" \
+    --test-operator-controller="$E2E_TEST_OPERATOR_CONTROLLER" \
+    --test-dependant-operators-management="$E2E_TEST_DEPENDANT_OPERATORS_MANAGEMENT" \
+    --test-dsc-management="$E2E_TEST_DSC_MANAGEMENT" \
+    --test-operator-resilience="$E2E_TEST_OPERATOR_RESILIENCE" \
+    --test-operator-v2tov3upgrade="$E2E_TEST_OPERATOR_V2TOV3UPGRADE" \
+    --test-hardware-profile="$E2E_TEST_HARDWARE_PROFILE" \
+    --test-webhook="$E2E_TEST_WEBHOOK" \
+    --test-components="$E2E_TEST_COMPONENTS" \
+    --test-services="$E2E_TEST_SERVICES" \
+    --operator-namespace="$E2E_TEST_OPERATOR_NAMESPACE" \
+    --applications-namespace="$E2E_TEST_APPLICATIONS_NAMESPACE" \
+    --workbenches-namespace="$E2E_TEST_WORKBENCHES_NAMESPACE" \
+    --dsc-monitoring-namespace="$E2E_TEST_DSC_MONITORING_NAMESPACE" \
+    --fail-fast-on-error="$E2E_TEST_FAIL_FAST_ON_ERROR" \
+    --tag="$E2E_TEST_TAG" \
+    "$@"
+else
+  echo "Using gotestsum (standard JUnit XML, no enrichment)"
+
+  # Run with gotestsum (existing behavior - DEFAULT)
+  exec gotestsum --junitfile-project-name odh-operator-e2e \
+    --junitfile results/xunit_report.xml --format testname --raw-command \
+    -- test2json -t -p e2e ./e2e-tests --test.v=test2json --test.parallel=8 \
+    --deletion-policy="$E2E_TEST_DELETION_POLICY" \
+    --clean-up-previous-resources="$E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES" \
+    --test-operator-controller="$E2E_TEST_OPERATOR_CONTROLLER" \
+    --test-dependant-operators-management="$E2E_TEST_DEPENDANT_OPERATORS_MANAGEMENT" \
+    --test-dsc-management="$E2E_TEST_DSC_MANAGEMENT" \
+    --test-operator-resilience="$E2E_TEST_OPERATOR_RESILIENCE" \
+    --test-operator-v2tov3upgrade="$E2E_TEST_OPERATOR_V2TOV3UPGRADE" \
+    --test-hardware-profile="$E2E_TEST_HARDWARE_PROFILE" \
+    --test-webhook="$E2E_TEST_WEBHOOK" \
+    --test-components="$E2E_TEST_COMPONENTS" \
+    --test-services="$E2E_TEST_SERVICES" \
+    --operator-namespace="$E2E_TEST_OPERATOR_NAMESPACE" \
+    --applications-namespace="$E2E_TEST_APPLICATIONS_NAMESPACE" \
+    --workbenches-namespace="$E2E_TEST_WORKBENCHES_NAMESPACE" \
+    --dsc-monitoring-namespace="$E2E_TEST_DSC_MONITORING_NAMESPACE" \
+    --fail-fast-on-error="$E2E_TEST_FAIL_FAST_ON_ERROR" \
+    --tag="$E2E_TEST_TAG" \
+    "$@"
+fi
