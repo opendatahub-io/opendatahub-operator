@@ -63,10 +63,10 @@ declare -A RHOAI_COMPONENT_MANIFESTS=(
 
 # ODH Component Charts
 declare -A ODH_COMPONENT_CHARTS=(
-    ["cert-manager-operator"]="opendatahub-io:odh-gitops:main:charts/cert-manager-operator"
-    ["lws-operator"]="opendatahub-io:odh-gitops:main:charts/lws-operator"
-    ["sail-operator"]="opendatahub-io:odh-gitops:main:charts/sail-operator"
-    ["gateway-api"]="opendatahub-io:odh-gitops:main:charts/gateway-api"
+    ["cert-manager-operator"]="opendatahub-io:odh-gitops:main@3219e74753cb8f09b442355c49236cf61c70bdc9:charts/cert-manager-operator"
+    ["lws-operator"]="opendatahub-io:odh-gitops:main@3219e74753cb8f09b442355c49236cf61c70bdc9:charts/lws-operator"
+    ["sail-operator"]="opendatahub-io:odh-gitops:main@3219e74753cb8f09b442355c49236cf61c70bdc9:charts/sail-operator"
+    ["gateway-api"]="opendatahub-io:odh-gitops:main@3219e74753cb8f09b442355c49236cf61c70bdc9:charts/gateway-api"
 )
 
 # RHOAI Component Charts
