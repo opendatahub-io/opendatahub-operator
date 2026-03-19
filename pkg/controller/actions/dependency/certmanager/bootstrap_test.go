@@ -17,6 +17,7 @@ import (
 	certmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/mocks"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
@@ -221,6 +222,25 @@ func TestBootstrapCertManagerPKI(t *testing.T) {
 
 		_, err = getClusterIssuer(ctx, cli, config.IssuerName)
 		g.Expect(err).NotTo(HaveOccurred(), "self-signed ClusterIssuer should be recreated by the pipeline")
+	})
+
+	t.Run("PKI resources carry the gc-policy=retain label", func(t *testing.T) {
+		g := NewWithT(t)
+
+		issuer, err := getClusterIssuer(ctx, cli, config.IssuerName)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(issuer.GetLabels()).To(HaveKeyWithValue(labels.InfrastructureGCPolicy, labels.GCPolicyRetain),
+			"self-signed ClusterIssuer must carry %s=%s", labels.InfrastructureGCPolicy, labels.GCPolicyRetain)
+
+		cert, err := getRootCACertificate(ctx, cli, config.CertName, config.CertManagerNamespace)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(cert.GetLabels()).To(HaveKeyWithValue(labels.InfrastructureGCPolicy, labels.GCPolicyRetain),
+			"root CA Certificate must carry %s=%s", labels.InfrastructureGCPolicy, labels.GCPolicyRetain)
+
+		caIssuer, err := getClusterIssuer(ctx, cli, config.CAIssuerName)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(caIssuer.GetLabels()).To(HaveKeyWithValue(labels.InfrastructureGCPolicy, labels.GCPolicyRetain),
+			"CA-backed ClusterIssuer must carry %s=%s", labels.InfrastructureGCPolicy, labels.GCPolicyRetain)
 	})
 
 	t.Run("recreates externally deleted CA-backed ClusterIssuer", func(t *testing.T) {

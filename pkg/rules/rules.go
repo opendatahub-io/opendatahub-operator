@@ -22,6 +22,12 @@ const (
 	// VerbDelete represents the Kubernetes delete permission verb.
 	VerbDelete = "delete"
 
+	// VerbUpdate represents the Kubernetes update permission verb.
+	VerbUpdate = "update"
+
+	// VerbList represents the Kubernetes list permission verb.
+	VerbList = "list"
+
 	// VerbAny represents a wildcard for any permission verb.
 	VerbAny = "*"
 
@@ -104,40 +110,52 @@ func IsResourceMatchingRule(
 	return false
 }
 
-// HasDeletePermission checks if the current subject has permission to delete a specific API
+// HasPermissions checks if the current subject has the required permissions for a specific API
 // resource based on the provided authorization rules.
 //
 // Parameters:
 //   - group: The API group of the resource to check
 //   - apiRes: The API resource metadata
 //   - permissionRules: A slice of authorization rules to check against
+//   - requiredVerbs: A slice of verbs that the subject must have permission to perform
 //
 // Returns:
-//   - bool: true if the resource can be deleted by the current subject, false otherwise
-func HasDeletePermission(
+//   - bool: true if the resource can be accessed with all required verbs by the current subject, false otherwise
+func HasPermissions(
 	group string,
 	apiRes metav1.APIResource,
 	permissionRules []authorizationv1.ResourceRule,
+	requiredVerbs []string,
 ) bool {
-	for _, rule := range permissionRules {
-		// Skip if the rule doesn't grant delete permission
-		if !slices.Contains(rule.Verbs, VerbDelete) && !slices.Contains(rule.Verbs, VerbAny) {
-			continue
+	// For each required verb, we must find at least one rule that grants it
+	for _, requiredVerb := range requiredVerbs {
+		verbGranted := false
+		for _, rule := range permissionRules {
+			// Skip if the rule doesn't grant the required permission
+			if !slices.Contains(rule.Verbs, requiredVerb) && !slices.Contains(rule.Verbs, VerbAny) {
+				continue
+			}
+
+			// Skip if the resource doesn't match this rule
+			if !IsResourceMatchingRule(group, apiRes, rule) {
+				continue
+			}
+
+			verbGranted = true
+			break
 		}
 
-		// Skip if the resource doesn't match this rule
-		if !IsResourceMatchingRule(group, apiRes, rule) {
-			continue
+		// If any required verb is not granted by any rule, return false
+		if !verbGranted {
+			return false
 		}
-
-		return true
 	}
 
-	return false
+	return true
 }
 
-// ComputeDeletableResources returns a sorted list of Kubernetes resources that the user
-// is authorized to delete, based on the available API resources and RBAC rules.
+// ComputeAuthorizedResources returns a sorted list of Kubernetes resources that the user
+// is authorized to interact with based on the required verbs, available API resources, and RBAC rules.
 //
 // Parameters:
 //   - resourceLists: A slice of metav1.APIResourceList. Each entry describes a group/version
@@ -145,15 +163,17 @@ func HasDeletePermission(
 //   - rules: A slice of authorizationv1.ResourceRule, representing the set of actions
 //     the user is allowed to perform. These typically come from a SubjectAccessReview
 //     or SelfSubjectRulesReview.
+//   - requiredVerbs: A slice of verbs that the subject must have permission to perform.
 //
 // Return values:
-//   - []resources.Resource: A slice of resources the user can delete. Each resource includes
+//   - []resources.Resource: A slice of resources the user can access with the required verbs. Each resource includes
 //     its GroupVersionResource, GroupVersionKind, and scope (namespaced or cluster-wide).
 //     The slice is sorted by the string representation of the resource.
 //   - error: Returned if any GroupVersion string in the API resource list fails to parse.
-func ComputeDeletableResources(
+func ComputeAuthorizedResources(
 	resourceLists []*metav1.APIResourceList,
 	rules []authorizationv1.ResourceRule,
+	requiredVerbs []string,
 ) ([]resources.Resource, error) {
 	allowedResources := make(map[resources.Resource]struct{})
 
@@ -169,7 +189,7 @@ func ComputeDeletableResources(
 				group = groupVersion.Group
 			}
 
-			if !HasDeletePermission(group, apiResource, rules) {
+			if !HasPermissions(group, apiResource, rules, requiredVerbs) {
 				continue
 			}
 
@@ -207,14 +227,14 @@ func ComputeDeletableResources(
 	return result, nil
 }
 
-// ListAuthorizedDeletableResources returns a list of Kubernetes resources that the current
-// service account is authorized to delete within the specified namespace.
+// ListAuthorizedResources returns a list of Kubernetes resources that the current
+// service account is authorized to interact with (using the required verbs) within the specified namespace.
 //
-// It uses the discovery API to filter for resources that support the "delete" verb and
+// It uses the discovery API to filter for resources that support the required verbs and
 // cross-references this list with the user's effective RBAC permissions.
 //
-// This prevents querying resources that do not support deletion or that the user does not have
-// permission to delete, thereby avoiding unnecessary or unauthorized API calls (e.g., errors
+// This prevents querying resources that do not support the required verbs or that the user does not have
+// permission to use, thereby avoiding unnecessary or unauthorized API calls (e.g., errors
 // like "MethodNotAllowed").
 //
 // Parameters:
@@ -222,23 +242,25 @@ func ComputeDeletableResources(
 //   - cli: A controller-runtime client used to make Kubernetes API calls.
 //   - apis: A slice of APIResourceList, typically returned by discovery from the API server.
 //   - namespace: The namespace in which to evaluate the user's permissions.
+//   - requiredVerbs: A slice of verbs that the subject must have permission to perform.
 //
 // Returns:
-//   - []resources.Resource: A slice of deletable resources the user is authorized to delete,
+//   - []resources.Resource: A slice of resources the user is authorized to access with the required verbs,
 //     including their GVK, GVR, and scope information.
-//   - error: Non-nil if permission checks or deletable resource computation fails.
-func ListAuthorizedDeletableResources(
+//   - error: Non-nil if permission checks or authorized resource computation fails.
+func ListAuthorizedResources(
 	ctx context.Context,
 	cli client.Client,
 	apis []*metav1.APIResourceList,
 	namespace string,
+	requiredVerbs []string,
 ) ([]resources.Resource, error) {
-	// We only take types that support the "delete" verb,
+	// We only take types that support the required verbs,
 	// to prevents from performing queries that we know are going to
 	// return "MethodNotAllowed".
 	apiResourceLists := discovery.FilteredBy(
 		discovery.SupportsAllVerbs{
-			Verbs: []string{VerbDelete},
+			Verbs: requiredVerbs,
 		},
 		apis,
 	)
@@ -249,10 +271,10 @@ func ListAuthorizedDeletableResources(
 		return nil, fmt.Errorf("failure retrieving resource rules: %w", err)
 	}
 
-	// Collect deletable resources.
-	result, err := ComputeDeletableResources(apiResourceLists, items)
+	// Collect authorized resources.
+	result, err := ComputeAuthorizedResources(apiResourceLists, items, requiredVerbs)
 	if err != nil {
-		return nil, fmt.Errorf("failure retrieving deletable resources: %w", err)
+		return nil, fmt.Errorf("failure retrieving authorized resources: %w", err)
 	}
 
 	return result, nil

@@ -126,7 +126,7 @@ func newTestResource(group string, version string, kind string, resource string)
 	}
 }
 
-func TestListAuthorizedDeletableResources(t *testing.T) {
+func TestListAuthorizedResources(t *testing.T) {
 	const testNamespace = "test-namespace"
 
 	testCases := []struct {
@@ -253,7 +253,7 @@ func TestListAuthorizedDeletableResources(t *testing.T) {
 				}).
 				Build()
 
-			items, err := rules.ListAuthorizedDeletableResources(ctx, cli, tc.apis, testNamespace)
+			items, err := rules.ListAuthorizedResources(ctx, cli, tc.apis, testNamespace, []string{rules.VerbDelete})
 
 			g.Expect(err).ShouldNot(HaveOccurred())
 			g.Expect(items).Should(tc.resourcesMatcher)

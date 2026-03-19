@@ -2,6 +2,7 @@ package helm
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"slices"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/resourcecacher"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	odhlabels "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
@@ -96,34 +98,43 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 }
 
 func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) (resources.UnstructuredList, error) {
-	charts := make([]helm.Source, 0, len(rr.HelmCharts))
+	var result resources.UnstructuredList
+
 	for _, chart := range rr.HelmCharts {
-		charts = append(charts, chart.Source)
+		helmOptions := helm.RendererOptions{
+			Strict:       true,
+			Transformers: slices.Clone(a.transformers),
+			PostRenderers: []engineTypes.PostRenderer{
+				postrenderer.ApplyOrder(),
+			},
+			// TODO: add source annotations. Before it, make the source annotations configurable.
+		}
+
+		if a.annotations != nil {
+			helmOptions.Transformers = append(helmOptions.Transformers, annotations.Set(a.annotations))
+		}
+		if a.labels != nil {
+			helmOptions.Transformers = append(helmOptions.Transformers, labels.Set(a.labels))
+		}
+		helmOptions.Transformers = append(helmOptions.Transformers,
+			labels.Set(map[string]string{odhlabels.InfrastructureDependency: chart.ReleaseName}),
+		)
+
+		renderer, err := helm.New([]helm.Source{chart.Source}, helmOptions)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create renderer for chart %q: %w", chart.ReleaseName, err)
+		}
+
+		// TODO: manage render time values
+		chartResources, err := renderer.Process(ctx, map[string]any{})
+		if err != nil {
+			return nil, fmt.Errorf("failed to render chart %q: %w", chart.ReleaseName, err)
+		}
+
+		result = append(result, chartResources...)
 	}
 
-	helmOptions := helm.RendererOptions{
-		Strict:       true,
-		Transformers: slices.Clone(a.transformers),
-		PostRenderers: []engineTypes.PostRenderer{
-			postrenderer.ApplyOrder(),
-		},
-		// TODO: add source annotations. Before it, make the source annotations configurable.
-	}
-
-	if a.annotations != nil {
-		helmOptions.Transformers = append(helmOptions.Transformers, annotations.Set(a.annotations))
-	}
-	if a.labels != nil {
-		helmOptions.Transformers = append(helmOptions.Transformers, labels.Set(a.labels))
-	}
-
-	renderer, err := helm.New(charts, helmOptions)
-	if err != nil {
-		return nil, err
-	}
-
-	// TODO: manage render time values
-	return renderer.Process(ctx, map[string]any{})
+	return result, nil
 }
 
 // NewAction creates a new Helm rendering action.
