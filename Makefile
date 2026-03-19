@@ -584,7 +584,7 @@ toolbox: ## Create a toolbox instance with the proper Golang and Operator SDK ve
 	toolbox create opendatahub-toolbox --image localhost/opendatahub-toolbox:latest
 
 # Run tests.
-TEST_SRC ?=./internal/... ./tests/integration/... ./pkg/...
+TEST_SRC ?=./internal/... ./tests/integration/... ./pkg/... ./api/services/v1alpha1/...
 
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download setup-envtest locally if necessary.
@@ -714,7 +714,6 @@ e2e-setup-cluster:
 		-e E2E_TEST_WEBHOOK=false \
 		-e E2E_TEST_OPERATOR_RESILIENCE=false \
 		-e E2E_TEST_OPERATOR_V2TOV3UPGRADE=false \
-		-e E2E_TEST_HARDWARE_PROFILE=false \
 		-e E2E_TEST_DELETION_POLICY=never \
 		-e E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=true
 

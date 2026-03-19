@@ -111,6 +111,51 @@ func TestDataScienceClusterV1_Integration(t *testing.T) {
 				}).Should(Equal(modelregistryctrl.DefaultModelRegistriesNamespace), "should set ModelRegistry.RegistriesNamespace to default when empty and Managed")
 			},
 		},
+		{
+			name: "CEL: RegistriesNamespace immutable when ModelRegistry Managed; mutable when Removed",
+			setup: func(ns string) []client.Object {
+				return nil
+			},
+			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
+				dsc := envtestutil.NewDSCV1("dsc-mr-cel", WithModelRegistryDefaulting())
+				g.Expect(k8sClient.Create(ctx, dsc)).To(Succeed(), "should create DSC with ModelRegistry Managed and empty RegistriesNamespace")
+
+				key := types.NamespacedName{Name: "dsc-mr-cel", Namespace: ns}
+				fetched := &dscv1.DataScienceCluster{}
+				g.Eventually(func() string {
+					if err := k8sClient.Get(ctx, key, fetched); err != nil {
+						return ""
+					}
+					return fetched.Spec.Components.ModelRegistry.RegistriesNamespace
+				}).Should(Equal(modelregistryctrl.DefaultModelRegistriesNamespace), "mutating webhook should default RegistriesNamespace")
+
+				g.Expect(k8sClient.Get(ctx, key, fetched)).To(Succeed())
+				fetched.Spec.Components.ModelRegistry.RegistriesNamespace = "other-registry-ns"
+				err := k8sClient.Update(ctx, fetched)
+				g.Expect(err).To(HaveOccurred(), "CEL should reject changing RegistriesNamespace while Managed")
+				g.Expect(err.Error()).To(ContainSubstring("RegistriesNamespace"))
+
+				g.Expect(k8sClient.Get(ctx, key, fetched)).To(Succeed())
+				fetched.Spec.Components.ModelRegistry.ManagementState = operatorv1.Removed
+				g.Expect(k8sClient.Update(ctx, fetched)).To(Succeed(), "should allow setting ModelRegistry to Removed")
+
+				g.Expect(k8sClient.Get(ctx, key, fetched)).To(Succeed())
+				fetched.Spec.Components.ModelRegistry.RegistriesNamespace = "custom-ns-under-removed"
+				g.Expect(k8sClient.Update(ctx, fetched)).To(Succeed(), "should allow changing RegistriesNamespace when not Managed")
+
+				g.Expect(k8sClient.Get(ctx, key, fetched)).To(Succeed())
+				g.Expect(fetched.Spec.Components.ModelRegistry.RegistriesNamespace).To(Equal("custom-ns-under-removed"))
+
+				fetched.Spec.Components.ModelRegistry.ManagementState = operatorv1.Managed
+				g.Expect(k8sClient.Update(ctx, fetched)).To(Succeed(), "should allow transition back to Managed with existing namespace")
+
+				g.Expect(k8sClient.Get(ctx, key, fetched)).To(Succeed())
+				fetched.Spec.Components.ModelRegistry.RegistriesNamespace = "another-ns"
+				err = k8sClient.Update(ctx, fetched)
+				g.Expect(err).To(HaveOccurred(), "CEL should reject changing RegistriesNamespace after Managed again")
+				g.Expect(err.Error()).To(ContainSubstring("RegistriesNamespace"))
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -363,4 +408,57 @@ func TestDataScienceClusterV1V2_ConversionWebhook(t *testing.T) {
 			t.Logf("Finished conversion test case: %s", tc.name)
 		})
 	}
+}
+
+// TestDataScienceClusterV2OnlyComponentsResetOnV1Patch verifies Trainer and MLflowOperator reset to Removed
+// when a DSC is updated through the v1 API (v2-only fields are lost on v1 round-trip; RHOAIENG-44476).
+func TestDataScienceClusterV2OnlyComponentsResetOnV1Patch(t *testing.T) {
+	t.Parallel()
+
+	ctx, env, teardown := envtestutil.SetupEnvAndClient(
+		t,
+		[]envt.RegisterWebhooksFn{
+			v1webhook.RegisterWebhooks,
+			dsciv1webhook.RegisterWebhooks,
+			v2webhook.RegisterWebhooks,
+			dsciv2webhook.RegisterWebhooks,
+		},
+		[]envt.RegisterControllersFn{},
+		envtestutil.DefaultWebhookTimeout,
+	)
+	t.Cleanup(teardown)
+
+	ns := xid.New().String()
+	createDSCIV1(NewWithT(t), ctx, env.Client())
+
+	g := NewWithT(t)
+	dscName := "dsc-v2-only-reset"
+	dsc := envtestutil.NewDSC(dscName)
+	dsc.Spec.Components.Trainer.ManagementState = operatorv1.Managed
+	dsc.Spec.Components.MLflowOperator.ManagementState = operatorv1.Managed
+	g.Expect(env.Client().Create(ctx, dsc)).To(Succeed())
+
+	dscV2 := &dscv2.DataScienceCluster{}
+	g.Eventually(func() error {
+		return env.Client().Get(ctx, types.NamespacedName{Name: dscName, Namespace: ns}, dscV2)
+	}, "10s", "1s").Should(Succeed())
+	g.Expect(dscV2.Spec.Components.Trainer.ManagementState).To(Equal(operatorv1.Managed))
+	g.Expect(dscV2.Spec.Components.MLflowOperator.ManagementState).To(Equal(operatorv1.Managed))
+
+	dscV1 := &dscv1.DataScienceCluster{}
+	g.Expect(env.Client().Get(ctx, types.NamespacedName{Name: dscName, Namespace: ns}, dscV1)).To(Succeed())
+	dscV1.Spec.Components.Dashboard.ManagementState = operatorv1.Managed
+	g.Expect(env.Client().Update(ctx, dscV1)).To(Succeed())
+
+	g.Eventually(func() operatorv1.ManagementState {
+		cur := &dscv2.DataScienceCluster{}
+		if err := env.Client().Get(ctx, types.NamespacedName{Name: dscName, Namespace: ns}, cur); err != nil {
+			return operatorv1.ManagementState("")
+		}
+		return cur.Spec.Components.Trainer.ManagementState
+	}, "10s", "1s").Should(Equal(operatorv1.Removed))
+
+	final := &dscv2.DataScienceCluster{}
+	g.Expect(env.Client().Get(ctx, types.NamespacedName{Name: dscName, Namespace: ns}, final)).To(Succeed())
+	g.Expect(final.Spec.Components.MLflowOperator.ManagementState).To(Equal(operatorv1.Removed))
 }

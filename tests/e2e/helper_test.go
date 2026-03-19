@@ -20,7 +20,6 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
@@ -190,37 +189,6 @@ func CreateDSCI(name, appNamespace, monitoringNamespace string) *dsciv2.DSCIniti
 				},
 			},
 			TrustedCABundle: &dsciv2.TrustedCABundleSpec{
-				ManagementState: operatorv1.Managed,
-				CustomCABundle:  "",
-			},
-		},
-	}
-}
-
-// CreateDSCIv1 creates a DSCInitialization v1 CR.
-func CreateDSCIv1(name, appNamespace, monitoringNamespace string) *dsciv1.DSCInitialization {
-	return &dsciv1.DSCInitialization{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       gvk.DSCInitializationV1.Kind,
-			APIVersion: gvk.DSCInitializationV1.GroupVersion().String(),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-			Labels: map[string]string{
-				"opendatahub.io/created-by-e2e-tests": "true",
-			},
-		},
-		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: appNamespace,
-			Monitoring: serviceApi.DSCIMonitoring{
-				ManagementSpec: common.ManagementSpec{
-					ManagementState: operatorv1.Removed, // keep rhoai branch to Managed so we can test it
-				},
-				MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
-					Namespace: monitoringNamespace,
-				},
-			},
-			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
 				ManagementState: operatorv1.Managed,
 				CustomCABundle:  "",
 			},

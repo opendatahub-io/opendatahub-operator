@@ -9,7 +9,6 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -130,8 +129,6 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test PersesDatasource lifecycle", monitoringServiceCtx.ValidatePersesDatasourceLifecycle},
 		{"Test Perses Datasource TLS with S3 backend", monitoringServiceCtx.ValidatePersesDatasourceTLSWithS3Backend},
 		{"Test Perses Datasource TLS with GCS backend", monitoringServiceCtx.ValidatePersesDatasourceTLSWithGCSBackend},
-		{"Validate CEL blocks invalid monitoring configs", monitoringServiceCtx.ValidateCELBlocksInvalidMonitoringConfigs},
-		{"Validate CEL allows valid monitoring configs", monitoringServiceCtx.ValidateCELAllowsValidMonitoringConfigs},
 		{"Validate monitoring service disabled", monitoringServiceCtx.ValidateMonitoringServiceDisabled},
 		{"Test Namespace Restricted Metrics Access", monitoringServiceCtx.ValidatePrometheusRestrictedResourceConfiguration},
 		{"Test Prometheus Secure Proxy Authentication", monitoringServiceCtx.ValidatePrometheusSecureProxyAuthentication},
@@ -289,99 +286,6 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsReplicasUpdate(t *t
 		)),
 		WithCustomErrorMsg("MonitoringStack '%s' configuration validation failed", MonitoringStackName),
 	)
-}
-
-// ValidateCELBlocksInvalidMonitoringConfigs tests that CEL validation blocks invalid monitoring configurations.
-func (tc *MonitoringTestCtx) ValidateCELBlocksInvalidMonitoringConfigs(t *testing.T) {
-	t.Helper()
-
-	testCases := []struct {
-		name        string
-		transforms  []testf.TransformFn
-		description string
-	}{
-		{
-			name: "alerting_with_empty_metrics",
-			transforms: []testf.TransformFn{
-				withEmptyMetrics(),
-				withEmptyAlerting(),
-			},
-			description: "Empty metrics object should block alerting configuration",
-		},
-		{
-			name: "alerting_without_metrics_field",
-			transforms: []testf.TransformFn{
-				withNoMetrics(),
-				withEmptyAlerting(),
-			},
-			description: "Missing metrics field should trigger XValidation error",
-		},
-		{
-			name: "alerting_with_only_exporters",
-			transforms: []testf.TransformFn{
-				testf.Transform(`.spec.monitoring.metrics = {"exporters": {"custom": "config"}}`),
-				withEmptyAlerting(),
-			},
-			description: "Exporters alone should not satisfy alerting requirements",
-		},
-		{
-			name: "replicas_without_storage",
-			transforms: []testf.TransformFn{
-				testf.Transform(`.spec.monitoring.metrics = {"replicas": 2}`),
-			},
-			description: "Non-zero replicas should require storage ",
-		},
-	}
-
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			tc.updateMonitoringConfigWithOptions(
-				WithTransforms(testCase.transforms...),
-				WithAcceptableErr(k8serr.IsInvalid, "IsInvalid"),
-			)
-		})
-	}
-}
-
-// ValidateCELAllowsValidMonitoringConfigs tests that CEL validation allows valid monitoring configurations.
-func (tc *MonitoringTestCtx) ValidateCELAllowsValidMonitoringConfigs(t *testing.T) {
-	t.Helper()
-
-	testCases := []struct {
-		name        string
-		transforms  []testf.TransformFn
-		description string
-	}{
-		{
-			name: "empty_metrics_without_alerting",
-			transforms: []testf.TransformFn{
-				withEmptyMetrics(),
-				withNoCollectorReplicas(),
-				withNoAlerting(),
-			},
-			description: "Empty metrics should be allowed without alerting",
-		},
-		{
-			name: "replicas_zero_without_storage",
-			transforms: []testf.TransformFn{
-				testf.Transform(`.spec.monitoring.metrics = {"replicas": 0}`),
-			},
-			description: "Zero replicas should be allowed without storage",
-		},
-		{
-			name: "replicas_with_storage",
-			transforms: []testf.TransformFn{
-				tc.withMetricsConfig(),
-			},
-			description: "Non-zero replicas should be allowed with storage",
-		},
-	}
-
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			tc.updateMonitoringConfig(testCase.transforms...)
-		})
-	}
 }
 
 // ValidateOpenTelemetryCollectorConfigurations consolidates all OpenTelemetry Collector configuration tests.
@@ -1394,7 +1298,7 @@ func withNamespace(namespace string) testf.TransformFn { //nolint:unused
 }
 
 // withEmptyMetrics returns a transform that clears metrics configuration.
-func withEmptyMetrics() testf.TransformFn {
+func withEmptyMetrics() testf.TransformFn { //nolint:unused
 	return testf.Transform(`.spec.monitoring.metrics = {}`)
 }
 
@@ -1419,7 +1323,7 @@ func withNoTraces() testf.TransformFn {
 }
 
 // withNoCollectorReplicas returns a transform that removes the collectorReplicas field entirely.
-func withNoCollectorReplicas() testf.TransformFn {
+func withNoCollectorReplicas() testf.TransformFn { //nolint:unused
 	return testf.Transform(`del(.spec.monitoring.collectorReplicas)`)
 }
 

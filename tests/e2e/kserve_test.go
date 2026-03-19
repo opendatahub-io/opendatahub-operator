@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
@@ -17,10 +16,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
 )
@@ -60,13 +57,6 @@ func kserveTestSuite(t *testing.T) {
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
 		{"Validate well-known LLMInferenceServiceConfig versioning", componentCtx.ValidateLLMInferenceServiceConfigVersioned},
-	}
-
-	// Add webhook tests if enabled
-	if testOpts.webhookTest {
-		testCases = append(testCases,
-			TestCase{"Validate connection webhook injection", componentCtx.ValidateConnectionWebhookInjection},
-		)
 	}
 
 	// Always run deletion recovery and component disable tests last
@@ -133,78 +123,6 @@ func (tc *KserveTestCtx) ValidateNoKserveFeatureTrackers(t *testing.T) {
 			),
 		}),
 		WithCustomErrorMsg("Expected no KServe-related FeatureTracker resources to be present"),
-	)
-}
-
-// ValidateConnectionWebhookInjection validates that the connection webhook properly injects
-// secrets into InferenceService resources with existing imagePullSecrets.
-func (tc *KserveTestCtx) ValidateConnectionWebhookInjection(t *testing.T) {
-	t.Helper()
-
-	skipUnless(t, Tier1)
-
-	// Ensure KServe is in Managed state to enable webhook functionality
-	tc.ValidateComponentEnabled(t)
-
-	testNamespace := "glue-namespace"
-	secretName := "glue-secret"
-	isvcName := "glue-isvc"
-
-	// Create test namespace
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: testNamespace}),
-		WithCustomErrorMsg("Failed to create webhook test namespace"),
-	)
-
-	// Create a connection secret with OCI type
-	tc.createConnectionSecret(secretName, testNamespace)
-
-	// Create InferenceService with connection annotation and existing imagePullSecrets
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.InferenceServices, types.NamespacedName{Name: isvcName, Namespace: testNamespace}),
-		WithMutateFunc(testf.TransformPipeline(
-			// Set connection annotation
-			testf.Transform(`.metadata.annotations."%s" = "%s"`, annotations.Connection, secretName),
-			// Set predictor spec with model and existing imagePullSecrets
-			testf.Transform(`.spec.predictor = {
-				"model": {},
-				"imagePullSecrets": [{"name": "existing-secret"}]
-			}`),
-		)),
-		WithCustomErrorMsg("Failed to create InferenceService with webhook injection"),
-	)
-
-	// Validate that both the existing-secret and the new connection secret are present
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.InferenceServices, types.NamespacedName{Name: isvcName, Namespace: testNamespace}),
-		WithCondition(jq.Match(`
-			.spec.predictor.imagePullSecrets | length == 2
-			and (map(.name) | contains(["existing-secret"]))
-			and (map(.name) | contains(["%s"]))`,
-			secretName)),
-		WithCustomErrorMsg("InferenceService should have both existing and injected imagePullSecrets"),
-	)
-
-	// Cleanup the created test namespace
-	tc.DeleteResource(
-		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: testNamespace}),
-		WithWaitForDeletion(true),
-	)
-}
-
-// createConnectionSecret creates a connection secret with OCI type to test webhook.
-func (tc *KserveTestCtx) createConnectionSecret(secretName, namespace string) {
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.Secret, types.NamespacedName{Name: secretName, Namespace: namespace}),
-		WithMutateFunc(testf.TransformPipeline(
-			// Set connection type annotation
-			testf.Transform(`.metadata.annotations."%s" = "%s"`, annotations.ConnectionTypeProtocol, "oci"),
-			// Set secret type
-			testf.Transform(`.type = "%s"`, string(corev1.SecretTypeOpaque)),
-			// Set secret data
-			testf.Transform(`.data = {"credential": "mysecretjson"}`),
-		)),
-		WithCustomErrorMsg("Failed to create connection secret"),
 	)
 }
 
