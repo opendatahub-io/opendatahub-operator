@@ -1,0 +1,5 @@
+# Applications namespace where KServe workloads run
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: opendatahub
