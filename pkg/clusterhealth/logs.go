@@ -20,6 +20,7 @@ const (
 
 	logFetchTimeout     = 10 * time.Second
 	logFetchConcurrency = 5
+	maxLogBytes         = 10 * 1024 * 1024 // 10 MiB safety cap per container
 )
 
 // logConfig is the internal bundle passed to section runners that need log capture.
@@ -47,6 +48,21 @@ var redactionPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)(secret[=:\s]+)[^\s&"']+`),
 	regexp.MustCompile(`(?i)(api[_-]?key[=:\s]+)[^\s&"']+`),
 	regexp.MustCompile(`(?i)(access[_-]?key[=:\s]+)[^\s&"']+`),
+	// Quoted values: key="value", key='value', key: "value", key: 'value' (logfmt, YAML, config)
+	regexp.MustCompile(`(?i)(password[=:]\s*")[^"]*(")`),
+	regexp.MustCompile(`(?i)(password[=:]\s*')[^']*(')`),
+	regexp.MustCompile(`(?i)(token[=:]\s*")[^"]*(")`),
+	regexp.MustCompile(`(?i)(token[=:]\s*')[^']*(')`),
+	regexp.MustCompile(`(?i)(secret[=:]\s*")[^"]*(")`),
+	regexp.MustCompile(`(?i)(secret[=:]\s*')[^']*(')`),
+	regexp.MustCompile(`(?i)(api[_-]?key[=:]\s*")[^"]*(")`),
+	regexp.MustCompile(`(?i)(api[_-]?key[=:]\s*')[^']*(')`),
+	regexp.MustCompile(`(?i)(access[_-]?key[=:]\s*")[^"]*(")`),
+	regexp.MustCompile(`(?i)(access[_-]?key[=:]\s*')[^']*(')`),
+	regexp.MustCompile(`(?i)(authorization[=:]\s*")[^"]*(")`),
+	regexp.MustCompile(`(?i)(authorization[=:]\s*')[^']*(')`),
+	regexp.MustCompile(`(?i)(credential[s]?[=:]\s*")[^"]*(")`),
+	regexp.MustCompile(`(?i)(credential[s]?[=:]\s*')[^']*(')`),
 	// JSON-structured: {"password":"value"} or {"token": "value"}
 	regexp.MustCompile(`(?i)("password"\s*:\s*")[^"]*(")`),
 	regexp.MustCompile(`(?i)("token"\s*:\s*")[^"]*(")`),
@@ -59,7 +75,13 @@ var redactionPatterns = []*regexp.Regexp{
 
 // determineLogType decides whether to fetch logs for a container and whether
 // to fetch current or previous logs. Returns "" if no logs are needed.
-func determineLogType(c ContainerInfo) string {
+// podPhase is the owning pod's phase; containers from Succeeded pods are
+// always skipped because they terminated normally.
+func determineLogType(c ContainerInfo, podPhase string) string {
+	if podPhase == string(corev1.PodSucceeded) {
+		return ""
+	}
+
 	// Waiting after a restart → the interesting logs are in the previous instance.
 	if c.Waiting != "" && c.RestartCount > 0 {
 		return logTypePrevious
@@ -112,8 +134,11 @@ func fetchContainerLogs(ctx context.Context, clientset *kubernetes.Clientset, na
 	defer stream.Close()
 
 	buf := new(bytes.Buffer)
-	if _, err := io.Copy(buf, stream); err != nil {
+	if _, err := io.Copy(buf, io.LimitReader(stream, maxLogBytes)); err != nil {
 		return "", fmt.Errorf("read log stream: %w", err)
+	}
+	if int64(buf.Len()) >= maxLogBytes {
+		return buf.String() + "\n[truncated: log output exceeded 10 MiB safety limit]", nil
 	}
 
 	return buf.String(), nil
@@ -136,22 +161,13 @@ type logResult struct {
 	previous       bool
 }
 
-// captureLogsForPods fetches logs for all problematic containers across the
-// given pods. It modifies the ContainerInfo entries in-place. Safe to call
-// with a nil clientset (no-op).
-func captureLogsForPods(ctx context.Context, clientset *kubernetes.Clientset, tailLines int64, pods []PodInfo) {
-	if clientset == nil || tailLines < 0 {
-		return
-	}
-	if tailLines == 0 {
-		tailLines = defaultLogTailLines
-	}
-
-	// Build the work queue: one entry per problematic container.
+// buildLogRequests returns one logRequest per container that needs log
+// capture, consulting determineLogType to skip healthy containers.
+func buildLogRequests(pods []PodInfo) []logRequest {
 	var requests []logRequest
 	for pi := range pods {
 		for ci := range pods[pi].Containers {
-			lt := determineLogType(pods[pi].Containers[ci])
+			lt := determineLogType(pods[pi].Containers[ci], pods[pi].Phase)
 			if lt == "" {
 				continue
 			}
@@ -165,6 +181,21 @@ func captureLogsForPods(ctx context.Context, clientset *kubernetes.Clientset, ta
 			})
 		}
 	}
+	return requests
+}
+
+// captureLogsForPods fetches logs for all problematic containers across the
+// given pods. It modifies the ContainerInfo entries in-place. Safe to call
+// with a nil clientset (no-op).
+func captureLogsForPods(ctx context.Context, clientset *kubernetes.Clientset, tailLines int64, pods []PodInfo) {
+	if clientset == nil || tailLines < 0 {
+		return
+	}
+	if tailLines == 0 {
+		tailLines = defaultLogTailLines
+	}
+
+	requests := buildLogRequests(pods)
 	if len(requests) == 0 {
 		return
 	}

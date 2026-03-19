@@ -11,6 +11,7 @@ Build a `Config` with your controller-runtime client and namespace/CR names, the
 ```go
 import (
 	"context"
+	"fmt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
