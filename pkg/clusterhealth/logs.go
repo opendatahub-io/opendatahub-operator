@@ -49,28 +49,29 @@ var redactionPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)(api[_-]?key[=:\s]+)[^\s&"']+`),
 	regexp.MustCompile(`(?i)(access[_-]?key[=:\s]+)[^\s&"']+`),
 	// Quoted values: key="value", key='value', key: "value", key: 'value' (logfmt, YAML, config)
-	regexp.MustCompile(`(?i)(password[=:]\s*")[^"]*(")`),
-	regexp.MustCompile(`(?i)(password[=:]\s*')[^']*(')`),
-	regexp.MustCompile(`(?i)(token[=:]\s*")[^"]*(")`),
-	regexp.MustCompile(`(?i)(token[=:]\s*')[^']*(')`),
-	regexp.MustCompile(`(?i)(secret[=:]\s*")[^"]*(")`),
-	regexp.MustCompile(`(?i)(secret[=:]\s*')[^']*(')`),
-	regexp.MustCompile(`(?i)(api[_-]?key[=:]\s*")[^"]*(")`),
-	regexp.MustCompile(`(?i)(api[_-]?key[=:]\s*')[^']*(')`),
-	regexp.MustCompile(`(?i)(access[_-]?key[=:]\s*")[^"]*(")`),
-	regexp.MustCompile(`(?i)(access[_-]?key[=:]\s*')[^']*(')`),
-	regexp.MustCompile(`(?i)(authorization[=:]\s*")[^"]*(")`),
-	regexp.MustCompile(`(?i)(authorization[=:]\s*')[^']*(')`),
-	regexp.MustCompile(`(?i)(credential[s]?[=:]\s*")[^"]*(")`),
-	regexp.MustCompile(`(?i)(credential[s]?[=:]\s*')[^']*(')`),
+	// (?:\\.|[^"])* handles escaped quotes inside values (e.g. password="val\"ue").
+	regexp.MustCompile(`(?i)(password[=:]\s*")(?:\\.|[^"])*(")`),
+	regexp.MustCompile(`(?i)(password[=:]\s*')(?:\\.|[^'])*(')`),
+	regexp.MustCompile(`(?i)(token[=:]\s*")(?:\\.|[^"])*(")`),
+	regexp.MustCompile(`(?i)(token[=:]\s*')(?:\\.|[^'])*(')`),
+	regexp.MustCompile(`(?i)(secret[=:]\s*")(?:\\.|[^"])*(")`),
+	regexp.MustCompile(`(?i)(secret[=:]\s*')(?:\\.|[^'])*(')`),
+	regexp.MustCompile(`(?i)(api[_-]?key[=:]\s*")(?:\\.|[^"])*(")`),
+	regexp.MustCompile(`(?i)(api[_-]?key[=:]\s*')(?:\\.|[^'])*(')`),
+	regexp.MustCompile(`(?i)(access[_-]?key[=:]\s*")(?:\\.|[^"])*(")`),
+	regexp.MustCompile(`(?i)(access[_-]?key[=:]\s*')(?:\\.|[^'])*(')`),
+	regexp.MustCompile(`(?i)(authorization[=:]\s*")(?:\\.|[^"])*(")`),
+	regexp.MustCompile(`(?i)(authorization[=:]\s*')(?:\\.|[^'])*(')`),
+	regexp.MustCompile(`(?i)(credential[s]?[=:]\s*")(?:\\.|[^"])*(")`),
+	regexp.MustCompile(`(?i)(credential[s]?[=:]\s*')(?:\\.|[^'])*(')`),
 	// JSON-structured: {"password":"value"} or {"token": "value"}
-	regexp.MustCompile(`(?i)("password"\s*:\s*")[^"]*(")`),
-	regexp.MustCompile(`(?i)("token"\s*:\s*")[^"]*(")`),
-	regexp.MustCompile(`(?i)("secret"\s*:\s*")[^"]*(")`),
-	regexp.MustCompile(`(?i)("api[_-]?key"\s*:\s*")[^"]*(")`),
-	regexp.MustCompile(`(?i)("access[_-]?key"\s*:\s*")[^"]*(")`),
-	regexp.MustCompile(`(?i)("authorization"\s*:\s*")[^"]*(")`),
-	regexp.MustCompile(`(?i)("credential[s]?"\s*:\s*")[^"]*(")`),
+	regexp.MustCompile(`(?i)("password"\s*:\s*")(?:\\.|[^"])*(")`),
+	regexp.MustCompile(`(?i)("token"\s*:\s*")(?:\\.|[^"])*(")`),
+	regexp.MustCompile(`(?i)("secret"\s*:\s*")(?:\\.|[^"])*(")`),
+	regexp.MustCompile(`(?i)("api[_-]?key"\s*:\s*")(?:\\.|[^"])*(")`),
+	regexp.MustCompile(`(?i)("access[_-]?key"\s*:\s*")(?:\\.|[^"])*(")`),
+	regexp.MustCompile(`(?i)("authorization"\s*:\s*")(?:\\.|[^"])*(")`),
+	regexp.MustCompile(`(?i)("credential[s]?"\s*:\s*")(?:\\.|[^"])*(")`),
 }
 
 // determineLogType decides whether to fetch logs for a container and whether
@@ -96,9 +97,8 @@ func determineLogType(c ContainerInfo, podPhase string) string {
 	}
 
 	// Known-bad waiting states even without restarts (e.g. first ImagePullBackOff).
-	if c.Waiting != "" {
-		reason := strings.Fields(c.Waiting)[0]
-		if problematicWaitingReasons[reason] {
+	if fields := strings.Fields(c.Waiting); len(fields) > 0 {
+		if problematicWaitingReasons[fields[0]] {
 			return logTypeCurrent
 		}
 	}

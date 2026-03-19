@@ -32,9 +32,7 @@ func runPodsSection(ctx context.Context, c client.Client, ns NamespaceConfig, lo
 
 	// Capture logs for problematic containers across all namespaces.
 	for ns := range out.Data.ByNamespace {
-		pods := out.Data.ByNamespace[ns]
-		captureLogsForPods(ctx, logCfg.clientset, logCfg.tailLines, pods)
-		out.Data.ByNamespace[ns] = pods
+		captureLogsForPods(ctx, logCfg.clientset, logCfg.tailLines, out.Data.ByNamespace[ns])
 	}
 
 	for _, infos := range out.Data.ByNamespace {
