@@ -81,7 +81,7 @@ func TestInitialize(t *testing.T) {
 	// Verify templates were added
 	g.Expect(rr.Templates).To(HaveLen(4))
 	g.Expect(rr.Templates[0].Path).To(Equal(AdminGroupRoleTemplate))
-	g.Expect(rr.Templates[1].Path).To(Equal(AdminGroupIngressRoleTemplate))
+	g.Expect(rr.Templates[1].Path).To(Equal(AdminGroupMaaSRoleTemplate))
 	g.Expect(rr.Templates[2].Path).To(Equal(AdminGroupClusterRoleTemplate))
 	g.Expect(rr.Templates[3].Path).To(Equal(AllowedGroupClusterRoleTemplate))
 }

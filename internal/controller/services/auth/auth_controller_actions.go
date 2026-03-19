@@ -42,7 +42,7 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		},
 		{
 			FS:   resourcesFS,
-			Path: AdminGroupIngressRoleTemplate,
+			Path: AdminGroupMaaSRoleTemplate,
 		},
 		{
 			FS:   resourcesFS,
@@ -148,7 +148,7 @@ func managePermissions(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 		return err
 	}
 
-	err = bindRole(ctx, rr, ai.Spec.AdminGroups, "data-science-admingroup-ingress-rolebinding", "data-science-admingroup-ingress-role", "openshift-ingress")
+	err = bindRole(ctx, rr, ai.Spec.AdminGroups, "data-science-admingroup-maas-rolebinding", "data-science-admingroup-maas-role", "models-as-a-service")
 	if err != nil {
 		return err
 	}
