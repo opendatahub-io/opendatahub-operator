@@ -410,9 +410,11 @@ func TestDataScienceClusterV1V2_ConversionWebhook(t *testing.T) {
 	}
 }
 
-// TestDataScienceClusterV2OnlyComponentsResetOnV1Patch verifies Trainer and MLflowOperator reset to Removed
-// when a DSC is updated through the v1 API (v2-only fields are lost on v1 round-trip; RHOAIENG-44476).
-func TestDataScienceClusterV2OnlyComponentsResetOnV1Patch(t *testing.T) {
+// TestDataScienceClusterV1UpdateBlockedWhenV2OnlyComponentsManaged verifies the webhook blocks
+// v1 API updates when v2-only components (Trainer, MLflowOperator) are Managed, preventing silent
+// data loss from v1→v2 round-trip conversion (RHOAIENG-44476). Once v2-only components are
+// disabled via the v2 API, the v1 update should succeed.
+func TestDataScienceClusterV1UpdateBlockedWhenV2OnlyComponentsManaged(t *testing.T) {
 	t.Parallel()
 
 	ctx, env, teardown := envtestutil.SetupEnvAndClient(
@@ -428,37 +430,46 @@ func TestDataScienceClusterV2OnlyComponentsResetOnV1Patch(t *testing.T) {
 	)
 	t.Cleanup(teardown)
 
-	ns := xid.New().String()
 	createDSCIV1(NewWithT(t), ctx, env.Client())
 
 	g := NewWithT(t)
-	dscName := "dsc-v2-only-reset"
+	dscName := "dsc-v2-only-blocking"
+	nn := types.NamespacedName{Name: dscName}
+
 	dsc := envtestutil.NewDSC(dscName)
 	dsc.Spec.Components.Trainer.ManagementState = operatorv1.Managed
 	dsc.Spec.Components.MLflowOperator.ManagementState = operatorv1.Managed
 	g.Expect(env.Client().Create(ctx, dsc)).To(Succeed())
 
 	dscV2 := &dscv2.DataScienceCluster{}
-	g.Eventually(func() error {
-		return env.Client().Get(ctx, types.NamespacedName{Name: dscName, Namespace: ns}, dscV2)
-	}, "10s", "1s").Should(Succeed())
+	g.Expect(env.Client().Get(ctx, nn, dscV2)).To(Succeed())
 	g.Expect(dscV2.Spec.Components.Trainer.ManagementState).To(Equal(operatorv1.Managed))
 	g.Expect(dscV2.Spec.Components.MLflowOperator.ManagementState).To(Equal(operatorv1.Managed))
 
+	// Attempt v1 update while v2-only components are Managed — webhook should block it
 	dscV1 := &dscv1.DataScienceCluster{}
-	g.Expect(env.Client().Get(ctx, types.NamespacedName{Name: dscName, Namespace: ns}, dscV1)).To(Succeed())
+	g.Expect(env.Client().Get(ctx, nn, dscV1)).To(Succeed())
+	dscV1.Spec.Components.Dashboard.ManagementState = operatorv1.Managed
+	err := env.Client().Update(ctx, dscV1)
+	g.Expect(err).To(HaveOccurred(), "v1 update should be blocked when v2-only components are Managed")
+	g.Expect(err.Error()).To(ContainSubstring("cannot modify DataScienceCluster using v1 API"))
+
+	// Verify v2-only components are still Managed (webhook protected them)
+	g.Expect(env.Client().Get(ctx, nn, dscV2)).To(Succeed())
+	g.Expect(dscV2.Spec.Components.Trainer.ManagementState).To(Equal(operatorv1.Managed))
+	g.Expect(dscV2.Spec.Components.MLflowOperator.ManagementState).To(Equal(operatorv1.Managed))
+
+	// Disable v2-only components via v2 API
+	dscV2.Spec.Components.Trainer.ManagementState = operatorv1.Removed
+	dscV2.Spec.Components.MLflowOperator.ManagementState = operatorv1.Removed
+	g.Expect(env.Client().Update(ctx, dscV2)).To(Succeed())
+
+	// Retry v1 update — should succeed now that v2-only components are Removed
+	g.Expect(env.Client().Get(ctx, nn, dscV1)).To(Succeed())
 	dscV1.Spec.Components.Dashboard.ManagementState = operatorv1.Managed
 	g.Expect(env.Client().Update(ctx, dscV1)).To(Succeed())
 
-	g.Eventually(func() operatorv1.ManagementState {
-		cur := &dscv2.DataScienceCluster{}
-		if err := env.Client().Get(ctx, types.NamespacedName{Name: dscName, Namespace: ns}, cur); err != nil {
-			return operatorv1.ManagementState("")
-		}
-		return cur.Spec.Components.Trainer.ManagementState
-	}, "10s", "1s").Should(Equal(operatorv1.Removed))
-
-	final := &dscv2.DataScienceCluster{}
-	g.Expect(env.Client().Get(ctx, types.NamespacedName{Name: dscName, Namespace: ns}, final)).To(Succeed())
-	g.Expect(final.Spec.Components.MLflowOperator.ManagementState).To(Equal(operatorv1.Removed))
+	// Verify the v1 update went through
+	g.Expect(env.Client().Get(ctx, nn, dscV2)).To(Succeed())
+	g.Expect(dscV2.Spec.Components.Dashboard.ManagementState).To(Equal(operatorv1.Managed))
 }

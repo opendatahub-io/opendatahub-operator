@@ -84,25 +84,25 @@ func TestDataScienceClusterV1_ValidatingWebhook(t *testing.T) {
 			req:     envtestutil.NewAdmissionRequest(t, admissionv1.Create, envtestutil.NewDSCV1("test", withKueueState(operatorv1.Removed)), gvk.DataScienceClusterV1, gvr),
 			allowed: true,
 		},
-	{
-		name: "Allows create when Kueue component is omitted (partial Components like E2E)",
-		req: envtestutil.NewAdmissionRequest(t, admissionv1.Create, envtestutil.NewDSCV1("no-kueue", func(d *dscv1.DataScienceCluster) {
-			d.Spec.Components = dscv1.Components{
-				Dashboard: componentApi.DSCDashboard{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
-				},
-				Workbenches: componentApi.DSCWorkbenches{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
-				},
-			}
-		}), gvk.DataScienceClusterV1, gvr),
-		allowed: true,
-	},
-	{
-		name:         "Denies update with Kueue Managed",
-		existingObjs: []client.Object{envtestutil.NewDSC("test", envtestutil.WithAllV2OnlyComponentsRemoved())},
-		req:          envtestutil.NewAdmissionRequest(t, admissionv1.Update, envtestutil.NewDSCV1("test", withKueueState(operatorv1.Managed)), gvk.DataScienceClusterV1, gvr),
-		allowed:      false,
+		{
+			name: "Allows create when Kueue component is omitted (partial Components like E2E)",
+			req: envtestutil.NewAdmissionRequest(t, admissionv1.Create, envtestutil.NewDSCV1("no-kueue", func(d *dscv1.DataScienceCluster) {
+				d.Spec.Components = dscv1.Components{
+					Dashboard: componentApi.DSCDashboard{
+						ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
+					},
+					Workbenches: componentApi.DSCWorkbenches{
+						ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
+					},
+				}
+			}), gvk.DataScienceClusterV1, gvr),
+			allowed: true,
+		},
+		{
+			name:         "Denies update with Kueue Managed",
+			existingObjs: []client.Object{envtestutil.NewDSC("test", envtestutil.WithAllV2OnlyComponentsRemoved())},
+			req:          envtestutil.NewAdmissionRequest(t, admissionv1.Update, envtestutil.NewDSCV1("test", withKueueState(operatorv1.Managed)), gvk.DataScienceClusterV1, gvr),
+			allowed:      false,
 		},
 		{
 			name:         "Allows update with Kueue Unmanaged",
