@@ -11,6 +11,7 @@ Build a `Config` with your controller-runtime client and namespace/CR names, the
 ```go
 import (
 	"context"
+	"fmt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
@@ -155,8 +156,8 @@ The `cmd/health-check` binary uses this library. Set the same env vars as e2e (`
 go run ./cmd/health-check              # all sections, summary (no log capture)
 go run ./cmd/health-check -l          # all sections, long format (conditions/details + container logs)
 go run ./cmd/health-check -json       # full report as JSON (includes container logs)
-go run ./cmd/health-check -log-lines=20  # capture 20 lines per container (default 50)
-go run ./cmd/health-check -log-lines=-1  # disable log capture
+go run ./cmd/health-check -l -log-lines=20  # capture 20 lines per container (default 50; requires -l or -json)
+go run ./cmd/health-check -l -log-lines=-1  # disable log capture even in long format
 go run ./cmd/health-check -layer=infrastructure
 go run ./cmd/health-check -layer=operator
 go run ./cmd/health-check -sections=nodes,dsci,dsc -l
