@@ -779,7 +779,7 @@ $(CCM_DEPLOY_TARGETS): deploy-ccm-%: manifests-ccm-% kustomize ## Deploy CCM to 
 	cd $(call ccm-config-dir,$*)/manager && \
 		cp -f kustomization.yaml.in kustomization.yaml && \
 		$(KUSTOMIZE) edit set image REPLACE_IMAGE=$(IMG)
-	$(KUSTOMIZE) build $(call ccm-config-dir,$*)/default | kubectl apply -f -
+	$(KUSTOMIZE) build $(call ccm-config-dir,$*)/$(CCM_DEPLOY_OVERLAY) | kubectl apply -f -
 
 CCM_DEPLOY_LOCAL_TARGETS := $(addprefix deploy-ccm-local-,$(CCM_PROVIDERS))
 .PHONY: $(CCM_DEPLOY_LOCAL_TARGETS)
@@ -787,12 +787,12 @@ $(CCM_DEPLOY_LOCAL_TARGETS): deploy-ccm-local-%: manifests-ccm-% kustomize ## De
 	cd $(call ccm-config-dir,$*)/manager && \
 		cp -f kustomization.yaml.in kustomization.yaml && \
 		$(KUSTOMIZE) edit set image REPLACE_IMAGE=$(IMG)
-	$(KUSTOMIZE) build $(call ccm-config-dir,$*)/local | kubectl apply -f -
+	$(KUSTOMIZE) build $(call ccm-config-dir,$*)/$(CCM_LOCAL_OVERLAY) | kubectl apply -f -
 
 CCM_UNDEPLOY_TARGETS := $(addprefix undeploy-ccm-,$(CCM_PROVIDERS))
 .PHONY: $(CCM_UNDEPLOY_TARGETS)
 $(CCM_UNDEPLOY_TARGETS): undeploy-ccm-%: kustomize ## Undeploy CCM from cluster (e.g., undeploy-ccm-azure)
-	$(KUSTOMIZE) build $(call ccm-config-dir,$*)/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+	$(KUSTOMIZE) build $(call ccm-config-dir,$*)/$(CCM_DEPLOY_OVERLAY) | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 # Cleanup
 $(foreach p,$(CCM_PROVIDERS),$(eval CLEANFILES += $(call ccm-config-dir,$(p))/crd/bases $(call ccm-config-dir,$(p))/rbac/role.yaml))
