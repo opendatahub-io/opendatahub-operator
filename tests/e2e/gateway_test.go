@@ -487,6 +487,8 @@ func (tc *GatewayTestCtx) ValidateEnvoyFilter(t *testing.T) {
 			Namespace: gatewayNamespace,
 		}),
 		WithCondition(And(
+			jq.Match(`.metadata.labels["%s"] == "%s"`, labels.K8SCommon.PartOf, gateway.PartOfLabelValue),
+
 			// workload selector
 			jq.Match(`.spec.workloadSelector.labels."%s" == "%s"`, labels.GatewayAPI.GatewayName, gatewayName),
 

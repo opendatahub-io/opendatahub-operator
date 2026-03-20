@@ -77,6 +77,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
+	metadatalabels "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	testscheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
@@ -177,6 +178,16 @@ func assertOwnedByGatewayConfig(g *WithT, obj client.Object) {
 		}
 	}
 	g.Expect(found).To(BeTrue(), "resource should be owned by GatewayConfig %s", serviceApi.GatewayConfigName)
+}
+
+func assertHasIstioRevisionLabel(g *WithT, obj *unstructured.Unstructured) map[string]string {
+	labels, found, err := unstructured.NestedStringMap(obj.Object, "metadata", "labels")
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(found).To(BeTrue(), "%s should have metadata.labels", obj.GetKind())
+	g.Expect(labels).To(HaveKey(gateway.IstioRevisionLabel))
+	g.Expect(labels[gateway.IstioRevisionLabel]).To(Equal(gateway.IstioRevisionValue),
+		"%s must have istio.io/rev=%s so OSSM webhook validates it", obj.GetKind(), gateway.IstioRevisionValue)
+	return labels
 }
 
 // TestEnvContext holds envtest context, cancel, env, client, and scheme for one auth mode.
@@ -917,6 +928,10 @@ func RunEnvoyFilterCreationTest(t *testing.T, setup TestSetup) {
 	}, ef)).To(Succeed())
 	assertOwnedByGatewayConfig(g, ef)
 
+	labels := assertHasIstioRevisionLabel(g, ef)
+	g.Expect(labels).To(HaveKeyWithValue(metadatalabels.K8SCommon.PartOf, gateway.PartOfLabelValue),
+		"EnvoyFilter should match DestinationRule: app.kubernetes.io/part-of for consistent Istio resource grouping")
+
 	selector, found, err := unstructured.NestedStringMap(ef.Object, "spec", "workloadSelector", "labels")
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(found).To(BeTrue())
@@ -1615,6 +1630,8 @@ func RunDestinationRuleCreationTest(t *testing.T, setup TestSetup) {
 		Namespace: gateway.GatewayNamespace,
 	}, dr)).To(Succeed())
 	assertOwnedByGatewayConfig(g, dr)
+
+	assertHasIstioRevisionLabel(g, dr)
 
 	// Verify host is wildcard
 	host, found, err := unstructured.NestedString(dr.Object, "spec", "host")
