@@ -219,6 +219,123 @@ func configureDestinationRule(log logr.Logger, resource *unstructured.Unstructur
 	resource.SetNamespace(gatewayNamespace)
 }
 
+// configureTelemetryPolicy is a post-render action that creates a TelemetryPolicy
+// resource based on the ModelsAsService telemetry configuration.
+//
+// The TelemetryPolicy is generated programmatically (not from manifests) because
+// its content is entirely dynamic based on the spec.telemetry.metrics configuration.
+func configureTelemetryPolicy(ctx context.Context, rr *types.ReconciliationRequest) error {
+	log := logf.FromContext(ctx)
+
+	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
+	}
+
+	gatewayNamespace := maas.Spec.GatewayRef.Namespace
+	gatewayName := maas.Spec.GatewayRef.Name
+
+	// Build the labels map based on telemetry configuration
+	metricLabels := buildTelemetryLabels(log, maas.Spec.Telemetry)
+
+	// Create the TelemetryPolicy resource
+	telemetryPolicy := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "extensions.kuadrant.io/v1alpha1",
+			"kind":       "TelemetryPolicy",
+			"metadata": map[string]interface{}{
+				"name":      TelemetryPolicyName,
+				"namespace": gatewayNamespace,
+				"labels": map[string]interface{}{
+					"app.kubernetes.io/part-of": "maas-observability",
+				},
+			},
+			"spec": map[string]interface{}{
+				"targetRef": map[string]interface{}{
+					"group": "gateway.networking.k8s.io",
+					"kind":  "Gateway",
+					"name":  gatewayName,
+				},
+				"metrics": map[string]interface{}{
+					"default": map[string]interface{}{
+						"labels": metricLabels,
+					},
+				},
+			},
+		},
+	}
+
+	log.V(2).Info("Creating TelemetryPolicy",
+		"name", TelemetryPolicyName,
+		"namespace", gatewayNamespace,
+		"targetGateway", gatewayName,
+		"labels", metricLabels)
+
+	// Add to resources for deployment
+	rr.Resources = append(rr.Resources, *telemetryPolicy)
+
+	return nil
+}
+
+// buildTelemetryLabels creates the metric labels map based on the telemetry configuration.
+// It includes always-on dimensions and configurable dimensions based on MetricsConfig settings.
+func buildTelemetryLabels(log logr.Logger, config *componentApi.TelemetryConfig) map[string]interface{} {
+	// Default values when config is nil or metrics is nil
+	captureOrganization := true
+	captureUser := false // Disabled by default for privacy/GDPR compliance
+	captureGroup := false
+	captureModelUsage := true
+
+	if config != nil && config.Metrics != nil {
+		metrics := config.Metrics
+		if metrics.CaptureOrganization != nil {
+			captureOrganization = *metrics.CaptureOrganization
+		}
+		if metrics.CaptureUser != nil {
+			captureUser = *metrics.CaptureUser
+		}
+		if metrics.CaptureGroup != nil {
+			captureGroup = *metrics.CaptureGroup
+		}
+		if metrics.CaptureModelUsage != nil {
+			captureModelUsage = *metrics.CaptureModelUsage
+		}
+	}
+
+	// Always-on dimensions - essential for billing and access control
+	labels := map[string]interface{}{
+		"subscription": "auth.identity.selected_subscription",
+		"cost_center":  "auth.identity.costCenter",
+		"tier":         "auth.identity.tier",
+	}
+
+	// Configurable dimensions
+	if captureOrganization {
+		labels["organization_id"] = "auth.identity.organizationId"
+	}
+
+	if captureUser {
+		labels["user"] = "auth.identity.userid"
+	}
+
+	if captureGroup {
+		labels["group"] = "auth.identity.group"
+	}
+
+	if captureModelUsage {
+		labels["model"] = "responseBodyJSON(\"/model\")"
+	}
+
+	log.V(4).Info("Built telemetry labels",
+		"captureOrganization", captureOrganization,
+		"captureUser", captureUser,
+		"captureGroup", captureGroup,
+		"captureModelUsage", captureModelUsage,
+		"totalLabels", len(labels))
+
+	return labels
+}
+
 // configureConfigHashAnnotation adds a hash annotation to the maas-api Deployment
 // to trigger rolling restarts when the ConfigMap changes.
 // This is necessary because env vars sourced via valueFrom.configMapKeyRef

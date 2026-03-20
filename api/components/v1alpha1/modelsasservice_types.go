@@ -61,6 +61,43 @@ type ModelsAsServiceSpec struct {
 	// APIKeys contains configuration for API key management.
 	// +kubebuilder:validation:Optional
 	APIKeys *APIKeysConfig `json:"apiKeys,omitempty"`
+
+	// Telemetry contains configuration for telemetry and metrics collection.
+	// +kubebuilder:validation:Optional
+	Telemetry *TelemetryConfig `json:"telemetry,omitempty"`
+}
+
+// TelemetryConfig defines configuration for telemetry collection.
+type TelemetryConfig struct {
+	// Metrics contains configuration for metric dimensions/labels.
+	// +kubebuilder:validation:Optional
+	Metrics *MetricsConfig `json:"metrics,omitempty"`
+}
+
+// MetricsConfig defines which dimensions (labels) are captured in telemetry metrics.
+// Each dimension can be enabled or disabled to control metric cardinality and storage costs.
+type MetricsConfig struct {
+	// CaptureOrganization enables the organization_id label on metrics.
+	// +kubebuilder:default=true
+	// +kubebuilder:validation:Optional
+	CaptureOrganization *bool `json:"captureOrganization,omitempty"`
+
+	// CaptureUser enables the user label on metrics.
+	// Disabled by default for privacy/GDPR compliance.
+	// +kubebuilder:default=false
+	// +kubebuilder:validation:Optional
+	CaptureUser *bool `json:"captureUser,omitempty"`
+
+	// CaptureGroup enables the group label on metrics for team-based chargeback.
+	// Note: This is a high-cardinality dimension and is disabled by default.
+	// +kubebuilder:default=false
+	// +kubebuilder:validation:Optional
+	CaptureGroup *bool `json:"captureGroup,omitempty"`
+
+	// CaptureModelUsage enables the model label on metrics.
+	// +kubebuilder:default=true
+	// +kubebuilder:validation:Optional
+	CaptureModelUsage *bool `json:"captureModelUsage,omitempty"`
 }
 
 // APIKeysConfig defines configuration options for API key management.

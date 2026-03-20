@@ -1238,6 +1238,26 @@ _Appears in:_
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
+#### MetricsConfig
+
+
+
+MetricsConfig defines which dimensions (labels) are captured in telemetry metrics.
+Each dimension can be enabled or disabled to control metric cardinality and storage costs.
+
+
+
+_Appears in:_
+- [TelemetryConfig](#telemetryconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `captureOrganization` _boolean_ | CaptureOrganization enables the organization_id label on metrics. | true | Optional: \{\} <br /> |
+| `captureUser` _boolean_ | CaptureUser enables the user label on metrics.<br />Disabled by default for privacy/GDPR compliance. | false | Optional: \{\} <br /> |
+| `captureGroup` _boolean_ | CaptureGroup enables the group label on metrics for team-based chargeback.<br />Note: This is a high-cardinality dimension and is disabled by default. | false | Optional: \{\} <br /> |
+| `captureModelUsage` _boolean_ | CaptureModelUsage enables the model label on metrics. | true | Optional: \{\} <br /> |
+
+
 #### ModelController
 
 
@@ -1459,6 +1479,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `gatewayRef` _[GatewayRef](#gatewayref)_ | GatewayRef specifies which Gateway (Gateway API) to use for exposing model endpoints.<br />If omitted, defaults to openshift-ingress/maas-default-gateway. |  | Optional: \{\} <br /> |
 | `apiKeys` _[APIKeysConfig](#apikeysconfig)_ | APIKeys contains configuration for API key management. |  | Optional: \{\} <br /> |
+| `telemetry` _[TelemetryConfig](#telemetryconfig)_ | Telemetry contains configuration for telemetry and metrics collection. |  | Optional: \{\} <br /> |
 
 
 #### ModelsAsServiceStatus
@@ -1685,6 +1706,22 @@ _Appears in:_
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
+
+
+#### TelemetryConfig
+
+
+
+TelemetryConfig defines configuration for telemetry collection.
+
+
+
+_Appears in:_
+- [ModelsAsServiceSpec](#modelsasservicespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `metrics` _[MetricsConfig](#metricsconfig)_ | Metrics contains configuration for metric dimensions/labels. |  | Optional: \{\} <br /> |
 
 
 #### Trainer
