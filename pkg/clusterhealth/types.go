@@ -82,8 +82,11 @@ type ContainerInfo struct {
 	Name         string `json:"name"`
 	Ready        bool   `json:"ready"`
 	RestartCount int32  `json:"restartCount"`
-	Waiting      string `json:"waiting"`    // reason/message if waiting
-	Terminated   string `json:"terminated"` // reason/exit if terminated
+	Waiting      string `json:"waiting"`               // reason/message if waiting
+	Terminated   string `json:"terminated"`            // reason/exit if terminated
+	Logs         string `json:"logs,omitempty"`        // tail of recent logs for problematic containers
+	LogError     string `json:"logError,omitempty"`    // set when log fetch failed
+	LogPrevious  bool   `json:"logPrevious,omitempty"` // true when Logs are from the previous container instance
 }
 
 type EventsSection struct {
