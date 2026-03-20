@@ -170,6 +170,74 @@ func TestMonitoringCELValidationEnvtest(t *testing.T) {
 		g.Expect(k8sClient.Create(ctx, m)).To(Succeed())
 		g.Expect(k8sClient.Delete(ctx, m)).To(Succeed())
 	})
+
+	t.Run("alerting with empty metrics is rejected", func(t *testing.T) {
+		g := NewWithT(t)
+		m := &Monitoring{
+			ObjectMeta: metav1.ObjectMeta{Name: MonitoringInstanceName},
+			Spec: MonitoringSpec{
+				MonitoringCommonSpec: MonitoringCommonSpec{
+					Metrics:  &Metrics{},
+					Alerting: &Alerting{},
+				},
+			},
+		}
+		err := k8sClient.Create(ctx, m)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(k8serrors.IsInvalid(err)).To(BeTrue())
+		g.Expect(err.Error()).To(ContainSubstring("metrics.storage"))
+	})
+
+	t.Run("alerting without metrics field is rejected", func(t *testing.T) {
+		g := NewWithT(t)
+		m := &Monitoring{
+			ObjectMeta: metav1.ObjectMeta{Name: MonitoringInstanceName},
+			Spec: MonitoringSpec{
+				MonitoringCommonSpec: MonitoringCommonSpec{
+					Alerting: &Alerting{},
+				},
+			},
+		}
+		err := k8sClient.Create(ctx, m)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(k8serrors.IsInvalid(err)).To(BeTrue())
+		g.Expect(err.Error()).To(ContainSubstring("metrics.storage"))
+	})
+
+	t.Run("alerting with only exporters is rejected", func(t *testing.T) {
+		g := NewWithT(t)
+		m := &Monitoring{
+			ObjectMeta: metav1.ObjectMeta{Name: MonitoringInstanceName},
+			Spec: MonitoringSpec{
+				MonitoringCommonSpec: MonitoringCommonSpec{
+					Metrics: &Metrics{
+						Exporters: map[string]runtime.RawExtension{
+							"custom": {Raw: []byte(`{"config": "value"}`)},
+						},
+					},
+					Alerting: &Alerting{},
+				},
+			},
+		}
+		err := k8sClient.Create(ctx, m)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(k8serrors.IsInvalid(err)).To(BeTrue())
+		g.Expect(err.Error()).To(ContainSubstring("metrics.storage"))
+	})
+
+	t.Run("empty metrics without alerting is valid", func(t *testing.T) {
+		g := NewWithT(t)
+		m := &Monitoring{
+			ObjectMeta: metav1.ObjectMeta{Name: MonitoringInstanceName},
+			Spec: MonitoringSpec{
+				MonitoringCommonSpec: MonitoringCommonSpec{
+					Metrics: &Metrics{},
+				},
+			},
+		}
+		g.Expect(k8sClient.Create(ctx, m)).To(Succeed())
+		g.Expect(k8sClient.Delete(ctx, m)).To(Succeed())
+	})
 }
 
 func monitoringTestScheme() *runtime.Scheme {
