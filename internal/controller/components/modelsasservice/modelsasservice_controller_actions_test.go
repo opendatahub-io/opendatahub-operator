@@ -582,8 +582,10 @@ func TestBuildTelemetryLabels(t *testing.T) {
 
 			// Default enabled dimensions
 			g.Expect(labels).Should(HaveKey("organization_id"))
-			g.Expect(labels).Should(HaveKey("user"))
 			g.Expect(labels).Should(HaveKey("model"))
+
+			// Default disabled dimensions (user disabled for GDPR compliance)
+			g.Expect(labels).ShouldNot(HaveKey("user"))
 
 			// Default disabled dimensions
 			g.Expect(labels).ShouldNot(HaveKey("group"))
@@ -596,8 +598,8 @@ func TestBuildTelemetryLabels(t *testing.T) {
 
 			labels := buildTelemetryLabels(logr.Discard(), config)
 
-			// Should have 6 labels (3 always-on + 3 default enabled)
-			g.Expect(labels).Should(HaveLen(6))
+			// Should have 5 labels (3 always-on + 2 default enabled)
+			g.Expect(labels).Should(HaveLen(5))
 			g.Expect(labels).ShouldNot(HaveKey("group"))
 		})
 
@@ -867,12 +869,12 @@ func TestConfigureTelemetryPolicy(t *testing.T) {
 			labels, _, _ := unstructured.NestedMap(
 				rr.Resources[0].Object, "spec", "metrics", "default", "labels")
 
-			// Should have default labels (6 total: 3 always-on + 3 default enabled)
-			g.Expect(labels).Should(HaveLen(6))
+			// Should have default labels (5 total: 3 always-on + 2 default enabled)
+			g.Expect(labels).Should(HaveLen(5))
 			g.Expect(labels).Should(HaveKey("subscription"))
 			g.Expect(labels).Should(HaveKey("organization_id"))
-			g.Expect(labels).Should(HaveKey("user"))
 			g.Expect(labels).Should(HaveKey("model"))
+			g.Expect(labels).ShouldNot(HaveKey("user"))  // Disabled by default (GDPR)
 			g.Expect(labels).ShouldNot(HaveKey("group")) // Disabled by default
 		})
 	})

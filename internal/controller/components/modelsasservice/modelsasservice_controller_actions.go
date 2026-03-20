@@ -282,7 +282,7 @@ func configureTelemetryPolicy(ctx context.Context, rr *types.ReconciliationReque
 func buildTelemetryLabels(log logr.Logger, config *componentApi.TelemetryConfig) map[string]interface{} {
 	// Default values when config is nil or metrics is nil
 	captureOrganization := true
-	captureUser := true
+	captureUser := false // Disabled by default for privacy/GDPR compliance
 	captureGroup := false
 	captureModelUsage := true
 

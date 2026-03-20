@@ -83,8 +83,8 @@ type MetricsConfig struct {
 	CaptureOrganization *bool `json:"captureOrganization,omitempty"`
 
 	// CaptureUser enables the user label on metrics.
-	// Note: This is a high-cardinality dimension and may be disabled for privacy (GDPR) compliance.
-	// +kubebuilder:default=true
+	// Disabled by default for privacy/GDPR compliance.
+	// +kubebuilder:default=false
 	// +kubebuilder:validation:Optional
 	CaptureUser *bool `json:"captureUser,omitempty"`
 
