@@ -4,7 +4,9 @@ metadata:
   name: {{.EnvoyFilter}}
   namespace: {{.GatewayNamespace}}
   labels:
+    {{.PartOfLabelKey}}: {{.PartOfLabelValue}}
     {{.ComponentLabelKey}}: {{.ComponentLabelValue}}
+    {{.IstioRevisionLabel}}: {{.IstioRevisionValue}}
 spec:
   workloadSelector:
     labels:
