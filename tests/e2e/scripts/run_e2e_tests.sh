@@ -67,6 +67,12 @@ validate_bool E2E_TEST_HARDWARE_PROFILE
 : "${E2E_TEST_WEBHOOK:=true}"
 validate_bool E2E_TEST_WEBHOOK
 
+: "${E2E_TEST_DSC_MANAGEMENT:=false}"
+validate_bool E2E_TEST_DSC_MANAGEMENT
+
+: "${E2E_TEST_DEPENDANT_OPERATORS_MANAGEMENT:=false}"
+validate_bool E2E_TEST_DEPENDANT_OPERATORS_MANAGEMENT
+
 : "${E2E_TEST_COMPONENTS:=true}"
 validate_bool E2E_TEST_COMPONENTS
 
@@ -99,7 +105,9 @@ exec gotestsum --junitfile-project-name odh-operator-e2e \
   --test-operator-controller="$E2E_TEST_OPERATOR_CONTROLLER" --test-dependant-operators-management="$E2E_TEST_DEPENDANT_OPERATORS_MANAGEMENT" \
   --test-dsc-management="$E2E_TEST_DSC_MANAGEMENT" --test-operator-resilience="$E2E_TEST_OPERATOR_RESILIENCE" \
   --test-operator-v2tov3upgrade="$E2E_TEST_OPERATOR_V2TOV3UPGRADE" --test-hardware-profile="$E2E_TEST_HARDWARE_PROFILE" \
-  --test-webhook="$E2E_TEST_WEBHOOK" --test-components="$E2E_TEST_COMPONENTS" --test-services="$E2E_TEST_SERVICES" \
+  --test-webhook="$E2E_TEST_WEBHOOK" --test-dsc-management="$E2E_TEST_DSC_MANAGEMENT" \
+  --test-dependant-operators-management="$E2E_TEST_DEPENDANT_OPERATORS_MANAGEMENT" \
+  --test-components="$E2E_TEST_COMPONENTS" --test-services="$E2E_TEST_SERVICES" \
   --operator-namespace="$E2E_TEST_OPERATOR_NAMESPACE" --applications-namespace="$E2E_TEST_APPLICATIONS_NAMESPACE" \
   --workbenches-namespace="$E2E_TEST_WORKBENCHES_NAMESPACE" --dsc-monitoring-namespace="$E2E_TEST_DSC_MONITORING_NAMESPACE" \
   --fail-fast-on-error="$E2E_TEST_FAIL_FAST_ON_ERROR" --tag="$E2E_TEST_TAG" "$@"

@@ -618,6 +618,9 @@ func (tc *TestContext) FetchActualSubscription(nn types.NamespacedName) (*ofapi.
 		WithCustomErrorMsg("Failed to fetch Subscription %s/%s", nn.Namespace, nn.Name),
 	))
 	if err != nil {
+		if meta.IsNoMatchError(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	if subU == nil {
@@ -1315,6 +1318,9 @@ func (tc *TestContext) FetchActualClusterServiceVersion(nn types.NamespacedName)
 		WithCustomErrorMsg("Failed to fetch CSV %s/%s", nn.Namespace, nn.Name),
 	))
 	if err != nil {
+		if meta.IsNoMatchError(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	if csvU == nil {
@@ -1598,7 +1604,6 @@ func (tc *TestContext) UninstallOperator(operatorNamespacedName types.Namespaced
 		return
 	}
 	if sub == nil {
-		// Subscription doesn't exist, nothing to uninstall
 		return
 	}
 
