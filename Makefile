@@ -375,6 +375,14 @@ image-push: ## Push image with the manager.
 .PHONY: image
 image: image-build image-push ## Build and push image with the manager.
 
+.PHONY: image-kind-load
+image-kind-load:
+	$(IMAGE_BUILDER) save $(IMG) | kind load image-archive /dev/stdin $(if $(KIND_CLUSTER_NAME),--name $(KIND_CLUSTER_NAME))
+
+.PHONY: ccm-kind-restart
+ccm-kind-restart:
+	kubectl rollout restart -n opendatahub-cloudmanager-system deployment -l control-plane=controller-manager
+
 ##@ Deployment
 
 ifndef ignore-not-found
@@ -793,6 +801,7 @@ CCM_UNDEPLOY_TARGETS := $(addprefix undeploy-ccm-,$(CCM_PROVIDERS))
 .PHONY: $(CCM_UNDEPLOY_TARGETS)
 $(CCM_UNDEPLOY_TARGETS): undeploy-ccm-%: kustomize ## Undeploy CCM from cluster (e.g., undeploy-ccm-azure)
 	$(KUSTOMIZE) build $(call ccm-config-dir,$*)/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+
 
 # Cleanup
 $(foreach p,$(CCM_PROVIDERS),$(eval CLEANFILES += $(call ccm-config-dir,$(p))/crd/bases $(call ccm-config-dir,$(p))/rbac/role.yaml))
