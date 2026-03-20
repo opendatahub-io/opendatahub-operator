@@ -95,6 +95,8 @@ func v2Tov3UpgradeTestSuite(t *testing.T) {
 func hardwareProfileTestSuite(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, Tier3)
+
 	tc, err := NewTestContext(t)
 	require.NoError(t, err)
 
@@ -520,8 +522,6 @@ func (tc *V2Tov3UpgradeTestCtx) updateComponentStateInDataScienceCluster(t *test
 // DataScienceCluster v1 resources with Kueue managementState set to "Managed".
 func (tc *V2Tov3UpgradeTestCtx) ValidateDeniesKueueManaged(t *testing.T) {
 	t.Helper()
-
-	skipUnless(t, Tier3)
 
 	// Clean up any existing DataScienceCluster resources before starting
 	cleanupCoreOperatorResources(t, tc.TestContext)
