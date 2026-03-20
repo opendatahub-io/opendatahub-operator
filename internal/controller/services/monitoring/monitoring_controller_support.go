@@ -16,6 +16,7 @@ import (
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	controllerutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -307,6 +308,39 @@ func getImageURL(envVar, upstreamDefault, rhoaiDefault string, platform apicommo
 	return upstreamDefault
 }
 
+// resolvePersesAPIVersion probes the cluster to determine which Perses CRD API
+// version is available, preferring v1alpha2 over v1alpha1.
+func resolvePersesAPIVersion(ctx context.Context, cli client.Client) (string, bool, error) {
+	gk := schema.GroupKind{Group: "perses.dev", Kind: "Perses"}
+
+	found, err := cluster.HasCRDWithVersion(ctx, cli, gk, persesV1Alpha2)
+	if err != nil {
+		return "", false, err
+	}
+	if found {
+		return persesV1Alpha2, true, nil
+	}
+
+	found, err = cluster.HasCRDWithVersion(ctx, cli, gk, "v1alpha1")
+	if err != nil {
+		return "", false, err
+	}
+	if found {
+		return "v1alpha1", true, nil
+	}
+
+	return "", false, nil
+}
+
+// persesGVKs returns the Perses, PersesDatasource, and PersesDashboard GVKs
+// for the given API version string.
+func persesGVKs(version string) (schema.GroupVersionKind, schema.GroupVersionKind, schema.GroupVersionKind) {
+	if version == persesV1Alpha2 {
+		return gvk.PersesV1Alpha2, gvk.PersesDatasourceV1Alpha2, gvk.PersesDashboardV1Alpha2
+	}
+	return gvk.PersesV1Alpha1, gvk.PersesDatasourceV1Alpha1, gvk.PersesDashboardV1Alpha1
+}
+
 func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (map[string]any, error) {
 	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
 	if !ok {
@@ -325,6 +359,14 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		return nil, err
 	}
 
+	persesAPIVersion, _, err := resolvePersesAPIVersion(ctx, rr.Client)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve Perses API version: %w", err)
+	}
+	if persesAPIVersion == "" {
+		persesAPIVersion = persesV1Alpha2
+	}
+
 	templateData := map[string]any{
 		"Namespace":            monitoring.Spec.Namespace,
 		"Traces":               monitoring.Spec.Traces != nil,
@@ -335,6 +377,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"MetricsExporters":     make(map[string]string),
 		"MetricsExporterNames": []string{},
 		"PersesImage":          getPersesImage(),
+		"PersesAPIVersion":     persesAPIVersion,
 	}
 
 	// always add resource defaults

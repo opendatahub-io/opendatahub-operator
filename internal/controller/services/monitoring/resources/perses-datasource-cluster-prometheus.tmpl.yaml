@@ -24,7 +24,7 @@ metadata:
     kubernetes.io/service-account.name: data-science-prometheus-cluster-proxy
 type: kubernetes.io/service-account-token
 ---
-apiVersion: perses.dev/v1alpha2
+apiVersion: perses.dev/{{.PersesAPIVersion}}
 kind: PersesDatasource
 metadata:
   name: cluster-prometheus-datasource

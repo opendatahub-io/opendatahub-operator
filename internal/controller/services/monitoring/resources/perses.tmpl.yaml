@@ -1,4 +1,4 @@
-apiVersion: perses.dev/v1alpha2
+apiVersion: perses.dev/{{.PersesAPIVersion}}
 kind: Perses
 metadata:
   name: data-science-perses
@@ -6,12 +6,9 @@ metadata:
 spec:
   image: {{.PersesImage}}
   containerPort: 8080
+{{- if eq .PersesAPIVersion "v1alpha2" }}
   podSecurityContext: {}
-  storage:
-    pvcTemplate:
-      resources:
-        requests:
-          storage: "1Gi"
+{{- end }}
   metadata:
     labels:
       instance: data-science-perses
