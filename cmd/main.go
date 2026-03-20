@@ -573,6 +573,7 @@ func createODHGeneralCacheConfig(platform common.Platform) (map[string]cache.Con
 
 	namespaceConfigs["openshift-operators"] = cache.Config{} // for dependent operators installed namespace
 	namespaceConfigs["openshift-ingress"] = cache.Config{}   // for gateway auth proxy resources
+	namespaceConfigs["models-as-a-service"] = cache.Config{} // for maas admin rolebinding
 
 	return namespaceConfigs, nil
 }
