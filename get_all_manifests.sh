@@ -63,10 +63,10 @@ declare -A RHOAI_COMPONENT_MANIFESTS=(
 
 # ODH Component Charts
 declare -A ODH_COMPONENT_CHARTS=(
-    ["cert-manager-operator"]="opendatahub-io:odh-gitops:main@3219e74753cb8f09b442355c49236cf61c70bdc9:charts/cert-manager-operator"
-    ["lws-operator"]="opendatahub-io:odh-gitops:main@3219e74753cb8f09b442355c49236cf61c70bdc9:charts/lws-operator"
-    ["sail-operator"]="opendatahub-io:odh-gitops:main@3219e74753cb8f09b442355c49236cf61c70bdc9:charts/sail-operator"
-    ["gateway-api"]="opendatahub-io:odh-gitops:main@3219e74753cb8f09b442355c49236cf61c70bdc9:charts/gateway-api"
+    ["cert-manager-operator"]="opendatahub-io:odh-gitops:main@9587eccb5310d4bee6a56515a8dee7b6e186ba46:charts/dependencies/cert-manager-operator"
+    ["lws-operator"]="opendatahub-io:odh-gitops:main@9587eccb5310d4bee6a56515a8dee7b6e186ba46:charts/dependencies/lws-operator"
+    ["sail-operator"]="opendatahub-io:odh-gitops:main@9587eccb5310d4bee6a56515a8dee7b6e186ba46:charts/dependencies/sail-operator"
+    ["gateway-api"]="opendatahub-io:odh-gitops:main@9587eccb5310d4bee6a56515a8dee7b6e186ba46:charts/dependencies/gateway-api"
 )
 
 # RHOAI Component Charts
@@ -216,7 +216,7 @@ download_repo_content() {
     repo_url="${GITHUB_URL}/${repo_org}/${repo_name}"
     repo_dir="${TMP_DIR}/${dst_dir}/${key}"
 
-    if [[ -v USE_LOCAL ]] && [[ -e ../${repo_name} ]]; then
+    if [[ "${USE_LOCAL}" == "true" ]] && [[ -e ../${repo_name} ]]; then
         echo "copying from adjacent checkout ..."
         mkdir -p "${dst_dir}/${target_path}"
         cp -rf "../${repo_name}/${source_path}"/* "${dst_dir}/${target_path}"

@@ -9,6 +9,8 @@ spec:
       containers:
       - name: rhods-operator
         env:
+        - name: DISABLE_DSC_CONFIG
+          value: "true"
         - name: RHAI_DISABLE_DSC_RESOURCE
           value: 'true'
         - name: RHAI_DISABLE_DSCI_RESOURCE
