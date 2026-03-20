@@ -507,18 +507,6 @@ var (
 
 	// kueue.x-k8s.io.
 
-	MultiKueueConfigV1Alpha1 = schema.GroupVersionKind{
-		Group:   "kueue.x-k8s.io",
-		Version: "v1alpha1",
-		Kind:    "MultiKueueConfig",
-	}
-
-	MultikueueClusterV1Alpha1 = schema.GroupVersionKind{
-		Group:   "kueue.x-k8s.io",
-		Version: "v1alpha1",
-		Kind:    "MultiKueueCluster",
-	}
-
 	LocalQueue = schema.GroupVersionKind{
 		Group:   "kueue.x-k8s.io",
 		Version: "v1beta1",

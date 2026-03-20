@@ -43,13 +43,9 @@ func TestMigrateHardwareProfiles(t *testing.T) {
 	fakeSchema.AddKnownTypeWithName(gvk.HardwareProfile, &infrav1.HardwareProfile{})
 	fakeSchema.AddKnownTypeWithName(gvk.HardwareProfile.GroupVersion().WithKind("HardwareProfileList"), &infrav1.HardwareProfileList{})
 
-	// Create a CRD for Dashboard HardwareProfile to make HasCRD check pass
 	dashboardHWPCRD := &apiextensionsv1.CustomResourceDefinition{
 		ObjectMeta: v1.ObjectMeta{
 			Name: "hardwareprofiles.dashboard.opendatahub.io",
-		},
-		Status: apiextensionsv1.CustomResourceDefinitionStatus{
-			StoredVersions: []string{gvk.DashboardHardwareProfile.Version},
 		},
 	}
 
@@ -185,13 +181,9 @@ func TestDeployObservabilityManifests_WithPersesCRD(t *testing.T) {
 			fakeSchema.AddKnownTypeWithName(gvk.PersesDashboard, &unstructured.Unstructured{})
 			fakeSchema.AddKnownTypeWithName(persesDashboardListGVK, &unstructured.UnstructuredList{})
 
-			// Create a CRD for PersesDashboard to make HasCRD check pass
 			persesDashboardCRD := &apiextensionsv1.CustomResourceDefinition{
 				ObjectMeta: v1.ObjectMeta{
 					Name: "persesdashboards.perses.dev",
-				},
-				Status: apiextensionsv1.CustomResourceDefinitionStatus{
-					StoredVersions: []string{"v1alpha1"},
 				},
 			}
 
@@ -256,13 +248,9 @@ func TestDeployObservabilityManifests_SkippedForEmptyMonitoringNamespace(t *test
 	fakeSchema.AddKnownTypeWithName(gvk.PersesDashboard, &unstructured.Unstructured{})
 	fakeSchema.AddKnownTypeWithName(persesDashboardListGVK, &unstructured.UnstructuredList{})
 
-	// Create a CRD for PersesDashboard to make HasCRD check pass
 	persesDashboardCRD := &apiextensionsv1.CustomResourceDefinition{
 		ObjectMeta: v1.ObjectMeta{
 			Name: "persesdashboards.perses.dev",
-		},
-		Status: apiextensionsv1.CustomResourceDefinitionStatus{
-			StoredVersions: []string{"v1alpha1"},
 		},
 	}
 
