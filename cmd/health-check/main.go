@@ -115,7 +115,6 @@ func loadConfig(operatorNS, appsNS, operatorDeploy, monitoringNS, layerFlag, sec
 			Monitoring: monitoringNS,
 			Extra:      []string{"kube-system"},
 		},
-		// DSCI and DSC are singletons; empty name means "discover the instance on the cluster".
 		DSCI: types.NamespacedName{},
 		DSC:  types.NamespacedName{},
 	}
