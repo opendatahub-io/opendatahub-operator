@@ -187,7 +187,7 @@ func (a *Action) computeDeletableTypes(ctx context.Context, rr *odhTypes.Reconci
 		return nil, fmt.Errorf("unable to compute namespace: %w", err)
 	}
 
-	items, err := rules.ListAuthorizedDeletableResources(ctx, rr.Client, res, ns)
+	items, err := rules.ListAuthorizedResources(ctx, rr.Client, res, ns, []string{rules.VerbDelete})
 	if err != nil {
 		return nil, fmt.Errorf("failure listing authorized deletable resources: %w", err)
 	}

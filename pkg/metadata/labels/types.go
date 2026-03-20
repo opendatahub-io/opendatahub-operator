@@ -3,19 +3,23 @@ package labels
 import "strings"
 
 const (
-	ODHAppPrefix            = "app.opendatahub.io"
-	ODHPlatformPrefix       = "platform.opendatahub.io"
-	ODHInfrastructurePrefix = "infrastructure.opendatahub.io"
-	InjectTrustCA           = "config.openshift.io/inject-trusted-cabundle"
-	SecurityEnforce         = "pod-security.kubernetes.io/enforce"
-	ClusterMonitoring       = "openshift.io/cluster-monitoring"
-	PlatformPartOf          = ODHPlatformPrefix + "/part-of"
-	PlatformDependency      = ODHPlatformPrefix + "/dependency"
-	InfrastructurePartOf    = ODHInfrastructurePrefix + "/part-of"
-	Platform                = "platform"
-	True                    = "true"
-	CustomizedAppNamespace  = "opendatahub.io/application-namespace"
-	ODHLabelMonitoring      = "opendatahub.io/monitoring"
+	ODHAppPrefix             = "app.opendatahub.io"
+	ODHPlatformPrefix        = "platform.opendatahub.io"
+	ODHInfrastructurePrefix  = "infrastructure.opendatahub.io"
+	InjectTrustCA            = "config.openshift.io/inject-trusted-cabundle"
+	SecurityEnforce          = "pod-security.kubernetes.io/enforce"
+	ClusterMonitoring        = "openshift.io/cluster-monitoring"
+	PlatformPartOf           = ODHPlatformPrefix + "/part-of"
+	PlatformDependency       = ODHPlatformPrefix + "/dependency"
+	InfrastructurePartOf     = ODHInfrastructurePrefix + "/part-of"
+	InfrastructureDependency = ODHInfrastructurePrefix + "/dependency"
+	InfrastructureGCPolicy   = ODHInfrastructurePrefix + "/gc-policy"
+
+	GCPolicyRetain         = "retain"
+	Platform               = "platform"
+	True                   = "true"
+	CustomizedAppNamespace = "opendatahub.io/application-namespace"
+	ODHLabelMonitoring     = "opendatahub.io/monitoring"
 )
 
 // K8SCommon keeps common kubernetes labels [1]

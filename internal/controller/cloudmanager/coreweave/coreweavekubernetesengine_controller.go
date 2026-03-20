@@ -8,6 +8,7 @@ import (
 
 	ccmv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/coreweave/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	certmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/cloudmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
@@ -16,10 +17,12 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
+// NewReconciler sets up the CoreWeaveKubernetesEngine controller and registers it with the manager.
 func NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	resourceID := labels.NormalizePartOfValue(ccmv1alpha1.CoreWeaveKubernetesEngineKind)
 	_, err := reconciler.ReconcilerFor(mgr, &ccmv1alpha1.CoreWeaveKubernetesEngine{}).
-		WithDynamicOwnership().
+		// Exclude PKI GVKs from dynamic ownership — see certmanager.Bootstrap godoc.
+		WithDynamicOwnership(reconciler.ExcludeGVKs(gvk.CertManagerClusterIssuer, gvk.CertManagerCertificate)).
 		Watches(
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(handlers.ToNamed(ccmv1alpha1.CoreWeaveKubernetesEngineInstanceName)),
@@ -31,11 +34,9 @@ func NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
 			certmanager.DefaultBootstrapConfig(certmanager.WithOperatorCert()),
 		)).
 		WithActionE(cloudmanager.NewReconcileAction(resourceID)).
+		// GC must be last: evaluates every CCM resource and removes stale or orphaned ones.
+		WithActionE(cloudmanager.NewGCAction(resourceID)).
 		WithConditions(cloudmanager.ConditionsTypes...).
 		Build(ctx)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
