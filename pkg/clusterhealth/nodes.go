@@ -3,9 +3,13 @@ package clusterhealth
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -23,11 +27,23 @@ func runNodesSection(ctx context.Context, c client.Client, _ NamespaceConfig) Se
 		return out
 	}
 
+	usageByNode := fetchNodeMetrics(ctx, c)
+
 	out.Data.Data = nodes.Items
 	out.Data.Nodes = make([]NodeInfo, 0, len(nodes.Items))
 	for i := range nodes.Items {
 		node := &nodes.Items[i]
 		info := nodeToNodeInfo(node)
+		if usage, ok := usageByNode[node.Name]; ok {
+			if cpu, hasCpu := usage[corev1.ResourceCPU]; hasCpu {
+				cpuMilli := cpu.MilliValue()
+				info.UsageCPUMillicores = &cpuMilli
+			}
+			if mem, hasMem := usage[corev1.ResourceMemory]; hasMem {
+				memBytes := mem.Value()
+				info.UsageMemoryBytes = &memBytes
+			}
+		}
 		out.Data.Nodes = append(out.Data.Nodes, info)
 	}
 
@@ -45,6 +61,15 @@ func runNodesSection(ctx context.Context, c client.Client, _ NamespaceConfig) Se
 
 func nodeToNodeInfo(node *corev1.Node) NodeInfo {
 	info := NodeInfo{Name: node.Name}
+
+	if _, ok := node.Labels["node-role.kubernetes.io/master"]; ok {
+		info.Role = "master"
+	} else if _, ok := node.Labels["node-role.kubernetes.io/worker"]; ok {
+		info.Role = "worker"
+	} else if _, ok := node.Labels["node-role.kubernetes.io/control-plane"]; ok {
+		// Just in case it has control-plane but not master
+		info.Role = "master"
+	}
 
 	for _, c := range node.Status.Conditions {
 		info.Conditions = append(info.Conditions, ConditionSummary{
@@ -90,6 +115,46 @@ func nodeToNodeInfo(node *corev1.Node) NodeInfo {
 		info.UnhealthyReason = strings.Join(parts, "; ")
 	}
 	return info
+}
+
+// fetchNodeMetrics uses unstructured to get node metrics without requiring the k8s.io/metrics dependency.
+// Returns an empty map if the Metrics Server is not available.
+func fetchNodeMetrics(ctx context.Context, c client.Client) map[string]corev1.ResourceList {
+	uList := &unstructured.UnstructuredList{}
+	uList.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   "metrics.k8s.io",
+		Version: "v1beta1",
+		Kind:    "NodeMetricsList",
+	})
+
+	if err := c.List(ctx, uList); err != nil {
+		log.Printf("clusterhealth: node metrics unavailable (Metrics Server may not be installed): %v", err)
+		return nil
+	}
+
+	m := make(map[string]corev1.ResourceList, len(uList.Items))
+	for _, item := range uList.Items {
+		name := item.GetName()
+
+		usageMap, found, _ := unstructured.NestedStringMap(item.Object, "usage")
+		if !found {
+			continue
+		}
+
+		rl := corev1.ResourceList{}
+		if cpuStr, ok := usageMap["cpu"]; ok {
+			if q, err := resource.ParseQuantity(cpuStr); err == nil {
+				rl[corev1.ResourceCPU] = q
+			}
+		}
+		if memStr, ok := usageMap["memory"]; ok {
+			if q, err := resource.ParseQuantity(memStr); err == nil {
+				rl[corev1.ResourceMemory] = q
+			}
+		}
+		m[name] = rl
+	}
+	return m
 }
 
 func formatResourceList(rl corev1.ResourceList) string {

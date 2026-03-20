@@ -40,10 +40,15 @@ type NodesSection struct {
 
 type NodeInfo struct {
 	Name            string             `json:"name"`
+	Role            string             `json:"role,omitempty"` // e.g. "master" or "worker"
 	Conditions      []ConditionSummary `json:"conditions"`
 	Allocatable     string             `json:"allocatable"` // human-readable (e.g. "4 CPU, 8Gi memory")
 	Capacity        string             `json:"capacity"`
 	UnhealthyReason string             `json:"unhealthyReason,omitempty"` // non-empty if node is in a bad state
+
+	// Actual resource usage from the Metrics Server (nil when unavailable).
+	UsageCPUMillicores *int64 `json:"usageCPUMillicores,omitempty"`
+	UsageMemoryBytes   *int64 `json:"usageMemoryBytes,omitempty"`
 }
 
 type ConditionSummary struct {
@@ -74,16 +79,21 @@ type PodInfo struct {
 	Namespace  string          `json:"namespace"`
 	Name       string          `json:"name"`
 	Phase      string          `json:"phase"`
+	NodeName   string          `json:"nodeName,omitempty"`
 	CreatedAt  time.Time       `json:"createdAt"`
 	Containers []ContainerInfo `json:"containers"`
 }
 
 type ContainerInfo struct {
-	Name         string `json:"name"`
-	Ready        bool   `json:"ready"`
-	RestartCount int32  `json:"restartCount"`
-	Waiting      string `json:"waiting"`    // reason/message if waiting
-	Terminated   string `json:"terminated"` // reason/exit if terminated
+	Name           string `json:"name"`
+	Ready          bool   `json:"ready"`
+	RestartCount   int32  `json:"restartCount"`
+	Waiting        string `json:"waiting"`                  // reason/message if waiting
+	Terminated     string `json:"terminated"`               // reason/exit if terminated
+	RequestsCPU    *int64 `json:"requestsCPU,omitempty"`    // in millicores
+	RequestsMemory *int64 `json:"requestsMemory,omitempty"` // in bytes
+	LimitsCPU      *int64 `json:"limitsCPU,omitempty"`      // in millicores
+	LimitsMemory   *int64 `json:"limitsMemory,omitempty"`   // in bytes
 }
 
 type EventsSection struct {
