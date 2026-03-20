@@ -42,10 +42,6 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		},
 		{
 			FS:   resourcesFS,
-			Path: AdminGroupMaaSRoleTemplate,
-		},
-		{
-			FS:   resourcesFS,
 			Path: AdminGroupClusterRoleTemplate,
 		},
 		{
@@ -54,10 +50,38 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		},
 	}
 
+	exists, err := cluster.NamespaceExists(ctx, rr.Client, "models-as-a-service")
+	if err != nil {
+		return fmt.Errorf("failed to check if models-as-a-service namespace exists: %w", err)
+	}
+	if exists {
+		rr.Templates = append(rr.Templates, odhtypes.TemplateInfo{
+			FS:   resourcesFS,
+			Path: AdminGroupMaaSRoleTemplate,
+		})
+	}
+
 	return nil
 }
 
 func bindRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, groups []string, roleBindingName string, roleName string, namespace string) error {
+	if namespace == "" {
+		appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
+		if err != nil {
+			return err
+		}
+		namespace = appNamespace
+	} else {
+		exists, err := cluster.NamespaceExists(ctx, rr.Client, namespace)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			logf.FromContext(ctx).Info("namespace not found, skipping RoleBinding creation", "namespace", namespace, "roleBinding", roleBindingName)
+			return nil
+		}
+	}
+
 	groupsToBind := []rbacv1.Subject{}
 	for _, e := range groups {
 		// we want to disallow adding system:authenticated to the adminGroups
@@ -137,13 +161,7 @@ func managePermissions(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 		return errors.New("instance is not of type *services.Auth")
 	}
 
-	// Fetch application namespace from DSCI.
-	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
-	if err != nil {
-		return err
-	}
-
-	err = bindRole(ctx, rr, ai.Spec.AdminGroups, "data-science-admingroup-rolebinding", "data-science-admingroup-role", appNamespace)
+	err := bindRole(ctx, rr, ai.Spec.AdminGroups, "data-science-admingroup-rolebinding", "data-science-admingroup-role", "")
 	if err != nil {
 		return err
 	}
