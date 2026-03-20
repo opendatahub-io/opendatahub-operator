@@ -1253,7 +1253,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `captureOrganization` _boolean_ | CaptureOrganization enables the organization_id label on metrics. | true | Optional: \{\} <br /> |
-| `captureUser` _boolean_ | CaptureUser enables the user label on metrics.<br />Note: This is a high-cardinality dimension and may be disabled for privacy (GDPR) compliance. | true | Optional: \{\} <br /> |
+| `captureUser` _boolean_ | CaptureUser enables the user label on metrics.<br />Disabled by default for privacy/GDPR compliance. | false | Optional: \{\} <br /> |
 | `captureGroup` _boolean_ | CaptureGroup enables the group label on metrics for team-based chargeback.<br />Note: This is a high-cardinality dimension and is disabled by default. | false | Optional: \{\} <br /> |
 | `captureModelUsage` _boolean_ | CaptureModelUsage enables the model label on metrics. | true | Optional: \{\} <br /> |
 
