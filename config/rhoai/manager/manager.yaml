@@ -66,7 +66,7 @@ spec:
           # - name: ODH_PLATFORM_TYPE
           #   value: SelfManagedRHOAI
         # NOTE: image is provided in CI by pullspec substitution, and by make/kustomize for local builds
-        image: REPLACE_IMAGE:latest-rhoai
+        image: REPLACE_IMAGE:v0.0.0-placeholder
         imagePullPolicy: Always
         securityContext:
           allowPrivilegeEscalation: false
