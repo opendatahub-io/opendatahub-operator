@@ -1,4 +1,4 @@
-apiVersion: perses.dev/v1alpha1
+apiVersion: perses.dev/{{.PersesAPIVersion}}
 kind: PersesDatasource
 metadata:
   name: data-science-prometheus-datasource

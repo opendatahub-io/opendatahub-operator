@@ -60,15 +60,19 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { /
 }
 
 func deployObservabilityManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	// Check if PersesDashboard CRD exists (Cluster Observability Operator installed)
-	persesDashboardCRDExists, err := cluster.HasCRD(ctx, rr.Client, gvk.PersesDashboard)
+	// Check if PersesDashboard CRD exists in either v1alpha2 or v1alpha1 (COO installed)
+	v2Exists, err := cluster.HasCRD(ctx, rr.Client, gvk.PersesDashboardV1Alpha2)
 	if err != nil {
-		return odherrors.NewStopError("failed to check if %s CRD exists: %w", gvk.PersesDashboard, err)
+		return odherrors.NewStopError("failed to check if %s CRD exists: %w", gvk.PersesDashboardV1Alpha2, err)
 	}
-
-	if !persesDashboardCRDExists {
-		// CRD not available, skip deployment without error
-		return nil
+	if !v2Exists {
+		v1Exists, err := cluster.HasCRD(ctx, rr.Client, gvk.PersesDashboardV1Alpha1)
+		if err != nil {
+			return odherrors.NewStopError("failed to check if %s CRD exists: %w", gvk.PersesDashboardV1Alpha1, err)
+		}
+		if !v1Exists {
+			return nil
+		}
 	}
 
 	// Get the monitoring namespace from DSCI with platform-specific fallback

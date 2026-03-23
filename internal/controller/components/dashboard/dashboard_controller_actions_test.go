@@ -176,22 +176,12 @@ func TestDeployObservabilityManifests_WithPersesCRD(t *testing.T) {
 			fakeSchema, err := scheme.New()
 			g.Expect(err).ShouldNot(HaveOccurred())
 
-			// Register PersesDashboard GVK with the schema so the REST mapper knows about it
-			persesDashboardListGVK := schema.GroupVersionKind{
-				Group:   "perses.dev",
-				Version: "v1alpha1",
-				Kind:    "PersesDashboardList",
-			}
 			fakeSchema.AddKnownTypeWithName(gvk.PersesDashboard, &unstructured.Unstructured{})
-			fakeSchema.AddKnownTypeWithName(persesDashboardListGVK, &unstructured.UnstructuredList{})
+			fakeSchema.AddKnownTypeWithName(gvk.PersesDashboard.GroupVersion().WithKind("PersesDashboardList"), &unstructured.UnstructuredList{})
 
-			// Create a CRD for PersesDashboard to make HasCRD check pass
 			persesDashboardCRD := &apiextensionsv1.CustomResourceDefinition{
 				ObjectMeta: v1.ObjectMeta{
 					Name: "persesdashboards.perses.dev",
-				},
-				Status: apiextensionsv1.CustomResourceDefinitionStatus{
-					StoredVersions: []string{"v1alpha1"},
 				},
 			}
 
@@ -247,22 +237,12 @@ func TestDeployObservabilityManifests_SkippedForEmptyMonitoringNamespace(t *test
 	fakeSchema, err := scheme.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	// Register PersesDashboard GVK with the schema
-	persesDashboardListGVK := schema.GroupVersionKind{
-		Group:   "perses.dev",
-		Version: "v1alpha1",
-		Kind:    "PersesDashboardList",
-	}
 	fakeSchema.AddKnownTypeWithName(gvk.PersesDashboard, &unstructured.Unstructured{})
-	fakeSchema.AddKnownTypeWithName(persesDashboardListGVK, &unstructured.UnstructuredList{})
+	fakeSchema.AddKnownTypeWithName(gvk.PersesDashboard.GroupVersion().WithKind("PersesDashboardList"), &unstructured.UnstructuredList{})
 
-	// Create a CRD for PersesDashboard to make HasCRD check pass
 	persesDashboardCRD := &apiextensionsv1.CustomResourceDefinition{
 		ObjectMeta: v1.ObjectMeta{
 			Name: "persesdashboards.perses.dev",
-		},
-		Status: apiextensionsv1.CustomResourceDefinitionStatus{
-			StoredVersions: []string{"v1alpha1"},
 		},
 	}
 
