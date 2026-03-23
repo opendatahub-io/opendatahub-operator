@@ -669,7 +669,8 @@ ifneq (,$(wildcard cmd/health-check/Makefile))
 include cmd/health-check/Makefile
 endif
 
-.PHONY: e2e-test
+.PHONY: e2e-test e2e
+e2e: e2e-test ## Alias for e2e-test
 e2e-test:
 # Specifies the namespace where the operator pods are deployed
 ifndef E2E_TEST_OPERATOR_NAMESPACE

@@ -43,13 +43,9 @@ func TestMigrateHardwareProfiles(t *testing.T) {
 	fakeSchema.AddKnownTypeWithName(gvk.HardwareProfile, &infrav1.HardwareProfile{})
 	fakeSchema.AddKnownTypeWithName(gvk.HardwareProfile.GroupVersion().WithKind("HardwareProfileList"), &infrav1.HardwareProfileList{})
 
-	// Create a CRD for Dashboard HardwareProfile to make HasCRD check pass
 	dashboardHWPCRD := &apiextensionsv1.CustomResourceDefinition{
 		ObjectMeta: v1.ObjectMeta{
 			Name: "hardwareprofiles.dashboard.opendatahub.io",
-		},
-		Status: apiextensionsv1.CustomResourceDefinitionStatus{
-			StoredVersions: []string{gvk.DashboardHardwareProfile.Version},
 		},
 	}
 

@@ -258,6 +258,9 @@ func TestHasCRDWithVersion(t *testing.T) {
 	t.Run("should return false when RESTMapper resolves but CRD object is missing", func(t *testing.T) {
 		g := NewWithT(t)
 
+		// fakeclient registers Dashboard in its RESTMapper via the scheme,
+		// but we don't create the CRD object — simulates a stale cache
+		// after CRD deletion.
 		cli, err := fakeclient.New()
 		g.Expect(err).ShouldNot(HaveOccurred())
 

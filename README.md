@@ -35,6 +35,7 @@ and configure these applications.
     - [Supported Providers](#supported-providers)
     - [CCM Deployment](#ccm-deployment)
   - [RHAII Mode](#rhaii-mode)
+    - [Prerequisites](#prerequisites-1)
     - [Supported Providers](#supported-providers-1)
     - [RHAII Deployment](#rhaii-deployment)
   - [Test with customized manifests](#test-with-customized-manifests)
@@ -508,6 +509,13 @@ spec:
 RHAII (Red Hat AI Inference) is a deployment mode that runs a subset of the operator focused exclusively on **KServe**. This is useful when you only need model serving capabilities without the full Open Data Hub stack.
 
 In RHAII mode, the operator deploys only the KServe component CRD and its associated webhooks (connection-isvc and connection-llmisvc mutation webhooks).
+
+#### Prerequisites
+
+RHAII mode requires **cert-manager** to be available in the cluster. This dependency can be satisfied in one of two ways:
+
+1. **`CoreWeaveKubernetesEngine` CR**: Deploy the appropriate Cloud Manager (Azure or CoreWeave) and create the corresponding `AzureKubernetesEngine` or `CoreWeaveKubernetesEngine` CR with `certManager.managementPolicy: Managed`. The Cloud Manager will install and manage cert-manager automatically along with other dependencies. To deploy a Cloud Manager, see [CCM Deployment](#ccm-deployment).
+2. **Installing cert-manager manually**: Install cert-manager directly in the cluster before deploying the RHAII operator.
 
 #### Supported Providers
 
