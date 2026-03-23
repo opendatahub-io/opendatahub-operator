@@ -340,6 +340,11 @@ func (a *Action) deploy(
 	default:
 		owned := a.shouldOwn(rr, obj.GroupVersionKind())
 		if owned {
+			// Clear any template-defined ownerReferences before setting the
+			// controller reference. For resource types declared in Owns(), the
+			// deploy action is the single source of truth for ownership.
+			obj.SetOwnerReferences(nil)
+
 			if err := ctrl.SetControllerReference(rr.Instance, &obj, rr.Client.Scheme()); err != nil {
 				return false, err
 			}
