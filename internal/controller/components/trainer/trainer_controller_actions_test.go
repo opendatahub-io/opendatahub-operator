@@ -266,9 +266,6 @@ func TestCheckPreConditions_Success(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "jobsets.jobset.x-k8s.io",
 		},
-		Status: apiextensionsv1.CustomResourceDefinitionStatus{
-			StoredVersions: []string{gvk.JobSetv1alpha2.Version},
-		},
 	}
 	jobSetOperatorCondition := &ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
 		Name: fmt.Sprintf("%s.%s", jobSetOperator, jobSetOperatorRndVersion),
