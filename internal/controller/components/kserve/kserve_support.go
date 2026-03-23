@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"os"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -27,6 +28,8 @@ import (
 )
 
 var (
+	ErrResourceNotFound = errors.New("resource not found")
+
 	imageParamMap = map[string]string{
 		"kserve-agent":                     "RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE",
 		"kserve-controller":                "RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE",
@@ -128,7 +131,7 @@ func getIndexedResource(rs []unstructured.Unstructured, obj any, g schema.GroupV
 	}
 
 	if idx == -1 {
-		return -1, fmt.Errorf("could not find %T with name %v in resources list", obj, name)
+		return -1, fmt.Errorf("could not find %T with name %v in resources list: %w", obj, name, ErrResourceNotFound)
 	}
 
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(rs[idx].Object, obj)
@@ -180,7 +183,7 @@ func getAndRemoveOwnerReferences(
 	current := resources.GvkToUnstructured(res.GroupVersionKind())
 
 	lookupErr := cli.Get(ctx, client.ObjectKeyFromObject(&res), current)
-	if errors.IsNotFound(lookupErr) {
+	if k8serr.IsNotFound(lookupErr) {
 		return nil
 	}
 	if lookupErr != nil {

@@ -78,7 +78,8 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		OwnsGVK(gvk.OdhQuickStart, reconciler.Dynamic()).
 		// PersesDashboard resources are conditionally deployed when COO is installed
 		// and should be garbage collected when dashboard is removed
-		OwnsGVK(gvk.PersesDashboard, reconciler.Dynamic(reconciler.CrdExists(gvk.PersesDashboard))).
+		OwnsGVK(gvk.PersesDashboardV1Alpha1, reconciler.Dynamic(reconciler.CrdExistsWithoutPreferred(gvk.PersesDashboardV1Alpha1, gvk.PersesDashboardV1Alpha2))).
+		OwnsGVK(gvk.PersesDashboardV1Alpha2, reconciler.Dynamic(reconciler.CrdExists(gvk.PersesDashboardV1Alpha2))).
 		// CRDs are not owned by the component and should be left on the cluster,
 		// so by default, the deploy action won't add all the annotation added to
 		// other resources. Hence, a custom handling is required in order to minimize

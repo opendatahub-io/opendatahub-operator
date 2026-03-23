@@ -24,6 +24,7 @@ import (
 const (
 	componentName               = componentApi.KserveComponentName
 	kserveConfigMapName         = "inferenceservice-config"
+	isvcControllerDeployment    = "kserve-controller-manager"
 	kserveManifestSourcePath    = "overlays/odh"
 	kserveManifestSourcePathXKS = "overlays/odh-xks"
 

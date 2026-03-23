@@ -187,7 +187,7 @@ func TestCustomizeKserveConfigMap(t *testing.T) {
 
 		var updatedDeployment *appsv1.Deployment
 		for _, resource := range rr.Resources {
-			if resource.GetKind() == "Deployment" && resource.GetName() == "kserve-controller-manager" {
+			if resource.GetKind() == "Deployment" && resource.GetName() == isvcControllerDeployment {
 				updatedDeployment = &appsv1.Deployment{}
 				err = runtime.DefaultUnstructuredConverter.FromUnstructured(resource.Object, updatedDeployment)
 				g.Expect(err).ShouldNot(HaveOccurred())
@@ -221,14 +221,14 @@ func TestCustomizeKserveConfigMap(t *testing.T) {
 		g.Expect(err.Error()).Should(ContainSubstring(kserveConfigMapName))
 	})
 
-	t.Run("Test KServe deployment not found", func(t *testing.T) {
+	t.Run("Test KServe skips hash annotation when deployment is missing (e.g., XKS)", func(t *testing.T) {
 		kserve := &componentApi.Kserve{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: componentApi.KserveInstanceName,
 			},
 		}
 
-		// create reconciliation request with ConfigMap but without deployment
+		// create reconciliation request with ConfigMap but without deployment (simulates XKS manifests)
 		initialConfigMap := createTestConfigMap()
 		resources := []unstructured.Unstructured{
 			*convertToUnstructured(t, initialConfigMap),
@@ -239,10 +239,9 @@ func TestCustomizeKserveConfigMap(t *testing.T) {
 			Resources: resources,
 		}
 
+		// Should not error - ConfigMap is updated, but deployment hash annotation is skipped
 		err := customizeKserveConfigMap(ctx, rr)
-		g.Expect(err).Should(HaveOccurred())
-		g.Expect(err.Error()).Should(ContainSubstring("could not find"))
-		g.Expect(err.Error()).Should(ContainSubstring("kserve-controller-manager"))
+		g.Expect(err).ShouldNot(HaveOccurred())
 	})
 }
 
@@ -596,7 +595,7 @@ func createTestDeployment() *appsv1.Deployment {
 			Kind:       "Deployment",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "kserve-controller-manager",
+			Name: isvcControllerDeployment,
 		},
 		Spec: appsv1.DeploymentSpec{
 			Template: corev1.PodTemplateSpec{

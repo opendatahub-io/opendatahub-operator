@@ -8,5 +8,5 @@ roleRef:
   name: opendatahub-azure-cloud-manager-role
 subjects:
 - kind: ServiceAccount
-  name: opendatahub-azure-cloud-manager-operator
+  name: azure-cloud-manager-operator
   namespace: system

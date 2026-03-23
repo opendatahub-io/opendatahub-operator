@@ -9,6 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -215,39 +216,48 @@ func (tc *KserveTestCtx) ValidateLLMInferenceServiceConfigVersioned(t *testing.T
 
 	skipUnless(t, Tier1)
 
-	// Validate that all well-known LLMInferenceServiceConfig resources have versioned names
-	// Expected format: vX-Y-Z-<config-name> where X, Y, Z are numbers
-	// Only check resources with the well-known-config annotation set to true
-	tc.EnsureResourcesExist(
-		WithMinimalObject(gvk.LLMInferenceServiceConfigV1Alpha1, types.NamespacedName{Namespace: tc.AppsNamespace}),
-		WithListOptions(&client.ListOptions{
-			Namespace: tc.AppsNamespace,
-		}),
-		WithCondition(jq.Match(`
-			map(select(.metadata.annotations["%s"] == "%s"))
-			| length > 0
-		`,
-			kserve.LLMInferenceServiceConfigWellKnownAnnotationKey,
-			kserve.LLMInferenceServiceConfigWellKnownAnnotationValue,
-		)),
-		WithCustomErrorMsg("Expected at least one well-known LLMInferenceServiceConfig to exist"),
-	)
+	configGVKs := []schema.GroupVersionKind{
+		gvk.LLMInferenceServiceConfigV1Alpha1,
+		gvk.LLMInferenceServiceConfigV1Alpha2,
+	}
 
-	// Validate that all well-known configs follow the versioned naming pattern
-	tc.EnsureResourcesExist(
-		WithMinimalObject(gvk.LLMInferenceServiceConfigV1Alpha1, types.NamespacedName{Namespace: tc.AppsNamespace}),
-		WithListOptions(&client.ListOptions{
-			Namespace: tc.AppsNamespace,
-		}),
-		WithCondition(jq.Match(`
-			map(select(.metadata.annotations["%s"] == "%s"))
-			| all(.metadata.name | test("^v[0-9]+-[0-9]+-[0-9]+-.*"))
-		`,
-			kserve.LLMInferenceServiceConfigWellKnownAnnotationKey,
-			kserve.LLMInferenceServiceConfigWellKnownAnnotationValue,
-		)),
-		WithCustomErrorMsg("All well-known LLMInferenceServiceConfig resources should have names starting with a semver version (vX-Y-Z-)"),
-	)
+	for _, configGVK := range configGVKs {
+		t.Run(configGVK.Version, func(t *testing.T) {
+			// Validate that all well-known LLMInferenceServiceConfig resources have versioned names
+			// Expected format: vX-Y-Z-<config-name> where X, Y, Z are numbers
+			// Only check resources with the well-known-config annotation set to true
+			tc.EnsureResourcesExist(
+				WithMinimalObject(configGVK, types.NamespacedName{Namespace: tc.AppsNamespace}),
+				WithListOptions(&client.ListOptions{
+					Namespace: tc.AppsNamespace,
+				}),
+				WithCondition(jq.Match(`
+					map(select(.metadata.annotations["%s"] == "%s"))
+					| length > 0
+				`,
+					kserve.LLMInferenceServiceConfigWellKnownAnnotationKey,
+					kserve.LLMInferenceServiceConfigWellKnownAnnotationValue,
+				)),
+				WithCustomErrorMsg("Expected at least one well-known LLMInferenceServiceConfig %s to exist", configGVK.Version),
+			)
+
+			// Validate that all well-known configs follow the versioned naming pattern
+			tc.EnsureResourcesExist(
+				WithMinimalObject(configGVK, types.NamespacedName{Namespace: tc.AppsNamespace}),
+				WithListOptions(&client.ListOptions{
+					Namespace: tc.AppsNamespace,
+				}),
+				WithCondition(jq.Match(`
+					map(select(.metadata.annotations["%s"] == "%s"))
+					| all(.metadata.name | test("^v[0-9]+-[0-9]+-[0-9]+-.*"))
+				`,
+					kserve.LLMInferenceServiceConfigWellKnownAnnotationKey,
+					kserve.LLMInferenceServiceConfigWellKnownAnnotationValue,
+				)),
+				WithCustomErrorMsg("All well-known LLMInferenceServiceConfig %s resources should have names starting with a semver version (vX-Y-Z-)", configGVK.Version),
+			)
+		})
+	}
 }
 
 // ensureLWSBaseline clears LWS conditions, asserts Kserve component and DSC health.
