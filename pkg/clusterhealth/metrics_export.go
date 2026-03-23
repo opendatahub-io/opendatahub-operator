@@ -15,7 +15,7 @@ import (
 // The output can be appended to a file for bulk import into VictoriaMetrics
 // via /api/v1/import/prometheus.
 func (r *Report) PrometheusExport() []string {
-	ts := r.CollectedAt.Unix()
+	ts := r.CollectedAt.UnixMilli()
 	var lines []string
 
 	lines = append(lines, r.exportNodes(ts)...)
@@ -30,24 +30,17 @@ func (r *Report) PrometheusExport() []string {
 func (r *Report) exportNodes(ts int64) []string {
 	var lines []string
 
-	const (
-		roleMaster = "master"
-		roleWorker = "worker"
-	)
+	nodeInfoByName := make(map[string]*NodeInfo, len(r.Nodes.Data.Nodes))
+	for i := range r.Nodes.Data.Nodes {
+		info := &r.Nodes.Data.Nodes[i]
+		nodeInfoByName[info.Name] = info
+	}
 
 	for _, node := range r.Nodes.Data.Data {
 		labels := promLabels{"node": node.Name}
 
-		role := ""
-		if _, ok := node.Labels["node-role.kubernetes.io/master"]; ok {
-			role = roleMaster
-		} else if _, ok := node.Labels["node-role.kubernetes.io/worker"]; ok {
-			role = roleWorker
-		} else if _, ok := node.Labels["node-role.kubernetes.io/control-plane"]; ok {
-			role = roleMaster
-		}
-		if role != "" {
-			lines = append(lines, promLine("kube_node_role", promLabels{"node": node.Name, "role": role}, 1.0, ts))
+		if info, ok := nodeInfoByName[node.Name]; ok && info.Role != "" {
+			lines = append(lines, promLine("kube_node_role", promLabels{"node": node.Name, "role": info.Role}, 1.0, ts))
 		}
 
 		if cpu := node.Status.Allocatable[corev1.ResourceCPU]; !cpu.IsZero() {
@@ -83,7 +76,6 @@ func (r *Report) exportNodes(ts int64) []string {
 		}
 
 		for _, cond := range info.Conditions {
-			// Status needs to be lowercased to match KSM e.g. "true", "false", "unknown"
 			statusLower := strings.ToLower(cond.Status)
 			condLabels := promLabels{"node": info.Name, "condition": cond.Type, "status": statusLower}
 			val := 0.0
@@ -99,8 +91,8 @@ func (r *Report) exportNodes(ts int64) []string {
 
 func (r *Report) exportDeployments(ts int64) []string {
 	var lines []string
-	for _, infos := range r.Deployments.Data.ByNamespace {
-		for _, d := range infos {
+	for _, ns := range sortedKeys(r.Deployments.Data.ByNamespace) {
+		for _, d := range r.Deployments.Data.ByNamespace[ns] {
 			labels := promLabels{"namespace": d.Namespace, "deployment": d.Name}
 			lines = append(lines, promLine("kube_deployment_status_replicas", labels, float64(d.Replicas), ts))
 			lines = append(lines, promLine("kube_deployment_status_replicas_ready", labels, float64(d.Ready), ts))
@@ -109,11 +101,19 @@ func (r *Report) exportDeployments(ts int64) []string {
 	return lines
 }
 
+var podPhases = []string{"Pending", "Running", "Succeeded", "Failed", "Unknown"}
+
 func (r *Report) exportPods(ts int64) []string {
 	var lines []string
-	for _, infos := range r.Pods.Data.ByNamespace {
-		for _, pod := range infos {
-			lines = append(lines, promLine("kube_pod_status_phase", promLabels{"namespace": pod.Namespace, "pod": pod.Name, "phase": pod.Phase}, 1.0, ts))
+	for _, ns := range sortedKeys(r.Pods.Data.ByNamespace) {
+		for _, pod := range r.Pods.Data.ByNamespace[ns] {
+			for _, phase := range podPhases {
+				val := 0.0
+				if pod.Phase == phase {
+					val = 1.0
+				}
+				lines = append(lines, promLine("kube_pod_status_phase", promLabels{"namespace": pod.Namespace, "pod": pod.Name, "phase": phase}, val, ts))
+			}
 
 			for _, c := range pod.Containers {
 				labels := promLabels{"namespace": pod.Namespace, "pod": pod.Name, "container": c.Name}
@@ -129,37 +129,22 @@ func (r *Report) exportPods(ts int64) []string {
 					resLabels["node"] = pod.NodeName
 				}
 
+				cpuLabels := mergeLabels(resLabels, promLabels{"resource": "cpu", "unit": "core"})
+				memLabels := mergeLabels(resLabels, promLabels{"resource": "memory", "unit": "byte"})
+
 				if c.RequestsCPU != nil {
 					val := float64(*c.RequestsCPU) / 1000.0
-					l := promLabels{"resource": "cpu", "unit": "core"}
-					for k, v := range resLabels {
-						l[k] = v
-					}
-					lines = append(lines, promLine("kube_pod_container_resource_requests", l, val, ts))
+					lines = append(lines, promLine("kube_pod_container_resource_requests", cpuLabels, val, ts))
 				}
 				if c.RequestsMemory != nil {
-					val := float64(*c.RequestsMemory)
-					l := promLabels{"resource": "memory", "unit": "byte"}
-					for k, v := range resLabels {
-						l[k] = v
-					}
-					lines = append(lines, promLine("kube_pod_container_resource_requests", l, val, ts))
+					lines = append(lines, promLine("kube_pod_container_resource_requests", memLabels, float64(*c.RequestsMemory), ts))
 				}
 				if c.LimitsCPU != nil {
 					val := float64(*c.LimitsCPU) / 1000.0
-					l := promLabels{"resource": "cpu", "unit": "core"}
-					for k, v := range resLabels {
-						l[k] = v
-					}
-					lines = append(lines, promLine("kube_pod_container_resource_limits", l, val, ts))
+					lines = append(lines, promLine("kube_pod_container_resource_limits", cpuLabels, val, ts))
 				}
 				if c.LimitsMemory != nil {
-					val := float64(*c.LimitsMemory)
-					l := promLabels{"resource": "memory", "unit": "byte"}
-					for k, v := range resLabels {
-						l[k] = v
-					}
-					lines = append(lines, promLine("kube_pod_container_resource_limits", l, val, ts))
+					lines = append(lines, promLine("kube_pod_container_resource_limits", memLabels, float64(*c.LimitsMemory), ts))
 				}
 			}
 		}
@@ -170,12 +155,14 @@ func (r *Report) exportPods(ts int64) []string {
 func (r *Report) exportQuotas(ts int64) []string {
 	var lines []string
 	for _, quota := range r.Quotas.Data.Data {
-		for res, qty := range quota.Status.Hard {
-			labels := promLabels{"namespace": quota.Namespace, "quota": quota.Name, "resource": string(res), "type": "hard"}
+		for _, res := range sortedResourceNames(quota.Status.Hard) {
+			qty := quota.Status.Hard[corev1.ResourceName(res)]
+			labels := promLabels{"namespace": quota.Namespace, "quota": quota.Name, "resource": res, "type": "hard"}
 			lines = append(lines, promLine("kube_resourcequota", labels, quantityToFloat(qty), ts))
 		}
-		for res, qty := range quota.Status.Used {
-			labels := promLabels{"namespace": quota.Namespace, "quota": quota.Name, "resource": string(res), "type": "used"}
+		for _, res := range sortedResourceNames(quota.Status.Used) {
+			qty := quota.Status.Used[corev1.ResourceName(res)]
+			labels := promLabels{"namespace": quota.Namespace, "quota": quota.Name, "resource": res, "type": "used"}
 			lines = append(lines, promLine("kube_resourcequota", labels, quantityToFloat(qty), ts))
 		}
 	}
@@ -255,4 +242,33 @@ func formatFloat(v float64) string {
 
 func quantityToFloat(q resource.Quantity) float64 {
 	return q.AsApproximateFloat64()
+}
+
+func mergeLabels(base, extra promLabels) promLabels {
+	merged := make(promLabels, len(base)+len(extra))
+	for k, v := range base {
+		merged[k] = v
+	}
+	for k, v := range extra {
+		merged[k] = v
+	}
+	return merged
+}
+
+func sortedKeys[V any](m map[string][]V) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func sortedResourceNames(rl corev1.ResourceList) []string {
+	keys := make([]string, 0, len(rl))
+	for k := range rl {
+		keys = append(keys, string(k))
+	}
+	sort.Strings(keys)
+	return keys
 }

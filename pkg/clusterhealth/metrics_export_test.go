@@ -54,17 +54,17 @@ func TestPrometheusExport_Nodes(t *testing.T) {
 	}
 
 	lines := report.PrometheusExport()
-	assertContainsLine(t, lines, `kube_node_role{node="worker-0",role="worker"} 1 1710849600`)
-	assertContainsLine(t, lines, `kube_node_status_allocatable{node="worker-0",resource="cpu",unit="core"} 4 1710849600`)
-	assertContainsLine(t, lines, `kube_node_status_allocatable{node="worker-0",resource="memory",unit="byte"} 8589934592 1710849600`)
-	assertContainsLine(t, lines, `kube_node_status_capacity{node="worker-0",resource="cpu",unit="core"} 4 1710849600`)
-	assertContainsLine(t, lines, `machine_cpu_cores{node="worker-0"} 4 1710849600`)
-	assertContainsLine(t, lines, `kube_node_status_capacity{node="worker-0",resource="memory",unit="byte"} 8589934592 1710849600`)
-	assertContainsLine(t, lines, `node_memory_MemTotal_bytes{node="worker-0"} 8589934592 1710849600`)
-	assertContainsLine(t, lines, `node_cpu_usage_cores{node="worker-0"} 2.5 1710849600`)
-	assertContainsLine(t, lines, `container_memory_working_set_bytes{id="/",node="worker-0"} 4294967296 1710849600`)
-	assertContainsLine(t, lines, `kube_node_status_condition{condition="Ready",node="worker-0",status="true"} 1 1710849600`)
-	assertContainsLine(t, lines, `kube_node_status_condition{condition="MemoryPressure",node="worker-0",status="false"} 0 1710849600`)
+	assertContainsLine(t, lines, `kube_node_role{node="worker-0",role="worker"} 1 1710849600000`)
+	assertContainsLine(t, lines, `kube_node_status_allocatable{node="worker-0",resource="cpu",unit="core"} 4 1710849600000`)
+	assertContainsLine(t, lines, `kube_node_status_allocatable{node="worker-0",resource="memory",unit="byte"} 8589934592 1710849600000`)
+	assertContainsLine(t, lines, `kube_node_status_capacity{node="worker-0",resource="cpu",unit="core"} 4 1710849600000`)
+	assertContainsLine(t, lines, `machine_cpu_cores{node="worker-0"} 4 1710849600000`)
+	assertContainsLine(t, lines, `kube_node_status_capacity{node="worker-0",resource="memory",unit="byte"} 8589934592 1710849600000`)
+	assertContainsLine(t, lines, `node_memory_MemTotal_bytes{node="worker-0"} 8589934592 1710849600000`)
+	assertContainsLine(t, lines, `node_cpu_usage_cores{node="worker-0"} 2.5 1710849600000`)
+	assertContainsLine(t, lines, `container_memory_working_set_bytes{id="/",node="worker-0"} 4294967296 1710849600000`)
+	assertContainsLine(t, lines, `kube_node_status_condition{condition="Ready",node="worker-0",status="true"} 1 1710849600000`)
+	assertContainsLine(t, lines, `kube_node_status_condition{condition="MemoryPressure",node="worker-0",status="false"} 0 1710849600000`)
 }
 
 func TestPrometheusExport_NodesWithoutMetricsServer(t *testing.T) {
@@ -100,7 +100,7 @@ func TestPrometheusExport_NodesWithoutMetricsServer(t *testing.T) {
 	}
 
 	lines := report.PrometheusExport()
-	assertContainsLine(t, lines, `kube_node_status_allocatable{node="master-0",resource="cpu",unit="core"} 4 1710849600`)
+	assertContainsLine(t, lines, `kube_node_status_allocatable{node="master-0",resource="cpu",unit="core"} 4 1710849600000`)
 	assertNotContainsPrefix(t, lines, `node_cpu_usage_cores`)
 	assertNotContainsPrefix(t, lines, `container_memory_working_set_bytes`)
 }
@@ -121,10 +121,10 @@ func TestPrometheusExport_Deployments(t *testing.T) {
 	}
 
 	lines := report.PrometheusExport()
-	assertContainsLine(t, lines, `kube_deployment_status_replicas{deployment="dashboard",namespace="opendatahub"} 3 1710849600`)
-	assertContainsLine(t, lines, `kube_deployment_status_replicas_ready{deployment="dashboard",namespace="opendatahub"} 3 1710849600`)
-	assertContainsLine(t, lines, `kube_deployment_status_replicas{deployment="notebook-controller",namespace="opendatahub"} 2 1710849600`)
-	assertContainsLine(t, lines, `kube_deployment_status_replicas_ready{deployment="notebook-controller",namespace="opendatahub"} 1 1710849600`)
+	assertContainsLine(t, lines, `kube_deployment_status_replicas{deployment="dashboard",namespace="opendatahub"} 3 1710849600000`)
+	assertContainsLine(t, lines, `kube_deployment_status_replicas_ready{deployment="dashboard",namespace="opendatahub"} 3 1710849600000`)
+	assertContainsLine(t, lines, `kube_deployment_status_replicas{deployment="notebook-controller",namespace="opendatahub"} 2 1710849600000`)
+	assertContainsLine(t, lines, `kube_deployment_status_replicas_ready{deployment="notebook-controller",namespace="opendatahub"} 1 1710849600000`)
 }
 
 func TestPrometheusExport_Pods(t *testing.T) {
@@ -164,19 +164,23 @@ func TestPrometheusExport_Pods(t *testing.T) {
 	}
 
 	lines := report.PrometheusExport()
-	assertContainsLine(t, lines, `kube_pod_status_phase{namespace="opendatahub",phase="Running",pod="dashboard-abc"} 1 1710849600`)
-	assertContainsLine(t, lines, `kube_pod_container_status_ready{container="dashboard",namespace="opendatahub",pod="dashboard-abc"} 1 1710849600`)
-	assertContainsLine(t, lines, `kube_pod_container_status_restarts_total{container="dashboard",namespace="opendatahub",pod="dashboard-abc"} 0 1710849600`)
+	assertContainsLine(t, lines, `kube_pod_status_phase{namespace="opendatahub",phase="Running",pod="dashboard-abc"} 1 1710849600000`)
+	assertContainsLine(t, lines, `kube_pod_status_phase{namespace="opendatahub",phase="Pending",pod="dashboard-abc"} 0 1710849600000`)
+	assertContainsLine(t, lines, `kube_pod_status_phase{namespace="opendatahub",phase="Succeeded",pod="dashboard-abc"} 0 1710849600000`)
+	assertContainsLine(t, lines, `kube_pod_status_phase{namespace="opendatahub",phase="Failed",pod="dashboard-abc"} 0 1710849600000`)
+	assertContainsLine(t, lines, `kube_pod_status_phase{namespace="opendatahub",phase="Unknown",pod="dashboard-abc"} 0 1710849600000`)
+	assertContainsLine(t, lines, `kube_pod_container_status_ready{container="dashboard",namespace="opendatahub",pod="dashboard-abc"} 1 1710849600000`)
+	assertContainsLine(t, lines, `kube_pod_container_status_restarts_total{container="dashboard",namespace="opendatahub",pod="dashboard-abc"} 0 1710849600000`)
 	assertContainsLine(t, lines, `kube_pod_container_resource_requests{container="dashboard",namespace="opendatahub",`+
-		`node="worker-0",pod="dashboard-abc",resource="cpu",unit="core"} 0.1 1710849600`)
+		`node="worker-0",pod="dashboard-abc",resource="cpu",unit="core"} 0.1 1710849600000`)
 	assertContainsLine(t, lines, `kube_pod_container_resource_requests{container="dashboard",namespace="opendatahub",`+
-		`node="worker-0",pod="dashboard-abc",resource="memory",unit="byte"} 1024 1710849600`)
+		`node="worker-0",pod="dashboard-abc",resource="memory",unit="byte"} 1024 1710849600000`)
 	assertContainsLine(t, lines, `kube_pod_container_resource_limits{container="dashboard",namespace="opendatahub",`+
-		`node="worker-0",pod="dashboard-abc",resource="cpu",unit="core"} 0.5 1710849600`)
+		`node="worker-0",pod="dashboard-abc",resource="cpu",unit="core"} 0.5 1710849600000`)
 	assertContainsLine(t, lines, `kube_pod_container_resource_limits{container="dashboard",namespace="opendatahub",`+
-		`node="worker-0",pod="dashboard-abc",resource="memory",unit="byte"} 2048 1710849600`)
-	assertContainsLine(t, lines, `kube_pod_container_status_ready{container="oauth-proxy",namespace="opendatahub",pod="dashboard-abc"} 0 1710849600`)
-	assertContainsLine(t, lines, `kube_pod_container_status_restarts_total{container="oauth-proxy",namespace="opendatahub",pod="dashboard-abc"} 3 1710849600`)
+		`node="worker-0",pod="dashboard-abc",resource="memory",unit="byte"} 2048 1710849600000`)
+	assertContainsLine(t, lines, `kube_pod_container_status_ready{container="oauth-proxy",namespace="opendatahub",pod="dashboard-abc"} 0 1710849600000`)
+	assertContainsLine(t, lines, `kube_pod_container_status_restarts_total{container="oauth-proxy",namespace="opendatahub",pod="dashboard-abc"} 3 1710849600000`)
 }
 
 func TestPrometheusExport_Quotas(t *testing.T) {
@@ -202,16 +206,16 @@ func TestPrometheusExport_Quotas(t *testing.T) {
 	}
 
 	lines := report.PrometheusExport()
-	assertContainsLine(t, lines, `kube_resourcequota{namespace="opendatahub",quota="compute",resource="cpu",type="hard"} 10 1710849600`)
-	assertContainsLine(t, lines, `kube_resourcequota{namespace="opendatahub",quota="compute",resource="cpu",type="used"} 3 1710849600`)
+	assertContainsLine(t, lines, `kube_resourcequota{namespace="opendatahub",quota="compute",resource="cpu",type="hard"} 10 1710849600000`)
+	assertContainsLine(t, lines, `kube_resourcequota{namespace="opendatahub",quota="compute",resource="cpu",type="used"} 3 1710849600000`)
 }
 
 func TestPrometheusExport_Health(t *testing.T) {
 	t.Run("healthy cluster", func(t *testing.T) {
 		report := &Report{CollectedAt: time.Unix(1710849600, 0)}
 		lines := report.PrometheusExport()
-		assertContainsLine(t, lines, `cluster_healthy 1 1710849600`)
-		assertContainsLine(t, lines, `section_healthy{section="nodes"} 1 1710849600`)
+		assertContainsLine(t, lines, `cluster_healthy 1 1710849600000`)
+		assertContainsLine(t, lines, `section_healthy{section="nodes"} 1 1710849600000`)
 	})
 
 	t.Run("unhealthy cluster", func(t *testing.T) {
@@ -220,9 +224,9 @@ func TestPrometheusExport_Health(t *testing.T) {
 			Nodes:       SectionResult[NodesSection]{Error: "unhealthy nodes: node-1 (MemoryPressure)"},
 		}
 		lines := report.PrometheusExport()
-		assertContainsLine(t, lines, `cluster_healthy 0 1710849600`)
-		assertContainsLine(t, lines, `section_healthy{section="nodes"} 0 1710849600`)
-		assertContainsLine(t, lines, `section_healthy{section="deployments"} 1 1710849600`)
+		assertContainsLine(t, lines, `cluster_healthy 0 1710849600000`)
+		assertContainsLine(t, lines, `section_healthy{section="nodes"} 0 1710849600000`)
+		assertContainsLine(t, lines, `section_healthy{section="deployments"} 1 1710849600000`)
 	})
 }
 
@@ -232,20 +236,20 @@ func TestPrometheusExport_EmptyReport(t *testing.T) {
 	if len(lines) == 0 {
 		t.Error("PrometheusExport should always emit at least health metrics")
 	}
-	assertContainsLine(t, lines, `cluster_healthy 1 1710849600`)
+	assertContainsLine(t, lines, `cluster_healthy 1 1710849600000`)
 }
 
 func TestPromLine(t *testing.T) {
-	got := promLine("test_metric", promLabels{"a": "1", "b": "2"}, 42.5, 1710849600)
-	want := `test_metric{a="1",b="2"} 42.5 1710849600`
+	got := promLine("test_metric", promLabels{"a": "1", "b": "2"}, 42.5, 1710849600000)
+	want := `test_metric{a="1",b="2"} 42.5 1710849600000`
 	if got != want {
 		t.Errorf("promLine() = %q, want %q", got, want)
 	}
 }
 
 func TestPromLine_NoLabels(t *testing.T) {
-	got := promLine("test_metric", nil, 1, 1710849600)
-	want := `test_metric 1 1710849600`
+	got := promLine("test_metric", nil, 1, 1710849600000)
+	want := `test_metric 1 1710849600000`
 	if got != want {
 		t.Errorf("promLine() = %q, want %q", got, want)
 	}

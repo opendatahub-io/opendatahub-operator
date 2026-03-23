@@ -160,6 +160,10 @@ func (mc *MetricsCollector) collect() {
 	data := strings.Join(lines, "\n") + "\n"
 	if _, err := mc.file.WriteString(data); err != nil {
 		log.Printf("metrics collector: write failed: %v", err)
+		return
+	}
+	if err := mc.file.Sync(); err != nil {
+		log.Printf("metrics collector: sync failed: %v", err)
 	}
 }
 
