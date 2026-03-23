@@ -16,6 +16,29 @@ Issues are tracked using [Jira](https://issues.redhat.com/secure/RapidBoard.jspa
    - **For all other code changes:** Use the issue type `Story`
    - Add "Platform" in "Components" field
 
+## Development Setup
+
+1. **Install prerequisites:** Go 1.25+, `make`, `kubectl`/`oc`, and access to an OpenShift or Kubernetes cluster.
+2. **Clone and build:**
+   ```bash
+   git clone https://github.com/opendatahub-io/opendatahub-operator.git
+   cd opendatahub-operator
+   make build
+   ```
+3. **Install CRDs and deploy locally:**
+   ```bash
+   make install      # Install CRDs into the cluster
+   make deploy       # Deploy the operator
+   ```
+4. **Run tests:**
+   ```bash
+   make unit-test    # Run unit tests
+   make e2e-test     # Run end-to-end tests (requires cluster)
+   make lint         # Run linters
+   ```
+
+For additional setup options (e.g., overriding Makefile variables, using a `local.mk` file), see [troubleshooting](./docs/troubleshooting.md#using-a-localmk-file-to-override-makefile-variables-for-your-development-environment).
+
 ## Pull Requests
 
 ### Workflow
