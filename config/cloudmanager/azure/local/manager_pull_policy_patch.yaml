@@ -1,0 +1,11 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: azure-cloud-manager-operator
+  namespace: system
+spec:
+  template:
+    spec:
+      containers:
+      - name: manager
+        imagePullPolicy: IfNotPresent

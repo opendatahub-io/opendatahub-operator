@@ -86,6 +86,18 @@ func CrdExists(crdGvk schema.GroupVersionKind) DynamicPredicate {
 	}
 }
 
+// CrdExistsWithoutPreferred returns a DynamicPredicate for whatever version is being served,
+// avoiding redundant watches and API deprecation warnings.
+func CrdExistsWithoutPreferred(fallbackGVK, preferredGVK schema.GroupVersionKind) DynamicPredicate {
+	return func(ctx context.Context, request *types.ReconciliationRequest) bool {
+		if preferred, _ := cluster.HasCRD(ctx, request.Client, preferredGVK); preferred {
+			return false
+		}
+		fallback, _ := cluster.HasCRD(ctx, request.Client, fallbackGVK)
+		return fallback
+	}
+}
+
 // ClusterIsOpenShift is a DynamicPredicate that returns true when the operator
 // is running on an OpenShift cluster.
 func ClusterIsOpenShift() DynamicPredicate {

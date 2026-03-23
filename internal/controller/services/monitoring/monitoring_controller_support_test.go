@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -1554,4 +1555,104 @@ func TestGetTemplateDataImageURLs(t *testing.T) {
 			assert.Equal(t, tt.expectedPromLabelProxy, promLabelProxy)
 		})
 	}
+}
+
+func TestResolvePersesAPIVersion(t *testing.T) {
+	tests := []struct {
+		name             string
+		registerV1Alpha1 bool
+		registerV1Alpha2 bool
+		expectedVersion  string
+		expectedFound    bool
+	}{
+		{
+			name:             "prefers v1alpha2 when both versions are served",
+			registerV1Alpha1: true,
+			registerV1Alpha2: true,
+			expectedVersion:  "v1alpha2",
+			expectedFound:    true,
+		},
+		{
+			name:             "returns v1alpha2 when only v1alpha2 is served",
+			registerV1Alpha1: false,
+			registerV1Alpha2: true,
+			expectedVersion:  "v1alpha2",
+			expectedFound:    true,
+		},
+		{
+			name:             "falls back to v1alpha1 when only v1alpha1 is served",
+			registerV1Alpha1: true,
+			registerV1Alpha2: false,
+			expectedVersion:  "v1alpha1",
+			expectedFound:    true,
+		},
+		{
+			name:             "returns not found when neither version is served",
+			registerV1Alpha1: false,
+			registerV1Alpha2: false,
+			expectedVersion:  "",
+			expectedFound:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			ctx := t.Context()
+
+			scheme, err := testScheme.New()
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			fakeMapper := meta.NewDefaultRESTMapper(scheme.PreferredVersionAllGroups())
+			for kt := range scheme.AllKnownTypes() {
+				if kt == gvk.CustomResourceDefinition {
+					fakeMapper.Add(kt, meta.RESTScopeRoot)
+				} else {
+					fakeMapper.Add(kt, meta.RESTScopeNamespace)
+				}
+			}
+
+			var objects []client.Object
+			persesCRD := &extv1.CustomResourceDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "perses.perses.dev",
+				},
+			}
+			objects = append(objects, persesCRD)
+
+			if tt.registerV1Alpha1 {
+				r := schema.GroupVersionResource{Group: "perses.dev", Version: "v1alpha1", Resource: "perses"}
+				fakeMapper.AddSpecific(gvk.PersesV1Alpha1, r, r, meta.RESTScopeNamespace)
+			}
+			if tt.registerV1Alpha2 {
+				r := schema.GroupVersionResource{Group: "perses.dev", Version: "v1alpha2", Resource: "perses"}
+				fakeMapper.AddSpecific(gvk.PersesV1Alpha2, r, r, meta.RESTScopeNamespace)
+			}
+
+			cli := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithRESTMapper(fakeMapper).
+				WithObjects(objects...).
+				Build()
+
+			version, found, err := resolvePersesAPIVersion(ctx, cli)
+			g.Expect(err).ShouldNot(HaveOccurred())
+			g.Expect(found).Should(Equal(tt.expectedFound))
+			g.Expect(version).Should(Equal(tt.expectedVersion))
+		})
+	}
+}
+
+func TestPersesGVKs(t *testing.T) {
+	g := NewWithT(t)
+
+	perses, ds, db := persesGVKs("v1alpha2")
+	g.Expect(perses).Should(Equal(gvk.PersesV1Alpha2))
+	g.Expect(ds).Should(Equal(gvk.PersesDatasourceV1Alpha2))
+	g.Expect(db).Should(Equal(gvk.PersesDashboardV1Alpha2))
+
+	perses, ds, db = persesGVKs("v1alpha1")
+	g.Expect(perses).Should(Equal(gvk.PersesV1Alpha1))
+	g.Expect(ds).Should(Equal(gvk.PersesDatasourceV1Alpha1))
+	g.Expect(db).Should(Equal(gvk.PersesDashboardV1Alpha1))
 }

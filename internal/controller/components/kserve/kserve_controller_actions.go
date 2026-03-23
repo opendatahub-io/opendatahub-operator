@@ -2,6 +2,7 @@ package kserve
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -96,17 +97,18 @@ func customizeKserveConfigMap(_ context.Context, rr *odhtypes.ReconciliationRequ
 		return fmt.Errorf("resource instance %v is not a componentApi.Kserve", rr.Instance)
 	}
 
-	kserveConfigMap := corev1.ConfigMap{}
-	cmidx, err := getIndexedResource(rr.Resources, &kserveConfigMap, gvk.ConfigMap, kserveConfigMapName)
-	if err != nil {
-		return err
-	}
-
 	//nolint:staticcheck
 	serviceClusterIPNone := true
 	if k.Spec.RawDeploymentServiceConfig == componentApi.KserveRawHeaded {
 		// As default is Headless, only set false here if Headed is explicitly set
 		serviceClusterIPNone = false
+	}
+
+	// Update ConfigMap (required for both OpenShift and XKS)
+	kserveConfigMap := corev1.ConfigMap{}
+	cmidx, err := getIndexedResource(rr.Resources, &kserveConfigMap, gvk.ConfigMap, kserveConfigMapName)
+	if err != nil {
+		return err
 	}
 
 	if err := updateInferenceCM(&kserveConfigMap, serviceClusterIPNone); err != nil {
@@ -116,13 +118,21 @@ func customizeKserveConfigMap(_ context.Context, rr *odhtypes.ReconciliationRequ
 	if err = replaceResourceAtIndex(rr.Resources, cmidx, &kserveConfigMap); err != nil {
 		return err
 	}
-	kserveConfigHash, err := hashConfigMap(&kserveConfigMap)
+
+	// Check if kserve-controller-manager deployment exists in resources
+	// If not (e.g., XKS manifests), skip hash annotation
+	kserveDeployment := appsv1.Deployment{}
+	deployidx, err := getIndexedResource(rr.Resources, &kserveDeployment, gvk.Deployment, isvcControllerDeployment)
 	if err != nil {
+		// Only skip if deployment not found; propagate other errors
+		if errors.Is(err, ErrResourceNotFound) {
+			return nil
+		}
 		return err
 	}
 
-	kserveDeployment := appsv1.Deployment{}
-	deployidx, err := getIndexedResource(rr.Resources, &kserveDeployment, gvk.Deployment, "kserve-controller-manager")
+	// Add hash annotation to deployment to trigger restart on ConfigMap changes
+	kserveConfigHash, err := hashConfigMap(&kserveConfigMap)
 	if err != nil {
 		return err
 	}

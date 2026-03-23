@@ -581,9 +581,21 @@ var (
 		Kind:    "LLMInferenceServiceConfig",
 	}
 
+	LLMInferenceServiceConfigV1Alpha2 = schema.GroupVersionKind{
+		Group:   "serving.kserve.io",
+		Version: "v1alpha2",
+		Kind:    "LLMInferenceServiceConfig",
+	}
+
 	LLMInferenceServiceV1Alpha1 = schema.GroupVersionKind{
 		Group:   "serving.kserve.io",
 		Version: "v1alpha1",
+		Kind:    "LLMInferenceService",
+	}
+
+	LLMInferenceServiceV1Alpha2 = schema.GroupVersionKind{
+		Group:   "serving.kserve.io",
+		Version: "v1alpha2",
 		Kind:    "LLMInferenceService",
 	}
 
@@ -719,11 +731,17 @@ var (
 		Kind:    "PrometheusRule",
 	}
 
-	Perses = schema.GroupVersionKind{
+	PersesV1Alpha1 = schema.GroupVersionKind{
 		Group:   "perses.dev",
 		Version: "v1alpha1",
 		Kind:    "Perses",
 	}
+	PersesV1Alpha2 = schema.GroupVersionKind{
+		Group:   "perses.dev",
+		Version: "v1alpha2",
+		Kind:    "Perses",
+	}
+	Perses = PersesV1Alpha2
 
 	ServiceMesh = schema.GroupVersionKind{
 		Group:   serviceApi.GroupVersion.Group,
@@ -737,17 +755,29 @@ var (
 		Kind:    "ThanosQuerier",
 	}
 
-	PersesDatasource = schema.GroupVersionKind{
+	PersesDatasourceV1Alpha1 = schema.GroupVersionKind{
 		Group:   "perses.dev",
 		Version: "v1alpha1",
 		Kind:    "PersesDatasource",
 	}
+	PersesDatasourceV1Alpha2 = schema.GroupVersionKind{
+		Group:   "perses.dev",
+		Version: "v1alpha2",
+		Kind:    "PersesDatasource",
+	}
+	PersesDatasource = PersesDatasourceV1Alpha2
 
-	PersesDashboard = schema.GroupVersionKind{
+	PersesDashboardV1Alpha1 = schema.GroupVersionKind{
 		Group:   "perses.dev",
 		Version: "v1alpha1",
 		Kind:    "PersesDashboard",
 	}
+	PersesDashboardV1Alpha2 = schema.GroupVersionKind{
+		Group:   "perses.dev",
+		Version: "v1alpha2",
+		Kind:    "PersesDashboard",
+	}
+	PersesDashboard = PersesDashboardV1Alpha2
 
 	ValidatingAdmissionPolicy = schema.GroupVersionKind{
 		Group:   "admissionregistration.k8s.io",
