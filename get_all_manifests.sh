@@ -63,10 +63,10 @@ declare -A RHOAI_COMPONENT_MANIFESTS=(
 
 # ODH Component Charts
 declare -A ODH_COMPONENT_CHARTS=(
-    ["cert-manager-operator"]="opendatahub-io:odh-gitops:main@9587eccb5310d4bee6a56515a8dee7b6e186ba46:charts/dependencies/cert-manager-operator"
-    ["lws-operator"]="opendatahub-io:odh-gitops:main@9587eccb5310d4bee6a56515a8dee7b6e186ba46:charts/dependencies/lws-operator"
-    ["sail-operator"]="opendatahub-io:odh-gitops:main@9587eccb5310d4bee6a56515a8dee7b6e186ba46:charts/dependencies/sail-operator"
-    ["gateway-api"]="opendatahub-io:odh-gitops:main@9587eccb5310d4bee6a56515a8dee7b6e186ba46:charts/dependencies/gateway-api"
+    ["cert-manager-operator"]="opendatahub-io:odh-gitops:main@6b5e24e3d1713375e8a944730134e99ca51d1052:charts/dependencies/cert-manager-operator"
+    ["lws-operator"]="opendatahub-io:odh-gitops:main@6b5e24e3d1713375e8a944730134e99ca51d1052:charts/dependencies/lws-operator"
+    ["sail-operator"]="opendatahub-io:odh-gitops:main@6b5e24e3d1713375e8a944730134e99ca51d1052:charts/dependencies/sail-operator"
+    ["gateway-api"]="opendatahub-io:odh-gitops:main@6b5e24e3d1713375e8a944730134e99ca51d1052:charts/dependencies/gateway-api"
 )
 
 # RHOAI Component Charts
