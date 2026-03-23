@@ -62,12 +62,18 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
 		).
 		Watches(&corev1.Namespace{}).
+		Watches(
+			&componentApi.MLflowOperator{},
+			reconciler.WithEventHandler(handlers.ToNamed(componentApi.WorkbenchesInstanceName)),
+		).
 		WithAction(initialize).
 		WithAction(releases.NewAction(
 			releases.WithMetadataFilePath(
 				path.Join(odhdeploy.DefaultManifestPath, ComponentName, kfNotebookControllerPath, releases.ComponentMetadataFilename)))).
 		WithAction(configureDependencies).
+		WithAction(setKustomizedParams).
 		WithAction(kustomize.NewAction(
+			kustomize.WithCache(false),
 			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),
 		)).
