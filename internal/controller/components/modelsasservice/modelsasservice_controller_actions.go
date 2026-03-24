@@ -318,9 +318,15 @@ func patchAuthPolicyWithOIDC(log logr.Logger, resource *unstructured.Unstructure
 		return fmt.Errorf("failed to set X-MaaS-Username-OC: %w", err)
 	}
 
-	// Update X-MaaS-Group-OC to handle both OIDC and OpenShift group claims
+	// Update X-MaaS-Group-OC to handle both OIDC and OpenShift group claims.
+	// OIDC tokens carry groups in a flat claim; OpenShift identity uses user.groups.
+	groupsExpr := `has(auth.identity.groups) ? ` +
+		`(size(auth.identity.groups) > 0 ? ` +
+		`'["system:authenticated","' + auth.identity.groups.join('","') + '"]' : ` +
+		`'["system:authenticated"]') : ` +
+		`'["' + auth.identity.user.groups.join('","') + '"]'`
 	if err := unstructured.SetNestedField(resource.Object, map[string]interface{}{
-		"expression": `has(auth.identity.groups) ? (size(auth.identity.groups) > 0 ? '["system:authenticated","' + auth.identity.groups.join('","') + '"]' : '["system:authenticated"]') : '["' + auth.identity.user.groups.join('","') + '"]'`,
+		"expression": groupsExpr,
 	}, "spec", "rules", "response", "success", "headers", "X-MaaS-Group-OC", "plain"); err != nil {
 		return fmt.Errorf("failed to set X-MaaS-Group-OC: %w", err)
 	}
