@@ -107,6 +107,51 @@ func TestDataScienceClusterV2_Integration(t *testing.T) {
 				}).Should(Equal(modelregistryctrl.DefaultModelRegistriesNamespace), "should set ModelRegistry.RegistriesNamespace to default when empty and Managed")
 			},
 		},
+		{
+			name: "CEL: RegistriesNamespace immutable when ModelRegistry Managed; mutable when Removed",
+			setup: func(ns string) []client.Object {
+				return nil
+			},
+			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
+				dsc := envtestutil.NewDSC("dsc-mr-cel", WithModelRegistryDefaulting())
+				g.Expect(k8sClient.Create(ctx, dsc)).To(Succeed(), "should create DSC with ModelRegistry Managed and empty RegistriesNamespace")
+
+				key := types.NamespacedName{Name: "dsc-mr-cel", Namespace: ns}
+				fetched := &dscv2.DataScienceCluster{}
+				g.Eventually(func() string {
+					if err := k8sClient.Get(ctx, key, fetched); err != nil {
+						return ""
+					}
+					return fetched.Spec.Components.ModelRegistry.RegistriesNamespace
+				}).Should(Equal(modelregistryctrl.DefaultModelRegistriesNamespace), "mutating webhook should default RegistriesNamespace")
+
+				g.Expect(k8sClient.Get(ctx, key, fetched)).To(Succeed())
+				fetched.Spec.Components.ModelRegistry.RegistriesNamespace = "other-registry-ns"
+				err := k8sClient.Update(ctx, fetched)
+				g.Expect(err).To(HaveOccurred(), "CEL should reject changing RegistriesNamespace while Managed")
+				g.Expect(err.Error()).To(ContainSubstring("RegistriesNamespace"))
+
+				g.Expect(k8sClient.Get(ctx, key, fetched)).To(Succeed())
+				fetched.Spec.Components.ModelRegistry.ManagementState = operatorv1.Removed
+				g.Expect(k8sClient.Update(ctx, fetched)).To(Succeed(), "should allow setting ModelRegistry to Removed")
+
+				g.Expect(k8sClient.Get(ctx, key, fetched)).To(Succeed())
+				fetched.Spec.Components.ModelRegistry.RegistriesNamespace = "custom-ns-under-removed"
+				g.Expect(k8sClient.Update(ctx, fetched)).To(Succeed(), "should allow changing RegistriesNamespace when not Managed")
+
+				g.Expect(k8sClient.Get(ctx, key, fetched)).To(Succeed())
+				g.Expect(fetched.Spec.Components.ModelRegistry.RegistriesNamespace).To(Equal("custom-ns-under-removed"))
+
+				fetched.Spec.Components.ModelRegistry.ManagementState = operatorv1.Managed
+				g.Expect(k8sClient.Update(ctx, fetched)).To(Succeed(), "should allow transition back to Managed with existing namespace")
+
+				g.Expect(k8sClient.Get(ctx, key, fetched)).To(Succeed())
+				fetched.Spec.Components.ModelRegistry.RegistriesNamespace = "another-ns"
+				err = k8sClient.Update(ctx, fetched)
+				g.Expect(err).To(HaveOccurred(), "CEL should reject changing RegistriesNamespace after Managed again")
+				g.Expect(err.Error()).To(ContainSubstring("RegistriesNamespace"))
+			},
+		},
 	}
 
 	for _, tc := range testCases {
