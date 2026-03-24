@@ -187,7 +187,7 @@ jobs:
 
       - name: Upload Semgrep SARIF results
         if: always() && hashFiles('semgrep.sarif') != ''
-        uses: github/codeql-action/upload-sarif@1b168cd39490f61582a9beae412bb7057a6b2c4e  # v4.31.8
+        uses: github/codeql-action/upload-sarif@38697555549f1db7851b81482ff19f1fa5c4fedc  # v4.34.1
         with:
           sarif_file: semgrep.sarif
           category: semgrep
@@ -269,7 +269,7 @@ jobs:
 
       - name: Upload Hadolint SARIF results
         if: always() && hashFiles('hadolint.sarif') != ''
-        uses: github/codeql-action/upload-sarif@1b168cd39490f61582a9beae412bb7057a6b2c4e  # v4.31.8
+        uses: github/codeql-action/upload-sarif@38697555549f1db7851b81482ff19f1fa5c4fedc  # v4.34.1
         with:
           sarif_file: hadolint.sarif
           category: hadolint
@@ -398,7 +398,7 @@ jobs:
 
       - name: Upload kube-linter SARIF results
         if: always() && hashFiles('kube-linter.sarif') != ''
-        uses: github/codeql-action/upload-sarif@1b168cd39490f61582a9beae412bb7057a6b2c4e  # v4.31.8
+        uses: github/codeql-action/upload-sarif@38697555549f1db7851b81482ff19f1fa5c4fedc  # v4.34.1
         with:
           sarif_file: kube-linter.sarif
           category: kube-linter
