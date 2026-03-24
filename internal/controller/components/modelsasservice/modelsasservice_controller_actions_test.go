@@ -1172,3 +1172,178 @@ func createDeployment() unstructured.Unstructured {
 	}
 	return unstructured.Unstructured{Object: u}
 }
+
+func TestConfigureExternalOIDC(t *testing.T) {
+	g := NewWithT(t)
+
+	t.Run("should patch AuthPolicy with OIDC rules when externalOIDC is set", func(t *testing.T) {
+		maas := &componentApi.ModelsAsService{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.ModelsAsServiceInstanceName,
+			},
+			Spec: componentApi.ModelsAsServiceSpec{
+				ExternalOIDC: &componentApi.ExternalOIDCConfig{
+					IssuerURL: "https://keycloak.example.com/realms/maas",
+					ClientID:  "maas-cli",
+					TTL:       300,
+				},
+			},
+		}
+
+		authPolicy := createAuthPolicy(MaaSAPIAuthPolicyName, "opendatahub", "maas-api-route")
+
+		rr := &types.ReconciliationRequest{
+			Instance:  maas,
+			Resources: []unstructured.Unstructured{authPolicy},
+		}
+
+		err := configureExternalOIDC(t.Context(), rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// oidc-identities authentication should be added
+		issuer, found, err := unstructured.NestedString(rr.Resources[0].Object,
+			"spec", "rules", "authentication", "oidc-identities", "jwt", "issuerUrl")
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(found).Should(BeTrue())
+		g.Expect(issuer).Should(Equal("https://keycloak.example.com/realms/maas"))
+
+		// openshift-identities priority should be bumped to 2
+		priority, found, err := unstructured.NestedFieldNoCopy(rr.Resources[0].Object,
+			"spec", "rules", "authentication", "openshift-identities", "priority")
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(found).Should(BeTrue())
+		g.Expect(priority).Should(Equal(int64(2)))
+
+		// oidc-client-bound authorization should be added
+		patterns, found, err := unstructured.NestedSlice(rr.Resources[0].Object,
+			"spec", "rules", "authorization", "oidc-client-bound", "patternMatching", "patterns")
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(found).Should(BeTrue())
+		g.Expect(patterns).Should(HaveLen(1))
+		pattern, ok := patterns[0].(map[string]interface{})
+		g.Expect(ok).Should(BeTrue())
+		g.Expect(pattern["value"]).Should(Equal("maas-cli"))
+	})
+
+	t.Run("should not modify AuthPolicy when externalOIDC is nil", func(t *testing.T) {
+		maas := &componentApi.ModelsAsService{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.ModelsAsServiceInstanceName,
+			},
+			Spec: componentApi.ModelsAsServiceSpec{},
+		}
+
+		authPolicy := createAuthPolicy(MaaSAPIAuthPolicyName, "opendatahub", "maas-api-route")
+
+		rr := &types.ReconciliationRequest{
+			Instance:  maas,
+			Resources: []unstructured.Unstructured{authPolicy},
+		}
+
+		err := configureExternalOIDC(t.Context(), rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// No OIDC rules should be present
+		_, found, _ := unstructured.NestedMap(rr.Resources[0].Object,
+			"spec", "rules", "authentication", "oidc-identities")
+		g.Expect(found).Should(BeFalse())
+	})
+
+	t.Run("should succeed silently when maas-api AuthPolicy is not found", func(t *testing.T) {
+		maas := &componentApi.ModelsAsService{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.ModelsAsServiceInstanceName,
+			},
+			Spec: componentApi.ModelsAsServiceSpec{
+				ExternalOIDC: &componentApi.ExternalOIDCConfig{
+					IssuerURL: "https://keycloak.example.com/realms/maas",
+					ClientID:  "maas-cli",
+				},
+			},
+		}
+
+		// Different AuthPolicy name -- maas-api-auth-policy not present
+		otherPolicy := createAuthPolicy("other-policy", "opendatahub", "some-route")
+
+		rr := &types.ReconciliationRequest{
+			Instance:  maas,
+			Resources: []unstructured.Unstructured{otherPolicy},
+		}
+
+		err := configureExternalOIDC(t.Context(), rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// other-policy should not be modified
+		_, found, _ := unstructured.NestedMap(rr.Resources[0].Object,
+			"spec", "rules", "authentication", "oidc-identities")
+		g.Expect(found).Should(BeFalse())
+	})
+
+	t.Run("should only modify maas-api AuthPolicy when multiple resources present", func(t *testing.T) {
+		maas := &componentApi.ModelsAsService{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.ModelsAsServiceInstanceName,
+			},
+			Spec: componentApi.ModelsAsServiceSpec{
+				ExternalOIDC: &componentApi.ExternalOIDCConfig{
+					IssuerURL: "https://idp.example.com/realms/test",
+					ClientID:  "test-client",
+				},
+			},
+		}
+
+		gatewayPolicy := createAuthPolicy(GatewayAuthPolicyName, "openshift-ingress", "gateway")
+		maasAPIPolicy := createAuthPolicy(MaaSAPIAuthPolicyName, "opendatahub", "maas-api-route")
+
+		rr := &types.ReconciliationRequest{
+			Instance:  maas,
+			Resources: []unstructured.Unstructured{gatewayPolicy, maasAPIPolicy},
+		}
+
+		err := configureExternalOIDC(t.Context(), rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// gateway-auth-policy should NOT have OIDC rules
+		_, found, _ := unstructured.NestedMap(rr.Resources[0].Object,
+			"spec", "rules", "authentication", "oidc-identities")
+		g.Expect(found).Should(BeFalse())
+
+		// maas-api-auth-policy SHOULD have OIDC rules
+		issuer, found, err := unstructured.NestedString(rr.Resources[1].Object,
+			"spec", "rules", "authentication", "oidc-identities", "jwt", "issuerUrl")
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(found).Should(BeTrue())
+		g.Expect(issuer).Should(Equal("https://idp.example.com/realms/test"))
+	})
+
+	t.Run("should use default TTL when not specified", func(t *testing.T) {
+		maas := &componentApi.ModelsAsService{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.ModelsAsServiceInstanceName,
+			},
+			Spec: componentApi.ModelsAsServiceSpec{
+				ExternalOIDC: &componentApi.ExternalOIDCConfig{
+					IssuerURL: "https://keycloak.example.com/realms/maas",
+					ClientID:  "maas-cli",
+					TTL:       0,
+				},
+			},
+		}
+
+		authPolicy := createAuthPolicy(MaaSAPIAuthPolicyName, "opendatahub", "maas-api-route")
+
+		rr := &types.ReconciliationRequest{
+			Instance:  maas,
+			Resources: []unstructured.Unstructured{authPolicy},
+		}
+
+		err := configureExternalOIDC(t.Context(), rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		ttl, found, err := unstructured.NestedFieldNoCopy(rr.Resources[0].Object,
+			"spec", "rules", "authentication", "oidc-identities", "jwt", "ttl")
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(found).Should(BeTrue())
+		g.Expect(ttl).Should(Equal(int64(300)))
+	})
+}
