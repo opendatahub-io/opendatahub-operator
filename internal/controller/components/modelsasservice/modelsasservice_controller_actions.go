@@ -230,7 +230,11 @@ func configureTelemetryPolicy(ctx context.Context, rr *types.ReconciliationReque
 
 	// Skip if TelemetryPolicy CRD is not available in the cluster
 	crdAvailable, err := cluster.HasCRD(ctx, rr.Client, gvk.TelemetryPolicyv1alpha1)
-	if err != nil || !crdAvailable {
+	if err != nil {
+		log.V(2).Info("Failed to check TelemetryPolicy CRD availability, skipping", "error", err)
+		return nil
+	}
+	if !crdAvailable {
 		log.V(2).Info("TelemetryPolicy CRD not available, skipping")
 		return nil
 	}
@@ -268,24 +272,24 @@ func configureTelemetryPolicyCore(ctx context.Context, rr *types.ReconciliationR
 
 	// Create the TelemetryPolicy resource
 	telemetryPolicy := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "extensions.kuadrant.io/v1alpha1",
 			"kind":       "TelemetryPolicy",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      TelemetryPolicyName,
 				"namespace": gatewayNamespace,
-				"labels": map[string]interface{}{
+				"labels": map[string]any{
 					"app.kubernetes.io/part-of": "maas-observability",
 				},
 			},
-			"spec": map[string]interface{}{
-				"targetRef": map[string]interface{}{
+			"spec": map[string]any{
+				"targetRef": map[string]any{
 					"group": "gateway.networking.k8s.io",
 					"kind":  "Gateway",
 					"name":  gatewayName,
 				},
-				"metrics": map[string]interface{}{
-					"default": map[string]interface{}{
+				"metrics": map[string]any{
+					"default": map[string]any{
 						"labels": metricLabels,
 					},
 				},
@@ -311,7 +315,7 @@ func configureTelemetryPolicyCore(ctx context.Context, rr *types.ReconciliationR
 // buildTelemetryLabels creates the metric labels map based on the telemetry configuration.
 // Always-on dimensions (subscription, cost_center, tier) are always included for billing and access control.
 // Other dimensions are configurable based on MetricsConfig settings.
-func buildTelemetryLabels(log logr.Logger, config *componentApi.TelemetryConfig) map[string]interface{} {
+func buildTelemetryLabels(log logr.Logger, config *componentApi.TelemetryConfig) map[string]any {
 	// Default values when config is nil or metrics is nil
 	captureOrganization := true
 	captureUser := false // Disabled by default for privacy/GDPR compliance
@@ -335,7 +339,7 @@ func buildTelemetryLabels(log logr.Logger, config *componentApi.TelemetryConfig)
 	}
 
 	// Always-on dimensions - essential for billing and access control
-	labels := map[string]interface{}{
+	labels := map[string]any{
 		"subscription": "auth.identity.selected_subscription",
 		"cost_center":  "auth.identity.costCenter",
 		"tier":         "auth.identity.tier",

@@ -719,9 +719,8 @@ func TestConfigureTelemetryPolicy(t *testing.T) {
 
 			err := configureTelemetryPolicy(t.Context(), rr)
 			g.Expect(err).ShouldNot(HaveOccurred())   // Should succeed but skip
-			g.Expect(rr.Resources).Should(HaveLen(0)) // No resources should be added
+			g.Expect(rr.Resources).Should(BeEmpty()) // No resources should be added
 		})
-
 	})
 
 	t.Run("TelemetryPolicy Creation", func(t *testing.T) {
