@@ -40,6 +40,10 @@ const (
 	// the same namespace as the gateway it targets.
 	GatewayAuthPolicyName = "gateway-auth-policy"
 
+	// MaaSAPIAuthPolicyName is the name of the AuthPolicy that configures
+	// authentication for the maas-api HTTPRoute (API keys, OpenShift, optional OIDC).
+	MaaSAPIAuthPolicyName = "maas-api-auth-policy"
+
 	// GatewayDestinationRuleName is the name of the DestinationRule resource that
 	// configures TLS for the MaaS gateway. This resource needs to be deployed to
 	// the same namespace as the gateway it targets.

@@ -62,44 +62,38 @@ type ModelsAsServiceSpec struct {
 	// +kubebuilder:validation:Optional
 	APIKeys *APIKeysConfig `json:"apiKeys,omitempty"`
 
+	// ExternalOIDC configures an external OIDC identity provider (e.g. Keycloak, Azure AD)
+	// for the maas-api AuthPolicy. When set, the operator patches the AuthPolicy to accept
+	// JWTs from the specified issuer alongside OpenShift TokenReview and API key authentication.
+	// +kubebuilder:validation:Optional
+	ExternalOIDC *ExternalOIDCConfig `json:"externalOIDC,omitempty"`
+
 	// Telemetry contains configuration for telemetry and metrics collection.
 	// +kubebuilder:validation:Optional
 	Telemetry *TelemetryConfig `json:"telemetry,omitempty"`
 }
 
-// TelemetryConfig defines configuration for telemetry collection.
-// Core billing and access control metrics (subscription, cost_center, tier) are always emitted.
-type TelemetryConfig struct {
-	// Metrics contains configuration for optional metric dimensions/labels.
-	// +kubebuilder:validation:Optional
-	Metrics *MetricsConfig `json:"metrics,omitempty"`
-}
+// ExternalOIDCConfig defines the external OIDC provider settings.
+type ExternalOIDCConfig struct {
+	// IssuerURL is the OIDC issuer URL (e.g. https://keycloak.example.com/realms/maas).
+	// Must serve a .well-known/openid-configuration endpoint over HTTPS.
+	// +kubebuilder:validation:MinLength=9
+	// +kubebuilder:validation:MaxLength=2048
+	// +kubebuilder:validation:Pattern=`^https://\S+$`
+	IssuerURL string `json:"issuerUrl"`
 
-// MetricsConfig defines which dimensions (labels) are captured in telemetry metrics.
-// Each dimension can be enabled or disabled to control metric cardinality and storage costs.
-// Note: subscription, cost_center, and tier dimensions are always emitted for billing and access control.
-type MetricsConfig struct {
-	// CaptureOrganization enables the organization_id label on metrics.
-	// +kubebuilder:default=true
-	// +kubebuilder:validation:Optional
-	CaptureOrganization *bool `json:"captureOrganization,omitempty"`
+	// ClientID is the OAuth2 client ID. Incoming OIDC tokens must have an
+	// azp (authorized party) claim matching this value.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=256
+	// +kubebuilder:validation:Pattern=`^\S+$`
+	ClientID string `json:"clientId"`
 
-	// CaptureUser enables the user label on metrics.
-	// Disabled by default for privacy/GDPR compliance.
-	// +kubebuilder:default=false
+	// TTL is the JWKS cache duration in seconds.
 	// +kubebuilder:validation:Optional
-	CaptureUser *bool `json:"captureUser,omitempty"`
-
-	// CaptureGroup enables the group label on metrics for team-based chargeback.
-	// Note: This is a high-cardinality dimension and is disabled by default.
-	// +kubebuilder:default=false
-	// +kubebuilder:validation:Optional
-	CaptureGroup *bool `json:"captureGroup,omitempty"`
-
-	// CaptureModelUsage enables the model label on metrics.
-	// +kubebuilder:default=true
-	// +kubebuilder:validation:Optional
-	CaptureModelUsage *bool `json:"captureModelUsage,omitempty"`
+	// +kubebuilder:default=300
+	// +kubebuilder:validation:Minimum=30
+	TTL int `json:"ttl,omitempty"`
 }
 
 // APIKeysConfig defines configuration options for API key management.

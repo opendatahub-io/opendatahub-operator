@@ -220,31 +220,10 @@ func configureDestinationRule(log logr.Logger, resource *unstructured.Unstructur
 	resource.SetNamespace(gatewayNamespace)
 }
 
-// configureTelemetryPolicy is a post-render action that creates a TelemetryPolicy
-// resource based on the ModelsAsService telemetry configuration.
-//
-// The TelemetryPolicy is generated programmatically (not from manifests) because
-// its content is entirely dynamic based on the spec.telemetry.metrics configuration.
-func configureTelemetryPolicy(ctx context.Context, rr *types.ReconciliationRequest) error {
-	log := logf.FromContext(ctx)
-
-	// Skip if TelemetryPolicy CRD is not available in the cluster
-	crdAvailable, err := cluster.HasCRD(ctx, rr.Client, gvk.TelemetryPolicyv1alpha1)
-	if err != nil {
-		return fmt.Errorf("failed to check TelemetryPolicy CRD availability: %w", err)
-	}
-	if !crdAvailable {
-		log.V(2).Info("TelemetryPolicy CRD not available, skipping")
-		return nil
-	}
-
-	return configureTelemetryPolicyCore(ctx, rr)
-}
-
-// configureTelemetryPolicyCore contains the core business logic for creating TelemetryPolicy resources.
-// This function is extracted to allow testing the TelemetryPolicy creation logic without
-// dealing with CRD availability check complexity in the test environment.
-func configureTelemetryPolicyCore(ctx context.Context, rr *types.ReconciliationRequest) error {
+// configureExternalOIDC is a post-render action that patches the maas-api AuthPolicy
+// to add external OIDC JWT authentication when spec.externalOIDC is configured.
+// When externalOIDC is nil, the AuthPolicy is left unchanged (base: API keys + OpenShift).
+func configureExternalOIDC(ctx context.Context, rr *types.ReconciliationRequest) error {
 	log := logf.FromContext(ctx)
 
 	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
@@ -252,125 +231,103 @@ func configureTelemetryPolicyCore(ctx context.Context, rr *types.ReconciliationR
 		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
 	}
 
-	gatewayNamespace := maas.Spec.GatewayRef.Namespace
-	gatewayName := maas.Spec.GatewayRef.Name
-
-	// Build the labels map based on telemetry configuration
-	metricLabels := buildTelemetryLabels(log, maas.Spec.Telemetry)
-
-	// Create OwnerReference for the TelemetryPolicy
-	controller := true
-	ownerRef := metav1.OwnerReference{
-		APIVersion:         maas.APIVersion,
-		Kind:               maas.Kind,
-		Name:               maas.Name,
-		UID:                maas.UID,
-		Controller:         &controller,
-		BlockOwnerDeletion: &controller,
+	if maas.Spec.ExternalOIDC == nil {
+		return nil
 	}
 
-	// Create the TelemetryPolicy resource
-	telemetryPolicy := &unstructured.Unstructured{
-		Object: map[string]any{
-			"apiVersion": "extensions.kuadrant.io/v1alpha1",
-			"kind":       "TelemetryPolicy",
-			"metadata": map[string]any{
-				"name":      TelemetryPolicyName,
-				"namespace": gatewayNamespace,
-				"labels": map[string]any{
-					"app.kubernetes.io/part-of": "maas-observability",
-				},
-			},
-			"spec": map[string]any{
-				"targetRef": map[string]any{
-					"group": "gateway.networking.k8s.io",
-					"kind":  "Gateway",
-					"name":  gatewayName,
-				},
-				"metrics": map[string]any{
-					"default": map[string]any{
-						"labels": metricLabels,
-					},
-				},
-			},
-		},
+	oidc := maas.Spec.ExternalOIDC
+	log.V(4).Info("Configuring external OIDC on maas-api AuthPolicy",
+		"issuerUrl", oidc.IssuerURL, "clientId", oidc.ClientID)
+
+	for idx := range rr.Resources {
+		resource := &rr.Resources[idx]
+		if resource.GroupVersionKind() == gvk.AuthPolicyv1 && resource.GetName() == MaaSAPIAuthPolicyName {
+			return patchAuthPolicyWithOIDC(log, resource, oidc)
+		}
 	}
 
-	// Set OwnerReferences using the unstructured API
-	telemetryPolicy.SetOwnerReferences([]metav1.OwnerReference{ownerRef})
-
-	log.V(2).Info("Creating TelemetryPolicy",
-		"name", TelemetryPolicyName,
-		"namespace", gatewayNamespace,
-		"targetGateway", gatewayName,
-		"labels", metricLabels)
-
-	// Add to resources for deployment
-	rr.Resources = append(rr.Resources, *telemetryPolicy)
-
+	log.V(1).Info("maas-api AuthPolicy not found in rendered resources, skipping OIDC configuration",
+		"expectedName", MaaSAPIAuthPolicyName)
 	return nil
 }
 
-// buildTelemetryLabels creates the metric labels map based on the telemetry configuration.
-// Always-on dimensions (subscription, cost_center, tier) are always included for billing and access control.
-// Other dimensions are configurable based on MetricsConfig settings.
-func buildTelemetryLabels(log logr.Logger, config *componentApi.TelemetryConfig) map[string]any {
-	// Default values when config is nil or metrics is nil
-	captureOrganization := true
-	captureUser := false // Disabled by default for privacy/GDPR compliance
-	captureGroup := false
-	captureModelUsage := true
-
-	if config != nil && config.Metrics != nil {
-		metrics := config.Metrics
-		if metrics.CaptureOrganization != nil {
-			captureOrganization = *metrics.CaptureOrganization
-		}
-		if metrics.CaptureUser != nil {
-			captureUser = *metrics.CaptureUser
-		}
-		if metrics.CaptureGroup != nil {
-			captureGroup = *metrics.CaptureGroup
-		}
-		if metrics.CaptureModelUsage != nil {
-			captureModelUsage = *metrics.CaptureModelUsage
-		}
+// patchAuthPolicyWithOIDC adds OIDC authentication, authorization, and response
+// header rules to the maas-api AuthPolicy.
+func patchAuthPolicyWithOIDC(log logr.Logger, resource *unstructured.Unstructured, oidc *componentApi.ExternalOIDCConfig) error {
+	ttl := int64(oidc.TTL)
+	if ttl == 0 {
+		ttl = 300
 	}
 
-	// Always-on dimensions - essential for billing and access control
-	labels := map[string]any{
-		"subscription": "auth.identity.selected_subscription",
-		"cost_center":  "auth.identity.costCenter",
-		"tier":         "auth.identity.tier",
+	// Add oidc-identities authentication (priority 1, JWT validation)
+	if err := unstructured.SetNestedField(resource.Object, map[string]interface{}{
+		"when": []interface{}{
+			map[string]interface{}{
+				"predicate": `!request.headers.authorization.startsWith("Bearer sk-oai-") && request.headers.authorization.matches("^Bearer [^.]+\\.[^.]+\\.[^.]+$")`,
+			},
+		},
+		"jwt": map[string]interface{}{
+			"issuerUrl": oidc.IssuerURL,
+			"ttl":       ttl,
+		},
+		"priority": int64(1),
+	}, "spec", "rules", "authentication", "oidc-identities"); err != nil {
+		return fmt.Errorf("failed to set oidc-identities: %w", err)
 	}
 
-	// Configurable dimensions
-	if captureOrganization {
-		labels["organization_id"] = "auth.identity.organizationId"
+	// Bump openshift-identities priority to 2 (OIDC takes priority 1)
+	if err := unstructured.SetNestedField(resource.Object, int64(2),
+		"spec", "rules", "authentication", "openshift-identities", "priority"); err != nil {
+		return fmt.Errorf("failed to set openshift-identities priority: %w", err)
 	}
 
-	if captureUser {
-		log.Info("WARNING: User identity metrics enabled - ensure GDPR/privacy compliance",
-			"field", "captureUser", "value", true)
-		labels["user"] = "auth.identity.userid"
+	// Add when clause to openshift-identities to skip for API key tokens
+	if err := unstructured.SetNestedField(resource.Object, []interface{}{
+		map[string]interface{}{
+			"predicate": `!request.headers.authorization.startsWith("Bearer sk-oai-")`,
+		},
+	}, "spec", "rules", "authentication", "openshift-identities", "when"); err != nil {
+		return fmt.Errorf("failed to set openshift-identities when: %w", err)
 	}
 
-	if captureGroup {
-		labels["group"] = "auth.identity.group"
+	// Add oidc-client-bound authorization (azp claim must match clientId)
+	if err := unstructured.SetNestedField(resource.Object, map[string]interface{}{
+		"when": []interface{}{
+			map[string]interface{}{
+				"predicate": `!request.headers.authorization.startsWith("Bearer sk-oai-") && request.headers.authorization.matches("^Bearer [^.]+\\.[^.]+\\.[^.]+$")`,
+			},
+		},
+		"patternMatching": map[string]interface{}{
+			"patterns": []interface{}{
+				map[string]interface{}{
+					"selector": "auth.identity.azp",
+					"operator": "eq",
+					"value":    oidc.ClientID,
+				},
+			},
+		},
+		"priority": int64(1),
+	}, "spec", "rules", "authorization", "oidc-client-bound"); err != nil {
+		return fmt.Errorf("failed to set oidc-client-bound: %w", err)
 	}
 
-	if captureModelUsage {
-		labels["model"] = "responseBodyJSON(\"/model\")"
+	// Update X-MaaS-Username-OC to handle both OIDC and OpenShift claims
+	if err := unstructured.SetNestedField(resource.Object, map[string]interface{}{
+		"expression": `has(auth.identity.preferred_username) ? auth.identity.preferred_username : (has(auth.identity.sub) ? auth.identity.sub : auth.identity.user.username)`,
+	}, "spec", "rules", "response", "success", "headers", "X-MaaS-Username-OC", "plain"); err != nil {
+		return fmt.Errorf("failed to set X-MaaS-Username-OC: %w", err)
 	}
 
-	log.V(4).Info("Built telemetry labels",
-		"captureOrganization", captureOrganization,
-		"captureUser", captureUser,
-		"captureGroup", captureGroup,
-		"captureModelUsage", captureModelUsage,
-		"totalLabels", len(labels))
+	// Update X-MaaS-Group-OC to handle both OIDC and OpenShift group claims
+	if err := unstructured.SetNestedField(resource.Object, map[string]interface{}{
+		"expression": `has(auth.identity.groups) ? (size(auth.identity.groups) > 0 ? '["system:authenticated","' + auth.identity.groups.join('","') + '"]' : '["system:authenticated"]') : '["' + auth.identity.user.groups.join('","') + '"]'`,
+	}, "spec", "rules", "response", "success", "headers", "X-MaaS-Group-OC", "plain"); err != nil {
+		return fmt.Errorf("failed to set X-MaaS-Group-OC: %w", err)
+	}
 
-	return labels
+	log.Info("Patched maas-api AuthPolicy with external OIDC configuration",
+		"issuerUrl", oidc.IssuerURL, "clientId", oidc.ClientID)
+	return nil
 }
 
 // configureConfigHashAnnotation adds a hash annotation to the maas-api Deployment
