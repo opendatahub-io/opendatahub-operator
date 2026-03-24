@@ -136,7 +136,7 @@ GINKGO ?= $(LOCALBIN)/ginkgo
 YQ ?= $(LOCALBIN)/yq
 
 ## Tool Versions
-KUSTOMIZE_VERSION ?= v5.7.0
+KUSTOMIZE_VERSION ?= v5.8.1
 CONTROLLER_TOOLS_VERSION ?= v0.17.3
 OPERATOR_SDK_VERSION ?= v1.39.2
 GOLANGCI_LINT_VERSION ?= v2.5.0
@@ -669,7 +669,8 @@ ifneq (,$(wildcard cmd/health-check/Makefile))
 include cmd/health-check/Makefile
 endif
 
-.PHONY: e2e-test
+.PHONY: e2e-test e2e
+e2e: e2e-test ## Alias for e2e-test
 e2e-test:
 # Specifies the namespace where the operator pods are deployed
 ifndef E2E_TEST_OPERATOR_NAMESPACE

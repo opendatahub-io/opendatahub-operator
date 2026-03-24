@@ -7,8 +7,6 @@ import (
 	"slices"
 	"strings"
 
-	"k8s.io/apiextensions-apiserver/pkg/apihelpers"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -146,7 +144,7 @@ func (a *action) run(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 			continue
 		}
 
-		has, err := hasCRDWithVersion(ctx, rr.Client, config.GVK.GroupKind(), config.GVK.Version)
+		has, err := cluster.HasCRD(ctx, rr.Client, config.GVK)
 		if err != nil {
 			// Log and continue - monitoring failures should not block reconciliation.
 			logger := ctrlLog.FromContext(ctx)
@@ -335,30 +333,4 @@ func NewAction(opts ...ActionOpts) actions.Fn {
 	}
 
 	return a.run
-}
-
-// TODO: use the cluster.HasCRD function instead. But that function also checks
-// the CRD stored version, which should be the one checked. To understand why that
-// check.
-// Actually, it's failing the check on security.istio.io, since the stored version is v1beta1
-// but KServe monitor is on v1.
-func hasCRDWithVersion(ctx context.Context, cli client.Client, gk schema.GroupKind, version string) (bool, error) {
-	m, err := cli.RESTMapper().RESTMapping(gk, version)
-	if err != nil {
-		if meta.IsNoMatchError(err) {
-			return false, nil
-		}
-
-		return false, err
-	}
-
-	crd, err := cluster.GetCRD(ctx, cli, m.Resource.GroupResource().String())
-	switch {
-	case err != nil:
-		return false, client.IgnoreNotFound(err)
-	case apihelpers.IsCRDConditionTrue(&crd, apiextensionsv1.Terminating):
-		return false, nil
-	default:
-		return true, nil
-	}
 }
