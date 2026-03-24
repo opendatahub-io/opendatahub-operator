@@ -6,6 +6,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	userv1 "github.com/openshift/api/user/v1"
+	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -30,6 +31,7 @@ const (
 // Set includeMockAuth to true if the test needs OAuth authentication.
 func setupTestClient(g Gomega, includeMockAuth bool) client.Client {
 	scheme := runtime.NewScheme()
+	g.Expect(corev1.AddToScheme(scheme)).Should(Succeed())
 	g.Expect(dsciv2.AddToScheme(scheme)).Should(Succeed())
 	g.Expect(rbacv1.AddToScheme(scheme)).Should(Succeed())
 	g.Expect(serviceApi.AddToScheme(scheme)).Should(Succeed())
@@ -45,7 +47,19 @@ func setupTestClient(g Gomega, includeMockAuth bool) client.Client {
 		},
 	}
 
-	objects := []client.Object{dsci}
+	testNs := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-namespace",
+		},
+	}
+
+	maasNs := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "models-as-a-service",
+		},
+	}
+
+	objects := []client.Object{dsci, testNs, maasNs}
 
 	if includeMockAuth {
 		mockAuth := &configv1.Authentication{
@@ -70,8 +84,11 @@ func TestInitialize(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
 
+	fakeClient := setupTestClient(g, false)
+
 	// Create a basic reconciliation request
 	rr := &odhtypes.ReconciliationRequest{
+		Client:    fakeClient,
 		Templates: []odhtypes.TemplateInfo{},
 	}
 
@@ -81,9 +98,9 @@ func TestInitialize(t *testing.T) {
 	// Verify templates were added
 	g.Expect(rr.Templates).To(HaveLen(4))
 	g.Expect(rr.Templates[0].Path).To(Equal(AdminGroupRoleTemplate))
-	g.Expect(rr.Templates[1].Path).To(Equal(AdminGroupIngressRoleTemplate))
-	g.Expect(rr.Templates[2].Path).To(Equal(AdminGroupClusterRoleTemplate))
-	g.Expect(rr.Templates[3].Path).To(Equal(AllowedGroupClusterRoleTemplate))
+	g.Expect(rr.Templates[1].Path).To(Equal(AdminGroupClusterRoleTemplate))
+	g.Expect(rr.Templates[2].Path).To(Equal(AllowedGroupClusterRoleTemplate))
+	g.Expect(rr.Templates[3].Path).To(Equal(AdminGroupMaaSRoleTemplate))
 }
 
 // TestBindRoleValidation validates the security filtering logic in the bindRole function.

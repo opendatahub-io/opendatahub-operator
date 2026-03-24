@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"gomodules.xyz/jsonpatch/v2"
@@ -527,6 +528,32 @@ func TestISVCConnectionWebhook(t *testing.T) {
 			operation:          admissionv1.Create,
 			expectedAllowed:    true,
 			expectedPatchCheck: hasImagePullSecretsPatch(testSecret),
+		},
+		{
+			name:            "annotation as OCI type with pre-existing imagePullSecrets, merges both secrets",
+			secretType:      webhookutils.ConnectionTypeProtocolOCI.String(),
+			secretNamespace: testNamespace,
+			annotations:     map[string]string{annotations.Connection: testSecret},
+			predictorSpec: map[string]interface{}{
+				"imagePullSecrets": []interface{}{
+					map[string]interface{}{"name": "existing-secret"},
+				},
+			},
+			operation:       admissionv1.Create,
+			expectedAllowed: true,
+			expectedPatchCheck: func(patches []jsonpatch.JsonPatchOperation) bool {
+				for _, patch := range patches {
+					if !strings.HasPrefix(patch.Path, isvcImagePullSecretsPath) {
+						continue
+					}
+					if m, ok := patch.Value.(map[string]interface{}); ok {
+						if n, exists := m["name"]; exists && n == testSecret {
+							return patch.Operation == "add"
+						}
+					}
+				}
+				return false
+			},
 		},
 		{
 			name:               "annotation as URI type with model in spec, ISVC creation allowed with injection done",

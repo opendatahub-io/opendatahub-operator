@@ -372,6 +372,143 @@ func testUpdateOperationForWorkload(g Gomega, ctx context.Context, k8sClient cli
 	expectResourceRequirementsAtPath(g, k8sClient.Scheme(), updatedWorkload, "2", "", containersPath, workloadType)
 }
 
+// testNotebookEmptyToTolerationToEmptyProfileSwitching exercises UPDATE from empty HWP to toleration HWP and back (E2E: ValidateHWPToleration).
+func testNotebookEmptyToTolerationToEmptyProfileSwitching(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
+	config, err := hardwareprofilewebhook.GetWorkloadConfig("Notebook")
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	hwpEmpty := envtestutil.NewHardwareProfile("empty-hwp-tol-switch", ns)
+	hwpTol := envtestutil.NewHardwareProfile("hwp-with-tol", ns,
+		envtestutil.WithCPUIdentifier("1", "2"),
+		envtestutil.WithNodeScheduling(
+			map[string]string{"kubernetes.io/os": "linux"},
+			[]corev1.Toleration{{
+				Key:      "test-key",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			}},
+		),
+	)
+	g.Expect(k8sClient.Create(ctx, hwpEmpty)).To(Succeed())
+	g.Expect(k8sClient.Create(ctx, hwpTol)).To(Succeed())
+
+	workloadName := "test-notebook-tol-switch"
+	notebook := envtestutil.NewNotebook(workloadName, ns,
+		envtestutil.WithHardwareProfile(hwpEmpty.Name),
+		envtestutil.WithHardwareProfileNamespace(ns),
+	)
+	g.Expect(k8sClient.Create(ctx, notebook)).To(Succeed())
+
+	nb1, ok := notebook.DeepCopyObject().(client.Object)
+	g.Expect(ok).To(BeTrue())
+	ann1 := nb1.GetAnnotations()
+	if ann1 == nil {
+		ann1 = make(map[string]string)
+	}
+	ann1[hardwareprofilewebhook.HardwareProfileNameAnnotation] = hwpTol.Name
+	ann1[hardwareprofilewebhook.HardwareProfileNamespaceAnnotation] = ns
+	nb1.SetAnnotations(ann1)
+	g.Expect(k8sClient.Update(ctx, nb1)).To(Succeed())
+
+	updated := unstructured.Unstructured{}
+	updated.SetAPIVersion("kubeflow.org/v1")
+	updated.SetKind("Notebook")
+	g.Eventually(func() int {
+		if err := k8sClient.Get(ctx, types.NamespacedName{Name: workloadName, Namespace: ns}, &updated); err != nil {
+			return 0
+		}
+		tols, found, err := unstructured.NestedSlice(updated.Object, config.TolerationsPath...)
+		if err != nil || !found {
+			return 0
+		}
+		return len(tols)
+	}, "10s", "500ms").Should(BeNumerically(">", 0))
+
+	expectedTols := []map[string]string{{"key": "test-key", "operator": "Exists", "effect": "NoSchedule"}}
+	expectTolerationsAtPath(g, k8sClient.Scheme(), &updated, expectedTols, config.TolerationsPath)
+	expectNodeSelectorAtPath(g, k8sClient.Scheme(), &updated, map[string]string{"kubernetes.io/os": "linux"}, config.NodeSelectorPath)
+
+	nb2, ok := updated.DeepCopyObject().(client.Object)
+	g.Expect(ok).To(BeTrue())
+	ann2 := nb2.GetAnnotations()
+	if ann2 == nil {
+		ann2 = make(map[string]string)
+	}
+	ann2[hardwareprofilewebhook.HardwareProfileNameAnnotation] = hwpEmpty.Name
+	ann2[hardwareprofilewebhook.HardwareProfileNamespaceAnnotation] = ns
+	nb2.SetAnnotations(ann2)
+	g.Expect(k8sClient.Update(ctx, nb2)).To(Succeed())
+
+	final := unstructured.Unstructured{}
+	final.SetAPIVersion("kubeflow.org/v1")
+	final.SetKind("Notebook")
+	g.Eventually(func() bool {
+		if err := k8sClient.Get(ctx, types.NamespacedName{Name: workloadName, Namespace: ns}, &final); err != nil {
+			return false
+		}
+		tols, found, err := unstructured.NestedSlice(final.Object, config.TolerationsPath...)
+		if err != nil {
+			return false
+		}
+		if !found {
+			return true
+		}
+		return len(tols) == 0
+	}, "10s", "500ms").Should(BeTrue(), "tolerations should be cleared when switching to empty HWP")
+
+	nsel, found, err := unstructured.NestedStringMap(final.Object, config.NodeSelectorPath...)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	if found {
+		g.Expect(nsel).Should(BeEmpty())
+	}
+}
+
+// testNotebookKueueProfileToResourceProfileRemovesQueueLabel switches from a Kueue HWP to a resource-only HWP and expects the queue label removed (E2E: ValidateHWPKueue).
+func testNotebookKueueProfileToResourceProfileRemovesQueueLabel(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
+	queueName := "gpu-queue"
+	hwpKueue := createKueueHardwareProfile("kueue-prof-switch", ns, queueName)
+	hwpSimple := createSimpleHardwareProfile("simple-after-kueue", ns)
+	g.Expect(k8sClient.Create(ctx, hwpKueue)).To(Succeed())
+	g.Expect(k8sClient.Create(ctx, hwpSimple)).To(Succeed())
+
+	workloadName := "test-notebook-kueue-switch"
+	nb := envtestutil.NewNotebook(workloadName, ns,
+		envtestutil.WithHardwareProfile(hwpKueue.Name),
+		envtestutil.WithHardwareProfileNamespace(ns),
+	)
+	g.Expect(k8sClient.Create(ctx, nb)).To(Succeed())
+
+	fetched := unstructured.Unstructured{}
+	fetched.SetAPIVersion("kubeflow.org/v1")
+	fetched.SetKind("Notebook")
+	g.Eventually(func() bool {
+		if err := k8sClient.Get(ctx, types.NamespacedName{Name: workloadName, Namespace: ns}, &fetched); err != nil {
+			return false
+		}
+		return resources.HasLabel(&fetched, WorkloadLabelKueueQueueName, queueName)
+	}, "10s", "500ms").Should(BeTrue())
+
+	nb2, ok := fetched.DeepCopyObject().(client.Object)
+	g.Expect(ok).To(BeTrue())
+	ann := nb2.GetAnnotations()
+	if ann == nil {
+		ann = make(map[string]string)
+	}
+	ann[hardwareprofilewebhook.HardwareProfileNameAnnotation] = hwpSimple.Name
+	nb2.SetAnnotations(ann)
+	g.Expect(k8sClient.Update(ctx, nb2)).To(Succeed())
+
+	g.Eventually(func() bool {
+		u := unstructured.Unstructured{}
+		u.SetAPIVersion("kubeflow.org/v1")
+		u.SetKind("Notebook")
+		if err := k8sClient.Get(ctx, types.NamespacedName{Name: workloadName, Namespace: ns}, &u); err != nil {
+			return false
+		}
+		return !resources.HasLabel(&u, WorkloadLabelKueueQueueName, queueName)
+	}, "10s", "500ms").Should(BeTrue())
+}
+
 // TEST FUNCTIONS
 
 // TestHardwareProfileWebhook_Notebook for mutating webhook logic for hardware profile injection on Notebook workloads.
@@ -456,6 +593,14 @@ func TestHardwareProfileWebhook_Notebook(t *testing.T) {
 					},
 					config.ContainersPath, WorkloadTypeNotebook)
 			},
+		},
+		{
+			name: "notebook - empty to toleration profile and back",
+			test: testNotebookEmptyToTolerationToEmptyProfileSwitching,
+		},
+		{
+			name: "notebook - kueue profile to resource profile removes queue label",
+			test: testNotebookKueueProfileToResourceProfileRemovesQueueLabel,
 		},
 	}
 

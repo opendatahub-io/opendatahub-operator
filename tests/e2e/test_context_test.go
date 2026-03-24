@@ -810,60 +810,6 @@ func (tc *TestContext) UpdateComponentStateInDataScienceClusterWithKind(state op
 	)
 }
 
-// EnsureResourceIsUnique ensures that creating a second instance of a given resource fails.
-//
-// This function performs the following steps:
-// 1. Converts the provided resource object into an `Unstructured` format using `ObjectToUnstructured`.
-// 2. Extracts the `GroupVersionKind` (GVK) from the object.
-// 3. Ensures that at least one resource of the same kind already exists in the cluster using `EnsureResourceExists`.
-// 4. Attempts to create a duplicate resource using `CreateUnstructured`.
-// 5. Asserts that the creation attempt fails, ensuring uniqueness constraints are enforced.
-//
-// Parameters:
-//   - obj (client.Object): The resource object to create, which must be convertible to an unstructured format.
-//   - args (...interface{}): Optional Gomega assertion message arguments.
-func (tc *TestContext) EnsureResourceIsUnique(obj client.Object, args ...any) {
-	// Ensure obj is not nil before proceeding
-	tc.g.Expect(obj).NotTo(BeNil(), resourceNotNilErrorMsg)
-
-	// Convert the input object to unstructured
-	u, err := resources.ObjectToUnstructured(tc.Scheme(), obj)
-	tc.g.Expect(err).NotTo(HaveOccurred(), err)
-
-	// Extract GroupVersionKind from the unstructured object
-	groupVersionKind := u.GetObjectKind().GroupVersionKind()
-
-	// Ensure that at least one resource of this kind already exists
-	tc.EnsureResourcesExist(
-		WithMinimalObject(groupVersionKind, types.NamespacedName{Namespace: u.GetNamespace()}),
-		WithListOptions(&client.ListOptions{Namespace: u.GetNamespace()}),
-		WithCustomErrorMsg("Failed to verify existence of %s", groupVersionKind.Kind),
-	)
-
-	// Attempt to create the duplicate resource, expecting failure
-	tc.g.Eventually(func(g Gomega) {
-		// Try to create the resource
-		_, err := tc.g.Create(u, types.NamespacedName{Namespace: u.GetNamespace(), Name: u.GetName()}).Get()
-
-		// If there's no error, that means the duplicate creation succeeded, which is a failure
-		g.Expect(err).To(HaveOccurred(), defaultErrorMessageIfNone(
-			"Expected creation of duplicate %s to fail due to uniqueness constraint, but it succeeded.",
-			[]any{groupVersionKind.Kind},
-			args,
-		)...)
-
-		// Check if the error is a Kubernetes StatusError and was denied by an admission webhook
-		// Ensure the failure is due to uniqueness constraints (Forbidden error)
-		g.Expect(k8serr.IsForbidden(err)).To(BeTrue(),
-			defaultErrorMessageIfNone(
-				"Expected failure due to uniqueness constraint (Forbidden), but got: %v",
-				[]any{err},
-				args,
-			)...,
-		)
-	}).Should(Succeed())
-}
-
 // EnsureOperatorInstalledWithChannel ensures that an operator is installed via OLM with a specific channel.
 //
 // This function performs the following steps:

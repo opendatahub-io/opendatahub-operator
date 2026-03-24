@@ -35,6 +35,7 @@ and configure these applications.
     - [Supported Providers](#supported-providers)
     - [CCM Deployment](#ccm-deployment)
   - [RHAII Mode](#rhaii-mode)
+    - [Prerequisites](#prerequisites-1)
     - [Supported Providers](#supported-providers-1)
     - [RHAII Deployment](#rhaii-deployment)
   - [Test with customized manifests](#test-with-customized-manifests)
@@ -509,6 +510,13 @@ RHAII (Red Hat AI Inference) is a deployment mode that runs a subset of the oper
 
 In RHAII mode, the operator deploys only the KServe component CRD and its associated webhooks (connection-isvc and connection-llmisvc mutation webhooks).
 
+#### Prerequisites
+
+RHAII mode requires **cert-manager** to be available in the cluster. This dependency can be satisfied in one of two ways:
+
+1. **`CoreWeaveKubernetesEngine` CR**: Deploy the appropriate Cloud Manager (Azure or CoreWeave) and create the corresponding `AzureKubernetesEngine` or `CoreWeaveKubernetesEngine` CR with `certManager.managementPolicy: Managed`. The Cloud Manager will install and manage cert-manager automatically along with other dependencies. To deploy a Cloud Manager, see [CCM Deployment](#ccm-deployment).
+2. **Installing cert-manager manually**: Install cert-manager directly in the cluster before deploying the RHAII operator.
+
 #### Supported Providers
 
 Tests are also performed with a KinD instance.
@@ -891,7 +899,6 @@ Evn vars can be set to configure e2e tests:
 | E2E_TEST_SERVICES                    | Enable testing of individual services specified by --test-service flag                                                                                                                                       | `true`                        |
 | E2E_TEST_SERVICE                     | A space separated configuration to control which services should be tested, by default all service specific test are executed                                                                                | `all services`                |
 | E2E_TEST_OPERATOR_V2TOV3UPGRADE      | To configure the execution of V2 to V3 upgrade tests, useful for testing V2 to V3 upgrade scenarios                                                                                                          | `true`                        |
-| E2E_TEST_HARDWARE_PROFILE            | To configure the execution of hardware profile tests, useful for testing hardware profile functionality for v1 and v1alpha1                                                                                  | `true`                        |
 | E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES | To configure the cleaning-up of the previous resources in the cluster. This flag is quite useful to test custom scenarios, as well as running the tests after upgrade, to keep the previous DSC and test it. | `true`                        |
 | E2E_TEST_FAIL_FAST_ON_ERROR          | To configure the fail fast of the e2e tests when a test is failing.                                                                                                                                          | `true`                        |
 | E2E_TEST_TAG                         | Tag to run tests for. Options: `All`, `Smoke`, `Tier1`.                                                                                                                                                      | `All`                         |
@@ -916,7 +923,6 @@ Alternatively the above configurations can be passed to e2e-tests as flags by se
 | --test-services               | Enable testing of individual services specified by --test-service flag                                                                                                                                       | `true`                        |
 | --test-service                | A repeatable (or comma separated no spaces) flag that control which services should be tested, by default all service specific test are executed                                                             | `all services`                |
 | --test-operator-v2tov3upgrade | To configure the execution of V2 to V3 upgrade tests, useful for testing V2 to V3 upgrade scenarios                                                                                                          | `true`                        |
-| --test-hardware-profile       | To configure the execution of hardware profile tests, useful for testing hardware profile functionality between v1 and v1alpha1                                                                              | `true`                        |
 | --clean-up-previous-resources | To configure the cleaning-up of the previous resources in the cluster. This flag is quite useful to test custom scenarios, as well as running the tests after upgrade, to keep the previous DSC and test it. | `true`                        |
 | --fail-fast-on-error          | To configure the fail fast of the e2e tests when a test is failing.                                                                                                                                          | `true`                        |
 | --tag                         | Tag to run tests for. Options: `All`, `Smoke`, `Tier1`.                                                                                                                                                      | `All`                         |

@@ -136,7 +136,7 @@ GINKGO ?= $(LOCALBIN)/ginkgo
 YQ ?= $(LOCALBIN)/yq
 
 ## Tool Versions
-KUSTOMIZE_VERSION ?= v5.7.0
+KUSTOMIZE_VERSION ?= v5.8.1
 CONTROLLER_TOOLS_VERSION ?= v0.17.3
 OPERATOR_SDK_VERSION ?= v1.39.2
 GOLANGCI_LINT_VERSION ?= v2.5.0
@@ -584,7 +584,7 @@ toolbox: ## Create a toolbox instance with the proper Golang and Operator SDK ve
 	toolbox create opendatahub-toolbox --image localhost/opendatahub-toolbox:latest
 
 # Run tests.
-TEST_SRC ?=./internal/... ./tests/integration/... ./pkg/...
+TEST_SRC ?=./internal/... ./tests/integration/... ./pkg/... ./api/services/v1alpha1/...
 
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download setup-envtest locally if necessary.
@@ -669,7 +669,8 @@ ifneq (,$(wildcard cmd/health-check/Makefile))
 include cmd/health-check/Makefile
 endif
 
-.PHONY: e2e-test
+.PHONY: e2e-test e2e
+e2e: e2e-test ## Alias for e2e-test
 e2e-test:
 # Specifies the namespace where the operator pods are deployed
 ifndef E2E_TEST_OPERATOR_NAMESPACE
@@ -713,7 +714,6 @@ e2e-setup-cluster:
 		-e E2E_TEST_WEBHOOK=false \
 		-e E2E_TEST_OPERATOR_RESILIENCE=false \
 		-e E2E_TEST_OPERATOR_V2TOV3UPGRADE=false \
-		-e E2E_TEST_HARDWARE_PROFILE=false \
 		-e E2E_TEST_DELETION_POLICY=never \
 		-e E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=true
 

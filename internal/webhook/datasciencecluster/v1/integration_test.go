@@ -111,6 +111,51 @@ func TestDataScienceClusterV1_Integration(t *testing.T) {
 				}).Should(Equal(modelregistryctrl.DefaultModelRegistriesNamespace), "should set ModelRegistry.RegistriesNamespace to default when empty and Managed")
 			},
 		},
+		{
+			name: "CEL: RegistriesNamespace immutable when ModelRegistry Managed; mutable when Removed",
+			setup: func(ns string) []client.Object {
+				return nil
+			},
+			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
+				dsc := envtestutil.NewDSCV1("dsc-mr-cel", WithModelRegistryDefaulting())
+				g.Expect(k8sClient.Create(ctx, dsc)).To(Succeed(), "should create DSC with ModelRegistry Managed and empty RegistriesNamespace")
+
+				key := types.NamespacedName{Name: "dsc-mr-cel", Namespace: ns}
+				fetched := &dscv1.DataScienceCluster{}
+				g.Eventually(func() string {
+					if err := k8sClient.Get(ctx, key, fetched); err != nil {
+						return ""
+					}
+					return fetched.Spec.Components.ModelRegistry.RegistriesNamespace
+				}).Should(Equal(modelregistryctrl.DefaultModelRegistriesNamespace), "mutating webhook should default RegistriesNamespace")
+
+				g.Expect(k8sClient.Get(ctx, key, fetched)).To(Succeed())
+				fetched.Spec.Components.ModelRegistry.RegistriesNamespace = "other-registry-ns"
+				err := k8sClient.Update(ctx, fetched)
+				g.Expect(err).To(HaveOccurred(), "CEL should reject changing RegistriesNamespace while Managed")
+				g.Expect(err.Error()).To(ContainSubstring("RegistriesNamespace"))
+
+				g.Expect(k8sClient.Get(ctx, key, fetched)).To(Succeed())
+				fetched.Spec.Components.ModelRegistry.ManagementState = operatorv1.Removed
+				g.Expect(k8sClient.Update(ctx, fetched)).To(Succeed(), "should allow setting ModelRegistry to Removed")
+
+				g.Expect(k8sClient.Get(ctx, key, fetched)).To(Succeed())
+				fetched.Spec.Components.ModelRegistry.RegistriesNamespace = "custom-ns-under-removed"
+				g.Expect(k8sClient.Update(ctx, fetched)).To(Succeed(), "should allow changing RegistriesNamespace when not Managed")
+
+				g.Expect(k8sClient.Get(ctx, key, fetched)).To(Succeed())
+				g.Expect(fetched.Spec.Components.ModelRegistry.RegistriesNamespace).To(Equal("custom-ns-under-removed"))
+
+				fetched.Spec.Components.ModelRegistry.ManagementState = operatorv1.Managed
+				g.Expect(k8sClient.Update(ctx, fetched)).To(Succeed(), "should allow transition back to Managed with existing namespace")
+
+				g.Expect(k8sClient.Get(ctx, key, fetched)).To(Succeed())
+				fetched.Spec.Components.ModelRegistry.RegistriesNamespace = "another-ns"
+				err = k8sClient.Update(ctx, fetched)
+				g.Expect(err).To(HaveOccurred(), "CEL should reject changing RegistriesNamespace after Managed again")
+				g.Expect(err.Error()).To(ContainSubstring("RegistriesNamespace"))
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -363,4 +408,68 @@ func TestDataScienceClusterV1V2_ConversionWebhook(t *testing.T) {
 			t.Logf("Finished conversion test case: %s", tc.name)
 		})
 	}
+}
+
+// TestDataScienceClusterV1UpdateBlockedWhenV2OnlyComponentsManaged verifies the webhook blocks
+// v1 API updates when v2-only components (Trainer, MLflowOperator) are Managed, preventing silent
+// data loss from v1→v2 round-trip conversion (RHOAIENG-44476). Once v2-only components are
+// disabled via the v2 API, the v1 update should succeed.
+func TestDataScienceClusterV1UpdateBlockedWhenV2OnlyComponentsManaged(t *testing.T) {
+	t.Parallel()
+
+	ctx, env, teardown := envtestutil.SetupEnvAndClient(
+		t,
+		[]envt.RegisterWebhooksFn{
+			v1webhook.RegisterWebhooks,
+			dsciv1webhook.RegisterWebhooks,
+			v2webhook.RegisterWebhooks,
+			dsciv2webhook.RegisterWebhooks,
+		},
+		[]envt.RegisterControllersFn{},
+		envtestutil.DefaultWebhookTimeout,
+	)
+	t.Cleanup(teardown)
+
+	createDSCIV1(NewWithT(t), ctx, env.Client())
+
+	g := NewWithT(t)
+	dscName := "dsc-v2-only-blocking"
+	nn := types.NamespacedName{Name: dscName}
+
+	dsc := envtestutil.NewDSC(dscName)
+	dsc.Spec.Components.Trainer.ManagementState = operatorv1.Managed
+	dsc.Spec.Components.MLflowOperator.ManagementState = operatorv1.Managed
+	g.Expect(env.Client().Create(ctx, dsc)).To(Succeed())
+
+	dscV2 := &dscv2.DataScienceCluster{}
+	g.Expect(env.Client().Get(ctx, nn, dscV2)).To(Succeed())
+	g.Expect(dscV2.Spec.Components.Trainer.ManagementState).To(Equal(operatorv1.Managed))
+	g.Expect(dscV2.Spec.Components.MLflowOperator.ManagementState).To(Equal(operatorv1.Managed))
+
+	// Attempt v1 update while v2-only components are Managed — webhook should block it
+	dscV1 := &dscv1.DataScienceCluster{}
+	g.Expect(env.Client().Get(ctx, nn, dscV1)).To(Succeed())
+	dscV1.Spec.Components.Dashboard.ManagementState = operatorv1.Managed
+	err := env.Client().Update(ctx, dscV1)
+	g.Expect(err).To(HaveOccurred(), "v1 update should be blocked when v2-only components are Managed")
+	g.Expect(err.Error()).To(ContainSubstring("cannot modify DataScienceCluster using v1 API"))
+
+	// Verify v2-only components are still Managed (webhook protected them)
+	g.Expect(env.Client().Get(ctx, nn, dscV2)).To(Succeed())
+	g.Expect(dscV2.Spec.Components.Trainer.ManagementState).To(Equal(operatorv1.Managed))
+	g.Expect(dscV2.Spec.Components.MLflowOperator.ManagementState).To(Equal(operatorv1.Managed))
+
+	// Disable v2-only components via v2 API
+	dscV2.Spec.Components.Trainer.ManagementState = operatorv1.Removed
+	dscV2.Spec.Components.MLflowOperator.ManagementState = operatorv1.Removed
+	g.Expect(env.Client().Update(ctx, dscV2)).To(Succeed())
+
+	// Retry v1 update — should succeed now that v2-only components are Removed
+	g.Expect(env.Client().Get(ctx, nn, dscV1)).To(Succeed())
+	dscV1.Spec.Components.Dashboard.ManagementState = operatorv1.Managed
+	g.Expect(env.Client().Update(ctx, dscV1)).To(Succeed())
+
+	// Verify the v1 update went through
+	g.Expect(env.Client().Get(ctx, nn, dscV2)).To(Succeed())
+	g.Expect(dscV2.Spec.Components.Dashboard.ManagementState).To(Equal(operatorv1.Managed))
 }

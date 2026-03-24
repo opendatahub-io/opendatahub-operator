@@ -1,7 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: redhat-ods-cloudmanager-system
+namespace: rhai-cloudmanager-system
 
 resources:
 - ../manager
@@ -17,7 +17,7 @@ patches:
   patch: |
     - op: replace
       path: /metadata/name
-      value: rhods-coreweave-cloud-manager-role
+      value: rhai-coreweave-cloud-manager-role
 # Rename ClusterRoleBinding and update its roleRef
 - target:
     kind: ClusterRoleBinding
@@ -25,7 +25,7 @@ patches:
   patch: |
     - op: replace
       path: /metadata/name
-      value: rhods-coreweave-cloud-manager-rolebinding
+      value: rhai-coreweave-cloud-manager-rolebinding
     - op: replace
       path: /roleRef/name
-      value: rhods-coreweave-cloud-manager-role
+      value: rhai-coreweave-cloud-manager-role

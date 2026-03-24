@@ -3,14 +3,11 @@ package e2e_test
 import (
 	"testing"
 
-	gTypes "github.com/onsi/gomega/types"
-	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -18,12 +15,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
-)
-
-const (
-	testNamespace             = "test-model-registries"  // Namespace used for model registry testing
-	dsciInstanceNameDuplicate = "default-dsci-duplicate" // Instance name for the duplicate DSCInitialization resource
-	dscInstanceNameDuplicate  = "default-dsc-duplicate"  // Instance name for the duplicate DataScienceCluster resource
 )
 
 // DSCTestCtx holds the context for the DSCInitialization and DataScienceCluster management tests.
@@ -105,28 +96,6 @@ func dscValidationTestSuite(t *testing.T) {
 
 	// Run the test suite.
 	RunTestCases(t, testCases, WithParallel())
-}
-
-func dscWebhookTestSuite(t *testing.T) {
-	t.Helper()
-
-	// Initialize the test context.
-	tc, err := NewTestContext(t)
-	require.NoError(t, err, "Failed to initialize test context")
-
-	// Create an instance of test context.
-	dscTestCtx := DSCTestCtx{
-		TestContext: tc,
-	}
-
-	// Define dsci/dsc webhook-specific tests.
-	webhookTests := []TestCase{
-		{"Validate creation of more than one DSCInitialization instance", dscTestCtx.ValidateDSCIDuplication},
-		{"Validate creation of more than one DataScienceCluster instance", dscTestCtx.ValidateDSCDuplication},
-		{"Validate Model Registry Configuration Changes", dscTestCtx.ValidateModelRegistryConfig},
-	}
-
-	RunTestCases(t, webhookTests, WithParallel())
 }
 
 // ValidateOperatorsInstallation ensures the required operators are installed.
@@ -217,79 +186,6 @@ func (tc *DSCTestCtx) ValidateDefaultNetworkPolicyExists(t *testing.T) {
 	tc.EnsureResourcesExist(
 		WithMinimalObject(gvk.NetworkPolicy, types.NamespacedName{Namespace: dsci.Spec.ApplicationsNamespace, Name: dsci.Spec.ApplicationsNamespace}),
 		WithCustomErrorMsg("Expected the default NetworkPolicy to be created."),
-	)
-}
-
-// ValidateDSCIDuplication ensures that no duplicate DSCInitialization resource can be created.
-func (tc *DSCTestCtx) ValidateDSCIDuplication(t *testing.T) {
-	t.Helper()
-
-	skipUnless(t, Smoke)
-
-	dup := CreateDSCI(dsciInstanceNameDuplicate, tc.AppsNamespace, tc.MonitoringNamespace)
-	tc.EnsureResourceIsUnique(dup, "Error validating DSCInitialization duplication")
-
-	dupv1 := CreateDSCIv1(dsciInstanceNameDuplicate, tc.AppsNamespace, tc.MonitoringNamespace)
-	tc.EnsureResourceIsUnique(dupv1, "Error validating DSCInitialization duplication v1")
-}
-
-// ValidateDSCDuplication ensures that no duplicate DataScienceCluster resource can be created.
-func (tc *DSCTestCtx) ValidateDSCDuplication(t *testing.T) {
-	t.Helper()
-
-	skipUnless(t, Smoke)
-
-	dsc := CreateDSC(dscInstanceNameDuplicate, tc.WorkbenchesNamespace)
-	tc.EnsureResourceIsUnique(dsc, "Error validating DataScienceCluster duplication")
-
-	dsv1 := CreateDSCv1(dscInstanceNameDuplicate, tc.WorkbenchesNamespace)
-	tc.EnsureResourceIsUnique(dsv1, "Error validating DataScienceCluster duplication v1")
-}
-
-// ValidateModelRegistryConfig validates the ModelRegistry configuration changes based on ManagementState.
-func (tc *DSCTestCtx) ValidateModelRegistryConfig(t *testing.T) {
-	t.Helper()
-
-	skipUnless(t, Tier1)
-
-	// Retrieve the DataScienceCluster object.
-	dsc := tc.FetchDataScienceCluster()
-
-	// Check if the ModelRegistry is managed.
-	if dsc.Spec.Components.ModelRegistry.ManagementState == operatorv1.Managed {
-		// Ensure changing registriesNamespace is not allowed and expect failure.
-		tc.UpdateRegistriesNamespace(testNamespace, modelregistryctrl.DefaultModelRegistriesNamespace, true)
-
-		// No further checks if it's managed
-		return
-	}
-
-	// Ensure setting registriesNamespace to a non-default value is allowed.
-	// No error is expected, and we check the value of the patch after it's successful.
-	tc.UpdateRegistriesNamespace(testNamespace, testNamespace, false)
-
-	// Ensure resetting registriesNamespace to the default value is allowed.
-	tc.UpdateRegistriesNamespace(modelregistryctrl.DefaultModelRegistriesNamespace, modelregistryctrl.DefaultModelRegistriesNamespace, false)
-}
-
-// UpdateRegistriesNamespace updates the ModelRegistry component's `RegistriesNamespace` field.
-func (tc *DSCTestCtx) UpdateRegistriesNamespace(targetNamespace, expectedValue string, shouldFail bool) {
-	// Build the condition:
-	// If shouldFail, we expect a failure (Not(Succeed())).
-	// If should not fail, we expect the registriesNamespace to match the expected value.
-	var expectedCondition gTypes.GomegaMatcher
-	if shouldFail {
-		expectedCondition = Not(Succeed()) // If shouldFail is true, expect failure.
-	} else {
-		expectedCondition = And(Succeed(), jq.Match(`.spec.components.modelregistry.registriesNamespace == "%s"`, expectedValue))
-	}
-
-	// Update the registriesNamespace field.
-	tc.EventuallyResourcePatched(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.modelregistry.registriesNamespace = "%s"`, targetNamespace)),
-		WithCondition(expectedCondition),
-		WithCustomErrorMsg("Failed to update RegistriesNamespace to %s, expected %s", targetNamespace, expectedValue),
 	)
 }
 
