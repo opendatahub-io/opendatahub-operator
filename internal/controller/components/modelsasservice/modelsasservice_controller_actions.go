@@ -228,6 +228,22 @@ func configureDestinationRule(log logr.Logger, resource *unstructured.Unstructur
 func configureTelemetryPolicy(ctx context.Context, rr *types.ReconciliationRequest) error {
 	log := logf.FromContext(ctx)
 
+	// Skip if TelemetryPolicy CRD is not available in the cluster
+	crdAvailable, err := cluster.HasCRD(ctx, rr.Client, gvk.TelemetryPolicyv1alpha1)
+	if err != nil || !crdAvailable {
+		log.V(2).Info("TelemetryPolicy CRD not available, skipping")
+		return nil
+	}
+
+	return configureTelemetryPolicyCore(ctx, rr)
+}
+
+// configureTelemetryPolicyCore contains the core business logic for creating TelemetryPolicy resources.
+// This function is extracted to allow testing the TelemetryPolicy creation logic without
+// dealing with CRD availability check complexity in the test environment.
+func configureTelemetryPolicyCore(ctx context.Context, rr *types.ReconciliationRequest) error {
+	log := logf.FromContext(ctx)
+
 	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)

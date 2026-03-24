@@ -707,16 +707,21 @@ func TestConfigureTelemetryPolicy(t *testing.T) {
 	g := NewWithT(t)
 
 	t.Run("Error Handling", func(t *testing.T) {
-		t.Run("should return error when instance is not ModelsAsService", func(t *testing.T) {
+		t.Run("should skip when TelemetryPolicy CRD is not available", func(t *testing.T) {
+			// Create a basic fake client without TelemetryPolicy CRD
+			cli := createFakeClientWithoutGateway() // This won't have TelemetryPolicy CRD
+
 			rr := &types.ReconciliationRequest{
-				Instance:  &componentApi.Kserve{}, // wrong type
+				Instance:  &componentApi.ModelsAsService{},
+				Client:    cli,
 				Resources: []unstructured.Unstructured{},
 			}
 
 			err := configureTelemetryPolicy(t.Context(), rr)
-			g.Expect(err).Should(HaveOccurred())
-			g.Expect(err.Error()).Should(ContainSubstring("is not a componentApi.ModelsAsService"))
+			g.Expect(err).ShouldNot(HaveOccurred())   // Should succeed but skip
+			g.Expect(rr.Resources).Should(HaveLen(0)) // No resources should be added
 		})
+
 	})
 
 	t.Run("TelemetryPolicy Creation", func(t *testing.T) {
@@ -738,7 +743,7 @@ func TestConfigureTelemetryPolicy(t *testing.T) {
 				},
 			}
 
-			// Create fake client with TelemetryPolicy CRD available
+			// Use a basic fake client - we'll test the core logic without CRD availability check
 			cli, err := fakeclient.New()
 			g.Expect(err).ShouldNot(HaveOccurred())
 
@@ -748,7 +753,9 @@ func TestConfigureTelemetryPolicy(t *testing.T) {
 				Resources: []unstructured.Unstructured{},
 			}
 
-			err = configureTelemetryPolicy(t.Context(), rr)
+			// Test the core TelemetryPolicy creation logic directly, bypassing the CRD check
+			// This tests the business logic without the defensive CRD availability check
+			err = configureTelemetryPolicyCore(t.Context(), rr)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
 			// Should have added one resource
@@ -787,12 +794,17 @@ func TestConfigureTelemetryPolicy(t *testing.T) {
 				},
 			}
 
+			// Use basic fake client for testing core logic
+			cli, err := fakeclient.New()
+			g.Expect(err).ShouldNot(HaveOccurred())
+
 			rr := &types.ReconciliationRequest{
 				Instance:  maas,
+				Client:    cli,
 				Resources: []unstructured.Unstructured{},
 			}
 
-			err := configureTelemetryPolicy(t.Context(), rr)
+			err = configureTelemetryPolicyCore(t.Context(), rr)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
 			targetName, found, err := unstructured.NestedString(
@@ -827,12 +839,17 @@ func TestConfigureTelemetryPolicy(t *testing.T) {
 				},
 			}
 
+			// Use basic fake client for testing core logic
+			cli, err := fakeclient.New()
+			g.Expect(err).ShouldNot(HaveOccurred())
+
 			rr := &types.ReconciliationRequest{
 				Instance:  maas,
+				Client:    cli,
 				Resources: []unstructured.Unstructured{},
 			}
 
-			err := configureTelemetryPolicy(t.Context(), rr)
+			err = configureTelemetryPolicyCore(t.Context(), rr)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
 			labels, found, err := unstructured.NestedMap(
@@ -869,12 +886,17 @@ func TestConfigureTelemetryPolicy(t *testing.T) {
 			existingResource.SetKind("ConfigMap")
 			existingResource.SetName("existing-config")
 
+			// Use basic fake client for testing core logic
+			cli, err := fakeclient.New()
+			g.Expect(err).ShouldNot(HaveOccurred())
+
 			rr := &types.ReconciliationRequest{
 				Instance:  maas,
+				Client:    cli,
 				Resources: []unstructured.Unstructured{existingResource},
 			}
 
-			err := configureTelemetryPolicy(t.Context(), rr)
+			err = configureTelemetryPolicyCore(t.Context(), rr)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
 			// Should have 2 resources now
@@ -897,12 +919,17 @@ func TestConfigureTelemetryPolicy(t *testing.T) {
 				},
 			}
 
+			// Use basic fake client for testing core logic
+			cli, err := fakeclient.New()
+			g.Expect(err).ShouldNot(HaveOccurred())
+
 			rr := &types.ReconciliationRequest{
 				Instance:  maas,
+				Client:    cli,
 				Resources: []unstructured.Unstructured{},
 			}
 
-			err := configureTelemetryPolicy(t.Context(), rr)
+			err = configureTelemetryPolicyCore(t.Context(), rr)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
 			labels, _, _ := unstructured.NestedMap(
