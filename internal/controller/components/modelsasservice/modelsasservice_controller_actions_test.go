@@ -19,9 +19,12 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 
 	. "github.com/onsi/gomega"
 )
+
+func boolPtr(v bool) *bool { return &v }
 
 func TestGatewayValidation(t *testing.T) {
 	g := NewWithT(t)
@@ -612,25 +615,25 @@ func TestBuildTelemetryLabels(t *testing.T) {
 			}{
 				{
 					name:           "captureGroup enabled",
-					config:         &componentApi.MetricsConfig{CaptureGroup: &[]bool{true}[0]},
+					config:         &componentApi.MetricsConfig{CaptureGroup: boolPtr(true)},
 					expectedKeys:   []string{"group"},
 					unexpectedKeys: nil,
 				},
 				{
 					name:           "captureUser disabled",
-					config:         &componentApi.MetricsConfig{CaptureUser: &[]bool{false}[0]},
+					config:         &componentApi.MetricsConfig{CaptureUser: boolPtr(false)},
 					expectedKeys:   nil,
 					unexpectedKeys: []string{"user"},
 				},
 				{
 					name:           "captureOrganization disabled",
-					config:         &componentApi.MetricsConfig{CaptureOrganization: &[]bool{false}[0]},
+					config:         &componentApi.MetricsConfig{CaptureOrganization: boolPtr(false)},
 					expectedKeys:   nil,
 					unexpectedKeys: []string{"organization_id"},
 				},
 				{
 					name:           "captureModelUsage disabled",
-					config:         &componentApi.MetricsConfig{CaptureModelUsage: &[]bool{false}[0]},
+					config:         &componentApi.MetricsConfig{CaptureModelUsage: boolPtr(false)},
 					expectedKeys:   nil,
 					unexpectedKeys: []string{"model"},
 				},
@@ -664,10 +667,10 @@ func TestBuildTelemetryLabels(t *testing.T) {
 				{
 					name: "all dimensions disabled",
 					config: &componentApi.MetricsConfig{
-						CaptureOrganization: &[]bool{false}[0],
-						CaptureUser:         &[]bool{false}[0],
-						CaptureGroup:        &[]bool{false}[0],
-						CaptureModelUsage:   &[]bool{false}[0],
+						CaptureOrganization: boolPtr(false),
+						CaptureUser:         boolPtr(false),
+						CaptureGroup:        boolPtr(false),
+						CaptureModelUsage:   boolPtr(false),
 					},
 					expectedLen:  3,
 					alwaysOnKeys: []string{"subscription", "cost_center", "tier"},
@@ -675,10 +678,10 @@ func TestBuildTelemetryLabels(t *testing.T) {
 				{
 					name: "all dimensions enabled",
 					config: &componentApi.MetricsConfig{
-						CaptureOrganization: &[]bool{true}[0],
-						CaptureUser:         &[]bool{true}[0],
-						CaptureGroup:        &[]bool{true}[0],
-						CaptureModelUsage:   &[]bool{true}[0],
+						CaptureOrganization: boolPtr(true),
+						CaptureUser:         boolPtr(true),
+						CaptureGroup:        boolPtr(true),
+						CaptureModelUsage:   boolPtr(true),
 					},
 					expectedLen:  7,
 					alwaysOnKeys: []string{"subscription", "cost_center", "tier", "organization_id", "user", "group", "model"},
@@ -703,11 +706,29 @@ func TestBuildTelemetryLabels(t *testing.T) {
 func TestConfigureTelemetryPolicy(t *testing.T) {
 	g := NewWithT(t)
 
+	t.Run("Error Handling", func(t *testing.T) {
+		t.Run("should return error when instance is not ModelsAsService", func(t *testing.T) {
+			rr := &types.ReconciliationRequest{
+				Instance:  &componentApi.Kserve{}, // wrong type
+				Resources: []unstructured.Unstructured{},
+			}
+
+			err := configureTelemetryPolicy(t.Context(), rr)
+			g.Expect(err).Should(HaveOccurred())
+			g.Expect(err.Error()).Should(ContainSubstring("is not a componentApi.ModelsAsService"))
+		})
+	})
+
 	t.Run("TelemetryPolicy Creation", func(t *testing.T) {
 		t.Run("should create TelemetryPolicy with correct metadata", func(t *testing.T) {
 			maas := &componentApi.ModelsAsService{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "components.platform.opendatahub.io/v1alpha1",
+					Kind:       "ModelsAsService",
+				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name: componentApi.ModelsAsServiceInstanceName,
+					UID:  "test-uid-123",
 				},
 				Spec: componentApi.ModelsAsServiceSpec{
 					GatewayRef: componentApi.GatewayRef{
@@ -717,12 +738,17 @@ func TestConfigureTelemetryPolicy(t *testing.T) {
 				},
 			}
 
+			// Create fake client with TelemetryPolicy CRD available
+			cli, err := fakeclient.New()
+			g.Expect(err).ShouldNot(HaveOccurred())
+
 			rr := &types.ReconciliationRequest{
 				Instance:  maas,
+				Client:    cli,
 				Resources: []unstructured.Unstructured{},
 			}
 
-			err := configureTelemetryPolicy(t.Context(), rr)
+			err = configureTelemetryPolicy(t.Context(), rr)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
 			// Should have added one resource
@@ -733,6 +759,19 @@ func TestConfigureTelemetryPolicy(t *testing.T) {
 			g.Expect(policy.GetNamespace()).Should(Equal("test-gateway-ns"))
 			g.Expect(policy.GetKind()).Should(Equal("TelemetryPolicy"))
 			g.Expect(policy.GetAPIVersion()).Should(Equal("extensions.kuadrant.io/v1alpha1"))
+
+			// Check OwnerReferences
+			ownerRefs := policy.GetOwnerReferences()
+			g.Expect(ownerRefs).ShouldNot(BeEmpty())
+			g.Expect(ownerRefs).Should(HaveLen(1))
+			g.Expect(ownerRefs[0].Name).Should(Equal(componentApi.ModelsAsServiceInstanceName))
+			g.Expect(ownerRefs[0].Kind).Should(Equal("ModelsAsService"))
+			g.Expect(ownerRefs[0].APIVersion).Should(Equal("components.platform.opendatahub.io/v1alpha1"))
+			g.Expect(string(ownerRefs[0].UID)).Should(Equal("test-uid-123"))
+			g.Expect(ownerRefs[0].Controller).ShouldNot(BeNil())
+			g.Expect(*ownerRefs[0].Controller).Should(BeTrue())
+			g.Expect(ownerRefs[0].BlockOwnerDeletion).ShouldNot(BeNil())
+			g.Expect(*ownerRefs[0].BlockOwnerDeletion).Should(BeTrue())
 		})
 
 		t.Run("should set targetRef to configured gateway", func(t *testing.T) {

@@ -30,6 +30,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -238,6 +239,17 @@ func configureTelemetryPolicy(ctx context.Context, rr *types.ReconciliationReque
 	// Build the labels map based on telemetry configuration
 	metricLabels := buildTelemetryLabels(log, maas.Spec.Telemetry)
 
+	// Create OwnerReference for the TelemetryPolicy
+	controller := true
+	ownerRef := metav1.OwnerReference{
+		APIVersion:         maas.APIVersion,
+		Kind:               maas.Kind,
+		Name:               maas.Name,
+		UID:                maas.UID,
+		Controller:         &controller,
+		BlockOwnerDeletion: &controller,
+	}
+
 	// Create the TelemetryPolicy resource
 	telemetryPolicy := &unstructured.Unstructured{
 		Object: map[string]interface{}{
@@ -265,6 +277,9 @@ func configureTelemetryPolicy(ctx context.Context, rr *types.ReconciliationReque
 		},
 	}
 
+	// Set OwnerReferences using the unstructured API
+	telemetryPolicy.SetOwnerReferences([]metav1.OwnerReference{ownerRef})
+
 	log.V(2).Info("Creating TelemetryPolicy",
 		"name", TelemetryPolicyName,
 		"namespace", gatewayNamespace,
@@ -278,7 +293,8 @@ func configureTelemetryPolicy(ctx context.Context, rr *types.ReconciliationReque
 }
 
 // buildTelemetryLabels creates the metric labels map based on the telemetry configuration.
-// It includes always-on dimensions and configurable dimensions based on MetricsConfig settings.
+// Always-on dimensions (subscription, cost_center, tier) are always included for billing and access control.
+// Other dimensions are configurable based on MetricsConfig settings.
 func buildTelemetryLabels(log logr.Logger, config *componentApi.TelemetryConfig) map[string]interface{} {
 	// Default values when config is nil or metrics is nil
 	captureOrganization := true
@@ -315,6 +331,8 @@ func buildTelemetryLabels(log logr.Logger, config *componentApi.TelemetryConfig)
 	}
 
 	if captureUser {
+		log.Info("WARNING: User identity metrics enabled - ensure GDPR/privacy compliance",
+			"field", "captureUser", "value", true)
 		labels["user"] = "auth.identity.userid"
 	}
 

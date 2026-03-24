@@ -68,14 +68,16 @@ type ModelsAsServiceSpec struct {
 }
 
 // TelemetryConfig defines configuration for telemetry collection.
+// Core billing and access control metrics (subscription, cost_center, tier) are always emitted.
 type TelemetryConfig struct {
-	// Metrics contains configuration for metric dimensions/labels.
+	// Metrics contains configuration for optional metric dimensions/labels.
 	// +kubebuilder:validation:Optional
 	Metrics *MetricsConfig `json:"metrics,omitempty"`
 }
 
 // MetricsConfig defines which dimensions (labels) are captured in telemetry metrics.
 // Each dimension can be enabled or disabled to control metric cardinality and storage costs.
+// Note: subscription, cost_center, and tier dimensions are always emitted for billing and access control.
 type MetricsConfig struct {
 	// CaptureOrganization enables the organization_id label on metrics.
 	// +kubebuilder:default=true
