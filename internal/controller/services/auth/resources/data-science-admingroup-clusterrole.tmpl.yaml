@@ -59,4 +59,12 @@ rules:
       - get
       - list
       - watch
+  - apiGroups:
+      - maas.opendatahub.io
+    resources:
+      - maasmodelrefs
+    verbs:
+      - get
+      - watch
+      - list
 

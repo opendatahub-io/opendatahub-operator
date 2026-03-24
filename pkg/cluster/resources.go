@@ -16,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -161,6 +162,23 @@ func MonitoringNamespace(ctx context.Context, cli client.Client) (string, error)
 		return "", fmt.Errorf("failed to get DSCInitialization: %w", err)
 	}
 	return dsci.Spec.Monitoring.Namespace, nil
+}
+
+// NamespaceExists checks if a given namespace exists in the cluster and is not terminating.
+func NamespaceExists(ctx context.Context, c client.Client, name string) (bool, error) {
+	ns := &corev1.Namespace{}
+	err := c.Get(ctx, types.NamespacedName{Name: name}, ns)
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	// Do not consider terminating namespaces as "existing" for resource creation
+	if ns.DeletionTimestamp != nil {
+		return false, nil
+	}
+	return true, nil
 }
 
 // GetHardwareProfile retrieves a specific HardwareProfile instance by name and namespace.
