@@ -1817,6 +1817,29 @@ func (tc *TestContext) CheckMinOCPVersion(minVersion string) (bool, error) {
 	return currentVersion.GTE(requiredVersion), nil
 }
 
+// SkipIfBYOIDC skips the current test if the cluster uses external OIDC authentication (BYOIDC).
+// This is useful for tests that verify IntegratedOAuth-specific resources (e.g., OAuthClient)
+// which are not created on BYOIDC clusters.
+func (tc *TestContext) SkipIfBYOIDC(t *testing.T) {
+	t.Helper()
+	authMode, err := cluster.GetClusterAuthenticationMode(tc.Context(), tc.Client())
+	tc.g.Expect(err).ShouldNot(HaveOccurred(), "Failed to detect cluster authentication mode")
+	if authMode == cluster.AuthModeOIDC {
+		t.Skip("Skipping test: not applicable on BYOIDC clusters (cluster uses external OIDC authentication)")
+	}
+}
+
+// SkipUnlessBYOIDC skips the current test unless the cluster uses external OIDC authentication (BYOIDC).
+// This is useful for tests that validate BYOIDC-specific behavior.
+func (tc *TestContext) SkipUnlessBYOIDC(t *testing.T) {
+	t.Helper()
+	authMode, err := cluster.GetClusterAuthenticationMode(tc.Context(), tc.Client())
+	tc.g.Expect(err).ShouldNot(HaveOccurred(), "Failed to detect cluster authentication mode")
+	if authMode != cluster.AuthModeOIDC {
+		t.Skipf("Skipping test: only applicable on BYOIDC clusters (cluster uses %s authentication)", authMode)
+	}
+}
+
 // SkipIfOCPVersionBelow is a test helper that skips the current test if the OpenShift cluster
 // version is below the specified minimum version.
 //

@@ -14,6 +14,8 @@ import (
 	ctrlcfg "sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
+
+	_ "k8s.io/client-go/plugin/pkg/client/auth" // to load oidc auth provider for BYOIDC testing
 )
 
 const (
