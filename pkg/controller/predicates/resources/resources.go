@@ -34,8 +34,10 @@ type DeploymentPredicate struct {
 	predicate.Funcs
 }
 
-// Update implements default UpdateEvent filter for validating generation change.
+// Update implements default UpdateEvent filter for Deployment changes.
 // Works with both typed *appsv1.Deployment and *unstructured.Unstructured objects.
+// Triggers reconciliation on generation, replicas, or readyReplicas changes.
+// Note: Label and annotation changes are handled by DefaultDeploymentPredicate.
 func (DeploymentPredicate) Update(e event.UpdateEvent) bool {
 	if e.ObjectOld == nil || e.ObjectNew == nil {
 		return false

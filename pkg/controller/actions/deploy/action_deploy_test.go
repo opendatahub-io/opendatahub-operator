@@ -16,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -35,6 +36,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/mocks"
@@ -392,6 +394,131 @@ func TestDeployDeOwn(t *testing.T) {
 		jq.Match(`.metadata.annotations | has("%s") `, annotations.ManagedByODHOperator),
 		jq.Match(`.metadata.ownerReferences | length == 0`),
 	))
+}
+
+func setupManagedAnnotationTest(t *testing.T, managed string, replicas *int32, containers []corev1.Container) (client.Client, types.ReconciliationRequest, string) {
+	t.Helper()
+	g := NewWithT(t)
+
+	et, err := envt.New()
+	g.Expect(err).NotTo(HaveOccurred())
+	t.Cleanup(func() { _ = et.Stop() })
+
+	cl := et.Client()
+	ns := xid.New().String()
+	g.Expect(cl.Create(t.Context(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})).To(Succeed())
+
+	rr := types.ReconciliationRequest{
+		Client:     cl,
+		Controller: mocks.NewMockController(func(m *mocks.MockController) { m.On("Owns", mock.Anything).Return(true) }),
+		Instance: &componentApi.Dashboard{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       componentApi.DashboardInstanceName,
+				UID:        apimachinery.UID(xid.New().String()),
+				Generation: 1,
+			},
+		},
+		Release: common.Release{Name: cluster.OpenDataHub, Version: version.OperatorVersion{Version: semver.Version{Major: 1, Minor: 2, Patch: 3}}},
+	}
+
+	g.Expect(rr.AddResources(&appsv1.Deployment{
+		TypeMeta:   metav1.TypeMeta{APIVersion: appsv1.SchemeGroupVersion.String(), Kind: "Deployment"},
+		ObjectMeta: metav1.ObjectMeta{Name: "test-deployment", Namespace: ns, Annotations: map[string]string{annotations.ManagedByODHOperator: managed}},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: replicas,
+			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "test"}},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "test"}},
+				Spec:       corev1.PodSpec{Containers: containers},
+			},
+		},
+	})).To(Succeed())
+
+	return cl, rr, ns
+}
+
+func TestDeployWithManagedAnnotation(t *testing.T) {
+	tests := []struct {
+		name        string
+		mode        deploy.Mode
+		managed     string
+		userValue   int32
+		finalValue  int32
+		description string
+	}{
+		{"ssa mode managed=true", deploy.ModeSSA, "true", 5, 2, "reverts modifications"},
+		{"ssa mode managed=false", deploy.ModeSSA, "false", 5, 5, "preserves modifications"},
+		{"patch mode managed=true", deploy.ModePatch, "true", 5, 2, "reverts modifications"},
+		{"patch mode managed=false", deploy.ModePatch, "false", 5, 5, "preserves modifications"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			ctx := t.Context()
+
+			replicas := int32(2)
+			cl, rr, ns := setupManagedAnnotationTest(t, tt.managed, &replicas,
+				[]corev1.Container{{Name: "test", Image: "test:v1"}})
+
+			action := deploy.NewAction(deploy.WithMode(tt.mode))
+			g.Expect(action(ctx, &rr)).To(Succeed())
+
+			deployed := &appsv1.Deployment{}
+			g.Expect(cl.Get(ctx, client.ObjectKey{Namespace: ns, Name: "test-deployment"}, deployed)).To(Succeed())
+			g.Expect(*deployed.Spec.Replicas).To(Equal(int32(2)))
+
+			deployed.Spec.Replicas = &tt.userValue
+			g.Expect(cl.Update(ctx, deployed)).To(Succeed())
+			g.Expect(action(ctx, &rr)).To(Succeed())
+
+			g.Expect(cl.Get(ctx, client.ObjectKey{Namespace: ns, Name: "test-deployment"}, deployed)).To(Succeed())
+			g.Expect(*deployed.Spec.Replicas).To(Equal(tt.finalValue), tt.description)
+		})
+	}
+
+	t.Run("ssa managed=true resets resources to manifest values", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		replicas := int32(1)
+		cl, rr, ns := setupManagedAnnotationTest(t, "true", &replicas,
+			[]corev1.Container{{
+				Name:  "test",
+				Image: "test:v1",
+				Resources: corev1.ResourceRequirements{
+					Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("1Gi")},
+					Limits:   corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("1Gi")},
+				},
+			}})
+
+		action := deploy.NewAction(deploy.WithMode(deploy.ModeSSA))
+		g.Expect(action(ctx, &rr)).To(Succeed())
+
+		deployed := &appsv1.Deployment{}
+		g.Expect(cl.Get(ctx, client.ObjectKey{Namespace: ns, Name: "test-deployment"}, deployed)).To(Succeed())
+		deployed.Spec.Template.Spec.Containers[0].Resources = corev1.ResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceMemory: resource.MustParse("64Mi"),
+				corev1.ResourceCPU:    resource.MustParse("250m"),
+			},
+			Limits: corev1.ResourceList{
+				corev1.ResourceMemory: resource.MustParse("128Mi"),
+				corev1.ResourceCPU:    resource.MustParse("500m"),
+			},
+		}
+		g.Expect(cl.Update(ctx, deployed)).To(Succeed())
+
+		g.Expect(action(ctx, &rr)).To(Succeed())
+
+		g.Expect(cl.Get(ctx, client.ObjectKey{Namespace: ns, Name: "test-deployment"}, deployed)).To(Succeed())
+		g.Expect(deployed.Spec.Template.Spec.Containers[0].Resources.Requests).To(Equal(
+			corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("1Gi")}),
+			"should have only manifest memory request, user-added cpu removed")
+		g.Expect(deployed.Spec.Template.Spec.Containers[0].Resources.Limits).To(Equal(
+			corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("1Gi")}),
+			"should have only manifest memory limit, user-added cpu removed")
+	})
 }
 
 func TestDeployClusterRole(t *testing.T) {
