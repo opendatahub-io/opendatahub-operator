@@ -42,9 +42,11 @@ var (
 	conditionTypes = []string{
 		status.ConditionDeploymentsAvailable,
 	}
-
-	paramsPath = path.Join(odhdeploy.DefaultManifestPath, ComponentName, "base")
 )
+
+func paramsPath() string {
+	return path.Join(odhdeploy.DefaultManifestPath, ComponentName, "base")
+}
 
 func manifestPath(p common.Platform) types.ManifestInfo {
 	return types.ManifestInfo{

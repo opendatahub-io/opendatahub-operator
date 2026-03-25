@@ -102,6 +102,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/initialinstall"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
@@ -229,6 +230,18 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
+	opEnv, err := operatorconfig.LoadOpEnvConfig()
+	if err != nil {
+		fmt.Printf("Error loading operator env config: %s", err.Error())
+		os.Exit(1)
+	}
+
+	// Override DefaultManifestPath with the Viper-resolved value so that both
+	// --default-manifests-path flag and DEFAULT_MANIFESTS_PATH env var are honoured.
+	if opEnv.DefaultManifestsPath != "" {
+		deploy.DefaultManifestPath = opEnv.DefaultManifestsPath
+	}
+
 	// Register handlers and apply suppression flags disabling the corresponding component/service
 	registerComponents()
 	registerServices()
@@ -246,7 +259,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	err = cluster.Init(ctx, setupClient)
+	err = cluster.Init(ctx, setupClient, *opEnv)
 	if err != nil {
 		setupLog.Error(err, "unable to initialize cluster config")
 		os.Exit(1)
@@ -442,11 +455,10 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 
 	// Check if user opted for disabling DSC configuration
-	disableDSCConfig, existDSCConfig := os.LookupEnv("DISABLE_DSC_CONFIG")
 	switch {
 	case !flags.IsDSCIEnabled():
 		setupLog.Info("DSCI is disabled")
-	case existDSCConfig && disableDSCConfig != "false":
+	case opEnv.DisableDSCConfig != "" && opEnv.DisableDSCConfig != "false":
 		setupLog.Info("DSCI auto creation is disabled")
 	default:
 		createDefaultDSCIFunc := LeaderElectionRunnableFunc(func(ctx context.Context) error {

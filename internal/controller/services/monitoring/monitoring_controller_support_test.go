@@ -28,20 +28,13 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	testScheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
 	. "github.com/onsi/gomega"
 )
 
 func TestMain(m *testing.M) {
-	// Set environment variables for operator namespace and platform type
-	// This is required because cluster.GetOperatorNamespace() checks a cached value
-	// that is set once during cluster.Init()
-	os.Setenv("OPERATOR_NAMESPACE", "test-operator-ns")
-
-	// Set platform type to avoid CatalogSource lookup during cluster.Init()
-	os.Setenv("ODH_PLATFORM_TYPE", "OpenDataHub")
-
 	// Initialize cluster config with a minimal fake client
 	// This populates the package-level clusterConfig variable with the operator namespace
 	scheme := runtime.NewScheme()
@@ -51,7 +44,10 @@ func TestMain(m *testing.M) {
 
 	// Ignore errors from Init as we only care about setting the operator namespace
 	// Other initialization errors (like missing cluster resources) are expected in tests
-	_ = cluster.Init(context.Background(), fakeClient)
+	_ = cluster.Init(context.Background(), fakeClient, operatorconfig.OpEnvConfig{
+		OperatorNamespace: "test-operator-ns",
+		PlatformType:      "OpenDataHub",
+	})
 
 	os.Exit(m.Run())
 }

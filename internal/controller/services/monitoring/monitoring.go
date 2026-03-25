@@ -23,9 +23,9 @@ const (
 	ServiceName = serviceApi.MonitoringServiceName
 )
 
-var (
-	prometheusConfigPath = filepath.Join(odhdeploy.DefaultManifestPath, ServiceName, "prometheus", "apps", "prometheus-configs.yaml")
-)
+func prometheusConfigPath() string {
+	return filepath.Join(odhdeploy.DefaultManifestPath, ServiceName, "prometheus", "apps", "prometheus-configs.yaml")
+}
 
 // updatePrometheusConfig update prometheus-configs.yaml to include/exclude <component>.rules
 // parameter enable when set to true to add new rules, when set to false to remove existing rules.
@@ -79,7 +79,7 @@ func updatePrometheusConfig(ctx context.Context, enable bool, component string) 
 	var prometheusContent map[interface{}]interface{}
 
 	// read prometheus.yml from local disk /opt/mainfests/monitoring/prometheus/apps/
-	yamlData, err := os.ReadFile(prometheusConfigPath)
+	yamlData, err := os.ReadFile(prometheusConfigPath())
 	if err != nil {
 		return err
 	}
@@ -132,7 +132,7 @@ func updatePrometheusConfig(ctx context.Context, enable bool, component string) 
 	}
 
 	// Write the modified content back to the file
-	err = os.WriteFile(prometheusConfigPath, newyamlData, 0)
+	err = os.WriteFile(prometheusConfigPath(), newyamlData, 0)
 
 	return err
 }
