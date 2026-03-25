@@ -188,6 +188,29 @@ func TestUpdateDSCStatus(t *testing.T) {
 		))
 	})
 
+	t.Run("should return ConditionFalse when component CR has deletionTimestamp", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithDashboard(operatorv1.Managed)
+		dashboard := createDashboardCR(true)
+		now := metav1.Now()
+		dashboard.SetDeletionTimestamp(&now)
+		dashboard.SetFinalizers([]string{"test-finalizer"})
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dashboard))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cs, err := handler.UpdateDSCStatus(ctx, &odhtypes.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(cs).Should(Equal(metav1.ConditionFalse))
+	})
+
 	t.Run("should handle disabled component", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()

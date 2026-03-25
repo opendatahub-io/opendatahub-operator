@@ -51,7 +51,7 @@ func computeComponentsStatus(
 
 		managedComponent++
 
-		if cs == metav1.ConditionFalse {
+		if cs != metav1.ConditionTrue {
 			notReadyComponents = append(notReadyComponents, component.GetName())
 		}
 

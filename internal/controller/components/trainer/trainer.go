@@ -73,6 +73,10 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		return cs, nil
 	}
 
+	if !c.GetDeletionTimestamp().IsZero() {
+		return metav1.ConditionFalse, nil
+	}
+
 	dsc, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
 		return cs, errors.New("failed to convert to DataScienceCluster")
