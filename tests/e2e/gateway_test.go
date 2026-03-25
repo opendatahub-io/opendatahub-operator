@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/cookiejar"
+	"net/url"
 	"strconv"
 	"sync"
 	"testing"
@@ -17,6 +18,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/clientcmd"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -98,6 +100,7 @@ func gatewayTestSuite(t *testing.T) {
 		// BYOIDC-specific tests (skipped on IntegratedOAuth)
 		{"Validate OIDC proxy secret creation", gatewayCtx.ValidateOIDCProxySecret},
 		{"Validate OIDC authentication proxy deployment", gatewayCtx.ValidateOIDCAuthProxyDeployment},
+		{"Validate OIDC token forwarding to dashboard", gatewayCtx.ValidateOIDCTokenForwarding},
 		{"Validate OIDC unauthenticated access redirects to login", gatewayCtx.ValidateOIDCUnauthenticatedRedirect},
 		// Common tests (run on both)
 		{"Validate HorizontalPodAutoscaler creation", gatewayCtx.ValidateHPA},
@@ -523,11 +526,13 @@ func (tc *GatewayTestCtx) ValidateEnvoyFilter(t *testing.T) {
 			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.authorization_response.allowed_upstream_headers.patterns | any(.exact == "x-auth-request-user")`),
 			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.authorization_response.allowed_upstream_headers.patterns | any(.exact == "x-auth-request-email")`),
 			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.authorization_response.allowed_upstream_headers.patterns | any(.exact == "x-auth-request-access-token")`),
+			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.authorization_response.allowed_upstream_headers.patterns | any(.exact == "authorization")`),
 
 			// Patch 1: Lua filter token forwarding
 			jq.Match(`.spec.configPatches[1].applyTo == "HTTP_FILTER"`),
 			jq.Match(`.spec.configPatches[1].patch.value.name == "envoy.filters.http.lua"`),
 			jq.Match(`.spec.configPatches[1].patch.value.typed_config.inline_code | contains("x-auth-request-access-token")`),
+			jq.Match(`.spec.configPatches[1].patch.value.typed_config.inline_code | contains("x-auth-request-user")`),
 			jq.Match(`.spec.configPatches[1].patch.value.typed_config.inline_code | contains("x-forwarded-access-token")`),
 			jq.Match(`.spec.configPatches[1].patch.value.typed_config.inline_code | contains("Bearer")`),
 			jq.Match(`.spec.configPatches[1].patch.value.typed_config.inline_code | contains("authorization")`),
@@ -917,11 +922,15 @@ func (tc *GatewayTestCtx) ValidateOIDCAuthProxyDeployment(t *testing.T) {
 			// auth proxy behavior flags
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--skip-provider-button")`),
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--skip-jwt-bearer-tokens=true")`),
-			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--pass-access-token=true")`),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--pass-authorization-header=true")`),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--set-authorization-header=true")`),
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--set-xauthrequest=true")`),
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--email-domain=*")`),
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--upstream=static://200")`),
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--enable-k8s-token-validation=true")`),
+
+			// OIDC mode must NOT have --pass-access-token (uses id_token via Authorization header instead)
+			jq.Match(`.spec.template.spec.containers[0].args | all(. != "--pass-access-token=true")`),
 
 			// metrics and trust store
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--metrics-address=0.0.0.0:%d")`, kubeAuthProxyMetricsPort),
@@ -1001,17 +1010,105 @@ func (tc *GatewayTestCtx) ValidateOIDCUnauthenticatedRedirect(t *testing.T) {
 		Equal(http.StatusTemporaryRedirect),
 	), "Unauthenticated request should return redirect (302/307) got %d", resp.StatusCode)
 
-	// Validate redirect location points to the OIDC issuer
+	// Validate redirect location points to the OIDC issuer's host.
+	// We compare hosts rather than checking for a substring because some providers (e.g. Entra ID)
+	// use a different path for the authorize endpoint than the issuer URL
+	// (issuer: .../v2.0, authorize: .../oauth2/v2.0/authorize).
 	location := resp.Header.Get("Location")
 	tc.g.Expect(location).NotTo(BeEmpty(), "Redirect response should have Location header")
-	tc.g.Expect(location).To(
-		ContainSubstring(oidcConfig.IssuerURL),
-		"Redirect should point to OIDC issuer URL %s, got: %s", oidcConfig.IssuerURL, location,
-	)
+
+	issuerURL, err := url.Parse(oidcConfig.IssuerURL)
+	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to parse issuer URL")
+	redirectURL, err := url.Parse(location)
+	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to parse redirect location URL")
+	tc.g.Expect(redirectURL.Host).To(Equal(issuerURL.Host),
+		"Redirect host should match OIDC issuer host %s, got: %s", issuerURL.Host, location)
+
 	tc.g.Expect(location).To(ContainSubstring("redirect_uri="),
 		"Redirect should have redirect_uri parameter, got: %s", location)
 
 	t.Log("OIDC unauthenticated access correctly redirects to OIDC provider")
+}
+
+// ValidateOIDCTokenForwarding tests that a request authenticated with an OIDC id_token
+// has the token forwarded to the dashboard backend as x-forwarded-access-token.
+// It sends a Bearer token request to the dashboard's /api/k8s endpoint through the gateway
+// and verifies the response is not 401 (which would indicate the token was not forwarded).
+func (tc *GatewayTestCtx) ValidateOIDCTokenForwarding(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+	tc.SkipUnlessBYOIDC(t)
+
+	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.DashboardKind)
+	defer tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.DashboardKind)
+
+	tc.waitForDashboardHTTPRoute(t)
+
+	idToken := tc.getOIDCIDToken(t)
+	dashboardURL := tc.getDashboardURL(t)
+
+	// Use /api/k8s proxy endpoint — this requires x-forwarded-access-token to be set
+	// by the EnvoyFilter Lua filter. Without it, the dashboard returns 401.
+	apiURL := dashboardURL + "/api/k8s/apis"
+
+	t.Logf("Testing OIDC token forwarding to %s", apiURL)
+
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				// #nosec G402 -- e2e test environment
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
+	require.NoError(t, err, "Failed to create HTTP request")
+
+	req.Header.Set("Authorization", "Bearer "+idToken)
+
+	resp, err := httpClient.Do(req)
+	require.NoError(t, err, "Failed to make authenticated request through gateway")
+	defer resp.Body.Close()
+
+	tc.g.Expect(resp.StatusCode).To(Equal(http.StatusOK),
+		"Authenticated request with OIDC id_token to /api/k8s/apis should return 200 — "+
+			"got %d, which indicates the token is not being correctly forwarded via x-forwarded-access-token", resp.StatusCode)
+
+	t.Log("OIDC token forwarding verified (status 200)")
+}
+
+// getOIDCIDToken extracts the id_token from the current kubeconfig's OIDC auth provider.
+func (tc *GatewayTestCtx) getOIDCIDToken(t *testing.T) string {
+	t.Helper()
+
+	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+	configOverrides := &clientcmd.ConfigOverrides{}
+	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
+
+	rawConfig, err := kubeConfig.RawConfig()
+	require.NoError(t, err, "Failed to load kubeconfig")
+
+	currentContext := rawConfig.CurrentContext
+	require.NotEmpty(t, currentContext, "No current kubeconfig context")
+
+	ctx, ok := rawConfig.Contexts[currentContext]
+	require.True(t, ok, "Current context %q not found in kubeconfig", currentContext)
+
+	authInfo, ok := rawConfig.AuthInfos[ctx.AuthInfo]
+	require.True(t, ok, "AuthInfo %q not found in kubeconfig", ctx.AuthInfo)
+	require.NotNil(t, authInfo.AuthProvider, "AuthInfo %q has no auth provider (expected OIDC)", ctx.AuthInfo)
+	require.Equal(t, "oidc", authInfo.AuthProvider.Name, "Auth provider should be OIDC")
+
+	idToken := authInfo.AuthProvider.Config["id-token"]
+	require.NotEmpty(t, idToken, "No id-token found in kubeconfig OIDC auth provider config")
+
+	t.Log("Extracted OIDC id_token from kubeconfig")
+	return idToken
 }
 
 // getServiceFQDN returns the fully qualified domain name for a Kubernetes service.
