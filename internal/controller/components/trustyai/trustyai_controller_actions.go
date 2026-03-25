@@ -53,9 +53,9 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 
 	// Add MCP Guardrails overlay if MCPGuardrailsMode is enabled
 	if trustyai.Spec.MCPGuardrailsMode {
-		rr.Manifests = append(rr.Manifests, mcpGuardrailsManifestInfo())
+		rr.Manifests = append(rr.Manifests, mcpGuardrailsManifestInfo(rr.ManifestsBasePath))
 	} else {
-		rr.Manifests = append(rr.Manifests, manifestsPath(rr.Release.Name))
+		rr.Manifests = append(rr.Manifests, manifestsPath(rr.ManifestsBasePath, rr.Release.Name))
 	}
 
 	return nil

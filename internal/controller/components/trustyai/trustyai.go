@@ -19,6 +19,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 )
 
 const (
@@ -70,14 +71,15 @@ func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *
 	}, nil
 }
 
-func (s *componentHandler) Init(platform common.Platform) error {
-	mp := manifestsPath(platform)
+func (s *componentHandler) Init(platform common.Platform, cfg operatorconfig.OperatorSettings) error {
+	mBasePath := cfg.ManifestsBasePath
+	mp := manifestsPath(mBasePath, platform)
 
 	if err := odhdeploy.ApplyParams(mp.String(), "params.env", imageParamMap); err != nil {
 		return fmt.Errorf("failed to update images on path %s: %w", mp, err)
 	}
 
-	mcpGuardrailsMP := mcpGuardrailsManifestInfo()
+	mcpGuardrailsMP := mcpGuardrailsManifestInfo(mBasePath)
 	if err := odhdeploy.ApplyParams(mcpGuardrailsMP.String(), "params.env", imageParamMap); err != nil {
 		return fmt.Errorf("failed to update images on path %s: %w", mcpGuardrailsMP, err)
 	}

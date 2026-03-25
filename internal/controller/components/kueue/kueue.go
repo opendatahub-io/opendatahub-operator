@@ -18,6 +18,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 )
 
 const (
@@ -59,7 +60,7 @@ func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *
 	}, nil
 }
 
-func (s *componentHandler) Init(platform common.Platform) error {
+func (s *componentHandler) Init(platform common.Platform, _ operatorconfig.OperatorSettings) error {
 	return nil
 }
 

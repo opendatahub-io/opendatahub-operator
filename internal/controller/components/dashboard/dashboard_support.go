@@ -9,7 +9,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 const (
@@ -62,25 +61,25 @@ var (
 	}
 )
 
-func defaultManifestInfo(p common.Platform) odhtypes.ManifestInfo {
+func defaultManifestInfo(basePath string, p common.Platform) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
-		Path:       odhdeploy.DefaultManifestPath,
+		Path:       basePath,
 		ContextDir: ComponentName,
 		SourcePath: overlaysSourcePaths[p],
 	}
 }
 
-func bffManifestsPath() odhtypes.ManifestInfo {
+func bffManifestsPath(basePath string) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
-		Path:       odhdeploy.DefaultManifestPath,
+		Path:       basePath,
 		ContextDir: ComponentName,
 		SourcePath: "modular-architecture",
 	}
 }
 
-func observabilityManifestInfo(platform common.Platform) odhtypes.ManifestInfo {
+func observabilityManifestInfo(basePath string, platform common.Platform) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
-		Path:       odhdeploy.DefaultManifestPath,
+		Path:       basePath,
 		ContextDir: ComponentName,
 		SourcePath: observabilitySourcePaths[platform],
 	}

@@ -26,7 +26,8 @@ import (
 )
 
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { //nolint:unparam
-	rr.Manifests = append(rr.Manifests, manifestPath(rr.Release.Name))
+	rr.Manifests = append(rr.Manifests, manifestPath(rr.ManifestsBasePath, rr.Release.Name))
+
 	return nil
 }
 
@@ -36,7 +37,7 @@ func setKustomizedParams(ctx context.Context, rr *odhtypes.ReconciliationRequest
 		return fmt.Errorf("failed to set variable for url, section-title etc: %w", err)
 	}
 
-	paramsPath := path.Join(odhdeploy.DefaultManifestPath, ComponentName, "base")
+	paramsPath := path.Join(rr.ManifestsBasePath, ComponentName, "base")
 
 	if err := odhdeploy.ApplyParams(paramsPath, "params.env", nil, extraParamsMap); err != nil {
 		return fmt.Errorf("failed to update params.env from %s : %w", paramsPath, err)

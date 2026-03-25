@@ -15,7 +15,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 const (
@@ -44,9 +43,9 @@ var (
 	}
 )
 
-func manifestPath(p common.Platform) types.ManifestInfo {
+func manifestPath(basePath string, p common.Platform) types.ManifestInfo {
 	return types.ManifestInfo{
-		Path:       odhdeploy.DefaultManifestPath,
+		Path:       basePath,
 		ContextDir: ComponentName,
 		SourcePath: ManifestsSourcePath[p],
 	}

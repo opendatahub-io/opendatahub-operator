@@ -34,6 +34,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 )
 
 type componentHandler struct{}
@@ -46,8 +47,9 @@ func (s *componentHandler) GetName() string {
 }
 
 // Init initializes the ModelsAsService component.
-func (s *componentHandler) Init(_ common.Platform) error {
-	mi := baseManifestInfo(BaseManifestsSourcePath)
+func (s *componentHandler) Init(_ common.Platform, cfg operatorconfig.OperatorSettings) error {
+	manifestsBasePath := cfg.ManifestsBasePath
+	mi := baseManifestInfo(manifestsBasePath, BaseManifestsSourcePath)
 
 	if err := odhdeploy.ApplyParams(mi.String(), "params.env", imagesMap, extraParamsMap); err != nil {
 		return fmt.Errorf("failed to update params on path %s: %w", mi, err)

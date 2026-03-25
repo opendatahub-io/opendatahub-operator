@@ -45,7 +45,7 @@ func TestCleanupExistingResourceWithCRDChecks(t *testing.T) {
 
 		// Call CleanupExistingResource - should complete without error
 		// The actual migration behavior is tested in TestMigrateAcceleratorProfilesToHardwareProfiles
-		err = upgrade.CleanupExistingResource(ctx, cli)
+		err = upgrade.CleanupExistingResource(ctx, cli, "")
 		g.Expect(err).ShouldNot(HaveOccurred())
 	})
 
@@ -83,7 +83,7 @@ func TestCleanupExistingResourceWithCRDChecks(t *testing.T) {
 		)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		err = upgrade.CleanupExistingResource(ctx, cli)
+		err = upgrade.CleanupExistingResource(ctx, cli, "")
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		// Verify NO HardwareProfiles were created
@@ -124,7 +124,7 @@ func TestCleanupExistingResourceWithCRDChecks(t *testing.T) {
 		)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		err = upgrade.CleanupExistingResource(ctx, cli)
+		err = upgrade.CleanupExistingResource(ctx, cli, "")
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		// Verify NO HardwareProfiles were created
@@ -151,7 +151,7 @@ func TestCleanupExistingResourceWithCRDChecks(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsci, gatewayConfig))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		err = upgrade.CleanupExistingResource(ctx, cli)
+		err = upgrade.CleanupExistingResource(ctx, cli, "")
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		// GatewayConfig migration should have been attempted (no error means it ran)
@@ -190,7 +190,7 @@ func TestCleanupExistingResourceWithCRDChecks(t *testing.T) {
 		)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		err = upgrade.CleanupExistingResource(ctx, cli)
+		err = upgrade.CleanupExistingResource(ctx, cli, "")
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		// No error should occur, migration should be skipped silently
@@ -223,7 +223,7 @@ func TestCleanupExistingResourceWithCRDChecks(t *testing.T) {
 		)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		err = upgrade.CleanupExistingResource(ctx, cli)
+		err = upgrade.CleanupExistingResource(ctx, cli, "")
 
 		// Should return error containing CRD check failure
 		g.Expect(err).Should(HaveOccurred())
@@ -236,7 +236,7 @@ func TestCleanupExistingResourceWithCRDChecks(t *testing.T) {
 		cli, err := fakeclient.New()
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		err = upgrade.CleanupExistingResource(ctx, cli)
+		err = upgrade.CleanupExistingResource(ctx, cli, "")
 		g.Expect(err).ShouldNot(HaveOccurred())
 	})
 }

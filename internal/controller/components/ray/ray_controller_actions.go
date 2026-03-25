@@ -26,7 +26,7 @@ import (
 )
 
 func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	rr.Manifests = append(rr.Manifests, manifestPath())
+	rr.Manifests = append(rr.Manifests, manifestPath(rr.ManifestsBasePath))
 
 	// Fetch application namespace from DSCI.
 	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
@@ -35,7 +35,7 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	}
 
 	err = odhdeploy.ApplyParams(
-		manifestPath().String(),
+		manifestPath(rr.ManifestsBasePath).String(),
 		"params.env",
 		nil,
 		map[string]string{"namespace": appNamespace},

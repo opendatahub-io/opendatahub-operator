@@ -134,7 +134,7 @@ releases:
 
 			// Set up the action with the custom metadata file path and provided status
 			action := releases.NewAction(
-				releases.WithMetadataFilePath(tt.metadataFilePath),
+				releases.WithMetadataFilePath(func(_ *types.ReconciliationRequest) string { return tt.metadataFilePath }),
 				releases.WithComponentReleaseStatus(tt.providedStatus), // Use WithComponentReleaseStatus to set the provided status
 			)
 

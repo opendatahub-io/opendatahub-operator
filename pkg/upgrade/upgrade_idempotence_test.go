@@ -98,7 +98,7 @@ func TestMigrateToInfraHardwareProfilesIdempotence_FullMigration(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// First run of migration
-	err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace)
+	err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace, "")
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// Capture state after first run
@@ -218,7 +218,7 @@ func TestMigrateToInfraHardwareProfilesIdempotence_PreservesUserModifications(t 
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// First run of migration - should NOT overwrite user's HWP
-	err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace)
+	err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace, "")
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// Verify user's custom spec was preserved
@@ -235,7 +235,7 @@ func TestMigrateToInfraHardwareProfilesIdempotence_PreservesUserModifications(t 
 	g.Expect(hwpAfterFirstRun.Annotations).To(HaveKeyWithValue("user-added-label", "important"))
 
 	// Second run - verify spec still unchanged (idempotent)
-	err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace)
+	err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace, "")
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	var hwpAfterSecondRun infrav1.HardwareProfile
@@ -272,7 +272,7 @@ func TestMigrateToInfraHardwareProfilesIdempotence_PartialAnnotations(t *testing
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// First run
-	err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace)
+	err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace, "")
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	stateAfterFirstRun, err := captureClusterState(ctx, cli, namespace)
@@ -349,7 +349,7 @@ func TestMigrateToInfraHardwareProfilesIdempotence_ConcurrentChanges(t *testing.
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// First run
-	err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace)
+	err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace, "")
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	stateAfterFirstRun, err := captureClusterState(ctx, cli, namespace)
@@ -376,7 +376,7 @@ func TestMigrateToInfraHardwareProfilesIdempotence_ConcurrentChanges(t *testing.
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// Second run - should handle new resources
-	err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace)
+	err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace, "")
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	stateAfterSecondRun, err := captureClusterState(ctx, cli, namespace)
@@ -447,7 +447,7 @@ func TestMigrateToInfraHardwareProfilesIdempotence_MixedState(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// First run
-	err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace)
+	err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace, "")
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	stateAfterFirstRun, err := captureClusterState(ctx, cli, namespace)
@@ -480,7 +480,7 @@ func TestMigrateToInfraHardwareProfilesIdempotence_EmptyNamespace(t *testing.T) 
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// First run with empty namespace - should skip migration
-	err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, "")
+	err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, "", "")
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// Capture state after first run
@@ -491,7 +491,7 @@ func TestMigrateToInfraHardwareProfilesIdempotence_EmptyNamespace(t *testing.T) 
 	g.Expect(stateAfterFirstRun.HardwareProfiles).To(BeEmpty(), "No HardwareProfiles should be created when namespace is empty")
 
 	// Second run with empty namespace - should still skip migration
-	err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, "")
+	err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, "", "")
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	stateAfterSecondRun, err := captureClusterState(ctx, cli, "test-namespace")
@@ -502,7 +502,7 @@ func TestMigrateToInfraHardwareProfilesIdempotence_EmptyNamespace(t *testing.T) 
 	g.Expect(identical).To(BeTrue(), "States should be identical when namespace is empty. Differences: %v", differences)
 
 	// Third run to be extra sure
-	err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, "")
+	err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, "", "")
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	stateAfterThirdRun, err := captureClusterState(ctx, cli, "test-namespace")

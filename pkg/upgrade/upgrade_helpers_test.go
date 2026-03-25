@@ -1055,7 +1055,7 @@ func verifyGatewayConfigIdempotence(ctx context.Context, g *WithT, cli client.Cl
 func verifyClusterStateIdempotence(ctx context.Context, g *WithT, cli client.Client, namespace string, runs int, initialState *ClusterState) {
 	previousState := initialState
 	for i := range runs {
-		err := upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace)
+		err := upgrade.MigrateToInfraHardwareProfiles(ctx, cli, namespace, "")
 		g.Expect(err).ShouldNot(HaveOccurred(), "Run %d should complete without errors", i+1)
 
 		currentState, err := captureClusterState(ctx, cli, namespace)
