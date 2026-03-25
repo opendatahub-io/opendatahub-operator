@@ -227,16 +227,36 @@ func IsActiveNamespace(ns *corev1.Namespace) bool {
 	return ns.Status.Phase == corev1.NamespaceActive
 }
 
-// IsSingleNodeCluster determines if the cluster is a single-node cluster by checking the ControlPlaneTopology.
+// IsSingleNodeCluster determines if the cluster is a single-node cluster.
+// It first checks the OpenShift Infrastructure resource's ControlPlaneTopology.
+// If that resource is unavailable (e.g. on non-OpenShift clusters like Kind),
+// it falls back to counting the number of schedulable nodes.
 func IsSingleNodeCluster(ctx context.Context, cli client.Client) bool {
+	log := logf.FromContext(ctx)
+
 	infra := &configv1.Infrastructure{}
-	if err := cli.Get(ctx, types.NamespacedName{Name: "cluster"}, infra); err != nil {
-		logf.FromContext(ctx).Info("could not get infrastructure, defaulting to multi-node behavior", "error", err)
+	if err := cli.Get(ctx, types.NamespacedName{Name: "cluster"}, infra); err == nil {
+		isSNO := infra.Status.ControlPlaneTopology == configv1.SingleReplicaTopologyMode
+		log.V(1).Info("detected cluster topology from Infrastructure resource", "controlPlaneTopology", infra.Status.ControlPlaneTopology, "isSNO", isSNO)
+		return isSNO
+	}
+
+	// Fallback for non-OpenShift clusters: count schedulable nodes
+	nodeList := &corev1.NodeList{}
+	if err := cli.List(ctx, nodeList); err != nil {
+		log.Info("could not list nodes, defaulting to multi-node behavior", "error", err)
 		return false
 	}
 
-	isSNO := infra.Status.ControlPlaneTopology == configv1.SingleReplicaTopologyMode
-	logf.FromContext(ctx).V(1).Info("detected cluster topology", "controlPlaneTopology", infra.Status.ControlPlaneTopology, "isSNO", isSNO)
+	schedulableNodes := 0
+	for i := range nodeList.Items {
+		if !nodeList.Items[i].Spec.Unschedulable {
+			schedulableNodes++
+		}
+	}
+
+	isSNO := schedulableNodes == 1
+	log.V(1).Info("detected cluster topology from node count", "schedulableNodes", schedulableNodes, "isSNO", isSNO)
 	return isSNO
 }
 

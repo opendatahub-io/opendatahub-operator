@@ -1294,14 +1294,15 @@ func withManagementState(state operatorv1.ManagementState) testf.TransformFn {
 }
 
 // withMetricsConfig returns a single transform for setting up metrics configuration using pipeline.
+// It intentionally omits the replicas field so the controller's SNO-aware auto-detection logic
+// determines the correct replica count based on cluster topology.
 func (tc *MonitoringTestCtx) withMetricsConfig() testf.TransformFn {
 	return testf.Transform(`.spec.monitoring.metrics = {
         "storage": {
             "size": "%s",
             "retention": "%s"
-        },
-        "replicas": %d
-    }`, MetricsStorageSize, MetricsRetention, tc.expectedDefaultReplicas)
+        }
+    }`, MetricsStorageSize, MetricsRetention)
 }
 
 // withMetricsReplicas returns a transform that sets metrics replicas.
