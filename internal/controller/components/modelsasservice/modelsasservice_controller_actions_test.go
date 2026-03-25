@@ -748,6 +748,16 @@ func TestConfigureTelemetryPolicy(t *testing.T) {
 	g := NewWithT(t)
 
 	t.Run("Error Handling", func(t *testing.T) {
+		t.Run("should return error for wrong instance type", func(t *testing.T) {
+			rr := &types.ReconciliationRequest{
+				Instance:  &componentApi.Dashboard{}, // wrong type
+				Resources: []unstructured.Unstructured{},
+			}
+			err := configureTelemetryPolicyCore(t.Context(), rr)
+			g.Expect(err).Should(HaveOccurred())
+			g.Expect(err.Error()).Should(ContainSubstring("is not a componentApi.ModelsAsService"))
+		})
+
 		t.Run("should skip when TelemetryPolicy CRD is not available", func(t *testing.T) {
 			// Create a basic fake client without TelemetryPolicy CRD
 			cli := createFakeClientWithoutGateway() // This won't have TelemetryPolicy CRD
