@@ -578,14 +578,19 @@ func TestBuildTelemetryLabels(t *testing.T) {
 		t.Run("should return defaults when config is nil", func(t *testing.T) {
 			labels := buildTelemetryLabels(logr.Discard(), nil)
 
-			// Always-on dimensions
+			// Always-on dimensions - verify both key presence and CEL expression values
 			g.Expect(labels).Should(HaveKey("subscription"))
+			g.Expect(labels["subscription"]).Should(Equal("auth.identity.selected_subscription"))
 			g.Expect(labels).Should(HaveKey("cost_center"))
+			g.Expect(labels["cost_center"]).Should(Equal("auth.identity.costCenter"))
 			g.Expect(labels).Should(HaveKey("tier"))
+			g.Expect(labels["tier"]).Should(Equal("auth.identity.tier"))
 
-			// Default enabled dimensions
+			// Default enabled dimensions - verify both key presence and CEL expression values
 			g.Expect(labels).Should(HaveKey("organization_id"))
+			g.Expect(labels["organization_id"]).Should(Equal("auth.identity.organizationId"))
 			g.Expect(labels).Should(HaveKey("model"))
+			g.Expect(labels["model"]).Should(Equal(`responseBodyJSON("/model")`))
 
 			// Default disabled dimensions (user disabled for GDPR compliance)
 			g.Expect(labels).ShouldNot(HaveKey("user"))
@@ -646,8 +651,16 @@ func TestBuildTelemetryLabels(t *testing.T) {
 
 					for _, key := range tc.expectedKeys {
 						g.Expect(labels).Should(HaveKey(key))
-						if key == "group" {
+						// Verify CEL expression values for enabled dimensions
+						switch key {
+						case "group":
 							g.Expect(labels[key]).Should(Equal("auth.identity.group"))
+						case "user":
+							g.Expect(labels[key]).Should(Equal("auth.identity.userid"))
+						case "organization_id":
+							g.Expect(labels[key]).Should(Equal("auth.identity.organizationId"))
+						case "model":
+							g.Expect(labels[key]).Should(Equal(`responseBodyJSON("/model")`))
 						}
 					}
 					for _, key := range tc.unexpectedKeys {
@@ -698,6 +711,34 @@ func TestBuildTelemetryLabels(t *testing.T) {
 						g.Expect(labels).Should(HaveKey(key))
 					}
 				})
+			}
+		})
+
+		t.Run("should have correct CEL expression values for all dimensions", func(t *testing.T) {
+			config := &componentApi.TelemetryConfig{
+				Metrics: &componentApi.MetricsConfig{
+					CaptureOrganization: boolPtr(true),
+					CaptureUser:         boolPtr(true),
+					CaptureGroup:        boolPtr(true),
+					CaptureModelUsage:   boolPtr(true),
+				},
+			}
+			labels := buildTelemetryLabels(logr.Discard(), config)
+
+			// Verify all CEL expression values are correct
+			expectedValues := map[string]string{
+				"subscription":    "auth.identity.selected_subscription",
+				"cost_center":     "auth.identity.costCenter",
+				"tier":            "auth.identity.tier",
+				"organization_id": "auth.identity.organizationId",
+				"user":            "auth.identity.userid",
+				"group":           "auth.identity.group",
+				"model":           `responseBodyJSON("/model")`,
+			}
+
+			for key, expectedValue := range expectedValues {
+				g.Expect(labels).Should(HaveKey(key))
+				g.Expect(labels[key]).Should(Equal(expectedValue), "CEL expression for %s should match", key)
 			}
 		})
 	})

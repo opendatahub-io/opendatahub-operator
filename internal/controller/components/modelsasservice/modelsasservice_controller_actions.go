@@ -231,8 +231,7 @@ func configureTelemetryPolicy(ctx context.Context, rr *types.ReconciliationReque
 	// Skip if TelemetryPolicy CRD is not available in the cluster
 	crdAvailable, err := cluster.HasCRD(ctx, rr.Client, gvk.TelemetryPolicyv1alpha1)
 	if err != nil {
-		log.V(2).Info("Failed to check TelemetryPolicy CRD availability, skipping", "error", err)
-		return nil
+		return fmt.Errorf("failed to check TelemetryPolicy CRD availability: %w", err)
 	}
 	if !crdAvailable {
 		log.V(2).Info("TelemetryPolicy CRD not available, skipping")
