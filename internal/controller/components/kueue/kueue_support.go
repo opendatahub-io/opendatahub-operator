@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -189,14 +190,14 @@ func createDefaultClusterQueue(name string, clusterInfo ClusterResourceInfo) *un
 		}),
 	}
 
-	clusterGPU := slices.Sorted(maps.Keys(clusterInfo.GPUInfo))
-	for _, label := range clusterGPU {
-		gpuInfo := clusterInfo.GPUInfo[label]
+	// Create resource groups for each GPU flavor (one per GPU model)
+	// Fix for RHOAIENG-51971: Each GPU model gets its own resource group
+	for _, gpuFlavor := range clusterInfo.GPUFlavors {
 		resourceGroups = append(resourceGroups, createResourceGroup([]Flavors{
 			{
-				Name: supportedGPUMap[label],
+				Name: gpuFlavor.FlavorName,
 				Resources: []FlavorResource{
-					{Name: label, Value: gpuInfo.Allocatable.String()},
+					{Name: gpuFlavor.ResourceKey, Value: gpuFlavor.Allocatable.String()},
 				},
 			},
 		}))
@@ -248,6 +249,7 @@ func createDefaultLocalQueue(name string, clusterQueueName string, namespace str
 func createDefaultResourceFlavors(clusterInfo ClusterResourceInfo) []unstructured.Unstructured {
 	resourceFlavors := []unstructured.Unstructured{}
 
+	// Create default flavor for CPU/memory (no node selection)
 	resourceFlavors = append(resourceFlavors, unstructured.Unstructured{
 		Object: map[string]any{
 			"apiVersion": gvk.ResourceFlavor.GroupVersion().String(),
@@ -262,18 +264,33 @@ func createDefaultResourceFlavors(clusterInfo ClusterResourceInfo) []unstructure
 		},
 	})
 
-	for label := range clusterInfo.GPUInfo {
+	// Create GPU flavors with nodeLabels for model-specific selection
+	// Fix for RHOAIENG-51971: Create separate flavors for each GPU model
+	for _, gpuFlavor := range clusterInfo.GPUFlavors {
+		spec := map[string]any{}
+
+		// Add nodeLabels if we have GPU model information
+		if gpuFlavor.ProductLabel != "" {
+			nodeLabels := map[string]any{}
+			if gpuFlavor.ResourceKey == NvidiaGPUResourceKey {
+				nodeLabels["nvidia.com/gpu.product"] = gpuFlavor.ProductLabel
+			} else if gpuFlavor.ResourceKey == AMDGPUResourceKey {
+				nodeLabels["amd.com/gpu.product"] = gpuFlavor.ProductLabel
+			}
+			spec["nodeLabels"] = nodeLabels
+		}
+
 		resourceFlavor := unstructured.Unstructured{}
 		resourceFlavor.Object = map[string]any{
 			"apiVersion": gvk.ResourceFlavor.GroupVersion().String(),
 			"kind":       gvk.ResourceFlavor.Kind,
 			"metadata": map[string]any{
-				"name": supportedGPUMap[label],
+				"name": gpuFlavor.FlavorName,
 				"annotations": map[string]any{
 					annotations.ManagedByODHOperator: "false",
 				},
 			},
-			"spec": map[string]any{},
+			"spec": spec,
 		}
 
 		resourceFlavors = append(resourceFlavors, resourceFlavor)
@@ -282,33 +299,116 @@ func createDefaultResourceFlavors(clusterInfo ClusterResourceInfo) []unstructure
 	return resourceFlavors
 }
 
-// ClusterResourceInfo contains information about a node's resources and GPU capabilities.
-type ClusterResourceInfo struct {
-	CPU     ResourceQuantity
-	Memory  ResourceQuantity
-	GPUInfo map[string]*ResourceQuantity
+// GPUFlavorInfo represents a specific GPU model flavor with its resource information.
+// Fix for RHOAIENG-51971: Track GPU models separately to support heterogeneous GPU clusters.
+type GPUFlavorInfo struct {
+	FlavorName   string            // Generated flavor name (e.g., "nvidia-h100-80gb")
+	ResourceKey  string            // GPU resource key (e.g., "nvidia.com/gpu")
+	ProductLabel string            // GPU model from node label (e.g., "NVIDIA-H100-80GB-HBM3")
+	Allocatable  resource.Quantity // Total allocatable GPUs for this model
 }
 
-// extractGPUInfo extracts GPU information from a node's allocatable and capacity resources.
-func (info *ClusterResourceInfo) extractGPUInfo(node corev1.Node) {
-	if info.GPUInfo == nil {
-		info.GPUInfo = make(map[string]*ResourceQuantity)
-	}
+// ClusterResourceInfo contains information about a node's resources and GPU capabilities.
+type ClusterResourceInfo struct {
+	CPU        ResourceQuantity
+	Memory     ResourceQuantity
+	GPUFlavors []GPUFlavorInfo // GPU flavors grouped by model
+}
 
+// extractGPUInfo extracts GPU information from a node's allocatable resources and labels.
+// Fix for RHOAIENG-51971: Detect GPU models from node labels to support heterogeneous GPU clusters.
+func (info *ClusterResourceInfo) extractGPUInfo(node corev1.Node) {
 	for resourceKey := range supportedGPUMap {
 		value, ok := node.Status.Allocatable[corev1.ResourceName(resourceKey)]
 		if !ok {
 			continue
 		}
 
-		entry := info.GPUInfo[resourceKey]
-		if entry == nil {
-			entry = &ResourceQuantity{}
+		// Try to get GPU product label (e.g., "nvidia.com/gpu.product")
+		productLabel := ""
+		if resourceKey == NvidiaGPUResourceKey {
+			productLabel = node.Labels["nvidia.com/gpu.product"]
+		} else if resourceKey == AMDGPUResourceKey {
+			productLabel = node.Labels["amd.com/gpu.product"]
 		}
 
-		entry.Allocatable.Add(value)
-		info.GPUInfo[resourceKey] = entry
+		// Generate flavor name based on product label or use generic name
+		flavorName := supportedGPUMap[resourceKey] // default: "nvidia-gpu-flavor" or "amd-gpu-flavor"
+		if productLabel != "" {
+			flavorName = generateFlavorNameFromProduct(resourceKey, productLabel)
+		}
+
+		// Find existing flavor or create new one
+		flavorIndex := -1
+		for i, flavor := range info.GPUFlavors {
+			if flavor.FlavorName == flavorName {
+				flavorIndex = i
+				break
+			}
+		}
+
+		if flavorIndex >= 0 {
+			// Add to existing flavor
+			info.GPUFlavors[flavorIndex].Allocatable.Add(value)
+		} else {
+			// Create new flavor
+			info.GPUFlavors = append(info.GPUFlavors, GPUFlavorInfo{
+				FlavorName:   flavorName,
+				ResourceKey:  resourceKey,
+				ProductLabel: productLabel,
+				Allocatable:  value.DeepCopy(),
+			})
+		}
 	}
+}
+
+// generateFlavorNameFromProduct creates a flavor name from GPU product label.
+// Example: "NVIDIA-H100-80GB-HBM3" -> "nvidia-h100-80gb"
+func generateFlavorNameFromProduct(resourceKey, productLabel string) string {
+	// Extract vendor prefix
+	prefix := ""
+	if resourceKey == NvidiaGPUResourceKey {
+		prefix = "nvidia"
+	} else if resourceKey == AMDGPUResourceKey {
+		prefix = "amd"
+	}
+
+	// Parse product label to extract model identifier
+	// Example: "NVIDIA-H100-80GB-HBM3" -> "h100-80gb"
+	// This handles common NVIDIA naming: NVIDIA-<MODEL>-<MEMORY>-<VARIANT>
+	model := productLabel
+	if len(model) > 7 && model[:7] == "NVIDIA-" {
+		model = model[7:] // Remove "NVIDIA-" prefix
+	} else if len(model) > 4 && model[:4] == "AMD-" {
+		model = model[4:] // Remove "AMD-" prefix
+	}
+
+	// Extract meaningful parts (model and memory size)
+	// "H100-80GB-HBM3" -> "h100-80gb"
+	parts := []rune{}
+	for _, ch := range model {
+		if (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') {
+			parts = append(parts, ch)
+		} else if ch == '-' && len(parts) > 0 && parts[len(parts)-1] != '-' {
+			parts = append(parts, '-')
+		}
+	}
+
+	modelStr := string(parts)
+	// Truncate after memory size (stop at second hyphen or end)
+	hyphenCount := 0
+	for i, ch := range modelStr {
+		if ch == '-' {
+			hyphenCount++
+			if hyphenCount == 2 {
+				modelStr = modelStr[:i]
+				break
+			}
+		}
+	}
+
+	// Convert to lowercase and combine with prefix
+	return prefix + "-" + strings.ToLower(modelStr)
 }
 
 // ResourceQuantity represents a resource with its allocatable values.
