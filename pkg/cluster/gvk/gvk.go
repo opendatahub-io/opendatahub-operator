@@ -635,6 +635,12 @@ var (
 		Kind:    "PyTorchJob",
 	}
 
+	TrainJob = schema.GroupVersionKind{
+		Group:   "trainer.kubeflow.org",
+		Version: "v1alpha1",
+		Kind:    "TrainJob",
+	}
+
 	ClusterTrainingRuntime = schema.GroupVersionKind{
 		Group:   "trainer.kubeflow.org",
 		Version: "v1alpha1",
