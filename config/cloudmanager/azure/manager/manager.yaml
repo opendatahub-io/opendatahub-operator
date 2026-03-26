@@ -68,7 +68,7 @@ spec:
         - --metrics-bind-address=0.0.0.0:8080
         - --leader-elect
         # NOTE: image is provided in CI by pullspec substitution, and by make/kustomize for local builds
-        image: REPLACE_IMAGE:latest
+        image: REPLACE_IMAGE:v0.0.0-placeholder
         imagePullPolicy: Always
         name: manager
         ports:
