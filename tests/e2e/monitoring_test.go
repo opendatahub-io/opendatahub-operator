@@ -82,12 +82,12 @@ func monitoringTestSuite(t *testing.T) {
 	tc, err := NewTestContext(t)
 	require.NoError(t, err)
 
-	// Detect cluster size once for all tests
-	isSNO := cluster.IsSingleNodeCluster(tc.Context(), tc.Client())
-	expectedReplicas := 2 // Default for multi-node
-	if isSNO {
-		expectedReplicas = 1
-	}
+	// Independently determine the expected replica count from the cluster's
+	// actual node topology rather than calling the production
+	// cluster.IsSingleNodeCluster() helper.  This ensures the test oracle
+	// does not mirror the code-under-test and can detect a broken SNO
+	// detector.
+	expectedReplicas := detectExpectedReplicas(t, tc)
 
 	// Create an instance of test context.
 	monitoringServiceCtx := MonitoringTestCtx{
@@ -1294,19 +1294,47 @@ func withManagementState(state operatorv1.ManagementState) testf.TransformFn {
 }
 
 // withMetricsConfig returns a single transform for setting up metrics configuration using pipeline.
+// It intentionally omits the replicas field so the controller's SNO-aware auto-detection logic
+// determines the correct replica count based on cluster topology.
 func (tc *MonitoringTestCtx) withMetricsConfig() testf.TransformFn {
 	return testf.Transform(`.spec.monitoring.metrics = {
         "storage": {
             "size": "%s",
             "retention": "%s"
-        },
-        "replicas": %d
-    }`, MetricsStorageSize, MetricsRetention, tc.expectedDefaultReplicas)
+        }
+    }`, MetricsStorageSize, MetricsRetention)
 }
 
 // withMetricsReplicas returns a transform that sets metrics replicas.
 func withMetricsReplicas(replicas int) testf.TransformFn {
 	return testf.Transform(`.spec.monitoring.metrics.replicas = %d`, replicas)
+}
+
+// detectExpectedReplicas independently determines the expected Prometheus
+// replica count by querying the cluster's node topology directly, without
+// calling the production IsSingleNodeCluster() helper.  This prevents the
+// test oracle from mirroring the code-under-test.
+func detectExpectedReplicas(t *testing.T, tc *TestContext) int {
+	t.Helper()
+
+	nodeList := &corev1.NodeList{}
+	err := tc.Client().List(tc.Context(), nodeList)
+	require.NoError(t, err, "failed to list cluster nodes for replica detection")
+
+	schedulable := 0
+	for i := range nodeList.Items {
+		if !nodeList.Items[i].Spec.Unschedulable {
+			schedulable++
+		}
+	}
+
+	if schedulable == 1 {
+		t.Logf("detected single schedulable node — expecting 1 replica")
+		return 1
+	}
+
+	t.Logf("detected %d schedulable nodes — expecting 2 replicas", schedulable)
+	return 2
 }
 
 // withNamespace returns a transform that sets monitoring namespace.
