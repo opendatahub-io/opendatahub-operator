@@ -805,6 +805,12 @@ var (
 		Kind:    "AuthPolicy",
 	}
 
+	TokenRateLimitPolicyv1alpha1 = schema.GroupVersionKind{
+		Group:   "kuadrant.io",
+		Version: "v1alpha1",
+		Kind:    "TokenRateLimitPolicy",
+	}
+
 	RateLimitPolicyv1 = schema.GroupVersionKind{
 		Group:   "kuadrant.io",
 		Version: "v1",
