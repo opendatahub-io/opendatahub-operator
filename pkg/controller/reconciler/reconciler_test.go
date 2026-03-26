@@ -984,6 +984,15 @@ func TestDynamicOwnership_DeployAction_WithGVKPredicates(t *testing.T) {
 	})
 
 	t.Run("deployment spec fields are not restored after external modification", func(t *testing.T) {
+		// Wait for any pending reconciliations from the previous subtest to drain
+		// before modifying replicas. The delete/restore cycle can trigger cascading
+		// events (owner ref updates, status changes) that queue additional reconciliations.
+		g.Consistently(func(gg Gomega) {
+			deployment := &appsv1.Deployment{}
+			gg.Expect(cli.Get(ctx, client.ObjectKey{Name: deploymentName, Namespace: nsName}, deployment)).To(Succeed())
+			gg.Expect(*deployment.Spec.Replicas).To(Equal(int32(1)))
+		}).WithTimeout(3*time.Second).WithPolling(200*time.Millisecond).Should(Succeed(), "Deployment should be stable before modification")
+
 		// Re-fetch to get current state
 		g.Expect(cli.Get(ctx, client.ObjectKey{Name: deploymentName, Namespace: nsName}, deployedDeployment)).To(Succeed())
 		original := deployedDeployment.DeepCopy()

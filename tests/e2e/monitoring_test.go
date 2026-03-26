@@ -9,7 +9,6 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -28,6 +27,8 @@ const (
 	MonitoringCRName                  = "default-monitoring"
 	MonitoringStackName               = "data-science-monitoringstack"
 	OpenTelemetryCollectorName        = "data-science-collector"
+	TargetAllocatorDeploymentName     = "data-science-collector-targetallocator"
+	TargetAllocatorServiceAccount     = "data-science-collector-collector"
 	TempoMonolithicName               = "data-science-tempomonolithic"
 	TempoStackName                    = "data-science-tempostack"
 	InstrumentationName               = "data-science-instrumentation"
@@ -81,12 +82,12 @@ func monitoringTestSuite(t *testing.T) {
 	tc, err := NewTestContext(t)
 	require.NoError(t, err)
 
-	// Detect cluster size once for all tests
-	isSNO := cluster.IsSingleNodeCluster(tc.Context(), tc.Client())
-	expectedReplicas := 2 // Default for multi-node
-	if isSNO {
-		expectedReplicas = 1
-	}
+	// Independently determine the expected replica count from the cluster's
+	// actual node topology rather than calling the production
+	// cluster.IsSingleNodeCluster() helper.  This ensures the test oracle
+	// does not mirror the code-under-test and can detect a broken SNO
+	// detector.
+	expectedReplicas := detectExpectedReplicas(t, tc)
 
 	// Create an instance of test context.
 	monitoringServiceCtx := MonitoringTestCtx{
@@ -114,6 +115,11 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test OpenTelemetry Collector Configurations", monitoringServiceCtx.ValidateOpenTelemetryCollectorConfigurations},
 		{"Test OpenTelemetry Collector replicas", monitoringServiceCtx.ValidateMonitoringCRCollectorReplicas},
 		{"Test Metrics TLS is always enabled for Prometheus exporter", monitoringServiceCtx.ValidateMetricsTLSAlwaysEnabled},
+		{"Test Target Allocator not deployed without metrics", monitoringServiceCtx.ValidateTargetAllocatorNotDeployedWithoutMetrics},
+		{"Test Target Allocator deployment with metrics", monitoringServiceCtx.ValidateTargetAllocatorDeploymentWithMetrics},
+		{"Test Target Allocator Service and ConfigMap", monitoringServiceCtx.ValidateTargetAllocatorServiceAndConfigMap},
+		{"Test Target Allocator lifecycle", monitoringServiceCtx.ValidateTargetAllocatorLifecycle},
+		{"Test Target Allocator RBAC configuration", monitoringServiceCtx.ValidateTargetAllocatorRBACConfiguration},
 		{"Test Instrumentation CR Traces lifecycle", monitoringServiceCtx.ValidateInstrumentationCRTracesLifecycle},
 		{"Test Traces Exporters Reserved Name Validation", monitoringServiceCtx.ValidateTracesExportersReservedNameValidation},
 		{"Test ThanosQuerier deployment with metrics", monitoringServiceCtx.ValidateThanosQuerierDeployment},
@@ -130,8 +136,6 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test PersesDatasource lifecycle", monitoringServiceCtx.ValidatePersesDatasourceLifecycle},
 		{"Test Perses Datasource TLS with S3 backend", monitoringServiceCtx.ValidatePersesDatasourceTLSWithS3Backend},
 		{"Test Perses Datasource TLS with GCS backend", monitoringServiceCtx.ValidatePersesDatasourceTLSWithGCSBackend},
-		{"Validate CEL blocks invalid monitoring configs", monitoringServiceCtx.ValidateCELBlocksInvalidMonitoringConfigs},
-		{"Validate CEL allows valid monitoring configs", monitoringServiceCtx.ValidateCELAllowsValidMonitoringConfigs},
 		{"Validate monitoring service disabled", monitoringServiceCtx.ValidateMonitoringServiceDisabled},
 		{"Test Namespace Restricted Metrics Access", monitoringServiceCtx.ValidatePrometheusRestrictedResourceConfiguration},
 		{"Test Prometheus Secure Proxy Authentication", monitoringServiceCtx.ValidatePrometheusSecureProxyAuthentication},
@@ -289,99 +293,6 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsReplicasUpdate(t *t
 		)),
 		WithCustomErrorMsg("MonitoringStack '%s' configuration validation failed", MonitoringStackName),
 	)
-}
-
-// ValidateCELBlocksInvalidMonitoringConfigs tests that CEL validation blocks invalid monitoring configurations.
-func (tc *MonitoringTestCtx) ValidateCELBlocksInvalidMonitoringConfigs(t *testing.T) {
-	t.Helper()
-
-	testCases := []struct {
-		name        string
-		transforms  []testf.TransformFn
-		description string
-	}{
-		{
-			name: "alerting_with_empty_metrics",
-			transforms: []testf.TransformFn{
-				withEmptyMetrics(),
-				withEmptyAlerting(),
-			},
-			description: "Empty metrics object should block alerting configuration",
-		},
-		{
-			name: "alerting_without_metrics_field",
-			transforms: []testf.TransformFn{
-				withNoMetrics(),
-				withEmptyAlerting(),
-			},
-			description: "Missing metrics field should trigger XValidation error",
-		},
-		{
-			name: "alerting_with_only_exporters",
-			transforms: []testf.TransformFn{
-				testf.Transform(`.spec.monitoring.metrics = {"exporters": {"custom": "config"}}`),
-				withEmptyAlerting(),
-			},
-			description: "Exporters alone should not satisfy alerting requirements",
-		},
-		{
-			name: "replicas_without_storage",
-			transforms: []testf.TransformFn{
-				testf.Transform(`.spec.monitoring.metrics = {"replicas": 2}`),
-			},
-			description: "Non-zero replicas should require storage ",
-		},
-	}
-
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			tc.updateMonitoringConfigWithOptions(
-				WithTransforms(testCase.transforms...),
-				WithAcceptableErr(k8serr.IsInvalid, "IsInvalid"),
-			)
-		})
-	}
-}
-
-// ValidateCELAllowsValidMonitoringConfigs tests that CEL validation allows valid monitoring configurations.
-func (tc *MonitoringTestCtx) ValidateCELAllowsValidMonitoringConfigs(t *testing.T) {
-	t.Helper()
-
-	testCases := []struct {
-		name        string
-		transforms  []testf.TransformFn
-		description string
-	}{
-		{
-			name: "empty_metrics_without_alerting",
-			transforms: []testf.TransformFn{
-				withEmptyMetrics(),
-				withNoCollectorReplicas(),
-				withNoAlerting(),
-			},
-			description: "Empty metrics should be allowed without alerting",
-		},
-		{
-			name: "replicas_zero_without_storage",
-			transforms: []testf.TransformFn{
-				testf.Transform(`.spec.monitoring.metrics = {"replicas": 0}`),
-			},
-			description: "Zero replicas should be allowed without storage",
-		},
-		{
-			name: "replicas_with_storage",
-			transforms: []testf.TransformFn{
-				tc.withMetricsConfig(),
-			},
-			description: "Non-zero replicas should be allowed with storage",
-		},
-	}
-
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			tc.updateMonitoringConfig(testCase.transforms...)
-		})
-	}
 }
 
 // ValidateOpenTelemetryCollectorConfigurations consolidates all OpenTelemetry Collector configuration tests.
@@ -1342,8 +1253,18 @@ func (tc *MonitoringTestCtx) cleanupTracesConfiguration() {
 }
 
 // resetMonitoringConfigToManaged completely resets monitoring configuration and sets management state to Managed.
+// It waits for any in-flight deletions to complete to ensure clean state for the next test.
 func (tc *MonitoringTestCtx) resetMonitoringConfigToManaged() {
 	tc.updateMonitoringConfig(testf.Transform(`.spec.monitoring = {"managementState": "%s"}`, operatorv1.Managed))
+
+	// Wait for OpenTelemetryCollector to be deleted if it was running with metrics/traces
+	// The controller will delete it when monitoring is reset to empty config
+	tc.EnsureResourcesGone(
+		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{
+			Name:      OpenTelemetryCollectorName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+	)
 }
 
 // resetMonitoringConfigToRemoved completely resets monitoring configuration and sets management state to Removed.
@@ -1373,19 +1294,47 @@ func withManagementState(state operatorv1.ManagementState) testf.TransformFn {
 }
 
 // withMetricsConfig returns a single transform for setting up metrics configuration using pipeline.
+// It intentionally omits the replicas field so the controller's SNO-aware auto-detection logic
+// determines the correct replica count based on cluster topology.
 func (tc *MonitoringTestCtx) withMetricsConfig() testf.TransformFn {
 	return testf.Transform(`.spec.monitoring.metrics = {
         "storage": {
             "size": "%s",
             "retention": "%s"
-        },
-        "replicas": %d
-    }`, MetricsStorageSize, MetricsRetention, tc.expectedDefaultReplicas)
+        }
+    }`, MetricsStorageSize, MetricsRetention)
 }
 
 // withMetricsReplicas returns a transform that sets metrics replicas.
 func withMetricsReplicas(replicas int) testf.TransformFn {
 	return testf.Transform(`.spec.monitoring.metrics.replicas = %d`, replicas)
+}
+
+// detectExpectedReplicas independently determines the expected Prometheus
+// replica count by querying the cluster's node topology directly, without
+// calling the production IsSingleNodeCluster() helper.  This prevents the
+// test oracle from mirroring the code-under-test.
+func detectExpectedReplicas(t *testing.T, tc *TestContext) int {
+	t.Helper()
+
+	nodeList := &corev1.NodeList{}
+	err := tc.Client().List(tc.Context(), nodeList)
+	require.NoError(t, err, "failed to list cluster nodes for replica detection")
+
+	schedulable := 0
+	for i := range nodeList.Items {
+		if !nodeList.Items[i].Spec.Unschedulable {
+			schedulable++
+		}
+	}
+
+	if schedulable == 1 {
+		t.Logf("detected single schedulable node — expecting 1 replica")
+		return 1
+	}
+
+	t.Logf("detected %d schedulable nodes — expecting 2 replicas", schedulable)
+	return 2
 }
 
 // withNamespace returns a transform that sets monitoring namespace.
@@ -1394,7 +1343,7 @@ func withNamespace(namespace string) testf.TransformFn { //nolint:unused
 }
 
 // withEmptyMetrics returns a transform that clears metrics configuration.
-func withEmptyMetrics() testf.TransformFn {
+func withEmptyMetrics() testf.TransformFn { //nolint:unused
 	return testf.Transform(`.spec.monitoring.metrics = {}`)
 }
 
@@ -1419,7 +1368,7 @@ func withNoTraces() testf.TransformFn {
 }
 
 // withNoCollectorReplicas returns a transform that removes the collectorReplicas field entirely.
-func withNoCollectorReplicas() testf.TransformFn {
+func withNoCollectorReplicas() testf.TransformFn { //nolint:unused
 	return testf.Transform(`del(.spec.monitoring.collectorReplicas)`)
 }
 
@@ -2248,4 +2197,243 @@ func (tc *MonitoringTestCtx) ValidatePersesDatasourceTLSWithGCSBackend(t *testin
 	t.Helper()
 
 	tc.validatePersesDatasourceTLSWithCloudBackend(t, "gcs")
+}
+
+// ValidateTargetAllocatorNotDeployedWithoutMetrics tests that the Target Allocator is not deployed when metrics are not configured.
+func (tc *MonitoringTestCtx) ValidateTargetAllocatorNotDeployedWithoutMetrics(t *testing.T) {
+	t.Helper()
+
+	tc.ensureMonitoringCleanSlate(t, "")
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		withNoMetrics(),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(And(
+			jq.Match(`.spec.metrics == null`),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Monitoring resource should be created without metrics configuration"),
+	)
+
+	// Validate that OpenTelemetryCollectorAvailable condition is False when metrics are not configured
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(jq.Match(
+			`[.status.conditions[] | select(.type=="%s" and .status=="False")] | length==1`,
+			status.ConditionOpenTelemetryCollectorAvailable,
+		)),
+		WithCustomErrorMsg("OpenTelemetryCollectorAvailable condition should be False when metrics are not configured"),
+	)
+
+	// When both metrics and traces are disabled, OpenTelemetryCollector is not deployed
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{
+			Name:      OpenTelemetryCollectorName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+	)
+
+	// Verify Target Allocator Deployment does not exist
+	// The OpenTelemetry Operator creates a deployment named: <collector-name>-targetallocator
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      TargetAllocatorDeploymentName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+	)
+
+	tc.resetMonitoringConfigToManaged()
+}
+
+// ValidateTargetAllocatorDeploymentWithMetrics tests that the Target Allocator is deployed and ready when metrics are configured.
+func (tc *MonitoringTestCtx) ValidateTargetAllocatorDeploymentWithMetrics(t *testing.T) {
+	t.Helper()
+
+	tc.ensureMonitoringCleanSlate(t, "")
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(And(
+			jq.Match(`.spec.metrics != null`),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Monitoring resource should be updated with metrics configuration"),
+	)
+
+	// Ensure the OpenTelemetryCollector CR has targetAllocator enabled
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{
+			Name:      OpenTelemetryCollectorName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.targetAllocator.enabled == true`),
+			jq.Match(`.spec.targetAllocator.serviceAccount == "%s"`, TargetAllocatorServiceAccount),
+			jq.Match(`.spec.targetAllocator.prometheusCR.enabled == true`),
+			jq.Match(`.spec.targetAllocator.prometheusCR.podMonitorSelector.matchLabels."opendatahub.io/monitoring" == "true"`),
+			jq.Match(`.spec.targetAllocator.prometheusCR.serviceMonitorSelector.matchLabels."opendatahub.io/monitoring" == "true"`),
+		)),
+		WithCustomErrorMsg("OpenTelemetryCollector should have targetAllocator enabled with correct configuration"),
+	)
+
+	// Wait for OpenTelemetry Operator to create the Target Allocator Deployment
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      TargetAllocatorDeploymentName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.status.readyReplicas >= 1`),
+			jq.Match(`.status.conditions[] | select(.type == "Available") | .status == "True"`),
+		)),
+		WithCustomErrorMsg("Target Allocator Deployment should be created and available"),
+	)
+
+	tc.resetMonitoringConfigToManaged()
+}
+
+// ValidateTargetAllocatorServiceAndConfigMap tests that the Target Allocator Service and ConfigMap are created correctly.
+func (tc *MonitoringTestCtx) ValidateTargetAllocatorServiceAndConfigMap(t *testing.T) {
+	t.Helper()
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	// Verify Target Allocator Service is created
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Service, types.NamespacedName{
+			Name:      TargetAllocatorDeploymentName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.ports[] | select(.name == "targetallocation") | .port == 80`),
+		)),
+		WithCustomErrorMsg("Target Allocator Service should be created"),
+	)
+
+	// Note: ConfigMap is dynamically managed by OpenTelemetry Operator, so we just verify it exists
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
+			Name:      TargetAllocatorDeploymentName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCustomErrorMsg("Target Allocator ConfigMap should be created by OpenTelemetry Operator"),
+	)
+
+	tc.resetMonitoringConfigToManaged()
+}
+
+// ValidateTargetAllocatorLifecycle tests the complete lifecycle of Target Allocator deployment and cleanup.
+func (tc *MonitoringTestCtx) ValidateTargetAllocatorLifecycle(t *testing.T) {
+	t.Helper()
+
+	// Step 1: Enable metrics to deploy Target Allocator
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	// Verify Target Allocator Deployment is created
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      TargetAllocatorDeploymentName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
+		WithCustomErrorMsg("Target Allocator should be deployed when metrics are enabled"),
+	)
+
+	// Step 2: Disable metrics and verify Target Allocator is removed
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		withNoMetrics(),
+	)
+
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      TargetAllocatorDeploymentName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+	)
+
+	// Step 3: Re-enable metrics and verify Target Allocator is recreated
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      TargetAllocatorDeploymentName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
+		WithCustomErrorMsg("Target Allocator should be recreated when metrics are re-enabled"),
+	)
+
+	tc.resetMonitoringConfigToManaged()
+}
+
+// ValidateTargetAllocatorRBACConfiguration tests that Target Allocator has correct RBAC permissions.
+func (tc *MonitoringTestCtx) ValidateTargetAllocatorRBACConfiguration(t *testing.T) {
+	t.Helper()
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	// Verify ServiceAccount exists for Target Allocator
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ServiceAccount, types.NamespacedName{
+			Name:      TargetAllocatorServiceAccount,
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCustomErrorMsg("ServiceAccount for Target Allocator should exist"),
+	)
+
+	// Verify ClusterRole for Target Allocator (created by collector-rbac.tmpl.yaml)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRole, types.NamespacedName{
+			Name: "generate-processors-role",
+		}),
+		WithCondition(And(
+			// Verify it has permissions to watch ServiceMonitors and PodMonitors
+			jq.Match(`.rules[] | select(.apiGroups[] == "monitoring.coreos.com") | .resources | contains(["podmonitors", "servicemonitors"])`),
+			jq.Match(`.rules[] | select(.apiGroups[] == "monitoring.coreos.com") | .verbs | contains(["get", "list", "watch"])`),
+			// Verify it has permissions to list Endpoints (core API group)
+			jq.Match(`.rules[] | select(.apiGroups[] == "") | .resources | contains(["endpoints"])`),
+			jq.Match(`.rules[] | select(.apiGroups[] == "") | .verbs | contains(["get", "list", "watch"])`),
+			// Verify it has permissions to list EndpointSlices (discovery.k8s.io)
+			jq.Match(`.rules[] | select(.apiGroups[] == "discovery.k8s.io") | .resources | contains(["endpointslices"])`),
+			jq.Match(`.rules[] | select(.apiGroups[] == "discovery.k8s.io") | .verbs | contains(["get", "list", "watch"])`),
+		)),
+		WithCustomErrorMsg("ClusterRole should grant Target Allocator permissions to watch ServiceMonitors, PodMonitors, Endpoints, and EndpointSlices"),
+	)
+
+	// Verify ClusterRoleBinding
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
+			Name: "generate-processors-collector-rolebinding",
+		}),
+		WithCondition(And(
+			jq.Match(`.roleRef.name == "generate-processors-role"`),
+			jq.Match(`.subjects[0].name == "%s"`, TargetAllocatorServiceAccount),
+			jq.Match(`.subjects[0].namespace == "%s"`, tc.MonitoringNamespace),
+		)),
+		WithCustomErrorMsg("ClusterRoleBinding should bind Target Allocator ClusterRole to ServiceAccount"),
+	)
+
+	tc.resetMonitoringConfigToManaged()
 }

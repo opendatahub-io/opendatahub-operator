@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,9 +19,12 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 
 	. "github.com/onsi/gomega"
 )
+
+func boolPtr(v bool) *bool { return &v }
 
 func TestGatewayValidation(t *testing.T) {
 	g := NewWithT(t)
@@ -563,6 +567,431 @@ func TestAPIKeyConfiguration(t *testing.T) {
 
 				g.Expect(*maas.Spec.APIKeys.MaxExpirationDays).Should(Equal(days))
 			}
+		})
+	})
+}
+
+func TestBuildTelemetryLabels(t *testing.T) {
+	g := NewWithT(t)
+
+	t.Run("Telemetry Labels", func(t *testing.T) {
+		t.Run("should return defaults when config is nil", func(t *testing.T) {
+			labels := buildTelemetryLabels(logr.Discard(), nil)
+
+			// Always-on dimensions - verify both key presence and CEL expression values
+			g.Expect(labels).Should(HaveKey("subscription"))
+			g.Expect(labels["subscription"]).Should(Equal("auth.identity.selected_subscription"))
+			g.Expect(labels).Should(HaveKey("cost_center"))
+			g.Expect(labels["cost_center"]).Should(Equal("auth.identity.costCenter"))
+			g.Expect(labels).Should(HaveKey("tier"))
+			g.Expect(labels["tier"]).Should(Equal("auth.identity.tier"))
+
+			// Default enabled dimensions - verify both key presence and CEL expression values
+			g.Expect(labels).Should(HaveKey("organization_id"))
+			g.Expect(labels["organization_id"]).Should(Equal("auth.identity.organizationId"))
+			g.Expect(labels).Should(HaveKey("model"))
+			g.Expect(labels["model"]).Should(Equal(`responseBodyJSON("/model")`))
+
+			// Default disabled dimensions (user disabled for GDPR compliance)
+			g.Expect(labels).ShouldNot(HaveKey("user"))
+
+			// Default disabled dimensions
+			g.Expect(labels).ShouldNot(HaveKey("group"))
+		})
+
+		t.Run("should return defaults when metrics config is nil", func(t *testing.T) {
+			config := &componentApi.TelemetryConfig{
+				Metrics: nil,
+			}
+
+			labels := buildTelemetryLabels(logr.Discard(), config)
+
+			// Should have 5 labels (3 always-on + 2 default enabled)
+			g.Expect(labels).Should(HaveLen(5))
+			g.Expect(labels).ShouldNot(HaveKey("group"))
+		})
+
+		t.Run("should handle capture flags", func(t *testing.T) {
+			testCases := []struct {
+				name           string
+				config         *componentApi.MetricsConfig
+				expectedKeys   []string
+				unexpectedKeys []string
+			}{
+				{
+					name:           "captureGroup enabled",
+					config:         &componentApi.MetricsConfig{CaptureGroup: boolPtr(true)},
+					expectedKeys:   []string{"group"},
+					unexpectedKeys: nil,
+				},
+				{
+					name:           "captureUser disabled",
+					config:         &componentApi.MetricsConfig{CaptureUser: boolPtr(false)},
+					expectedKeys:   nil,
+					unexpectedKeys: []string{"user"},
+				},
+				{
+					name:           "captureOrganization disabled",
+					config:         &componentApi.MetricsConfig{CaptureOrganization: boolPtr(false)},
+					expectedKeys:   nil,
+					unexpectedKeys: []string{"organization_id"},
+				},
+				{
+					name:           "captureModelUsage disabled",
+					config:         &componentApi.MetricsConfig{CaptureModelUsage: boolPtr(false)},
+					expectedKeys:   nil,
+					unexpectedKeys: []string{"model"},
+				},
+			}
+
+			for _, tc := range testCases {
+				t.Run(tc.name, func(t *testing.T) {
+					config := &componentApi.TelemetryConfig{Metrics: tc.config}
+					labels := buildTelemetryLabels(logr.Discard(), config)
+
+					for _, key := range tc.expectedKeys {
+						g.Expect(labels).Should(HaveKey(key))
+						// Verify CEL expression values for enabled dimensions
+						switch key {
+						case "group":
+							g.Expect(labels[key]).Should(Equal("auth.identity.group"))
+						case "user":
+							g.Expect(labels[key]).Should(Equal("auth.identity.userid"))
+						case "organization_id":
+							g.Expect(labels[key]).Should(Equal("auth.identity.organizationId"))
+						case "model":
+							g.Expect(labels[key]).Should(Equal(`responseBodyJSON("/model")`))
+						}
+					}
+					for _, key := range tc.unexpectedKeys {
+						g.Expect(labels).ShouldNot(HaveKey(key))
+					}
+				})
+			}
+		})
+
+		t.Run("should handle extreme configurations", func(t *testing.T) {
+			testCases := []struct {
+				name         string
+				config       *componentApi.MetricsConfig
+				expectedLen  int
+				alwaysOnKeys []string
+			}{
+				{
+					name: "all dimensions disabled",
+					config: &componentApi.MetricsConfig{
+						CaptureOrganization: boolPtr(false),
+						CaptureUser:         boolPtr(false),
+						CaptureGroup:        boolPtr(false),
+						CaptureModelUsage:   boolPtr(false),
+					},
+					expectedLen:  3,
+					alwaysOnKeys: []string{"subscription", "cost_center", "tier"},
+				},
+				{
+					name: "all dimensions enabled",
+					config: &componentApi.MetricsConfig{
+						CaptureOrganization: boolPtr(true),
+						CaptureUser:         boolPtr(true),
+						CaptureGroup:        boolPtr(true),
+						CaptureModelUsage:   boolPtr(true),
+					},
+					expectedLen:  7,
+					alwaysOnKeys: []string{"subscription", "cost_center", "tier", "organization_id", "user", "group", "model"},
+				},
+			}
+
+			for _, tc := range testCases {
+				t.Run(tc.name, func(t *testing.T) {
+					config := &componentApi.TelemetryConfig{Metrics: tc.config}
+					labels := buildTelemetryLabels(logr.Discard(), config)
+
+					g.Expect(labels).Should(HaveLen(tc.expectedLen))
+					for _, key := range tc.alwaysOnKeys {
+						g.Expect(labels).Should(HaveKey(key))
+					}
+				})
+			}
+		})
+
+		t.Run("should have correct CEL expression values for all dimensions", func(t *testing.T) {
+			config := &componentApi.TelemetryConfig{
+				Metrics: &componentApi.MetricsConfig{
+					CaptureOrganization: boolPtr(true),
+					CaptureUser:         boolPtr(true),
+					CaptureGroup:        boolPtr(true),
+					CaptureModelUsage:   boolPtr(true),
+				},
+			}
+			labels := buildTelemetryLabels(logr.Discard(), config)
+
+			// Verify all CEL expression values are correct
+			expectedValues := map[string]string{
+				"subscription":    "auth.identity.selected_subscription",
+				"cost_center":     "auth.identity.costCenter",
+				"tier":            "auth.identity.tier",
+				"organization_id": "auth.identity.organizationId",
+				"user":            "auth.identity.userid",
+				"group":           "auth.identity.group",
+				"model":           `responseBodyJSON("/model")`,
+			}
+
+			for key, expectedValue := range expectedValues {
+				g.Expect(labels).Should(HaveKey(key))
+				g.Expect(labels[key]).Should(Equal(expectedValue), "CEL expression for %s should match", key)
+			}
+		})
+	})
+}
+
+func TestConfigureTelemetryPolicy(t *testing.T) {
+	g := NewWithT(t)
+
+	t.Run("Error Handling", func(t *testing.T) {
+		t.Run("should return error for wrong instance type", func(t *testing.T) {
+			rr := &types.ReconciliationRequest{
+				Instance:  &componentApi.Dashboard{}, // wrong type
+				Resources: []unstructured.Unstructured{},
+			}
+			err := configureTelemetryPolicyCore(t.Context(), rr)
+			g.Expect(err).Should(HaveOccurred())
+			g.Expect(err.Error()).Should(ContainSubstring("is not a componentApi.ModelsAsService"))
+		})
+
+		t.Run("should skip when TelemetryPolicy CRD is not available", func(t *testing.T) {
+			// Create a basic fake client without TelemetryPolicy CRD
+			cli := createFakeClientWithoutGateway() // This won't have TelemetryPolicy CRD
+
+			rr := &types.ReconciliationRequest{
+				Instance:  &componentApi.ModelsAsService{},
+				Client:    cli,
+				Resources: []unstructured.Unstructured{},
+			}
+
+			err := configureTelemetryPolicy(t.Context(), rr)
+			g.Expect(err).ShouldNot(HaveOccurred())  // Should succeed but skip
+			g.Expect(rr.Resources).Should(BeEmpty()) // No resources should be added
+		})
+	})
+
+	t.Run("TelemetryPolicy Creation", func(t *testing.T) {
+		t.Run("should create TelemetryPolicy with correct metadata", func(t *testing.T) {
+			maas := &componentApi.ModelsAsService{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "components.platform.opendatahub.io/v1alpha1",
+					Kind:       "ModelsAsService",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: componentApi.ModelsAsServiceInstanceName,
+					UID:  "test-uid-123",
+				},
+				Spec: componentApi.ModelsAsServiceSpec{
+					GatewayRef: componentApi.GatewayRef{
+						Namespace: "test-gateway-ns",
+						Name:      "test-gateway",
+					},
+				},
+			}
+
+			// Use a basic fake client - we'll test the core logic without CRD availability check
+			cli, err := fakeclient.New()
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			rr := &types.ReconciliationRequest{
+				Instance:  maas,
+				Client:    cli,
+				Resources: []unstructured.Unstructured{},
+			}
+
+			// Test the core TelemetryPolicy creation logic directly, bypassing the CRD check
+			// This tests the business logic without the defensive CRD availability check
+			err = configureTelemetryPolicyCore(t.Context(), rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			// Should have added one resource
+			g.Expect(rr.Resources).Should(HaveLen(1))
+
+			policy := rr.Resources[0]
+			g.Expect(policy.GetName()).Should(Equal(TelemetryPolicyName))
+			g.Expect(policy.GetNamespace()).Should(Equal("test-gateway-ns"))
+			g.Expect(policy.GetKind()).Should(Equal("TelemetryPolicy"))
+			g.Expect(policy.GetAPIVersion()).Should(Equal("extensions.kuadrant.io/v1alpha1"))
+
+			// Check OwnerReferences
+			ownerRefs := policy.GetOwnerReferences()
+			g.Expect(ownerRefs).ShouldNot(BeEmpty())
+			g.Expect(ownerRefs).Should(HaveLen(1))
+			g.Expect(ownerRefs[0].Name).Should(Equal(componentApi.ModelsAsServiceInstanceName))
+			g.Expect(ownerRefs[0].Kind).Should(Equal("ModelsAsService"))
+			g.Expect(ownerRefs[0].APIVersion).Should(Equal("components.platform.opendatahub.io/v1alpha1"))
+			g.Expect(string(ownerRefs[0].UID)).Should(Equal("test-uid-123"))
+			g.Expect(ownerRefs[0].Controller).ShouldNot(BeNil())
+			g.Expect(*ownerRefs[0].Controller).Should(BeTrue())
+			g.Expect(ownerRefs[0].BlockOwnerDeletion).ShouldNot(BeNil())
+			g.Expect(*ownerRefs[0].BlockOwnerDeletion).Should(BeTrue())
+		})
+
+		t.Run("should set targetRef to configured gateway", func(t *testing.T) {
+			maas := &componentApi.ModelsAsService{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: componentApi.ModelsAsServiceInstanceName,
+				},
+				Spec: componentApi.ModelsAsServiceSpec{
+					GatewayRef: componentApi.GatewayRef{
+						Namespace: "my-ns",
+						Name:      "my-gateway",
+					},
+				},
+			}
+
+			// Use basic fake client for testing core logic
+			cli, err := fakeclient.New()
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			rr := &types.ReconciliationRequest{
+				Instance:  maas,
+				Client:    cli,
+				Resources: []unstructured.Unstructured{},
+			}
+
+			err = configureTelemetryPolicyCore(t.Context(), rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			targetName, found, err := unstructured.NestedString(
+				rr.Resources[0].Object, "spec", "targetRef", "name")
+			g.Expect(err).ShouldNot(HaveOccurred())
+			g.Expect(found).Should(BeTrue())
+			g.Expect(targetName).Should(Equal("my-gateway"))
+
+			targetKind, _, _ := unstructured.NestedString(
+				rr.Resources[0].Object, "spec", "targetRef", "kind")
+			g.Expect(targetKind).Should(Equal("Gateway"))
+		})
+
+		t.Run("should apply telemetry config to labels", func(t *testing.T) {
+			captureUser := false
+			captureGroup := true
+			maas := &componentApi.ModelsAsService{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: componentApi.ModelsAsServiceInstanceName,
+				},
+				Spec: componentApi.ModelsAsServiceSpec{
+					GatewayRef: componentApi.GatewayRef{
+						Namespace: "ns",
+						Name:      "gw",
+					},
+					Telemetry: &componentApi.TelemetryConfig{
+						Metrics: &componentApi.MetricsConfig{
+							CaptureUser:  &captureUser,
+							CaptureGroup: &captureGroup,
+						},
+					},
+				},
+			}
+
+			// Use basic fake client for testing core logic
+			cli, err := fakeclient.New()
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			rr := &types.ReconciliationRequest{
+				Instance:  maas,
+				Client:    cli,
+				Resources: []unstructured.Unstructured{},
+			}
+
+			err = configureTelemetryPolicyCore(t.Context(), rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			labels, found, err := unstructured.NestedMap(
+				rr.Resources[0].Object, "spec", "metrics", "default", "labels")
+			g.Expect(err).ShouldNot(HaveOccurred())
+			g.Expect(found).Should(BeTrue())
+
+			// user should be excluded
+			g.Expect(labels).ShouldNot(HaveKey("user"))
+			// group should be included
+			g.Expect(labels).Should(HaveKey("group"))
+			// always-on dimensions should be present
+			g.Expect(labels).Should(HaveKey("subscription"))
+			g.Expect(labels).Should(HaveKey("cost_center"))
+			g.Expect(labels).Should(HaveKey("tier"))
+		})
+
+		t.Run("should append to existing resources", func(t *testing.T) {
+			maas := &componentApi.ModelsAsService{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: componentApi.ModelsAsServiceInstanceName,
+				},
+				Spec: componentApi.ModelsAsServiceSpec{
+					GatewayRef: componentApi.GatewayRef{
+						Namespace: "ns",
+						Name:      "gw",
+					},
+				},
+			}
+
+			// Start with an existing resource
+			existingResource := unstructured.Unstructured{}
+			existingResource.SetAPIVersion("v1")
+			existingResource.SetKind("ConfigMap")
+			existingResource.SetName("existing-config")
+
+			// Use basic fake client for testing core logic
+			cli, err := fakeclient.New()
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			rr := &types.ReconciliationRequest{
+				Instance:  maas,
+				Client:    cli,
+				Resources: []unstructured.Unstructured{existingResource},
+			}
+
+			err = configureTelemetryPolicyCore(t.Context(), rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			// Should have 2 resources now
+			g.Expect(rr.Resources).Should(HaveLen(2))
+			g.Expect(rr.Resources[0].GetName()).Should(Equal("existing-config"))
+			g.Expect(rr.Resources[1].GetName()).Should(Equal(TelemetryPolicyName))
+		})
+
+		t.Run("should use default telemetry config when not specified", func(t *testing.T) {
+			maas := &componentApi.ModelsAsService{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: componentApi.ModelsAsServiceInstanceName,
+				},
+				Spec: componentApi.ModelsAsServiceSpec{
+					GatewayRef: componentApi.GatewayRef{
+						Namespace: "ns",
+						Name:      "gw",
+					},
+					Telemetry: nil, // No telemetry config
+				},
+			}
+
+			// Use basic fake client for testing core logic
+			cli, err := fakeclient.New()
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			rr := &types.ReconciliationRequest{
+				Instance:  maas,
+				Client:    cli,
+				Resources: []unstructured.Unstructured{},
+			}
+
+			err = configureTelemetryPolicyCore(t.Context(), rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			labels, _, _ := unstructured.NestedMap(
+				rr.Resources[0].Object, "spec", "metrics", "default", "labels")
+
+			// Should have default labels (5 total: 3 always-on + 2 default enabled)
+			g.Expect(labels).Should(HaveLen(5))
+			g.Expect(labels).Should(HaveKey("subscription"))
+			g.Expect(labels).Should(HaveKey("organization_id"))
+			g.Expect(labels).Should(HaveKey("model"))
+			g.Expect(labels).ShouldNot(HaveKey("user"))  // Disabled by default (GDPR)
+			g.Expect(labels).ShouldNot(HaveKey("group")) // Disabled by default
 		})
 	})
 }

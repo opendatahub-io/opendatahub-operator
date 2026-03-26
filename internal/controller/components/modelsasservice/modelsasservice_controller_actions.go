@@ -30,6 +30,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -217,6 +218,159 @@ func configureDestinationRule(log logr.Logger, resource *unstructured.Unstructur
 		"newNamespace", gatewayNamespace)
 
 	resource.SetNamespace(gatewayNamespace)
+}
+
+// configureTelemetryPolicy is a post-render action that creates a TelemetryPolicy
+// resource based on the ModelsAsService telemetry configuration.
+//
+// The TelemetryPolicy is generated programmatically (not from manifests) because
+// its content is entirely dynamic based on the spec.telemetry.metrics configuration.
+func configureTelemetryPolicy(ctx context.Context, rr *types.ReconciliationRequest) error {
+	log := logf.FromContext(ctx)
+
+	// Skip if TelemetryPolicy CRD is not available in the cluster
+	crdAvailable, err := cluster.HasCRD(ctx, rr.Client, gvk.TelemetryPolicyv1alpha1)
+	if err != nil {
+		return fmt.Errorf("failed to check TelemetryPolicy CRD availability: %w", err)
+	}
+	if !crdAvailable {
+		log.V(2).Info("TelemetryPolicy CRD not available, skipping")
+		return nil
+	}
+
+	return configureTelemetryPolicyCore(ctx, rr)
+}
+
+// configureTelemetryPolicyCore contains the core business logic for creating TelemetryPolicy resources.
+// This function is extracted to allow testing the TelemetryPolicy creation logic without
+// dealing with CRD availability check complexity in the test environment.
+func configureTelemetryPolicyCore(ctx context.Context, rr *types.ReconciliationRequest) error {
+	log := logf.FromContext(ctx)
+
+	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
+	}
+
+	gatewayNamespace := maas.Spec.GatewayRef.Namespace
+	gatewayName := maas.Spec.GatewayRef.Name
+
+	// Build the labels map based on telemetry configuration
+	metricLabels := buildTelemetryLabels(log, maas.Spec.Telemetry)
+
+	// Create OwnerReference for the TelemetryPolicy
+	controller := true
+	ownerRef := metav1.OwnerReference{
+		APIVersion:         maas.APIVersion,
+		Kind:               maas.Kind,
+		Name:               maas.Name,
+		UID:                maas.UID,
+		Controller:         &controller,
+		BlockOwnerDeletion: &controller,
+	}
+
+	// Create the TelemetryPolicy resource
+	telemetryPolicy := &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "extensions.kuadrant.io/v1alpha1",
+			"kind":       "TelemetryPolicy",
+			"metadata": map[string]any{
+				"name":      TelemetryPolicyName,
+				"namespace": gatewayNamespace,
+				"labels": map[string]any{
+					"app.kubernetes.io/part-of": "maas-observability",
+				},
+			},
+			"spec": map[string]any{
+				"targetRef": map[string]any{
+					"group": "gateway.networking.k8s.io",
+					"kind":  "Gateway",
+					"name":  gatewayName,
+				},
+				"metrics": map[string]any{
+					"default": map[string]any{
+						"labels": metricLabels,
+					},
+				},
+			},
+		},
+	}
+
+	// Set OwnerReferences using the unstructured API
+	telemetryPolicy.SetOwnerReferences([]metav1.OwnerReference{ownerRef})
+
+	log.V(2).Info("Creating TelemetryPolicy",
+		"name", TelemetryPolicyName,
+		"namespace", gatewayNamespace,
+		"targetGateway", gatewayName,
+		"labels", metricLabels)
+
+	// Add to resources for deployment
+	rr.Resources = append(rr.Resources, *telemetryPolicy)
+
+	return nil
+}
+
+// buildTelemetryLabels creates the metric labels map based on the telemetry configuration.
+// Always-on dimensions (subscription, cost_center, tier) are always included for billing and access control.
+// Other dimensions are configurable based on MetricsConfig settings.
+func buildTelemetryLabels(log logr.Logger, config *componentApi.TelemetryConfig) map[string]any {
+	// Default values when config is nil or metrics is nil
+	captureOrganization := true
+	captureUser := false // Disabled by default for privacy/GDPR compliance
+	captureGroup := false
+	captureModelUsage := true
+
+	if config != nil && config.Metrics != nil {
+		metrics := config.Metrics
+		if metrics.CaptureOrganization != nil {
+			captureOrganization = *metrics.CaptureOrganization
+		}
+		if metrics.CaptureUser != nil {
+			captureUser = *metrics.CaptureUser
+		}
+		if metrics.CaptureGroup != nil {
+			captureGroup = *metrics.CaptureGroup
+		}
+		if metrics.CaptureModelUsage != nil {
+			captureModelUsage = *metrics.CaptureModelUsage
+		}
+	}
+
+	// Always-on dimensions - essential for billing and access control
+	labels := map[string]any{
+		"subscription": "auth.identity.selected_subscription",
+		"cost_center":  "auth.identity.costCenter",
+		"tier":         "auth.identity.tier",
+	}
+
+	// Configurable dimensions
+	if captureOrganization {
+		labels["organization_id"] = "auth.identity.organizationId"
+	}
+
+	if captureUser {
+		log.Info("WARNING: User identity metrics enabled - ensure GDPR/privacy compliance",
+			"field", "captureUser", "value", true)
+		labels["user"] = "auth.identity.userid"
+	}
+
+	if captureGroup {
+		labels["group"] = "auth.identity.group"
+	}
+
+	if captureModelUsage {
+		labels["model"] = "responseBodyJSON(\"/model\")"
+	}
+
+	log.V(4).Info("Built telemetry labels",
+		"captureOrganization", captureOrganization,
+		"captureUser", captureUser,
+		"captureGroup", captureGroup,
+		"captureModelUsage", captureModelUsage,
+		"totalLabels", len(labels))
+
+	return labels
 }
 
 // configureConfigHashAnnotation adds a hash annotation to the maas-api Deployment

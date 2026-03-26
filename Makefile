@@ -273,10 +273,10 @@ endif
 	@$(SED_COMMAND) -i'' -e 's/scope: Namespaced/scope: Cluster/' $(CONFIG_DIR)/crd/external/oauth.openshift.io_oauthclients.yaml
 	@# Copy KServe CRD to shared rhaii overlay and generate kustomization
 	@mkdir -p config/rhaii/crd/bases
-	@cp config/crd/bases/components.platform.opendatahub.io_kserves.yaml config/rhaii/crd/bases/
+	@cp $(CONFIG_DIR)/crd/bases/components.platform.opendatahub.io_kserves.yaml config/rhaii/crd/bases/
 	@$(call add-crd-to-kustomization,config/rhaii/crd/bases)
 	@# Generate shared rhaii webhook manifests with only KServe connection webhooks
-	@$(YQ) eval 'select(.kind == "MutatingWebhookConfiguration") | .webhooks = [.webhooks[] | select(.name == "connection-isvc.opendatahub.io" or .name == "connection-llmisvc.opendatahub.io")]' config/webhook/manifests.yaml > config/rhaii/webhook/manifests.yaml
+	@$(YQ) eval 'select(.kind == "MutatingWebhookConfiguration") | .webhooks = [.webhooks[] | select(.name == "connection-isvc.opendatahub.io" or .name == "connection-llmisvc.opendatahub.io")]' $(CONFIG_DIR)/webhook/manifests.yaml > config/rhaii/webhook/manifests.yaml
 CLEANFILES += config/crd/bases config/rhoai/crd/bases config/rhaii/crd/bases config/crd/external config/rhoai/crd/external config/rbac/role.yaml config/rhoai/rbac/role.yaml config/webhook/manifests.yaml config/rhoai/webhook/manifests.yaml config/rhaii/webhook/manifests.yaml
 
 .PHONY: manifests-all
@@ -584,7 +584,7 @@ toolbox: ## Create a toolbox instance with the proper Golang and Operator SDK ve
 	toolbox create opendatahub-toolbox --image localhost/opendatahub-toolbox:latest
 
 # Run tests.
-TEST_SRC ?=./internal/... ./tests/integration/... ./pkg/...
+TEST_SRC ?=./internal/... ./tests/integration/... ./pkg/... ./api/services/v1alpha1/...
 
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download setup-envtest locally if necessary.
@@ -714,7 +714,6 @@ e2e-setup-cluster:
 		-e E2E_TEST_WEBHOOK=false \
 		-e E2E_TEST_OPERATOR_RESILIENCE=false \
 		-e E2E_TEST_OPERATOR_V2TOV3UPGRADE=false \
-		-e E2E_TEST_HARDWARE_PROFILE=false \
 		-e E2E_TEST_DELETION_POLICY=never \
 		-e E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=true
 

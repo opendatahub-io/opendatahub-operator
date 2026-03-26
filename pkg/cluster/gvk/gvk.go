@@ -791,6 +791,12 @@ var (
 		Kind:    "RateLimitPolicy",
 	}
 
+	TelemetryPolicyv1alpha1 = schema.GroupVersionKind{
+		Group:   "extensions.kuadrant.io",
+		Version: "v1alpha1",
+		Kind:    "TelemetryPolicy",
+	}
+
 	AuthConfigv1beta3 = schema.GroupVersionKind{
 		Group:   "authorino.kuadrant.io",
 		Version: "v1beta3",
@@ -857,5 +863,11 @@ var (
 		Group:   "infrastructure.opendatahub.io",
 		Version: "v1alpha1",
 		Kind:    "CoreWeaveKubernetesEngine",
+	}
+
+	SparkApplication = schema.GroupVersionKind{
+		Group:   "sparkoperator.k8s.io",
+		Version: "v1beta2",
+		Kind:    "SparkApplication",
 	}
 )

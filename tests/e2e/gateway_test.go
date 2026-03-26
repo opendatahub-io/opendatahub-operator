@@ -67,10 +67,14 @@ type GatewayTestCtx struct {
 	cachedGatewayHostname string
 	// cachedIngressMode stores the detected ingress mode.
 	cachedIngressMode serviceApi.IngressMode
+	// cachedOIDCConfig stores the OIDC config from GatewayConfig (nil if not BYOIDC).
+	cachedOIDCConfig *serviceApi.OIDCConfig
 	// once ensures thread-safe lazy initialization of cachedGatewayHostname.
 	once sync.Once
 	// ingressModeOnce ensures thread-safe lazy initialization of cachedIngressMode.
 	ingressModeOnce sync.Once
+	// oidcConfigOnce ensures thread-safe lazy initialization of cachedOIDCConfig.
+	oidcConfigOnce sync.Once
 }
 
 func gatewayTestSuite(t *testing.T) {
@@ -87,15 +91,21 @@ func gatewayTestSuite(t *testing.T) {
 	testCases := []TestCase{
 		{"Validate GatewayConfig creation", gatewayCtx.ValidateGatewayConfig},
 		{"Validate Gateway infrastructure", gatewayCtx.ValidateGatewayInfrastructure},
+		// IntegratedOAuth-specific tests (skipped on BYOIDC)
 		{"Validate OAuth client and secret creation", gatewayCtx.ValidateOAuthClientAndSecret},
 		{"Validate authentication proxy deployment", gatewayCtx.ValidateAuthProxyDeployment},
+		{"Validate unauthenticated access redirects to login", gatewayCtx.ValidateUnauthenticatedRedirect},
+		// BYOIDC-specific tests (skipped on IntegratedOAuth)
+		{"Validate OIDC proxy secret creation", gatewayCtx.ValidateOIDCProxySecret},
+		{"Validate OIDC authentication proxy deployment", gatewayCtx.ValidateOIDCAuthProxyDeployment},
+		{"Validate OIDC unauthenticated access redirects to login", gatewayCtx.ValidateOIDCUnauthenticatedRedirect},
+		// Common tests (run on both)
 		{"Validate HorizontalPodAutoscaler creation", gatewayCtx.ValidateHPA},
 		{"Validate NetworkPolicy creation", gatewayCtx.ValidateNetworkPolicy},
 		{"Validate OAuth callback HTTPRoute", gatewayCtx.ValidateOAuthCallbackRoute},
 		{"Validate EnvoyFilter creation", gatewayCtx.ValidateEnvoyFilter},
 		{"Validate EDS endpoint discovery", gatewayCtx.ValidateEDSEndpointDiscovery},
 		{"Validate Gateway ready status", gatewayCtx.ValidateGatewayReadyStatus},
-		{"Validate unauthenticated access redirects to login", gatewayCtx.ValidateUnauthenticatedRedirect},
 		{"Validate dashboard redirect resources", gatewayCtx.DashboardRedirectTestSuite},
 	}
 
@@ -186,6 +196,7 @@ func (tc *GatewayTestCtx) ValidateOAuthClientAndSecret(t *testing.T) {
 	t.Helper()
 
 	skipUnless(t, Tier1)
+	tc.SkipIfBYOIDC(t)
 	t.Log("Validating OAuth client and secret creation")
 
 	expectedGatewayHostname := tc.getExpectedGatewayHostname(t)
@@ -245,6 +256,7 @@ func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 	t.Helper()
 
 	skipUnless(t, Tier1)
+	tc.SkipIfBYOIDC(t)
 	t.Log("Validating kube-auth-proxy deployment and service")
 
 	expectedGatewayHostname := tc.getExpectedGatewayHostname(t)
@@ -593,6 +605,7 @@ func (tc *GatewayTestCtx) ValidateUnauthenticatedRedirect(t *testing.T) {
 	t.Helper()
 
 	skipUnless(t, Tier1)
+	tc.SkipIfBYOIDC(t)
 
 	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.DashboardKind)
 	defer tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.DashboardKind)
@@ -774,6 +787,231 @@ func (tc *GatewayTestCtx) validateOCPRoute(t *testing.T) {
 	)
 
 	t.Log("OCP Route validation completed")
+}
+
+// getOIDCConfig returns the OIDC configuration from GatewayConfig.
+// Result is cached to avoid multiple cluster API calls.
+func (tc *GatewayTestCtx) getOIDCConfig(t *testing.T) *serviceApi.OIDCConfig {
+	t.Helper()
+	tc.oidcConfigOnce.Do(func() {
+		gatewayConfig := &serviceApi.GatewayConfig{}
+		err := tc.Client().Get(tc.Context(), types.NamespacedName{Name: gatewayConfigName}, gatewayConfig)
+		require.NoError(t, err, "Failed to get GatewayConfig")
+		require.NotNil(t, gatewayConfig.Spec.OIDC, "GatewayConfig should have OIDC configuration on BYOIDC cluster")
+		tc.cachedOIDCConfig = gatewayConfig.Spec.OIDC
+	})
+	return tc.cachedOIDCConfig
+}
+
+// ValidateOIDCProxySecret validates that the proxy credentials secret exists on BYOIDC clusters.
+// Unlike IntegratedOAuth, no OAuthClient is created; credentials come from the external OIDC provider.
+func (tc *GatewayTestCtx) ValidateOIDCProxySecret(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+	tc.SkipUnlessBYOIDC(t)
+	t.Log("Validating OIDC proxy credentials secret")
+
+	// The proxy credentials secret should still exist with the expected keys
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Secret, types.NamespacedName{
+			Name:      kubeAuthProxyCredsName,
+			Namespace: gatewayNamespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.type == "%s"`, string(corev1.SecretTypeOpaque)),
+			jq.Match(`.metadata.labels["%s"] == "%s"`, labels.PlatformPartOf, gateway.PartOfGatewayConfig),
+			jq.Match(`.data | has("%s")`, gateway.EnvClientID),
+			jq.Match(`.data | has("%s")`, gateway.EnvClientSecret),
+			jq.Match(`.data | has("%s")`, gateway.EnvCookieSecret),
+			jq.Match(`.data["%s"] | length > 0`, gateway.EnvClientSecret),
+			jq.Match(`.data["%s"] | length > 0`, gateway.EnvCookieSecret),
+		)),
+		WithCustomErrorMsg("OIDC proxy credentials secret should be Opaque type with required keys"),
+	)
+
+	t.Log("OIDC proxy credentials secret validation completed")
+}
+
+// ValidateOIDCAuthProxyDeployment validates the kube-auth-proxy deployment on BYOIDC clusters.
+// The deployment uses --provider=oidc with OIDC-specific args instead of --provider=openshift.
+func (tc *GatewayTestCtx) ValidateOIDCAuthProxyDeployment(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+	tc.SkipUnlessBYOIDC(t)
+	t.Log("Validating kube-auth-proxy OIDC deployment and service")
+
+	expectedGatewayHostname := tc.getExpectedGatewayHostname(t)
+	expectedRedirectURL := makeRedirectURL(expectedGatewayHostname)
+	expectedCookieDomain := makeCookieDomain(expectedGatewayHostname)
+	oidcConfig := tc.getOIDCConfig(t)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      kubeAuthProxyName,
+			Namespace: gatewayNamespace,
+		}),
+		WithCondition(And(
+			// replica count
+			jq.Match(`.spec.replicas == 2`),
+
+			// basic pod template checks
+			jq.Match(`.spec.selector.matchLabels.app == "%s"`, kubeAuthProxyName),
+			jq.Match(`.spec.template.spec.containers | length > 0`),
+			jq.Match(`.spec.template.spec.containers[0].name == "%s"`, kubeAuthProxyName),
+
+			// pod security context checks
+			jq.Match(`.spec.template.spec.securityContext.runAsNonRoot == true`),
+			jq.Match(`.spec.template.spec.securityContext.seccompProfile.type == "RuntimeDefault"`),
+
+			// container security context checks
+			jq.Match(`.spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem == true`),
+			jq.Match(`.spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation == false`),
+			jq.Match(`.spec.template.spec.containers[0].securityContext.capabilities.drop | length > 0`),
+			jq.Match(`.spec.template.spec.containers[0].securityContext.capabilities.drop[] | . == "ALL"`),
+
+			// ports
+			jq.Match(`.spec.template.spec.containers[0].ports | length == 3`),
+			jq.Match(`.spec.template.spec.containers[0].ports[] | select(.name == "http") | .containerPort == %d`, kubeAuthProxyHTTPPort),
+			jq.Match(`.spec.template.spec.containers[0].ports[] | select(.name == "https") | .containerPort == %d`, kubeAuthProxyHTTPSPort),
+			jq.Match(`.spec.template.spec.containers[0].ports[] | select(.name == "metrics") | .containerPort == %d`, kubeAuthProxyMetricsPort),
+
+			// env from secret
+			jq.Match(`.spec.template.spec.containers[0].env[] | select(.name == "%s") | .valueFrom.secretKeyRef.name == "%s"`, gateway.EnvClientID, kubeAuthProxyCredsName),
+			jq.Match(`.spec.template.spec.containers[0].env[] | select(.name == "%s") | .valueFrom.secretKeyRef.name == "%s"`, gateway.EnvClientSecret, kubeAuthProxyCredsName),
+			jq.Match(`.spec.template.spec.containers[0].env[] | select(.name == "%s") | .valueFrom.secretKeyRef.name == "%s"`, gateway.EnvCookieSecret, kubeAuthProxyCredsName),
+			jq.Match(`.spec.template.spec.containers[0].env[] | select(.name == "PROXY_MODE") | .value == "auth"`),
+
+			// TLS volume mount
+			jq.Match(`.spec.template.spec.containers[0].volumeMounts[] | select(.name == "tls-certs") | .mountPath == "/etc/tls/private"`),
+			jq.Match(`.spec.template.spec.containers[0].volumeMounts[] | select(.name == "tls-certs") | .readOnly == true`),
+			jq.Match(`.spec.template.spec.volumes[] | select(.name == "tls-certs") | .secret.secretName == "%s"`, kubeAuthProxyTLSName),
+
+			// /tmp volume mount
+			jq.Match(`.spec.template.spec.containers[0].volumeMounts[] | select(.name == "tmp") | .mountPath == "/tmp"`),
+			jq.Match(`.spec.template.spec.volumes[] | select(.name == "tmp") | .emptyDir.medium == "Memory"`),
+			jq.Match(`.spec.template.spec.volumes[] | select(.name == "tmp") | .emptyDir.sizeLimit == "10Mi"`),
+
+			// OIDC-specific args (instead of --provider=openshift / --scope=user:full)
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--provider=oidc")`),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--oidc-issuer-url=%s")`, oidcConfig.IssuerURL),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--skip-oidc-discovery=false")`),
+
+			// common args
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "%s")`, expectedRedirectURL),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "%s")`, expectedCookieDomain),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--https-address=0.0.0.0:%d")`, kubeAuthProxyHTTPSPort),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--http-address=0.0.0.0:%d")`, kubeAuthProxyHTTPPort),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--tls-cert-file=/etc/tls/private/tls.crt")`),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--tls-key-file=/etc/tls/private/tls.key")`),
+
+			// cookie config
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--cookie-secure=true")`),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--cookie-httponly=true")`),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--cookie-samesite=lax")`),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--cookie-name=_oauth2_proxy")`),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--cookie-expire=24h0m0s")`),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--cookie-refresh=1h0m0s")`),
+
+			// auth proxy behavior flags
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--skip-provider-button")`),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--skip-jwt-bearer-tokens=true")`),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--pass-access-token=true")`),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--set-xauthrequest=true")`),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--email-domain=*")`),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--upstream=static://200")`),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--enable-k8s-token-validation=true")`),
+
+			// metrics and trust store
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--metrics-address=0.0.0.0:%d")`, kubeAuthProxyMetricsPort),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--use-system-trust-store=true")`),
+
+			// secret hash annotation
+			jq.Match(`.spec.template.metadata.annotations["opendatahub.io/secret-hash"] != null`),
+			jq.Match(`.spec.template.metadata.annotations["opendatahub.io/secret-hash"] | test("^[0-9a-f]{64}$|^$")`),
+		)),
+		WithCustomErrorMsg("kube-auth-proxy OIDC deployment should exist with correct configuration"),
+	)
+
+	// wait for deployment readiness
+	tc.EnsureDeploymentReady(types.NamespacedName{Name: kubeAuthProxyName, Namespace: gatewayNamespace}, 2)
+
+	// kube-auth-proxy service (same as IntegratedOAuth)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Service, types.NamespacedName{
+			Name:      kubeAuthProxyName,
+			Namespace: gatewayNamespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.selector.app == "%s"`, kubeAuthProxyName),
+			jq.Match(`.spec.ports | length == 2`),
+			jq.Match(`.spec.ports[] | select(.name == "https") | .port == %d`, kubeAuthProxyHTTPSPort),
+			jq.Match(`.spec.ports[] | select(.name == "https") | .targetPort == %d`, kubeAuthProxyHTTPSPort),
+			jq.Match(`.spec.ports[] | select(.name == "metrics") | .port == %d`, kubeAuthProxyMetricsPort),
+			jq.Match(`.metadata.annotations."service.beta.openshift.io/serving-cert-secret-name" == "%s"`, kubeAuthProxyTLSName),
+		)),
+		WithCustomErrorMsg("kube-auth-proxy service should exist with HTTPS and metrics ports, and service-ca annotation"),
+	)
+
+	// TLS secret for auth proxy
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Secret, types.NamespacedName{
+			Name:      kubeAuthProxyTLSName,
+			Namespace: gatewayNamespace,
+		}),
+		WithCustomErrorMsg("kube-auth-proxy TLS secret should exist"),
+	)
+
+	t.Log("kube-auth-proxy OIDC deployment and service validation completed")
+}
+
+// ValidateOIDCUnauthenticatedRedirect tests that unauthenticated requests are redirected to the OIDC provider.
+func (tc *GatewayTestCtx) ValidateOIDCUnauthenticatedRedirect(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+	tc.SkipUnlessBYOIDC(t)
+
+	oidcConfig := tc.getOIDCConfig(t)
+
+	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.DashboardKind)
+	defer tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.DashboardKind)
+
+	tc.waitForDashboardHTTPRoute(t)
+	dashboardURL := tc.getDashboardURL(t)
+
+	t.Log("Testing unauthenticated access on BYOIDC cluster")
+
+	httpClient := tc.createHTTPClient()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, dashboardURL, nil)
+	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to create HTTP request")
+
+	resp, err := httpClient.Do(req)
+	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to make HTTP request to dashboard")
+	defer resp.Body.Close()
+
+	// Check status code is a redirect
+	tc.g.Expect(resp.StatusCode).To(Or(
+		Equal(http.StatusFound),
+		Equal(http.StatusTemporaryRedirect),
+	), "Unauthenticated request should return redirect (302/307) got %d", resp.StatusCode)
+
+	// Validate redirect location points to the OIDC issuer
+	location := resp.Header.Get("Location")
+	tc.g.Expect(location).NotTo(BeEmpty(), "Redirect response should have Location header")
+	tc.g.Expect(location).To(
+		ContainSubstring(oidcConfig.IssuerURL),
+		"Redirect should point to OIDC issuer URL %s, got: %s", oidcConfig.IssuerURL, location,
+	)
+	tc.g.Expect(location).To(ContainSubstring("redirect_uri="),
+		"Redirect should have redirect_uri parameter, got: %s", location)
+
+	t.Log("OIDC unauthenticated access correctly redirects to OIDC provider")
 }
 
 // getServiceFQDN returns the fully qualified domain name for a Kubernetes service.
