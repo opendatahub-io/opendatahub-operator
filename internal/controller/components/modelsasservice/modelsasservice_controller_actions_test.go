@@ -200,7 +200,7 @@ func TestConfigureGatewayNamespaceResources(t *testing.T) {
 				},
 			}
 
-			authPolicy := createAuthPolicy(GatewayAuthPolicyName, "wrong-namespace", "old-gateway")
+			authPolicy := createAuthPolicy(GatewayDefaultAuthPolicyName, "wrong-namespace", "old-gateway")
 
 			rr := &types.ReconciliationRequest{
 				Instance:  maas,
@@ -291,7 +291,7 @@ func TestConfigureGatewayNamespaceResources(t *testing.T) {
 			}
 
 			// Mix of resources
-			gatewayAuthPolicy := createAuthPolicy(GatewayAuthPolicyName, "old-namespace", "old-gateway")
+			gatewayAuthPolicy := createAuthPolicy(GatewayDefaultAuthPolicyName, "old-namespace", "old-gateway")
 			otherAuthPolicy := createAuthPolicy("other-policy", "keep-namespace", "keep-gateway")
 			configMap := &unstructured.Unstructured{}
 			configMap.SetAPIVersion("v1")
@@ -393,7 +393,7 @@ func TestConfigureGatewayNamespaceResources(t *testing.T) {
 				},
 			}
 
-			authPolicy := createAuthPolicy(GatewayAuthPolicyName, "old-namespace", "old-gateway")
+			authPolicy := createAuthPolicy(GatewayDefaultAuthPolicyName, "old-namespace", "old-gateway")
 			destinationRule := createDestinationRule(GatewayDestinationRuleName, "old-namespace")
 			configMap := &unstructured.Unstructured{}
 			configMap.SetAPIVersion("v1")

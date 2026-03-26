@@ -159,6 +159,7 @@ func configureGatewayNamespaceResources(ctx context.Context, rr *types.Reconcili
 		"gatewayName", gatewayName)
 
 	authPolicyFound := false
+	tokenRateLimitDefaultDenyPolicyFound := false
 	destinationRuleFound := false
 
 	for idx := range rr.Resources {
@@ -166,9 +167,15 @@ func configureGatewayNamespaceResources(ctx context.Context, rr *types.Reconcili
 		resourceGVK := resource.GroupVersionKind()
 
 		switch {
-		case resourceGVK == gvk.AuthPolicyv1 && resource.GetName() == GatewayAuthPolicyName:
+		case resourceGVK == gvk.AuthPolicyv1 && resource.GetName() == GatewayDefaultAuthPolicyName:
 			authPolicyFound = true
 			if err := configureAuthPolicy(log, resource, gatewayNamespace, gatewayName); err != nil {
+				return err
+			}
+
+		case resourceGVK == gvk.TokenRateLimitPolicyv1alpha1 && resource.GetName() == GatewayTokenRateLimitDefaultDenyPolicyName:
+			tokenRateLimitDefaultDenyPolicyFound = true
+			if err := configureTokenRateLimitPolicyRule(log, resource, gatewayNamespace, gatewayName); err != nil {
 				return err
 			}
 
@@ -180,8 +187,14 @@ func configureGatewayNamespaceResources(ctx context.Context, rr *types.Reconcili
 
 	if !authPolicyFound {
 		log.V(1).Info("AuthPolicy not found in rendered resources",
-			"expectedName", GatewayAuthPolicyName,
+			"expectedName", GatewayDefaultAuthPolicyName,
 			"expectedGVK", gvk.AuthPolicyv1.String())
+	}
+
+	if !tokenRateLimitDefaultDenyPolicyFound {
+		log.V(1).Info("TokenRateLimitPolicy not found in rendered resources",
+			"expectedName", GatewayTokenRateLimitDefaultDenyPolicyName,
+			"expectedGVK", gvk.TokenRateLimitPolicyv1alpha1.String())
 	}
 
 	if !destinationRuleFound {
@@ -218,6 +231,22 @@ func configureDestinationRule(log logr.Logger, resource *unstructured.Unstructur
 		"newNamespace", gatewayNamespace)
 
 	resource.SetNamespace(gatewayNamespace)
+}
+
+func configureTokenRateLimitPolicyRule(log logr.Logger, resource *unstructured.Unstructured, gatewayNamespace string, gatewayName string) error {
+	log.V(4).Info("Configuring TokenRateLimitPolicy",
+		"name", resource.GetName(),
+		"originalNamespace", resource.GetNamespace(),
+		"newNamespace", gatewayNamespace,
+		"newTargetGateway", gatewayName)
+
+	resource.SetNamespace(gatewayNamespace)
+
+	if err := unstructured.SetNestedField(resource.Object, gatewayName, "spec", "targetRef", "name"); err != nil {
+		return fmt.Errorf("failed to set spec.targetRef.name on TokenRateLimitPolicy: %w", err)
+	}
+
+	return nil
 }
 
 // configureTelemetryPolicy is a post-render action that creates a TelemetryPolicy
