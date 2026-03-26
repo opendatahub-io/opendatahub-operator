@@ -60,6 +60,13 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 				WatchUpdate: true,
 				WatchStatus: true,
 			})).
+		OwnsGVK(gvk.ServiceMeshMemberRoll,
+			reconciler.Dynamic(reconciler.CrdExists(gvk.ServiceMeshMemberRoll)),
+			reconciler.WithPredicates(dependent.Predicate{
+				WatchDelete: true,
+				WatchUpdate: true,
+				WatchStatus: true,
+			})).
 		OwnsGVK(gvk.Authorino,
 			reconciler.Dynamic(reconciler.CrdExists(gvk.Authorino)),
 			reconciler.WithPredicates(dependent.Predicate{
@@ -102,6 +109,7 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		// can't own SMCP directly due to conflicts with ServiceMesh v2 operator
 		// but SMCP created by ODH operator will be cleaned up via this finalizer
 		WithFinalizer(cleanupSMCP).
+		WithFinalizer(cleanupServiceMeshMemberRoll).
 		WithConditions(conditionTypes...).
 		Build(ctx)
 

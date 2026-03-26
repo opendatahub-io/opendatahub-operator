@@ -567,6 +567,96 @@ func patchAuthorinoDeployment(ctx context.Context, rr *odhtypes.ReconciliationRe
 	return nil
 }
 
+func cleanupServiceMeshMemberRoll(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	log := logf.FromContext(ctx)
+
+	sm, ok := rr.Instance.(*serviceApi.ServiceMesh)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a serviceApi.ServiceMesh)", rr.Instance)
+	}
+
+	// Resolve control plane namespace (default: istio-system)
+	controlPlaneNamespace := sm.Spec.ControlPlane.Namespace
+
+	// rr.DSCI is nil during the delete path (reconciler clears it by design).
+	// If auth namespace is not explicitly set in ServiceMesh spec, fetch DSCI
+	// from the cluster to compute the default auth namespace.
+	if rr.DSCI == nil && len(strings.TrimSpace(sm.Spec.Auth.Namespace)) == 0 {
+		dsci, fetchErr := cluster.GetDSCI(ctx, rr.Client)
+		switch {
+		case fetchErr == nil:
+			rr.DSCI = dsci
+		case k8serr.IsNotFound(fetchErr):
+			// DSCI was already deleted — auth namespace cannot be determined.
+			// Skip cleanup conservatively to avoid removing user-managed SMMR members.
+			log.Info("DSCI not found and auth namespace not configured in spec; skipping SMMR cleanup")
+			return nil
+		default:
+			return fmt.Errorf("failed to fetch DSCI to determine auth namespace: %w", fetchErr)
+		}
+	}
+
+	// Resolve auth namespace
+	authNamespace, err := getAuthorinoNamespace(rr)
+	if err != nil {
+		return fmt.Errorf("failed to obtain auth namespace: %w", err)
+	}
+
+	// Get the SMMR using unstructured client
+	smmr := &unstructured.Unstructured{}
+	smmr.SetGroupVersionKind(gvk.ServiceMeshMemberRoll)
+	err = rr.Client.Get(ctx, client.ObjectKey{
+		Name:      "default",
+		Namespace: controlPlaneNamespace,
+	}, smmr)
+
+	if err != nil {
+		// SMMR not found — already cleaned up
+		if k8serr.IsNotFound(err) {
+			log.Info("ServiceMeshMemberRoll not found, skipping cleanup", "namespace", controlPlaneNamespace)
+			return nil
+		}
+		// CRD not installed — nothing to clean up
+		if meta.IsNoMatchError(err) {
+			log.Info("ServiceMeshMemberRoll CRD not found, skipping cleanup")
+			return nil
+		}
+		return fmt.Errorf("failed to get ServiceMeshMemberRoll: %w", err)
+	}
+
+	// Extract .spec.members
+	members, _, _ := unstructured.NestedStringSlice(smmr.Object, "spec", "members")
+
+	// Determine if safe to delete
+	switch {
+	case len(members) == 0:
+		// No members — safe to delete
+		log.Info("ServiceMeshMemberRoll has no members, deleting", "namespace", controlPlaneNamespace)
+	case len(members) == 1 && members[0] == authNamespace:
+		// Sole member is the RHOAI auth-provider namespace — safe to delete
+		log.Info("ServiceMeshMemberRoll has only RHOAI auth-provider member, deleting",
+			"namespace", controlPlaneNamespace, "authNamespace", authNamespace)
+	default:
+		// Non-RHOAI members present — skip deletion
+		log.Info("ServiceMeshMemberRoll has non-RHOAI members, skipping deletion. Manual cleanup may be required",
+			"namespace", controlPlaneNamespace, "members", members, "authNamespace", authNamespace)
+		return nil
+	}
+
+	// Delete the SMMR
+	if err := rr.Client.Delete(ctx, smmr); err != nil {
+		if k8serr.IsNotFound(err) {
+			// Already deleted between get and delete — idempotent
+			return nil
+		}
+		log.Error(err, "Failed to delete ServiceMeshMemberRoll", "namespace", controlPlaneNamespace)
+		return fmt.Errorf("failed to delete ServiceMeshMemberRoll: %w", err)
+	}
+
+	log.Info("ServiceMeshMemberRoll deleted successfully", "namespace", controlPlaneNamespace)
+	return nil
+}
+
 func cleanupSMCP(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	smcp, err := getSMCP(ctx, rr)
 	if err != nil {

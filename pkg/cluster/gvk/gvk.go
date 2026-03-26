@@ -315,6 +315,12 @@ var (
 		Kind:    "ServiceMeshMember",
 	}
 
+	ServiceMeshMemberRoll = schema.GroupVersionKind{
+		Group:   "maistra.io",
+		Version: "v1",
+		Kind:    "ServiceMeshMemberRoll",
+	}
+
 	Lease = schema.GroupVersionKind{
 		Group:   coordinationv1.SchemeGroupVersion.Group,
 		Version: coordinationv1.SchemeGroupVersion.Version,
