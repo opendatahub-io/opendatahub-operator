@@ -58,8 +58,9 @@ func startMetricsCollectorIfEnabled() *MetricsCollector {
 			Namespace: testOpts.operatorNamespace,
 		},
 		Namespaces: clusterhealth.NamespaceConfig{
-			Apps:  testOpts.appsNamespace,
-			Extra: []string{"kube-system"},
+			Apps:       testOpts.appsNamespace,
+			Monitoring: testOpts.monitoringNamespace,
+			Extra:      []string{"kube-system"},
 		},
 		DSCI:         types.NamespacedName{Name: dsciInstanceName},
 		DSC:          types.NamespacedName{Name: dscInstanceName},
@@ -131,7 +132,6 @@ func (mc *MetricsCollector) loop() {
 	for {
 		select {
 		case <-mc.stopCh:
-			mc.collect()
 			return
 		case <-ticker.C:
 			mc.collect()
@@ -143,9 +143,12 @@ func (mc *MetricsCollector) collect() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	ts := time.Now().UnixMilli()
+
 	report, err := clusterhealth.Run(ctx, mc.cfg)
 	if err != nil {
 		log.Printf("metrics collector: clusterhealth.Run failed: %v", err)
+		mc.writeLine(fmt.Sprintf("cluster_health_collection_error 1 %d", ts))
 		return
 	}
 
@@ -164,6 +167,14 @@ func (mc *MetricsCollector) collect() {
 	}
 	if err := mc.file.Sync(); err != nil {
 		log.Printf("metrics collector: sync failed: %v", err)
+	}
+}
+
+func (mc *MetricsCollector) writeLine(line string) {
+	mc.mu.Lock()
+	defer mc.mu.Unlock()
+	if _, err := mc.file.WriteString(line + "\n"); err != nil {
+		log.Printf("metrics collector: write failed: %v", err)
 	}
 }
 

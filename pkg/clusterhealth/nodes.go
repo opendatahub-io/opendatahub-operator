@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -62,14 +63,15 @@ func runNodesSection(ctx context.Context, c client.Client, _ NamespaceConfig) Se
 func nodeToNodeInfo(node *corev1.Node) NodeInfo {
 	info := NodeInfo{Name: node.Name}
 
-	if _, ok := node.Labels["node-role.kubernetes.io/master"]; ok {
-		info.Role = "master"
-	} else if _, ok := node.Labels["node-role.kubernetes.io/worker"]; ok {
-		info.Role = "worker"
-	} else if _, ok := node.Labels["node-role.kubernetes.io/control-plane"]; ok {
-		// Just in case it has control-plane but not master
-		info.Role = "master"
+	const rolePrefix = "node-role.kubernetes.io/"
+	var roles []string
+	for key := range node.Labels {
+		if strings.HasPrefix(key, rolePrefix) {
+			roles = append(roles, strings.TrimPrefix(key, rolePrefix))
+		}
 	}
+	sort.Strings(roles)
+	info.Role = strings.Join(roles, ",")
 
 	for _, c := range node.Status.Conditions {
 		info.Conditions = append(info.Conditions, ConditionSummary{

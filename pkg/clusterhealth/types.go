@@ -87,6 +87,7 @@ type PodInfo struct {
 type ContainerInfo struct {
 	Name           string `json:"name"`
 	Ready          bool   `json:"ready"`
+	IsInit         bool   `json:"isInit,omitempty"`
 	RestartCount   int32  `json:"restartCount"`
 	Waiting        string `json:"waiting"`                  // reason/message if waiting
 	Terminated     string `json:"terminated"`               // reason/exit if terminated

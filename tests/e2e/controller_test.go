@@ -300,13 +300,13 @@ func TestOdhOperator(t *testing.T) {
 
 	log.SetLogger(zap.New(zap.UseDevMode(true)))
 
-	if collector := startMetricsCollectorIfEnabled(); collector != nil {
-		defer collector.Stop()
-	}
-
 	// Remove any leftover resources from previous test runs before starting if the cleanup flag is enabled
 	if testOpts.cleanUpPreviousResources {
 		CleanupPreviousTestResources(t)
+	}
+
+	if collector := startMetricsCollectorIfEnabled(); collector != nil {
+		defer collector.Stop()
 	}
 
 	if testOpts.dependantOperatorsManagementTest {

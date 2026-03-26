@@ -89,6 +89,7 @@ func podToInfo(pod *corev1.Pod) PodInfo {
 	for i := range pod.Status.InitContainerStatuses {
 		cs := &pod.Status.InitContainerStatuses[i]
 		cinfo := containerStatusToInfo(cs)
+		cinfo.IsInit = true
 		if spec, ok := containerSpecs[cs.Name]; ok {
 			enrichWithResources(&cinfo, spec)
 		}
@@ -98,19 +99,19 @@ func podToInfo(pod *corev1.Pod) PodInfo {
 }
 
 func enrichWithResources(info *ContainerInfo, spec *corev1.Container) {
-	if reqCPU := spec.Resources.Requests[corev1.ResourceCPU]; !reqCPU.IsZero() {
+	if reqCPU, ok := spec.Resources.Requests[corev1.ResourceCPU]; ok {
 		val := reqCPU.MilliValue()
 		info.RequestsCPU = &val
 	}
-	if reqMem := spec.Resources.Requests[corev1.ResourceMemory]; !reqMem.IsZero() {
+	if reqMem, ok := spec.Resources.Requests[corev1.ResourceMemory]; ok {
 		val := reqMem.Value()
 		info.RequestsMemory = &val
 	}
-	if limCPU := spec.Resources.Limits[corev1.ResourceCPU]; !limCPU.IsZero() {
+	if limCPU, ok := spec.Resources.Limits[corev1.ResourceCPU]; ok {
 		val := limCPU.MilliValue()
 		info.LimitsCPU = &val
 	}
-	if limMem := spec.Resources.Limits[corev1.ResourceMemory]; !limMem.IsZero() {
+	if limMem, ok := spec.Resources.Limits[corev1.ResourceMemory]; ok {
 		val := limMem.Value()
 		info.LimitsMemory = &val
 	}

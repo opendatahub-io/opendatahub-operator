@@ -30,54 +30,65 @@ func (r *Report) PrometheusExport() []string {
 func (r *Report) exportNodes(ts int64) []string {
 	var lines []string
 
-	nodeInfoByName := make(map[string]*NodeInfo, len(r.Nodes.Data.Nodes))
+	rawByName := make(map[string]*corev1.Node, len(r.Nodes.Data.Data))
+	for i := range r.Nodes.Data.Data {
+		node := &r.Nodes.Data.Data[i]
+		rawByName[node.Name] = node
+	}
+
+	// Build a sorted list of node names for deterministic output order.
+	names := make([]string, 0, len(r.Nodes.Data.Nodes))
+	infoByName := make(map[string]*NodeInfo, len(r.Nodes.Data.Nodes))
 	for i := range r.Nodes.Data.Nodes {
 		info := &r.Nodes.Data.Nodes[i]
-		nodeInfoByName[info.Name] = info
+		infoByName[info.Name] = info
+		names = append(names, info.Name)
 	}
+	sort.Strings(names)
 
-	for _, node := range r.Nodes.Data.Data {
-		labels := promLabels{"node": node.Name}
+	for _, name := range names {
+		info := infoByName[name]
+		labels := promLabels{"node": name}
 
-		if info, ok := nodeInfoByName[node.Name]; ok && info.Role != "" {
-			lines = append(lines, promLine("kube_node_role", promLabels{"node": node.Name, "role": info.Role}, 1.0, ts))
+		if info.Role != "" {
+			lines = append(lines, promLine("kube_node_role", promLabels{"node": name, "role": info.Role}, 1.0, ts))
 		}
 
-		if cpu := node.Status.Allocatable[corev1.ResourceCPU]; !cpu.IsZero() {
-			val := float64(cpu.MilliValue()) / 1000.0
-			lines = append(lines, promLine("kube_node_status_allocatable", promLabels{"node": node.Name, "resource": "cpu", "unit": "core"}, val, ts))
+		if node, ok := rawByName[name]; ok {
+			if cpu := node.Status.Allocatable[corev1.ResourceCPU]; !cpu.IsZero() {
+				val := float64(cpu.MilliValue()) / 1000.0
+				lines = append(lines, promLine("kube_node_status_allocatable", promLabels{"node": name, "resource": "cpu", "unit": "core"}, val, ts))
+			}
+			if mem := node.Status.Allocatable[corev1.ResourceMemory]; !mem.IsZero() {
+				val := float64(mem.Value())
+				lines = append(lines, promLine("kube_node_status_allocatable", promLabels{"node": name, "resource": "memory", "unit": "byte"}, val, ts))
+			}
+			if cpu := node.Status.Capacity[corev1.ResourceCPU]; !cpu.IsZero() {
+				val := float64(cpu.MilliValue()) / 1000.0
+				lines = append(lines, promLine("kube_node_status_capacity", promLabels{"node": name, "resource": "cpu", "unit": "core"}, val, ts))
+				lines = append(lines, promLine("machine_cpu_cores", labels, val, ts))
+			}
+			if mem := node.Status.Capacity[corev1.ResourceMemory]; !mem.IsZero() {
+				val := float64(mem.Value())
+				lines = append(lines, promLine("kube_node_status_capacity", promLabels{"node": name, "resource": "memory", "unit": "byte"}, val, ts))
+				lines = append(lines, promLine("node_memory_MemTotal_bytes", labels, val, ts))
+			}
 		}
-		if mem := node.Status.Allocatable[corev1.ResourceMemory]; !mem.IsZero() {
-			val := float64(mem.Value())
-			lines = append(lines, promLine("kube_node_status_allocatable", promLabels{"node": node.Name, "resource": "memory", "unit": "byte"}, val, ts))
-		}
-		if cpu := node.Status.Capacity[corev1.ResourceCPU]; !cpu.IsZero() {
-			val := float64(cpu.MilliValue()) / 1000.0
-			lines = append(lines, promLine("kube_node_status_capacity", promLabels{"node": node.Name, "resource": "cpu", "unit": "core"}, val, ts))
-			lines = append(lines, promLine("machine_cpu_cores", labels, val, ts))
-		}
-		if mem := node.Status.Capacity[corev1.ResourceMemory]; !mem.IsZero() {
-			val := float64(mem.Value())
-			lines = append(lines, promLine("kube_node_status_capacity", promLabels{"node": node.Name, "resource": "memory", "unit": "byte"}, val, ts))
-			lines = append(lines, promLine("node_memory_MemTotal_bytes", labels, val, ts))
-		}
-	}
-
-	for _, info := range r.Nodes.Data.Nodes {
-		labels := promLabels{"node": info.Name}
 
 		if info.UsageCPUMillicores != nil {
 			val := float64(*info.UsageCPUMillicores) / 1000.0
 			lines = append(lines, promLine("node_cpu_usage_cores", labels, val, ts))
 		}
+		// Metrics API reports RSS + cache, not exactly working_set (which excludes inactive
+		// file cache). We use the cAdvisor metric name for dashboard compatibility.
 		if info.UsageMemoryBytes != nil {
 			val := float64(*info.UsageMemoryBytes)
-			lines = append(lines, promLine("container_memory_working_set_bytes", promLabels{"node": info.Name, "id": "/"}, val, ts))
+			lines = append(lines, promLine("container_memory_working_set_bytes", promLabels{"node": name, "id": "/"}, val, ts))
 		}
 
 		for _, cond := range info.Conditions {
 			statusLower := strings.ToLower(cond.Status)
-			condLabels := promLabels{"node": info.Name, "condition": cond.Type, "status": statusLower}
+			condLabels := promLabels{"node": name, "condition": cond.Type, "status": statusLower}
 			val := 0.0
 			if cond.Status == "True" {
 				val = 1.0
@@ -91,7 +102,7 @@ func (r *Report) exportNodes(ts int64) []string {
 
 func (r *Report) exportDeployments(ts int64) []string {
 	var lines []string
-	for _, ns := range sortedKeys(r.Deployments.Data.ByNamespace) {
+	for _, ns := range sortedMapKeys(r.Deployments.Data.ByNamespace) {
 		for _, d := range r.Deployments.Data.ByNamespace[ns] {
 			labels := promLabels{"namespace": d.Namespace, "deployment": d.Name}
 			lines = append(lines, promLine("kube_deployment_status_replicas", labels, float64(d.Replicas), ts))
@@ -105,7 +116,7 @@ var podPhases = []string{"Pending", "Running", "Succeeded", "Failed", "Unknown"}
 
 func (r *Report) exportPods(ts int64) []string {
 	var lines []string
-	for _, ns := range sortedKeys(r.Pods.Data.ByNamespace) {
+	for _, ns := range sortedMapKeys(r.Pods.Data.ByNamespace) {
 		for _, pod := range r.Pods.Data.ByNamespace[ns] {
 			for _, phase := range podPhases {
 				val := 0.0
@@ -186,9 +197,9 @@ func (r *Report) exportHealth(ts int64) []string {
 		SectionDSCI:        r.DSCI.Error,
 		SectionDSC:         r.DSC.Error,
 	}
-	for section, errStr := range sectionErrors {
+	for _, section := range sortedMapKeys(sectionErrors) {
 		val := 1.0
-		if errStr != "" {
+		if sectionErrors[section] != "" {
 			val = 0.0
 		}
 		lines = append(lines, promLine("section_healthy", promLabels{"section": section}, val, ts))
@@ -226,10 +237,14 @@ func formatPromLabels(labels promLabels) string {
 	return "{" + strings.Join(parts, ",") + "}"
 }
 
+// escapePromLabelValue escapes characters per the Prometheus exposition format spec
+// (\, ", \n). We also escape \r defensively since node condition messages can
+// contain carriage returns on some platforms.
 func escapePromLabelValue(s string) string {
 	s = strings.ReplaceAll(s, `\`, `\\`)
 	s = strings.ReplaceAll(s, `"`, `\"`)
 	s = strings.ReplaceAll(s, "\n", `\n`)
+	s = strings.ReplaceAll(s, "\r", `\r`)
 	return s
 }
 
@@ -255,7 +270,7 @@ func mergeLabels(base, extra promLabels) promLabels {
 	return merged
 }
 
-func sortedKeys[V any](m map[string][]V) []string {
+func sortedMapKeys[V any](m map[string]V) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
