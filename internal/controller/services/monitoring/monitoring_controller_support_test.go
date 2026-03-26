@@ -1147,6 +1147,93 @@ func TestAddTracesTemplateData_TLS(t *testing.T) {
 	}
 }
 
+func TestAddTracesTemplateData_ZeroValues(t *testing.T) {
+	tests := []struct {
+		name              string
+		traces            *serviceApi.Traces
+		namespace         string
+		expectedBackend   string
+		expectedSample    string
+		expectedRetention string
+	}{
+		{
+			name: "all zero/empty values get defaults",
+			traces: &serviceApi.Traces{
+				Storage: serviceApi.TracesStorage{},
+			},
+			namespace:         "test-ns",
+			expectedBackend:   "pv",
+			expectedSample:    "0.1",
+			expectedRetention: "2160h",
+		},
+		{
+			name: "explicit values are NOT overwritten by defaults",
+			traces: &serviceApi.Traces{
+				SampleRatio: "0.5",
+				Storage: serviceApi.TracesStorage{
+					Backend:   "s3",
+					Secret:    "my-secret",
+					Retention: metav1.Duration{Duration: 720 * 60 * 60 * 1000000000}, // 720h in nanoseconds
+				},
+			},
+			namespace:         "test-ns",
+			expectedBackend:   "s3",
+			expectedSample:    "0.5",
+			expectedRetention: "720h0m0s",
+		},
+		{
+			name: "empty SampleRatio gets default, explicit backend preserved",
+			traces: &serviceApi.Traces{
+				Storage: serviceApi.TracesStorage{
+					Backend:   "gcs",
+					Secret:    "gcs-secret",
+					Retention: metav1.Duration{Duration: 48 * 60 * 60 * 1000000000}, // 48h
+				},
+			},
+			namespace:         "test-ns",
+			expectedBackend:   "gcs",
+			expectedSample:    "0.1",
+			expectedRetention: "48h0m0s",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			templateData := make(map[string]any)
+			err := addTracesTemplateData(templateData, tt.traces, tt.namespace)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			g.Expect(templateData["Backend"]).Should(Equal(tt.expectedBackend),
+				"Backend should match expected value")
+			g.Expect(templateData["SampleRatio"]).Should(Equal(tt.expectedSample),
+				"SampleRatio should match expected value")
+			g.Expect(templateData["TracesRetention"]).Should(Equal(tt.expectedRetention),
+				"TracesRetention should match expected value")
+
+			// Verify PV-specific template data when backend defaults to "pv"
+			if tt.expectedBackend == "pv" {
+				g.Expect(templateData).Should(HaveKey("TempoEndpoint"))
+				g.Expect(templateData).Should(HaveKey("TempoQueryEndpoint"))
+				endpoint, ok := templateData["TempoEndpoint"].(string)
+				g.Expect(ok).Should(BeTrue())
+				g.Expect(endpoint).Should(ContainSubstring("tempomonolithic"))
+			}
+
+			// Verify S3/GCS-specific template data
+			if tt.expectedBackend == "s3" || tt.expectedBackend == "gcs" {
+				g.Expect(templateData).Should(HaveKey("TempoEndpoint"))
+				g.Expect(templateData).Should(HaveKey("TempoQueryEndpoint"))
+				endpoint, ok := templateData["TempoEndpoint"].(string)
+				g.Expect(ok).Should(BeTrue())
+				g.Expect(endpoint).Should(ContainSubstring("tempostack"))
+				g.Expect(templateData).Should(HaveKey("Secret"))
+			}
+		})
+	}
+}
+
 func TestIsLocalServiceEndpoint(t *testing.T) {
 	tests := []struct {
 		name     string

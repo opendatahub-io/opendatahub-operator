@@ -43,6 +43,10 @@ const (
 	defaultStorageSize = "5Gi"
 	defaultRetention   = "90d"
 
+	defaultTracesSampleRatio = "0.1"
+	defaultTracesBackend     = "pv"
+	defaultTracesRetention   = "2160h"
+
 	defaultCPULimit      = "1"
 	defaultMemoryLimit   = "512Mi"
 	defaultCPURequest    = "100m"
@@ -210,11 +214,18 @@ func validateExporters(exporters map[string]runtime.RawExtension) (map[string]st
 
 func addTracesTemplateData(templateData map[string]any, traces *serviceApi.Traces, namespace string) error {
 	templateData["OtlpEndpoint"] = fmt.Sprintf("http://data-science-collector.%s.svc.cluster.local:4317", namespace)
-	templateData["SampleRatio"] = traces.SampleRatio
-	templateData["Backend"] = traces.Storage.Backend // backend has default "pv" set in API
+	templateData["SampleRatio"] = getStringValueOrDefault(traces.SampleRatio, defaultTracesSampleRatio)
+
+	// Apply defaults for backend and retention when zero/empty
+	backend := getStringValueOrDefault(traces.Storage.Backend, defaultTracesBackend)
+	templateData["Backend"] = backend
 
 	// Add retention for all backends (both TempoMonolithic and TempoStack)
-	templateData["TracesRetention"] = traces.Storage.Retention.Duration.String()
+	retention := traces.Storage.Retention.Duration.String()
+	if traces.Storage.Retention.Duration == 0 {
+		retention = defaultTracesRetention
+	}
+	templateData["TracesRetention"] = retention
 
 	// Determine TLS enabled state for query endpoints (reuses existing TLS configuration)
 	tlsEnabled := determineTLSEnabled(traces)
@@ -235,7 +246,7 @@ func addTracesTemplateData(templateData map[string]any, traces *serviceApi.Trace
 	// Note: Gateway endpoints always use HTTPS (service-ca auto-provisions TLS)
 	// In multitenancy/openshift mode, Tempo receivers listen on localhost only, so all
 	// external traffic (including OTel collector ingestion) must go through the gateway.
-	switch traces.Storage.Backend {
+	switch backend {
 	case serviceApi.StorageBackendPV:
 		templateData["TempoEndpoint"] = fmt.Sprintf("tempo-data-science-tempomonolithic-gateway.%s.svc.cluster.local:4317", namespace)
 		// Perses datasource query endpoint via gateway (port 8080) - always uses HTTPS (gateway is HTTPS-only).
