@@ -201,6 +201,61 @@ func TestUpdateDSCStatus(t *testing.T) {
 	})
 }
 
+func TestUpdateDSCStatusWithImageStreamWarning(t *testing.T) {
+	handler := &componentHandler{}
+
+	t.Run("should append ImageStream warning to WorkbenchesReady message on DSC", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithWorkbenches(operatorv1.Managed)
+		workbenches := createWorkbenchesCRWithImageStreamWarning()
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, workbenches))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(cs).Should(Equal(metav1.ConditionTrue))
+
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("Warning:")`, ReadyConditionType),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("Component is ready")`, ReadyConditionType),
+		)))
+	})
+
+	t.Run("should not modify WorkbenchesReady message when ImageStreams are healthy", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithWorkbenches(operatorv1.Managed)
+		workbenches := createWorkbenchesCRWithHealthyImageStreams()
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, workbenches))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(cs).Should(Equal(metav1.ConditionTrue))
+
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "Component is ready"`, ReadyConditionType),
+		)))
+	})
+}
+
 func createDSCWithWorkbenches(managementState operatorv1.ManagementState) *dscv2.DataScienceCluster {
 	dsc := dscv2.DataScienceCluster{}
 	dsc.SetGroupVersionKind(gvk.DataScienceCluster)
@@ -230,6 +285,50 @@ func createWorkbenchesCR(ready bool) *componentApi.Workbenches {
 			Reason:  status.NotReadyReason,
 			Message: "Component is not ready",
 		}}
+	}
+
+	return &c
+}
+
+func createWorkbenchesCRWithImageStreamWarning() *componentApi.Workbenches {
+	c := componentApi.Workbenches{}
+	c.SetGroupVersionKind(gvk.Workbenches)
+	c.SetName(componentApi.WorkbenchesInstanceName)
+
+	c.Status.Conditions = []common.Condition{
+		{
+			Type:    status.ConditionTypeReady,
+			Status:  metav1.ConditionTrue,
+			Reason:  status.ReadyReason,
+			Message: "Component is ready",
+		},
+		{
+			Type:    status.ConditionImageStreamsAvailable,
+			Status:  metav1.ConditionFalse,
+			Reason:  status.ConditionImageStreamsNotAvailableReason,
+			Message: "Warning: 2 ImageStream tag(s) failed to import: jupyter-cuda:cuda-12 (not found)",
+		},
+	}
+
+	return &c
+}
+
+func createWorkbenchesCRWithHealthyImageStreams() *componentApi.Workbenches {
+	c := componentApi.Workbenches{}
+	c.SetGroupVersionKind(gvk.Workbenches)
+	c.SetName(componentApi.WorkbenchesInstanceName)
+
+	c.Status.Conditions = []common.Condition{
+		{
+			Type:    status.ConditionTypeReady,
+			Status:  metav1.ConditionTrue,
+			Reason:  status.ReadyReason,
+			Message: "Component is ready",
+		},
+		{
+			Type:   status.ConditionImageStreamsAvailable,
+			Status: metav1.ConditionTrue,
+		},
 	}
 
 	return &c
