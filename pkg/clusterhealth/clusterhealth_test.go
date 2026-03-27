@@ -166,7 +166,8 @@ func TestPodUnhealthyReason(t *testing.T) {
 		{"pending", PodInfo{Phase: "Pending"}, "phase=Pending"},
 		{"failed", PodInfo{Phase: "Failed"}, "phase=Failed"},
 		{"running not ready", PodInfo{Phase: "Running", Containers: []ContainerInfo{{Name: "c1", Ready: false}}}, "container c1 not ready"},
-		{"running restart", PodInfo{Phase: "Running", Containers: []ContainerInfo{{Name: "c1", Ready: true, RestartCount: 1}}}, "container c1 restarts=1"},
+		{"running restart - healthy", PodInfo{Phase: "Running", Containers: []ContainerInfo{{Name: "c1", Ready: true, RestartCount: 1}}}, ""},
+		{"running high restarts - still healthy", PodInfo{Phase: "Running", Containers: []ContainerInfo{{Name: "c1", Ready: true, RestartCount: 10}}}, ""},
 		{"running waiting", PodInfo{Phase: "Running", Containers: []ContainerInfo{{Name: "c1", Ready: true, Waiting: "CrashLoopBackOff"}}}, "container c1 waiting: CrashLoopBackOff"},
 		{"running terminated", PodInfo{Phase: "Running", Containers: []ContainerInfo{{Name: "c1", Ready: true, Terminated: "Error (exit 1)"}}}, "container c1 Error (exit 1)"},
 	}
@@ -799,6 +800,181 @@ func TestRun_OperatorSection_DependentOperators(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDetermineLogType(t *testing.T) {
+	tests := []struct {
+		name     string
+		c        ContainerInfo
+		podPhase string
+		want     string
+	}{
+		{"healthy container", ContainerInfo{Name: "c1", Ready: true}, "Running", ""},
+		{"waiting with restarts - previous", ContainerInfo{Name: "c1", Waiting: "CrashLoopBackOff", RestartCount: 3}, "Running", logTypePrevious},
+		{"terminated - current", ContainerInfo{Name: "c1", Terminated: "Error (exit 1)"}, "Running", logTypeCurrent},
+		{"not ready with restarts - current", ContainerInfo{Name: "c1", Ready: false, RestartCount: 2}, "Running", logTypeCurrent},
+		{"CrashLoopBackOff no restarts - current", ContainerInfo{Name: "c1", Waiting: "CrashLoopBackOff"}, "Running", logTypeCurrent},
+		{"ImagePullBackOff no restarts - current", ContainerInfo{Name: "c1", Waiting: "ImagePullBackOff"}, "Running", logTypeCurrent},
+		{"ErrImagePull no restarts - current", ContainerInfo{Name: "c1", Waiting: "ErrImagePull"}, "Running", logTypeCurrent},
+		{"CreateContainerConfigError - current", ContainerInfo{Name: "c1", Waiting: "CreateContainerConfigError"}, "Running", logTypeCurrent},
+		{"unknown waiting reason - no logs", ContainerInfo{Name: "c1", Waiting: "ContainerCreating"}, "Running", ""},
+		{"ready no issues - no logs", ContainerInfo{Name: "c1", Ready: true, RestartCount: 0}, "Running", ""},
+		{"succeeded pod - terminated container skipped", ContainerInfo{Name: "c1", Terminated: "Completed (exit 0)"}, "Succeeded", ""},
+		{"succeeded pod - all containers skipped", ContainerInfo{Name: "c1", Ready: false, RestartCount: 1}, "Succeeded", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := determineLogType(tt.c, tt.podPhase)
+			if got != tt.want {
+				t.Errorf("determineLogType() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRedactSensitiveInfo(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"no secrets", "normal log line", "normal log line"},
+		{"bearer token", "Authorization: Bearer abc123xyz", "Authorization: Bearer [REDACTED]"},
+		{"password", "password=mysecretpassword", "password=[REDACTED]"},
+		{"token", "token=abc123", "token=[REDACTED]"},
+		{"secret", "secret=mysecret", "secret=[REDACTED]"},
+		{"api key", "api_key=mykey123", "api_key=[REDACTED]"},
+		{"access key", "access-key=AKIA123456", "access-key=[REDACTED]"},
+		{"multiple secrets", "password=abc token=def", "password=[REDACTED] token=[REDACTED]"},
+		{"case insensitive", "PASSWORD=mysecret", "PASSWORD=[REDACTED]"},
+		{"json password", `{"password":"mysecret"}`, `{"password":"[REDACTED]"}`},
+		{"json token", `{"token":"abc123"}`, `{"token":"[REDACTED]"}`},
+		{"json secret", `{"secret":"s3cret"}`, `{"secret":"[REDACTED]"}`},
+		{"json api_key", `{"api_key":"mykey123"}`, `{"api_key":"[REDACTED]"}`},
+		{"json access_key", `{"access_key":"AKIA123"}`, `{"access_key":"[REDACTED]"}`},
+		{"json authorization", `{"authorization":"Bearer xyz"}`, `{"authorization":"[REDACTED]"}`},
+		{"json credentials", `{"credentials":"creds123"}`, `{"credentials":"[REDACTED]"}`},
+		{"json with spaces", `{"token" : "spaced"}`, `{"token" : "[REDACTED]"}`},
+		{"json mixed with text", `level=info {"password":"leak"} done`, `level=info {"password":"[REDACTED]"} done`},
+		{"double-quoted password", `password="mysecret"`, `password="[REDACTED]"`},
+		{"single-quoted token", `token='abc123'`, `token='[REDACTED]'`},
+		{"yaml double-quoted secret", `secret: "s3cret"`, `secret: "[REDACTED]"`},
+		{"yaml single-quoted api_key", `api_key: 'mykey'`, `api_key: '[REDACTED]'`},
+		{"logfmt access_key", `access_key="AKIA123"`, `access_key="[REDACTED]"`},
+		{"yaml credentials", `credentials: "creds"`, `credentials: "[REDACTED]"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := redactSensitiveInfo(tt.input)
+			if got != tt.want {
+				t.Errorf("redactSensitiveInfo() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCaptureLogsForPods_NilClientset(t *testing.T) {
+	pods := []PodInfo{
+		{
+			Name: "pod-1", Namespace: "ns", Phase: "Running",
+			Containers: []ContainerInfo{{Name: "c1", Waiting: "CrashLoopBackOff", RestartCount: 3}},
+		},
+	}
+	captureLogsForPods(context.Background(), nil, 50, pods)
+	if pods[0].Containers[0].Logs != "" {
+		t.Error("Logs should be empty when clientset is nil")
+	}
+	if pods[0].Containers[0].LogError != "" {
+		t.Error("LogError should be empty when clientset is nil")
+	}
+}
+
+func TestCaptureLogsForPods_NegativeTailLines(t *testing.T) {
+	pods := []PodInfo{
+		{
+			Name: "pod-1", Namespace: "ns", Phase: "Running",
+			Containers: []ContainerInfo{{Name: "c1", Waiting: "CrashLoopBackOff", RestartCount: 3}},
+		},
+	}
+	// Negative tail lines means skip log capture entirely, even with a non-nil clientset reference.
+	captureLogsForPods(context.Background(), nil, -1, pods)
+	if pods[0].Containers[0].Logs != "" {
+		t.Error("Logs should be empty when tailLines is negative")
+	}
+}
+
+func TestBuildLogRequests_HealthyPodsSkipped(t *testing.T) {
+	pods := []PodInfo{
+		{
+			Name: "pod-healthy", Namespace: "ns", Phase: "Running",
+			Containers: []ContainerInfo{{Name: "c1", Ready: true}},
+		},
+		{
+			Name: "pod-succeeded", Namespace: "ns", Phase: "Succeeded",
+			Containers: []ContainerInfo{{Name: "c1", Terminated: "Completed (exit 0)"}},
+		},
+		{
+			Name: "pod-unhealthy", Namespace: "ns", Phase: "Running",
+			Containers: []ContainerInfo{
+				{Name: "c-ok", Ready: true},
+				{Name: "c-crash", Waiting: "CrashLoopBackOff", RestartCount: 3},
+			},
+		},
+	}
+	reqs := buildLogRequests(pods)
+	if len(reqs) != 1 {
+		t.Fatalf("buildLogRequests() returned %d requests, want 1", len(reqs))
+	}
+	if reqs[0].containerName != "c-crash" {
+		t.Errorf("expected request for c-crash, got %q", reqs[0].containerName)
+	}
+	if !reqs[0].previous {
+		t.Error("CrashLoopBackOff with restarts should request previous logs")
+	}
+}
+
+func TestWriteContainerLogs(t *testing.T) {
+	t.Run("no logs produces no output", func(t *testing.T) {
+		var b strings.Builder
+		containers := []ContainerInfo{{Name: "c1", Ready: true}}
+		writeContainerLogs(&b, containers, "  ")
+		if b.String() != "" {
+			t.Errorf("writeContainerLogs should produce no output for healthy container; got %q", b.String())
+		}
+	})
+	t.Run("container with logs", func(t *testing.T) {
+		var b strings.Builder
+		containers := []ContainerInfo{{Name: "c1", Logs: "line1\nline2", LogPrevious: false}}
+		writeContainerLogs(&b, containers, "  ")
+		out := b.String()
+		if !strings.Contains(out, "CURRENT") {
+			t.Errorf("should contain CURRENT label; got %q", out)
+		}
+		if !strings.Contains(out, "line1") || !strings.Contains(out, "line2") {
+			t.Errorf("should contain log lines; got %q", out)
+		}
+	})
+	t.Run("container with previous logs", func(t *testing.T) {
+		var b strings.Builder
+		containers := []ContainerInfo{{Name: "c1", Logs: "crash log", LogPrevious: true}}
+		writeContainerLogs(&b, containers, "  ")
+		out := b.String()
+		if !strings.Contains(out, "PREVIOUS") {
+			t.Errorf("should contain PREVIOUS label; got %q", out)
+		}
+	})
+	t.Run("container with log error", func(t *testing.T) {
+		var b strings.Builder
+		containers := []ContainerInfo{{Name: "c1", LogError: "connection refused"}}
+		writeContainerLogs(&b, containers, "  ")
+		out := b.String()
+		if !strings.Contains(out, "log fetch failed") {
+			t.Errorf("should contain log fetch failed; got %q", out)
+		}
+		if !strings.Contains(out, "connection refused") {
+			t.Errorf("should contain error message; got %q", out)
+		}
+	})
 }
 
 func TestReport_PrettyPrint(t *testing.T) {
