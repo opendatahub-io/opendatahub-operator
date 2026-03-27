@@ -32,6 +32,7 @@ const (
 
 func main() {
 	outputJSON := flag.Bool("json", false, "Output report as JSON")
+	outputPrometheus := flag.Bool("prometheus", false, "Output report as Prometheus exposition format (for VictoriaMetrics import)")
 	longFormat := flag.Bool("l", false, "Long format: list conditions and details per section (like ls -l)")
 	layerFlag := flag.String("layer", "",
 		"Run only these layers, comma-separated (e.g. infrastructure, workload, operator). "+
@@ -78,14 +79,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	if *outputJSON {
+	switch {
+	case *outputPrometheus:
+		for _, line := range report.PrometheusExport() {
+			fmt.Println(line)
+		}
+	case *outputJSON:
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
 		if err := enc.Encode(report); err != nil {
 			fmt.Fprintf(os.Stderr, "health-check: json: %v\n", err)
 			os.Exit(1)
 		}
-	} else {
+	default:
 		fmt.Printf("Cluster health check at %s\n\n", report.CollectedAt.Format("2006-01-02 15:04:05"))
 		fmt.Print(report.PrettyPrint(*longFormat))
 		fmt.Printf("\nOverall: %s\n", healthyStr(report.Healthy()))

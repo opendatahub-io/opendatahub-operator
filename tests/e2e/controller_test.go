@@ -304,6 +304,10 @@ func TestOdhOperator(t *testing.T) {
 		CleanupPreviousTestResources(t)
 	}
 
+	if collector := startMetricsCollectorIfEnabled(); collector != nil {
+		defer collector.Stop()
+	}
+
 	if testOpts.dependantOperatorsManagementTest {
 		mustRun(t, "Dependant Operators Management E2E Tests", dependantOperatorsManagementTestSuite)
 	}

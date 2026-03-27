@@ -63,15 +63,58 @@ func podToInfo(pod *corev1.Pod) PodInfo {
 		Namespace: pod.Namespace,
 		Name:      pod.Name,
 		Phase:     string(pod.Status.Phase),
+		NodeName:  pod.Spec.NodeName,
 		CreatedAt: pod.CreationTimestamp.Time,
 	}
+
+	// Map to look up container specs by name to extract requests/limits
+	containerSpecs := make(map[string]*corev1.Container)
+	for i := range pod.Spec.Containers {
+		c := &pod.Spec.Containers[i]
+		containerSpecs[c.Name] = c
+	}
+	for i := range pod.Spec.InitContainers {
+		c := &pod.Spec.InitContainers[i]
+		containerSpecs[c.Name] = c
+	}
+
 	for i := range pod.Status.ContainerStatuses {
-		info.Containers = append(info.Containers, containerStatusToInfo(&pod.Status.ContainerStatuses[i]))
+		cs := &pod.Status.ContainerStatuses[i]
+		cinfo := containerStatusToInfo(cs)
+		if spec, ok := containerSpecs[cs.Name]; ok {
+			enrichWithResources(&cinfo, spec)
+		}
+		info.Containers = append(info.Containers, cinfo)
 	}
 	for i := range pod.Status.InitContainerStatuses {
-		info.Containers = append(info.Containers, containerStatusToInfo(&pod.Status.InitContainerStatuses[i]))
+		cs := &pod.Status.InitContainerStatuses[i]
+		cinfo := containerStatusToInfo(cs)
+		cinfo.IsInit = true
+		if spec, ok := containerSpecs[cs.Name]; ok {
+			enrichWithResources(&cinfo, spec)
+		}
+		info.Containers = append(info.Containers, cinfo)
 	}
 	return info
+}
+
+func enrichWithResources(info *ContainerInfo, spec *corev1.Container) {
+	if reqCPU, ok := spec.Resources.Requests[corev1.ResourceCPU]; ok {
+		val := reqCPU.MilliValue()
+		info.RequestsCPU = &val
+	}
+	if reqMem, ok := spec.Resources.Requests[corev1.ResourceMemory]; ok {
+		val := reqMem.Value()
+		info.RequestsMemory = &val
+	}
+	if limCPU, ok := spec.Resources.Limits[corev1.ResourceCPU]; ok {
+		val := limCPU.MilliValue()
+		info.LimitsCPU = &val
+	}
+	if limMem, ok := spec.Resources.Limits[corev1.ResourceMemory]; ok {
+		val := limMem.Value()
+		info.LimitsMemory = &val
+	}
 }
 
 func containerStatusToInfo(cs *corev1.ContainerStatus) ContainerInfo {

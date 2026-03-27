@@ -35,6 +35,8 @@ func TestNamespaceConfig_List(t *testing.T) {
 		{"apps and extra", NamespaceConfig{Apps: "apps", Extra: []string{"op-ns", "kube-system"}}, []string{"apps", "op-ns", "kube-system"}},
 		{"apps, monitoring, extra", NamespaceConfig{Apps: "apps", Monitoring: "mon", Extra: []string{"kube-system"}}, []string{"apps", "mon", "kube-system"}},
 		{"extra skips empty and whitespace", NamespaceConfig{Extra: []string{"", "  ", "valid-ns", "\t", "other"}}, []string{"valid-ns", "other"}},
+		{"dedup apps=monitoring", NamespaceConfig{Apps: "opendatahub", Monitoring: "opendatahub"}, []string{"opendatahub"}},
+		{"dedup extra repeats apps", NamespaceConfig{Apps: "ns1", Extra: []string{"ns1", "ns2"}}, []string{"ns1", "ns2"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
