@@ -39,19 +39,23 @@ type NamespaceConfig struct {
 	Extra      []string
 }
 
-// List returns the list of namespaces to scan, skipping empty ones.
+// List returns the deduplicated list of namespaces to scan, skipping empty ones.
+// When Apps and Monitoring point to the same namespace (common in ODH), the
+// namespace appears only once to avoid duplicate API calls and metric lines.
 func (n NamespaceConfig) List() []string {
+	seen := make(map[string]bool)
 	var out []string
-	if n.Apps != "" {
-		out = append(out, n.Apps)
-	}
-	if n.Monitoring != "" {
-		out = append(out, n.Monitoring)
-	}
-	for _, s := range n.Extra {
-		if trimmed := strings.TrimSpace(s); trimmed != "" {
-			out = append(out, trimmed)
+	add := func(ns string) {
+		ns = strings.TrimSpace(ns)
+		if ns != "" && !seen[ns] {
+			seen[ns] = true
+			out = append(out, ns)
 		}
+	}
+	add(n.Apps)
+	add(n.Monitoring)
+	for _, s := range n.Extra {
+		add(s)
 	}
 	return out
 }

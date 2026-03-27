@@ -21,8 +21,9 @@ flymd.*
 *.swp
 *.swo
 
-# Files created by Gogland IDE
+# Files created by IDE
 .idea/
+.cursor/
 
 # Exclude wheel files for now.
 # The only wheel file is the TF wheel one which is quite large.
