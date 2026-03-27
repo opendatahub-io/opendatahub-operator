@@ -43,5 +43,5 @@ Always flag these regardless of context:
 - New `client.Client` operations in `pkg/` without RBAC coverage in all calling controllers (see AGENTS.md "RBAC and Controller Tracing")
 - Status conditions that don't update during deletion or error transitions (see AGENTS.md "Status Conditions and Lifecycle Transitions")
 - `InsecureSkipVerify: true` in non-test code
-- Newly introduced wildcard verbs or resources in RBAC rules (existing intentional wildcards constrained by `resourceNames` are exempt)
+- Newly introduced wildcard verbs or resources in RBAC rules
 - Secrets, tokens, or credentials logged at any verbosity level
