@@ -22,6 +22,11 @@ cluster-health:
 cluster-health-json:
 	go run ./cmd/health-check -json
 
+# Prometheus exposition format (for VictoriaMetrics import).
+.PHONY: cluster-health-prometheus
+cluster-health-prometheus:
+	go run ./cmd/health-check -prometheus
+
 # Long format: list conditions and details per section (like ls -l).
 .PHONY: cluster-health-l
 cluster-health-l:
