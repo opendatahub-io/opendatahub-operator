@@ -239,3 +239,35 @@ IsEnabled(dsc *dscv2.DataScienceCluster) bool
 
 These documents contain critical requirements that MUST be followed.
 Failure to read and follow these guidelines will result in code that does not meet project standards.
+
+## Architecture Enforcement Rules
+
+The following rules encode repo-specific architectural patterns. They are used by AI code reviewers
+(CodeRabbit, etc.) and AI coding assistants (Claude Code, Cursor, Gemini CLI) alike.
+For reviewer-specific behavior controls (comment limits, priority ordering), see `.rules/review-instructions.md`.
+
+### RBAC and Controller Tracing
+
+- When reviewing changes to `pkg/` that add new `client.Client` operations (`Get`, `List`, `Create`, `Update`, `Delete`, `Patch`), **trace every calling controller** and verify its `kubebuilder_rbac.go` has a matching `+kubebuilder:rbac` marker for the new resource.
+- RBAC markers live in `kubebuilder_rbac.go` files **only for top-level controllers**: `dscinitialization`, `datasciencecluster`, `gateway`, and `cloudmanager/*`. Component controllers under `internal/controller/components/` use codegen — **DO NOT flag the absence of `kubebuilder_rbac.go` in component controller directories**.
+- When a PR modifies `+kubebuilder:rbac` markers, verify that the markers are consistent with the `client.Client` operations in the change. Note: `config/rbac/role.yaml` is gitignored — regeneration is validated by CI (`test-required-files-updated`), not by PR diff.
+- **DO NOT** suggest adding RBAC markers to `pkg/` helper files. Markers belong on the controller that calls the helper, not the helper itself.
+
+### Test Oracle Independence
+
+- E2E test oracles (the source of expected values) **MUST be structurally independent** from the production code they validate. A test that calls the same production function or reads the same API resource as the code-under-test is tautological — it cannot detect bugs.
+- **DO NOT** suggest that e2e test oracles mirror the production code path. For example, if production code reads `Infrastructure.status.controlPlaneTopology`, the test oracle should derive expectations from an independent signal (e.g., raw schedulable node count).
+- Unit tests use `fake.NewClientBuilder()` with explicit scheme registration. E2E tests use `TestContext` (`tc.Client()`, `tc.Context()`).
+
+### Multi-Platform Fallback Patterns
+
+- This operator runs on both OpenShift and vanilla Kubernetes (Kind, k3s). OpenShift-specific resources (`Infrastructure`, `Route`, `OAuth`, `ConsoleLink`) may not exist on non-OpenShift clusters.
+- The correct pattern for optional OpenShift resources is a three-way branch: (1) resource found → use it; (2) `IsNotFound` or `IsNoMatchError` → fall back to a platform-independent alternative; (3) any other error → log and return a safe default. See `pkg/cluster/cluster_config.go:IsSingleNodeCluster` for the reference implementation.
+- **DO NOT** flag fallback logic as redundant or suggest removing it because "the primary path already handles this." The fallback IS the primary path for non-OpenShift clusters.
+- **DO NOT** suggest consolidating the three-way branch into a simpler two-way check. The distinction between "CRD absent" and "transient API error" is critical for safety.
+
+### Status Conditions and Lifecycle Transitions
+
+- When reviewing changes to deletion logic or reconciliation error paths, verify that status conditions (`ComponentsReady`, `Available`, `Degraded`) reflect the **actual current state**, not just the pre-transition state.
+- Flag any code path where a resource is being deleted but its parent CR's status condition still reports the old healthy state.
+- Reconciler actions that fail should propagate errors via `WithError()` to update conditions, not silently swallow them.
