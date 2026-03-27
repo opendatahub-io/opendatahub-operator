@@ -107,6 +107,8 @@ const (
 	AvailableReason = "Available"
 	NotReadyReason  = "NotReady"
 	ReadyReason     = "Ready"
+	DeletingReason  = "Deleting"
+	DeletingMessage = "Component CR is being deleted"
 )
 
 const (
