@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"reflect"
+	"slices"
 
 	"github.com/onsi/gomega/matchers"
 	gTypes "github.com/onsi/gomega/types"
@@ -154,17 +155,13 @@ func isFailureExpected(condition gTypes.GomegaMatcher) bool {
 	switch v := condition.(type) {
 	case *matchers.AndMatcher:
 		// If the condition is And(), we recursively check the inner matchers
-		for _, inner := range v.Matchers {
-			if isFailureExpected(inner) {
-				return true
-			}
+		if slices.ContainsFunc(v.Matchers, isFailureExpected) {
+			return true
 		}
 	case *matchers.OrMatcher:
 		// If the condition is Or(), we recursively check the inner matchers
-		for _, inner := range v.Matchers {
-			if isFailureExpected(inner) {
-				return true
-			}
+		if slices.ContainsFunc(v.Matchers, isFailureExpected) {
+			return true
 		}
 	case *matchers.NotMatcher:
 		// If the condition is Not(Succeed()), we expect failure

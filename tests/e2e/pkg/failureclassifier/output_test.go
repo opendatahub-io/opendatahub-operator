@@ -48,8 +48,8 @@ func TestEmitClassification(t *testing.T) {
 	lines := strings.Split(strings.TrimSpace(output), "\n")
 	var jsonLine string
 	for _, line := range lines {
-		if strings.HasPrefix(line, ClassificationPrefix) {
-			jsonLine = strings.TrimPrefix(line, ClassificationPrefix)
+		if after, ok := strings.CutPrefix(line, ClassificationPrefix); ok {
+			jsonLine = after
 			break
 		}
 	}

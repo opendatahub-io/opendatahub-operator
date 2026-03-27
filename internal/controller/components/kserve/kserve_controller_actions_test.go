@@ -103,13 +103,13 @@ func TestCustomizeKserveConfigMap(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		// verify ingress creation is disabled
-		var ingressData map[string]interface{}
+		var ingressData map[string]any
 		err = json.Unmarshal([]byte(updatedConfigMap.Data[IngressConfigKeyName]), &ingressData)
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(ingressData["disableIngressCreation"]).Should(BeTrue())
 
 		// verify service is configured as headless (default)
-		var serviceData map[string]interface{}
+		var serviceData map[string]any
 		err = json.Unmarshal([]byte(updatedConfigMap.Data[ServiceConfigKeyName]), &serviceData)
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(serviceData["serviceClusterIPNone"]).Should(BeTrue())
@@ -147,12 +147,12 @@ func TestCustomizeKserveConfigMap(t *testing.T) {
 		err = runtime.DefaultUnstructuredConverter.FromUnstructured(rr.Resources[0].Object, updatedConfigMap)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		var ingressData map[string]interface{}
+		var ingressData map[string]any
 		err = json.Unmarshal([]byte(updatedConfigMap.Data[IngressConfigKeyName]), &ingressData)
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(ingressData["disableIngressCreation"]).Should(BeTrue())
 
-		var serviceData map[string]interface{}
+		var serviceData map[string]any
 		err = json.Unmarshal([]byte(updatedConfigMap.Data[ServiceConfigKeyName]), &serviceData)
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(serviceData["serviceClusterIPNone"]).Should(BeFalse())

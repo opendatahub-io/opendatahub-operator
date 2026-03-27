@@ -123,9 +123,9 @@ func TestMonitoringWebhook_Update(t *testing.T) {
 	g.Expect(currentLabels[labels.ODHLabelMonitoring]).Should(Equal("false"))
 
 	// Update the PodMonitor spec
-	spec := map[string]interface{}{
-		"selector": map[string]interface{}{
-			"matchLabels": map[string]interface{}{
+	spec := map[string]any{
+		"selector": map[string]any{
+			"matchLabels": map[string]any{
 				"app": "test",
 			},
 		},

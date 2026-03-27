@@ -396,7 +396,7 @@ func (r *Report) longDetailsDeployments() string {
 			b.WriteString(ns)
 			b.WriteString("/")
 			b.WriteString(d.Name)
-			b.WriteString(fmt.Sprintf(" %d/%d ready", d.Ready, d.Replicas))
+			fmt.Fprintf(&b, " %d/%d ready", d.Ready, d.Replicas)
 			b.WriteString("\n")
 		}
 	}
@@ -471,7 +471,7 @@ func (r *Report) longDetailsOperator() string {
 	if d != nil {
 		b.WriteString("  ")
 		b.WriteString(d.Name)
-		b.WriteString(fmt.Sprintf(" %d/%d ready", d.Ready, d.Replicas))
+		fmt.Fprintf(&b, " %d/%d ready", d.Ready, d.Replicas)
 		b.WriteString("\n")
 	}
 	for _, dep := range r.Operator.Data.DependentOperators {
@@ -484,7 +484,7 @@ func (r *Report) longDetailsOperator() string {
 			b.WriteString(" error: ")
 			b.WriteString(dep.Error)
 		case dep.Deployment != nil:
-			b.WriteString(fmt.Sprintf(" %d/%d ready", dep.Deployment.Ready, dep.Deployment.Replicas))
+			fmt.Fprintf(&b, " %d/%d ready", dep.Deployment.Ready, dep.Deployment.Replicas)
 		}
 		b.WriteString("\n")
 	}

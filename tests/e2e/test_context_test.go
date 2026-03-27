@@ -662,7 +662,7 @@ func (tc *TestContext) EnsureSubscriptionExistsOrCreate(nn types.NamespacedName,
 //   - actualResource (interface{}): The resource to be compared.
 //   - expectedResource (interface{}): The expected resource.
 //   - args (...interface{}): Optional Gomega assertion message arguments.
-func (tc *TestContext) EnsureResourcesAreEqual(actualResource, expectedResource interface{}, args ...any) {
+func (tc *TestContext) EnsureResourcesAreEqual(actualResource, expectedResource any, args ...any) {
 	// Use Gomega's BeEquivalentTo for flexible deep comparison
 	tc.g.Expect(actualResource).To(
 		BeEquivalentTo(expectedResource),
@@ -1529,10 +1529,11 @@ func (tc *TestContext) UninstallOperator(operatorNamespacedName types.Namespaced
 	resourceID := resources.FormatNamespacedName(operatorNamespacedName)
 
 	// Create subscription options with default settings
-	subscriptionOpts := []ResourceOpts{
+	subscriptionOpts := make([]ResourceOpts, 0, 2+len(opts))
+	subscriptionOpts = append(subscriptionOpts,
 		WithMinimalObject(gvk.Subscription, operatorNamespacedName),
 		WithIgnoreNotFound(true),
-	}
+	)
 	// Merge with provided options (provided options override defaults)
 	subscriptionOpts = append(subscriptionOpts, opts...)
 
@@ -1566,14 +1567,16 @@ func (tc *TestContext) UninstallOperator(operatorNamespacedName types.Namespaced
 
 	// Delete CSV if found and valid
 	if foundCSV {
-		csvOpts := []ResourceOpts{WithIgnoreNotFound(true), WithMinimalObject(gvk.ClusterServiceVersion, types.NamespacedName{Name: csv, Namespace: namespace})}
+		csvOpts := make([]ResourceOpts, 0, 2+len(opts))
+		csvOpts = append(csvOpts, WithIgnoreNotFound(true), WithMinimalObject(gvk.ClusterServiceVersion, types.NamespacedName{Name: csv, Namespace: namespace}))
 		csvOpts = append(csvOpts, opts...) // Add user-provided options
 		tc.DeleteResource(csvOpts...)
 	}
 
 	// Delete InstallPlan if found and valid
 	if installPlan != "" {
-		installPlanOpts := []ResourceOpts{WithIgnoreNotFound(true), WithMinimalObject(gvk.InstallPlan, types.NamespacedName{Name: installPlan, Namespace: namespace})}
+		installPlanOpts := make([]ResourceOpts, 0, 2+len(opts))
+		installPlanOpts = append(installPlanOpts, WithIgnoreNotFound(true), WithMinimalObject(gvk.InstallPlan, types.NamespacedName{Name: installPlan, Namespace: namespace}))
 		installPlanOpts = append(installPlanOpts, opts...) // Add user-provided options
 		tc.DeleteResource(installPlanOpts...)
 	}

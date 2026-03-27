@@ -207,29 +207,29 @@ func TestQuantityExceedsOrEqual(t *testing.T) {
 func TestParseConditionsFromUnstructured(t *testing.T) {
 	tests := []struct {
 		name    string
-		obj     map[string]interface{}
+		obj     map[string]any
 		wantN   int
 		wantErr bool
 	}{
-		{"no status", map[string]interface{}{}, 0, false},
-		{"no conditions", map[string]interface{}{"status": map[string]interface{}{}}, 0, false},
-		{"one condition", map[string]interface{}{
-			"status": map[string]interface{}{
-				"conditions": []interface{}{
-					map[string]interface{}{"type": "Ready", "status": "True", "message": "ok"},
+		{"no status", map[string]any{}, 0, false},
+		{"no conditions", map[string]any{"status": map[string]any{}}, 0, false},
+		{"one condition", map[string]any{
+			"status": map[string]any{
+				"conditions": []any{
+					map[string]any{"type": "Ready", "status": "True", "message": "ok"},
 				},
 			},
 		}, 1, false},
-		{"two conditions", map[string]interface{}{
-			"status": map[string]interface{}{
-				"conditions": []interface{}{
-					map[string]interface{}{"type": "A", "status": "True", "message": ""},
-					map[string]interface{}{"type": "B", "status": "False", "message": "bad"},
+		{"two conditions", map[string]any{
+			"status": map[string]any{
+				"conditions": []any{
+					map[string]any{"type": "A", "status": "True", "message": ""},
+					map[string]any{"type": "B", "status": "False", "message": "bad"},
 				},
 			},
 		}, 2, false},
-		{"malformed conditions not a slice", map[string]interface{}{
-			"status": map[string]interface{}{"conditions": "not-a-slice"},
+		{"malformed conditions not a slice", map[string]any{
+			"status": map[string]any{"conditions": "not-a-slice"},
 		}, 0, true},
 	}
 	for _, tt := range tests {
@@ -248,10 +248,10 @@ func TestParseConditionsFromUnstructured(t *testing.T) {
 			}
 		})
 	}
-	obj := map[string]interface{}{
-		"status": map[string]interface{}{
-			"conditions": []interface{}{
-				map[string]interface{}{"type": "Ready", "status": "True", "message": "ok"},
+	obj := map[string]any{
+		"status": map[string]any{
+			"conditions": []any{
+				map[string]any{"type": "Ready", "status": "True", "message": "ok"},
 			},
 		},
 	}
@@ -286,9 +286,9 @@ func TestRun_DSCSection_ReadyFalseReportsUnhealthy(t *testing.T) {
 	dsc := &unstructured.Unstructured{}
 	dsc.SetGroupVersionKind(gvk.DataScienceCluster)
 	dsc.SetName("default-dsc")
-	dsc.Object["status"] = map[string]interface{}{
-		"conditions": []interface{}{
-			map[string]interface{}{"type": "Ready", "status": "False", "message": "components not ready"},
+	dsc.Object["status"] = map[string]any{
+		"conditions": []any{
+			map[string]any{"type": "Ready", "status": "False", "message": "components not ready"},
 		},
 	}
 
@@ -350,7 +350,7 @@ func TestRun_DSCSection_MalformedConditionsReportsError(t *testing.T) {
 	dsc := &unstructured.Unstructured{}
 	dsc.SetGroupVersionKind(gvk.DataScienceCluster)
 	dsc.SetName("default-dsc")
-	dsc.Object["status"] = map[string]interface{}{"conditions": "not-a-slice"}
+	dsc.Object["status"] = map[string]any{"conditions": "not-a-slice"}
 	cl := fake.NewClientBuilder().WithScheme(sch).WithObjects(dsc).Build()
 	cfg := Config{
 		Client:       cl,
@@ -381,16 +381,16 @@ func TestRun_DSCSection_RemovedComponentIgnored(t *testing.T) {
 	dsc := &unstructured.Unstructured{}
 	dsc.SetGroupVersionKind(gvk.DataScienceCluster)
 	dsc.SetName("default-dsc")
-	dsc.Object["spec"] = map[string]interface{}{
-		"components": map[string]interface{}{
-			"dashboard": map[string]interface{}{"managementState": "Managed"},
-			"kueue":     map[string]interface{}{"managementState": "Removed"},
+	dsc.Object["spec"] = map[string]any{
+		"components": map[string]any{
+			"dashboard": map[string]any{"managementState": "Managed"},
+			"kueue":     map[string]any{"managementState": "Removed"},
 		},
 	}
-	dsc.Object["status"] = map[string]interface{}{
-		"conditions": []interface{}{
-			map[string]interface{}{"type": "DashboardReady", "status": "False", "message": "not ready"},
-			map[string]interface{}{"type": "KueueReady", "status": "False", "message": "removed"},
+	dsc.Object["status"] = map[string]any{
+		"conditions": []any{
+			map[string]any{"type": "DashboardReady", "status": "False", "message": "not ready"},
+			map[string]any{"type": "KueueReady", "status": "False", "message": "removed"},
 		},
 	}
 	cl := fake.NewClientBuilder().WithScheme(sch).WithObjects(dsc).Build()
@@ -423,14 +423,14 @@ func TestRun_DSCSection_RemovedComponentKeyCaseInsensitive(t *testing.T) {
 	dsc := &unstructured.Unstructured{}
 	dsc.SetGroupVersionKind(gvk.DataScienceCluster)
 	dsc.SetName("default-dsc")
-	dsc.Object["spec"] = map[string]interface{}{
-		"components": map[string]interface{}{
-			"Kueue": map[string]interface{}{"managementState": "Removed"},
+	dsc.Object["spec"] = map[string]any{
+		"components": map[string]any{
+			"Kueue": map[string]any{"managementState": "Removed"},
 		},
 	}
-	dsc.Object["status"] = map[string]interface{}{
-		"conditions": []interface{}{
-			map[string]interface{}{"type": "KueueReady", "status": "False", "message": "removed"},
+	dsc.Object["status"] = map[string]any{
+		"conditions": []any{
+			map[string]any{"type": "KueueReady", "status": "False", "message": "removed"},
 		},
 	}
 	cl := fake.NewClientBuilder().WithScheme(sch).WithObjects(dsc).Build()
@@ -456,14 +456,14 @@ func TestRun_DSCSection_RemovedAIPipelinesV1V2Alias(t *testing.T) {
 	dsc := &unstructured.Unstructured{}
 	dsc.SetGroupVersionKind(gvk.DataScienceCluster)
 	dsc.SetName("default-dsc")
-	dsc.Object["spec"] = map[string]interface{}{
-		"components": map[string]interface{}{
-			"aipipelines": map[string]interface{}{"managementState": "Removed"},
+	dsc.Object["spec"] = map[string]any{
+		"components": map[string]any{
+			"aipipelines": map[string]any{"managementState": "Removed"},
 		},
 	}
-	dsc.Object["status"] = map[string]interface{}{
-		"conditions": []interface{}{
-			map[string]interface{}{"type": "AIPipelinesReady", "status": "False", "message": "removed"},
+	dsc.Object["status"] = map[string]any{
+		"conditions": []any{
+			map[string]any{"type": "AIPipelinesReady", "status": "False", "message": "removed"},
 		},
 	}
 	cl := fake.NewClientBuilder().WithScheme(sch).WithObjects(dsc).Build()
@@ -481,14 +481,14 @@ func TestRun_DSCSection_RemovedAIPipelinesV1V2Alias(t *testing.T) {
 		t.Errorf("DSC.Error should not mention AIPipelinesReady when aipipelines is Removed; got %q", report.DSC.Error)
 	}
 	// v1 CR uses spec.components.datasciencepipelines; condition DataSciencePipelinesReady should also be ignored.
-	dsc.Object["spec"] = map[string]interface{}{
-		"components": map[string]interface{}{
-			"datasciencepipelines": map[string]interface{}{"managementState": "Removed"},
+	dsc.Object["spec"] = map[string]any{
+		"components": map[string]any{
+			"datasciencepipelines": map[string]any{"managementState": "Removed"},
 		},
 	}
-	dsc.Object["status"] = map[string]interface{}{
-		"conditions": []interface{}{
-			map[string]interface{}{"type": "DataSciencePipelinesReady", "status": "False", "message": "removed"},
+	dsc.Object["status"] = map[string]any{
+		"conditions": []any{
+			map[string]any{"type": "DataSciencePipelinesReady", "status": "False", "message": "removed"},
 		},
 	}
 	cl = fake.NewClientBuilder().WithScheme(sch).WithObjects(dsc).Build()
@@ -510,10 +510,10 @@ func TestRun_DSCISection_DegradedReported(t *testing.T) {
 	dsci := &unstructured.Unstructured{}
 	dsci.SetGroupVersionKind(gvk.DSCInitialization)
 	dsci.SetName("default-dsci")
-	dsci.Object["status"] = map[string]interface{}{
-		"conditions": []interface{}{
-			map[string]interface{}{"type": "Progressing", "status": "True", "message": "in progress"},
-			map[string]interface{}{"type": "Degraded", "status": "True", "message": "something wrong"},
+	dsci.Object["status"] = map[string]any{
+		"conditions": []any{
+			map[string]any{"type": "Progressing", "status": "True", "message": "in progress"},
+			map[string]any{"type": "Degraded", "status": "True", "message": "something wrong"},
 		},
 	}
 	cl := fake.NewClientBuilder().WithScheme(sch).WithObjects(dsci).Build()
@@ -543,10 +543,10 @@ func TestRun_DSCISection_ProgressingIgnored(t *testing.T) {
 	dsci := &unstructured.Unstructured{}
 	dsci.SetGroupVersionKind(gvk.DSCInitialization)
 	dsci.SetName("default-dsci")
-	dsci.Object["status"] = map[string]interface{}{
-		"conditions": []interface{}{
-			map[string]interface{}{"type": "Progressing", "status": "True", "message": "in progress"},
-			map[string]interface{}{"type": "Upgradeable", "status": "False", "message": "ok"},
+	dsci.Object["status"] = map[string]any{
+		"conditions": []any{
+			map[string]any{"type": "Progressing", "status": "True", "message": "in progress"},
+			map[string]any{"type": "Upgradeable", "status": "False", "message": "ok"},
 		},
 	}
 	cl := fake.NewClientBuilder().WithScheme(sch).WithObjects(dsci).Build()

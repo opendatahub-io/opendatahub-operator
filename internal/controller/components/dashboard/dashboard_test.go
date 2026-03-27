@@ -442,13 +442,13 @@ func createMockOpenShiftIngress(domain string) client.Object {
 	// Create OpenShift Ingress object (config.openshift.io/v1/Ingress)
 	// that cluster.GetDomain() looks for
 	obj := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "config.openshift.io/v1",
 			"kind":       "Ingress",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name": "cluster",
 			},
-			"spec": map[string]interface{}{
+			"spec": map[string]any{
 				"domain": domain,
 			},
 		},

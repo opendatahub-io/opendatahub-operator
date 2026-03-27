@@ -17,20 +17,20 @@ func TestMergeObservabilityResourcesOverride(t *testing.T) {
 
 	// Source represents the existing resource on the cluster with user modifications
 	source := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "opentelemetry.io/v1beta1",
 			"kind":       "OpenTelemetryCollector",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      "data-science-collector",
 				"namespace": "test-namespace",
 			},
-			"spec": map[string]interface{}{
-				"resources": map[string]interface{}{
-					"requests": map[string]interface{}{
+			"spec": map[string]any{
+				"resources": map[string]any{
+					"requests": map[string]any{
 						"cpu":    "500m",
 						"memory": "1Gi",
 					},
-					"limits": map[string]interface{}{
+					"limits": map[string]any{
 						"cpu":    "2",
 						"memory": "2Gi",
 					},
@@ -41,20 +41,20 @@ func TestMergeObservabilityResourcesOverride(t *testing.T) {
 
 	// Target represents the new desired state from the template (with defaults)
 	target := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "opentelemetry.io/v1beta1",
 			"kind":       "OpenTelemetryCollector",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      "data-science-collector",
 				"namespace": "test-namespace",
 			},
-			"spec": map[string]interface{}{
-				"resources": map[string]interface{}{
-					"requests": map[string]interface{}{
+			"spec": map[string]any{
+				"resources": map[string]any{
+					"requests": map[string]any{
 						"cpu":    "100m",
 						"memory": "256Mi",
 					},
-					"limits": map[string]interface{}{
+					"limits": map[string]any{
 						"cpu":    "1",
 						"memory": "512Mi",
 					},
@@ -80,16 +80,16 @@ func TestMergeObservabilityResourcesNoSourceResources(t *testing.T) {
 
 	// Source has no resources section
 	source := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "tempo.grafana.com/v1alpha1",
 			"kind":       "TempoStack",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      "data-science-tempostack",
 				"namespace": "test-namespace",
 			},
-			"spec": map[string]interface{}{
-				"storage": map[string]interface{}{
-					"secret": map[string]interface{}{
+			"spec": map[string]any{
+				"storage": map[string]any{
+					"secret": map[string]any{
 						"name": "tempo-secret",
 						"type": "s3",
 					},
@@ -100,26 +100,26 @@ func TestMergeObservabilityResourcesNoSourceResources(t *testing.T) {
 
 	// Target has default resources
 	target := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "tempo.grafana.com/v1alpha1",
 			"kind":       "TempoStack",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      "data-science-tempostack",
 				"namespace": "test-namespace",
 			},
-			"spec": map[string]interface{}{
-				"resources": map[string]interface{}{
-					"requests": map[string]interface{}{
+			"spec": map[string]any{
+				"resources": map[string]any{
+					"requests": map[string]any{
 						"cpu":    "100m",
 						"memory": "256Mi",
 					},
-					"limits": map[string]interface{}{
+					"limits": map[string]any{
 						"cpu":    "1",
 						"memory": "512Mi",
 					},
 				},
-				"storage": map[string]interface{}{
-					"secret": map[string]interface{}{
+				"storage": map[string]any{
+					"secret": map[string]any{
 						"name": "tempo-secret",
 						"type": "s3",
 					},
@@ -146,20 +146,20 @@ func TestMergeObservabilityResourcesMonitoringStack(t *testing.T) {
 
 	// Source represents MonitoringStack with user-modified resources
 	source := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "monitoring.rhobs/v1alpha1",
 			"kind":       "MonitoringStack",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      "data-science-monitoringstack",
 				"namespace": "test-namespace",
 			},
-			"spec": map[string]interface{}{
-				"resources": map[string]interface{}{
-					"requests": map[string]interface{}{
+			"spec": map[string]any{
+				"resources": map[string]any{
+					"requests": map[string]any{
 						"cpu":    "200m",
 						"memory": "512Mi",
 					},
-					"limits": map[string]interface{}{
+					"limits": map[string]any{
 						"cpu":    "1500m",
 						"memory": "1Gi",
 					},
@@ -170,20 +170,20 @@ func TestMergeObservabilityResourcesMonitoringStack(t *testing.T) {
 
 	// Target with defaults
 	target := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "monitoring.rhobs/v1alpha1",
 			"kind":       "MonitoringStack",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      "data-science-monitoringstack",
 				"namespace": "test-namespace",
 			},
-			"spec": map[string]interface{}{
-				"resources": map[string]interface{}{
-					"requests": map[string]interface{}{
+			"spec": map[string]any{
+				"resources": map[string]any{
+					"requests": map[string]any{
 						"cpu":    "100m",
 						"memory": "256Mi",
 					},
-					"limits": map[string]interface{}{
+					"limits": map[string]any{
 						"cpu":    "1",
 						"memory": "512Mi",
 					},

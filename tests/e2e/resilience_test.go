@@ -163,7 +163,7 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 
 	t.Log("Verifying component count matches DSC Components struct")
 
-	expectedComponentCount := reflect.TypeOf(dscv2.Components{}).NumField()
+	expectedComponentCount := reflect.TypeFor[dscv2.Components]().NumField()
 	// TrustyAI is excluded from quota failure testing due to InferenceServices CRD dependency
 	// Kueue is excluded because it does not have any deployment to manage anymore
 	excludedComponents := 2 // TrustyAI and Kueue
@@ -579,7 +579,7 @@ func (tc *OperatorResilienceTestCtx) findAndBackupAllCRBsForServiceAccount(opera
 
 		// Check if any subject matches our ServiceAccount
 		for _, subject := range subjects {
-			subj, ok := subject.(map[string]interface{})
+			subj, ok := subject.(map[string]any)
 			if !ok {
 				continue
 			}

@@ -1219,6 +1219,8 @@ func (tc *MonitoringTestCtx) ValidateMonitoringServiceDisabled(t *testing.T) {
 //
 // Parameters:
 //   - secretName: Optional secret name to clean up. If empty, only cleans default monitoring resources.
+//
+//nolint:unparam // secretName may be used in future test scenarios
 func (tc *MonitoringTestCtx) ensureMonitoringCleanSlate(t *testing.T, secretName string) {
 	t.Helper()
 
@@ -1427,6 +1429,8 @@ func (tc *MonitoringTestCtx) setupMetrics(t *testing.T) {
 
 // setupTraces enables traces configuration with the specified backend and optional secret.
 // For PV backend, size is set to TracesStorageSize1Gi. For cloud backends (S3/GCS), a secret must be provided.
+//
+//nolint:unused // Will be used in future trace-related test scenarios
 func (tc *MonitoringTestCtx) setupTraces(t *testing.T, backend, secretName string) {
 	t.Helper()
 
@@ -1511,10 +1515,11 @@ func (tc *MonitoringTestCtx) updateMonitoringConfig(transforms ...testf.Transfor
 
 // updateMonitoringConfigWithOptions provides advanced configuration options.
 func (tc *MonitoringTestCtx) updateMonitoringConfigWithOptions(opts ...ResourceOpts) {
-	baseOpts := []ResourceOpts{
+	baseOpts := make([]ResourceOpts, 0, 2+len(opts))
+	baseOpts = append(baseOpts,
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
-	}
+	)
 	tc.EventuallyResourcePatched(append(baseOpts, opts...)...)
 }
 

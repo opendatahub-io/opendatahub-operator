@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"maps"
 	"strings"
 	"testing"
 
@@ -77,11 +78,12 @@ func kueueTestSuite(t *testing.T) {
 	}
 
 	// Define core test cases
-	testCases := []TestCase{
-		{"Validate component unmanaged error with ocp kueue-operator not installed", componentCtx.ValidateKueueUnmanagedWithoutOcpKueueOperator},
-		{"Validate component removed to unmanaged transition", componentCtx.ValidateKueueRemovedToUnmanagedTransition},
-		{"Validate component unmanaged to removed transition", componentCtx.ValidateKueueUnmanagedToRemovedTransition},
-	}
+	testCases := make([]TestCase, 0, 5)
+	testCases = append(testCases,
+		TestCase{"Validate component unmanaged error with ocp kueue-operator not installed", componentCtx.ValidateKueueUnmanagedWithoutOcpKueueOperator},
+		TestCase{"Validate component removed to unmanaged transition", componentCtx.ValidateKueueRemovedToUnmanagedTransition},
+		TestCase{"Validate component unmanaged to removed transition", componentCtx.ValidateKueueUnmanagedToRemovedTransition},
+	)
 
 	// Always run deletion recovery and component disable tests last
 	testCases = append(testCases,
@@ -373,9 +375,7 @@ func (tc *KueueTestCtx) setupNamespace(namespaceName string, labels ...map[strin
 
 	// Merge additional labels if provided
 	for _, labelMap := range labels {
-		for key, value := range labelMap {
-			namespaceLabels[key] = value
-		}
+		maps.Copy(namespaceLabels, labelMap)
 	}
 
 	tc.EventuallyResourceCreatedOrUpdated(

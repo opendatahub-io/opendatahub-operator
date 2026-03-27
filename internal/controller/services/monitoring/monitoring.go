@@ -76,7 +76,7 @@ func updatePrometheusConfig(ctx context.Context, enable bool, component string) 
 
 	var configMap ConfigMap
 	// prometheusContent will represent content of prometheus.yml due to its dynamic struct
-	var prometheusContent map[interface{}]interface{}
+	var prometheusContent map[any]any
 
 	// read prometheus.yml from local disk /opt/mainfests/monitoring/prometheus/apps/
 	yamlData, err := os.ReadFile(prometheusConfigPath)
@@ -98,7 +98,7 @@ func updatePrometheusConfig(ctx context.Context, enable bool, component string) 
 		if !strings.Contains(configMap.Data.PrometheusYML, component+"*.rules") {
 			// check if have rule_files
 			if ruleFiles, ok := prometheusContent["rule_files"]; ok {
-				if ruleList, isList := ruleFiles.([]interface{}); isList {
+				if ruleList, isList := ruleFiles.([]any); isList {
 					// add new component rules back to rule_files
 					ruleList = append(ruleList, component+"*.rules")
 					prometheusContent["rule_files"] = ruleList
@@ -107,7 +107,7 @@ func updatePrometheusConfig(ctx context.Context, enable bool, component string) 
 		}
 	} else { // to remove component rules if it is there
 		l.Info("Removing prometheus rule: " + component + "*.rules")
-		if ruleList, ok := prometheusContent["rule_files"].([]interface{}); ok {
+		if ruleList, ok := prometheusContent["rule_files"].([]any); ok {
 			for i, item := range ruleList {
 				if rule, isStr := item.(string); isStr && rule == component+"*.rules" {
 					ruleList = append(ruleList[:i], ruleList[i+1:]...)
