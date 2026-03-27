@@ -100,14 +100,13 @@ import (
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/setup"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/bootstrap"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/initialinstall"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
@@ -207,7 +206,7 @@ func registerServices() {
 	}
 }
 
-func main() { //nolint:funlen,maintidx,gocyclo
+func main() { //nolint:funlen,maintidx
 	// Setup Viper
 	viper.SetEnvPrefix("ODH_MANAGER")
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
@@ -441,60 +440,25 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	// Check if user opted for disabling DSC configuration
+	// Combined sequential initialization to avoid race conditions between
+	// cleanup and DSCI/DSC creation (RHOAIENG-48054)
 	disableDSCConfig, existDSCConfig := os.LookupEnv("DISABLE_DSC_CONFIG")
-	switch {
-	case !flags.IsDSCIEnabled():
-		setupLog.Info("DSCI is disabled")
-	case existDSCConfig && disableDSCConfig != "false":
-		setupLog.Info("DSCI auto creation is disabled")
-	default:
-		createDefaultDSCIFunc := LeaderElectionRunnableFunc(func(ctx context.Context) error {
-			setupLog.Info("create default DSCI")
-			err := initialinstall.CreateDefaultDSCI(ctx, setupClient, platform, oconfig.MonitoringNamespace)
-			if err != nil {
-				setupLog.Error(err, "unable to create initial setup for the operator")
-			}
-			return err
-		})
-
-		err := mgr.Add(createDefaultDSCIFunc)
-		if err != nil {
-			setupLog.Error(err, "error scheduling DSCI creation")
-			os.Exit(1)
-		}
+	leaderInitCfg := bootstrap.LeaderElectionInitConfig{
+		Platform:             platform,
+		MonitoringNamespace:  oconfig.MonitoringNamespace,
+		DSCIEnabled:          flags.IsDSCIEnabled(),
+		DSCEnabled:           flags.IsDSCEnabled(),
+		DisableDSCAutoCreate: existDSCConfig && disableDSCConfig != "false",
 	}
-
-	// Create default DSC CR for managed RHOAI
-	if platform == cluster.ManagedRhoai && flags.IsDSCEnabled() {
-		createDefaultDSCFunc := LeaderElectionRunnableFunc(func(ctx context.Context) error {
-			setupLog.Info("create default DSC")
-			err := initialinstall.CreateDefaultDSC(ctx, setupClient)
-			if err != nil {
-				setupLog.Error(err, "unable to create default DSC CR by the operator")
-			}
-			return err
-		})
-		err := mgr.Add(createDefaultDSCFunc)
-		if err != nil {
-			setupLog.Error(err, "error scheduling DSC creation")
-			os.Exit(1)
-		}
-	}
-
-	// Cleanup resources from previous v2 releases
-	cleanup := LeaderElectionRunnableFunc(func(ctx context.Context) error {
-		setupLog.Info("run upgrade task")
-		if err := upgrade.CleanupExistingResource(ctx, setupClient); err != nil {
-			setupLog.Error(err, "unable to perform cleanup")
-			return err
-		}
-		return nil
+	leaderInitHooks := bootstrap.DefaultLeaderElectionInitHooks()
+	initFunc := LeaderElectionRunnableFunc(func(ctx context.Context) error {
+		return bootstrap.RunLeaderElectionInit(ctx, setupLog, setupClient, leaderInitCfg, leaderInitHooks)
 	})
 
-	err = mgr.Add(cleanup)
+	err = mgr.Add(initFunc)
 	if err != nil {
-		setupLog.Error(err, "error remove deprecated resources from previous version")
+		setupLog.Error(err, "error scheduling initialization")
+		os.Exit(1)
 	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

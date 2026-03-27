@@ -69,6 +69,8 @@ func v2Tov3UpgradeTestSuite(t *testing.T) {
 		{"modelmeshserving resources preserved after support removal", v2Tov3UpgradeTestCtx.ValidateModelMeshServingResourcePreservation},
 		{"ray raise error if codeflare component present in the cluster", v2Tov3UpgradeTestCtx.ValidateRayRaiseErrorIfCodeFlarePresent},
 		{"servicemesh resources preserved after support removal", v2Tov3UpgradeTestCtx.ValidateServiceMeshResourcePreservation},
+		// RHOAIENG-48054: DSCI should stay Ready after suite scenarios (startup cleanup before default CR creation).
+		{"default DSCInitialization remains Ready after deprecated CRD scenarios", v2Tov3UpgradeTestCtx.ValidateDefaultDSCIRemainsReadyAfterDeprecatedCRDScenarios},
 	}
 
 	// Run the test suite.
@@ -305,6 +307,18 @@ func (tc *V2Tov3UpgradeTestCtx) createOperatorManagedServiceMesh(serviceMeshName
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithObjectToCreate(existingServiceMesh),
 		WithCustomErrorMsg("Failed to create existing ServiceMesh service for preservation test"),
+	)
+}
+
+func (tc *V2Tov3UpgradeTestCtx) ValidateDefaultDSCIRemainsReadyAfterDeprecatedCRDScenarios(t *testing.T) {
+	t.Helper()
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
+		WithCustomErrorMsg("DSCI should remain Ready after v2->v3 deprecated CRD scenarios (RHOAIENG-48054)"),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
 	)
 }
 

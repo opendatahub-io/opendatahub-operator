@@ -92,6 +92,8 @@ func dscValidationTestSuite(t *testing.T) {
 		{"Validate HardwareProfile resource", dscTestCtx.ValidateHardwareProfileCR},
 		{"Validate owned namespaces exist", dscTestCtx.ValidateOwnedNamespacesAllExist},
 		{"Validate default NetworkPolicy exist", dscTestCtx.ValidateDefaultNetworkPolicyExists},
+		// RHOAIENG-48054: DSCI must reach Ready after startup (cleanup runs before default CR creation).
+		{"Validate DSCInitialization reaches Ready after operator startup", dscTestCtx.ValidateDSCInitializationReadyAfterStartup},
 	}
 
 	// Run the test suite.
@@ -186,6 +188,22 @@ func (tc *DSCTestCtx) ValidateDefaultNetworkPolicyExists(t *testing.T) {
 	tc.EnsureResourcesExist(
 		WithMinimalObject(gvk.NetworkPolicy, types.NamespacedName{Namespace: dsci.Spec.ApplicationsNamespace, Name: dsci.Spec.ApplicationsNamespace}),
 		WithCustomErrorMsg("Expected the default NetworkPolicy to be created."),
+	)
+}
+
+// ValidateDSCInitializationReadyAfterStartup ensures the cluster DSCI reaches Ready, covering
+// post-startup sequencing where upgrade cleanup must complete before default DSCI creation (RHOAIENG-48054).
+func (tc *DSCTestCtx) ValidateDSCInitializationReadyAfterStartup(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
+		WithCustomErrorMsg("DSCI %s should reach Ready phase after operator startup", tc.DSCInitializationNamespacedName.Name),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
 	)
 }
 
