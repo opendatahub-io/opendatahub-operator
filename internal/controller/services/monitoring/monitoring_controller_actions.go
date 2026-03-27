@@ -277,10 +277,7 @@ func deployTracingStack(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 	// Determine required Tempo CRD based on storage backend
 	// Default to "pv" when backend is empty (kubebuilder default removed to prevent
 	// Form View UI from auto-populating values)
-	backend := traces.Storage.Backend
-	if backend == "" {
-		backend = defaultTracesBackend
-	}
+	backend := getStringValueOrDefault(traces.Storage.Backend, defaultTracesBackend)
 
 	var tempoCRD schema.GroupVersionKind
 	var tempoTemplate string
