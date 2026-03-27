@@ -33,7 +33,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/dynamic"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -588,4 +590,331 @@ func hashConfigMapData(data map[string]string) string {
 	// Compute SHA256 hash
 	hash := sha256.Sum256([]byte(sb.String()))
 	return hex.EncodeToString(hash[:])
+}
+
+// validateExternalOIDCCA validates that the CA certificate Secret referenced by
+// ExternalOIDC.CACertificateSecretName exists in the gateway namespace and
+// contains a valid 'ca.crt' key with PEM data.
+func validateExternalOIDCCA(ctx context.Context, rr *types.ReconciliationRequest) error {
+	log := logf.FromContext(ctx)
+
+	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
+	}
+
+	if maas.Spec.ExternalOIDC == nil || maas.Spec.ExternalOIDC.CACertificateSecretName == "" {
+		return nil
+	}
+
+	secretName := maas.Spec.ExternalOIDC.CACertificateSecretName
+	gatewayNamespace := maas.Spec.GatewayRef.Namespace
+
+	log.V(4).Info("Validating OIDC CA certificate Secret",
+		"secretName", secretName, "namespace", gatewayNamespace)
+
+	secret := &corev1.Secret{}
+	err := rr.Client.Get(ctx, k8stypes.NamespacedName{
+		Namespace: gatewayNamespace,
+		Name:      secretName,
+	}, secret)
+
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			return fmt.Errorf(
+				"CA certificate Secret %s/%s not found: the Secret must exist in the gateway namespace "+
+					"and contain a '%s' key with the PEM-encoded CA certificate",
+				gatewayNamespace, secretName, MaaSCACertSecretKey)
+		}
+		return fmt.Errorf("failed to get CA certificate Secret %s/%s: %w", gatewayNamespace, secretName, err)
+	}
+
+	caCert, exists := secret.Data[MaaSCACertSecretKey]
+	if !exists || len(caCert) == 0 {
+		return fmt.Errorf(
+			"CA certificate Secret %s/%s does not contain a '%s' key with PEM data",
+			gatewayNamespace, secretName, MaaSCACertSecretKey)
+	}
+
+	log.V(4).Info("OIDC CA certificate Secret validated successfully",
+		"secretName", secretName, "namespace", gatewayNamespace, "certSize", len(caCert))
+
+	return nil
+}
+
+// configureOIDCCACertificate manages the OIDC CA trust chain for Authorino.
+//
+// When ExternalOIDC.CACertificateSecretName is set:
+//  1. Reads the CA cert PEM from the referenced Secret in the gateway namespace.
+//  2. Discovers the Authorino CR (operator.authorino.kuadrant.io/v1beta1) across
+//     candidate namespaces: kuadrant-system, rh-connectivity-link, app namespace.
+//  3. Creates/updates a ConfigMap with the CA cert in Authorino's namespace.
+//  4. Patches the Authorino CR's spec.volumes.items to mount the ConfigMap.
+//     The authorino-operator propagates this to the Deployment automatically.
+//
+// When CACertificateSecretName is cleared (cleanup):
+//  1. Removes the CA volume entry from the Authorino CR's spec.volumes.items.
+//  2. Deletes the CA bundle ConfigMap from Authorino's namespace.
+//
+// All cross-namespace operations use the dynamic client to bypass the
+// controller-runtime namespace-scoped cache.
+func configureOIDCCACertificate(ctx context.Context, rr *types.ReconciliationRequest) error {
+	log := logf.FromContext(ctx)
+
+	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
+	}
+
+	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
+	if err != nil {
+		return fmt.Errorf("failed to determine application namespace: %w", err)
+	}
+
+	caEnabled := maas.Spec.ExternalOIDC != nil && maas.Spec.ExternalOIDC.CACertificateSecretName != ""
+
+	dc := rr.Controller.GetDynamicClient()
+	authorinoCR, authorinoNamespace, err := findAuthorinoCR(ctx, dc, log, appNamespace)
+	if err != nil {
+		return err
+	}
+	if authorinoCR == nil {
+		log.V(1).Info("Authorino CR not found in any candidate namespace, skipping CA configuration",
+			"candidates", []string{AuthorinoNamespaceKuadrant, AuthorinoNamespaceRHCL, appNamespace})
+		return nil
+	}
+
+	if !caEnabled {
+		return cleanupOIDCCA(ctx, dc, log, authorinoCR, authorinoNamespace)
+	}
+
+	caCertPEM, err := readCACertFromSecret(ctx, rr, maas)
+	if err != nil {
+		return err
+	}
+
+	if err := ensureCABundleConfigMap(ctx, dc, log, authorinoNamespace, caCertPEM); err != nil {
+		return err
+	}
+
+	return ensureAuthorinoCRVolume(ctx, dc, log, authorinoCR, authorinoNamespace)
+}
+
+// cleanupOIDCCA removes the CA volume entry from the Authorino CR and
+// deletes the CA bundle ConfigMap when CACertificateSecretName has been cleared.
+func cleanupOIDCCA(ctx context.Context, dc dynamic.Interface, log logr.Logger, authorinoCR *unstructured.Unstructured, authorinoNamespace string) error {
+	if hasAuthorinoCRVolume(authorinoCR) {
+		if err := removeAuthorinoCRVolume(ctx, dc, log, authorinoCR, authorinoNamespace); err != nil {
+			return err
+		}
+	}
+
+	return deleteCABundleConfigMap(ctx, dc, log, authorinoNamespace)
+}
+
+// readCACertFromSecret reads the CA certificate PEM data from the referenced Secret.
+func readCACertFromSecret(ctx context.Context, rr *types.ReconciliationRequest, maas *componentApi.ModelsAsService) ([]byte, error) {
+	secret := &corev1.Secret{}
+	err := rr.Client.Get(ctx, k8stypes.NamespacedName{
+		Namespace: maas.Spec.GatewayRef.Namespace,
+		Name:      maas.Spec.ExternalOIDC.CACertificateSecretName,
+	}, secret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read CA certificate Secret %s/%s: %w",
+			maas.Spec.GatewayRef.Namespace, maas.Spec.ExternalOIDC.CACertificateSecretName, err)
+	}
+
+	return secret.Data[MaaSCACertSecretKey], nil
+}
+
+// ensureCABundleConfigMap creates or updates the CA bundle ConfigMap in the Authorino namespace.
+// Uses the dynamic client because the Authorino namespace (kuadrant-system or rh-connectivity-link)
+// is outside the operator's namespace-scoped cache for ConfigMaps.
+func ensureCABundleConfigMap(ctx context.Context, dc dynamic.Interface, log logr.Logger, namespace string, caCertPEM []byte) error {
+	gvr := configMapGVR()
+
+	desired := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "ConfigMap",
+			"metadata": map[string]interface{}{
+				"name":      MaaSCABundleConfigMapName,
+				"namespace": namespace,
+				"labels": map[string]interface{}{
+					labels.InjectTrustCA:                labels.True,
+					labels.ODH.Component(ComponentName): labels.True,
+				},
+			},
+			"data": map[string]interface{}{
+				MaaSCABundleFileName: string(caCertPEM),
+			},
+		},
+	}
+
+	_, err := dc.Resource(gvr).Namespace(namespace).Get(ctx, MaaSCABundleConfigMapName, metav1.GetOptions{})
+
+	if k8serr.IsNotFound(err) {
+		log.Info("Creating OIDC CA bundle ConfigMap",
+			"name", MaaSCABundleConfigMapName, "namespace", namespace)
+		_, createErr := dc.Resource(gvr).Namespace(namespace).Create(ctx, desired, metav1.CreateOptions{})
+		return createErr
+	}
+	if err != nil {
+		return fmt.Errorf("failed to get CA bundle ConfigMap %s/%s: %w", namespace, MaaSCABundleConfigMapName, err)
+	}
+
+	log.V(4).Info("Updating OIDC CA bundle ConfigMap",
+		"name", MaaSCABundleConfigMapName, "namespace", namespace)
+	_, updateErr := dc.Resource(gvr).Namespace(namespace).Update(ctx, desired, metav1.UpdateOptions{})
+	return updateErr
+}
+
+// deleteCABundleConfigMap removes the CA bundle ConfigMap from the Authorino namespace.
+func deleteCABundleConfigMap(ctx context.Context, dc dynamic.Interface, log logr.Logger, namespace string) error {
+	err := dc.Resource(configMapGVR()).Namespace(namespace).Delete(ctx, MaaSCABundleConfigMapName, metav1.DeleteOptions{})
+
+	if k8serr.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to delete CA bundle ConfigMap %s/%s: %w", namespace, MaaSCABundleConfigMapName, err)
+	}
+
+	log.Info("Deleted OIDC CA bundle ConfigMap",
+		"name", MaaSCABundleConfigMapName, "namespace", namespace)
+	return nil
+}
+
+// findAuthorinoCR discovers the Authorino custom resource by its well-known name
+// ("authorino") across candidate namespaces. The authorino-operator creates this
+// CR in the Kuadrant/RHCL operator namespace.
+//
+// Search order:
+//  1. kuadrant-system (upstream Kuadrant)
+//  2. rh-connectivity-link (downstream RHCL)
+//  3. application namespace (fallback for non-standard layouts)
+func findAuthorinoCR(
+	ctx context.Context,
+	dc dynamic.Interface,
+	log logr.Logger,
+	appNamespace string,
+) (*unstructured.Unstructured, string, error) {
+	gvr := authorinoCRGVR()
+	candidates := []string{
+		AuthorinoNamespaceKuadrant,
+		AuthorinoNamespaceRHCL,
+		appNamespace,
+	}
+
+	for _, ns := range candidates {
+		cr, err := dc.Resource(gvr).Namespace(ns).Get(ctx, AuthorinoCRName, metav1.GetOptions{})
+		if err == nil {
+			log.V(4).Info("Found Authorino CR", "name", AuthorinoCRName, "namespace", ns)
+			return cr, ns, nil
+		}
+		if !k8serr.IsNotFound(err) {
+			return nil, "", fmt.Errorf("failed to get Authorino CR in namespace %s: %w", ns, err)
+		}
+	}
+
+	return nil, "", nil
+}
+
+// hasAuthorinoCRVolume checks if the Authorino CR already has the CA bundle volume in spec.volumes.items.
+func hasAuthorinoCRVolume(cr *unstructured.Unstructured) bool {
+	items, found, _ := unstructured.NestedSlice(cr.Object, "spec", "volumes", "items")
+	if !found {
+		return false
+	}
+	for _, item := range items {
+		vol, ok := item.(map[string]interface{})
+		if ok && vol["name"] == MaaSCABundleVolumeName {
+			return true
+		}
+	}
+	return false
+}
+
+// ensureAuthorinoCRVolume adds or updates the CA bundle volume in the Authorino CR's
+// spec.volumes.items. The authorino-operator reconciles this into the Deployment.
+func ensureAuthorinoCRVolume(ctx context.Context, dc dynamic.Interface, log logr.Logger, cr *unstructured.Unstructured, namespace string) error {
+	desiredVolume := map[string]interface{}{
+		"name":       MaaSCABundleVolumeName,
+		"mountPath":  MaaSCABundleMountPath,
+		"configMaps": []interface{}{MaaSCABundleConfigMapName},
+	}
+
+	items, _, _ := unstructured.NestedSlice(cr.Object, "spec", "volumes", "items")
+
+	updated := false
+	for i, item := range items {
+		vol, ok := item.(map[string]interface{})
+		if ok && vol["name"] == MaaSCABundleVolumeName {
+			items[i] = desiredVolume
+			updated = true
+			break
+		}
+	}
+	if !updated {
+		items = append(items, desiredVolume)
+	}
+
+	if err := unstructured.SetNestedSlice(cr.Object, items, "spec", "volumes", "items"); err != nil {
+		return fmt.Errorf("failed to set spec.volumes.items on Authorino CR: %w", err)
+	}
+
+	_, err := dc.Resource(authorinoCRGVR()).Namespace(namespace).Update(ctx, cr, metav1.UpdateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to update Authorino CR %s/%s with CA volume: %w", namespace, AuthorinoCRName, err)
+	}
+
+	log.Info("Patched Authorino CR with OIDC CA bundle volume",
+		"name", AuthorinoCRName, "namespace", namespace)
+	return nil
+}
+
+// removeAuthorinoCRVolume removes the CA bundle volume entry from the Authorino CR's spec.volumes.items.
+func removeAuthorinoCRVolume(ctx context.Context, dc dynamic.Interface, log logr.Logger, cr *unstructured.Unstructured, namespace string) error {
+	items, found, _ := unstructured.NestedSlice(cr.Object, "spec", "volumes", "items")
+	if !found {
+		return nil
+	}
+
+	filtered := make([]interface{}, 0, len(items))
+	for _, item := range items {
+		vol, ok := item.(map[string]interface{})
+		if ok && vol["name"] == MaaSCABundleVolumeName {
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+
+	if err := unstructured.SetNestedSlice(cr.Object, filtered, "spec", "volumes", "items"); err != nil {
+		return fmt.Errorf("failed to set spec.volumes.items on Authorino CR: %w", err)
+	}
+
+	_, err := dc.Resource(authorinoCRGVR()).Namespace(namespace).Update(ctx, cr, metav1.UpdateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to update Authorino CR %s/%s to remove CA volume: %w", namespace, AuthorinoCRName, err)
+	}
+
+	log.Info("Removed OIDC CA bundle volume from Authorino CR",
+		"name", AuthorinoCRName, "namespace", namespace)
+	return nil
+}
+
+func authorinoCRGVR() schema.GroupVersionResource {
+	return schema.GroupVersionResource{
+		Group:    "operator.authorino.kuadrant.io",
+		Version:  "v1beta1",
+		Resource: "authorinos",
+	}
+}
+
+func configMapGVR() schema.GroupVersionResource {
+	return schema.GroupVersionResource{
+		Group:    "",
+		Version:  "v1",
+		Resource: "configmaps",
+	}
 }

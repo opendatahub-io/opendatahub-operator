@@ -94,6 +94,16 @@ type ExternalOIDCConfig struct {
 	// +kubebuilder:default=300
 	// +kubebuilder:validation:Minimum=30
 	TTL int `json:"ttl,omitempty"`
+
+	// CACertificateSecretName is the name of the Secret containing the CA certificate
+	// for the OIDC provider. Required when the OIDC issuer uses a self-signed or
+	// private CA certificate (e.g., internal Keycloak deployments).
+	// The Secret must exist in the gateway namespace and contain a 'ca.crt' key
+	// with the PEM-encoded CA certificate.
+	// When set, the operator creates a trusted CA ConfigMap and configures Authorino
+	// to trust the CA for OIDC discovery and JWKS endpoint validation.
+	// +optional
+	CACertificateSecretName string `json:"caCertificateSecretName,omitempty"`
 }
 
 // TelemetryConfig defines configuration for telemetry collection.
