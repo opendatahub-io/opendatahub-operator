@@ -64,3 +64,6 @@ go build -o test-retry .
 - `--github-pr`: GitHub pull request number to notify on test failures
 - `--failure-label`: Label to add to PR when tests fail (optional)
 - `--failure-comment`: Comment to add to PR when tests fail (optional)
+
+## JUnit XML Failure Classification
+The CLI enriches JUnit XML output with failure classification properties when tests fail. This enables CI dashboards and BigQuery to distinguish infrastructure failures from test logic failures.
