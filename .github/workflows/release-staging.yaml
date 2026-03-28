@@ -131,7 +131,7 @@ jobs:
         prerelease: true
 
     - name: Trigger ODH Konflux Release Onboarder
-      uses: lasith-kg/dispatch-workflow@91345a2a3b705e950978a584446ab59f7e815ae3 # v2.0.0
+      uses: lasith-kg/dispatch-workflow@31e75ec32486f8af8e5b9c3495efc61fad91c58e # v2.0.2
       with:
         dispatch-method: workflow_dispatch
         workflow: odh-konflux-release-onboarder.yml
