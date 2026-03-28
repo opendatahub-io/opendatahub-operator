@@ -1123,6 +1123,7 @@ func RunEnvoyFilterLuaTokenForwardingTest(t *testing.T, setup TestSetup) {
 	}
 	g.Expect(luaInlineCode).NotTo(BeEmpty(), "lua token forwarding filter not found")
 	g.Expect(luaInlineCode).To(ContainSubstring("x-auth-request-access-token"))
+	g.Expect(luaInlineCode).To(ContainSubstring("x-auth-request-user"))
 	g.Expect(luaInlineCode).To(ContainSubstring("x-forwarded-access-token"))
 	g.Expect(luaInlineCode).To(ContainSubstring("authorization"))
 	g.Expect(luaInlineCode).To(ContainSubstring("Bearer"))
@@ -1300,7 +1301,6 @@ func RunDeploymentWithAllArgsTest(t *testing.T, setup TestSetup, expectedHostnam
 	g.Expect(args).To(ContainElement("--upstream=static://200"))
 	g.Expect(args).To(ContainElement("--skip-provider-button"))
 	g.Expect(args).To(ContainElement("--skip-jwt-bearer-tokens=true"))
-	g.Expect(args).To(ContainElement("--pass-access-token=true"))
 	g.Expect(args).To(ContainElement("--set-xauthrequest=true"))
 	g.Expect(args).To(ContainElement(fmt.Sprintf("--redirect-url=https://%s/oauth2/callback", expectedHostname)))
 	g.Expect(args).To(ContainElement(fmt.Sprintf("--tls-cert-file=%s/tls.crt", gateway.TLSCertsMountPath)))

@@ -196,8 +196,8 @@ func TestOIDCServiceCreation(t *testing.T) {
 // TestOIDCDeploymentWithAllArgs validates Deployment args in OIDC mode (delegates to RunDeploymentWithAllArgsTest).
 func TestOIDCDeploymentWithAllArgs(t *testing.T) {
 	RunDeploymentWithAllArgsTest(t, GetOIDCTestSetup(), DefaultGatewayHost(OIDCClusterDomain),
-		[]string{"--provider=oidc", fmt.Sprintf("--oidc-issuer-url=%s", OIDCIssuerURL), "--skip-oidc-discovery=false", "--ssl-insecure-skip-verify=false"},
-		[]string{"--provider=openshift", "--scope=user:full"})
+		[]string{"--provider=oidc", fmt.Sprintf("--oidc-issuer-url=%s", OIDCIssuerURL), "--skip-oidc-discovery=false", "--ssl-insecure-skip-verify=false", "--pass-authorization-header=true", "--set-authorization-header=true"},
+		[]string{"--provider=openshift", "--scope=user:full", "--pass-access-token=true"})
 }
 
 // TestOIDCHPACreation validates HPA creation in OIDC mode (delegates to RunHPACreationTest).
