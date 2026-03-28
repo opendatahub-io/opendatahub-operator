@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -27,7 +28,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/mocks"
 
 	. "github.com/onsi/gomega"
@@ -50,14 +51,24 @@ func newTestReconcileAction(t *testing.T) func(context.Context, *types.Reconcili
 	return action
 }
 
-func newTestReconciliationRequest(cl client.Client, charts []types.HelmChartInfo) *types.ReconciliationRequest {
+// newTestReconciliationRequest creates a ReconciliationRequest backed by a real envtest
+// cluster so that all actions — including cleanupOwnership — have access to working
+// discovery and dynamic clients.
+func newTestReconciliationRequest(
+	et *envt.EnvT,
+	charts []types.HelmChartInfo,
+) *types.ReconciliationRequest {
 	instance := &ccmv1alpha1.AzureKubernetesEngine{}
 
 	rr := &types.ReconciliationRequest{
-		Client:   cl,
+		Client:   et.Client(),
 		Instance: instance,
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
 			m.On("Owns", mock.Anything).Return(false)
+			m.On("GetClient").Return(et.Client())
+			m.On("GetDiscoveryClient").Return(et.DiscoveryClient())
+			m.On("GetDynamicClient").Return(et.DynamicClient())
+			m.On("IsDynamicOwnershipEnabled").Return(false)
 		}),
 		Release: common.Release{
 			Name: cluster.OpenDataHub,
@@ -73,11 +84,33 @@ func newTestReconciliationRequest(cl client.Client, charts []types.HelmChartInfo
 	return rr
 }
 
-func checkTestChartDeployedResources(t *testing.T, g *WithT, ctx context.Context, cl client.Client, ns, releaseName string) {
+// newEnvT creates a fresh envtest environment for a test and registers Stop as cleanup.
+func newEnvT(t *testing.T) *envt.EnvT {
+	t.Helper()
+	g := NewWithT(t)
+	et, err := envt.New()
+	g.Expect(err).NotTo(HaveOccurred())
+	t.Cleanup(func() { _ = et.Stop() })
+	return et
+}
+
+// createTestNS creates a namespace in the cluster and registers deletion as cleanup.
+func createTestNS(t *testing.T, g *WithT, ctx context.Context, cli client.Client) string {
+	t.Helper()
+	ns := xid.New().String()
+	g.Expect(cli.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})).
+		NotTo(HaveOccurred())
+	t.Cleanup(func() {
+		_ = cli.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
+	})
+	return ns
+}
+
+func checkTestChartDeployedResources(t *testing.T, g *WithT, ctx context.Context, cli client.Client, ns, releaseName string) {
 	t.Helper()
 
 	cm := &corev1.ConfigMap{}
-	err := cl.Get(ctx, client.ObjectKey{Namespace: ns, Name: fmt.Sprintf("%s-config", releaseName)}, cm)
+	err := cli.Get(ctx, client.ObjectKey{Namespace: ns, Name: fmt.Sprintf("%s-config", releaseName)}, cm)
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(cm.Data).Should(HaveKeyWithValue("key", "value"))
 }
@@ -85,13 +118,11 @@ func checkTestChartDeployedResources(t *testing.T, g *WithT, ctx context.Context
 func TestNewReconcileAction_RendersAndDeploys(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
-	ns := xid.New().String()
-
-	cl, err := fakeclient.New()
-	g.Expect(err).ShouldNot(HaveOccurred())
+	et := newEnvT(t)
+	ns := createTestNS(t, g, ctx, et.Client())
 
 	action := newTestReconcileAction(t)
-	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
+	rr := newTestReconciliationRequest(et, []types.HelmChartInfo{{
 		Source: helmRenderer.Source{
 			Chart:       filepath.Join("testdata", "test-chart"),
 			ReleaseName: testReleaseName,
@@ -99,28 +130,26 @@ func TestNewReconcileAction_RendersAndDeploys(t *testing.T) {
 		},
 	}})
 
-	err = action(ctx, rr)
+	err := action(ctx, rr)
 
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(rr.Resources).Should(HaveLen(1))
 
-	checkTestChartDeployedResources(t, g, ctx, cl, ns, testReleaseName)
+	checkTestChartDeployedResources(t, g, ctx, et.Client(), ns, testReleaseName)
 }
 
 func TestNewReconcileAction_ExecutesPreApplyHooks(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
-	ns := xid.New().String()
-
-	cl, err := fakeclient.New()
-	g.Expect(err).ShouldNot(HaveOccurred())
+	et := newEnvT(t)
+	ns := createTestNS(t, g, ctx, et.Client())
 
 	var preHookCalled bool
 	var resourceCountAtPreHook int
 	var resourceNotDeployedAtPreHook bool
 
 	action := newTestReconcileAction(t)
-	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
+	rr := newTestReconciliationRequest(et, []types.HelmChartInfo{{
 		Source: helmRenderer.Source{
 			Chart:       filepath.Join("testdata", "test-chart"),
 			ReleaseName: testReleaseName,
@@ -140,7 +169,7 @@ func TestNewReconcileAction_ExecutesPreApplyHooks(t *testing.T) {
 		}},
 	}})
 
-	err = action(ctx, rr)
+	err := action(ctx, rr)
 
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(preHookCalled).Should(BeTrue())
@@ -153,13 +182,11 @@ func TestNewReconcileAction_ExecutesPreApplyHooks(t *testing.T) {
 func TestNewReconcileAction_ExecutesPostApplyHooks(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
-	ns := xid.New().String()
-
-	cl, err := fakeclient.New()
-	g.Expect(err).ShouldNot(HaveOccurred())
+	et := newEnvT(t)
+	ns := createTestNS(t, g, ctx, et.Client())
 
 	action := newTestReconcileAction(t)
-	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
+	rr := newTestReconciliationRequest(et, []types.HelmChartInfo{{
 		Source: helmRenderer.Source{
 			Chart:       filepath.Join("testdata", "test-chart"),
 			ReleaseName: testReleaseName,
@@ -172,7 +199,7 @@ func TestNewReconcileAction_ExecutesPostApplyHooks(t *testing.T) {
 		}},
 	}})
 
-	err = action(ctx, rr)
+	err := action(ctx, rr)
 
 	g.Expect(err).ShouldNot(HaveOccurred())
 }
@@ -180,13 +207,11 @@ func TestNewReconcileAction_ExecutesPostApplyHooks(t *testing.T) {
 func TestNewReconcileAction_PreApplyHookCanModifyResources(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
-	ns := xid.New().String()
-
-	cl, err := fakeclient.New()
-	g.Expect(err).ShouldNot(HaveOccurred())
+	et := newEnvT(t)
+	ns := createTestNS(t, g, ctx, et.Client())
 
 	action := newTestReconcileAction(t)
-	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
+	rr := newTestReconciliationRequest(et, []types.HelmChartInfo{{
 		Source: helmRenderer.Source{
 			Chart:       filepath.Join("testdata", "test-chart"),
 			ReleaseName: testReleaseName,
@@ -204,31 +229,29 @@ func TestNewReconcileAction_PreApplyHookCanModifyResources(t *testing.T) {
 		}},
 	}})
 
-	err = action(ctx, rr)
+	err := action(ctx, rr)
 
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(rr.Resources).Should(HaveLen(2))
 
-	checkTestChartDeployedResources(t, g, ctx, cl, ns, testReleaseName)
+	checkTestChartDeployedResources(t, g, ctx, et.Client(), ns, testReleaseName)
 
 	// Verify the extra resource was deployed
 	cm2 := &corev1.ConfigMap{}
-	err = cl.Get(ctx, client.ObjectKey{Namespace: ns, Name: "hook-added"}, cm2)
+	err = et.Client().Get(ctx, client.ObjectKey{Namespace: ns, Name: "hook-added"}, cm2)
 	g.Expect(err).ShouldNot(HaveOccurred())
 }
 
 func TestNewReconcileAction_PreApplyHookErrorStopsPipeline(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
-	ns := xid.New().String()
-
-	cl, err := fakeclient.New()
-	g.Expect(err).ShouldNot(HaveOccurred())
+	et := newEnvT(t)
+	ns := createTestNS(t, g, ctx, et.Client())
 
 	hookErr := errors.New("pre-apply failed")
 
 	action := newTestReconcileAction(t)
-	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
+	rr := newTestReconciliationRequest(et, []types.HelmChartInfo{{
 		Source: helmRenderer.Source{
 			Chart:       filepath.Join("testdata", "test-chart"),
 			ReleaseName: testReleaseName,
@@ -239,14 +262,14 @@ func TestNewReconcileAction_PreApplyHookErrorStopsPipeline(t *testing.T) {
 		}},
 	}})
 
-	err = action(ctx, rr)
+	err := action(ctx, rr)
 
 	g.Expect(err).Should(HaveOccurred())
 	g.Expect(errors.Is(err, hookErr)).Should(BeTrue())
 
 	// Resource should NOT have been deployed since pre-apply failed
 	cm := &corev1.ConfigMap{}
-	err = cl.Get(ctx, client.ObjectKey{Namespace: ns, Name: "test-config"}, cm)
+	err = et.Client().Get(ctx, client.ObjectKey{Namespace: ns, Name: "test-config"}, cm)
 	g.Expect(err).Should(HaveOccurred())
 	g.Expect(k8serr.IsNotFound(err)).Should(BeTrue())
 }
@@ -254,15 +277,13 @@ func TestNewReconcileAction_PreApplyHookErrorStopsPipeline(t *testing.T) {
 func TestNewReconcileAction_PostApplyHookErrorPropagates(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
-	ns := xid.New().String()
-
-	cl, err := fakeclient.New()
-	g.Expect(err).ShouldNot(HaveOccurred())
+	et := newEnvT(t)
+	ns := createTestNS(t, g, ctx, et.Client())
 
 	hookErr := errors.New("post-apply failed")
 
 	action := newTestReconcileAction(t)
-	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
+	rr := newTestReconciliationRequest(et, []types.HelmChartInfo{{
 		Source: helmRenderer.Source{
 			Chart:       filepath.Join("testdata", "test-chart"),
 			ReleaseName: testReleaseName,
@@ -273,24 +294,22 @@ func TestNewReconcileAction_PostApplyHookErrorPropagates(t *testing.T) {
 		}},
 	}})
 
-	err = action(ctx, rr)
+	err := action(ctx, rr)
 
 	g.Expect(err).Should(HaveOccurred())
 	g.Expect(errors.Is(err, hookErr)).Should(BeTrue())
 
-	checkTestChartDeployedResources(t, g, ctx, cl, ns, testReleaseName)
+	checkTestChartDeployedResources(t, g, ctx, et.Client(), ns, testReleaseName)
 }
 
 func TestNewReconcileAction_SetsInfrastructureLabel(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
-	ns := xid.New().String()
-
-	cl, err := fakeclient.New()
-	g.Expect(err).ShouldNot(HaveOccurred())
+	et := newEnvT(t)
+	ns := createTestNS(t, g, ctx, et.Client())
 
 	action := newTestReconcileAction(t)
-	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{{
+	rr := newTestReconciliationRequest(et, []types.HelmChartInfo{{
 		Source: helmRenderer.Source{
 			Chart:       filepath.Join("testdata", "test-chart"),
 			ReleaseName: testReleaseName,
@@ -298,7 +317,7 @@ func TestNewReconcileAction_SetsInfrastructureLabel(t *testing.T) {
 		},
 	}})
 
-	err = action(ctx, rr)
+	err := action(ctx, rr)
 
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(rr.Resources).Should(HaveLen(1))
@@ -309,21 +328,48 @@ func TestNewReconcileAction_SetsInfrastructureLabel(t *testing.T) {
 	}
 }
 
+func TestNewReconcileAction_SetsInfrastructureDependencyLabel(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+	et := newEnvT(t)
+	ns := createTestNS(t, g, ctx, et.Client())
+
+	action := newTestReconcileAction(t)
+	rr := newTestReconciliationRequest(et, []types.HelmChartInfo{{
+		Source: helmRenderer.Source{
+			Chart:       filepath.Join("testdata", "test-chart"),
+			ReleaseName: testReleaseName,
+			Values:      helmRenderer.Values(map[string]any{"namespace": ns}),
+		},
+	}})
+
+	err := action(ctx, rr)
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(rr.Resources).Should(HaveLen(1))
+
+	// Each resource must carry the InfrastructureDependency label whose value matches
+	// the chart's ReleaseName. The GC predicate uses this label to derive Managed/Unmanaged
+	// state from rr.Resources.
+	for _, res := range rr.Resources {
+		g.Expect(resources.GetLabel(&res, labels.InfrastructureDependency)).
+			Should(Equal(testReleaseName))
+	}
+}
+
 func TestNewReconcileAction_MultipleCharts(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
-	ns1 := xid.New().String()
-	ns2 := xid.New().String()
+	et := newEnvT(t)
+	ns1 := createTestNS(t, g, ctx, et.Client())
+	ns2 := createTestNS(t, g, ctx, et.Client())
 	releaseName1 := "chart-one"
 	releaseName2 := "chart-two"
-
-	cl, err := fakeclient.New()
-	g.Expect(err).ShouldNot(HaveOccurred())
 
 	var hookOrder []string
 
 	action := newTestReconcileAction(t)
-	rr := newTestReconciliationRequest(cl, []types.HelmChartInfo{
+	rr := newTestReconciliationRequest(et, []types.HelmChartInfo{
 		{
 			Source: helmRenderer.Source{
 				Chart:       filepath.Join("testdata", "test-chart"),
@@ -356,14 +402,13 @@ func TestNewReconcileAction_MultipleCharts(t *testing.T) {
 		},
 	})
 
-	err = action(ctx, rr)
+	err := action(ctx, rr)
 
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(rr.Resources).Should(HaveLen(2))
 
-	checkTestChartDeployedResources(t, g, ctx, cl, ns1, releaseName1)
-
-	checkTestChartDeployedResources(t, g, ctx, cl, ns2, releaseName2)
+	checkTestChartDeployedResources(t, g, ctx, et.Client(), ns1, releaseName1)
+	checkTestChartDeployedResources(t, g, ctx, et.Client(), ns2, releaseName2)
 
 	// Verify hooks executed in chart order
 	g.Expect(hookOrder).Should(Equal([]string{
