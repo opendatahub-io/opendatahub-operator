@@ -136,7 +136,7 @@ func TestOAuthServiceCreation(t *testing.T) {
 // TestOAuthDeploymentWithAllArgs validates Deployment args in OAuth mode (delegates to RunDeploymentWithAllArgsTest).
 func TestOAuthDeploymentWithAllArgs(t *testing.T) {
 	RunDeploymentWithAllArgsTest(t, GetOAuthTestSetup(), DefaultGatewayHost(OAuthClusterDomain),
-		[]string{"--provider=openshift", "--scope=user:full", "--ssl-insecure-skip-verify=false"},
+		[]string{"--provider=openshift", "--scope=user:full", "--ssl-insecure-skip-verify=false", "--pass-access-token=true"},
 		nil)
 }
 
