@@ -183,41 +183,84 @@ func TestGatewayValidation(t *testing.T) {
 	})
 }
 
+// testPolicyUpdate is a helper function to test policy namespace and targetRef updates.
+func testPolicyUpdate(t *testing.T, g *WithT, policyName string, createFunc func(name, namespace, gateway string) unstructured.Unstructured) {
+	t.Helper()
+
+	maas := &componentApi.ModelsAsService{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: componentApi.ModelsAsServiceInstanceName,
+		},
+		Spec: componentApi.ModelsAsServiceSpec{
+			GatewayRef: componentApi.GatewayRef{
+				Namespace: "custom-gateway-ns",
+				Name:      "custom-gateway",
+			},
+		},
+	}
+
+	policy := createFunc(policyName, "wrong-namespace", "old-gateway")
+
+	rr := &types.ReconciliationRequest{
+		Instance:  maas,
+		Resources: []unstructured.Unstructured{policy},
+	}
+
+	err := configureGatewayNamespaceResources(t.Context(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Verify namespace was updated
+	g.Expect(rr.Resources[0].GetNamespace()).Should(Equal("custom-gateway-ns"))
+
+	// Verify targetRef.name was updated
+	targetRefName, found, err := unstructured.NestedString(rr.Resources[0].Object, "spec", "targetRef", "name")
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(found).Should(BeTrue())
+	g.Expect(targetRefName).Should(Equal("custom-gateway"))
+}
+
+// testPolicyNoModify is a helper function to test that policies with different names are not modified.
+func testPolicyNoModify(t *testing.T, g *WithT, createFunc func(name, namespace, gateway string) unstructured.Unstructured) {
+	t.Helper()
+
+	maas := &componentApi.ModelsAsService{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: componentApi.ModelsAsServiceInstanceName,
+		},
+		Spec: componentApi.ModelsAsServiceSpec{
+			GatewayRef: componentApi.GatewayRef{
+				Namespace: "custom-gateway-ns",
+				Name:      "custom-gateway",
+			},
+		},
+	}
+
+	otherPolicy := createFunc("other-policy", "original-namespace", "original-gateway")
+
+	rr := &types.ReconciliationRequest{
+		Instance:  maas,
+		Resources: []unstructured.Unstructured{otherPolicy},
+	}
+
+	err := configureGatewayNamespaceResources(t.Context(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Verify namespace was NOT updated
+	g.Expect(rr.Resources[0].GetNamespace()).Should(Equal("original-namespace"))
+
+	// Verify targetRef.name was NOT updated
+	targetRefName, found, err := unstructured.NestedString(rr.Resources[0].Object, "spec", "targetRef", "name")
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(found).Should(BeTrue())
+	g.Expect(targetRefName).Should(Equal("original-gateway"))
+}
+
 func TestConfigureGatewayNamespaceResources(t *testing.T) {
 	g := NewWithT(t)
 
 	t.Run("Configure Gateway AuthPolicy", func(t *testing.T) {
 		t.Run("should update AuthPolicy namespace and targetRef when found", func(t *testing.T) {
-			maas := &componentApi.ModelsAsService{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: componentApi.ModelsAsServiceInstanceName,
-				},
-				Spec: componentApi.ModelsAsServiceSpec{
-					GatewayRef: componentApi.GatewayRef{
-						Namespace: "custom-gateway-ns",
-						Name:      "custom-gateway",
-					},
-				},
-			}
-
-			authPolicy := createAuthPolicy(GatewayDefaultAuthPolicyName, "wrong-namespace", "old-gateway")
-
-			rr := &types.ReconciliationRequest{
-				Instance:  maas,
-				Resources: []unstructured.Unstructured{authPolicy},
-			}
-
-			err := configureGatewayNamespaceResources(t.Context(), rr)
-			g.Expect(err).ShouldNot(HaveOccurred())
-
-			// Verify namespace was updated
-			g.Expect(rr.Resources[0].GetNamespace()).Should(Equal("custom-gateway-ns"))
-
-			// Verify targetRef.name was updated
-			targetRefName, found, err := unstructured.NestedString(rr.Resources[0].Object, "spec", "targetRef", "name")
-			g.Expect(err).ShouldNot(HaveOccurred())
-			g.Expect(found).Should(BeTrue())
-			g.Expect(targetRefName).Should(Equal("custom-gateway"))
+			testPolicyUpdate(t, g, GatewayDefaultAuthPolicyName, createAuthPolicy)
 		})
 
 		t.Run("should succeed silently when AuthPolicy is not found in resources", func(t *testing.T) {
@@ -244,37 +287,7 @@ func TestConfigureGatewayNamespaceResources(t *testing.T) {
 		})
 
 		t.Run("should not modify AuthPolicy with different name", func(t *testing.T) {
-			maas := &componentApi.ModelsAsService{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: componentApi.ModelsAsServiceInstanceName,
-				},
-				Spec: componentApi.ModelsAsServiceSpec{
-					GatewayRef: componentApi.GatewayRef{
-						Namespace: "custom-gateway-ns",
-						Name:      "custom-gateway",
-					},
-				},
-			}
-
-			// AuthPolicy with a different name should not be modified
-			otherAuthPolicy := createAuthPolicy("other-auth-policy", "original-namespace", "original-gateway")
-
-			rr := &types.ReconciliationRequest{
-				Instance:  maas,
-				Resources: []unstructured.Unstructured{otherAuthPolicy},
-			}
-
-			err := configureGatewayNamespaceResources(t.Context(), rr)
-			g.Expect(err).ShouldNot(HaveOccurred())
-
-			// Verify namespace was NOT updated
-			g.Expect(rr.Resources[0].GetNamespace()).Should(Equal("original-namespace"))
-
-			// Verify targetRef.name was NOT updated
-			targetRefName, found, err := unstructured.NestedString(rr.Resources[0].Object, "spec", "targetRef", "name")
-			g.Expect(err).ShouldNot(HaveOccurred())
-			g.Expect(found).Should(BeTrue())
-			g.Expect(targetRefName).Should(Equal("original-gateway"))
+			testPolicyNoModify(t, g, createAuthPolicy)
 		})
 
 		t.Run("should only modify matching AuthPolicy when multiple resources present", func(t *testing.T) {
@@ -379,8 +392,18 @@ func TestConfigureGatewayNamespaceResources(t *testing.T) {
 		})
 	})
 
-	t.Run("Configure Both AuthPolicy and DestinationRule", func(t *testing.T) {
-		t.Run("should update both AuthPolicy and DestinationRule namespaces", func(t *testing.T) {
+	t.Run("Configure Gateway TokenRateLimitPolicy", func(t *testing.T) {
+		t.Run("should update TokenRateLimitPolicy namespace and targetRef when found", func(t *testing.T) {
+			testPolicyUpdate(t, g, GatewayTokenRateLimitDefaultDenyPolicyName, createTokenRateLimitPolicy)
+		})
+
+		t.Run("should not modify TokenRateLimitPolicy with different name", func(t *testing.T) {
+			testPolicyNoModify(t, g, createTokenRateLimitPolicy)
+		})
+	})
+
+	t.Run("Configure Multiple Gateway Resources", func(t *testing.T) {
+		t.Run("should update AuthPolicy, TokenRateLimitPolicy, and DestinationRule namespaces", func(t *testing.T) {
 			maas := &componentApi.ModelsAsService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: componentApi.ModelsAsServiceInstanceName,
@@ -394,6 +417,7 @@ func TestConfigureGatewayNamespaceResources(t *testing.T) {
 			}
 
 			authPolicy := createAuthPolicy(GatewayDefaultAuthPolicyName, "old-namespace", "old-gateway")
+			tokenRateLimitPolicy := createTokenRateLimitPolicy(GatewayTokenRateLimitDefaultDenyPolicyName, "old-namespace", "old-gateway")
 			destinationRule := createDestinationRule(GatewayDestinationRuleName, "old-namespace")
 			configMap := &unstructured.Unstructured{}
 			configMap.SetAPIVersion("v1")
@@ -403,7 +427,7 @@ func TestConfigureGatewayNamespaceResources(t *testing.T) {
 
 			rr := &types.ReconciliationRequest{
 				Instance:  maas,
-				Resources: []unstructured.Unstructured{authPolicy, destinationRule, *configMap},
+				Resources: []unstructured.Unstructured{authPolicy, tokenRateLimitPolicy, destinationRule, *configMap},
 			}
 
 			err := configureGatewayNamespaceResources(t.Context(), rr)
@@ -411,14 +435,19 @@ func TestConfigureGatewayNamespaceResources(t *testing.T) {
 
 			// AuthPolicy should be updated
 			g.Expect(rr.Resources[0].GetNamespace()).Should(Equal("target-gateway-ns"))
-			targetRefName, _, _ := unstructured.NestedString(rr.Resources[0].Object, "spec", "targetRef", "name")
-			g.Expect(targetRefName).Should(Equal("target-gateway"))
+			authTargetRefName, _, _ := unstructured.NestedString(rr.Resources[0].Object, "spec", "targetRef", "name")
+			g.Expect(authTargetRefName).Should(Equal("target-gateway"))
+
+			// TokenRateLimitPolicy should be updated
+			g.Expect(rr.Resources[1].GetNamespace()).Should(Equal("target-gateway-ns"))
+			tokenTargetRefName, _, _ := unstructured.NestedString(rr.Resources[1].Object, "spec", "targetRef", "name")
+			g.Expect(tokenTargetRefName).Should(Equal("target-gateway"))
 
 			// DestinationRule should be updated
-			g.Expect(rr.Resources[1].GetNamespace()).Should(Equal("target-gateway-ns"))
+			g.Expect(rr.Resources[2].GetNamespace()).Should(Equal("target-gateway-ns"))
 
 			// ConfigMap should be unchanged
-			g.Expect(rr.Resources[2].GetNamespace()).Should(Equal("app-namespace"))
+			g.Expect(rr.Resources[3].GetNamespace()).Should(Equal("app-namespace"))
 		})
 	})
 }
@@ -449,6 +478,21 @@ func createDestinationRule(name, namespace string) unstructured.Unstructured {
 	_ = unstructured.SetNestedField(destinationRule.Object, "*.local", "spec", "host")
 
 	return destinationRule
+}
+
+// createTokenRateLimitPolicy creates an unstructured TokenRateLimitPolicy resource for testing.
+func createTokenRateLimitPolicy(name, namespace, targetGatewayName string) unstructured.Unstructured {
+	policy := unstructured.Unstructured{}
+	policy.SetGroupVersionKind(gvk.TokenRateLimitPolicyv1alpha1)
+	policy.SetName(name)
+	policy.SetNamespace(namespace)
+
+	// Set spec.targetRef
+	_ = unstructured.SetNestedField(policy.Object, targetGatewayName, "spec", "targetRef", "name")
+	_ = unstructured.SetNestedField(policy.Object, "Gateway", "spec", "targetRef", "kind")
+	_ = unstructured.SetNestedField(policy.Object, "gateway.networking.k8s.io", "spec", "targetRef", "group")
+
+	return policy
 }
 
 // createFakeClientWithGateway creates a fake client with a Gateway resource.
