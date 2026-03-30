@@ -45,13 +45,16 @@ func computeComponentsStatus(
 			return err
 		}
 
-		if !component.IsEnabled(instance) {
+		enabled := component.IsEnabled(instance)
+		if !enabled && cs != metav1.ConditionFalse {
 			return nil
 		}
 
-		managedComponent++
+		if enabled {
+			managedComponent++
+		}
 
-		if cs == metav1.ConditionFalse {
+		if cs != metav1.ConditionTrue {
 			notReadyComponents = append(notReadyComponents, component.GetName())
 		}
 

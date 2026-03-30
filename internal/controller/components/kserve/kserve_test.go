@@ -148,6 +148,35 @@ func TestUpdateDSCStatus(t *testing.T) {
 		))
 	})
 
+	t.Run("should return ConditionFalse when component CR has deletionTimestamp", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithKserve(operatorv1.Managed)
+		kserve := createKserveCR(true)
+		now := metav1.Now()
+		kserve.SetDeletionTimestamp(&now)
+		kserve.SetFinalizers([]string{"test-finalizer"})
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, kserve))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(cs).Should(Equal(metav1.ConditionFalse))
+
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, status.DeletingReason),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "%s"`, ReadyConditionType, status.DeletingMessage),
+		)))
+	})
+
 	t.Run("should handle disabled component", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
