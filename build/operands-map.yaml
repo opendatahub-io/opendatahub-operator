@@ -86,6 +86,9 @@ relatedImages:
     - name: RELATED_IMAGE_ODH_KSERVE_STORAGE_INITIALIZER_IMAGE
       value: quay.io/opendatahub/kserve-storage-initializer@sha256:78907d40f78d5a4359baf25171eb4310533364ec793b8b0acda74e17b1218ae2
       component: odh-kserve-storage-initializer
+    - name: RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE
+      value: quay.io/opendatahub/odh-kserve-llmisvc-controller@sha256:3b588aef7bb3e428d8b41370b6915680d4cd1a7a4663cb8fcc476e00636e5c77
+      component: odh-kserve-llmisvc-controller
     - name: RELATED_IMAGE_ODH_TA_LMES_DRIVER_IMAGE
       value: quay.io/opendatahub/ta-lmes-driver@sha256:e6069389ce322600c22d8ac44fe0ba3f789ab35f88692572d6149d9124cc3ce4
       component: odh-ta-lmes-driver
