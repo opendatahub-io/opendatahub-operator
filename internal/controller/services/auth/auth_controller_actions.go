@@ -25,6 +25,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
@@ -33,6 +34,8 @@ import (
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
+
+const persesGlobalDatasourceViewerRole = "persesglobaldatasource-viewer-role"
 
 func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	rr.Templates = []odhtypes.TemplateInfo{
@@ -55,10 +58,28 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		return fmt.Errorf("failed to check if models-as-a-service namespace exists: %w", err)
 	}
 	if exists {
-		rr.Templates = append(rr.Templates, odhtypes.TemplateInfo{
-			FS:   resourcesFS,
-			Path: AdminGroupMaaSRoleTemplate,
-		})
+		rr.Templates = append(rr.Templates, []odhtypes.TemplateInfo{
+			{
+				FS:   resourcesFS,
+				Path: AdminGroupMaaSRoleTemplate,
+			}, {
+				FS:   resourcesFS,
+				Path: AdminGroupMaaSPersesRoleTemplate,
+			},
+		}...)
+	}
+
+	exists, err = cluster.NamespaceExists(ctx, rr.Client, "kuadrant-system")
+	if err != nil {
+		return fmt.Errorf("failed to check if kuadrant-system namespace exists: %w", err)
+	}
+	if exists {
+		rr.Templates = append(rr.Templates, []odhtypes.TemplateInfo{
+			{
+				FS:   resourcesFS,
+				Path: AdminGroupKuadrantRoleTemplate,
+			},
+		}...)
 	}
 
 	return nil
@@ -155,6 +176,19 @@ func bindClusterRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, gr
 	return nil
 }
 
+func clusterRoleExists(ctx context.Context, rr *odhtypes.ReconciliationRequest, name string) (bool, error) {
+	cr := &rbacv1.ClusterRole{}
+	err := rr.Client.Get(ctx, client.ObjectKey{Name: name}, cr)
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			logf.FromContext(ctx).Info("ClusterRole not found, skipping ClusterRoleBinding creation", "clusterRole", name)
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to check if ClusterRole %s exists: %w", name, err)
+	}
+	return true, nil
+}
+
 func managePermissions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	ai, ok := rr.Instance.(*serviceApi.Auth)
 	if !ok {
@@ -171,6 +205,17 @@ func managePermissions(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 		return err
 	}
 
+	//TODO: Namespace for maas perses dashboards
+	err = bindRole(ctx, rr, ai.Spec.AdminGroups, "data-science-admingroup-maas-perses-rolebinding", "data-science-admingroup-maas-perses-role", "models-as-a-service")
+	if err != nil {
+		return err
+	}
+
+	err = bindRole(ctx, rr, ai.Spec.AdminGroups, "data-science-admingroup-kuadrant-rolebinding", "data-science-admingroup-kuadrant-role", "kuadrant-system")
+	if err != nil {
+		return err
+	}
+
 	err = bindClusterRole(ctx, rr, ai.Spec.AdminGroups, "data-science-admingroupcluster-rolebinding", "data-science-admingroupcluster-role")
 	if err != nil {
 		return err
@@ -179,6 +224,17 @@ func managePermissions(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 	err = bindClusterRole(ctx, rr, ai.Spec.AllowedGroups, "data-science-allowedgroupcluster-rolebinding", "data-science-allowedgroupcluster-role")
 	if err != nil {
 		return err
+	}
+
+	persesRoleExists, err := clusterRoleExists(ctx, rr, persesGlobalDatasourceViewerRole)
+	if err != nil {
+		return err
+	}
+	if persesRoleExists {
+		err = bindClusterRole(ctx, rr, ai.Spec.AdminGroups, "data-science-admingroup-persesglobal-rolebinding", persesGlobalDatasourceViewerRole)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

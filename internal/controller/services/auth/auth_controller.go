@@ -67,6 +67,20 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			),
 			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed("models-as-a-service")),
 		).
+		Watches(
+			&corev1.Namespace{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(serviceApi.AuthInstanceName),
+			),
+			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed("kuadrant-system")),
+		).
+		Watches(
+			&rbacv1.ClusterRole{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(serviceApi.AuthInstanceName),
+			),
+			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed(persesGlobalDatasourceViewerRole)),
+		).
 		// actions
 		WithAction(initialize).
 		WithAction(template.NewAction()).
