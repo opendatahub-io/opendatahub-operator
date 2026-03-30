@@ -721,6 +721,7 @@ func (tc *MonitoringTestCtx) ValidateTempoMonolithicCRCreation(t *testing.T) {
 	tc.DeleteResource(
 		WithMinimalObject(gvk.TempoMonolithic, types.NamespacedName{Name: TempoMonolithicName, Namespace: tc.MonitoringNamespace}),
 		WithWaitForDeletion(true),
+		WithRemoveFinalizersOnDelete(true), // Workaround for tempo-operator race condition during deletion
 	)
 }
 
