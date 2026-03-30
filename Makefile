@@ -320,7 +320,7 @@ kube-lint: prepare ## Run kube-linter against rendered manifests.
 .PHONY: get-manifests
 get-manifests: ## Fetch components manifests from remote git repo
 	ODH_PLATFORM_TYPE=$(ODH_PLATFORM_TYPE) VERSION=$(VERSION) ./get_all_manifests.sh
-CLEANFILES += opt/manifests/*
+CLEANFILES += opt/manifests/* opt/charts/*
 
 # Default to standard sed command
 SED_COMMAND = sed
@@ -671,6 +671,7 @@ test-alerts: validate-prometheus-rules $(PROMETHEUS_ALERT_RULES)
 check-prometheus-alert-unit-tests: $(PROMETHEUS_ALERT_RULES)
 	./tests/prometheus_unit_tests/scripts/check_alert_tests.sh $(PROMETHEUS_RULES_DIR) $(ALERT_SEVERITY)
 CLEANFILES += $(PROMETHEUS_ALERT_RULES)
+CLEANFILES += $(KIND_CONFIG_PATH)
 
 # Cluster health targets (cluster-health, cluster-health-*, etc.) are in cmd/health-check/Makefile.
 ifneq (,$(wildcard cmd/health-check/Makefile))
@@ -724,6 +725,21 @@ e2e-setup-cluster:
 		-e E2E_TEST_OPERATOR_V2TOV3UPGRADE=false \
 		-e E2E_TEST_DELETION_POLICY=never \
 		-e E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=true
+
+##@ KinD Cluster Management
+
+CLUSTER_NAME ?= kind-odh
+KIND_CONFIG_PATH ?= config/kind/kind-config.yaml
+
+.PHONY: kind-create
+kind-create: ## Create KinD Cluster
+	@echo "Creating KinD cluster: $(CLUSTER_NAME) using config $(KIND_CONFIG_PATH)"
+	kind create cluster --name $(CLUSTER_NAME) --config $(KIND_CONFIG_PATH)
+
+.PHONY: kind-delete
+kind-delete: ## Delete KinD Cluster
+	@echo "Deleting KinD cluster: $(CLUSTER_NAME)"
+	kind delete cluster --name $(CLUSTER_NAME)
 
 unit-test-cli:
 	go -C ./cmd/test-retry/ test ./...
