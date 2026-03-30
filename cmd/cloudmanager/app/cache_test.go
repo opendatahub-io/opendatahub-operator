@@ -17,6 +17,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 
 	. "github.com/onsi/gomega"
 )
@@ -24,11 +25,12 @@ import (
 func TestDefaultCacheOptions(t *testing.T) {
 	g := NewWithT(t)
 	s := runtime.NewScheme()
+	testCfg := &operatorconfig.CloudManagerConfig{RhaiOperatorNamespace: "test-operator-ns"}
 
 	t.Run("label selector matches resources with infrastructure label", func(t *testing.T) {
 		g := NewWithT(t)
 
-		opts, err := app.DefaultCacheOptions(s)
+		opts, err := app.DefaultCacheOptions(s, testCfg)
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(opts.ByObject).ToNot(BeEmpty(), "expected at least one selector for cluster-scoped resource types")
 
@@ -79,7 +81,7 @@ func TestDefaultCacheOptions(t *testing.T) {
 	})
 
 	t.Run("uses provided scheme", func(t *testing.T) {
-		opts, err := app.DefaultCacheOptions(s)
+		opts, err := app.DefaultCacheOptions(s, testCfg)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		g.Expect(opts.Scheme).To(Equal(s))
@@ -88,7 +90,7 @@ func TestDefaultCacheOptions(t *testing.T) {
 	t.Run("DefaultTransform clears ManagedFields", func(t *testing.T) {
 		g := NewWithT(t)
 
-		opts, err := app.DefaultCacheOptions(s)
+		opts, err := app.DefaultCacheOptions(s, testCfg)
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(opts.DefaultTransform).ShouldNot(BeNil())
 
@@ -106,7 +108,7 @@ func TestDefaultCacheOptions(t *testing.T) {
 	t.Run("RoleBinding cache covers managed namespaces and kube-system", func(t *testing.T) {
 		g := NewWithT(t)
 
-		opts, err := app.DefaultCacheOptions(s)
+		opts, err := app.DefaultCacheOptions(s, testCfg)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		rbByObj := findByObjectGVK(g, opts.ByObject, gvk.RoleBinding)
@@ -122,7 +124,7 @@ func TestDefaultCacheOptions(t *testing.T) {
 	t.Run("RoleBinding cache filters kube-system namespace by label selector", func(t *testing.T) {
 		g := NewWithT(t)
 
-		opts, err := app.DefaultCacheOptions(s)
+		opts, err := app.DefaultCacheOptions(s, testCfg)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		rbByObj := findByObjectGVK(g, opts.ByObject, gvk.RoleBinding)
@@ -147,7 +149,7 @@ func TestDefaultCacheOptions(t *testing.T) {
 	t.Run("CertManagerCertificate cache covers managed namespaces and cert-manager namespace", func(t *testing.T) {
 		g := NewWithT(t)
 
-		opts, err := app.DefaultCacheOptions(s)
+		opts, err := app.DefaultCacheOptions(s, testCfg)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		cmByObj := findByObjectGVK(g, opts.ByObject, gvk.CertManagerCertificate)
@@ -164,7 +166,7 @@ func TestDefaultCacheOptions(t *testing.T) {
 	t.Run("RoleBinding cache does not filter managed namespaces by label selector", func(t *testing.T) {
 		g := NewWithT(t)
 
-		opts, err := app.DefaultCacheOptions(s)
+		opts, err := app.DefaultCacheOptions(s, testCfg)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		rbByObj := findByObjectGVK(g, opts.ByObject, gvk.RoleBinding)
