@@ -27,6 +27,8 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const testCACertPEM = "-----BEGIN CERTIFICATE-----\nMIIBtest\n-----END CERTIFICATE-----\n"
+
 func boolPtr(v bool) *bool { return &v }
 
 func TestGatewayValidation(t *testing.T) {
@@ -1413,7 +1415,7 @@ func TestValidateExternalOIDCCA(t *testing.T) {
 			},
 		}
 
-		caSecret := createCASecret("openshift-ingress", "keycloak-ca",
+		caSecret := createCASecret(
 			"-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----\n")
 		cli, err := fakeclient.New(fakeclient.WithObjects(caSecret))
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -1560,11 +1562,11 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 	})
 
 	t.Run("should find Authorino CR in kuadrant-system and create ConfigMap there", func(t *testing.T) {
-		caCertPEM := "-----BEGIN CERTIFICATE-----\nMIIBtest\n-----END CERTIFICATE-----\n"
+		caCertPEM := testCACertPEM
 		authorinoNS := AuthorinoNamespaceKuadrant
 
-		maas := createTestMaaSWithCA("keycloak-ca")
-		caSecret := createCASecret("openshift-ingress", "keycloak-ca", caCertPEM)
+		maas := createTestMaaSWithCA()
+		caSecret := createCASecret(caCertPEM)
 		dsci := createTestDSCI("opendatahub")
 		authorinoCR := createAuthorinoCR(authorinoNS)
 
@@ -1580,7 +1582,9 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 		u, err := dc.Resource(configMapGVR()).Namespace(authorinoNS).Get(
 			t.Context(), MaaSCABundleConfigMapName, metav1.GetOptions{})
 		g.Expect(err).ShouldNot(HaveOccurred())
-		g.Expect(u.Object["data"].(map[string]interface{})[MaaSCABundleFileName]).Should(Equal(caCertPEM))
+		dataMap, ok := u.Object["data"].(map[string]interface{})
+		g.Expect(ok).Should(BeTrue())
+		g.Expect(dataMap[MaaSCABundleFileName]).Should(Equal(caCertPEM))
 
 		cmLabels := u.GetLabels()
 		g.Expect(cmLabels[labels.InjectTrustCA]).Should(Equal(labels.True))
@@ -1588,11 +1592,11 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 	})
 
 	t.Run("should find Authorino CR in rh-connectivity-link for RHCL deployments", func(t *testing.T) {
-		caCertPEM := "-----BEGIN CERTIFICATE-----\nMIIBtest\n-----END CERTIFICATE-----\n"
+		caCertPEM := testCACertPEM
 		authorinoNS := AuthorinoNamespaceRHCL
 
-		maas := createTestMaaSWithCA("keycloak-ca")
-		caSecret := createCASecret("openshift-ingress", "keycloak-ca", caCertPEM)
+		maas := createTestMaaSWithCA()
+		caSecret := createCASecret(caCertPEM)
 		dsci := createTestDSCI("redhat-ods-applications")
 		authorinoCR := createAuthorinoCR(authorinoNS)
 
@@ -1607,15 +1611,17 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 		u, err := dc.Resource(configMapGVR()).Namespace(authorinoNS).Get(
 			t.Context(), MaaSCABundleConfigMapName, metav1.GetOptions{})
 		g.Expect(err).ShouldNot(HaveOccurred())
-		g.Expect(u.Object["data"].(map[string]interface{})[MaaSCABundleFileName]).Should(Equal(caCertPEM))
+		dataMap, ok := u.Object["data"].(map[string]interface{})
+		g.Expect(ok).Should(BeTrue())
+		g.Expect(dataMap[MaaSCABundleFileName]).Should(Equal(caCertPEM))
 	})
 
 	t.Run("should add volume entry to Authorino CR spec.volumes.items", func(t *testing.T) {
-		caCertPEM := "-----BEGIN CERTIFICATE-----\nMIIBtest\n-----END CERTIFICATE-----\n"
+		caCertPEM := testCACertPEM
 		authorinoNS := AuthorinoNamespaceKuadrant
 
-		maas := createTestMaaSWithCA("keycloak-ca")
-		caSecret := createCASecret("openshift-ingress", "keycloak-ca", caCertPEM)
+		maas := createTestMaaSWithCA()
+		caSecret := createCASecret(caCertPEM)
 		dsci := createTestDSCI("opendatahub")
 		authorinoCR := createAuthorinoCR(authorinoNS)
 
@@ -1637,17 +1643,19 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 		g.Expect(found).Should(BeTrue())
 		g.Expect(items).Should(HaveLen(1))
 
-		vol := items[0].(map[string]interface{})
+		vol, ok := items[0].(map[string]interface{})
+		g.Expect(ok).Should(BeTrue())
 		g.Expect(vol["name"]).Should(Equal(MaaSCABundleVolumeName))
 		g.Expect(vol["mountPath"]).Should(Equal(MaaSCABundleMountPath))
-		cms := vol["configMaps"].([]interface{})
+		cms, ok := vol["configMaps"].([]interface{})
+		g.Expect(ok).Should(BeTrue())
 		g.Expect(cms).Should(HaveLen(1))
 		g.Expect(cms[0]).Should(Equal(MaaSCABundleConfigMapName))
 	})
 
 	t.Run("should succeed silently when Authorino CR is not found anywhere", func(t *testing.T) {
-		maas := createTestMaaSWithCA("keycloak-ca")
-		caSecret := createCASecret("openshift-ingress", "keycloak-ca", "cert-data")
+		maas := createTestMaaSWithCA()
+		caSecret := createCASecret("cert-data")
 		dsci := createTestDSCI("opendatahub")
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(caSecret, dsci))
@@ -1660,11 +1668,11 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 	})
 
 	t.Run("should be idempotent when volume already exists in Authorino CR", func(t *testing.T) {
-		caCertPEM := "-----BEGIN CERTIFICATE-----\nMIIBtest\n-----END CERTIFICATE-----\n"
+		caCertPEM := testCACertPEM
 		authorinoNS := AuthorinoNamespaceKuadrant
 
-		maas := createTestMaaSWithCA("keycloak-ca")
-		caSecret := createCASecret("openshift-ingress", "keycloak-ca", caCertPEM)
+		maas := createTestMaaSWithCA()
+		caSecret := createCASecret(caCertPEM)
 		dsci := createTestDSCI("opendatahub")
 
 		authorinoCR := createAuthorinoCRWithVolume(authorinoNS)
@@ -1684,7 +1692,10 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 		items, _, _ := unstructured.NestedSlice(cr.Object, "spec", "volumes", "items")
 		caVolumeCount := 0
 		for _, item := range items {
-			vol := item.(map[string]interface{})
+			vol, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
 			if vol["name"] == MaaSCABundleVolumeName {
 				caVolumeCount++
 			}
@@ -1748,7 +1759,7 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 }
 
 // createTestMaaSWithCA creates a ModelsAsService instance with externalOIDC CA config for tests.
-func createTestMaaSWithCA(caSecretName string) *componentApi.ModelsAsService {
+func createTestMaaSWithCA() *componentApi.ModelsAsService {
 	return &componentApi.ModelsAsService{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "components.platform.opendatahub.io/v1alpha1",
@@ -1766,18 +1777,18 @@ func createTestMaaSWithCA(caSecretName string) *componentApi.ModelsAsService {
 			ExternalOIDC: &componentApi.ExternalOIDCConfig{
 				IssuerURL:               "https://keycloak.example.com/realms/maas",
 				ClientID:                "maas-cli",
-				CACertificateSecretName: caSecretName,
+				CACertificateSecretName: "keycloak-ca",
 			},
 		},
 	}
 }
 
-// createCASecret creates a Secret object containing a CA certificate.
-func createCASecret(namespace, name, caCert string) *corev1.Secret {
+// createCASecret creates a Secret object containing a CA certificate in openshift-ingress namespace.
+func createCASecret(caCert string) *corev1.Secret {
 	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
+			Name:      "keycloak-ca",
+			Namespace: "openshift-ingress",
 		},
 		Data: map[string][]byte{
 			MaaSCACertSecretKey: []byte(caCert),
