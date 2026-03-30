@@ -36,6 +36,7 @@ declare -A ODH_COMPONENT_MANIFESTS=(
 )
 
 # RHOAI Component Manifests
+RHOAI_BRANCH="${RHOAI_BRANCH:-main}"
 declare -A RHOAI_COMPONENT_MANIFESTS=(
     ["dashboard"]="red-hat-data-services:odh-dashboard:rhoai-3.5-ea.1@5bf12b6acedd1ce1c672c8c4d68734ccfaec1a85:manifests"
     ["workbenches/kf-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.5-ea.1@ca4ce1295e9a298f032eecd6511dc18339a7dea5:components/notebook-controller/config"
