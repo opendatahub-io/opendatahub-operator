@@ -606,6 +606,30 @@ func NewNotebook(name, namespace string, opts ...ObjectOption) client.Object {
 	return notebook
 }
 
+// NewTrainJob creates a TrainJob object with the given name and namespace for use in tests.
+//
+// Parameters:
+//   - name: The name of the TrainJob object.
+//   - namespace: The namespace for the object.
+//
+// Returns:
+//   - client.Object: The constructed TrainJob object as an unstructured object.
+func NewTrainJob(name, namespace string, opts ...ObjectOption) client.Object {
+	trainJob := resources.GvkToUnstructured(gvk.TrainJob)
+	trainJob.SetName(name)
+	trainJob.SetNamespace(namespace)
+
+	// Set basic spec structure needed for webhook testing
+	if err := unstructured.SetNestedField(trainJob.Object, "torch-distributed", "spec", "runtimeRef", "name"); err != nil {
+		panic(fmt.Sprintf("failed to set trainjob runtimeRef: %v", err))
+	}
+
+	for _, opt := range opts {
+		opt(trainJob)
+	}
+	return trainJob
+}
+
 // NewInferenceService creates an InferenceService object with the given name and namespace for use in tests.
 //
 // Parameters:
