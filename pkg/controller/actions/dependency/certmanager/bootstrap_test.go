@@ -24,6 +24,106 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+// TestDefaultBootstrapConfigEnvOverrides verifies that DefaultBootstrapConfig honors
+// RHAI_* environment variable overrides for each overridable field.
+func TestDefaultBootstrapConfigEnvOverrides(t *testing.T) {
+	cases := []struct {
+		name     string
+		envVar   string
+		envValue string
+		getField func(certmanager.BootstrapConfig) string
+		expected string
+	}{
+		{
+			name:     "defaults CAIssuerName when env var is unset",
+			envVar:   "",
+			getField: func(c certmanager.BootstrapConfig) string { return c.CAIssuerName },
+			expected: "opendatahub-ca-issuer",
+		},
+		{
+			name:     "defaults CertName when env var is unset",
+			envVar:   "",
+			getField: func(c certmanager.BootstrapConfig) string { return c.CertName },
+			expected: "opendatahub-ca",
+		},
+		{
+			name:     "defaults CertManagerNamespace when env var is unset",
+			envVar:   "",
+			getField: func(c certmanager.BootstrapConfig) string { return c.CertManagerNamespace },
+			expected: "cert-manager",
+		},
+		{
+			name:     "overrides CAIssuerName from RHAI_ISSUER_REF_NAME",
+			envVar:   certmanager.EnvCAIssuerName,
+			envValue: "custom-ca-issuer",
+			getField: func(c certmanager.BootstrapConfig) string { return c.CAIssuerName },
+			expected: "custom-ca-issuer",
+		},
+		{
+			name:     "overrides CertName from RHAI_CA_SECRET_NAME",
+			envVar:   certmanager.EnvCertName,
+			envValue: "custom-ca-cert",
+			getField: func(c certmanager.BootstrapConfig) string { return c.CertName },
+			expected: "custom-ca-cert",
+		},
+		{
+			name:     "overrides CertManagerNamespace from RHAI_CA_SECRET_NAMESPACE",
+			envVar:   certmanager.EnvCertManagerNS,
+			envValue: "custom-cert-ns",
+			getField: func(c certmanager.BootstrapConfig) string { return c.CertManagerNamespace },
+			expected: "custom-cert-ns",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			// t.Setenv("") is preferred over os.Unsetenv because the usetesting linter
+			// forbids os.Setenv/os.Unsetenv in tests. EnvOrDefault uses os.Getenv, which
+			// returns "" for both unset and empty, so the behavior is identical.
+			t.Setenv(certmanager.EnvCAIssuerName, "")
+			t.Setenv(certmanager.EnvCertName, "")
+			t.Setenv(certmanager.EnvCertManagerNS, "")
+
+			if tc.envVar != "" {
+				t.Setenv(tc.envVar, tc.envValue)
+			}
+
+			config := certmanager.DefaultBootstrapConfig()
+			g.Expect(tc.getField(config)).To(Equal(tc.expected))
+		})
+	}
+
+	t.Run("overrides all fields simultaneously", func(t *testing.T) {
+		g := NewWithT(t)
+
+		t.Setenv(certmanager.EnvCAIssuerName, "all-ca-issuer")
+		t.Setenv(certmanager.EnvCertName, "all-ca-cert")
+		t.Setenv(certmanager.EnvCertManagerNS, "all-cert-ns")
+
+		config := certmanager.DefaultBootstrapConfig()
+		g.Expect(config.CAIssuerName).To(Equal("all-ca-issuer"))
+		g.Expect(config.CertName).To(Equal("all-ca-cert"))
+		g.Expect(config.CertManagerNamespace).To(Equal("all-cert-ns"))
+	})
+
+	t.Run("functional options take precedence over env vars", func(t *testing.T) {
+		g := NewWithT(t)
+
+		t.Setenv(certmanager.EnvCAIssuerName, "")
+		t.Setenv(certmanager.EnvCertName, "")
+		t.Setenv(certmanager.EnvCertManagerNS, "")
+
+		t.Setenv(certmanager.EnvCAIssuerName, "env-ca-issuer")
+
+		config := certmanager.DefaultBootstrapConfig(func(c *certmanager.BootstrapConfig) {
+			c.CAIssuerName = "opt-ca-issuer"
+		})
+		g.Expect(config.CAIssuerName).To(Equal("opt-ca-issuer"))
+	})
+}
+
 // createBootstrapCRDs registers the three cert-manager CRDs required by the bootstrap action
 // and schedules their cleanup for the end of the test.
 func createBootstrapCRDs(t *testing.T, g *WithT, ctx context.Context, envTest *envt.EnvT) {
