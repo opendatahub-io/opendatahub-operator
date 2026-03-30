@@ -122,6 +122,28 @@ ISTIO_CA_CERTIFICATE_PATH=/var/run/secrets/opendatahub/ca.crt
 	g.Expect(string(data)).Should(Equal(original))
 }
 
+func TestBuildCertManagerParams_ConsistentWithBootstrapConfig(t *testing.T) {
+	g := NewWithT(t)
+
+	t.Setenv(certmanager.EnvCAIssuerName, "custom-issuer")
+	t.Setenv(certmanager.EnvCertName, "custom-ca")
+	t.Setenv(certmanager.EnvCertManagerNS, "custom-ns")
+	t.Setenv(certmanager.EnvIssuerRefKind, "Issuer")
+	t.Setenv(certmanager.EnvIstioCACertPath, "/custom/ca.crt")
+
+	bc := certmanager.DefaultBootstrapConfig()
+	params := buildCertManagerParams()
+
+	g.Expect(params["ISSUER_REF_NAME"]).To(Equal(bc.CAIssuerName),
+		"params and bootstrap config should resolve CAIssuerName identically")
+	g.Expect(params["CA_SECRET_NAME"]).To(Equal(bc.CertName),
+		"params and bootstrap config should resolve CertName identically")
+	g.Expect(params["CA_SECRET_NAMESPACE"]).To(Equal(bc.CertManagerNamespace),
+		"params and bootstrap config should resolve CertManagerNamespace identically")
+	g.Expect(params["ISSUER_REF_KIND"]).To(Equal("Issuer"))
+	g.Expect(params["ISTIO_CA_CERTIFICATE_PATH"]).To(Equal("/custom/ca.crt"))
+}
+
 func TestInit_NoErrorWhenXKSOverlayMissing(t *testing.T) {
 	g := NewWithT(t)
 

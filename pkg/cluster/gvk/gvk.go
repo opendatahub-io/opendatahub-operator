@@ -461,6 +461,14 @@ var (
 		Kind:    "WasmPlugin",
 	}
 
+	// sailoperator.io.
+
+	Istio = schema.GroupVersionKind{
+		Group:   "sailoperator.io",
+		Version: "v1",
+		Kind:    "Istio",
+	}
+
 	GatewayConfig = schema.GroupVersionKind{
 		Group:   serviceApi.GroupVersion.Group,
 		Version: serviceApi.GroupVersion.Version,

@@ -13,7 +13,12 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
+	pkgtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
 	. "github.com/onsi/gomega"
@@ -97,24 +102,121 @@ func TestIsEnabled(t *testing.T) {
 	}
 }
 
+func TestUpdateDSCStatus(t *testing.T) {
+	handler := &componentHandler{}
+
+	t.Run("should return ConditionFalse when component CR has deletionTimestamp", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
+		cr := createModelsAsServiceCR(true)
+		now := metav1.Now()
+		cr.SetDeletionTimestamp(&now)
+		cr.SetFinalizers([]string{"test-finalizer"})
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, cr))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cs, err := handler.UpdateDSCStatus(ctx, &pkgtypes.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(cs).Should(Equal(metav1.ConditionFalse))
+
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, status.DeletingReason),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "%s"`, ReadyConditionType, status.DeletingMessage),
+		)))
+	})
+
+	t.Run("should handle enabled component with ready ModelsAsService CR", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
+		cr := createModelsAsServiceCR(true)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, cr))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cs, err := handler.UpdateDSCStatus(ctx, &pkgtypes.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(cs).Should(Equal(metav1.ConditionTrue))
+
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, status.ReadyReason),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "Component is ready"`, ReadyConditionType),
+		)))
+	})
+
+	t.Run("should handle disabled component when KServe is not managed", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithKServeAndMaaS(operatorv1.Removed, operatorv1.Managed)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cs, err := handler.UpdateDSCStatus(ctx, &pkgtypes.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(cs).Should(Equal(metav1.ConditionUnknown))
+
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, "KServeDisabled"),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .severity == "%s"`, ReadyConditionType, common.ConditionSeverityInfo),
+		)))
+	})
+}
+
 func createDSCWithKServeAndMaaS(kserveState, maasState operatorv1.ManagementState) *dscv2.DataScienceCluster {
-	return &dscv2.DataScienceCluster{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "test-dsc",
-		},
-		Spec: dscv2.DataScienceClusterSpec{
-			Components: dscv2.Components{
-				Kserve: componentApi.DSCKserve{
-					ManagementSpec: common.ManagementSpec{
-						ManagementState: kserveState,
-					},
-					KserveCommonSpec: componentApi.KserveCommonSpec{
-						ModelsAsService: componentApi.DSCModelsAsServiceSpec{
-							ManagementState: maasState,
-						},
-					},
-				},
-			},
-		},
+	dsc := dscv2.DataScienceCluster{}
+	dsc.SetGroupVersionKind(gvk.DataScienceCluster)
+	dsc.SetName("test-dsc")
+
+	dsc.Spec.Components.Kserve.ManagementState = kserveState
+	dsc.Spec.Components.Kserve.ModelsAsService.ManagementState = maasState
+
+	return &dsc
+}
+
+func createModelsAsServiceCR(ready bool) *componentApi.ModelsAsService {
+	c := componentApi.ModelsAsService{}
+	c.SetGroupVersionKind(gvk.ModelsAsService)
+	c.SetName(componentApi.ModelsAsServiceInstanceName)
+
+	if ready {
+		c.Status.Conditions = []common.Condition{{
+			Type:    status.ConditionTypeReady,
+			Status:  metav1.ConditionTrue,
+			Reason:  status.ReadyReason,
+			Message: "Component is ready",
+		}}
+	} else {
+		c.Status.Conditions = []common.Condition{{
+			Type:    status.ConditionTypeReady,
+			Status:  metav1.ConditionFalse,
+			Reason:  status.NotReadyReason,
+			Message: "Component is not ready",
+		}}
 	}
+
+	return &c
 }
