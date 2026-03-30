@@ -37,7 +37,7 @@ func (e *EventuallyValue[T]) Get() (T, error) {
 	return v, err
 }
 
-func (e *EventuallyValue[T]) Eventually(args ...interface{}) *Assertion[T] {
+func (e *EventuallyValue[T]) Eventually(args ...any) *Assertion[T] {
 	return &Assertion[T]{
 		ctx:     e.ctx,
 		g:       e.g,
@@ -49,7 +49,7 @@ func (e *EventuallyValue[T]) Eventually(args ...interface{}) *Assertion[T] {
 	}
 }
 
-func (e *EventuallyValue[T]) Consistently(args ...interface{}) *Assertion[T] {
+func (e *EventuallyValue[T]) Consistently(args ...any) *Assertion[T] {
 	return &Assertion[T]{
 		ctx:     e.ctx,
 		g:       e.g,
@@ -65,7 +65,7 @@ type Assertion[T any] struct {
 	ctx  context.Context
 	g    *gomega.WithT
 	f    func(context.Context) (T, error)
-	args []interface{}
+	args []any
 
 	m Mode
 
@@ -88,7 +88,7 @@ func (a *Assertion[T]) WithContext(ctx context.Context) *Assertion[T] {
 	return a
 }
 
-func (a *Assertion[T]) build(f interface{}) gomega.AsyncAssertion {
+func (a *Assertion[T]) build(f any) gomega.AsyncAssertion {
 	var aa gomega.AsyncAssertion
 
 	switch a.m {
@@ -113,9 +113,9 @@ func (a *Assertion[T]) build(f interface{}) gomega.AsyncAssertion {
 }
 
 //nolint:dupl
-func (a *Assertion[T]) Should(matcher types.GomegaMatcher, optionalDescription ...interface{}) T {
+func (a *Assertion[T]) Should(matcher types.GomegaMatcher, optionalDescription ...any) T {
 	var res atomic.Value
-	var wrapper interface{}
+	var wrapper any
 
 	switch matcher.(type) {
 	case *matchers.SucceedMatcher:
@@ -148,9 +148,9 @@ func (a *Assertion[T]) Should(matcher types.GomegaMatcher, optionalDescription .
 }
 
 //nolint:dupl
-func (a *Assertion[T]) ShouldNot(matcher types.GomegaMatcher, optionalDescription ...interface{}) T {
+func (a *Assertion[T]) ShouldNot(matcher types.GomegaMatcher, optionalDescription ...any) T {
 	var res atomic.Value
-	var wrapper interface{}
+	var wrapper any
 
 	switch matcher.(type) {
 	case *matchers.SucceedMatcher:

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -58,10 +59,10 @@ func RevertManagedDeploymentDrift(
 		return fmt.Errorf("failed to get containers from deployed object: %w", err)
 	}
 
-	var containerPatches []map[string]interface{}
+	var containerPatches []map[string]any
 	if objFound && oldFound {
 		for _, objCont := range objContainers {
-			objContainerMap, ok := objCont.(map[string]interface{})
+			objContainerMap, ok := objCont.(map[string]any)
 			if !ok {
 				continue
 			}
@@ -72,7 +73,7 @@ func RevertManagedDeploymentDrift(
 
 			// Find matching container in old
 			for _, oldCont := range oldContainers {
-				oldContainerMap, ok := oldCont.(map[string]interface{})
+				oldContainerMap, ok := oldCont.(map[string]any)
 				if !ok {
 					continue
 				}
@@ -125,15 +126,15 @@ func RevertManagedDeploymentDrift(
 	}
 
 	// Build patch data - only include fields that need patching
-	spec := map[string]interface{}{}
-	patchData := map[string]interface{}{
+	spec := map[string]any{}
+	patchData := map[string]any{
 		"spec": spec,
 	}
 
 	// Only include containers if there are container patches
 	if len(containerPatches) > 0 {
-		spec["template"] = map[string]interface{}{
-			"spec": map[string]interface{}{
+		spec["template"] = map[string]any{
+			"spec": map[string]any{
 				"containers": containerPatches,
 			},
 		}
@@ -157,35 +158,33 @@ func RevertManagedDeploymentDrift(
 	return nil
 }
 
-func isEmptyResourceMap(v interface{}) bool {
-	m, ok := v.(map[string]interface{})
+func isEmptyResourceMap(v any) bool {
+	m, ok := v.(map[string]any)
 	return ok && len(m) == 0
 }
 
-func buildResourcesPatch(name, manifestResources, deployedResources interface{}) map[string]interface{} {
+func buildResourcesPatch(name, manifestResources, deployedResources any) map[string]any {
 	containerName, ok := name.(string)
 	if !ok {
 		return nil
 	}
-	manifestMap, ok := manifestResources.(map[string]interface{})
+	manifestMap, ok := manifestResources.(map[string]any)
 	if !ok {
 		return nil
 	}
-	deployedMap, ok := deployedResources.(map[string]interface{})
+	deployedMap, ok := deployedResources.(map[string]any)
 	if !ok {
 		return nil
 	}
-	resources := make(map[string]interface{})
+	resources := make(map[string]any)
 	for _, field := range []string{"requests", "limits"} {
-		manifest, manifestFound := manifestMap[field].(map[string]interface{})
-		deployed, deployedFound := deployedMap[field].(map[string]interface{})
+		manifest, manifestFound := manifestMap[field].(map[string]any)
+		deployed, deployedFound := deployedMap[field].(map[string]any)
 		if !manifestFound && !deployedFound {
 			continue
 		}
-		merged := make(map[string]interface{}, len(manifest)+len(deployed))
-		for key, val := range manifest {
-			merged[key] = val
-		}
+		merged := make(map[string]any, len(manifest)+len(deployed))
+		maps.Copy(merged, manifest)
 		for key := range deployed {
 			if _, exists := manifest[key]; !exists {
 				merged[key] = nil
@@ -195,15 +194,15 @@ func buildResourcesPatch(name, manifestResources, deployedResources interface{})
 			resources[field] = merged
 		}
 	}
-	return map[string]interface{}{"name": containerName, "resources": resources}
+	return map[string]any{"name": containerName, "resources": resources}
 }
 
-func appendClearResourcesPatch(patches []map[string]interface{}, name interface{}) []map[string]interface{} {
+func appendClearResourcesPatch(patches []map[string]any, name any) []map[string]any {
 	containerName, ok := name.(string)
 	if !ok {
 		return patches
 	}
-	return append(patches, map[string]interface{}{
+	return append(patches, map[string]any{
 		"name":      containerName,
 		"resources": nil,
 	})

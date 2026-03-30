@@ -122,7 +122,7 @@ func testNotebookHWPAnnotationRemovalPreservesManual(g Gomega, ctx context.Conte
 	tols, found, err := unstructured.NestedSlice(u.Object, config.TolerationsPath...)
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(found).Should(BeTrue())
-	tols = append(tols, map[string]interface{}{
+	tols = append(tols, map[string]any{
 		"key": "manual-key", "operator": "Exists", "effect": "NoSchedule",
 	})
 	g.Expect(unstructured.SetNestedSlice(u.Object, tols, config.TolerationsPath...)).To(Succeed())
@@ -147,7 +147,7 @@ func testNotebookHWPAnnotationRemovalPreservesManual(g Gomega, ctx context.Conte
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(found).Should(BeTrue())
 	g.Expect(tolsOut).Should(HaveLen(1))
-	t0, ok := tolsOut[0].(map[string]interface{})
+	t0, ok := tolsOut[0].(map[string]any)
 	g.Expect(ok).Should(BeTrue())
 	g.Expect(t0["key"]).Should(Equal("manual-key"))
 
@@ -170,8 +170,8 @@ func testNotebookManualTolerationMergeWithHWP(g Gomega, ctx context.Context, k8s
 	g.Expect(k8sClient.Create(ctx, nb)).To(Succeed())
 
 	u := getNotebookUnstructured(g, ctx, k8sClient, workloadName, ns)
-	g.Expect(unstructured.SetNestedSlice(u.Object, []interface{}{
-		map[string]interface{}{"key": "manual-key", "operator": "Exists", "effect": "NoSchedule"},
+	g.Expect(unstructured.SetNestedSlice(u.Object, []any{
+		map[string]any{"key": "manual-key", "operator": "Exists", "effect": "NoSchedule"},
 	}, config.TolerationsPath...)).To(Succeed())
 	g.Expect(unstructured.SetNestedStringMap(u.Object, map[string]string{"manual-selector": "manual-value"}, config.NodeSelectorPath...)).To(Succeed())
 	g.Expect(k8sClient.Update(ctx, u)).To(Succeed())
@@ -193,7 +193,7 @@ func testNotebookManualTolerationMergeWithHWP(g Gomega, ctx context.Context, k8s
 	g.Expect(tolsOut).Should(HaveLen(2))
 	keys := make(map[string]bool)
 	for _, ti := range tolsOut {
-		m, ok := ti.(map[string]interface{})
+		m, ok := ti.(map[string]any)
 		g.Expect(ok).Should(BeTrue())
 		key, ok := m["key"].(string)
 		g.Expect(ok).Should(BeTrue())
@@ -236,7 +236,7 @@ func testNotebookProfileSwitchReplacesScheduling(g Gomega, ctx context.Context, 
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(found).Should(BeTrue())
 	g.Expect(tolsOut).Should(HaveLen(1))
-	t0, ok := tolsOut[0].(map[string]interface{})
+	t0, ok := tolsOut[0].(map[string]any)
 	g.Expect(ok).Should(BeTrue())
 	g.Expect(t0["key"]).Should(Equal("second-key"))
 

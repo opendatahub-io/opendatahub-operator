@@ -76,7 +76,7 @@ func getDeploymentStatus(obj client.Object) (int32, int32, bool) {
 	return getInt32Field(status, "replicas"), getInt32Field(status, "readyReplicas"), true
 }
 
-func getInt32Field(m map[string]interface{}, field string) int32 {
+func getInt32Field(m map[string]any, field string) int32 {
 	val, found, err := unstructured.NestedInt64(m, field)
 	if err != nil || !found {
 		return 0

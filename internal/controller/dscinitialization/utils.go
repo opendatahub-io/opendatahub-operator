@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"maps"
 	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -114,9 +115,7 @@ func (r *DSCInitializationReconciler) createAppNamespace(ctx context.Context, ns
 	}
 
 	for _, l := range extraLabel {
-		for k, v := range l {
-			labelList[k] = v
-		}
+		maps.Copy(labelList, l)
 	}
 
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, desiredDefaultNS, func() error {

@@ -165,7 +165,7 @@ func TestNotebookWebhook_Integration(t *testing.T) {
 					g.Expect(found).Should(BeTrue())
 					g.Expect(containers).Should(HaveLen(1))
 
-					container, ok := containers[0].(map[string]interface{})
+					container, ok := containers[0].(map[string]any)
 					g.Expect(ok).Should(BeTrue())
 
 					envFrom, found, envFromErr := unstructured.NestedSlice(container, "envFrom")
@@ -176,7 +176,7 @@ func TestNotebookWebhook_Integration(t *testing.T) {
 					// Verify each secret is referenced
 					secretNames := make([]string, 0, len(envFrom))
 					for _, entry := range envFrom {
-						entryMap, ok := entry.(map[string]interface{})
+						entryMap, ok := entry.(map[string]any)
 						g.Expect(ok).Should(BeTrue())
 
 						secretRef, found, err := unstructured.NestedStringMap(entryMap, "secretRef")

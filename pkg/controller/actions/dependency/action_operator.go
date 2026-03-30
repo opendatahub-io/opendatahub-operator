@@ -243,7 +243,7 @@ func (a *action) collectDegradedConditions(ctx context.Context, rr *odhtypes.Rec
 
 	var degradedConditions []string
 	for _, c := range conditions {
-		condMap, ok := c.(map[string]interface{})
+		condMap, ok := c.(map[string]any)
 		if !ok {
 			continue
 		}

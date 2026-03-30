@@ -1,6 +1,8 @@
 package kustomize
 
 import (
+	"maps"
+
 	"sigs.k8s.io/kustomize/api/resmap"
 	kyaml "sigs.k8s.io/kustomize/kyaml/yaml"
 )
@@ -52,9 +54,7 @@ func WithLabels(values map[string]string) RenderOptsFn {
 			opts.labels = map[string]string{}
 		}
 
-		for k, v := range values {
-			opts.labels[k] = v
-		}
+		maps.Copy(opts.labels, values)
 	}
 }
 
@@ -74,9 +74,7 @@ func WithAnnotations(values map[string]string) RenderOptsFn {
 			opts.annotations = map[string]string{}
 		}
 
-		for k, v := range values {
-			opts.annotations[k] = v
-		}
+		maps.Copy(opts.annotations, values)
 	}
 }
 

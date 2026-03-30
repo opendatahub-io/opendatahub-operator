@@ -339,12 +339,12 @@ func (w *NotebookWebhook) performConnectionInjection(nb *unstructured.Unstructur
 	}
 
 	// The notebook only has one container, so we can get the envFrom from the first container
-	container, ok := containers[0].(map[string]interface{})
+	container, ok := containers[0].(map[string]any)
 	if !ok {
 		return false, nil, errors.New("first container is not a map[string]interface{}")
 	}
 
-	existingEnvFrom, _ := container["envFrom"].([]interface{})
+	existingEnvFrom, _ := container["envFrom"].([]any)
 	for _, nbSecretRef := range notebookSecretRefs {
 		existingEnvFrom = handleConnectionSecret(nbSecretRef, existingEnvFrom)
 	}
@@ -405,20 +405,20 @@ func secretRefKey(secretRef corev1.SecretReference) string {
 }
 
 // handleConnectionSecret adds or removes a connection secret from the envFrom based on the secret action.
-func handleConnectionSecret(nbSecretRef NotebookSecretReference, existingEnvFrom []interface{}) []interface{} {
+func handleConnectionSecret(nbSecretRef NotebookSecretReference, existingEnvFrom []any) []any {
 	switch nbSecretRef.Action {
 	case Create:
-		secretEntry := map[string]interface{}{
-			"secretRef": map[string]interface{}{
+		secretEntry := map[string]any{
+			"secretRef": map[string]any{
 				"name": nbSecretRef.Secret.Name,
 			},
 		}
 		existingEnvFrom = append(existingEnvFrom, secretEntry)
 	case Delete:
 		for i, entry := range existingEnvFrom {
-			if entryMap, ok := entry.(map[string]interface{}); ok {
+			if entryMap, ok := entry.(map[string]any); ok {
 				if secretRef, hasSecret := entryMap["secretRef"]; hasSecret {
-					if secretRefMap, ok := secretRef.(map[string]interface{}); ok {
+					if secretRefMap, ok := secretRef.(map[string]any); ok {
 						if name, hasName := secretRefMap["name"]; hasName && name == nbSecretRef.Secret.Name {
 							existingEnvFrom = append(existingEnvFrom[:i], existingEnvFrom[i+1:]...)
 							break
