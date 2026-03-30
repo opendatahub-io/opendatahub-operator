@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -74,7 +75,7 @@ func startMetricsCollectorIfEnabled() *MetricsCollector {
 	}
 
 	mc.start()
-	log.Printf("Periodic metrics collector started (interval=%s, output=%s)", interval, outputPath)
+	log.Printf("Periodic metrics collector started (interval=%v, output=%s)", interval, sanitizeLogValue(outputPath)) // #nosec G706 -- outputPath sanitized for log injection
 	return mc
 }
 
@@ -91,7 +92,11 @@ func createMetricsClient() (client.Client, error) {
 }
 
 func newMetricsCollector(cfg clusterhealth.Config, outputPath string, interval time.Duration) (*MetricsCollector, error) {
-	f, err := os.OpenFile(outputPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	// Validate outputPath to prevent path traversal
+	if err := validateOutputPath(outputPath); err != nil {
+		return nil, err
+	}
+	f, err := os.OpenFile(outputPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644) // #nosec G703 -- outputPath validated above
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +189,22 @@ func parseMetricsInterval() time.Duration {
 		if err == nil && d > 0 {
 			return d
 		}
-		log.Printf("Invalid %s=%q, using default %s", envMetricsInterval, v, defaultMetricsInterval)
+		log.Printf("Invalid %s=%q, using default %v", envMetricsInterval, sanitizeLogValue(v), defaultMetricsInterval) // #nosec G706 -- value sanitized for log injection
 	}
 	return defaultMetricsInterval
+}
+
+// sanitizeLogValue removes newlines and carriage returns to prevent log injection.
+func sanitizeLogValue(s string) string {
+	s = strings.ReplaceAll(s, "\n", "")
+	s = strings.ReplaceAll(s, "\r", "")
+	return s
+}
+
+// validateOutputPath ensures the path doesn't contain path traversal sequences.
+func validateOutputPath(path string) error {
+	if strings.Contains(path, "..") {
+		return errors.New("invalid path: contains path traversal sequence")
+	}
+	return nil
 }

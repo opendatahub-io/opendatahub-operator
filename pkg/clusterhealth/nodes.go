@@ -66,8 +66,8 @@ func nodeToNodeInfo(node *corev1.Node) NodeInfo {
 	const rolePrefix = "node-role.kubernetes.io/"
 	var roles []string
 	for key := range node.Labels {
-		if strings.HasPrefix(key, rolePrefix) {
-			roles = append(roles, strings.TrimPrefix(key, rolePrefix))
+		if after, ok := strings.CutPrefix(key, rolePrefix); ok {
+			roles = append(roles, after)
 		}
 	}
 	sort.Strings(roles)
