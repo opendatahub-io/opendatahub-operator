@@ -240,17 +240,16 @@ IsEnabled(dsc *dscv2.DataScienceCluster) bool
 These documents contain critical requirements that MUST be followed.
 Failure to read and follow these guidelines will result in code that does not meet project standards.
 
-## Architecture Enforcement Rules
+## Review Guidance (for AI Code Reviewers)
 
-The following rules encode repo-specific architectural patterns. They are used by AI code reviewers
-(CodeRabbit, etc.) and AI coding assistants (Claude Code, Cursor, Gemini CLI) alike.
-For reviewer-specific behavior controls (comment limits, priority ordering), see `.rules/review-instructions.md`.
+The following rules are imperative instructions for AI-powered code reviewers (CodeRabbit, etc.).
+They complement the org-wide security review configuration and encode repo-specific patterns.
 
 ### RBAC and Controller Tracing
 
 - When reviewing changes to `pkg/` that add new `client.Client` operations (`Get`, `List`, `Create`, `Update`, `Delete`, `Patch`), **trace every calling controller** and verify its `kubebuilder_rbac.go` has a matching `+kubebuilder:rbac` marker for the new resource.
 - RBAC markers live in `kubebuilder_rbac.go` files **only for top-level controllers**: `dscinitialization`, `datasciencecluster`, `gateway`, and `cloudmanager/*`. Component controllers under `internal/controller/components/` use codegen — **DO NOT flag the absence of `kubebuilder_rbac.go` in component controller directories**.
-- When a PR modifies `+kubebuilder:rbac` markers, verify that the markers are consistent with the `client.Client` operations in the change. Note: `config/rbac/role.yaml` is gitignored — regeneration is validated by CI (`test-required-files-updated`), not by PR diff.
+- When a PR modifies `+kubebuilder:rbac` markers, verify that `config/rbac/role.yaml` was regenerated (`make manifests`). If the generated diff is not included or mentioned, flag it.
 - **DO NOT** suggest adding RBAC markers to `pkg/` helper files. Markers belong on the controller that calls the helper, not the helper itself.
 
 ### Test Oracle Independence

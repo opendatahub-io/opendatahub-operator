@@ -85,6 +85,15 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
+	if !c.GetDeletionTimestamp().IsZero() {
+		rr.Conditions.MarkFalse(
+			ReadyConditionType,
+			conditions.WithReason(status.DeletingReason),
+			conditions.WithMessage(status.DeletingMessage),
+		)
+		return metav1.ConditionFalse, nil
+	}
+
 	if s.IsEnabled(dsc) {
 		dsc.Status.Components.Trainer.TrainerCommonStatus = c.Status.TrainerCommonStatus.DeepCopy()
 
