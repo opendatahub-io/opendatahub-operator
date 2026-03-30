@@ -62,9 +62,48 @@ type ModelsAsServiceSpec struct {
 	// +kubebuilder:validation:Optional
 	APIKeys *APIKeysConfig `json:"apiKeys,omitempty"`
 
+	// ExternalOIDC configures an external OIDC identity provider (e.g. Keycloak, Azure AD)
+	// for the maas-api AuthPolicy. When set, the operator patches the AuthPolicy to accept
+	// JWTs from the specified issuer alongside OpenShift TokenReview and API key authentication.
+	// +kubebuilder:validation:Optional
+	ExternalOIDC *ExternalOIDCConfig `json:"externalOIDC,omitempty"`
+
 	// Telemetry contains configuration for telemetry and metrics collection.
 	// +kubebuilder:validation:Optional
 	Telemetry *TelemetryConfig `json:"telemetry,omitempty"`
+}
+
+// ExternalOIDCConfig defines the external OIDC provider settings.
+type ExternalOIDCConfig struct {
+	// IssuerURL is the OIDC issuer URL (e.g. https://keycloak.example.com/realms/maas).
+	// Must serve a .well-known/openid-configuration endpoint over HTTPS.
+	// +kubebuilder:validation:MinLength=9
+	// +kubebuilder:validation:MaxLength=2048
+	// +kubebuilder:validation:Pattern=`^https://\S+$`
+	IssuerURL string `json:"issuerUrl"`
+
+	// ClientID is the OAuth2 client ID. Incoming OIDC tokens must have an
+	// azp (authorized party) claim matching this value.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=256
+	// +kubebuilder:validation:Pattern=`^\S+$`
+	ClientID string `json:"clientId"`
+
+	// TTL is the JWKS cache duration in seconds.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=300
+	// +kubebuilder:validation:Minimum=30
+	TTL int `json:"ttl,omitempty"`
+
+	// CACertificateSecretName is the name of the Secret containing the CA certificate
+	// for the OIDC provider. Required when the OIDC issuer uses a self-signed or
+	// private CA certificate (e.g., internal Keycloak deployments).
+	// The Secret must exist in the gateway namespace and contain a 'ca.crt' key
+	// with the PEM-encoded CA certificate.
+	// When set, the operator creates a trusted CA ConfigMap and configures Authorino
+	// to trust the CA for OIDC discovery and JWKS endpoint validation.
+	// +optional
+	CACertificateSecretName string `json:"caCertificateSecretName,omitempty"`
 }
 
 // TelemetryConfig defines configuration for telemetry collection.
