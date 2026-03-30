@@ -12,8 +12,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
-// OperatorConfig defines the operator manager configuration loaded from environment
-// variables and flags via Viper.
+// Config holds common configuration shared by all binaries (main operator and cloudmanager).
 type Config struct {
 	MetricsAddr         string `mapstructure:"metrics-bind-address"`
 	HealthProbeAddr     string `mapstructure:"health-probe-bind-address"`
@@ -33,6 +32,15 @@ type Config struct {
 	RestConfig *rest.Config `mapstructure:"-"`
 	// Zap logger options
 	ZapOptions *zap.Options `mapstructure:"-"`
+}
+
+// OpEnvConfig holds configuration specific to the main operator binary.
+type OpEnvConfig struct {
+	OperatorNamespace    string `mapstructure:"operator-namespace"`
+	DisableDSCConfig     string `mapstructure:"disable-dsc-config"`
+	DefaultManifestsPath string `mapstructure:"default-manifests-path"`
+	PlatformType         string `mapstructure:"platform-type"`
+	CI                   bool   `mapstructure:"ci"`
 }
 
 // LoadConfig loads complete operator configuration including flags parsing and rest.Config loading.
@@ -87,4 +95,12 @@ func BuildConfig() (*Config, error) {
 	operatorConfig.ZapOptions = opts
 
 	return &operatorConfig, nil
+}
+
+func LoadOpEnvConfig() (*OpEnvConfig, error) {
+	var cfg OpEnvConfig
+	if err := viper.Unmarshal(&cfg); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal operator env config: %w", err)
+	}
+	return &cfg, nil
 }

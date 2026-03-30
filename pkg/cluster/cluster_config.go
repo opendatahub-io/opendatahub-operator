@@ -25,6 +25,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 )
 
 type ClusterInfo struct {
@@ -46,17 +47,17 @@ type InstallConfig struct {
 
 // Init initializes cluster configuration variables on startup
 // init() won't work since it is needed to check the error.
-func Init(ctx context.Context, cli client.Client) error {
+func Init(ctx context.Context, cli client.Client, cfg operatorconfig.OpEnvConfig) error {
 	var err error
 	log := logf.FromContext(ctx)
 
-	clusterConfig.Namespace, err = getOperatorNamespace()
+	clusterConfig.Namespace, err = getOperatorNamespace(cfg.OperatorNamespace)
 	if err != nil {
 		log.Error(err, "unable to find operator namespace")
 		// not fatal, fallback to ""
 	}
 
-	clusterConfig.Release, err = getRelease(ctx, cli)
+	clusterConfig.Release, err = getRelease(ctx, cli, cfg.PlatformType, cfg.CI)
 	if err != nil {
 		return err
 	}
@@ -66,10 +67,7 @@ func Init(ctx context.Context, cli client.Client) error {
 		return err
 	}
 
-	err = setManagedMonitoringNamespace(ctx, cli)
-	if err != nil {
-		return err
-	}
+	setManagedMonitoringNamespace()
 
 	err = setApplicationNamespace(ctx, cli)
 	if err != nil {
@@ -195,10 +193,9 @@ func getOCPVersion(ctx context.Context, c client.Client) (version.OperatorVersio
 	return version.OperatorVersion{Version: v}, nil
 }
 
-func getOperatorNamespace() (string, error) {
-	operatorNS, exist := os.LookupEnv("OPERATOR_NAMESPACE")
-	if exist && operatorNS != "" {
-		return operatorNS, nil
+func getOperatorNamespace(configured string) (string, error) {
+	if configured != "" {
+		return configured, nil
 	}
 	data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
 	return string(data), err
@@ -308,8 +305,8 @@ func detectManagedRhoai(ctx context.Context, cli client.Client) (common.Platform
 	return ManagedRhoai, nil
 }
 
-func getPlatform(ctx context.Context, cli client.Client) (common.Platform, error) {
-	switch os.Getenv("ODH_PLATFORM_TYPE") {
+func getPlatform(ctx context.Context, cli client.Client, platformType string) (common.Platform, error) {
+	switch platformType {
 	case "OpenDataHub":
 		return OpenDataHub, nil
 	case "ManagedRHOAI":
@@ -332,7 +329,7 @@ func getPlatform(ctx context.Context, cli client.Client) (common.Platform, error
 	}
 }
 
-func getRelease(ctx context.Context, cli client.Client) (common.Release, error) {
+func getRelease(ctx context.Context, cli client.Client, platformType string, ci bool) (common.Release, error) {
 	initRelease := common.Release{
 		// dummy version set to name "", version 0.0.0
 		Version: version.OperatorVersion{
@@ -341,14 +338,14 @@ func getRelease(ctx context.Context, cli client.Client) (common.Release, error) 
 	}
 
 	// Set platform
-	platform, err := getPlatform(ctx, cli)
+	platform, err := getPlatform(ctx, cli, platformType)
 	if err != nil {
 		return initRelease, err
 	}
 	initRelease.Name = platform
 
 	// For unit-tests
-	if os.Getenv("CI") == "true" {
+	if ci {
 		return initRelease, nil
 	}
 
@@ -436,18 +433,13 @@ func IsFipsEnabled(ctx context.Context, cli client.Client) (bool, error) {
 	return installConfig.FIPS, nil
 }
 
-func setManagedMonitoringNamespace(ctx context.Context, cli client.Client) error {
-	platform, err := getPlatform(ctx, cli)
-	if err != nil {
-		return err
-	}
-	switch platform {
+func setManagedMonitoringNamespace() {
+	switch clusterConfig.Release.Name {
 	case ManagedRhoai, SelfManagedRhoai:
 		viper.SetDefault("dsc-monitoring-namespace", DefaultMonitoringNamespaceRHOAI)
 	case OpenDataHub, XKS:
 		viper.SetDefault("dsc-monitoring-namespace", DefaultMonitoringNamespaceODH)
 	}
-	return nil
 }
 
 func setApplicationNamespace(ctx context.Context, cli client.Client) error {

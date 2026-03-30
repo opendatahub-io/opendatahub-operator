@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -170,23 +171,23 @@ func ReconcileDefaultNetworkPolicy(
 			return err
 		}
 		// Deploy networkpolicy for operator namespace
-		err = deploy.DeployManifestsFromPath(ctx, cli, dscInit, networkpolicyPath+"/operator", operatorNs, "networkpolicy", true)
+		err = deploy.DeployManifestsFromPath(ctx, cli, dscInit, filepath.Join(networkpolicyPath(), "operator"), operatorNs, "networkpolicy", true)
 		if err != nil {
-			log.Error(err, "error to set networkpolicy in operator namespace", "path", networkpolicyPath)
+			log.Error(err, "error to set networkpolicy in operator namespace", "path", networkpolicyPath())
 			return err
 		}
 		// Deploy networkpolicy for monitoring namespace only when it is managed cluster.
 		if platform == cluster.ManagedRhoai {
-			err = deploy.DeployManifestsFromPath(ctx, cli, dscInit, networkpolicyPath+"/monitoring", dscInit.Spec.Monitoring.Namespace, "networkpolicy", true)
+			err = deploy.DeployManifestsFromPath(ctx, cli, dscInit, filepath.Join(networkpolicyPath(), "monitoring"), dscInit.Spec.Monitoring.Namespace, "networkpolicy", true)
 			if err != nil {
-				log.Error(err, "error to set networkpolicy in monitoring namespace", "path", networkpolicyPath)
+				log.Error(err, "error to set networkpolicy in monitoring namespace", "path", networkpolicyPath())
 				return err
 			}
 		}
 		// Deploy networkpolicy for applications namespace
-		err = deploy.DeployManifestsFromPath(ctx, cli, dscInit, networkpolicyPath+"/applications", dscInit.Spec.ApplicationsNamespace, "networkpolicy", true)
+		err = deploy.DeployManifestsFromPath(ctx, cli, dscInit, filepath.Join(networkpolicyPath(), "applications"), dscInit.Spec.ApplicationsNamespace, "networkpolicy", true)
 		if err != nil {
-			log.Error(err, "error to set networkpolicy in applications namespace", "path", networkpolicyPath)
+			log.Error(err, "error to set networkpolicy in applications namespace", "path", networkpolicyPath())
 			return err
 		}
 		return nil

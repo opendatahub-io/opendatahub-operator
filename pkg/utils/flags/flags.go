@@ -71,6 +71,34 @@ func AddOperatorFlagsAndEnvvars(envvarPrefix string) error {
 		return err
 	}
 
+	// Operator environment configuration
+	pflag.String("operator-namespace", "", "The namespace the operator is deployed in. "+
+		"If not set, falls back to the in-cluster service account namespace.")
+	if err := viper.BindEnv("operator-namespace", "OPERATOR_NAMESPACE"); err != nil {
+		return err
+	}
+
+	pflag.String("disable-dsc-config", "", "Disable automatic creation of default DSCInitialization CR.")
+	if err := viper.BindEnv("disable-dsc-config", "DISABLE_DSC_CONFIG"); err != nil {
+		return err
+	}
+
+	pflag.String("default-manifests-path", "", "Base path for component manifests.")
+	if err := viper.BindEnv("default-manifests-path", "DEFAULT_MANIFESTS_PATH"); err != nil {
+		return err
+	}
+
+	pflag.String("platform-type", "", "Platform type override (OpenDataHub, ManagedRHOAI, SelfManagedRHOAI, XKS). "+
+		"If empty, auto-detects from the cluster.")
+	if err := viper.BindEnv("platform-type", "ODH_PLATFORM_TYPE"); err != nil {
+		return err
+	}
+
+	pflag.Bool("ci", false, "Set to true to skip CSV lookup during unit tests.")
+	if err := viper.BindEnv("ci", "CI"); err != nil {
+		return err
+	}
+
 	if err := addResourceSuppressionFlags(); err != nil {
 		return err
 	}

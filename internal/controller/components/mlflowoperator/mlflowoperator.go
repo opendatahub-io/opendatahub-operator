@@ -48,8 +48,8 @@ func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *
 }
 
 func (s *componentHandler) Init(platform common.Platform) error {
-	if err := odhdeploy.ApplyParams(paramsPath, "params.env", imageParamMap); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", paramsPath, err)
+	if err := odhdeploy.ApplyParams(paramsPath(), "params.env", imageParamMap); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", paramsPath(), err)
 	}
 
 	return nil
