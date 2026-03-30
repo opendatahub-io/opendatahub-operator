@@ -142,7 +142,13 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		dsc.Status.Components.Workbenches.WorkbenchesCommonStatus = c.Status.WorkbenchesCommonStatus.DeepCopy()
 
 		if rc := conditions.FindStatusCondition(c.GetStatus(), status.ConditionTypeReady); rc != nil {
-			rr.Conditions.MarkFrom(ReadyConditionType, *rc)
+			readyCond := *rc
+			// Append ImageStream import failure warning to the Ready condition message.
+			// Fix for RHOAIENG-13921.
+			if isCond := conditions.FindStatusCondition(c.GetStatus(), status.ConditionImageStreamsAvailable); isCond != nil && isCond.Status == metav1.ConditionFalse {
+				readyCond.Message = readyCond.Message + ". " + isCond.Message
+			}
+			rr.Conditions.MarkFrom(ReadyConditionType, readyCond)
 			cs = rc.Status
 		} else {
 			cs = metav1.ConditionFalse

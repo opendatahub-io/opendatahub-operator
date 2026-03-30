@@ -36,6 +36,7 @@ func workbenchesTestSuite(t *testing.T) {
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
+		{"Validate ImageStreams available", componentCtx.ValidateImageStreamsAvailable},
 		{"Validate MLflow integration", componentCtx.ValidateMLflowIntegration},
 		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
@@ -146,4 +147,18 @@ func (tc *WorkbenchesTestCtx) ValidateMLflowIntegration(t *testing.T) {
 	)
 
 	t.Log("Workbenches component successfully integrates with MLflowOperator state changes")
+}
+
+func (tc *WorkbenchesTestCtx) ValidateImageStreamsAvailable(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+
+	// Verify that the Workbenches CR has an ImageStreamsAvailable condition.
+	// The condition should exist regardless of whether any ImageStream tags
+	// failed to import. Fix for RHOAIENG-13921.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Workbenches, types.NamespacedName{Name: componentApi.WorkbenchesInstanceName}),
+		WithCondition(jq.Match(`[.status.conditions[] | select(.type == "ImageStreamsAvailable")] | length > 0`)),
+	)
 }
