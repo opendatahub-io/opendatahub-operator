@@ -135,7 +135,7 @@ rules:
     - patch
     - delete
 - apiGroups:
-    - '' 
+    - ''
   resources:
     - configmaps
   resourceNames:
@@ -146,3 +146,17 @@ rules:
     - watch
     - patch
     - update
+# Support managing customer LLMInferenceServiceConfigs
+# Our out of the box LLMInferenceServiceConfigs should be operator reconciled
+- apiGroups:
+    - serving.kserve.io
+  resources:
+    - llminferenceserviceconfigs
+  verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - patch
+    - delete
