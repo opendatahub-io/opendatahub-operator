@@ -15,24 +15,24 @@ DST_CHARTS_DIR="./opt/charts"
 
 # ODH Component Manifests
 declare -A ODH_COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:main@b863ca8e87e31e74dea3f01b71c93401cff07045:manifests"
-    ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@c6b9cc9fa59dda88dd37d6032a1e909a0d1140f4:components/notebook-controller/config"
-    ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@c6b9cc9fa59dda88dd37d6032a1e909a0d1140f4:components/odh-notebook-controller/config"
-    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@2be5c1443475318566c62975b5015799176f7167:manifests"
-    ["kserve"]="opendatahub-io:kserve:release-v0.17@d843557117dc584f82b82fb34489fa4d369924a0:config"
+    ["dashboard"]="opendatahub-io:odh-dashboard:main@07c3365eef313efc69b46a3f1ee735e381c512fd:manifests"
+    ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@e2ee1714c85fc0d3d13138cc5e0cf0e0bd9c88bf:components/notebook-controller/config"
+    ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@e2ee1714c85fc0d3d13138cc5e0cf0e0bd9c88bf:components/odh-notebook-controller/config"
+    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@01c0427ddf69d90e9bedebfb7a543507ca1cb299:manifests"
+    ["kserve"]="opendatahub-io:kserve:release-v0.17@7df11fc52f56ae2011d39c89b8781f5fbee20818:config"
     ["ray"]="opendatahub-io:kuberay:dev@b5ee4c9963783dad6a8917abfa29c4e91d8630ec:ray-operator/config"
     ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@25e144dd0f4c311c53cbe069fed18fb93fdb3a7d:config"
-    ["modelregistry"]="opendatahub-io:model-registry-operator:main@a6e2edef1f815e407d5447fe7d5c9c2d96f46c53:config"
+    ["modelregistry"]="opendatahub-io:model-registry-operator:main@e620476f2bb5c0b28b9422946a8ebcc75f062f26:config"
     ["trainingoperator"]="opendatahub-io:training-operator:stable@28a60bd79b9dbbb39cd674d3660fa27ab1b42bdb:manifests"
     ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@e5d4c5a3251c9523c18f821015da2a72edb8e160:config"
     ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@cce594510895b0ef043a02e36011c39894553d39:config"
     ["feastoperator"]="opendatahub-io:feast:stable@59b34f5c8ec5bb6ea658687f96b795eebb16cbeb:infra/feast-operator/config"
     ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@a5d32a8a739f0952e00fce008fbccbfff866ed76:config"
     ["trainer"]="opendatahub-io:trainer:stable@7fa0b8a212e8a7f6a99dbe1742cdca2309c61ea2:manifests"
-    ["maas"]="opendatahub-io:maas-billing:main@572b783155c174d3fa0a31c7ceddbe7a0d9caf88:deployment"
+    ["maas"]="opendatahub-io:maas-billing:main@d160b6ceb81c40254fe3efaae5197461b7cea3b7:deployment"
     ["mlflowoperator"]="opendatahub-io:mlflow-operator:main@1e35d3471d2996ee1f42ac3088d7eb1f7a98b47a:config"
     ["sparkoperator"]="opendatahub-io:spark-operator:main@b9b6a255af50078c6dd7801979ffbb74c251a814:config"
-    ["wva"]="opendatahub-io:workload-variant-autoscaler:main@a19027138bce452319a38a2aa46b19cca5ae2b97:config"
+    ["wva"]="opendatahub-io:workload-variant-autoscaler:main@6b98a1c1abde9731618c17c323837c9adda9c4ba:config"
 )
 
 # RHOAI Component Manifests
