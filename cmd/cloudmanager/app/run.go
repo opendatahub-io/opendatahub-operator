@@ -2,7 +2,6 @@ package app
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -16,7 +15,6 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	certmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
@@ -24,9 +22,9 @@ import (
 
 // Run starts the cloud manager operator for the given provider.
 func Run(_ *cobra.Command, provider Provider) error {
-	cfg, err := operatorconfig.BuildConfig()
+	cfg, err := operatorconfig.BuildCloudManagerConfig()
 	if err != nil {
-		return fmt.Errorf("failed to build operator config: %w", err)
+		return fmt.Errorf("failed to build cloud manager config: %w", err)
 	}
 
 	ctrl.SetLogger(logger.NewLogger(cfg.LogMode, cfg.ZapOptions))
@@ -40,10 +38,6 @@ func Run(_ *cobra.Command, provider Provider) error {
 		return fmt.Errorf("invalid provider configuration: %w", err)
 	}
 
-	if err := validateRequiredEnvVars(); err != nil {
-		return err
-	}
-
 	scheme := newScheme(provider.AddToScheme)
 
 	clientOptions := provider.ClientOptions()
@@ -53,7 +47,7 @@ func Run(_ *cobra.Command, provider Provider) error {
 	// The unstructured cache must be used.
 	clientOptions.Cache.Unstructured = true
 
-	cacheOptions, err := provider.CacheOptions(scheme)
+	cacheOptions, err := provider.CacheOptions(scheme, cfg)
 	if err != nil {
 		return fmt.Errorf("unable to get cache options: %w", err)
 	}
@@ -80,7 +74,7 @@ func Run(_ *cobra.Command, provider Provider) error {
 
 	mgr := manager.New(ctrlMgr)
 
-	if err := provider.NewReconciler(ctx, mgr); err != nil {
+	if err := provider.NewReconciler(ctx, mgr, cfg); err != nil {
 		return fmt.Errorf("unable to create %s cloud manager reconciler: %w", provider.Name, err)
 	}
 
@@ -98,20 +92,6 @@ func Run(_ *cobra.Command, provider Provider) error {
 		return fmt.Errorf("problem running manager: %w", err)
 	}
 
-	return nil
-}
-
-// requiredEnvVars lists environment variables that must be set for any cloud manager provider.
-var requiredEnvVars = []string{
-	certmanager.EnvOperatorNamespace,
-}
-
-func validateRequiredEnvVars() error {
-	for _, env := range requiredEnvVars {
-		if os.Getenv(env) == "" {
-			return fmt.Errorf("required environment variable %s is not set", env)
-		}
-	}
 	return nil
 }
 
