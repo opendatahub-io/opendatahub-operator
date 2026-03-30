@@ -82,9 +82,6 @@ validate_namespace E2E_TEST_WORKBENCHES_NAMESPACE
 : "${E2E_TEST_DSC_MONITORING_NAMESPACE:=opendatahub}"
 validate_namespace E2E_TEST_DSC_MONITORING_NAMESPACE
 
-: "${E2E_TEST_FAIL_FAST_ON_ERROR:=false}"
-validate_bool E2E_TEST_FAIL_FAST_ON_ERROR
-
 : "${E2E_TEST_TAG:=All}"
 validate_tag E2E_TEST_TAG
 
@@ -99,4 +96,4 @@ exec gotestsum --junitfile-project-name odh-operator-e2e \
   --test-webhook="$E2E_TEST_WEBHOOK" --test-components="$E2E_TEST_COMPONENTS" --test-services="$E2E_TEST_SERVICES" \
   --operator-namespace="$E2E_TEST_OPERATOR_NAMESPACE" --applications-namespace="$E2E_TEST_APPLICATIONS_NAMESPACE" \
   --workbenches-namespace="$E2E_TEST_WORKBENCHES_NAMESPACE" --dsc-monitoring-namespace="$E2E_TEST_DSC_MONITORING_NAMESPACE" \
-  --fail-fast-on-error="$E2E_TEST_FAIL_FAST_ON_ERROR" --tag="$E2E_TEST_TAG" "$@"
+  --tag="$E2E_TEST_TAG" "$@"

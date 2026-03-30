@@ -218,13 +218,24 @@ func classifyClusterDistress(report *clusterhealth.Report, podDistress *FailureC
 
 // classifyFromOperator checks the operator deployment and pod status.
 func classifyFromOperator(report *clusterhealth.Report) *FailureClassification {
-	if d := report.Operator.Data.Deployment; d != nil && d.Ready < d.Replicas {
-		return &FailureClassification{
-			Category:    CategoryInfrastructure,
-			Subcategory: "operator",
-			ErrorCode:   CodeOperator,
-			Evidence:    []string{fmt.Sprintf("operator deployment %s not ready: %d/%d replicas", d.Name, d.Ready, d.Replicas)},
-			Confidence:  ConfidenceHigh,
+	if d := report.Operator.Data.Deployment; d != nil {
+		if d.Replicas == 0 {
+			return &FailureClassification{
+				Category:    CategoryInfrastructure,
+				Subcategory: "operator",
+				ErrorCode:   CodeOperator,
+				Evidence:    []string{fmt.Sprintf("operator deployment %s scaled to 0 replicas", d.Name)},
+				Confidence:  ConfidenceHigh,
+			}
+		}
+		if d.Ready < d.Replicas {
+			return &FailureClassification{
+				Category:    CategoryInfrastructure,
+				Subcategory: "operator",
+				ErrorCode:   CodeOperator,
+				Evidence:    []string{fmt.Sprintf("operator deployment %s not ready: %d/%d replicas", d.Name, d.Ready, d.Replicas)},
+				Confidence:  ConfidenceHigh,
+			}
 		}
 	}
 	for _, pod := range report.Operator.Data.Pods {
