@@ -603,7 +603,10 @@ $(ENVTEST): $(LOCALBIN)
 test: unit-test e2e-test
 
 .PHONY: unit-test
-unit-test: envtest ginkgo # directly use ginkgo since the framework is not compatible with go test parallel
+unit-test: unit-test-operator unit-test-clusterhealth
+
+.PHONY: unit-test-operator
+unit-test-operator: envtest ginkgo # directly use ginkgo since the framework is not compatible with go test parallel
 	@if [ ! -d "$(CONFIG_DIR)/crd/bases" ]; then \
 		echo "Error: $(CONFIG_DIR)/crd/bases folder does not exist. Please run 'make manifests-all' first."; \
 		exit 1; \
@@ -621,8 +624,13 @@ unit-test: envtest ginkgo # directly use ginkgo since the framework is not compa
         		--cover \
         		--coverprofile=cover.out \
         		--succinct \
+        		--skip-package=pkg/clusterhealth,cmd/health-check \
         		$(TEST_SRC)
 CLEANFILES += cover.out
+
+.PHONY: unit-test-clusterhealth
+unit-test-clusterhealth:
+	cd pkg/clusterhealth && go test -cover ./...
 
 # Pattern rule to generate .rules.yaml from PrometheusRule templates
 # This finds the corresponding *-prometheusrules.tmpl.yaml in the same directory
