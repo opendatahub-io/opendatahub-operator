@@ -79,16 +79,10 @@ func (tc *WorkbenchesTestCtx) ValidateMLflowIntegration(t *testing.T) {
 
 	skipUnless(t, Tier2)
 
-	g := tc.NewWithT(t)
-
 	const notebookControllerParamsConfigMap = "odh-notebook-controller-image-parameters"
 
-	// Get the current DSC
-	dsc := tc.FetchDataScienceCluster()
-
-	// Verify MLflowOperator is in Removed state (default for e2e tests)
-	g.Expect(dsc.Spec.Components.MLflowOperator.ManagementState).To(Equal(operatorv1.Removed),
-		"MLflowOperator should be in Removed state by default")
+	// Ensure MLflowOperator is in Removed state to start the test
+	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.MLflowOperatorKind)
 
 	// Ensure the Workbenches component is still ready with MLflowOperator in Removed state
 	tc.EnsureResourceExists(

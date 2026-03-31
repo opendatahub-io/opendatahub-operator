@@ -92,7 +92,7 @@ func createMetricsClient() (client.Client, error) {
 }
 
 func newMetricsCollector(cfg clusterhealth.Config, outputPath string, interval time.Duration) (*MetricsCollector, error) {
-	// Validate outputPath to prevent path traversal
+	// Validate outputPath to prevent path traversal and log injection
 	if err := validateOutputPath(outputPath); err != nil {
 		return nil, err
 	}
@@ -201,10 +201,13 @@ func sanitizeLogValue(s string) string {
 	return s
 }
 
-// validateOutputPath ensures the path doesn't contain path traversal sequences.
+// validateOutputPath ensures the path doesn't contain path traversal sequences or log injection characters.
 func validateOutputPath(path string) error {
 	if strings.Contains(path, "..") {
 		return errors.New("invalid path: contains path traversal sequence")
+	}
+	if strings.ContainsAny(path, "\r\n") {
+		return errors.New("invalid path: contains CR/LF characters")
 	}
 	return nil
 }
