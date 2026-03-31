@@ -27,7 +27,21 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-const testCACertPEM = "-----BEGIN CERTIFICATE-----\nMIIBtest\n-----END CERTIFICATE-----\n"
+const testCACertPEM = `-----BEGIN CERTIFICATE-----
+MIICEjCCAXsCAg36MA0GCSqGSIb3DQEBBQUAMIGbMQswCQYDVQQGEwJKUDEOMAwG
+A1UECBMFVG9reW8xEDAOBgNVBAcTB0NodW8ta3UxETAPBgNVBAoTCEZyYW5rNERE
+MRgwFgYDVQQLEw9XZWJDZXJ0IFN1cHBvcnQxGDAWBgNVBAMTD0ZyYW5rNEREIFdl
+YiBDQTEjMCEGCSqGSIb3DQEJARYUc3VwcG9ydEBmcmFuazRkZC5jb20wHhcNMTIw
+ODIyMDUyNjU0WhcNMTcwODIxMDUyNjU0WjBKMQswCQYDVQQGEwJKUDEOMAwGA1UE
+CAwFVG9reW8xETAPBgNVBAoMCEZyYW5rNEREMRgwFgYDVQQDDA93d3cuZXhhbXBs
+ZS5jb20wXDANBgkqhkiG9w0BAQEFAANLADBIAkEAm/xmkHmEQrurE/0re/jeFRLl
+8ZPjBop7uLHhnia7lQG/5zDtZIUC3RVpqDSwBuw/NTweGyuP+o8AG98HxqxTBwID
+AQABMA0GCSqGSIb3DQEBBQUAA4GBABS2TLuBeTPmcaTaUW/LCB2NYOy8GMdzR1mx
+8iBIu2H6/E2tiY3RIevV2OW61qY2/XRQg7YPxx3ffeUugX9F4J/iPnnu1zAxzyYw
+m60DE0fEQDB9Z7Vs0c3cMh9zrH3+XOh1j5m7/cSRi3z7WG4aFG4yT8kZR9L/bYqA
+Z7oFDvTr
+-----END CERTIFICATE-----
+`
 
 func boolPtr(v bool) *bool { return &v }
 
@@ -1415,8 +1429,7 @@ func TestValidateExternalOIDCCA(t *testing.T) {
 			},
 		}
 
-		caSecret := createCASecret(
-			"-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----\n")
+		caSecret := createCASecret(testCACertPEM)
 		cli, err := fakeclient.New(fakeclient.WithObjects(caSecret))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
@@ -1653,9 +1666,9 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 		g.Expect(cms[0]).Should(Equal(MaaSCABundleConfigMapName))
 	})
 
-	t.Run("should succeed silently when Authorino CR is not found anywhere", func(t *testing.T) {
+	t.Run("should error when CA is requested but Authorino CR is not found", func(t *testing.T) {
 		maas := createTestMaaSWithCA()
-		caSecret := createCASecret("cert-data")
+		caSecret := createCASecret(testCACertPEM)
 		dsci := createTestDSCI("opendatahub")
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(caSecret, dsci))
@@ -1664,7 +1677,8 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 
 		rr := createRRWithDynamic(maas, cli, dc)
 		err = configureOIDCCACertificate(t.Context(), rr)
-		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(err.Error()).Should(ContainSubstring("custom CA certificate requested but Authorino CR not found"))
 	})
 
 	t.Run("should be idempotent when volume already exists in Authorino CR", func(t *testing.T) {

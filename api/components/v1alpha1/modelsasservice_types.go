@@ -103,6 +103,8 @@ type ExternalOIDCConfig struct {
 	// When set, the operator creates a trusted CA ConfigMap and configures Authorino
 	// to trust the CA for OIDC discovery and JWKS endpoint validation.
 	// +optional
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`
 	CACertificateSecretName string `json:"caCertificateSecretName,omitempty"`
 }
 

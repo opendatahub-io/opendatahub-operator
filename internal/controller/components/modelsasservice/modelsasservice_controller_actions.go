@@ -19,6 +19,7 @@ package modelsasservice
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -679,6 +680,10 @@ func configureOIDCCACertificate(ctx context.Context, rr *types.ReconciliationReq
 		return err
 	}
 	if authorinoCR == nil {
+		if caEnabled {
+			return fmt.Errorf("custom CA certificate requested but Authorino CR not found in any candidate namespace: %v",
+				[]string{AuthorinoNamespaceKuadrant, AuthorinoNamespaceRHCL, appNamespace})
+		}
 		log.V(1).Info("Authorino CR not found in any candidate namespace, skipping CA configuration",
 			"candidates", []string{AuthorinoNamespaceKuadrant, AuthorinoNamespaceRHCL, appNamespace})
 		return nil
@@ -693,7 +698,7 @@ func configureOIDCCACertificate(ctx context.Context, rr *types.ReconciliationReq
 		return err
 	}
 
-	if err := ensureCABundleConfigMap(ctx, dc, log, authorinoNamespace, caCertPEM); err != nil {
+	if err := ensureCABundleConfigMap(ctx, dc, log, authorinoCR, authorinoNamespace, caCertPEM); err != nil {
 		return err
 	}
 
@@ -712,7 +717,7 @@ func cleanupOIDCCA(ctx context.Context, dc dynamic.Interface, log logr.Logger, a
 	return deleteCABundleConfigMap(ctx, dc, log, authorinoNamespace)
 }
 
-// readCACertFromSecret reads the CA certificate PEM data from the referenced Secret.
+// readCACertFromSecret reads and validates the CA certificate PEM data from the referenced Secret.
 func readCACertFromSecret(ctx context.Context, rr *types.ReconciliationRequest, maas *componentApi.ModelsAsService) ([]byte, error) {
 	secret := &corev1.Secret{}
 	err := rr.Client.Get(ctx, k8stypes.NamespacedName{
@@ -724,13 +729,26 @@ func readCACertFromSecret(ctx context.Context, rr *types.ReconciliationRequest, 
 			maas.Spec.GatewayRef.Namespace, maas.Spec.ExternalOIDC.CACertificateSecretName, err)
 	}
 
-	return secret.Data[MaaSCACertSecretKey], nil
+	caCertPEM := secret.Data[MaaSCACertSecretKey]
+	if len(caCertPEM) == 0 {
+		return nil, fmt.Errorf("CA certificate Secret %s/%s contains empty '%s' key",
+			maas.Spec.GatewayRef.Namespace, maas.Spec.ExternalOIDC.CACertificateSecretName, MaaSCACertSecretKey)
+	}
+
+	// Validate that the data is a valid PEM-encoded CA bundle
+	certPool := x509.NewCertPool()
+	if !certPool.AppendCertsFromPEM(caCertPEM) {
+		return nil, fmt.Errorf("CA certificate Secret %s/%s contains invalid PEM data in '%s' key",
+			maas.Spec.GatewayRef.Namespace, maas.Spec.ExternalOIDC.CACertificateSecretName, MaaSCACertSecretKey)
+	}
+
+	return caCertPEM, nil
 }
 
 // ensureCABundleConfigMap creates or updates the CA bundle ConfigMap in the Authorino namespace.
 // Uses the dynamic client because the Authorino namespace (kuadrant-system or rh-connectivity-link)
 // is outside the operator's namespace-scoped cache for ConfigMaps.
-func ensureCABundleConfigMap(ctx context.Context, dc dynamic.Interface, log logr.Logger, namespace string, caCertPEM []byte) error {
+func ensureCABundleConfigMap(ctx context.Context, dc dynamic.Interface, log logr.Logger, authorinoCR *unstructured.Unstructured, namespace string, caCertPEM []byte) error {
 	gvr := configMapGVR()
 
 	desired := &unstructured.Unstructured{
@@ -744,6 +762,16 @@ func ensureCABundleConfigMap(ctx context.Context, dc dynamic.Interface, log logr
 					labels.InjectTrustCA:                labels.True,
 					labels.ODH.Component(ComponentName): labels.True,
 				},
+				"ownerReferences": []interface{}{
+					map[string]interface{}{
+						"apiVersion":         authorinoCR.GetAPIVersion(),
+						"kind":               authorinoCR.GetKind(),
+						"name":               authorinoCR.GetName(),
+						"uid":                string(authorinoCR.GetUID()),
+						"controller":         true,
+						"blockOwnerDeletion": true,
+					},
+				},
 			},
 			"data": map[string]interface{}{
 				MaaSCABundleFileName: string(caCertPEM),
@@ -751,7 +779,7 @@ func ensureCABundleConfigMap(ctx context.Context, dc dynamic.Interface, log logr
 		},
 	}
 
-	_, err := dc.Resource(gvr).Namespace(namespace).Get(ctx, MaaSCABundleConfigMapName, metav1.GetOptions{})
+	existing, err := dc.Resource(gvr).Namespace(namespace).Get(ctx, MaaSCABundleConfigMapName, metav1.GetOptions{})
 
 	if k8serr.IsNotFound(err) {
 		log.Info("Creating OIDC CA bundle ConfigMap",
@@ -762,6 +790,9 @@ func ensureCABundleConfigMap(ctx context.Context, dc dynamic.Interface, log logr
 	if err != nil {
 		return fmt.Errorf("failed to get CA bundle ConfigMap %s/%s: %w", namespace, MaaSCABundleConfigMapName, err)
 	}
+
+	// Set resourceVersion from existing ConfigMap to enable update
+	desired.SetResourceVersion(existing.GetResourceVersion())
 
 	log.V(4).Info("Updating OIDC CA bundle ConfigMap",
 		"name", MaaSCABundleConfigMapName, "namespace", namespace)
