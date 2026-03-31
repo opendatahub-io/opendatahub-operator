@@ -84,6 +84,7 @@ type TestContextConfig struct {
 	cleanUpPreviousResources         bool
 	dependantOperatorsManagementTest bool
 	dscManagementTest                bool
+	dscValidationTest                bool
 	operatorControllerTest           bool
 	operatorResilienceTest           bool
 	webhookTest                      bool
@@ -346,8 +347,10 @@ func TestOdhOperator(t *testing.T) {
 		mustRun(t, "Operator Manager E2E Tests", odhOperatorTestSuite)
 	}
 
-	// Run DSCI/DSC test validation test suite
-	mustRun(t, "DSCInitialization and DataScienceCluster validation E2E Tests", dscValidationTestSuite)
+	if testOpts.dscValidationTest {
+		// Run DSCI/DSC test validation test suite
+		mustRun(t, "DSCInitialization and DataScienceCluster validation E2E Tests", dscValidationTestSuite)
+	}
 
 	// Run components and services test suites
 	mustRun(t, Components.String(), Components.Run)
@@ -447,6 +450,8 @@ func TestMain(m *testing.M) {
 	checkEnvVarBindingError(viper.BindEnv("test-dependant-operators-management", viper.GetEnvPrefix()+"_DEPENDANT_OPERATORS_MANAGEMENT"))
 	pflag.Bool("test-dsc-management", true, "run DSCI/DSC management tests")
 	checkEnvVarBindingError(viper.BindEnv("test-dsc-management", viper.GetEnvPrefix()+"_DSC_MANAGEMENT"))
+	pflag.Bool("test-dsc-validation", true, "run DSCI/DSC validation tests")
+	checkEnvVarBindingError(viper.BindEnv("test-dsc-validation", viper.GetEnvPrefix()+"_DSC_VALIDATION"))
 	pflag.Bool("test-operator-resilience", true, "run operator resilience tests")
 	checkEnvVarBindingError(viper.BindEnv("test-operator-resilience", viper.GetEnvPrefix()+"_OPERATOR_RESILIENCE"))
 	pflag.Bool("test-operator-v2tov3upgrade", true, "run V2 to V3 upgrade tests")
@@ -514,6 +519,7 @@ func TestMain(m *testing.M) {
 	testOpts.operatorControllerTest = viper.GetBool("test-operator-controller")
 	testOpts.dependantOperatorsManagementTest = viper.GetBool("test-dependant-operators-management")
 	testOpts.dscManagementTest = viper.GetBool("test-dsc-management")
+	testOpts.dscValidationTest = viper.GetBool("test-dsc-validation")
 	testOpts.operatorResilienceTest = viper.GetBool("test-operator-resilience")
 	testOpts.v2tov3upgradeTest = viper.GetBool("test-operator-v2tov3upgrade")
 	testOpts.webhookTest = viper.GetBool("test-webhook")

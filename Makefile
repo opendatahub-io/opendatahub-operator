@@ -743,6 +743,19 @@ e2e-setup-cluster:
 		-e E2E_TEST_DELETION_POLICY=never \
 		-e E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=true
 
+.PHONY: e2e-test-xks
+e2e-test-xks: ## Run e2e tests on external Kubernetes (KinD, AKS, CoreWeave, etc.)
+	@$(MAKE) e2e-test \
+		-e E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=false \
+		-e E2E_TEST_DEPENDANT_OPERATORS_MANAGEMENT=false \
+		-e E2E_TEST_WEBHOOK=false \
+		-e E2E_TEST_COMPONENT="kserve" \
+		-e E2E_TEST_SERVICES=false \
+		-e E2E_TEST_OPERATOR_RESILIENCE=false \
+		-e E2E_TEST_OPERATOR_V2TOV3UPGRADE=false \
+		-e E2E_TEST_DSC_MANAGEMENT=false \
+		-e E2E_TEST_DSC_VALIDATION=false
+
 ##@ KinD Cluster Management
 
 CLUSTER_NAME ?= kind-odh
@@ -803,6 +816,40 @@ $(CCM_RUN_TARGETS): run-ccm-%: generate fmt vet ## Run CCM locally (e.g., run-cc
 	DEFAULT_CHARTS_PATH=$(DEFAULT_CHARTS_PATH) go run ./cmd/cloudmanager/ $*
 
 ##@ CCM Deployment
+
+
+# PULL_SECRET is the path to a dockerconfigjson file for pulling images from private registries.
+# For local usage, you can point to your container runtime auth file, e.g.:
+#   make kind-setup-pull-secrets PULL_SECRET=~/.docker/config.json
+#   make kind-setup-pull-secrets PULL_SECRET=$${XDG_RUNTIME_DIR}/containers/auth.json
+PULL_SECRET ?=
+
+PULL_SECRET_NAMESPACES := \
+	cert-manager \
+	cert-manager-operator \
+	openshift-lws-operator \
+	istio-system
+
+.PHONY: kind-setup-pull-secrets
+kind-setup-pull-secrets: ## Setup pull secrets for operator dependencies in the cluster
+	@if [ -z "$(PULL_SECRET)" ]; then \
+		echo "Error: PULL_SECRET is required. Set it to the path of your docker config.json."; \
+		echo "  e.g.: make kind-setup-pull-secrets PULL_SECRET=~/.docker/config.json"; \
+		exit 1; \
+	fi
+	@if [ ! -f "$(PULL_SECRET)" ]; then \
+		echo "Error: PULL_SECRET file '$(PULL_SECRET)' does not exist."; \
+		exit 1; \
+	fi
+	@for ns in $(PULL_SECRET_NAMESPACES); do \
+		echo "Setting up pull secret in namespace: $$ns"; \
+		kubectl create namespace $$ns --dry-run=client -o yaml | kubectl apply -f -; \
+		kubectl create secret generic rhaii-pull-secret \
+			--from-file=.dockerconfigjson="$(PULL_SECRET)" \
+			--type=kubernetes.io/dockerconfigjson \
+			-n $$ns --dry-run=client -o yaml | kubectl apply -f -; \
+	done
+	@echo "Pull secrets configured."
 
 CCM_INSTALL_TARGETS := $(addprefix install-ccm-,$(CCM_PROVIDERS))
 .PHONY: $(CCM_INSTALL_TARGETS)
