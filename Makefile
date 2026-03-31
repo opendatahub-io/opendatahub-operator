@@ -255,6 +255,9 @@ ifneq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	$(CONTROLLER_GEN) rbac:roleName=controller-manager-role paths="./..." output:rbac:artifacts:config=config/rbac
 endif
 	$(CONTROLLER_GEN) $(CONTROLLER_GEN_TAGS) rbac:roleName=$(ROLE_NAME) crd:ignoreUnexportedFields=true webhook paths="./..." output:crd:artifacts:config=$(CONFIG_DIR)/crd/bases output:rbac:artifacts:config=$(CONFIG_DIR)/rbac output:webhook:artifacts:config=$(CONFIG_DIR)/webhook
+	@# Remove cloud manager CRDs , should not be in OLM bundle
+	@rm -f $(CONFIG_DIR)/crd/bases/infrastructure.opendatahub.io_azurekubernetesengines.yaml
+	@rm -f $(CONFIG_DIR)/crd/bases/infrastructure.opendatahub.io_coreweavekubernetesengines.yaml
 	@$(call add-crd-to-kustomization,$(CONFIG_DIR)/crd/bases)
 	@$(call fetch-external-crds,github.com/openshift/api,route/v1)
 	@$(call fetch-external-crds,github.com/openshift/api,user/v1)
