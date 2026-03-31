@@ -25,6 +25,7 @@ import (
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/env"
 )
 
 var (
@@ -58,7 +59,7 @@ func buildCertManagerParams() map[string]string {
 
 	params := map[string]string{
 		"ISSUER_REF_NAME":     bc.CAIssuerName,
-		"ISSUER_REF_KIND":     certmanager.EnvOrDefault(certmanager.EnvIssuerRefKind, certmanager.DefaultIssuerRefKind),
+		"ISSUER_REF_KIND":     env.GetOrDefault(certmanager.EnvIssuerRefKind, certmanager.DefaultIssuerRefKind),
 		"CA_SECRET_NAME":      bc.CertName,
 		"CA_SECRET_NAMESPACE": bc.CertManagerNamespace,
 		"NAMESPACE":           cluster.GetApplicationNamespace(),

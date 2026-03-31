@@ -358,8 +358,7 @@ func TestBootstrapCertManagerPKI(t *testing.T) {
 func TestBootstrapWebhookCertificate(t *testing.T) {
 	operatorNamespace := "test-operator-ns-" + xid.New().String()
 
-	config := certmanager.DefaultBootstrapConfig(certmanager.WithOperatorCert())
-	config.OperatorCertConfig.Namespace = operatorNamespace
+	config := certmanager.DefaultBootstrapConfig(certmanager.WithOperatorCert(operatorNamespace))
 
 	g := NewWithT(t)
 
@@ -450,11 +449,110 @@ func TestBootstrapWebhookCertificate(t *testing.T) {
 	t.Run("returns error when operator namespace is empty", func(t *testing.T) {
 		g := NewWithT(t)
 
-		emptyNSConfig := certmanager.DefaultBootstrapConfig(certmanager.WithOperatorCert())
-		emptyNSConfig.OperatorCertConfig.Namespace = ""
+		emptyNSConfig := certmanager.DefaultBootstrapConfig(certmanager.WithOperatorCert(""))
 
 		_, err := certmanager.NewBootstrapAction(emptyNSConfig)
 		g.Expect(err).To(HaveOccurred())
 		g.Expect(err.Error()).To(ContainSubstring("operator namespace must not be empty"))
+	})
+}
+
+func TestBootstrapOperatorCertConfig(t *testing.T) {
+	tests := []struct {
+		name                   string
+		namespace              string
+		envVars                map[string]string
+		expectedNamespace      string
+		expectedCertName       string
+		expectedCertSecretName string
+		expectedServiceName    string
+	}{
+		{
+			name:                   "uses the provided namespace",
+			namespace:              "my-namespace",
+			expectedNamespace:      "my-namespace",
+			expectedCertName:       "opendatahub-operator-webhook-cert",
+			expectedCertSecretName: "opendatahub-operator-controller-webhook-cert",
+			expectedServiceName:    "opendatahub-operator-webhook-service",
+		},
+		{
+			name:                   "returns default webhook config when env is unset",
+			namespace:              "ns",
+			expectedNamespace:      "ns",
+			expectedCertName:       "opendatahub-operator-webhook-cert",
+			expectedCertSecretName: "opendatahub-operator-controller-webhook-cert",
+			expectedServiceName:    "opendatahub-operator-webhook-service",
+		},
+		{
+			name:      "overrides webhook cert secret name from env",
+			namespace: "ns",
+			envVars: map[string]string{
+				certmanager.EnvOperatorWebhookCertSecretName: "custom-secret",
+			},
+			expectedNamespace:      "ns",
+			expectedCertName:       "opendatahub-operator-webhook-cert",
+			expectedCertSecretName: "custom-secret",
+			expectedServiceName:    "opendatahub-operator-webhook-service",
+		},
+		{
+			name:      "overrides webhook service name from env",
+			namespace: "ns",
+			envVars: map[string]string{
+				certmanager.EnvOperatorWebhookServiceName: "custom-service",
+			},
+			expectedNamespace:      "ns",
+			expectedCertName:       "opendatahub-operator-webhook-cert",
+			expectedCertSecretName: "opendatahub-operator-controller-webhook-cert",
+			expectedServiceName:    "custom-service",
+		},
+		{
+			name:      "overrides webhook cert name from env",
+			namespace: "ns",
+			envVars: map[string]string{
+				certmanager.EnvOperatorWebhookCertName: "custom-cert",
+			},
+			expectedNamespace:      "ns",
+			expectedCertName:       "custom-cert",
+			expectedCertSecretName: "opendatahub-operator-controller-webhook-cert",
+			expectedServiceName:    "opendatahub-operator-webhook-service",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			// Clear env vars to prevent test pollution
+			t.Setenv(certmanager.EnvOperatorWebhookCertSecretName, "")
+			t.Setenv(certmanager.EnvOperatorWebhookServiceName, "")
+			t.Setenv(certmanager.EnvOperatorWebhookCertName, "")
+
+			for k, v := range tt.envVars {
+				t.Setenv(k, v)
+			}
+
+			cfg := certmanager.BootstrapOperatorCertConfig(tt.namespace)
+			g.Expect(cfg.Namespace).To(Equal(tt.expectedNamespace))
+			g.Expect(cfg.WebhookCertName).To(Equal(tt.expectedCertName))
+			g.Expect(cfg.WebhookCertSecretName).To(Equal(tt.expectedCertSecretName))
+			g.Expect(cfg.WebhookServiceName).To(Equal(tt.expectedServiceName))
+		})
+	}
+}
+
+func TestWithOperatorCert(t *testing.T) {
+	t.Run("sets OperatorCertConfig on BootstrapConfig", func(t *testing.T) {
+		g := NewWithT(t)
+
+		config := certmanager.DefaultBootstrapConfig(certmanager.WithOperatorCert("test-ns"))
+		g.Expect(config.OperatorCertConfig).NotTo(BeNil())
+		g.Expect(config.OperatorCertConfig.Namespace).To(Equal("test-ns"))
+	})
+
+	t.Run("OperatorCertConfig is nil without WithOperatorCert", func(t *testing.T) {
+		g := NewWithT(t)
+
+		config := certmanager.DefaultBootstrapConfig()
+		g.Expect(config.OperatorCertConfig).To(BeNil())
 	})
 }
