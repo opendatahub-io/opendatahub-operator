@@ -1429,7 +1429,7 @@ func TestValidateExternalOIDCCA(t *testing.T) {
 			},
 		}
 
-		caSecret := createCASecret(testCACertPEM)
+		caSecret := createCASecret()
 		cli, err := fakeclient.New(fakeclient.WithObjects(caSecret))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
@@ -1579,7 +1579,7 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 		authorinoNS := AuthorinoNamespaceKuadrant
 
 		maas := createTestMaaSWithCA()
-		caSecret := createCASecret(caCertPEM)
+		caSecret := createCASecret()
 		dsci := createTestDSCI("opendatahub")
 		authorinoCR := createAuthorinoCR(authorinoNS)
 
@@ -1609,7 +1609,7 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 		authorinoNS := AuthorinoNamespaceRHCL
 
 		maas := createTestMaaSWithCA()
-		caSecret := createCASecret(caCertPEM)
+		caSecret := createCASecret()
 		dsci := createTestDSCI("redhat-ods-applications")
 		authorinoCR := createAuthorinoCR(authorinoNS)
 
@@ -1630,11 +1630,10 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 	})
 
 	t.Run("should add volume entry to Authorino CR spec.volumes.items", func(t *testing.T) {
-		caCertPEM := testCACertPEM
 		authorinoNS := AuthorinoNamespaceKuadrant
 
 		maas := createTestMaaSWithCA()
-		caSecret := createCASecret(caCertPEM)
+		caSecret := createCASecret()
 		dsci := createTestDSCI("opendatahub")
 		authorinoCR := createAuthorinoCR(authorinoNS)
 
@@ -1668,7 +1667,7 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 
 	t.Run("should error when CA is requested but Authorino CR is not found", func(t *testing.T) {
 		maas := createTestMaaSWithCA()
-		caSecret := createCASecret(testCACertPEM)
+		caSecret := createCASecret()
 		dsci := createTestDSCI("opendatahub")
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(caSecret, dsci))
@@ -1682,11 +1681,10 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 	})
 
 	t.Run("should be idempotent when volume already exists in Authorino CR", func(t *testing.T) {
-		caCertPEM := testCACertPEM
 		authorinoNS := AuthorinoNamespaceKuadrant
 
 		maas := createTestMaaSWithCA()
-		caSecret := createCASecret(caCertPEM)
+		caSecret := createCASecret()
 		dsci := createTestDSCI("opendatahub")
 
 		authorinoCR := createAuthorinoCRWithVolume(authorinoNS)
@@ -1798,14 +1796,14 @@ func createTestMaaSWithCA() *componentApi.ModelsAsService {
 }
 
 // createCASecret creates a Secret object containing a CA certificate in openshift-ingress namespace.
-func createCASecret(caCert string) *corev1.Secret {
+func createCASecret() *corev1.Secret {
 	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "keycloak-ca",
 			Namespace: "openshift-ingress",
 		},
 		Data: map[string][]byte{
-			MaaSCACertSecretKey: []byte(caCert),
+			MaaSCACertSecretKey: []byte(testCACertPEM),
 		},
 	}
 }
