@@ -80,6 +80,15 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
+	if !c.GetDeletionTimestamp().IsZero() {
+		rr.Conditions.MarkFalse(
+			ReadyConditionType,
+			conditions.WithReason("Deleting"),
+			conditions.WithMessage("Component CR is being deleted"),
+		)
+		return metav1.ConditionFalse, nil
+	}
+
 	switch s.GetManagementState(dsc) {
 	case operatorv1.Managed:
 		dsc.Status.Components.{{ .Component }}.{{ .Component }}CommonStatus = c.Status.{{ .Component }}CommonStatus.DeepCopy()
