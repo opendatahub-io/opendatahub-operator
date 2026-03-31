@@ -89,7 +89,8 @@ metadata:
       "modelcontrollers.components.platform.opendatahub.io", "feastoperators.components.platform.opendatahub.io",
       "llamastackoperators.components.platform.opendatahub.io", "trainers.components.platform.opendatahub.io",
       "mlflowoperators.components.platform.opendatahub.io", "modelsasservices.components.platform.opendatahub.io",
-      "sparkoperators.components.platform.opendatahub.io"]'
+      "sparkoperators.components.platform.opendatahub.io", "azurekubernetesengines.infrastructure.opendatahub.io",
+      "coreweavekubernetesengines.infrastructure.opendatahub.io"]'
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
   name: rhods-operator.v2.0.0
