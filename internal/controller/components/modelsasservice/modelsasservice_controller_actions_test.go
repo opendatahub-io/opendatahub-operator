@@ -1241,6 +1241,8 @@ func TestConfigureExternalOIDC(t *testing.T) {
 		g.Expect(patterns).Should(HaveLen(1))
 		pattern, ok := patterns[0].(map[string]interface{})
 		g.Expect(ok).Should(BeTrue())
+		g.Expect(pattern["selector"]).Should(Equal("auth.identity.azp"))
+		g.Expect(pattern["operator"]).Should(Equal("eq"))
 		g.Expect(pattern["value"]).Should(Equal("maas-cli"))
 	})
 
@@ -1569,7 +1571,7 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 		dc := newFakeDynamicClient()
 
-		rr := createRRWithDynamic(maas, cli, dc)
+		rr := createRRWithDynamic(t, maas, cli, dc)
 		err = configureOIDCCACertificate(t.Context(), rr)
 		g.Expect(err).ShouldNot(HaveOccurred())
 	})
@@ -1587,7 +1589,7 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 		dc := newFakeDynamicClient(authorinoCR)
 
-		rr := createRRWithDynamic(maas, cli, dc)
+		rr := createRRWithDynamic(t, maas, cli, dc)
 		err = configureOIDCCACertificate(t.Context(), rr)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
@@ -1617,7 +1619,7 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 		dc := newFakeDynamicClient(authorinoCR)
 
-		rr := createRRWithDynamic(maas, cli, dc)
+		rr := createRRWithDynamic(t, maas, cli, dc)
 		err = configureOIDCCACertificate(t.Context(), rr)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
@@ -1641,7 +1643,7 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 		dc := newFakeDynamicClient(authorinoCR)
 
-		rr := createRRWithDynamic(maas, cli, dc)
+		rr := createRRWithDynamic(t, maas, cli, dc)
 		err = configureOIDCCACertificate(t.Context(), rr)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
@@ -1674,7 +1676,7 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 		dc := newFakeDynamicClient()
 
-		rr := createRRWithDynamic(maas, cli, dc)
+		rr := createRRWithDynamic(t, maas, cli, dc)
 		err = configureOIDCCACertificate(t.Context(), rr)
 		g.Expect(err).Should(HaveOccurred())
 		g.Expect(err.Error()).Should(ContainSubstring("custom CA certificate requested but Authorino CR not found"))
@@ -1693,7 +1695,7 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 		dc := newFakeDynamicClient(authorinoCR)
 
-		rr := createRRWithDynamic(maas, cli, dc)
+		rr := createRRWithDynamic(t, maas, cli, dc)
 		err = configureOIDCCACertificate(t.Context(), rr)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
@@ -1752,7 +1754,7 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 		}
 
 		dc := newFakeDynamicClientWithObjects(authorinoCR, existingCM)
-		rr := createRRWithDynamic(maas, cli, dc)
+		rr := createRRWithDynamic(t, maas, cli, dc)
 
 		err = configureOIDCCACertificate(t.Context(), rr)
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -1883,12 +1885,17 @@ func newFakeDynamicClientWithObjects(objects ...*unstructured.Unstructured) *dyn
 // createRRWithDynamic creates a ReconciliationRequest with a MockController wired to the
 // provided dynamic client, so cross-namespace lookups bypass the cache.
 func createRRWithDynamic(
+	t *testing.T,
 	maas *componentApi.ModelsAsService,
 	cli client.Client,
 	dc *dynamicfake.FakeDynamicClient,
 ) *types.ReconciliationRequest {
 	ctrl := mocks.NewMockController(func(m *mocks.MockController) {
 		m.On("GetDynamicClient").Return(dc)
+	})
+
+	t.Cleanup(func() {
+		ctrl.AssertExpectations(t)
 	})
 
 	return &types.ReconciliationRequest{
