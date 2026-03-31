@@ -290,10 +290,11 @@ func checkSubscriptionDependencies() actions.Fn {
 			ConditionType: LLMInferenceServiceDependencies,
 			Subscriptions: []dependency.SubscriptionDependency{
 				{Name: rhclOperatorSubscription, DisplayName: "Red Hat Connectivity Link"},
+				{Name: certManagerOperatorSubscription, DisplayName: "cert-manager operator"},
 			},
 			ClusterTypes: []string{cluster.ClusterTypeOpenShift},
 			Reason:       subNotFound,
-			Message:      "Warning: %s is not installed, LLMInferenceService cannot be used",
+			Message:      "Warning: %s not installed, LLMInferenceService cannot be used",
 			Severity:     common.ConditionSeverityInfo,
 		}),
 		dependency.CheckSubscriptionGroup(dependency.SubscriptionGroupConfig{
@@ -301,6 +302,7 @@ func checkSubscriptionDependencies() actions.Fn {
 			Subscriptions: []dependency.SubscriptionDependency{
 				{Name: rhclOperatorSubscription, DisplayName: "Red Hat Connectivity Link"},
 				{Name: lwsOperatorSubscription, DisplayName: "LeaderWorkerSet"},
+				{Name: certManagerOperatorSubscription, DisplayName: "cert-manager operator"},
 			},
 			ClusterTypes: []string{cluster.ClusterTypeOpenShift},
 			Reason:       subNotFound,

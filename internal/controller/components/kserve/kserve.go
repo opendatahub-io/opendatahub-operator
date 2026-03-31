@@ -38,6 +38,7 @@ const (
 	LLMInferenceServiceWideEPDependencies = componentApi.KserveKind + "LLMInferenceServiceWideEPDependencies"
 	rhclOperatorSubscription              = "rhcl-operator"
 	lwsOperatorSubscription               = "leader-worker-set"
+	certManagerOperatorSubscription       = "openshift-cert-manager-operator"
 	subNotFound                           = "Subscription not found"
 )
 
