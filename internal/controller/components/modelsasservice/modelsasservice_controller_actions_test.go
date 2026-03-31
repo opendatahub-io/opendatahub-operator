@@ -1890,6 +1890,8 @@ func createRRWithDynamic(
 	cli client.Client,
 	dc *dynamicfake.FakeDynamicClient,
 ) *types.ReconciliationRequest {
+	t.Helper()
+
 	ctrl := mocks.NewMockController(func(m *mocks.MockController) {
 		m.On("GetDynamicClient").Return(dc)
 	})
