@@ -8,7 +8,6 @@ import (
 	"github.com/k8s-manifest-kit/engine/pkg/postrenderer"
 	engineTypes "github.com/k8s-manifest-kit/engine/pkg/types"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
@@ -84,22 +83,12 @@ func findInsertionPointAfterServices(resources []unstructured.Unstructured) int 
 		return lastServiceIndex + 1
 	}
 
-	// If no Services, insert after foundation resources (based on upstream orderFirst list)
-	// Reference: https://github.com/k8s-manifest-kit/engine/blob/main/pkg/postrenderer/apply_order.go#L15-L38
-	foundationTypes := map[schema.GroupVersionKind]bool{
-		// Core foundation types from upstream (indices 0-13 in orderFirst)
-		gvk.Namespace:                true, // 0
-		gvk.CustomResourceDefinition: true, // 3
-		gvk.ServiceAccount:           true, // 4
-		gvk.ConfigMap:                true, // 10
-		gvk.Secret:                   true, // 11
-		gvk.Service:                  true, // 13
-	}
-
+	// If no Services, find the first Deployment or StatefulSet
+	// These are the primary workloads that actually consume certificate secrets
 	for i, resource := range resources {
 		resourceGVK := resource.GroupVersionKind()
-		if !foundationTypes[resourceGVK] {
-			return i // Insert before first non-foundation resource
+		if resourceGVK == gvk.Deployment || resourceGVK == gvk.StatefulSet {
+			return i // Insert before first workload that uses certificates
 		}
 	}
 
