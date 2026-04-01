@@ -30,6 +30,7 @@ type TypePredicateFn func(*odhTypes.ReconciliationRequest, schema.GroupVersionKi
 type ActionOpts func(*Action)
 
 type Action struct {
+	partOfLabelKey    string
 	labels            map[string]string
 	selector          labels.Selector
 	propagationPolicy client.PropagationPolicy
@@ -57,6 +58,14 @@ func WithLabels(values map[string]string) ActionOpts {
 		}
 
 		maps.Copy(action.labels, values)
+	}
+}
+
+// WithPartOfLabel overrides the label key used by getOrComputeSelector to find
+// resources owned by this controller.
+func WithPartOfLabel(key string) ActionOpts {
+	return func(action *Action) {
+		action.partOfLabelKey = key
 	}
 }
 
@@ -315,21 +324,15 @@ func (a *Action) delete(
 	return nil
 }
 
-// getOrComputeSelector returns the existing label selector if provided, or, it generates
-// a new selector using the provided value and 'platform.opendatahub.io/part-of' as a key.
-//
-// Parameters:
-//   - controllerName: the name of the controller to associate with the selector.
-//
-// Returns:
-//   - labels.Selector: either the cached selector or a newly constructed one.
+// getOrComputeSelector returns the existing label selector if provided, or generates
+// a new selector using the configured partOfLabelKey and the provided value.
 func (a *Action) getOrComputeSelector(partOf string) labels.Selector {
 	if a.selector != nil {
 		return a.selector
 	}
 
 	return labels.SelectorFromSet(map[string]string{
-		odhLabels.PlatformPartOf: partOf,
+		a.partOfLabelKey: partOf,
 	})
 }
 
@@ -339,7 +342,9 @@ func (a *Action) isUnremovable(gvk schema.GroupVersionKind) bool {
 }
 
 func NewAction(opts ...ActionOpts) actions.Fn {
-	action := Action{}
+	action := Action{
+		partOfLabelKey: odhLabels.PlatformPartOf,
+	}
 	action.objectPredicateFn = DefaultObjectPredicate
 	action.typePredicateFn = DefaultTypePredicate
 	action.onlyOwned = true
