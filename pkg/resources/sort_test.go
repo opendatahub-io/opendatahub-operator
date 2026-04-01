@@ -118,18 +118,17 @@ func TestSortByApplyOrder(t *testing.T) {
 
 		// Expected ordering (RHOAIENG-53513 requirement):
 		// Certificate BEFORE Deployment to reduce "transient errors"
-		// 1. Foundation resources: Namespace, CustomResourceDefinition (upstream decides)
-		// 2. Standard early resources: Service (upstream decides)
-		// 3. cert-manager resources: ClusterIssuer, Issuer, Certificate (inserted before workloads)
-		// 4. Workload resources: Deployment (comes after cert-manager to reduce race conditions)
-		// 5. Webhook resources: ValidatingWebhookConfiguration (upstream puts these last)
+		// 1. Basic resources: Namespace, CustomResourceDefinition (upstream decides)
+		// 2. cert-manager resources: ClusterIssuer, Issuer, Certificate (inserted in the middle)
+		// 3. Other resources: Service, Deployment, Webhooks (upstream decides their relative order)
+		// Key: cert-manager comes after basic resources but before workloads
 
 		g.Expect(result[0].GetKind()).To(Equal("Namespace"))
 		g.Expect(result[1].GetKind()).To(Equal("CustomResourceDefinition"))
-		g.Expect(result[2].GetKind()).To(Equal("Service"))
-		g.Expect(result[3].GetKind()).To(Equal("ClusterIssuer"))
-		g.Expect(result[4].GetKind()).To(Equal("Issuer"))
-		g.Expect(result[5].GetKind()).To(Equal("Certificate"))
+		g.Expect(result[2].GetKind()).To(Equal("ClusterIssuer"))
+		g.Expect(result[3].GetKind()).To(Equal("Issuer"))
+		g.Expect(result[4].GetKind()).To(Equal("Certificate"))
+		g.Expect(result[5].GetKind()).To(Equal("Service"))
 		g.Expect(result[6].GetKind()).To(Equal("Deployment"))
 		g.Expect(result[7].GetKind()).To(Equal("ValidatingWebhookConfiguration"))
 	})
@@ -152,10 +151,9 @@ func TestSortByApplyOrder(t *testing.T) {
 		g.Expect(result).To(HaveLen(6))
 
 		// Expected ordering without Services:
-		// 1. Foundation: Namespace, CRD
-		// 2. cert-manager: ClusterIssuer, Certificate (inserted after foundation)
-		// 3. Workloads: Deployment
-		// 4. Webhooks: ValidatingWebhookConfiguration
+		// 1. Basic resources: Namespace, CRD
+		// 2. cert-manager: ClusterIssuer, Certificate (inserted in the middle)
+		// 3. Other resources: Deployment, ValidatingWebhookConfiguration
 
 		g.Expect(result[0].GetKind()).To(Equal("Namespace"))
 		g.Expect(result[1].GetKind()).To(Equal("CustomResourceDefinition"))

@@ -53,47 +53,30 @@ func applyCertificateOrdering(resources []unstructured.Unstructured) []unstructu
 	otherResources, certManagerIssuers, certManagerCertificates := categorizeCertManagerResources(resources)
 
 	// Find where to insert cert-manager resources in the upstream-ordered list
-	insertionPoint := findInsertionPointAfterServices(otherResources)
+	insertionPoint := findInsertionPointAfterBasicResources(otherResources)
 
-	// Assemble final result: upstream order + cert-manager before workloads
 	return slices.Concat(
-		otherResources[:insertionPoint], // Foundation resources (Namespace, CRD, Service, etc.)
+		otherResources[:insertionPoint], // Basic resources (Namespace, CRD)
 		certManagerIssuers,              // ClusterIssuer, Issuer
 		certManagerCertificates,         // Certificate
-		otherResources[insertionPoint:], // Workloads and Webhooks
+		otherResources[insertionPoint:], // Other resources (Service, Deployment, Webhooks, etc.)
 	)
 }
 
-// findInsertionPointAfterServices finds where to insert cert-manager resources
-// after Services in the upstream-ordered list. This eliminates hardcoding of
-// workload resource types while ensuring certificates come before workloads.
-func findInsertionPointAfterServices(resources []unstructured.Unstructured) int {
-	lastServiceIndex := -1
-
-	// Find the position after the last Service resource
+// findInsertionPointAfterBasicResources finds where to insert cert-manager resources
+// after all basic resources (Namespace, CRD) but before other resources.
+func findInsertionPointAfterBasicResources(resources []unstructured.Unstructured) int {
+	// Find the position after the last Namespace or CRD resource
+	lastBasicResourceIndex := -1
 	for i, resource := range resources {
 		resourceGVK := resource.GroupVersionKind()
-		if resourceGVK == gvk.Service {
-			lastServiceIndex = i
+		if resourceGVK == gvk.Namespace || resourceGVK == gvk.CustomResourceDefinition {
+			lastBasicResourceIndex = i
 		}
 	}
 
-	// Insert after the last Service, or at the beginning if no Services exist
-	if lastServiceIndex >= 0 {
-		return lastServiceIndex + 1
-	}
-
-	// If no Services, find the first Deployment or StatefulSet
-	// These are the primary workloads that actually consume certificate secrets
-	for i, resource := range resources {
-		resourceGVK := resource.GroupVersionKind()
-		if resourceGVK == gvk.Deployment || resourceGVK == gvk.StatefulSet {
-			return i // Insert before first workload that uses certificates
-		}
-	}
-
-	// If only foundation resources exist, append at the end
-	return len(resources)
+	// Insert after all basic resources (or at beginning if none exist)
+	return lastBasicResourceIndex + 1
 }
 
 // categorizeCertManagerResources separates cert-manager resources into dependency groups
