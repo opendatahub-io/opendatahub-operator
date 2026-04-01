@@ -1577,7 +1577,7 @@ func TestWithApplyOrder(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	action := deploy.NewAction(
-		deploy.WithApplyOrderWithCertificates(),
+		deploy.WithApplyOrder(),
 	)
 
 	obj1, err := resources.ToUnstructured(&appsv1.Deployment{
@@ -1654,8 +1654,12 @@ func TestWithApplyOrder(t *testing.T) {
 	err = cl.Get(ctx, apimachinery.NamespacedName{Name: obj2.GetName()}, resources.GvkToUnstructured(gvk.Namespace))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	// Note: cert-manager resources won't actually be deployed via fake client since CRDs aren't registered,
-	// but we're primarily testing the sorting behavior in the deploy action pipeline)
+	// Verify cert-manager resources were also deployed
+	err = cl.Get(ctx, apimachinery.NamespacedName{Namespace: "cert-manager", Name: "test-cert"}, resources.GvkToUnstructured(gvk.CertManagerCertificate))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = cl.Get(ctx, apimachinery.NamespacedName{Name: obj4.GetName()}, resources.GvkToUnstructured(gvk.CertManagerClusterIssuer))
+	g.Expect(err).ShouldNot(HaveOccurred())
 }
 
 func TestDeployWithPartOfLabel(t *testing.T) {

@@ -2,14 +2,11 @@ package resources
 
 import (
 	"context"
-	"slices"
 
 	"github.com/k8s-manifest-kit/engine/pkg/pipeline"
 	"github.com/k8s-manifest-kit/engine/pkg/postrenderer"
 	engineTypes "github.com/k8s-manifest-kit/engine/pkg/types"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
 var defaultPostRenderers = []engineTypes.PostRenderer{
@@ -23,96 +20,63 @@ func SortByApplyOrder(ctx context.Context, resources []unstructured.Unstructured
 	return pipeline.ApplyPostRenderers(ctx, resources, defaultPostRenderers)
 }
 
-// SortByApplyOrderWithCertificates extends the standard apply ordering to include
-// cert-manager resources with proper dependency ordering: ClusterIssuer/Issuer before
-// Certificate before workload resources that consume Certificate-generated Secrets.
+// SortByApplyOrderWithCertificates applies upstream k8s-manifest-kit/engine ordering first,
+// then enhances it by inserting cert-manager resources in dependency order after Secrets.
 func SortByApplyOrderWithCertificates(ctx context.Context, resources []unstructured.Unstructured) ([]unstructured.Unstructured, error) {
 	if len(resources) == 0 {
 		return resources, nil
 	}
 
-	// First, apply standard k8s ordering
-	ordered, err := SortByApplyOrder(ctx, resources)
+	// First, apply upstream ordering to get standard Kubernetes resource ordering
+	sorted, err := SortByApplyOrder(ctx, resources)
 	if err != nil {
 		return nil, err
 	}
 
-	// Second, fine-tune cert-manager resource ordering within their tier
-	return applyCertificateOrdering(ordered), nil
-}
-
-// applyCertificateOrdering ensures cert-manager resources are positioned correctly
-// within the upstream-ordered list. This preserves the sophisticated upstream ordering
-// while repositioning only cert-manager resources to resolve dependency issues.
-func applyCertificateOrdering(resources []unstructured.Unstructured) []unstructured.Unstructured {
-	if len(resources) == 0 {
-		return resources
-	}
-
-	// Separate cert-manager resources from others and order them internally
-	otherResources, certManagerIssuers, certManagerCertificates := categorizeCertManagerResources(resources)
-
-	// Find where to insert cert-manager resources in the upstream-ordered list
-	insertionPoint := findInsertionPointAfterBasicResources(otherResources)
-
-	return slices.Concat(
-		otherResources[:insertionPoint], // Basic resources (Namespace, CRD)
-		certManagerIssuers,              // ClusterIssuer, Issuer
-		certManagerCertificates,         // Certificate
-		otherResources[insertionPoint:], // Other resources (Service, Deployment, Webhooks, etc.)
-	)
-}
-
-// findInsertionPointAfterBasicResources finds where to insert cert-manager resources
-// after all basic resources (Namespace, CRD) but before other resources.
-func findInsertionPointAfterBasicResources(resources []unstructured.Unstructured) int {
-	// Find the position after the last Namespace or CRD resource
-	lastBasicResourceIndex := -1
-	for i, resource := range resources {
-		resourceGVK := resource.GroupVersionKind()
-		if resourceGVK == gvk.Namespace || resourceGVK == gvk.CustomResourceDefinition {
-			lastBasicResourceIndex = i
-		}
-	}
-
-	// Insert after all basic resources (or at beginning if none exist)
-	return lastBasicResourceIndex + 1
-}
-
-// categorizeCertManagerResources separates cert-manager resources into dependency groups
-// and returns them ordered for proper application: issuers before certificates.
-func categorizeCertManagerResources(resources []unstructured.Unstructured) (
-	[]unstructured.Unstructured,
-	[]unstructured.Unstructured,
-	[]unstructured.Unstructured,
-) {
+	// Extract cert-manager resources from the sorted list
+	var certManagerResources []unstructured.Unstructured
 	var otherResources []unstructured.Unstructured
-	var certManagerIssuers []unstructured.Unstructured
-	var certManagerCertificates []unstructured.Unstructured
 
-	for _, resource := range resources {
-		if !isCertManagerResource(resource) {
+	for _, resource := range sorted {
+		if isCertManagerResource(resource.GetKind()) {
+			certManagerResources = append(certManagerResources, resource)
+		} else {
 			otherResources = append(otherResources, resource)
-			continue
-		}
-
-		// Group cert-manager resources by dependency order
-		switch resource.GetKind() {
-		case "ClusterIssuer", "Issuer":
-			certManagerIssuers = append(certManagerIssuers, resource)
-		case "Certificate":
-			certManagerCertificates = append(certManagerCertificates, resource)
-		default:
-			// Unknown cert-manager resources go with certificates (safer default)
-			certManagerCertificates = append(certManagerCertificates, resource)
 		}
 	}
 
-	return otherResources, certManagerIssuers, certManagerCertificates
+	// If no cert-manager resources, return upstream result as-is
+	if len(certManagerResources) == 0 {
+		return sorted, nil
+	}
+
+	// Find insertion point: before the first Deployment
+	insertIndex := len(otherResources) // Default: insert at end
+	for i, resource := range otherResources {
+		if resource.GetKind() == "Deployment" {
+			insertIndex = i
+			break
+		}
+	}
+
+	// Insert cert-manager resources in dependency order: ClusterIssuer, Issuer, Certificate
+	result := make([]unstructured.Unstructured, 0, len(sorted))
+	result = append(result, otherResources[:insertIndex]...)
+
+	// Add cert-manager resources in dependency order
+	for _, kind := range []string{"ClusterIssuer", "Issuer", "Certificate"} {
+		for _, resource := range certManagerResources {
+			if resource.GetKind() == kind {
+				result = append(result, resource)
+			}
+		}
+	}
+
+	result = append(result, otherResources[insertIndex:]...)
+	return result, nil
 }
 
-// isCertManagerResource checks if a resource belongs to the cert-manager group.
-// This approach is more extensible than hardcoding specific GVKs.
-func isCertManagerResource(resource unstructured.Unstructured) bool {
-	return resource.GroupVersionKind().Group == "cert-manager.io"
+// isCertManagerResource checks if the given kind is a cert-manager resource type.
+func isCertManagerResource(kind string) bool {
+	return kind == "ClusterIssuer" || kind == "Issuer" || kind == "Certificate"
 }
