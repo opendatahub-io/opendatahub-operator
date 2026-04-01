@@ -302,6 +302,8 @@ func TestKueueWebhook_AcceptsExpectedKinds(t *testing.T) {
 // TestKueueWebhook_ValidatingWebhook exercises the validating webhook logic for Kueue label validation.
 // It verifies that workloads are properly validated based on namespace labels, DSC state, and required Kueue labels
 // using table-driven tests and a fake client.
+//
+//nolint:maintidx // table-driven tests often have high maintainability index
 func TestKueueWebhook_ValidatingWebhook(t *testing.T) {
 	t.Skip("kueue validating webhook is disabled")
 	t.Parallel()
