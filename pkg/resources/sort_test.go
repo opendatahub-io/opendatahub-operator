@@ -96,4 +96,72 @@ func TestSortByApplyOrder(t *testing.T) {
 		g.Expect(result[0].GetName()).To(Equal("deploy-a"))
 		g.Expect(result[1].GetName()).To(Equal("deploy-b"))
 	})
+
+	t.Run("cert-manager dependency ordering with SortByApplyOrderWithCertificates", func(t *testing.T) {
+		g := NewWithT(t)
+
+		input := []unstructured.Unstructured{
+			// Mixed order input to test comprehensive ordering
+			newUnstructured(gvk.Deployment.Group, gvk.Deployment.Version, gvk.Deployment.Kind, "app-ns", "consuming-app"),
+			newUnstructured("admissionregistration.k8s.io", "v1", "ValidatingWebhookConfiguration", "", "webhook"),
+			newUnstructured(gvk.CertManagerCertificate.Group, gvk.CertManagerCertificate.Version, gvk.CertManagerCertificate.Kind, "cert-manager", "ca-cert"),
+			newUnstructured(gvk.Service.Group, gvk.Service.Version, gvk.Service.Kind, "app-ns", "app-service"),
+			newUnstructured(gvk.CertManagerClusterIssuer.Group, gvk.CertManagerClusterIssuer.Version, gvk.CertManagerClusterIssuer.Kind, "", "ca-issuer"),
+			newUnstructured(gvk.Namespace.Group, gvk.Namespace.Version, gvk.Namespace.Kind, "", "app-ns"),
+			newUnstructured(gvk.CertManagerIssuer.Group, gvk.CertManagerIssuer.Version, gvk.CertManagerIssuer.Kind, "cert-manager", "self-signed-issuer"),
+			newUnstructured(gvk.CustomResourceDefinition.Group, gvk.CustomResourceDefinition.Version, gvk.CustomResourceDefinition.Kind, "", "certificates.cert-manager.io"),
+		}
+
+		result, err := resources.SortByApplyOrderWithCertificates(context.Background(), input)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(result).To(HaveLen(8))
+
+		// Expected ordering (RHOAIENG-53513 requirement):
+		// Certificate BEFORE Deployment to reduce "transient errors"
+		// 1. Foundation resources: Namespace, CustomResourceDefinition (upstream decides)
+		// 2. Standard early resources: Service (upstream decides)
+		// 3. cert-manager resources: ClusterIssuer, Issuer, Certificate (inserted before workloads)
+		// 4. Workload resources: Deployment (comes after cert-manager to reduce race conditions)
+		// 5. Webhook resources: ValidatingWebhookConfiguration (upstream puts these last)
+
+		g.Expect(result[0].GetKind()).To(Equal("Namespace"))
+		g.Expect(result[1].GetKind()).To(Equal("CustomResourceDefinition"))
+		g.Expect(result[2].GetKind()).To(Equal("Service"))
+		g.Expect(result[3].GetKind()).To(Equal("ClusterIssuer"))
+		g.Expect(result[4].GetKind()).To(Equal("Issuer"))
+		g.Expect(result[5].GetKind()).To(Equal("Certificate"))
+		g.Expect(result[6].GetKind()).To(Equal("Deployment"))
+		g.Expect(result[7].GetKind()).To(Equal("ValidatingWebhookConfiguration"))
+	})
+
+	t.Run("cert-manager ordering works without Services", func(t *testing.T) {
+		g := NewWithT(t)
+
+		// Test scenario with NO Services - cert-manager should still work
+		input := []unstructured.Unstructured{
+			newUnstructured(gvk.Deployment.Group, gvk.Deployment.Version, gvk.Deployment.Kind, "app-ns", "consuming-app"),
+			newUnstructured("admissionregistration.k8s.io", "v1", "ValidatingWebhookConfiguration", "", "webhook"),
+			newUnstructured(gvk.CertManagerCertificate.Group, gvk.CertManagerCertificate.Version, gvk.CertManagerCertificate.Kind, "cert-manager", "ca-cert"),
+			newUnstructured(gvk.CertManagerClusterIssuer.Group, gvk.CertManagerClusterIssuer.Version, gvk.CertManagerClusterIssuer.Kind, "", "ca-issuer"),
+			newUnstructured(gvk.Namespace.Group, gvk.Namespace.Version, gvk.Namespace.Kind, "", "app-ns"),
+			newUnstructured(gvk.CustomResourceDefinition.Group, gvk.CustomResourceDefinition.Version, gvk.CustomResourceDefinition.Kind, "", "certificates.cert-manager.io"),
+		}
+
+		result, err := resources.SortByApplyOrderWithCertificates(context.Background(), input)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(result).To(HaveLen(6))
+
+		// Expected ordering without Services:
+		// 1. Foundation: Namespace, CRD
+		// 2. cert-manager: ClusterIssuer, Certificate (inserted after foundation)
+		// 3. Workloads: Deployment
+		// 4. Webhooks: ValidatingWebhookConfiguration
+
+		g.Expect(result[0].GetKind()).To(Equal("Namespace"))
+		g.Expect(result[1].GetKind()).To(Equal("CustomResourceDefinition"))
+		g.Expect(result[2].GetKind()).To(Equal("ClusterIssuer"))
+		g.Expect(result[3].GetKind()).To(Equal("Certificate"))
+		g.Expect(result[4].GetKind()).To(Equal("Deployment"))
+		g.Expect(result[5].GetKind()).To(Equal("ValidatingWebhookConfiguration"))
+	})
 }
