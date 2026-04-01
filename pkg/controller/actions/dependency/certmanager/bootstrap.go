@@ -18,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -34,6 +33,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/env"
 )
 
 // caRootDuration is the validity period of the root CA certificate.
@@ -60,20 +60,10 @@ const (
 	EnvCertManagerNS   = "RHAI_CA_SECRET_NAMESPACE"
 	EnvIstioCACertPath = "RHAI_ISTIO_CA_CERTIFICATE_PATH"
 
-	EnvOperatorNamespace             = "RHAI_OPERATOR_NAMESPACE"
 	EnvOperatorWebhookCertSecretName = "RHAI_WEBHOOK_CERT_SECRET_NAME" //nolint:gosec
 	EnvOperatorWebhookServiceName    = "RHAI_WEBHOOK_SERVICE_NAME"
+	EnvOperatorWebhookCertName       = "RHAI_WEBHOOK_CERT_NAME"
 )
-
-// EnvOrDefault returns the value of the named environment variable or fallback if unset/empty.
-func EnvOrDefault(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
-}
-
-var OperatorNamespace = os.Getenv(EnvOperatorNamespace)
 
 // OperatorCertConfig groups the configuration for the operator's webhook serving certificate.
 // When Namespace is empty, no webhook Certificate is created.
@@ -121,9 +111,9 @@ type BootstrapConfigOpt func(*BootstrapConfig)
 
 // WithOperatorCert enables creation of the operator's webhook serving Certificate
 // using the defaults from DefaultOperatorCertConfig.
-func WithOperatorCert() BootstrapConfigOpt {
+func WithOperatorCert(namespace string) BootstrapConfigOpt {
 	return func(c *BootstrapConfig) {
-		c.OperatorCertConfig = BootstrapOperatorCertConfig()
+		c.OperatorCertConfig = BootstrapOperatorCertConfig(namespace)
 	}
 }
 
@@ -137,9 +127,9 @@ func DefaultBootstrapConfig(opts ...BootstrapConfigOpt) BootstrapConfig {
 	config := BootstrapConfig{
 		// Not overridable: internal bootstrap detail, not referenced by downstream components.
 		IssuerName:           "opendatahub-selfsigned-issuer",
-		CertName:             EnvOrDefault(EnvCertName, "opendatahub-ca"),
-		CertManagerNamespace: EnvOrDefault(EnvCertManagerNS, "cert-manager"),
-		CAIssuerName:         EnvOrDefault(EnvCAIssuerName, "opendatahub-ca-issuer"),
+		CertName:             env.GetOrDefault(EnvCertName, "opendatahub-ca"),
+		CertManagerNamespace: env.GetOrDefault(EnvCertManagerNS, "cert-manager"),
+		CAIssuerName:         env.GetOrDefault(EnvCAIssuerName, "opendatahub-ca-issuer"),
 	}
 	for _, opt := range opts {
 		opt(&config)
@@ -148,14 +138,13 @@ func DefaultBootstrapConfig(opts ...BootstrapConfigOpt) BootstrapConfig {
 }
 
 // BootstrapOperatorCertConfig returns the default operator webhook certificate configuration,
-// reading overrides from environment variables. The caller must set Namespace (or use
-// RHAI_OPERATOR_NAMESPACE) before attaching it to a BootstrapConfig.
-func BootstrapOperatorCertConfig() *OperatorCertConfig {
+// reading overrides from environment variables.
+func BootstrapOperatorCertConfig(namespace string) *OperatorCertConfig {
 	return &OperatorCertConfig{
-		Namespace:             OperatorNamespace,
-		WebhookCertName:       "opendatahub-operator-webhook-cert",
-		WebhookCertSecretName: EnvOrDefault(EnvOperatorWebhookCertSecretName, "opendatahub-operator-controller-webhook-cert"),
-		WebhookServiceName:    EnvOrDefault(EnvOperatorWebhookServiceName, "opendatahub-operator-webhook-service"),
+		Namespace:             namespace,
+		WebhookCertName:       env.GetOrDefault(EnvOperatorWebhookCertName, "opendatahub-operator-webhook-cert"),
+		WebhookCertSecretName: env.GetOrDefault(EnvOperatorWebhookCertSecretName, "opendatahub-operator-controller-webhook-cert"),
+		WebhookServiceName:    env.GetOrDefault(EnvOperatorWebhookServiceName, "opendatahub-operator-webhook-service"),
 	}
 }
 
