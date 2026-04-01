@@ -1637,3 +1637,139 @@ func TestWithApplyOrder(t *testing.T) {
 	err = cl.Get(ctx, apimachinery.NamespacedName{Name: obj2.GetName()}, resources.GvkToUnstructured(gvk.Namespace))
 	g.Expect(err).ShouldNot(HaveOccurred())
 }
+
+func TestDeployWithPartOfLabel(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := t.Context()
+	ns := xid.New().String()
+	customLabelKey := "custom.example.io/part-of"
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	action := deploy.NewAction(
+		deploy.WithMode(deploy.ModePatch),
+		deploy.WithPartOfLabel(customLabelKey),
+	)
+
+	obj1, err := resources.ToUnstructured(&appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: appsv1.SchemeGroupVersion.String(),
+			Kind:       "Deployment",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      xid.New().String(),
+			Namespace: ns,
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := types.ReconciliationRequest{
+		Client: cl,
+		Instance: &componentApi.Dashboard{
+			ObjectMeta: metav1.ObjectMeta{
+				Generation: 1,
+			},
+		},
+		Release: common.Release{
+			Name: cluster.OpenDataHub,
+			Version: version.OperatorVersion{Version: semver.Version{
+				Major: 1, Minor: 2, Patch: 3,
+			}}},
+		Resources: []unstructured.Unstructured{*obj1},
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("Owns", mock.Anything).Return(false)
+		}),
+	}
+
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = cl.Get(ctx, client.ObjectKeyFromObject(obj1), obj1)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(obj1).Should(And(
+		jq.Match(`.metadata.labels."%s" == "%s"`, customLabelKey, strings.ToLower(componentApi.DashboardKind)),
+		Not(jq.Match(`.metadata.labels | has("%s")`, labels.PlatformPartOf)),
+	))
+}
+
+func TestDeployCRDWithPartOfLabel(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := t.Context()
+	customLabelKey := "custom.example.io/part-of"
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	action := deploy.NewAction(
+		deploy.WithMode(deploy.ModePatch),
+		deploy.WithPartOfLabel(customLabelKey),
+	)
+
+	crd, err := resources.ToUnstructured(&apiextensionsv1.CustomResourceDefinition{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: apiextensionsv1.SchemeGroupVersion.String(),
+			Kind:       "CustomResourceDefinition",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "testresources.test.opendatahub.io",
+		},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: "test.opendatahub.io",
+			Names: apiextensionsv1.CustomResourceDefinitionNames{
+				Kind:     "TestResource",
+				ListKind: "TestResourceList",
+				Plural:   "testresources",
+				Singular: "testresource",
+			},
+			Scope: apiextensionsv1.NamespaceScoped,
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
+				{
+					Name:    "v1",
+					Served:  true,
+					Storage: true,
+					Schema: &apiextensionsv1.CustomResourceValidation{
+						OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+							Type: "object",
+						},
+					},
+				},
+			},
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := types.ReconciliationRequest{
+		Client: cl,
+		Instance: &componentApi.Dashboard{
+			ObjectMeta: metav1.ObjectMeta{
+				Generation: 1,
+			},
+		},
+		Release: common.Release{
+			Name: cluster.OpenDataHub,
+			Version: version.OperatorVersion{Version: semver.Version{
+				Major: 1, Minor: 2, Patch: 3,
+			}},
+		},
+		Resources: []unstructured.Unstructured{*crd},
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("Owns", mock.Anything).Return(false)
+		}),
+	}
+
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	out := resources.GvkToUnstructured(gvk.CustomResourceDefinition)
+	err = cl.Get(ctx, apimachinery.NamespacedName{Name: crd.GetName()}, out)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(out).Should(And(
+		jq.Match(`.metadata.labels."%s" == "%s"`, customLabelKey, "dashboard"),
+		Not(jq.Match(`.metadata.labels | has("%s")`, labels.PlatformPartOf)),
+	))
+}

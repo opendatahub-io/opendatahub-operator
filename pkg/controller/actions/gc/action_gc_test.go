@@ -608,6 +608,133 @@ func TestGcActionCluster(t *testing.T) {
 	g.Expect(ct).Should(BeNumerically("==", 2))
 }
 
+func TestGcActionWithPartOfLabel(t *testing.T) {
+	g := NewWithT(t)
+
+	envTest, err := envt.New()
+	g.Expect(err).NotTo(HaveOccurred())
+
+	t.Cleanup(func() {
+		_ = envTest.Stop()
+	})
+
+	ctx := context.Background()
+	cli := envTest.Client()
+	nsn := xid.New().String()
+	customLabelKey := "custom.example.io/part-of"
+
+	ns := corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: nsn,
+		},
+	}
+
+	g.Expect(cli.Create(ctx, &ns)).NotTo(HaveOccurred())
+
+	rr := types.ReconciliationRequest{
+		Client: cli,
+		Instance: &componentApi.Dashboard{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: componentApi.GroupVersion.String(),
+				Kind:       componentApi.DashboardKind,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.DashboardInstanceName,
+			},
+		},
+		Release: common.Release{
+			Name: cluster.OpenDataHub,
+			Version: version.OperatorVersion{
+				Version: semver.Version{Major: 0, Minor: 1, Patch: 0},
+			},
+		},
+		Generated: true,
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("GetClient").Return(envTest.Client())
+			m.On("GetDynamicClient").Return(envTest.DynamicClient())
+			m.On("GetDiscoveryClient").Return(envTest.DiscoveryClient())
+			m.On("Owns", mock.Anything).Return(false)
+		}),
+	}
+
+	g.Expect(cli.Create(ctx, rr.Instance)).NotTo(HaveOccurred())
+
+	t.Cleanup(func() {
+		g.Expect(cli.Delete(ctx, rr.Instance)).Should(Or(
+			Not(HaveOccurred()),
+			MatchError(k8serr.IsNotFound, "IsNotFound"),
+		))
+	})
+
+	staleAnnotations := map[string]string{
+		annotations.InstanceGeneration: strconv.FormatInt(rr.Instance.GetGeneration(), 10),
+		annotations.InstanceUID:        xid.New().String(),
+		annotations.PlatformVersion:    rr.Release.Version.String(),
+		annotations.PlatformType:       string(cluster.OpenDataHub),
+	}
+
+	cmCustom := corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "gc-cm-custom-label",
+			Namespace:   nsn,
+			Annotations: maps.Clone(staleAnnotations),
+			Labels: map[string]string{
+				customLabelKey: strings.ToLower(componentApi.DashboardKind),
+			},
+		},
+	}
+
+	g.Expect(controllerutil.SetOwnerReference(rr.Instance, &cmCustom, cli.Scheme())).
+		NotTo(HaveOccurred())
+
+	g.Expect(cli.Create(ctx, &cmCustom)).NotTo(HaveOccurred())
+
+	t.Cleanup(func() {
+		g.Expect(cli.Delete(ctx, &cmCustom)).Should(Or(
+			Not(HaveOccurred()),
+			MatchError(k8serr.IsNotFound, "IsNotFound"),
+		))
+	})
+
+	cmDefault := corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "gc-cm-default-label",
+			Namespace:   nsn,
+			Annotations: maps.Clone(staleAnnotations),
+			Labels: map[string]string{
+				labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
+			},
+		},
+	}
+
+	g.Expect(controllerutil.SetOwnerReference(rr.Instance, &cmDefault, cli.Scheme())).
+		NotTo(HaveOccurred())
+
+	g.Expect(cli.Create(ctx, &cmDefault)).NotTo(HaveOccurred())
+
+	t.Cleanup(func() {
+		g.Expect(cli.Delete(ctx, &cmDefault)).Should(Or(
+			Not(HaveOccurred()),
+			MatchError(k8serr.IsNotFound, "IsNotFound"),
+		))
+	})
+
+	a := gc.NewAction(
+		gc.WithDeletePropagationPolicy(metav1.DeletePropagationBackground),
+		gc.InNamespace(nsn),
+		gc.WithPartOfLabel(customLabelKey),
+	)
+
+	err = a(ctx, &rr)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	err = cli.Get(ctx, ctrlCli.ObjectKeyFromObject(&cmCustom), &corev1.ConfigMap{})
+	g.Expect(err).To(MatchError(k8serr.IsNotFound, "IsNotFound"))
+
+	err = cli.Get(ctx, ctrlCli.ObjectKeyFromObject(&cmDefault), &corev1.ConfigMap{})
+	g.Expect(err).NotTo(HaveOccurred())
+}
+
 func TestGcActionOnce(t *testing.T) {
 	g := NewWithT(t)
 

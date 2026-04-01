@@ -37,12 +37,13 @@ type SortFn func(ctx context.Context, resources []unstructured.Unstructured) ([]
 // Action deploys the resources that are included in the ReconciliationRequest using
 // the same create or patch machinery implemented as part of deploy.DeployManifestsFromPath.
 type Action struct {
-	fieldOwner  string
-	deployMode  Mode
-	labels      map[string]string
-	annotations map[string]string
-	cache       *Cache
-	sortFn      SortFn
+	fieldOwner     string
+	deployMode     Mode
+	partOfLabelKey string
+	labels         map[string]string
+	annotations    map[string]string
+	cache          *Cache
+	sortFn         SortFn
 }
 
 type ActionOpts func(*Action)
@@ -56,6 +57,12 @@ func WithFieldOwner(value string) ActionOpts {
 func WithMode(value Mode) ActionOpts {
 	return func(action *Action) {
 		action.deployMode = value
+	}
+}
+
+func WithPartOfLabel(key string) ActionOpts {
+	return func(action *Action) {
+		action.partOfLabelKey = key
 	}
 }
 
@@ -231,7 +238,26 @@ func (a *Action) deployCRD(
 ) (bool, error) {
 	resources.SetLabels(&obj, a.labels)
 	resources.SetAnnotations(&obj, a.annotations)
-	resources.SetLabel(&obj, labels.PlatformPartOf, labels.Platform)
+
+	if resources.GetLabel(&obj, a.partOfLabelKey) == "" {
+		if a.partOfLabelKey == labels.PlatformPartOf {
+			resources.SetLabel(&obj, a.partOfLabelKey, labels.Platform)
+		} else {
+			fo := a.fieldOwner
+			if fo == "" {
+				kind, err := resources.KindForObject(rr.Client.Scheme(), rr.Instance)
+				if err != nil {
+					return false, err
+				}
+
+				fo = strings.ToLower(kind)
+			}
+
+			if fo != "" {
+				resources.SetLabel(&obj, a.partOfLabelKey, fo)
+			}
+		}
+	}
 
 	shouldSkip, err := a.ShouldSkip(current, &obj)
 	if err != nil {
@@ -309,8 +335,8 @@ func (a *Action) deploy(
 	resources.SetAnnotation(&obj, annotations.PlatformType, string(rr.Release.Name))
 	resources.SetAnnotation(&obj, annotations.PlatformVersion, rr.Release.Version.String())
 
-	if resources.GetLabel(&obj, labels.PlatformPartOf) == "" && fo != "" {
-		resources.SetLabel(&obj, labels.PlatformPartOf, fo)
+	if resources.GetLabel(&obj, a.partOfLabelKey) == "" && fo != "" {
+		resources.SetLabel(&obj, a.partOfLabelKey, fo)
 	}
 
 	shouldSkip, err := a.ShouldSkip(current, &obj)
@@ -573,7 +599,8 @@ func (a *Action) shouldOwn(rr *odhTypes.ReconciliationRequest, objGVK schema.Gro
 
 func NewAction(opts ...ActionOpts) actions.Fn {
 	action := Action{
-		deployMode: ModeSSA,
+		deployMode:     ModeSSA,
+		partOfLabelKey: labels.PlatformPartOf,
 	}
 
 	for _, opt := range opts {

@@ -118,6 +118,7 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 
 					wt.Get(gvk.Deployment, nn).Eventually().Should(And(
 						jq.Match(`.metadata.labels."%s" == "%s"`, labels.InfrastructurePartOf, partOfValue),
+						Not(jq.Match(`.metadata.labels | has("%s")`, labels.PlatformPartOf)),
 						jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.InstanceName, provider.InstanceName),
 					))
 				})
