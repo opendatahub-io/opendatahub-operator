@@ -703,6 +703,12 @@ var (
 		Kind:    "Instrumentation",
 	}
 
+	ImageStream = schema.GroupVersionKind{
+		Group:   "image.openshift.io",
+		Version: "v1",
+		Kind:    "ImageStream",
+	}
+
 	OpenshiftTemplate = schema.GroupVersionKind{
 		Group:   "template.openshift.io",
 		Version: "v1",

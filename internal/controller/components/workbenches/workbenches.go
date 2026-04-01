@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -151,7 +152,16 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		dsc.Status.Components.Workbenches.WorkbenchesCommonStatus = c.Status.WorkbenchesCommonStatus.DeepCopy()
 
 		if rc := conditions.FindStatusCondition(c.GetStatus(), status.ConditionTypeReady); rc != nil {
-			rr.Conditions.MarkFrom(ReadyConditionType, *rc)
+			readyCond := *rc
+			// Append ImageStream import failure warning to the Ready condition message.
+			if isCond := conditions.FindStatusCondition(c.GetStatus(), status.ConditionImageStreamsAvailable); isCond != nil && isCond.Status == metav1.ConditionFalse {
+				if readyCond.Message != "" {
+					readyCond.Message = strings.TrimRight(readyCond.Message, ".") + ". " + isCond.Message
+				} else {
+					readyCond.Message = isCond.Message
+				}
+			}
+			rr.Conditions.MarkFrom(ReadyConditionType, readyCond)
 			cs = rc.Status
 		} else {
 			cs = metav1.ConditionFalse
