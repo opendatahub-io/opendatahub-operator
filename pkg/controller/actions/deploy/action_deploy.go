@@ -128,6 +128,13 @@ func WithApplyOrder() ActionOpts {
 	return WithSortFn(resources.SortByApplyOrder)
 }
 
+// WithApplyOrderWithCertificates is a convenience option that sorts resources into
+// dependency order with cert-manager resources properly ordered: ClusterIssuer/Issuer
+// before Certificate before workload resources that consume Certificate-generated Secrets.
+func WithApplyOrderWithCertificates() ActionOpts {
+	return WithSortFn(resources.SortByApplyOrderWithCertificates)
+}
+
 func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) error {
 	if a.sortFn != nil {
 		sorted, err := a.sortFn(ctx, rr.Resources)
