@@ -125,13 +125,6 @@ func WithSortFn(fn SortFn) ActionOpts {
 // WithApplyOrder is a convenience option that sorts resources into
 // dependency order (CRDs first, webhooks last) before deploying.
 func WithApplyOrder() ActionOpts {
-	return WithSortFn(resources.SortByApplyOrder)
-}
-
-// WithApplyOrderWithCertificates is a convenience option that sorts resources into
-// dependency order with cert-manager resources properly ordered: ClusterIssuer/Issuer
-// before Certificate before workload resources that consume Certificate-generated Secrets.
-func WithApplyOrderWithCertificates() ActionOpts {
 	return WithSortFn(resources.SortByApplyOrderWithCertificates)
 }
 
