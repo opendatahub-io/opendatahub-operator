@@ -932,7 +932,7 @@ func (tc *MonitoringTestCtx) ValidatePersesDatasourceWithPrometheus(t *testing.T
 		WithCustomErrorMsg("Data Science PersesDatasource CR should be created with correct Thanos Querier proxy configuration"),
 	)
 
-	// Verify Cluster Prometheus PersesDatasource CR is created (default: true, points to openshift-monitoring Thanos)
+	// Verify Cluster Prometheus PersesDatasource CR is created (default: true, points to UWM Thanos)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: ClusterPrometheusDatasourceName, Namespace: tc.MonitoringNamespace}),
 		WithCondition(And(
@@ -942,15 +942,15 @@ func (tc *MonitoringTestCtx) ValidatePersesDatasourceWithPrometheus(t *testing.T
 			jq.Match(`.spec.config.default == true`),
 			// Validate plugin kind is PrometheusDatasource
 			jq.Match(`.spec.config.plugin.kind == "PrometheusDatasource"`),
-			// Validate Prometheus URL points to cluster Thanos Querier in openshift-monitoring
+			// Validate Prometheus URL points to User Workload Monitoring Thanos Querier
 			jq.Match(`.spec.config.plugin.spec.proxy.kind == "HTTPProxy"`),
-			jq.Match(`.spec.config.plugin.spec.proxy.spec.url | contains("thanos-querier.openshift-monitoring")`),
+			jq.Match(`.spec.config.plugin.spec.proxy.spec.url | contains("thanos-querier.openshift-user-workload-monitoring")`),
 			// Validate TLS configuration
 			jq.Match(`.spec.client.tls.enable == true`),
 			// Validate secret for authentication
 			jq.Match(`.spec.config.plugin.spec.proxy.spec.secret == "%s"`, ClusterPrometheusDatasourceSecret),
 		)),
-		WithCustomErrorMsg("Cluster Prometheus PersesDatasource CR should be created with correct openshift-monitoring Thanos Querier configuration"),
+		WithCustomErrorMsg("Cluster Prometheus PersesDatasource CR should be created with correct User Workload Monitoring Thanos Querier configuration"),
 	)
 }
 

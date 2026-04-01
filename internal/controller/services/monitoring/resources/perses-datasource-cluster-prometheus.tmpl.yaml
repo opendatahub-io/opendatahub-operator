@@ -1,12 +1,13 @@
-# Cluster Prometheus Datasource for Perses
+# User Workload Monitoring (UWM) Prometheus Datasource for Perses
 #
-# This is a short-term workaround to provide access to cluster-wide metrics
-# via the OpenShift Monitoring stack's Thanos Querier.
+# This datasource provides access to user application metrics via the
+# OpenShift User Workload Monitoring (UWM) stack's Thanos Querier.
 #
-# This datasource points to the cluster's Thanos Querier (in openshift-monitoring)
-# which aggregates metrics from all Prometheus instances in the cluster.
+# This datasource points to the UWM Thanos Querier (in openshift-user-workload-monitoring)
+# which aggregates metrics from user application namespaces (MaaS metrics, etc.).
 #
-# This will be replaced/updated once decentralized metrics collection is implemented.
+# PREREQUISITE: User Workload Monitoring must be enabled on the cluster:
+#   enableUserWorkload: true in cluster-monitoring-config ConfigMap (openshift-monitoring namespace)
 #
 # The configuration uses:
 # - ConfigMap-based TLS CA (prometheus-web-tls-ca with OpenShift service CA)
@@ -32,7 +33,7 @@ metadata:
   labels:
     platform.opendatahub.io/part-of: monitoring
   annotations:
-    platform.opendatahub.io/description: "Cluster-wide Prometheus metrics via OpenShift Monitoring Thanos Querier"
+    platform.opendatahub.io/description: "User application metrics via OpenShift User Workload Monitoring Thanos Querier"
 spec:
   client:
     tls:
@@ -44,8 +45,8 @@ spec:
   config:
     default: true
     display:
-      name: "Cluster Prometheus"
-      description: "OpenShift Monitoring Thanos Querier - provides cluster-wide metrics"
+      name: "User Workload Prometheus"
+      description: "OpenShift User Workload Monitoring Thanos Querier - provides user application metrics"
     plugin:
       kind: "PrometheusDatasource"
       spec:
@@ -54,4 +55,4 @@ spec:
           spec:
             # Secret contains bearer token for Thanos Querier authentication
             secret: cluster-prometheus-datasource-secret
-            url: https://thanos-querier.openshift-monitoring.svc:9091
+            url: https://thanos-querier.openshift-user-workload-monitoring.svc:9091
