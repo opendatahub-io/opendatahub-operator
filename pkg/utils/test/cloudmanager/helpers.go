@@ -22,7 +22,7 @@ import (
 
 	ccmcommon "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
-	certmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
@@ -35,7 +35,7 @@ type ControllerTestConfig struct {
 	CRDSubdir string
 
 	// NewReconciler registers the cloud-specific reconciler with the manager.
-	NewReconciler func(context.Context, ctrl.Manager) error
+	NewReconciler func(context.Context, ctrl.Manager, *operatorconfig.CloudManagerConfig) error
 
 	// NewCR creates a new CR instance with the given dependencies.
 	NewCR func(ccmcommon.Dependencies) client.Object
@@ -138,14 +138,12 @@ func StartIsolatedController(t *testing.T, ctx context.Context, cfg ControllerTe
 
 	RequireCharts(t)
 
-	certmanager.OperatorNamespace = TestOperatorNamespace
-
 	et, err := SetupEnvTest(cfg.CRDSubdir,
 		envt.WithManager(ctrl.Options{
 			Controller: ctrlconfig.Controller{SkipNameValidation: ptr.To(true)},
 		}),
 		envt.WithRegisterControllers(func(mgr ctrlmanager.Manager) error {
-			return cfg.NewReconciler(ctx, mgr)
+			return cfg.NewReconciler(ctx, mgr, &operatorconfig.CloudManagerConfig{RhaiOperatorNamespace: TestOperatorNamespace})
 		}),
 	)
 	if err != nil {
@@ -210,11 +208,9 @@ func RunTestMain(m *testing.M, tc **testf.TestContext, cfg ControllerTestConfig)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	certmanager.OperatorNamespace = TestOperatorNamespace
-
 	et, err := SetupEnvTest(cfg.CRDSubdir,
 		envt.WithRegisterControllers(func(mgr ctrlmanager.Manager) error {
-			return cfg.NewReconciler(ctx, mgr)
+			return cfg.NewReconciler(ctx, mgr, &operatorconfig.CloudManagerConfig{RhaiOperatorNamespace: TestOperatorNamespace})
 		}),
 	)
 	if err != nil {

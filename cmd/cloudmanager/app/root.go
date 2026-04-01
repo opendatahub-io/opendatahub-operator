@@ -7,6 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 )
 
 const envPrefix = "CLOUD_MANAGER"
@@ -42,6 +44,7 @@ func addCommonFlags() {
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
 	pf.String("log-mode", "", "Log mode ('', prod, devel), default to ''")
+	pf.String(operatorconfig.FlagRhaiOperatorNamespace, "", "The namespace where the operator is deployed.")
 
 	// zap logging flags
 	pf.Bool("zap-devel", false,
@@ -60,6 +63,7 @@ func addCommonFlags() {
 	must(viper.BindEnv("health-probe-bind-address", envPrefix+"_HEALTH_PROBE_BIND_ADDRESS"))
 	must(viper.BindEnv("leader-elect", envPrefix+"_LEADER_ELECT"))
 	must(viper.BindEnv("log-mode", envPrefix+"_LOG_MODE"))
+	must(viper.BindEnv(operatorconfig.FlagRhaiOperatorNamespace, operatorconfig.EnvRhaiOperatorNamespace))
 	must(viper.BindEnv("zap-devel", "ZAP_DEVEL"))
 	must(viper.BindEnv("zap-encoder", "ZAP_ENCODER"))
 	must(viper.BindEnv("zap-log-level", "ZAP_LOG_LEVEL"))
