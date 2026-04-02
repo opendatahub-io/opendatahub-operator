@@ -62,7 +62,9 @@ func runOperatorSection(ctx context.Context, c client.Client, op OperatorConfig)
 	}
 
 	desired := desiredReplicas(deploy)
-	if desired > 0 && deploy.Status.ReadyReplicas < desired {
+	if desired == 0 {
+		errs = append(errs, fmt.Sprintf("operator deployment %s: scaled to 0 replicas", op.Name))
+	} else if deploy.Status.ReadyReplicas < desired {
 		errs = append(errs, fmt.Sprintf("operator deployment %s: %d/%d ready", op.Name, deploy.Status.ReadyReplicas, desired))
 	}
 	for _, p := range out.Data.Pods {
