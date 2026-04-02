@@ -75,6 +75,9 @@ type TrustyAILMEvalSpec struct {
 type TrustyAICommonSpec struct {
 	// Eval configuration for TrustyAI evaluations
 	Eval TrustyAIEvalSpec `json:"eval,omitempty"`
+	// MCPGuardrailsMode enables the mcp-guardrails overlay when set to true
+	// +kubebuilder:default=false
+	MCPGuardrailsMode bool `json:"mcpGuardrailsMode,omitempty"`
 }
 
 // TrustyAICommonStatus defines the shared observed state of TrustyAI
