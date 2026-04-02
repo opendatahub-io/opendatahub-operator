@@ -318,6 +318,16 @@ func configureTelemetryPolicyCore(ctx context.Context, rr *types.ReconciliationR
 // istio_request_duration_milliseconds metric, enabling P50/P95/P99 latency
 // tracking per subscription.
 func configureIstioTelemetry(ctx context.Context, rr *types.ReconciliationRequest) error {
+	// Check observability enabled FIRST to avoid CRD lookup when feature is disabled.
+	// This prevents transient CRD lookup failures from failing reconciles unnecessarily.
+	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
+	}
+	if maas.Spec.Observability == nil || maas.Spec.Observability.Enabled == nil || !*maas.Spec.Observability.Enabled {
+		return nil
+	}
+
 	log := logf.FromContext(ctx)
 
 	// Skip if Istio Telemetry CRD is not available in the cluster
@@ -363,9 +373,22 @@ func configureIstioTelemetryCore(ctx context.Context, rr *types.ReconciliationRe
 		BlockOwnerDeletion: &controller,
 	}
 
-	// Create the Istio Telemetry resource for per-subscription latency tracking
+	// Create the Istio Telemetry resource for per-subscription latency tracking.
 	// This adds a 'subscription' label to istio_request_duration_milliseconds
-	// extracted from the X-MaaS-Subscription header injected by AuthPolicy
+	// extracted from the X-MaaS-Subscription header.
+	//
+	// Note on header source: The X-MaaS-Subscription header is injected by the
+	// AuthPolicy after validating the user's token. Istio Telemetry cannot directly
+	// access auth.identity (which is Kuadrant/Authorino-specific), so it relies on
+	// this header. The AuthPolicy configures this via:
+	//   response.success.headers.X-MaaS-Subscription.plain.expression
+	// If this header injection is ever removed from the AuthPolicy, this Telemetry
+	// will stop capturing subscription labels in Istio metrics.
+	//
+	// Note on selector conflicts (IST0159): Conflicts are mitigated by:
+	// 1. ModelsAsService is a singleton CR (only one instance allowed)
+	// 2. Using a fixed resource name (IstioTelemetryName) ensures idempotent reconciliation
+	// 3. OwnerReferences ensure cleanup when ModelsAsService is deleted
 	istioTelemetry := &unstructured.Unstructured{
 		Object: map[string]any{
 			"apiVersion": "telemetry.istio.io/v1",
