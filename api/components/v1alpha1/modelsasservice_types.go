@@ -94,18 +94,11 @@ type ExternalOIDCConfig struct {
 	// +kubebuilder:default=300
 	// +kubebuilder:validation:Minimum=30
 	TTL int `json:"ttl,omitempty"`
-
-	// CACertificateSecretName is the name of the Secret containing the CA certificate
-	// for the OIDC provider. Required when the OIDC issuer uses a self-signed or
-	// private CA certificate (e.g., internal Keycloak deployments).
-	// The Secret must exist in the gateway namespace and contain a 'ca.crt' key
-	// with the PEM-encoded CA certificate.
-	// When set, the operator creates a trusted CA ConfigMap and configures Authorino
-	// to trust the CA for OIDC discovery and JWKS endpoint validation.
-	// +optional
-	// +kubebuilder:validation:MaxLength=253
-	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`
-	CACertificateSecretName string `json:"caCertificateSecretName,omitempty"`
+	// NOTE: For OIDC providers with custom/self-signed CA certificates, configure the CA bundle
+	// in DSCInitialization.spec.trustedCABundle.customCABundle. The certconfigmapgenerator controller
+	// will create an odh-trusted-ca-bundle ConfigMap in all namespaces (including where Authorino runs),
+	// and the operator will configure Authorino to mount it for OIDC validation.
+	// See: https://github.com/opendatahub-io/opendatahub-operator/blob/main/docs/DESIGN.md#trusted-ca-bundle
 }
 
 // TelemetryConfig defines configuration for telemetry collection.

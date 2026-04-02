@@ -27,22 +27,6 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-const testCACertPEM = `-----BEGIN CERTIFICATE-----
-MIICEjCCAXsCAg36MA0GCSqGSIb3DQEBBQUAMIGbMQswCQYDVQQGEwJKUDEOMAwG
-A1UECBMFVG9reW8xEDAOBgNVBAcTB0NodW8ta3UxETAPBgNVBAoTCEZyYW5rNERE
-MRgwFgYDVQQLEw9XZWJDZXJ0IFN1cHBvcnQxGDAWBgNVBAMTD0ZyYW5rNEREIFdl
-YiBDQTEjMCEGCSqGSIb3DQEJARYUc3VwcG9ydEBmcmFuazRkZC5jb20wHhcNMTIw
-ODIyMDUyNjU0WhcNMTcwODIxMDUyNjU0WjBKMQswCQYDVQQGEwJKUDEOMAwGA1UE
-CAwFVG9reW8xETAPBgNVBAoMCEZyYW5rNEREMRgwFgYDVQQDDA93d3cuZXhhbXBs
-ZS5jb20wXDANBgkqhkiG9w0BAQEFAANLADBIAkEAm/xmkHmEQrurE/0re/jeFRLl
-8ZPjBop7uLHhnia7lQG/5zDtZIUC3RVpqDSwBuw/NTweGyuP+o8AG98HxqxTBwID
-AQABMA0GCSqGSIb3DQEBBQUAA4GBABS2TLuBeTPmcaTaUW/LCB2NYOy8GMdzR1mx
-8iBIu2H6/E2tiY3RIevV2OW61qY2/XRQg7YPxx3ffeUugX9F4J/iPnnu1zAxzyYw
-m60DE0fEQDB9Z7Vs0c3cMh9zrH3+XOh1j5m7/cSRi3z7WG4aFG4yT8kZR9L/bYqA
-Z7oFDvTr
------END CERTIFICATE-----
-`
-
 func boolPtr(v bool) *bool { return &v }
 
 func TestGatewayValidation(t *testing.T) {
@@ -1369,193 +1353,6 @@ func TestConfigureExternalOIDC(t *testing.T) {
 	})
 }
 
-func TestValidateExternalOIDCCA(t *testing.T) {
-	g := NewWithT(t)
-
-	t.Run("should skip when externalOIDC is nil", func(t *testing.T) {
-		maas := &componentApi.ModelsAsService{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: componentApi.ModelsAsServiceInstanceName,
-			},
-			Spec: componentApi.ModelsAsServiceSpec{},
-		}
-
-		cli := createFakeClientWithoutGateway()
-		rr := &types.ReconciliationRequest{
-			Instance: maas,
-			Client:   cli,
-		}
-
-		err := validateExternalOIDCCA(t.Context(), rr)
-		g.Expect(err).ShouldNot(HaveOccurred())
-	})
-
-	t.Run("should skip when caCertificateSecretName is empty", func(t *testing.T) {
-		maas := &componentApi.ModelsAsService{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: componentApi.ModelsAsServiceInstanceName,
-			},
-			Spec: componentApi.ModelsAsServiceSpec{
-				ExternalOIDC: &componentApi.ExternalOIDCConfig{
-					IssuerURL: "https://keycloak.example.com/realms/maas",
-					ClientID:  "maas-cli",
-				},
-			},
-		}
-
-		cli := createFakeClientWithoutGateway()
-		rr := &types.ReconciliationRequest{
-			Instance: maas,
-			Client:   cli,
-		}
-
-		err := validateExternalOIDCCA(t.Context(), rr)
-		g.Expect(err).ShouldNot(HaveOccurred())
-	})
-
-	t.Run("should succeed when Secret exists with valid ca.crt key", func(t *testing.T) {
-		maas := &componentApi.ModelsAsService{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: componentApi.ModelsAsServiceInstanceName,
-			},
-			Spec: componentApi.ModelsAsServiceSpec{
-				GatewayRef: componentApi.GatewayRef{
-					Namespace: "openshift-ingress",
-					Name:      "maas-default-gateway",
-				},
-				ExternalOIDC: &componentApi.ExternalOIDCConfig{
-					IssuerURL:               "https://keycloak.example.com/realms/maas",
-					ClientID:                "maas-cli",
-					CACertificateSecretName: "keycloak-ca",
-				},
-			},
-		}
-
-		caSecret := createCASecret()
-		cli, err := fakeclient.New(fakeclient.WithObjects(caSecret))
-		g.Expect(err).ShouldNot(HaveOccurred())
-
-		rr := &types.ReconciliationRequest{
-			Instance: maas,
-			Client:   cli,
-		}
-
-		err = validateExternalOIDCCA(t.Context(), rr)
-		g.Expect(err).ShouldNot(HaveOccurred())
-	})
-
-	t.Run("should fail when Secret does not exist", func(t *testing.T) {
-		maas := &componentApi.ModelsAsService{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: componentApi.ModelsAsServiceInstanceName,
-			},
-			Spec: componentApi.ModelsAsServiceSpec{
-				GatewayRef: componentApi.GatewayRef{
-					Namespace: "openshift-ingress",
-					Name:      "maas-default-gateway",
-				},
-				ExternalOIDC: &componentApi.ExternalOIDCConfig{
-					IssuerURL:               "https://keycloak.example.com/realms/maas",
-					ClientID:                "maas-cli",
-					CACertificateSecretName: "nonexistent-secret",
-				},
-			},
-		}
-
-		cli, err := fakeclient.New()
-		g.Expect(err).ShouldNot(HaveOccurred())
-
-		rr := &types.ReconciliationRequest{
-			Instance: maas,
-			Client:   cli,
-		}
-
-		err = validateExternalOIDCCA(t.Context(), rr)
-		g.Expect(err).Should(HaveOccurred())
-		g.Expect(err.Error()).Should(ContainSubstring("failed to read CA certificate Secret openshift-ingress/nonexistent-secret"))
-	})
-
-	t.Run("should fail when Secret lacks ca.crt key", func(t *testing.T) {
-		maas := &componentApi.ModelsAsService{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: componentApi.ModelsAsServiceInstanceName,
-			},
-			Spec: componentApi.ModelsAsServiceSpec{
-				GatewayRef: componentApi.GatewayRef{
-					Namespace: "openshift-ingress",
-					Name:      "maas-default-gateway",
-				},
-				ExternalOIDC: &componentApi.ExternalOIDCConfig{
-					IssuerURL:               "https://keycloak.example.com/realms/maas",
-					ClientID:                "maas-cli",
-					CACertificateSecretName: "bad-secret",
-				},
-			},
-		}
-
-		badSecret := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "bad-secret",
-				Namespace: "openshift-ingress",
-			},
-			Data: map[string][]byte{
-				"wrong-key": []byte("some-data"),
-			},
-		}
-		cli, err := fakeclient.New(fakeclient.WithObjects(badSecret))
-		g.Expect(err).ShouldNot(HaveOccurred())
-
-		rr := &types.ReconciliationRequest{
-			Instance: maas,
-			Client:   cli,
-		}
-
-		err = validateExternalOIDCCA(t.Context(), rr)
-		g.Expect(err).Should(HaveOccurred())
-		g.Expect(err.Error()).Should(ContainSubstring("contains empty 'ca.crt' key"))
-	})
-
-	t.Run("should fail when ca.crt key is empty", func(t *testing.T) {
-		maas := &componentApi.ModelsAsService{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: componentApi.ModelsAsServiceInstanceName,
-			},
-			Spec: componentApi.ModelsAsServiceSpec{
-				GatewayRef: componentApi.GatewayRef{
-					Namespace: "openshift-ingress",
-					Name:      "maas-default-gateway",
-				},
-				ExternalOIDC: &componentApi.ExternalOIDCConfig{
-					IssuerURL:               "https://keycloak.example.com/realms/maas",
-					ClientID:                "maas-cli",
-					CACertificateSecretName: "empty-ca-secret",
-				},
-			},
-		}
-
-		emptySecret := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "empty-ca-secret",
-				Namespace: "openshift-ingress",
-			},
-			Data: map[string][]byte{
-				MaaSCACertSecretKey: {},
-			},
-		}
-		cli, err := fakeclient.New(fakeclient.WithObjects(emptySecret))
-		g.Expect(err).ShouldNot(HaveOccurred())
-
-		rr := &types.ReconciliationRequest{
-			Instance: maas,
-			Client:   cli,
-		}
-
-		err = validateExternalOIDCCA(t.Context(), rr)
-		g.Expect(err).Should(HaveOccurred())
-		g.Expect(err.Error()).Should(ContainSubstring("contains empty 'ca.crt' key"))
-	})
-}
-
 func TestConfigureOIDCCACertificate(t *testing.T) {
 	g := NewWithT(t)
 
@@ -1575,70 +1372,14 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 	})
 
-	t.Run("should find Authorino CR in kuadrant-system and create ConfigMap there", func(t *testing.T) {
-		caCertPEM := testCACertPEM
+	t.Run("should find Authorino CR in kuadrant-system and mount odh-trusted-ca-bundle", func(t *testing.T) {
 		authorinoNS := AuthorinoNamespaceKuadrant
 
-		maas := createTestMaaSWithCA()
-		caSecret := createCASecret()
+		maas := createTestMaaSWithOIDC()
 		dsci := createTestDSCI("opendatahub")
 		authorinoCR := createAuthorinoCR(authorinoNS)
 
-		cli, err := fakeclient.New(fakeclient.WithObjects(caSecret, dsci))
-		g.Expect(err).ShouldNot(HaveOccurred())
-		dc := newFakeDynamicClient(authorinoCR)
-
-		rr := createRRWithDynamic(t, maas, cli, dc)
-		err = configureOIDCCACertificate(t.Context(), rr)
-		g.Expect(err).ShouldNot(HaveOccurred())
-
-		// ConfigMap should be in kuadrant-system
-		u, err := dc.Resource(configMapGVR()).Namespace(authorinoNS).Get(
-			t.Context(), MaaSCABundleConfigMapName, metav1.GetOptions{})
-		g.Expect(err).ShouldNot(HaveOccurred())
-		dataMap, ok := u.Object["data"].(map[string]interface{})
-		g.Expect(ok).Should(BeTrue())
-		g.Expect(dataMap[MaaSCABundleFileName]).Should(Equal(caCertPEM))
-
-		cmLabels := u.GetLabels()
-		g.Expect(cmLabels[labels.InjectTrustCA]).Should(Equal(labels.True))
-		g.Expect(cmLabels[labels.ODH.Component(ComponentName)]).Should(Equal(labels.True))
-	})
-
-	t.Run("should find Authorino CR in rh-connectivity-link for RHCL deployments", func(t *testing.T) {
-		caCertPEM := testCACertPEM
-		authorinoNS := AuthorinoNamespaceRHCL
-
-		maas := createTestMaaSWithCA()
-		caSecret := createCASecret()
-		dsci := createTestDSCI("redhat-ods-applications")
-		authorinoCR := createAuthorinoCR(authorinoNS)
-
-		cli, err := fakeclient.New(fakeclient.WithObjects(caSecret, dsci))
-		g.Expect(err).ShouldNot(HaveOccurred())
-		dc := newFakeDynamicClient(authorinoCR)
-
-		rr := createRRWithDynamic(t, maas, cli, dc)
-		err = configureOIDCCACertificate(t.Context(), rr)
-		g.Expect(err).ShouldNot(HaveOccurred())
-
-		u, err := dc.Resource(configMapGVR()).Namespace(authorinoNS).Get(
-			t.Context(), MaaSCABundleConfigMapName, metav1.GetOptions{})
-		g.Expect(err).ShouldNot(HaveOccurred())
-		dataMap, ok := u.Object["data"].(map[string]interface{})
-		g.Expect(ok).Should(BeTrue())
-		g.Expect(dataMap[MaaSCABundleFileName]).Should(Equal(caCertPEM))
-	})
-
-	t.Run("should add volume entry to Authorino CR spec.volumes.items", func(t *testing.T) {
-		authorinoNS := AuthorinoNamespaceKuadrant
-
-		maas := createTestMaaSWithCA()
-		caSecret := createCASecret()
-		dsci := createTestDSCI("opendatahub")
-		authorinoCR := createAuthorinoCR(authorinoNS)
-
-		cli, err := fakeclient.New(fakeclient.WithObjects(caSecret, dsci))
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsci))
 		g.Expect(err).ShouldNot(HaveOccurred())
 		dc := newFakeDynamicClient(authorinoCR)
 
@@ -1658,39 +1399,49 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 
 		vol, ok := items[0].(map[string]interface{})
 		g.Expect(ok).Should(BeTrue())
-		g.Expect(vol["name"]).Should(Equal(MaaSCABundleVolumeName))
-		g.Expect(vol["mountPath"]).Should(Equal(MaaSCABundleMountPath))
+		g.Expect(vol["name"]).Should(Equal("odh-trusted-ca-bundle"))
+		g.Expect(vol["mountPath"]).Should(Equal("/etc/ssl/certs/odh-trusted-ca-bundle"))
 		cms, ok := vol["configMaps"].([]interface{})
 		g.Expect(ok).Should(BeTrue())
 		g.Expect(cms).Should(HaveLen(1))
-		g.Expect(cms[0]).Should(Equal(MaaSCABundleConfigMapName))
+		g.Expect(cms[0]).Should(Equal("odh-trusted-ca-bundle"))
 	})
 
-	t.Run("should error when CA is requested but Authorino CR is not found", func(t *testing.T) {
-		maas := createTestMaaSWithCA()
-		caSecret := createCASecret()
-		dsci := createTestDSCI("opendatahub")
+	t.Run("should find Authorino CR in rh-connectivity-link for RHCL deployments", func(t *testing.T) {
+		authorinoNS := AuthorinoNamespaceRHCL
 
-		cli, err := fakeclient.New(fakeclient.WithObjects(caSecret, dsci))
+		maas := createTestMaaSWithOIDC()
+		dsci := createTestDSCI("redhat-ods-applications")
+		authorinoCR := createAuthorinoCR(authorinoNS)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsci))
 		g.Expect(err).ShouldNot(HaveOccurred())
-		dc := newFakeDynamicClient()
+		dc := newFakeDynamicClient(authorinoCR)
 
 		rr := createRRWithDynamic(t, maas, cli, dc)
 		err = configureOIDCCACertificate(t.Context(), rr)
-		g.Expect(err).Should(HaveOccurred())
-		g.Expect(err.Error()).Should(ContainSubstring("custom CA certificate requested but Authorino CR not found"))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify volume was added
+		cr, err := dc.Resource(authorinoCRGVR()).Namespace(authorinoNS).Get(
+			t.Context(), AuthorinoCRName, metav1.GetOptions{})
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		items, found, err := unstructured.NestedSlice(cr.Object, "spec", "volumes", "items")
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(found).Should(BeTrue())
+		g.Expect(items).Should(HaveLen(1))
 	})
 
 	t.Run("should be idempotent when volume already exists in Authorino CR", func(t *testing.T) {
 		authorinoNS := AuthorinoNamespaceKuadrant
 
-		maas := createTestMaaSWithCA()
-		caSecret := createCASecret()
+		maas := createTestMaaSWithOIDC()
 		dsci := createTestDSCI("opendatahub")
 
-		authorinoCR := createAuthorinoCRWithVolume(authorinoNS)
+		authorinoCR := createAuthorinoCRWithOdhTrustedCAVolume(authorinoNS)
 
-		cli, err := fakeclient.New(fakeclient.WithObjects(caSecret, dsci))
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsci))
 		g.Expect(err).ShouldNot(HaveOccurred())
 		dc := newFakeDynamicClient(authorinoCR)
 
@@ -1709,14 +1460,14 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 			if !ok {
 				continue
 			}
-			if vol["name"] == MaaSCABundleVolumeName {
+			if vol["name"] == "odh-trusted-ca-bundle" {
 				caVolumeCount++
 			}
 		}
-		g.Expect(caVolumeCount).Should(Equal(1), "Should have exactly one CA bundle volume entry")
+		g.Expect(caVolumeCount).Should(Equal(1), "Should have exactly one odh-trusted-ca-bundle volume entry")
 	})
 
-	t.Run("should clean up volume from Authorino CR and delete ConfigMap when caCertificateSecretName is cleared", func(t *testing.T) {
+	t.Run("should clean up volume from Authorino CR when externalOIDC is removed", func(t *testing.T) {
 		authorinoNS := AuthorinoNamespaceKuadrant
 
 		maas := &componentApi.ModelsAsService{
@@ -1726,10 +1477,7 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 			},
 			ObjectMeta: metav1.ObjectMeta{Name: componentApi.ModelsAsServiceInstanceName},
 			Spec: componentApi.ModelsAsServiceSpec{
-				ExternalOIDC: &componentApi.ExternalOIDCConfig{
-					IssuerURL: "https://keycloak.example.com/realms/maas",
-					ClientID:  "maas-cli",
-				},
+				// ExternalOIDC is nil - should trigger cleanup
 			},
 		}
 
@@ -1737,22 +1485,8 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsci))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		authorinoCR := createAuthorinoCRWithVolume(authorinoNS)
-		existingCM := &unstructured.Unstructured{
-			Object: map[string]interface{}{
-				"apiVersion": "v1",
-				"kind":       "ConfigMap",
-				"metadata": map[string]interface{}{
-					"name":      MaaSCABundleConfigMapName,
-					"namespace": authorinoNS,
-				},
-				"data": map[string]interface{}{
-					MaaSCABundleFileName: "old-cert-data",
-				},
-			},
-		}
-
-		dc := newFakeDynamicClientWithObjects(authorinoCR, existingCM)
+		authorinoCR := createAuthorinoCRWithOdhTrustedCAVolume(authorinoNS)
+		dc := newFakeDynamicClient(authorinoCR)
 		rr := createRRWithDynamic(t, maas, cli, dc)
 
 		err = configureOIDCCACertificate(t.Context(), rr)
@@ -1762,17 +1496,22 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 		cr, err := dc.Resource(authorinoCRGVR()).Namespace(authorinoNS).Get(
 			t.Context(), AuthorinoCRName, metav1.GetOptions{})
 		g.Expect(err).ShouldNot(HaveOccurred())
-		g.Expect(hasAuthorinoCRVolume(cr)).Should(BeFalse(), "CA volume should be removed from Authorino CR")
 
-		// ConfigMap should be deleted
-		_, err = dc.Resource(configMapGVR()).Namespace(authorinoNS).Get(
-			t.Context(), MaaSCABundleConfigMapName, metav1.GetOptions{})
-		g.Expect(err).Should(HaveOccurred(), "ConfigMap should be deleted during cleanup")
+		items, found, _ := unstructured.NestedSlice(cr.Object, "spec", "volumes", "items")
+		if found {
+			for _, item := range items {
+				vol, ok := item.(map[string]interface{})
+				if ok {
+					g.Expect(vol["name"]).ShouldNot(Equal("odh-trusted-ca-bundle"),
+						"odh-trusted-ca-bundle volume should be removed")
+				}
+			}
+		}
 	})
 }
 
-// createTestMaaSWithCA creates a ModelsAsService instance with externalOIDC CA config for tests.
-func createTestMaaSWithCA() *componentApi.ModelsAsService {
+// createTestMaaSWithOIDC creates a ModelsAsService instance with externalOIDC config for tests.
+func createTestMaaSWithOIDC() *componentApi.ModelsAsService {
 	return &componentApi.ModelsAsService{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "components.platform.opendatahub.io/v1alpha1",
@@ -1780,7 +1519,7 @@ func createTestMaaSWithCA() *componentApi.ModelsAsService {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: componentApi.ModelsAsServiceInstanceName,
-			UID:  "test-uid-ca",
+			UID:  "test-uid-oidc",
 		},
 		Spec: componentApi.ModelsAsServiceSpec{
 			GatewayRef: componentApi.GatewayRef{
@@ -1788,23 +1527,9 @@ func createTestMaaSWithCA() *componentApi.ModelsAsService {
 				Name:      "maas-default-gateway",
 			},
 			ExternalOIDC: &componentApi.ExternalOIDCConfig{
-				IssuerURL:               "https://keycloak.example.com/realms/maas",
-				ClientID:                "maas-cli",
-				CACertificateSecretName: "keycloak-ca",
+				IssuerURL: "https://keycloak.example.com/realms/maas",
+				ClientID:  "maas-cli",
 			},
-		},
-	}
-}
-
-// createCASecret creates a Secret object containing a CA certificate in openshift-ingress namespace.
-func createCASecret() *corev1.Secret {
-	return &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "keycloak-ca",
-			Namespace: "openshift-ingress",
-		},
-		Data: map[string][]byte{
-			MaaSCACertSecretKey: []byte(testCACertPEM),
 		},
 	}
 }
@@ -1841,15 +1566,15 @@ func createAuthorinoCR(namespace string) *unstructured.Unstructured {
 	}
 }
 
-// createAuthorinoCRWithVolume creates an Authorino CR that already has the CA bundle
-// volume configured (for idempotency and cleanup tests).
-func createAuthorinoCRWithVolume(namespace string) *unstructured.Unstructured {
+// createAuthorinoCRWithOdhTrustedCAVolume creates an Authorino CR that already has the
+// odh-trusted-ca-bundle volume configured (for idempotency and cleanup tests).
+func createAuthorinoCRWithOdhTrustedCAVolume(namespace string) *unstructured.Unstructured {
 	cr := createAuthorinoCR(namespace)
 	_ = unstructured.SetNestedSlice(cr.Object, []interface{}{
 		map[string]interface{}{
-			"name":       MaaSCABundleVolumeName,
-			"mountPath":  MaaSCABundleMountPath,
-			"configMaps": []interface{}{MaaSCABundleConfigMapName},
+			"name":       "odh-trusted-ca-bundle",
+			"mountPath":  "/etc/ssl/certs/odh-trusted-ca-bundle",
+			"configMaps": []interface{}{"odh-trusted-ca-bundle"},
 		},
 	}, "spec", "volumes", "items")
 	return cr
@@ -1857,19 +1582,6 @@ func createAuthorinoCRWithVolume(namespace string) *unstructured.Unstructured {
 
 // newFakeDynamicClient creates a fake dynamic client with optional unstructured objects.
 func newFakeDynamicClient(objects ...*unstructured.Unstructured) *dynamicfake.FakeDynamicClient {
-	scheme := runtime.NewScheme()
-	_ = corev1.AddToScheme(scheme)
-
-	runtimeObjs := make([]runtime.Object, 0, len(objects))
-	for _, o := range objects {
-		runtimeObjs = append(runtimeObjs, o)
-	}
-
-	return dynamicfake.NewSimpleDynamicClient(scheme, runtimeObjs...)
-}
-
-// newFakeDynamicClientWithObjects creates a fake dynamic client with multiple unstructured objects.
-func newFakeDynamicClientWithObjects(objects ...*unstructured.Unstructured) *dynamicfake.FakeDynamicClient {
 	scheme := runtime.NewScheme()
 	_ = corev1.AddToScheme(scheme)
 

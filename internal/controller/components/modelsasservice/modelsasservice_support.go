@@ -61,24 +61,6 @@ const (
 	// MaaSAPIDeploymentName is the name of the maas-api Deployment.
 	MaaSAPIDeploymentName = "maas-api"
 
-	// MaaSCACertSecretKey is the expected key in the CA certificate Secret
-	// containing the PEM-encoded CA certificate.
-	MaaSCACertSecretKey = "ca.crt"
-
-	// MaaSCABundleConfigMapName is the name of the ConfigMap created by the operator
-	// to store the OIDC provider's CA certificate for Authorino trust.
-	MaaSCABundleConfigMapName = "maas-oidc-ca-bundle"
-
-	// MaaSCABundleVolumeName is the volume name used when mounting the CA bundle
-	// into the Authorino deployment.
-	MaaSCABundleVolumeName = "maas-oidc-ca-bundle"
-
-	// MaaSCABundleMountPath is the mount path for the CA bundle in the Authorino container.
-	MaaSCABundleMountPath = "/etc/ssl/certs/maas-oidc-ca-bundle"
-
-	// MaaSCABundleFileName is the file name for the CA certificate inside the mounted ConfigMap.
-	MaaSCABundleFileName = "ca-bundle.crt"
-
 	// AuthorinoCRName is the well-known name of the Authorino custom resource
 	// (operator.authorino.kuadrant.io/v1beta1) created by the Kuadrant/RHCL operator.
 	AuthorinoCRName = "authorino"
