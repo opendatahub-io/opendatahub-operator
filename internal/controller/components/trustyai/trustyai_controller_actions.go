@@ -45,8 +45,19 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 	return nil
 }
 
-func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { //nolint:unparam
-	rr.Manifests = append(rr.Manifests, manifestsPath(rr.Release.Name))
+func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+	trustyai, ok := rr.Instance.(*componentApi.TrustyAI)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a *componentApi.TrustyAI", rr.Instance)
+	}
+
+	// Add MCP Guardrails overlay if MCPGuardrailsMode is enabled
+	if trustyai.Spec.MCPGuardrailsMode {
+		rr.Manifests = append(rr.Manifests, mcpGuardrailsManifestInfo())
+	} else {
+		rr.Manifests = append(rr.Manifests, manifestsPath(rr.Release.Name))
+	}
+
 	return nil
 }
 
