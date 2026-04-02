@@ -1472,8 +1472,7 @@ func TestValidateExternalOIDCCA(t *testing.T) {
 
 		err = validateExternalOIDCCA(t.Context(), rr)
 		g.Expect(err).Should(HaveOccurred())
-		g.Expect(err.Error()).Should(ContainSubstring("CA certificate Secret openshift-ingress/nonexistent-secret not found"))
-		g.Expect(err.Error()).Should(ContainSubstring(MaaSCACertSecretKey))
+		g.Expect(err.Error()).Should(ContainSubstring("failed to read CA certificate Secret openshift-ingress/nonexistent-secret"))
 	})
 
 	t.Run("should fail when Secret lacks ca.crt key", func(t *testing.T) {
@@ -1513,7 +1512,7 @@ func TestValidateExternalOIDCCA(t *testing.T) {
 
 		err = validateExternalOIDCCA(t.Context(), rr)
 		g.Expect(err).Should(HaveOccurred())
-		g.Expect(err.Error()).Should(ContainSubstring("does not contain a 'ca.crt' key"))
+		g.Expect(err.Error()).Should(ContainSubstring("contains empty 'ca.crt' key"))
 	})
 
 	t.Run("should fail when ca.crt key is empty", func(t *testing.T) {
@@ -1553,7 +1552,7 @@ func TestValidateExternalOIDCCA(t *testing.T) {
 
 		err = validateExternalOIDCCA(t.Context(), rr)
 		g.Expect(err).Should(HaveOccurred())
-		g.Expect(err.Error()).Should(ContainSubstring("does not contain a 'ca.crt' key with PEM data"))
+		g.Expect(err.Error()).Should(ContainSubstring("contains empty 'ca.crt' key"))
 	})
 }
 

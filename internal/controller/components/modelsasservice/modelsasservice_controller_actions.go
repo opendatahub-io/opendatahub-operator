@@ -597,8 +597,6 @@ func hashConfigMapData(data map[string]string) string {
 // ExternalOIDC.CACertificateSecretName exists in the gateway namespace and
 // contains a valid 'ca.crt' key with PEM data.
 func validateExternalOIDCCA(ctx context.Context, rr *types.ReconciliationRequest) error {
-	log := logf.FromContext(ctx)
-
 	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
@@ -608,39 +606,10 @@ func validateExternalOIDCCA(ctx context.Context, rr *types.ReconciliationRequest
 		return nil
 	}
 
-	secretName := maas.Spec.ExternalOIDC.CACertificateSecretName
-	gatewayNamespace := maas.Spec.GatewayRef.Namespace
-
-	log.V(4).Info("Validating OIDC CA certificate Secret",
-		"secretName", secretName, "namespace", gatewayNamespace)
-
-	secret := &corev1.Secret{}
-	err := rr.Client.Get(ctx, k8stypes.NamespacedName{
-		Namespace: gatewayNamespace,
-		Name:      secretName,
-	}, secret)
-
-	if err != nil {
-		if k8serr.IsNotFound(err) {
-			return fmt.Errorf(
-				"CA certificate Secret %s/%s not found: the Secret must exist in the gateway namespace "+
-					"and contain a '%s' key with the PEM-encoded CA certificate",
-				gatewayNamespace, secretName, MaaSCACertSecretKey)
-		}
-		return fmt.Errorf("failed to get CA certificate Secret %s/%s: %w", gatewayNamespace, secretName, err)
-	}
-
-	caCert, exists := secret.Data[MaaSCACertSecretKey]
-	if !exists || len(caCert) == 0 {
-		return fmt.Errorf(
-			"CA certificate Secret %s/%s does not contain a '%s' key with PEM data",
-			gatewayNamespace, secretName, MaaSCACertSecretKey)
-	}
-
-	log.V(4).Info("OIDC CA certificate Secret validated successfully",
-		"secretName", secretName, "namespace", gatewayNamespace, "certSize", len(caCert))
-
-	return nil
+	// Use readCACertFromSecret for validation to avoid code duplication.
+	// This validates both secret existence and PEM format.
+	_, err := readCACertFromSecret(ctx, rr, maas)
+	return err
 }
 
 // configureOIDCCACertificate manages the OIDC CA trust chain for Authorino.
