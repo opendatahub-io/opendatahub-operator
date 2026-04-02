@@ -579,16 +579,16 @@ func TestBuildTelemetryLabels(t *testing.T) {
 			labels := buildTelemetryLabels(logr.Discard(), nil)
 
 			// Always-on dimensions - verify both key presence and CEL expression values
+			// Note: cost_center is nested under subscription_info in auth identity
 			g.Expect(labels).Should(HaveKey("subscription"))
 			g.Expect(labels["subscription"]).Should(Equal("auth.identity.selected_subscription"))
 			g.Expect(labels).Should(HaveKey("cost_center"))
-			g.Expect(labels["cost_center"]).Should(Equal("auth.identity.costCenter"))
-			g.Expect(labels).Should(HaveKey("tier"))
-			g.Expect(labels["tier"]).Should(Equal("auth.identity.tier"))
+			g.Expect(labels["cost_center"]).Should(Equal("auth.identity.subscription_info.costCenter"))
 
 			// Default enabled dimensions - verify both key presence and CEL expression values
+			// Note: organization_id is nested under subscription_info in auth identity
 			g.Expect(labels).Should(HaveKey("organization_id"))
-			g.Expect(labels["organization_id"]).Should(Equal("auth.identity.organizationId"))
+			g.Expect(labels["organization_id"]).Should(Equal("auth.identity.subscription_info.organizationId"))
 			g.Expect(labels).Should(HaveKey("model"))
 			g.Expect(labels["model"]).Should(Equal(`responseBodyJSON("/model")`))
 
@@ -597,6 +597,9 @@ func TestBuildTelemetryLabels(t *testing.T) {
 
 			// Default disabled dimensions
 			g.Expect(labels).ShouldNot(HaveKey("group"))
+
+			// tier is no longer used - subscription is the replacement
+			g.Expect(labels).ShouldNot(HaveKey("tier"))
 		})
 
 		t.Run("should return defaults when metrics config is nil", func(t *testing.T) {
@@ -606,8 +609,8 @@ func TestBuildTelemetryLabels(t *testing.T) {
 
 			labels := buildTelemetryLabels(logr.Discard(), config)
 
-			// Should have 5 labels (3 always-on + 2 default enabled)
-			g.Expect(labels).Should(HaveLen(5))
+			// Should have 4 labels (2 always-on + 2 default enabled)
+			g.Expect(labels).Should(HaveLen(4))
 			g.Expect(labels).ShouldNot(HaveKey("group"))
 		})
 
@@ -652,13 +655,14 @@ func TestBuildTelemetryLabels(t *testing.T) {
 					for _, key := range tc.expectedKeys {
 						g.Expect(labels).Should(HaveKey(key))
 						// Verify CEL expression values for enabled dimensions
+						// Note: organization_id is nested under subscription_info
 						switch key {
 						case "group":
 							g.Expect(labels[key]).Should(Equal("auth.identity.group"))
 						case "user":
 							g.Expect(labels[key]).Should(Equal("auth.identity.userid"))
 						case "organization_id":
-							g.Expect(labels[key]).Should(Equal("auth.identity.organizationId"))
+							g.Expect(labels[key]).Should(Equal("auth.identity.subscription_info.organizationId"))
 						case "model":
 							g.Expect(labels[key]).Should(Equal(`responseBodyJSON("/model")`))
 						}
@@ -685,8 +689,8 @@ func TestBuildTelemetryLabels(t *testing.T) {
 						CaptureGroup:        boolPtr(false),
 						CaptureModelUsage:   boolPtr(false),
 					},
-					expectedLen:  3,
-					alwaysOnKeys: []string{"subscription", "cost_center", "tier"},
+					expectedLen:  2,
+					alwaysOnKeys: []string{"subscription", "cost_center"},
 				},
 				{
 					name: "all dimensions enabled",
@@ -696,8 +700,8 @@ func TestBuildTelemetryLabels(t *testing.T) {
 						CaptureGroup:        boolPtr(true),
 						CaptureModelUsage:   boolPtr(true),
 					},
-					expectedLen:  7,
-					alwaysOnKeys: []string{"subscription", "cost_center", "tier", "organization_id", "user", "group", "model"},
+					expectedLen:  6,
+					alwaysOnKeys: []string{"subscription", "cost_center", "organization_id", "user", "group", "model"},
 				},
 			}
 
@@ -726,11 +730,11 @@ func TestBuildTelemetryLabels(t *testing.T) {
 			labels := buildTelemetryLabels(logr.Discard(), config)
 
 			// Verify all CEL expression values are correct
+			// Note: cost_center and organization_id are nested under subscription_info
 			expectedValues := map[string]string{
 				"subscription":    "auth.identity.selected_subscription",
-				"cost_center":     "auth.identity.costCenter",
-				"tier":            "auth.identity.tier",
-				"organization_id": "auth.identity.organizationId",
+				"cost_center":     "auth.identity.subscription_info.costCenter",
+				"organization_id": "auth.identity.subscription_info.organizationId",
 				"user":            "auth.identity.userid",
 				"group":           "auth.identity.group",
 				"model":           `responseBodyJSON("/model")`,
@@ -744,6 +748,7 @@ func TestBuildTelemetryLabels(t *testing.T) {
 	})
 }
 
+//nolint:dupl // Similar test structure to TestConfigureIstioTelemetry is intentional for test clarity
 func TestConfigureTelemetryPolicy(t *testing.T) {
 	g := NewWithT(t)
 
@@ -914,7 +919,6 @@ func TestConfigureTelemetryPolicy(t *testing.T) {
 			// always-on dimensions should be present
 			g.Expect(labels).Should(HaveKey("subscription"))
 			g.Expect(labels).Should(HaveKey("cost_center"))
-			g.Expect(labels).Should(HaveKey("tier"))
 		})
 
 		t.Run("should append to existing resources", func(t *testing.T) {
@@ -985,8 +989,8 @@ func TestConfigureTelemetryPolicy(t *testing.T) {
 			labels, _, _ := unstructured.NestedMap(
 				rr.Resources[0].Object, "spec", "metrics", "default", "labels")
 
-			// Should have default labels (5 total: 3 always-on + 2 default enabled)
-			g.Expect(labels).Should(HaveLen(5))
+			// Should have default labels (4 total: 2 always-on + 2 default enabled)
+			g.Expect(labels).Should(HaveLen(4))
 			g.Expect(labels).Should(HaveKey("subscription"))
 			g.Expect(labels).Should(HaveKey("organization_id"))
 			g.Expect(labels).Should(HaveKey("model"))
@@ -1171,4 +1175,240 @@ func createDeployment() unstructured.Unstructured {
 		panic(fmt.Sprintf("failed to convert Deployment to unstructured: %v", err))
 	}
 	return unstructured.Unstructured{Object: u}
+}
+
+//nolint:dupl // Similar test structure to TestConfigureTelemetryPolicy is intentional for test clarity
+func TestConfigureIstioTelemetry(t *testing.T) {
+	g := NewWithT(t)
+
+	t.Run("Error Handling", func(t *testing.T) {
+		t.Run("should return error for wrong instance type", func(t *testing.T) {
+			rr := &types.ReconciliationRequest{
+				Instance:  &componentApi.Dashboard{}, // wrong type
+				Resources: []unstructured.Unstructured{},
+			}
+			err := configureIstioTelemetryCore(t.Context(), rr)
+			g.Expect(err).Should(HaveOccurred())
+			g.Expect(err.Error()).Should(ContainSubstring("is not a componentApi.ModelsAsService"))
+		})
+
+		t.Run("should skip when Istio Telemetry CRD is not available", func(t *testing.T) {
+			// Create a basic fake client without Istio Telemetry CRD
+			cli := createFakeClientWithoutGateway()
+
+			rr := &types.ReconciliationRequest{
+				Instance:  &componentApi.ModelsAsService{},
+				Client:    cli,
+				Resources: []unstructured.Unstructured{},
+			}
+
+			err := configureIstioTelemetry(t.Context(), rr)
+			g.Expect(err).ShouldNot(HaveOccurred())  // Should succeed but skip
+			g.Expect(rr.Resources).Should(BeEmpty()) // No resources should be added
+		})
+	})
+
+	t.Run("Observability Disabled", func(t *testing.T) {
+		t.Run("should skip when observability is nil", func(t *testing.T) {
+			maas := &componentApi.ModelsAsService{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: componentApi.ModelsAsServiceInstanceName,
+				},
+				Spec: componentApi.ModelsAsServiceSpec{
+					GatewayRef: componentApi.GatewayRef{
+						Namespace: "test-ns",
+						Name:      "test-gateway",
+					},
+					Observability: nil, // Not configured
+				},
+			}
+
+			cli, err := fakeclient.New()
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			rr := &types.ReconciliationRequest{
+				Instance:  maas,
+				Client:    cli,
+				Resources: []unstructured.Unstructured{},
+			}
+
+			err = configureIstioTelemetryCore(t.Context(), rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+			g.Expect(rr.Resources).Should(BeEmpty())
+		})
+
+		t.Run("should skip when observability.enabled is nil", func(t *testing.T) {
+			maas := &componentApi.ModelsAsService{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: componentApi.ModelsAsServiceInstanceName,
+				},
+				Spec: componentApi.ModelsAsServiceSpec{
+					GatewayRef: componentApi.GatewayRef{
+						Namespace: "test-ns",
+						Name:      "test-gateway",
+					},
+					Observability: &componentApi.ObservabilityConfig{
+						Enabled: nil, // Not set
+					},
+				},
+			}
+
+			cli, err := fakeclient.New()
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			rr := &types.ReconciliationRequest{
+				Instance:  maas,
+				Client:    cli,
+				Resources: []unstructured.Unstructured{},
+			}
+
+			err = configureIstioTelemetryCore(t.Context(), rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+			g.Expect(rr.Resources).Should(BeEmpty())
+		})
+
+		t.Run("should skip when observability.enabled is false", func(t *testing.T) {
+			enabled := false
+			maas := &componentApi.ModelsAsService{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: componentApi.ModelsAsServiceInstanceName,
+				},
+				Spec: componentApi.ModelsAsServiceSpec{
+					GatewayRef: componentApi.GatewayRef{
+						Namespace: "test-ns",
+						Name:      "test-gateway",
+					},
+					Observability: &componentApi.ObservabilityConfig{
+						Enabled: &enabled,
+					},
+				},
+			}
+
+			cli, err := fakeclient.New()
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			rr := &types.ReconciliationRequest{
+				Instance:  maas,
+				Client:    cli,
+				Resources: []unstructured.Unstructured{},
+			}
+
+			err = configureIstioTelemetryCore(t.Context(), rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+			g.Expect(rr.Resources).Should(BeEmpty())
+		})
+	})
+
+	t.Run("Istio Telemetry Creation", func(t *testing.T) {
+		t.Run("should create Istio Telemetry with correct metadata when enabled", func(t *testing.T) {
+			enabled := true
+			maas := &componentApi.ModelsAsService{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "components.platform.opendatahub.io/v1alpha1",
+					Kind:       "ModelsAsService",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: componentApi.ModelsAsServiceInstanceName,
+					UID:  "test-uid-456",
+				},
+				Spec: componentApi.ModelsAsServiceSpec{
+					GatewayRef: componentApi.GatewayRef{
+						Namespace: "test-gateway-ns",
+						Name:      "test-gateway",
+					},
+					Observability: &componentApi.ObservabilityConfig{
+						Enabled: &enabled,
+					},
+				},
+			}
+
+			cli, err := fakeclient.New()
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			rr := &types.ReconciliationRequest{
+				Instance:  maas,
+				Client:    cli,
+				Resources: []unstructured.Unstructured{},
+			}
+
+			err = configureIstioTelemetryCore(t.Context(), rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			// Should have added one resource
+			g.Expect(rr.Resources).Should(HaveLen(1))
+
+			telemetry := rr.Resources[0]
+			g.Expect(telemetry.GetName()).Should(Equal(IstioTelemetryName))
+			g.Expect(telemetry.GetNamespace()).Should(Equal("test-gateway-ns"))
+			g.Expect(telemetry.GetKind()).Should(Equal("Telemetry"))
+			g.Expect(telemetry.GetAPIVersion()).Should(Equal("telemetry.istio.io/v1"))
+
+			// Check OwnerReferences
+			ownerRefs := telemetry.GetOwnerReferences()
+			g.Expect(ownerRefs).Should(HaveLen(1))
+			g.Expect(ownerRefs[0].Name).Should(Equal(componentApi.ModelsAsServiceInstanceName))
+			g.Expect(ownerRefs[0].Kind).Should(Equal("ModelsAsService"))
+			g.Expect(string(ownerRefs[0].UID)).Should(Equal("test-uid-456"))
+		})
+
+		t.Run("should configure subscription tag override correctly", func(t *testing.T) {
+			enabled := true
+			maas := &componentApi.ModelsAsService{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: componentApi.ModelsAsServiceInstanceName,
+				},
+				Spec: componentApi.ModelsAsServiceSpec{
+					GatewayRef: componentApi.GatewayRef{
+						Namespace: "test-ns",
+						Name:      "test-gateway",
+					},
+					Observability: &componentApi.ObservabilityConfig{
+						Enabled: &enabled,
+					},
+				},
+			}
+
+			cli, err := fakeclient.New()
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			rr := &types.ReconciliationRequest{
+				Instance:  maas,
+				Client:    cli,
+				Resources: []unstructured.Unstructured{},
+			}
+
+			err = configureIstioTelemetryCore(t.Context(), rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			telemetry := rr.Resources[0]
+
+			// Verify spec.selector.matchLabels
+			selector, _, _ := unstructured.NestedMap(telemetry.Object, "spec", "selector", "matchLabels")
+			g.Expect(selector).Should(HaveKeyWithValue("gateway.networking.k8s.io/gateway-name", "test-gateway"))
+
+			// Verify metrics configuration
+			metrics, _, _ := unstructured.NestedSlice(telemetry.Object, "spec", "metrics")
+			g.Expect(metrics).Should(HaveLen(1))
+
+			metric, ok := metrics[0].(map[string]any)
+			g.Expect(ok).Should(BeTrue(), "metrics[0] should be map[string]any")
+			overrides, ok := metric["overrides"].([]any)
+			g.Expect(ok).Should(BeTrue(), "overrides should be []any")
+			g.Expect(overrides).Should(HaveLen(1))
+
+			override, ok := overrides[0].(map[string]any)
+			g.Expect(ok).Should(BeTrue(), "overrides[0] should be map[string]any")
+			match, ok := override["match"].(map[string]any)
+			g.Expect(ok).Should(BeTrue(), "match should be map[string]any")
+			g.Expect(match["metric"]).Should(Equal("REQUEST_DURATION"))
+			g.Expect(match["mode"]).Should(Equal("CLIENT_AND_SERVER"))
+
+			tagOverrides, ok := override["tagOverrides"].(map[string]any)
+			g.Expect(ok).Should(BeTrue(), "tagOverrides should be map[string]any")
+			subscription, ok := tagOverrides["subscription"].(map[string]any)
+			g.Expect(ok).Should(BeTrue(), "subscription should be map[string]any")
+			g.Expect(subscription["operation"]).Should(Equal("UPSERT"))
+			g.Expect(subscription["value"]).Should(Equal(`request.headers["x-maas-subscription"]`))
+		})
+	})
 }

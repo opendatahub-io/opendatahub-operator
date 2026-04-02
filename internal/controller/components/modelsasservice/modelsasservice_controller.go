@@ -64,6 +64,8 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		OwnsGVK(gvk.TelemetryPolicyv1alpha1, reconciler.Dynamic(reconciler.CrdExists(gvk.TelemetryPolicyv1alpha1))).
 		// Payload-processing: EnvoyFilter for ext_proc integration with the inference gateway
 		OwnsGVK(gvk.EnvoyFilter, reconciler.Dynamic(reconciler.CrdExists(gvk.EnvoyFilter))).
+		// Istio Telemetry for per-subscription latency tracking (observability feature)
+		OwnsGVK(gvk.Telemetry, reconciler.Dynamic(reconciler.CrdExists(gvk.Telemetry))).
 		Watches(
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(
@@ -102,6 +104,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// WithAction(releases.NewAction()). // TODO: Do we need this? How to fix annotation of "platform.opendatahub.io/version:0.0.0"
 		WithAction(configureGatewayNamespaceResources).
 		WithAction(configureTelemetryPolicy).
+		WithAction(configureIstioTelemetry).
 		WithAction(configureConfigHashAnnotation).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),

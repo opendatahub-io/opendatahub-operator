@@ -1482,6 +1482,7 @@ _Appears in:_
 | `gatewayRef` _[GatewayRef](#gatewayref)_ | GatewayRef specifies which Gateway (Gateway API) to use for exposing model endpoints.<br />If omitted, defaults to openshift-ingress/maas-default-gateway. |  | Optional: \{\} <br /> |
 | `apiKeys` _[APIKeysConfig](#apikeysconfig)_ | APIKeys contains configuration for API key management. |  | Optional: \{\} <br /> |
 | `telemetry` _[TelemetryConfig](#telemetryconfig)_ | Telemetry contains configuration for telemetry and metrics collection. |  | Optional: \{\} <br /> |
+| `observability` _[ObservabilityConfig](#observabilityconfig)_ | Observability contains configuration for deployment-based observability.<br />When enabled, deploys Istio Telemetry for per-subscription latency tracking.<br />This is a technical preview feature. |  | Optional: \{\} <br /> |
 
 
 #### ModelsAsServiceStatus
@@ -1520,6 +1521,24 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  | Managed | Enum: [Managed Removed] <br /> |
 | `airGapped` _boolean_ | When true, NIM integration assumes an air-gapped cluster. External API calls<br />and the NIM model list ConfigMap creation are skipped, while status conditions<br />are marked successful with an air-gapped message. | false | Optional: \{\} <br /> |
+
+
+#### ObservabilityConfig
+
+
+
+ObservabilityConfig defines configuration for deployment-based observability.
+This is a technical preview feature that enables per-subscription latency tracking
+via Istio Telemetry resources.
+
+
+
+_Appears in:_
+- [ModelsAsServiceSpec](#modelsasservicespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `enabled` _boolean_ | Enabled controls whether deployment-based observability resources are deployed.<br />When true, creates Istio Telemetry for per-subscription latency metrics.<br />Default is false (observability disabled). | false | Optional: \{\} <br /> |
 
 
 #### RawServiceConfig
