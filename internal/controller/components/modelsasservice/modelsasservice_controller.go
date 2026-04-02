@@ -82,6 +82,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithPredicates(resources.Deleted()),
 		).
 		WithAction(initialize).
+		WithAction(validatePrerequisites).
 		WithAction(validateGateway).
 		WithAction(customizeManifests).
 		WithAction(kustomize.NewAction(

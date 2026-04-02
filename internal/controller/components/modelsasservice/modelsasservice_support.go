@@ -56,6 +56,18 @@ const (
 
 	// MaaSAPIDeploymentName is the name of the maas-api Deployment.
 	MaaSAPIDeploymentName = "maas-api"
+
+	// MaaSDBSecretName is the name of the Secret containing the database connection URL.
+	MaaSDBSecretName = "maas-db-config" //nolint:gosec // secret name reference, not a credential
+
+	// MaaSDBSecretKey is the key within the DB config Secret that holds the connection URL.
+	MaaSDBSecretKey = "DB_CONNECTION_URL"
+
+	// MonitoringNamespace is the namespace where cluster monitoring configuration is stored.
+	MonitoringNamespace = "openshift-monitoring"
+
+	// ClusterMonitoringConfigName is the name of the ConfigMap for cluster monitoring configuration.
+	ClusterMonitoringConfigName = "cluster-monitoring-config"
 )
 
 var (
@@ -73,6 +85,7 @@ var (
 	}
 
 	conditionTypes = []string{
+		status.ConditionPrerequisitesAvailable,
 		status.ConditionDeploymentsAvailable,
 	}
 )

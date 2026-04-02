@@ -78,6 +78,7 @@ const (
 	// Component-specific condition types.
 	ConditionTypeProvisioningSucceeded           = "ProvisioningSucceeded"
 	ConditionDeploymentsNotAvailableReason       = "DeploymentsNotReady"
+	ConditionPrerequisitesAvailable              = "PrerequisitesAvailable"
 	ConditionDeploymentsAvailable                = "DeploymentsAvailable"
 	ConditionDependenciesAvailable               = "DependenciesAvailable"
 	ConditionArgoWorkflowAvailable               = "ArgoWorkflowAvailable"
