@@ -226,6 +226,16 @@ func configureDestinationRule(log logr.Logger, resource *unstructured.Unstructur
 // The TelemetryPolicy is generated programmatically (not from manifests) because
 // its content is entirely dynamic based on the spec.telemetry.metrics configuration.
 func configureTelemetryPolicy(ctx context.Context, rr *types.ReconciliationRequest) error {
+	// Check telemetry enabled FIRST to avoid CRD lookup when feature is disabled.
+	// This prevents transient CRD lookup failures from failing reconciles unnecessarily.
+	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
+	}
+	if maas.Spec.Telemetry == nil || maas.Spec.Telemetry.Enabled == nil || !*maas.Spec.Telemetry.Enabled {
+		return nil
+	}
+
 	log := logf.FromContext(ctx)
 
 	// Skip if TelemetryPolicy CRD is not available in the cluster
@@ -250,6 +260,12 @@ func configureTelemetryPolicyCore(ctx context.Context, rr *types.ReconciliationR
 	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
+	}
+
+	// Check if telemetry is enabled
+	if maas.Spec.Telemetry == nil || maas.Spec.Telemetry.Enabled == nil || !*maas.Spec.Telemetry.Enabled {
+		log.V(2).Info("Telemetry not enabled, skipping TelemetryPolicy creation")
+		return nil
 	}
 
 	gatewayNamespace := maas.Spec.GatewayRef.Namespace

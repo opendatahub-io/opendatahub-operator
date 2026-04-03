@@ -779,8 +779,100 @@ func TestConfigureTelemetryPolicy(t *testing.T) {
 		})
 	})
 
+	t.Run("Telemetry Disabled", func(t *testing.T) {
+		t.Run("should skip when telemetry is nil", func(t *testing.T) {
+			maas := &componentApi.ModelsAsService{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: componentApi.ModelsAsServiceInstanceName,
+				},
+				Spec: componentApi.ModelsAsServiceSpec{
+					GatewayRef: componentApi.GatewayRef{
+						Namespace: "test-ns",
+						Name:      "test-gateway",
+					},
+					Telemetry: nil, // Not configured
+				},
+			}
+
+			cli, err := fakeclient.New()
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			rr := &types.ReconciliationRequest{
+				Instance:  maas,
+				Client:    cli,
+				Resources: []unstructured.Unstructured{},
+			}
+
+			err = configureTelemetryPolicyCore(t.Context(), rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+			g.Expect(rr.Resources).Should(BeEmpty())
+		})
+
+		t.Run("should skip when telemetry.enabled is nil", func(t *testing.T) {
+			maas := &componentApi.ModelsAsService{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: componentApi.ModelsAsServiceInstanceName,
+				},
+				Spec: componentApi.ModelsAsServiceSpec{
+					GatewayRef: componentApi.GatewayRef{
+						Namespace: "test-ns",
+						Name:      "test-gateway",
+					},
+					Telemetry: &componentApi.TelemetryConfig{
+						Enabled: nil, // Not set
+					},
+				},
+			}
+
+			cli, err := fakeclient.New()
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			rr := &types.ReconciliationRequest{
+				Instance:  maas,
+				Client:    cli,
+				Resources: []unstructured.Unstructured{},
+			}
+
+			err = configureTelemetryPolicyCore(t.Context(), rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+			g.Expect(rr.Resources).Should(BeEmpty())
+		})
+
+		t.Run("should skip when telemetry.enabled is false", func(t *testing.T) {
+			enabled := false
+			maas := &componentApi.ModelsAsService{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: componentApi.ModelsAsServiceInstanceName,
+				},
+				Spec: componentApi.ModelsAsServiceSpec{
+					GatewayRef: componentApi.GatewayRef{
+						Namespace: "test-ns",
+						Name:      "test-gateway",
+					},
+					Telemetry: &componentApi.TelemetryConfig{
+						Enabled: &enabled,
+					},
+				},
+			}
+
+			cli, err := fakeclient.New()
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			rr := &types.ReconciliationRequest{
+				Instance:  maas,
+				Client:    cli,
+				Resources: []unstructured.Unstructured{},
+			}
+
+			err = configureTelemetryPolicyCore(t.Context(), rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+			g.Expect(rr.Resources).Should(BeEmpty())
+		})
+	})
+
 	t.Run("TelemetryPolicy Creation", func(t *testing.T) {
 		t.Run("should create TelemetryPolicy with correct metadata", func(t *testing.T) {
+			enabled := true
 			maas := &componentApi.ModelsAsService{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "components.platform.opendatahub.io/v1alpha1",
@@ -794,6 +886,9 @@ func TestConfigureTelemetryPolicy(t *testing.T) {
 					GatewayRef: componentApi.GatewayRef{
 						Namespace: "test-gateway-ns",
 						Name:      "test-gateway",
+					},
+					Telemetry: &componentApi.TelemetryConfig{
+						Enabled: &enabled,
 					},
 				},
 			}
@@ -837,6 +932,7 @@ func TestConfigureTelemetryPolicy(t *testing.T) {
 		})
 
 		t.Run("should set targetRef to configured gateway", func(t *testing.T) {
+			enabled := true
 			maas := &componentApi.ModelsAsService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: componentApi.ModelsAsServiceInstanceName,
@@ -845,6 +941,9 @@ func TestConfigureTelemetryPolicy(t *testing.T) {
 					GatewayRef: componentApi.GatewayRef{
 						Namespace: "my-ns",
 						Name:      "my-gateway",
+					},
+					Telemetry: &componentApi.TelemetryConfig{
+						Enabled: &enabled,
 					},
 				},
 			}
@@ -874,6 +973,7 @@ func TestConfigureTelemetryPolicy(t *testing.T) {
 		})
 
 		t.Run("should apply telemetry config to labels", func(t *testing.T) {
+			enabled := true
 			captureUser := false
 			captureGroup := true
 			maas := &componentApi.ModelsAsService{
@@ -886,6 +986,7 @@ func TestConfigureTelemetryPolicy(t *testing.T) {
 						Name:      "gw",
 					},
 					Telemetry: &componentApi.TelemetryConfig{
+						Enabled: &enabled,
 						Metrics: &componentApi.MetricsConfig{
 							CaptureUser:  &captureUser,
 							CaptureGroup: &captureGroup,
@@ -922,6 +1023,7 @@ func TestConfigureTelemetryPolicy(t *testing.T) {
 		})
 
 		t.Run("should append to existing resources", func(t *testing.T) {
+			enabled := true
 			maas := &componentApi.ModelsAsService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: componentApi.ModelsAsServiceInstanceName,
@@ -930,6 +1032,9 @@ func TestConfigureTelemetryPolicy(t *testing.T) {
 					GatewayRef: componentApi.GatewayRef{
 						Namespace: "ns",
 						Name:      "gw",
+					},
+					Telemetry: &componentApi.TelemetryConfig{
+						Enabled: &enabled,
 					},
 				},
 			}
@@ -959,7 +1064,8 @@ func TestConfigureTelemetryPolicy(t *testing.T) {
 			g.Expect(rr.Resources[1].GetName()).Should(Equal(TelemetryPolicyName))
 		})
 
-		t.Run("should use default telemetry config when not specified", func(t *testing.T) {
+		t.Run("should use default metrics config when only enabled is specified", func(t *testing.T) {
+			enabled := true
 			maas := &componentApi.ModelsAsService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: componentApi.ModelsAsServiceInstanceName,
@@ -969,7 +1075,10 @@ func TestConfigureTelemetryPolicy(t *testing.T) {
 						Namespace: "ns",
 						Name:      "gw",
 					},
-					Telemetry: nil, // No telemetry config
+					Telemetry: &componentApi.TelemetryConfig{
+						Enabled: &enabled,
+						Metrics: nil, // No metrics config, use defaults
+					},
 				},
 			}
 
