@@ -27,6 +27,11 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const (
+	odhTrustedCABundleName      = "odh-trusted-ca-bundle"
+	odhTrustedCABundleMountPath = "/etc/ssl/certs/odh-trusted-ca-bundle"
+)
+
 func boolPtr(v bool) *bool { return &v }
 
 func TestGatewayValidation(t *testing.T) {
@@ -1399,12 +1404,12 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 
 		vol, ok := items[0].(map[string]interface{})
 		g.Expect(ok).Should(BeTrue())
-		g.Expect(vol["name"]).Should(Equal("odh-trusted-ca-bundle"))
-		g.Expect(vol["mountPath"]).Should(Equal("/etc/ssl/certs/odh-trusted-ca-bundle"))
+		g.Expect(vol["name"]).Should(Equal(odhTrustedCABundleName))
+		g.Expect(vol["mountPath"]).Should(Equal(odhTrustedCABundleMountPath))
 		cms, ok := vol["configMaps"].([]interface{})
 		g.Expect(ok).Should(BeTrue())
 		g.Expect(cms).Should(HaveLen(1))
-		g.Expect(cms[0]).Should(Equal("odh-trusted-ca-bundle"))
+		g.Expect(cms[0]).Should(Equal(odhTrustedCABundleName))
 	})
 
 	t.Run("should find Authorino CR in rh-connectivity-link for RHCL deployments", func(t *testing.T) {
@@ -1460,11 +1465,11 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 			if !ok {
 				continue
 			}
-			if vol["name"] == "odh-trusted-ca-bundle" {
+			if vol["name"] == odhTrustedCABundleName {
 				caVolumeCount++
 			}
 		}
-		g.Expect(caVolumeCount).Should(Equal(1), "Should have exactly one odh-trusted-ca-bundle volume entry")
+		g.Expect(caVolumeCount).Should(Equal(1), "Should have exactly one "+odhTrustedCABundleName+" volume entry")
 	})
 
 	t.Run("should clean up volume from Authorino CR when externalOIDC is removed", func(t *testing.T) {
@@ -1475,7 +1480,9 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 				APIVersion: "components.platform.opendatahub.io/v1alpha1",
 				Kind:       "ModelsAsService",
 			},
-			ObjectMeta: metav1.ObjectMeta{Name: componentApi.ModelsAsServiceInstanceName},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.ModelsAsServiceInstanceName,
+			},
 			Spec: componentApi.ModelsAsServiceSpec{
 				// ExternalOIDC is nil - should trigger cleanup
 			},
@@ -1502,8 +1509,8 @@ func TestConfigureOIDCCACertificate(t *testing.T) {
 			for _, item := range items {
 				vol, ok := item.(map[string]interface{})
 				if ok {
-					g.Expect(vol["name"]).ShouldNot(Equal("odh-trusted-ca-bundle"),
-						"odh-trusted-ca-bundle volume should be removed")
+					g.Expect(vol["name"]).ShouldNot(Equal(odhTrustedCABundleName),
+						odhTrustedCABundleName+" volume should be removed")
 				}
 			}
 		}
@@ -1572,9 +1579,9 @@ func createAuthorinoCRWithOdhTrustedCAVolume(namespace string) *unstructured.Uns
 	cr := createAuthorinoCR(namespace)
 	_ = unstructured.SetNestedSlice(cr.Object, []interface{}{
 		map[string]interface{}{
-			"name":       "odh-trusted-ca-bundle",
-			"mountPath":  "/etc/ssl/certs/odh-trusted-ca-bundle",
-			"configMaps": []interface{}{"odh-trusted-ca-bundle"},
+			"name":       odhTrustedCABundleName,
+			"mountPath":  odhTrustedCABundleMountPath,
+			"configMaps": []interface{}{odhTrustedCABundleName},
 		},
 	}, "spec", "volumes", "items")
 	return cr
