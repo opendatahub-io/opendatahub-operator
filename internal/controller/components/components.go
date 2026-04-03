@@ -19,6 +19,7 @@ import (
 //go:embed llamastackoperator/monitoring
 //go:embed modelcontroller/monitoring
 //go:embed modelregistry/monitoring
+//go:embed modelsasservice/monitoring
 //go:embed ray/monitoring
 var ComponentRulesFS embed.FS
 
