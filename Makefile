@@ -323,6 +323,8 @@ kube-lint: prepare ## Run kube-linter against rendered manifests.
 .PHONY: get-manifests
 get-manifests: ## Fetch components manifests from remote git repo
 	ODH_PLATFORM_TYPE=$(ODH_PLATFORM_TYPE) VERSION=$(VERSION) ./get_all_manifests.sh
+	@echo "Validating manifest image tags..."
+	@./.github/scripts/validate-manifest-images.sh
 CLEANFILES += opt/manifests/*
 
 # Default to standard sed command
