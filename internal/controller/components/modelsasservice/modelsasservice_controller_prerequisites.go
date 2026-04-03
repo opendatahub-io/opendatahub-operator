@@ -92,7 +92,8 @@ func validatePrerequisites(ctx context.Context, rr *types.ReconciliationRequest)
 		log.V(1).Info("MaaS prerequisite warning", "check", "user-workload-monitoring", "message", msg)
 	}
 
-	// If there are blocking errors, set condition with Error severity (affects Ready state)
+	// If there are blocking errors, set PrerequisitesAvailable=False (affects Ready)
+	// and Degraded=True with all messages
 	if len(errors) > 0 {
 		allMessages := append(errors, warnings...) //nolint:gocritic // intentional append to new slice
 		aggregatedMessage := strings.Join(allMessages, "; ")
@@ -103,24 +104,39 @@ func validatePrerequisites(ctx context.Context, rr *types.ReconciliationRequest)
 			conditions.WithMessage("%s", aggregatedMessage),
 		)
 
+		rr.Conditions.MarkTrue(
+			status.ConditionTypeDegraded,
+			conditions.WithReason("PrerequisitesMissing"),
+			conditions.WithMessage("%s", aggregatedMessage),
+		)
+
 		return odherrors.NewStopError("blocking prerequisites missing: %s", aggregatedMessage)
 	}
 
-	// If there are only warnings, set Info severity (does not affect Ready state)
+	// If there are only warnings, keep Ready=True but set Degraded=True so admins
+	// can see that something needs attention. Non-blocking warnings (e.g. Authorino TLS,
+	// User Workload Monitoring) don't prevent the component from working but indicate
+	// degraded functionality.
 	if len(warnings) > 0 {
 		aggregatedMessage := strings.Join(warnings, "; ")
 
-		rr.Conditions.MarkFalse(
-			status.ConditionMaaSPrerequisitesAvailable,
+		rr.Conditions.MarkTrue(status.ConditionMaaSPrerequisitesAvailable)
+
+		rr.Conditions.MarkTrue(
+			status.ConditionTypeDegraded,
 			conditions.WithReason("PrerequisitesWarning"),
 			conditions.WithMessage("%s", aggregatedMessage),
-			conditions.WithSeverity(common.ConditionSeverityInfo),
 		)
 
 		return nil
 	}
 
 	rr.Conditions.MarkTrue(status.ConditionMaaSPrerequisitesAvailable)
+	rr.Conditions.MarkFalse(
+		status.ConditionTypeDegraded,
+		conditions.WithReason("PrerequisitesMet"),
+		conditions.WithMessage("All prerequisites are satisfied"),
+	)
 
 	return nil
 }
