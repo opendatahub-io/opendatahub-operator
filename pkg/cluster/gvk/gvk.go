@@ -823,9 +823,9 @@ var (
 		Kind:    "AuthConfig",
 	}
 
-	Authorinov1beta2 = schema.GroupVersionKind{
+	Authorinov1beta1 = schema.GroupVersionKind{
 		Group:   "operator.authorino.kuadrant.io",
-		Version: "v1beta2",
+		Version: "v1beta1",
 		Kind:    "Authorino",
 	}
 

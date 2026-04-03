@@ -34,6 +34,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
@@ -94,7 +95,7 @@ func validatePrerequisites(ctx context.Context, rr *types.ReconciliationRequest)
 			conditions.WithMessage("%s", aggregatedMessage),
 		)
 
-		return nil
+		return odherrors.NewStopError("blocking prerequisites missing: %s", aggregatedMessage)
 	}
 
 	// If there are only warnings, set Info severity (does not affect Ready state)
@@ -120,7 +121,8 @@ func validatePrerequisites(ctx context.Context, rr *types.ReconciliationRequest)
 func checkKuadrantAvailable(ctx context.Context, rr *types.ReconciliationRequest) string {
 	has, err := cluster.HasCRD(ctx, rr.Client, gvk.AuthConfigv1beta3)
 	if err != nil {
-		return fmt.Sprintf("failed to check Kuadrant/RHCL availability: %v", err)
+		logf.FromContext(ctx).Error(err, "failed to check Kuadrant/RHCL availability")
+		return "failed to check Kuadrant/RHCL availability due to a cluster API error"
 	}
 	if !has {
 		return "Kuadrant/RHCL stack not installed: AuthConfig CRD (authorino.kuadrant.io) not found. " +
@@ -135,9 +137,10 @@ func checkKuadrantAvailable(ctx context.Context, rr *types.ReconciliationRequest
 // If multiple Authorino instances exist, the check passes if any one has TLS enabled.
 func checkAuthorinoTLS(ctx context.Context, rr *types.ReconciliationRequest) string {
 	// First check if the Authorino CRD exists
-	has, err := cluster.HasCRD(ctx, rr.Client, gvk.Authorinov1beta2)
+	has, err := cluster.HasCRD(ctx, rr.Client, gvk.Authorinov1beta1)
 	if err != nil {
-		return fmt.Sprintf("failed to check Authorino CRD availability: %v", err)
+		logf.FromContext(ctx).Error(err, "failed to check Authorino CRD availability")
+		return "failed to check Authorino CRD availability due to a cluster API error"
 	}
 	if !has {
 		// Authorino CRD not present — skip TLS check (Kuadrant check handles the dependency)
@@ -146,9 +149,10 @@ func checkAuthorinoTLS(ctx context.Context, rr *types.ReconciliationRequest) str
 
 	// List all Authorino instances across namespaces
 	authorinoList := &unstructured.UnstructuredList{}
-	authorinoList.SetGroupVersionKind(gvk.Authorinov1beta2)
+	authorinoList.SetGroupVersionKind(gvk.Authorinov1beta1)
 	if err := rr.Client.List(ctx, authorinoList, &client.ListOptions{}); err != nil {
-		return fmt.Sprintf("failed to list Authorino instances: %v", err)
+		logf.FromContext(ctx).Error(err, "failed to list Authorino instances")
+		return "failed to list Authorino instances due to a cluster API error"
 	}
 
 	if len(authorinoList.Items) == 0 {
@@ -177,7 +181,8 @@ func checkAuthorinoTLS(ctx context.Context, rr *types.ReconciliationRequest) str
 func checkDatabaseSecret(ctx context.Context, rr *types.ReconciliationRequest) string {
 	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
 	if err != nil {
-		return fmt.Sprintf("failed to determine application namespace: %v", err)
+		logf.FromContext(ctx).Error(err, "failed to determine application namespace")
+		return "failed to determine application namespace due to a cluster API error"
 	}
 
 	secret := &corev1.Secret{}
@@ -193,8 +198,9 @@ func checkDatabaseSecret(ctx context.Context, rr *types.ReconciliationRequest) s
 				"MaaS API cannot start without a database connection",
 				MaaSDBSecretName, appNamespace, MaaSDBSecretKey)
 		}
-		return fmt.Sprintf("failed to check database Secret '%s' in namespace '%s': %v",
-			MaaSDBSecretName, appNamespace, err)
+		logf.FromContext(ctx).Error(err, "failed to check database Secret", "name", MaaSDBSecretName, "namespace", appNamespace)
+		return fmt.Sprintf("failed to check database Secret '%s' in namespace '%s' due to a cluster API error",
+			MaaSDBSecretName, appNamespace)
 	}
 
 	if _, ok := secret.Data[MaaSDBSecretKey]; !ok {
@@ -221,8 +227,9 @@ func checkUserWorkloadMonitoring(ctx context.Context, rr *types.ReconciliationRe
 				"Showback/FinOps usage views will not work without User Workload Monitoring enabled"
 		}
 		// Access errors (e.g., RBAC) should not block — log and continue
-		return fmt.Sprintf("unable to verify User Workload Monitoring status: %v. "+
-			"Ensure User Workload Monitoring is enabled for showback functionality", err)
+		logf.FromContext(ctx).Error(err, "unable to verify User Workload Monitoring status")
+		return "unable to verify User Workload Monitoring status due to a cluster API error. " +
+			"Ensure User Workload Monitoring is enabled for showback functionality"
 	}
 
 	configData, ok := cm.Data["config.yaml"]
@@ -254,7 +261,8 @@ func checkUserWorkloadMonitoring(ctx context.Context, rr *types.ReconciliationRe
 func checkKuadrantMonitoring(ctx context.Context, rr *types.ReconciliationRequest) string {
 	has, err := cluster.HasCRD(ctx, rr.Client, gvk.TelemetryPolicyv1alpha1)
 	if err != nil {
-		return fmt.Sprintf("failed to check Kuadrant monitoring availability: %v", err)
+		logf.FromContext(ctx).Error(err, "failed to check Kuadrant monitoring availability")
+		return "failed to check Kuadrant monitoring availability due to a cluster API error"
 	}
 	if !has {
 		return "Kuadrant monitoring not available: TelemetryPolicy CRD (extensions.kuadrant.io) not found. " +
