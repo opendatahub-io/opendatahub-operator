@@ -34,6 +34,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
@@ -94,7 +95,7 @@ func validatePrerequisites(ctx context.Context, rr *types.ReconciliationRequest)
 			conditions.WithMessage("%s", aggregatedMessage),
 		)
 
-		return nil
+		return odherrors.NewStopError("blocking prerequisites missing: %s", aggregatedMessage)
 	}
 
 	// If there are only warnings, set Info severity (does not affect Ready state)
@@ -188,10 +189,8 @@ func checkDatabaseSecret(ctx context.Context, rr *types.ReconciliationRequest) s
 
 	if err != nil {
 		if k8serr.IsNotFound(err) {
-			return fmt.Sprintf("database Secret '%s' not found in namespace '%s'. "+
-				"Create the Secret with key '%s' containing the PostgreSQL connection URL. "+
-				"MaaS API cannot start without a database connection",
-				MaaSDBSecretName, appNamespace, MaaSDBSecretKey)
+			return fmt.Sprintf("Required secret '%s' not found in namespace '%s'.",
+				MaaSDBSecretName, appNamespace)
 		}
 		return fmt.Sprintf("failed to check database Secret '%s' in namespace '%s': %v",
 			MaaSDBSecretName, appNamespace, err)
