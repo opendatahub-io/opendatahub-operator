@@ -57,31 +57,31 @@ func validatePrerequisites(ctx context.Context, rr *types.ReconciliationRequest)
 	// Check 1: Kuadrant/RHCL stack (AuthConfig CRD from Authorino)
 	if msg := checkKuadrantAvailable(ctx, rr); msg != "" {
 		warnings = append(warnings, msg)
-		log.V(1).Info("Prerequisite warning", "check", "kuadrant", "message", msg)
+		log.V(1).Info("MaaS prerequisite warning", "check", "kuadrant", "message", msg)
 	}
 
 	// Check 2: Authorino TLS configuration
 	if msg := checkAuthorinoTLS(ctx, rr); msg != "" {
 		warnings = append(warnings, msg)
-		log.V(1).Info("Prerequisite warning", "check", "authorino-tls", "message", msg)
+		log.V(1).Info("MaaS prerequisite warning", "check", "authorino-tls", "message", msg)
 	}
 
 	// Check 3: Database Secret (blocking — maas-api cannot start without it)
 	if msg := checkDatabaseSecret(ctx, rr); msg != "" {
 		errors = append(errors, msg)
-		log.Info("Prerequisite error", "check", "database-secret", "message", msg)
+		log.Error(nil, "MaaS prerequisite error", "check", "database-secret", "message", msg)
 	}
 
 	// Check 4: User Workload Monitoring
 	if msg := checkUserWorkloadMonitoring(ctx, rr); msg != "" {
 		warnings = append(warnings, msg)
-		log.V(1).Info("Prerequisite warning", "check", "user-workload-monitoring", "message", msg)
+		log.V(1).Info("MaaS prerequisite warning", "check", "user-workload-monitoring", "message", msg)
 	}
 
 	// Check 5: Kuadrant monitoring (TelemetryPolicy CRD)
 	if msg := checkKuadrantMonitoring(ctx, rr); msg != "" {
 		warnings = append(warnings, msg)
-		log.V(1).Info("Prerequisite warning", "check", "kuadrant-monitoring", "message", msg)
+		log.V(1).Info("MaaS prerequisite warning", "check", "kuadrant-monitoring", "message", msg)
 	}
 
 	// If there are blocking errors, set condition with Error severity (affects Ready state)
@@ -90,7 +90,7 @@ func validatePrerequisites(ctx context.Context, rr *types.ReconciliationRequest)
 		aggregatedMessage := strings.Join(allMessages, "; ")
 
 		rr.Conditions.MarkFalse(
-			status.ConditionPrerequisitesAvailable,
+			status.ConditionMaaSPrerequisitesAvailable,
 			conditions.WithReason("PrerequisitesMissing"),
 			conditions.WithMessage("%s", aggregatedMessage),
 		)
@@ -103,7 +103,7 @@ func validatePrerequisites(ctx context.Context, rr *types.ReconciliationRequest)
 		aggregatedMessage := strings.Join(warnings, "; ")
 
 		rr.Conditions.MarkFalse(
-			status.ConditionPrerequisitesAvailable,
+			status.ConditionMaaSPrerequisitesAvailable,
 			conditions.WithReason("PrerequisitesWarning"),
 			conditions.WithMessage("%s", aggregatedMessage),
 			conditions.WithSeverity(common.ConditionSeverityInfo),
@@ -112,7 +112,7 @@ func validatePrerequisites(ctx context.Context, rr *types.ReconciliationRequest)
 		return nil
 	}
 
-	rr.Conditions.MarkTrue(status.ConditionPrerequisitesAvailable)
+	rr.Conditions.MarkTrue(status.ConditionMaaSPrerequisitesAvailable)
 
 	return nil
 }
