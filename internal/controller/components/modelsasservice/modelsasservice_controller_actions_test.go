@@ -748,7 +748,7 @@ func TestBuildTelemetryLabels(t *testing.T) {
 	})
 }
 
-//nolint:dupl // Similar test structure to TestConfigureIstioTelemetry is intentional for test clarity
+//nolint:dupl,maintidx // Similar test structure to TestConfigureIstioTelemetry is intentional for test clarity
 func TestConfigureTelemetryPolicy(t *testing.T) {
 	g := NewWithT(t)
 
