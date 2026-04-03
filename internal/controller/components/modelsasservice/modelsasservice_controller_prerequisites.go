@@ -72,10 +72,12 @@ func validatePrerequisites(ctx context.Context, rr *types.ReconciliationRequest)
 	var warnings []string
 	var errors []string
 
-	// Check 1: Authorino TLS configuration (blocking — gateway can't authenticate without TLS)
+	// Check 1: Authorino TLS configuration (non-blocking — RHCL is a separate operator and
+	// customers may configure Authorino in ways we don't detect; a false positive here
+	// should not block the DSC from being marked as Ready)
 	if msg := checkAuthorinoTLS(ctx, rr); msg != "" {
-		errors = append(errors, msg)
-		log.Error(nil, "MaaS prerequisite error", "check", "authorino-tls", "message", msg)
+		warnings = append(warnings, msg)
+		log.V(1).Info("MaaS prerequisite warning", "check", "authorino-tls", "message", msg)
 	}
 
 	// Check 2: Database Secret (blocking — maas-api cannot start without it)
