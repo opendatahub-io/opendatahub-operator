@@ -34,15 +34,33 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
-// validatePrerequisites checks that required platform prerequisites are present and
-// surfaces clear warnings when they are missing. Checks are either blocking (error
-// severity, affects Ready state) or non-blocking (info severity, visible but does
-// not prevent reconciliation).
+// checkDependencies uses the dependency action framework to monitor CRD availability.
+// This sets the DependenciesAvailable condition based on CRD presence.
+func checkDependencies() actions.Fn {
+	return dependency.NewAction(
+		// Kuadrant/RHCL stack — required for gateway authentication
+		dependency.MonitorCRD(dependency.CRDConfig{
+			GVK: gvk.AuthConfigv1beta3,
+		}),
+		// Kuadrant monitoring — optional, only affects showback/FinOps views
+		dependency.MonitorCRD(dependency.CRDConfig{
+			GVK:      gvk.TelemetryPolicyv1alpha1,
+			Severity: common.ConditionSeverityInfo,
+		}),
+	)
+}
+
+// validatePrerequisites checks platform prerequisites that require custom validation
+// beyond simple CRD presence checks (which are handled by checkDependencies).
+// Checks are either blocking (error severity, affects Ready state) or non-blocking
+// (info severity, visible but does not prevent reconciliation).
 func validatePrerequisites(ctx context.Context, rr *types.ReconciliationRequest) error {
 	log := logf.FromContext(ctx)
 
@@ -54,34 +72,22 @@ func validatePrerequisites(ctx context.Context, rr *types.ReconciliationRequest)
 	var warnings []string
 	var errors []string
 
-	// Check 1: Kuadrant/RHCL stack (blocking — gateway can't authenticate without it)
-	if msg := checkKuadrantAvailable(ctx, rr); msg != "" {
-		errors = append(errors, msg)
-		log.Error(nil, "MaaS prerequisite error", "check", "kuadrant", "message", msg)
-	}
-
-	// Check 2: Authorino TLS configuration (blocking — gateway can't authenticate without TLS)
+	// Check 1: Authorino TLS configuration (blocking — gateway can't authenticate without TLS)
 	if msg := checkAuthorinoTLS(ctx, rr); msg != "" {
 		errors = append(errors, msg)
 		log.Error(nil, "MaaS prerequisite error", "check", "authorino-tls", "message", msg)
 	}
 
-	// Check 3: Database Secret (blocking — maas-api cannot start without it)
+	// Check 2: Database Secret (blocking — maas-api cannot start without it)
 	if msg := checkDatabaseSecret(ctx, rr); msg != "" {
 		errors = append(errors, msg)
 		log.Error(nil, "MaaS prerequisite error", "check", "database-secret", "message", msg)
 	}
 
-	// Check 4: User Workload Monitoring
+	// Check 3: User Workload Monitoring (non-blocking — only affects showback views)
 	if msg := checkUserWorkloadMonitoring(ctx, rr); msg != "" {
 		warnings = append(warnings, msg)
 		log.V(1).Info("MaaS prerequisite warning", "check", "user-workload-monitoring", "message", msg)
-	}
-
-	// Check 5: Kuadrant monitoring (TelemetryPolicy CRD)
-	if msg := checkKuadrantMonitoring(ctx, rr); msg != "" {
-		warnings = append(warnings, msg)
-		log.V(1).Info("MaaS prerequisite warning", "check", "kuadrant-monitoring", "message", msg)
 	}
 
 	// If there are blocking errors, set condition with Error severity (affects Ready state)
@@ -115,20 +121,6 @@ func validatePrerequisites(ctx context.Context, rr *types.ReconciliationRequest)
 	rr.Conditions.MarkTrue(status.ConditionMaaSPrerequisitesAvailable)
 
 	return nil
-}
-
-// checkKuadrantAvailable verifies the Kuadrant/RHCL stack is installed by checking for the AuthConfig CRD.
-func checkKuadrantAvailable(ctx context.Context, rr *types.ReconciliationRequest) string {
-	has, err := cluster.HasCRD(ctx, rr.Client, gvk.AuthConfigv1beta3)
-	if err != nil {
-		logf.FromContext(ctx).Error(err, "failed to check Kuadrant/RHCL availability")
-		return "failed to check Kuadrant/RHCL availability due to a cluster API error"
-	}
-	if !has {
-		return "Kuadrant/RHCL stack not installed: AuthConfig CRD (authorino.kuadrant.io) not found. " +
-			"Install the Kuadrant operator to enable authentication and authorization"
-	}
-	return ""
 }
 
 // checkAuthorinoTLS verifies that at least one Authorino instance has TLS enabled
@@ -226,7 +218,7 @@ func checkUserWorkloadMonitoring(ctx context.Context, rr *types.ReconciliationRe
 			return "User Workload Monitoring not configured: ConfigMap 'cluster-monitoring-config' not found in 'openshift-monitoring'. " +
 				"Showback/FinOps usage views will not work without User Workload Monitoring enabled"
 		}
-		// Access errors (e.g., RBAC) should not block — log and continue
+		// Access errors (e.g., RBAC) — surface as a warning so the user knows verification failed
 		logf.FromContext(ctx).Error(err, "unable to verify User Workload Monitoring status")
 		return "unable to verify User Workload Monitoring status due to a cluster API error. " +
 			"Ensure User Workload Monitoring is enabled for showback functionality"
@@ -253,20 +245,5 @@ func checkUserWorkloadMonitoring(ctx context.Context, rr *types.ReconciliationRe
 			"Showback/FinOps usage views will not work without it"
 	}
 
-	return ""
-}
-
-// checkKuadrantMonitoring checks if Kuadrant monitoring is available by verifying
-// the TelemetryPolicy CRD is present.
-func checkKuadrantMonitoring(ctx context.Context, rr *types.ReconciliationRequest) string {
-	has, err := cluster.HasCRD(ctx, rr.Client, gvk.TelemetryPolicyv1alpha1)
-	if err != nil {
-		logf.FromContext(ctx).Error(err, "failed to check Kuadrant monitoring availability")
-		return "failed to check Kuadrant monitoring availability due to a cluster API error"
-	}
-	if !has {
-		return "Kuadrant monitoring not available: TelemetryPolicy CRD (extensions.kuadrant.io) not found. " +
-			"Showback/FinOps usage views will not work without Kuadrant monitoring enabled"
-	}
 	return ""
 }

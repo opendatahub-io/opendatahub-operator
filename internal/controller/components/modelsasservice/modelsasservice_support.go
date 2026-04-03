@@ -85,6 +85,7 @@ var (
 	}
 
 	conditionTypes = []string{
+		status.ConditionDependenciesAvailable,
 		status.ConditionMaaSPrerequisitesAvailable,
 		status.ConditionDeploymentsAvailable,
 	}

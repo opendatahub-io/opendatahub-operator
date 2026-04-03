@@ -92,6 +92,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed(MaaSDBSecretName)),
 		).
 		WithAction(initialize).
+		WithAction(checkDependencies()).
 		WithAction(validatePrerequisites).
 		WithAction(validateGateway).
 		WithAction(customizeManifests).
