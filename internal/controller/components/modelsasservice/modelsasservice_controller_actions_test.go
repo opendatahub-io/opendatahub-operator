@@ -1208,8 +1208,8 @@ func TestConfigureIstioTelemetry(t *testing.T) {
 		})
 	})
 
-	t.Run("Observability Disabled", func(t *testing.T) {
-		t.Run("should skip when observability is nil", func(t *testing.T) {
+	t.Run("Telemetry Disabled", func(t *testing.T) {
+		t.Run("should skip when telemetry is nil", func(t *testing.T) {
 			maas := &componentApi.ModelsAsService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: componentApi.ModelsAsServiceInstanceName,
@@ -1219,7 +1219,7 @@ func TestConfigureIstioTelemetry(t *testing.T) {
 						Namespace: "test-ns",
 						Name:      "test-gateway",
 					},
-					Observability: nil, // Not configured
+					Telemetry: nil, // Not configured
 				},
 			}
 
@@ -1237,7 +1237,7 @@ func TestConfigureIstioTelemetry(t *testing.T) {
 			g.Expect(rr.Resources).Should(BeEmpty())
 		})
 
-		t.Run("should skip when observability.enabled is nil", func(t *testing.T) {
+		t.Run("should skip when telemetry.enabled is nil", func(t *testing.T) {
 			maas := &componentApi.ModelsAsService{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: componentApi.ModelsAsServiceInstanceName,
@@ -1247,7 +1247,7 @@ func TestConfigureIstioTelemetry(t *testing.T) {
 						Namespace: "test-ns",
 						Name:      "test-gateway",
 					},
-					Observability: &componentApi.ObservabilityConfig{
+					Telemetry: &componentApi.TelemetryConfig{
 						Enabled: nil, // Not set
 					},
 				},
@@ -1267,7 +1267,7 @@ func TestConfigureIstioTelemetry(t *testing.T) {
 			g.Expect(rr.Resources).Should(BeEmpty())
 		})
 
-		t.Run("should skip when observability.enabled is false", func(t *testing.T) {
+		t.Run("should skip when telemetry.enabled is false", func(t *testing.T) {
 			enabled := false
 			maas := &componentApi.ModelsAsService{
 				ObjectMeta: metav1.ObjectMeta{
@@ -1278,7 +1278,7 @@ func TestConfigureIstioTelemetry(t *testing.T) {
 						Namespace: "test-ns",
 						Name:      "test-gateway",
 					},
-					Observability: &componentApi.ObservabilityConfig{
+					Telemetry: &componentApi.TelemetryConfig{
 						Enabled: &enabled,
 					},
 				},
@@ -1316,7 +1316,7 @@ func TestConfigureIstioTelemetry(t *testing.T) {
 						Namespace: "test-gateway-ns",
 						Name:      "test-gateway",
 					},
-					Observability: &componentApi.ObservabilityConfig{
+					Telemetry: &componentApi.TelemetryConfig{
 						Enabled: &enabled,
 					},
 				},
@@ -1362,7 +1362,7 @@ func TestConfigureIstioTelemetry(t *testing.T) {
 						Namespace: "test-ns",
 						Name:      "test-gateway",
 					},
-					Observability: &componentApi.ObservabilityConfig{
+					Telemetry: &componentApi.TelemetryConfig{
 						Enabled: &enabled,
 					},
 				},

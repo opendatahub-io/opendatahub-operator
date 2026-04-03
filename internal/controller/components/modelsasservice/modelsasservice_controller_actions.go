@@ -318,13 +318,13 @@ func configureTelemetryPolicyCore(ctx context.Context, rr *types.ReconciliationR
 // istio_request_duration_milliseconds metric, enabling P50/P95/P99 latency
 // tracking per subscription.
 func configureIstioTelemetry(ctx context.Context, rr *types.ReconciliationRequest) error {
-	// Check observability enabled FIRST to avoid CRD lookup when feature is disabled.
+	// Check telemetry enabled FIRST to avoid CRD lookup when feature is disabled.
 	// This prevents transient CRD lookup failures from failing reconciles unnecessarily.
 	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
 	}
-	if maas.Spec.Observability == nil || maas.Spec.Observability.Enabled == nil || !*maas.Spec.Observability.Enabled {
+	if maas.Spec.Telemetry == nil || maas.Spec.Telemetry.Enabled == nil || !*maas.Spec.Telemetry.Enabled {
 		return nil
 	}
 
@@ -353,9 +353,9 @@ func configureIstioTelemetryCore(ctx context.Context, rr *types.ReconciliationRe
 		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
 	}
 
-	// Check if observability is enabled
-	if maas.Spec.Observability == nil || maas.Spec.Observability.Enabled == nil || !*maas.Spec.Observability.Enabled {
-		log.V(2).Info("Observability not enabled, skipping Istio Telemetry creation")
+	// Check if telemetry is enabled
+	if maas.Spec.Telemetry == nil || maas.Spec.Telemetry.Enabled == nil || !*maas.Spec.Telemetry.Enabled {
+		log.V(2).Info("Telemetry not enabled, skipping Istio Telemetry creation")
 		return nil
 	}
 

@@ -63,34 +63,27 @@ type ModelsAsServiceSpec struct {
 	APIKeys *APIKeysConfig `json:"apiKeys,omitempty"`
 
 	// Telemetry contains configuration for telemetry and metrics collection.
+	// When enabled, deploys TelemetryPolicy for usage metrics and
+	// Istio Telemetry for per-subscription latency tracking.
 	// +kubebuilder:validation:Optional
 	Telemetry *TelemetryConfig `json:"telemetry,omitempty"`
-
-	// Observability contains configuration for deployment-based observability.
-	// When enabled, deploys Istio Telemetry for per-subscription latency tracking.
-	// This is a technical preview feature.
-	// +kubebuilder:validation:Optional
-	Observability *ObservabilityConfig `json:"observability,omitempty"`
 }
 
 // TelemetryConfig defines configuration for telemetry collection.
-// Core billing and access control metrics (subscription, cost_center, tier) are always emitted.
+// When enabled, deploys TelemetryPolicy for usage metrics (Limitador) and
+// Istio Telemetry for per-subscription latency tracking.
 type TelemetryConfig struct {
+	// Enabled controls whether telemetry resources are deployed.
+	// When true, creates TelemetryPolicy for usage metrics and
+	// Istio Telemetry for per-subscription latency tracking.
+	// Default is true (telemetry enabled).
+	// +kubebuilder:default=true
+	// +kubebuilder:validation:Optional
+	Enabled *bool `json:"enabled,omitempty"`
+
 	// Metrics contains configuration for optional metric dimensions/labels.
 	// +kubebuilder:validation:Optional
 	Metrics *MetricsConfig `json:"metrics,omitempty"`
-}
-
-// ObservabilityConfig defines configuration for deployment-based observability.
-// This is a technical preview feature that enables per-subscription latency tracking
-// via Istio Telemetry resources.
-type ObservabilityConfig struct {
-	// Enabled controls whether deployment-based observability resources are deployed.
-	// When true, creates Istio Telemetry for per-subscription latency metrics.
-	// Default is false (observability disabled).
-	// +kubebuilder:default=false
-	// +kubebuilder:validation:Optional
-	Enabled *bool `json:"enabled,omitempty"`
 }
 
 // MetricsConfig defines which dimensions (labels) are captured in telemetry metrics.
