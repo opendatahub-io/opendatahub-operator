@@ -54,16 +54,16 @@ func validatePrerequisites(ctx context.Context, rr *types.ReconciliationRequest)
 	var warnings []string
 	var errors []string
 
-	// Check 1: Kuadrant/RHCL stack (AuthConfig CRD from Authorino)
+	// Check 1: Kuadrant/RHCL stack (blocking — gateway can't authenticate without it)
 	if msg := checkKuadrantAvailable(ctx, rr); msg != "" {
-		warnings = append(warnings, msg)
-		log.V(1).Info("MaaS prerequisite warning", "check", "kuadrant", "message", msg)
+		errors = append(errors, msg)
+		log.Error(nil, "MaaS prerequisite error", "check", "kuadrant", "message", msg)
 	}
 
-	// Check 2: Authorino TLS configuration
+	// Check 2: Authorino TLS configuration (blocking — gateway can't authenticate without TLS)
 	if msg := checkAuthorinoTLS(ctx, rr); msg != "" {
-		warnings = append(warnings, msg)
-		log.V(1).Info("MaaS prerequisite warning", "check", "authorino-tls", "message", msg)
+		errors = append(errors, msg)
+		log.Error(nil, "MaaS prerequisite error", "check", "authorino-tls", "message", msg)
 	}
 
 	// Check 3: Database Secret (blocking — maas-api cannot start without it)
