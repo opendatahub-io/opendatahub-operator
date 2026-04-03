@@ -183,6 +183,9 @@ func getAuthorinoNamespace(rr *odhtypes.ReconciliationRequest) (string, error) {
 	}
 
 	if len(strings.TrimSpace(sm.Spec.Auth.Namespace)) == 0 {
+		if rr.DSCI == nil {
+			return "", errors.New("DSCI not available and auth.namespace not configured in ServiceMesh spec")
+		}
 		// auth namespace not specified, use the following default:
 		return rr.DSCI.Spec.ApplicationsNamespace + "-auth-provider", nil
 	}
