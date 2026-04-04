@@ -1,0 +1,187 @@
+apiVersion: monitoring.rhobs/v1
+kind: PrometheusRule
+metadata:
+  name: modelsasservice-prometheusrules
+  namespace: {{.Namespace}}
+spec:
+  groups:
+      - name: SLOs-probe_success_maas_controller
+        rules:
+        - alert: MaaS Controller Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{`{{`}}$labels.instance{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+            summary: MaaS Controller Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate5m{instance=~"maas-controller"}) by (instance) > (14.40 * (1-0.98000))
+            and
+            sum(probe_success:burnrate1h{instance=~"maas-controller"}) by (instance) > (14.40 * (1-0.98000))
+          for: 2m
+          labels:
+            severity: critical
+        - alert: MaaS Controller Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{`{{`}}$labels.instance{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+            summary: MaaS Controller Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate30m{instance=~"maas-controller"}) by (instance) > (6.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate6h{instance=~"maas-controller"}) by (instance) > (6.00 * (1-0.98000))
+          for: 15m
+          labels:
+            severity: critical
+        - alert: MaaS Controller Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{`{{`}}$labels.instance{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+            summary: MaaS Controller Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate2h{instance=~"maas-controller"}) by (instance) > (3.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate1d{instance=~"maas-controller"}) by (instance) > (3.00 * (1-0.98000))
+          for: 1h
+          labels:
+            severity: warning
+
+      # RecordingRules for MaaS Controller
+      - name: SLOs - MaaS Controller
+        rules:
+        - expr: |
+            absent(up{job=~"MaaS Controller"}) * 0 or vector(1)
+          labels:
+            instance: maas-controller
+          record: probe_success
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="maas-controller"}[1d]))
+          labels:
+            instance: maas-controller
+          record: probe_success:burnrate1d
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="maas-controller"}[1h]))
+          labels:
+            instance: maas-controller
+          record: probe_success:burnrate1h
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="maas-controller"}[2h]))
+          labels:
+            instance: maas-controller
+          record: probe_success:burnrate2h
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="maas-controller"}[30m]))
+          labels:
+            instance: maas-controller
+          record: probe_success:burnrate30m
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="maas-controller"}[3d]))
+          labels:
+            instance: maas-controller
+          record: probe_success:burnrate3d
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="maas-controller"}[5m]))
+          labels:
+            instance: maas-controller
+          record: probe_success:burnrate5m
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="maas-controller"}[6h]))
+          labels:
+            instance: maas-controller
+          record: probe_success:burnrate6h
+
+      - name: maas-controller.rules
+        rules:
+          # 1) Recording rule: reconciliation rate per controller over 5 minutes
+          - record: maas_controller:reconcile_total:rate5m
+            expr: |
+              sum by (controller, result) (
+                rate(controller_runtime_reconcile_total{job="maas-controller-metrics"}[5m])
+              )
+
+          # 2) Recording rule: reconciliation error rate over 5 minutes
+          - record: maas_controller:reconcile_errors:rate5m
+            expr: |
+              sum by (controller) (
+                rate(controller_runtime_reconcile_errors_total{job="maas-controller-metrics"}[5m])
+              )
+
+          # 3) Recording rule: reconciliation error ratio
+          - record: maas_controller:reconcile_error_ratio:rate5m
+            expr: |
+              (
+                sum by (controller) (
+                  rate(controller_runtime_reconcile_errors_total{job="maas-controller-metrics"}[5m])
+                )
+                /
+                sum by (controller) (
+                  rate(controller_runtime_reconcile_total{job="maas-controller-metrics"}[5m])
+                )
+              ) or on() vector(0)
+
+          # 4) Recording rule: work queue depth
+          - record: maas_controller:workqueue_depth:avg5m
+            expr: |
+              avg by (name) (
+                avg_over_time(workqueue_depth{job="maas-controller-metrics"}[5m])
+              )
+
+          # 5) Alert: high reconciliation error rate (>10% for 10m)
+          - alert: MaaSControllerHighReconcileErrorRate
+            expr: |
+              (
+                sum by (controller) (
+                  rate(controller_runtime_reconcile_errors_total{job="maas-controller-metrics"}[10m])
+                )
+                /
+                sum by (controller) (
+                  rate(controller_runtime_reconcile_total{job="maas-controller-metrics"}[10m])
+                )
+              ) > 0.10
+              and
+              sum by (controller) (
+                rate(controller_runtime_reconcile_total{job="maas-controller-metrics"}[10m])
+              ) > 0
+            for: 10m
+            labels:
+              severity: warning
+              component: modelsasservice
+              subsystem: maas-controller
+            annotations:
+              message: 'Reconciliation error rate for controller {{`{{`}}$labels.controller{{`}}`}} is above 10% over the last 10 minutes.'
+              summary: "MaaS Controller high reconciliation error rate (>10%)"
+
+          # 6) Alert: sustained high reconciliation error rate (>25% for 30m)
+          - alert: MaaSControllerSustainedReconcileErrors
+            expr: |
+              (
+                sum by (controller) (
+                  rate(controller_runtime_reconcile_errors_total{job="maas-controller-metrics"}[30m])
+                )
+                /
+                sum by (controller) (
+                  rate(controller_runtime_reconcile_total{job="maas-controller-metrics"}[30m])
+                )
+              ) > 0.25
+              and
+              sum by (controller) (
+                rate(controller_runtime_reconcile_total{job="maas-controller-metrics"}[30m])
+              ) > 0
+            for: 30m
+            labels:
+              severity: critical
+              component: modelsasservice
+              subsystem: maas-controller
+            annotations:
+              message: 'Reconciliation error rate for controller {{`{{`}}$labels.controller{{`}}`}} is above 25% over the last 30 minutes. This indicates persistent controller failures that may require investigation.'
+              summary: "MaaS Controller sustained reconciliation errors (>25%)"
+
+          # 7) Alert: high work queue depth (>100 for 10m)
+          - alert: MaaSControllerHighWorkQueueDepth
+            expr: |
+              max by (name) (
+                workqueue_depth{job="maas-controller-metrics"}
+              ) > 100
+            for: 10m
+            labels:
+              severity: warning
+              component: modelsasservice
+              subsystem: maas-controller
+            annotations:
+              message: 'Work queue {{`{{`}}$labels.name{{`}}`}} depth is above 100 for at least 10 minutes. The controller may be falling behind on processing.'
+              summary: "MaaS Controller high work queue depth (>100)"

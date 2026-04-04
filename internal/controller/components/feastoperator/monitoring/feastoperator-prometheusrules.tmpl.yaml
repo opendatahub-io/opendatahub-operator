@@ -50,7 +50,7 @@ spec:
       - name: SLOs - Feast Operator Controller Manager
         rules:
         - expr: |
-            absent(up{job="feast-operator"}) * 0 or vector(1)
+            absent(up{job="Feast Operator"}) * 0 or vector(1)
           labels:
             instance: feast-operator-controller-manager
           record: probe_success
