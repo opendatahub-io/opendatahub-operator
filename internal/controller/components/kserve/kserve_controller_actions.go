@@ -2,16 +2,22 @@ package kserve
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -29,9 +35,17 @@ import (
 const (
 	LLMInferenceServiceConfigWellKnownAnnotationKey   = "serving.kserve.io/well-known-config"
 	LLMInferenceServiceConfigWellKnownAnnotationValue = "true"
+
+	modelCacheLabelKey   = "kserve/localmodel"
+	modelCacheLabelValue = "worker"
 )
 
-func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { //nolint:unparam
+func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+	k, ok := rr.Instance.(*componentApi.Kserve)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.Kserve", rr.Instance)
+	}
+
 	sourcePath := kserveManifestSourcePath
 	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
 		sourcePath = kserveManifestSourcePathXKS
@@ -43,6 +57,10 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { /
 			Path:       rr.ManifestsBasePath,
 			ContextDir: "connectionAPI",
 		},
+	}
+
+	if k.Spec.ModelCache != nil && k.Spec.ModelCache.ManagementState == operatorv1.Managed {
+		rr.Manifests = append(rr.Manifests, kserveManifestInfo(rr.ManifestsBasePath, kserveManifestSourcePathModelCache))
 	}
 
 	return nil
@@ -110,7 +128,9 @@ func customizeKserveConfigMap(_ context.Context, rr *odhtypes.ReconciliationRequ
 		return err
 	}
 
-	if err := updateInferenceCM(&kserveConfigMap, serviceClusterIPNone); err != nil {
+	modelCacheEnabled := k.Spec.ModelCache != nil && k.Spec.ModelCache.ManagementState == operatorv1.Managed
+
+	if err := updateInferenceCM(&kserveConfigMap, serviceClusterIPNone, modelCacheEnabled); err != nil {
 		return err
 	}
 
@@ -309,4 +329,300 @@ func checkSubscriptionDependencies() actions.Fn {
 			Severity:     common.ConditionSeverityInfo,
 		}),
 	)
+}
+
+func createModelCachePVAndPVC(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	k, ok := rr.Instance.(*componentApi.Kserve)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.Kserve", rr.Instance)
+	}
+
+	cacheSize := *k.Spec.ModelCache.CacheSize
+
+	// Create/update PV
+	pv := &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "kserve-localmodelnode-pv",
+		},
+	}
+	_, err := controllerutil.CreateOrUpdate(ctx, rr.Client, pv, func() error {
+		pv.Spec = corev1.PersistentVolumeSpec{
+			Capacity:                      corev1.ResourceList{corev1.ResourceStorage: cacheSize},
+			VolumeMode:                    ptr.To(corev1.PersistentVolumeFilesystem),
+			AccessModes:                   []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			PersistentVolumeReclaimPolicy: corev1.PersistentVolumeReclaimRetain,
+			StorageClassName:              "local-storage",
+			PersistentVolumeSource: corev1.PersistentVolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/var/lib/kserve/models",
+					Type: ptr.To(corev1.HostPathDirectoryOrCreate),
+				},
+			},
+			NodeAffinity: &corev1.VolumeNodeAffinity{
+				Required: &corev1.NodeSelector{
+					NodeSelectorTerms: []corev1.NodeSelectorTerm{{
+						MatchExpressions: []corev1.NodeSelectorRequirement{{
+							Key:      modelCacheLabelKey,
+							Operator: corev1.NodeSelectorOpIn,
+							Values:   []string{modelCacheLabelValue},
+						}},
+					}},
+				},
+			},
+		}
+		return controllerutil.SetControllerReference(k, pv, rr.Client.Scheme())
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create/update model cache PV: %w", err)
+	}
+
+	// Create/update PVC
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "kserve-localmodelnode-pvc",
+			Namespace: cluster.GetApplicationNamespace(),
+		},
+	}
+	_, err = controllerutil.CreateOrUpdate(ctx, rr.Client, pvc, func() error {
+		// Only set immutable fields on create (when VolumeName is empty).
+		// On update, these fields are rejected by the API server.
+		if pvc.Spec.VolumeName == "" {
+			pvc.Spec.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
+			pvc.Spec.VolumeMode = ptr.To(corev1.PersistentVolumeFilesystem)
+			pvc.Spec.StorageClassName = ptr.To("local-storage")
+		}
+		pvc.Spec.Resources = corev1.VolumeResourceRequirements{
+			Requests: corev1.ResourceList{corev1.ResourceStorage: cacheSize},
+		}
+		return controllerutil.SetControllerReference(k, pvc, rr.Client.Scheme())
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create/update model cache PVC: %w", err)
+	}
+
+	return nil
+}
+
+func createLocalModelNodeGroup(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	k, ok := rr.Instance.(*componentApi.Kserve)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.Kserve", rr.Instance)
+	}
+
+	cacheSizeStr := k.Spec.ModelCache.CacheSize.String()
+
+	obj := &unstructured.Unstructured{}
+	obj.SetGroupVersionKind(gvk.LocalModelNodeGroup)
+	obj.SetName("workers")
+
+	_, err := controllerutil.CreateOrUpdate(ctx, rr.Client, obj, func() error {
+		obj.Object["spec"] = map[string]interface{}{
+			"storageLimit": cacheSizeStr,
+			"persistentVolumeSpec": map[string]interface{}{
+				"capacity": map[string]interface{}{
+					"storage": cacheSizeStr,
+				},
+				"volumeMode":                    "Filesystem",
+				"accessModes":                   []interface{}{"ReadWriteOnce"},
+				"persistentVolumeReclaimPolicy": "Delete",
+				"storageClassName":              "local-storage",
+				"hostPath": map[string]interface{}{
+					"path": "/var/lib/kserve/models",
+					"type": "DirectoryOrCreate",
+				},
+				"nodeAffinity": map[string]interface{}{
+					"required": map[string]interface{}{
+						"nodeSelectorTerms": []interface{}{
+							map[string]interface{}{
+								"matchExpressions": []interface{}{
+									map[string]interface{}{
+										"key":      modelCacheLabelKey,
+										"operator": "In",
+										"values":   []interface{}{modelCacheLabelValue},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			"persistentVolumeClaimSpec": map[string]interface{}{
+				"accessModes": []interface{}{"ReadWriteOnce"},
+				"volumeMode":  "Filesystem",
+				"resources": map[string]interface{}{
+					"requests": map[string]interface{}{
+						"storage": cacheSizeStr,
+					},
+				},
+				"storageClassName": "local-storage",
+			},
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create/update LocalModelNodeGroup: %w", err)
+	}
+
+	return nil
+}
+
+func labelModelCacheNodes(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	logger := logf.FromContext(ctx)
+
+	k, ok := rr.Instance.(*componentApi.Kserve)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.Kserve", rr.Instance)
+	}
+
+	var nodes []corev1.Node
+
+	switch {
+	case len(k.Spec.ModelCache.NodeNames) > 0:
+		for _, name := range k.Spec.ModelCache.NodeNames {
+			node := corev1.Node{}
+			if err := rr.Client.Get(ctx, client.ObjectKey{Name: name}, &node); err != nil {
+				return fmt.Errorf("failed to get node %q: %w", name, err)
+			}
+			nodes = append(nodes, node)
+		}
+	case k.Spec.ModelCache.NodeSelector != nil:
+		sel, err := metav1.LabelSelectorAsSelector(k.Spec.ModelCache.NodeSelector)
+		if err != nil {
+			return fmt.Errorf("failed to convert nodeSelector to selector: %w", err)
+		}
+		nodeList := &corev1.NodeList{}
+		if err := rr.Client.List(ctx, nodeList, client.MatchingLabelsSelector{Selector: sel}); err != nil {
+			return fmt.Errorf("failed to list nodes matching selector: %w", err)
+		}
+		nodes = nodeList.Items
+	}
+
+	for i := range nodes {
+		node := &nodes[i]
+		if node.Labels[modelCacheLabelKey] == modelCacheLabelValue {
+			continue
+		}
+		if node.Labels == nil {
+			node.Labels = make(map[string]string)
+		}
+		node.Labels[modelCacheLabelKey] = modelCacheLabelValue
+		if err := rr.Client.Update(ctx, node); err != nil {
+			return fmt.Errorf("failed to label node %q: %w", node.Name, err)
+		}
+		logger.Info("Labeled node for model cache", "node", node.Name)
+	}
+
+	return nil
+}
+
+func reconcileModelCache(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	k, ok := rr.Instance.(*componentApi.Kserve)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.Kserve", rr.Instance)
+	}
+
+	if k.Spec.ModelCache == nil || k.Spec.ModelCache.ManagementState != operatorv1.Managed {
+		return updateNamespacePSA(ctx, rr.Client, "baseline")
+	}
+
+	if err := updateNamespacePSA(ctx, rr.Client, "privileged"); err != nil {
+		return err
+	}
+
+	if err := forceReconcileKserveAgentImage(ctx, rr); err != nil {
+		return err
+	}
+
+	if err := createModelCachePVAndPVC(ctx, rr); err != nil {
+		return err
+	}
+
+	if err := createLocalModelNodeGroup(ctx, rr); err != nil {
+		return err
+	}
+
+	return labelModelCacheNodes(ctx, rr)
+}
+
+func updateNamespacePSA(ctx context.Context, cli client.Client, desiredLevel string) error {
+	logger := logf.FromContext(ctx)
+
+	ns := &corev1.Namespace{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: cluster.GetApplicationNamespace()}, ns); err != nil {
+		return fmt.Errorf("failed to get application namespace: %w", err)
+	}
+
+	current := ns.Labels[labels.SecurityEnforce]
+	if current == desiredLevel {
+		return nil
+	}
+
+	if ns.Labels == nil {
+		ns.Labels = make(map[string]string)
+	}
+	ns.Labels[labels.SecurityEnforce] = desiredLevel
+
+	if err := cli.Update(ctx, ns); err != nil {
+		return fmt.Errorf("failed to update namespace PSA label: %w", err)
+	}
+
+	logger.Info("Updated namespace PSA enforcement level",
+		"namespace", ns.Name,
+		"from", current,
+		"to", desiredLevel)
+
+	return nil
+}
+
+func forceReconcileKserveAgentImage(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	logger := logf.FromContext(ctx)
+
+	expectedImage := os.Getenv(imageParamMap["kserve-agent"])
+	if expectedImage == "" {
+		return nil
+	}
+
+	cm := &corev1.ConfigMap{}
+	key := client.ObjectKey{
+		Namespace: cluster.GetApplicationNamespace(),
+		Name:      kserveConfigMapName,
+	}
+
+	if err := rr.Client.Get(ctx, key, cm); err != nil {
+		if k8serr.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to get ConfigMap %s: %w", kserveConfigMapName, err)
+	}
+
+	openshiftConfigRaw, ok := cm.Data[OpenshiftConfigKeyName]
+	if !ok {
+		return nil
+	}
+
+	var openshiftConfig map[string]any
+	if err := json.Unmarshal([]byte(openshiftConfigRaw), &openshiftConfig); err != nil {
+		return fmt.Errorf("error parsing %s in ConfigMap %s: %w", OpenshiftConfigKeyName, kserveConfigMapName, err)
+	}
+
+	currentImage, _ := openshiftConfig["modelcachePermissionFixImage"].(string)
+	if currentImage == expectedImage {
+		return nil
+	}
+
+	openshiftConfig["modelcachePermissionFixImage"] = expectedImage
+	updated, err := json.MarshalIndent(openshiftConfig, "", " ")
+	if err != nil {
+		return fmt.Errorf("error marshaling %s: %w", OpenshiftConfigKeyName, err)
+	}
+	cm.Data[OpenshiftConfigKeyName] = string(updated)
+
+	if err := rr.Client.Update(ctx, cm); err != nil {
+		return fmt.Errorf("failed to update ConfigMap %s: %w", kserveConfigMapName, err)
+	}
+
+	logger.Info("Force-reconciled modelcachePermissionFixImage in inferenceservice-config",
+		"image", expectedImage)
+
+	return nil
 }

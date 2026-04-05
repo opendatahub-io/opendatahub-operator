@@ -86,7 +86,7 @@ func kserveManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInf
 	}
 }
 
-func updateInferenceCM(inferenceServiceConfigMap *corev1.ConfigMap, isHeadless bool) error {
+func updateInferenceCM(inferenceServiceConfigMap *corev1.ConfigMap, isHeadless bool, modelCacheEnabled bool) error {
 	// ingress
 	// RawDeployment mode is the only supported mode, so always disable ingress creation
 	var ingressData map[string]any
@@ -111,6 +111,24 @@ func updateInferenceCM(inferenceServiceConfigMap *corev1.ConfigMap, isHeadless b
 		return fmt.Errorf("could not set values in configmap %s. %w", kserveConfigMapName, err)
 	}
 	inferenceServiceConfigMap.Data[ServiceConfigKeyName] = string(serviceDataBytes)
+
+	// localModel
+	if localModelRaw, ok := inferenceServiceConfigMap.Data[LocalModelConfigKeyName]; ok {
+		var localModelData map[string]interface{}
+		if err := json.Unmarshal([]byte(localModelRaw), &localModelData); err != nil {
+			return fmt.Errorf("error retrieving value for key '%s' from configmap %s. %w", LocalModelConfigKeyName, kserveConfigMapName, err)
+		}
+		localModelData["enabled"] = modelCacheEnabled
+		if localModelData["jobNamespace"] != cluster.GetApplicationNamespace() {
+			localModelData["jobNamespace"] = cluster.GetApplicationNamespace()
+		}
+		localModelDataBytes, err := json.MarshalIndent(localModelData, "", " ")
+		if err != nil {
+			return fmt.Errorf("could not set values in configmap %s. %w", kserveConfigMapName, err)
+		}
+		inferenceServiceConfigMap.Data[LocalModelConfigKeyName] = string(localModelDataBytes)
+	}
+
 	return nil
 }
 

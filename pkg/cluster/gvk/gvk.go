@@ -627,6 +627,12 @@ var (
 		Kind:    "LLMInferenceService",
 	}
 
+	LocalModelNodeGroup = schema.GroupVersionKind{
+		Group:   "serving.kserve.io",
+		Version: "v1alpha1",
+		Kind:    "LocalModelNodeGroup",
+	}
+
 	InferencePoolV1alpha2 = schema.GroupVersionKind{
 		Group:   "inference.networking.x-k8s.io",
 		Version: "v1alpha2",
@@ -889,6 +895,12 @@ var (
 		Group:   "mlflow.opendatahub.io",
 		Version: "v1",
 		Kind:    "MLflow",
+	}
+
+	PersistentVolume = schema.GroupVersionKind{
+		Group:   corev1.SchemeGroupVersion.Group,
+		Version: corev1.SchemeGroupVersion.Version,
+		Kind:    "PersistentVolume",
 	}
 
 	PersistentVolumeClaim = schema.GroupVersionKind{
