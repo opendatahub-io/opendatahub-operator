@@ -1,6 +1,10 @@
 package e2e_test
 
 import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -19,6 +23,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
 )
@@ -433,4 +438,264 @@ func (tc *KserveTestCtx) runXKSDegradedMonitoringTest(t *testing.T, kserveNN typ
 	)
 
 	t.Log("XKS external operator degraded monitoring test passed")
+}
+
+// kserveModelCacheTestSuite validates ModelCache programmatic resource management.
+// Runs in its own scenario group to avoid PSA label interference with other KServe tests.
+func kserveModelCacheTestSuite(t *testing.T) {
+	t.Helper()
+
+	ct, err := NewComponentTestCtx(t, &componentApi.Kserve{})
+	require.NoError(t, err)
+
+	componentCtx := KserveTestCtx{
+		ComponentTestCtx: ct,
+	}
+
+	reset := componentCtx.OverrideEventuallyTimeout(ct.TestTimeouts.longEventuallyTimeout, ct.TestTimeouts.defaultEventuallyPollInterval)
+	defer reset()
+
+	testCases := []TestCase{
+		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
+		{"Validate ModelCache enabled", componentCtx.ValidateModelCacheEnabled},
+		{"Validate ModelCache ConfigMap", componentCtx.ValidateModelCacheConfigMap},
+		{"Validate ModelCache image reconcile", componentCtx.ValidateModelCacheImageReconcile},
+		{"Validate ModelCache deletion recovery", componentCtx.ValidateModelCacheDeletionRecovery},
+		{"Validate ModelCache disabled", componentCtx.ValidateModelCacheDisabled},
+	}
+
+	RunTestCases(t, testCases)
+}
+
+// fetchWorkerNodeName returns the name of a worker node in the cluster.
+func (tc *KserveTestCtx) fetchWorkerNodeName(t *testing.T) string {
+	t.Helper()
+
+	nodes := tc.FetchResources(
+		WithMinimalObject(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Node"}, types.NamespacedName{}),
+		WithListOptions(&client.ListOptions{
+			LabelSelector: k8slabels.SelectorFromSet(k8slabels.Set{
+				"node-role.kubernetes.io/worker": "",
+			}),
+		}),
+	)
+
+	require.NotEmpty(t, nodes, "Expected at least one worker node in the cluster")
+	return nodes[0].GetName()
+}
+
+// enableModelCache patches the DSC to enable ModelCache with the given node name and cache size.
+func (tc *KserveTestCtx) enableModelCache(t *testing.T, nodeName string) {
+	t.Helper()
+
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(func(obj *unstructured.Unstructured) error {
+			return unstructured.SetNestedField(obj.Object, map[string]interface{}{
+				"managementState": "Managed",
+				"cacheSize":       "5Gi",
+				"nodeNames":       []interface{}{nodeName},
+			}, "spec", "components", "kserve", "modelCache")
+		}),
+		WithCondition(
+			jq.Match(`.spec.components.kserve.modelCache.managementState == "Managed"`),
+		),
+	)
+
+	// Wait for KServe to reconcile successfully
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: componentApi.KserveInstanceName}),
+		WithCondition(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+		),
+	)
+}
+
+// ValidateModelCacheEnabled enables ModelCache and verifies all programmatic resources are created.
+func (tc *KserveTestCtx) ValidateModelCacheEnabled(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+
+	nodeName := tc.fetchWorkerNodeName(t)
+	t.Logf("Using worker node %q for ModelCache tests", nodeName)
+
+	tc.enableModelCache(t, nodeName)
+
+	// Verify PV exists
+	t.Log("Verifying PersistentVolume kserve-localmodelnode-pv exists")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.PersistentVolume, types.NamespacedName{Name: "kserve-localmodelnode-pv"}),
+	)
+
+	// Verify PVC exists in apps namespace
+	t.Log("Verifying PersistentVolumeClaim kserve-localmodelnode-pvc exists")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.PersistentVolumeClaim, types.NamespacedName{
+			Name:      "kserve-localmodelnode-pvc",
+			Namespace: tc.AppsNamespace,
+		}),
+	)
+
+	// Verify LocalModelNodeGroup exists
+	t.Log("Verifying LocalModelNodeGroup 'workers' exists")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.LocalModelNodeGroup, types.NamespacedName{Name: "workers"}),
+	)
+
+	// Verify node is labeled
+	t.Logf("Verifying node %q has label kserve/localmodel=worker", nodeName)
+	tc.EnsureResourceExists(
+		WithMinimalObject(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Node"}, types.NamespacedName{Name: nodeName}),
+		WithCondition(
+			jq.Match(`.metadata.labels["kserve/localmodel"] == "worker"`),
+		),
+	)
+
+	// Verify namespace PSA label is privileged
+	t.Logf("Verifying namespace %q has PSA enforce=privileged", tc.AppsNamespace)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: tc.AppsNamespace}),
+		WithCondition(
+			jq.Match(`.metadata.labels["%s"] == "privileged"`, labels.SecurityEnforce),
+		),
+	)
+}
+
+// ValidateModelCacheConfigMap verifies the inferenceservice-config ConfigMap is correctly
+// configured for ModelCache: localModel.enabled=true and jobNamespace matches the apps namespace.
+func (tc *KserveTestCtx) ValidateModelCacheConfigMap(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+
+	t.Logf("Verifying inferenceservice-config ConfigMap has localModel.enabled=true and jobNamespace=%s", tc.AppsNamespace)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
+			Name:      "inferenceservice-config",
+			Namespace: tc.AppsNamespace,
+		}),
+		WithCondition(
+			And(
+				jq.Match(`.data.localModel | fromjson | .enabled == true`),
+				jq.Match(`.data.localModel | fromjson | .jobNamespace == "%s"`, tc.AppsNamespace),
+			),
+		),
+	)
+}
+
+// ValidateModelCacheImageReconcile verifies that the operator force-reconciles the
+// modelcachePermissionFixImage in the inferenceservice-config ConfigMap when tampered.
+// Skips if RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE is not set (the production code no-ops).
+func (tc *KserveTestCtx) ValidateModelCacheImageReconcile(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+
+	expectedImage := os.Getenv("RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE")
+	if expectedImage == "" {
+		t.Skip("RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE not set, skipping image reconcile test")
+	}
+
+	configMapNN := types.NamespacedName{
+		Name:      "inferenceservice-config",
+		Namespace: tc.AppsNamespace,
+	}
+
+	t.Log("Tampering modelcachePermissionFixImage in inferenceservice-config ConfigMap")
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.ConfigMap, configMapNN),
+		WithMutateFunc(func(obj *unstructured.Unstructured) error {
+			data, _, _ := unstructured.NestedStringMap(obj.Object, "data")
+			if data == nil {
+				return errors.New("ConfigMap data is nil")
+			}
+
+			var openshiftConfig map[string]interface{}
+			if err := json.Unmarshal([]byte(data[kserve.OpenshiftConfigKeyName]), &openshiftConfig); err != nil {
+				return fmt.Errorf("failed to parse openshiftConfig: %w", err)
+			}
+
+			openshiftConfig["modelcachePermissionFixImage"] = "tampered-image:latest"
+			updated, err := json.Marshal(openshiftConfig)
+			if err != nil {
+				return fmt.Errorf("failed to marshal openshiftConfig: %w", err)
+			}
+
+			return unstructured.SetNestedField(obj.Object, string(updated), "data", kserve.OpenshiftConfigKeyName)
+		}),
+		WithCondition(
+			jq.Match(`.data.%s | fromjson | .modelcachePermissionFixImage == "tampered-image:latest"`, kserve.OpenshiftConfigKeyName),
+		),
+	)
+
+	t.Logf("Verifying operator reconciles modelcachePermissionFixImage back to %q", expectedImage)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ConfigMap, configMapNN),
+		WithCondition(
+			jq.Match(`.data.%s | fromjson | .modelcachePermissionFixImage == "%s"`, kserve.OpenshiftConfigKeyName, expectedImage),
+		),
+	)
+}
+
+// ValidateModelCacheDeletionRecovery verifies the operator recreates the
+// LocalModelNodeGroup after deletion.
+// PV and PVC deletion recovery is not tested because the modelcache DaemonSet
+// mounts the PVC, so the kubernetes.io/pvc-protection finalizer blocks PVC
+// deletion while the DaemonSet pods are running.
+func (tc *KserveTestCtx) ValidateModelCacheDeletionRecovery(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+
+	t.Log("Deleting LocalModelNodeGroup 'workers' and verifying recreation")
+	tc.EnsureResourceDeletedThenRecreated(
+		WithMinimalObject(gvk.LocalModelNodeGroup, types.NamespacedName{Name: "workers"}),
+	)
+}
+
+// ValidateModelCacheDisabled disables ModelCache and verifies cleanup:
+// PSA label reverts to baseline, ConfigMap localModel.enabled=false.
+func (tc *KserveTestCtx) ValidateModelCacheDisabled(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+
+	t.Log("Disabling ModelCache by setting managementState=Removed")
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.kserve.modelCache.managementState = "Removed"`)),
+		WithCondition(
+			jq.Match(`.spec.components.kserve.modelCache.managementState == "Removed"`),
+		),
+	)
+
+	// Wait for KServe to reconcile successfully
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: componentApi.KserveInstanceName}),
+		WithCondition(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+		),
+	)
+
+	// Verify namespace PSA label reverted to baseline
+	t.Logf("Verifying namespace %q has PSA enforce=baseline", tc.AppsNamespace)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: tc.AppsNamespace}),
+		WithCondition(
+			jq.Match(`.metadata.labels["%s"] == "baseline"`, labels.SecurityEnforce),
+		),
+	)
+
+	// Verify ConfigMap localModel.enabled is false
+	t.Log("Verifying inferenceservice-config ConfigMap has localModel.enabled=false")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
+			Name:      "inferenceservice-config",
+			Namespace: tc.AppsNamespace,
+		}),
+		WithCondition(
+			jq.Match(`.data.localModel | fromjson | .enabled == false`),
+		),
+	)
 }
