@@ -265,8 +265,17 @@ func (a *Action) deployCRD(
 	}
 
 	if err != nil {
-		return false, client.IgnoreNotFound(err)
+		logf.FromContext(ctx).Error(err, "failed to deploy CRD",
+			"name", obj.GetName(),
+			"mode", a.deployMode,
+		)
+		return false, fmt.Errorf("failed to deploy CRD %s: %w", obj.GetName(), err)
 	}
+
+	logf.FromContext(ctx).V(1).Info("successfully deployed CRD",
+		"name", obj.GetName(),
+		"mode", a.deployMode,
+	)
 
 	if a.cache != nil {
 		err := a.cache.Add(deployedObj, origObj)
