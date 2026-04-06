@@ -254,7 +254,7 @@ func (tc *KueueTestCtx) ValidateKueueRemovedToUnmanagedTransition(t *testing.T) 
 			jq.Match(`([
 				"BatchJob", "Deployment", "JobSet", "LeaderWorkerSet", "MPIJob",
 				"PaddleJob", "Pod", "PyTorchJob", "RayCluster", "RayJob", "StatefulSet", "TFJob",
-				"XGBoostJob"
+				"TrainJob", "XGBoostJob"
 			] - .spec.config.integrations.frameworks) | length == 0`),
 		)),
 		WithEventuallyTimeout(tc.TestTimeouts.shortEventuallyTimeout),
@@ -456,6 +456,7 @@ integrations:
   - "kubeflow.org/pytorchjob"
   - "kubeflow.org/tfjob"
   - "kubeflow.org/xgboostjob"
+  - "kubeflow.org/trainjob"
   - "workload.codeflare.dev/appwrapper"
   - "pod"
   - "deployment"
