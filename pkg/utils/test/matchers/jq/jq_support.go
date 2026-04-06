@@ -13,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func formattedMessage(comparisonMessage string, failurePath []interface{}) string {
+func formattedMessage(comparisonMessage string, failurePath []any) string {
 	diffMessage := ""
 
 	if len(failurePath) != 0 {
@@ -23,7 +23,7 @@ func formattedMessage(comparisonMessage string, failurePath []interface{}) strin
 	return comparisonMessage + diffMessage
 }
 
-func formattedFailurePath(failurePath []interface{}) string {
+func formattedFailurePath(failurePath []any) string {
 	formattedPaths := make([]string, 0)
 
 	for i := len(failurePath) - 1; i >= 0; i-- {

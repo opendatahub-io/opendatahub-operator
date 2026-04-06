@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	admissionv1 "k8s.io/api/admission/v1"
@@ -155,13 +156,7 @@ func isExpectedKind(kind metav1.GroupVersionKind) bool {
 		Kind:    kind.Kind,
 	}
 
-	for _, expectedGVK := range expectedGVKs {
-		if requestGVK == expectedGVK {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(expectedGVKs, requestGVK)
 }
 
 // isKueueEnabledInDSC checks if Kueue is enabled in the DataScienceCluster (DSC).

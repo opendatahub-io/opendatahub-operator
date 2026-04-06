@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"slices"
 
 	"github.com/davecgh/go-spew/spew"
@@ -105,7 +106,7 @@ func Decode(decoder runtime.Decoder, content []byte) ([]unstructured.Unstructure
 	yd := yaml.NewDecoder(r)
 
 	for {
-		var out map[string]interface{}
+		var out map[string]any
 
 		err := yd.Decode(&out)
 		if err != nil {
@@ -192,9 +193,7 @@ func SetLabels(obj client.Object, values map[string]string) {
 		target = make(map[string]string)
 	}
 
-	for k, v := range values {
-		target[k] = v
-	}
+	maps.Copy(target, values)
 
 	obj.SetLabels(target)
 }
@@ -257,9 +256,7 @@ func SetAnnotations(obj client.Object, values map[string]string) {
 		target = make(map[string]string)
 	}
 
-	for k, v := range values {
-		target[k] = v
-	}
+	maps.Copy(target, values)
 
 	obj.SetAnnotations(target)
 }

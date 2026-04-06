@@ -590,8 +590,8 @@ func NewNotebook(name, namespace string, opts ...ObjectOption) client.Object {
 	notebook.SetNamespace(namespace)
 
 	// Set basic spec structure needed for webhook testing
-	containers := []interface{}{
-		map[string]interface{}{
+	containers := []any{
+		map[string]any{
 			"name":  "notebook",
 			"image": "jupyter/base-notebook:latest",
 		},
@@ -645,7 +645,7 @@ func NewInferenceService(name, namespace string, opts ...ObjectOption) client.Ob
 
 	// Set basic spec structure needed for webhook testing
 	// Create a model object instead of containers for isvc
-	model := map[string]interface{}{
+	model := map[string]any{
 		"name":  "isvc-model",
 		"image": "kserve/model-server:latest",
 	}
@@ -673,8 +673,8 @@ func NewLLMInferenceService(name, namespace string, opts ...ObjectOption) client
 	llmInferenceService.SetNamespace(namespace)
 
 	// this is set in case HWprofile require resource changes, it is not necessary for Connection API
-	containers := []interface{}{
-		map[string]interface{}{
+	containers := []any{
+		map[string]any{
 			"name":  "main",
 			"image": "kserve/llm-container:latest",
 		},

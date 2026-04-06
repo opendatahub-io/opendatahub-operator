@@ -86,64 +86,64 @@ func (tc *SparkOperatorTestCtx) ValidateSparkPiWorkload(t *testing.T) {
 // createSparkPiApplication creates a SparkApplication CR for spark-pi test.
 func (tc *SparkOperatorTestCtx) createSparkPiApplication(name, namespace string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "sparkoperator.k8s.io/v1beta2",
 			"kind":       "SparkApplication",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      name,
 				"namespace": namespace,
 			},
-			"spec": map[string]interface{}{
+			"spec": map[string]any{
 				"type":                "Scala",
 				"mode":                "cluster",
 				"image":               "quay.io/opendatahub/data-processing:Spark-v4.0.1",
 				"imagePullPolicy":     "IfNotPresent",
 				"mainClass":           "org.apache.spark.examples.SparkPi",
 				"mainApplicationFile": "local:///opt/spark/examples/jars/spark-examples_2.13-4.0.1.jar",
-				"arguments":           []interface{}{"1000"},
+				"arguments":           []any{"1000"},
 				"sparkVersion":        "4.0.1",
-				"restartPolicy": map[string]interface{}{
+				"restartPolicy": map[string]any{
 					"type": "Never",
 				},
-				"sparkConf": map[string]interface{}{
+				"sparkConf": map[string]any{
 					"spark.driver.port":              "8080",
 					"spark.driver.blockManager.port": "8082",
 					"spark.blockManager.port":        "8081",
 					"spark.port.maxRetries":          "0",
 				},
 				// Volume for OpenShift compatibility - provides writable work directory
-				"volumes": []interface{}{
-					map[string]interface{}{
+				"volumes": []any{
+					map[string]any{
 						"name":     "spark-work-dir",
-						"emptyDir": map[string]interface{}{},
+						"emptyDir": map[string]any{},
 					},
 				},
-				"driver": map[string]interface{}{
-					"labels": map[string]interface{}{
+				"driver": map[string]any{
+					"labels": map[string]any{
 						"version": "4.0.1",
 					},
 					"cores":           int64(1),
 					"coreLimit":       "1200m",
 					"memory":          "512m",
 					"serviceAccount":  "spark-operator-spark",
-					"securityContext": map[string]interface{}{},
-					"volumeMounts": []interface{}{
-						map[string]interface{}{
+					"securityContext": map[string]any{},
+					"volumeMounts": []any{
+						map[string]any{
 							"name":      "spark-work-dir",
 							"mountPath": "/opt/spark/work-dir",
 						},
 					},
 				},
-				"executor": map[string]interface{}{
-					"labels": map[string]interface{}{
+				"executor": map[string]any{
+					"labels": map[string]any{
 						"version": "4.0.1",
 					},
 					"instances":       int64(1),
 					"cores":           int64(1),
 					"memory":          "512m",
-					"securityContext": map[string]interface{}{},
-					"volumeMounts": []interface{}{
-						map[string]interface{}{
+					"securityContext": map[string]any{},
+					"volumeMounts": []any{
+						map[string]any{
 							"name":      "spark-work-dir",
 							"mountPath": "/opt/spark/work-dir",
 						},

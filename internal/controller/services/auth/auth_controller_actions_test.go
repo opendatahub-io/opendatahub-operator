@@ -2,6 +2,7 @@
 package auth
 
 import (
+	"slices"
 	"testing"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -170,11 +171,8 @@ func TestBindRoleValidation(t *testing.T) {
 			// Count expected valid groups (all groups minus skipped ones)
 			validGroupCount := len(tt.groups)
 			for _, group := range tt.groups {
-				for _, skipped := range tt.expectSkipped {
-					if group == skipped {
-						validGroupCount--
-						break
-					}
+				if slices.Contains(tt.expectSkipped, group) {
+					validGroupCount--
 				}
 			}
 
@@ -398,9 +396,9 @@ func TestManagePermissionsMultipleGroups(t *testing.T) {
 	clusterRoleNames := []string{}
 
 	// Track subjects for verification
-	var adminGroupSubjects []interface{}
-	var allowedGroupSubjects []interface{}
-	var adminRoleSubjects []interface{}
+	var adminGroupSubjects []any
+	var allowedGroupSubjects []any
+	var adminRoleSubjects []any
 
 	for _, resource := range rr.Resources {
 		switch resource.GetKind() {
@@ -458,10 +456,10 @@ func TestManagePermissionsMultipleGroups(t *testing.T) {
 	g.Expect(allowedGroupNames).To(ConsistOf("data-scientists", "analysts", "system:authenticated"))
 }
 
-func extractGroupNamesFromSubjects(subjects []interface{}) []string {
+func extractGroupNamesFromSubjects(subjects []any) []string {
 	names := []string{}
 	for _, subject := range subjects {
-		if subjectMap, ok := subject.(map[string]interface{}); ok {
+		if subjectMap, ok := subject.(map[string]any); ok {
 			if name, ok := subjectMap["name"].(string); ok {
 				names = append(names, name)
 			}

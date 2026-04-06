@@ -47,17 +47,18 @@ func kserveTestSuite(t *testing.T) {
 	defer reset() // Make sure it's reset after all tests run
 
 	// Define test cases.
-	testCases := []TestCase{
-		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
-		{"Validate component spec", componentCtx.ValidateSpec},
-		{"Validate model controller", componentCtx.ValidateModelControllerInstance},
-		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
-		{"Validate no Kserve FeatureTrackers", componentCtx.ValidateNoKserveFeatureTrackers},
-		{"Validate VAP created when kserve is enabled", componentCtx.ValidateS3SecretCheckBucketExist},
-		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
-		{"Validate component releases", componentCtx.ValidateComponentReleases},
-		{"Validate well-known LLMInferenceServiceConfig versioning", componentCtx.ValidateLLMInferenceServiceConfigVersioned},
-	}
+	testCases := make([]TestCase, 0, 11)
+	testCases = append(testCases,
+		TestCase{"Validate component enabled", componentCtx.ValidateComponentEnabled},
+		TestCase{"Validate component spec", componentCtx.ValidateSpec},
+		TestCase{"Validate model controller", componentCtx.ValidateModelControllerInstance},
+		TestCase{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
+		TestCase{"Validate no Kserve FeatureTrackers", componentCtx.ValidateNoKserveFeatureTrackers},
+		TestCase{"Validate VAP created when kserve is enabled", componentCtx.ValidateS3SecretCheckBucketExist},
+		TestCase{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
+		TestCase{"Validate component releases", componentCtx.ValidateComponentReleases},
+		TestCase{"Validate well-known LLMInferenceServiceConfig versioning", componentCtx.ValidateLLMInferenceServiceConfigVersioned},
+	)
 
 	// Always run deletion recovery and component disable tests last
 	testCases = append(testCases,

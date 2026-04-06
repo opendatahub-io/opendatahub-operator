@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 
 	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -140,13 +141,7 @@ func isExpectedKind(kind metav1.GroupVersionKind) bool {
 		Kind:    kind.Kind,
 	}
 
-	for _, expectedGVK := range expectedGVKs {
-		if requestGVK == expectedGVK {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(expectedGVKs, requestGVK)
 }
 
 // performMonitoringInjection handles the core logic for monitoring configuration injection.

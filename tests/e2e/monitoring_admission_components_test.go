@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"maps"
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -59,9 +60,7 @@ func (tc *MonitoringTestCtx) createMonitorsEnvironment(t *testing.T, namespaceLa
 			if currentLabels == nil {
 				currentLabels = make(map[string]string)
 			}
-			for k, v := range lbls {
-				currentLabels[k] = v
-			}
+			maps.Copy(currentLabels, lbls)
 			obj.SetLabels(currentLabels)
 			return nil
 		}
@@ -209,12 +208,12 @@ func (tc *MonitoringTestCtx) ValidateMonitoringLabelValueEnforcementOnMonitors(t
 	invalidPodMonitor.SetNamespace(TestNamespaceName)
 	invalidPodMonitor.SetLabels(invalidLabels)
 	// Minimal valid spec so K8s doesn't reject it for schema reasons
-	invalidPodMonitor.Object["spec"] = map[string]interface{}{
-		"selector": map[string]interface{}{
-			"matchLabels": map[string]interface{}{"app": "test"},
+	invalidPodMonitor.Object["spec"] = map[string]any{
+		"selector": map[string]any{
+			"matchLabels": map[string]any{"app": "test"},
 		},
-		"podMetricsEndpoints": []interface{}{
-			map[string]interface{}{"port": "metrics"},
+		"podMetricsEndpoints": []any{
+			map[string]any{"port": "metrics"},
 		},
 	}
 
@@ -232,12 +231,12 @@ func (tc *MonitoringTestCtx) ValidateMonitoringLabelValueEnforcementOnMonitors(t
 	invalidServiceMonitor.SetNamespace(TestNamespaceName)
 	invalidServiceMonitor.SetLabels(invalidLabels)
 	// Minimal valid spec
-	invalidServiceMonitor.Object["spec"] = map[string]interface{}{
-		"selector": map[string]interface{}{
-			"matchLabels": map[string]interface{}{"app": "test"},
+	invalidServiceMonitor.Object["spec"] = map[string]any{
+		"selector": map[string]any{
+			"matchLabels": map[string]any{"app": "test"},
 		},
-		"endpoints": []interface{}{
-			map[string]interface{}{"port": "metrics"},
+		"endpoints": []any{
+			map[string]any{"port": "metrics"},
 		},
 	}
 

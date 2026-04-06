@@ -22,14 +22,14 @@ func GetV2OnlyComponentFieldNames() []string {
 	}
 
 	// Build a map of v1 component field names for comparison
-	v1ComponentsType := reflect.TypeOf(dscv1.Components{})
+	v1ComponentsType := reflect.TypeFor[dscv1.Components]()
 	v1FieldNames := make(map[string]bool)
 	for i := range v1ComponentsType.NumField() {
 		v1FieldNames[v1ComponentsType.Field(i).Name] = true
 	}
 
 	// Examine v2 components to find v2-only ones
-	v2ComponentsType := reflect.TypeOf(dscv2.Components{})
+	v2ComponentsType := reflect.TypeFor[dscv2.Components]()
 
 	for i := range v2ComponentsType.NumField() {
 		field := v2ComponentsType.Field(i)

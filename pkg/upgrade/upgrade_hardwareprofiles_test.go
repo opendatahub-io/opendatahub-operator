@@ -133,7 +133,7 @@ func TestMigrateContainerSizesToHardwareProfiles(t *testing.T) {
 		// Validate notebooks size HWP
 		if len(notebookSizes) > 0 {
 			for _, nb := range notebookSizes {
-				containerSize, ok := nb.(map[string]interface{})
+				containerSize, ok := nb.(map[string]any)
 				if ok {
 					name, _ := containerSize["name"].(string)
 					hwpName := strings.ReplaceAll(strings.ToLower(fmt.Sprintf("containerSize-%s-notebooks", name)), " ", "-")
@@ -148,7 +148,7 @@ func TestMigrateContainerSizesToHardwareProfiles(t *testing.T) {
 		// Validate model server size HWP
 		if len(modelServerSizes) > 0 {
 			for _, ms := range modelServerSizes {
-				containerSize, ok := ms.(map[string]interface{})
+				containerSize, ok := ms.(map[string]any)
 				if ok {
 					name, _ := containerSize["name"].(string)
 					hwpName := strings.ReplaceAll(strings.ToLower(fmt.Sprintf("containerSize-%s-serving", name)), " ", "-")
@@ -320,7 +320,7 @@ func TestHardwareProfileMigrationWithComplexScenarios(t *testing.T) {
 
 		if len(notebookSizes) > 0 {
 			for _, nb := range notebookSizes {
-				containerSize, ok := nb.(map[string]interface{})
+				containerSize, ok := nb.(map[string]any)
 				if ok {
 					name, _ := containerSize["name"].(string)
 					hwpName := strings.ReplaceAll(strings.ToLower(fmt.Sprintf("containerSize-%s-notebooks", name)), " ", "-")
@@ -335,7 +335,7 @@ func TestHardwareProfileMigrationWithComplexScenarios(t *testing.T) {
 		// Validate model server size HWP
 		if len(modelServerSizes) > 0 {
 			for _, ms := range modelServerSizes {
-				containerSize, ok := ms.(map[string]interface{})
+				containerSize, ok := ms.(map[string]any)
 				if ok {
 					name, _ := containerSize["name"].(string)
 					hwpName := strings.ReplaceAll(strings.ToLower(fmt.Sprintf("containerSize-%s-serving", name)), " ", "-")

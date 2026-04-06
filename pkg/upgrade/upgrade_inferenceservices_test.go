@@ -184,7 +184,7 @@ func TestAttachHardwareProfileToInferenceServices(t *testing.T) {
 		isvc := createTestInferenceService(namespace, "isvc-serverless-status", "")
 
 		// Set deploymentMode in status
-		status := map[string]interface{}{
+		status := map[string]any{
 			"deploymentMode": "Serverless",
 		}
 		isvc.Object["status"] = status
