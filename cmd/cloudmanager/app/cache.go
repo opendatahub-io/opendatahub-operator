@@ -17,13 +17,14 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 // DefaultCacheOptions builds cache.Options for the given scheme, watching the default
 // managed namespaces shared by all cloud managers and filtering cluster-scoped
 // resources by the existence of the infrastructure part-of label.
-func DefaultCacheOptions(scheme *runtime.Scheme) (cache.Options, error) {
+func DefaultCacheOptions(scheme *runtime.Scheme, cfg *operatorconfig.CloudManagerConfig) (cache.Options, error) {
 	managedNamespaces := common.ManagedNamespaces()
 
 	requirement, err := k8slabels.NewRequirement(labels.InfrastructurePartOf, selection.Exists, nil)
@@ -49,8 +50,8 @@ func DefaultCacheOptions(scheme *runtime.Scheme) (cache.Options, error) {
 	}
 	bootstrapConfig := certmanager.DefaultBootstrapConfig()
 	defaultNsConfig[bootstrapConfig.CertManagerNamespace] = defaultCacheConfig
-	if operatorConfig := certmanager.BootstrapOperatorCertConfig(); operatorConfig.Namespace != "" {
-		defaultNsConfig[operatorConfig.Namespace] = defaultCacheConfig
+	if cfg.RhaiOperatorNamespace != "" {
+		defaultNsConfig[cfg.RhaiOperatorNamespace] = defaultCacheConfig
 	}
 
 	return cache.Options{

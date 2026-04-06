@@ -8,6 +8,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 )
 
 // Provider defines what each cloud provider must supply to the unified cloud manager binary.
@@ -19,10 +21,10 @@ type Provider struct {
 	// LeaderElectionID is the unique leader election identifier for this provider.
 	LeaderElectionID string
 	// NewReconciler creates and registers the provider's controller with the manager.
-	NewReconciler func(ctx context.Context, mgr ctrl.Manager) error
+	NewReconciler func(ctx context.Context, mgr ctrl.Manager, cfg *operatorconfig.CloudManagerConfig) error
 	// CacheOptions returns the provider-specific cache configuration.
 	// If not set, defaults to DefaultCacheOptions.
-	CacheOptions func(scheme *runtime.Scheme) (cache.Options, error)
+	CacheOptions func(scheme *runtime.Scheme, cfg *operatorconfig.CloudManagerConfig) (cache.Options, error)
 	// ClientOptions returns the provider-specific client configuration.
 	// It always sets the unstructured cache to true.
 	ClientOptions func() client.Options

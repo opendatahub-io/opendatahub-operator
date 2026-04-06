@@ -54,3 +54,11 @@ func manifestsPath(p common.Platform) types.ManifestInfo {
 		SourcePath: overlaysSourcePaths[p],
 	}
 }
+
+func mcpGuardrailsManifestInfo() types.ManifestInfo {
+	return types.ManifestInfo{
+		Path:       odhdeploy.DefaultManifestPath,
+		ContextDir: ComponentName,
+		SourcePath: "/overlays/mcp-guardrails",
+	}
+}
