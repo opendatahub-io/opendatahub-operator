@@ -5,7 +5,7 @@ ARG BUILDPLATFORM
 ARG TARGETPLATFORM
 
 ################################################################################
-FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi9/toolbox as manifests
+FROM --platform=$TARGETPLATFORM registry.access.redhat.com/ubi9/toolbox as manifests
 ARG USE_LOCAL=false
 ARG OVERWRITE_MANIFESTS=""
 USER root
@@ -36,7 +36,7 @@ RUN rm -f /opt/manifests/segment
 COPY config/segment/ /opt/manifests/segment
 
 ################################################################################
-FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi9/go-toolset:$GOLANG_VERSION as builder
+FROM --platform=$TARGETPLATFORM registry.access.redhat.com/ubi9/go-toolset:$GOLANG_VERSION as builder
 ARG CGO_ENABLED=1
 ARG TARGETARCH
 USER root
