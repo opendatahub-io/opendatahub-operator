@@ -75,6 +75,10 @@ func (s *componentHandler) Init(_ common.Platform) error {
 		return fmt.Errorf("failed to update images on path %s: %w", manifestsPath(), err)
 	}
 
+	if err := odhdeploy.ApplyParams(wvaManifestsPath().String(), "params.env", wvaImageParamMap); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", wvaManifestsPath(), err)
+	}
+
 	return nil
 }
 
