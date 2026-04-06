@@ -127,6 +127,12 @@ func customizeManifests(ctx context.Context, rr *types.ReconciliationRequest) er
 		log.V(4).Info("Configuring API key max expiration days", "value", *maas.Spec.APIKeys.MaxExpirationDays)
 	}
 
+	// Detect cluster audience from Authentication config (supports clusters with custom OIDC issuers)
+	if audience, err := cluster.GetClusterServiceAccountIssuer(ctx, rr.Client); err == nil && audience != "" {
+		params["cluster-audience"] = audience
+		log.Info("Using cluster-configured service account issuer for token review audience", "audience", audience)
+	}
+
 	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), "params.env", nil, params); err != nil {
 		return fmt.Errorf("failed to update params on path %s: %w", rr.Manifests[0].String(), err)
 	}

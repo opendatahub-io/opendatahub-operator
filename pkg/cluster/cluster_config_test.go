@@ -439,6 +439,80 @@ func TestIsIntegratedOAuth(t *testing.T) {
 	}
 }
 
+func TestGetClusterServiceAccountIssuer(t *testing.T) {
+	scheme := runtime.NewScheme()
+	err := configv1.AddToScheme(scheme)
+	if err != nil {
+		t.Fatalf("failed to add configv1 scheme: %v", err)
+	}
+
+	testCases := []struct {
+		name           string
+		authObject     *configv1.Authentication
+		expectedIssuer string
+		expectedError  bool
+	}{
+		{
+			name: "returns issuer when set",
+			authObject: &configv1.Authentication{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: cluster.ClusterAuthenticationObj,
+				},
+				Spec: configv1.AuthenticationSpec{
+					ServiceAccountIssuer: "https://oidc.rosa.example.com",
+				},
+			},
+			expectedIssuer: "https://oidc.rosa.example.com",
+			expectedError:  false,
+		},
+		{
+			name: "returns empty when issuer not set",
+			authObject: &configv1.Authentication{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: cluster.ClusterAuthenticationObj,
+				},
+				Spec: configv1.AuthenticationSpec{},
+			},
+			expectedIssuer: "",
+			expectedError:  false,
+		},
+		{
+			name:           "returns empty when Authentication CR not found",
+			authObject:     nil,
+			expectedIssuer: "",
+			expectedError:  false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			objs := []runtime.Object{}
+			if tc.authObject != nil {
+				objs = append(objs, tc.authObject)
+			}
+
+			fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objs...).Build()
+
+			result, err := cluster.GetClusterServiceAccountIssuer(ctx, fakeClient)
+
+			if tc.expectedError {
+				if err == nil {
+					t.Errorf("GetClusterServiceAccountIssuer() expected error but got nil")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("GetClusterServiceAccountIssuer() unexpected error: %v", err)
+				}
+				if result != tc.expectedIssuer {
+					t.Errorf("GetClusterServiceAccountIssuer() = %q, want %q", result, tc.expectedIssuer)
+				}
+			}
+		})
+	}
+}
+
 func TestGetDomain(t *testing.T) {
 	testCases := []struct {
 		name           string
