@@ -290,12 +290,8 @@ func TestGcAction(t *testing.T) {
 				},
 			}
 
-			for k, v := range tt.labels {
-				cm.Labels[k] = v
-			}
-			for k, v := range tt.annotations {
-				cm.Annotations[k] = v
-			}
+			maps.Copy(cm.Labels, tt.labels)
+			maps.Copy(cm.Annotations, tt.annotations)
 
 			t.Cleanup(func() {
 				g.Expect(cli.Delete(ctx, &cm)).Should(Or(

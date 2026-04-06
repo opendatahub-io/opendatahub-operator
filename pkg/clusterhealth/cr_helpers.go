@@ -9,7 +9,7 @@ import (
 
 // UnhealthyChecker is the common signature for kind-specific condition checks.
 // Receives the raw CR object and parsed conditions; returns messages for any conditions that count as unhealthy.
-type UnhealthyChecker func(obj map[string]interface{}, conditions []ConditionSummary) []string
+type UnhealthyChecker func(obj map[string]any, conditions []ConditionSummary) []string
 
 // kindUnhealthyCheckers registers Kind-specific unhealthy logic. Kinds not in the map use defaultUnhealthyConditions (any condition not True).
 // To add a new CR: add an entry here and optionally implement a small helper in this file.
@@ -24,13 +24,13 @@ func getUnhealthyChecker(kind string) UnhealthyChecker {
 }
 
 // dsciUnhealthyConditionsWithObj adapts dsciUnhealthyConditions to the UnhealthyChecker signature (DSCI logic ignores the object).
-func dsciUnhealthyConditionsWithObj(_ map[string]interface{}, conditions []ConditionSummary) []string {
+func dsciUnhealthyConditionsWithObj(_ map[string]any, conditions []ConditionSummary) []string {
 	return dsciUnhealthyConditions(conditions)
 }
 
 // dscUnhealthyConditions returns condition strings that count as unhealthy for DSC.
 // We only report unhealthy for a component if it is not Removed.
-func dscUnhealthyConditions(obj map[string]interface{}, conditions []ConditionSummary) []string {
+func dscUnhealthyConditions(obj map[string]any, conditions []ConditionSummary) []string {
 	removed := dscRemovedComponentNames(obj)
 	out := make([]string, 0, len(conditions))
 	for _, cond := range conditions {
@@ -73,7 +73,7 @@ func conditionMessageIndicatesRemoved(message string) bool {
 
 // dscRemovedComponentNames returns the set of component keys (e.g. "dashboard", "kueue") that have managementState "Removed".
 // Reads from both spec.components and status.components (keys stored lowercase for lookup).
-func dscRemovedComponentNames(obj map[string]interface{}) map[string]bool {
+func dscRemovedComponentNames(obj map[string]any) map[string]bool {
 	removed := make(map[string]bool)
 	for _, path := range [][]string{{"spec", "components"}, {"status", "components"}} {
 		components, found, _ := unstructured.NestedMap(obj, path...)
@@ -81,7 +81,7 @@ func dscRemovedComponentNames(obj map[string]interface{}) map[string]bool {
 			continue
 		}
 		for name, val := range components {
-			comp, ok := val.(map[string]interface{})
+			comp, ok := val.(map[string]any)
 			if !ok {
 				continue
 			}

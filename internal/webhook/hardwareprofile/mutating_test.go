@@ -71,12 +71,12 @@ func setContainerResources(notebook *unstructured.Unstructured, resourceType, re
 	if len(containers) == 0 {
 		return
 	}
-	containerMap, ok := containers[0].(map[string]interface{})
+	containerMap, ok := containers[0].(map[string]any)
 	if !ok {
 		return
 	}
-	containerMap["resources"] = map[string]interface{}{
-		resourceType: map[string]interface{}{
+	containerMap["resources"] = map[string]any{
+		resourceType: map[string]any{
 			resourceKey: value,
 		},
 	}
@@ -461,11 +461,11 @@ func TestHardwareProfile_ConvertIntOrStringToQuantity(t *testing.T) {
 				hardwareprofile.HardwareProfileNameAnnotation: testHardwareProfile,
 			})
 			// Set minimal spec structure without containers so resources will be injected
-			err := unstructured.SetNestedMap(notebook.Object, map[string]interface{}{
-				"template": map[string]interface{}{
-					"spec": map[string]interface{}{
-						"containers": []interface{}{
-							map[string]interface{}{
+			err := unstructured.SetNestedMap(notebook.Object, map[string]any{
+				"template": map[string]any{
+					"spec": map[string]any{
+						"containers": []any{
+							map[string]any{
 								"name":  "notebook",
 								"image": "notebook:latest",
 								// No resources defined - will trigger injection
@@ -501,8 +501,8 @@ func TestHardwareProfile_ConvertIntOrStringToQuantity(t *testing.T) {
 					for _, patch := range resp.Patches {
 						if patch.Operation == webhookutils.PatchOpAdd && strings.Contains(patch.Path, "/resources") {
 							// The patch value should be a map containing requests with our resource
-							if resourcesMap, ok := patch.Value.(map[string]interface{}); ok {
-								if requests, ok := resourcesMap["requests"].(map[string]interface{}); ok {
+							if resourcesMap, ok := patch.Value.(map[string]any); ok {
+								if requests, ok := resourcesMap["requests"].(map[string]any); ok {
 									if quantity, exists := requests["test.com/resource"]; exists {
 										g.Expect(quantity).Should(Equal(tc.expected))
 										patchFound = true
@@ -547,8 +547,8 @@ func TestHardwareProfile_UnsupportedWorkloadKind(t *testing.T) {
 	})
 
 	// Set malformed spec that will cause container validation to fail
-	err := unstructured.SetNestedMap(notebookUnstructured.Object, map[string]interface{}{
-		"template": map[string]interface{}{
+	err := unstructured.SetNestedMap(notebookUnstructured.Object, map[string]any{
+		"template": map[string]any{
 			"spec": "invalid-spec-should-be-map", // This will cause a validation error
 		},
 	}, "spec")
@@ -710,14 +710,14 @@ func TestHardwareProfile_ResourceInjection_Notebook(t *testing.T) {
 
 				// Set existing resources that should be preserved
 				containers, _, _ := unstructured.NestedSlice(workload.Object, "spec", "template", "spec", "containers")
-				containerMap, ok := containers[0].(map[string]interface{})
+				containerMap, ok := containers[0].(map[string]any)
 				g.Expect(ok).Should(BeTrue(), "container should be a map")
-				containerMap["resources"] = map[string]interface{}{
-					"requests": map[string]interface{}{
+				containerMap["resources"] = map[string]any{
+					"requests": map[string]any{
 						"cpu":    "2",
 						"memory": "4Gi",
 					},
-					"limits": map[string]interface{}{
+					"limits": map[string]any{
 						"cpu":    "4",
 						"memory": "8Gi",
 					},
@@ -735,10 +735,10 @@ func TestHardwareProfile_ResourceInjection_Notebook(t *testing.T) {
 
 				// Set only CPU request, memory should be applied from HWP
 				containers, _, _ := unstructured.NestedSlice(workload.Object, "spec", "template", "spec", "containers")
-				containerMap, ok := containers[0].(map[string]interface{})
+				containerMap, ok := containers[0].(map[string]any)
 				g.Expect(ok).Should(BeTrue(), "container should be a map")
-				containerMap["resources"] = map[string]interface{}{
-					"requests": map[string]interface{}{
+				containerMap["resources"] = map[string]any{
+					"requests": map[string]any{
 						"cpu": "1",
 					},
 				}
@@ -754,22 +754,22 @@ func TestHardwareProfile_ResourceInjection_Notebook(t *testing.T) {
 				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
 
 				// For Notebooks with multiple containers, only the container matching the Notebook name gets resources
-				containers := []interface{}{
-					map[string]interface{}{
+				containers := []any{
+					map[string]any{
 						"name":  testNotebook, // Name matches Notebook - this is the main container
 						"image": "notebook:latest",
-						"resources": map[string]interface{}{
-							"requests": map[string]interface{}{
+						"resources": map[string]any{
+							"requests": map[string]any{
 								"cpu": "1",
 								// Missing memory - should get HWP memory
 							},
 						},
 					},
-					map[string]interface{}{
+					map[string]any{
 						"name":  "oauth-proxy", // Sidecar - should NOT get HWP resources
 						"image": "oauth-proxy:latest",
-						"resources": map[string]interface{}{
-							"requests": map[string]interface{}{
+						"resources": map[string]any{
+							"requests": map[string]any{
 								"memory": "64Mi",
 								"cpu":    "10m",
 							},
@@ -788,16 +788,16 @@ func TestHardwareProfile_ResourceInjection_Notebook(t *testing.T) {
 				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
 
 				// No container name matches the Notebook name -> admits with warning, no identifier injection
-				containers := []interface{}{
-					map[string]interface{}{
+				containers := []any{
+					map[string]any{
 						"name":      "container-a",
 						"image":     "notebook:latest",
-						"resources": map[string]interface{}{},
+						"resources": map[string]any{},
 					},
-					map[string]interface{}{
+					map[string]any{
 						"name":      "container-b",
 						"image":     "oauth-proxy:latest",
-						"resources": map[string]interface{}{},
+						"resources": map[string]any{},
 					},
 				}
 				_ = unstructured.SetNestedSlice(workload.Object, containers, "spec", "template", "spec", "containers")
@@ -866,17 +866,17 @@ func TestHardwareProfile_Notebook_MainContainerOnly_NoResourcePatchForSidecar(t 
 	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
 	injector := createWebhookInjector(cli, sch)
 
-	containers := []interface{}{
-		map[string]interface{}{
+	containers := []any{
+		map[string]any{
 			"name":      testNotebook,
 			"image":     "notebook:latest",
-			"resources": map[string]interface{}{},
+			"resources": map[string]any{},
 		},
-		map[string]interface{}{
+		map[string]any{
 			"name":  "sidecar",
 			"image": "busybox:latest",
-			"resources": map[string]interface{}{
-				"requests": map[string]interface{}{"cpu": "10m", "memory": "32Mi"},
+			"resources": map[string]any{
+				"requests": map[string]any{"cpu": "10m", "memory": "32Mi"},
 			},
 		},
 	}
@@ -910,20 +910,20 @@ func TestHardwareProfile_Notebook_MainContainerOnly_NoResourcePatchForSidecar(t 
 	if !mainContainerGotResources {
 		for _, patch := range resp.Patches {
 			if strings.HasSuffix(patch.Path, "/containers") && patch.Value != nil {
-				if arr, ok := patch.Value.([]interface{}); ok && len(arr) >= 2 {
-					c0, _ := arr[0].(map[string]interface{})
-					c1, _ := arr[1].(map[string]interface{})
+				if arr, ok := patch.Value.([]any); ok && len(arr) >= 2 {
+					c0, _ := arr[0].(map[string]any)
+					c1, _ := arr[1].(map[string]any)
 					if c0 != nil {
-						if res, _ := c0["resources"].(map[string]interface{}); res != nil {
-							if req, _ := res["requests"].(map[string]interface{}); req != nil && req["nvidia.com/gpu"] != nil {
+						if res, _ := c0["resources"].(map[string]any); res != nil {
+							if req, _ := res["requests"].(map[string]any); req != nil && req["nvidia.com/gpu"] != nil {
 								mainContainerGotResources = true
 							}
 						}
 					}
 					g.Expect(c1).Should(Not(BeNil()))
 					if c1 != nil {
-						if res, _ := c1["resources"].(map[string]interface{}); res != nil {
-							if req, _ := res["requests"].(map[string]interface{}); req != nil {
+						if res, _ := c1["resources"].(map[string]any); res != nil {
+							if req, _ := res["requests"].(map[string]any); req != nil {
 								g.Expect(req).Should(Not(HaveKey("nvidia.com/gpu")), "Sidecar must not have GPU in requests")
 							}
 						}
@@ -1016,9 +1016,9 @@ func TestHardwareProfile_ResourceLimits_Notebook(t *testing.T) {
 		if strings.Contains(patch.Path, "/resources") {
 			hasResourcesPatch = true
 
-			if resourcesMap, ok := patch.Value.(map[string]interface{}); ok {
-				requests, hasRequests := resourcesMap["requests"].(map[string]interface{})
-				limits, hasLimits := resourcesMap["limits"].(map[string]interface{})
+			if resourcesMap, ok := patch.Value.(map[string]any); ok {
+				requests, hasRequests := resourcesMap["requests"].(map[string]any)
+				limits, hasLimits := resourcesMap["limits"].(map[string]any)
 
 				g.Expect(hasRequests).Should(BeTrue(), "Resources patch should contain requests")
 				g.Expect(hasLimits).Should(BeTrue(), "Resources patch should contain limits")
@@ -1091,14 +1091,14 @@ func TestHardwareProfile_ResourceInjection_InferenceService(t *testing.T) {
 				// Set existing resources that should be preserved
 				model, _, _ := unstructured.NestedMap(workload.Object, "spec", "predictor", "model")
 				if model == nil {
-					model = make(map[string]interface{})
+					model = make(map[string]any)
 				}
-				model["resources"] = map[string]interface{}{
-					"requests": map[string]interface{}{
+				model["resources"] = map[string]any{
+					"requests": map[string]any{
 						"cpu":    "2",
 						"memory": "4Gi",
 					},
-					"limits": map[string]interface{}{
+					"limits": map[string]any{
 						"cpu":    "4",
 						"memory": "8Gi",
 					},
@@ -1117,10 +1117,10 @@ func TestHardwareProfile_ResourceInjection_InferenceService(t *testing.T) {
 				// Set only CPU request, memory should be applied from HWP
 				model, _, _ := unstructured.NestedMap(workload.Object, "spec", "predictor", "model")
 				if model == nil {
-					model = make(map[string]interface{})
+					model = make(map[string]any)
 				}
-				model["resources"] = map[string]interface{}{
-					"requests": map[string]interface{}{
+				model["resources"] = map[string]any{
+					"requests": map[string]any{
 						"cpu": "1",
 					},
 				}
@@ -1136,11 +1136,11 @@ func TestHardwareProfile_ResourceInjection_InferenceService(t *testing.T) {
 				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
 
 				// For InferenceServices, work with the model object - set partial resources
-				model := map[string]interface{}{
+				model := map[string]any{
 					"name":  "test-model",
 					"image": "tensorflow/serving:latest",
-					"resources": map[string]interface{}{
-						"requests": map[string]interface{}{
+					"resources": map[string]any{
+						"requests": map[string]any{
 							"cpu": "1",
 							// Missing memory - should get HWP memory
 						},
@@ -1342,9 +1342,9 @@ func TestHardwareProfile_ResourceLimits_InferenceService(t *testing.T) {
 			hasResourcesPatch = true
 
 			// Check if the patch value contains requests and limits
-			if resourcesMap, ok := patch.Value.(map[string]interface{}); ok {
-				requests, hasRequests := resourcesMap["requests"].(map[string]interface{})
-				limits, hasLimits := resourcesMap["limits"].(map[string]interface{})
+			if resourcesMap, ok := patch.Value.(map[string]any); ok {
+				requests, hasRequests := resourcesMap["requests"].(map[string]any)
+				limits, hasLimits := resourcesMap["limits"].(map[string]any)
 
 				g.Expect(hasRequests).Should(BeTrue(), "Resources patch should contain requests")
 				g.Expect(hasLimits).Should(BeTrue(), "Resources patch should contain limits for extended resources")
@@ -1410,16 +1410,16 @@ func TestHardwareProfile_ResourceInjection_LLMInferenceService(t *testing.T) {
 				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
 
 				// Set existing resources that should be preserved
-				containers := []interface{}{
-					map[string]interface{}{
+				containers := []any{
+					map[string]any{
 						"name":  "main",
 						"image": "opendatahub/llm-model-server:latest",
-						"resources": map[string]interface{}{
-							"requests": map[string]interface{}{
+						"resources": map[string]any{
+							"requests": map[string]any{
 								"cpu":    "2",
 								"memory": "4Gi",
 							},
-							"limits": map[string]interface{}{
+							"limits": map[string]any{
 								"cpu":    "4",
 								"memory": "8Gi",
 							},
@@ -1438,12 +1438,12 @@ func TestHardwareProfile_ResourceInjection_LLMInferenceService(t *testing.T) {
 				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
 
 				// Set only CPU request, memory should be applied from HWP
-				containers := []interface{}{
-					map[string]interface{}{
+				containers := []any{
+					map[string]any{
 						"name":  "main",
 						"image": "opendatahub/llm-model-server:latest",
-						"resources": map[string]interface{}{
-							"requests": map[string]interface{}{
+						"resources": map[string]any{
+							"requests": map[string]any{
 								"cpu": "1",
 							},
 						},
@@ -1460,12 +1460,12 @@ func TestHardwareProfile_ResourceInjection_LLMInferenceService(t *testing.T) {
 				workload, ok := envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
 				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
 
-				containers := []interface{}{
-					map[string]interface{}{
+				containers := []any{
+					map[string]any{
 						"name":  "main",
 						"image": "opendatahub/llm-model-server:latest",
-						"resources": map[string]interface{}{
-							"requests": map[string]interface{}{
+						"resources": map[string]any{
+							"requests": map[string]any{
 								"cpu": "1",
 								// Missing memory - should get HWProfile memory
 							},
@@ -1484,11 +1484,11 @@ func TestHardwareProfile_ResourceInjection_LLMInferenceService(t *testing.T) {
 				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
 
 				// Container not named "main" -> admits with warning, no identifier injection
-				containers := []interface{}{
-					map[string]interface{}{
+				containers := []any{
+					map[string]any{
 						"name":      "llm-server",
 						"image":     "opendatahub/llm-model-server:latest",
-						"resources": map[string]interface{}{},
+						"resources": map[string]any{},
 					},
 				}
 				_ = unstructured.SetNestedSlice(workload.Object, containers, "spec", "template", "containers")
@@ -1556,7 +1556,7 @@ func TestHardwareProfile_CreatesContainerStructure_LLMInferenceService(t *testin
 		hardwareprofile.HardwareProfileNameAnnotation: testHardwareProfile,
 	})
 	// Set spec: {}
-	workload.Object["spec"] = map[string]interface{}{}
+	workload.Object["spec"] = map[string]any{}
 
 	req := envtestutil.NewAdmissionRequest(
 		t,
@@ -1578,9 +1578,9 @@ func TestHardwareProfile_CreatesContainerStructure_LLMInferenceService(t *testin
 	hasResourcePatches := false
 	for _, patch := range resp.Patches {
 		if strings.Contains(patch.Path, "/spec/template") {
-			if patchValue, ok := patch.Value.(map[string]interface{}); ok {
-				if containers, ok := patchValue["containers"].([]interface{}); ok && len(containers) > 0 {
-					if container, ok := containers[0].(map[string]interface{}); ok {
+			if patchValue, ok := patch.Value.(map[string]any); ok {
+				if containers, ok := patchValue["containers"].([]any); ok && len(containers) > 0 {
+					if container, ok := containers[0].(map[string]any); ok {
 						// Verify the container has the expected name "main"
 						if name, ok := container["name"].(string); ok && name == "main" {
 							hasContainerPatches = true
@@ -1760,9 +1760,9 @@ func TestHardwareProfile_ResourceLimits_LLMInferenceService(t *testing.T) {
 		if strings.Contains(patch.Path, "/resources") {
 			hasResourcesPatch = true
 
-			if resourcesMap, ok := patch.Value.(map[string]interface{}); ok {
-				requests, hasRequests := resourcesMap["requests"].(map[string]interface{})
-				limits, hasLimits := resourcesMap["limits"].(map[string]interface{})
+			if resourcesMap, ok := patch.Value.(map[string]any); ok {
+				requests, hasRequests := resourcesMap["requests"].(map[string]any)
+				limits, hasLimits := resourcesMap["limits"].(map[string]any)
 
 				g.Expect(hasRequests).Should(BeTrue(), "Resources patch should contain requests")
 				g.Expect(hasLimits).Should(BeTrue(), "Resources patch should contain limits for extended resources")
@@ -1848,9 +1848,9 @@ func TestHardwareProfile_MixedResourceLimits_Notebook(t *testing.T) {
 		if strings.Contains(patch.Path, "/resources") {
 			hasResourcesPatch = true
 
-			if resourcesMap, ok := patch.Value.(map[string]interface{}); ok {
-				requests, hasRequests := resourcesMap["requests"].(map[string]interface{})
-				limits, hasLimits := resourcesMap["limits"].(map[string]interface{})
+			if resourcesMap, ok := patch.Value.(map[string]any); ok {
+				requests, hasRequests := resourcesMap["requests"].(map[string]any)
+				limits, hasLimits := resourcesMap["limits"].(map[string]any)
 
 				g.Expect(hasRequests).Should(BeTrue(), "Resources patch should contain requests")
 				g.Expect(hasLimits).Should(BeTrue(), "Resources patch should contain limits")
@@ -1921,8 +1921,8 @@ func TestHardwareProfile_ProfileChangeClearsScheduling(t *testing.T) {
 	g.Expect(ok).Should(BeTrue())
 
 	// Set existing tolerations and nodeSelector (as if they were applied by old HWP)
-	_ = unstructured.SetNestedSlice(oldNotebookUnstructured.Object, []interface{}{
-		map[string]interface{}{
+	_ = unstructured.SetNestedSlice(oldNotebookUnstructured.Object, []any{
+		map[string]any{
 			"key":      "nvidia.com/gpu",
 			"operator": "Exists",
 			"effect":   "NoSchedule",
@@ -1936,8 +1936,8 @@ func TestHardwareProfile_ProfileChangeClearsScheduling(t *testing.T) {
 	g.Expect(ok).Should(BeTrue())
 
 	// Copy the tolerations/nodeSelector from old notebook (as they would exist in the cluster)
-	_ = unstructured.SetNestedSlice(newNotebookUnstructured.Object, []interface{}{
-		map[string]interface{}{
+	_ = unstructured.SetNestedSlice(newNotebookUnstructured.Object, []any{
+		map[string]any{
 			"key":      "nvidia.com/gpu",
 			"operator": "Exists",
 			"effect":   "NoSchedule",
@@ -2007,13 +2007,13 @@ func TestHardwareProfile_SameProfileMergesTolerations(t *testing.T) {
 	oldNotebookUnstructured, ok := oldNotebook.(*unstructured.Unstructured)
 	g.Expect(ok).Should(BeTrue())
 
-	_ = unstructured.SetNestedSlice(oldNotebookUnstructured.Object, []interface{}{
-		map[string]interface{}{
+	_ = unstructured.SetNestedSlice(oldNotebookUnstructured.Object, []any{
+		map[string]any{
 			"key":      "nvidia.com/gpu",
 			"operator": "Exists",
 			"effect":   "NoSchedule",
 		},
-		map[string]interface{}{
+		map[string]any{
 			"key":      "my-manual-toleration",
 			"operator": "Equal",
 			"value":    "true",
@@ -2027,13 +2027,13 @@ func TestHardwareProfile_SameProfileMergesTolerations(t *testing.T) {
 	g.Expect(ok).Should(BeTrue())
 
 	// Copy the tolerations from old notebook
-	_ = unstructured.SetNestedSlice(newNotebookUnstructured.Object, []interface{}{
-		map[string]interface{}{
+	_ = unstructured.SetNestedSlice(newNotebookUnstructured.Object, []any{
+		map[string]any{
 			"key":      "nvidia.com/gpu",
 			"operator": "Exists",
 			"effect":   "NoSchedule",
 		},
-		map[string]interface{}{
+		map[string]any{
 			"key":      "my-manual-toleration",
 			"operator": "Equal",
 			"value":    "true",
@@ -2075,7 +2075,7 @@ func TestHardwareProfile_SameProfileMergesTolerations(t *testing.T) {
 	for _, patch := range resp.Patches {
 		if strings.Contains(patch.Path, "tolerations") && (patch.Operation == webhookutils.PatchOpAdd || patch.Operation == webhookutils.PatchOpReplace) {
 			foundTolerationsPatch = true
-			tolerations, ok := patch.Value.([]interface{})
+			tolerations, ok := patch.Value.([]any)
 			g.Expect(ok).Should(BeTrue(), "Tolerations patch value should be a slice")
 			g.Expect(len(tolerations)).Should(BeNumerically(">=", 2), "Should have at least 2 tolerations (HWP + manual)")
 		}
@@ -2093,19 +2093,19 @@ func TestTolerationKey_DistinguishesByValue(t *testing.T) {
 
 	testCases := []struct {
 		name        string
-		toleration1 map[string]interface{}
-		toleration2 map[string]interface{}
+		toleration1 map[string]any
+		toleration2 map[string]any
 		shouldMatch bool
 	}{
 		{
 			name: "same key/operator/effect but different value should NOT match",
-			toleration1: map[string]interface{}{
+			toleration1: map[string]any{
 				"key":      "gpu-type",
 				"operator": "Equal",
 				"value":    "nvidia",
 				"effect":   "NoSchedule",
 			},
-			toleration2: map[string]interface{}{
+			toleration2: map[string]any{
 				"key":      "gpu-type",
 				"operator": "Equal",
 				"value":    "amd",
@@ -2115,13 +2115,13 @@ func TestTolerationKey_DistinguishesByValue(t *testing.T) {
 		},
 		{
 			name: "identical tolerations should match",
-			toleration1: map[string]interface{}{
+			toleration1: map[string]any{
 				"key":      "gpu-type",
 				"operator": "Equal",
 				"value":    "nvidia",
 				"effect":   "NoSchedule",
 			},
-			toleration2: map[string]interface{}{
+			toleration2: map[string]any{
 				"key":      "gpu-type",
 				"operator": "Equal",
 				"value":    "nvidia",
@@ -2131,13 +2131,13 @@ func TestTolerationKey_DistinguishesByValue(t *testing.T) {
 		},
 		{
 			name: "same key/operator/effect/value but different tolerationSeconds should NOT match",
-			toleration1: map[string]interface{}{
+			toleration1: map[string]any{
 				"key":               "node.kubernetes.io/unreachable",
 				"operator":          "Exists",
 				"effect":            "NoExecute",
 				"tolerationSeconds": int64(300),
 			},
-			toleration2: map[string]interface{}{
+			toleration2: map[string]any{
 				"key":               "node.kubernetes.io/unreachable",
 				"operator":          "Exists",
 				"effect":            "NoExecute",
@@ -2147,13 +2147,13 @@ func TestTolerationKey_DistinguishesByValue(t *testing.T) {
 		},
 		{
 			name: "same tolerations with same tolerationSeconds should match",
-			toleration1: map[string]interface{}{
+			toleration1: map[string]any{
 				"key":               "node.kubernetes.io/unreachable",
 				"operator":          "Exists",
 				"effect":            "NoExecute",
 				"tolerationSeconds": int64(300),
 			},
-			toleration2: map[string]interface{}{
+			toleration2: map[string]any{
 				"key":               "node.kubernetes.io/unreachable",
 				"operator":          "Exists",
 				"effect":            "NoExecute",
@@ -2163,13 +2163,13 @@ func TestTolerationKey_DistinguishesByValue(t *testing.T) {
 		},
 		{
 			name: "toleration with tolerationSeconds vs without should NOT match",
-			toleration1: map[string]interface{}{
+			toleration1: map[string]any{
 				"key":               "node.kubernetes.io/unreachable",
 				"operator":          "Exists",
 				"effect":            "NoExecute",
 				"tolerationSeconds": int64(300),
 			},
-			toleration2: map[string]interface{}{
+			toleration2: map[string]any{
 				"key":      "node.kubernetes.io/unreachable",
 				"operator": "Exists",
 				"effect":   "NoExecute",
@@ -2178,12 +2178,12 @@ func TestTolerationKey_DistinguishesByValue(t *testing.T) {
 		},
 		{
 			name: "Exists operator with empty value should match same toleration",
-			toleration1: map[string]interface{}{
+			toleration1: map[string]any{
 				"key":      "nvidia.com/gpu",
 				"operator": "Exists",
 				"effect":   "NoSchedule",
 			},
-			toleration2: map[string]interface{}{
+			toleration2: map[string]any{
 				"key":      "nvidia.com/gpu",
 				"operator": "Exists",
 				"effect":   "NoSchedule",
@@ -2240,14 +2240,14 @@ func TestHardwareProfile_HWPRemovalPreservesUserTolerations(t *testing.T) {
 	g.Expect(ok).Should(BeTrue())
 
 	// Set tolerations: HWP's "amd" toleration + user's "nvidia" toleration (same key, different value)
-	_ = unstructured.SetNestedSlice(oldNotebookUnstructured.Object, []interface{}{
-		map[string]interface{}{
+	_ = unstructured.SetNestedSlice(oldNotebookUnstructured.Object, []any{
+		map[string]any{
 			"key":      "gpu-type",
 			"operator": "Equal",
 			"value":    "amd", // HWP-applied
 			"effect":   "NoSchedule",
 		},
-		map[string]interface{}{
+		map[string]any{
 			"key":      "gpu-type",
 			"operator": "Equal",
 			"value":    "nvidia", // User-added (should be preserved)
@@ -2262,14 +2262,14 @@ func TestHardwareProfile_HWPRemovalPreservesUserTolerations(t *testing.T) {
 	g.Expect(ok).Should(BeTrue())
 
 	// Copy the tolerations/nodeSelector from old notebook (as they exist in cluster)
-	_ = unstructured.SetNestedSlice(newNotebookUnstructured.Object, []interface{}{
-		map[string]interface{}{
+	_ = unstructured.SetNestedSlice(newNotebookUnstructured.Object, []any{
+		map[string]any{
 			"key":      "gpu-type",
 			"operator": "Equal",
 			"value":    "amd",
 			"effect":   "NoSchedule",
 		},
-		map[string]interface{}{
+		map[string]any{
 			"key":      "gpu-type",
 			"operator": "Equal",
 			"value":    "nvidia",
@@ -2308,11 +2308,11 @@ func TestHardwareProfile_HWPRemovalPreservesUserTolerations(t *testing.T) {
 			foundTolerationsPatch = true
 
 			// The patch should contain remaining tolerations
-			if tolerations, ok := patch.Value.([]interface{}); ok {
+			if tolerations, ok := patch.Value.([]any); ok {
 				foundUserToleration := false
 				foundHWPToleration := false
 				for _, tol := range tolerations {
-					if tolMap, ok := tol.(map[string]interface{}); ok {
+					if tolMap, ok := tol.(map[string]any); ok {
 						if tolMap["key"] == "gpu-type" && tolMap["value"] == "nvidia" {
 							foundUserToleration = true
 						}
@@ -2372,14 +2372,14 @@ func TestHardwareProfile_HWPRemovalWithTolerationSeconds(t *testing.T) {
 	g.Expect(ok).Should(BeTrue())
 
 	// User has same toleration but with different tolerationSeconds (600 vs HWP's 300)
-	_ = unstructured.SetNestedSlice(oldNotebookUnstructured.Object, []interface{}{
-		map[string]interface{}{
+	_ = unstructured.SetNestedSlice(oldNotebookUnstructured.Object, []any{
+		map[string]any{
 			"key":               "node.kubernetes.io/unreachable",
 			"operator":          "Exists",
 			"effect":            "NoExecute",
 			"tolerationSeconds": int64(300), // HWP-applied
 		},
-		map[string]interface{}{
+		map[string]any{
 			"key":               "node.kubernetes.io/unreachable",
 			"operator":          "Exists",
 			"effect":            "NoExecute",
@@ -2393,14 +2393,14 @@ func TestHardwareProfile_HWPRemovalWithTolerationSeconds(t *testing.T) {
 	g.Expect(ok).Should(BeTrue())
 
 	// Copy tolerations from old notebook
-	_ = unstructured.SetNestedSlice(newNotebookUnstructured.Object, []interface{}{
-		map[string]interface{}{
+	_ = unstructured.SetNestedSlice(newNotebookUnstructured.Object, []any{
+		map[string]any{
 			"key":               "node.kubernetes.io/unreachable",
 			"operator":          "Exists",
 			"effect":            "NoExecute",
 			"tolerationSeconds": int64(300),
 		},
-		map[string]interface{}{
+		map[string]any{
 			"key":               "node.kubernetes.io/unreachable",
 			"operator":          "Exists",
 			"effect":            "NoExecute",
@@ -2437,11 +2437,11 @@ func TestHardwareProfile_HWPRemovalWithTolerationSeconds(t *testing.T) {
 			(patch.Operation == webhookutils.PatchOpAdd || patch.Operation == webhookutils.PatchOpReplace) {
 			foundTolerationsPatch = true
 
-			if tolerations, ok := patch.Value.([]interface{}); ok {
+			if tolerations, ok := patch.Value.([]any); ok {
 				found300s := false
 				found600s := false
 				for _, tol := range tolerations {
-					if tolMap, ok := tol.(map[string]interface{}); ok {
+					if tolMap, ok := tol.(map[string]any); ok {
 						if ts, exists := tolMap["tolerationSeconds"]; exists {
 							// Handle both int64 and float64 (JSON unmarshaling can produce float64)
 							switch v := ts.(type) {

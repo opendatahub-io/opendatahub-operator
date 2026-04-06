@@ -89,7 +89,7 @@ func kserveManifestInfo(sourcePath string) odhtypes.ManifestInfo {
 func updateInferenceCM(inferenceServiceConfigMap *corev1.ConfigMap, isHeadless bool) error {
 	// ingress
 	// RawDeployment mode is the only supported mode, so always disable ingress creation
-	var ingressData map[string]interface{}
+	var ingressData map[string]any
 	if err := json.Unmarshal([]byte(inferenceServiceConfigMap.Data[IngressConfigKeyName]), &ingressData); err != nil {
 		return fmt.Errorf("error retrieving value for key '%s' from configmap %s. %w", IngressConfigKeyName, kserveConfigMapName, err)
 	}
@@ -101,7 +101,7 @@ func updateInferenceCM(inferenceServiceConfigMap *corev1.ConfigMap, isHeadless b
 	inferenceServiceConfigMap.Data[IngressConfigKeyName] = string(ingressDataBytes)
 
 	// service
-	var serviceData map[string]interface{}
+	var serviceData map[string]any
 	if err := json.Unmarshal([]byte(inferenceServiceConfigMap.Data[ServiceConfigKeyName]), &serviceData); err != nil {
 		return fmt.Errorf("error retrieving value for key '%s' from configmap %s. %w", ServiceConfigKeyName, kserveConfigMapName, err)
 	}

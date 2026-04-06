@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"maps"
 
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -81,9 +82,7 @@ func cacheOptionsWithAdditionalNamespaces(managedNamespaces []string, extras map
 	for _, ns := range managedNamespaces {
 		nsConfig[ns] = cache.Config{}
 	}
-	for ns, cfg := range extras {
-		nsConfig[ns] = cfg
-	}
+	maps.Copy(nsConfig, extras)
 	return cache.ByObject{
 		Namespaces: nsConfig,
 	}

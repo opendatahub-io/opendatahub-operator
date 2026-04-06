@@ -451,13 +451,13 @@ func TestGetDomain(t *testing.T) {
 		{
 			name: "appsDomain takes precedence over domain",
 			ingress: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "config.openshift.io/v1",
 					"kind":       "Ingress",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name": "cluster",
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"appsDomain": "apps.custom.example.com",
 						"domain":     "example.com",
 					},
@@ -469,13 +469,13 @@ func TestGetDomain(t *testing.T) {
 		{
 			name: "appsDomain empty string falls back to domain",
 			ingress: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "config.openshift.io/v1",
 					"kind":       "Ingress",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name": "cluster",
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"appsDomain": "",
 						"domain":     "example.com",
 					},
@@ -487,13 +487,13 @@ func TestGetDomain(t *testing.T) {
 		{
 			name: "appsDomain not set falls back to domain",
 			ingress: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "config.openshift.io/v1",
 					"kind":       "Ingress",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name": "cluster",
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"domain": "example.com",
 					},
 				},
@@ -504,13 +504,13 @@ func TestGetDomain(t *testing.T) {
 		{
 			name: "only domain field present",
 			ingress: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "config.openshift.io/v1",
 					"kind":       "Ingress",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name": "cluster",
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"domain": "example.com",
 					},
 				},
@@ -521,13 +521,13 @@ func TestGetDomain(t *testing.T) {
 		{
 			name: "domain field missing returns error",
 			ingress: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "config.openshift.io/v1",
 					"kind":       "Ingress",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name": "cluster",
 					},
-					"spec": map[string]interface{}{},
+					"spec": map[string]any{},
 				},
 			},
 			expectError:   true,
@@ -536,13 +536,13 @@ func TestGetDomain(t *testing.T) {
 		{
 			name: "domain field empty string returns error",
 			ingress: &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "config.openshift.io/v1",
 					"kind":       "Ingress",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name": "cluster",
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"domain": "",
 					},
 				},

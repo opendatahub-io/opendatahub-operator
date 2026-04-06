@@ -643,7 +643,7 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 			assertClusterQueueCorrectness(g, clusterQueue, test.withGPU, defaultClusterQueueName, flavorNames)
 
 			g.Expect(localQueues).To(HaveLen(3))
-			namespacesNames := []string{}
+			namespacesNames := make([]string, 0, len(localQueues))
 			for _, lc := range localQueues {
 				g.Expect(lc).ToNot(BeNil())
 				g.Expect(lc.GetName()).To(Equal(defaultLocalQueueName))

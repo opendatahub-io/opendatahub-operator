@@ -45,6 +45,7 @@ func ReplaceStringsInFile(fileName string, replacements map[string]string) error
 	}
 
 	// Write the modified content back to the file
+	// #nosec G703 -- fileName is controlled internally and not from user input
 	err = os.WriteFile(fileName, []byte(newContent), 0)
 	if err != nil {
 		return fmt.Errorf("failed to write to file: %w", err)
@@ -75,6 +76,7 @@ func MatchLineInFile(fileName string, replacements map[string]string) error {
 		newContent = re.ReplaceAllString(newContent, newValue)
 	}
 
+	// #nosec G703 -- fileName is controlled internally and not from user input
 	err = os.WriteFile(fileName, []byte(newContent), 0)
 	if err != nil {
 		return fmt.Errorf("failed to write to file: %w", err)
@@ -115,7 +117,7 @@ func sliceAddMissing(s *[]string, e string) int {
 // adds elements of comma separated list.
 func AddMissing(s *[]string, list string) int {
 	added := 0
-	for _, e := range strings.Split(list, ",") {
+	for e := range strings.SplitSeq(list, ",") {
 		added += sliceAddMissing(s, e)
 	}
 	return added

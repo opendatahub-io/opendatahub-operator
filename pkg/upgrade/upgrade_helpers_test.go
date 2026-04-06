@@ -45,55 +45,55 @@ func createTestOdhDashboardConfig(t *testing.T, namespace string) *unstructured.
 	odhConfig.SetName("odh-dashboard-config")
 	odhConfig.SetNamespace(namespace)
 
-	spec := map[string]interface{}{}
-	spec["notebookSizes"] = []interface{}{
-		map[string]interface{}{
+	spec := map[string]any{}
+	spec["notebookSizes"] = []any{
+		map[string]any{
 			"name": "Small",
-			"resources": map[string]interface{}{
-				"requests": map[string]interface{}{
+			"resources": map[string]any{
+				"requests": map[string]any{
 					"memory": "8Gi",
 					"cpu":    "1",
 				},
-				"limits": map[string]interface{}{
+				"limits": map[string]any{
 					"memory": "8Gi",
 					"cpu":    "2",
 				},
 			},
 		},
-		map[string]interface{}{
+		map[string]any{
 			"name": "Medium",
-			"resources": map[string]interface{}{
-				"requests": map[string]interface{}{
+			"resources": map[string]any{
+				"requests": map[string]any{
 					"memory": "24Gi",
 					"cpu":    "3",
 				},
-				"limits": map[string]interface{}{
+				"limits": map[string]any{
 					"memory": "24Gi",
 					"cpu":    "6",
 				},
 			},
 		},
-		map[string]interface{}{
+		map[string]any{
 			"name": "X Large",
-			"resources": map[string]interface{}{
-				"requests": map[string]interface{}{
+			"resources": map[string]any{
+				"requests": map[string]any{
 					"memory": "120Gi",
 					"cpu":    "15",
 				},
-				"limits": map[string]interface{}{
+				"limits": map[string]any{
 					"memory": "120Gi",
 					"cpu":    "30",
 				},
 			},
 		},
-		map[string]interface{}{
+		map[string]any{
 			"name": "Large",
-			"resources": map[string]interface{}{
-				"requests": map[string]interface{}{
+			"resources": map[string]any{
+				"requests": map[string]any{
 					"memory": "56Gi",
 					"cpu":    "7",
 				},
-				"limits": map[string]interface{}{
+				"limits": map[string]any{
 					"memory": "56Gi",
 					"cpu":    "14",
 				},
@@ -101,41 +101,41 @@ func createTestOdhDashboardConfig(t *testing.T, namespace string) *unstructured.
 		},
 	}
 
-	spec["modelServerSizes"] = []interface{}{
-		map[string]interface{}{
+	spec["modelServerSizes"] = []any{
+		map[string]any{
 			"name": "Large",
-			"resources": map[string]interface{}{
-				"limits": map[string]interface{}{
+			"resources": map[string]any{
+				"limits": map[string]any{
 					"cpu":    "10",
 					"memory": "20Gi",
 				},
-				"requests": map[string]interface{}{
+				"requests": map[string]any{
 					"cpu":    "6",
 					"memory": "16Gi",
 				},
 			},
 		},
-		map[string]interface{}{
+		map[string]any{
 			"name": "Small",
-			"resources": map[string]interface{}{
-				"limits": map[string]interface{}{
+			"resources": map[string]any{
+				"limits": map[string]any{
 					"cpu":    "2",
 					"memory": "8Gi",
 				},
-				"requests": map[string]interface{}{
+				"requests": map[string]any{
 					"cpu":    "1",
 					"memory": "4Gi",
 				},
 			},
 		},
-		map[string]interface{}{
+		map[string]any{
 			"name": "Medium",
-			"resources": map[string]interface{}{
-				"limits": map[string]interface{}{
+			"resources": map[string]any{
+				"limits": map[string]any{
 					"cpu":    "8",
 					"memory": "10Gi",
 				},
-				"requests": map[string]interface{}{
+				"requests": map[string]any{
 					"cpu":    "4",
 					"memory": "8Gi",
 				},
@@ -155,9 +155,9 @@ func createTestOdhDashboardConfigWithTolerations(t *testing.T, namespace string)
 	odhConfig := createTestOdhDashboardConfig(t, namespace)
 
 	// Add notebook controller toleration settings
-	notebookController := map[string]interface{}{
+	notebookController := map[string]any{
 		"enabled": true,
-		"notebookTolerationSettings": map[string]interface{}{
+		"notebookTolerationSettings": map[string]any{
 			"enabled":  true,
 			"key":      "notebooks-only",
 			"value":    "true",
@@ -191,7 +191,7 @@ func createTestOdhDashboardConfigWithoutSizes(t *testing.T, namespace string) *u
 	odhConfig.SetNamespace(namespace)
 
 	// Set empty spec
-	spec := map[string]interface{}{}
+	spec := map[string]any{}
 	err := unstructured.SetNestedMap(odhConfig.Object, spec, "spec")
 	if err != nil {
 		t.Fatalf("failed to create test OdhDashboardConfig without sizes: %v", err)
@@ -207,9 +207,9 @@ func createTestOdhDashboardConfigWithMalformedSizes(t *testing.T, namespace stri
 	odhConfig.SetNamespace(namespace)
 
 	// Set spec with malformed container sizes
-	spec := map[string]interface{}{
-		"notebookSizes": []interface{}{
-			map[string]interface{}{
+	spec := map[string]any{
+		"notebookSizes": []any{
+			map[string]any{
 				"name":      "malformed",
 				"resources": "invalid", // Should be a map, not a string
 			},
@@ -230,7 +230,7 @@ func createTestAcceleratorProfile(t *testing.T, namespace string) *unstructured.
 	ap.SetName("test-ap")
 	ap.SetNamespace(namespace)
 
-	spec := map[string]interface{}{
+	spec := map[string]any{
 		"identifier":  "nvidia.com/gpu",
 		"displayName": "NVIDIA GPU",
 		"description": "NVIDIA GPU accelerator",
@@ -256,8 +256,8 @@ func createTestAcceleratorProfileWithTolerations(t *testing.T, namespace string)
 		t.Fatal("spec not found in AcceleratorProfile")
 	}
 
-	tolerations := []interface{}{
-		map[string]interface{}{
+	tolerations := []any{
+		map[string]any{
 			"key":      "nvidia.com/gpu",
 			"operator": "Equal",
 			"value":    "true",
@@ -336,9 +336,9 @@ func createTestInferenceService(namespace, name, runtimeName string) *unstructur
 	isvc.SetNamespace(namespace)
 
 	if runtimeName != "" {
-		spec := map[string]interface{}{
-			"predictor": map[string]interface{}{
-				"model": map[string]interface{}{
+		spec := map[string]any{
+			"predictor": map[string]any{
+				"model": map[string]any{
 					"runtime": runtimeName,
 				},
 			},
@@ -355,15 +355,15 @@ func createTestInferenceServiceWithResources(namespace, name, reqCpu, reqMem, li
 	isvc.SetName(name)
 	isvc.SetNamespace(namespace)
 
-	spec := map[string]interface{}{
-		"predictor": map[string]interface{}{
-			"model": map[string]interface{}{
-				"resources": map[string]interface{}{
-					"requests": map[string]interface{}{
+	spec := map[string]any{
+		"predictor": map[string]any{
+			"model": map[string]any{
+				"resources": map[string]any{
+					"requests": map[string]any{
 						"cpu":    reqCpu,
 						"memory": reqMem,
 					},
-					"limits": map[string]interface{}{
+					"limits": map[string]any{
 						"cpu":    limCpu,
 						"memory": limMem,
 					},
@@ -416,7 +416,7 @@ func createTestGatewayConfig() *unstructured.Unstructured {
 	gatewayConfig := &unstructured.Unstructured{}
 	gatewayConfig.SetGroupVersionKind(gvk.GatewayConfig)
 	gatewayConfig.SetName("default-gateway")
-	spec := map[string]interface{}{}
+	spec := map[string]any{}
 	// Intentionally not handling error - empty spec is valid for tests
 	_ = unstructured.SetNestedMap(gatewayConfig.Object, spec, "spec")
 	return gatewayConfig
@@ -567,7 +567,7 @@ func validateAcceleratorProfileHardwareProfile(g *WithT, hwp *infrav1.HardwarePr
 
 	if hwp.Spec.SchedulingSpec != nil && hwp.Spec.SchedulingSpec.Node != nil {
 		for _, apTol := range apTolerations {
-			apTolMap, ok := apTol.(map[string]interface{})
+			apTolMap, ok := apTol.(map[string]any)
 			if !ok {
 				continue
 			}
@@ -656,12 +656,12 @@ func validateNotebooksOnlyToleration(g *WithT, hwp *infrav1.HardwareProfile, odh
 // validateContainerSizeHardwareProfile validates that a HardwareProfile created from container sizes
 // has the correct structure and values based on the input container size and OdhDashboardConfig.
 func validateContainerSizeHardwareProfile(g *WithT, hwp *infrav1.HardwareProfile,
-	containerSize map[string]interface{}, odhConfig *unstructured.Unstructured, sizeType string) {
+	containerSize map[string]any, odhConfig *unstructured.Unstructured, sizeType string) {
 	// Extract container size fields
 	sizeName, _ := containerSize["name"].(string)
-	resources, _ := containerSize["resources"].(map[string]interface{})
-	requests, _ := resources["requests"].(map[string]interface{})
-	limits, _ := resources["limits"].(map[string]interface{})
+	resources, _ := containerSize["resources"].(map[string]any)
+	requests, _ := resources["requests"].(map[string]any)
+	limits, _ := resources["limits"].(map[string]any)
 
 	// Validate ObjectMeta
 	expectedName := fmt.Sprintf("containerSize-%s-%s", sizeName, sizeType)
