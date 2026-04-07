@@ -120,21 +120,32 @@ func (tc *MonitoringTestCtx) cleanupMonitoringAdmissionResources(t *testing.T, p
 			t.Logf("Deletion Policy: Always. Cleaning up test resources in namespace %s", TestNamespaceName)
 		}
 
+		// Best-effort cleanup: each delete is attempted independently so a
+		// failure in one does not prevent the others from running.
+		bestEffortDelete := func(name string, opts ...ResourceOpts) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Logf("best-effort cleanup: failed to delete %s: %v", name, r)
+				}
+			}()
+			tc.DeleteResource(opts...)
+		}
+
 		if podMonitorName != "" {
-			tc.DeleteResource(
+			bestEffortDelete(podMonitorName,
 				WithMinimalObject(gvk.CoreosPodMonitor, types.NamespacedName{Name: podMonitorName, Namespace: TestNamespaceName}),
 				WithIgnoreNotFound(true),
 				WithWaitForDeletion(true),
 			)
 		}
 		if serviceMonitorName != "" {
-			tc.DeleteResource(
+			bestEffortDelete(serviceMonitorName,
 				WithMinimalObject(gvk.CoreosServiceMonitor, types.NamespacedName{Name: serviceMonitorName, Namespace: TestNamespaceName}),
 				WithIgnoreNotFound(true),
 				WithWaitForDeletion(true),
 			)
 		}
-		tc.DeleteResource(
+		bestEffortDelete(TestNamespaceName,
 			WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: TestNamespaceName}),
 			WithIgnoreNotFound(true),
 			WithWaitForDeletion(true),

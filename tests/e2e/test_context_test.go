@@ -1023,6 +1023,11 @@ func (tc *TestContext) registerCleanup(ro *ResourceOptions) {
 	cleanupGVK := ro.GVK
 	cleanupNN := ro.NN
 	ro.CleanupT.Cleanup(func() {
+		defer func() {
+			if r := recover(); r != nil {
+				tc.Logf("cleanup: best-effort delete failed for %s %s: %v", cleanupGVK, cleanupNN, r)
+			}
+		}()
 		tc.DeleteResource(
 			WithMinimalObject(cleanupGVK, cleanupNN),
 			WithIgnoreNotFound(true),

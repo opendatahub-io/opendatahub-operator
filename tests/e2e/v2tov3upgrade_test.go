@@ -61,6 +61,16 @@ func v2Tov3UpgradeTestSuite(t *testing.T) {
 		TestContext: tc,
 	}
 
+	// Register cleanup before creation so it runs even if createCRD() fails midway
+	t.Cleanup(func() {
+		for _, crd := range removedCRDToCreate {
+			tc.DeleteResource(
+				WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: strings.ToLower(crd.GVK.Kind) + "s." + crd.GVK.Group}),
+				WithIgnoreNotFound(true),
+			)
+		}
+	})
+
 	v2Tov3UpgradeTestCtx.createCRD(removedCRDToCreate)
 
 	// Define test cases.
@@ -70,16 +80,6 @@ func v2Tov3UpgradeTestSuite(t *testing.T) {
 		{"ray raise error if codeflare component present in the cluster", v2Tov3UpgradeTestCtx.ValidateRayRaiseErrorIfCodeFlarePresent},
 		{"servicemesh resources preserved after support removal", v2Tov3UpgradeTestCtx.ValidateServiceMeshResourcePreservation},
 	}
-
-	// Register cleanup for CRDs created above - runs even on test failure/timeout
-	t.Cleanup(func() {
-		for _, crd := range removedCRDToCreate {
-			tc.DeleteResource(
-				WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: strings.ToLower(crd.GVK.Kind) + "s." + crd.GVK.Group}),
-				WithIgnoreNotFound(true),
-			)
-		}
-	})
 
 	// Run the test suite.
 	RunTestCases(t, testCases)
