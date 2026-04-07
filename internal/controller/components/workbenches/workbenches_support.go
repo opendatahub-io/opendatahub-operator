@@ -66,6 +66,10 @@ var (
 var (
 	conditionTypes = []string{
 		status.ConditionDeploymentsAvailable,
+		// NOTE: ConditionImageStreamsAvailable is intentionally NOT included here.
+		// It is informational only — some upstream images (CUDA/ROCm) are not
+		// published yet, so including it would prevent Workbenches from ever
+		// reaching Ready=True on those clusters.
 	}
 )
 

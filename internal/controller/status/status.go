@@ -93,6 +93,8 @@ const (
 	ConditionPersesTempoDataSourceAvailable      = "PersesTempoDataSourceAvailable"
 	ConditionPersesPrometheusDataSourceAvailable = "PersesPrometheusDataSourceAvailable"
 	ConditionNodeMetricsEndpointAvailable        = "NodeMetricsEndpointAvailable"
+	ConditionImageStreamsAvailable               = "ImageStreamsAvailable"
+	ConditionImageStreamsNotAvailableReason      = "ImageStreamsNotReady"
 )
 
 const (
