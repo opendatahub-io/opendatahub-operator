@@ -127,10 +127,14 @@ func customizeManifests(ctx context.Context, rr *types.ReconciliationRequest) er
 		log.V(4).Info("Configuring API key max expiration days", "value", *maas.Spec.APIKeys.MaxExpirationDays)
 	}
 
-	// Detect cluster audience from Authentication config (supports clusters with custom OIDC issuers)
-	if audience, err := cluster.GetClusterServiceAccountIssuer(ctx, rr.Client); err == nil && audience != "" {
+	// Detect cluster audience for HyperShift/ROSA (non-default OIDC issuer)
+	audience, err := cluster.GetClusterServiceAccountIssuer(ctx, rr.Client)
+	if err != nil {
+		return fmt.Errorf("failed to detect cluster service account issuer: %w", err)
+	}
+	if audience != "" {
 		params["cluster-audience"] = audience
-		log.Info("Using cluster-configured service account issuer for token review audience", "audience", audience)
+		log.Info("Detected non-default cluster audience", "audience", audience)
 	}
 
 	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), "params.env", nil, params); err != nil {

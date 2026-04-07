@@ -562,8 +562,8 @@ func IsIntegratedOAuth(ctx context.Context, cli client.Reader) (bool, error) {
 
 // GetClusterServiceAccountIssuer retrieves the service account issuer from
 // OpenShift Authentication config. Used for kubernetesTokenReview audiences
-// on clusters with custom OIDC providers (e.g., HyperShift, ROSA, or other configurations).
-// Returns empty string if not set or not running on OpenShift.
+// on HyperShift/ROSA clusters which use a custom OIDC provider URL.
+// Returns empty string if not found or not running on OpenShift.
 func GetClusterServiceAccountIssuer(ctx context.Context, cli client.Reader) (string, error) {
 	auth := &configv1.Authentication{}
 	if err := cli.Get(ctx, client.ObjectKey{Name: ClusterAuthenticationObj}, auth); err != nil {

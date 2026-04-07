@@ -440,6 +440,7 @@ func TestIsIntegratedOAuth(t *testing.T) {
 }
 
 func TestGetClusterServiceAccountIssuer(t *testing.T) {
+	// Register the configv1 scheme
 	scheme := runtime.NewScheme()
 	err := configv1.AddToScheme(scheme)
 	if err != nil {
@@ -449,38 +450,48 @@ func TestGetClusterServiceAccountIssuer(t *testing.T) {
 	testCases := []struct {
 		name           string
 		authObject     *configv1.Authentication
+		clientErr      error
 		expectedIssuer string
 		expectedError  bool
 	}{
 		{
-			name: "returns issuer when set",
+			name: "HyperShift/ROSA cluster with custom issuer",
 			authObject: &configv1.Authentication{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: cluster.ClusterAuthenticationObj,
 				},
 				Spec: configv1.AuthenticationSpec{
-					ServiceAccountIssuer: "https://oidc.rosa.example.com",
+					ServiceAccountIssuer: "https://rh-oidc.s3.us-east-1.amazonaws.com/abc123",
 				},
 			},
-			expectedIssuer: "https://oidc.rosa.example.com",
+			expectedIssuer: "https://rh-oidc.s3.us-east-1.amazonaws.com/abc123",
 			expectedError:  false,
 		},
 		{
-			name: "returns empty when issuer not set",
+			name: "Standard OpenShift cluster (empty issuer)",
 			authObject: &configv1.Authentication{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: cluster.ClusterAuthenticationObj,
 				},
-				Spec: configv1.AuthenticationSpec{},
+				Spec: configv1.AuthenticationSpec{
+					ServiceAccountIssuer: "",
+				},
 			},
 			expectedIssuer: "",
 			expectedError:  false,
 		},
 		{
-			name:           "returns empty when Authentication CR not found",
+			name:           "Authentication object not found (non-OpenShift)",
 			authObject:     nil,
 			expectedIssuer: "",
-			expectedError:  false,
+			expectedError:  false, // NotFound returns empty string, nil error
+		},
+		{
+			name:           "Client error (RBAC issue)",
+			authObject:     nil,
+			clientErr:      errors.New("forbidden: User cannot get resource"),
+			expectedIssuer: "",
+			expectedError:  true,
 		},
 	}
 
@@ -488,12 +499,20 @@ func TestGetClusterServiceAccountIssuer(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 
+			var fakeClient client.Client
 			objs := []runtime.Object{}
 			if tc.authObject != nil {
 				objs = append(objs, tc.authObject)
 			}
 
-			fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objs...).Build()
+			fakeClient = fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objs...).Build()
+
+			if tc.clientErr != nil {
+				fakeClient = &erroringClient{
+					Client: fakeClient,
+					err:    tc.clientErr,
+				}
+			}
 
 			result, err := cluster.GetClusterServiceAccountIssuer(ctx, fakeClient)
 
