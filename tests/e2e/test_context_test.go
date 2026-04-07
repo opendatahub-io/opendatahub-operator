@@ -1015,6 +1015,22 @@ func (tc *TestContext) ensureInstallPlan(nn types.NamespacedName, channelName st
 		Should(Succeed())
 }
 
+// registerCleanup registers a t.Cleanup() handler that deletes a resource when the test completes.
+// This ensures resources are cleaned up even on test failure or timeout.
+// Cleanup failures are logged but do not mask the original test failure.
+func (tc *TestContext) registerCleanup(ro *ResourceOptions) {
+	// Capture GVK and NN to avoid closure over the mutable ResourceOptions
+	cleanupGVK := ro.GVK
+	cleanupNN := ro.NN
+	ro.CleanupT.Cleanup(func() {
+		tc.DeleteResource(
+			WithMinimalObject(cleanupGVK, cleanupNN),
+			WithIgnoreNotFound(true),
+			WithRemoveFinalizersOnDelete(true),
+		)
+	})
+}
+
 // DeleteResource deletes a specific Kubernetes resource by name.
 //
 // Behavior is controlled by the following optional flags:
