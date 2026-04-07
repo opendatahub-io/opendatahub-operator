@@ -94,10 +94,27 @@ type ExternalOIDCConfig struct {
 	// +kubebuilder:default=300
 	// +kubebuilder:validation:Minimum=30
 	TTL int `json:"ttl,omitempty"`
-	// NOTE: For OIDC providers with custom/self-signed CA certificates, configure the CA bundle
-	// in DSCInitialization.spec.trustedCABundle.customCABundle. The certconfigmapgenerator controller
-	// will create an odh-trusted-ca-bundle ConfigMap in all namespaces (including where Authorino runs),
-	// and the operator will configure Authorino to mount it for OIDC validation.
+	// NOTE: For OIDC providers with custom/self-signed CA certificates:
+	// 1. Configure the CA bundle in DSCInitialization.spec.trustedCABundle.customCABundle
+	// 2. Manually configure the Authorino CR to mount the odh-trusted-ca-bundle ConfigMap
+	//
+	// The certconfigmapgenerator controller will create an odh-trusted-ca-bundle ConfigMap in all
+	// namespaces (including where Authorino runs), but you must configure the Authorino CR to mount it.
+	//
+	// Example Authorino CR configuration:
+	//   apiVersion: operator.authorino.kuadrant.io/v1beta1
+	//   kind: Authorino
+	//   metadata:
+	//     name: authorino
+	//     namespace: kuadrant-system
+	//   spec:
+	//     volumes:
+	//       items:
+	//       - name: odh-trusted-ca-bundle
+	//         mountPath: /etc/ssl/certs/odh-trusted-ca-bundle
+	//         configMaps:
+	//         - odh-trusted-ca-bundle
+	//
 	// See: https://github.com/opendatahub-io/opendatahub-operator/blob/main/docs/DESIGN.md#trusted-ca-bundle
 }
 
