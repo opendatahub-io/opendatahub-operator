@@ -81,7 +81,19 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			),
 			reconciler.WithPredicates(resources.Deleted()),
 		).
+		// Watch the maas-db-config Secret so reconciliation triggers when it is
+		// created, updated, or deleted — allowing the prerequisite check to
+		// clear or surface the error without waiting for periodic resync.
+		Watches(
+			&corev1.Secret{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.ModelsAsServiceInstanceName),
+			),
+			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed(MaaSDBSecretName)),
+		).
 		WithAction(initialize).
+		WithAction(checkDependencies()).
+		WithAction(validatePrerequisites).
 		WithAction(validateGateway).
 		WithAction(customizeManifests).
 		WithAction(kustomize.NewAction(
