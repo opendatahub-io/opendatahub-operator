@@ -33,3 +33,10 @@ Always flag these regardless of context:
 - `InsecureSkipVerify: true` in non-test code
 - Wildcard verbs or resources in RBAC rules
 - Secrets, tokens, or credentials logged at any verbosity level
+- User-facing component configuration added only to an internal component CRD spec (`XxxSpec`)
+  without a corresponding field in `DSCXxx` (via `XxxCommonSpec`). Any field a user must set to
+  configure component behaviour belongs in `CommonSpec` so it is reachable through the DSC API.
+  The only legitimate use of internal-only spec fields (those in `XxxSpec` but NOT in
+  `XxxCommonSpec`) is for values written exclusively by the operator itself (e.g. the gateway
+  domain stamped from `GatewayConfig.Status.Domain`). See `docs/COMPONENT_INTEGRATION.md` for
+  the correct pattern.
