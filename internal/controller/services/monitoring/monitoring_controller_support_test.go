@@ -208,7 +208,7 @@ func TestGetTemplateDataAcceleratorMetrics(t *testing.T) {
 }
 
 // runMetricsExporterTest creates a test environment and runs getTemplateData.
-func runMetricsExporterTest(t *testing.T, exporters map[string]runtime.RawExtension) (map[string]interface{}, error) {
+func runMetricsExporterTest(t *testing.T, exporters map[string]runtime.RawExtension) (map[string]any, error) {
 	t.Helper()
 	g := NewWithT(t)
 
@@ -256,7 +256,7 @@ func validateMetricsExporterResult(t *testing.T, tt struct {
 	errorMsg             string
 	expectedParsedConfig map[string]string
 	expectedNames        []string
-}, templateData map[string]interface{}, err error) {
+}, templateData map[string]any, err error) {
 	t.Helper()
 
 	if tt.expectError {
@@ -1610,7 +1610,7 @@ func TestResolvePersesAPIVersion(t *testing.T) {
 				}
 			}
 
-			var objects []client.Object
+			objects := make([]client.Object, 0, 1)
 			persesCRD := &extv1.CustomResourceDefinition{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "perses.perses.dev",

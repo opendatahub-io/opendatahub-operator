@@ -23,26 +23,26 @@ func MergeDeployments(source *unstructured.Unstructured, target *unstructured.Un
 		return err
 	}
 
-	resources := make(map[string]interface{})
+	resources := make(map[string]any)
 
-	var sourceContainers []interface{}
+	var sourceContainers []any
 	if sc != nil {
-		sourceContainers, ok = sc.([]interface{})
+		sourceContainers, ok = sc.([]any)
 		if !ok {
 			return errors.New("field is not a slice")
 		}
 	}
 
-	var targetContainers []interface{}
+	var targetContainers []any
 	if tc != nil {
-		targetContainers, ok = tc.([]interface{})
+		targetContainers, ok = tc.([]any)
 		if !ok {
 			return errors.New("field is not a slice")
 		}
 	}
 
 	for i := range sourceContainers {
-		m, ok := sourceContainers[i].(map[string]interface{})
+		m, ok := sourceContainers[i].(map[string]any)
 		if !ok {
 			return errors.New("field is not a map")
 		}
@@ -55,7 +55,7 @@ func MergeDeployments(source *unstructured.Unstructured, target *unstructured.Un
 
 		r, ok := m["resources"]
 		if !ok {
-			r = make(map[string]interface{})
+			r = make(map[string]any)
 		}
 
 		//nolint:forcetypeassert,errcheck
@@ -63,7 +63,7 @@ func MergeDeployments(source *unstructured.Unstructured, target *unstructured.Un
 	}
 
 	for i := range targetContainers {
-		m, ok := targetContainers[i].(map[string]interface{})
+		m, ok := targetContainers[i].(map[string]any)
 		if !ok {
 			return errors.New("field is not a map")
 		}
@@ -81,7 +81,7 @@ func MergeDeployments(source *unstructured.Unstructured, target *unstructured.Un
 		}
 
 		//nolint:forcetypeassert,errcheck
-		if len(nr.(map[string]interface{})) == 0 {
+		if len(nr.(map[string]any)) == 0 {
 			delete(m, "resources")
 		} else {
 			m["resources"] = nr

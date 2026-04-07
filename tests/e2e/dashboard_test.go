@@ -117,7 +117,7 @@ func (tc *DashboardTestCtx) ValidateVAPBlocksDashboardCRCreation(t *testing.T) {
 		hwp.SetGroupVersionKind(gvk.DashboardHardwareProfile)
 		hwp.SetName("test-hwp-" + xid.New().String())
 		hwp.SetNamespace(tc.AppsNamespace)
-		hwp.Object["spec"] = map[string]interface{}{
+		hwp.Object["spec"] = map[string]any{
 			"displayName": "Test HardwareProfile",
 			"enabled":     true,
 		}
@@ -130,7 +130,7 @@ func (tc *DashboardTestCtx) ValidateVAPBlocksDashboardCRCreation(t *testing.T) {
 		ap.SetGroupVersionKind(gvk.DashboardAcceleratorProfile)
 		ap.SetName("test-ap-" + xid.New().String())
 		ap.SetNamespace(tc.AppsNamespace)
-		ap.Object["spec"] = map[string]interface{}{
+		ap.Object["spec"] = map[string]any{
 			"displayName": "Test AcceleratorProfile",
 			"enabled":     true,
 			"identifier":  "nvidia.com/gpu",

@@ -76,11 +76,10 @@ func SetupEnvTest(crdSubdir string, opts ...envt.OptionFn) (*envt.EnvT, error) {
 		return nil, fmt.Errorf("failed to find project root: %w", err)
 	}
 
-	base := []envt.OptionFn{
-		envt.WithCRDPaths(
-			filepath.Join(rootPath, "config", "cloudmanager", crdSubdir, "crd", "bases"),
-		),
-	}
+	base := make([]envt.OptionFn, 0, 1+len(opts))
+	base = append(base, envt.WithCRDPaths(
+		filepath.Join(rootPath, "config", "cloudmanager", crdSubdir, "crd", "bases"),
+	))
 
 	return envt.New(append(base, opts...)...)
 }

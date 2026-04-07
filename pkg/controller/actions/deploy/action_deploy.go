@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strconv"
 	"strings"
 
@@ -74,9 +75,7 @@ func WithLabels(values map[string]string) ActionOpts {
 			action.labels = map[string]string{}
 		}
 
-		for k, v := range values {
-			action.labels[k] = v
-		}
+		maps.Copy(action.labels, values)
 	}
 }
 
@@ -96,9 +95,7 @@ func WithAnnotations(values map[string]string) ActionOpts {
 			action.annotations = map[string]string{}
 		}
 
-		for k, v := range values {
-			action.annotations[k] = v
-		}
+		maps.Copy(action.annotations, values)
 	}
 }
 

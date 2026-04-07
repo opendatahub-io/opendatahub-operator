@@ -29,7 +29,7 @@ import (
 
 type ClusterInfo struct {
 	Type        string                  `json:"type,omitempty"` // openshift , TODO: can be other value if we later support other type
-	Version     version.OperatorVersion `json:"version,omitempty"`
+	Version     version.OperatorVersion `json:"version,omitzero"`
 	FipsEnabled bool                    `json:"fips_enabled,omitempty"`
 }
 

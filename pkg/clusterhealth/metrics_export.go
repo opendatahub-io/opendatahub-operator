@@ -2,6 +2,7 @@ package clusterhealth
 
 import (
 	"fmt"
+	"maps"
 	"sort"
 	"strconv"
 	"strings"
@@ -16,7 +17,8 @@ import (
 // via /api/v1/import/prometheus.
 func (r *Report) PrometheusExport() []string {
 	ts := r.CollectedAt.UnixMilli()
-	var lines []string
+	// Preallocate with rough capacity estimate
+	lines := make([]string, 0, 100)
 
 	lines = append(lines, r.exportNodes(ts)...)
 	lines = append(lines, r.exportDeployments(ts)...)
@@ -185,7 +187,9 @@ func (r *Report) exportHealth(ts int64) []string {
 	if r.Healthy() {
 		healthy = 1.0
 	}
-	lines := []string{promLine("cluster_healthy", nil, healthy, ts)}
+	// Preallocate: 1 for cluster_healthy + 8 sections
+	lines := make([]string, 0, 9)
+	lines = append(lines, promLine("cluster_healthy", nil, healthy, ts))
 
 	sectionErrors := map[string]string{
 		SectionNodes:       r.Nodes.Error,
@@ -261,12 +265,8 @@ func quantityToFloat(q resource.Quantity) float64 {
 
 func mergeLabels(base, extra promLabels) promLabels {
 	merged := make(promLabels, len(base)+len(extra))
-	for k, v := range base {
-		merged[k] = v
-	}
-	for k, v := range extra {
-		merged[k] = v
-	}
+	maps.Copy(merged, base)
+	maps.Copy(merged, extra)
 	return merged
 }
 

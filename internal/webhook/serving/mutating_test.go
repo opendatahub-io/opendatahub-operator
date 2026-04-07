@@ -61,9 +61,9 @@ type TestCase struct {
 	secretData         map[string][]byte
 	secretNamespace    string
 	annotations        map[string]string
-	predictorSpec      map[string]interface{}
+	predictorSpec      map[string]any
 	oldAnnotations     map[string]string
-	oldPredictorSpec   map[string]interface{}
+	oldPredictorSpec   map[string]any
 	oldSecretType      string // For UPDATE operations to determine old connection type
 	operation          admissionv1.Operation
 	expectedAllowed    bool
@@ -103,7 +103,7 @@ func createLLMISVCWebhook(cli client.Client, reader client.Reader, sch *runtime.
 	return webhook
 }
 
-func createTestInferenceService(name, namespace string, annotations map[string]string, spec map[string]interface{}) (*unstructured.Unstructured, error) { //nolint:unparam
+func createTestInferenceService(name, namespace string, annotations map[string]string, spec map[string]any) (*unstructured.Unstructured, error) { //nolint:unparam
 	isvc := envtestutil.NewInferenceService(name, namespace)
 	unstructuredISVC, ok := isvc.(*unstructured.Unstructured)
 	if !ok {
@@ -123,7 +123,7 @@ func createTestInferenceService(name, namespace string, annotations map[string]s
 	return unstructuredISVC, nil
 }
 
-func createTestLLMInferenceService(name, namespace string, annotations map[string]string, spec map[string]interface{}) (*unstructured.Unstructured, error) {
+func createTestLLMInferenceService(name, namespace string, annotations map[string]string, spec map[string]any) (*unstructured.Unstructured, error) {
 	llmISVC := envtestutil.NewLLMInferenceService(name, namespace)
 	unstructuredLLMISVC, ok := llmISVC.(*unstructured.Unstructured)
 	if !ok {
@@ -376,7 +376,7 @@ func TestServiceAccountNamePatching(t *testing.T) {
 			secretNamespace: testNamespace,
 			secretData:      map[string][]byte{},
 			annotations:     map[string]string{annotations.Connection: testSecret},
-			predictorSpec:   map[string]interface{}{"model": map[string]interface{}{}}, // S3 requires model spec
+			predictorSpec:   map[string]any{"model": map[string]any{}}, // S3 requires model spec
 			operation:       admissionv1.Create,
 			expectedAllowed: true,
 			expectedPatchCheck: func(patches []jsonpatch.JsonPatchOperation) bool {
@@ -392,9 +392,9 @@ func TestServiceAccountNamePatching(t *testing.T) {
 			secretType:       webhookutils.ConnectionTypeProtocolS3.String(),
 			secretNamespace:  testNamespace,
 			annotations:      map[string]string{annotations.Connection: testSecret},
-			predictorSpec:    map[string]interface{}{"model": map[string]interface{}{}},
+			predictorSpec:    map[string]any{"model": map[string]any{}},
 			oldAnnotations:   map[string]string{}, // no old annotation
-			oldPredictorSpec: map[string]interface{}{"model": map[string]interface{}{}},
+			oldPredictorSpec: map[string]any{"model": map[string]any{}},
 			operation:        admissionv1.Update,
 			expectedAllowed:  true,
 			expectedPatchCheck: func(patches []jsonpatch.JsonPatchOperation) bool {
@@ -409,14 +409,14 @@ func TestServiceAccountNamePatching(t *testing.T) {
 			secretType:      webhookutils.ConnectionTypeProtocolS3.String(),
 			secretNamespace: testNamespace,
 			annotations:     map[string]string{annotations.Connection: testSecret},
-			predictorSpec: map[string]interface{}{
+			predictorSpec: map[string]any{
 				"serviceAccountName": "user-custom-sa", // User set a different value from webhook
-				"model":              map[string]interface{}{},
+				"model":              map[string]any{},
 			},
 			oldAnnotations: map[string]string{}, // no old annotation
-			oldPredictorSpec: map[string]interface{}{
+			oldPredictorSpec: map[string]any{
 				"serviceAccountName": "user-custom-sa", // Same user SA was already there
-				"model":              map[string]interface{}{},
+				"model":              map[string]any{},
 			},
 			operation:       admissionv1.Update,
 			expectedAllowed: true,
@@ -433,11 +433,11 @@ func TestServiceAccountNamePatching(t *testing.T) {
 			secretType:      "",
 			secretNamespace: testNamespace,
 			annotations:     map[string]string{}, // annotation removed
-			predictorSpec: map[string]interface{}{
+			predictorSpec: map[string]any{
 				"serviceAccountName": testSecret + "-sa",
 			},
 			oldAnnotations: map[string]string{annotations.Connection: testSecret},
-			oldPredictorSpec: map[string]interface{}{
+			oldPredictorSpec: map[string]any{
 				"serviceAccountName": testSecret + "-sa",
 			},
 			operation:       admissionv1.Update,
@@ -454,11 +454,11 @@ func TestServiceAccountNamePatching(t *testing.T) {
 			secretType:      "",
 			secretNamespace: testNamespace,
 			annotations:     map[string]string{}, // annotation removed
-			predictorSpec: map[string]interface{}{
+			predictorSpec: map[string]any{
 				"serviceAccountName": "user-set-saname", // User set SA name
 			},
 			oldAnnotations: map[string]string{annotations.Connection: testSecret},
-			oldPredictorSpec: map[string]interface{}{
+			oldPredictorSpec: map[string]any{
 				"serviceAccountName": "user-set-saname", // Same user SA was there before
 			},
 			operation:       admissionv1.Update,
@@ -534,9 +534,9 @@ func TestISVCConnectionWebhook(t *testing.T) {
 			secretType:      webhookutils.ConnectionTypeProtocolOCI.String(),
 			secretNamespace: testNamespace,
 			annotations:     map[string]string{annotations.Connection: testSecret},
-			predictorSpec: map[string]interface{}{
-				"imagePullSecrets": []interface{}{
-					map[string]interface{}{"name": "existing-secret"},
+			predictorSpec: map[string]any{
+				"imagePullSecrets": []any{
+					map[string]any{"name": "existing-secret"},
 				},
 			},
 			operation:       admissionv1.Create,
@@ -546,7 +546,7 @@ func TestISVCConnectionWebhook(t *testing.T) {
 					if !strings.HasPrefix(patch.Path, isvcImagePullSecretsPath) {
 						continue
 					}
-					if m, ok := patch.Value.(map[string]interface{}); ok {
+					if m, ok := patch.Value.(map[string]any); ok {
 						if n, exists := m["name"]; exists && n == testSecret {
 							return patch.Operation == "add"
 						}
@@ -561,7 +561,7 @@ func TestISVCConnectionWebhook(t *testing.T) {
 			secretNamespace:    testNamespace,
 			secretData:         map[string][]byte{"URI": []byte("https://opendathub.io/model")},
 			annotations:        map[string]string{annotations.Connection: testSecret},
-			predictorSpec:      map[string]interface{}{"model": map[string]interface{}{}},
+			predictorSpec:      map[string]any{"model": map[string]any{}},
 			operation:          admissionv1.Create,
 			expectedAllowed:    true,
 			expectedPatchCheck: hasStorageUriPatch("https://opendathub.io/model"),
@@ -571,7 +571,7 @@ func TestISVCConnectionWebhook(t *testing.T) {
 			secretType:         webhookutils.ConnectionTypeProtocolS3.String(),
 			secretNamespace:    testNamespace,
 			annotations:        map[string]string{annotations.Connection: testSecret},
-			predictorSpec:      map[string]interface{}{"model": map[string]interface{}{}},
+			predictorSpec:      map[string]any{"model": map[string]any{}},
 			operation:          admissionv1.Create,
 			expectedAllowed:    true,
 			expectedPatchCheck: hasStorageKeyPatch(testSecret),
@@ -581,7 +581,7 @@ func TestISVCConnectionWebhook(t *testing.T) {
 			secretType:         webhookutils.ConnectionTypeProtocolS3.String(),
 			secretNamespace:    testNamespace,
 			annotations:        map[string]string{annotations.Connection: testSecret, annotations.ConnectionPath: "models/new-path"},
-			predictorSpec:      map[string]interface{}{"model": map[string]interface{}{}},
+			predictorSpec:      map[string]any{"model": map[string]any{}},
 			operation:          admissionv1.Create,
 			expectedAllowed:    true,
 			expectedPatchCheck: hasStoragePathPatch("models/new-path"),
@@ -592,7 +592,7 @@ func TestISVCConnectionWebhook(t *testing.T) {
 			secretType:      webhookutils.ConnectionTypeProtocolURI.String(),
 			secretData:      map[string][]byte{},
 			annotations:     map[string]string{annotations.Connection: testSecret},
-			predictorSpec:   map[string]interface{}{"model": map[string]interface{}{}},
+			predictorSpec:   map[string]any{"model": map[string]any{}},
 			operation:       admissionv1.Create,
 			expectedAllowed: false,
 			expectedMessage: "failed to inject host to .spec.predictor.model.storageUri",
@@ -604,7 +604,7 @@ func TestISVCConnectionWebhook(t *testing.T) {
 			secretNamespace:    testNamespace,
 			secretData:         map[string][]byte{},
 			annotations:        map[string]string{annotations.Connection: testSecret},
-			predictorSpec:      map[string]interface{}{"model": map[string]interface{}{"key": "existing-secret"}},
+			predictorSpec:      map[string]any{"model": map[string]any{"key": "existing-secret"}},
 			operation:          admissionv1.Update,
 			expectedAllowed:    true,
 			expectedPatchCheck: hasStorageKeyPatch(testSecret),
@@ -614,16 +614,16 @@ func TestISVCConnectionWebhook(t *testing.T) {
 			secretType:      webhookutils.ConnectionTypeProtocolS3.String(),
 			secretNamespace: testNamespace,
 			annotations:     map[string]string{annotations.Connection: testSecret, annotations.ConnectionPath: "models/new-path"},
-			predictorSpec: map[string]interface{}{
-				"model": map[string]interface{}{
-					"storage": map[string]interface{}{
+			predictorSpec: map[string]any{
+				"model": map[string]any{
+					"storage": map[string]any{
 						"key": testSecret,
 					},
 				},
 			},
-			oldPredictorSpec: map[string]interface{}{
-				"model": map[string]interface{}{
-					"storage": map[string]interface{}{
+			oldPredictorSpec: map[string]any{
+				"model": map[string]any{
+					"storage": map[string]any{
 						"key":  testSecretOld,
 						"path": "models/old-path",
 					},
@@ -639,17 +639,17 @@ func TestISVCConnectionWebhook(t *testing.T) {
 			secretType:      webhookutils.ConnectionTypeProtocolS3.String(),
 			secretNamespace: testNamespace,
 			annotations:     map[string]string{annotations.Connection: testSecret, annotations.ConnectionPath: "models/new-path"},
-			predictorSpec: map[string]interface{}{
-				"model": map[string]interface{}{
-					"storage": map[string]interface{}{
+			predictorSpec: map[string]any{
+				"model": map[string]any{
+					"storage": map[string]any{
 						"key": testSecret,
 					},
 				},
 			},
 			oldAnnotations: map[string]string{annotations.Connection: testSecretOld},
-			oldPredictorSpec: map[string]interface{}{
-				"model": map[string]interface{}{
-					"storage": map[string]interface{}{
+			oldPredictorSpec: map[string]any{
+				"model": map[string]any{
+					"storage": map[string]any{
 						"key":  testSecretOld,
 						"path": "models/old-path",
 					},
@@ -665,17 +665,17 @@ func TestISVCConnectionWebhook(t *testing.T) {
 			secretType:      webhookutils.ConnectionTypeProtocolS3.String(),
 			secretNamespace: testNamespace,
 			annotations:     map[string]string{annotations.Connection: testSecret},
-			predictorSpec: map[string]interface{}{
-				"model": map[string]interface{}{
-					"storage": map[string]interface{}{
+			predictorSpec: map[string]any{
+				"model": map[string]any{
+					"storage": map[string]any{
 						"key": testSecret,
 					},
 				},
 			},
 			oldAnnotations: map[string]string{annotations.Connection: testSecretOld},
-			oldPredictorSpec: map[string]interface{}{
-				"model": map[string]interface{}{
-					"storage": map[string]interface{}{
+			oldPredictorSpec: map[string]any{
+				"model": map[string]any{
+					"storage": map[string]any{
 						"key":  testSecretOld,
 						"path": "models/old-path",
 					},
@@ -691,7 +691,7 @@ func TestISVCConnectionWebhook(t *testing.T) {
 			secretType:         webhookutils.ConnectionTypeProtocolOCI.String(),
 			secretNamespace:    testNamespace,
 			annotations:        map[string]string{annotations.Connection: testSecret},
-			predictorSpec:      map[string]interface{}{"model": map[string]interface{}{}},
+			predictorSpec:      map[string]any{"model": map[string]any{}},
 			operation:          admissionv1.Update,
 			expectedAllowed:    true,
 			expectedPatchCheck: hasImagePullSecretsPatch(testSecret),
@@ -701,7 +701,7 @@ func TestISVCConnectionWebhook(t *testing.T) {
 			secretType:      webhookutils.ConnectionTypeProtocolS3.String(),
 			secretNamespace: testNamespace,
 			annotations:     map[string]string{annotations.Connection: testSecret},
-			predictorSpec:   map[string]interface{}{"name": "test-predictor"},
+			predictorSpec:   map[string]any{"name": "test-predictor"},
 			operation:       admissionv1.Create,
 			expectedAllowed: false,
 			expectedMessage: "not found .spec.predictor.model in resource",
@@ -712,7 +712,7 @@ func TestISVCConnectionWebhook(t *testing.T) {
 			secretNamespace:    testNamespace,
 			secretData:         map[string][]byte{"URI": []byte("s3://new-bucket/new-model")},
 			annotations:        map[string]string{annotations.Connection: testSecret},
-			predictorSpec:      map[string]interface{}{"model": map[string]interface{}{"URI": "s3://old-bucket/old-model"}},
+			predictorSpec:      map[string]any{"model": map[string]any{"URI": "s3://old-bucket/old-model"}},
 			operation:          admissionv1.Update,
 			expectedAllowed:    true,
 			expectedPatchCheck: hasStorageUriPatch("s3://new-bucket/new-model"),
@@ -724,15 +724,15 @@ func TestISVCConnectionWebhook(t *testing.T) {
 			secretType:      "",
 			secretNamespace: testNamespace,
 			annotations:     map[string]string{}, // no annotation
-			predictorSpec: map[string]interface{}{
-				"imagePullSecrets": []interface{}{
-					map[string]interface{}{"name": testSecret},
+			predictorSpec: map[string]any{
+				"imagePullSecrets": []any{
+					map[string]any{"name": testSecret},
 				},
 			},
 			oldAnnotations: map[string]string{annotations.Connection: testSecret},
-			oldPredictorSpec: map[string]interface{}{
-				"imagePullSecrets": []interface{}{
-					map[string]interface{}{"name": testSecret},
+			oldPredictorSpec: map[string]any{
+				"imagePullSecrets": []any{
+					map[string]any{"name": testSecret},
 				},
 			},
 			oldSecretType:      webhookutils.ConnectionTypeProtocolOCI.String(),
@@ -745,14 +745,14 @@ func TestISVCConnectionWebhook(t *testing.T) {
 			secretType:      "",
 			secretNamespace: testNamespace,
 			annotations:     map[string]string{}, // no annotation
-			predictorSpec: map[string]interface{}{
-				"model": map[string]interface{}{
+			predictorSpec: map[string]any{
+				"model": map[string]any{
 					"storageUri": testSecret,
 				},
 			},
 			oldAnnotations: map[string]string{annotations.Connection: testSecret},
-			oldPredictorSpec: map[string]interface{}{
-				"model": map[string]interface{}{
+			oldPredictorSpec: map[string]any{
+				"model": map[string]any{
 					"storageUri": testSecret,
 				},
 			},
@@ -766,17 +766,17 @@ func TestISVCConnectionWebhook(t *testing.T) {
 			secretType:      "",
 			secretNamespace: testNamespace,
 			annotations:     map[string]string{}, // no annotation
-			predictorSpec: map[string]interface{}{
+			predictorSpec: map[string]any{
 				"serviceAccountName": testSecret + "-sa",
-				"model": map[string]interface{}{
-					"storage": map[string]interface{}{"key": testSecret},
+				"model": map[string]any{
+					"storage": map[string]any{"key": testSecret},
 				},
 			},
 			oldAnnotations: map[string]string{annotations.Connection: testSecret},
-			oldPredictorSpec: map[string]interface{}{
+			oldPredictorSpec: map[string]any{
 				"serviceAccountName": testSecret + "-sa",
-				"model": map[string]interface{}{
-					"storage": map[string]interface{}{"key": testSecret},
+				"model": map[string]any{
+					"storage": map[string]any{"key": testSecret},
 				},
 			},
 			oldSecretType:      webhookutils.ConnectionTypeProtocolS3.String(),
@@ -819,7 +819,7 @@ func TestLLMISVCConnectionWebhook(t *testing.T) {
 			secretNamespace:    testNamespace,
 			secretData:         map[string][]byte{},
 			annotations:        map[string]string{annotations.Connection: testSecret},
-			predictorSpec:      map[string]interface{}{}, // No model section at all
+			predictorSpec:      map[string]any{}, // No model section at all
 			operation:          admissionv1.Create,
 			expectedAllowed:    true,
 			expectedPatchCheck: hasLLMISVCImagePullSecretsPatch(testSecret),
@@ -840,7 +840,7 @@ func TestLLMISVCConnectionWebhook(t *testing.T) {
 			secretNamespace: testNamespace,
 			secretData:      map[string][]byte{},
 			annotations:     map[string]string{annotations.Connection: testSecret},
-			predictorSpec:   map[string]interface{}{"model": map[string]interface{}{}},
+			predictorSpec:   map[string]any{"model": map[string]any{}},
 			operation:       admissionv1.Create,
 			expectedAllowed: false,
 			expectedMessage: "secret does not contain either 'https-host' or 'URI' data key",
@@ -851,7 +851,7 @@ func TestLLMISVCConnectionWebhook(t *testing.T) {
 			secretNamespace:    testNamespace,
 			secretData:         map[string][]byte{"AWS_S3_BUCKET": []byte("my-bucket")},
 			annotations:        map[string]string{annotations.Connection: testSecret, annotations.ConnectionPath: "models/llama-7b"},
-			predictorSpec:      map[string]interface{}{"model": map[string]interface{}{}},
+			predictorSpec:      map[string]any{"model": map[string]any{}},
 			operation:          admissionv1.Create,
 			expectedAllowed:    true,
 			expectedPatchCheck: hasUriPath("s3://my-bucket/models/llama-7b"),
@@ -862,7 +862,7 @@ func TestLLMISVCConnectionWebhook(t *testing.T) {
 			secretNamespace:    testNamespace,
 			secretData:         map[string][]byte{"AWS_S3_BUCKET": []byte("my-bucket")},
 			annotations:        map[string]string{annotations.Connection: testSecret, annotations.ConnectionPath: "models/llama-7b"},
-			predictorSpec:      map[string]interface{}{}, // No model section at all
+			predictorSpec:      map[string]any{}, // No model section at all
 			operation:          admissionv1.Create,
 			expectedAllowed:    true,
 			expectedPatchCheck: hasUriPath("s3://my-bucket/models/llama-7b"),
@@ -873,7 +873,7 @@ func TestLLMISVCConnectionWebhook(t *testing.T) {
 			secretNamespace:    testNamespace,
 			secretData:         map[string][]byte{"URI": []byte("hf://facebook/model")},
 			annotations:        map[string]string{annotations.Connection: testSecret},
-			predictorSpec:      map[string]interface{}{}, // No model section at all
+			predictorSpec:      map[string]any{}, // No model section at all
 			operation:          admissionv1.Create,
 			expectedAllowed:    true,
 			expectedPatchCheck: hasUriPath("hf://facebook/model"),
@@ -885,7 +885,7 @@ func TestLLMISVCConnectionWebhook(t *testing.T) {
 			secretNamespace:    testNamespace,
 			secretData:         map[string][]byte{"URI": []byte("hf://facebook/new")},
 			annotations:        map[string]string{annotations.Connection: testSecret},
-			predictorSpec:      map[string]interface{}{"model": map[string]interface{}{"URI": "https://facebook/old"}},
+			predictorSpec:      map[string]any{"model": map[string]any{"URI": "https://facebook/old"}},
 			operation:          admissionv1.Update,
 			expectedAllowed:    true,
 			expectedPatchCheck: hasUriPath("hf://facebook/new"),
@@ -896,9 +896,9 @@ func TestLLMISVCConnectionWebhook(t *testing.T) {
 			secretNamespace:    testNamespace,
 			secretData:         map[string][]byte{"AWS_S3_BUCKET": []byte("my-bucket")},
 			annotations:        map[string]string{annotations.Connection: "new-s3-secret", annotations.ConnectionPath: "models/new-path"},
-			predictorSpec:      map[string]interface{}{"model": map[string]interface{}{"uri": "s3://my-bucket/models/old-path"}},
+			predictorSpec:      map[string]any{"model": map[string]any{"uri": "s3://my-bucket/models/old-path"}},
 			oldAnnotations:     map[string]string{annotations.Connection: "old-s3-secret", annotations.ConnectionPath: "models/old-path"},
-			oldPredictorSpec:   map[string]interface{}{"model": map[string]interface{}{"uri": "s3://my-bucket/models/old-path"}},
+			oldPredictorSpec:   map[string]any{"model": map[string]any{"uri": "s3://my-bucket/models/old-path"}},
 			oldSecretType:      webhookutils.ConnectionTypeProtocolS3.String(),
 			operation:          admissionv1.Update,
 			expectedAllowed:    true,
@@ -910,14 +910,14 @@ func TestLLMISVCConnectionWebhook(t *testing.T) {
 			secretType:      "",
 			secretNamespace: testNamespace,
 			annotations:     map[string]string{}, // no annotation
-			predictorSpec: map[string]interface{}{
-				"model": map[string]interface{}{
+			predictorSpec: map[string]any{
+				"model": map[string]any{
 					"uri": testSecret,
 				},
 			},
 			oldAnnotations: map[string]string{annotations.Connection: testSecret},
-			oldPredictorSpec: map[string]interface{}{
-				"model": map[string]interface{}{
+			oldPredictorSpec: map[string]any{
+				"model": map[string]any{
 					"uri": testSecret,
 				},
 			},
@@ -930,20 +930,20 @@ func TestLLMISVCConnectionWebhook(t *testing.T) {
 			secretType:      "",
 			secretNamespace: testNamespace,
 			annotations:     map[string]string{}, // no annotation
-			predictorSpec: map[string]interface{}{
-				"template": map[string]interface{}{
+			predictorSpec: map[string]any{
+				"template": map[string]any{
 					"serviceAccountName": testSecret + "-sa",
 				},
-				"model": map[string]interface{}{
+				"model": map[string]any{
 					"uri": "s3://my-ml-models/models/llama-7b",
 				},
 			},
 			oldAnnotations: map[string]string{annotations.Connection: testSecret},
-			oldPredictorSpec: map[string]interface{}{
-				"template": map[string]interface{}{
+			oldPredictorSpec: map[string]any{
+				"template": map[string]any{
 					"serviceAccountName": testSecret + "-sa",
 				},
-				"model": map[string]interface{}{
+				"model": map[string]any{
 					"uri": "s3://my-ml-models/models/llama-7b",
 				},
 			},
@@ -957,20 +957,20 @@ func TestLLMISVCConnectionWebhook(t *testing.T) {
 			secretType:      "",
 			secretNamespace: testNamespace,
 			annotations:     map[string]string{}, // no annotation
-			predictorSpec: map[string]interface{}{
-				"template": map[string]interface{}{
-					"imagePullSecrets": []interface{}{
-						map[string]interface{}{
+			predictorSpec: map[string]any{
+				"template": map[string]any{
+					"imagePullSecrets": []any{
+						map[string]any{
 							"name": testSecret,
 						},
 					},
 				},
 			},
 			oldAnnotations: map[string]string{annotations.Connection: testSecret},
-			oldPredictorSpec: map[string]interface{}{
-				"template": map[string]interface{}{
-					"imagePullSecrets": []interface{}{
-						map[string]interface{}{
+			oldPredictorSpec: map[string]any{
+				"template": map[string]any{
+					"imagePullSecrets": []any{
+						map[string]any{
 							"name": testSecret,
 						},
 					},
@@ -997,7 +997,7 @@ func TestDeprecatedConnectionTypeRefAnnotation(t *testing.T) {
 			secretType:      webhookutils.ConnectionTypeProtocolS3.String(),
 			secretNamespace: testNamespace,
 			annotations:     map[string]string{annotations.Connection: testSecret},
-			predictorSpec:   map[string]interface{}{"model": map[string]interface{}{}},
+			predictorSpec:   map[string]any{"model": map[string]any{}},
 			operation:       admissionv1.Create,
 			expectedAllowed: true,
 			expectedPatchCheck: func(patches []jsonpatch.JsonPatchOperation) bool {
@@ -1010,7 +1010,7 @@ func TestDeprecatedConnectionTypeRefAnnotation(t *testing.T) {
 			secretNamespace:    testNamespace,
 			secretData:         map[string][]byte{"URI": []byte("https://example.com/model")},
 			annotations:        map[string]string{annotations.Connection: testSecret},
-			predictorSpec:      map[string]interface{}{"model": map[string]interface{}{}},
+			predictorSpec:      map[string]any{"model": map[string]any{}},
 			operation:          admissionv1.Create,
 			expectedAllowed:    true,
 			expectedPatchCheck: hasStorageUriPatch("https://example.com/model"),
@@ -1029,6 +1029,7 @@ func TestDeprecatedConnectionTypeRefAnnotation(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Use the special helper to create secret with ConnectionTypeRef annotation
+			//nolint:staticcheck // SA1019: ConnectionTypeRef is deprecated but still tested for backward compatibility
 			runTestCaseWithCustomSecret(t, tc, func(name, namespace, connectionType string, data map[string][]byte) *corev1.Secret {
 				return createTestSecretWithAnnotationType(name, namespace, connectionType, annotations.ConnectionTypeRef, data)
 			})
@@ -1072,6 +1073,7 @@ func TestValidateInferenceServiceConnectionType(t *testing.T) {
 	g := NewWithT(t)
 
 	// Test data setup
+	//nolint:staticcheck // SA1019: ConnectionTypeRef is deprecated but still tested for backward compatibility
 	allowedTypes := map[string][]string{
 		annotations.ConnectionTypeProtocol: {
 			webhookutils.ConnectionTypeProtocolURI.String(),
@@ -1144,6 +1146,7 @@ func TestValidateInferenceServiceConnectionType(t *testing.T) {
 				secretMeta.Annotations[annotations.ConnectionTypeProtocol] = tc.protocolAnnotation
 			}
 			if tc.refAnnotation != "" {
+				//nolint:staticcheck // SA1019: ConnectionTypeRef is deprecated but still tested for backward compatibility
 				secretMeta.Annotations[annotations.ConnectionTypeRef] = tc.refAnnotation
 			}
 

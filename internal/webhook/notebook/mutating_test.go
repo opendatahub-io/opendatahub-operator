@@ -60,11 +60,11 @@ func createNotebook(options ...func(*unstructured.Unstructured)) *unstructured.U
 	notebook.SetName(testNotebook)
 	notebook.SetNamespace(testNamespace)
 
-	spec := map[string]interface{}{
-		"template": map[string]interface{}{
-			"spec": map[string]interface{}{
-				"containers": []interface{}{
-					map[string]interface{}{
+	spec := map[string]any{
+		"template": map[string]any{
+			"spec": map[string]any{
+				"containers": []any{
+					map[string]any{
 						"name":  "notebook",
 						"image": "notebook:latest",
 					},
@@ -89,11 +89,11 @@ func withAnnotations(annotations map[string]string) func(*unstructured.Unstructu
 }
 
 // Helper function to add existing envFrom to a notebook.
-func withExistingEnvFrom(envFrom []interface{}) func(*unstructured.Unstructured) {
+func withExistingEnvFrom(envFrom []any) func(*unstructured.Unstructured) {
 	return func(nb *unstructured.Unstructured) {
 		containers, _, _ := unstructured.NestedSlice(nb.Object, notebook.NotebookContainersPath...)
 		if len(containers) > 0 {
-			if container, ok := containers[0].(map[string]interface{}); ok {
+			if container, ok := containers[0].(map[string]any); ok {
 				container["envFrom"] = envFrom
 				containers[0] = container
 				_ = unstructured.SetNestedSlice(nb.Object, containers, notebook.NotebookContainersPath...)
@@ -417,6 +417,7 @@ func TestNotebookWebhook_Handle_Operations(t *testing.T) {
 	}
 }
 
+//nolint:maintidx // Test function with multiple test cases requires higher complexity
 func TestNotebookWebhook_Handle_EnvFromInjection(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
@@ -446,12 +447,12 @@ func TestNotebookWebhook_Handle_EnvFromInjection(t *testing.T) {
 	webhook := createTestWebhook(t, cli)
 
 	// Helper function to check if a patch value contains a secretRef with the given name
-	containsSecretRef := func(value interface{}, secretName string) bool {
-		if envFromArray, ok := value.([]interface{}); ok {
+	containsSecretRef := func(value any, secretName string) bool {
+		if envFromArray, ok := value.([]any); ok {
 			for _, entry := range envFromArray {
-				if entryMap, ok := entry.(map[string]interface{}); ok {
+				if entryMap, ok := entry.(map[string]any); ok {
 					if secretRef, hasSecret := entryMap["secretRef"]; hasSecret {
-						if secretRefMap, ok := secretRef.(map[string]interface{}); ok {
+						if secretRefMap, ok := secretRef.(map[string]any); ok {
 							if name, hasName := secretRefMap["name"]; hasName && name == secretName {
 								return true
 							}
@@ -459,9 +460,9 @@ func TestNotebookWebhook_Handle_EnvFromInjection(t *testing.T) {
 					}
 				}
 			}
-		} else if entryMap, ok := value.(map[string]interface{}); ok {
+		} else if entryMap, ok := value.(map[string]any); ok {
 			if secretRef, hasSecret := entryMap["secretRef"]; hasSecret {
-				if secretRefMap, ok := secretRef.(map[string]interface{}); ok {
+				if secretRefMap, ok := secretRef.(map[string]any); ok {
 					if name, hasName := secretRefMap["name"]; hasName && name == secretName {
 						return true
 					}
@@ -514,9 +515,9 @@ func TestNotebookWebhook_Handle_EnvFromInjection(t *testing.T) {
 				withAnnotations(map[string]string{
 					annotations.Connection: fmt.Sprintf("%s/%s", testNamespace, testSecret1),
 				}),
-				withExistingEnvFrom([]interface{}{
-					map[string]interface{}{
-						"configMapRef": map[string]interface{}{
+				withExistingEnvFrom([]any{
+					map[string]any{
+						"configMapRef": map[string]any{
 							"name": "existing-config",
 						},
 					},
@@ -526,9 +527,9 @@ func TestNotebookWebhook_Handle_EnvFromInjection(t *testing.T) {
 				withAnnotations(map[string]string{
 					annotations.Connection: fmt.Sprintf("%s/%s", testNamespace, testSecret2),
 				}),
-				withExistingEnvFrom([]interface{}{
-					map[string]interface{}{
-						"configMapRef": map[string]interface{}{
+				withExistingEnvFrom([]any{
+					map[string]any{
+						"configMapRef": map[string]any{
 							"name": "existing-config",
 						},
 					},
@@ -549,9 +550,9 @@ func TestNotebookWebhook_Handle_EnvFromInjection(t *testing.T) {
 				withAnnotations(map[string]string{
 					annotations.Connection: fmt.Sprintf("%s/%s", testNamespace, testSecret1),
 				}),
-				withExistingEnvFrom([]interface{}{
-					map[string]interface{}{
-						"secretRef": map[string]interface{}{
+				withExistingEnvFrom([]any{
+					map[string]any{
+						"secretRef": map[string]any{
 							"name": testSecret2,
 						},
 					},
@@ -561,9 +562,9 @@ func TestNotebookWebhook_Handle_EnvFromInjection(t *testing.T) {
 				withAnnotations(map[string]string{
 					annotations.Connection: fmt.Sprintf("%s/%s", testNamespace, testSecret2),
 				}),
-				withExistingEnvFrom([]interface{}{
-					map[string]interface{}{
-						"secretRef": map[string]interface{}{
+				withExistingEnvFrom([]any{
+					map[string]any{
+						"secretRef": map[string]any{
 							"name": testSecret2,
 						},
 					},
@@ -581,14 +582,14 @@ func TestNotebookWebhook_Handle_EnvFromInjection(t *testing.T) {
 			name:      "preserve non-connection secret while removing connection secret",
 			operation: admissionv1.Update,
 			notebook: createNotebook(
-				withExistingEnvFrom([]interface{}{
-					map[string]interface{}{
-						"secretRef": map[string]interface{}{
+				withExistingEnvFrom([]any{
+					map[string]any{
+						"secretRef": map[string]any{
 							"name": testSecret1,
 						},
 					},
-					map[string]interface{}{
-						"secretRef": map[string]interface{}{
+					map[string]any{
+						"secretRef": map[string]any{
 							"name": testSecret2,
 						},
 					},
@@ -598,14 +599,14 @@ func TestNotebookWebhook_Handle_EnvFromInjection(t *testing.T) {
 				withAnnotations(map[string]string{
 					annotations.Connection: fmt.Sprintf("%s/%s", testNamespace, testSecret2),
 				}),
-				withExistingEnvFrom([]interface{}{
-					map[string]interface{}{
-						"secretRef": map[string]interface{}{
+				withExistingEnvFrom([]any{
+					map[string]any{
+						"secretRef": map[string]any{
 							"name": testSecret1,
 						},
 					},
-					map[string]interface{}{
-						"secretRef": map[string]interface{}{
+					map[string]any{
+						"secretRef": map[string]any{
 							"name": testSecret2,
 						},
 					},

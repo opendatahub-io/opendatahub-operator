@@ -18,10 +18,10 @@ func TestExtractTypedConditionsSuccess(t *testing.T) {
 	g := NewWithT(t)
 
 	obj := &unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"status": map[string]interface{}{
-				"conditions": []interface{}{
-					map[string]interface{}{
+		Object: map[string]any{
+			"status": map[string]any{
+				"conditions": []any{
+					map[string]any{
 						"type":    "Ready",
 						"status":  string(metav1.ConditionTrue),
 						"reason":  "OK",
@@ -46,7 +46,7 @@ func TestExtractTypedConditionsNotFound(t *testing.T) {
 	g := NewWithT(t)
 
 	obj := &unstructured.Unstructured{
-		Object: map[string]interface{}{},
+		Object: map[string]any{},
 	}
 
 	conds, err := testf.ExtractTypedConditions(obj)
@@ -59,8 +59,8 @@ func TestExtractTypedConditionsInvalidShape(t *testing.T) {
 	g := NewWithT(t)
 
 	obj := &unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"status": map[string]interface{}{
+		Object: map[string]any{
+			"status": map[string]any{
 				"conditions": "oops",
 			},
 		},
@@ -76,10 +76,10 @@ func TestTransform(t *testing.T) {
 
 	t.Run("Change Value of Nested Field", func(t *testing.T) {
 		obj := &unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"kind": "Example",
-				"metadata": map[string]interface{}{
-					"annotations": map[string]interface{}{
+				"metadata": map[string]any{
+					"annotations": map[string]any{
 						"key1": "value1",
 						"key2": "value2",
 					},
@@ -101,7 +101,7 @@ func TestTransform(t *testing.T) {
 
 	t.Run("Invalid JQ Expression", func(t *testing.T) {
 		obj := &unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"kind": "Example",
 				"data": "value",
 			},
@@ -117,7 +117,7 @@ func TestTransform(t *testing.T) {
 
 	t.Run("Query Result Is Not Map", func(t *testing.T) {
 		obj := &unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"kind": "Example",
 				"data": []string{"value1", "value2"},
 			},
@@ -133,9 +133,9 @@ func TestTransform(t *testing.T) {
 
 	t.Run("Empty Query Result", func(t *testing.T) {
 		obj := &unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"kind": "Example",
-				"data": map[string]interface{}{
+				"data": map[string]any{
 					"name": "value",
 				},
 			},
@@ -157,8 +157,8 @@ func TestTransformPipeline(t *testing.T) {
 	g := NewWithT(t)
 
 	obj := &unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"metadata": map[string]interface{}{
+		Object: map[string]any{
+			"metadata": map[string]any{
 				"name": "example",
 			},
 		},

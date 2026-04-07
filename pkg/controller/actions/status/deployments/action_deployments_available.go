@@ -3,6 +3,7 @@ package deployments
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -32,9 +33,7 @@ func WithSelectorLabel(k string, v string) ActionOpts {
 
 func WithSelectorLabels(values map[string]string) ActionOpts {
 	return func(action *Action) {
-		for k, v := range values {
-			action.labels[k] = v
-		}
+		maps.Copy(action.labels, values)
 	}
 }
 
@@ -57,9 +56,7 @@ func InNamespaceFn(fn actions.Getter[string]) ActionOpts {
 
 func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error {
 	l := make(map[string]string, len(a.labels))
-	for k, v := range a.labels {
-		l[k] = v
-	}
+	maps.Copy(l, a.labels)
 
 	if l[labels.PlatformPartOf] == "" {
 		kind, err := resources.KindForObject(rr.Client.Scheme(), rr.Instance)

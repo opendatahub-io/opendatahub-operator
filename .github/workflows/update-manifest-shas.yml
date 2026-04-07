@@ -21,20 +21,22 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Update manifest SHAs
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
-        id: update-shas
-        with:
-          script: |
-            const script = require('./.github/scripts/update-manifests-commit-sha.js')
-            await script({github, core})
-
       - name: Generate GitHub App Token
         id: generate-token
         uses: actions/create-github-app-token@7e473efe3cb98aa54f8d4bac15400b15fad77d94 # v2.2.0
         with:
           app-id: ${{ secrets.ODH_RELEASE_BOT_APP_ID }}
           private-key: ${{ secrets.ODH_RELEASE_BOT_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Update manifest SHAs
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        id: update-shas
+        with:
+          github-token: ${{ steps.generate-token.outputs.token }}
+          script: |
+            const script = require('./.github/scripts/update-manifests-commit-sha.js')
+            await script({github, core})
 
       - name: Create Pull Request
         if: steps.update-shas.outputs.updates-needed == 'true'

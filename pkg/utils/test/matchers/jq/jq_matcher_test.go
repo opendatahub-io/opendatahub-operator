@@ -72,7 +72,7 @@ func TestMatcherWithType(t *testing.T) {
 
 	// Define multiple test cases for jq matching
 	testCases := []struct {
-		input   interface{}
+		input   any
 		matcher types.GomegaMatcher
 	}{
 		{
@@ -117,14 +117,14 @@ func TestUnstructuredSliceMatcher(t *testing.T) {
 	g := NewWithT(t)
 
 	u := []unstructured.Unstructured{{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"a": 1,
 		}},
 	}
 
 	// Define multiple test cases for jq matching
 	testCases := []struct {
-		input   interface{}
+		input   any
 		matcher types.GomegaMatcher
 	}{
 		{

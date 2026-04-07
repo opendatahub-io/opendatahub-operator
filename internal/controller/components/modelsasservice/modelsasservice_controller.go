@@ -62,6 +62,8 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		OwnsGVK(gvk.AuthPolicyv1, reconciler.Dynamic(reconciler.CrdExists(gvk.AuthPolicyv1))).
 		OwnsGVK(gvk.DestinationRule, reconciler.Dynamic(reconciler.CrdExists(gvk.DestinationRule))).
 		OwnsGVK(gvk.TelemetryPolicyv1alpha1, reconciler.Dynamic(reconciler.CrdExists(gvk.TelemetryPolicyv1alpha1))).
+		// Payload-processing: EnvoyFilter for ext_proc integration with the inference gateway
+		OwnsGVK(gvk.EnvoyFilter, reconciler.Dynamic(reconciler.CrdExists(gvk.EnvoyFilter))).
 		Watches(
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(

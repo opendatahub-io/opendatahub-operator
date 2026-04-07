@@ -1,6 +1,9 @@
 package e2e_test
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 type TestTag string
 
@@ -20,13 +23,7 @@ func skipUnless(t *testing.T, tags ...TestTag) {
 	if TestTag(testOpts.tag) == All {
 		return
 	}
-	skipTest := true
-	for _, tag := range tags {
-		if tag == TestTag(testOpts.tag) {
-			skipTest = false
-			break
-		}
-	}
+	skipTest := !slices.Contains(tags, TestTag(testOpts.tag))
 
 	if skipTest {
 		t.Skipf("Skipping test: passed tag: %s, test tags: %v", testOpts.tag, tags)
