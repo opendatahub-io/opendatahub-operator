@@ -3,6 +3,7 @@ package gc
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strings"
 
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -55,9 +56,7 @@ func WithLabels(values map[string]string) ActionOpts {
 			action.labels = map[string]string{}
 		}
 
-		for k, v := range values {
-			action.labels[k] = v
-		}
+		maps.Copy(action.labels, values)
 	}
 }
 

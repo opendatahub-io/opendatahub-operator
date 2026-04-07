@@ -12,7 +12,7 @@ import (
 )
 
 func getV1ComponentFieldNames() []string {
-	v1Type := reflect.TypeOf(dscv1.Components{})
+	v1Type := reflect.TypeFor[dscv1.Components]()
 	fields := make([]string, 0, v1Type.NumField())
 	for i := range v1Type.NumField() {
 		fields = append(fields, v1Type.Field(i).Name)
@@ -33,7 +33,7 @@ func TestGetV2OnlyComponentFieldNames(t *testing.T) {
 			v1Fields[name] = true
 		}
 
-		v2Type := reflect.TypeOf(dscv2.Components{})
+		v2Type := reflect.TypeFor[dscv2.Components]()
 		var expectedV2Only []string
 		for i := range v2Type.NumField() {
 			fieldName := v2Type.Field(i).Name

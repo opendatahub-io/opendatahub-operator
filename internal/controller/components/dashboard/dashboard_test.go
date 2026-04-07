@@ -188,6 +188,35 @@ func TestUpdateDSCStatus(t *testing.T) {
 		))
 	})
 
+	t.Run("should return ConditionFalse when component CR has deletionTimestamp", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithDashboard(operatorv1.Managed)
+		dashboard := createDashboardCR(true)
+		now := metav1.Now()
+		dashboard.SetDeletionTimestamp(&now)
+		dashboard.SetFinalizers([]string{"test-finalizer"})
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dashboard))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cs, err := handler.UpdateDSCStatus(ctx, &odhtypes.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(cs).Should(Equal(metav1.ConditionFalse))
+
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, status.DeletingReason),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "%s"`, ReadyConditionType, status.DeletingMessage),
+		)))
+	})
+
 	t.Run("should handle disabled component", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
@@ -442,13 +471,13 @@ func createMockOpenShiftIngress(domain string) client.Object {
 	// Create OpenShift Ingress object (config.openshift.io/v1/Ingress)
 	// that cluster.GetDomain() looks for
 	obj := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "config.openshift.io/v1",
 			"kind":       "Ingress",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name": "cluster",
 			},
-			"spec": map[string]interface{}{
+			"spec": map[string]any{
 				"domain": domain,
 			},
 		},

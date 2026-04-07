@@ -311,10 +311,11 @@ func (tc *AuthControllerTestCtx) validateRBACResource(groupVersionKind schema.Gr
 	}
 
 	// Default options for basic existence validation
-	defaultOpts := []ResourceOpts{
+	defaultOpts := make([]ResourceOpts, 0, 2+len(opts))
+	defaultOpts = append(defaultOpts,
 		WithMinimalObject(groupVersionKind, nn),
 		WithCustomErrorMsg("Expected %s %s to be created as part of Auth system initialization", groupVersionKind.Kind, name),
-	}
+	)
 
 	// Merge with provided options (provided options override defaults)
 	defaultOpts = append(defaultOpts, opts...)

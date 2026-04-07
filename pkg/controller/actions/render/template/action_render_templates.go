@@ -49,9 +49,7 @@ func WithCache(enabled bool) ActionOpts {
 
 func WithData(data map[string]any) ActionOpts {
 	return func(action *Action) {
-		for k, v := range data {
-			action.data[k] = v
-		}
+		maps.Copy(action.data, data)
 	}
 }
 

@@ -2,6 +2,7 @@ package deleteresource
 
 import (
 	"context"
+	"maps"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -31,9 +32,7 @@ func WithDeleteResourcesLabel(k string, v string) ActionOpts {
 
 func WithDeleteResourcesLabels(values map[string]string) ActionOpts {
 	return func(action *Action) {
-		for k, v := range values {
-			action.labels[k] = v
-		}
+		maps.Copy(action.labels, values)
 	}
 }
 

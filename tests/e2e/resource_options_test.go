@@ -276,7 +276,7 @@ func WithAcceptableErr(expected any, functionErrorDescription ...any) func(*Reso
 // WithCustomErrorMsg creates a ResourceOpts function that sets a custom error message with the specified
 // formatting pattern and arguments. This allows users to customize the error message displayed when an error
 // occurs during resource operations, such as when applying, updating, or patching a resource.
-func WithCustomErrorMsg(args ...interface{}) ResourceOpts {
+func WithCustomErrorMsg(args ...any) ResourceOpts {
 	return func(ro *ResourceOptions) {
 		ro.CustomErrorArgs = args
 	}

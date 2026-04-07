@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 	"strconv"
 
 	admissionv1 "k8s.io/api/admission/v1"
@@ -196,13 +198,7 @@ func isExpectedKind(kind metav1.GroupVersionKind) bool {
 		Kind:    kind.Kind,
 	}
 
-	for _, expectedGVK := range expectedGVKs {
-		if requestGVK == expectedGVK {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(expectedGVKs, requestGVK)
 }
 
 // performHardwareProfileInjection handles the core logic for hardware profile injection.
@@ -476,7 +472,7 @@ func (i *Injector) validateContainerNames(obj *unstructured.Unstructured) error 
 		// For multiple containers, one must match the Notebook name
 		expectedName = obj.GetName()
 		for _, c := range containers {
-			m, ok := c.(map[string]interface{})
+			m, ok := c.(map[string]any)
 			if !ok {
 				continue
 			}
@@ -497,7 +493,7 @@ func (i *Injector) validateContainerNames(obj *unstructured.Unstructured) error 
 		// For LLMInferenceServices, must have a container named "main"
 		expectedName = LLMInferenceServiceMainContainerName
 		for _, c := range containers {
-			m, ok := c.(map[string]interface{})
+			m, ok := c.(map[string]any)
 			if !ok {
 				continue
 			}
@@ -753,9 +749,9 @@ func (i *Injector) removeHWPTolerations(obj *unstructured.Unstructured, tolerati
 	}
 
 	// Keep only tolerations that don't match HWP tolerations
-	remaining := make([]interface{}, 0, len(existingTolerations))
+	remaining := make([]any, 0, len(existingTolerations))
 	for _, existing := range existingTolerations {
-		if existingMap, ok := existing.(map[string]interface{}); ok {
+		if existingMap, ok := existing.(map[string]any); ok {
 			if !hwpTolKeys[TolerationKey(existingMap)] {
 				remaining = append(remaining, existing)
 			}
@@ -1027,7 +1023,7 @@ func notebookMainContainerIndices(obj *unstructured.Unstructured, containersPath
 	}
 	notebookName := obj.GetName()
 	for idx, c := range containers {
-		m, ok := c.(map[string]interface{})
+		m, ok := c.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -1047,7 +1043,7 @@ func llmInferenceServiceMainContainerIndices(obj *unstructured.Unstructured, con
 		return nil
 	}
 	for idx, c := range containers {
-		m, ok := c.(map[string]interface{})
+		m, ok := c.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -1075,7 +1071,7 @@ func (i *Injector) applyResourceRequirementsToContainers(ctx context.Context, ob
 	if !found || len(containers) == 0 {
 		if obj.GetKind() == gvk.LLMInferenceServiceV1Alpha1.Kind {
 			// Create minimal container with name "main"
-			containers = []interface{}{map[string]interface{}{
+			containers = []any{map[string]any{
 				"name": "main",
 			}}
 		} else { // notebook kind
@@ -1129,8 +1125,8 @@ func (i *Injector) applyResourceRequirementsToContainers(ctx context.Context, ob
 //
 // Returns:
 //   - error: Any error encountered during resource application, nil on success
-func (i *Injector) applyIdentifiersToContainer(container interface{}, identifiers []infrav1.HardwareIdentifier) error {
-	containerMap, ok := container.(map[string]interface{})
+func (i *Injector) applyIdentifiersToContainer(container any, identifiers []infrav1.HardwareIdentifier) error {
+	containerMap, ok := container.(map[string]any)
 	if !ok {
 		return errors.New("container is not a map[string]interface{}")
 	}
@@ -1193,7 +1189,7 @@ func (i *Injector) applyIdentifiersToContainer(container interface{}, identifier
 // Returns:
 //   - error: Any error encountered during identifier application or quantity conversion
 func (i *Injector) applyIdentifiersToRequests(
-	requests map[string]interface{},
+	requests map[string]any,
 	identifiers []infrav1.HardwareIdentifier,
 	valueExtractor func(infrav1.HardwareIdentifier) (intstr.IntOrString, bool),
 ) error {
@@ -1227,8 +1223,8 @@ func (i *Injector) applyIdentifiersToRequests(
 // Returns:
 //   - error: Any error encountered during identifier application or quantity conversion
 func (i *Injector) applyIdentifiersToLimits(
-	requests map[string]interface{},
-	limits map[string]interface{},
+	requests map[string]any,
+	limits map[string]any,
 	identifiers []infrav1.HardwareIdentifier,
 ) error {
 	// Standard Kubernetes resources that don't require limits to equal requests
@@ -1320,7 +1316,7 @@ func (i *Injector) applyNodeSchedulingConfiguration(obj *unstructured.Unstructur
 	// Apply tolerations if present
 	if len(nodeSpec.Tolerations) > 0 {
 		// Convert HWP tolerations to unstructured
-		hwpTolerations := make([]interface{}, len(nodeSpec.Tolerations))
+		hwpTolerations := make([]any, len(nodeSpec.Tolerations))
 		for idx, toleration := range nodeSpec.Tolerations {
 			tolerationUnstructured, err := resources.ToUnstructured(&toleration)
 			if err != nil {
@@ -1377,9 +1373,7 @@ func mergeNodeSelector(obj *unstructured.Unstructured, nodeSelectorPath []string
 
 	// Start with existing nodeSelector
 	merged := make(map[string]string)
-	for k, v := range existingNodeSelector {
-		merged[k] = v
-	}
+	maps.Copy(merged, existingNodeSelector)
 
 	// Apply HWP nodeSelector (overwrites existing keys)
 	for k, v := range hwpNodeSelector {
@@ -1407,7 +1401,7 @@ func mergeNodeSelector(obj *unstructured.Unstructured, nodeSelectorPath []string
 // Returns:
 //   - []interface{}: The merged tolerations slice
 //   - error: Any error encountered during the merge operation
-func mergeTolerations(obj *unstructured.Unstructured, tolerationsPath []string, hwpTolerations []interface{}) ([]interface{}, error) {
+func mergeTolerations(obj *unstructured.Unstructured, tolerationsPath []string, hwpTolerations []any) ([]any, error) {
 	// Get existing tolerations from the workload
 	existingTolerations, _, err := unstructured.NestedSlice(obj.Object, tolerationsPath...)
 	if err != nil {
@@ -1417,18 +1411,18 @@ func mergeTolerations(obj *unstructured.Unstructured, tolerationsPath []string, 
 	// Build a set of HWP toleration keys for deduplication
 	hwpTolKeys := make(map[string]bool)
 	for _, tol := range hwpTolerations {
-		if tolMap, ok := tol.(map[string]interface{}); ok {
+		if tolMap, ok := tol.(map[string]any); ok {
 			hwpTolKeys[TolerationKey(tolMap)] = true
 		}
 	}
 
 	// Start with HWP tolerations (they take precedence)
-	merged := make([]interface{}, 0, len(hwpTolerations)+len(existingTolerations))
+	merged := make([]any, 0, len(hwpTolerations)+len(existingTolerations))
 	merged = append(merged, hwpTolerations...)
 
 	// Add existing tolerations that don't conflict with HWP ones
 	for _, existing := range existingTolerations {
-		if existingMap, ok := existing.(map[string]interface{}); ok {
+		if existingMap, ok := existing.(map[string]any); ok {
 			if !hwpTolKeys[TolerationKey(existingMap)] {
 				merged = append(merged, existing)
 			}
@@ -1449,7 +1443,7 @@ func mergeTolerations(obj *unstructured.Unstructured, tolerationsPath []string, 
 //
 // Returns:
 //   - string: A unique key string for the toleration
-func TolerationKey(tol map[string]interface{}) string {
+func TolerationKey(tol map[string]any) string {
 	key, _ := tol["key"].(string)
 	operator, _ := tol["operator"].(string)
 	value, _ := tol["value"].(string)

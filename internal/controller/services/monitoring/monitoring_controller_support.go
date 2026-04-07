@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -181,13 +182,13 @@ func validateExporters(exporters map[string]runtime.RawExtension) (map[string]st
 		}
 
 		// Convert RawExtension to a map for validation and YAML conversion
-		var config map[string]interface{}
+		var config map[string]any
 		if err := yaml.Unmarshal(raw, &config); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal exporter config for '%s': %w", name, err)
 		}
 		// Treat empty/whitespace and YAML null as empty object for consistent rendering.
 		if config == nil {
-			config = map[string]interface{}{}
+			config = map[string]any{}
 		}
 
 		// Enhanced security validations
@@ -670,7 +671,7 @@ type FieldType struct {
 // ValidationRule defines custom validation logic.
 type ValidationRule struct {
 	Name     string
-	Validate func(field string, value interface{}) error
+	Validate func(field string, value any) error
 }
 
 // Schema definitions for metrics exporters.
@@ -708,7 +709,7 @@ var metricsExporterSchemas = map[string]ExporterSchema{
 			"endpoint": {
 				{
 					Name: "secure_endpoint_check",
-					Validate: func(field string, value interface{}) error {
+					Validate: func(field string, value any) error {
 						if str, ok := value.(string); ok {
 							if strings.HasPrefix(str, "http://") && !isLocalServiceEndpoint(str) {
 								return errors.New("insecure HTTP endpoints not allowed for external services")
@@ -750,7 +751,7 @@ var metricsExporterSchemas = map[string]ExporterSchema{
 			"endpoint": {
 				{
 					Name: "secure_endpoint_check",
-					Validate: func(field string, value interface{}) error {
+					Validate: func(field string, value any) error {
 						if str, ok := value.(string); ok {
 							if strings.HasPrefix(str, "http://") && !isLocalServiceEndpoint(str) {
 								return errors.New("insecure HTTP endpoints not allowed for external services")
@@ -806,7 +807,7 @@ var metricsExporterSchemas = map[string]ExporterSchema{
 			"endpoint": {
 				{
 					Name: "secure_endpoint_check",
-					Validate: func(field string, value interface{}) error {
+					Validate: func(field string, value any) error {
 						if str, ok := value.(string); ok {
 							if strings.HasPrefix(str, "http://") && !isLocalServiceEndpoint(str) {
 								return errors.New("insecure HTTP endpoints not allowed for external services")
@@ -821,7 +822,7 @@ var metricsExporterSchemas = map[string]ExporterSchema{
 }
 
 // validateExporterConfigSecurity performs additional security validations on exporter configurations.
-func validateExporterConfigSecurity(name string, config map[string]interface{}) error {
+func validateExporterConfigSecurity(name string, config map[string]any) error {
 	// Check maximum number of fields
 	if len(config) > maxConfigFields {
 		return fmt.Errorf("exporter '%s' has too many fields (%d), maximum allowed is %d", name, len(config), maxConfigFields)
@@ -836,13 +837,13 @@ func validateExporterConfigSecurity(name string, config map[string]interface{}) 
 }
 
 // validateConfigDepthAndTypes recursively validates the depth and types of configuration values.
-func validateConfigDepthAndTypes(obj interface{}, depth int, exporterName string) error {
+func validateConfigDepthAndTypes(obj any, depth int, exporterName string) error {
 	if depth > maxNestingDepth {
 		return fmt.Errorf("exporter '%s' config nesting too deep (max %d levels)", exporterName, maxNestingDepth)
 	}
 
 	switch v := obj.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		if len(v) > maxConfigFields {
 			return fmt.Errorf("exporter '%s' config object has too many fields at depth %d", exporterName, depth)
 		}
@@ -856,7 +857,7 @@ func validateConfigDepthAndTypes(obj interface{}, depth int, exporterName string
 				return err
 			}
 		}
-	case []interface{}:
+	case []any:
 		if len(v) > maxArrayLength {
 			return fmt.Errorf("exporter '%s' config array too long (%d items) at depth %d", exporterName, len(v), depth)
 		}
@@ -881,7 +882,7 @@ func validateConfigDepthAndTypes(obj interface{}, depth int, exporterName string
 }
 
 // validateExporterSchema validates an exporter config against its schema.
-func validateExporterSchema(exporterName string, config map[string]interface{}) error {
+func validateExporterSchema(exporterName string, config map[string]any) error {
 	exporterType := getExporterType(exporterName)
 	schema, exists := metricsExporterSchemas[exporterType]
 
@@ -896,14 +897,14 @@ func validateExporterSchema(exporterName string, config map[string]interface{}) 
 
 // getExporterType extracts the base exporter type from a name like "otlp/custom".
 func getExporterType(exporterName string) string {
-	if idx := strings.Index(exporterName, "/"); idx != -1 {
-		return exporterName[:idx]
+	if before, _, ok := strings.Cut(exporterName, "/"); ok {
+		return before
 	}
 	return exporterName
 }
 
 // Validate validates an exporter config against the schema.
-func (s ExporterSchema) Validate(exporterName string, config map[string]interface{}) error {
+func (s ExporterSchema) Validate(exporterName string, config map[string]any) error {
 	// Check required fields
 	for _, required := range s.RequiredFields {
 		if _, exists := config[required]; !exists {
@@ -942,7 +943,7 @@ func (s ExporterSchema) Validate(exporterName string, config map[string]interfac
 }
 
 // validateFieldTypeAndConstraints validates field type and applies constraints.
-func validateFieldTypeAndConstraints(exporterName, field string, value interface{}, fieldType FieldType) error {
+func validateFieldTypeAndConstraints(exporterName, field string, value any, fieldType FieldType) error {
 	// Type validation
 	if err := validateFieldTypeStrict(field, value, fieldType.Type); err != nil {
 		return fmt.Errorf("exporter '%s' field '%s': %w", exporterName, field, err)
@@ -972,7 +973,7 @@ func validateFieldTypeAndConstraints(exporterName, field string, value interface
 }
 
 // validateFieldTypeStrict validates field types with enhanced error messages.
-func validateFieldTypeStrict(_ string, value interface{}, expectedType string) error {
+func validateFieldTypeStrict(_ string, value any, expectedType string) error {
 	switch expectedType {
 	case "string":
 		if _, ok := value.(string); !ok {
@@ -990,15 +991,15 @@ func validateFieldTypeStrict(_ string, value interface{}, expectedType string) e
 			return fmt.Errorf("expected bool, got %T", value)
 		}
 	case "object":
-		if _, ok := value.(map[string]interface{}); !ok {
+		if _, ok := value.(map[string]any); !ok {
 			return fmt.Errorf("expected object, got %T", value)
 		}
 	case "array":
-		if _, ok := value.([]interface{}); !ok {
+		if _, ok := value.([]any); !ok {
 			return fmt.Errorf("expected array, got %T", value)
 		}
 	case "map[string]string":
-		if m, ok := value.(map[string]interface{}); ok {
+		if m, ok := value.(map[string]any); ok {
 			for _, v := range m {
 				if _, ok := v.(string); !ok {
 					return fmt.Errorf("map value must be string, got %T", v)
@@ -1015,12 +1016,7 @@ func validateFieldTypeStrict(_ string, value interface{}, expectedType string) e
 
 // Helper functions.
 func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(slice, item)
 }
 
 func intPtr(i int) *int {
@@ -1103,7 +1099,7 @@ func syncPrometheusWebTLSCA(ctx context.Context, rr *odhtypes.ReconciliationRequ
 		return fmt.Errorf("failed to set secret type: %w", err)
 	}
 
-	secretData := map[string]interface{}{
+	secretData := map[string]any{
 		"service-ca.crt": caCert,
 	}
 	if err := unstructured.SetNestedMap(secret.Object, secretData, "stringData"); err != nil {

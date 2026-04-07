@@ -42,7 +42,7 @@ func NewCache(opts ...CacheOpt) *Cache {
 	}
 
 	c.s = cache.NewTTLStore(
-		func(obj interface{}) (string, error) {
+		func(obj any) (string, error) {
 			s, ok := obj.(string)
 			if !ok {
 				return "", errors.New("failed to cast object to string")

@@ -82,6 +82,7 @@ var componentRules = map[string]string{
 	componentApi.FeastOperatorComponentName:        "feastoperator",
 	componentApi.LlamaStackOperatorComponentName:   "llamastackoperator",
 	componentApi.SparkOperatorComponentName:        "spark-operator",
+	componentApi.ModelsAsServiceComponentName:      "modelsasservice",
 }
 
 //go:embed resources

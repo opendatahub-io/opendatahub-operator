@@ -103,13 +103,13 @@ func TestCustomizeKserveConfigMap(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		// verify ingress creation is disabled
-		var ingressData map[string]interface{}
+		var ingressData map[string]any
 		err = json.Unmarshal([]byte(updatedConfigMap.Data[IngressConfigKeyName]), &ingressData)
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(ingressData["disableIngressCreation"]).Should(BeTrue())
 
 		// verify service is configured as headless (default)
-		var serviceData map[string]interface{}
+		var serviceData map[string]any
 		err = json.Unmarshal([]byte(updatedConfigMap.Data[ServiceConfigKeyName]), &serviceData)
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(serviceData["serviceClusterIPNone"]).Should(BeTrue())
@@ -147,12 +147,12 @@ func TestCustomizeKserveConfigMap(t *testing.T) {
 		err = runtime.DefaultUnstructuredConverter.FromUnstructured(rr.Resources[0].Object, updatedConfigMap)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		var ingressData map[string]interface{}
+		var ingressData map[string]any
 		err = json.Unmarshal([]byte(updatedConfigMap.Data[IngressConfigKeyName]), &ingressData)
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(ingressData["disableIngressCreation"]).Should(BeTrue())
 
-		var serviceData map[string]interface{}
+		var serviceData map[string]any
 		err = json.Unmarshal([]byte(updatedConfigMap.Data[ServiceConfigKeyName]), &serviceData)
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(serviceData["serviceClusterIPNone"]).Should(BeFalse())
@@ -245,6 +245,7 @@ func TestCustomizeKserveConfigMap(t *testing.T) {
 	})
 }
 
+//nolint:maintidx
 func TestCheckSubscriptionDependencies(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
@@ -254,7 +255,7 @@ func TestCheckSubscriptionDependencies(t *testing.T) {
 	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
 	t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
 
-	t.Run("RHCL subscription absent sets LLMInferenceServiceDependencies to False", func(t *testing.T) {
+	t.Run("RHCL and cert-manager subscriptions absent sets LLMInferenceServiceDependencies to False", func(t *testing.T) {
 		cli, err := fakeclient.New()
 		g.Expect(err).ShouldNot(HaveOccurred())
 
@@ -279,9 +280,84 @@ func TestCheckSubscriptionDependencies(t *testing.T) {
 		g.Expect(got).ShouldNot(BeNil())
 		g.Expect(got.Status).Should(Equal(metav1.ConditionFalse))
 		g.Expect(got.Message).Should(ContainSubstring("Red Hat Connectivity Link"))
+		g.Expect(got.Message).Should(ContainSubstring("cert-manager operator"))
 	})
 
-	t.Run("RHCL subscription present sets LLMInferenceServiceDependencies to True", func(t *testing.T) {
+	t.Run("RHCL and cert-manager subscriptions present sets LLMInferenceServiceDependencies to True", func(t *testing.T) {
+		rhclSub := &v1alpha1.Subscription{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      rhclOperatorSubscription,
+				Namespace: "openshift-operators",
+			},
+		}
+		certManagerSub := &v1alpha1.Subscription{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      certManagerOperatorSubscription,
+				Namespace: "cert-manager-operator",
+			},
+		}
+		cli, err := fakeclient.New(fakeclient.WithObjects(rhclSub, certManagerSub))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		instance := &componentApi.Kserve{
+			ObjectMeta: metav1.ObjectMeta{Name: componentApi.KserveInstanceName},
+		}
+
+		condManager := cond.NewManager(instance, happyCondition,
+			LLMInferenceServiceDependencies, LLMInferenceServiceWideEPDependencies)
+
+		rr := &odhtypes.ReconciliationRequest{
+			Client:     cli,
+			Instance:   instance,
+			Conditions: condManager,
+		}
+
+		action := checkSubscriptionDependencies()
+		err = action(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		got := condManager.GetCondition(LLMInferenceServiceDependencies)
+		g.Expect(got).ShouldNot(BeNil())
+		g.Expect(got.Status).Should(Equal(metav1.ConditionTrue))
+	})
+
+	//nolint:dupl
+	t.Run("Only RHCL absent sets LLMInferenceServiceDependencies to False", func(t *testing.T) {
+		certManagerSub := &v1alpha1.Subscription{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      certManagerOperatorSubscription,
+				Namespace: "cert-manager-operator",
+			},
+		}
+		cli, err := fakeclient.New(fakeclient.WithObjects(certManagerSub))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		instance := &componentApi.Kserve{
+			ObjectMeta: metav1.ObjectMeta{Name: componentApi.KserveInstanceName},
+		}
+
+		condManager := cond.NewManager(instance, happyCondition,
+			LLMInferenceServiceDependencies, LLMInferenceServiceWideEPDependencies)
+
+		rr := &odhtypes.ReconciliationRequest{
+			Client:     cli,
+			Instance:   instance,
+			Conditions: condManager,
+		}
+
+		action := checkSubscriptionDependencies()
+		err = action(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		got := condManager.GetCondition(LLMInferenceServiceDependencies)
+		g.Expect(got).ShouldNot(BeNil())
+		g.Expect(got.Status).Should(Equal(metav1.ConditionFalse))
+		g.Expect(got.Message).Should(ContainSubstring("Red Hat Connectivity Link"))
+		g.Expect(got.Message).ShouldNot(ContainSubstring("cert-manager operator"))
+	})
+
+	//nolint:dupl
+	t.Run("Only cert-manager absent sets LLMInferenceServiceDependencies to False", func(t *testing.T) {
 		rhclSub := &v1alpha1.Subscription{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      rhclOperatorSubscription,
@@ -310,7 +386,9 @@ func TestCheckSubscriptionDependencies(t *testing.T) {
 
 		got := condManager.GetCondition(LLMInferenceServiceDependencies)
 		g.Expect(got).ShouldNot(BeNil())
-		g.Expect(got.Status).Should(Equal(metav1.ConditionTrue))
+		g.Expect(got.Status).Should(Equal(metav1.ConditionFalse))
+		g.Expect(got.Message).Should(ContainSubstring("cert-manager operator"))
+		g.Expect(got.Message).ShouldNot(ContainSubstring("Red Hat Connectivity Link"))
 	})
 
 	t.Run("Only LWS absent sets LLMInferenceServiceWideEPDependencies to False", func(t *testing.T) {
@@ -320,7 +398,13 @@ func TestCheckSubscriptionDependencies(t *testing.T) {
 				Namespace: "openshift-operators",
 			},
 		}
-		cli, err := fakeclient.New(fakeclient.WithObjects(rhclSub))
+		certManagerSub := &v1alpha1.Subscription{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      certManagerOperatorSubscription,
+				Namespace: "cert-manager-operator",
+			},
+		}
+		cli, err := fakeclient.New(fakeclient.WithObjects(rhclSub, certManagerSub))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		instance := &componentApi.Kserve{
@@ -340,7 +424,7 @@ func TestCheckSubscriptionDependencies(t *testing.T) {
 		err = action(ctx, rr)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		// RHCL is present, so LLMInferenceServiceDependencies should be True
+		// RHCL and cert-manager are present, so LLMInferenceServiceDependencies should be True
 		got := condManager.GetCondition(LLMInferenceServiceDependencies)
 		g.Expect(got).ShouldNot(BeNil())
 		g.Expect(got.Status).Should(Equal(metav1.ConditionTrue))
@@ -351,9 +435,58 @@ func TestCheckSubscriptionDependencies(t *testing.T) {
 		g.Expect(gotWide.Status).Should(Equal(metav1.ConditionFalse))
 		g.Expect(gotWide.Message).Should(ContainSubstring("LeaderWorkerSet"))
 		g.Expect(gotWide.Message).ShouldNot(ContainSubstring("Red Hat Connectivity Link"))
+		g.Expect(gotWide.Message).ShouldNot(ContainSubstring("cert-manager operator"))
 	})
 
-	t.Run("Both RHCL and LWS present sets both conditions to True", func(t *testing.T) {
+	t.Run("All subscriptions (RHCL, LWS, cert-manager) present sets both conditions to True", func(t *testing.T) {
+		rhclSub := &v1alpha1.Subscription{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      rhclOperatorSubscription,
+				Namespace: "openshift-operators",
+			},
+		}
+		lwsSub := &v1alpha1.Subscription{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      lwsOperatorSubscription,
+				Namespace: "openshift-operators",
+			},
+		}
+		certManagerSub := &v1alpha1.Subscription{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      certManagerOperatorSubscription,
+				Namespace: "cert-manager-operator",
+			},
+		}
+		cli, err := fakeclient.New(fakeclient.WithObjects(rhclSub, lwsSub, certManagerSub))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		instance := &componentApi.Kserve{
+			ObjectMeta: metav1.ObjectMeta{Name: componentApi.KserveInstanceName},
+		}
+
+		condManager := cond.NewManager(instance, happyCondition,
+			LLMInferenceServiceDependencies, LLMInferenceServiceWideEPDependencies)
+
+		rr := &odhtypes.ReconciliationRequest{
+			Client:     cli,
+			Instance:   instance,
+			Conditions: condManager,
+		}
+
+		action := checkSubscriptionDependencies()
+		err = action(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		got := condManager.GetCondition(LLMInferenceServiceDependencies)
+		g.Expect(got).ShouldNot(BeNil())
+		g.Expect(got.Status).Should(Equal(metav1.ConditionTrue))
+
+		gotWide := condManager.GetCondition(LLMInferenceServiceWideEPDependencies)
+		g.Expect(gotWide).ShouldNot(BeNil())
+		g.Expect(gotWide.Status).Should(Equal(metav1.ConditionTrue))
+	})
+
+	t.Run("Only cert-manager absent with all others present sets LLMInferenceServiceWideEPDependencies to False", func(t *testing.T) {
 		rhclSub := &v1alpha1.Subscription{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      rhclOperatorSubscription,
@@ -386,13 +519,20 @@ func TestCheckSubscriptionDependencies(t *testing.T) {
 		err = action(ctx, rr)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
+		// LLMInferenceServiceDependencies should also be False (cert-manager missing)
 		got := condManager.GetCondition(LLMInferenceServiceDependencies)
 		g.Expect(got).ShouldNot(BeNil())
-		g.Expect(got.Status).Should(Equal(metav1.ConditionTrue))
+		g.Expect(got.Status).Should(Equal(metav1.ConditionFalse))
+		g.Expect(got.Message).Should(ContainSubstring("cert-manager operator"))
+		g.Expect(got.Message).ShouldNot(ContainSubstring("Red Hat Connectivity Link"))
 
+		// LLMInferenceServiceWideEPDependencies should be False (cert-manager missing)
 		gotWide := condManager.GetCondition(LLMInferenceServiceWideEPDependencies)
 		g.Expect(gotWide).ShouldNot(BeNil())
-		g.Expect(gotWide.Status).Should(Equal(metav1.ConditionTrue))
+		g.Expect(gotWide.Status).Should(Equal(metav1.ConditionFalse))
+		g.Expect(gotWide.Message).Should(ContainSubstring("cert-manager operator"))
+		g.Expect(gotWide.Message).ShouldNot(ContainSubstring("Red Hat Connectivity Link"))
+		g.Expect(gotWide.Message).ShouldNot(ContainSubstring("LeaderWorkerSet"))
 	})
 
 	t.Run("Non-OpenShift cluster skips checks and don't add conditions", func(t *testing.T) {

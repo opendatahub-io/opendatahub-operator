@@ -98,7 +98,7 @@ func Transform(format string, args ...any) TransformFn {
 			return fmt.Errorf("query execution error: %w", err)
 		}
 
-		uc, ok := result.(map[string]interface{})
+		uc, ok := result.(map[string]any)
 		if !ok {
 			return fmt.Errorf("expected map[string]interface{}, got %T", result)
 		}
@@ -120,7 +120,7 @@ func Transform(format string, args ...any) TransformFn {
 // Returns:
 //   - func(*unstructured.Unstructured) error: A function that applies the unstructured spec data
 //     to the provided `*unstructured.Unstructured` object. If the conversion or update fails, an error is returned.
-func TransformSpecToUnstructured(spec interface{}) TransformFn {
+func TransformSpecToUnstructured(spec any) TransformFn {
 	return func(in *unstructured.Unstructured) error {
 		// Convert the spec to unstructured format
 		specData, err := runtime.DefaultUnstructuredConverter.ToUnstructured(spec)
@@ -147,7 +147,7 @@ func ExtractTypedConditions(obj *unstructured.Unstructured) ([]metav1.Condition,
 	}
 	conditions := make([]metav1.Condition, 0, len(raw))
 	for _, c := range raw {
-		m, ok := c.(map[string]interface{})
+		m, ok := c.(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf("condition is not a map: %T", c)
 		}
@@ -163,7 +163,7 @@ func ExtractTypedConditions(obj *unstructured.Unstructured) ([]metav1.Condition,
 // SetTypedConditions writes a typed metav1.Condition slice to an unstructured object's status.conditions.
 // This is useful for injecting conditions into CRs for testing.
 func SetTypedConditions(obj *unstructured.Unstructured, conditions []metav1.Condition) error {
-	raw := make([]interface{}, len(conditions))
+	raw := make([]any, len(conditions))
 	for i, c := range conditions {
 		m, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&c)
 		if err != nil {

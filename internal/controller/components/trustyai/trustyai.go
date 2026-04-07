@@ -42,6 +42,9 @@ func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *
 	// Copy eval section exactly as it exists in the DSC
 	spec.Eval = dsc.Spec.Components.TrustyAI.Eval
 
+	// Copy MCPGuardrailsMode
+	spec.MCPGuardrailsMode = dsc.Spec.Components.TrustyAI.MCPGuardrailsMode
+
 	// Ensure defaults are applied when strings are empty
 	if spec.Eval.LMEval.PermitCodeExecution == "" {
 		spec.Eval.LMEval.PermitCodeExecution = EvalPermissionDeny
@@ -74,6 +77,11 @@ func (s *componentHandler) Init(platform common.Platform) error {
 		return fmt.Errorf("failed to update images on path %s: %w", mp, err)
 	}
 
+	mcpGuardrailsMP := mcpGuardrailsManifestInfo()
+	if err := odhdeploy.ApplyParams(mcpGuardrailsMP.String(), "params.env", imageParamMap); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", mcpGuardrailsMP, err)
+	}
+
 	return nil
 }
 
@@ -102,6 +110,15 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	dsc.Status.Components.TrustyAI.TrustyAICommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
+
+	if !c.GetDeletionTimestamp().IsZero() {
+		rr.Conditions.MarkFalse(
+			ReadyConditionType,
+			conditions.WithReason(status.DeletingReason),
+			conditions.WithMessage(status.DeletingMessage),
+		)
+		return metav1.ConditionFalse, nil
+	}
 
 	if s.IsEnabled(dsc) {
 		dsc.Status.Components.TrustyAI.TrustyAICommonStatus = c.Status.TrustyAICommonStatus.DeepCopy()

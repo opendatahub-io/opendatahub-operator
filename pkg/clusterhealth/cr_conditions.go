@@ -112,7 +112,7 @@ func conditionStatusIsTrue(status string) bool {
 // It returns (nil, nil) when status.conditions is absent (not found); callers treat that as "no conditions".
 // It returns (nil, err) when status.conditions exists but is malformed (e.g. not a slice), so callers can
 // report a parsing error instead of treating the CR as healthy.
-func parseConditionsFromUnstructured(obj map[string]interface{}) ([]ConditionSummary, error) {
+func parseConditionsFromUnstructured(obj map[string]any) ([]ConditionSummary, error) {
 	conditions, found, err := unstructured.NestedSlice(obj, "status", "conditions")
 	if err != nil {
 		return nil, err
@@ -122,7 +122,7 @@ func parseConditionsFromUnstructured(obj map[string]interface{}) ([]ConditionSum
 	}
 	out := make([]ConditionSummary, 0, len(conditions))
 	for _, raw := range conditions {
-		m, ok := raw.(map[string]interface{})
+		m, ok := raw.(map[string]any)
 		if !ok {
 			continue
 		}

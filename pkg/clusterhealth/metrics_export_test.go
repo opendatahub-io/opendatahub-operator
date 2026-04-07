@@ -1,6 +1,7 @@
 package clusterhealth
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -294,10 +295,8 @@ func TestFormatFloat(t *testing.T) {
 
 func assertContainsLine(t *testing.T, lines []string, want string) {
 	t.Helper()
-	for _, line := range lines {
-		if line == want {
-			return
-		}
+	if slices.Contains(lines, want) {
+		return
 	}
 	t.Errorf("expected line not found: %s\ngot lines:\n  %s", want, strings.Join(lines, "\n  "))
 }

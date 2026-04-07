@@ -162,7 +162,7 @@ func getV2OnlyManagedComponents(dsc *dscv2.DataScienceCluster) ([]string, error)
 	}
 
 	// Examine v2 components to find which v2-only ones are Managed
-	v2ComponentsType := reflect.TypeOf(dsc.Spec.Components)
+	v2ComponentsType := reflect.TypeFor[dscv2.Components]()
 	v2ComponentsValue := reflect.ValueOf(dsc.Spec.Components)
 
 	for i := range v2ComponentsType.NumField() {

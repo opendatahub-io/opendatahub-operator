@@ -139,7 +139,7 @@ type Flavors struct {
 	Resources []FlavorResource
 }
 
-func createResourceGroup(flavors []Flavors) map[string]interface{} {
+func createResourceGroup(flavors []Flavors) map[string]any {
 	resourceMap := make(map[string]any)
 	groupFlavors := make([]any, 0, len(flavors))
 
@@ -177,19 +177,17 @@ func createResourceGroup(flavors []Flavors) map[string]interface{} {
 func createDefaultClusterQueue(name string, clusterInfo ClusterResourceInfo) *unstructured.Unstructured {
 	clusterQueue := &unstructured.Unstructured{}
 
-	resourceGroups := []any{
-		createResourceGroup([]Flavors{
-			{
-				Name: DefaultFlavorName,
-				Resources: []FlavorResource{
-					{Name: "cpu", Value: clusterInfo.CPU.Allocatable.String()},
-					{Name: "memory", Value: clusterInfo.Memory.Allocatable.String()},
-				},
-			},
-		}),
-	}
-
 	clusterGPU := slices.Sorted(maps.Keys(clusterInfo.GPUInfo))
+	resourceGroups := make([]any, 0, 1+len(clusterGPU))
+	resourceGroups = append(resourceGroups, createResourceGroup([]Flavors{
+		{
+			Name: DefaultFlavorName,
+			Resources: []FlavorResource{
+				{Name: "cpu", Value: clusterInfo.CPU.Allocatable.String()},
+				{Name: "memory", Value: clusterInfo.Memory.Allocatable.String()},
+			},
+		},
+	}))
 	for _, label := range clusterGPU {
 		gpuInfo := clusterInfo.GPUInfo[label]
 		resourceGroups = append(resourceGroups, createResourceGroup([]Flavors{
@@ -202,18 +200,18 @@ func createDefaultClusterQueue(name string, clusterInfo ClusterResourceInfo) *un
 		}))
 	}
 
-	clusterQueue.Object = map[string]interface{}{
+	clusterQueue.Object = map[string]any{
 		"apiVersion": gvk.ClusterQueue.GroupVersion().String(),
 		"kind":       gvk.ClusterQueue.Kind,
-		"metadata": map[string]interface{}{
+		"metadata": map[string]any{
 			"name": name,
-			"annotations": map[string]interface{}{
+			"annotations": map[string]any{
 				annotations.ManagedByODHOperator: "false",
 			},
 		},
-		"spec": map[string]interface{}{
-			"namespaceSelector": map[string]interface{}{
-				"matchLabels": map[string]interface{}{
+		"spec": map[string]any{
+			"namespaceSelector": map[string]any{
+				"matchLabels": map[string]any{
 					cluster.KueueManagedLabelKey: "true",
 				},
 			},
@@ -227,17 +225,17 @@ func createDefaultClusterQueue(name string, clusterInfo ClusterResourceInfo) *un
 func createDefaultLocalQueue(name string, clusterQueueName string, namespace string) *unstructured.Unstructured {
 	localQueue := &unstructured.Unstructured{}
 
-	localQueue.Object = map[string]interface{}{
+	localQueue.Object = map[string]any{
 		"apiVersion": gvk.LocalQueue.GroupVersion().String(),
 		"kind":       gvk.LocalQueue.Kind,
-		"metadata": map[string]interface{}{
+		"metadata": map[string]any{
 			"name":      name,
 			"namespace": namespace,
-			"annotations": map[string]interface{}{
+			"annotations": map[string]any{
 				annotations.ManagedByODHOperator: "false",
 			},
 		},
-		"spec": map[string]interface{}{
+		"spec": map[string]any{
 			"clusterQueue": clusterQueueName,
 		},
 	}
@@ -246,7 +244,7 @@ func createDefaultLocalQueue(name string, clusterQueueName string, namespace str
 }
 
 func createDefaultResourceFlavors(clusterInfo ClusterResourceInfo) []unstructured.Unstructured {
-	resourceFlavors := []unstructured.Unstructured{}
+	resourceFlavors := make([]unstructured.Unstructured, 0, 1+len(clusterInfo.GPUInfo))
 
 	resourceFlavors = append(resourceFlavors, unstructured.Unstructured{
 		Object: map[string]any{

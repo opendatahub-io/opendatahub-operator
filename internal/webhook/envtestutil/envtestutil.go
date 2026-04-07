@@ -590,8 +590,8 @@ func NewNotebook(name, namespace string, opts ...ObjectOption) client.Object {
 	notebook.SetNamespace(namespace)
 
 	// Set basic spec structure needed for webhook testing
-	containers := []interface{}{
-		map[string]interface{}{
+	containers := []any{
+		map[string]any{
 			"name":  "notebook",
 			"image": "jupyter/base-notebook:latest",
 		},
@@ -604,6 +604,30 @@ func NewNotebook(name, namespace string, opts ...ObjectOption) client.Object {
 		opt(notebook)
 	}
 	return notebook
+}
+
+// NewTrainJob creates a TrainJob object with the given name and namespace for use in tests.
+//
+// Parameters:
+//   - name: The name of the TrainJob object.
+//   - namespace: The namespace for the object.
+//
+// Returns:
+//   - client.Object: The constructed TrainJob object as an unstructured object.
+func NewTrainJob(name, namespace string, opts ...ObjectOption) client.Object {
+	trainJob := resources.GvkToUnstructured(gvk.TrainJob)
+	trainJob.SetName(name)
+	trainJob.SetNamespace(namespace)
+
+	// Set basic spec structure needed for webhook testing
+	if err := unstructured.SetNestedField(trainJob.Object, "torch-distributed", "spec", "runtimeRef", "name"); err != nil {
+		panic(fmt.Sprintf("failed to set trainjob runtimeRef: %v", err))
+	}
+
+	for _, opt := range opts {
+		opt(trainJob)
+	}
+	return trainJob
 }
 
 // NewInferenceService creates an InferenceService object with the given name and namespace for use in tests.
@@ -621,7 +645,7 @@ func NewInferenceService(name, namespace string, opts ...ObjectOption) client.Ob
 
 	// Set basic spec structure needed for webhook testing
 	// Create a model object instead of containers for isvc
-	model := map[string]interface{}{
+	model := map[string]any{
 		"name":  "isvc-model",
 		"image": "kserve/model-server:latest",
 	}
@@ -649,8 +673,8 @@ func NewLLMInferenceService(name, namespace string, opts ...ObjectOption) client
 	llmInferenceService.SetNamespace(namespace)
 
 	// this is set in case HWprofile require resource changes, it is not necessary for Connection API
-	containers := []interface{}{
-		map[string]interface{}{
+	containers := []any{
+		map[string]any{
 			"name":  "main",
 			"image": "kserve/llm-container:latest",
 		},
