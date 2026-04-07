@@ -60,16 +60,6 @@ const (
 
 	// MaaSAPIDeploymentName is the name of the maas-api Deployment.
 	MaaSAPIDeploymentName = "maas-api"
-
-	// AuthorinoCRName is the well-known name of the Authorino custom resource
-	// (operator.authorino.kuadrant.io/v1beta1) created by the Kuadrant/RHCL operator.
-	AuthorinoCRName = "authorino"
-
-	// AuthorinoNamespaceKuadrant is the namespace where Kuadrant (upstream) deploys Authorino.
-	AuthorinoNamespaceKuadrant = "kuadrant-system"
-
-	// AuthorinoNamespaceRHCL is the namespace where Red Hat Connectivity Link (downstream) deploys Authorino.
-	AuthorinoNamespaceRHCL = "rh-connectivity-link"
 )
 
 var (
