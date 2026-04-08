@@ -125,7 +125,7 @@ func WithSortFn(fn SortFn) ActionOpts {
 // WithApplyOrder is a convenience option that sorts resources into
 // dependency order (CRDs first, webhooks last) before deploying.
 func WithApplyOrder() ActionOpts {
-	return WithSortFn(resources.SortByApplyOrderWithCertificates)
+	return WithSortFn(resources.SortByApplyOrder)
 }
 
 func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) error {
