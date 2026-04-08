@@ -1,0 +1,92 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  annotations:
+    build.appstudio.openshift.io/repo: https://github.com/opendatahub-io/opendatahub-operator?rev={{revision}}
+    build.appstudio.redhat.com/commit_sha: '{{revision}}'
+    build.appstudio.redhat.com/target_branch: '{{target_branch}}'
+    pipelinesascode.tekton.dev/cancel-in-progress: "false"
+    pipelinesascode.tekton.dev/max-keep-runs: "3"
+    # Trigger on bundle file changes, Dockerfile changes, or manual test comments (odh-3.4.0 branch only)
+    pipelinesascode.tekton.dev/on-cel-expression: |
+      (event == "push" && target_branch == "odh-3.4.0" &&
+       ("bundle/**".pathChanged() || "Dockerfiles/bundle.Dockerfile".pathChanged() ||
+        ".tekton/odh-operator-bundle-release-push.yaml".pathChanged())) ||
+      (event == "test-comment" && target_branch == "odh-3.4.0")
+  creationTimestamp: null
+  labels:
+    appstudio.openshift.io/application: opendatahub-builds
+    appstudio.openshift.io/component: odh-operator-bundle-ci
+    pipelines.appstudio.openshift.io/type: build
+  name: odh-operator-bundle-release-3-4-0-on-push
+  namespace: open-data-hub-tenant
+spec:
+  params:
+  - name: git-url
+    value: '{{source_url}}'
+  - name: revision
+    value: '{{revision}}'
+  - name: output-image
+    value: quay.io/opendatahub/opendatahub-operator-bundle:v3.4.0
+  - name: dockerfile
+    value: Dockerfiles/bundle.Dockerfile
+  - name: path-context
+    value: .
+  - name: rebuild
+    value: "true"
+  - name: skip-checks
+    value: "false"
+  - name: hermetic
+    value: "false"
+  - name: prefetch-input
+    value: ""
+  - name: image-expires-after
+    value: "7d"
+  - name: build-source-image
+    value: "false"
+  - name: build-image-index
+    value: "false"
+  - name: buildah-format
+    value: "docker"
+  - name: enable-cache-proxy
+    value: "false"
+  - name: privileged-nested
+    value: "false"
+  - name: build-args-file
+    value: ""
+  - name: build-args
+    value:
+    - OPERATOR_VERSION=3.4.0
+    - IMG_TAG=v3.4.0
+    - IMAGE_TAG_BASE=quay.io/opendatahub/opendatahub-operator
+    - BUNDLE_IMG=quay.io/opendatahub/opendatahub-operator-bundle:v3.4.0
+    - GOLANG_VERSION=1.25
+  - name: additional-labels
+    value:
+    - version=3.4.0
+    - release=odh-3.4.0
+    - git.url={{source_url}}
+    - git.commit={{revision}}
+    - git.branch={{target_branch}}
+  - name: enable-slack-failure-notification
+    value: "true"
+  - name: pipeline-type
+    value: "push"
+  - name: expected-cluster
+    value: ""
+  pipelineRef:
+    resolver: git
+    params:
+    - name: url
+      value: https://github.com/opendatahub-io/odh-konflux-central.git
+    - name: revision
+      value: main
+    - name: pathInRepo
+      value: pipeline/bundle-build.yaml
+  taskRunTemplate:
+    serviceAccountName: build-pipeline-odh-operator-bundle-ci
+  workspaces:
+  - name: git-auth
+    secret:
+      secretName: '{{ git_auth_secret }}'
+status: {}
