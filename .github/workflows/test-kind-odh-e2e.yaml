@@ -68,7 +68,7 @@ jobs:
           kubectl wait --for=condition=Available deployment/azure-cloud-manager-operator -n opendatahub-cloudmanager-system --timeout=300s || (kubectl describe pods -n opendatahub-cloudmanager-system && exit 1)
           echo "✅ Cloud Manager is Ready!"
           kubectl apply -f config/cloudmanager/azure/samples/azurekubernetesengine_v1alpha1.yaml
-          echo "Waiting for AzureKubernetesEngine default-azurekubernetesengine to be Ready..."
+          echo "Waiting for AzureKubernetesEngine CR default-azurekubernetesengine to be Ready..."
           kubectl wait --for=condition=Ready azurekubernetesengine/default-azurekubernetesengine --timeout=300s
           echo "✅ AzureKubernetesEngine CR is Ready!"
 
@@ -80,7 +80,7 @@ jobs:
           kubectl wait --for=condition=Available deployment/opendatahub-operator-controller-manager -n ${{ env.OPERATOR_NAMESPACE }} --timeout=600s
           echo "✅ ODH is Ready!"
           kubectl apply -f config/rhaii/samples/kserve.yaml
-          echo "Waiting for Kserve default-kserve to be Ready..."
+          echo "Waiting for Kserve CR default-kserve to be Ready..."
           kubectl wait --for=condition=Ready kserve/default-kserve --timeout=300s
           echo "✅ Kserve CR is Ready!"
 

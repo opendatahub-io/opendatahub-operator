@@ -86,11 +86,16 @@ func (tc *ComponentTestCtx) ValidateComponentEnabled(t *testing.T) {
 
 	skipUnless(t, Smoke, Tier1)
 
-	// As these tests can be executed in a non-cleaned scenario, we need to move the component first to Removed.
-	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Removed)
+	// if the cluster is Openshift, we rely in the DSC. If not, in the component CR existence
+	if tc.IsOpenshift() {
+		// As these tests can be executed in a non-cleaned scenario, we need to move the component first to Removed.
+		tc.UpdateComponentStateInDataScienceCluster(operatorv1.Removed)
 
-	// Ensure that DataScienceCluster exists and its component state is "Managed", with the "Ready" condition true.
-	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Managed)
+		// Ensure that DataScienceCluster exists and its component state is "Managed", with the "Ready" condition true.
+		tc.UpdateComponentStateInDataScienceCluster(operatorv1.Managed)
+	} else {
+		tc.CheckComponentResourceExistsOrNot(operatorv1.Managed)
+	}
 
 	// Ensure the component resource exists and is marked "Ready".
 	// Note: Ready=True already implies deployments exist and are ready (checked by DeploymentsAvailable condition)
@@ -252,6 +257,8 @@ func (tc *ComponentTestCtx) ValidateCRDsReinstated(t *testing.T, crds []CRD) {
 // ValidateComponentReleases ensures that the component releases exist and have valid fields.
 func (tc *ComponentTestCtx) ValidateComponentReleases(t *testing.T) {
 	t.Helper()
+
+	tc.SkipIfNonOpenshiftCluster(t)
 
 	skipUnless(t, Smoke)
 
@@ -449,9 +456,29 @@ func (tc *ComponentTestCtx) ValidateComponentCondition(gvk schema.GroupVersionKi
 	)
 }
 
+// UpdateComponentState updates the management state of a specified component in the DataScienceCluster or in the Component CR depending on the kind of cluster.
+func (tc *ComponentTestCtx) UpdateComponentState(state operatorv1.ManagementState) {
+	if tc.IsOpenshift() {
+		tc.UpdateComponentStateInDataScienceCluster(state)
+	} else {
+		tc.CheckComponentResourceExistsOrNot(state)
+	}
+}
+
+// CheckComponentResourceExistsOrNot checks if the component resource exists or not based on the management state.
+func (tc *ComponentTestCtx) CheckComponentResourceExistsOrNot(state operatorv1.ManagementState) {
+	shouldExist := state == operatorv1.Managed
+	tc.CheckComponentResourceExistsOrNotWithKind(shouldExist, tc.GVK)
+}
+
 // UpdateComponentStateInDataScienceCluster updates the management state of a specified component in the DataScienceCluster.
 func (tc *ComponentTestCtx) UpdateComponentStateInDataScienceCluster(state operatorv1.ManagementState) {
 	tc.UpdateComponentStateInDataScienceClusterWithKind(state, tc.GVK.Kind)
+}
+
+// CheckComponentResourceExistsOrNotWithKind checks if the component resource exists or not based on the management state and the kind of the component.
+func (tc *ComponentTestCtx) CheckComponentResourceExistsOrNotWithKind(shouldExist bool, gvk schema.GroupVersionKind) {
+	tc.TestContext.CheckComponentResourceExistsOrNotWithKind(shouldExist, gvk)
 }
 
 // UpdateComponentStateInDataScienceClusterWithKind updates the management state of a specified component kind in the DataScienceCluster.
