@@ -5,6 +5,9 @@ import (
 	"testing"
 
 	"github.com/blang/semver/v4"
+	"github.com/k8s-manifest-kit/engine/pkg/pipeline"
+	"github.com/k8s-manifest-kit/engine/pkg/postrenderer"
+	engineTypes "github.com/k8s-manifest-kit/engine/pkg/types"
 	"github.com/operator-framework/api/pkg/lib/version"
 	"github.com/stretchr/testify/mock"
 	appsv1 "k8s.io/api/apps/v1"
@@ -48,7 +51,7 @@ func createCertManagerCRDs(t *testing.T, g *WithT, ctx context.Context, envTest 
 }
 
 func TestSortByApplyOrder(t *testing.T) {
-	t.Run("sorts CRDs before Deployments before unknown kinds", func(t *testing.T) {
+	t.Run("sorts CRDs before cert-manager before Deployments", func(t *testing.T) {
 		g := NewWithT(t)
 
 		input := []unstructured.Unstructured{
@@ -61,8 +64,8 @@ func TestSortByApplyOrder(t *testing.T) {
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(result).To(HaveLen(3))
 		g.Expect(result[0].GetKind()).To(Equal("CustomResourceDefinition"))
-		g.Expect(result[1].GetKind()).To(Equal("Deployment"))
-		g.Expect(result[2].GetKind()).To(Equal("ClusterIssuer"))
+		g.Expect(result[1].GetKind()).To(Equal("ClusterIssuer"))
+		g.Expect(result[2].GetKind()).To(Equal("Deployment"))
 	})
 
 	t.Run("sorts webhooks last", func(t *testing.T) {
@@ -82,21 +85,23 @@ func TestSortByApplyOrder(t *testing.T) {
 		g.Expect(result[2].GetKind()).To(Equal("ValidatingWebhookConfiguration"))
 	})
 
-	t.Run("unknown kinds placed in middle", func(t *testing.T) {
+	t.Run("cert-manager placed before workloads", func(t *testing.T) {
 		g := NewWithT(t)
 
 		input := []unstructured.Unstructured{
 			newUnstructured(gvk.CertManagerCertificate.Group, gvk.CertManagerCertificate.Version, gvk.CertManagerCertificate.Kind, "cert-manager", "ca"),
 			newUnstructured(gvk.Namespace.Group, gvk.Namespace.Version, gvk.Namespace.Kind, "", "my-ns"),
 			newUnstructured("admissionregistration.k8s.io", "v1", "MutatingWebhookConfiguration", "", "webhook"),
+			newUnstructured(gvk.Deployment.Group, gvk.Deployment.Version, gvk.Deployment.Kind, "ns", "my-deploy"),
 		}
 
 		result, err := resources.SortByApplyOrder(context.Background(), input)
 		g.Expect(err).NotTo(HaveOccurred())
-		g.Expect(result).To(HaveLen(3))
+		g.Expect(result).To(HaveLen(4))
 		g.Expect(result[0].GetKind()).To(Equal(gvk.Namespace.Kind))
 		g.Expect(result[1].GetKind()).To(Equal(gvk.CertManagerCertificate.Kind))
-		g.Expect(result[2].GetKind()).To(Equal("MutatingWebhookConfiguration"))
+		g.Expect(result[2].GetKind()).To(Equal("Deployment"))
+		g.Expect(result[3].GetKind()).To(Equal("MutatingWebhookConfiguration"))
 	})
 
 	t.Run("empty input returns empty", func(t *testing.T) {
@@ -123,7 +128,7 @@ func TestSortByApplyOrder(t *testing.T) {
 		g.Expect(result[1].GetName()).To(Equal("deploy-b"))
 	})
 
-	t.Run("cert-manager dependency ordering with SortByApplyOrderWithCertificates", func(t *testing.T) {
+	t.Run("cert-manager dependency ordering with post-renderer chain", func(t *testing.T) {
 		g := NewWithT(t)
 
 		input := []unstructured.Unstructured{
@@ -138,7 +143,7 @@ func TestSortByApplyOrder(t *testing.T) {
 			newUnstructured(gvk.CustomResourceDefinition.Group, gvk.CustomResourceDefinition.Version, gvk.CustomResourceDefinition.Kind, "", "certificates.cert-manager.io"),
 		}
 
-		result, err := resources.SortByApplyOrderWithCertificates(context.Background(), input)
+		result, err := resources.SortByApplyOrder(context.Background(), input)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(result).To(HaveLen(8))
 
@@ -173,7 +178,7 @@ func TestSortByApplyOrder(t *testing.T) {
 			newUnstructured(gvk.CustomResourceDefinition.Group, gvk.CustomResourceDefinition.Version, gvk.CustomResourceDefinition.Kind, "", "certificates.cert-manager.io"),
 		}
 
-		result, err := resources.SortByApplyOrderWithCertificates(context.Background(), input)
+		result, err := resources.SortByApplyOrder(context.Background(), input)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(result).To(HaveLen(6))
 
@@ -277,36 +282,78 @@ func TestCertManagerOrderingIntegration(t *testing.T) {
 		// and create the Secret, but our test proves the ordering prevents the race condition.
 	})
 
-	t.Run("Without enhanced ordering, cert-manager resources are placed randomly", func(t *testing.T) {
+	t.Run("Demonstrates race condition without enhanced ordering", func(t *testing.T) {
 		g := NewWithT(t)
 
-		// Test scenario with upstream ordering only (no cert-manager enhancement)
-		testResources, err := createRealCertManagerScenario(testNamespace)
-		g.Expect(err).NotTo(HaveOccurred())
-
-		action := deploy.NewAction() // No WithApplyOrder() - uses default upstream ordering only
-
-		rr := controllerTypes.ReconciliationRequest{
-			Client:   envTest.Client(),
-			Instance: &componentApi.Dashboard{ObjectMeta: metav1.ObjectMeta{Generation: 1}},
-			Release: common.Release{
-				Name: cluster.OpenDataHub,
-				Version: version.OperatorVersion{Version: semver.Version{
-					Major: 1, Minor: 2, Patch: 3,
-				}},
-			},
-			Resources: testResources,
-			Controller: mocks.NewMockController(func(m *mocks.MockController) {
-				m.On("Owns", mock.Anything).Return(false)
-			}),
+		// Create problematic scenario: Certificate depends on ClusterIssuer but gets deployed first
+		// This mimics the race condition described in RHOAIENG-53513
+		problematicResources := []unstructured.Unstructured{
+			// Intentionally wrong order - Certificate BEFORE its ClusterIssuer dependency
+			*createTestCertificate(testNamespace), // Depends on ClusterIssuer
+			*createTestClusterIssuer(),            // Should come first
+			*createTestDeployment(testNamespace),  // Consumes Certificate's secret
 		}
 
-		// Deploy without cert-manager ordering enhancement
-		err = action(ctx, &rr)
-		g.Expect(err).NotTo(HaveOccurred(), "Deploy should succeed, but ordering may be wrong")
+		// Apply without enhanced ordering using upstream k8s-manifest-kit only
+		upstream := []engineTypes.PostRenderer{postrenderer.ApplyOrder()} // Only upstream ordering
+		result, err := pipeline.ApplyPostRenderers(ctx, problematicResources, upstream)
+		g.Expect(err).NotTo(HaveOccurred())
 
-		// Verify cert-manager resources were created, but potentially in wrong order
-		// This demonstrates the race condition risk that our enhancement fixes
+		// Verify upstream ordering puts Certificate before ClusterIssuer (problematic)
+		// This would cause transient failures in real deployment
+		clusterIssuerIndex := -1
+		certificateIndex := -1
+		for i, resource := range result {
+			switch resource.GetKind() {
+			case "ClusterIssuer":
+				clusterIssuerIndex = i
+			case "Certificate":
+				certificateIndex = i
+			}
+		}
+
+		// This is the problematic case: Certificate comes before ClusterIssuer
+		// In real deployment, this would cause Certificate creation to fail
+		g.Expect(certificateIndex).To(BeNumerically("<", clusterIssuerIndex),
+			"Upstream ordering incorrectly places Certificate before ClusterIssuer - this would cause deployment failures")
+	})
+
+	t.Run("Enhanced ordering fixes the race condition", func(t *testing.T) {
+		g := NewWithT(t)
+
+		// Same problematic input as previous test
+		problematicResources := []unstructured.Unstructured{
+			*createTestCertificate(testNamespace), // Depends on ClusterIssuer
+			*createTestClusterIssuer(),            // Should come first
+			*createTestDeployment(testNamespace),  // Consumes Certificate's secret
+		}
+
+		// Apply WITH our enhanced cert-manager ordering
+		result, err := resources.SortByApplyOrder(ctx, problematicResources)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		// Verify our enhancement fixes the ordering
+		clusterIssuerIndex := -1
+		certificateIndex := -1
+		deploymentIndex := -1
+		for i, resource := range result {
+			switch resource.GetKind() {
+			case "ClusterIssuer":
+				clusterIssuerIndex = i
+			case "Certificate":
+				certificateIndex = i
+			case "Deployment":
+				deploymentIndex = i
+			}
+		}
+
+		// Verify proper dependency order: ClusterIssuer → Certificate → Deployment
+		g.Expect(clusterIssuerIndex).To(BeNumerically("<", certificateIndex),
+			"ClusterIssuer should come before Certificate")
+		g.Expect(certificateIndex).To(BeNumerically("<", deploymentIndex),
+			"Certificate should come before Deployment")
+
+		// This demonstrates the fix: proper ordering prevents race conditions
 	})
 }
 
@@ -405,6 +452,85 @@ func createRealCertManagerScenario(namespace string) ([]unstructured.Unstructure
 		*certificate,   // Certificate second (WRONG - needs ClusterIssuer first)
 		*clusterIssuer, // ClusterIssuer last (WRONG - should be first)
 	}, nil
+}
+
+// Helper functions for race condition demonstration tests.
+
+func createTestClusterIssuer() *unstructured.Unstructured {
+	clusterIssuer := &unstructured.Unstructured{}
+	clusterIssuer.SetGroupVersionKind(gvk.CertManagerClusterIssuer)
+	clusterIssuer.SetName("test-ca-issuer")
+	_ = unstructured.SetNestedMap(clusterIssuer.Object, map[string]interface{}{
+		"selfSigned": map[string]interface{}{},
+	}, "spec")
+	return clusterIssuer
+}
+
+func createTestCertificate(namespace string) *unstructured.Unstructured {
+	certificate := &unstructured.Unstructured{}
+	certificate.SetGroupVersionKind(gvk.CertManagerCertificate)
+	certificate.SetName("test-cert")
+	certificate.SetNamespace(namespace)
+	_ = unstructured.SetNestedMap(certificate.Object, map[string]interface{}{
+		"secretName": "test-tls",
+		"issuerRef": map[string]interface{}{
+			"name":  "test-ca-issuer",
+			"kind":  "ClusterIssuer",
+			"group": "cert-manager.io",
+		},
+		"dnsNames": []interface{}{"test.example.com"},
+	}, "spec")
+	return certificate
+}
+
+func createTestDeployment(namespace string) *unstructured.Unstructured {
+	deployment, _ := resources.ToUnstructured(&appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: appsv1.SchemeGroupVersion.String(),
+			Kind:       "Deployment",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-app",
+			Namespace: namespace,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: int32Ptr(1),
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": "test"},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{"app": "test"},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "test",
+							Image: "test:latest",
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "tls",
+									MountPath: "/etc/ssl",
+									ReadOnly:  true,
+								},
+							},
+						},
+					},
+					Volumes: []corev1.Volume{
+						{
+							Name: "tls",
+							VolumeSource: corev1.VolumeSource{
+								Secret: &corev1.SecretVolumeSource{
+									SecretName: "test-tls", // CRITICAL: Depends on Certificate
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	})
+	return deployment
 }
 
 // Helper function.

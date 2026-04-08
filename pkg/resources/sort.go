@@ -10,70 +10,70 @@ import (
 )
 
 var defaultPostRenderers = []engineTypes.PostRenderer{
-	postrenderer.ApplyOrder(),
+	postrenderer.ApplyOrder(), // Standard K8s resource ordering
+	CertManagerPostRenderer(), // Cert-manager dependency ordering
 }
 
 // SortByApplyOrder reorders resources into dependency order for cluster
 // application: foundational resources (Namespace, CRD, etc.) first,
-// webhooks last.
+// cert-manager resources (ClusterIssuer/Issuer/Certificate) before workloads,
+// and webhooks last.
 func SortByApplyOrder(ctx context.Context, resources []unstructured.Unstructured) ([]unstructured.Unstructured, error) {
 	return pipeline.ApplyPostRenderers(ctx, resources, defaultPostRenderers)
 }
 
-// SortByApplyOrderWithCertificates applies upstream k8s-manifest-kit/engine ordering first,
-// then enhances it by inserting cert-manager resources in dependency order after Secrets.
-func SortByApplyOrderWithCertificates(ctx context.Context, resources []unstructured.Unstructured) ([]unstructured.Unstructured, error) {
-	if len(resources) == 0 {
-		return resources, nil
-	}
-
-	// First, apply upstream ordering to get standard Kubernetes resource ordering
-	sorted, err := SortByApplyOrder(ctx, resources)
-	if err != nil {
-		return nil, err
-	}
-
-	// Extract cert-manager resources from the sorted list
-	var certManagerResources []unstructured.Unstructured
-	var otherResources []unstructured.Unstructured
-
-	for _, resource := range sorted {
-		if isCertManagerResource(resource.GetKind()) {
-			certManagerResources = append(certManagerResources, resource)
-		} else {
-			otherResources = append(otherResources, resource)
+// CertManagerPostRenderer returns a PostRenderer that orders cert-manager resources
+// in dependency order: ClusterIssuer → Issuer → Certificate before Deployments.
+// This prevents transient failures when Deployments consume Certificate-generated Secrets.
+func CertManagerPostRenderer() engineTypes.PostRenderer {
+	return func(ctx context.Context, objects []unstructured.Unstructured) ([]unstructured.Unstructured, error) {
+		// Early exit for empty input
+		if len(objects) == 0 {
+			return objects, nil
 		}
-	}
 
-	// If no cert-manager resources, return upstream result as-is
-	if len(certManagerResources) == 0 {
-		return sorted, nil
-	}
+		// Separate cert-manager resources from others
+		var certManagerResources []unstructured.Unstructured
+		var otherResources []unstructured.Unstructured
 
-	// Find insertion point: before the first Deployment
-	insertIndex := len(otherResources) // Default: insert at end
-	for i, resource := range otherResources {
-		if resource.GetKind() == "Deployment" {
-			insertIndex = i
-			break
-		}
-	}
-
-	// Insert cert-manager resources in dependency order: ClusterIssuer, Issuer, Certificate
-	result := make([]unstructured.Unstructured, 0, len(sorted))
-	result = append(result, otherResources[:insertIndex]...)
-
-	// Add cert-manager resources in dependency order
-	for _, kind := range []string{"ClusterIssuer", "Issuer", "Certificate"} {
-		for _, resource := range certManagerResources {
-			if resource.GetKind() == kind {
-				result = append(result, resource)
+		for _, resource := range objects {
+			if isCertManagerResource(resource.GetKind()) {
+				certManagerResources = append(certManagerResources, resource)
+			} else {
+				otherResources = append(otherResources, resource)
 			}
 		}
-	}
 
-	result = append(result, otherResources[insertIndex:]...)
-	return result, nil
+		// If no cert-manager resources, return unchanged (zero overhead)
+		if len(certManagerResources) == 0 {
+			return objects, nil
+		}
+
+		// Find insertion point: before first Deployment
+		insertIndex := len(otherResources) // Default: insert at end
+		for i, resource := range otherResources {
+			if resource.GetKind() == "Deployment" {
+				insertIndex = i
+				break
+			}
+		}
+
+		// Build result with cert-manager resources in dependency order
+		result := make([]unstructured.Unstructured, 0, len(objects))
+		result = append(result, otherResources[:insertIndex]...)
+
+		// Add cert-manager resources in dependency order: ClusterIssuer, Issuer, Certificate
+		for _, kind := range []string{"ClusterIssuer", "Issuer", "Certificate"} {
+			for _, resource := range certManagerResources {
+				if resource.GetKind() == kind {
+					result = append(result, resource)
+				}
+			}
+		}
+
+		result = append(result, otherResources[insertIndex:]...)
+		return result, nil
+	}
 }
 
 // isCertManagerResource checks if the given kind is a cert-manager resource type.
