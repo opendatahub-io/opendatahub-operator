@@ -66,6 +66,12 @@ type FeastOperatorCommonStatus struct {
 // FeastOperatorSpec defines the desired state of FeastOperator
 type FeastOperatorSpec struct {
 	FeastOperatorCommonSpec `json:",inline"`
+
+	// OIDC holds issuer settings synced from GatewayConfig by the DSC controller when the cluster
+	// uses external OIDC (issuer URL from GatewayConfig.spec.oidc). Only issuerURL is applied to
+	// Feast manifests (params.env).
+	// +optional
+	OIDC *common.GatewayOIDCSpec `json:"oidc,omitempty"`
 }
 
 // FeastOperatorStatus defines the observed state of FeastOperator
