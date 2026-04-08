@@ -690,6 +690,11 @@ ifneq (,$(wildcard cmd/health-check/Makefile))
 include cmd/health-check/Makefile
 endif
 
+# MCP server targets (mcp-server, mcp-server-test) are in cmd/mcp-server/Makefile.
+ifneq (,$(wildcard cmd/mcp-server/Makefile))
+include cmd/mcp-server/Makefile
+endif
+
 .PHONY: e2e-test e2e
 e2e: e2e-test ## Alias for e2e-test
 e2e-test:
