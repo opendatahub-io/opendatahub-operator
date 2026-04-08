@@ -253,6 +253,160 @@ func TestExportToJUnit(t *testing.T) {
 			wantErr:     true,
 			errContains: "output path is required",
 		},
+		{
+			name: "failed test with infrastructure classification",
+			result: &types.TestResult{
+				PassedTest: []types.TestCase{},
+				FailedTest: []types.TestCase{
+					{
+						ID:            1,
+						Name:          "TestDashboard/basic_test",
+						Package:       "example.com/e2e",
+						Duration:      45 * time.Second,
+						FailureOutput: "Dashboard not ready",
+						Time:          time.Now(),
+						Classification: &types.FailureClassification{
+							Category:    "infrastructure",
+							Subcategory: "image-pull",
+							ErrorCode:   1001,
+							Evidence:    []string{"container dashboard/oauth-proxy waiting: ImagePullBackOff", "event Pod/dashboard: BackOff"},
+							Confidence:  "medium",
+						},
+					},
+				},
+			},
+			verifySuite: func(t *testing.T, suite TestSuite) {
+				require.Equal(t, 1, suite.Tests)
+				require.Equal(t, 1, suite.Failures)
+				require.Len(t, suite.TestCases, 1)
+
+				tc := suite.TestCases[0]
+				require.Equal(t, "TestDashboard/basic_test", tc.Name)
+				require.NotNil(t, tc.Failure)
+				require.NotNil(t, tc.Properties)
+				require.Len(t, tc.Properties.Property, 5)
+
+				// Build map for easier assertions
+				props := make(map[string]string)
+				for _, p := range tc.Properties.Property {
+					props[p.Name] = p.Value
+				}
+
+				require.Equal(t, "infrastructure", props["failure.category"])
+				require.Equal(t, "image-pull", props["failure.subcategory"])
+				require.Equal(t, "1001", props["failure.error_code"])
+				require.Equal(t, "medium", props["failure.confidence"])
+				require.Equal(t, "container dashboard/oauth-proxy waiting: ImagePullBackOff; event Pod/dashboard: BackOff", props["failure.evidence"])
+			},
+		},
+		{
+			name: "failed test with test classification",
+			result: &types.TestResult{
+				FailedTest: []types.TestCase{
+					{
+						Name:     "TestModelMesh/deployment",
+						Duration: 30 * time.Second,
+						Classification: &types.FailureClassification{
+							Category:    "test",
+							Subcategory: "test-failure",
+							ErrorCode:   2001,
+							Evidence:    []string{"cluster appears healthy, failure is test-related"},
+							Confidence:  "medium",
+						},
+					},
+				},
+			},
+			verifySuite: func(t *testing.T, suite TestSuite) {
+				tc := suite.TestCases[0]
+				require.NotNil(t, tc.Properties)
+
+				props := make(map[string]string)
+				for _, p := range tc.Properties.Property {
+					props[p.Name] = p.Value
+				}
+
+				require.Equal(t, "test", props["failure.category"])
+				require.Equal(t, "test-failure", props["failure.subcategory"])
+				require.Equal(t, "2001", props["failure.error_code"])
+			},
+		},
+		{
+			name: "failed test without classification",
+			result: &types.TestResult{
+				FailedTest: []types.TestCase{
+					{
+						Name:           "TestOldTest",
+						Duration:       10 * time.Second,
+						Classification: nil,
+					},
+				},
+			},
+			verifySuite: func(t *testing.T, suite TestSuite) {
+				tc := suite.TestCases[0]
+				require.Nil(t, tc.Properties) // No properties when no classification
+			},
+		},
+		{
+			name: "multiple retries with different classifications",
+			result: &types.TestResult{
+				FailedTest: []types.TestCase{
+					{
+						Name:     "TestFlaky",
+						Duration: 20 * time.Second,
+						Time:     time.Now().Add(-10 * time.Second),
+						Classification: &types.FailureClassification{
+							Category:    "infrastructure",
+							Subcategory: "image-pull",
+							ErrorCode:   1001,
+							Evidence:    []string{"ImagePullBackOff"},
+							Confidence:  "medium",
+						},
+					},
+					{
+						Name:     "TestFlaky",
+						Duration: 25 * time.Second,
+						Time:     time.Now().Add(-5 * time.Second),
+						Classification: &types.FailureClassification{
+							Category:    "infrastructure",
+							Subcategory: "pod-startup",
+							ErrorCode:   1002,
+							Evidence:    []string{"CrashLoopBackOff"},
+							Confidence:  "high",
+						},
+					},
+				},
+				PassedTest: []types.TestCase{
+					{
+						Name:     "TestFlaky",
+						Duration: 22 * time.Second,
+						Time:     time.Now(),
+					},
+				},
+			},
+			verifySuite: func(t *testing.T, suite TestSuite) {
+				require.Equal(t, 3, suite.Tests)
+				require.Equal(t, 2, suite.Failures)
+
+				// First failure: image-pull
+				props1 := make(map[string]string)
+				for _, p := range suite.TestCases[0].Properties.Property {
+					props1[p.Name] = p.Value
+				}
+				require.Equal(t, "image-pull", props1["failure.subcategory"])
+				require.Equal(t, "1001", props1["failure.error_code"])
+
+				// Second failure: pod-startup
+				props2 := make(map[string]string)
+				for _, p := range suite.TestCases[1].Properties.Property {
+					props2[p.Name] = p.Value
+				}
+				require.Equal(t, "pod-startup", props2["failure.subcategory"])
+				require.Equal(t, "1002", props2["failure.error_code"])
+
+				// Third (passed): no properties
+				require.Nil(t, suite.TestCases[2].Properties)
+			},
+		},
 	}
 
 	for _, tt := range tests {
