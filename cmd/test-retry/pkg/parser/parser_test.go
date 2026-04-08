@@ -124,3 +124,196 @@ func TestParseGoTestJSONRealFixtures(t *testing.T) {
 		})
 	}
 }
+
+func TestParseClassificationLine(t *testing.T) {
+	tests := []struct {
+		name    string
+		line    string
+		want    *types.FailureClassification
+		wantErr bool
+	}{
+		{
+			name: "infrastructure classification",
+			line: `FAILURE_CLASSIFICATION: {"category":"infrastructure","subcategory":"image-pull","error_code":1001,"evidence":["container dashboard/oauth-proxy waiting: ImagePullBackOff"],"confidence":"medium"}`,
+			want: &types.FailureClassification{
+				Category:    "infrastructure",
+				Subcategory: "image-pull",
+				ErrorCode:   1001,
+				Evidence:    []string{"container dashboard/oauth-proxy waiting: ImagePullBackOff"},
+				Confidence:  "medium",
+			},
+			wantErr: false,
+		},
+		{
+			name: "test classification",
+			line: `FAILURE_CLASSIFICATION: {"category":"test","subcategory":"test-failure","error_code":2001,"evidence":["cluster appears healthy, failure is test-related"],"confidence":"medium"}`,
+			want: &types.FailureClassification{
+				Category:    "test",
+				Subcategory: "test-failure",
+				ErrorCode:   2001,
+				Evidence:    []string{"cluster appears healthy, failure is test-related"},
+				Confidence:  "medium",
+			},
+			wantErr: false,
+		},
+		{
+			name: "unknown classification",
+			line: `FAILURE_CLASSIFICATION: {"category":"unknown","subcategory":"unclassifiable","error_code":3000,"evidence":["no matching classification rule"],"confidence":"low"}`,
+			want: &types.FailureClassification{
+				Category:    "unknown",
+				Subcategory: "unclassifiable",
+				ErrorCode:   3000,
+				Evidence:    []string{"no matching classification rule"},
+				Confidence:  "low",
+			},
+			wantErr: false,
+		},
+		{
+			name: "multiple evidence items",
+			line: `FAILURE_CLASSIFICATION: {"category":"infrastructure","subcategory":"pod-startup","error_code":1002,"evidence":["container foo waiting: CrashLoopBackOff","container bar terminated: Error"],"confidence":"high"}`,
+			want: &types.FailureClassification{
+				Category:    "infrastructure",
+				Subcategory: "pod-startup",
+				ErrorCode:   1002,
+				Evidence:    []string{"container foo waiting: CrashLoopBackOff", "container bar terminated: Error"},
+				Confidence:  "high",
+			},
+			wantErr: false,
+		},
+		{
+			name:    "not a classification line",
+			line:    "=== RUN   TestDashboard",
+			want:    nil,
+			wantErr: false,
+		},
+		{
+			name:    "invalid JSON",
+			line:    `FAILURE_CLASSIFICATION: {invalid json}`,
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:    "empty evidence array",
+			line:    `FAILURE_CLASSIFICATION: {"category":"infrastructure","subcategory":"network","error_code":1003,"evidence":[],"confidence":"low"}`,
+			want: &types.FailureClassification{
+				Category:    "infrastructure",
+				Subcategory: "network",
+				ErrorCode:   1003,
+				Evidence:    []string{},
+				Confidence:  "low",
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseClassificationLine(tt.line)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestParseGoTestJSON_WithClassification(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected *types.TestResult
+	}{
+		{
+			name: "failed test with infrastructure classification",
+			input: `{"Time":"2026-03-09T10:00:00Z","Action":"run","Package":"example.com/e2e","Test":"TestDashboard"}
+{"Time":"2026-03-09T10:00:01Z","Action":"output","Package":"example.com/e2e","Test":"TestDashboard","Output":"=== RUN   TestDashboard\n"}
+{"Time":"2026-03-09T10:00:45Z","Action":"output","Package":"example.com/e2e","Test":"TestDashboard","Output":"    dashboard_test.go:123: Dashboard not ready\n"}
+{"Time":"2026-03-09T10:00:45.1Z","Action":"output","Package":"example.com/e2e","Test":"TestDashboard","Output":"FAILURE_CLASSIFICATION: {\"category\":\"infrastructure\",\"subcategory\":\"image-pull\",\"error_code\":1001,\"evidence\":[\"container dashboard/oauth-proxy waiting: ImagePullBackOff\"],\"confidence\":\"medium\"}\n"}
+{"Time":"2026-03-09T10:00:45.2Z","Action":"fail","Package":"example.com/e2e","Test":"TestDashboard","Elapsed":45.2}`,
+			expected: &types.TestResult{
+				PassedTest: []types.TestCase{},
+				FailedTest: []types.TestCase{
+					{
+						ID:            1,
+						Package:       "example.com/e2e",
+						Name:          "TestDashboard",
+						Duration:      45200 * time.Millisecond,
+						FailureOutput: "=== RUN   TestDashboard\n    dashboard_test.go:123: Dashboard not ready\nFAILURE_CLASSIFICATION: {\"category\":\"infrastructure\",\"subcategory\":\"image-pull\",\"error_code\":1001,\"evidence\":[\"container dashboard/oauth-proxy waiting: ImagePullBackOff\"],\"confidence\":\"medium\"}\n",
+						Time:          time.Date(2026, 3, 9, 10, 0, 0, 0, time.UTC),
+						Classification: &types.FailureClassification{
+							Category:    "infrastructure",
+							Subcategory: "image-pull",
+							ErrorCode:   1001,
+							Evidence:    []string{"container dashboard/oauth-proxy waiting: ImagePullBackOff"},
+							Confidence:  "medium",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "failed test with test classification",
+			input: `{"Time":"2026-03-09T10:00:00Z","Action":"run","Package":"example.com/e2e","Test":"TestModelMesh"}
+{"Time":"2026-03-09T10:00:01Z","Action":"output","Package":"example.com/e2e","Test":"TestModelMesh","Output":"=== RUN   TestModelMesh\n"}
+{"Time":"2026-03-09T10:00:10Z","Action":"output","Package":"example.com/e2e","Test":"TestModelMesh","Output":"    modelmesh_test.go:89: Assertion failed\n"}
+{"Time":"2026-03-09T10:00:10.1Z","Action":"output","Package":"example.com/e2e","Test":"TestModelMesh","Output":"FAILURE_CLASSIFICATION: {\"category\":\"test\",\"subcategory\":\"test-failure\",\"error_code\":2001,\"evidence\":[\"cluster appears healthy\"],\"confidence\":\"medium\"}\n"}
+{"Time":"2026-03-09T10:00:10.2Z","Action":"fail","Package":"example.com/e2e","Test":"TestModelMesh","Elapsed":10.2}`,
+			expected: &types.TestResult{
+				PassedTest: []types.TestCase{},
+				FailedTest: []types.TestCase{
+					{
+						ID:            1,
+						Package:       "example.com/e2e",
+						Name:          "TestModelMesh",
+						Duration:      10200 * time.Millisecond,
+						FailureOutput: "=== RUN   TestModelMesh\n    modelmesh_test.go:89: Assertion failed\nFAILURE_CLASSIFICATION: {\"category\":\"test\",\"subcategory\":\"test-failure\",\"error_code\":2001,\"evidence\":[\"cluster appears healthy\"],\"confidence\":\"medium\"}\n",
+						Time:          time.Date(2026, 3, 9, 10, 0, 0, 0, time.UTC),
+						Classification: &types.FailureClassification{
+							Category:    "test",
+							Subcategory: "test-failure",
+							ErrorCode:   2001,
+							Evidence:    []string{"cluster appears healthy"},
+							Confidence:  "medium",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "failed test without classification",
+			input: `{"Time":"2026-03-09T10:00:00Z","Action":"run","Package":"example.com/e2e","Test":"TestOldTest"}
+{"Time":"2026-03-09T10:00:01Z","Action":"output","Package":"example.com/e2e","Test":"TestOldTest","Output":"=== RUN   TestOldTest\n"}
+{"Time":"2026-03-09T10:00:05Z","Action":"output","Package":"example.com/e2e","Test":"TestOldTest","Output":"    old_test.go:50: Failed\n"}
+{"Time":"2026-03-09T10:00:05.1Z","Action":"fail","Package":"example.com/e2e","Test":"TestOldTest","Elapsed":5.1}`,
+			expected: &types.TestResult{
+				PassedTest: []types.TestCase{},
+				FailedTest: []types.TestCase{
+					{
+						ID:             1,
+						Package:        "example.com/e2e",
+						Name:           "TestOldTest",
+						Duration:       5100 * time.Millisecond,
+						FailureOutput:  "=== RUN   TestOldTest\n    old_test.go:50: Failed\n",
+						Time:           time.Date(2026, 3, 9, 10, 0, 0, 0, time.UTC),
+						Classification: nil, // No classification for this test
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := ParseGoTestJSON(ParseConfig{
+				Stdout: bytes.NewBuffer([]byte(tt.input)),
+			})
+
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, result)
+		})
+	}
+}

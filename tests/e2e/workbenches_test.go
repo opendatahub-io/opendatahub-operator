@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"context"
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -8,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -36,6 +38,7 @@ func workbenchesTestSuite(t *testing.T) {
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
+		{"Validate ImageStreams available", componentCtx.ValidateImageStreamsAvailable},
 		{"Validate MLflow integration", componentCtx.ValidateMLflowIntegration},
 		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
@@ -140,4 +143,26 @@ func (tc *WorkbenchesTestCtx) ValidateMLflowIntegration(t *testing.T) {
 	)
 
 	t.Log("Workbenches component successfully integrates with MLflowOperator state changes")
+}
+
+func (tc *WorkbenchesTestCtx) ValidateImageStreamsAvailable(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+
+	// On vanilla K8s the ImageStream CRD does not exist, so the action
+	// returns early without setting any condition — skip in that case.
+	exists, err := cluster.HasCRD(context.Background(), tc.Client(), gvk.ImageStream)
+	require.NoError(t, err)
+	if !exists {
+		t.Skip("Skipping ImageStreamsAvailable test: ImageStream CRD not installed (vanilla K8s)")
+	}
+
+	// Verify that the Workbenches CR has an ImageStreamsAvailable condition.
+	// The condition should exist regardless of whether any ImageStream tags
+	// failed to import.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Workbenches, types.NamespacedName{Name: componentApi.WorkbenchesInstanceName}),
+		WithCondition(jq.Match(`[.status.conditions[] | select(.type == "ImageStreamsAvailable")] | length > 0`)),
+	)
 }

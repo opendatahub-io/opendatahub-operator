@@ -6,6 +6,29 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/test-retry/pkg/config"
 )
 
+// FailureClassification categorizes test failures based on cluster diagnostics.
+// The E2E test framework emits classification data as JSON to stdout when tests fail.
+// This type is used to parse and store that classification data.
+//
+// NOTE: This struct mirrors tests/e2e/pkg/failureclassifier.FailureClassification
+// and must stay in sync. Changes to field names, types, or JSON tags require
+// corresponding updates in both locations to maintain the data contract.
+//
+// The classification framework emits JSON in the format:
+// FAILURE_CLASSIFICATION: {"category":"infrastructure","subcategory":"image-pull",...}
+//
+// Error code ranges:
+//   - 1000-1999: Infrastructure failures (image-pull, pod-startup, network, quota, node, storage)
+//   - 2000-2999: Test logic failures
+//   - 3000+: Unknown/unclassifiable
+type FailureClassification struct {
+	Category    string   `json:"category"`    // "infrastructure", "test", "unknown"
+	Subcategory string   `json:"subcategory"` // e.g., "image-pull", "pod-startup", "test-failure"
+	ErrorCode   int      `json:"error_code"`  // numeric error identifier
+	Evidence    []string `json:"evidence"`    // supporting diagnostic messages
+	Confidence  string   `json:"confidence"`  // "high", "medium", "low"
+}
+
 // TestResult represents the result of test run
 type TestResult struct {
 	PassedTest []TestCase
@@ -32,6 +55,7 @@ type E2ETestOptions struct {
 	TestFlags  string
 	TestPath   string
 	WorkingDir string
+	Command    string // Path to precompiled test binary (e.g., "./e2e-tests"). Defaults to "go test" if empty. Arguments passed via TestFlags.
 	Config     *config.Config
 	// test prefixes that should never be skipped (always run)
 	NeverSkipPrefixes []string
@@ -43,10 +67,11 @@ type E2ETestOptions struct {
 
 // TestCase represents a single test case (passed or failed)
 type TestCase struct {
-	ID            int
-	Name          string
-	Package       string
-	Duration      time.Duration
-	FailureOutput string    `json:",omitempty"`
-	Time          time.Time `json:",omitempty"`
+	ID             int
+	Name           string
+	Package        string
+	Duration       time.Duration
+	FailureOutput  string                  `json:",omitempty"`
+	Time           time.Time               `json:",omitempty"`
+	Classification *FailureClassification  `json:",omitempty"` // Parsed from FAILURE_CLASSIFICATION: JSON output
 }

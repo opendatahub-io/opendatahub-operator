@@ -134,7 +134,7 @@ jobs:
       uses: lasith-kg/dispatch-workflow@91345a2a3b705e950978a584446ab59f7e815ae3 # v2.0.0
       with:
         dispatch-method: workflow_dispatch
-        workflow: odh-konflux-release-onboarder.yml
+        workflow: odh-konflux-onboarder.yml
         repo: odh-konflux-central
         owner: opendatahub-io
         ref: main
@@ -144,6 +144,6 @@ jobs:
             "component": "opendatahub-operator",
             "pr_target_branch": "odh-${{ env.VERSION }}",
             "build_branch": "odh-${{ env.VERSION }}",
-            "version": "${{ env.VERSION }}",
+            "version": "v${{ env.VERSION }}",
             "build_type": "Release"
           }

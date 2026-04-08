@@ -78,6 +78,7 @@ const (
 	// Component-specific condition types.
 	ConditionTypeProvisioningSucceeded           = "ProvisioningSucceeded"
 	ConditionDeploymentsNotAvailableReason       = "DeploymentsNotReady"
+	ConditionMaaSPrerequisitesAvailable          = "MaaSPrerequisitesAvailable"
 	ConditionDeploymentsAvailable                = "DeploymentsAvailable"
 	ConditionDependenciesAvailable               = "DependenciesAvailable"
 	ConditionArgoWorkflowAvailable               = "ArgoWorkflowAvailable"
@@ -93,6 +94,8 @@ const (
 	ConditionPersesTempoDataSourceAvailable      = "PersesTempoDataSourceAvailable"
 	ConditionPersesPrometheusDataSourceAvailable = "PersesPrometheusDataSourceAvailable"
 	ConditionNodeMetricsEndpointAvailable        = "NodeMetricsEndpointAvailable"
+	ConditionImageStreamsAvailable               = "ImageStreamsAvailable"
+	ConditionImageStreamsNotAvailableReason      = "ImageStreamsNotReady"
 )
 
 const (
