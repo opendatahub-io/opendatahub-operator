@@ -39,7 +39,7 @@ spec:
     - '{{target_branch}}-{{revision}}'
   - name: build-args
     value:
-    - BUILD_TYPE=CI
+    - BUILD_TYPE=RELEASE
   pipelineRef:
     resolver: git
     params:
