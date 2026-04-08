@@ -22,8 +22,21 @@ type ManagementSpec struct {
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 }
 
-// GatewaySpec defines the gateway configuration for components.
-// This is a shared type used across Dashboard, ModelRegistry, and potentially other components.
+// GatewayOIDCSpec is a minimal OIDC projection for component workloads (e.g. issuer URL for
+// discovery/JWKS). Heavier platform OIDC client settings remain on GatewayConfig.
+// +kubebuilder:object:generate=true
+type GatewayOIDCSpec struct {
+	// IssuerURL is the OIDC issuer URL (for example "https://keycloak.example.com/realms/myorg").
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=2048
+	// +kubebuilder:validation:Format=uri
+	// +kubebuilder:validation:Pattern=`^https://\S+$`
+	IssuerURL string `json:"issuerURL"`
+}
+
+// GatewaySpec defines gateway-related settings for components (domain, OIDC projections, etc.).
+// This is a shared type used across Dashboard, ModelRegistry, and potentially others.
 // +kubebuilder:object:generate=true
 type GatewaySpec struct {
 	// Domain is the fully qualified domain name for the gateway.
