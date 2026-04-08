@@ -106,7 +106,7 @@ spec:
                   for cookie in cookie_header:gmatch("([^;]+)") do
                     -- Trim whitespace and extract cookie name
                     local trimmed = cookie:match("^%%s*(.-)%%s*$")
-                    if trimmed ~= "" then
+                    if trimmed and trimmed ~= "" then
                       local cookie_name = trimmed:match("^([^=]+)")
                       -- Only keep cookies that don't match the OAuth2 proxy cookie pattern
                       if cookie_name and not cookie_name:match(cookie_pattern) then
