@@ -514,6 +514,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `eval` _[TrustyAIEvalSpec](#trustyaievalspec)_ | Eval configuration for TrustyAI evaluations |  |  |
+| `mcpGuardrailsMode` _boolean_ | MCPGuardrailsMode enables the mcp-guardrails overlay when set to true | false |  |
 
 
 #### DSCTrustyAIStatus
@@ -808,6 +809,9 @@ FeastOperatorSpec defines the desired state of FeastOperator
 _Appears in:_
 - [FeastOperator](#feastoperator)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `oidc` _[GatewayOIDCSpec](#gatewayoidcspec)_ | OIDC holds issuer settings synced from GatewayConfig by the DSC controller when the cluster<br />uses external OIDC (issuer URL from GatewayConfig.spec.oidc). Only issuerURL is applied to<br />Feast manifests (params.env). |  |  |
 
 
 #### FeastOperatorStatus
@@ -1480,7 +1484,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `gatewayRef` _[GatewayRef](#gatewayref)_ | GatewayRef specifies which Gateway (Gateway API) to use for exposing model endpoints.<br />If omitted, defaults to openshift-ingress/maas-default-gateway. |  | Optional: \{\} <br /> |
 | `apiKeys` _[APIKeysConfig](#apikeysconfig)_ | APIKeys contains configuration for API key management. |  | Optional: \{\} <br /> |
-| `telemetry` _[TelemetryConfig](#telemetryconfig)_ | Telemetry contains configuration for telemetry and metrics collection. |  | Optional: \{\} <br /> |
+| `telemetry` _[TelemetryConfig](#telemetryconfig)_ | Telemetry contains configuration for telemetry and metrics collection.<br />When enabled, deploys TelemetryPolicy for usage metrics and<br />Istio Telemetry for per-subscription latency tracking. |  | Optional: \{\} <br /> |
 
 
 #### ModelsAsServiceStatus
@@ -1714,7 +1718,8 @@ _Appears in:_
 
 
 TelemetryConfig defines configuration for telemetry collection.
-Core billing and access control metrics (subscription, cost_center, tier) are always emitted.
+When enabled, deploys TelemetryPolicy for usage metrics (Limitador) and
+Istio Telemetry for per-subscription latency tracking.
 
 
 
@@ -1723,6 +1728,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
+| `enabled` _boolean_ | Enabled controls whether telemetry resources are deployed.<br />When true, creates TelemetryPolicy for usage metrics and<br />Istio Telemetry for per-subscription latency tracking.<br />Default is true (telemetry enabled). | true | Optional: \{\} <br /> |
 | `metrics` _[MetricsConfig](#metricsconfig)_ | Metrics contains configuration for optional metric dimensions/labels. |  | Optional: \{\} <br /> |
 
 
@@ -1930,6 +1936,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `eval` _[TrustyAIEvalSpec](#trustyaievalspec)_ | Eval configuration for TrustyAI evaluations |  |  |
+| `mcpGuardrailsMode` _boolean_ | MCPGuardrailsMode enables the mcp-guardrails overlay when set to true | false |  |
 
 
 #### TrustyAICommonStatus
@@ -1998,6 +2005,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `eval` _[TrustyAIEvalSpec](#trustyaievalspec)_ | Eval configuration for TrustyAI evaluations |  |  |
+| `mcpGuardrailsMode` _boolean_ | MCPGuardrailsMode enables the mcp-guardrails overlay when set to true | false |  |
 
 
 #### TrustyAIStatus

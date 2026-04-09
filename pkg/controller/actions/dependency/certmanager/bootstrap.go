@@ -18,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -34,6 +33,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/env"
 )
 
 // caRootDuration is the validity period of the root CA certificate.
@@ -47,7 +47,23 @@ const (
 	certManagerClusterIssuerCRD = "clusterissuers.cert-manager.io"
 )
 
-var OperatorNamespace = os.Getenv(EnvOperatorNamespace)
+// DefaultIssuerRefKind is the default issuer reference kind used by downstream components.
+const DefaultIssuerRefKind = "ClusterIssuer"
+
+// Environment variable names for overriding the default cert-manager PKI configuration.
+// These are used by the operator and downstream components (e.g. KServe params.env injection)
+// to allow external PKI (e.g. cloud controller manager) without code changes.
+const (
+	EnvCAIssuerName    = "RHAI_ISSUER_REF_NAME"
+	EnvIssuerRefKind   = "RHAI_ISSUER_REF_KIND"
+	EnvCertName        = "RHAI_CA_SECRET_NAME"
+	EnvCertManagerNS   = "RHAI_CA_SECRET_NAMESPACE"
+	EnvIstioCACertPath = "RHAI_ISTIO_CA_CERTIFICATE_PATH"
+
+	EnvOperatorWebhookCertSecretName = "RHAI_WEBHOOK_CERT_SECRET_NAME" //nolint:gosec
+	EnvOperatorWebhookServiceName    = "RHAI_WEBHOOK_SERVICE_NAME"
+	EnvOperatorWebhookCertName       = "RHAI_WEBHOOK_CERT_NAME"
+)
 
 // OperatorCertConfig groups the configuration for the operator's webhook serving certificate.
 // When Namespace is empty, no webhook Certificate is created.
@@ -68,7 +84,8 @@ type OperatorCertConfig struct {
 }
 
 // BootstrapConfig holds the resource names to create a PKI trust chain using cert-manager.
-// The default values from [DefaultBootstrapConfig] should be good for most cases, overriding only for testing.
+// [DefaultBootstrapConfig] populates these from RHAI_* env vars (falling back to hardcoded defaults).
+// Functional options can override individual fields for testing.
 type BootstrapConfig struct {
 	// IssuerName is the name of the self-signed ClusterIssuer used to bootstrap the root CA certificate.
 	IssuerName string
@@ -94,23 +111,25 @@ type BootstrapConfigOpt func(*BootstrapConfig)
 
 // WithOperatorCert enables creation of the operator's webhook serving Certificate
 // using the defaults from DefaultOperatorCertConfig.
-func WithOperatorCert() BootstrapConfigOpt {
+func WithOperatorCert(namespace string) BootstrapConfigOpt {
 	return func(c *BootstrapConfig) {
-		c.OperatorCertConfig = BootstrapOperatorCertConfig()
+		c.OperatorCertConfig = BootstrapOperatorCertConfig(namespace)
 	}
 }
 
 // DefaultBootstrapConfig returns the standard ODH PKI bootstrap configuration.
-// These names are part of the API contract with downstream components.
+// Overridable fields (CAIssuerName, CertName, CertManagerNamespace) are resolved
+// from RHAI_* environment variables, falling back to hardcoded defaults.
 //
 // By default, Operator is nil and no webhook Certificate is created.
 // Use [WithOperatorCert] to enable the operator webhook certificate.
 func DefaultBootstrapConfig(opts ...BootstrapConfigOpt) BootstrapConfig {
 	config := BootstrapConfig{
+		// Not overridable: internal bootstrap detail, not referenced by downstream components.
 		IssuerName:           "opendatahub-selfsigned-issuer",
-		CertName:             "opendatahub-ca",
-		CertManagerNamespace: "cert-manager",
-		CAIssuerName:         "opendatahub-ca-issuer",
+		CertName:             env.GetOrDefault(EnvCertName, "opendatahub-ca"),
+		CertManagerNamespace: env.GetOrDefault(EnvCertManagerNS, "cert-manager"),
+		CAIssuerName:         env.GetOrDefault(EnvCAIssuerName, "opendatahub-ca-issuer"),
 	}
 	for _, opt := range opts {
 		opt(&config)
@@ -119,40 +138,15 @@ func DefaultBootstrapConfig(opts ...BootstrapConfigOpt) BootstrapConfig {
 }
 
 // BootstrapOperatorCertConfig returns the default operator webhook certificate configuration,
-// reading overrides from environment variables. The caller must set Namespace (or use
-// RHAI_OPERATOR_NAMESPACE) before attaching it to a BootstrapConfig.
-func BootstrapOperatorCertConfig() *OperatorCertConfig {
+// reading overrides from environment variables.
+func BootstrapOperatorCertConfig(namespace string) *OperatorCertConfig {
 	return &OperatorCertConfig{
-		Namespace:             OperatorNamespace,
-		WebhookCertName:       "opendatahub-operator-webhook-cert",
-		WebhookCertSecretName: envOrDefault(EnvOperatorWebhookCertSecretName, "opendatahub-operator-controller-webhook-cert"),
-		WebhookServiceName:    envOrDefault(EnvOperatorWebhookServiceName, "opendatahub-operator-webhook-service"),
+		Namespace:             namespace,
+		WebhookCertName:       env.GetOrDefault(EnvOperatorWebhookCertName, "opendatahub-operator-webhook-cert"),
+		WebhookCertSecretName: env.GetOrDefault(EnvOperatorWebhookCertSecretName, "opendatahub-operator-controller-webhook-cert"),
+		WebhookServiceName:    env.GetOrDefault(EnvOperatorWebhookServiceName, "opendatahub-operator-webhook-service"),
 	}
 }
-
-// envOrDefault returns the value of the named environment variable or fallback if unset/empty.
-func envOrDefault(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
-}
-
-// Environment variable names for overriding the default cert-manager PKI configuration.
-// These are used by the operator and downstream components (e.g. KServe params.env injection)
-// to allow external PKI (e.g. cloud controller manager) without code changes.
-const (
-	EnvCAIssuerName      = "RHAI_ISSUER_REF_NAME"
-	EnvIssuerRefKind     = "RHAI_ISSUER_REF_KIND"
-	EnvCertName          = "RHAI_CA_SECRET_NAME"
-	EnvCertManagerNS     = "RHAI_CA_SECRET_NAMESPACE"
-	EnvIstioCACertPath   = "RHAI_ISTIO_CA_CERTIFICATE_PATH"
-	DefaultIssuerRefKind = "ClusterIssuer"
-
-	EnvOperatorNamespace             = "RHAI_OPERATOR_NAMESPACE"
-	EnvOperatorWebhookCertSecretName = "RHAI_WEBHOOK_CERT_SECRET_NAME" //nolint:gosec
-	EnvOperatorWebhookServiceName    = "RHAI_WEBHOOK_SERVICE_NAME"
-)
 
 // NewBootstrapAction returns a reusable pipeline action that adds the cert-manager PKI trust
 // chain resources to the reconciliation request for deployment by the pipeline's deploy action.

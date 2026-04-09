@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"strconv"
 	"strings"
@@ -252,7 +253,7 @@ func getContainerSizes(odhConfig *unstructured.Unstructured, sizeType string) ([
 
 	containerSizes := make([]ContainerSize, 0, len(sizes))
 	for _, size := range sizes {
-		sizeMap, ok := size.(map[string]interface{})
+		sizeMap, ok := size.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -262,8 +263,8 @@ func getContainerSizes(odhConfig *unstructured.Unstructured, sizeType string) ([
 			containerSize.Name = name
 		}
 
-		if resources, ok := sizeMap["resources"].(map[string]interface{}); ok {
-			if requests, ok := resources["requests"].(map[string]interface{}); ok {
+		if resources, ok := sizeMap["resources"].(map[string]any); ok {
+			if requests, ok := resources["requests"].(map[string]any); ok {
 				if cpu, ok := requests["cpu"].(string); ok {
 					containerSize.Resources.Requests.Cpu = cpu
 				}
@@ -271,7 +272,7 @@ func getContainerSizes(odhConfig *unstructured.Unstructured, sizeType string) ([
 					containerSize.Resources.Requests.Memory = memory
 				}
 			}
-			if limits, ok := resources["limits"].(map[string]interface{}); ok {
+			if limits, ok := resources["limits"].(map[string]any); ok {
 				if cpu, ok := limits["cpu"].(string); ok {
 					containerSize.Resources.Limits.Cpu = cpu
 				}
@@ -382,9 +383,7 @@ func generateHardwareProfileFromAcceleratorProfile(ctx context.Context, ap unstr
 
 	// Copy existing annotations from AP
 	if apAnnotations := ap.GetAnnotations(); apAnnotations != nil {
-		for k, v := range apAnnotations {
-			annotations[k] = v
-		}
+		maps.Copy(annotations, apAnnotations)
 	}
 
 	// Create identifiers
@@ -426,7 +425,7 @@ func generateHardwareProfileFromAcceleratorProfile(ctx context.Context, ap unstr
 	var tolerations []corev1.Toleration
 	if apTolerations, found, err := unstructured.NestedSlice(spec, "tolerations"); err == nil && found {
 		for _, tol := range apTolerations {
-			if tolMap, ok := tol.(map[string]interface{}); ok {
+			if tolMap, ok := tol.(map[string]any); ok {
 				toleration := corev1.Toleration{}
 				if key, ok := tolMap["key"].(string); ok {
 					toleration.Key = key
@@ -620,7 +619,7 @@ func getSRFromISVC(ctx context.Context, cli client.Client, isvc *unstructured.Un
 }
 
 // getInferenceServiceResources extracts resource requests/limits from InferenceService.
-func getInferenceServiceResources(isvc *unstructured.Unstructured) (map[string]interface{}, error) {
+func getInferenceServiceResources(isvc *unstructured.Unstructured) (map[string]any, error) {
 	resources, found, err := unstructured.NestedMap(isvc.Object, "spec", "predictor", "model", "resources")
 	if err != nil || !found {
 		return nil, errors.New("resources not found")
@@ -629,14 +628,14 @@ func getInferenceServiceResources(isvc *unstructured.Unstructured) (map[string]i
 }
 
 // findContainerSizeByResources matches resource specs to container size name.
-func findContainerSizeByResources(containerSizes []ContainerSize, resources map[string]interface{}) string {
+func findContainerSizeByResources(containerSizes []ContainerSize, resources map[string]any) string {
 	if resources == nil {
 		return ""
 	}
 
 	// Extract requests and limits from resources
-	requests, reqOk := resources["requests"].(map[string]interface{})
-	limits, limOk := resources["limits"].(map[string]interface{})
+	requests, reqOk := resources["requests"].(map[string]any)
+	limits, limOk := resources["limits"].(map[string]any)
 
 	if !reqOk || !limOk {
 		return ""
@@ -653,7 +652,7 @@ func findContainerSizeByResources(containerSizes []ContainerSize, resources map[
 }
 
 // matchesContainerSize checks if resources match a container size.
-func matchesContainerSize(size ContainerSize, requests, limits map[string]interface{}) bool {
+func matchesContainerSize(size ContainerSize, requests, limits map[string]any) bool {
 	reqCpu, _ := requests["cpu"].(string)
 	reqMem, _ := requests["memory"].(string)
 	limCpu, _ := limits["cpu"].(string)

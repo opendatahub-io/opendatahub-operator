@@ -25,6 +25,7 @@ import (
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/env"
 )
 
 var (
@@ -40,6 +41,7 @@ var (
 		"kserve-llm-d-nvidia-cuda":         "RELATED_IMAGE_RHAIIS_VLLM_CUDA_IMAGE",
 		"kserve-llm-d-amd-rocm":            "RELATED_IMAGE_RHAIIS_VLLM_ROCM_IMAGE",
 		"kserve-llm-d-ibm-spyre":           "RELATED_IMAGE_RHAIIS_VLLM_SPYRE_IMAGE",
+		"kserve-llm-d-intel-gaudi":         "RELATED_IMAGE_RHAII_VLLM_GAUDI_IMAGE",
 		"kserve-llm-d-inference-scheduler": "RELATED_IMAGE_ODH_LLM_D_INFERENCE_SCHEDULER_IMAGE",
 		"kserve-llm-d-routing-sidecar":     "RELATED_IMAGE_ODH_LLM_D_ROUTING_SIDECAR_IMAGE",
 		"kube-rbac-proxy":                  "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
@@ -48,32 +50,24 @@ var (
 )
 
 // buildCertManagerParams returns the cert-manager configuration to inject into the
-// xKS overlay params.env. Defaults come from certmanager.DefaultBootstrapConfig();
-// each RHAI_* env var, when set, overrides the corresponding default.
+// xKS overlay params.env. PKI resource names (issuer, CA secret, namespace) come from
+// certmanager.DefaultBootstrapConfig(), which already honors RHAI_* env var overrides.
+// ISSUER_REF_KIND and ISTIO_CA_CERTIFICATE_PATH are KServe-specific and resolved here.
+// ISTIO_CA_CERTIFICATE_PATH is only included when its env var is set.
 // NAMESPACE uses cluster.GetApplicationNamespace() for platform-aware resolution.
-// ISTIO_CA_CERTIFICATE_PATH is only injected when its env var is set.
 func buildCertManagerParams() map[string]string {
 	bc := certmanager.DefaultBootstrapConfig()
 
 	params := map[string]string{
 		"ISSUER_REF_NAME":     bc.CAIssuerName,
-		"ISSUER_REF_KIND":     certmanager.DefaultIssuerRefKind,
+		"ISSUER_REF_KIND":     env.GetOrDefault(certmanager.EnvIssuerRefKind, certmanager.DefaultIssuerRefKind),
 		"CA_SECRET_NAME":      bc.CertName,
 		"CA_SECRET_NAMESPACE": bc.CertManagerNamespace,
 		"NAMESPACE":           cluster.GetApplicationNamespace(),
 	}
 
-	// Env var overrides: written only when the env var is set.
-	for key, envVar := range map[string]string{
-		"ISSUER_REF_NAME":           certmanager.EnvCAIssuerName,
-		"ISSUER_REF_KIND":           certmanager.EnvIssuerRefKind,
-		"CA_SECRET_NAME":            certmanager.EnvCertName,
-		"CA_SECRET_NAMESPACE":       certmanager.EnvCertManagerNS,
-		"ISTIO_CA_CERTIFICATE_PATH": certmanager.EnvIstioCACertPath,
-	} {
-		if v := os.Getenv(envVar); v != "" {
-			params[key] = v
-		}
+	if v := os.Getenv(certmanager.EnvIstioCACertPath); v != "" {
+		params["ISTIO_CA_CERTIFICATE_PATH"] = v
 	}
 
 	return params
@@ -96,7 +90,7 @@ func kserveManifestInfo(sourcePath string) odhtypes.ManifestInfo {
 func updateInferenceCM(inferenceServiceConfigMap *corev1.ConfigMap, isHeadless bool) error {
 	// ingress
 	// RawDeployment mode is the only supported mode, so always disable ingress creation
-	var ingressData map[string]interface{}
+	var ingressData map[string]any
 	if err := json.Unmarshal([]byte(inferenceServiceConfigMap.Data[IngressConfigKeyName]), &ingressData); err != nil {
 		return fmt.Errorf("error retrieving value for key '%s' from configmap %s. %w", IngressConfigKeyName, kserveConfigMapName, err)
 	}
@@ -108,7 +102,7 @@ func updateInferenceCM(inferenceServiceConfigMap *corev1.ConfigMap, isHeadless b
 	inferenceServiceConfigMap.Data[IngressConfigKeyName] = string(ingressDataBytes)
 
 	// service
-	var serviceData map[string]interface{}
+	var serviceData map[string]any
 	if err := json.Unmarshal([]byte(inferenceServiceConfigMap.Data[ServiceConfigKeyName]), &serviceData); err != nil {
 		return fmt.Errorf("error retrieving value for key '%s' from configmap %s. %w", ServiceConfigKeyName, kserveConfigMapName, err)
 	}

@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	configv1 "github.com/openshift/api/config/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -29,6 +30,7 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
@@ -62,6 +64,10 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		OwnsGVK(gvk.AuthPolicyv1, reconciler.Dynamic(reconciler.CrdExists(gvk.AuthPolicyv1))).
 		OwnsGVK(gvk.DestinationRule, reconciler.Dynamic(reconciler.CrdExists(gvk.DestinationRule))).
 		OwnsGVK(gvk.TelemetryPolicyv1alpha1, reconciler.Dynamic(reconciler.CrdExists(gvk.TelemetryPolicyv1alpha1))).
+		// Payload-processing: EnvoyFilter for ext_proc integration with the inference gateway
+		OwnsGVK(gvk.EnvoyFilter, reconciler.Dynamic(reconciler.CrdExists(gvk.EnvoyFilter))).
+		// Istio Telemetry for per-subscription latency tracking (observability feature)
+		OwnsGVK(gvk.Telemetry, reconciler.Dynamic(reconciler.CrdExists(gvk.Telemetry))).
 		Watches(
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(
@@ -79,7 +85,29 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			),
 			reconciler.WithPredicates(resources.Deleted()),
 		).
+		// Watch the maas-db-config Secret so reconciliation triggers when it is
+		// created, updated, or deleted — allowing the prerequisite check to
+		// clear or surface the error without waiting for periodic resync.
+		Watches(
+			&corev1.Secret{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.ModelsAsServiceInstanceName),
+			),
+			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed(MaaSDBSecretName)),
+		).
+		// Watch the OpenShift Authentication CR to detect changes to the cluster's
+		// service account issuer (e.g., on HyperShift/ROSA clusters). This ensures
+		// the AuthPolicy's kubernetesTokenReview audience is updated if it changes.
+		Watches(
+			&configv1.Authentication{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.ModelsAsServiceInstanceName),
+			),
+			reconciler.WithPredicates(resources.CreatedOrUpdatedName(cluster.ClusterAuthenticationObj)),
+		).
 		WithAction(initialize).
+		WithAction(checkDependencies()).
+		WithAction(validatePrerequisites).
 		WithAction(validateGateway).
 		WithAction(customizeManifests).
 		WithAction(kustomize.NewAction(
@@ -88,6 +116,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// WithAction(releases.NewAction()). // TODO: Do we need this? How to fix annotation of "platform.opendatahub.io/version:0.0.0"
 		WithAction(configureGatewayNamespaceResources).
 		WithAction(configureTelemetryPolicy).
+		WithAction(configureIstioTelemetry).
 		WithAction(configureConfigHashAnnotation).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),

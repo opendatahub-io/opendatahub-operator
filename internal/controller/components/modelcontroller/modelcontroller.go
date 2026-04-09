@@ -75,6 +75,10 @@ func (s *componentHandler) Init(_ common.Platform) error {
 		return fmt.Errorf("failed to update images on path %s: %w", manifestsPath(), err)
 	}
 
+	if err := odhdeploy.ApplyParams(wvaManifestsPath().String(), "params.env", wvaImageParamMap); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", wvaManifestsPath(), err)
+	}
+
 	return nil
 }
 
@@ -99,6 +103,15 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	}
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
+
+	if !c.GetDeletionTimestamp().IsZero() {
+		rr.Conditions.MarkFalse(
+			ReadyConditionType,
+			conditions.WithReason(status.DeletingReason),
+			conditions.WithMessage(status.DeletingMessage),
+		)
+		return metav1.ConditionFalse, nil
+	}
 
 	if s.IsEnabled(dsc) {
 		if rc := conditions.FindStatusCondition(c.GetStatus(), status.ConditionTypeReady); rc != nil {

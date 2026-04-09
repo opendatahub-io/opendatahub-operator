@@ -72,7 +72,7 @@ func expectResourceRequirementsAtPath(
 		g.Expect(found).Should(BeTrue(), "containers should be found")
 		g.Expect(containers).Should(HaveLen(1), "should have exactly one container")
 
-		container, ok := containers[0].(map[string]interface{})
+		container, ok := containers[0].(map[string]any)
 		g.Expect(ok).Should(BeTrue(), "container should be a map")
 
 		requests, found, err := unstructured.NestedStringMap(container, "resources", "requests")
@@ -117,7 +117,7 @@ func expectTolerationsAtPath(g Gomega, scheme *runtime.Scheme, workload client.O
 	g.Expect(tolerations).Should(HaveLen(len(expectedTolerations)), "should have expected number of tolerations")
 
 	for i, expectedToleration := range expectedTolerations {
-		toleration, ok := tolerations[i].(map[string]interface{})
+		toleration, ok := tolerations[i].(map[string]any)
 		g.Expect(ok).Should(BeTrue(), fmt.Sprintf("toleration %d should be a map", i))
 
 		for key, value := range expectedToleration {
@@ -206,7 +206,7 @@ func testNoHardwareProfileAnnotationForWorkload(g Gomega, ctx context.Context, k
 		g.Expect(found).Should(BeTrue())
 		g.Expect(containers).Should(HaveLen(1))
 
-		container, ok := containers[0].(map[string]interface{})
+		container, ok := containers[0].(map[string]any)
 		g.Expect(ok).Should(BeTrue())
 
 		// Should not have resources injected

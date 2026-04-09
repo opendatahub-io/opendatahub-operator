@@ -1,0 +1,136 @@
+rule_files:
+  - modelsasservice-alerting.rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # Probe success burn rate - no alert (all zeros)
+  - interval: 1m
+    input_series:
+      - series: probe_success:burnrate5m{instance="maas-controller"}
+        values: "0x60"
+      - series: probe_success:burnrate30m{instance="maas-controller"}
+        values: "0x60"
+      - series: probe_success:burnrate1h{instance="maas-controller"}
+        values: "0x60"
+      - series: probe_success:burnrate2h{instance="maas-controller"}
+        values: "0x60"
+      - series: probe_success:burnrate6h{instance="maas-controller"}
+        values: "0x60"
+      - series: probe_success:burnrate1d{instance="maas-controller"}
+        values: "0x60"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: MaaS Controller Probe Success Burn Rate
+        exp_alerts: []
+
+  # Probe success burn rate - critical alert (5m + 1h window)
+  - interval: 1m
+    input_series:
+      - series: probe_success:burnrate5m{instance="maas-controller"}
+        values: "1+1x60"
+      - series: probe_success:burnrate1h{instance="maas-controller"}
+        values: "1+1x60"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: MaaS Controller Probe Success Burn Rate
+        exp_alerts:
+          - exp_labels:
+              alertname: MaaS Controller Probe Success Burn Rate
+              instance: "maas-controller"
+              severity: critical
+            exp_annotations:
+              message: "High error budget burn for maas-controller (current value: 3 )."
+              summary: MaaS Controller Probe Success Burn Rate
+
+  # Probe success burn rate - critical alert (30m + 6h window)
+  - interval: 1m
+    input_series:
+      - series: probe_success:burnrate30m{instance="maas-controller"}
+        values: "1+1x60"
+      - series: probe_success:burnrate6h{instance="maas-controller"}
+        values: "1+1x60"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: MaaS Controller Probe Success Burn Rate
+        exp_alerts:
+          - exp_labels:
+              alertname: MaaS Controller Probe Success Burn Rate
+              instance: "maas-controller"
+              severity: critical
+            exp_annotations:
+              message: "High error budget burn for maas-controller (current value: 16 )."
+              summary: MaaS Controller Probe Success Burn Rate
+
+  # Probe success burn rate - warning alert (2h + 1d window)
+  - interval: 1m
+    input_series:
+      - series: probe_success:burnrate2h{instance="maas-controller"}
+        values: "1+1x60"
+      - series: probe_success:burnrate1d{instance="maas-controller"}
+        values: "1+1x60"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: MaaS Controller Probe Success Burn Rate
+        exp_alerts:
+          - exp_labels:
+              alertname: MaaS Controller Probe Success Burn Rate
+              instance: "maas-controller"
+              severity: warning
+            exp_annotations:
+              message: "High error budget burn for maas-controller (current value: 61 )."
+              summary: MaaS Controller Probe Success Burn Rate
+
+  # High reconcile error rate - should NOT fire (5% < 10% threshold)
+  - interval: 1m
+    input_series:
+      - series: controller_runtime_reconcile_total{job="maas-controller-metrics",controller="maassubscription",result="success"}
+        values: "0+95x25"
+      - series: controller_runtime_reconcile_errors_total{job="maas-controller-metrics",controller="maassubscription"}
+        values: "0+5x25"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: MaaSControllerHighReconcileErrorRate
+        exp_alerts: []
+
+  # High reconcile error rate - should fire (15% > 10% threshold)
+  - interval: 1m
+    input_series:
+      - series: controller_runtime_reconcile_total{job="maas-controller-metrics",controller="maassubscription",result="success"}
+        values: "0+85x25"
+      - series: controller_runtime_reconcile_errors_total{job="maas-controller-metrics",controller="maassubscription"}
+        values: "0+15x25"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: MaaSControllerHighReconcileErrorRate
+        exp_alerts:
+          - exp_labels:
+              alertname: MaaSControllerHighReconcileErrorRate
+              controller: "maassubscription"
+              severity: warning
+              component: modelsasservice
+              subsystem: maas-controller
+            exp_annotations:
+              message: "Reconciliation error rate for controller maassubscription is above 10% over the last 10 minutes."
+              summary: "MaaS Controller high reconciliation error rate (>10%)"
+
+  # Sustained reconcile errors - should fire (30% > 25% threshold)
+  - interval: 1m
+    input_series:
+      - series: controller_runtime_reconcile_total{job="maas-controller-metrics",controller="maassubscription",result="success"}
+        values: "0+70x65"
+      - series: controller_runtime_reconcile_errors_total{job="maas-controller-metrics",controller="maassubscription"}
+        values: "0+30x65"
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: MaaSControllerSustainedReconcileErrors
+        exp_alerts:
+          - exp_labels:
+              alertname: MaaSControllerSustainedReconcileErrors
+              controller: "maassubscription"
+              severity: critical
+              component: modelsasservice
+              subsystem: maas-controller
+            exp_annotations:
+              message: "Reconciliation error rate for controller maassubscription is above 25% over the last 30 minutes. This indicates persistent controller failures that may require investigation."
+              summary: "MaaS Controller sustained reconciliation errors (>25%)"

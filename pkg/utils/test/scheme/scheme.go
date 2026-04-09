@@ -1,6 +1,7 @@
 package scheme
 
 import (
+	imagev1 "github.com/openshift/api/image/v1"
 	oauthv1 "github.com/openshift/api/oauth/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
@@ -53,6 +54,7 @@ var (
 		gwapiv1.Install,
 		ccmAzureV1alpha1.AddToScheme,
 		ccmCoreweaveV1alpha1.AddToScheme,
+		imagev1.Install,
 		addTestTypesToScheme,
 	}
 )

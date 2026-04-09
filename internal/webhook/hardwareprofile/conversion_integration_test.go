@@ -28,15 +28,15 @@ func hardwareProfileUnstructured(name, namespace, apiVersion string) *unstructur
 	defaultCount := intstr.FromInt32(2)
 
 	return &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": apiVersion,
 			"kind":       "HardwareProfile",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      name,
 				"namespace": namespace,
 			},
-			"spec": map[string]interface{}{
-				"identifiers": []map[string]interface{}{
+			"spec": map[string]any{
+				"identifiers": []map[string]any{
 					{
 						"displayName":  "GPU",
 						"identifier":   "nvidia.com/gpu",
@@ -46,14 +46,14 @@ func hardwareProfileUnstructured(name, namespace, apiVersion string) *unstructur
 						"resourceType": "Accelerator",
 					},
 				},
-				"scheduling": map[string]interface{}{
+				"scheduling": map[string]any{
 					"type": "Node",
-					"node": map[string]interface{}{
-						"nodeSelector": map[string]interface{}{
+					"node": map[string]any{
+						"nodeSelector": map[string]any{
 							"kubernetes.io/arch":             "amd64",
 							"node-role.kubernetes.io/worker": "",
 						},
-						"tolerations": []map[string]interface{}{
+						"tolerations": []map[string]any{
 							{
 								"key":      "nvidia.com/gpu",
 								"operator": "Exists",

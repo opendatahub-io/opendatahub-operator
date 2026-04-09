@@ -63,13 +63,24 @@ type ModelsAsServiceSpec struct {
 	APIKeys *APIKeysConfig `json:"apiKeys,omitempty"`
 
 	// Telemetry contains configuration for telemetry and metrics collection.
+	// When enabled, deploys TelemetryPolicy for usage metrics and
+	// Istio Telemetry for per-subscription latency tracking.
 	// +kubebuilder:validation:Optional
 	Telemetry *TelemetryConfig `json:"telemetry,omitempty"`
 }
 
 // TelemetryConfig defines configuration for telemetry collection.
-// Core billing and access control metrics (subscription, cost_center, tier) are always emitted.
+// When enabled, deploys TelemetryPolicy for usage metrics (Limitador) and
+// Istio Telemetry for per-subscription latency tracking.
 type TelemetryConfig struct {
+	// Enabled controls whether telemetry resources are deployed.
+	// When true, creates TelemetryPolicy for usage metrics and
+	// Istio Telemetry for per-subscription latency tracking.
+	// Default is true (telemetry enabled).
+	// +kubebuilder:default=true
+	// +kubebuilder:validation:Optional
+	Enabled *bool `json:"enabled,omitempty"`
+
 	// Metrics contains configuration for optional metric dimensions/labels.
 	// +kubebuilder:validation:Optional
 	Metrics *MetricsConfig `json:"metrics,omitempty"`

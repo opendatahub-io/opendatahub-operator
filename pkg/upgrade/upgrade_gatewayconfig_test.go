@@ -64,7 +64,7 @@ func TestMigrateGatewayConfigIngressModeIdempotence_AlreadyHasIngressMode(t *tes
 
 	// Create GatewayConfig with ingressMode already set
 	gatewayConfig := createTestGatewayConfig()
-	spec := map[string]interface{}{
+	spec := map[string]any{
 		"ingressMode": "LoadBalancer",
 	}
 	err := unstructured.SetNestedMap(gatewayConfig.Object, spec, "spec")

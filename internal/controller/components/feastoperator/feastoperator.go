@@ -29,7 +29,17 @@ func (s *componentHandler) GetName() string {
 	return componentApi.FeastOperatorComponentName
 }
 
-func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
+func (s *componentHandler) NewCRObject(ctx context.Context, cli client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
+	spec := componentApi.FeastOperatorSpec{
+		FeastOperatorCommonSpec: dsc.Spec.Components.FeastOperator.FeastOperatorCommonSpec,
+	}
+
+	gatewayOIDC, err := getGatewayOIDCSpec(ctx, cli)
+	if err != nil {
+		return nil, err
+	}
+	spec.OIDC = gatewayOIDC
+
 	return &componentApi.FeastOperator{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.FeastOperatorKind,
@@ -41,9 +51,7 @@ func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *
 				annotations.ManagementStateAnnotation: string(dsc.Spec.Components.FeastOperator.ManagementState),
 			},
 		},
-		Spec: componentApi.FeastOperatorSpec{
-			FeastOperatorCommonSpec: dsc.Spec.Components.FeastOperator.FeastOperatorCommonSpec,
-		},
+		Spec: spec,
 	}, nil
 }
 
@@ -80,6 +88,15 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	dsc.Status.Components.FeastOperator.FeastOperatorCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
+
+	if !c.GetDeletionTimestamp().IsZero() {
+		rr.Conditions.MarkFalse(
+			ReadyConditionType,
+			conditions.WithReason(status.DeletingReason),
+			conditions.WithMessage(status.DeletingMessage),
+		)
+		return metav1.ConditionFalse, nil
+	}
 
 	if s.IsEnabled(dsc) {
 		dsc.Status.Components.FeastOperator.FeastOperatorCommonStatus = c.Status.FeastOperatorCommonStatus.DeepCopy()

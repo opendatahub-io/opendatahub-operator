@@ -148,6 +148,35 @@ func TestUpdateDSCStatus(t *testing.T) {
 		))
 	})
 
+	t.Run("should return ConditionFalse when component CR has deletionTimestamp", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithKserve(operatorv1.Managed)
+		kserve := createKserveCR(true)
+		now := metav1.Now()
+		kserve.SetDeletionTimestamp(&now)
+		kserve.SetFinalizers([]string{"test-finalizer"})
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, kserve))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(cs).Should(Equal(metav1.ConditionFalse))
+
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, status.DeletingReason),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "%s"`, ReadyConditionType, status.DeletingMessage),
+		)))
+	})
+
 	t.Run("should handle disabled component", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
@@ -377,10 +406,10 @@ func TestVersionedWellKnownLLMInferenceServiceConfigs(t *testing.T) {
 
 			// Create reconciliation request with LLMInferenceServiceConfig resource
 			resource := &unstructured.Unstructured{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"apiVersion": "serving.kserve.io/v1alpha1",
 					"kind":       "LLMInferenceServiceConfig",
-					"metadata": map[string]interface{}{
+					"metadata": map[string]any{
 						"name": tt.resourceName,
 					},
 				},
@@ -415,20 +444,20 @@ func TestVersionedWellKnownLLMInferenceServiceConfigs(t *testing.T) {
 
 		// Create reconciliation request with Deployment resource
 		resource := &unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"apiVersion": "apps/v1",
 				"kind":       "Deployment",
-				"metadata": map[string]interface{}{
+				"metadata": map[string]any{
 					"name": "kserve-controller",
 				},
-				"spec": map[string]interface{}{
-					"template": map[string]interface{}{
-						"spec": map[string]interface{}{
-							"containers": []interface{}{
-								map[string]interface{}{
+				"spec": map[string]any{
+					"template": map[string]any{
+						"spec": map[string]any{
+							"containers": []any{
+								map[string]any{
 									"name":  "manager",
 									"image": "kserve/controller:latest",
-									"env":   []interface{}{},
+									"env":   []any{},
 								},
 							},
 						},
@@ -451,14 +480,14 @@ func TestVersionedWellKnownLLMInferenceServiceConfigs(t *testing.T) {
 		g.Expect(found).Should(BeTrue())
 		g.Expect(containers).Should(HaveLen(1))
 
-		container, ok := containers[0].(map[string]interface{})
+		container, ok := containers[0].(map[string]any)
 		g.Expect(ok).Should(BeTrue(), "container should be a map")
 		env, found, err := unstructured.NestedSlice(container, "env")
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(found).Should(BeTrue())
 		g.Expect(env).Should(HaveLen(1))
 
-		envVar, ok := env[0].(map[string]interface{})
+		envVar, ok := env[0].(map[string]any)
 		g.Expect(ok).Should(BeTrue(), "envVar should be a map")
 		g.Expect(envVar["name"]).Should(Equal("LLM_INFERENCE_SERVICE_CONFIG_PREFIX"))
 		g.Expect(envVar["value"]).Should(Equal(expectedEnvValue))
@@ -473,21 +502,21 @@ func TestVersionedWellKnownLLMInferenceServiceConfigs(t *testing.T) {
 
 		// Create reconciliation request with Deployment resource with existing env var
 		resource := &unstructured.Unstructured{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"apiVersion": "apps/v1",
 				"kind":       "Deployment",
-				"metadata": map[string]interface{}{
+				"metadata": map[string]any{
 					"name": "kserve-controller",
 				},
-				"spec": map[string]interface{}{
-					"template": map[string]interface{}{
-						"spec": map[string]interface{}{
-							"containers": []interface{}{
-								map[string]interface{}{
+				"spec": map[string]any{
+					"template": map[string]any{
+						"spec": map[string]any{
+							"containers": []any{
+								map[string]any{
 									"name":  "manager",
 									"image": "kserve/controller:latest",
-									"env": []interface{}{
-										map[string]interface{}{
+									"env": []any{
+										map[string]any{
 											"name":  "LLM_INFERENCE_SERVICE_CONFIG_PREFIX",
 											"value": "old-prefix-",
 										},
@@ -514,14 +543,14 @@ func TestVersionedWellKnownLLMInferenceServiceConfigs(t *testing.T) {
 		g.Expect(found).Should(BeTrue())
 		g.Expect(containers).Should(HaveLen(1))
 
-		container, ok := containers[0].(map[string]interface{})
+		container, ok := containers[0].(map[string]any)
 		g.Expect(ok).Should(BeTrue(), "container should be a map")
 		env, found, err := unstructured.NestedSlice(container, "env")
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(found).Should(BeTrue())
 		g.Expect(env).Should(HaveLen(1))
 
-		envVar, ok := env[0].(map[string]interface{})
+		envVar, ok := env[0].(map[string]any)
 		g.Expect(ok).Should(BeTrue(), "envVar should be a map")
 		g.Expect(envVar["name"]).Should(Equal("LLM_INFERENCE_SERVICE_CONFIG_PREFIX"))
 		g.Expect(envVar["value"]).Should(Equal(expectedEnvValue))

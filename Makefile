@@ -249,12 +249,15 @@ $(KUSTOMIZE) create --autodetect && \
 cd -
 endef
 
+# Dynamically compute paths for main operator manifests, excluding cloud manager packages
+manifests-paths := {$(shell go list ./... | grep -v /cloudmanager | tr '\n' ',')}
+
 .PHONY: manifests
 manifests: controller-gen kustomize yq ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 ifneq ($(ODH_PLATFORM_TYPE), OpenDataHub)
-	$(CONTROLLER_GEN) rbac:roleName=controller-manager-role paths="./..." output:rbac:artifacts:config=config/rbac
+	@$(CONTROLLER_GEN) rbac:roleName=controller-manager-role paths="$(manifests-paths)" output:rbac:artifacts:config=config/rbac
 endif
-	$(CONTROLLER_GEN) $(CONTROLLER_GEN_TAGS) rbac:roleName=$(ROLE_NAME) crd:ignoreUnexportedFields=true webhook paths="./..." output:crd:artifacts:config=$(CONFIG_DIR)/crd/bases output:rbac:artifacts:config=$(CONFIG_DIR)/rbac output:webhook:artifacts:config=$(CONFIG_DIR)/webhook
+	@$(CONTROLLER_GEN) $(CONTROLLER_GEN_TAGS) rbac:roleName=$(ROLE_NAME) crd:ignoreUnexportedFields=true webhook paths="$(manifests-paths)" output:crd:artifacts:config=$(CONFIG_DIR)/crd/bases output:rbac:artifacts:config=$(CONFIG_DIR)/rbac output:webhook:artifacts:config=$(CONFIG_DIR)/webhook
 	@$(call add-crd-to-kustomization,$(CONFIG_DIR)/crd/bases)
 	@$(call fetch-external-crds,github.com/openshift/api,route/v1)
 	@$(call fetch-external-crds,github.com/openshift/api,user/v1)
@@ -320,6 +323,8 @@ kube-lint: prepare ## Run kube-linter against rendered manifests.
 .PHONY: get-manifests
 get-manifests: ## Fetch components manifests from remote git repo
 	ODH_PLATFORM_TYPE=$(ODH_PLATFORM_TYPE) VERSION=$(VERSION) ./get_all_manifests.sh
+	@echo "Validating manifest image tags..."
+	@./.github/scripts/validate-manifest-images.sh
 CLEANFILES += opt/manifests/*
 
 # Default to standard sed command
@@ -603,7 +608,10 @@ $(ENVTEST): $(LOCALBIN)
 test: unit-test e2e-test
 
 .PHONY: unit-test
-unit-test: envtest ginkgo # directly use ginkgo since the framework is not compatible with go test parallel
+unit-test: unit-test-operator unit-test-clusterhealth
+
+.PHONY: unit-test-operator
+unit-test-operator: envtest ginkgo # directly use ginkgo since the framework is not compatible with go test parallel
 	@if [ ! -d "$(CONFIG_DIR)/crd/bases" ]; then \
 		echo "Error: $(CONFIG_DIR)/crd/bases folder does not exist. Please run 'make manifests-all' first."; \
 		exit 1; \
@@ -621,8 +629,13 @@ unit-test: envtest ginkgo # directly use ginkgo since the framework is not compa
         		--cover \
         		--coverprofile=cover.out \
         		--succinct \
+        		--skip-package=pkg/clusterhealth,cmd/health-check \
         		$(TEST_SRC)
 CLEANFILES += cover.out
+
+.PHONY: unit-test-clusterhealth
+unit-test-clusterhealth:
+	cd pkg/clusterhealth && go test -cover ./...
 
 # Pattern rule to generate .rules.yaml from PrometheusRule templates
 # This finds the corresponding *-prometheusrules.tmpl.yaml in the same directory
@@ -675,6 +688,11 @@ CLEANFILES += $(PROMETHEUS_ALERT_RULES)
 # Cluster health targets (cluster-health, cluster-health-*, etc.) are in cmd/health-check/Makefile.
 ifneq (,$(wildcard cmd/health-check/Makefile))
 include cmd/health-check/Makefile
+endif
+
+# MCP server targets (mcp-server, mcp-server-test) are in cmd/mcp-server/Makefile.
+ifneq (,$(wildcard cmd/mcp-server/Makefile))
+include cmd/mcp-server/Makefile
 endif
 
 .PHONY: e2e-test e2e
@@ -735,7 +753,7 @@ CCM_PROVIDERS := azure coreweave
 
 # Helper functions
 ccm-config-dir = config/cloudmanager/$(1)
-ccm-paths = ./api/cloudmanager/$(1)/...;./internal/controller/cloudmanager/$(1)/...;./internal/controller/cloudmanager/common/...
+ccm-paths = {./api/cloudmanager/$(1)/...,./internal/controller/cloudmanager/$(1)/...,./internal/controller/cloudmanager/common/...}
 
 ##@ CCM Code Generation
 

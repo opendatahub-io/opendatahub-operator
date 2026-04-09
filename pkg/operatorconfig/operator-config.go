@@ -49,42 +49,42 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("error binding flags: %w", err)
 	}
 
-	return BuildConfig()
-}
-
-// BuildConfig builds the operator configuration from viper values.
-// It assumes that flags have already been parsed and bound to viper (e.g. by cobra).
-// Use LoadConfig instead if you need flag registration and parsing.
-func BuildConfig() (*Config, error) {
-	// Unmarshal configuration from Viper
-	var operatorConfig Config
-	if err := viper.Unmarshal(&operatorConfig); err != nil {
+	var cfg Config
+	if err := viper.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal operator manager config: %w", err)
 	}
 
-	// Load Kubernetes rest.Config
+	if err := setupConfig(&cfg); err != nil {
+		return nil, err
+	}
+
+	return &cfg, nil
+}
+
+// setupConfig loads the Kubernetes rest.Config and configures zap logger options
+// on an already-unmarshalled Config. Shared by LoadConfig and BuildCloudManagerConfig.
+func setupConfig(cfg *Config) error {
 	restConfig, err := config.GetConfig()
 	if err != nil {
-		return nil, fmt.Errorf("error getting rest config: %w", err)
+		return fmt.Errorf("error getting rest config: %w", err)
 	}
-	operatorConfig.RestConfig = restConfig
+	cfg.RestConfig = restConfig
 
-	// Configure zap logger options
 	zapFlagSet := flags.NewZapFlagSet()
 	opts := &zap.Options{}
 	opts.BindFlags(zapFlagSet)
 
 	if err := flags.ParseZapFlags(
 		zapFlagSet,
-		operatorConfig.ZapDevel,
-		operatorConfig.ZapEncoder,
-		operatorConfig.ZapLogLevel,
-		operatorConfig.ZapStacktrace,
-		operatorConfig.ZapTimeEncoding,
+		cfg.ZapDevel,
+		cfg.ZapEncoder,
+		cfg.ZapLogLevel,
+		cfg.ZapStacktrace,
+		cfg.ZapTimeEncoding,
 	); err != nil {
-		return nil, fmt.Errorf("error parsing zap flags: %w", err)
+		return fmt.Errorf("error parsing zap flags: %w", err)
 	}
-	operatorConfig.ZapOptions = opts
+	cfg.ZapOptions = opts
 
-	return &operatorConfig, nil
+	return nil
 }

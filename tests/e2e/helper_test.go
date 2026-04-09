@@ -101,6 +101,13 @@ type Operator struct {
 type TestCaseOpts func(t *testing.T)
 
 // RunTestCases runs a series of test cases, optionally in parallel based on the provided options.
+// If the circuit breaker has tripped, remaining test cases are skipped with a clear message.
+//
+// Results are NOT recorded to the circuit breaker here because some suites call
+// t.Parallel() inside their test functions (not via WithParallel). In that case
+// t.Run returns immediately with a false "pass" that would reset the failure
+// counter. Recording happens at the mustRun level instead, which reliably waits
+// for all subtests to complete.
 //
 // Parameters:
 //   - t (*testing.T): The test context passed into the test function.
@@ -109,8 +116,15 @@ type TestCaseOpts func(t *testing.T)
 func RunTestCases(t *testing.T, testCases []TestCase, opts ...TestCaseOpts) {
 	t.Helper()
 
-	// Apply all provided options (e.g., parallel execution) to each test case.
 	for _, testCase := range testCases {
+		if circuitBreaker.IsOpen() {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Helper()
+				circuitBreaker.SkipIfOpen(t)
+			})
+			continue
+		}
+
 		t.Run(testCase.name, func(t *testing.T) {
 			// Set up panic handler for each individual test (must be first defer)
 			defer HandleGlobalPanic()
@@ -137,7 +151,6 @@ func RunTestCases(t *testing.T, testCases []TestCase, opts ...TestCaseOpts) {
 func WithParallel() TestCaseOpts {
 	return func(t *testing.T) {
 		t.Helper()
-
 		t.Parallel() // Marks the test case to run in parallel with other tests
 	}
 }
@@ -391,15 +404,15 @@ func CreateHardwareProfile(name, namespace, apiVersion string) *unstructured.Uns
 	defaultCount := intstr.FromInt32(2)
 
 	hwProfile := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": apiVersion,
 			"kind":       "HardwareProfile",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      name,
 				"namespace": namespace,
 			},
-			"spec": map[string]interface{}{
-				"identifiers": []map[string]interface{}{
+			"spec": map[string]any{
+				"identifiers": []map[string]any{
 					{
 						"displayName":  "GPU",
 						"identifier":   "nvidia.com/gpu",
@@ -409,14 +422,14 @@ func CreateHardwareProfile(name, namespace, apiVersion string) *unstructured.Uns
 						"resourceType": "Accelerator",
 					},
 				},
-				"scheduling": map[string]interface{}{
+				"scheduling": map[string]any{
 					"type": "Node",
-					"node": map[string]interface{}{
-						"nodeSelector": map[string]interface{}{
+					"node": map[string]any{
+						"nodeSelector": map[string]any{
 							"kubernetes.io/arch":             "amd64",
 							"node-role.kubernetes.io/worker": "",
 						},
-						"tolerations": []map[string]interface{}{
+						"tolerations": []map[string]any{
 							{
 								"key":      "nvidia.com/gpu",
 								"operator": "Exists",
@@ -435,13 +448,13 @@ func CreateHardwareProfile(name, namespace, apiVersion string) *unstructured.Uns
 // CreateJobSetOperator creates a JobSetOperator CR.
 func CreateJobSetOperator() *unstructured.Unstructured {
 	return &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "operator.openshift.io/v1",
 			"kind":       "JobSetOperator",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name": "cluster",
 			},
-			"spec": map[string]interface{}{
+			"spec": map[string]any{
 				"logLevel":         "Normal",
 				"operatorLogLevel": "Normal",
 			},
