@@ -82,7 +82,19 @@ func (tc *WorkbenchesTestCtx) ValidateMLflowIntegration(t *testing.T) {
 
 	skipUnless(t, Tier2)
 
-	const notebookControllerParamsConfigMap = "odh-notebook-controller-image-parameters"
+	const odhNotebookControllerManager = "odh-notebook-controller-manager"
+
+	mlflowEnvMatcher := func(expected string) OmegaMatcher {
+		return jq.Match(
+			`.spec.template.spec.containers[] | select(.name == "manager") | .env[] | select(.name == "MLFLOW_ENABLED") | .value == "%s"`,
+			expected,
+		)
+	}
+
+	odhControllerDeployment := WithMinimalObject(gvk.Deployment, types.NamespacedName{
+		Name:      odhNotebookControllerManager,
+		Namespace: tc.AppsNamespace,
+	})
 
 	// Ensure MLflowOperator is in Removed state to start the test
 	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.MLflowOperatorKind)
@@ -93,56 +105,38 @@ func (tc *WorkbenchesTestCtx) ValidateMLflowIntegration(t *testing.T) {
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`)),
 	)
 
-	// Verify the notebook controller deployment exists and is available
+	// Verify the ODH notebook controller deployment exists and is available
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Deployment, types.NamespacedName{
-			Name:      "notebook-controller-deployment",
-			Namespace: tc.AppsNamespace,
-		}),
+		odhControllerDeployment,
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Available") | .status == "True"`)),
 	)
 
-	// Verify mlflow-enabled is "false" when MLflowOperator is Removed
+	// Verify MLFLOW_ENABLED env var is "false" when MLflowOperator is Removed in DSC
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
-			Name:      notebookControllerParamsConfigMap,
-			Namespace: tc.AppsNamespace,
-		}),
-		WithCondition(jq.Match(`.data["mlflow-enabled"] == "false"`)),
-		WithCustomErrorMsg("mlflow-enabled should be 'false' when MLflowOperator is Removed"),
+		odhControllerDeployment,
+		WithCondition(mlflowEnvMatcher("false")),
+		WithCustomErrorMsg("MLFLOW_ENABLED should be 'false' when MLflowOperator is Removed"),
 	)
 
-	t.Log("Verified mlflow-enabled is 'false' when MLflowOperator is Removed")
-
-	// Test the Managed path: enable MLflowOperator and verify mlflow-enabled becomes "true"
+	// Test the Managed path: enable MLflowOperator and verify MLFLOW_ENABLED env var becomes "true"
 	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.MLflowOperatorKind)
 
-	// Verify mlflow-enabled is "true" when MLflowOperator is Managed
+	// Verify MLFLOW_ENABLED env var is "true" when MLflowOperator is Managed in DSC
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
-			Name:      notebookControllerParamsConfigMap,
-			Namespace: tc.AppsNamespace,
-		}),
-		WithCondition(jq.Match(`.data["mlflow-enabled"] == "true"`)),
-		WithCustomErrorMsg("mlflow-enabled should be 'true' when MLflowOperator is Managed"),
+		odhControllerDeployment,
+		WithCondition(mlflowEnvMatcher("true")),
+		WithCustomErrorMsg("MLFLOW_ENABLED should be 'true' when MLflowOperator is Managed"),
 	)
-
-	t.Log("Verified mlflow-enabled is 'true' when MLflowOperator is Managed")
 
 	// Restore MLflowOperator to Removed state
 	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.MLflowOperatorKind)
 
-	// Verify mlflow-enabled returns to "false" when MLflowOperator is Removed again
+	// Verify MLFLOW_ENABLED env var returns to "false" when MLflowOperator is Removed again in DSC
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
-			Name:      notebookControllerParamsConfigMap,
-			Namespace: tc.AppsNamespace,
-		}),
-		WithCondition(jq.Match(`.data["mlflow-enabled"] == "false"`)),
-		WithCustomErrorMsg("mlflow-enabled should return to 'false' when MLflowOperator is Removed again"),
+		odhControllerDeployment,
+		WithCondition(mlflowEnvMatcher("false")),
+		WithCustomErrorMsg("MLFLOW_ENABLED should return to 'false' when MLflowOperator is Removed again"),
 	)
-
-	t.Log("Workbenches component successfully integrates with MLflowOperator state changes")
 }
 
 func (tc *WorkbenchesTestCtx) ValidateImageStreamsAvailable(t *testing.T) {
