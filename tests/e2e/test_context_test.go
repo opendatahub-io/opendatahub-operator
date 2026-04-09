@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
@@ -1812,6 +1813,8 @@ func (tc *TestContext) tryRemoveFinalizers(gvk schema.GroupVersionKind, nn types
 				k8serr.IsNotFound(err) || // Resource doesn't exist
 				k8serr.IsInvalid(err) || // Resource validation errors
 				k8serr.IsConflict(err) || // Resource version conflicts
+				runtime.IsMissingKind(err) || // Unstructured object has no kind (e.g., CRD removed during cleanup)
+				runtime.IsMissingVersion(err) || // Unstructured object has no version (e.g., CRD removed during cleanup)
 				strings.Contains(err.Error(), "resourceVersion should not be set on objects to be created") // Generic resource version creation errors
 		}, "AcceptableCleanupError"),
 	)
