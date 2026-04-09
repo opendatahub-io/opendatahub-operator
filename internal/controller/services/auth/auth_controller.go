@@ -79,7 +79,6 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			reconciler.WithEventHandler(
 				handlers.ToNamed(serviceApi.AuthInstanceName),
 			),
-			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed(persesGlobalDatasourceViewerRole)),
 		).
 		// actions
 		WithAction(initialize).
