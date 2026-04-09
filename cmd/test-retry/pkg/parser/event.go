@@ -8,6 +8,7 @@ import (
 
 type eventHandler struct {
 	formatter testjson.EventFormatter
+	tracker   *classificationTracker
 }
 
 func (h *eventHandler) Err(text string) error {
@@ -16,6 +17,11 @@ func (h *eventHandler) Err(text string) error {
 }
 
 func (h *eventHandler) Event(event testjson.TestEvent, execution *testjson.Execution) error {
+	// Track classifications before formatting
+	if h.tracker != nil {
+		h.tracker.handleEvent(event)
+	}
+
 	err := h.formatter.Format(event, execution)
 	if err != nil {
 		return fmt.Errorf("failed to format event: %w", err)

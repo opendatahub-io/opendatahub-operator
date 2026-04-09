@@ -28,10 +28,12 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/imagestreams"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
@@ -66,6 +68,10 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			&componentApi.MLflowOperator{},
 			reconciler.WithEventHandler(handlers.ToNamed(componentApi.WorkbenchesInstanceName)),
 		).
+		WatchesGVK(gvk.ImageStream,
+			reconciler.Dynamic(reconciler.CrdExists(gvk.ImageStream)),
+			reconciler.WithEventHandler(handlers.ToNamed(componentApi.WorkbenchesInstanceName)),
+		).
 		WithAction(initialize).
 		WithAction(releases.NewAction(
 			releases.WithMetadataFilePath(
@@ -81,6 +87,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			deploy.WithCache(),
 		)).
 		WithAction(deployments.NewAction()).
+		WithAction(imagestreams.NewAction()).
 		WithAction(updateStatus).
 		// must be the final action
 		WithAction(gc.NewAction()).

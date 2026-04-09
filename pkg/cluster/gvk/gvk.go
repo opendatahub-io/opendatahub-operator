@@ -703,6 +703,12 @@ var (
 		Kind:    "Instrumentation",
 	}
 
+	ImageStream = schema.GroupVersionKind{
+		Group:   "image.openshift.io",
+		Version: "v1",
+		Kind:    "ImageStream",
+	}
+
 	OpenshiftTemplate = schema.GroupVersionKind{
 		Group:   "template.openshift.io",
 		Version: "v1",
@@ -815,6 +821,12 @@ var (
 		Group:   "authorino.kuadrant.io",
 		Version: "v1beta3",
 		Kind:    "AuthConfig",
+	}
+
+	Authorinov1beta1 = schema.GroupVersionKind{
+		Group:   "operator.authorino.kuadrant.io",
+		Version: "v1beta1",
+		Kind:    "Authorino",
 	}
 
 	Kuadrantv1beta1 = schema.GroupVersionKind{

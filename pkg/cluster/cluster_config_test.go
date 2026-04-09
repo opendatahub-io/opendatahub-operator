@@ -439,6 +439,99 @@ func TestIsIntegratedOAuth(t *testing.T) {
 	}
 }
 
+func TestGetClusterServiceAccountIssuer(t *testing.T) {
+	// Register the configv1 scheme
+	scheme := runtime.NewScheme()
+	err := configv1.AddToScheme(scheme)
+	if err != nil {
+		t.Fatalf("failed to add configv1 scheme: %v", err)
+	}
+
+	testCases := []struct {
+		name           string
+		authObject     *configv1.Authentication
+		clientErr      error
+		expectedIssuer string
+		expectedError  bool
+	}{
+		{
+			name: "HyperShift/ROSA cluster with custom issuer",
+			authObject: &configv1.Authentication{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: cluster.ClusterAuthenticationObj,
+				},
+				Spec: configv1.AuthenticationSpec{
+					ServiceAccountIssuer: "https://rh-oidc.s3.us-east-1.amazonaws.com/abc123",
+				},
+			},
+			expectedIssuer: "https://rh-oidc.s3.us-east-1.amazonaws.com/abc123",
+			expectedError:  false,
+		},
+		{
+			name: "Standard OpenShift cluster (empty issuer)",
+			authObject: &configv1.Authentication{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: cluster.ClusterAuthenticationObj,
+				},
+				Spec: configv1.AuthenticationSpec{
+					ServiceAccountIssuer: "",
+				},
+			},
+			expectedIssuer: "",
+			expectedError:  false,
+		},
+		{
+			name:           "Authentication object not found (non-OpenShift)",
+			authObject:     nil,
+			expectedIssuer: "",
+			expectedError:  false, // NotFound returns empty string, nil error
+		},
+		{
+			name:           "Client error (RBAC issue)",
+			authObject:     nil,
+			clientErr:      errors.New("forbidden: User cannot get resource"),
+			expectedIssuer: "",
+			expectedError:  true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			var fakeClient client.Client
+			objs := []runtime.Object{}
+			if tc.authObject != nil {
+				objs = append(objs, tc.authObject)
+			}
+
+			fakeClient = fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objs...).Build()
+
+			if tc.clientErr != nil {
+				fakeClient = &erroringClient{
+					Client: fakeClient,
+					err:    tc.clientErr,
+				}
+			}
+
+			result, err := cluster.GetClusterServiceAccountIssuer(ctx, fakeClient)
+
+			if tc.expectedError {
+				if err == nil {
+					t.Errorf("GetClusterServiceAccountIssuer() expected error but got nil")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("GetClusterServiceAccountIssuer() unexpected error: %v", err)
+				}
+				if result != tc.expectedIssuer {
+					t.Errorf("GetClusterServiceAccountIssuer() = %q, want %q", result, tc.expectedIssuer)
+				}
+			}
+		})
+	}
+}
+
 func TestGetDomain(t *testing.T) {
 	testCases := []struct {
 		name           string
