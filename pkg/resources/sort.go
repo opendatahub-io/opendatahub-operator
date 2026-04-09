@@ -7,6 +7,8 @@ import (
 	"github.com/k8s-manifest-kit/engine/pkg/postrenderer"
 	engineTypes "github.com/k8s-manifest-kit/engine/pkg/types"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
 var defaultPostRenderers = []engineTypes.PostRenderer{
@@ -52,7 +54,7 @@ func CertManagerPostRenderer() engineTypes.PostRenderer {
 		// Find insertion point: before first Deployment
 		insertIndex := len(otherResources) // Default: insert at end
 		for i, resource := range otherResources {
-			if resource.GetKind() == "Deployment" {
+			if resource.GetKind() == gvk.Deployment.Kind {
 				insertIndex = i
 				break
 			}
@@ -63,7 +65,7 @@ func CertManagerPostRenderer() engineTypes.PostRenderer {
 		result = append(result, otherResources[:insertIndex]...)
 
 		// Add cert-manager resources in dependency order: ClusterIssuer, Issuer, Certificate
-		for _, kind := range []string{"ClusterIssuer", "Issuer", "Certificate"} {
+		for _, kind := range []string{gvk.CertManagerClusterIssuer.Kind, gvk.CertManagerIssuer.Kind, gvk.CertManagerCertificate.Kind} {
 			for _, resource := range certManagerResources {
 				if resource.GetKind() == kind {
 					result = append(result, resource)
@@ -78,5 +80,7 @@ func CertManagerPostRenderer() engineTypes.PostRenderer {
 
 // isCertManagerResource checks if the given kind is a cert-manager resource type.
 func isCertManagerResource(kind string) bool {
-	return kind == "ClusterIssuer" || kind == "Issuer" || kind == "Certificate"
+	return kind == gvk.CertManagerClusterIssuer.Kind ||
+		kind == gvk.CertManagerIssuer.Kind ||
+		kind == gvk.CertManagerCertificate.Kind
 }
