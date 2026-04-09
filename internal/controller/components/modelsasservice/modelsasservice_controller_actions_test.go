@@ -1460,6 +1460,9 @@ func TestConfigureExternalOIDC(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(found).Should(BeTrue())
 		g.Expect(ttl).Should(Equal(int64(300)))
+	})
+}
+
 //nolint:dupl // Similar test structure to TestConfigureTelemetryPolicy is intentional for test clarity
 func TestConfigureIstioTelemetry(t *testing.T) {
 	g := NewWithT(t)
