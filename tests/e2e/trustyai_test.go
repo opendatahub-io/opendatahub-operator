@@ -151,8 +151,12 @@ func (tc *TrustyAITestCtx) ValidateTrustyAIPreCheck(t *testing.T) {
 // and feature gate configuration that can be slow in CI environments.
 func (tc *TrustyAITestCtx) setKserveState(state operatorv1.ManagementState, shouldExist bool) {
 	// TODO: remove timeout override once we understand why Kserve takes so long in CI
-	reset := tc.OverrideEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout, tc.TestTimeouts.defaultEventuallyPollInterval)
-	defer reset()
+	savedOpts := tc.DefaultResourceOpts
+	tc.DefaultResourceOpts = []ResourceOpts{
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+	}
+	defer func() { tc.DefaultResourceOpts = savedOpts }()
 
 	tc.UpdateComponentStateInDataScienceClusterWithKind(state, gvk.Kserve.Kind)
 

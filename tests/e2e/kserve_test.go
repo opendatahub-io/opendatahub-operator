@@ -43,9 +43,12 @@ func kserveTestSuite(t *testing.T) {
 		ComponentTestCtx: ct,
 	}
 
-	// Increase the global eventually timeout
-	reset := componentCtx.OverrideEventuallyTimeout(ct.TestTimeouts.longEventuallyTimeout, ct.TestTimeouts.defaultEventuallyPollInterval)
-	defer reset() // Make sure it's reset after all tests run
+	// Set per-operation timeout defaults for all operations in this suite.
+	// KServe initialization involves complex CRD/feature gate setup that requires longer timeouts.
+	componentCtx.DefaultResourceOpts = []ResourceOpts{
+		WithEventuallyTimeout(ct.TestTimeouts.longEventuallyTimeout),
+		WithEventuallyPollingInterval(ct.TestTimeouts.defaultEventuallyPollInterval),
+	}
 
 	// Define test cases.
 	testCases := make([]TestCase, 0, 11)
@@ -79,6 +82,13 @@ func kserveDegradedMonitoringTestSuite(t *testing.T) {
 
 	componentCtx := KserveTestCtx{
 		ComponentTestCtx: ct,
+	}
+
+	// Set per-operation timeout defaults — KServe initialization is slow (CRD/feature gate setup).
+	// Without this, operations fall back to the 5m baseline and flake in slower CI environments.
+	componentCtx.DefaultResourceOpts = []ResourceOpts{
+		WithEventuallyTimeout(ct.TestTimeouts.longEventuallyTimeout),
+		WithEventuallyPollingInterval(ct.TestTimeouts.defaultEventuallyPollInterval),
 	}
 
 	testCases := []TestCase{

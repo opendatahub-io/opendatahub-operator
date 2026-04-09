@@ -59,10 +59,13 @@ func modelsAsServiceTestSuite(t *testing.T) {
 		ComponentTestCtx: ct,
 	}
 
+	// Set per-operation timeout defaults for all operations in this suite.
 	// MaaS startup involves multiple dependencies (postgres, gateway, maas-controller leader election,
 	// ServiceAccount/TLS cert provisioning) that can take longer than the default 5m timeout.
-	reset := componentCtx.OverrideEventuallyTimeout(ct.TestTimeouts.longEventuallyTimeout, ct.TestTimeouts.defaultEventuallyPollInterval)
-	defer reset()
+	componentCtx.DefaultResourceOpts = []ResourceOpts{
+		WithEventuallyTimeout(ct.TestTimeouts.longEventuallyTimeout),
+		WithEventuallyPollingInterval(ct.TestTimeouts.defaultEventuallyPollInterval),
+	}
 
 	// Setup: Create prerequisites and enable the subcomponent.
 	// PostgreSQL must be created before enabling the component because
