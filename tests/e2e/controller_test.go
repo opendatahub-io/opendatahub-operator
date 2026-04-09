@@ -104,6 +104,7 @@ type TestGroup struct {
 }
 
 type TestTimeouts struct {
+	// Generic tiers
 	defaultEventuallyTimeout        time.Duration
 	shortEventuallyTimeout          time.Duration
 	mediumEventuallyTimeout         time.Duration
@@ -111,6 +112,15 @@ type TestTimeouts struct {
 	defaultEventuallyPollInterval   time.Duration
 	defaultConsistentlyTimeout      time.Duration
 	defaultConsistentlyPollInterval time.Duration
+
+	// Named operation-specific tiers
+	crCreationTimeout         time.Duration // DSCI/DSC creation and readiness
+	componentReadinessTimeout time.Duration // Component enabled/disabled checks
+	monitoringStackTimeout    time.Duration // Monitoring stack readiness (Prometheus, Tempo, OLM-dependent)
+	authGatewayTimeout        time.Duration // Auth/gateway configuration checks
+	deletionRecoveryTimeout   time.Duration // Resource deletion and controller recreation
+	olmOperationTimeout       time.Duration // CSV succeeded, InstallPlan approval
+	operandReadinessTimeout   time.Duration // Operand deployments reaching ready state
 }
 
 type TestCase struct {
@@ -414,6 +424,7 @@ func TestMain(m *testing.M) {
 	// Defaults
 	// Gomega default values for Eventually/Consistently can be found here:
 	// https://onsi.github.io/gomega/#making-asynchronous-assertions
+	// Generic tiers
 	viper.SetDefault("defaultEventuallyTimeout", "5m")        // Timeout used for Eventually; overrides Gomega's default of 1 second.
 	viper.SetDefault("shortEventuallyTimeout", "10s")         // Timeout used for Eventually; overrides Gomega's default of 1 second.
 	viper.SetDefault("mediumEventuallyTimeout", "7m")         // Medium timeout: for readiness checks (e.g., ClusterServiceVersion, DataScienceCluster).
@@ -421,6 +432,15 @@ func TestMain(m *testing.M) {
 	viper.SetDefault("defaultEventuallyPollInterval", "10s")  // Polling interval for Eventually; overrides Gomega's default of 10 milliseconds.
 	viper.SetDefault("defaultConsistentlyTimeout", "20s")     // Duration used for Consistently; overrides Gomega's default of 2 seconds.
 	viper.SetDefault("defaultConsistentlyPollInterval", "5s") // Polling interval for Consistently; overrides Gomega's default of 50 milliseconds.
+
+	// Named operation-specific tiers — defaults based on CI observability data
+	viper.SetDefault("crCreationTimeout", "2m")         // DSCI/DSC creation and readiness (P99=71s, observed avg ~10s).
+	viper.SetDefault("componentReadinessTimeout", "3m") // Component enabled/disabled checks (P99=93s, outliers at 243s).
+	viper.SetDefault("monitoringStackTimeout", "7m")    // Monitoring stack readiness (P99=292s, TLS_Fix/ThanosQuerier pass at 5-6min).
+	viper.SetDefault("authGatewayTimeout", "5m")        // Auth/gateway checks (72 passes exceed 2min, max 265s — do not reduce).
+	viper.SetDefault("deletionRecoveryTimeout", "90s")  // Resource deletion and controller recreation (P99=46s, nothing above 90s).
+	viper.SetDefault("olmOperationTimeout", "2m")       // CSV succeeded, InstallPlan approval (P99=81s, nothing above 120s).
+	viper.SetDefault("operandReadinessTimeout", "2m")   // Operand deployments reaching ready state (P99=56s, outliers at 90s).
 
 	// Flags
 	pflag.String("operator-namespace", "opendatahub-operator-system", "Namespace where the odh operator is deployed")
@@ -493,6 +513,7 @@ func TestMain(m *testing.M) {
 	}
 
 	testOpts.TestTimeouts = TestTimeouts{
+		// Generic tiers
 		defaultEventuallyTimeout:        viper.GetDuration("defaultEventuallyTimeout"),
 		shortEventuallyTimeout:          viper.GetDuration("shortEventuallyTimeout"),
 		mediumEventuallyTimeout:         viper.GetDuration("mediumEventuallyTimeout"),
@@ -500,6 +521,14 @@ func TestMain(m *testing.M) {
 		defaultEventuallyPollInterval:   viper.GetDuration("defaultEventuallyPollInterval"),
 		defaultConsistentlyTimeout:      viper.GetDuration("defaultConsistentlyTimeout"),
 		defaultConsistentlyPollInterval: viper.GetDuration("defaultConsistentlyPollInterval"),
+		// Named operation-specific tiers
+		crCreationTimeout:         viper.GetDuration("crCreationTimeout"),
+		componentReadinessTimeout: viper.GetDuration("componentReadinessTimeout"),
+		monitoringStackTimeout:    viper.GetDuration("monitoringStackTimeout"),
+		authGatewayTimeout:        viper.GetDuration("authGatewayTimeout"),
+		deletionRecoveryTimeout:   viper.GetDuration("deletionRecoveryTimeout"),
+		olmOperationTimeout:       viper.GetDuration("olmOperationTimeout"),
+		operandReadinessTimeout:   viper.GetDuration("operandReadinessTimeout"),
 	}
 	testOpts.tag = viper.GetString("tag")
 	if !slices.Contains(allowedTags, TestTag(testOpts.tag)) {
