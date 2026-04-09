@@ -185,12 +185,12 @@ func (tc *ModelControllerTestCtx) ValidateComponentDisabled(t *testing.T) {
 
 	skipUnless(t, Smoke, Tier1)
 
-	// Ensure Kserve and ModelRegistry components are set as Removed in DataScienceCluster.
-	// in this case we can leave WVA to any value
+	// Ensure Kserve, WVA, and ModelRegistry components are set as Removed in DataScienceCluster.
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(
 			testf.TransformPipeline(
+				testf.Transform(`.spec.components.%s.wva.managementState = "%s"`, componentApi.KserveComponentName, operatorv1.Removed),
 				testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.KserveComponentName, operatorv1.Removed),
 				testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.ModelRegistryComponentName, operatorv1.Removed),
 			),
