@@ -122,33 +122,23 @@ func (tc *MonitoringTestCtx) cleanupMonitoringAdmissionResources(t *testing.T, p
 
 		// Best-effort cleanup: each delete is attempted independently so a
 		// failure in one does not prevent the others from running.
-		bestEffortDelete := func(name string, opts ...ResourceOpts) {
-			defer func() {
-				if r := recover(); r != nil {
-					t.Logf("best-effort cleanup: failed to delete %s: %v", name, r)
-				}
-			}()
-			tc.DeleteResource(opts...)
-		}
-
+		// Uses bestEffortDeleteResource which avoids Gomega assertions, so
+		// cleanup errors are logged but cannot mask the original test failure.
 		if podMonitorName != "" {
-			bestEffortDelete(podMonitorName,
-				WithMinimalObject(gvk.CoreosPodMonitor, types.NamespacedName{Name: podMonitorName, Namespace: TestNamespaceName}),
-				WithIgnoreNotFound(true),
-				WithWaitForDeletion(true),
+			tc.bestEffortDeleteResource(
+				gvk.CoreosPodMonitor,
+				types.NamespacedName{Name: podMonitorName, Namespace: TestNamespaceName},
 			)
 		}
 		if serviceMonitorName != "" {
-			bestEffortDelete(serviceMonitorName,
-				WithMinimalObject(gvk.CoreosServiceMonitor, types.NamespacedName{Name: serviceMonitorName, Namespace: TestNamespaceName}),
-				WithIgnoreNotFound(true),
-				WithWaitForDeletion(true),
+			tc.bestEffortDeleteResource(
+				gvk.CoreosServiceMonitor,
+				types.NamespacedName{Name: serviceMonitorName, Namespace: TestNamespaceName},
 			)
 		}
-		bestEffortDelete(TestNamespaceName,
-			WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: TestNamespaceName}),
-			WithIgnoreNotFound(true),
-			WithWaitForDeletion(true),
+		tc.bestEffortDeleteResource(
+			gvk.Namespace,
+			types.NamespacedName{Name: TestNamespaceName},
 		)
 	})
 }

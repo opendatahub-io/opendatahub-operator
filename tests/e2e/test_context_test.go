@@ -1018,23 +1018,61 @@ func (tc *TestContext) ensureInstallPlan(nn types.NamespacedName, channelName st
 
 // registerCleanup registers a t.Cleanup() handler that deletes a resource when the test completes.
 // This ensures resources are cleaned up even on test failure or timeout.
-// Cleanup failures are logged but do not mask the original test failure.
+// Cleanup is best-effort and non-fatal: errors are logged but never asserted,
+// so a cleanup failure cannot mask the original test failure.
 func (tc *TestContext) registerCleanup(ro *ResourceOptions) {
 	// Capture GVK and NN to avoid closure over the mutable ResourceOptions
 	cleanupGVK := ro.GVK
 	cleanupNN := ro.NN
 	ro.CleanupT.Cleanup(func() {
-		defer func() {
-			if r := recover(); r != nil {
-				tc.Logf("cleanup: best-effort delete failed for %s %s: %v", cleanupGVK, cleanupNN, r)
-			}
-		}()
-		tc.DeleteResource(
-			WithMinimalObject(cleanupGVK, cleanupNN),
-			WithIgnoreNotFound(true),
-			WithRemoveFinalizersOnDelete(true),
-		)
+		tc.bestEffortDeleteResource(cleanupGVK, cleanupNN)
 	})
+}
+
+// bestEffortDeleteResource removes finalizers, issues a delete, and waits for the
+// resource to be gone. It never calls tc.g.Expect, so it is safe to use inside
+// t.Cleanup handlers where assertion failures would mask the original test failure.
+// NotFound/NoMatch errors are silently ignored; all other errors are logged.
+func (tc *TestContext) bestEffortDeleteResource(resGVK schema.GroupVersionKind, nn types.NamespacedName) {
+	defer func() {
+		if r := recover(); r != nil {
+			tc.Logf("cleanup: best-effort delete panicked for %s %s: %v", resGVK, nn, r)
+		}
+	}()
+
+	// Remove finalizers before deletion (best-effort, errors are intentionally ignored)
+	tc.tryRemoveFinalizers(resGVK, nn)
+
+	// Issue the delete without assertions — use the raw error return
+	err := tc.g.Delete(resGVK, nn).Get()
+	if err != nil {
+		if meta.IsNoMatchError(err) || k8serr.IsNotFound(err) {
+			return // CRD or resource already gone — nothing to clean up
+		}
+		tc.Logf("cleanup: best-effort delete failed for %s %s: %v", resGVK, nn, err)
+		return
+	}
+
+	// Poll until the resource is gone, without Gomega assertions
+	tc.waitForDeletionBestEffort(resGVK, nn)
+}
+
+// waitForDeletionBestEffort polls until a resource is fully deleted.
+// It never calls tc.g.Expect, so a timeout here is logged but does not fail the test.
+func (tc *TestContext) waitForDeletionBestEffort(gvk schema.GroupVersionKind, nn types.NamespacedName) {
+	timeout := tc.TestTimeouts.mediumEventuallyTimeout
+	interval := tc.TestTimeouts.defaultEventuallyPollInterval
+
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		u := resources.GvkToUnstructured(gvk)
+		err := tc.g.Client().Get(tc.g.Context(), nn, u)
+		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
+			return // Resource is gone
+		}
+		time.Sleep(interval)
+	}
+	tc.Logf("cleanup: timed out waiting for %s %s to be deleted", gvk, nn)
 }
 
 // DeleteResource deletes a specific Kubernetes resource by name.

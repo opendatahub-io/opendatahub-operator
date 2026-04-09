@@ -236,7 +236,9 @@ func WithRemoveFinalizersOnDelete(remove bool) ResourceOpts {
 
 // WithCleanup registers a t.Cleanup() handler that deletes the resource when the test completes.
 // This ensures resources are cleaned up even on test failure or timeout, preventing resource leaks.
-// The cleanup uses WithIgnoreNotFound(true) and WithRemoveFinalizersOnDelete(true) for robustness.
+// The cleanup is best-effort and non-fatal: it removes finalizers, issues the delete, and waits
+// for the resource to be gone, but errors are logged rather than asserted so cleanup failures
+// cannot mask the original test failure. NotFound/NoMatch errors are silently ignored.
 func WithCleanup(t *testing.T) ResourceOpts { //nolint:thelper // This is a resource option builder, not a test helper
 	return func(ro *ResourceOptions) {
 		ro.CleanupT = t
