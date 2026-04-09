@@ -23,7 +23,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth"
-	"github.com/opendatahub-io/opendatahub-operator/v2/tests/e2e/pkg/failureclassifier"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/failureclassifier"
 )
 
 const (

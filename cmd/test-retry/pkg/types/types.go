@@ -10,7 +10,7 @@ import (
 // The E2E test framework emits classification data as JSON to stdout when tests fail.
 // This type is used to parse and store that classification data.
 //
-// NOTE: This struct mirrors tests/e2e/pkg/failureclassifier.FailureClassification
+// NOTE: This struct mirrors pkg/failureclassifier.FailureClassification
 // and must stay in sync. Changes to field names, types, or JSON tags require
 // corresponding updates in both locations to maintain the data contract.
 //
