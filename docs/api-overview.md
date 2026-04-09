@@ -1506,7 +1506,6 @@ _Appears in:_
 | `telemetry` _[TelemetryConfig](#telemetryconfig)_ | Telemetry contains configuration for telemetry and metrics collection.<br />When enabled, deploys TelemetryPolicy for usage metrics and<br />Istio Telemetry for per-subscription latency tracking. |  | Optional: \{\} <br /> |
 
 
-
 #### ModelsAsServiceStatus
 
 
