@@ -55,12 +55,10 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		return fmt.Errorf("failed to check if models-as-a-service namespace exists: %w", err)
 	}
 	if exists {
-		rr.Templates = append(rr.Templates, []odhtypes.TemplateInfo{
-			{
-				FS:   resourcesFS,
-				Path: AdminGroupMaaSRoleTemplate,
-			},
-		}...)
+		rr.Templates = append(rr.Templates, odhtypes.TemplateInfo{
+			FS:   resourcesFS,
+			Path: AdminGroupMaaSRoleTemplate,
+		})
 	}
 
 	exists, err = cluster.NamespaceExists(ctx, rr.Client, "kuadrant-system")
@@ -68,12 +66,10 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		return fmt.Errorf("failed to check if kuadrant-system namespace exists: %w", err)
 	}
 	if exists {
-		rr.Templates = append(rr.Templates, []odhtypes.TemplateInfo{
-			{
-				FS:   resourcesFS,
-				Path: AdminGroupKuadrantRoleTemplate,
-			},
-		}...)
+		rr.Templates = append(rr.Templates, odhtypes.TemplateInfo{
+			FS:   resourcesFS,
+			Path: AdminGroupKuadrantRoleTemplate,
+		})
 	}
 
 	return nil
