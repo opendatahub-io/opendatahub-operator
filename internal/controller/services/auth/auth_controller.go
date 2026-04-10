@@ -74,12 +74,6 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			),
 			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed("kuadrant-system")),
 		).
-		Watches(
-			&rbacv1.ClusterRole{},
-			reconciler.WithEventHandler(
-				handlers.ToNamed(serviceApi.AuthInstanceName),
-			),
-		).
 		// actions
 		WithAction(initialize).
 		WithAction(template.NewAction()).
