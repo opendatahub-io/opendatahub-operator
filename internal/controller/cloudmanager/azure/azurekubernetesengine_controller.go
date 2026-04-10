@@ -17,8 +17,11 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 )
 
+// NewReconciler sets up the AzureKubernetesEngine controller and registers it with the manager.
 func NewReconciler(ctx context.Context, mgr ctrl.Manager, cfg *operatorconfig.CloudManagerConfig) error {
 	resourceID := labels.NormalizePartOfValue(ccmv1alpha1.AzureKubernetesEngineKind)
+	bootstrapConfig := certmanager.DefaultBootstrapConfig(certmanager.WithOperatorCert(cfg.RhaiOperatorNamespace))
+
 	_, err := reconciler.ReconcilerFor(mgr, &ccmv1alpha1.AzureKubernetesEngine{}).
 		WithDynamicOwnership().
 		Watches(
@@ -29,14 +32,14 @@ func NewReconciler(ctx context.Context, mgr ctrl.Manager, cfg *operatorconfig.Cl
 		WithAction(initialize).
 		ComposeWith(certmanager.Bootstrap[*ccmv1alpha1.AzureKubernetesEngine](
 			ccmv1alpha1.AzureKubernetesEngineInstanceName,
-			certmanager.DefaultBootstrapConfig(certmanager.WithOperatorCert(cfg.RhaiOperatorNamespace)),
+			bootstrapConfig,
 		)).
 		WithActionE(cloudmanager.NewReconcileAction(resourceID)).
+		// GC must be last: evaluates every CCM resource and removes stale or orphaned ones.
+		WithActionE(cloudmanager.NewGCAction(resourceID, cfg.RhaiOperatorNamespace,
+			cloudmanager.BootstrapProtectedObjects(bootstrapConfig),
+		)).
 		WithConditions(cloudmanager.ConditionsTypes...).
 		Build(ctx)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }

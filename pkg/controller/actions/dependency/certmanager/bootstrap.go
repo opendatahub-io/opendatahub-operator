@@ -31,16 +31,18 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
+	resourcespredicates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/env"
 )
 
-// caRootDuration is the validity period of the root CA certificate.
-// This value is intentionally long. The renewal strategy will be defined in future changes.
+// caRootDuration is the validity period of the root CA certificate (~100 years).
+// No automatic renewal is configured; a renewal strategy is tracked as a follow-up.
 const caRootDuration = "876000h"
 
-// Core cert-manager CRD resource names.
+// These CRD names must be covered consistently by MonitorCRDs and CRDPredicate.
+// If a CRD is added here, update both functions.
 const (
 	certManagerCertificateCRD   = "certificates.cert-manager.io"
 	certManagerIssuerCRD        = "issuers.cert-manager.io"
@@ -149,9 +151,7 @@ func BootstrapOperatorCertConfig(namespace string) *OperatorCertConfig {
 }
 
 // NewBootstrapAction returns a reusable pipeline action that adds the cert-manager PKI trust
-// chain resources to the reconciliation request for deployment by the pipeline's deploy action.
-//
-// The chain consists of:
+// chain resources to the reconciliation request for deployment by the pipeline's deploy action:
 //
 // - a self-signed ClusterIssuer
 // - a root CA Certificate
@@ -219,6 +219,7 @@ func createSelfSignedIssuer(config BootstrapConfig) (*unstructured.Unstructured,
 	return u, nil
 }
 
+// createRootCACertificate returns the root CA Certificate issued by the self-signed ClusterIssuer.
 func createRootCACertificate(config BootstrapConfig) (*unstructured.Unstructured, error) {
 	u := &unstructured.Unstructured{}
 	u.SetGroupVersionKind(gvk.CertManagerCertificate)
@@ -286,9 +287,6 @@ func createCABackedIssuer(config BootstrapConfig) (*unstructured.Unstructured, e
 // MonitorCRDs returns a dependency.ActionOpts that checks whether the three core cert-manager
 // CRDs (Certificate, Issuer, ClusterIssuer) are registered on the cluster. If any CRD
 // is absent, DependenciesAvailable is set to False.
-//
-// Must cover exactly the same CRDs as CRDPredicate. If a CRD is added here, add the
-// corresponding name to the constants block above and update CRDPredicate.
 func MonitorCRDs() dependency.ActionOpts {
 	return dependency.Combine(
 		dependency.MonitorCRD(dependency.CRDConfig{GVK: gvk.CertManagerCertificate}),
@@ -299,9 +297,6 @@ func MonitorCRDs() dependency.ActionOpts {
 
 // CRDPredicate returns a predicate that matches CustomResourceDefinition events for
 // the three core cert-manager CRDs.
-//
-// Must cover exactly the same CRDs as MonitorCRDs. If a CRD is added to MonitorCRDs,
-// add the corresponding name to the constants block above and update this predicate.
 func CRDPredicate() predicate.Predicate {
 	return predicate.NewPredicateFuncs(func(obj client.Object) bool {
 		switch obj.GetName() {
@@ -315,27 +310,51 @@ func CRDPredicate() predicate.Predicate {
 // Bootstrap returns a builder configurator that registers all cert-manager bootstrapping
 // concerns onto the builder:
 //
-// - a cert-manager CRDs watch to trigger reconciliation,
-// - a monitoring action to set the DependenciesAvailable condition,
-// - a bootstrap action to deploy the PKI trust chain,
-// - a condition to set the DependenciesAvailable status.
+//   - a cert-manager CRDs watch to trigger reconciliation when cert-manager is installed,
+//   - explicit watches for the PKI resource instances (ClusterIssuers, Certificate)
+//     so the controller reconciles when they are modified or deleted,
+//   - a monitoring action to set the DependenciesAvailable condition,
+//   - a bootstrap action to deploy the PKI trust chain,
+//   - a condition to set the DependenciesAvailable status.
 //
 // instanceName is the controller's singleton instance name, used to route CRD watch events
 // to the correct reconciler queue via handlers.ToNamed.
 //
 // [BootstrapConfig] is the configuration for the cert-manager PKI trust chain.
 //
-// Use with [reconciler.ComposeWith]. T must be supplied explicitly because Go cannot infer
-// it from the function arguments:
+// Use with [reconciler.ComposeWith]:
 //
 //	b.ComposeWith(certmanager.Bootstrap[*MyControllerType](instanceName, certmanager.DefaultBootstrapConfig()))
 func Bootstrap[T common.PlatformObject](instanceName string, config BootstrapConfig) func(*reconciler.ReconcilerBuilder[T]) {
 	return func(b *reconciler.ReconcilerBuilder[T]) {
+		certPredicates := []predicate.Predicate{
+			resourcespredicates.CreatedOrUpdatedOrDeletedNamedInNamespace(config.CertName, config.CertManagerNamespace),
+		}
+		if config.OperatorCertConfig != nil {
+			certPredicates = append(certPredicates,
+				resourcespredicates.CreatedOrUpdatedOrDeletedNamedInNamespace(
+					config.OperatorCertConfig.WebhookCertName, config.OperatorCertConfig.Namespace),
+			)
+		}
+
 		b.Watches(
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(handlers.ToNamed(instanceName)),
 			reconciler.WithPredicates(CRDPredicate()),
 		).
+			WatchesGVK(gvk.CertManagerClusterIssuer,
+				reconciler.WithEventHandler(handlers.ToNamed(instanceName)),
+				reconciler.WithPredicates(predicate.Or(
+					resourcespredicates.CreatedOrUpdatedOrDeletedNamed(config.IssuerName),
+					resourcespredicates.CreatedOrUpdatedOrDeletedNamed(config.CAIssuerName),
+				)),
+				reconciler.Dynamic(reconciler.CrdExists(gvk.CertManagerClusterIssuer)),
+			).
+			WatchesGVK(gvk.CertManagerCertificate,
+				reconciler.WithEventHandler(handlers.ToNamed(instanceName)),
+				reconciler.WithPredicates(predicate.Or(certPredicates...)),
+				reconciler.Dynamic(reconciler.CrdExists(gvk.CertManagerCertificate)),
+			).
 			WithAction(dependency.NewAction(MonitorCRDs())).
 			WithActionE(NewBootstrapAction(config)).
 			WithConditions(status.ConditionDependenciesAvailable)
