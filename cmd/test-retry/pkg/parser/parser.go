@@ -27,7 +27,7 @@ type ParseConfig struct {
 // from FAILURE_CLASSIFICATION: JSON lines in test output.
 type classificationTracker struct {
 	mu              sync.Mutex
-	currentTest     string                                    // currently running test name
+	currentTest     string                                  // currently running test name
 	classifications map[string]*types.FailureClassification // test name → classification
 }
 

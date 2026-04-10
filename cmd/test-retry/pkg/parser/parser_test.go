@@ -193,8 +193,8 @@ func TestParseClassificationLine(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "empty evidence array",
-			line:    `FAILURE_CLASSIFICATION: {"category":"infrastructure","subcategory":"network","error_code":1003,"evidence":[],"confidence":"low"}`,
+			name: "empty evidence array",
+			line: `FAILURE_CLASSIFICATION: {"category":"infrastructure","subcategory":"network","error_code":1003,"evidence":[],"confidence":"low"}`,
 			want: &types.FailureClassification{
 				Category:    "infrastructure",
 				Subcategory: "network",
