@@ -71,7 +71,7 @@ type TestCase struct {
 	Name           string
 	Package        string
 	Duration       time.Duration
-	FailureOutput  string                  `json:",omitempty"`
-	Time           time.Time               `json:",omitempty"`
-	Classification *FailureClassification  `json:",omitempty"` // Parsed from FAILURE_CLASSIFICATION: JSON output
+	FailureOutput  string                 `json:",omitempty"`
+	Time           time.Time              `json:",omitempty"`
+	Classification *FailureClassification `json:",omitempty"` // Parsed from FAILURE_CLASSIFICATION: JSON output
 }
