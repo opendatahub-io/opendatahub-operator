@@ -418,15 +418,15 @@ deploy: prepare ## Deploy controller to the K8s cluster specified in ~/.kube/con
 
 .PHONY: deploy-rhaii
 deploy-rhaii: prepare ## Deploy controller in rhaii mode (only KServe) to the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build $(RHAII_DEFAULT_CONFIG_DIR) | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
+	$(KUSTOMIZE) build $(RHAII_DEFAULT_CONFIG_DIR) | $(SED_COMMAND) 's/REPLACE_RHAI_VERSION/$(VERSION)/g' | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
 
 .PHONY: deploy-rhaii-local
 deploy-rhaii-local: prepare ## Deploy controller in rhaii mode (only KServe, local image pull policy) to the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build $(RHAII_LOCAL_CONFIG_DIR) | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
+	$(KUSTOMIZE) build $(RHAII_LOCAL_CONFIG_DIR) | $(SED_COMMAND) 's/REPLACE_RHAI_VERSION/$(VERSION)/g' | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
 
 .PHONY: undeploy-rhaii
 undeploy-rhaii: prepare ## Undeploy rhaii controller from the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build $(RHAII_DEFAULT_CONFIG_DIR) | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+	$(KUSTOMIZE) build $(RHAII_DEFAULT_CONFIG_DIR) | $(SED_COMMAND) 's/REPLACE_RHAI_VERSION/$(VERSION)/g' | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: undeploy
 undeploy: prepare ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.

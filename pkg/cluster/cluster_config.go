@@ -25,6 +25,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
 type ClusterInfo struct {
@@ -349,6 +350,18 @@ func getRelease(ctx context.Context, cli client.Client) (common.Release, error) 
 
 	// For unit-tests
 	if os.Getenv("CI") == "true" {
+		return initRelease, nil
+	}
+
+	// If RHAI_VERSION is explicitly configured (via env var or CLI flag),
+	// use it instead of detecting from CSV. This is the primary path on
+	// non-OpenShift clusters where OLM is absent.
+	if rhaiVersion := flags.GetRHAIVersion(); rhaiVersion != "" {
+		v, err := semver.ParseTolerant(rhaiVersion)
+		if err != nil {
+			return initRelease, fmt.Errorf("invalid RHAI_VERSION %q: %w", rhaiVersion, err)
+		}
+		initRelease.Version = version.OperatorVersion{Version: v}
 		return initRelease, nil
 	}
 
