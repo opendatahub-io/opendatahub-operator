@@ -36,6 +36,8 @@ func anyRule() authorizationv1.ResourceRule {
 }
 
 func TestMatchRules(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		resourceGroup string
@@ -95,6 +97,7 @@ func TestMatchRules(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			g := NewWithT(t)
 
 			g.Expect(
@@ -104,6 +107,110 @@ func TestMatchRules(t *testing.T) {
 					test.rule,
 				),
 			).To(test.matcher)
+		})
+	}
+}
+
+func TestHasPermissions(t *testing.T) {
+	t.Parallel()
+
+	podResource := metav1.APIResource{Name: "pods", Namespaced: true, Kind: "Pod"}
+
+	cases := []struct {
+		name          string
+		rules         []authorizationv1.ResourceRule
+		requiredVerbs []string
+		want          bool
+	}{
+		{
+			name: "single verb granted",
+			rules: []authorizationv1.ResourceRule{{
+				Verbs:     []string{"delete"},
+				APIGroups: []string{""},
+				Resources: []string{"pods"},
+			}},
+			requiredVerbs: []string{"delete"},
+			want:          true,
+		},
+		{
+			name: "rule grants more verbs than required",
+			rules: []authorizationv1.ResourceRule{{
+				Verbs:     []string{"list", "delete", "update"},
+				APIGroups: []string{""},
+				Resources: []string{"pods"},
+			}},
+			requiredVerbs: []string{"delete"},
+			want:          true,
+		},
+		{
+			name: "single verb not granted",
+			rules: []authorizationv1.ResourceRule{{
+				Verbs:     []string{"list"},
+				APIGroups: []string{""},
+				Resources: []string{"pods"},
+			}},
+			requiredVerbs: []string{"delete"},
+			want:          false,
+		},
+		{
+			name: "multiple verbs all granted by one rule",
+			rules: []authorizationv1.ResourceRule{{
+				Verbs:     []string{"list", "delete"},
+				APIGroups: []string{""},
+				Resources: []string{"pods"},
+			}},
+			requiredVerbs: []string{"list", "delete"},
+			want:          true,
+		},
+		{
+			name: "multiple verbs only one granted",
+			rules: []authorizationv1.ResourceRule{{
+				Verbs:     []string{"list"},
+				APIGroups: []string{""},
+				Resources: []string{"pods"},
+			}},
+			requiredVerbs: []string{"list", "delete"},
+			want:          false,
+		},
+		{
+			name: "multiple verbs granted by separate rules",
+			rules: []authorizationv1.ResourceRule{
+				{Verbs: []string{"list"}, APIGroups: []string{""}, Resources: []string{"pods"}},
+				{Verbs: []string{"delete"}, APIGroups: []string{""}, Resources: []string{"pods"}},
+			},
+			requiredVerbs: []string{"list", "delete"},
+			want:          true,
+		},
+		{
+			name: "wildcard verb covers all required verbs",
+			rules: []authorizationv1.ResourceRule{{
+				Verbs:     []string{"*"},
+				APIGroups: []string{""},
+				Resources: []string{"pods"},
+			}},
+			requiredVerbs: []string{"list", "delete", "update"},
+			want:          true,
+		},
+		{
+			name:          "empty required verbs returns false",
+			rules:         []authorizationv1.ResourceRule{anyRule()},
+			requiredVerbs: []string{},
+			want:          false,
+		},
+		{
+			name:          "nil required verbs returns false",
+			rules:         []authorizationv1.ResourceRule{anyRule()},
+			requiredVerbs: nil,
+			want:          false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			got := rules.HasPermissions("", podResource, tc.rules, tc.requiredVerbs)
+			g.Expect(got).To(Equal(tc.want))
 		})
 	}
 }
@@ -126,7 +233,7 @@ func newTestResource(group string, version string, kind string, resource string)
 	}
 }
 
-func TestListAuthorizedDeletableResources(t *testing.T) {
+func TestListAuthorizedResources(t *testing.T) {
 	const testNamespace = "test-namespace"
 
 	testCases := []struct {
@@ -136,7 +243,7 @@ func TestListAuthorizedDeletableResources(t *testing.T) {
 		resourcesMatcher gTypes.GomegaMatcher
 	}{
 		{
-			name: "successful retrieval of deletable resources",
+			name: "successful retrieval of authorized resources",
 			apis: []*metav1.APIResourceList{{
 				GroupVersion: "v1",
 				APIResources: []metav1.APIResource{
@@ -162,7 +269,7 @@ func TestListAuthorizedDeletableResources(t *testing.T) {
 			),
 		},
 		{
-			name: "successful filter of deletable resources",
+			name: "successful filter of authorized resources",
 			apis: []*metav1.APIResourceList{{
 				GroupVersion: "v1",
 				APIResources: []metav1.APIResource{
@@ -187,7 +294,7 @@ func TestListAuthorizedDeletableResources(t *testing.T) {
 			),
 		},
 		{
-			name: "no deletable resources by rule",
+			name: "no authorized resources by rule",
 			apis: []*metav1.APIResourceList{{
 				GroupVersion: "v1",
 				APIResources: []metav1.APIResource{
@@ -202,7 +309,7 @@ func TestListAuthorizedDeletableResources(t *testing.T) {
 			resourcesMatcher: BeEmpty(),
 		},
 		{
-			name: "no deletable resources",
+			name: "no authorized resources",
 			apis: []*metav1.APIResourceList{{
 				GroupVersion: "v1",
 				APIResources: []metav1.APIResource{
@@ -253,7 +360,7 @@ func TestListAuthorizedDeletableResources(t *testing.T) {
 				}).
 				Build()
 
-			items, err := rules.ListAuthorizedDeletableResources(ctx, cli, tc.apis, testNamespace)
+			items, err := rules.ListAuthorizedResources(ctx, cli, tc.apis, testNamespace, []string{rules.VerbDelete})
 
 			g.Expect(err).ShouldNot(HaveOccurred())
 			g.Expect(items).Should(tc.resourcesMatcher)
