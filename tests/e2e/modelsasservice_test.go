@@ -66,11 +66,35 @@ func modelsAsServiceTestSuite(t *testing.T) {
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate subcomponent releases", componentCtx.ValidateSubComponentReleases},
+		{"Validate gateway AuthPolicy placement", componentCtx.ValidateGatewayAuthPolicy},
 		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate subcomponent disabled", componentCtx.ValidateSubComponentDisabled},
 	}
 
 	RunTestCases(t, testCases)
+}
+
+// ValidateGatewayAuthPolicy verifies that the gateway-level AuthPolicy is deployed
+// to the gateway namespace (not the application namespace) and has been accepted.
+// This catches mismatches between the GatewayAuthPolicyName constant and the actual
+// manifest resource name, which would leave the AuthPolicy in the wrong namespace
+// and break deny-by-default protection for unconfigured models.
+func (tc *ModelsAsServiceTestCtx) ValidateGatewayAuthPolicy(t *testing.T) {
+	t.Helper()
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.AuthPolicyv1, types.NamespacedName{
+			Name:      modelsasservice.GatewayAuthPolicyName,
+			Namespace: maasGatewayNamespace,
+		}),
+		WithCondition(
+			jq.Match(`.status.conditions[] | select(.type == "Accepted") | .status == "True"`),
+		),
+		WithCustomErrorMsg(
+			"AuthPolicy %s should exist in namespace %s with Accepted status",
+			modelsasservice.GatewayAuthPolicyName, maasGatewayNamespace,
+		),
+	)
 }
 
 // createMaaSPostgres creates a minimal PostgreSQL instance and the maas-db-config secret
