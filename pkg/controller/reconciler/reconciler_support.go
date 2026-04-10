@@ -20,6 +20,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dynamicownership"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
@@ -260,6 +261,10 @@ func (b *ReconcilerBuilder[T]) WithDynamicOwnership(opts ...DynamicOwnershipOpti
 	for _, opt := range opts {
 		opt(cfg)
 	}
+
+	// Namespaces are always excluded: setting owner references on a Namespace
+	// causes cascade deletion of the entire namespace when the CR is deleted.
+	b.excludeFromOwnership = append(b.excludeFromOwnership, gvk.Namespace)
 	b.excludeFromOwnership = append(b.excludeFromOwnership, cfg.excludeGVKs...)
 	b.dynamicOwnershipGVKPreds = cfg.gvkPredicates
 

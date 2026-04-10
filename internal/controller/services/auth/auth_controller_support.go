@@ -9,6 +9,7 @@ const (
 	AdminGroupMaaSRoleTemplate      = "resources/data-science-admingroup-maas-role.tmpl.yaml"
 	AdminGroupClusterRoleTemplate   = "resources/data-science-admingroup-clusterrole.tmpl.yaml"
 	AllowedGroupClusterRoleTemplate = "resources/data-science-allowedgroup-clusterrole.tmpl.yaml"
+	AdminGroupKuadrantRoleTemplate  = "resources/data-science-admingroup-kuadrant-role.tmpl.yaml"
 )
 
 //go:embed resources
