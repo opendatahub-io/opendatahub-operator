@@ -121,6 +121,62 @@ The currently used accessory controllers are listed below:
   - handles the cleanup logic itself.
   - controller implementation located in `internal/controller/services/setup`.
 
+## Trusted CA Bundle
+
+The ODH operator provides a mechanism for configuring custom CA certificates that components can use to trust self-signed or enterprise Certificate Authorities. This is particularly useful for features like external OIDC authentication where the identity provider may use a custom CA.
+
+### How it works
+
+1. **User Configuration**: Administrators configure custom CA certificates in the `DSCInitialization` CR:
+
+```yaml
+apiVersion: dscinitialization.opendatahub.io/v2
+kind: DSCInitialization
+metadata:
+  name: default-dsci
+spec:
+  trustedCABundle:
+    managementState: Managed
+    customCABundle: |
+      -----BEGIN CERTIFICATE-----
+      MIIDXTCCAkWgAwIBAgIJAKZ... (your CA certificate)
+      -----END CERTIFICATE-----
+```
+
+2. **ConfigMap Generation**: The Cert ConfigMap Generator controller watches the DSCI and creates an `odh-trusted-ca-bundle` ConfigMap in every active, non-reserved namespace. This ConfigMap contains:
+   - The cluster-wide trusted CA bundle (from OpenShift's `openshift-config/user-ca-bundle` if present)
+   - The custom CA bundle from `DSCInitialization.spec.trustedCABundle.customCABundle`
+
+3. **Component Integration**: Components that need to trust custom CAs can mount this ConfigMap. The operator does **not** automatically configure all components - each component or external dependency must be configured manually.
+
+### Example: Configuring Authorino for External OIDC
+
+When using external OIDC authentication with a custom CA (e.g., self-signed Keycloak), you must manually configure the Authorino CR to mount the CA bundle:
+
+```yaml
+apiVersion: operator.authorino.kuadrant.io/v1beta1
+kind: Authorino
+metadata:
+  name: authorino
+  namespace: kuadrant-system
+spec:
+  volumes:
+    items:
+    - name: odh-trusted-ca-bundle
+      mountPath: /etc/ssl/certs/odh-trusted-ca-bundle
+      configMaps:
+      - odh-trusted-ca-bundle
+```
+
+The `odh-trusted-ca-bundle` ConfigMap will be available in the `kuadrant-system` namespace (and all other active, non-reserved namespaces) automatically once DSCI's `trustedCABundle` is configured.
+
+### Important Notes
+
+- The `odh-trusted-ca-bundle` ConfigMap is automatically created in **all active, non-reserved namespaces** by the certconfigmapgenerator controller
+- Components and external operators (like Authorino) must be **manually configured** to mount and use this ConfigMap
+- The operator does not automatically modify external CRs (e.g., Authorino, Istio) to use the CA bundle
+- If `trustedCABundle.managementState` is set to `Removed`, the ConfigMaps will be deleted from all active, non-reserved namespaces
+
 ## Examples
 
 1. Enable all components in DataScienceCluster
