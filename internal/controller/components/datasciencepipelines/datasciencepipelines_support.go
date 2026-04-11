@@ -52,6 +52,7 @@ var (
 		"IMAGES_TOOLBOX":                 "RELATED_IMAGE_DSP_TOOLBOX_IMAGE",
 		"IMAGES_RHELAI":                  "RELATED_IMAGE_DSP_INSTRUCTLAB_NVIDIA_IMAGE",
 		"kube-rbac-proxy":                "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
+		"IMAGES_PIPELINES_COMPONENTS":    "RELATED_IMAGE_ODH_PIPELINES_COMPONENTS_IMAGE",
 	}
 
 	overlaysSourcePaths = map[common.Platform]string{
