@@ -41,6 +41,13 @@ func AddOperatorFlagsAndEnvvars(envvarPrefix string) error {
 		return err
 	}
 
+	pflag.String("rhai-version", "",
+		"The operator version to report. When set, overrides CSV-based version detection. "+
+			"Must be a valid semver string (e.g. 3.4.0).")
+	if err := viper.BindEnv("rhai-version", "RHAI_VERSION"); err != nil {
+		return err
+	}
+
 	// zap logging flags
 	// these are taken from https://github.com/kubernetes-sigs/controller-runtime/blob/4161b012d114e6c1ea861fd8afcebf7ba2417b49/pkg/log/zap/zap.go#L255
 	// and need to be kept in sync.
@@ -106,4 +113,10 @@ func ParseZapFlags(zapFlagSet *flag.FlagSet, zapDevel bool, zapEncoder string, z
 // with surrounding whitespace trimmed.
 func GetRHAIApplicationsNamespace() string {
 	return strings.TrimSpace(viper.GetString("rhai-applications-namespace"))
+}
+
+// GetRHAIVersion returns the configured RHAI version,
+// with surrounding whitespace trimmed.
+func GetRHAIVersion() string {
+	return strings.TrimSpace(viper.GetString("rhai-version"))
 }
