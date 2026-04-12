@@ -424,7 +424,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		if err = (&dscictrl.DSCInitializationReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
-			Recorder: mgr.GetEventRecorderFor("dscinitialization-controller"),
+			Recorder: mgr.GetEventRecorder("dscinitialization-controller"),
 		}).SetupWithManager(ctx, mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "DSCInitiatlization")
 			os.Exit(1)
