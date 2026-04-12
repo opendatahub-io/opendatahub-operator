@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"text/template"
 
@@ -15,11 +16,30 @@ type TemplateData struct {
 }
 
 func generateFilesFromTemplate(logger *logrus.Logger, componentName string, p PathConfig) error {
+	validComponentName, err := regexp.MatchString(`^[A-Za-z][A-Za-z0-9]*$`, componentName)
+	if err != nil {
+		return fmt.Errorf("error validating component name: %w", err)
+	}
+	if !validComponentName {
+		return fmt.Errorf("invalid component name: %s", componentName)
+	}
+
 	suffix := p.Suffix
 	outputPath := strings.ToLower(p.OutputPath)
 	templatePath := p.TemplatePath
 	componentFileName := strings.ToLower(componentName) + suffix
 	op := filepath.Join(outputPath, componentFileName)
+
+	cleanOutputPath := filepath.Clean(outputPath)
+	cleanOp := filepath.Clean(op)
+	relPath, err := filepath.Rel(cleanOutputPath, cleanOp)
+	if err != nil {
+		return fmt.Errorf("error resolving output path: %w", err)
+	}
+	if relPath == ".." || strings.HasPrefix(relPath, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("invalid output path: %s", op)
+	}
+
 	if fileExists(op) {
 		logger.Warnf("File already exists: %s", op)
 		return nil
