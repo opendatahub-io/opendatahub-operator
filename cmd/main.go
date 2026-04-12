@@ -64,6 +64,8 @@ import (
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
+
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
@@ -175,6 +177,7 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(securityv1.Install(scheme))
 	utilruntime.Must(templatev1.Install(scheme))
 	utilruntime.Must(gwapiv1.Install(scheme))
+	utilruntime.Must(maasv1alpha1.AddToScheme(scheme))
 }
 
 func initComponents(_ context.Context, p common.Platform, cfg operatorconfig.OperatorSettings) error {
