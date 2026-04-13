@@ -8,6 +8,7 @@ import (
 	"github.com/onsi/gomega"
 	gomegaTypes "github.com/onsi/gomega/types"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -127,7 +128,10 @@ func (t *WithT) List(
 
 			err := t.Client().List(ctx, &items, option...)
 			if err != nil {
-				return nil, StopErr(err, "failed to list resource: %s", gvk)
+				if meta.IsNoMatchError(err) {
+					return nil, err
+				}
+				return nil, StopErr(err, "failed to list resources: %s", gvk)
 			}
 
 			return items.Items, nil
@@ -162,6 +166,10 @@ func (t *WithT) Get(
 			switch {
 			case k8serr.IsNotFound(err):
 				return nil, nil
+			case meta.IsNoMatchError(err):
+				// Do not use StopErr for NoMatchError, as it may be a temporary issue or expected in some environments (e.g. KinD)
+				// The caller should decide how to handle it.
+				return nil, err
 			case err != nil:
 				return nil, StopErr(err, "failed to get resource: %s, nn: %s", gvk, nn.String())
 			default:

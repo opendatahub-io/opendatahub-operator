@@ -619,6 +619,9 @@ func (tc *TestContext) FetchActualSubscription(nn types.NamespacedName) (*ofapi.
 		WithCustomErrorMsg("Failed to fetch Subscription %s/%s", nn.Namespace, nn.Name),
 	))
 	if err != nil {
+		if meta.IsNoMatchError(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	if subU == nil {
@@ -776,6 +779,29 @@ func (tc *TestContext) EnsureCRDEstablished(name string) {
 				"Status": Equal(apiextv1.ConditionTrue),
 			}),
 		), "Expected CRD condition 'Established' to be True for CRD %s", name)
+}
+
+// CheckComponentResourceExistsOrNotWithKind validates if a component resource's state and readiness match the expected values.
+func (tc *TestContext) CheckComponentResourceExistsOrNotWithKind(shouldExist bool, gvk schema.GroupVersionKind) {
+	instanceName := "default-" + strings.ToLower(gvk.Kind)
+
+	// Check if the component CR exists or not depending on the shouldExist flag
+	if shouldExist {
+		// Define common conditions to match when the component cr should exist
+		existConditions := []gTypes.GomegaMatcher{
+			// Validate the "Ready" condition for the component CR
+			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue),
+		}
+		// Check if the component CR exists with the specified conditions
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk, types.NamespacedName{Name: instanceName}),
+			WithCondition(And(existConditions...)))
+	} else {
+		// Check if the component CR does not exist
+		tc.EnsureResourceDoesNotExist(
+			WithMinimalObject(gvk, types.NamespacedName{Name: instanceName}),
+		)
+	}
 }
 
 // UpdateComponentStateInDataScienceClusterWithKind updates the management state of a specified component kind in the DataScienceCluster.
@@ -1262,6 +1288,9 @@ func (tc *TestContext) FetchActualClusterServiceVersion(nn types.NamespacedName)
 		WithCustomErrorMsg("Failed to fetch CSV %s/%s", nn.Namespace, nn.Name),
 	))
 	if err != nil {
+		if meta.IsNoMatchError(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	if csvU == nil {
@@ -1334,6 +1363,23 @@ func (tc *TestContext) FetchDataScienceCluster() *dscv2.DataScienceCluster {
 	tc.FetchTypedResource(dsc, WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName))
 
 	return dsc
+}
+
+// IsOpenshift checks if the cluster is Openshift or not
+//
+//	Returns:
+//	  - bool: True if the cluster is Openshift, false otherwise.
+func (tc *TestContext) IsOpenshift() bool {
+	return cluster.GetClusterInfo().Type != cluster.ClusterTypeKubernetes
+}
+
+// SkipIfNonOpenshiftCluster is used to skip a test if the cluster where its being executed is non-Openshift.
+func (tc *ComponentTestCtx) SkipIfNonOpenshiftCluster(t *testing.T) {
+	t.Helper()
+
+	if !tc.IsOpenshift() {
+		t.Skip("Skipping test because it requires an OpenShift cluster")
+	}
 }
 
 // FetchResource ensures a Kubernetes resource exists and retrieves it as an Unstructured object.
@@ -1546,7 +1592,6 @@ func (tc *TestContext) UninstallOperator(operatorNamespacedName types.Namespaced
 		return
 	}
 	if sub == nil {
-		// Subscription doesn't exist, nothing to uninstall
 		return
 	}
 
