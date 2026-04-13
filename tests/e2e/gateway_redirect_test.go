@@ -120,9 +120,10 @@ func (tc *GatewayTestCtx) ValidateDashboardRedirectDeployment(t *testing.T) {
 			// Ports
 			jq.Match(`.spec.template.spec.containers[0].ports[] | select(.name == "http") | .containerPort == 8080`),
 
-			// Volume mounts - ConfigMap must be mounted at specific path
-			jq.Match(`.spec.template.spec.containers[0].volumeMounts[] | select(.name == "redirect-config") | .mountPath == "/opt/app-root/etc/nginx.default.d/redirect.conf"`),
-			jq.Match(`.spec.template.spec.containers[0].volumeMounts[] | select(.name == "redirect-config") | .subPath == "redirect.conf"`),
+			// Volume mounts - ConfigMap must be mounted at specific paths
+			jq.Match(`.spec.template.spec.containers[0].volumeMounts[] | select(.name == "redirect-config" and .subPath == "nginx.conf") | .mountPath == "/etc/nginx/nginx.conf"`),
+			jq.Match(`.spec.template.spec.containers[0].volumeMounts[] | select(.name == "redirect-config" and .subPath == "redirect.conf")`+
+				` | .mountPath == "/opt/app-root/etc/nginx.default.d/redirect.conf"`),
 
 			// Volumes
 			jq.Match(`.spec.template.spec.volumes[] | select(.name == "redirect-config") | .configMap.name == "%s"`, gateway.DashboardRedirectConfigName),

@@ -267,6 +267,15 @@ func CreatedOrUpdatedOrDeletedNamed(name string) predicate.Predicate {
 	}
 }
 
+func CreatedOrUpdatedOrDeletedNamedInNamespace(name, namespace string) predicate.Predicate {
+	return predicate.And(
+		CreatedOrUpdatedOrDeletedNamed(name),
+		predicate.NewPredicateFuncs(func(obj client.Object) bool {
+			return obj.GetNamespace() == namespace
+		}),
+	)
+}
+
 func CreatedOrUpdatedOrDeletedNamePrefixed(namePrefix string) predicate.Predicate {
 	return predicate.Funcs{
 		CreateFunc: func(e event.TypedCreateEvent[client.Object]) bool {
