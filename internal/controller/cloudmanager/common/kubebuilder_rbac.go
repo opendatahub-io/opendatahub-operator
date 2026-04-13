@@ -12,11 +12,6 @@ package common
 
 // +kubebuilder:rbac:groups="coordination.k8s.io",resources=leases,verbs=get;list;watch;create;update;patch;delete
 
-// Events
-// TODO: this should be removed once controller-runtime >= 0.23.0
-// +kubebuilder:rbac:groups="core",resources=events,verbs=get;create;watch;update;list;patch
-// +kubebuilder:rbac:groups="events.k8s.io",resources=events,verbs=list;watch;patch;get
-
 // RBAC
 // +kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=roles,verbs=create;watch;list
 // +kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=clusterroles,verbs=create;watch;list;get;
