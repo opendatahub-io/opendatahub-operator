@@ -1096,7 +1096,7 @@ func syncPrometheusWebTLSCA(ctx context.Context, rr *odhtypes.ReconciliationRequ
 	}
 
 	// Apply the secret using server-side apply (create or update)
-	opts := []client.PatchOption{
+	opts := []client.ApplyOption{
 		client.ForceOwnership,
 		client.FieldOwner(resources.PlatformFieldOwner),
 	}
