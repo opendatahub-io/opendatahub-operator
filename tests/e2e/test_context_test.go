@@ -1070,6 +1070,10 @@ func (tc *TestContext) waitForDeletionBestEffort(gvk schema.GroupVersionKind, nn
 		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
 			return // Resource is gone
 		}
+		if err != nil {
+			tc.Logf("cleanup: unexpected error polling for deletion of %s %s: %v", gvk, nn, err)
+			return
+		}
 		time.Sleep(interval)
 	}
 	tc.Logf("cleanup: timed out waiting for %s %s to be deleted", gvk, nn)
