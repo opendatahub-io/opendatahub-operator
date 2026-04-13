@@ -75,6 +75,21 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(predicates.DefaultDeploymentPredicate)).
 		Owns(&securityv1.SecurityContextConstraints{}).
 
+		// Watch Nodes so that newly added or relabeled nodes trigger
+		// reconciliation of labelModelCacheNodes.
+		Watches(
+			&corev1.Node{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.KserveInstanceName),
+			),
+			reconciler.WithPredicates(
+				predicate.Or(
+					predicate.GenerationChangedPredicate{},
+					predicate.LabelChangedPredicate{},
+				),
+			),
+		).
+
 		// The ovms template gets a new resourceVersion periodically without any other
 		// changes. The compareHashPredicate ensures that we don't needlessly enqueue
 		// requests if there are no changes that we don't care about.

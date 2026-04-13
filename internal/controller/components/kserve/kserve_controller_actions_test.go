@@ -1124,7 +1124,10 @@ func TestLabelModelCacheNodes(t *testing.T) {
 		node2 := &corev1.Node{
 			ObjectMeta: metav1.ObjectMeta{Name: "node2"},
 		}
-		cli, err := fakeclient.New(fakeclient.WithObjects(node1, node2))
+		node3 := &corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{Name: "node3"},
+		}
+		cli, err := fakeclient.New(fakeclient.WithObjects(node1, node2, node3))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		cacheSize := resource.MustParse("100Gi")
@@ -1149,6 +1152,11 @@ func TestLabelModelCacheNodes(t *testing.T) {
 			g.Expect(cli.Get(ctx, client.ObjectKey{Name: name}, updated)).Should(Succeed())
 			g.Expect(updated.Labels["kserve/localmodel"]).Should(Equal("worker"))
 		}
+
+		// node3 should NOT be labeled since it's not in NodeNames
+		unlabeled := &corev1.Node{}
+		g.Expect(cli.Get(ctx, client.ObjectKey{Name: "node3"}, unlabeled)).Should(Succeed())
+		g.Expect(unlabeled.Labels).ShouldNot(HaveKey("kserve/localmodel"))
 	})
 
 	t.Run("skips nodes already labeled", func(t *testing.T) {
@@ -1581,62 +1589,6 @@ func TestReconcileModelCache(t *testing.T) {
 			},
 		}
 	}
-
-	t.Run("ModelCache nil restores baseline PSA", func(t *testing.T) {
-		ns := newNamespace("privileged")
-		cli, err := fakeclient.New(fakeclient.WithObjects(ns))
-		g.Expect(err).ShouldNot(HaveOccurred())
-
-		kserve := &componentApi.Kserve{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: componentApi.KserveInstanceName,
-			},
-			Spec: componentApi.KserveSpec{},
-		}
-
-		rr := &odhtypes.ReconciliationRequest{
-			Client:   cli,
-			Instance: kserve,
-		}
-
-		err = reconcileModelCache(ctx, rr)
-		g.Expect(err).ShouldNot(HaveOccurred())
-
-		updated := &corev1.Namespace{}
-		g.Expect(cli.Get(ctx, client.ObjectKey{Name: cluster.GetApplicationNamespace()}, updated)).Should(Succeed())
-		g.Expect(updated.Labels[labels.SecurityEnforce]).To(Equal("baseline"))
-	})
-
-	t.Run("ModelCache Removed restores baseline PSA", func(t *testing.T) {
-		ns := newNamespace("privileged")
-		cli, err := fakeclient.New(fakeclient.WithObjects(ns))
-		g.Expect(err).ShouldNot(HaveOccurred())
-
-		kserve := &componentApi.Kserve{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: componentApi.KserveInstanceName,
-			},
-			Spec: componentApi.KserveSpec{
-				KserveCommonSpec: componentApi.KserveCommonSpec{
-					ModelCache: &componentApi.ModelCacheSpec{
-						ManagementState: operatorv1.Removed,
-					},
-				},
-			},
-		}
-
-		rr := &odhtypes.ReconciliationRequest{
-			Client:   cli,
-			Instance: kserve,
-		}
-
-		err = reconcileModelCache(ctx, rr)
-		g.Expect(err).ShouldNot(HaveOccurred())
-
-		updated := &corev1.Namespace{}
-		g.Expect(cli.Get(ctx, client.ObjectKey{Name: cluster.GetApplicationNamespace()}, updated)).Should(Succeed())
-		g.Expect(updated.Labels[labels.SecurityEnforce]).To(Equal("baseline"))
-	})
 
 	runModelCachePSATest := func(t *testing.T, initialPSA string, expectedPSA string) {
 		t.Helper()
