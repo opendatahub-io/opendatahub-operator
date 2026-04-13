@@ -23,9 +23,11 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
@@ -58,29 +60,29 @@ func (s *componentHandler) Init(_ common.Platform, cfg operatorconfig.OperatorSe
 	return nil
 }
 
-// NewCRObject constructs a new ModelsAsService Custom Resource.
+// NewCRObject constructs the cluster MaaSTenant singleton (wrapped for common.PlatformObject).
 func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
-	// Extract ModelsAsService configuration from KServe component in DSC
 	maasConfig := dsc.Spec.Components.Kserve.ModelsAsService
 
-	// Determine management state from the DSC configuration
 	managementState := operatorv1.Removed
 	if maasConfig.ManagementState == operatorv1.Managed {
 		managementState = maasConfig.ManagementState
 	}
 
-	return &componentApi.ModelsAsService{
+	tenant := &maasv1alpha1.MaaSTenant{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       componentApi.ModelsAsServiceKind,
-			APIVersion: componentApi.GroupVersion.String(),
+			APIVersion: maasv1alpha1.GroupVersion.String(),
+			Kind:       maasv1alpha1.MaaSTenantKind,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: componentApi.ModelsAsServiceInstanceName,
+			Name: maasv1alpha1.MaaSTenantInstanceName,
 			Annotations: map[string]string{
 				annotations.ManagementStateAnnotation: string(managementState),
 			},
 		},
-	}, nil
+	}
+
+	return &MaaSTenantPlatform{MaaSTenant: tenant}, nil
 }
 
 // IsEnabled checks if the ModelsAsService component should be deployed.
@@ -97,14 +99,14 @@ func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
 	return dsc.Spec.Components.Kserve.ModelsAsService.ManagementState == operatorv1.Managed
 }
 
-// UpdateDSCStatus updates the ModelsAsService component status in the DataScienceCluster.
+// UpdateDSCStatus updates the ModelsAsService component status in the DataScienceCluster from MaaSTenant.
 func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
 	cs := metav1.ConditionUnknown
 
-	c := componentApi.ModelsAsService{}
-	c.Name = componentApi.ModelsAsServiceInstanceName
+	t := maasv1alpha1.MaaSTenant{}
+	t.Name = maasv1alpha1.MaaSTenantInstanceName
 
-	if err := rr.Client.Get(ctx, client.ObjectKeyFromObject(&c), &c); err != nil && !k8serr.IsNotFound(err) {
+	if err := rr.Client.Get(ctx, client.ObjectKeyFromObject(&t), &t); err != nil && !k8serr.IsNotFound(err) {
 		return cs, nil
 	}
 
@@ -115,7 +117,7 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
-	if !c.GetDeletionTimestamp().IsZero() {
+	if !t.GetDeletionTimestamp().IsZero() {
 		rr.Conditions.MarkFalse(
 			ReadyConditionType,
 			conditions.WithReason(status.DeletingReason),
@@ -125,8 +127,8 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	}
 
 	if s.IsEnabled(dsc) {
-		if rc := conditions.FindStatusCondition(c.GetStatus(), status.ConditionTypeReady); rc != nil {
-			rr.Conditions.MarkFrom(ReadyConditionType, *rc)
+		if rc := apimeta.FindStatusCondition(t.Status.Conditions, status.ConditionTypeReady); rc != nil {
+			rr.Conditions.MarkFrom(ReadyConditionType, metav1ConditionToCommon(*rc))
 			cs = rc.Status
 		} else {
 			cs = metav1.ConditionFalse

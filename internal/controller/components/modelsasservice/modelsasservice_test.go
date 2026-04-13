@@ -10,6 +10,7 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
@@ -42,18 +43,18 @@ func TestNewCRObject(t *testing.T) {
 		cr, err := handler.NewCRObject(context.Background(), nil, dsc)
 		g.Expect(err).To(Succeed())
 		g.Expect(cr).ShouldNot(BeNil())
-		g.Expect(cr).Should(BeAssignableToTypeOf(&componentApi.ModelsAsService{}))
+		g.Expect(cr).Should(BeAssignableToTypeOf(&MaaSTenantPlatform{}))
 
-		// GatewayRef defaults are applied by API server (kubebuilder) or during reconciliation (validateGateway)
+		// json.Marshal flattens embedded *MaaSTenant fields alongside the wrapper's `bridge` field.
 		g.Expect(cr).Should(WithTransform(json.Marshal, And(
-			jq.Match(`.metadata.name == "%s"`, componentApi.ModelsAsServiceInstanceName),
-			jq.Match(`.kind == "%s"`, componentApi.ModelsAsServiceKind),
-			jq.Match(`.apiVersion == "%s"`, componentApi.GroupVersion),
+			jq.Match(`.metadata.name == "%s"`, maasv1alpha1.MaaSTenantInstanceName),
+			jq.Match(`.kind == "%s"`, maasv1alpha1.MaaSTenantKind),
+			jq.Match(`.apiVersion == "%s"`, maasv1alpha1.GroupVersion.String()),
 			jq.Match(`.metadata.annotations["%s"] == "%s"`, annotations.ManagementStateAnnotation, operatorv1.Managed),
 		)))
 	})
 
-	t.Run("propagates management state from DSC to ModelsAsService annotations", func(t *testing.T) {
+	t.Run("propagates management state from DSC to MaaSTenant annotations", func(t *testing.T) {
 		testCases := []struct {
 			name                    string
 			inputManagementState    operatorv1.ManagementState
@@ -110,7 +111,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		ctx := t.Context()
 
 		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
-		cr := createModelsAsServiceCR(true)
+		cr := createMaaSTenantCR(true)
 		now := metav1.Now()
 		cr.SetDeletionTimestamp(&now)
 		cr.SetFinalizers([]string{"test-finalizer"})
@@ -134,12 +135,12 @@ func TestUpdateDSCStatus(t *testing.T) {
 		)))
 	})
 
-	t.Run("should handle enabled component with ready ModelsAsService CR", func(t *testing.T) {
+	t.Run("should handle enabled component with ready MaaSTenant CR", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
 		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
-		cr := createModelsAsServiceCR(true)
+		cr := createMaaSTenantCR(true)
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, cr))
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -197,26 +198,29 @@ func createDSCWithKServeAndMaaS(kserveState, maasState operatorv1.ManagementStat
 	return &dsc
 }
 
-func createModelsAsServiceCR(ready bool) *componentApi.ModelsAsService {
-	c := componentApi.ModelsAsService{}
-	c.SetGroupVersionKind(gvk.ModelsAsService)
-	c.SetName(componentApi.ModelsAsServiceInstanceName)
-
+func createMaaSTenantCR(ready bool) *maasv1alpha1.MaaSTenant {
+	c := &maasv1alpha1.MaaSTenant{}
+	c.SetName(maasv1alpha1.MaaSTenantInstanceName)
+	c.APIVersion = maasv1alpha1.GroupVersion.String()
+	c.Kind = maasv1alpha1.MaaSTenantKind
+	now := metav1.Now()
 	if ready {
-		c.Status.Conditions = []common.Condition{{
-			Type:    status.ConditionTypeReady,
-			Status:  metav1.ConditionTrue,
-			Reason:  status.ReadyReason,
-			Message: "Component is ready",
+		c.Status.Conditions = []metav1.Condition{{
+			Type:               status.ConditionTypeReady,
+			Status:             metav1.ConditionTrue,
+			Reason:             status.ReadyReason,
+			Message:            "Component is ready",
+			LastTransitionTime: now,
 		}}
 	} else {
-		c.Status.Conditions = []common.Condition{{
-			Type:    status.ConditionTypeReady,
-			Status:  metav1.ConditionFalse,
-			Reason:  status.NotReadyReason,
-			Message: "Component is not ready",
+		c.Status.Conditions = []metav1.Condition{{
+			Type:               status.ConditionTypeReady,
+			Status:             metav1.ConditionFalse,
+			Reason:             status.NotReadyReason,
+			Message:            "Component is not ready",
+			LastTransitionTime: now,
 		}}
 	}
 
-	return &c
+	return c
 }
