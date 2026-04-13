@@ -328,6 +328,11 @@ package datasciencecluster
 // +kubebuilder:rbac:groups=mlflow.opendatahub.io,resources=mlflows/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=mlflow.opendatahub.io,resources=mlflows/finalizers,verbs=update
 
+// MaaSTenant (DSC materialization; platform reconcile in maas-controller)
+// +kubebuilder:rbac:groups=maas.opendatahub.io,resources=maastenants,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=maas.opendatahub.io,resources=maastenants/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=maas.opendatahub.io,resources=maastenants/finalizers,verbs=update;patch
+
 // Models-as-a-Service
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=modelsasservices,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=modelsasservices/status,verbs=get;update;patch
