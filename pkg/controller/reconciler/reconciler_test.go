@@ -23,7 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -62,7 +62,7 @@ func createReconciler(cli client.Client) *Reconciler {
 		Scheme:   cli.Scheme(),
 		Log:      ctrl.Log.WithName("controllers").WithName("test"),
 		Release:  cluster.GetRelease(),
-		Recorder: record.NewFakeRecorder(100),
+		Recorder: events.NewFakeRecorder(100),
 		name:     "test",
 		instanceFactory: func() (common.PlatformObject, error) {
 			i := &componentApi.Dashboard{

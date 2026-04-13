@@ -272,9 +272,22 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	// Get operator platform
+	// Validate RHAI_VERSION: required on XKS (no OLM/CSV), must not be set on OpenShift.
+	rhaiVersion := flags.GetRHAIVersion()
 	release := cluster.GetRelease()
 	platform := release.Name
+
+	switch {
+	case platform == cluster.XKS && rhaiVersion == "":
+		setupLog.Error(errors.New("RHAI_VERSION must be set when platform is XKS"), "invalid configuration")
+		os.Exit(1)
+	case platform != cluster.XKS && rhaiVersion != "":
+		setupLog.Error(fmt.Errorf(
+			"RHAI_VERSION (%q) must not be set when platform is not XKS; version is detected from CSV",
+			rhaiVersion,
+		), "invalid configuration")
+		os.Exit(1)
+	}
 
 	if err := initServices(ctx, platform); err != nil {
 		setupLog.Error(err, "unable to init services")
@@ -411,7 +424,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		if err = (&dscictrl.DSCInitializationReconciler{
 			Client:   mgr.GetClient(),
 			Scheme:   mgr.GetScheme(),
-			Recorder: mgr.GetEventRecorderFor("dscinitialization-controller"),
+			Recorder: mgr.GetEventRecorder("dscinitialization-controller"),
 		}).SetupWithManager(ctx, mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "DSCInitiatlization")
 			os.Exit(1)

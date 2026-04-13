@@ -12,7 +12,7 @@ import (
 // RegisterWebhooks registers the webhooks for DataScienceCluster v1.
 func RegisterWebhooks(mgr ctrl.Manager) error {
 	// Register the conversion webhook
-	if err := ctrl.NewWebhookManagedBy(mgr).For(&dscv1.DataScienceCluster{}).Complete(); err != nil {
+	if err := ctrl.NewWebhookManagedBy(mgr, &dscv1.DataScienceCluster{}).Complete(); err != nil {
 		return err
 	}
 

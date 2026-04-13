@@ -543,7 +543,7 @@ func Apply(ctx context.Context, cli client.Client, in client.Object, opts ...cli
 	unstructured.RemoveNestedField(u.Object, "metadata", "resourceVersion")
 	unstructured.RemoveNestedField(u.Object, "status")
 
-	err = cli.Patch(ctx, u, client.Apply, opts...)
+	err = cli.Patch(ctx, u, client.Apply, opts...) //nolint:staticcheck // TODO: migrate to cli.Apply() with client.ApplyOption once all callers are updated
 	if err != nil {
 		// Include GVK and namespace/name for debugging context without logging sensitive object data
 		objRef := FormatObjectReference(u)
@@ -594,7 +594,7 @@ func ApplyStatus(ctx context.Context, cli client.Client, in client.Object, opts 
 	unstructured.RemoveNestedField(u.Object, "metadata", "managedFields")
 	unstructured.RemoveNestedField(u.Object, "metadata", "resourceVersion")
 
-	err = cli.Status().Patch(ctx, u, client.Apply, opts...)
+	err = cli.Status().Patch(ctx, u, client.Apply, opts...) //nolint:staticcheck // TODO: migrate to cli.Status().Apply() once all callers updated
 	switch {
 	case k8serr.IsNotFound(err): // Cannot be removed like in Apply func because reconciler_finalizer_test.go would then throw an error, needs extensive test rewrite
 		return nil

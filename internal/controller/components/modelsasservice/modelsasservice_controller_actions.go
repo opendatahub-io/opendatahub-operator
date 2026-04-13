@@ -230,6 +230,122 @@ func configureDestinationRule(log logr.Logger, resource *unstructured.Unstructur
 	resource.SetNamespace(gatewayNamespace)
 }
 
+// configureExternalOIDC is a post-render action that patches the maas-api AuthPolicy
+// to add external OIDC JWT authentication when spec.externalOIDC is configured.
+// When externalOIDC is nil, the AuthPolicy is left unchanged (base: API keys + OpenShift).
+func configureExternalOIDC(ctx context.Context, rr *types.ReconciliationRequest) error {
+	log := logf.FromContext(ctx)
+
+	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
+	}
+
+	if maas.Spec.ExternalOIDC == nil {
+		return nil
+	}
+
+	oidc := maas.Spec.ExternalOIDC
+	log.V(4).Info("Configuring external OIDC on maas-api AuthPolicy",
+		"issuerUrl", oidc.IssuerURL, "clientId", oidc.ClientID)
+
+	for idx := range rr.Resources {
+		resource := &rr.Resources[idx]
+		if resource.GroupVersionKind() == gvk.AuthPolicyv1 && resource.GetName() == MaaSAPIAuthPolicyName {
+			return patchAuthPolicyWithOIDC(log, resource, oidc)
+		}
+	}
+
+	log.V(1).Info("maas-api AuthPolicy not found in rendered resources, skipping OIDC configuration",
+		"expectedName", MaaSAPIAuthPolicyName)
+	return nil
+}
+
+// patchAuthPolicyWithOIDC adds OIDC authentication, authorization, and response
+// header rules to the maas-api AuthPolicy.
+func patchAuthPolicyWithOIDC(log logr.Logger, resource *unstructured.Unstructured, oidc *componentApi.ExternalOIDCConfig) error {
+	ttl := int64(oidc.TTL)
+	if ttl == 0 {
+		ttl = 300
+	}
+
+	// Add oidc-identities authentication (priority 1, JWT validation)
+	if err := unstructured.SetNestedField(resource.Object, map[string]interface{}{
+		"when": []interface{}{
+			map[string]interface{}{
+				"predicate": `!request.headers.authorization.startsWith("Bearer sk-oai-") && request.headers.authorization.matches("^Bearer [^.]+\\.[^.]+\\.[^.]+$")`,
+			},
+		},
+		"jwt": map[string]interface{}{
+			"issuerUrl": oidc.IssuerURL,
+			"ttl":       ttl,
+		},
+		"priority": int64(1),
+	}, "spec", "rules", "authentication", "oidc-identities"); err != nil {
+		return fmt.Errorf("failed to set oidc-identities: %w", err)
+	}
+
+	// Bump openshift-identities priority to 2 (OIDC takes priority 1)
+	if err := unstructured.SetNestedField(resource.Object, int64(2),
+		"spec", "rules", "authentication", "openshift-identities", "priority"); err != nil {
+		return fmt.Errorf("failed to set openshift-identities priority: %w", err)
+	}
+
+	// Add when clause to openshift-identities to skip for API key tokens
+	if err := unstructured.SetNestedField(resource.Object, []interface{}{
+		map[string]interface{}{
+			"predicate": `!request.headers.authorization.startsWith("Bearer sk-oai-")`,
+		},
+	}, "spec", "rules", "authentication", "openshift-identities", "when"); err != nil {
+		return fmt.Errorf("failed to set openshift-identities when: %w", err)
+	}
+
+	// Add oidc-client-bound authorization (azp claim must match clientId)
+	if err := unstructured.SetNestedField(resource.Object, map[string]interface{}{
+		"when": []interface{}{
+			map[string]interface{}{
+				"predicate": `!request.headers.authorization.startsWith("Bearer sk-oai-") && request.headers.authorization.matches("^Bearer [^.]+\\.[^.]+\\.[^.]+$")`,
+			},
+		},
+		"patternMatching": map[string]interface{}{
+			"patterns": []interface{}{
+				map[string]interface{}{
+					"selector": "auth.identity.azp",
+					"operator": "eq",
+					"value":    oidc.ClientID,
+				},
+			},
+		},
+		"priority": int64(1),
+	}, "spec", "rules", "authorization", "oidc-client-bound"); err != nil {
+		return fmt.Errorf("failed to set oidc-client-bound: %w", err)
+	}
+
+	// Update X-MaaS-Username-OC to handle both OIDC and OpenShift claims
+	if err := unstructured.SetNestedField(resource.Object, map[string]interface{}{
+		"expression": `has(auth.identity.preferred_username) ? auth.identity.preferred_username : (has(auth.identity.sub) ? auth.identity.sub : auth.identity.user.username)`,
+	}, "spec", "rules", "response", "success", "headers", "X-MaaS-Username-OC", "plain"); err != nil {
+		return fmt.Errorf("failed to set X-MaaS-Username-OC: %w", err)
+	}
+
+	// Update X-MaaS-Group-OC to handle both OIDC and OpenShift group claims.
+	// OIDC tokens carry groups in a flat claim; OpenShift identity uses user.groups.
+	groupsExpr := `has(auth.identity.groups) ? ` +
+		`(size(auth.identity.groups) > 0 ? ` +
+		`'["system:authenticated","' + auth.identity.groups.join('","') + '"]' : ` +
+		`'["system:authenticated"]') : ` +
+		`'["' + auth.identity.user.groups.join('","') + '"]'`
+	if err := unstructured.SetNestedField(resource.Object, map[string]interface{}{
+		"expression": groupsExpr,
+	}, "spec", "rules", "response", "success", "headers", "X-MaaS-Group-OC", "plain"); err != nil {
+		return fmt.Errorf("failed to set X-MaaS-Group-OC: %w", err)
+	}
+
+	log.Info("Patched maas-api AuthPolicy with external OIDC configuration",
+		"issuerUrl", oidc.IssuerURL, "clientId", oidc.ClientID)
+	return nil
+}
+
 // configureTelemetryPolicy is a post-render action that creates a TelemetryPolicy
 // resource based on the ModelsAsService telemetry configuration.
 //

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -1256,6 +1257,7 @@ func (tc *MonitoringTestCtx) cleanupTempoStackAndSecret(secretName string) {
 		WithWaitForDeletion(true),
 		WithRemoveFinalizersOnDelete(true),
 		WithIgnoreNotFound(true),
+		WithEventuallyTimeout(15*time.Minute),
 	)
 
 	// Only delete secret if one is specified

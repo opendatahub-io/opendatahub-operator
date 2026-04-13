@@ -1471,7 +1471,7 @@ func (tc *TestContext) ApproveInstallPlan(plan *ofapi.InstallPlan) {
 	}
 
 	// Apply the patch to approve the InstallPlan
-	err := tc.Client().Patch(tc.Context(), obj, client.Apply, opt)
+	err := tc.Client().Patch(tc.Context(), obj, client.Apply, opt) //nolint:staticcheck // TODO: migrate to cli.Apply() with client.ApplyOption
 	tc.g.Expect(err).
 		NotTo(
 			HaveOccurred(),
