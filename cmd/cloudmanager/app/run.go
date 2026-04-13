@@ -47,7 +47,7 @@ func Run(_ *cobra.Command, provider Provider) error {
 	// The unstructured cache must be used.
 	clientOptions.Cache.Unstructured = true
 
-	cacheOptions, err := provider.CacheOptions(scheme, cfg)
+	cacheOptions, err := defaultCacheOptions(scheme)
 	if err != nil {
 		return fmt.Errorf("unable to get cache options: %w", err)
 	}

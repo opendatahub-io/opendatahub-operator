@@ -3,7 +3,6 @@ package common
 import (
 	"os"
 	"path/filepath"
-	"strings"
 
 	helm "github.com/k8s-manifest-kit/renderer-helm/pkg"
 
@@ -15,24 +14,17 @@ import (
 // It mirrors the pattern of DefaultManifestPath in pkg/deploy/deploy.go.
 var DefaultChartsPath = os.Getenv("DEFAULT_CHARTS_PATH")
 
-const (
-	NamespaceCertManagerOperator = "cert-manager-operator"
-	NamespaceLWSOperator         = "openshift-lws-operator"
-	NamespaceSailOperator        = "istio-system"
-	NamespaceKubeSystem          = "kube-system"
-)
-
 // chartDef describes a single Helm chart together with its target namespace
 // and a function that extracts the chart's management policy from Dependencies.
 type chartDef struct {
-	namespace string
-	policyFn  func(ccmcommon.Dependencies) ccmcommon.ManagementPolicy
-	chart     types.HelmChartInfo
+	policyFn func(ccmcommon.Dependencies) ccmcommon.ManagementPolicy
+	chart    types.HelmChartInfo
 }
 
 // allChartDefs is the single source of truth for all charts and their target
-// namespaces. Both ManagedNamespaces and BuildHelmCharts derive from this list.
-func allChartDefs() []chartDef {
+// namespaces. BuildHelmCharts derive from this list.
+// Namespaces are resolved from the Dependencies via the dependency getters.
+func allChartDefs(deps ccmcommon.Dependencies) []chartDef {
 	return []chartDef{
 		{
 			policyFn: func(d ccmcommon.Dependencies) ccmcommon.ManagementPolicy {
@@ -47,7 +39,6 @@ func allChartDefs() []chartDef {
 			},
 		},
 		{
-			namespace: NamespaceCertManagerOperator,
 			policyFn: func(d ccmcommon.Dependencies) ccmcommon.ManagementPolicy {
 				return d.CertManager.ManagementPolicy
 			},
@@ -56,14 +47,14 @@ func allChartDefs() []chartDef {
 					Chart:       filepath.Join(DefaultChartsPath, "cert-manager-operator"),
 					ReleaseName: "cert-manager-operator",
 					Values: helm.Values(map[string]any{
-						"operatorNamespace": NamespaceCertManagerOperator,
+						"operatorNamespace": "cert-manager-operator",
+						"operandNamespace":  "cert-manager",
 					}),
 				},
 				PreApply: []types.HookFn{},
 			},
 		},
 		{
-			namespace: NamespaceLWSOperator,
 			policyFn: func(d ccmcommon.Dependencies) ccmcommon.ManagementPolicy {
 				return d.LWS.ManagementPolicy
 			},
@@ -72,14 +63,13 @@ func allChartDefs() []chartDef {
 					Chart:       filepath.Join(DefaultChartsPath, "lws-operator"),
 					ReleaseName: "lws-operator",
 					Values: helm.Values(map[string]any{
-						"namespace": NamespaceLWSOperator,
+						"namespace": deps.LWS.GetNamespace(),
 					}),
 				},
 				PreApply: []types.HookFn{SkipCRDIfPresent(ServiceMonitorCRDName)},
 			},
 		},
 		{
-			namespace: NamespaceSailOperator,
 			policyFn: func(d ccmcommon.Dependencies) ccmcommon.ManagementPolicy {
 				return d.SailOperator.ManagementPolicy
 			},
@@ -88,7 +78,7 @@ func allChartDefs() []chartDef {
 					Chart:       filepath.Join(DefaultChartsPath, "sail-operator"),
 					ReleaseName: "sail-operator",
 					Values: helm.Values(map[string]any{
-						"namespace": NamespaceSailOperator,
+						"namespace": deps.SailOperator.GetNamespace(),
 					}),
 				},
 				PreApply: []types.HookFn{},
@@ -99,31 +89,12 @@ func allChartDefs() []chartDef {
 	}
 }
 
-// ManagedNamespaces returns all namespaces the cache must watch,
-// derived from the central chart registry.
-func ManagedNamespaces() []string {
-	seen := make(map[string]struct{})
-	var namespaces []string
-
-	for _, def := range allChartDefs() {
-		if strings.TrimSpace(def.namespace) == "" {
-			continue
-		}
-		if _, ok := seen[def.namespace]; !ok {
-			seen[def.namespace] = struct{}{}
-			namespaces = append(namespaces, def.namespace)
-		}
-	}
-
-	return namespaces
-}
-
-// BuildHelmCharts returns the default charts filtered by management policy,
-// in deterministic installation order.
+// BuildHelmCharts returns the charts filtered by management policy,
+// in deterministic installation order. Namespaces are resolved from deps.
 func BuildHelmCharts(deps ccmcommon.Dependencies) []types.HelmChartInfo {
 	var charts []types.HelmChartInfo
 
-	for _, def := range allChartDefs() {
+	for _, def := range allChartDefs(deps) {
 		if def.policyFn(deps) != ccmcommon.Unmanaged {
 			charts = append(charts, def.chart)
 		}
