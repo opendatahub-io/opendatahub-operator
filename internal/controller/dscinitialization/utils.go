@@ -111,6 +111,11 @@ func (r *DSCInitializationReconciler) createAppNamespace(ctx context.Context, ns
 	}
 
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, desiredDefaultNS, func() error {
+		// Don't downgrade PSA from privileged — other controllers (e.g. KServe ModelCache)
+		// may have elevated it and will manage the downgrade when appropriate.
+		if desiredDefaultNS.Labels[labels.SecurityEnforce] == "privileged" {
+			delete(labelList, labels.SecurityEnforce)
+		}
 		resources.SetLabels(desiredDefaultNS, labelList)
 		return nil
 	})
