@@ -134,6 +134,7 @@ GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
 CRD_REF_DOCS ?= $(LOCALBIN)/crd-ref-docs
 GINKGO ?= $(LOCALBIN)/ginkgo
 YQ ?= $(LOCALBIN)/yq
+HELM ?= $(LOCALBIN)/helm
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.8.1
@@ -141,6 +142,7 @@ CONTROLLER_TOOLS_VERSION ?= v0.17.3
 OPERATOR_SDK_VERSION ?= v1.39.2
 GOLANGCI_LINT_VERSION ?= v2.5.0
 YQ_VERSION ?= v4.12.2
+HELM_VERSION ?= v4.1.1
 KUBE_LINTER_VERSION ?= v0.7.6
 #ENVTEST_K8S_VERSION is the version of Kubernetes to use for setting up ENVTEST binaries (i.e. 1.31)
 ENVTEST_K8S_VERSION ?= $(shell go list -m -f "{{ .Version }}" k8s.io/api | awk -F'[v.]' '{printf "1.%d", $$3}')
@@ -454,6 +456,11 @@ yq: $(YQ) ## Download yq locally if necessary.
 $(YQ): $(LOCALBIN)
 	$(call go-install-tool,$(YQ),github.com/mikefarah/yq/v4,$(YQ_VERSION))
 
+.PHONY: helm
+helm: $(HELM) ## Download helm locally if necessary.
+$(HELM): $(LOCALBIN)
+	$(call go-install-tool,$(HELM),helm.sh/helm/v4/cmd/helm,$(HELM_VERSION))
+
 OPERATOR_SDK_DL_URL ?= https://github.com/operator-framework/operator-sdk/releases/download/$(OPERATOR_SDK_VERSION)
 .PHONY: operator-sdk
 operator-sdk: $(OPERATOR_SDK) ## Download and install operator-sdk
@@ -757,8 +764,12 @@ ccm-paths = {./api/cloudmanager/$(1)/...,./internal/controller/cloudmanager/$(1)
 
 ##@ CCM Code Generation
 
+.PHONY: update-cloudmanager-rbac
+update-cloudmanager-rbac: yq helm get-manifests ## Update kubebuilder RBAC annotations for cloud manager chart roles
+	bash ./hack/update-cloudmanager-rbac.sh "$(YQ)" "$(HELM)"
+
 .PHONY: manifests-ccm
-manifests-ccm: $(addprefix manifests-ccm-,$(CCM_PROVIDERS)) ## Generate CRDs and RBAC for all providers
+manifests-ccm: update-cloudmanager-rbac $(addprefix manifests-ccm-,$(CCM_PROVIDERS)) ## Generate CRDs and RBAC for all providers
 
 CCM_MANIFESTS_TARGETS := $(addprefix manifests-ccm-,$(CCM_PROVIDERS))
 .PHONY: $(CCM_MANIFESTS_TARGETS)
