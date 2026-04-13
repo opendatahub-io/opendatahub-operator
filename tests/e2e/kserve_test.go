@@ -94,6 +94,8 @@ func (tc *KserveTestCtx) ValidateSpec(t *testing.T) {
 
 	skipUnless(t, Smoke)
 
+	tc.SkipIfNonOpenshiftCluster(t)
+
 	// Retrieve the DataScienceCluster instance.
 	dsc := tc.FetchDataScienceCluster()
 
