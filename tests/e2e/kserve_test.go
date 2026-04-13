@@ -602,10 +602,8 @@ func (tc *KserveTestCtx) ValidateModelCacheImageReconcile(t *testing.T) {
 
 	skipUnless(t, Tier1)
 
+	t.Setenv("RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE", "registry.redhat.io/rhoai/odh-kserve-agent-rhel8:latest")
 	expectedImage := os.Getenv("RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE")
-	if expectedImage == "" {
-		t.Skip("RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE not set, skipping image reconcile test")
-	}
 
 	configMapNN := types.NamespacedName{
 		Name:      "inferenceservice-config",
