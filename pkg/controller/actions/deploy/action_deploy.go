@@ -37,13 +37,14 @@ type SortFn func(ctx context.Context, resources []unstructured.Unstructured) ([]
 // Action deploys the resources that are included in the ReconciliationRequest using
 // the same create or patch machinery implemented as part of deploy.DeployManifestsFromPath.
 type Action struct {
-	fieldOwner     string
-	deployMode     Mode
-	partOfLabelKey string
-	labels         map[string]string
-	annotations    map[string]string
-	cache          *Cache
-	sortFn         SortFn
+	fieldOwner       string
+	deployMode       Mode
+	partOfLabelKey   string
+	annotationPrefix string
+	labels           map[string]string
+	annotations      map[string]string
+	cache            *Cache
+	sortFn           SortFn
 }
 
 type ActionOpts func(*Action)
@@ -63,6 +64,12 @@ func WithMode(value Mode) ActionOpts {
 func WithPartOfLabel(key string) ActionOpts {
 	return func(action *Action) {
 		action.partOfLabelKey = key
+	}
+}
+
+func WithAnnotationPrefix(prefix string) ActionOpts {
+	return func(action *Action) {
+		action.annotationPrefix = prefix
 	}
 }
 
@@ -329,11 +336,11 @@ func (a *Action) deploy(
 
 	resources.SetLabels(&obj, a.labels)
 	resources.SetAnnotations(&obj, a.annotations)
-	resources.SetAnnotation(&obj, annotations.InstanceGeneration, strconv.FormatInt(rr.Instance.GetGeneration(), 10))
-	resources.SetAnnotation(&obj, annotations.InstanceName, rr.Instance.GetName())
-	resources.SetAnnotation(&obj, annotations.InstanceUID, string(rr.Instance.GetUID()))
-	resources.SetAnnotation(&obj, annotations.PlatformType, string(rr.Release.Name))
-	resources.SetAnnotation(&obj, annotations.PlatformVersion, rr.Release.Version.String())
+	resources.SetAnnotation(&obj, a.annotationPrefix+annotations.SuffixInstanceGeneration, strconv.FormatInt(rr.Instance.GetGeneration(), 10))
+	resources.SetAnnotation(&obj, a.annotationPrefix+annotations.SuffixInstanceName, rr.Instance.GetName())
+	resources.SetAnnotation(&obj, a.annotationPrefix+annotations.SuffixInstanceUID, string(rr.Instance.GetUID()))
+	resources.SetAnnotation(&obj, a.annotationPrefix+annotations.SuffixType, string(rr.Release.Name))
+	resources.SetAnnotation(&obj, a.annotationPrefix+annotations.SuffixVersion, rr.Release.Version.String())
 
 	if resources.GetLabel(&obj, a.partOfLabelKey) == "" && fo != "" {
 		resources.SetLabel(&obj, a.partOfLabelKey, fo)
@@ -599,8 +606,9 @@ func (a *Action) shouldOwn(rr *odhTypes.ReconciliationRequest, objGVK schema.Gro
 
 func NewAction(opts ...ActionOpts) actions.Fn {
 	action := Action{
-		deployMode:     ModeSSA,
-		partOfLabelKey: labels.PlatformPartOf,
+		deployMode:       ModeSSA,
+		partOfLabelKey:   labels.PlatformPartOf,
+		annotationPrefix: labels.ODHPlatformPrefix,
 	}
 
 	for _, opt := range opts {

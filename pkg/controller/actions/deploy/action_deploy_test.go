@@ -1695,6 +1695,78 @@ func TestDeployWithPartOfLabel(t *testing.T) {
 	))
 }
 
+func TestDeployWithAnnotationPrefix(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := t.Context()
+	ns := xid.New().String()
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	action := deploy.NewAction(
+		deploy.WithMode(deploy.ModePatch),
+		deploy.WithAnnotationPrefix(labels.ODHInfrastructurePrefix),
+	)
+
+	obj1, err := resources.ToUnstructured(&appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: appsv1.SchemeGroupVersion.String(),
+			Kind:       "Deployment",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      xid.New().String(),
+			Namespace: ns,
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := types.ReconciliationRequest{
+		Client: cl,
+		Instance: &componentApi.Dashboard{
+			ObjectMeta: metav1.ObjectMeta{
+				Generation: 1,
+			},
+		},
+		Release: common.Release{
+			Name: cluster.OpenDataHub,
+			Version: version.OperatorVersion{Version: semver.Version{
+				Major: 1, Minor: 2, Patch: 3,
+			}}},
+		Resources: []unstructured.Unstructured{*obj1},
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("Owns", mock.Anything).Return(false)
+		}),
+	}
+
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = cl.Get(ctx, client.ObjectKeyFromObject(obj1), obj1)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(obj1).Should(And(
+		jq.Match(`.metadata.annotations."%s" == "%s"`,
+			labels.ODHInfrastructurePrefix+annotations.SuffixInstanceGeneration,
+			strconv.FormatInt(rr.Instance.GetGeneration(), 10)),
+		jq.Match(`.metadata.annotations."%s" == "%s"`,
+			labels.ODHInfrastructurePrefix+annotations.SuffixInstanceName,
+			rr.Instance.GetName()),
+		jq.Match(`.metadata.annotations."%s" == "%s"`,
+			labels.ODHInfrastructurePrefix+annotations.SuffixInstanceUID,
+			string(rr.Instance.GetUID())),
+		jq.Match(`.metadata.annotations."%s" == "%s"`,
+			labels.ODHInfrastructurePrefix+annotations.SuffixType,
+			string(cluster.OpenDataHub)),
+		jq.Match(`.metadata.annotations."%s" == "%s"`,
+			labels.ODHInfrastructurePrefix+annotations.SuffixVersion,
+			"1.2.3"),
+		Not(jq.Match(`.metadata.annotations | has("%s")`, annotations.InstanceGeneration)),
+		Not(jq.Match(`.metadata.annotations | has("%s")`, annotations.PlatformType)),
+		Not(jq.Match(`.metadata.annotations | has("%s")`, annotations.PlatformVersion)),
+	))
+}
+
 func TestDeployCRDWithPartOfLabel(t *testing.T) {
 	g := NewWithT(t)
 

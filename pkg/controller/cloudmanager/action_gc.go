@@ -13,7 +13,7 @@ import (
 	certmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	odhTypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	odhAnnotations "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -54,8 +54,8 @@ func newGCPredicate(protectedObjects []ProtectedObject) gc.ObjectPredicateFn {
 			return false, nil
 		}
 
-		iUID := resources.GetAnnotation(&obj, annotations.InstanceUID)
-		iGeneration := resources.GetAnnotation(&obj, annotations.InstanceGeneration)
+		iUID := resources.GetAnnotation(&obj, labels.ODHInfrastructurePrefix+odhAnnotations.SuffixInstanceUID)
+		iGeneration := resources.GetAnnotation(&obj, labels.ODHInfrastructurePrefix+odhAnnotations.SuffixInstanceGeneration)
 
 		if iUID == "" || iGeneration == "" {
 			return false, nil

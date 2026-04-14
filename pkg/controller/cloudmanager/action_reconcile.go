@@ -66,6 +66,7 @@ func NewReconcileAction(resourceID string, opts ...ReconcileActionOpts) (actions
 	deployAction := deploy.NewAction(append(action.deployOpts,
 		deploy.WithApplyOrder(),
 		deploy.WithPartOfLabel(labels.InfrastructurePartOf),
+		deploy.WithAnnotationPrefix(labels.ODHInfrastructurePrefix),
 	)...)
 	deploymentsAction := deployments.NewAction(
 		deployments.InNamespaceFn(func(_ context.Context, _ *types.ReconciliationRequest) (string, error) {
