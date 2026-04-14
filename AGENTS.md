@@ -222,6 +222,12 @@ IsEnabled(dsc *dscv2.DataScienceCluster) bool
 4. **Management states**: `Managed` (deployed), `Removed` (cleaned up), empty/`{}` (treated as Removed)
 5. **Platform detection**: Use build tags `-tags=odh` or `-tags=rhoai`
 6. **Action execution order matters**: Sequential execution, stops on first error
+7. **DSC API surfacing**: Any component configuration field that a user must set belongs in
+   `XxxCommonSpec` and must be inlined into both `XxxSpec` and `DSCXxx`. Fields present in
+   `XxxSpec` but absent from `XxxCommonSpec` must only be written by the operator itself (e.g.
+   values propagated from `GatewayConfig`). Never add user-facing fields to the internal-only
+   section of a component spec without a DSC-level counterpart — internal CRDs are hidden from
+   the OperatorHub UI and are not the expected user-facing API surface.
 
 ## Platform-Specific Considerations
 
