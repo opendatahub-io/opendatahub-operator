@@ -11,7 +11,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -66,40 +65,9 @@ type CRDRequirement struct {
 	ConditionType string
 }
 
-var componentRules = map[string]string{
-	componentApi.DashboardComponentName:            "rhods-dashboard",
-	componentApi.WorkbenchesComponentName:          "workbenches",
-	componentApi.KueueComponentName:                "kueue",
-	componentApi.DataSciencePipelinesComponentName: "data-science-pipelines-operator",
-	componentApi.RayComponentName:                  "ray",
-	componentApi.TrustyAIComponentName:             "trustyai",
-	componentApi.KserveComponentName:               "kserve",
-	componentApi.TrainingOperatorComponentName:     "trainingoperator",
-	componentApi.TrainerComponentName:              "trainer",
-	componentApi.ModelRegistryComponentName:        "model-registry-operator",
-	componentApi.ModelControllerComponentName:      "odh-model-controller",
-	componentApi.FeastOperatorComponentName:        "feastoperator",
-	componentApi.LlamaStackOperatorComponentName:   "llamastackoperator",
-	componentApi.SparkOperatorComponentName:        "spark-operator",
-	componentApi.ModelsAsServiceComponentName:      "modelsasservice",
-}
-
 //go:embed resources
 //go:embed monitoring
 var resourcesFS embed.FS
-
-// initialize handles all pre-deployment configurations.
-func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { //nolint:unparam
-	// Only set prometheus configmap path
-	rr.Manifests = []odhtypes.ManifestInfo{
-		{
-			Path:       rr.ManifestsBasePath,
-			ContextDir: "monitoring/prometheus/apps",
-		},
-	}
-
-	return nil
-}
 
 // validateRequiredCRDs checks multiple CRDs for atomic deployment.
 // For atomic deployment: if ANY CRD is missing, ALL conditions are set to False.
@@ -138,46 +106,6 @@ func setConditionFalse(rr *odhtypes.ReconciliationRequest, conditionType, reason
 		conditions.WithReason(reason),
 		conditions.WithMessage("%s", message),
 	)
-}
-
-// if DSC has component as Removed, we remove component's Prom Rules.
-// only when DSC has component as Managed and component CR is in "Ready" state, we add rules to Prom Rules.
-// all other cases, we do not change Prom rules for component.
-func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	// Skip update prom config: if cluster is NOT ManagedRhoai
-	if rr.Release.Name != cluster.ManagedRhoai {
-		return nil
-	}
-
-	// Map component names to their rule prefixes
-	dsc, err := cluster.GetDSC(ctx, rr.Client)
-	if err != nil {
-		if k8serr.IsNotFound(err) {
-			// DSC doesn't exist, skip prometheus configmap update
-			return nil
-		}
-		return fmt.Errorf("failed to retrieve DataScienceCluster: %w", err)
-	}
-
-	return cr.ForEach(func(ch cr.ComponentHandler) error {
-		ci, err := ch.NewCRObject(ctx, rr.Client, dsc)
-		if err != nil {
-			return err
-		}
-		if ch.IsEnabled(dsc) {
-			ready, err := isComponentReady(ctx, rr.Client, ci)
-			if err != nil {
-				return fmt.Errorf("failed to get component status %w", err)
-			}
-			if !ready { // not ready, skip change on prom rules
-				return nil
-			}
-			// add
-			return updatePrometheusConfig(ctx, rr.ManifestsBasePath, true, componentRules[ch.GetName()])
-		} else {
-			return updatePrometheusConfig(ctx, rr.ManifestsBasePath, false, componentRules[ch.GetName()])
-		}
-	})
 }
 
 // deployMonitoringAdmissionPolicies handles deployment of admission policies for monitoring resources.
@@ -275,13 +203,9 @@ func deployTracingStack(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 	traces := monitoring.Spec.Traces
 
 	// Determine required Tempo CRD based on storage backend
-	// Default to "pv" when backend is empty (kubebuilder default removed to prevent
-	// Form View UI from auto-populating values)
-	backend := getStringValueOrDefault(traces.Storage.Backend, defaultTracesBackend)
-
 	var tempoCRD schema.GroupVersionKind
 	var tempoTemplate string
-	if backend == serviceApi.StorageBackendPV {
+	if traces.Storage.Backend == "pv" {
 		tempoCRD = gvk.TempoMonolithic
 		tempoTemplate = TempoMonolithicTemplate
 	} else {
