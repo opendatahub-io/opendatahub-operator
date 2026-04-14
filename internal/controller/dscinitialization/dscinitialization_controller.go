@@ -30,7 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -66,7 +66,7 @@ const (
 type DSCInitializationReconciler struct {
 	Client   client.Client
 	Scheme   *runtime.Scheme
-	Recorder record.EventRecorder
+	Recorder events.EventRecorder
 }
 
 // Reconcile contains controller logic specific to DSCInitialization instance updates.
@@ -88,7 +88,8 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		ref := &corev1.ObjectReference{Name: req.Name, Namespace: req.Namespace}
 		ref.SetGroupVersionKind(gvk.DSCInitialization)
 
-		r.Recorder.Eventf(ref, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization instance")
+		r.Recorder.Eventf(ref, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
+			"Failed to retrieve DSCInitialization instance: %v", err)
 
 		return ctrl.Result{}, err
 	}
@@ -144,8 +145,8 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		})
 		if err != nil {
 			log.Error(err, "Failed to add conditions to status of DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
-			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
-				"%s for instance %s", message, instance.Name)
+			r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
+				"%s for instance %s: %v", message, instance.Name, err)
 
 			return reconcile.Result{}, err
 		}
@@ -159,8 +160,8 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		})
 		if err != nil {
 			log.Error(err, "Failed to update release version for DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
-			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
-				"%s for instance %s", message, instance.Name)
+			r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
+				"%s for instance %s: %v", message, instance.Name, err)
 			return reconcile.Result{}, err
 		}
 	}
@@ -173,12 +174,12 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}); err != nil {
 			log.Error(err, "Failed to update DSCInitialization conditions", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
 
-			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
+			r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
 				"%s for instance %s", err.Error(), instance.Name)
 		}
 
 		// no need to log error as it was already logged in createOperatorResource
-		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
+		r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
 			"failed to create operator resources for instance %s: %s", instance.Name, err.Error())
 
 		return reconcile.Result{}, err
@@ -234,7 +235,8 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			osdConfigsPath := filepath.Join(deploy.DefaultManifestPath, "osd-configs")
 			if err = deploy.DeployManifestsFromPath(ctx, r.Client, instance, osdConfigsPath, instance.Spec.ApplicationsNamespace, "osd", true); err != nil {
 				log.Error(err, "Failed to apply osd specific configs from manifests", "Manifests path", osdConfigsPath)
-				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to apply "+osdConfigsPath)
+				r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
+					"Failed to apply %s: %v", osdConfigsPath, err)
 
 				return reconcile.Result{}, err
 			}
@@ -312,7 +314,8 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		})
 		if err != nil {
 			log.Error(err, "failed to update DSCInitialization status after successfully completed reconciliation")
-			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to update DSCInitialization status")
+			r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
+				"Failed to update DSCInitialization status: %v", err)
 		}
 
 		return ctrl.Result{}, nil

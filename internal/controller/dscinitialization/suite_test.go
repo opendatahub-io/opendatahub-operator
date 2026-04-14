@@ -162,7 +162,7 @@ var _ = BeforeSuite(func() {
 	err = (&dscictrl.DSCInitializationReconciler{
 		Client:   k8sClient,
 		Scheme:   testScheme,
-		Recorder: mgr.GetEventRecorderFor("dscinitialization-controller"),
+		Recorder: mgr.GetEventRecorder("dscinitialization-controller"),
 	}).SetupWithManager(gCtx, mgr)
 
 	Expect(err).ToNot(HaveOccurred())

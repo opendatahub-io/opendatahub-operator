@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"testing"
 	"time"
 
 	gTypes "github.com/onsi/gomega/types"
@@ -94,6 +95,11 @@ type ResourceOptions struct {
 	// If true, DeleteResource will attempt to remove all finalizers if deletion is blocked.
 	// This helps with resources that get stuck in deletion due to finalizers.
 	RemoveFinalizersOnDelete bool
+
+	// CleanupT, when set, causes resource creation methods to register a t.Cleanup() that
+	// deletes the resource when the test completes. This ensures cleanup happens even on
+	// test failure or timeout. Set via WithCleanup(t).
+	CleanupT *testing.T
 
 	// DeleteAllOfOptions defines the behavior of bulk resource deletion using DeleteAllOf.
 	// This field holds the options that control how multiple resources should be deleted in bulk operations.
@@ -225,6 +231,17 @@ func WithWaitForRecreation(wait bool) ResourceOpts {
 func WithRemoveFinalizersOnDelete(remove bool) ResourceOpts {
 	return func(ro *ResourceOptions) {
 		ro.RemoveFinalizersOnDelete = remove
+	}
+}
+
+// WithCleanup registers a t.Cleanup() handler that deletes the resource when the test completes.
+// This ensures resources are cleaned up even on test failure or timeout, preventing resource leaks.
+// The cleanup is best-effort and non-fatal: it removes finalizers, issues the delete, and waits
+// for the resource to be gone, but errors are logged rather than asserted so cleanup failures
+// cannot mask the original test failure. NotFound/NoMatch errors are silently ignored.
+func WithCleanup(t *testing.T) ResourceOpts { //nolint:thelper // This is a resource option builder, not a test helper
+	return func(ro *ResourceOptions) {
+		ro.CleanupT = t
 	}
 }
 

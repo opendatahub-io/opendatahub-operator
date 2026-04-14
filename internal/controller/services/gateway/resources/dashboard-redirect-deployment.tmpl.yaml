@@ -30,6 +30,9 @@ spec:
           protocol: TCP
         volumeMounts:
         - name: redirect-config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+        - name: redirect-config
           mountPath: /opt/app-root/etc/nginx.default.d/redirect.conf
           subPath: redirect.conf
         resources:

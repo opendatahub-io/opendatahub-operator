@@ -294,6 +294,60 @@ func TestBuildSkipFilter(t *testing.T) {
 			}},
 			expected: "^TestOdhOperator$/^components$/^group_1$/^dashboard$|^TestOdhOperator$/^services$/^group_1$/^auth$",
 		},
+		{
+			name: "monitoring-specific pattern for group level extraction",
+			opts: types.E2ETestOptions{
+				SkipAtPrefixes: []string{
+					"TestOdhOperator/services/*/monitoring",
+					"TestOdhOperator/services/*/",
+					"TestOdhOperator/",
+				},
+			},
+			aggregatedTestResult: &types.TestResult{PassedTest: []types.TestCase{
+				{Name: "TestOdhOperator/services/group 1/monitoring/Group 1: Base Configuration"},
+				{Name: "TestOdhOperator/services/group 1/monitoring/Group 1: Base Configuration/Auto creation of Monitoring CR"},
+				{Name: "TestOdhOperator/services/group 1/monitoring/Group 1: Base Configuration/Test Monitoring CR content default value"},
+				{Name: "TestOdhOperator/services/group 1/monitoring/Group 2: Metrics & MonitoringStack"},
+				{Name: "TestOdhOperator/services/group 1/monitoring/Group 2: Metrics & MonitoringStack/Test Metrics MonitoringStack CR Creation"},
+				{Name: "TestOdhOperator/services/group 1/monitoring/Group 2: Metrics & MonitoringStack/Test Metrics MonitoringStack CR Configuration"},
+			}},
+			expected: "^TestOdhOperator$/^services$/^group 1$/^monitoring$/^Group 1: Base Configuration$|^TestOdhOperator$/^services$/^group 1$/^monitoring$/^Group 2: Metrics & MonitoringStack$",
+		},
+		{
+			name: "monitoring-specific pattern with mixed monitoring and other service tests",
+			opts: types.E2ETestOptions{
+				SkipAtPrefixes: []string{
+					"TestOdhOperator/services/*/monitoring",
+					"TestOdhOperator/services/*/",
+					"TestOdhOperator/",
+				},
+			},
+			aggregatedTestResult: &types.TestResult{PassedTest: []types.TestCase{
+				{Name: "TestOdhOperator/services/group 1/monitoring/Group 1: Base Configuration"},
+				{Name: "TestOdhOperator/services/group 1/monitoring/Group 1: Base Configuration/Test A"},
+				{Name: "TestOdhOperator/services/group 1/auth"},
+				{Name: "TestOdhOperator/services/group 1/auth/Test B"},
+				{Name: "TestOdhOperator/services/group 1/gateway"},
+				{Name: "TestOdhOperator/services/group 1/gateway/Test C"},
+			}},
+			expected: "^TestOdhOperator$/^services$/^group 1$/^auth$|^TestOdhOperator$/^services$/^group 1$/^gateway$|^TestOdhOperator$/^services$/^group 1$/^monitoring$/^Group 1: Base Configuration$",
+		},
+		{
+			name: "monitoring-specific pattern takes precedence over general pattern",
+			opts: types.E2ETestOptions{
+				SkipAtPrefixes: []string{
+					"TestOdhOperator/services/*/monitoring", // More specific (4 parts), should match first
+					"TestOdhOperator/services/*/",           // Less specific (3 parts)
+					"TestOdhOperator/",
+				},
+			},
+			aggregatedTestResult: &types.TestResult{PassedTest: []types.TestCase{
+				{Name: "TestOdhOperator/services/group 1/monitoring/Group 5: Thanos Querier"},
+				{Name: "TestOdhOperator/services/group 1/monitoring/Group 5: Thanos Querier/Test ThanosQuerier deployment with metrics"},
+			}},
+			// Should extract at Group level (monitoring pattern), not at monitoring level (general pattern)
+			expected: "^TestOdhOperator$/^services$/^group 1$/^monitoring$/^Group 5: Thanos Querier$",
+		},
 	}
 
 	for _, tt := range tests {
@@ -483,6 +537,76 @@ func TestExtractTestLevel(t *testing.T) {
 			},
 			testName:   "TestFirstLevel",
 			wantLevel:  "TestFirstLevel",
+			shouldSkip: true,
+		},
+		{
+			name: "monitoring-specific pattern for group level extraction",
+			opts: types.E2ETestOptions{
+				NeverSkipPrefixes: []string{},
+				SkipAtPrefixes: []string{
+					"TestOdhOperator/services/*/monitoring",
+					"TestOdhOperator/services/*/",
+					"TestOdhOperator/",
+				},
+			},
+			testName:   "TestOdhOperator/services/group 1/monitoring/Group 1: Base Configuration/Auto creation of Monitoring CR",
+			wantLevel:  "TestOdhOperator/services/group 1/monitoring/Group 1: Base Configuration",
+			shouldSkip: true,
+		},
+		{
+			name: "monitoring-specific pattern extracts at group level not monitoring level",
+			opts: types.E2ETestOptions{
+				NeverSkipPrefixes: []string{},
+				SkipAtPrefixes: []string{
+					"TestOdhOperator/services/*/monitoring",
+					"TestOdhOperator/services/*/",
+					"TestOdhOperator/",
+				},
+			},
+			testName:   "TestOdhOperator/services/group 1/monitoring/Group 5: Thanos Querier/Test ThanosQuerier deployment",
+			wantLevel:  "TestOdhOperator/services/group 1/monitoring/Group 5: Thanos Querier",
+			shouldSkip: true,
+		},
+		{
+			name: "monitoring-specific pattern with special characters in group name",
+			opts: types.E2ETestOptions{
+				NeverSkipPrefixes: []string{},
+				SkipAtPrefixes: []string{
+					"TestOdhOperator/services/*/monitoring",
+					"TestOdhOperator/services/*/",
+					"TestOdhOperator/",
+				},
+			},
+			testName:   "TestOdhOperator/services/group 1/monitoring/Group 2: Metrics & MonitoringStack/Test CR Creation",
+			wantLevel:  "TestOdhOperator/services/group 1/monitoring/Group 2: Metrics & MonitoringStack",
+			shouldSkip: true,
+		},
+		{
+			name: "other service tests use general pattern not monitoring-specific",
+			opts: types.E2ETestOptions{
+				NeverSkipPrefixes: []string{},
+				SkipAtPrefixes: []string{
+					"TestOdhOperator/services/*/monitoring",
+					"TestOdhOperator/services/*/",
+					"TestOdhOperator/",
+				},
+			},
+			testName:   "TestOdhOperator/services/group 1/auth/Test Auth",
+			wantLevel:  "TestOdhOperator/services/group 1/auth",
+			shouldSkip: true,
+		},
+		{
+			name: "monitoring-specific pattern (longer) wins over general pattern",
+			opts: types.E2ETestOptions{
+				NeverSkipPrefixes: []string{},
+				SkipAtPrefixes: []string{
+					"TestOdhOperator/services/*/monitoring", // 4 parts with wildcard
+					"TestOdhOperator/services/*/",           // 3 parts with wildcard
+					"TestOdhOperator/",                      // 1 part
+				},
+			},
+			testName:   "TestOdhOperator/services/group 1/monitoring/Group 8: Perses/Test Perses",
+			wantLevel:  "TestOdhOperator/services/group 1/monitoring/Group 8: Perses",
 			shouldSkip: true,
 		},
 	}

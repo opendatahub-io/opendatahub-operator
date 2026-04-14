@@ -926,6 +926,40 @@ func TestCreatedOrUpdatedOrDeletedNamed(t *testing.T) {
 	})
 }
 
+func TestCreatedOrUpdatedOrDeletedNamedInNamespace(t *testing.T) {
+	t.Parallel()
+
+	pred := resources.CreatedOrUpdatedOrDeletedNamedInNamespace("test-name", "test-ns")
+
+	obj := func(name, ns string) *corev1.Pod {
+		return &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns}}
+	}
+
+	cases := []struct {
+		name      string
+		objName   string
+		objNS     string
+		wantMatch bool
+	}{
+		{"matching name and namespace", "test-name", "test-ns", true},
+		{"matching name, wrong namespace", "test-name", "other-ns", false},
+		{"wrong name, matching namespace", "other-name", "test-ns", false},
+		{"wrong name and namespace", "other-name", "other-ns", false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			o := obj(tc.objName, tc.objNS)
+
+			g.Expect(pred.Create(event.CreateEvent{Object: o})).To(Equal(tc.wantMatch))
+			g.Expect(pred.Update(event.UpdateEvent{ObjectNew: o})).To(Equal(tc.wantMatch))
+			g.Expect(pred.Delete(event.DeleteEvent{Object: o})).To(Equal(tc.wantMatch))
+		})
+	}
+}
+
 func TestCreatedOrUpdatedOrDeletedNamePrefixed(t *testing.T) {
 	t.Parallel()
 

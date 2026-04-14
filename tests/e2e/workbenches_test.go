@@ -2,16 +2,20 @@ package e2e_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
 	. "github.com/onsi/gomega"
@@ -82,7 +86,19 @@ func (tc *WorkbenchesTestCtx) ValidateMLflowIntegration(t *testing.T) {
 
 	skipUnless(t, Tier2)
 
-	const notebookControllerParamsConfigMap = "odh-notebook-controller-image-parameters"
+	const odhNotebookControllerManager = "odh-notebook-controller-manager"
+
+	mlflowEnvMatcher := func(expected string) OmegaMatcher {
+		return jq.Match(
+			`.spec.template.spec.containers[] | select(.name == "manager") | .env[] | select(.name == "MLFLOW_ENABLED") | .value == "%s"`,
+			expected,
+		)
+	}
+
+	odhControllerDeployment := WithMinimalObject(gvk.Deployment, types.NamespacedName{
+		Name:      odhNotebookControllerManager,
+		Namespace: tc.AppsNamespace,
+	})
 
 	// Ensure MLflowOperator is in Removed state to start the test
 	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.MLflowOperatorKind)
@@ -93,56 +109,106 @@ func (tc *WorkbenchesTestCtx) ValidateMLflowIntegration(t *testing.T) {
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`)),
 	)
 
-	// Verify the notebook controller deployment exists and is available
+	// Verify the ODH notebook controller deployment exists and is available
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Deployment, types.NamespacedName{
-			Name:      "notebook-controller-deployment",
-			Namespace: tc.AppsNamespace,
-		}),
+		odhControllerDeployment,
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Available") | .status == "True"`)),
 	)
 
-	// Verify mlflow-enabled is "false" when MLflowOperator is Removed
+	// Verify MLFLOW_ENABLED env var is "false" when MLflowOperator is Removed in DSC
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
-			Name:      notebookControllerParamsConfigMap,
-			Namespace: tc.AppsNamespace,
-		}),
-		WithCondition(jq.Match(`.data["mlflow-enabled"] == "false"`)),
-		WithCustomErrorMsg("mlflow-enabled should be 'false' when MLflowOperator is Removed"),
+		odhControllerDeployment,
+		WithCondition(mlflowEnvMatcher("false")),
+		WithCustomErrorMsg("MLFLOW_ENABLED should be 'false' when MLflowOperator is Removed"),
 	)
 
-	t.Log("Verified mlflow-enabled is 'false' when MLflowOperator is Removed")
-
-	// Test the Managed path: enable MLflowOperator and verify mlflow-enabled becomes "true"
+	// Test the Managed path: enable MLflowOperator and verify MLFLOW_ENABLED env var becomes "true"
 	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.MLflowOperatorKind)
 
-	// Verify mlflow-enabled is "true" when MLflowOperator is Managed
+	// Verify MLFLOW_ENABLED env var is "true" when MLflowOperator is Managed in DSC
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
-			Name:      notebookControllerParamsConfigMap,
-			Namespace: tc.AppsNamespace,
-		}),
-		WithCondition(jq.Match(`.data["mlflow-enabled"] == "true"`)),
-		WithCustomErrorMsg("mlflow-enabled should be 'true' when MLflowOperator is Managed"),
+		odhControllerDeployment,
+		WithCondition(mlflowEnvMatcher("true")),
+		WithCustomErrorMsg("MLFLOW_ENABLED should be 'true' when MLflowOperator is Managed"),
 	)
-
-	t.Log("Verified mlflow-enabled is 'true' when MLflowOperator is Managed")
 
 	// Restore MLflowOperator to Removed state
 	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.MLflowOperatorKind)
 
-	// Verify mlflow-enabled returns to "false" when MLflowOperator is Removed again
+	// Verify MLFLOW_ENABLED env var returns to "false" when MLflowOperator is Removed again in DSC
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
-			Name:      notebookControllerParamsConfigMap,
-			Namespace: tc.AppsNamespace,
+		odhControllerDeployment,
+		WithCondition(mlflowEnvMatcher("false")),
+		WithCustomErrorMsg("MLFLOW_ENABLED should return to 'false' when MLflowOperator is Removed again"),
+	)
+}
+
+// ValidateAllDeletionRecovery overrides the shared ComponentTestCtx method to handle
+// workbenches-specific ConfigMap issues. The workbenches component uses Kustomize
+// configMapGenerator which appends content-hash suffixes to ConfigMap names. When the
+// content changes, a new ConfigMap is created but the old one may not be garbage collected,
+// causing the generic deletion recovery test to fail waiting for the orphaned ConfigMap
+// to be recreated.
+func (tc *WorkbenchesTestCtx) ValidateAllDeletionRecovery(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke, Tier1)
+
+	reset := tc.OverrideEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout, tc.TestTimeouts.defaultEventuallyPollInterval)
+	defer reset()
+
+	testCases := []TestCase{
+		{"ConfigMap deletion recovery", tc.validateConfigMapDeletionRecovery},
+		{"Service deletion recovery", func(t *testing.T) {
+			t.Helper()
+			tc.ValidateResourceDeletionRecovery(t, gvk.Service, types.NamespacedName{Namespace: tc.AppsNamespace})
+		}},
+		{"RBAC deletion recovery", tc.ValidateRBACDeletionRecovery},
+		{"ServiceAccount deletion recovery", tc.ValidateServiceAccountDeletionRecovery},
+		{"Deployment deletion recovery", tc.ValidateDeploymentDeletionRecovery},
+	}
+
+	RunTestCases(t, testCases)
+}
+
+func (tc *WorkbenchesTestCtx) validateConfigMapDeletionRecovery(t *testing.T) {
+	t.Helper()
+
+	nn := types.NamespacedName{Namespace: tc.AppsNamespace}
+
+	existingResources := tc.FetchResources(
+		WithMinimalObject(gvk.ConfigMap, nn),
+		WithListOptions(&client.ListOptions{
+			LabelSelector: k8slabels.Set{
+				labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+			}.AsSelector(),
+			Namespace: nn.Namespace,
 		}),
-		WithCondition(jq.Match(`.data["mlflow-enabled"] == "false"`)),
-		WithCustomErrorMsg("mlflow-enabled should return to 'false' when MLflowOperator is Removed again"),
 	)
 
-	t.Log("Workbenches component successfully integrates with MLflowOperator state changes")
+	if len(existingResources) == 0 {
+		t.Logf("No ConfigMap resources found for component %s, skipping", tc.GVK.Kind)
+		return
+	}
+
+	for _, resource := range existingResources {
+		name := resource.GetName()
+
+		// Kustomize configMapGenerator appends a content-hash suffix to this ConfigMap.
+		// Orphaned copies from previous hashes are not garbage-collected, so the
+		// deletion recovery test would fail waiting for the stale copy to be recreated.
+		if strings.HasPrefix(name, "odh-notebook-controller-image-parameters") {
+			t.Logf("Skipping Kustomize-generated ConfigMap %s (hash suffix causes orphaned copies)", name)
+			continue
+		}
+
+		t.Run("ConfigMap_"+name, func(t *testing.T) {
+			t.Helper()
+			tc.EnsureResourceDeletedThenRecreated(
+				WithMinimalObject(gvk.ConfigMap, resources.NamespacedNameFromObject(&resource)),
+			)
+		})
+	}
 }
 
 func (tc *WorkbenchesTestCtx) ValidateImageStreamsAvailable(t *testing.T) {

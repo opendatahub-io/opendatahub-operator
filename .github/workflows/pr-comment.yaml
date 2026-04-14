@@ -6,7 +6,6 @@ on:
       - completed
 jobs:
   download-artifact-data:
-    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
     runs-on: ubuntu-latest
     outputs:
       pr_number: ${{ steps.artifact-data.outputs.pr_number }}
@@ -48,12 +47,22 @@ jobs:
       pull-requests: write
     steps:
       - name: Report issue in PR
+        if: ${{ github.event.workflow_run.conclusion == 'failure' }}
         uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
         with:
           message: |
               ## This PR can't be merged just yet 😢
 
-                Please run `make generate manifests api-docs` and commit the changes.
+                Please run `make generate manifests-all api-docs` and commit the changes.
 
                 For more info: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}
           pr-number: ${{ needs.download-artifact-data.outputs.pr_number }}
+          comment-tag: required-files-check
+          mode: upsert
+      - name: Delete resolved comment
+        if: ${{ github.event.workflow_run.conclusion == 'success' }}
+        uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
+        with:
+          pr-number: ${{ needs.download-artifact-data.outputs.pr_number }}
+          comment-tag: required-files-check
+          mode: delete

@@ -61,6 +61,17 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		})
 	}
 
+	exists, err = cluster.NamespaceExists(ctx, rr.Client, "kuadrant-system")
+	if err != nil {
+		return fmt.Errorf("failed to check if kuadrant-system namespace exists: %w", err)
+	}
+	if exists {
+		rr.Templates = append(rr.Templates, odhtypes.TemplateInfo{
+			FS:   resourcesFS,
+			Path: AdminGroupKuadrantRoleTemplate,
+		})
+	}
+
 	return nil
 }
 
@@ -167,6 +178,11 @@ func managePermissions(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 	}
 
 	err = bindRole(ctx, rr, ai.Spec.AdminGroups, "data-science-admingroup-maas-rolebinding", "data-science-admingroup-maas-role", "models-as-a-service")
+	if err != nil {
+		return err
+	}
+
+	err = bindRole(ctx, rr, ai.Spec.AdminGroups, "data-science-admingroup-kuadrant-rolebinding", "data-science-admingroup-kuadrant-role", "kuadrant-system")
 	if err != nil {
 		return err
 	}
