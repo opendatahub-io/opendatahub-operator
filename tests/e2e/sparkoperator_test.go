@@ -34,6 +34,7 @@ func sparkOperatorTestSuite(t *testing.T) {
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
 		{"Validate SparkPi workload execution", componentCtx.ValidateSparkPiWorkload},
+		{"Validate ScheduledSparkApplication workload execution", componentCtx.ValidateScheduledSparkPiWorkload},
 		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
@@ -81,6 +82,79 @@ func (tc *SparkOperatorTestCtx) ValidateSparkPiWorkload(t *testing.T) {
 	)
 
 	t.Logf("SparkApplication %s completed successfully", sparkAppName)
+}
+
+// ValidateScheduledSparkPiWorkload validates that a ScheduledSparkApplication can run successfully.
+func (tc *SparkOperatorTestCtx) ValidateScheduledSparkPiWorkload(t *testing.T) {
+	t.Helper()
+
+	// Use a unique name to avoid conflicts with previous test runs
+	scheduledSparkAppName := "scheduled-spark-pi-" + xid.New().String()
+	// Run in the applications namespace where spark-operator-spark SA exists
+	namespace := tc.AppsNamespace
+
+	t.Logf("Creating ScheduledSparkApplication %s in namespace %s", scheduledSparkAppName, namespace)
+	scheduledSparkApp := tc.createScheduledSparkPiApplication(scheduledSparkAppName, namespace)
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(scheduledSparkApp),
+		WithCustomErrorMsg("Failed to create ScheduledSparkApplication %s", scheduledSparkAppName),
+	)
+
+	// Cleanup ScheduledSparkApplication after test
+	defer func() {
+		t.Logf("Cleaning up ScheduledSparkApplication %s", scheduledSparkAppName)
+		tc.DeleteResource(
+			WithMinimalObject(gvk.ScheduledSparkApplication, types.NamespacedName{Name: scheduledSparkAppName, Namespace: namespace}),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+	}()
+
+	t.Logf("Waiting for ScheduledSparkApplication %s to schedule a run", scheduledSparkAppName)
+	// Wait for the ScheduledSparkApplication to populate status with lastRunName
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ScheduledSparkApplication, types.NamespacedName{Name: scheduledSparkAppName, Namespace: namespace}),
+		WithCondition(
+			jq.Match(`.status.lastRunName != null and .status.lastRunName != ""`),
+		),
+		WithCustomErrorMsg("ScheduledSparkApplication %s did not schedule a run", scheduledSparkAppName),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+	)
+
+	// Get the actual SparkApplication name that was created
+	var lastRunName string
+	tc.GetResource(
+		WithMinimalObject(gvk.ScheduledSparkApplication, types.NamespacedName{Name: scheduledSparkAppName, Namespace: namespace}),
+		WithResult(func(obj *unstructured.Unstructured) error {
+			name, found, err := unstructured.NestedString(obj.Object, "status", "lastRunName")
+			if err != nil {
+				return err
+			}
+			if !found {
+				return nil
+			}
+			lastRunName = name
+			return nil
+		}),
+	)
+
+	t.Logf("ScheduledSparkApplication %s created SparkApplication: %s", scheduledSparkAppName, lastRunName)
+
+	// Wait for the spawned SparkApplication to complete
+	t.Logf("Waiting for SparkApplication %s to complete", lastRunName)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.SparkApplication, types.NamespacedName{Name: lastRunName, Namespace: namespace}),
+		WithCondition(
+			jq.Match(`.status.applicationState.state == "COMPLETED"`),
+		),
+		WithCustomErrorMsg("SparkApplication %s (created by ScheduledSparkApplication) did not complete successfully", lastRunName),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+	)
+
+	t.Logf("ScheduledSparkApplication %s successfully scheduled and executed SparkApplication %s", scheduledSparkAppName, lastRunName)
 }
 
 // createSparkPiApplication creates a SparkApplication CR for spark-pi test.
@@ -146,6 +220,87 @@ func (tc *SparkOperatorTestCtx) createSparkPiApplication(name, namespace string)
 						map[string]any{
 							"name":      "spark-work-dir",
 							"mountPath": "/opt/spark/work-dir",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+// createScheduledSparkPiApplication creates a ScheduledSparkApplication CR for spark-pi test.
+func (tc *SparkOperatorTestCtx) createScheduledSparkPiApplication(name, namespace string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "sparkoperator.k8s.io/v1beta2",
+			"kind":       "ScheduledSparkApplication",
+			"metadata": map[string]any{
+				"name":      name,
+				"namespace": namespace,
+			},
+			"spec": map[string]any{
+				// Run immediately and then every 5 minutes
+				"schedule": "@every 1m",
+				// Don't allow concurrent runs
+				"concurrencyPolicy": "Forbid",
+				// Keep only the last successful and failed run
+				"successfulRunHistoryLimit": int64(1),
+				"failedRunHistoryLimit":     int64(1),
+				// SparkApplication template - same as the regular SparkPi test
+				"template": map[string]any{
+					"type":                "Scala",
+					"mode":                "cluster",
+					"image":               "quay.io/opendatahub/data-processing:Spark-v4.0.1",
+					"imagePullPolicy":     "IfNotPresent",
+					"mainClass":           "org.apache.spark.examples.SparkPi",
+					"mainApplicationFile": "local:///opt/spark/examples/jars/spark-examples_2.13-4.0.1.jar",
+					"arguments":           []any{"1000"},
+					"sparkVersion":        "4.0.1",
+					"restartPolicy": map[string]any{
+						"type": "Never",
+					},
+					"sparkConf": map[string]any{
+						"spark.driver.port":              "8080",
+						"spark.driver.blockManager.port": "8082",
+						"spark.blockManager.port":        "8081",
+						"spark.port.maxRetries":          "0",
+					},
+					// Volume for OpenShift compatibility - provides writable work directory
+					"volumes": []any{
+						map[string]any{
+							"name":     "spark-work-dir",
+							"emptyDir": map[string]any{},
+						},
+					},
+					"driver": map[string]any{
+						"labels": map[string]any{
+							"version": "4.0.1",
+						},
+						"cores":           int64(1),
+						"coreLimit":       "1200m",
+						"memory":          "512m",
+						"serviceAccount":  "spark-operator-spark",
+						"securityContext": map[string]any{},
+						"volumeMounts": []any{
+							map[string]any{
+								"name":      "spark-work-dir",
+								"mountPath": "/opt/spark/work-dir",
+							},
+						},
+					},
+					"executor": map[string]any{
+						"labels": map[string]any{
+							"version": "4.0.1",
+						},
+						"instances":       int64(1),
+						"cores":           int64(1),
+						"memory":          "512m",
+						"securityContext": map[string]any{},
+						"volumeMounts": []any{
+							map[string]any{
+								"name":      "spark-work-dir",
+								"mountPath": "/opt/spark/work-dir",
+							},
 						},
 					},
 				},
