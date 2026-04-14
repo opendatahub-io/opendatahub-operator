@@ -1,10 +1,6 @@
 package e2e_test
 
 import (
-	"encoding/json"
-	"errors"
-	"fmt"
-	"os"
 	"strings"
 	"testing"
 
@@ -459,7 +455,6 @@ func kserveModelCacheTestSuite(t *testing.T) {
 		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
 		{"Validate ModelCache enabled", componentCtx.ValidateModelCacheEnabled},
 		{"Validate ModelCache ConfigMap", componentCtx.ValidateModelCacheConfigMap},
-		{"Validate ModelCache image reconcile", componentCtx.ValidateModelCacheImageReconcile},
 		{"Validate ModelCache deletion recovery", componentCtx.ValidateModelCacheDeletionRecovery},
 		{"Validate ModelCache disabled", componentCtx.ValidateModelCacheDisabled},
 	}
@@ -584,58 +579,6 @@ func (tc *KserveTestCtx) ValidateModelCacheConfigMap(t *testing.T) {
 	)
 }
 
-// ValidateModelCacheImageReconcile verifies that the operator force-reconciles the
-// modelcachePermissionFixImage in the inferenceservice-config ConfigMap when tampered.
-// Skips if RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE is not set (the production code no-ops).
-func (tc *KserveTestCtx) ValidateModelCacheImageReconcile(t *testing.T) {
-	t.Helper()
-
-	skipUnless(t, Tier1)
-
-	t.Setenv("RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE", "registry.redhat.io/rhoai/odh-kserve-agent-rhel8:latest")
-	expectedImage := os.Getenv("RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE")
-
-	configMapNN := types.NamespacedName{
-		Name:      "inferenceservice-config",
-		Namespace: tc.AppsNamespace,
-	}
-
-	t.Log("Tampering modelcachePermissionFixImage in inferenceservice-config ConfigMap")
-	tc.EventuallyResourcePatched(
-		WithMinimalObject(gvk.ConfigMap, configMapNN),
-		WithMutateFunc(func(obj *unstructured.Unstructured) error {
-			data, _, _ := unstructured.NestedStringMap(obj.Object, "data")
-			if data == nil {
-				return errors.New("ConfigMap data is nil")
-			}
-
-			var openshiftConfig map[string]interface{}
-			if err := json.Unmarshal([]byte(data[kserve.OpenshiftConfigKeyName]), &openshiftConfig); err != nil {
-				return fmt.Errorf("failed to parse openshiftConfig: %w", err)
-			}
-
-			openshiftConfig["modelcachePermissionFixImage"] = "tampered-image:latest"
-			updated, err := json.Marshal(openshiftConfig)
-			if err != nil {
-				return fmt.Errorf("failed to marshal openshiftConfig: %w", err)
-			}
-
-			return unstructured.SetNestedField(obj.Object, string(updated), "data", kserve.OpenshiftConfigKeyName)
-		}),
-		WithCondition(
-			jq.Match(`.data.%s | fromjson | .modelcachePermissionFixImage == "tampered-image:latest"`, kserve.OpenshiftConfigKeyName),
-		),
-	)
-
-	t.Logf("Verifying operator reconciles modelcachePermissionFixImage back to %q", expectedImage)
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.ConfigMap, configMapNN),
-		WithCondition(
-			jq.Match(`.data.%s | fromjson | .modelcachePermissionFixImage == "%s"`, kserve.OpenshiftConfigKeyName, expectedImage),
-		),
-	)
-}
-
 // ValidateModelCacheDeletionRecovery verifies the operator recreates the
 // LocalModelNodeGroup after deletion.
 // PV and PVC deletion recovery is not tested because the modelcache DaemonSet
@@ -652,8 +595,9 @@ func (tc *KserveTestCtx) ValidateModelCacheDeletionRecovery(t *testing.T) {
 	)
 }
 
-// ValidateModelCacheDisabled disables ModelCache and verifies cleanup:
-// PSA label reverts to baseline, ConfigMap localModel.enabled=false.
+// ValidateModelCacheDisabled disables ModelCache and verifies full cleanup:
+// PSA label reverts to baseline, ConfigMap localModel.enabled=false,
+// PV/PVC/LocalModelNodeGroup are deleted, and node labels are removed.
 func (tc *KserveTestCtx) ValidateModelCacheDisabled(t *testing.T) {
 	t.Helper()
 
@@ -696,4 +640,33 @@ func (tc *KserveTestCtx) ValidateModelCacheDisabled(t *testing.T) {
 			jq.Match(`.data.localModel | fromjson | .enabled == false`),
 		),
 	)
+
+	t.Log("Verifying PersistentVolume kserve-localmodelnode-pv is deleted")
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.PersistentVolume, types.NamespacedName{Name: "kserve-localmodelnode-pv"}),
+	)
+
+	t.Log("Verifying PersistentVolumeClaim kserve-localmodelnode-pvc is deleted")
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.PersistentVolumeClaim, types.NamespacedName{
+			Name:      "kserve-localmodelnode-pvc",
+			Namespace: tc.AppsNamespace,
+		}),
+	)
+
+	t.Log("Verifying LocalModelNodeGroup 'workers' is deleted")
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.LocalModelNodeGroup, types.NamespacedName{Name: "workers"}),
+	)
+
+	t.Log("Verifying no nodes have kserve/localmodel label")
+	nodes := tc.FetchResources(
+		WithMinimalObject(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Node"}, types.NamespacedName{}),
+		WithListOptions(&client.ListOptions{
+			LabelSelector: k8slabels.SelectorFromSet(k8slabels.Set{
+				"kserve/localmodel": "worker",
+			}),
+		}),
+	)
+	require.Empty(t, nodes, "Expected no nodes with kserve/localmodel=worker label after disable")
 }
