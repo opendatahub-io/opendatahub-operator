@@ -214,7 +214,7 @@ func TestHardwareProfileMigrationErrorAggregation(t *testing.T) {
 		)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, "test-namespace")
+		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, "test-namespace", "")
 		g.Expect(err).Should(HaveOccurred())
 
 		// Should contain multiple error messages
@@ -249,7 +249,7 @@ func TestHardwareProfileMigrationErrorAggregation(t *testing.T) {
 		)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, "test-namespace")
+		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, "test-namespace", "")
 		g.Expect(err).Should(HaveOccurred())
 
 		// Should still create other HardwareProfiles (container sizes and special)
@@ -284,7 +284,7 @@ func TestHardwareProfileMigrationWithComplexScenarios(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, ap1, ap2))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, "test-namespace")
+		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, "test-namespace", "")
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		// Verify multiple HardwareProfiles were created
@@ -357,7 +357,7 @@ func TestHardwareProfileMigrationWithComplexScenarios(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, ap))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, "test-namespace")
+		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, "test-namespace", "")
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		// Verify HardwareProfile has both AP tolerations and notebooks-only tolerations
@@ -382,7 +382,7 @@ func TestHardwareProfileMigrationWithComplexScenarios(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, ap))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, "")
+		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, "", "")
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		// Verify no HardwareProfiles were created

@@ -22,7 +22,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/env"
@@ -79,9 +78,9 @@ const (
 	lwsConditionAvailable                      = "Available"
 )
 
-func kserveManifestInfo(sourcePath string) odhtypes.ManifestInfo {
+func kserveManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
-		Path:       odhdeploy.DefaultManifestPath,
+		Path:       basePath,
 		ContextDir: componentName,
 		SourcePath: sourcePath,
 	}

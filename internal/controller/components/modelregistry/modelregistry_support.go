@@ -6,7 +6,6 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 const (
@@ -42,17 +41,17 @@ var (
 	}
 )
 
-func baseManifestInfo(sourcePath string) odhtypes.ManifestInfo {
+func baseManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
-		Path:       deploy.DefaultManifestPath,
+		Path:       basePath,
 		ContextDir: ComponentName,
 		SourcePath: sourcePath,
 	}
 }
 
-func extraManifestInfo(sourcePath string) odhtypes.ManifestInfo {
+func extraManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
-		Path:       deploy.DefaultManifestPath,
+		Path:       basePath,
 		ContextDir: ComponentName,
 		SourcePath: path.Join(sourcePath, "extras"),
 	}

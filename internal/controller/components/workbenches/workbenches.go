@@ -20,6 +20,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 )
 
 type componentHandler struct{}
@@ -48,8 +49,9 @@ func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *
 	}, nil
 }
 
-func (s *componentHandler) Init(platform common.Platform) error {
-	nbcManifestInfo := notebookControllerManifestInfo(notebookControllerManifestSourcePath)
+func (s *componentHandler) Init(platform common.Platform, cfg operatorconfig.OperatorSettings) error {
+	manifestsBasePath := cfg.ManifestsBasePath
+	nbcManifestInfo := notebookControllerManifestInfo(manifestsBasePath, notebookControllerManifestSourcePath)
 	if err := odhdeploy.ApplyParams(nbcManifestInfo.String(), "params.env", map[string]string{
 		"odh-notebook-controller-image": "RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE",
 		"kube-rbac-proxy":               "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
@@ -57,14 +59,14 @@ func (s *componentHandler) Init(platform common.Platform) error {
 		return fmt.Errorf("failed to update params.env from %s : %w", nbcManifestInfo.String(), err)
 	}
 
-	kfNbcManifestInfo := kfNotebookControllerManifestInfo(kfNotebookControllerManifestSourcePath)
+	kfNbcManifestInfo := kfNotebookControllerManifestInfo(manifestsBasePath, kfNotebookControllerManifestSourcePath)
 	if err := odhdeploy.ApplyParams(kfNbcManifestInfo.String(), "params.env", map[string]string{
 		"odh-kf-notebook-controller-image": "RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE",
 	}); err != nil {
 		return fmt.Errorf("failed to update params.env from %s : %w", kfNbcManifestInfo.String(), err)
 	}
 
-	nbImgsManifestInfo := notebookImagesManifestInfo(notebookImagesParamsPath[platform])
+	nbImgsManifestInfo := notebookImagesManifestInfo(manifestsBasePath, notebookImagesParamsPath[platform])
 	if err := odhdeploy.ApplyParams(nbImgsManifestInfo.String(), "params-latest.env", map[string]string{
 		// CodeServer Workbench Images
 		"odh-workbench-codeserver-datascience-cpu-py312-ubi9-n": "RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_DATASCIENCE_CPU_PY312_IMAGE",

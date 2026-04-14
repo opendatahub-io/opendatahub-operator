@@ -19,6 +19,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 )
 
 const (
@@ -52,8 +53,9 @@ type componentHandler struct{}
 func NewHandler() *componentHandler { return &componentHandler{} }
 
 // Init updates params.env files with image overrides and cert-manager configuration.
-func (s *componentHandler) Init(_ common.Platform) error {
-	mp := kserveManifestInfo(kserveManifestSourcePath)
+func (s *componentHandler) Init(_ common.Platform, cfg operatorconfig.OperatorSettings) error {
+	manifestsBasePath := cfg.ManifestsBasePath
+	mp := kserveManifestInfo(manifestsBasePath, kserveManifestSourcePath)
 
 	if err := odhdeploy.ApplyParams(mp.String(), "params.env", imageParamMap); err != nil {
 		return fmt.Errorf("failed to update images on path %s: %w", mp, err)
@@ -61,7 +63,7 @@ func (s *componentHandler) Init(_ common.Platform) error {
 
 	// Apply cert-manager issuer params to the xKS overlay.
 	// ApplyParams safely no-ops if the overlay's params.env does not exist on disk.
-	xksMP := kserveManifestInfo(kserveManifestSourcePathXKS)
+	xksMP := kserveManifestInfo(manifestsBasePath, kserveManifestSourcePathXKS)
 	if err := odhdeploy.ApplyParams(xksMP.String(), "params.env", nil, buildCertManagerParams()); err != nil {
 		return fmt.Errorf("failed to update cert-manager params on path %s: %w", xksMP, err)
 	}

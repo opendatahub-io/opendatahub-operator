@@ -78,7 +78,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 	metadatalabels "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/env"
 	testscheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
@@ -355,14 +357,14 @@ func SetupTestEnvForMain(authMode string, clusterDomain string) *TestEnvContext 
 
 	setupClusterPrerequisitesForMain(ctx, k8sClient, authMode, clusterDomain)
 
-	_ = os.Setenv("OPERATOR_NAMESPACE", gateway.GatewayNamespace)
-	if os.Getenv("ODH_PLATFORM_TYPE") == "" {
-		_ = os.Setenv("ODH_PLATFORM_TYPE", "OpenDataHub")
-	}
+	platformType := env.GetOrDefault("ODH_PLATFORM_TYPE", "OpenDataHub")
 
 	// Initialize cluster config so cluster.GetOperatorNamespace() works (e.g. for GC action).
 	// Ignore Init error: operator namespace is set above; other steps may fail in envtest (e.g. no ClusterVersion).
-	_ = cluster.Init(ctx, k8sClient)
+	_ = cluster.Init(ctx, k8sClient, operatorconfig.OperatorSettings{
+		OperatorNamespace: gateway.GatewayNamespace,
+		PlatformType:      platformType,
+	})
 
 	// Manager with production-like cache. Do not add GatewayConfig to DisableFor (controller must receive watch events on spec updates).
 	skipNameValidation := true

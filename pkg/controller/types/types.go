@@ -104,12 +104,13 @@ type HelmChartInfo struct {
 }
 
 type ReconciliationRequest struct {
-	Client     client.Client
-	Controller Controller
-	Conditions *conditions.Manager
-	Instance   common.PlatformObject
-	Release    common.Release
-	Manifests  []ManifestInfo
+	Client            client.Client
+	Controller        Controller
+	Conditions        *conditions.Manager
+	Instance          common.PlatformObject
+	Release           common.Release
+	ManifestsBasePath string
+	Manifests         []ManifestInfo
 
 	//
 	// TODO: unify templates and resources.

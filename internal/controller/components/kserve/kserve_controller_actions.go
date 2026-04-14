@@ -22,7 +22,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -39,9 +38,9 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { /
 	}
 
 	rr.Manifests = []odhtypes.ManifestInfo{
-		kserveManifestInfo(sourcePath),
+		kserveManifestInfo(rr.ManifestsBasePath, sourcePath),
 		{
-			Path:       odhdeploy.DefaultManifestPath,
+			Path:       rr.ManifestsBasePath,
 			ContextDir: "connectionAPI",
 		},
 	}

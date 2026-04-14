@@ -29,7 +29,7 @@ func TestGetOdhDashboardConfigWithMissingCRD(t *testing.T) {
 
 		// When not found in cluster, it attempts to load from manifests
 		// If manifests don't exist, it will return a file not found error
-		_, found, err := upgrade.GetOdhDashboardConfig(ctx, cli, "test-app-ns")
+		_, found, err := upgrade.GetOdhDashboardConfig(ctx, cli, "test-app-ns", "")
 
 		// The function returns error when manifest file is not found
 		// This is expected behavior when both cluster and manifest sources fail
@@ -67,7 +67,7 @@ func TestGetOdhDashboardConfigWithMissingCRD(t *testing.T) {
 
 		// When NoMatchError occurs (CRD missing), it should not fail immediately
 		// It attempts to load from manifests as a fallback
-		_, found, err := upgrade.GetOdhDashboardConfig(ctx, cli, "test-app-ns")
+		_, found, err := upgrade.GetOdhDashboardConfig(ctx, cli, "test-app-ns", "")
 
 		// If manifests don't exist, it will return error
 		// This is expected behavior when both cluster and manifest sources fail
@@ -98,7 +98,7 @@ func TestGetOdhDashboardConfigWithMissingCRD(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		// This should return the error since it's not NotFound or NoMatch
-		_, _, err = upgrade.GetOdhDashboardConfig(ctx, cli, "test-app-ns")
+		_, _, err = upgrade.GetOdhDashboardConfig(ctx, cli, "test-app-ns", "")
 		g.Expect(err).Should(HaveOccurred())
 		g.Expect(err.Error()).To(ContainSubstring("failed to get OdhDashboardConfig from cluster"))
 		g.Expect(err.Error()).To(ContainSubstring("internal server error"))
@@ -113,7 +113,7 @@ func TestGetOdhDashboardConfigWithMissingCRD(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		// This should successfully retrieve the OdhDashboardConfig
-		config, found, err := upgrade.GetOdhDashboardConfig(ctx, cli, "test-app-ns")
+		config, found, err := upgrade.GetOdhDashboardConfig(ctx, cli, "test-app-ns", "")
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(found).To(BeTrue())
 		g.Expect(config).ToNot(BeNil())
