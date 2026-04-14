@@ -119,8 +119,9 @@ func getDependencies(wt *testf.WithT, cr *unstructured.Unstructured) ccmapi.Depe
 }
 
 // getManagedDependencyDeployments returns all deployments managed by the cloud manager,
-// identified by the InfrastructurePartOf label. Deployments are filtered by the namespaces
-// specified in the CR spec to ensure we're checking the expected dependencies.
+// identified by the InfrastructurePartOf label. It asserts that every such deployment
+// is located in one of the expected namespaces, failing the test if any deployment is
+// found in an unexpected namespace (e.g., misplaced resources).
 // Note: Only includes operator deployments, not operand deployments (e.g., cert-manager-operator,
 // not the cert-manager controller/webhook which are managed by the operator itself).
 func getManagedDependencyDeployments(wt *testf.WithT, cr *unstructured.Unstructured) []unstructured.Unstructured {
@@ -132,26 +133,27 @@ func getManagedDependencyDeployments(wt *testf.WithT, cr *unstructured.Unstructu
 	wt.Expect(lwsNS).NotTo(BeEmpty(), "lws namespace should be set by kubebuilder default")
 	wt.Expect(sailNS).NotTo(BeEmpty(), "sailOperator namespace should be set by kubebuilder default")
 
-	expectedNamespaces := []string{certManagerOperatorNS, lwsNS, sailNS}
+	expectedNamespaces := map[string]bool{
+		certManagerOperandNS:  true,
+		certManagerOperatorNS: true,
+		lwsNS:                 true,
+		sailNS:                true,
+	}
 
 	// Get all deployments with the InfrastructurePartOf label
 	allDeployments := wt.List(gvk.Deployment,
 		client.MatchingLabels{labels.InfrastructurePartOf: getPartOfLabelValue()},
 	).Eventually().Should(Not(BeEmpty()))
 
-	// Filter deployments that are in the expected namespaces
-	var managedDeployments []unstructured.Unstructured
+	// Assert no deployment is in an unexpected namespace
 	for _, dep := range allDeployments {
-		depNS := dep.GetNamespace()
-		for _, ns := range expectedNamespaces {
-			if depNS == ns {
-				managedDeployments = append(managedDeployments, dep)
-				break
-			}
-		}
+		wt.Expect(expectedNamespaces).To(HaveKey(dep.GetNamespace()),
+			"deployment %q is in unexpected namespace %q; expected one of %v",
+			dep.GetName(), dep.GetNamespace(), expectedNamespaces,
+		)
 	}
 
-	return managedDeployments
+	return allDeployments
 }
 
 // getManagedDependencyDeploymentByName returns the first deployment whose name contains
