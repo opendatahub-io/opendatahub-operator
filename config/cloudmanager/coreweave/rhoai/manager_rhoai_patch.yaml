@@ -12,6 +12,10 @@ spec:
         - name: RHAI_OPERATOR_NAMESPACE
           value: redhat-ods-operator
         - name: RHAI_WEBHOOK_CERT_SECRET_NAME
-          value: redhat-ods-operator-controller-webhook-cert
+          value: rhai-operator-controller-webhook-cert
         - name: RHAI_WEBHOOK_SERVICE_NAME
-          value: rhods-operator-webhook-service
+          value: rhai-operator-webhook-service
+        - name: RHAI_CA_SECRET_NAME
+          value: rhaii-ca
+        - name: RHAI_ISSUER_REF_NAME
+          value: rhaii-ca-issuer

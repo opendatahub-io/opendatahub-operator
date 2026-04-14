@@ -83,8 +83,7 @@ config/rhoai/rbac/role.yaml
 config/rhoai/webhook/manifests.yaml
 config/rhaii/crd/bases
 config/rhaii/webhook/manifests.yaml
-rhoai-bundle/
-odh-bundle/
+rhoai-bundle/# odh-bundle/
 config/cloudmanager/*/crd/bases
 config/cloudmanager/*/rbac/role.yaml
 config/cloudmanager/*/webhook/manifests.yaml
