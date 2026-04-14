@@ -39,7 +39,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
-	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -74,8 +74,9 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		).
 		WithAction(initialize).
 		WithAction(releases.NewAction(
-			releases.WithMetadataFilePath(
-				path.Join(odhdeploy.DefaultManifestPath, ComponentName, kfNotebookControllerPath, releases.ComponentMetadataFilename)))).
+			releases.WithMetadataFilePath(func(rr *odhtypes.ReconciliationRequest) string {
+				return path.Join(rr.ManifestsBasePath, ComponentName, kfNotebookControllerPath, releases.ComponentMetadataFilename)
+			}))).
 		WithAction(configureDependencies).
 		WithAction(setKustomizedParams).
 		WithAction(kustomize.NewAction(

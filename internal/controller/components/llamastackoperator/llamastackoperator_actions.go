@@ -7,6 +7,6 @@ import (
 )
 
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { //nolint:unparam
-	rr.Manifests = append(rr.Manifests, manifestPath(rr.Release.Name))
+	rr.Manifests = append(rr.Manifests, manifestPath(rr.ManifestsBasePath, rr.Release.Name))
 	return nil
 }

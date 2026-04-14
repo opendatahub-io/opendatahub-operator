@@ -11,12 +11,13 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 )
 
 // ComponentHandler is an interface to manage a component
 // Every method should accept ctx since it contains the logger.
 type ComponentHandler interface {
-	Init(platform common.Platform) error
+	Init(platform common.Platform, cfg operatorconfig.OperatorSettings) error
 	GetName() string
 	// NewCRObject returns the component CR; if it returns an error, reconciliation fails (e.g. Dashboard/ModelRegistry when gateway domain is unavailable).
 	NewCRObject(ctx context.Context, cli client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error)

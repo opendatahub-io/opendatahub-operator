@@ -19,6 +19,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
@@ -30,14 +31,15 @@ func (s *componentHandler) GetName() string {
 	return componentApi.DashboardComponentName
 }
 
-func (s *componentHandler) Init(platform common.Platform) error {
-	mi := defaultManifestInfo(platform)
+func (s *componentHandler) Init(platform common.Platform, cfg operatorconfig.OperatorSettings) error {
+	manifestsBasePath := cfg.ManifestsBasePath
+	mi := defaultManifestInfo(manifestsBasePath, platform)
 
 	if err := odhdeploy.ApplyParams(mi.String(), "params.env", imagesMap); err != nil {
 		return fmt.Errorf("failed to update images on path %s: %w", mi, err)
 	}
 
-	extra := bffManifestsPath()
+	extra := bffManifestsPath(manifestsBasePath)
 	if err := odhdeploy.ApplyParams(extra.String(), "params.env", imagesMap); err != nil {
 		return fmt.Errorf("failed to update modular-architecture images on path %s: %w", extra, err)
 	}

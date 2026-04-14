@@ -53,6 +53,7 @@ import (
 	rp "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
@@ -64,9 +65,10 @@ const (
 
 // DSCInitializationReconciler reconciles a DSCInitialization object.
 type DSCInitializationReconciler struct {
-	Client   client.Client
-	Scheme   *runtime.Scheme
-	Recorder events.EventRecorder
+	Client           client.Client
+	Scheme           *runtime.Scheme
+	Recorder         events.EventRecorder
+	OperatorSettings operatorconfig.OperatorSettings
 }
 
 // Reconcile contains controller logic specific to DSCInitialization instance updates.
@@ -232,7 +234,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				}
 			}
 		case cluster.ManagedRhoai:
-			osdConfigsPath := filepath.Join(deploy.DefaultManifestPath, "osd-configs")
+			osdConfigsPath := filepath.Join(r.OperatorSettings.ManifestsBasePath, "osd-configs")
 			if err = deploy.DeployManifestsFromPath(ctx, r.Client, instance, osdConfigsPath, instance.Spec.ApplicationsNamespace, "osd", true); err != nil {
 				log.Error(err, "Failed to apply osd specific configs from manifests", "Manifests path", osdConfigsPath)
 				r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",

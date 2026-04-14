@@ -16,9 +16,9 @@ import (
 
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { //nolint:unparam
 	rr.Manifests = []odhtypes.ManifestInfo{
-		notebookControllerManifestInfo(notebookControllerManifestSourcePath),
-		kfNotebookControllerManifestInfo(kfNotebookControllerManifestSourcePath),
-		notebookImagesManifestInfo(notebookImagesManifestSourcePath[rr.Release.Name]),
+		notebookControllerManifestInfo(rr.ManifestsBasePath, notebookControllerManifestSourcePath),
+		kfNotebookControllerManifestInfo(rr.ManifestsBasePath, kfNotebookControllerManifestSourcePath),
+		notebookImagesManifestInfo(rr.ManifestsBasePath, notebookImagesManifestSourcePath[rr.Release.Name]),
 	}
 
 	return nil
@@ -69,7 +69,7 @@ func setKustomizedParams(ctx context.Context, rr *odhtypes.ReconciliationRequest
 		return fmt.Errorf("failed to set variable for url, section-title etc: %w", err)
 	}
 
-	paramsPath := path.Join(odhdeploy.DefaultManifestPath, notebookControllerContextDir, notebookControllerManifestSourcePath)
+	paramsPath := path.Join(rr.ManifestsBasePath, notebookControllerContextDir, notebookControllerManifestSourcePath)
 
 	if err := odhdeploy.ApplyParams(paramsPath, "params.env", nil, extraParamsMap); err != nil {
 		return fmt.Errorf("failed to update params.env from %s : %w", paramsPath, err)

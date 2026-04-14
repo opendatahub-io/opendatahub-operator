@@ -54,7 +54,7 @@ type DashboardHardwareProfileList struct {
 }
 
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { //nolint:unparam
-	rr.Manifests = []odhtypes.ManifestInfo{defaultManifestInfo(rr.Release.Name)}
+	rr.Manifests = []odhtypes.ManifestInfo{defaultManifestInfo(rr.ManifestsBasePath, rr.Release.Name)}
 
 	return nil
 }
@@ -90,8 +90,7 @@ func deployObservabilityManifests(ctx context.Context, rr *odhtypes.Reconciliati
 		return nil
 	}
 
-	// Deploy platform-specific observability manifests to monitoring namespace
-	manifestPath := observabilityManifestInfo(rr.Release.Name).String()
+	manifestPath := observabilityManifestInfo(rr.ManifestsBasePath, rr.Release.Name).String()
 
 	err = odhdeploy.DeployManifestsFromPath(
 		ctx,

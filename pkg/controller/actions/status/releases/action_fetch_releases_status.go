@@ -13,7 +13,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 const (
@@ -21,14 +20,15 @@ const (
 )
 
 type Action struct {
-	metadataFilePath       string
+	metadataFilePathFn     func(rr *types.ReconciliationRequest) string
 	componentReleaseStatus []common.ComponentRelease
 }
 
-// WithMetadataFilePath is an ActionOpts function that sets a custom metadata file path.
-func WithMetadataFilePath(filePath string) ActionOpts {
+// WithMetadataFilePath is an ActionOpts function that sets a custom metadata file path
+// resolved dynamically at reconciliation time using the ReconciliationRequest.
+func WithMetadataFilePath(fn func(rr *types.ReconciliationRequest) string) ActionOpts {
 	return func(a *Action) {
-		a.metadataFilePath = filePath
+		a.metadataFilePathFn = fn
 	}
 }
 
@@ -97,12 +97,12 @@ func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) ([
 
 	// Determine the metadata file path
 	var metadataPath string
-	if a.metadataFilePath != "" {
-		metadataPath = a.metadataFilePath
+	if a.metadataFilePathFn != nil {
+		metadataPath = a.metadataFilePathFn(rr)
 	} else {
 		// Build the path to the component metadata file
 		controllerName := strings.ToLower(rr.Instance.GetObjectKind().GroupVersionKind().Kind)
-		metadataPath = filepath.Join(odhdeploy.DefaultManifestPath, controllerName, ComponentMetadataFilename)
+		metadataPath = filepath.Join(rr.ManifestsBasePath, controllerName, ComponentMetadataFilename)
 	}
 
 	// Read the YAML file

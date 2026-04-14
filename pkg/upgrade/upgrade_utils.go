@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -27,7 +28,6 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 // ContainerSize represents a container size configuration from OdhDashboardConfig.
@@ -58,7 +58,7 @@ func getAcceleratorProfiles(ctx context.Context, cli client.Client) ([]unstructu
 	return apList.Items, nil
 }
 
-func GetOdhDashboardConfig(ctx context.Context, cli client.Client, applicationNS string) (*unstructured.Unstructured, bool, error) {
+func GetOdhDashboardConfig(ctx context.Context, cli client.Client, applicationNS string, basePath string) (*unstructured.Unstructured, bool, error) {
 	log := logf.FromContext(ctx)
 	odhConfig := &unstructured.Unstructured{}
 	odhConfig.SetGroupVersionKind(gvk.OdhDashboardConfig)
@@ -78,7 +78,7 @@ func GetOdhDashboardConfig(ctx context.Context, cli client.Client, applicationNS
 	log.Info("OdhDashboardConfig not found in cluster, attempting to load from manifests")
 
 	// Try to load from manifests
-	manifestConfig, found, err := loadOdhDashboardConfigFromManifests(ctx)
+	manifestConfig, found, err := loadOdhDashboardConfigFromManifests(ctx, basePath)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to load OdhDashboardConfig from manifests: %w", err)
 	}
@@ -105,10 +105,10 @@ func createHardwareProfileFromContainerSize(ctx context.Context, cli client.Clie
 
 // loadOdhDashboardConfigFromManifests attempts to load OdhDashboardConfig from manifest files.
 // It searches for manifest files in the expected locations and returns the first valid OdhDashboardConfig found.
-func loadOdhDashboardConfigFromManifests(ctx context.Context) (*unstructured.Unstructured, bool, error) {
+func loadOdhDashboardConfigFromManifests(ctx context.Context, basePath string) (*unstructured.Unstructured, bool, error) {
 	log := logf.FromContext(ctx)
 
-	manifestPath := deploy.DefaultManifestPath + odhDashboardConfigPath
+	manifestPath := filepath.Join(basePath, odhDashboardConfigPath)
 	_, err := os.Stat(manifestPath)
 	if err == nil {
 		log.Info("Found OdhDashboardConfig manifest", "path", manifestPath)

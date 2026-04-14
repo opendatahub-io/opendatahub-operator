@@ -23,6 +23,6 @@ import (
 )
 
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { //nolint:unparam
-	rr.Manifests = append(rr.Manifests, manifestPath())
+	rr.Manifests = append(rr.Manifests, manifestPath(rr.ManifestsBasePath))
 	return nil
 }
