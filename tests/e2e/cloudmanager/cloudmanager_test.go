@@ -390,8 +390,8 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 				labels.InfrastructurePartOf: strings.ToLower(provider.GVK.Kind),
 			})
 			staleCM.SetAnnotations(map[string]string{
-				annotations.InstanceUID:        string(cr.GetUID()),
-				annotations.InstanceGeneration: "-1",
+				labels.ODHInfrastructurePrefix + annotations.SuffixInstanceUID:        string(cr.GetUID()),
+				labels.ODHInfrastructurePrefix + annotations.SuffixInstanceGeneration: "-1",
 			})
 			_ = unstructured.SetNestedSlice(staleCM.Object, []any{
 				map[string]any{
