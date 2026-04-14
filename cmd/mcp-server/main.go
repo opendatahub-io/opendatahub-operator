@@ -40,6 +40,8 @@ func main() {
 	s := server.NewMCPServer("opendatahub-health", "0.1.0")
 
 	registerPlatformHealth(s, kubeClient)
+	registerClassifyFailure(s, kubeClient)
+	registerComponentStatus(s, kubeClient)
 	registerPodLogs(s, clientset)
 
 	if err := server.ServeStdio(s); err != nil {

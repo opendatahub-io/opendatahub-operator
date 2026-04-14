@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/tests/e2e/pkg/failureclassifier"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/failureclassifier"
 )
 
 const circuitBreakerSkipPrefix = "CIRCUIT BREAKER OPEN"
