@@ -11,6 +11,7 @@ import (
 	"github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -22,6 +23,8 @@ import (
 
 	ccmcommon "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
@@ -169,6 +172,32 @@ func CreateCR(t *testing.T, wt *testf.WithT, cfg ControllerTestConfig, deps ccmc
 	obj := cfg.NewCR(deps)
 	wt.Expect(wt.Client().Create(wt.Context(), obj)).Should(gomega.Succeed())
 	envt.CleanupDelete(t, gomega.NewWithT(t), wt.Context(), wt.Client(), obj)
+}
+
+// ListInfraDeployments returns the Deployments with the InfrastructurePartOf
+// label matching the given infraLabel in the specified namespace.
+func ListInfraDeployments(wt *testf.WithT, namespace, infraLabel string) ([]unstructured.Unstructured, error) {
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(gvk.Deployment.GroupVersion().WithKind(gvk.Deployment.Kind + "List"))
+
+	if err := wt.Client().List(wt.Context(), list,
+		client.InNamespace(namespace),
+		client.MatchingLabels{
+			labels.InfrastructurePartOf: labels.NormalizePartOfValue(infraLabel),
+		},
+	); err != nil {
+		return nil, err
+	}
+
+	return list.Items, nil
+}
+
+// HasInfraDeployments returns true if there are Deployments with the InfrastructurePartOf
+// label matching the given infraLabel in the specified namespace.
+func HasInfraDeployments(wt *testf.WithT, namespace, infraLabel string) bool {
+	items, err := ListInfraDeployments(wt, namespace, infraLabel)
+	wt.Expect(err).NotTo(gomega.HaveOccurred())
+	return len(items) > 0
 }
 
 // RunTestMain executes the common TestMain boilerplate for cloud controller integration tests.
