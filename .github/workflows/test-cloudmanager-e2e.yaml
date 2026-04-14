@@ -10,14 +10,20 @@ permissions:
 
 env:
   IMG: localhost/odh-operator:e2e
-  IMAGE_BUILDER: docker
+  IMAGE_BUILDER: podman
 
 jobs:
+  get-merge-commit:
+    if: contains(github.event.pull_request.labels.*.name, 'run-xks-e2e')
+    name: Get merge commit
+    uses: ./.github/workflows/get-merge-commit.yaml
+
   cloud-manager-e2e:
+    needs: get-merge-commit
     name: Cloud Manager E2E (${{ matrix.provider }})
     # Label gate: only runs when a maintainer adds this label, preventing
     # untrusted fork PRs from executing arbitrary code with repo secrets.
-    if: contains(github.event.pull_request.labels.*.name, 'run-cloudmanager-e2e')
+    if: contains(github.event.pull_request.labels.*.name, 'run-xks-e2e')
     runs-on: ubuntu-latest
     env:
       KIND_CLUSTER_NAME: kind-${{ matrix.provider }}
@@ -30,29 +36,28 @@ jobs:
         if: ${{ !env.ACT }}
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ needs.get-merge-commit.outputs.mergedSha }}
 
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
           go-version-file: go.mod
 
-      - name: Prepare kind config with pull credentials
-        if: env.PULL_SECRET != ''
-        env:
-          PULL_SECRET: ${{ secrets.CCM_PULL_SECRET }}
-        run: |
-          echo "$PULL_SECRET" > "$RUNNER_TEMP/pull-secret.json"
-          echo '{"kind":"Cluster","apiVersion":"kind.x-k8s.io/v1alpha4","nodes":[{"role":"control-plane","extraMounts":[{"containerPath":"/var/lib/kubelet/config.json","hostPath":"'"$RUNNER_TEMP"'/pull-secret.json"}]}]}' \
-            > "$RUNNER_TEMP/kind-config.json"
-          echo "KIND_CONFIG=$RUNNER_TEMP/kind-config.json" >> "$GITHUB_ENV"
-
       - name: Create kind cluster
         uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
         with:
           cluster_name: ${{ env.KIND_CLUSTER_NAME }}
           wait: 120s
-          config: ${{ env.KIND_CONFIG }}
+
+      - name: Configure Pull Secrets for operator dependencies in the KinD Cluster
+        if: env.PULL_SECRET != ''
+        run: |
+          pull_secret_file="$RUNNER_TEMP/pull-secret.json"
+          echo "$PULL_SECRET" > "$pull_secret_file"
+          make kind-setup-pull-secrets PULL_SECRET="$pull_secret_file"
+          rm -f "$pull_secret_file"
+        env:
+          PULL_SECRET: ${{ secrets.CCM_PULL_SECRET }}
 
       - name: Build operator image
         run: make image-build

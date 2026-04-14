@@ -59,6 +59,11 @@ type ExampleComponentSpec struct {
 	ExampleComponentCommonSpec `json:",inline"`
 
 	// new component spec exposed only to internal api
+	// IMPORTANT: fields here must only be written by the operator itself (e.g. values
+	// discovered at run time based on cluster config). Never place user-facing configuration
+	// here — anything a user must set belongs in ExampleComponentCommonSpec so it is
+	// reachable through the DSC API. Internal CRDs are hidden from the OperatorHub UI
+	// and are not the expected user-facing API surface.
   	// ( refer/define here if applicable to the new component )
 }
 
@@ -146,7 +151,7 @@ Alternatively, you can refer to the existing integrated component APIs located w
 
 #### Define internal resources for the new component
 
-Component CRDs can be marked as internal to hide them from users in the OperatorHub UI. While some internal resources can still be edited by users if needed, resources visible in the UI represent the primary configuration points that users are expected to interact with. Most component resources should be internal unless they require direct user configuration. 
+Component CRDs can be marked as internal to hide them from users in the OperatorHub UI. Internal component CRDs are **not** the expected user-facing API surface — the DataScienceCluster (DSC) is. Any configuration field that a user must set must be surfaced through the DSC spec via `DSCExampleComponent` (using `ExampleComponentCommonSpec`). Fields that live only on the internal `ExampleComponentSpec` (outside of `CommonSpec`) must be values written exclusively by the operator itself, such as infrastructure details propagated from `GatewayConfig`. Most component resources should be internal; this means users are NOT expected to edit them directly.
 
 To mark your component as internal, update `config/manifests/bases/opendatahub-operator.clusterserviceversion.yaml` and `config/rhoai/manifests/bases/rhods-operator.clusterserviceversion.yaml`to add your component's CRD to the `operators.operatorframework.io/internal-objects` annotation:
 
@@ -249,7 +254,7 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.PlatformObject
 
-func (s *componentHandler) Init(platform common.Platform) error 
+func (s *componentHandler) Init(platform common.Platform) error
 
 func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error)
 ```
