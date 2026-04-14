@@ -132,6 +132,22 @@ func WithApplyOrder() ActionOpts {
 	return WithSortFn(resources.SortByApplyOrder)
 }
 
+// resolveFieldOwner returns the effective field owner for the reconciled
+// instance.  When a.fieldOwner is explicitly configured it is returned
+// as-is; otherwise the owner is derived from the instance's Kind.
+func (a *Action) resolveFieldOwner(rr *odhTypes.ReconciliationRequest) (string, error) {
+	if a.fieldOwner != "" {
+		return a.fieldOwner, nil
+	}
+
+	kind, err := resources.KindForObject(rr.Client.Scheme(), rr.Instance)
+	if err != nil {
+		return "", err
+	}
+
+	return strings.ToLower(kind), nil
+}
+
 func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) error {
 	if a.sortFn != nil {
 		sorted, err := a.sortFn(ctx, rr.Resources)
@@ -146,12 +162,11 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 		a.cache.Sync()
 	}
 
-	kind, err := resources.KindForObject(rr.Client.Scheme(), rr.Instance)
+	controllerName, err := a.resolveFieldOwner(rr)
 	if err != nil {
 		return err
 	}
 
-	controllerName := strings.ToLower(kind)
 	igvk := rr.Instance.GetObjectKind().GroupVersionKind()
 
 	for i := range rr.Resources {
@@ -250,14 +265,9 @@ func (a *Action) deployCRD(
 		if a.partOfLabelKey == labels.PlatformPartOf {
 			resources.SetLabel(&obj, a.partOfLabelKey, labels.Platform)
 		} else {
-			fo := a.fieldOwner
-			if fo == "" {
-				kind, err := resources.KindForObject(rr.Client.Scheme(), rr.Instance)
-				if err != nil {
-					return false, err
-				}
-
-				fo = strings.ToLower(kind)
+			fo, err := a.resolveFieldOwner(rr)
+			if err != nil {
+				return false, err
 			}
 
 			if fo != "" {
@@ -324,14 +334,9 @@ func (a *Action) deploy(
 	obj unstructured.Unstructured,
 	current *unstructured.Unstructured,
 ) (bool, error) {
-	fo := a.fieldOwner
-	if fo == "" {
-		kind, err := resources.KindForObject(rr.Client.Scheme(), rr.Instance)
-		if err != nil {
-			return false, err
-		}
-
-		fo = strings.ToLower(kind)
+	fo, err := a.resolveFieldOwner(rr)
+	if err != nil {
+		return false, err
 	}
 
 	resources.SetLabels(&obj, a.labels)
