@@ -113,7 +113,7 @@ func (tc *SparkOperatorTestCtx) ValidateScheduledSparkPiWorkload(t *testing.T) {
 
 	t.Logf("Waiting for ScheduledSparkApplication %s to schedule a run", scheduledSparkAppName)
 	// Wait for the ScheduledSparkApplication to populate status with lastRunName
-	tc.EnsureResourceExists(
+	scheduledApp := tc.EnsureResourceExists(
 		WithMinimalObject(gvk.ScheduledSparkApplication, types.NamespacedName{Name: scheduledSparkAppName, Namespace: namespace}),
 		WithCondition(
 			jq.Match(`.status.lastRunName != null and .status.lastRunName != ""`),
@@ -124,21 +124,9 @@ func (tc *SparkOperatorTestCtx) ValidateScheduledSparkPiWorkload(t *testing.T) {
 	)
 
 	// Get the actual SparkApplication name that was created
-	var lastRunName string
-	tc.GetResource(
-		WithMinimalObject(gvk.ScheduledSparkApplication, types.NamespacedName{Name: scheduledSparkAppName, Namespace: namespace}),
-		WithResult(func(obj *unstructured.Unstructured) error {
-			name, found, err := unstructured.NestedString(obj.Object, "status", "lastRunName")
-			if err != nil {
-				return err
-			}
-			if !found {
-				return nil
-			}
-			lastRunName = name
-			return nil
-		}),
-	)
+	lastRunName, found, err := unstructured.NestedString(scheduledApp.Object, "status", "lastRunName")
+	require.NoError(t, err, "Failed to extract lastRunName from ScheduledSparkApplication status")
+	require.True(t, found, "lastRunName not found in ScheduledSparkApplication status")
 
 	t.Logf("ScheduledSparkApplication %s created SparkApplication: %s", scheduledSparkAppName, lastRunName)
 
