@@ -134,6 +134,7 @@ GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
 CRD_REF_DOCS ?= $(LOCALBIN)/crd-ref-docs
 GINKGO ?= $(LOCALBIN)/ginkgo
 YQ ?= $(LOCALBIN)/yq
+HELM ?= $(LOCALBIN)/helm
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.8.1
@@ -141,6 +142,7 @@ CONTROLLER_TOOLS_VERSION ?= v0.17.3
 OPERATOR_SDK_VERSION ?= v1.39.2
 GOLANGCI_LINT_VERSION ?= v2.5.0
 YQ_VERSION ?= v4.12.2
+HELM_VERSION ?= v4.1.1
 KUBE_LINTER_VERSION ?= v0.7.6
 #ENVTEST_K8S_VERSION is the version of Kubernetes to use for setting up ENVTEST binaries (i.e. 1.31)
 ENVTEST_K8S_VERSION ?= $(shell go list -m -f "{{ .Version }}" k8s.io/api | awk -F'[v.]' '{printf "1.%d", $$3}')
@@ -454,6 +456,11 @@ yq: $(YQ) ## Download yq locally if necessary.
 $(YQ): $(LOCALBIN)
 	$(call go-install-tool,$(YQ),github.com/mikefarah/yq/v4,$(YQ_VERSION))
 
+.PHONY: helm
+helm: $(HELM) ## Download helm locally if necessary.
+$(HELM): $(LOCALBIN)
+	$(call go-install-tool,$(HELM),helm.sh/helm/v4/cmd/helm,$(HELM_VERSION))
+
 OPERATOR_SDK_DL_URL ?= https://github.com/operator-framework/operator-sdk/releases/download/$(OPERATOR_SDK_VERSION)
 .PHONY: operator-sdk
 operator-sdk: $(OPERATOR_SDK) ## Download and install operator-sdk
@@ -743,6 +750,34 @@ e2e-setup-cluster:
 		-e E2E_TEST_DELETION_POLICY=never \
 		-e E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=true
 
+.PHONY: e2e-test-xks
+e2e-test-xks: ## Run e2e tests on external Kubernetes (KinD, AKS, CoreWeave, etc.)
+	@$(MAKE) e2e-test \
+		-e E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=false \
+		-e E2E_TEST_DEPENDANT_OPERATORS_MANAGEMENT=false \
+		-e E2E_TEST_WEBHOOK=false \
+		-e E2E_TEST_COMPONENT="kserve" \
+		-e E2E_TEST_SERVICES=false \
+		-e E2E_TEST_OPERATOR_RESILIENCE=false \
+		-e E2E_TEST_OPERATOR_V2TOV3UPGRADE=false \
+		-e E2E_TEST_DSC_MANAGEMENT=false \
+		-e E2E_TEST_DSC_VALIDATION=false
+
+##@ KinD Cluster Management
+
+CLUSTER_NAME ?= kind-odh
+KIND_CONFIG_PATH ?= config/kind/kind-config.yaml
+
+.PHONY: kind-create
+kind-create: ## Create KinD Cluster
+	@echo "Creating KinD cluster: $(CLUSTER_NAME) using config $(KIND_CONFIG_PATH)"
+	kind create cluster --name $(CLUSTER_NAME) --config $(KIND_CONFIG_PATH)
+
+.PHONY: kind-delete
+kind-delete: ## Delete KinD Cluster
+	@echo "Deleting KinD cluster: $(CLUSTER_NAME)"
+	kind delete cluster --name $(CLUSTER_NAME)
+
 unit-test-cli:
 	go -C ./cmd/test-retry/ test ./...
 
@@ -757,8 +792,12 @@ ccm-paths = {./api/cloudmanager/$(1)/...,./internal/controller/cloudmanager/$(1)
 
 ##@ CCM Code Generation
 
+.PHONY: update-cloudmanager-rbac
+update-cloudmanager-rbac: yq helm get-manifests ## Update kubebuilder RBAC annotations for cloud manager chart roles
+	bash ./hack/update-cloudmanager-rbac.sh "$(YQ)" "$(HELM)"
+
 .PHONY: manifests-ccm
-manifests-ccm: $(addprefix manifests-ccm-,$(CCM_PROVIDERS)) ## Generate CRDs and RBAC for all providers
+manifests-ccm: update-cloudmanager-rbac $(addprefix manifests-ccm-,$(CCM_PROVIDERS)) ## Generate CRDs and RBAC for all providers
 
 CCM_MANIFESTS_TARGETS := $(addprefix manifests-ccm-,$(CCM_PROVIDERS))
 .PHONY: $(CCM_MANIFESTS_TARGETS)
@@ -788,6 +827,40 @@ $(CCM_RUN_TARGETS): run-ccm-%: generate fmt vet ## Run CCM locally (e.g., run-cc
 	DEFAULT_CHARTS_PATH=$(DEFAULT_CHARTS_PATH) go run ./cmd/cloudmanager/ $*
 
 ##@ CCM Deployment
+
+
+# PULL_SECRET is the path to a dockerconfigjson file for pulling images from private registries.
+# For local usage, you can point to your container runtime auth file, e.g.:
+#   make kind-setup-pull-secrets PULL_SECRET=~/.docker/config.json
+#   make kind-setup-pull-secrets PULL_SECRET=$${XDG_RUNTIME_DIR}/containers/auth.json
+PULL_SECRET ?=
+
+PULL_SECRET_NAMESPACES := \
+	cert-manager \
+	cert-manager-operator \
+	openshift-lws-operator \
+	istio-system
+
+.PHONY: kind-setup-pull-secrets
+kind-setup-pull-secrets: ## Setup pull secrets for operator dependencies in the cluster
+	@if [ -z "$(PULL_SECRET)" ]; then \
+		echo "Error: PULL_SECRET is required. Set it to the path of your docker config.json."; \
+		echo "  e.g.: make kind-setup-pull-secrets PULL_SECRET=~/.docker/config.json"; \
+		exit 1; \
+	fi
+	@if [ ! -f "$(PULL_SECRET)" ]; then \
+		echo "Error: PULL_SECRET file '$(PULL_SECRET)' does not exist."; \
+		exit 1; \
+	fi
+	@for ns in $(PULL_SECRET_NAMESPACES); do \
+		echo "Setting up pull secret in namespace: $$ns"; \
+		kubectl create namespace $$ns --dry-run=client -o yaml | kubectl apply -f -; \
+		kubectl create secret generic rhaii-pull-secret \
+			--from-file=.dockerconfigjson="$(PULL_SECRET)" \
+			--type=kubernetes.io/dockerconfigjson \
+			-n $$ns --dry-run=client -o yaml | kubectl apply -f -; \
+	done
+	@echo "Pull secrets configured."
 
 CCM_INSTALL_TARGETS := $(addprefix install-ccm-,$(CCM_PROVIDERS))
 .PHONY: $(CCM_INSTALL_TARGETS)

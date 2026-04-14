@@ -619,6 +619,9 @@ func (tc *TestContext) FetchActualSubscription(nn types.NamespacedName) (*ofapi.
 		WithCustomErrorMsg("Failed to fetch Subscription %s/%s", nn.Namespace, nn.Name),
 	))
 	if err != nil {
+		if meta.IsNoMatchError(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	if subU == nil {
@@ -776,6 +779,29 @@ func (tc *TestContext) EnsureCRDEstablished(name string) {
 				"Status": Equal(apiextv1.ConditionTrue),
 			}),
 		), "Expected CRD condition 'Established' to be True for CRD %s", name)
+}
+
+// CheckComponentResourceExistsOrNotWithKind validates if a component resource's state and readiness match the expected values.
+func (tc *TestContext) CheckComponentResourceExistsOrNotWithKind(shouldExist bool, gvk schema.GroupVersionKind) {
+	instanceName := "default-" + strings.ToLower(gvk.Kind)
+
+	// Check if the component CR exists or not depending on the shouldExist flag
+	if shouldExist {
+		// Define common conditions to match when the component cr should exist
+		existConditions := []gTypes.GomegaMatcher{
+			// Validate the "Ready" condition for the component CR
+			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue),
+		}
+		// Check if the component CR exists with the specified conditions
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk, types.NamespacedName{Name: instanceName}),
+			WithCondition(And(existConditions...)))
+	} else {
+		// Check if the component CR does not exist
+		tc.EnsureResourceDoesNotExist(
+			WithMinimalObject(gvk, types.NamespacedName{Name: instanceName}),
+		)
+	}
 }
 
 // UpdateComponentStateInDataScienceClusterWithKind updates the management state of a specified component kind in the DataScienceCluster.
@@ -1014,6 +1040,69 @@ func (tc *TestContext) ensureInstallPlan(nn types.NamespacedName, channelName st
 	}).WithTimeout(tc.TestTimeouts.mediumEventuallyTimeout).
 		WithPolling(tc.TestTimeouts.defaultEventuallyPollInterval).
 		Should(Succeed())
+}
+
+// registerCleanup registers a t.Cleanup() handler that deletes a resource when the test completes.
+// This ensures resources are cleaned up even on test failure or timeout.
+// Cleanup is best-effort and non-fatal: errors are logged but never asserted,
+// so a cleanup failure cannot mask the original test failure.
+func (tc *TestContext) registerCleanup(ro *ResourceOptions) {
+	// Capture GVK and NN to avoid closure over the mutable ResourceOptions
+	cleanupGVK := ro.GVK
+	cleanupNN := ro.NN
+	ro.CleanupT.Cleanup(func() {
+		tc.bestEffortDeleteResource(cleanupGVK, cleanupNN)
+	})
+}
+
+// bestEffortDeleteResource removes finalizers, issues a delete, and waits for the
+// resource to be gone. It never calls tc.g.Expect, so it is safe to use inside
+// t.Cleanup handlers where assertion failures would mask the original test failure.
+// NotFound/NoMatch errors are silently ignored; all other errors are logged.
+func (tc *TestContext) bestEffortDeleteResource(resGVK schema.GroupVersionKind, nn types.NamespacedName) {
+	defer func() {
+		if r := recover(); r != nil {
+			tc.Logf("cleanup: best-effort delete panicked for %s %s: %v", resGVK, nn, r)
+		}
+	}()
+
+	// Remove finalizers before deletion (best-effort, errors are intentionally ignored)
+	tc.tryRemoveFinalizers(resGVK, nn)
+
+	// Issue the delete without assertions — use the raw error return
+	err := tc.g.Delete(resGVK, nn).Get()
+	if err != nil {
+		if meta.IsNoMatchError(err) || k8serr.IsNotFound(err) {
+			return // CRD or resource already gone — nothing to clean up
+		}
+		tc.Logf("cleanup: best-effort delete failed for %s %s: %v", resGVK, nn, err)
+		return
+	}
+
+	// Poll until the resource is gone, without Gomega assertions
+	tc.waitForDeletionBestEffort(resGVK, nn)
+}
+
+// waitForDeletionBestEffort polls until a resource is fully deleted.
+// It never calls tc.g.Expect, so a timeout here is logged but does not fail the test.
+func (tc *TestContext) waitForDeletionBestEffort(gvk schema.GroupVersionKind, nn types.NamespacedName) {
+	timeout := tc.TestTimeouts.mediumEventuallyTimeout
+	interval := tc.TestTimeouts.defaultEventuallyPollInterval
+
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		u := resources.GvkToUnstructured(gvk)
+		err := tc.g.Client().Get(tc.g.Context(), nn, u)
+		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
+			return // Resource is gone
+		}
+		if err != nil {
+			tc.Logf("cleanup: unexpected error polling for deletion of %s %s: %v", gvk, nn, err)
+			return
+		}
+		time.Sleep(interval)
+	}
+	tc.Logf("cleanup: timed out waiting for %s %s to be deleted", gvk, nn)
 }
 
 // DeleteResource deletes a specific Kubernetes resource by name.
@@ -1262,6 +1351,9 @@ func (tc *TestContext) FetchActualClusterServiceVersion(nn types.NamespacedName)
 		WithCustomErrorMsg("Failed to fetch CSV %s/%s", nn.Namespace, nn.Name),
 	))
 	if err != nil {
+		if meta.IsNoMatchError(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	if csvU == nil {
@@ -1334,6 +1426,23 @@ func (tc *TestContext) FetchDataScienceCluster() *dscv2.DataScienceCluster {
 	tc.FetchTypedResource(dsc, WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName))
 
 	return dsc
+}
+
+// IsOpenshift checks if the cluster is Openshift or not
+//
+//	Returns:
+//	  - bool: True if the cluster is Openshift, false otherwise.
+func (tc *TestContext) IsOpenshift() bool {
+	return cluster.GetClusterInfo().Type != cluster.ClusterTypeKubernetes
+}
+
+// SkipIfNonOpenshiftCluster is used to skip a test if the cluster where its being executed is non-Openshift.
+func (tc *ComponentTestCtx) SkipIfNonOpenshiftCluster(t *testing.T) {
+	t.Helper()
+
+	if !tc.IsOpenshift() {
+		t.Skip("Skipping test because it requires an OpenShift cluster")
+	}
 }
 
 // FetchResource ensures a Kubernetes resource exists and retrieves it as an Unstructured object.
@@ -1546,7 +1655,6 @@ func (tc *TestContext) UninstallOperator(operatorNamespacedName types.Namespaced
 		return
 	}
 	if sub == nil {
-		// Subscription doesn't exist, nothing to uninstall
 		return
 	}
 

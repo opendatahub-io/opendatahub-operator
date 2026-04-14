@@ -34,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -375,6 +376,72 @@ func configureTelemetryPolicy(ctx context.Context, rr *types.ReconciliationReque
 	}
 
 	return configureTelemetryPolicyCore(ctx, rr)
+}
+
+// validatePersesResources ensures PersesDashboard and PersesDatasource objects from rendered
+// manifests are only applied when the PersesDashboard CRD is installed.
+//
+// When the CRD is missing, those resources are removed from rr so the subsequent deploy action
+// does not fail with an unsupported API. When the CRD exists, Perses resources remain in
+// rr.Resources and are applied by deploy.NewAction like other manifests.
+func validatePersesResources(ctx context.Context, rr *types.ReconciliationRequest) error {
+	log := logf.FromContext(ctx)
+
+	// Check if PersesDashboard CRD exists in either v1alpha1 or v1alpha2 (COO installed)
+	if crdAvailable, err := cluster.HasCRD(ctx, rr.Client, gvk.PersesDashboardV1Alpha1); err != nil {
+		return fmt.Errorf("failed to check PersesDashboardV1Alpha1 CRD availability: %w", err)
+	} else if crdAvailable {
+		return nil
+	}
+
+	if crdAvailable, err := cluster.HasCRD(ctx, rr.Client, gvk.PersesDashboardV1Alpha2); err != nil {
+		return fmt.Errorf("failed to check PersesDashboardV1Alpha2 CRD availability: %w", err)
+	} else if crdAvailable {
+		return nil
+	}
+
+	log.V(2).Info("PersesDashboard CRD not available, skipping Perses resources")
+	skipPersesResources(rr)
+
+	return nil
+}
+
+// skipPersesResources drops perses.dev resources from the reconciliation request when the
+// Perses API is not available (any API version).
+func skipPersesResources(rr *types.ReconciliationRequest) {
+	persesGroup := gvk.PersesDashboard.Group
+	out := rr.Resources[:0]
+	for i := range rr.Resources {
+		gvkObj := rr.Resources[i].GroupVersionKind()
+		if gvkObj.Group != persesGroup {
+			out = append(out, rr.Resources[i])
+		}
+	}
+	rr.Resources = out
+}
+
+// configurePersesResources sets the ModelsAsService instance as controller owner of PersesDashboard
+// and PersesDatasource resources still present in rr (after validatePersesDashboards). This ensures
+// they are garbage-collected with MaaS and recognized as managed children when the deploy action runs.
+func configurePersesResources(_ context.Context, rr *types.ReconciliationRequest) error {
+	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
+	}
+
+	persesGroup := gvk.PersesDashboard.Group
+	for i := range rr.Resources {
+		res := &rr.Resources[i]
+		objGVK := res.GroupVersionKind()
+		if objGVK.Group == persesGroup {
+			if err := ctrl.SetControllerReference(maas, res, rr.Client.Scheme()); err != nil {
+				return fmt.Errorf("failed to set controller reference on %s %s/%s: %w",
+					objGVK.Kind, res.GetNamespace(), res.GetName(), err)
+			}
+		}
+	}
+
+	return nil
 }
 
 // configureTelemetryPolicyCore contains the core business logic for creating TelemetryPolicy resources.

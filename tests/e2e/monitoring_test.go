@@ -624,8 +624,6 @@ func (tc *MonitoringTestCtx) ValidateMetricsTLSAlwaysEnabled(t *testing.T) {
 		)),
 		WithCustomErrorMsg("ServiceMonitor should always use HTTPS to scrape Prometheus exporter"),
 	)
-
-	tc.resetMonitoringConfigToManaged()
 }
 
 func (tc *MonitoringTestCtx) ValidateMonitoringCRCollectorReplicas(t *testing.T) {
@@ -658,9 +656,6 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCRCollectorReplicas(t *testing.T)
 		WithCondition(jq.Match(`.spec.collectorReplicas == %d`, testReplicas)),
 		WithCustomErrorMsg("CollectorReplicas should be updated to %d by DSCInitialization controller", testReplicas),
 	)
-
-	// Cleanup: Reset collectorReplicas to default to prevent test contamination
-	tc.updateMonitoringConfig(testf.Transform(`.spec.monitoring.collectorReplicas = %d`, defaultReplicas))
 }
 
 // ValidateMonitoringCRDefaultTracesContent validates that traces stanza is omitted by default.
@@ -715,16 +710,6 @@ func (tc *MonitoringTestCtx) ValidateTempoMonolithicCRCreation(t *testing.T) {
 			),
 		),
 		WithCustomErrorMsg("TempoMonolithic CR should be created by controller when traces are configured"),
-	)
-
-	// Cleanup: Reset DSCInitialization traces configuration and delete TempoMonolithic
-	// This ensures proper test isolation and prevents state contamination between tests
-	tc.cleanupTracesConfiguration()
-
-	tc.DeleteResource(
-		WithMinimalObject(gvk.TempoMonolithic, types.NamespacedName{Name: TempoMonolithicName, Namespace: tc.MonitoringNamespace}),
-		WithWaitForDeletion(true),
-		WithRemoveFinalizersOnDelete(true), // Workaround for tempo-operator race condition during deletion
 	)
 }
 
@@ -805,9 +790,6 @@ func (tc *MonitoringTestCtx) ValidateInstrumentationCRTracesLifecycle(t *testing
 		)),
 		WithCustomErrorMsg("Instrumentation CR should be created with correct configuration and owner references"),
 	)
-
-	// Cleanup: Reset DSCInitialization traces configuration to prevent state contamination
-	tc.cleanupTracesConfiguration()
 }
 
 func (tc *MonitoringTestCtx) ValidateTracesExportersReservedNameValidation(t *testing.T) {
@@ -830,9 +812,6 @@ func (tc *MonitoringTestCtx) ValidateTracesExportersReservedNameValidation(t *te
 			),
 		),
 	)
-
-	// Cleanup: Reset DSCInitialization traces configuration to prevent state contamination
-	tc.cleanupTracesConfiguration()
 }
 
 // ValidatePrometheusRulesLifecycle validates that Prometheus rules are created when monitoring and dashboard are enabled, and deleted when both are disabled.
