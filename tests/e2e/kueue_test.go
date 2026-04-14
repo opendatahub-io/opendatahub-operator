@@ -271,13 +271,6 @@ func (tc *KueueTestCtx) ValidateKueueRemovedToUnmanagedTransition(t *testing.T) 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.ResourceFlavor, types.NamespacedName{Name: kueue.DefaultFlavorName}),
 	)
-
-	t.Logf("Deleting Kueue ConfigMap (%s) to clean up test resources.", kueue.KueueConfigMapName)
-	tc.DeleteResource(
-		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{Name: kueue.KueueConfigMapName, Namespace: tc.AppsNamespace}),
-		WithIgnoreNotFound(true),
-		WithWaitForDeletion(true),
-	)
 }
 
 // ValidateKueueUnmanagedToRemovedTransition ensures the transition from Unmanaged to Removed state happens as expected.
@@ -476,6 +469,7 @@ integrations:
 
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithObjectToCreate(kueueConfigMap),
+		WithCleanup(t),
 		WithCustomErrorMsg("Failed to create Kueue ConfigMap '%s'", kueue.KueueConfigMapName),
 	)
 }
