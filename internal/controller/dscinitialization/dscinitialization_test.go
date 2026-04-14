@@ -211,7 +211,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 
 		AfterEach(func(ctx context.Context) {
 			Expect(k8sClient.DeleteAllOf(ctx, &dsciv2.DSCInitialization{})).To(Succeed())
-			Eventually(noInstanceExistsIn(privilegedAppNs, &dsciv2.DSCInitializationList{})).
+			Eventually(noInstanceExistsIn(workingNamespace, &dsciv2.DSCInitializationList{})).
 				WithContext(ctx).
 				WithTimeout(timeout).
 				WithPolling(interval).

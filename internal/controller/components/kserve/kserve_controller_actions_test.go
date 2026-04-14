@@ -977,8 +977,8 @@ func TestInitialize(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(rr.Manifests).Should(HaveLen(3))
 		g.Expect(rr.Manifests[0].SourcePath).Should(Equal(kserveManifestSourcePath))
-		g.Expect(rr.Manifests[1].SourcePath).Should(Equal(kserveManifestSourcePathModelCache))
-		g.Expect(rr.Manifests[2].ContextDir).Should(Equal("connectionAPI"))
+		g.Expect(rr.Manifests[1].ContextDir).Should(Equal("connectionAPI"))
+		g.Expect(rr.Manifests[2].SourcePath).Should(Equal(kserveManifestSourcePathModelCache))
 	})
 
 	t.Run("uses XKS overlay plus modelcache overlay when ModelCache is Managed on Kubernetes", func(t *testing.T) {
@@ -1001,8 +1001,8 @@ func TestInitialize(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(rr.Manifests).Should(HaveLen(3))
 		g.Expect(rr.Manifests[0].SourcePath).Should(Equal(kserveManifestSourcePathXKS))
-		g.Expect(rr.Manifests[1].SourcePath).Should(Equal(kserveManifestSourcePathModelCache))
-		g.Expect(rr.Manifests[2].ContextDir).Should(Equal("connectionAPI"))
+		g.Expect(rr.Manifests[1].ContextDir).Should(Equal("connectionAPI"))
+		g.Expect(rr.Manifests[2].SourcePath).Should(Equal(kserveManifestSourcePathModelCache))
 	})
 }
 
@@ -1649,5 +1649,112 @@ func TestReconcileModelCache(t *testing.T) {
 
 	t.Run("ModelCache Managed baseline already correct is no-op for PSA", func(t *testing.T) {
 		runModelCachePSATest(t, "privileged", "privileged")
+	})
+
+	runModelCacheCleanupTest := func(t *testing.T, modelCache *componentApi.ModelCacheSpec) {
+		t.Helper()
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		ns := newNamespace("privileged")
+
+		pv := &corev1.PersistentVolume{
+			ObjectMeta: metav1.ObjectMeta{Name: "kserve-localmodelnode-pv"},
+		}
+
+		pvc := &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "kserve-localmodelnode-pvc",
+				Namespace: cluster.GetApplicationNamespace(),
+			},
+		}
+
+		lmng := &unstructured.Unstructured{}
+		lmng.SetGroupVersionKind(gvk.LocalModelNodeGroup)
+		lmng.SetName("workers")
+		lmng.Object["spec"] = map[string]interface{}{"storageLimit": "100Gi"}
+
+		node := &corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   "worker-1",
+				Labels: map[string]string{modelCacheLabelKey: modelCacheLabelValue},
+			},
+		}
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(ns, pv, pvc, lmng, node))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		kserveObj := &componentApi.Kserve{
+			ObjectMeta: metav1.ObjectMeta{Name: componentApi.KserveInstanceName},
+			Spec: componentApi.KserveSpec{
+				KserveCommonSpec: componentApi.KserveCommonSpec{
+					ModelCache: modelCache,
+				},
+			},
+		}
+		rr := &odhtypes.ReconciliationRequest{Client: cli, Instance: kserveObj}
+
+		err = reconcileModelCache(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		g.Expect(cli.Get(ctx, client.ObjectKey{Name: "kserve-localmodelnode-pv"}, &corev1.PersistentVolume{})).
+			Should(MatchError(ContainSubstring("not found")))
+
+		g.Expect(cli.Get(ctx, client.ObjectKey{
+			Name: "kserve-localmodelnode-pvc", Namespace: cluster.GetApplicationNamespace(),
+		}, &corev1.PersistentVolumeClaim{})).
+			Should(MatchError(ContainSubstring("not found")))
+
+		lmngCheck := &unstructured.Unstructured{}
+		lmngCheck.SetGroupVersionKind(gvk.LocalModelNodeGroup)
+		g.Expect(cli.Get(ctx, client.ObjectKey{Name: "workers"}, lmngCheck)).
+			Should(MatchError(ContainSubstring("not found")))
+
+		updatedNode := &corev1.Node{}
+		g.Expect(cli.Get(ctx, client.ObjectKey{Name: "worker-1"}, updatedNode)).Should(Succeed())
+		g.Expect(updatedNode.Labels).ShouldNot(HaveKey(modelCacheLabelKey))
+
+		updatedNs := &corev1.Namespace{}
+		g.Expect(cli.Get(ctx, client.ObjectKey{Name: cluster.GetApplicationNamespace()}, updatedNs)).Should(Succeed())
+		g.Expect(updatedNs.Labels[labels.SecurityEnforce]).To(Equal("baseline"))
+	}
+
+	t.Run("ModelCache Removed cleans up all resources", func(t *testing.T) {
+		runModelCacheCleanupTest(t, &componentApi.ModelCacheSpec{
+			ManagementState: operatorv1.Removed,
+		})
+	})
+
+	t.Run("ModelCache nil cleans up all resources", func(t *testing.T) {
+		runModelCacheCleanupTest(t, nil)
+	})
+
+	t.Run("ModelCache Removed is idempotent when resources already gone", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		ns := newNamespace("baseline")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(ns))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		kserveObj := &componentApi.Kserve{
+			ObjectMeta: metav1.ObjectMeta{Name: componentApi.KserveInstanceName},
+			Spec: componentApi.KserveSpec{
+				KserveCommonSpec: componentApi.KserveCommonSpec{
+					ModelCache: &componentApi.ModelCacheSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+			},
+		}
+		rr := &odhtypes.ReconciliationRequest{Client: cli, Instance: kserveObj}
+
+		err = reconcileModelCache(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		updatedNs := &corev1.Namespace{}
+		g.Expect(cli.Get(ctx, client.ObjectKey{Name: cluster.GetApplicationNamespace()}, updatedNs)).Should(Succeed())
+		g.Expect(updatedNs.Labels[labels.SecurityEnforce]).To(Equal("baseline"))
 	})
 }

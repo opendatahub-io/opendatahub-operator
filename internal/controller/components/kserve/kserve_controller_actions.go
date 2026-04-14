@@ -522,7 +522,7 @@ func reconcileModelCache(ctx context.Context, rr *odhtypes.ReconciliationRequest
 	}
 
 	if k.Spec.ModelCache == nil || k.Spec.ModelCache.ManagementState != operatorv1.Managed {
-		return updateNamespacePSA(ctx, rr.Client, "baseline")
+		return cleanupModelCache(ctx, rr)
 	}
 
 	if err := updateNamespacePSA(ctx, rr.Client, "privileged"); err != nil {
@@ -542,6 +542,67 @@ func reconcileModelCache(ctx context.Context, rr *odhtypes.ReconciliationRequest
 	}
 
 	return labelModelCacheNodes(ctx, rr)
+}
+
+func deleteIfExists(ctx context.Context, cli client.Client, obj client.Object, description string) error {
+	key := client.ObjectKeyFromObject(obj)
+	if err := cli.Get(ctx, key, obj); err != nil {
+		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to check %s %s: %w", description, key, err)
+	}
+	if err := cli.Delete(ctx, obj); err != nil && !k8serr.IsNotFound(err) {
+		return fmt.Errorf("failed to delete %s %s: %w", description, key, err)
+	}
+	return nil
+}
+
+func cleanupModelCache(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	logger := logf.FromContext(ctx)
+
+	if err := updateNamespacePSA(ctx, rr.Client, "baseline"); err != nil {
+		return err
+	}
+
+	pv := &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{Name: "kserve-localmodelnode-pv"},
+	}
+	if err := deleteIfExists(ctx, rr.Client, pv, "model cache PV"); err != nil {
+		return err
+	}
+
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "kserve-localmodelnode-pvc",
+			Namespace: cluster.GetApplicationNamespace(),
+		},
+	}
+	if err := deleteIfExists(ctx, rr.Client, pvc, "model cache PVC"); err != nil {
+		return err
+	}
+
+	lmng := &unstructured.Unstructured{}
+	lmng.SetGroupVersionKind(gvk.LocalModelNodeGroup)
+	lmng.SetName("workers")
+	if err := deleteIfExists(ctx, rr.Client, lmng, "LocalModelNodeGroup"); err != nil {
+		return err
+	}
+
+	nodeList := &corev1.NodeList{}
+	if err := rr.Client.List(ctx, nodeList, client.MatchingLabels{modelCacheLabelKey: modelCacheLabelValue}); err != nil {
+		return fmt.Errorf("failed to list model cache nodes: %w", err)
+	}
+	for i := range nodeList.Items {
+		node := &nodeList.Items[i]
+		delete(node.Labels, modelCacheLabelKey)
+		if err := rr.Client.Update(ctx, node); err != nil {
+			return fmt.Errorf("failed to unlabel node %q: %w", node.Name, err)
+		}
+		logger.Info("Removed model cache label from node", "node", node.Name)
+	}
+
+	return nil
 }
 
 func updateNamespacePSA(ctx context.Context, cli client.Client, desiredLevel string) error {
