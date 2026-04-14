@@ -11,7 +11,7 @@ import (
 // RegisterWebhooks registers the webhooks for DSCInitialization v1.
 func RegisterWebhooks(mgr ctrl.Manager) error {
 	// Register the conversion webhook
-	if err := ctrl.NewWebhookManagedBy(mgr).For(&dsciv1.DSCInitialization{}).Complete(); err != nil {
+	if err := ctrl.NewWebhookManagedBy(mgr, &dsciv1.DSCInitialization{}).Complete(); err != nil {
 		return err
 	}
 

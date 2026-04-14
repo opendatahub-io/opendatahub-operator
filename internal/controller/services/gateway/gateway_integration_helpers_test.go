@@ -1498,6 +1498,12 @@ func RunNginxDashboardRedirectCreationTest(t *testing.T, setup TestSetup) {
 	}, TestTimeout, TestInterval).Should(Succeed())
 	assertOwnedByGatewayConfig(g, &cm)
 	g.Expect(cm.Labels).To(HaveKeyWithValue("app", gateway.DashboardRedirectName))
+
+	// RHOAIENG-56723: ConfigMap must include nginx.conf with a fixed worker_processes count (not auto).
+	g.Expect(cm.Data).To(HaveKey("nginx.conf"))
+	g.Expect(cm.Data["nginx.conf"]).To(MatchRegexp(`(?m)^\s*worker_processes\s+2;`))
+	g.Expect(cm.Data["nginx.conf"]).NotTo(ContainSubstring("worker_processes auto"))
+
 	g.Expect(cm.Data).To(HaveKey("redirect.conf"))
 	redirectConf := cm.Data["redirect.conf"]
 	g.Expect(redirectConf).To(ContainSubstring("location /"))
@@ -1519,7 +1525,34 @@ func RunNginxDashboardRedirectCreationTest(t *testing.T, setup TestSetup) {
 	g.Expect(*dep.Spec.Replicas).To(BeNumerically(">=", 1))
 	g.Expect(dep.Spec.Selector.MatchLabels).To(HaveKeyWithValue("app", gateway.DashboardRedirectName))
 	g.Expect(dep.Spec.Template.Spec.Containers).NotTo(BeEmpty())
-	g.Expect(dep.Spec.Template.Spec.Containers[0].Image).NotTo(BeEmpty())
+	container := dep.Spec.Template.Spec.Containers[0]
+	g.Expect(container.Image).NotTo(BeEmpty())
+
+	// RHOAIENG-56723: nginx.conf must be mounted to override worker_processes auto (causes OOMKill on high-CPU nodes).
+	var hasNginxConfMount bool
+	for _, vm := range container.VolumeMounts {
+		if vm.Name == "redirect-config" &&
+			vm.MountPath == "/etc/nginx/nginx.conf" &&
+			vm.SubPath == "nginx.conf" {
+			hasNginxConfMount = true
+			break
+		}
+	}
+	g.Expect(hasNginxConfMount).To(BeTrue(),
+		"dashboard-redirect must mount nginx.conf at /etc/nginx/nginx.conf to control worker_processes")
+
+	var hasRedirectConfigVolume bool
+	for _, vol := range dep.Spec.Template.Spec.Volumes {
+		if vol.Name == "redirect-config" &&
+			vol.ConfigMap != nil &&
+			vol.ConfigMap.Name == gateway.DashboardRedirectConfigName {
+			hasRedirectConfigVolume = true
+			break
+		}
+	}
+	g.Expect(hasRedirectConfigVolume).To(BeTrue(),
+		"dashboard-redirect must source nginx.conf from the redirect ConfigMap volume")
+
 	g.Expect(dep.Spec.Template.Annotations).To(HaveKey(redirectConfigHashAnnotation))
 	actualHash := dep.Spec.Template.Annotations[redirectConfigHashAnnotation]
 	g.Expect(actualHash).To(MatchRegexp("^[0-9a-f]{64}$"))

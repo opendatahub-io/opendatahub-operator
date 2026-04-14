@@ -62,14 +62,76 @@ type ModelsAsServiceSpec struct {
 	// +kubebuilder:validation:Optional
 	APIKeys *APIKeysConfig `json:"apiKeys,omitempty"`
 
+	// ExternalOIDC configures an external OIDC identity provider (e.g. Keycloak, Azure AD)
+	// for the maas-api AuthPolicy. When set, the operator patches the AuthPolicy to accept
+	// JWTs from the specified issuer alongside OpenShift TokenReview and API key authentication.
+	// +kubebuilder:validation:Optional
+	ExternalOIDC *ExternalOIDCConfig `json:"externalOIDC,omitempty"`
+
 	// Telemetry contains configuration for telemetry and metrics collection.
+	// When enabled, deploys TelemetryPolicy for usage metrics and
+	// Istio Telemetry for per-subscription latency tracking.
 	// +kubebuilder:validation:Optional
 	Telemetry *TelemetryConfig `json:"telemetry,omitempty"`
 }
 
+// ExternalOIDCConfig defines the external OIDC provider settings.
+type ExternalOIDCConfig struct {
+	// IssuerURL is the OIDC issuer URL (e.g. https://keycloak.example.com/realms/maas).
+	// Must serve a .well-known/openid-configuration endpoint over HTTPS.
+	// +kubebuilder:validation:MinLength=9
+	// +kubebuilder:validation:MaxLength=2048
+	// +kubebuilder:validation:Pattern=`^https://\S+$`
+	IssuerURL string `json:"issuerUrl"`
+
+	// ClientID is the OAuth2 client ID. Incoming OIDC tokens must have an
+	// azp (authorized party) claim matching this value.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=256
+	// +kubebuilder:validation:Pattern=`^\S+$`
+	ClientID string `json:"clientId"`
+
+	// TTL is the JWKS cache duration in seconds.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=300
+	// +kubebuilder:validation:Minimum=30
+	TTL int `json:"ttl,omitempty"`
+	// NOTE: For OIDC providers with custom/self-signed CA certificates:
+	// 1. Configure the CA bundle in DSCInitialization.spec.trustedCABundle.customCABundle
+	// 2. Manually configure the Authorino CR to mount the odh-trusted-ca-bundle ConfigMap
+	//
+	// The certconfigmapgenerator controller will create an odh-trusted-ca-bundle ConfigMap in all
+	// namespaces (including where Authorino runs), but you must configure the Authorino CR to mount it.
+	//
+	// Example Authorino CR configuration:
+	//   apiVersion: operator.authorino.kuadrant.io/v1beta1
+	//   kind: Authorino
+	//   metadata:
+	//     name: authorino
+	//     namespace: kuadrant-system
+	//   spec:
+	//     volumes:
+	//       items:
+	//       - name: odh-trusted-ca-bundle
+	//         mountPath: /etc/ssl/certs/odh-trusted-ca-bundle
+	//         configMaps:
+	//         - odh-trusted-ca-bundle
+	//
+	// See: https://github.com/opendatahub-io/opendatahub-operator/blob/main/docs/DESIGN.md#trusted-ca-bundle
+}
+
 // TelemetryConfig defines configuration for telemetry collection.
-// Core billing and access control metrics (subscription, cost_center, tier) are always emitted.
+// When enabled, deploys TelemetryPolicy for usage metrics (Limitador) and
+// Istio Telemetry for per-subscription latency tracking.
 type TelemetryConfig struct {
+	// Enabled controls whether telemetry resources are deployed.
+	// When true, creates TelemetryPolicy for usage metrics and
+	// Istio Telemetry for per-subscription latency tracking.
+	// Default is true (telemetry enabled).
+	// +kubebuilder:default=true
+	// +kubebuilder:validation:Optional
+	Enabled *bool `json:"enabled,omitempty"`
+
 	// Metrics contains configuration for optional metric dimensions/labels.
 	// +kubebuilder:validation:Optional
 	Metrics *MetricsConfig `json:"metrics,omitempty"`

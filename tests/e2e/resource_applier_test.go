@@ -201,6 +201,11 @@ func eventuallyResourceApplied(
 
 	ro.applyEventuallyTimeouts(eventually).Should(Succeed())
 
+	// Register cleanup if requested - ensures resource deletion even on test failure/timeout
+	if ro.CleanupT != nil {
+		ro.tc.registerCleanup(ro)
+	}
+
 	return u
 }
 

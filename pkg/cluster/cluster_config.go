@@ -25,6 +25,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
 type ClusterInfo struct {
@@ -352,6 +353,18 @@ func getRelease(ctx context.Context, cli client.Client) (common.Release, error) 
 		return initRelease, nil
 	}
 
+	// If RHAI_VERSION is explicitly configured (via env var or CLI flag),
+	// use it instead of detecting from CSV. This is the primary path on
+	// non-OpenShift clusters where OLM is absent.
+	if rhaiVersion := flags.GetRHAIVersion(); rhaiVersion != "" {
+		v, err := semver.ParseTolerant(rhaiVersion)
+		if err != nil {
+			return initRelease, fmt.Errorf("invalid RHAI_VERSION %q: %w", rhaiVersion, err)
+		}
+		initRelease.Version = version.OperatorVersion{Version: v}
+		return initRelease, nil
+	}
+
 	// Set Version
 	// Get watchNamespace
 	operatorNamespace, err := GetOperatorNamespace()
@@ -558,4 +571,19 @@ func IsIntegratedOAuth(ctx context.Context, cli client.Reader) (bool, error) {
 		return false, err
 	}
 	return authMode == AuthModeIntegratedOAuth, nil
+}
+
+// GetClusterServiceAccountIssuer retrieves the service account issuer from
+// OpenShift Authentication config. Used for kubernetesTokenReview audiences
+// on HyperShift/ROSA clusters which use a custom OIDC provider URL.
+// Returns empty string if not found or not running on OpenShift.
+func GetClusterServiceAccountIssuer(ctx context.Context, cli client.Reader) (string, error) {
+	auth := &configv1.Authentication{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: ClusterAuthenticationObj}, auth); err != nil {
+		if meta.IsNoMatchError(err) || k8serr.IsNotFound(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("failed to get cluster authentication config: %w", err)
+	}
+	return auth.Spec.ServiceAccountIssuer, nil
 }

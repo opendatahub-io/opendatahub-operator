@@ -13,6 +13,8 @@ COPY go.mod go.mod
 COPY go.sum go.sum
 COPY pkg/clusterhealth/go.mod pkg/clusterhealth/go.mod
 COPY pkg/clusterhealth/go.sum pkg/clusterhealth/go.sum
+COPY pkg/failureclassifier/go.mod pkg/failureclassifier/go.mod
+COPY pkg/failureclassifier/go.sum pkg/failureclassifier/go.sum
 
 RUN go mod download
 
@@ -20,11 +22,15 @@ RUN go mod download
 COPY api/ api/
 COPY internal/ internal/
 COPY cmd/main.go cmd/main.go
+COPY cmd/test-retry/ cmd/test-retry/
 COPY pkg/ pkg/
 COPY tests/ tests/
 
 # build the e2e test binary + pre-compile the e2e tests
 RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go test -c ./tests/e2e/ -o e2e-tests
+
+# Build test-retry CLI for JUnit enrichment
+RUN cd cmd/test-retry && CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -o ../../test-retry .
 
 ################################################################################
 FROM golang:$GOLANG_VERSION
@@ -42,9 +48,10 @@ RUN go install gotest.tools/gotestsum@latest \
 WORKDIR /e2e
 
 COPY --from=builder /workspace/e2e-tests .
+COPY --from=builder /workspace/test-retry /go/bin/test-retry
 COPY tests/e2e/scripts/run_e2e_tests.sh /e2e/run_e2e_tests.sh
 
-RUN chmod +x ./e2e-tests /e2e/run_e2e_tests.sh
+RUN chmod +x ./e2e-tests /e2e/run_e2e_tests.sh /go/bin/test-retry
 
 RUN mkdir -p results
 

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/test-retry/pkg/types"
@@ -21,16 +23,28 @@ type TestSuite struct {
 
 // TestCase represents a JUnit XML test case
 type TestCase struct {
-	Name     string    `xml:"name,attr"`
-	Duration string    `xml:"time,attr"`
-	Failure  *Failure  `xml:"failure,omitempty"`
-	Time     time.Time `xml:"-"`
+	Name       string      `xml:"name,attr"`
+	Duration   string      `xml:"time,attr"`
+	Failure    *Failure    `xml:"failure,omitempty"`
+	Properties *Properties `xml:"properties,omitempty"`
+	Time       time.Time   `xml:"-"`
 }
 
 // Failure represents a JUnit XML test failure
 type Failure struct {
 	Message string `xml:"message,attr,omitempty"`
 	Content string `xml:",chardata"`
+}
+
+// Properties represents JUnit XML <properties> element
+type Properties struct {
+	Property []Property `xml:"property"`
+}
+
+// Property represents a single <property> element with name/value attributes
+type Property struct {
+	Name  string `xml:"name,attr"`
+	Value string `xml:"value,attr"`
 }
 
 // JUnitExportOptions holds configuration for JUnit export
@@ -89,7 +103,8 @@ func convertToJUnitSuite(result *types.TestResult, suiteName string) TestSuite {
 				Message: fmt.Sprintf("Test %s failed", test.Name),
 				Content: test.FailureOutput,
 			},
-			Time: test.Time,
+			Properties: buildClassificationProperties(test.Classification),
+			Time:       test.Time,
 		}
 
 		unorderedTestCases = append(unorderedTestCases, tc)
@@ -122,4 +137,32 @@ func convertToJUnitSuite(result *types.TestResult, suiteName string) TestSuite {
 // formatDuration formats a duration to a string in seconds with decimals
 func formatDuration(d time.Duration) string {
 	return fmt.Sprintf("%.3f", d.Seconds())
+}
+
+// buildClassificationProperties creates JUnit properties from FailureClassification.
+// Returns nil if the classification is nil (test has no classification).
+//
+// Property naming convention:
+//   - failure.category: "infrastructure", "test", "unknown"
+//   - failure.subcategory: specific cause (e.g., "image-pull", "pod-startup")
+//   - failure.error_code: numeric error identifier
+//   - failure.confidence: "high", "medium", "low"
+//   - failure.evidence: semicolon-separated evidence strings
+func buildClassificationProperties(fc *types.FailureClassification) *Properties {
+	if fc == nil {
+		return nil
+	}
+
+	// Format evidence: join array with semicolons for single property value
+	evidenceStr := strings.Join(fc.Evidence, "; ")
+
+	return &Properties{
+		Property: []Property{
+			{Name: "failure.category", Value: fc.Category},
+			{Name: "failure.subcategory", Value: fc.Subcategory},
+			{Name: "failure.error_code", Value: strconv.Itoa(fc.ErrorCode)},
+			{Name: "failure.confidence", Value: fc.Confidence},
+			{Name: "failure.evidence", Value: evidenceStr},
+		},
+	}
 }

@@ -127,6 +127,16 @@ func customizeManifests(ctx context.Context, rr *types.ReconciliationRequest) er
 		log.V(4).Info("Configuring API key max expiration days", "value", *maas.Spec.APIKeys.MaxExpirationDays)
 	}
 
+	// Detect cluster audience for HyperShift/ROSA (non-default OIDC issuer)
+	audience, err := cluster.GetClusterServiceAccountIssuer(ctx, rr.Client)
+	if err != nil {
+		return fmt.Errorf("failed to detect cluster service account issuer: %w", err)
+	}
+	if audience != "" {
+		params["cluster-audience"] = audience
+		log.Info("Detected non-default cluster audience", "audience", audience)
+	}
+
 	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), "params.env", nil, params); err != nil {
 		return fmt.Errorf("failed to update params on path %s: %w", rr.Manifests[0].String(), err)
 	}
@@ -220,12 +230,138 @@ func configureDestinationRule(log logr.Logger, resource *unstructured.Unstructur
 	resource.SetNamespace(gatewayNamespace)
 }
 
+// configureExternalOIDC is a post-render action that patches the maas-api AuthPolicy
+// to add external OIDC JWT authentication when spec.externalOIDC is configured.
+// When externalOIDC is nil, the AuthPolicy is left unchanged (base: API keys + OpenShift).
+func configureExternalOIDC(ctx context.Context, rr *types.ReconciliationRequest) error {
+	log := logf.FromContext(ctx)
+
+	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
+	}
+
+	if maas.Spec.ExternalOIDC == nil {
+		return nil
+	}
+
+	oidc := maas.Spec.ExternalOIDC
+	log.V(4).Info("Configuring external OIDC on maas-api AuthPolicy",
+		"issuerUrl", oidc.IssuerURL, "clientId", oidc.ClientID)
+
+	for idx := range rr.Resources {
+		resource := &rr.Resources[idx]
+		if resource.GroupVersionKind() == gvk.AuthPolicyv1 && resource.GetName() == MaaSAPIAuthPolicyName {
+			return patchAuthPolicyWithOIDC(log, resource, oidc)
+		}
+	}
+
+	log.V(1).Info("maas-api AuthPolicy not found in rendered resources, skipping OIDC configuration",
+		"expectedName", MaaSAPIAuthPolicyName)
+	return nil
+}
+
+// patchAuthPolicyWithOIDC adds OIDC authentication, authorization, and response
+// header rules to the maas-api AuthPolicy.
+func patchAuthPolicyWithOIDC(log logr.Logger, resource *unstructured.Unstructured, oidc *componentApi.ExternalOIDCConfig) error {
+	ttl := int64(oidc.TTL)
+	if ttl == 0 {
+		ttl = 300
+	}
+
+	// Add oidc-identities authentication (priority 1, JWT validation)
+	if err := unstructured.SetNestedField(resource.Object, map[string]interface{}{
+		"when": []interface{}{
+			map[string]interface{}{
+				"predicate": `!request.headers.authorization.startsWith("Bearer sk-oai-") && request.headers.authorization.matches("^Bearer [^.]+\\.[^.]+\\.[^.]+$")`,
+			},
+		},
+		"jwt": map[string]interface{}{
+			"issuerUrl": oidc.IssuerURL,
+			"ttl":       ttl,
+		},
+		"priority": int64(1),
+	}, "spec", "rules", "authentication", "oidc-identities"); err != nil {
+		return fmt.Errorf("failed to set oidc-identities: %w", err)
+	}
+
+	// Bump openshift-identities priority to 2 (OIDC takes priority 1)
+	if err := unstructured.SetNestedField(resource.Object, int64(2),
+		"spec", "rules", "authentication", "openshift-identities", "priority"); err != nil {
+		return fmt.Errorf("failed to set openshift-identities priority: %w", err)
+	}
+
+	// Add when clause to openshift-identities to skip for API key tokens
+	if err := unstructured.SetNestedField(resource.Object, []interface{}{
+		map[string]interface{}{
+			"predicate": `!request.headers.authorization.startsWith("Bearer sk-oai-")`,
+		},
+	}, "spec", "rules", "authentication", "openshift-identities", "when"); err != nil {
+		return fmt.Errorf("failed to set openshift-identities when: %w", err)
+	}
+
+	// Add oidc-client-bound authorization (azp claim must match clientId)
+	if err := unstructured.SetNestedField(resource.Object, map[string]interface{}{
+		"when": []interface{}{
+			map[string]interface{}{
+				"predicate": `!request.headers.authorization.startsWith("Bearer sk-oai-") && request.headers.authorization.matches("^Bearer [^.]+\\.[^.]+\\.[^.]+$")`,
+			},
+		},
+		"patternMatching": map[string]interface{}{
+			"patterns": []interface{}{
+				map[string]interface{}{
+					"selector": "auth.identity.azp",
+					"operator": "eq",
+					"value":    oidc.ClientID,
+				},
+			},
+		},
+		"priority": int64(1),
+	}, "spec", "rules", "authorization", "oidc-client-bound"); err != nil {
+		return fmt.Errorf("failed to set oidc-client-bound: %w", err)
+	}
+
+	// Update X-MaaS-Username-OC to handle both OIDC and OpenShift claims
+	if err := unstructured.SetNestedField(resource.Object, map[string]interface{}{
+		"expression": `has(auth.identity.preferred_username) ? auth.identity.preferred_username : (has(auth.identity.sub) ? auth.identity.sub : auth.identity.user.username)`,
+	}, "spec", "rules", "response", "success", "headers", "X-MaaS-Username-OC", "plain"); err != nil {
+		return fmt.Errorf("failed to set X-MaaS-Username-OC: %w", err)
+	}
+
+	// Update X-MaaS-Group-OC to handle both OIDC and OpenShift group claims.
+	// OIDC tokens carry groups in a flat claim; OpenShift identity uses user.groups.
+	groupsExpr := `has(auth.identity.groups) ? ` +
+		`(size(auth.identity.groups) > 0 ? ` +
+		`'["system:authenticated","' + auth.identity.groups.join('","') + '"]' : ` +
+		`'["system:authenticated"]') : ` +
+		`'["' + auth.identity.user.groups.join('","') + '"]'`
+	if err := unstructured.SetNestedField(resource.Object, map[string]interface{}{
+		"expression": groupsExpr,
+	}, "spec", "rules", "response", "success", "headers", "X-MaaS-Group-OC", "plain"); err != nil {
+		return fmt.Errorf("failed to set X-MaaS-Group-OC: %w", err)
+	}
+
+	log.Info("Patched maas-api AuthPolicy with external OIDC configuration",
+		"issuerUrl", oidc.IssuerURL, "clientId", oidc.ClientID)
+	return nil
+}
+
 // configureTelemetryPolicy is a post-render action that creates a TelemetryPolicy
 // resource based on the ModelsAsService telemetry configuration.
 //
 // The TelemetryPolicy is generated programmatically (not from manifests) because
 // its content is entirely dynamic based on the spec.telemetry.metrics configuration.
 func configureTelemetryPolicy(ctx context.Context, rr *types.ReconciliationRequest) error {
+	// Check telemetry enabled FIRST to avoid CRD lookup when feature is disabled.
+	// This prevents transient CRD lookup failures from failing reconciles unnecessarily.
+	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
+	}
+	if maas.Spec.Telemetry == nil || maas.Spec.Telemetry.Enabled == nil || !*maas.Spec.Telemetry.Enabled {
+		return nil
+	}
+
 	log := logf.FromContext(ctx)
 
 	// Skip if TelemetryPolicy CRD is not available in the cluster
@@ -250,6 +386,12 @@ func configureTelemetryPolicyCore(ctx context.Context, rr *types.ReconciliationR
 	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
+	}
+
+	// Check if telemetry is enabled
+	if maas.Spec.Telemetry == nil || maas.Spec.Telemetry.Enabled == nil || !*maas.Spec.Telemetry.Enabled {
+		log.V(2).Info("Telemetry not enabled, skipping TelemetryPolicy creation")
+		return nil
 	}
 
 	gatewayNamespace := maas.Spec.GatewayRef.Namespace
@@ -311,8 +453,144 @@ func configureTelemetryPolicyCore(ctx context.Context, rr *types.ReconciliationR
 	return nil
 }
 
+// configureIstioTelemetry is a post-render action that creates an Istio Telemetry
+// resource for per-subscription latency tracking when observability is enabled.
+//
+// This is a technical preview feature that adds a 'subscription' label to the
+// istio_request_duration_milliseconds metric, enabling P50/P95/P99 latency
+// tracking per subscription.
+func configureIstioTelemetry(ctx context.Context, rr *types.ReconciliationRequest) error {
+	// Check telemetry enabled FIRST to avoid CRD lookup when feature is disabled.
+	// This prevents transient CRD lookup failures from failing reconciles unnecessarily.
+	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
+	}
+	if maas.Spec.Telemetry == nil || maas.Spec.Telemetry.Enabled == nil || !*maas.Spec.Telemetry.Enabled {
+		return nil
+	}
+
+	log := logf.FromContext(ctx)
+
+	// Skip if Istio Telemetry CRD is not available in the cluster
+	crdAvailable, err := cluster.HasCRD(ctx, rr.Client, gvk.Telemetry)
+	if err != nil {
+		return fmt.Errorf("failed to check Istio Telemetry CRD availability: %w", err)
+	}
+	if !crdAvailable {
+		log.V(2).Info("Istio Telemetry CRD not available, skipping observability configuration")
+		return nil
+	}
+
+	return configureIstioTelemetryCore(ctx, rr)
+}
+
+// configureIstioTelemetryCore contains the core business logic for creating Istio Telemetry resources.
+// This function is extracted to allow testing without CRD availability check complexity.
+func configureIstioTelemetryCore(ctx context.Context, rr *types.ReconciliationRequest) error {
+	log := logf.FromContext(ctx)
+
+	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
+	}
+
+	// Check if telemetry is enabled
+	if maas.Spec.Telemetry == nil || maas.Spec.Telemetry.Enabled == nil || !*maas.Spec.Telemetry.Enabled {
+		log.V(2).Info("Telemetry not enabled, skipping Istio Telemetry creation")
+		return nil
+	}
+
+	gatewayNamespace := maas.Spec.GatewayRef.Namespace
+	gatewayName := maas.Spec.GatewayRef.Name
+
+	// Create OwnerReference for the Istio Telemetry
+	controller := true
+	ownerRef := metav1.OwnerReference{
+		APIVersion:         maas.APIVersion,
+		Kind:               maas.Kind,
+		Name:               maas.Name,
+		UID:                maas.UID,
+		Controller:         &controller,
+		BlockOwnerDeletion: &controller,
+	}
+
+	// Create the Istio Telemetry resource for per-subscription latency tracking.
+	// This adds a 'subscription' label to istio_request_duration_milliseconds
+	// extracted from the X-MaaS-Subscription header.
+	//
+	// Note on header source: The X-MaaS-Subscription header is injected by the
+	// AuthPolicy after validating the user's token. Istio Telemetry cannot directly
+	// access auth.identity (which is Kuadrant/Authorino-specific), so it relies on
+	// this header. The AuthPolicy configures this via:
+	//   response.success.headers.X-MaaS-Subscription.plain.expression
+	// If this header injection is ever removed from the AuthPolicy, this Telemetry
+	// will stop capturing subscription labels in Istio metrics.
+	//
+	// Note on selector conflicts (IST0159): Conflicts are mitigated by:
+	// 1. ModelsAsService is a singleton CR (only one instance allowed)
+	// 2. Using a fixed resource name (IstioTelemetryName) ensures idempotent reconciliation
+	// 3. OwnerReferences ensure cleanup when ModelsAsService is deleted
+	istioTelemetry := &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "telemetry.istio.io/v1",
+			"kind":       "Telemetry",
+			"metadata": map[string]any{
+				"name":      IstioTelemetryName,
+				"namespace": gatewayNamespace,
+				"labels": map[string]any{
+					"app.kubernetes.io/part-of": "maas-observability",
+				},
+			},
+			"spec": map[string]any{
+				"selector": map[string]any{
+					"matchLabels": map[string]any{
+						"gateway.networking.k8s.io/gateway-name": gatewayName,
+					},
+				},
+				"metrics": []any{
+					map[string]any{
+						"providers": []any{
+							map[string]any{
+								"name": "prometheus",
+							},
+						},
+						"overrides": []any{
+							map[string]any{
+								"match": map[string]any{
+									"metric": "REQUEST_DURATION",
+									"mode":   "CLIENT_AND_SERVER",
+								},
+								"tagOverrides": map[string]any{
+									"subscription": map[string]any{
+										"operation": "UPSERT",
+										"value":     `request.headers["x-maas-subscription"]`,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Set OwnerReferences
+	istioTelemetry.SetOwnerReferences([]metav1.OwnerReference{ownerRef})
+
+	log.V(2).Info("Creating Istio Telemetry for per-subscription latency tracking",
+		"name", IstioTelemetryName,
+		"namespace", gatewayNamespace,
+		"targetGateway", gatewayName)
+
+	// Add to resources for deployment
+	rr.Resources = append(rr.Resources, *istioTelemetry)
+
+	return nil
+}
+
 // buildTelemetryLabels creates the metric labels map based on the telemetry configuration.
-// Always-on dimensions (subscription, cost_center, tier) are always included for billing and access control.
+// Always-on dimensions (subscription, cost_center) are always included for billing and access control.
 // Other dimensions are configurable based on MetricsConfig settings.
 func buildTelemetryLabels(log logr.Logger, config *componentApi.TelemetryConfig) map[string]any {
 	// Default values when config is nil or metrics is nil
@@ -338,15 +616,16 @@ func buildTelemetryLabels(log logr.Logger, config *componentApi.TelemetryConfig)
 	}
 
 	// Always-on dimensions - essential for billing and access control
+	// Note: cost_center is nested under subscription_info in the auth identity
 	labels := map[string]any{
 		"subscription": "auth.identity.selected_subscription",
-		"cost_center":  "auth.identity.costCenter",
-		"tier":         "auth.identity.tier",
+		"cost_center":  "auth.identity.subscription_info.costCenter",
 	}
 
 	// Configurable dimensions
+	// Note: organization_id is nested under subscription_info in the auth identity
 	if captureOrganization {
-		labels["organization_id"] = "auth.identity.organizationId"
+		labels["organization_id"] = "auth.identity.subscription_info.organizationId"
 	}
 
 	if captureUser {

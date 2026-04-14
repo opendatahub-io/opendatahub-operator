@@ -43,7 +43,8 @@ func TestCloudManager_InvalidNameRejected(t *testing.T) {
 //  2. ReadOnlyValidation  — status, labels, workload checks, self-healing
 //  3. StatusAfterSpecChange — mutates spec but restores to all-Managed
 //  4. UnmanagedNotReconciled — switches cert-manager to Unmanaged
-//  5. GarbageCollectionOnDelete — deletes the CR (must be last)
+//  5. GarbageCollection — GC action: stale deletion, protected PKI, unmanaged transition
+//  6. CascadeDeletionOnCRDelete — Kubernetes cascade via ownerReferences (must be last)
 func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests sharing one CR lifecycle are clearer inline
 	wt := tc.NewWithT(t)
 
@@ -324,10 +325,129 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 		}
 	})
 
-	// --- 5. GarbageCollectionOnDelete ---
-	// Deletes the CR and verifies all owned resources are cleaned up.
-	// Must be the last test since it destroys the CR.
-	t.Run("GarbageCollectionOnDelete", func(t *testing.T) {
+	// --- 5. GarbageCollection ---
+	// Tests the GC action that runs as the last step in the reconciliation pipeline.
+	// GC identifies stale or orphaned resources by comparing InstanceGeneration
+	// annotations and deletes them, while preserving protected PKI resources.
+	t.Run("GarbageCollection", func(t *testing.T) {
+		wt := tc.NewWithT(t)
+
+		// Restore all dependencies to Managed (step 4 left cert-manager Unmanaged).
+		wt.Patch(provider.GVK, k8sEngineCrNn(), func(obj *unstructured.Unstructured) error {
+			return unstructured.SetNestedField(obj.Object, allManaged(), "spec", "dependencies")
+		}).Eventually().Should(Not(BeNil()))
+
+		waitForReady(wt)
+		waitForDeploymentsAvailable(wt)
+
+		t.Run("PreservesProtectedPKIResources", func(t *testing.T) {
+			wt := tc.NewWithT(t)
+
+			// Trigger a spec change to force a full reconcile (render → deploy → GC).
+			wt.Patch(provider.GVK, k8sEngineCrNn(), func(obj *unstructured.Unstructured) error {
+				return unstructured.SetNestedField(obj.Object, string(ccmapi.Unmanaged),
+					"spec", "dependencies", "sailOperator", "managementPolicy")
+			}).Eventually().Should(Not(BeNil()))
+
+			wt.Get(provider.GVK, k8sEngineCrNn()).Eventually().Should(
+				jq.Match(`.status.observedGeneration == .metadata.generation`),
+			)
+
+			// PKI resources must survive the GC run.
+			wt.Get(gvk.CertManagerClusterIssuer, types.NamespacedName{
+				Name: "opendatahub-selfsigned-issuer",
+			}).Eventually().Should(Not(BeNil()))
+			wt.Get(gvk.CertManagerCertificate, types.NamespacedName{
+				Name: "opendatahub-ca", Namespace: "cert-manager",
+			}).Eventually().Should(Not(BeNil()))
+			wt.Get(gvk.CertManagerClusterIssuer, types.NamespacedName{
+				Name: "opendatahub-ca-issuer",
+			}).Eventually().Should(Not(BeNil()))
+
+			// Restore sailOperator.
+			wt.Patch(provider.GVK, k8sEngineCrNn(), func(obj *unstructured.Unstructured) error {
+				return unstructured.SetNestedField(obj.Object, string(ccmapi.Managed),
+					"spec", "dependencies", "sailOperator", "managementPolicy")
+			}).Eventually().Should(Not(BeNil()))
+		})
+
+		t.Run("DeletesStaleResources", func(t *testing.T) {
+			wt := tc.NewWithT(t)
+
+			cr := wt.Get(provider.GVK, k8sEngineCrNn()).Eventually().Should(Not(BeNil()))
+
+			// Create a ConfigMap that looks like a stale CCM resource: it has the
+			// infrastructure label and an owner reference, but its generation
+			// annotation does not match the CR's current generation.
+			staleCM := &unstructured.Unstructured{}
+			staleCM.SetGroupVersionKind(gvk.ConfigMap)
+			staleCM.SetName("stale-ccm-resource")
+			staleCM.SetNamespace("cert-manager-operator")
+			staleCM.SetLabels(map[string]string{
+				labels.InfrastructurePartOf: strings.ToLower(provider.GVK.Kind),
+			})
+			staleCM.SetAnnotations(map[string]string{
+				annotations.InstanceUID:        string(cr.GetUID()),
+				annotations.InstanceGeneration: "-1",
+			})
+			_ = unstructured.SetNestedSlice(staleCM.Object, []any{
+				map[string]any{
+					"apiVersion": provider.GVK.GroupVersion().String(),
+					"kind":       provider.GVK.Kind,
+					"name":       provider.InstanceName,
+					"uid":        string(cr.GetUID()),
+				},
+			}, "metadata", "ownerReferences")
+
+			wt.Expect(wt.Client().Create(wt.Context(), staleCM)).To(Succeed())
+			t.Cleanup(func() {
+				_ = wt.Client().Delete(wt.Context(), staleCM)
+			})
+
+			// Trigger a spec change to force a reconcile including GC.
+			wt.Patch(provider.GVK, k8sEngineCrNn(), func(obj *unstructured.Unstructured) error {
+				return unstructured.SetNestedField(obj.Object, string(ccmapi.Unmanaged),
+					"spec", "dependencies", "sailOperator", "managementPolicy")
+			}).Eventually().Should(Not(BeNil()))
+
+			// GC should delete the stale resource.
+			wt.Get(gvk.ConfigMap, client.ObjectKeyFromObject(staleCM)).Eventually().Should(BeNil())
+
+			// Restore sailOperator.
+			wt.Patch(provider.GVK, k8sEngineCrNn(), func(obj *unstructured.Unstructured) error {
+				return unstructured.SetNestedField(obj.Object, string(ccmapi.Managed),
+					"spec", "dependencies", "sailOperator", "managementPolicy")
+			}).Eventually().Should(Not(BeNil()))
+		})
+
+		t.Run("DeletesResourcesOnUnmanagedTransition", func(t *testing.T) {
+			wt := tc.NewWithT(t)
+
+			waitForReady(wt)
+
+			// Verify the cert-manager deployment exists before the transition.
+			certManagerDep := managedDependencyDeployments[0]
+			wt.Expect(certManagerDep.Name).To(ContainSubstring("cert-manager"))
+			nn := types.NamespacedName{Name: certManagerDep.Name, Namespace: certManagerDep.Namespace}
+			wt.Get(gvk.Deployment, nn).Eventually().Should(Not(BeNil()))
+
+			// Switch cert-manager to Unmanaged. Helm no longer renders cert-manager
+			// resources, so they retain stale generation annotations. GC deletes them.
+			wt.Patch(provider.GVK, k8sEngineCrNn(), func(obj *unstructured.Unstructured) error {
+				return unstructured.SetNestedField(obj.Object, string(ccmapi.Unmanaged),
+					"spec", "dependencies", "certManager", "managementPolicy")
+			}).Eventually().Should(Not(BeNil()))
+
+			// GC should automatically delete the cert-manager deployment.
+			wt.Get(gvk.Deployment, nn).Eventually().Should(BeNil())
+		})
+	})
+
+	// --- 6. CascadeDeletionOnCRDelete ---
+	// Deletes the CR and verifies Kubernetes cascade-deletes all owned resources
+	// (those with ownerReferences). Namespaces are excluded from ownership and
+	// survive deletion. Must be the last test since it destroys the CR.
+	t.Run("CascadeDeletionOnCRDelete", func(t *testing.T) {
 		wt := tc.NewWithT(t)
 
 		// Restore all dependencies to Managed (previous tests may have changed
@@ -348,11 +468,13 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 			)
 		}
 
-		// Verify namespaces have owner references pointing to the CR.
+		// Namespaces are excluded from dynamic ownership to prevent cascade
+		// deletion of the entire namespace (and all third-party resources in it)
+		// when the CR is deleted. Verify they have no owner references.
 		for _, ns := range common.ManagedNamespaces() {
 			wt.Get(gvk.Namespace, types.NamespacedName{Name: ns}).
 				Eventually().Should(
-				jq.Match(`.metadata.ownerReferences | length > 0`),
+				jq.Match(`.metadata.ownerReferences == null or (.metadata.ownerReferences | length == 0)`),
 			)
 		}
 
@@ -360,17 +482,17 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 		wt.Delete(provider.GVK, k8sEngineCrNn()).Eventually().Should(Succeed())
 		wt.Get(provider.GVK, k8sEngineCrNn()).Eventually().Should(BeNil())
 
-		// All owned deployments should be garbage-collected.
+		// All owned deployments should be cascade-deleted via owner references.
 		for _, dep := range managedDependencyDeployments {
 			wt.Get(gvk.Deployment, types.NamespacedName{
 				Name: dep.Name, Namespace: dep.Namespace,
 			}).Eventually().Should(BeNil())
 		}
 
-		// All owned namespaces should be garbage-collected.
+		// Namespaces survive CR deletion because they have no owner references.
 		for _, ns := range common.ManagedNamespaces() {
 			wt.Get(gvk.Namespace, types.NamespacedName{Name: ns}).
-				Eventually().Should(BeNil())
+				Eventually().Should(Not(BeNil()))
 		}
 	})
 }

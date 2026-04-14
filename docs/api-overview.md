@@ -746,6 +746,24 @@ _Appears in:_
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
+#### ExternalOIDCConfig
+
+
+
+ExternalOIDCConfig defines the external OIDC provider settings.
+
+
+
+_Appears in:_
+- [ModelsAsServiceSpec](#modelsasservicespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `issuerUrl` _string_ | IssuerURL is the OIDC issuer URL (e.g. https://keycloak.example.com/realms/maas).<br />Must serve a .well-known/openid-configuration endpoint over HTTPS. |  | MaxLength: 2048 <br />MinLength: 9 <br />Pattern: `^https://\S+$` <br /> |
+| `clientId` _string_ | ClientID is the OAuth2 client ID. Incoming OIDC tokens must have an<br />azp (authorized party) claim matching this value. |  | MaxLength: 256 <br />MinLength: 1 <br />Pattern: `^\S+$` <br /> |
+| `ttl` _integer_ | TTL is the JWKS cache duration in seconds. | 300 | Minimum: 30 <br />Optional: \{\} <br /> |
+
+
 #### FeastOperator
 
 
@@ -809,6 +827,9 @@ FeastOperatorSpec defines the desired state of FeastOperator
 _Appears in:_
 - [FeastOperator](#feastoperator)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `oidc` _[GatewayOIDCSpec](#gatewayoidcspec)_ | OIDC holds issuer settings synced from GatewayConfig by the DSC controller when the cluster<br />uses external OIDC (issuer URL from GatewayConfig.spec.oidc). Only issuerURL is applied to<br />Feast manifests (params.env). |  |  |
 
 
 #### FeastOperatorStatus
@@ -1481,7 +1502,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `gatewayRef` _[GatewayRef](#gatewayref)_ | GatewayRef specifies which Gateway (Gateway API) to use for exposing model endpoints.<br />If omitted, defaults to openshift-ingress/maas-default-gateway. |  | Optional: \{\} <br /> |
 | `apiKeys` _[APIKeysConfig](#apikeysconfig)_ | APIKeys contains configuration for API key management. |  | Optional: \{\} <br /> |
-| `telemetry` _[TelemetryConfig](#telemetryconfig)_ | Telemetry contains configuration for telemetry and metrics collection. |  | Optional: \{\} <br /> |
+| `externalOIDC` _[ExternalOIDCConfig](#externaloidcconfig)_ | ExternalOIDC configures an external OIDC identity provider (e.g. Keycloak, Azure AD)<br />for the maas-api AuthPolicy. When set, the operator patches the AuthPolicy to accept<br />JWTs from the specified issuer alongside OpenShift TokenReview and API key authentication. |  | Optional: \{\} <br /> |
+| `telemetry` _[TelemetryConfig](#telemetryconfig)_ | Telemetry contains configuration for telemetry and metrics collection.<br />When enabled, deploys TelemetryPolicy for usage metrics and<br />Istio Telemetry for per-subscription latency tracking. |  | Optional: \{\} <br /> |
 
 
 #### ModelsAsServiceStatus
@@ -1715,7 +1737,8 @@ _Appears in:_
 
 
 TelemetryConfig defines configuration for telemetry collection.
-Core billing and access control metrics (subscription, cost_center, tier) are always emitted.
+When enabled, deploys TelemetryPolicy for usage metrics (Limitador) and
+Istio Telemetry for per-subscription latency tracking.
 
 
 
@@ -1724,6 +1747,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
+| `enabled` _boolean_ | Enabled controls whether telemetry resources are deployed.<br />When true, creates TelemetryPolicy for usage metrics and<br />Istio Telemetry for per-subscription latency tracking.<br />Default is true (telemetry enabled). | true | Optional: \{\} <br /> |
 | `metrics` _[MetricsConfig](#metricsconfig)_ | Metrics contains configuration for optional metric dimensions/labels. |  | Optional: \{\} <br /> |
 
 

@@ -61,6 +61,16 @@ func v2Tov3UpgradeTestSuite(t *testing.T) {
 		TestContext: tc,
 	}
 
+	// Register cleanup before creation so it runs even if createCRD() fails midway
+	t.Cleanup(func() {
+		for _, crd := range removedCRDToCreate {
+			tc.DeleteResource(
+				WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: strings.ToLower(crd.GVK.Kind) + "s." + crd.GVK.Group}),
+				WithIgnoreNotFound(true),
+			)
+		}
+	})
+
 	v2Tov3UpgradeTestCtx.createCRD(removedCRDToCreate)
 
 	// Define test cases.
@@ -73,12 +83,6 @@ func v2Tov3UpgradeTestSuite(t *testing.T) {
 
 	// Run the test suite.
 	RunTestCases(t, testCases)
-
-	for _, crd := range removedCRDToCreate {
-		tc.DeleteResource(
-			WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: strings.ToLower(crd.GVK.Kind) + "s." + crd.GVK.Group}),
-		)
-	}
 }
 
 func v2Tov3UpgradeDeletingDscDsciTestSuite(t *testing.T) {
@@ -123,6 +127,7 @@ func (tc *V2Tov3UpgradeTestCtx) validateComponentResourcePreservation(t *testing
 	componentToCreate := tc.operatorManagedComponent(componentGVK, componentName, dsc)
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithObjectToCreate(componentToCreate),
+		WithCleanup(t),
 		WithCustomErrorMsg("Failed to create existing %s component for preservation test", componentGVK.Kind),
 	)
 
@@ -133,22 +138,22 @@ func (tc *V2Tov3UpgradeTestCtx) validateComponentResourcePreservation(t *testing
 		WithMinimalObject(componentGVK, types.NamespacedName{Name: componentName}),
 		WithCustomErrorMsg("%s component resource '%s' was expected to exist but was not found", componentGVK.Kind, componentName),
 	)
-
-	// Cleanup
-	tc.DeleteResource(
-		WithMinimalObject(componentGVK, types.NamespacedName{Name: componentName}),
-		WithWaitForDeletion(true),
-	)
 }
 
 func (tc *V2Tov3UpgradeTestCtx) ValidateRayRaiseErrorIfCodeFlarePresent(t *testing.T) {
 	t.Helper()
+
+	// Register cleanup to restore Ray to Removed state even on test failure
+	t.Cleanup(func() {
+		tc.updateComponentStateInDataScienceCluster(t, gvk.Ray.Kind, operatorv1.Removed)
+	})
 
 	dsc := tc.FetchDataScienceCluster()
 	existingComponent := tc.operatorManagedComponent(gvk.CodeFlare, defaultCodeFlareComponentName, dsc)
 
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithObjectToCreate(existingComponent),
+		WithCleanup(t),
 		WithCustomErrorMsg("Failed to create existing %s component", gvk.CodeFlare),
 	)
 
@@ -186,9 +191,6 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateRayRaiseErrorIfCodeFlarePresent(t *testi
 			),
 		)),
 	)
-
-	// Cleanup
-	tc.updateComponentStateInDataScienceCluster(t, gvk.Ray.Kind, operatorv1.Removed)
 }
 
 func (tc *V2Tov3UpgradeTestCtx) triggerDSCReconciliation(t *testing.T) {
@@ -268,16 +270,20 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateServiceMeshResourcePreservation(t *testi
 
 	tc.createOperatorManagedServiceMesh(defaultServiceMeshName, dsci)
 
+	// Register cleanup at creation time - runs even on test failure/timeout
+	t.Cleanup(func() {
+		tc.DeleteResource(
+			WithMinimalObject(gvk.ServiceMesh, nn),
+			WithIgnoreNotFound(true),
+			WithRemoveFinalizersOnDelete(true),
+		)
+	})
+
 	tc.triggerDSCIReconciliation(t)
 
 	// verify ServiceMesh still exists after reconciliation
 	tc.EnsureResourceExistsConsistently(WithMinimalObject(gvk.ServiceMesh, nn),
 		WithCustomErrorMsg("ServiceMesh service resource '%s' was expected to exist but was not found", defaultServiceMeshName),
-	)
-
-	tc.DeleteResource(
-		WithMinimalObject(gvk.ServiceMesh, nn),
-		WithWaitForDeletion(true),
 	)
 }
 
@@ -344,6 +350,16 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateArgoWorkflowsControllersDatasciencepipel
 
 	dscName := "test-dsc-v1-datasciencepipelines"
 
+	// Register cleanup at creation time - runs even on test failure/timeout
+	// t.Cleanup runs in LIFO order: DSC is deleted first, then DSCI
+	t.Cleanup(func() {
+		tc.DeleteResource(
+			WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+	})
+
 	// Create a DataScienceCluster v2 resource with AIPipelines set to Managed
 	dscV2 := CreateDSC(dscName, tc.WorkbenchesNamespace)
 	dscV2.Spec.Components.AIPipelines.ManagementState = operatorv1.Managed
@@ -354,6 +370,14 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateArgoWorkflowsControllersDatasciencepipel
 		WithCustomErrorMsg("Expected validation webhook to allow DataScienceCluster v2 with AIPipelines set to Managed"),
 		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
 	)
+
+	t.Cleanup(func() {
+		tc.DeleteResource(
+			WithMinimalObject(gvk.DataScienceClusterV1, types.NamespacedName{Name: dscName}),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+	})
 
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceClusterV1, types.NamespacedName{Name: dscName}),
@@ -366,15 +390,5 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateArgoWorkflowsControllersDatasciencepipel
 				jq.Match(`[.status.conditions[] | select(.type == "AIPipelinesReady")] | length == 0`),
 			),
 		),
-	)
-
-	// Cleanup - delete the test resource
-	tc.DeleteResource(
-		WithMinimalObject(gvk.DataScienceClusterV1, types.NamespacedName{Name: dscName}),
-		WithWaitForDeletion(true),
-	)
-	tc.DeleteResource(
-		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithWaitForDeletion(true),
 	)
 }
