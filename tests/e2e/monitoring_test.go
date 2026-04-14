@@ -76,12 +76,15 @@ type MonitoringTestCtx struct {
 func monitoringTestSuite(t *testing.T) {
 	t.Helper()
 
-	// The whole monitoring test-suite is part of Tier2 tests
-	skipUnless(t, Tier2)
-
-	// Initialize the test context.
+	// Initialize the test context to check platform early.
 	tc, err := NewTestContext(t)
 	require.NoError(t, err)
+
+	// Monitoring is not supported on XKS/KinD as it depends on OpenShift-specific operators.
+	tc.SkipIfXKSCluster(t)
+
+	// The whole monitoring test-suite is part of Tier2 tests
+	skipUnless(t, Tier2)
 
 	// Independently determine the expected replica count from the cluster's
 	// actual node topology rather than calling the production
