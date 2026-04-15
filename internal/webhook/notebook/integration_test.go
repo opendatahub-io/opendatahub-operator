@@ -92,22 +92,20 @@ func TestNotebookWebhook_Integration(t *testing.T) {
 		},
 	}
 
+	ctx, env := envtestutil.SetupSharedEnvForSubtests(
+		t,
+		[]envt.RegisterWebhooksFn{
+			envtestutil.RegisterWebhooks,
+		},
+		[]envt.RegisterControllersFn{},
+		envtestutil.DefaultWebhookTimeout,
+		envtestutil.WithNotebook(),
+	)
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			g := NewWithT(t)
-
-			// Register both notebook webhook and hardware profile webhook to avoid missing webhook error
-			ctx, env, teardown := envtestutil.SetupEnvAndClientWithCRDs(
-				t,
-				[]envt.RegisterWebhooksFn{
-					envtestutil.RegisterWebhooks,
-				},
-				[]envt.RegisterControllersFn{},
-				envtestutil.DefaultWebhookTimeout,
-				envtestutil.WithNotebook(),
-			)
-			t.Cleanup(teardown)
 
 			k8sClient := env.Client()
 			ns := xid.New().String()
