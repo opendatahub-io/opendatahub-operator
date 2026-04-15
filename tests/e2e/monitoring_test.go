@@ -1959,7 +1959,9 @@ func (tc *MonitoringTestCtx) ValidateResourceVersionStability(t *testing.T) {
 			u := tc.FetchResource(
 				WithMinimalObject(r.gvk, types.NamespacedName{Name: r.name, Namespace: r.ns}),
 			)
-			g.Expect(u).NotTo(BeNil(), "%s should still exist", r.desc)
+			if !g.Expect(u).NotTo(BeNil(), "%s should still exist", r.desc) {
+				continue
+			}
 			g.Expect(u.GetResourceVersion()).To(
 				Equal(initialVersions[r.name]),
 				"%s resourceVersion changed from %s — controller is re-applying unchanged resources (possible reconciliation loop)",
