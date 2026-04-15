@@ -10,7 +10,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -33,27 +32,8 @@ import (
 
 const nsCertManagerOperator = "cert-manager-operator"
 
-// listCertManagerDeployments returns the Deployments with the InfrastructurePartOf
-// label in the cert-manager operator namespace.
-func listCertManagerDeployments(wt *testf.WithT) ([]unstructured.Unstructured, error) {
-	list := &unstructured.UnstructuredList{}
-	list.SetGroupVersionKind(gvk.Deployment.GroupVersion().WithKind(gvk.Deployment.Kind + "List"))
-
-	if err := wt.Client().List(wt.Context(), list,
-		client.InNamespace(nsCertManagerOperator),
-		client.MatchingLabels{
-			labels.InfrastructurePartOf: labels.NormalizePartOfValue(ccmv1alpha1.AzureKubernetesEngineKind),
-		},
-	); err != nil {
-		return nil, err
-	}
-
-	return list.Items, nil
-}
-
 func hasCertManagerDeployments(wt *testf.WithT) bool {
-	items, err := listCertManagerDeployments(wt)
-	return err == nil && len(items) > 0
+	return ccmtest.HasInfraDeployments(wt, nsCertManagerOperator, ccmv1alpha1.AzureKubernetesEngineKind)
 }
 
 var azureCfg = ccmtest.ControllerTestConfig{
@@ -185,10 +165,8 @@ func TestAzureKubernetesEngineGC(t *testing.T) {
 		wt.Expect(wt.Client().Update(wt.Context(), ake)).To(Succeed())
 
 		wt.Eventually(func() bool {
-			list, err := listCertManagerDeployments(wt)
-			if err != nil {
-				return false
-			}
+			list, err := ccmtest.ListInfraDeployments(wt, nsCertManagerOperator, ccmv1alpha1.AzureKubernetesEngineKind)
+			wt.Expect(err).NotTo(HaveOccurred())
 			if len(list) == 0 {
 				return true
 			}

@@ -2,7 +2,9 @@ package gc_test
 
 import (
 	"context"
+	"fmt"
 	"maps"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -39,24 +41,32 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-//nolint:gochecknoinits
-func init() {
+var sharedEnvTest *envt.EnvT
+
+func TestMain(m *testing.M) {
 	log.SetLogger(zap.New(zap.UseDevMode(true)))
+
+	var err error
+
+	sharedEnvTest, err = envt.New()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to start envtest: %v\n", err)
+		os.Exit(1)
+	}
+
+	code := m.Run()
+
+	if err := sharedEnvTest.Stop(); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to stop envtest: %v\n", err)
+	}
+
+	os.Exit(code)
 }
 
 //nolint:maintidx
 func TestGcAction(t *testing.T) {
-	g := NewWithT(t)
-
-	envTest, err := envt.New()
-	g.Expect(err).NotTo(HaveOccurred())
-
-	t.Cleanup(func() {
-		_ = envTest.Stop()
-	})
-
 	ctx := context.Background()
-	cli := envTest.Client()
+	cli := sharedEnvTest.Client()
 
 	tests := []struct {
 		name           string
@@ -189,9 +199,9 @@ func TestGcAction(t *testing.T) {
 				},
 				Generated: tt.generated,
 				Controller: mocks.NewMockController(func(m *mocks.MockController) {
-					m.On("GetClient").Return(envTest.Client())
-					m.On("GetDynamicClient").Return(envTest.DynamicClient())
-					m.On("GetDiscoveryClient").Return(envTest.DiscoveryClient())
+					m.On("GetClient").Return(sharedEnvTest.Client())
+					m.On("GetDynamicClient").Return(sharedEnvTest.DynamicClient())
+					m.On("GetDiscoveryClient").Return(sharedEnvTest.DiscoveryClient())
 					m.On("Owns", mock.Anything).Return(false)
 				}),
 			}
@@ -313,18 +323,17 @@ func TestGcAction(t *testing.T) {
 
 			a := gc.NewAction(opts...)
 
-			err = a(ctx, &rr)
-			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(a(ctx, &rr)).NotTo(HaveOccurred())
 
-			err = cli.Get(ctx, ctrlCli.ObjectKeyFromObject(&l), &coordinationv1.Lease{})
-			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(cli.Get(ctx, ctrlCli.ObjectKeyFromObject(&l), &coordinationv1.Lease{})).
+				ToNot(HaveOccurred())
 
-			err = cli.Get(ctx, ctrlCli.ObjectKeyFromObject(&crd), &apiextensionsv1.CustomResourceDefinition{})
-			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(cli.Get(ctx, ctrlCli.ObjectKeyFromObject(&crd), &apiextensionsv1.CustomResourceDefinition{})).
+				ToNot(HaveOccurred())
 
 			if tt.matcher != nil {
-				err = cli.Get(ctx, ctrlCli.ObjectKeyFromObject(&cm), &corev1.ConfigMap{})
-				g.Expect(err).To(tt.matcher)
+				g.Expect(cli.Get(ctx, ctrlCli.ObjectKeyFromObject(&cm), &corev1.ConfigMap{})).
+					To(tt.matcher)
 			}
 
 			if tt.metricsMatcher != nil {
@@ -336,17 +345,8 @@ func TestGcAction(t *testing.T) {
 }
 
 func TestGcActionOwn(t *testing.T) {
-	g := NewWithT(t)
-
-	envTest, err := envt.New()
-	g.Expect(err).NotTo(HaveOccurred())
-
-	t.Cleanup(func() {
-		_ = envTest.Stop()
-	})
-
 	ctx := context.Background()
-	cli := envTest.Client()
+	cli := sharedEnvTest.Client()
 
 	tests := []struct {
 		name    string
@@ -408,9 +408,9 @@ func TestGcActionOwn(t *testing.T) {
 				},
 				Generated: true,
 				Controller: mocks.NewMockController(func(m *mocks.MockController) {
-					m.On("GetClient").Return(envTest.Client())
-					m.On("GetDynamicClient").Return(envTest.DynamicClient())
-					m.On("GetDiscoveryClient").Return(envTest.DiscoveryClient())
+					m.On("GetClient").Return(sharedEnvTest.Client())
+					m.On("GetDynamicClient").Return(sharedEnvTest.DynamicClient())
+					m.On("GetDiscoveryClient").Return(sharedEnvTest.DiscoveryClient())
 					m.On("Owns", mock.Anything).Return(false)
 				}),
 			}
@@ -463,12 +463,11 @@ func TestGcActionOwn(t *testing.T) {
 
 			a := gc.NewAction(opts...)
 
-			err = a(ctx, &rr)
-			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(a(ctx, &rr)).NotTo(HaveOccurred())
 
 			if tt.matcher != nil {
-				err = cli.Get(ctx, ctrlCli.ObjectKeyFromObject(&cm), &corev1.ConfigMap{})
-				g.Expect(err).To(tt.matcher)
+				g.Expect(cli.Get(ctx, ctrlCli.ObjectKeyFromObject(&cm), &corev1.ConfigMap{})).
+					To(tt.matcher)
 			}
 		})
 	}
@@ -477,15 +476,8 @@ func TestGcActionOwn(t *testing.T) {
 func TestGcActionCluster(t *testing.T) {
 	g := NewWithT(t)
 
-	envTest, err := envt.New()
-	g.Expect(err).NotTo(HaveOccurred())
-
-	t.Cleanup(func() {
-		_ = envTest.Stop()
-	})
-
 	ctx := context.Background()
-	cli := envTest.Client()
+	cli := sharedEnvTest.Client()
 	nsn := xid.New().String()
 
 	ns := corev1.Namespace{
@@ -516,9 +508,9 @@ func TestGcActionCluster(t *testing.T) {
 		},
 		Generated: true,
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
-			m.On("GetClient").Return(envTest.Client())
-			m.On("GetDynamicClient").Return(envTest.DynamicClient())
-			m.On("GetDiscoveryClient").Return(envTest.DiscoveryClient())
+			m.On("GetClient").Return(sharedEnvTest.Client())
+			m.On("GetDynamicClient").Return(sharedEnvTest.DynamicClient())
+			m.On("GetDiscoveryClient").Return(sharedEnvTest.DiscoveryClient())
 			m.On("Owns", mock.Anything).Return(false)
 		}),
 	}
@@ -561,6 +553,14 @@ func TestGcActionCluster(t *testing.T) {
 	cr2.Name = xid.New().String()
 	cr2.Annotations[annotations.PlatformVersion] = rr.Release.Version.String()
 
+	t.Cleanup(func() {
+		for _, obj := range []ctrlCli.Object{&cm1, &cm2, &cr1, &cr2} {
+			if err := cli.Delete(ctx, obj); err != nil && !k8serr.IsNotFound(err) {
+				t.Fatalf("failed to delete %s/%s: %v", obj.GetNamespace(), obj.GetName(), err)
+			}
+		}
+	})
+
 	g.Expect(controllerutil.SetOwnerReference(rr.Instance, &cm1, cli.Scheme())).
 		NotTo(HaveOccurred())
 
@@ -590,20 +590,19 @@ func TestGcActionCluster(t *testing.T) {
 	gc.DeletedTotal.Reset()
 	gc.DeletedTotal.WithLabelValues("dashboard").Add(0)
 
-	err = a(ctx, &rr)
-	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(a(ctx, &rr)).NotTo(HaveOccurred())
 
-	err = cli.Get(ctx, ctrlCli.ObjectKeyFromObject(&cm1), &corev1.ConfigMap{})
-	g.Expect(err).To(MatchError(k8serr.IsNotFound, "IsNotFound"))
+	g.Expect(cli.Get(ctx, ctrlCli.ObjectKeyFromObject(&cm1), &corev1.ConfigMap{})).
+		To(MatchError(k8serr.IsNotFound, "IsNotFound"))
 
-	err = cli.Get(ctx, ctrlCli.ObjectKeyFromObject(&cm2), &corev1.ConfigMap{})
-	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(cli.Get(ctx, ctrlCli.ObjectKeyFromObject(&cm2), &corev1.ConfigMap{})).
+		ToNot(HaveOccurred())
 
-	err = cli.Get(ctx, ctrlCli.ObjectKeyFromObject(&cr1), &rbacv1.ClusterRole{})
-	g.Expect(err).To(MatchError(k8serr.IsNotFound, "IsNotFound"))
+	g.Expect(cli.Get(ctx, ctrlCli.ObjectKeyFromObject(&cr1), &rbacv1.ClusterRole{})).
+		To(MatchError(k8serr.IsNotFound, "IsNotFound"))
 
-	err = cli.Get(ctx, ctrlCli.ObjectKeyFromObject(&cr2), &rbacv1.ClusterRole{})
-	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(cli.Get(ctx, ctrlCli.ObjectKeyFromObject(&cr2), &rbacv1.ClusterRole{})).
+		ToNot(HaveOccurred())
 
 	ct := testutil.ToFloat64(gc.DeletedTotal)
 	g.Expect(ct).Should(BeNumerically("==", 2))
@@ -612,15 +611,8 @@ func TestGcActionCluster(t *testing.T) {
 func TestGcActionOnce(t *testing.T) {
 	g := NewWithT(t)
 
-	envTest, err := envt.New()
-	g.Expect(err).NotTo(HaveOccurred())
-
-	t.Cleanup(func() {
-		_ = envTest.Stop()
-	})
-
 	ctx := context.Background()
-	cli := envTest.Client()
+	cli := sharedEnvTest.Client()
 	nsn := xid.New().String()
 
 	ns := corev1.Namespace{
@@ -651,9 +643,9 @@ func TestGcActionOnce(t *testing.T) {
 		},
 		Generated: true,
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
-			m.On("GetClient").Return(envTest.Client())
-			m.On("GetDynamicClient").Return(envTest.DynamicClient())
-			m.On("GetDiscoveryClient").Return(envTest.DiscoveryClient())
+			m.On("GetClient").Return(sharedEnvTest.Client())
+			m.On("GetDynamicClient").Return(sharedEnvTest.DynamicClient())
+			m.On("GetDiscoveryClient").Return(sharedEnvTest.DiscoveryClient())
 			m.On("Owns", mock.Anything).Return(false)
 		}),
 	}
@@ -694,8 +686,9 @@ func TestGcActionOnce(t *testing.T) {
 	gc.DeletedTotal.WithLabelValues("dashboard").Add(0)
 
 	g.Expect(a(ctx, &rr)).NotTo(HaveOccurred())
-	g.Expect(testutil.ToFloat64(gc.DeletedTotal)).Should(BeNumerically("==", 1))
+	deletedAfterFirstRun := testutil.ToFloat64(gc.DeletedTotal)
+	g.Expect(deletedAfterFirstRun).Should(BeNumerically("==", 1))
 
 	g.Expect(a(ctx, &rr)).NotTo(HaveOccurred())
-	g.Expect(testutil.ToFloat64(gc.DeletedTotal)).Should(BeNumerically("==", 1))
+	g.Expect(testutil.ToFloat64(gc.DeletedTotal)).Should(BeNumerically("==", deletedAfterFirstRun))
 }
