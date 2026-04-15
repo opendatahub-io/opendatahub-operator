@@ -175,7 +175,7 @@ oc logs -n opendatahub-operator-system deployment/opendatahub-operator-controlle
 - Component manifests are stored in `opt/manifests/` 
 - Fetch latest manifests: `make get-manifests`
 - Use local manifests for development: `make image-build USE_LOCAL=true`
-- Platform-specific builds: `ODH_PLATFORM_TYPE=OpenDataHub` (default), `SelfManagedRHOAI`, or `XKS`
+- Platform-specific builds: `ODH_PLATFORM_TYPE=OpenDataHub` (default) or `ODH_PLATFORM_TYPE=rhoai`
 
 ## Key Architecture Patterns
 
