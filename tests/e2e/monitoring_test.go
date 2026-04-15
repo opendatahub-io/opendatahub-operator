@@ -1834,6 +1834,8 @@ func (tc *MonitoringTestCtx) ValidatePrometheusSelfServiceMonitorTLSFix(t *testi
 func (tc *MonitoringTestCtx) ValidateOwnerReferenceConsistency(t *testing.T) {
 	t.Helper()
 
+	g := NewWithT(t)
+
 	// Ensure metrics are configured so that monitoring resources are deployed.
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
@@ -1874,17 +1876,28 @@ func (tc *MonitoringTestCtx) ValidateOwnerReferenceConsistency(t *testing.T) {
 		{gvk.ConfigMap, "prometheus-web-tls-ca", tc.MonitoringNamespace, "prometheus TLS CA ConfigMap"},
 	}
 
+	// Ensure all target resources exist before starting the stability window.
 	for _, r := range resources {
-		tc.EnsureResourceExistsConsistently(
+		tc.EnsureResourceExists(
 			WithMinimalObject(r.gvk, types.NamespacedName{Name: r.name, Namespace: r.ns}),
 			WithCondition(ownerRefStableCondition),
-			WithConsistentlyDuration(1*time.Minute),
-			WithConsistentlyPollingInterval(5*time.Second),
-			WithCustomErrorMsg(
-				"%s ownerReferences should remain stable (exactly 1, controller=true, owned by Monitoring CR)", r.desc,
-			),
+			WithCustomErrorMsg("%s should exist with correct ownerReferences before stability check", r.desc),
 		)
 	}
+
+	// Observe all resources in the same stability window so a flap on any
+	// resource is detected regardless of when it occurs.
+	g.Consistently(func(g Gomega) {
+		for _, r := range resources {
+			u := tc.FetchResource(
+				WithMinimalObject(r.gvk, types.NamespacedName{Name: r.name, Namespace: r.ns}),
+			)
+			g.Expect(u).NotTo(BeNil(), "%s should still exist", r.desc)
+			g.Expect(u).To(ownerRefStableCondition,
+				"%s ownerReferences should remain stable (exactly 1, controller=true, owned by Monitoring CR)", r.desc,
+			)
+		}
+	}).WithTimeout(1 * time.Minute).WithPolling(5 * time.Second).Should(Succeed())
 }
 
 // ValidateResourceVersionStability verifies that resourceVersion on monitoring resources
@@ -1927,13 +1940,15 @@ func (tc *MonitoringTestCtx) ValidateResourceVersionStability(t *testing.T) {
 		{gvk.ConfigMap, "prometheus-web-tls-ca", tc.MonitoringNamespace, "prometheus TLS CA ConfigMap"},
 	}
 
-	// Capture the resourceVersion for each resource after deployment has settled.
+	// Wait for each resource to exist and settle before capturing its resourceVersion.
+	// This prevents a race where collector-backed resources (e.g. data-science-collector-prometheus,
+	// prometheus-web-tls-ca) are still receiving initial writes when the baseline is captured.
 	initialVersions := make(map[string]string, len(resources))
 	for _, r := range resources {
-		u := tc.FetchResource(
+		u := tc.EnsureResourceExists(
 			WithMinimalObject(r.gvk, types.NamespacedName{Name: r.name, Namespace: r.ns}),
+			WithCustomErrorMsg("%s should exist before capturing resourceVersion baseline", r.desc),
 		)
-		require.NotNil(t, u, "%s should exist", r.desc)
 		initialVersions[r.name] = u.GetResourceVersion()
 	}
 
