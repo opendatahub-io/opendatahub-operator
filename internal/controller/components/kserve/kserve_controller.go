@@ -74,6 +74,9 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&appsv1.DaemonSet{}).
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(predicates.DefaultDeploymentPredicate)).
 		Owns(&securityv1.SecurityContextConstraints{}).
+		Owns(&corev1.PersistentVolume{}).
+		Owns(&corev1.PersistentVolumeClaim{}).
+		OwnsGVK(gvk.LocalModelNodeGroup, reconciler.Dynamic(reconciler.CrdExists(gvk.LocalModelNodeGroup))).
 
 		// Watch Nodes so that newly added or relabeled nodes trigger
 		// reconciliation of labelModelCacheNodes.

@@ -17,9 +17,12 @@ package datasciencecluster
 
 // +kubebuilder:rbac:groups="snapshot.storage.k8s.io",resources=volumesnapshots,verbs=create;delete;patch;get
 
-// +kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=get;list;watch;create;update;patch;delete;use,resourceNames=restricted
-// +kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=get;list;watch;create;update;patch;delete;use,resourceNames=anyuid
-// +kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=get;list;watch;create;update;patch;delete;use
+// +kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=get;list;watch
+// +kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=get;list;watch;use,resourceNames=restricted
+// +kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=get;list;watch;use,resourceNames=anyuid
+//+kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=create;update;patch;delete;use,resourceNames=openshift-ai-localmodel-scc
+//+kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=create;update;patch;delete;use,resourceNames=kserve-localmodel-permissions-scc
+//+kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=create;update;patch;delete;use,resourceNames=openshift-ai-llminferenceservice-scc
 
 // +kubebuilder:rbac:groups="route.openshift.io",resources=routes,verbs=get;list;watch;create;delete;update;patch
 

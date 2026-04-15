@@ -337,9 +337,12 @@ func createModelCachePVAndPVC(ctx context.Context, rr *odhtypes.ReconciliationRe
 		return fmt.Errorf("resource instance %v is not a componentApi.Kserve", rr.Instance)
 	}
 
+	if k.Spec.ModelCache.CacheSize == nil {
+		return errors.New("cacheSize is required when ModelCache is Managed")
+	}
+
 	cacheSize := *k.Spec.ModelCache.CacheSize
 
-	// Create/update PV
 	pv := &corev1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "kserve-localmodelnode-pv",
@@ -387,6 +390,7 @@ func createModelCachePVAndPVC(ctx context.Context, rr *odhtypes.ReconciliationRe
 		// Only set immutable fields on create (when VolumeName is empty).
 		// On update, these fields are rejected by the API server.
 		if pvc.Spec.VolumeName == "" {
+			pvc.Spec.VolumeName = "kserve-localmodelnode-pv"
 			pvc.Spec.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
 			pvc.Spec.VolumeMode = ptr.To(corev1.PersistentVolumeFilesystem)
 			pvc.Spec.StorageClassName = ptr.To("local-storage")
@@ -407,6 +411,10 @@ func createLocalModelNodeGroup(ctx context.Context, rr *odhtypes.ReconciliationR
 	k, ok := rr.Instance.(*componentApi.Kserve)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.Kserve", rr.Instance)
+	}
+
+	if k.Spec.ModelCache.CacheSize == nil {
+		return errors.New("cacheSize is required when ModelCache is Managed")
 	}
 
 	cacheSizeStr := k.Spec.ModelCache.CacheSize.String()
@@ -457,7 +465,7 @@ func createLocalModelNodeGroup(ctx context.Context, rr *odhtypes.ReconciliationR
 				"storageClassName": "local-storage",
 			},
 		}
-		return nil
+		return controllerutil.SetControllerReference(k, obj, rr.Client.Scheme())
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create/update LocalModelNodeGroup: %w", err)
@@ -497,8 +505,10 @@ func labelModelCacheNodes(ctx context.Context, rr *odhtypes.ReconciliationReques
 		nodes = nodeList.Items
 	}
 
+	desiredNodes := make(map[string]struct{}, len(nodes))
 	for i := range nodes {
 		node := &nodes[i]
+		desiredNodes[node.Name] = struct{}{}
 		if node.Labels[modelCacheLabelKey] == modelCacheLabelValue {
 			continue
 		}
@@ -510,6 +520,21 @@ func labelModelCacheNodes(ctx context.Context, rr *odhtypes.ReconciliationReques
 			return fmt.Errorf("failed to label node %q: %w", node.Name, err)
 		}
 		logger.Info("Labeled node for model cache", "node", node.Name)
+	}
+
+	allLabeled := &corev1.NodeList{}
+	if err := rr.Client.List(ctx, allLabeled, client.MatchingLabels{modelCacheLabelKey: modelCacheLabelValue}); err != nil {
+		return fmt.Errorf("failed to list labeled nodes: %w", err)
+	}
+	for i := range allLabeled.Items {
+		node := &allLabeled.Items[i]
+		if _, desired := desiredNodes[node.Name]; !desired {
+			delete(node.Labels, modelCacheLabelKey)
+			if err := rr.Client.Update(ctx, node); err != nil {
+				return fmt.Errorf("failed to unlabel node %q: %w", node.Name, err)
+			}
+			logger.Info("Removed stale model cache label from node", "node", node.Name)
+		}
 	}
 
 	return nil

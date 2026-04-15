@@ -179,7 +179,7 @@ func TestCustomizeKserveConfigMap(t *testing.T) { //nolint:maintidx
 		g.Expect(localModelData["jobNamespace"]).Should(Equal(cluster.GetApplicationNamespace()))
 	})
 
-	t.Run("Test no error when localModel key is absent", func(t *testing.T) {
+	t.Run("Test error when localModel key is absent", func(t *testing.T) {
 		kserve := &componentApi.Kserve{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: componentApi.KserveInstanceName,
@@ -189,7 +189,6 @@ func TestCustomizeKserveConfigMap(t *testing.T) { //nolint:maintidx
 			},
 		}
 
-		// ConfigMap without localModel key
 		cm := &corev1.ConfigMap{
 			TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
 			ObjectMeta: metav1.ObjectMeta{Name: kserveConfigMapName},
@@ -210,13 +209,8 @@ func TestCustomizeKserveConfigMap(t *testing.T) { //nolint:maintidx
 		}
 
 		err := customizeKserveConfigMap(ctx, rr)
-		g.Expect(err).ShouldNot(HaveOccurred())
-
-		updatedConfigMap := &corev1.ConfigMap{}
-		err = runtime.DefaultUnstructuredConverter.FromUnstructured(rr.Resources[0].Object, updatedConfigMap)
-		g.Expect(err).ShouldNot(HaveOccurred())
-		_, hasLocalModel := updatedConfigMap.Data[LocalModelConfigKeyName]
-		g.Expect(hasLocalModel).Should(BeFalse())
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(err.Error()).Should(ContainSubstring(LocalModelConfigKeyName))
 	})
 
 	t.Run("Test adding ConfigMap hash annotation to deployment", func(t *testing.T) {
@@ -1056,6 +1050,7 @@ func TestCreateModelCachePVAndPVC(t *testing.T) {
 			Namespace: cluster.GetApplicationNamespace(),
 		}, pvc)).Should(Succeed())
 		g.Expect(pvc.Spec.Resources.Requests[corev1.ResourceStorage]).Should(Equal(cacheSize))
+		g.Expect(pvc.Spec.VolumeName).Should(Equal("kserve-localmodelnode-pv"))
 		g.Expect(*pvc.Spec.StorageClassName).Should(Equal("local-storage"))
 		g.Expect(pvc.OwnerReferences).Should(HaveLen(1))
 		g.Expect(pvc.OwnerReferences[0].Name).Should(Equal(componentApi.KserveInstanceName))
@@ -1235,6 +1230,47 @@ func TestLabelModelCacheNodes(t *testing.T) {
 		g.Expect(cli.Get(ctx, client.ObjectKey{Name: "cpu-node"}, updated)).Should(Succeed())
 		g.Expect(updated.Labels).ShouldNot(HaveKey("kserve/localmodel"))
 	})
+
+	t.Run("removes stale labels from nodes no longer in desired set", func(t *testing.T) {
+		desiredNode := &corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   "node1",
+				Labels: map[string]string{modelCacheLabelKey: modelCacheLabelValue},
+			},
+		}
+		staleNode := &corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   "node-removed",
+				Labels: map[string]string{modelCacheLabelKey: modelCacheLabelValue},
+			},
+		}
+		cli, err := fakeclient.New(fakeclient.WithObjects(desiredNode, staleNode))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cacheSize := resource.MustParse("100Gi")
+		kserveObj := &componentApi.Kserve{
+			Spec: componentApi.KserveSpec{
+				KserveCommonSpec: componentApi.KserveCommonSpec{
+					ModelCache: &componentApi.ModelCacheSpec{
+						ManagementState: operatorv1.Managed,
+						CacheSize:       &cacheSize,
+						NodeNames:       []string{"node1"},
+					},
+				},
+			},
+		}
+		rr := &odhtypes.ReconciliationRequest{Instance: kserveObj, Client: cli}
+
+		err = labelModelCacheNodes(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		updated := &corev1.Node{}
+		g.Expect(cli.Get(ctx, client.ObjectKey{Name: "node1"}, updated)).Should(Succeed())
+		g.Expect(updated.Labels[modelCacheLabelKey]).Should(Equal(modelCacheLabelValue))
+
+		g.Expect(cli.Get(ctx, client.ObjectKey{Name: "node-removed"}, updated)).Should(Succeed())
+		g.Expect(updated.Labels).ShouldNot(HaveKey(modelCacheLabelKey))
+	})
 }
 
 func TestCreateLocalModelNodeGroup(t *testing.T) {
@@ -1257,8 +1293,9 @@ func TestCreateLocalModelNodeGroup(t *testing.T) {
 				},
 			},
 		}
+		kserve.SetGroupVersionKind(componentApi.GroupVersion.WithKind(componentApi.KserveKind))
 
-		cli, err := fakeclient.New()
+		cli, err := fakeclient.New(fakeclient.WithObjects(kserve))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		rr := &odhtypes.ReconciliationRequest{Instance: kserve, Client: cli}
@@ -1266,7 +1303,6 @@ func TestCreateLocalModelNodeGroup(t *testing.T) {
 		err = createLocalModelNodeGroup(ctx, rr)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		// Verify the LocalModelNodeGroup was created
 		obj := &unstructured.Unstructured{}
 		obj.SetGroupVersionKind(gvk.LocalModelNodeGroup)
 		g.Expect(cli.Get(ctx, client.ObjectKey{Name: "workers"}, obj)).Should(Succeed())
@@ -1288,6 +1324,10 @@ func TestCreateLocalModelNodeGroup(t *testing.T) {
 		requests, ok := pvcResources["requests"].(map[string]interface{})
 		g.Expect(ok).Should(BeTrue())
 		g.Expect(requests["storage"]).Should(Equal("200Gi"))
+
+		ownerRefs := obj.GetOwnerReferences()
+		g.Expect(ownerRefs).Should(HaveLen(1))
+		g.Expect(ownerRefs[0].Name).Should(Equal(componentApi.KserveInstanceName))
 	})
 
 	t.Run("updates LocalModelNodeGroup when cacheSize changes", func(t *testing.T) {
@@ -1308,8 +1348,9 @@ func TestCreateLocalModelNodeGroup(t *testing.T) {
 				},
 			},
 		}
+		kserve.SetGroupVersionKind(componentApi.GroupVersion.WithKind(componentApi.KserveKind))
 
-		cli, err := fakeclient.New()
+		cli, err := fakeclient.New(fakeclient.WithObjects(kserve))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		rr := &odhtypes.ReconciliationRequest{Instance: kserve, Client: cli}
