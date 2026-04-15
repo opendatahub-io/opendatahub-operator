@@ -147,6 +147,8 @@ func monitoringTestSuite(t *testing.T) {
 		t.Run("Test Metrics Replicas Configuration", monitoringServiceCtx.ValidateMonitoringStackCRMetricsReplicasUpdate)
 		t.Run("Test Prometheus rules lifecycle", monitoringServiceCtx.ValidatePrometheusRulesLifecycle)
 		t.Run("Test Prometheus Self ServiceMonitor TLS Fix", monitoringServiceCtx.ValidatePrometheusSelfServiceMonitorTLSFix)
+		t.Run("Test ownerReference consistency over time", monitoringServiceCtx.ValidateOwnerReferenceConsistency)
+		t.Run("Test resourceVersion stability after reconciliation", monitoringServiceCtx.ValidateResourceVersionStability)
 	})
 
 	// ========================================================================
@@ -1823,6 +1825,133 @@ func (tc *MonitoringTestCtx) ValidatePrometheusSelfServiceMonitorTLSFix(t *testi
 	)
 
 	tc.resetMonitoringConfigToManaged()
+}
+
+// ValidateOwnerReferenceConsistency verifies that ownerReferences on monitoring resources
+// remain stable over time — exactly 1 reference, pointing to the Monitoring CR, with controller=true.
+// This is a regression guard for RHOAIENG-37563 where conflicting ownerReferences between
+// templates and SetControllerReference() caused SSA diffs, triggering infinite reconciliation loops.
+func (tc *MonitoringTestCtx) ValidateOwnerReferenceConsistency(t *testing.T) {
+	t.Helper()
+
+	// Ensure metrics are configured so that monitoring resources are deployed.
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	// Wait for the Monitoring CR to be ready with MonitoringStack available.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(And(
+			jq.Match(`.spec.metrics != null`),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionMonitoringStackAvailable, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Monitoring resource should be ready before checking ownerReference consistency"),
+	)
+
+	// ownerRefStableCondition extends the existing monitoringOwnerReferencesCondition
+	// with a controller=true check — the field set by SetControllerReference().
+	ownerRefStableCondition := And(
+		monitoringOwnerReferencesCondition,
+		jq.Match(`.metadata.ownerReferences[0].controller == true`),
+	)
+
+	// Verify ownerReferences remain consistent over a sustained observation window
+	// across multiple resource types that were affected by the RHOAIENG-37563 bug.
+	type resource struct {
+		gvk  schema.GroupVersionKind
+		name string
+		ns   string
+		desc string
+	}
+
+	resources := []resource{
+		{gvk.MonitoringStack, MonitoringStackName, tc.MonitoringNamespace, "MonitoringStack"},
+		{gvk.ClusterRoleBinding, "data-science-monitoringstack-alertmanager-prometheus-metrics-reader", "", "alertmanager ClusterRoleBinding"},
+		{gvk.Service, "data-science-collector-prometheus", tc.MonitoringNamespace, "collector prometheus Service"},
+		{gvk.ConfigMap, "prometheus-web-tls-ca", tc.MonitoringNamespace, "prometheus TLS CA ConfigMap"},
+	}
+
+	for _, r := range resources {
+		tc.EnsureResourceExistsConsistently(
+			WithMinimalObject(r.gvk, types.NamespacedName{Name: r.name, Namespace: r.ns}),
+			WithCondition(ownerRefStableCondition),
+			WithConsistentlyDuration(1*time.Minute),
+			WithConsistentlyPollingInterval(5*time.Second),
+			WithCustomErrorMsg(
+				"%s ownerReferences should remain stable (exactly 1, controller=true, owned by Monitoring CR)", r.desc,
+			),
+		)
+	}
+}
+
+// ValidateResourceVersionStability verifies that resourceVersion on monitoring resources
+// does not increment after the initial deployment settles. A changing resourceVersion
+// indicates the controller is re-applying unchanged resources — the exact symptom of
+// the infinite reconciliation loop fixed in RHOAIENG-37563.
+func (tc *MonitoringTestCtx) ValidateResourceVersionStability(t *testing.T) {
+	t.Helper()
+
+	g := NewWithT(t)
+
+	// Ensure metrics are configured so that monitoring resources are deployed.
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	// Wait for the Monitoring CR to be ready with MonitoringStack available.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(And(
+			jq.Match(`.spec.metrics != null`),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionMonitoringStackAvailable, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Monitoring resource should be ready before checking resourceVersion stability"),
+	)
+
+	type resource struct {
+		gvk  schema.GroupVersionKind
+		name string
+		ns   string
+		desc string
+	}
+
+	resources := []resource{
+		{gvk.ClusterRoleBinding, "data-science-monitoringstack-alertmanager-prometheus-metrics-reader", "", "alertmanager ClusterRoleBinding"},
+		{gvk.ClusterRoleBinding, "generate-processors-collector-rolebinding", "", "collector ClusterRoleBinding"},
+		{gvk.Service, "data-science-collector-prometheus", tc.MonitoringNamespace, "collector prometheus Service"},
+		{gvk.ConfigMap, "prometheus-web-tls-ca", tc.MonitoringNamespace, "prometheus TLS CA ConfigMap"},
+	}
+
+	// Capture the resourceVersion for each resource after deployment has settled.
+	initialVersions := make(map[string]string, len(resources))
+	for _, r := range resources {
+		u := tc.FetchResource(
+			WithMinimalObject(r.gvk, types.NamespacedName{Name: r.name, Namespace: r.ns}),
+		)
+		require.NotNil(t, u, "%s should exist", r.desc)
+		initialVersions[r.name] = u.GetResourceVersion()
+	}
+
+	// Assert that resourceVersion does not change over the observation window.
+	// Any increment means the controller is re-applying unchanged resources.
+	g.Consistently(func(g Gomega) {
+		for _, r := range resources {
+			u := tc.FetchResource(
+				WithMinimalObject(r.gvk, types.NamespacedName{Name: r.name, Namespace: r.ns}),
+			)
+			g.Expect(u).NotTo(BeNil(), "%s should still exist", r.desc)
+			g.Expect(u.GetResourceVersion()).To(
+				Equal(initialVersions[r.name]),
+				"%s resourceVersion changed from %s — controller is re-applying unchanged resources (possible reconciliation loop)",
+				r.desc, initialVersions[r.name],
+			)
+		}
+	}).WithTimeout(1 * time.Minute).WithPolling(5 * time.Second).Should(Succeed())
 }
 
 // ValidatePersesDatasourceCreationWithTraces tests that Perses datasource is created when traces are configured.
