@@ -35,7 +35,8 @@ func G(t *testing.T) *WithT {
 
 	g := NewWithT(t)
 	g.DurationBundle.EventuallyTimeout = 30 * time.Second
-	g.DurationBundle.ConsistentlyDuration = 15 * time.Second
+	g.DurationBundle.ConsistentlyDuration = 5 * time.Second
+	g.DurationBundle.ConsistentlyPollingInterval = 200 * time.Millisecond
 
 	return g
 }
