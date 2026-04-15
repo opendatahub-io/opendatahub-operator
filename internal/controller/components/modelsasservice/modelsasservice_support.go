@@ -81,9 +81,10 @@ const (
 var (
 	// Image parameter mappings for manifest substitution.
 	imagesMap = map[string]string{
-		"maas-api-image":           "RELATED_IMAGE_ODH_MAAS_API_IMAGE",
-		"maas-controller-image":    "RELATED_IMAGE_ODH_MAAS_CONTROLLER_IMAGE",
-		"payload-processing-image": "RELATED_IMAGE_ODH_AI_GATEWAY_PAYLOAD_PROCESSING_IMAGE",
+		"maas-api-image":             "RELATED_IMAGE_ODH_MAAS_API_IMAGE",
+		"maas-controller-image":      "RELATED_IMAGE_ODH_MAAS_CONTROLLER_IMAGE",
+		"payload-processing-image":   "RELATED_IMAGE_ODH_AI_GATEWAY_PAYLOAD_PROCESSING_IMAGE",
+		"maas-api-key-cleanup-image": "RELATED_IMAGE_UBI_MINIMAL_IMAGE",
 	}
 
 	// Additional parameters for manifest customization.
