@@ -82,7 +82,7 @@ type WVASpec struct {
 
 // ModelCacheSpec enables Model Cache integration
 // +kubebuilder:validation:XValidation:rule="self.managementState != 'Managed' || has(self.cacheSize)",message="cacheSize is required when managementState is Managed"
-// +kubebuilder:validation:XValidation:rule="self.managementState != 'Managed' || has(self.nodeNames) || has(self.nodeSelector)",message="one of nodeNames or nodeSelector is required when managementState is Managed"
+// +kubebuilder:validation:XValidation:rule="self.managementState != 'Managed' || (has(self.nodeNames) && size(self.nodeNames) > 0) || (has(self.nodeSelector) && ((has(self.nodeSelector.matchLabels) && size(self.nodeSelector.matchLabels) > 0) || (has(self.nodeSelector.matchExpressions) && size(self.nodeSelector.matchExpressions) > 0)))",message="one non-empty nodeNames or nodeSelector is required when managementState is Managed"
 // +kubebuilder:validation:XValidation:rule="!(has(self.nodeNames) && has(self.nodeSelector))",message="nodeNames and nodeSelector are mutually exclusive"
 type ModelCacheSpec struct {
 	// +kubebuilder:validation:Enum=Managed;Removed
@@ -95,6 +95,7 @@ type ModelCacheSpec struct {
 	// The operator will label these nodes with kserve/localmodel=worker.
 	// Mutually exclusive with NodeSelector.
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MinItems=1
 	NodeNames []string `json:"nodeNames,omitempty"`
 	// NodeSelector is a label selector that identifies nodes for model caching
 	// using pre-existing node labels (e.g., nvidia.com/gpu).
