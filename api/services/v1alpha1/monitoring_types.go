@@ -64,10 +64,8 @@ type Metrics struct {
 // MetricsStorage defines the storage configuration for the monitoring service
 type MetricsStorage struct {
 	// Size specifies the storage size for the MonitoringStack (e.g, "5Gi", "10Mi")
-	// +kubebuilder:default="5Gi"
 	Size resource.Quantity `json:"size,omitempty"`
 	// Retention specifies how long metrics data should be retained (e.g., "1d", "2w")
-	// +kubebuilder:default="90d"
 	Retention string `json:"retention,omitempty"`
 }
 
@@ -83,7 +81,6 @@ type Traces struct {
 	Storage TracesStorage `json:"storage"`
 	// SampleRatio determines the sampling rate for traces
 	// Value should be between 0.0 (no sampling) and 1.0 (sample all traces)
-	// +kubebuilder:default="0.1"
 	// +kubebuilder:validation:Pattern="^(0(\\.[0-9]+)?|1(\\.0+)?)$"
 	SampleRatio string `json:"sampleRatio,omitempty"`
 	// TLS configuration for Tempo gRPC connections
@@ -126,7 +123,6 @@ type TracesStorage struct {
 	// Backend defines the storage backend type.
 	// Valid values are "pv", "s3", and "gcs".
 	// +kubebuilder:validation:Enum="pv";"s3";"gcs"
-	// +kubebuilder:default="pv"
 	Backend string `json:"backend"`
 
 	// Size specifies the size of the storage.
@@ -140,7 +136,6 @@ type TracesStorage struct {
 	Secret string `json:"secret,omitempty"`
 
 	// Retention specifies how long trace data should be retained globally (e.g., "60m", "10h")
-	// +kubebuilder:default="2160h"
 	Retention metav1.Duration `json:"retention,omitempty"`
 }
 
