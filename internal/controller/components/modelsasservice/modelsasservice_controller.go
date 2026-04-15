@@ -19,6 +19,7 @@ package modelsasservice
 import (
 	"context"
 	"fmt"
+	"path"
 
 	configv1 "github.com/openshift/api/config/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -34,10 +35,12 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
@@ -123,7 +126,9 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(kustomize.NewAction(
 			kustomize.WithLabel(labels.ODH.Component(ComponentName), labels.True),
 		)).
-		// WithAction(releases.NewAction()). // TODO: Do we need this? How to fix annotation of "platform.opendatahub.io/version:0.0.0"
+		WithAction(releases.NewAction(
+			releases.WithMetadataFilePath(
+				path.Join(odhdeploy.DefaultManifestPath, "maas", releases.ComponentMetadataFilename)))).
 		WithAction(configureGatewayNamespaceResources).
 		WithAction(configureExternalOIDC).
 		WithAction(configureTelemetryPolicy).
