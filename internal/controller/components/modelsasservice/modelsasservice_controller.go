@@ -46,16 +46,16 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
-// odhReconcilesMaaSTenantPlatform controls whether ODH runs the legacy platform pipeline (kustomize,
-// deploy, GC) for MaaS. When false, maas-controller must reconcile MaaSTenant; ODH still materializes
+// odhReconcilesTenantPlatform controls whether ODH runs the legacy platform pipeline (kustomize,
+// deploy, GC) for MaaS. When false, maas-controller must reconcile Tenant; ODH still materializes
 // the CR from the DSC and aggregates status in UpdateDSCStatus.
-const odhReconcilesMaaSTenantPlatform = false
+const odhReconcilesTenantPlatform = false
 
 // NewComponentReconciler creates a new ModelsAsService controller.
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	if !odhReconcilesMaaSTenantPlatform {
+	if !odhReconcilesTenantPlatform {
 		ctrl.Log.WithName("controllers").WithName("modelsasservice").Info(
-			"MaaSTenant platform reconcile disabled in ODH; owned by maas-controller",
+			"Tenant platform reconcile disabled in ODH; owned by maas-controller",
 		)
 		return nil
 	}

@@ -21,13 +21,13 @@ import (
 	"errors"
 	"fmt"
 
+	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
@@ -35,7 +35,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 )
 
@@ -60,29 +59,11 @@ func (s *componentHandler) Init(_ common.Platform, cfg operatorconfig.OperatorSe
 	return nil
 }
 
-// NewCRObject constructs the cluster MaaSTenant singleton (wrapped for common.PlatformObject).
-func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
-	maasConfig := dsc.Spec.Components.Kserve.ModelsAsService
-
-	managementState := operatorv1.Removed
-	if maasConfig.ManagementState == operatorv1.Managed {
-		managementState = maasConfig.ManagementState
-	}
-
-	tenant := &maasv1alpha1.MaaSTenant{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: maasv1alpha1.GroupVersion.String(),
-			Kind:       maasv1alpha1.MaaSTenantKind,
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: maasv1alpha1.MaaSTenantInstanceName,
-			Annotations: map[string]string{
-				annotations.ManagementStateAnnotation: string(managementState),
-			},
-		},
-	}
-
-	return &MaaSTenantPlatform{MaaSTenant: tenant}, nil
+// NewCRObject returns nil — maas-controller owns Tenant CR creation via its
+// ensureDefaultTenant startup runnable. The ODH operator only reads Tenant
+// status (UpdateDSCStatus) and deletes it on MaaS disable.
+func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, _ *dscv2.DataScienceCluster) (common.PlatformObject, error) {
+	return nil, nil
 }
 
 // IsEnabled checks if the ModelsAsService component should be deployed.
@@ -99,12 +80,13 @@ func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
 	return dsc.Spec.Components.Kserve.ModelsAsService.ManagementState == operatorv1.Managed
 }
 
-// UpdateDSCStatus updates the ModelsAsService component status in the DataScienceCluster from MaaSTenant.
+// UpdateDSCStatus updates the ModelsAsService component status in the DataScienceCluster from Tenant.
 func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
 	cs := metav1.ConditionUnknown
 
-	t := maasv1alpha1.MaaSTenant{}
-	t.Name = maasv1alpha1.MaaSTenantInstanceName
+	t := maasv1alpha1.Tenant{}
+	t.Name = maasv1alpha1.TenantInstanceName
+	t.Namespace = MaaSSubscriptionNamespace
 
 	if err := rr.Client.Get(ctx, client.ObjectKeyFromObject(&t), &t); err != nil && !k8serr.IsNotFound(err) {
 		return cs, nil
@@ -152,4 +134,15 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	}
 
 	return cs, nil
+}
+
+func metav1ConditionToCommon(c metav1.Condition) common.Condition {
+	return common.Condition{
+		Type:               c.Type,
+		Status:             c.Status,
+		Reason:             c.Reason,
+		Message:            c.Message,
+		ObservedGeneration: c.ObservedGeneration,
+		LastTransitionTime: c.LastTransitionTime,
+	}
 }

@@ -32,6 +32,7 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["maas"]="opendatahub-io:models-as-a-service:stable@fb75981d44b75009bd9592cf4ef3d7eca7fa08b8:deployment"
     ["mlflowoperator"]="opendatahub-io:mlflow-operator:main@79aa367028d776986d2f40b3aec94b252ff8d718:config"
     ["sparkoperator"]="opendatahub-io:spark-operator:main@924ba83b1c4a963748d5e192fbec09a4340990cd:config"
+    ["maas"]="ishitasequeira:models-as-a-service:feature/maastenant-platform-migration@049af3c546d6133ad89a1332e64fed3c7f0baece:deployment"
     ["wva"]="opendatahub-io:workload-variant-autoscaler:main@7cb1465b00cda0b800c3b252dd6f2a1cfcd2453a:config"
 )
 

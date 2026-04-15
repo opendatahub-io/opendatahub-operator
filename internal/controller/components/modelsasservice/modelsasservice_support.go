@@ -19,6 +19,7 @@ package modelsasservice
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -40,11 +41,16 @@ import (
 const (
 	ComponentName = componentApi.ModelsAsServiceComponentName
 
-	ReadyConditionType = "MaaSTenant" + status.ReadySuffix
+	ReadyConditionType = "Tenant" + status.ReadySuffix
 
 	// Default Gateway values as specified in the spec.
 	DefaultGatewayNamespace = "openshift-ingress"
 	DefaultGatewayName      = "maas-default-gateway"
+
+	// MaaSSubscriptionNamespace is the namespace where MaaS CRs live
+	// (Tenant, MaaSSubscription, MaaSAuthPolicy). Must match the
+	// maas-controller --maas-subscription-namespace flag.
+	MaaSSubscriptionNamespace = "models-as-a-service"
 
 	// Manifest paths.
 	BaseManifestsSourcePath = "overlays/odh"
@@ -127,11 +133,11 @@ func baseManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInfo 
 // rr.Resources so the DataScienceCluster deploy action applies it with the same ownership model
 // as other DSC-managed resources. Call only when Models-as-a-Service is enabled for the DSC
 // (e.g. registry IsComponentEnabled(ModelsAsServiceComponentName)); platform reconcile for
-// MaaSTenant remains in maas-controller.
+// Tenant remains in maas-controller.
 func AppendOperatorInstallManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	root := deploy.DefaultManifestPath
 	if root == "" {
-		return fmt.Errorf("DEFAULT_MANIFESTS_PATH is unset; cannot render maas-controller install bundle")
+		return errors.New("DEFAULT_MANIFESTS_PATH is unset; cannot render maas-controller install bundle")
 	}
 
 	kPath := filepath.Join(root, "maas", "base", "maas-controller", "default")
@@ -184,7 +190,7 @@ func AppendOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconcilia
 		return fmt.Errorf("sort maas-controller install bundle: %w", err)
 	}
 
-	// CRDs and namespaced operator resources must apply before MaaSTenant and other component CRs.
+	// CRDs and namespaced operator resources must apply before Tenant and other component CRs.
 	rr.Resources = append(sortedExtra, rr.Resources...)
 	return nil
 }

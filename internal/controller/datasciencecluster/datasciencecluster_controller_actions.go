@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 
+	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
-	componentapi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
-	modelsasservice "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelsasservice"
+	modelsasservicectrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelsasservice"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -91,9 +91,13 @@ func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest)
 		if err != nil {
 			return err
 		}
-		// Component CRs may be wrapped (e.g. MaaSTenantPlatform); AddResources / scheme normalization
-		// require the persisted API object (e.g. *MaaSTenant), not the wrapper type.
-		obj := client.Object(ci.(client.Object))
+		if ci == nil {
+			return nil
+		}
+		obj, ok := ci.(client.Object)
+		if !ok {
+			return fmt.Errorf("component CR %T does not implement client.Object", ci)
+		}
 		type persistAPI interface {
 			APIPersistObject() client.Object
 		}
@@ -113,44 +117,44 @@ func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest)
 		return err
 	}
 
-	if cr.DefaultRegistry().IsComponentEnabled(componentapi.ModelsAsServiceComponentName, instance) {
-		// maas-controller install bundle (CRDs, RBAC, Deployment); MaaSTenant/platform reconcile stays in maas-controller.
-		if err := modelsasservice.AppendOperatorInstallManifests(ctx, rr); err != nil {
+	if cr.DefaultRegistry().IsComponentEnabled(componentApi.ModelsAsServiceComponentName, instance) {
+		// maas-controller install bundle (CRDs, RBAC, Deployment); Tenant/platform reconcile stays in maas-controller.
+		if err := modelsasservicectrl.AppendOperatorInstallManifests(ctx, rr); err != nil {
 			return err
 		}
 	}
 
-	if err := removeMaaSTenantIfModelsAsServiceDisabled(ctx, rr, instance, cr.DefaultRegistry()); err != nil {
+	if err := removeTenantIfModelsAsServiceDisabled(ctx, rr, instance, cr.DefaultRegistry()); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// removeMaaSTenantIfModelsAsServiceDisabled deletes the DSC-managed singleton MaaSTenant when
+// removeTenantIfModelsAsServiceDisabled deletes the DSC-managed singleton Tenant when
 // Models-as-a-Service is not enabled. Deploy only applies objects in rr.Resources, so omitting
 // the CR on disable does not remove it; this keeps cluster state aligned with DSC intent.
-func removeMaaSTenantIfModelsAsServiceDisabled(
+func removeTenantIfModelsAsServiceDisabled(
 	ctx context.Context,
 	rr *odhtype.ReconciliationRequest,
 	dsc *dscv2.DataScienceCluster,
 	reg *cr.Registry,
 ) error {
-	if reg.IsComponentEnabled(componentapi.ModelsAsServiceComponentName, dsc) {
+	if reg.IsComponentEnabled(componentApi.ModelsAsServiceComponentName, dsc) {
 		return nil
 	}
 
-	key := client.ObjectKey{Name: maasv1alpha1.MaaSTenantInstanceName}
-	t := &maasv1alpha1.MaaSTenant{}
+	key := client.ObjectKey{Name: maasv1alpha1.TenantInstanceName, Namespace: modelsasservicectrl.MaaSSubscriptionNamespace}
+	t := &maasv1alpha1.Tenant{}
 	if err := rr.Client.Get(ctx, key, t); err != nil {
 		if k8serr.IsNotFound(err) {
 			return nil
 		}
-		return fmt.Errorf("get MaaSTenant %s: %w", maasv1alpha1.MaaSTenantInstanceName, err)
+		return fmt.Errorf("get Tenant %s: %w", maasv1alpha1.TenantInstanceName, err)
 	}
 
 	if err := rr.Client.Delete(ctx, t); err != nil && !k8serr.IsNotFound(err) {
-		return fmt.Errorf("delete MaaSTenant %s when ModelsAsService disabled: %w", maasv1alpha1.MaaSTenantInstanceName, err)
+		return fmt.Errorf("delete Tenant %s when ModelsAsService disabled: %w", maasv1alpha1.TenantInstanceName, err)
 	}
 
 	return nil

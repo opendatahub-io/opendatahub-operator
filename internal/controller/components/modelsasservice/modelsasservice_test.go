@@ -7,23 +7,34 @@ import (
 	"testing"
 
 	"github.com/onsi/gomega/types"
+	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	pkgtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
 	. "github.com/onsi/gomega"
 )
+
+const testApplicationsNamespace = "tenant-test-ns"
+
+func testDSCI(appNS string) *dsciv2.DSCInitialization {
+	return &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{Name: "default"},
+		Spec: dsciv2.DSCInitializationSpec{
+			ApplicationsNamespace: appNS,
+		},
+	}
+}
 
 func TestGetName(t *testing.T) {
 	g := NewWithT(t)
@@ -33,49 +44,14 @@ func TestGetName(t *testing.T) {
 	g.Expect(name).Should(Equal(componentApi.ModelsAsServiceComponentName))
 }
 
-func TestNewCRObject(t *testing.T) {
-	handler := &componentHandler{}
+func TestNewCRObject_ReturnsNil(t *testing.T) {
 	g := NewWithT(t)
+	handler := &componentHandler{}
+	dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
 
-	t.Run("creates CR with correct metadata", func(t *testing.T) {
-		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
-
-		cr, err := handler.NewCRObject(context.Background(), nil, dsc)
-		g.Expect(err).To(Succeed())
-		g.Expect(cr).ShouldNot(BeNil())
-		g.Expect(cr).Should(BeAssignableToTypeOf(&MaaSTenantPlatform{}))
-
-		// json.Marshal flattens embedded *MaaSTenant fields alongside the wrapper's `bridge` field.
-		g.Expect(cr).Should(WithTransform(json.Marshal, And(
-			jq.Match(`.metadata.name == "%s"`, maasv1alpha1.MaaSTenantInstanceName),
-			jq.Match(`.kind == "%s"`, maasv1alpha1.MaaSTenantKind),
-			jq.Match(`.apiVersion == "%s"`, maasv1alpha1.GroupVersion.String()),
-			jq.Match(`.metadata.annotations["%s"] == "%s"`, annotations.ManagementStateAnnotation, operatorv1.Managed),
-		)))
-	})
-
-	t.Run("propagates management state from DSC to MaaSTenant annotations", func(t *testing.T) {
-		testCases := []struct {
-			name                    string
-			inputManagementState    operatorv1.ManagementState
-			expectedManagementState operatorv1.ManagementState
-		}{
-			{"Managed state", operatorv1.Managed, operatorv1.Managed},
-			{"Removed state", operatorv1.Removed, operatorv1.Removed},
-			{"Unmanaged state defaults to Removed", operatorv1.Unmanaged, operatorv1.Removed},
-		}
-
-		for _, tc := range testCases {
-			t.Run(tc.name, func(t *testing.T) {
-				dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, tc.inputManagementState)
-				cr, err := handler.NewCRObject(context.Background(), nil, dsc)
-				g.Expect(err).To(Succeed())
-				g.Expect(cr).Should(WithTransform(json.Marshal,
-					jq.Match(`.metadata.annotations["%s"] == "%s"`, annotations.ManagementStateAnnotation, tc.expectedManagementState),
-				))
-			})
-		}
-	})
+	cr, err := handler.NewCRObject(context.Background(), nil, dsc)
+	g.Expect(err).To(Succeed())
+	g.Expect(cr).Should(BeNil(), "maas-controller owns Tenant creation, ODH NewCRObject must return nil")
 }
 
 func TestIsEnabled(t *testing.T) {
@@ -111,12 +87,12 @@ func TestUpdateDSCStatus(t *testing.T) {
 		ctx := t.Context()
 
 		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
-		cr := createMaaSTenantCR(true)
+		cr := createTenantCR(true)
 		now := metav1.Now()
 		cr.SetDeletionTimestamp(&now)
 		cr.SetFinalizers([]string{"test-finalizer"})
 
-		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, cr))
+		cli, err := fakeclient.New(fakeclient.WithObjects(testDSCI(testApplicationsNamespace), dsc, cr))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		cs, err := handler.UpdateDSCStatus(ctx, &pkgtypes.ReconciliationRequest{
@@ -135,14 +111,14 @@ func TestUpdateDSCStatus(t *testing.T) {
 		)))
 	})
 
-	t.Run("should handle enabled component with ready MaaSTenant CR", func(t *testing.T) {
+	t.Run("should handle enabled component with ready Tenant CR", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
 		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
-		cr := createMaaSTenantCR(true)
+		cr := createTenantCR(true)
 
-		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, cr))
+		cli, err := fakeclient.New(fakeclient.WithObjects(testDSCI(testApplicationsNamespace), dsc, cr))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		cs, err := handler.UpdateDSCStatus(ctx, &pkgtypes.ReconciliationRequest{
@@ -167,7 +143,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 
 		dsc := createDSCWithKServeAndMaaS(operatorv1.Removed, operatorv1.Managed)
 
-		cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
+		cli, err := fakeclient.New(fakeclient.WithObjects(testDSCI(testApplicationsNamespace), dsc))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		cs, err := handler.UpdateDSCStatus(ctx, &pkgtypes.ReconciliationRequest{
@@ -198,11 +174,12 @@ func createDSCWithKServeAndMaaS(kserveState, maasState operatorv1.ManagementStat
 	return &dsc
 }
 
-func createMaaSTenantCR(ready bool) *maasv1alpha1.MaaSTenant {
-	c := &maasv1alpha1.MaaSTenant{}
-	c.SetName(maasv1alpha1.MaaSTenantInstanceName)
+func createTenantCR(ready bool) *maasv1alpha1.Tenant {
+	c := &maasv1alpha1.Tenant{}
+	c.SetName(maasv1alpha1.TenantInstanceName)
+	c.SetNamespace(MaaSSubscriptionNamespace)
 	c.APIVersion = maasv1alpha1.GroupVersion.String()
-	c.Kind = maasv1alpha1.MaaSTenantKind
+	c.Kind = maasv1alpha1.TenantKind
 	now := metav1.Now()
 	if ready {
 		c.Status.Conditions = []metav1.Condition{{

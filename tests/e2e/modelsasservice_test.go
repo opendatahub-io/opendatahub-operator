@@ -5,15 +5,20 @@ import (
 	"net"
 	"testing"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelsasservice"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
+
+	. "github.com/onsi/gomega"
 )
 
 type ModelsAsServiceTestCtx struct {
@@ -63,10 +68,14 @@ func modelsAsServiceTestSuite(t *testing.T) {
 
 	testCases := []TestCase{
 		{"Validate subcomponent enabled", componentCtx.ValidateSubComponentEnabled},
+		{"Validate Tenant CR in subscription namespace", componentCtx.ValidateTenantInSubscriptionNamespace},
+		{"Validate Tenant CRD is namespace-scoped", componentCtx.ValidateTenantCRDNamespaceScoped},
+		{"Validate Tenant singleton enforcement", componentCtx.ValidateTenantSingletonEnforcement},
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate subcomponent releases", componentCtx.ValidateSubComponentReleases},
 		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
+		{"Validate Tenant deleted on disable", componentCtx.ValidateTenantDeletedOnDisable},
 		{"Validate subcomponent disabled", componentCtx.ValidateSubComponentDisabled},
 	}
 
@@ -220,4 +229,113 @@ func (tc *ModelsAsServiceTestCtx) createMaaSGateway(t *testing.T) {
 	)
 
 	t.Logf("MaaS Gateway %s/%s created successfully", maasGatewayNamespace, maasGatewayName)
+}
+
+const (
+	tenantName           = "default-tenant"
+	tenantSubscriptionNS = modelsasservice.MaaSSubscriptionNamespace
+	tenantCRDName        = "tenants.maas.opendatahub.io"
+)
+
+// ValidateTenantInSubscriptionNamespace verifies that the maas-controller self-bootstrapped
+// the default-tenant Tenant CR in the models-as-a-service namespace (not the operator namespace).
+func (tc *ModelsAsServiceTestCtx) ValidateTenantInSubscriptionNamespace(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Smoke, Tier1)
+
+	t.Logf("Checking Tenant %s/%s exists with Ready condition", tenantSubscriptionNS, tenantName)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Tenant, types.NamespacedName{
+			Name:      tenantName,
+			Namespace: tenantSubscriptionNS,
+		}),
+		WithCondition(
+			And(
+				jq.Match(`.metadata.namespace == "%s"`, tenantSubscriptionNS),
+				jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue),
+			),
+		),
+		WithCustomErrorMsg("Tenant %s/%s should exist with Ready=True", tenantSubscriptionNS, tenantName),
+	)
+}
+
+// ValidateTenantCRDNamespaceScoped verifies that the Tenant CRD is registered as namespace-scoped.
+func (tc *ModelsAsServiceTestCtx) ValidateTenantCRDNamespaceScoped(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Smoke, Tier1)
+
+	t.Logf("Checking CRD %s has scope: Namespaced", tenantCRDName)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: tenantCRDName}),
+		WithCondition(
+			jq.Match(`.spec.scope == "Namespaced"`),
+		),
+		WithCustomErrorMsg("Tenant CRD %s should have scope: Namespaced", tenantCRDName),
+	)
+}
+
+// ValidateTenantSingletonEnforcement verifies the CEL validation rule rejects Tenant CRs
+// with names other than "default-tenant".
+func (tc *ModelsAsServiceTestCtx) ValidateTenantSingletonEnforcement(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Tier1)
+
+	t.Log("Verifying CEL singleton enforcement: creating Tenant with wrong name should fail")
+
+	u := resources.GvkToUnstructured(gvk.Tenant)
+	u.SetName("not-default-tenant")
+	u.SetNamespace(tenantSubscriptionNS)
+
+	err := tc.Client().Create(tc.Context(), u)
+	require.Error(t, err, "creating Tenant with non-singleton name should be rejected by CEL validation")
+	require.Contains(t, err.Error(), "default-tenant",
+		"rejection message should reference the required singleton name")
+}
+
+// ValidateTenantDeletedOnDisable verifies that the Tenant CR is cleaned up when MaaS is
+// set to Removed. This must run before ValidateSubComponentDisabled to observe the Tenant
+// being deleted while maas-controller is still running.
+func (tc *ModelsAsServiceTestCtx) ValidateTenantDeletedOnDisable(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Smoke, Tier1)
+
+	t.Logf("Verifying Tenant %s/%s is present before disable", tenantSubscriptionNS, tenantName)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Tenant, types.NamespacedName{
+			Name:      tenantName,
+			Namespace: tenantSubscriptionNS,
+		}),
+		WithCustomErrorMsg("Tenant should exist before disabling MaaS"),
+	)
+
+	t.Log("Disabling MaaS subcomponent (setting to Removed)")
+	tc.UpdateSubComponentStateInDataScienceCluster(t, operatorv1.Removed)
+
+	t.Logf("Waiting for Tenant %s/%s to be deleted", tenantSubscriptionNS, tenantName)
+	tc.EnsureResourcesGone(
+		WithMinimalObject(gvk.Tenant, types.NamespacedName{
+			Name:      tenantName,
+			Namespace: tenantSubscriptionNS,
+		}),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+		WithCustomErrorMsg("Tenant should be deleted when MaaS is disabled"),
+	)
+
+	t.Log("Re-enabling MaaS subcomponent (setting to Managed)")
+	tc.UpdateSubComponentStateInDataScienceCluster(t, operatorv1.Managed)
+
+	t.Logf("Waiting for Tenant %s/%s to be re-created", tenantSubscriptionNS, tenantName)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Tenant, types.NamespacedName{
+			Name:      tenantName,
+			Namespace: tenantSubscriptionNS,
+		}),
+		WithCondition(
+			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue),
+		),
+		WithCustomErrorMsg("Tenant should be re-created with Ready=True after re-enabling MaaS"),
+	)
 }

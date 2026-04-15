@@ -12,7 +12,7 @@ require (
 	github.com/k8s-manifest-kit/renderer-helm v0.3.1-0.20260303100010-977618f3f59b
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.39.1
-	// MaaSTenant API (shared types). Pseudo-version until a release tag exists; local dev uses replace below.
+	// Tenant API (shared types). Pseudo-version until a release tag exists; local dev uses replace below.
 	github.com/opendatahub-io/models-as-a-service/maas-controller v0.0.0-00010101000000-000000000000
 	github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth v0.0.0
 	github.com/opendatahub-io/opendatahub-operator/v2/pkg/failureclassifier v0.0.0-00010101000000-000000000000
