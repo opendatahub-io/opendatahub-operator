@@ -13,6 +13,7 @@ import (
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 
 	. "github.com/onsi/gomega"
 )
@@ -22,8 +23,10 @@ type fakeComponentHandler struct {
 	enabled bool
 }
 
-func (f *fakeComponentHandler) Init(_ common.Platform) error { return nil }
-func (f *fakeComponentHandler) GetName() string              { return f.name }
+func (f *fakeComponentHandler) Init(_ common.Platform, _ operatorconfig.OperatorSettings) error {
+	return nil
+}
+func (f *fakeComponentHandler) GetName() string { return f.name }
 func (f *fakeComponentHandler) NewCRObject(_ context.Context, _ client.Client, _ *dscv2.DataScienceCluster) (common.PlatformObject, error) {
 	return nil, nil
 }

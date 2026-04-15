@@ -101,7 +101,7 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 }
 
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { //nolint:unparam
-	rr.Manifests = append(rr.Manifests, manifestPath(rr.Release.Name))
+	rr.Manifests = append(rr.Manifests, manifestPath(rr.ManifestsBasePath, rr.Release.Name))
 
 	return nil
 }
@@ -129,7 +129,7 @@ func argoWorkflowsControllersOptions(_ context.Context, rr *odhtypes.Reconciliat
 		argoWorkflowsControllersParamsKey: string(awfSpecJSON),
 	}
 
-	paramsPath := path.Join(odhdeploy.DefaultManifestPath, ComponentName, "base")
+	paramsPath := path.Join(rr.ManifestsBasePath, ComponentName, "base")
 
 	if err := odhdeploy.ApplyParams(paramsPath, "params.env", imageParamMap, extraParams); err != nil {
 		return fmt.Errorf("failed to update params.env: %w", err)

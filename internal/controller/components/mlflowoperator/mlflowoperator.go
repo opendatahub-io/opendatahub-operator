@@ -19,6 +19,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 )
 
 type componentHandler struct{}
@@ -47,9 +48,10 @@ func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *
 	}, nil
 }
 
-func (s *componentHandler) Init(platform common.Platform) error {
-	if err := odhdeploy.ApplyParams(paramsPath, "params.env", imageParamMap); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", paramsPath, err)
+func (s *componentHandler) Init(platform common.Platform, cfg operatorconfig.OperatorSettings) error {
+	manifestsBasePath := cfg.ManifestsBasePath
+	if err := odhdeploy.ApplyParams(paramsPath(manifestsBasePath), "params.env", imageParamMap); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", paramsPath(manifestsBasePath), err)
 	}
 
 	return nil

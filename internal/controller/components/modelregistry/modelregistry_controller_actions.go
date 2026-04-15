@@ -15,8 +15,8 @@ import (
 
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { //nolint:unparam
 	rr.Manifests = []odhtypes.ManifestInfo{
-		baseManifestInfo(BaseManifestsSourcePath),
-		extraManifestInfo(BaseManifestsSourcePath),
+		baseManifestInfo(rr.ManifestsBasePath, BaseManifestsSourcePath),
+		extraManifestInfo(rr.ManifestsBasePath, BaseManifestsSourcePath),
 	}
 
 	return nil

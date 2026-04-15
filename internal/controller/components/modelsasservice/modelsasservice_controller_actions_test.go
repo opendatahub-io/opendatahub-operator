@@ -748,6 +748,97 @@ func TestBuildTelemetryLabels(t *testing.T) {
 	})
 }
 
+func TestValidatePersesResources(t *testing.T) {
+	g := NewWithT(t)
+
+	t.Run("should remove Perses resources when PersesDashboard CRD is not available", func(t *testing.T) {
+		cli := createFakeClientWithoutGateway()
+
+		dashboard := unstructured.Unstructured{}
+		dashboard.SetGroupVersionKind(gvk.PersesDashboardV1Alpha2)
+		dashboard.SetName("usage-dashboard")
+		dashboard.SetNamespace("monitoring")
+
+		datasource := unstructured.Unstructured{}
+		datasource.SetGroupVersionKind(gvk.PersesDatasourceV1Alpha1)
+		datasource.SetName("prom-datasource")
+		datasource.SetNamespace("monitoring")
+
+		configMap := unstructured.Unstructured{}
+		configMap.SetGroupVersionKind(gvk.ConfigMap)
+		configMap.SetName("other-config")
+		configMap.SetNamespace("default")
+
+		rr := &types.ReconciliationRequest{
+			Client:    cli,
+			Resources: []unstructured.Unstructured{dashboard, datasource, configMap},
+		}
+
+		err := validatePersesResources(t.Context(), rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(rr.Resources).Should(HaveLen(1))
+		g.Expect(rr.Resources[0].GetName()).Should(Equal("other-config"))
+	})
+}
+
+func TestConfigurePersesResources(t *testing.T) {
+	g := NewWithT(t)
+
+	t.Run("should set ModelsAsService as controller owner on Perses resources", func(t *testing.T) {
+		cli, err := fakeclient.New()
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		maas := &componentApi.ModelsAsService{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "components.platform.opendatahub.io/v1alpha1",
+				Kind:       "ModelsAsService",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.ModelsAsServiceInstanceName,
+				UID:  "maas-uid",
+			},
+		}
+
+		dashboard := unstructured.Unstructured{}
+		dashboard.SetGroupVersionKind(gvk.PersesDashboardV1Alpha2)
+		dashboard.SetName("usage-dashboard")
+		dashboard.SetNamespace("monitoring")
+
+		datasource := unstructured.Unstructured{}
+		datasource.SetGroupVersionKind(gvk.PersesDatasourceV1Alpha2)
+		datasource.SetName("prom-datasource")
+		datasource.SetNamespace("monitoring")
+
+		configMap := unstructured.Unstructured{}
+		configMap.SetGroupVersionKind(gvk.ConfigMap)
+		configMap.SetName("other-config")
+		configMap.SetNamespace("default")
+
+		rr := &types.ReconciliationRequest{
+			Instance:  maas,
+			Client:    cli,
+			Resources: []unstructured.Unstructured{dashboard, datasource, configMap},
+		}
+
+		err = configurePersesResources(t.Context(), rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		refs := rr.Resources[0].GetOwnerReferences()
+		g.Expect(refs).Should(HaveLen(1))
+		g.Expect(refs[0].Kind).Should(Equal("ModelsAsService"))
+		g.Expect(refs[0].Name).Should(Equal(componentApi.ModelsAsServiceInstanceName))
+		g.Expect(string(refs[0].UID)).Should(Equal("maas-uid"))
+		g.Expect(refs[0].Controller).ShouldNot(BeNil())
+		g.Expect(*refs[0].Controller).Should(BeTrue())
+
+		refsDS := rr.Resources[1].GetOwnerReferences()
+		g.Expect(refsDS).Should(HaveLen(1))
+		g.Expect(refsDS[0].Kind).Should(Equal("ModelsAsService"))
+
+		g.Expect(rr.Resources[2].GetOwnerReferences()).Should(BeEmpty())
+	})
+}
+
 //nolint:dupl,maintidx // Similar test structure to TestConfigureIstioTelemetry is intentional for test clarity
 func TestConfigureTelemetryPolicy(t *testing.T) {
 	g := NewWithT(t)

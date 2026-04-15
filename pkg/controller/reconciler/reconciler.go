@@ -36,6 +36,17 @@ type gvkInfo struct {
 	owned bool
 }
 
+type manifestsBasePathProvider interface {
+	GetManifestsBasePath() string
+}
+
+func getManifestsBasePath(mgr manager.Manager) string {
+	if p, ok := mgr.(manifestsBasePathProvider); ok {
+		return p.GetManifestsBasePath()
+	}
+	return ""
+}
+
 type ReconcilerOpt func(*Reconciler)
 
 func WithConditionsManagerFactory(happy string, dependents ...string) ReconcilerOpt {
@@ -71,13 +82,14 @@ type Reconciler struct {
 	discoveryClient discovery.DiscoveryInterface
 	dynamicClient   dynamic.Interface
 
-	Scheme     *runtime.Scheme
-	Actions    []actions.Fn
-	Finalizer  []actions.Fn
-	Log        logr.Logger
-	Controller controller.Controller
-	Recorder   events.EventRecorder
-	Release    common.Release
+	Scheme            *runtime.Scheme
+	Actions           []actions.Fn
+	Finalizer         []actions.Fn
+	Log               logr.Logger
+	Controller        controller.Controller
+	Recorder          events.EventRecorder
+	Release           common.Release
+	ManifestsBasePath string
 
 	name                        string
 	instanceFactory             func() (common.PlatformObject, error)
@@ -100,12 +112,14 @@ func NewReconciler[T common.PlatformObject](mgr manager.Manager, name string, ob
 	}
 
 	cc := Reconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Log:      ctrl.Log.WithName("controllers").WithName(name),
-		Recorder: mgr.GetEventRecorder(name),
-		Release:  cluster.GetRelease(),
-		name:     name,
+		Client:            mgr.GetClient(),
+		Scheme:            mgr.GetScheme(),
+		Log:               ctrl.Log.WithName("controllers").WithName(name),
+		Recorder:          mgr.GetEventRecorder(name),
+		Release:           cluster.GetRelease(),
+		ManifestsBasePath: getManifestsBasePath(mgr),
+
+		name: name,
 		instanceFactory: func() (common.PlatformObject, error) {
 			t := reflect.TypeOf(object).Elem()
 			res, ok := reflect.New(t).Interface().(T)
@@ -277,12 +291,14 @@ func (r *Reconciler) delete(ctx context.Context, res common.PlatformObject) erro
 	l.Info("delete")
 
 	rr := types.ReconciliationRequest{
-		Client:     r.Client,
-		Controller: r,
-		Instance:   res,
-		Conditions: r.conditionsManagerFactory(res),
-		Release:    r.Release,
-		Manifests:  make([]types.ManifestInfo, 0),
+		Client:            r.Client,
+		Controller:        r,
+		Instance:          res,
+		Conditions:        r.conditionsManagerFactory(res),
+		Release:           r.Release,
+		ManifestsBasePath: r.ManifestsBasePath,
+
+		Manifests: make([]types.ManifestInfo, 0),
 	}
 
 	// Execute finalizers
@@ -314,12 +330,14 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error
 	l.Info("apply")
 
 	rr := types.ReconciliationRequest{
-		Client:     r.Client,
-		Controller: r,
-		Instance:   res,
-		Conditions: r.conditionsManagerFactory(res),
-		Release:    r.Release,
-		Manifests:  make([]types.ManifestInfo, 0),
+		Client:            r.Client,
+		Controller:        r,
+		Instance:          res,
+		Conditions:        r.conditionsManagerFactory(res),
+		Release:           r.Release,
+		ManifestsBasePath: r.ManifestsBasePath,
+
+		Manifests: make([]types.ManifestInfo, 0),
 	}
 
 	// reset conditions so any unknown condition eventually set on

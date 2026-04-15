@@ -177,9 +177,9 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(gwapiv1.Install(scheme))
 }
 
-func initComponents(_ context.Context, p common.Platform) error {
+func initComponents(_ context.Context, p common.Platform, cfg operatorconfig.OperatorSettings) error {
 	return cr.ForEach(func(ch cr.ComponentHandler) error {
-		return ch.Init(p)
+		return ch.Init(p, cfg)
 	})
 }
 
@@ -246,10 +246,19 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	err = cluster.Init(ctx, setupClient)
+	err = cluster.Init(ctx, setupClient, oconfig.OperatorSettings)
 	if err != nil {
 		setupLog.Error(err, "unable to initialize cluster config")
 		os.Exit(1)
+	}
+
+	if oconfig.MonitoringNamespace == "" {
+		switch cluster.GetRelease().Name {
+		case cluster.ManagedRhoai, cluster.SelfManagedRhoai:
+			oconfig.MonitoringNamespace = cluster.DefaultMonitoringNamespaceRHOAI
+		default:
+			oconfig.MonitoringNamespace = cluster.DefaultMonitoringNamespaceODH
+		}
 	}
 
 	// If RHAI_APPLICATIONS_NAMESPACE is explicitly configured (via env var or CLI flag),
@@ -294,7 +303,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	if err := initComponents(ctx, platform); err != nil {
+	if err := initComponents(ctx, platform, oconfig.OperatorSettings); err != nil {
 		setupLog.Error(err, "unable to init components")
 		os.Exit(1)
 	}
@@ -412,7 +421,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 
 	// Wrap the manager to return the wrapped client from GetClient()
-	mgr := manager.New(ctrlMgr)
+	mgr := manager.New(ctrlMgr, manager.WithManifestsBasePath(oconfig.ManifestsBasePath))
 
 	// Register all webhooks using the helper
 	if err := webhook.RegisterAllWebhooks(mgr); err != nil {
@@ -422,9 +431,10 @@ func main() { //nolint:funlen,maintidx,gocyclo
 
 	if flags.IsDSCIEnabled() {
 		if err = (&dscictrl.DSCInitializationReconciler{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			Recorder: mgr.GetEventRecorder("dscinitialization-controller"),
+			Client:           mgr.GetClient(),
+			Scheme:           mgr.GetScheme(),
+			Recorder:         mgr.GetEventRecorder("dscinitialization-controller"),
+			OperatorSettings: oconfig.OperatorSettings,
 		}).SetupWithManager(ctx, mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "DSCInitiatlization")
 			os.Exit(1)
@@ -455,11 +465,10 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 
 	// Check if user opted for disabling DSC configuration
-	disableDSCConfig, existDSCConfig := os.LookupEnv("DISABLE_DSC_CONFIG")
 	switch {
 	case !flags.IsDSCIEnabled():
 		setupLog.Info("DSCI is disabled")
-	case existDSCConfig && disableDSCConfig != "false":
+	case oconfig.IsDSCICreationDisabled():
 		setupLog.Info("DSCI auto creation is disabled")
 	default:
 		createDefaultDSCIFunc := LeaderElectionRunnableFunc(func(ctx context.Context) error {
@@ -498,7 +507,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	// Cleanup resources from previous v2 releases
 	cleanup := LeaderElectionRunnableFunc(func(ctx context.Context) error {
 		setupLog.Info("run upgrade task")
-		if err := upgrade.CleanupExistingResource(ctx, setupClient); err != nil {
+		if err := upgrade.CleanupExistingResource(ctx, setupClient, oconfig.ManifestsBasePath); err != nil {
 			setupLog.Error(err, "unable to perform cleanup")
 			return err
 		}

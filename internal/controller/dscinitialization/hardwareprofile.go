@@ -33,7 +33,7 @@ func (r *DSCInitializationReconciler) ManageDefaultAndCustomHWProfileCR(ctx cont
 
 	if k8serr.IsNotFound(defaultProfileError) {
 		// deploy default hardware profile CR with dsci as owner, but allow user change by have annotation in the default.
-		defaultProfilePath := filepath.Join(deploy.DefaultManifestPath, "hardwareprofiles")
+		defaultProfilePath := filepath.Join(r.OperatorSettings.ManifestsBasePath, "hardwareprofiles")
 		if err := deploy.DeployManifestsFromPath(ctx, r.Client, dscInit, defaultProfilePath, dscInit.Spec.ApplicationsNamespace, "hardwareprofile", true); err != nil {
 			return fmt.Errorf("failed to deploy default-profile HardwareProfile CR from path %s: %w", defaultProfilePath, err)
 		}

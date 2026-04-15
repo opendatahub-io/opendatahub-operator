@@ -74,6 +74,7 @@ var defaultResourceLimits = map[string]string{
 // TODO: remove function once we have a generic solution across all components.
 func CleanupExistingResource(ctx context.Context,
 	cli client.Client,
+	basePath string,
 ) error {
 	var multiErr *multierror.Error
 	// get application namespace
@@ -107,7 +108,7 @@ func CleanupExistingResource(ctx context.Context,
 			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to check AcceleratorProfile CRD: %w", err))
 		} else if hasAccelProfile {
 			// Both CRDs exist, run migration (it's idempotent)
-			multiErr = multierror.Append(multiErr, MigrateToInfraHardwareProfiles(ctx, cli, applicationNS))
+			multiErr = multierror.Append(multiErr, MigrateToInfraHardwareProfiles(ctx, cli, applicationNS, basePath))
 		}
 	}
 
@@ -244,7 +245,7 @@ func cleanupDeprecatedKueueVAPB(ctx context.Context, cli client.Client) error {
 //
 // This function is called on every operator startup via CleanupExistingResource.
 // The Create-only approach ensures that frequent operator restarts do not overwrite user changes.
-func MigrateToInfraHardwareProfiles(ctx context.Context, cli client.Client, applicationNS string) error {
+func MigrateToInfraHardwareProfiles(ctx context.Context, cli client.Client, applicationNS string, basePath string) error {
 	var multiErr *multierror.Error
 	log := logf.FromContext(ctx)
 	// If application namespace is empty, it means dsci is not available or not initialized properly with application namespace.
@@ -255,7 +256,7 @@ func MigrateToInfraHardwareProfiles(ctx context.Context, cli client.Client, appl
 	}
 
 	// Get OdhDashboardConfig to extract container sizes
-	odhConfig, found, err := GetOdhDashboardConfig(ctx, cli, applicationNS)
+	odhConfig, found, err := GetOdhDashboardConfig(ctx, cli, applicationNS, basePath)
 	if err != nil {
 		return fmt.Errorf("failed to get OdhDashboardConfig: %w", err)
 	}

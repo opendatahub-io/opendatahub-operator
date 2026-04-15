@@ -38,7 +38,7 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.ModelController)", rr.Instance)
 	}
-	rr.Manifests = append(rr.Manifests, manifestsPath())
+	rr.Manifests = append(rr.Manifests, manifestsPath(rr.ManifestsBasePath))
 
 	// handle NIM
 	nimState := operatorv1.Removed
@@ -49,7 +49,7 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	// handle WVA
 	if mc.Spec.Kserve.ManagementState == operatorv1.Managed {
 		if mc.Spec.Kserve.WVA.ManagementState == operatorv1.Managed {
-			rr.Manifests = append(rr.Manifests, wvaManifestsPath())
+			rr.Manifests = append(rr.Manifests, wvaManifestsPath(rr.ManifestsBasePath))
 		}
 	}
 
