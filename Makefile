@@ -292,8 +292,8 @@ manifests-all:
 
 .PHONY: clean-manifests
 clean-manifests: ## Remove generated manifest files (CRDs, RBAC, webhooks) for all variants.
-	rm -rf $(MANIFEST_GENERATED_FILES)
-	$(foreach p,$(CCM_PROVIDERS),rm -rf $(call ccm-config-dir,$(p))/crd/bases $(call ccm-config-dir,$(p))/rbac/role.yaml;)
+	rm -rf -- $(MANIFEST_GENERATED_FILES)
+	$(foreach p,$(CCM_PROVIDERS),rm -rf -- "$(call ccm-config-dir,$(p))/crd/bases" "$(call ccm-config-dir,$(p))/rbac/role.yaml" "$(call ccm-config-dir,$(p))/webhook/manifests.yaml";)
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
