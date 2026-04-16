@@ -283,7 +283,6 @@ endif
 	@# Generate shared rhaii webhook manifests with only KServe connection webhooks
 	@$(YQ) eval 'select(.kind == "MutatingWebhookConfiguration") | .webhooks = [.webhooks[] | select(.name == "connection-isvc.opendatahub.io" or .name == "connection-llmisvc.opendatahub.io")]' $(CONFIG_DIR)/webhook/manifests.yaml > config/rhaii/webhook/manifests.yaml
 MANIFEST_GENERATED_FILES = config/crd/bases config/rhoai/crd/bases config/rhaii/crd/bases config/crd/external config/rhoai/crd/external config/rbac/role.yaml config/rhoai/rbac/role.yaml config/webhook/manifests.yaml config/rhoai/webhook/manifests.yaml config/rhaii/webhook/manifests.yaml
-CLEANFILES += $(MANIFEST_GENERATED_FILES)
 
 .PHONY: manifests-all
 manifests-all:
@@ -899,11 +898,8 @@ CCM_UNDEPLOY_TARGETS := $(addprefix undeploy-ccm-,$(CCM_PROVIDERS))
 $(CCM_UNDEPLOY_TARGETS): undeploy-ccm-%: kustomize ## Undeploy CCM from cluster (e.g., undeploy-ccm-azure)
 	$(KUSTOMIZE) build $(call ccm-config-dir,$*)/$(CCM_DEPLOY_OVERLAY) | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
-# Cleanup
-$(foreach p,$(CCM_PROVIDERS),$(eval CLEANFILES += $(call ccm-config-dir,$(p))/crd/bases $(call ccm-config-dir,$(p))/rbac/role.yaml))
-
 .PHONY: clean
-clean: $(GOLANGCI_LINT)
+clean: clean-manifests $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) cache clean
 	chmod -R u+w $(LOCALBIN) # envtest makes its dir RO
 	rm -rf $(CLEANFILES)
