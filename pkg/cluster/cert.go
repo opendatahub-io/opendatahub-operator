@@ -47,7 +47,7 @@ func CreateSelfSignedCertificate(ctx context.Context, c client.Client, secretNam
 		return errApply
 	}
 
-	opts := []client.PatchOption{
+	opts := []client.ApplyOption{
 		client.ForceOwnership,
 		client.FieldOwner(CertFieldOwner),
 	}
@@ -259,7 +259,7 @@ func copySecretToNamespace(ctx context.Context, c client.Client, secret *corev1.
 		return errApply
 	}
 
-	opts := []client.PatchOption{
+	opts := []client.ApplyOption{
 		client.ForceOwnership,
 		client.FieldOwner(CertFieldOwner),
 	}

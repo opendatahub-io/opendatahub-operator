@@ -520,11 +520,11 @@ func GvkToPartial(gvk schema.GroupVersionKind) *metav1.PartialObjectMetadata {
 //   - ctx: The context for the client operation
 //   - cli: The Kubernetes client interface used to perform the patch operation
 //   - in: The Kubernetes object to be applied
-//   - opts: Optional client patch options
+//   - opts: Optional client apply options
 //
 // Returns:
 //   - error: nil on success, or an error with context if the operation fails
-func Apply(ctx context.Context, cli client.Client, in client.Object, opts ...client.PatchOption) error {
+func Apply(ctx context.Context, cli client.Client, in client.Object, opts ...client.ApplyOption) error {
 	err := EnsureGroupVersionKind(cli.Scheme(), in)
 	if err != nil {
 		return fmt.Errorf("failed to ensure GVK: %w", err)
@@ -543,7 +543,7 @@ func Apply(ctx context.Context, cli client.Client, in client.Object, opts ...cli
 	unstructured.RemoveNestedField(u.Object, "metadata", "resourceVersion")
 	unstructured.RemoveNestedField(u.Object, "status")
 
-	err = cli.Patch(ctx, u, client.Apply, opts...) //nolint:staticcheck // TODO: migrate to cli.Apply() with client.ApplyOption once all callers are updated
+	err = cli.Apply(ctx, client.ApplyConfigurationFromUnstructured(u), opts...)
 	if err != nil {
 		// Include GVK and namespace/name for debugging context without logging sensitive object data
 		objRef := FormatObjectReference(u)
@@ -572,11 +572,11 @@ func Apply(ctx context.Context, cli client.Client, in client.Object, opts ...cli
 //   - ctx: The context for the client operation
 //   - cli: The Kubernetes client interface used to perform the patch operation
 //   - in: The Kubernetes object whose status should be applied
-//   - opts: Optional client subresource patch options
+//   - opts: Optional client subresource apply options
 //
 // Returns:
 //   - error: nil on success, or an error with context if the operation fails
-func ApplyStatus(ctx context.Context, cli client.Client, in client.Object, opts ...client.SubResourcePatchOption) error {
+func ApplyStatus(ctx context.Context, cli client.Client, in client.Object, opts ...client.SubResourceApplyOption) error {
 	err := EnsureGroupVersionKind(cli.Scheme(), in)
 	if err != nil {
 		return fmt.Errorf("failed to ensure GVK: %w", err)
@@ -594,7 +594,7 @@ func ApplyStatus(ctx context.Context, cli client.Client, in client.Object, opts 
 	unstructured.RemoveNestedField(u.Object, "metadata", "managedFields")
 	unstructured.RemoveNestedField(u.Object, "metadata", "resourceVersion")
 
-	err = cli.Status().Patch(ctx, u, client.Apply, opts...) //nolint:staticcheck // TODO: migrate to cli.Status().Apply() once all callers updated
+	err = cli.Status().Apply(ctx, client.ApplyConfigurationFromUnstructured(u), opts...)
 	switch {
 	case k8serr.IsNotFound(err): // Cannot be removed like in Apply func because reconciler_finalizer_test.go would then throw an error, needs extensive test rewrite
 		return nil
