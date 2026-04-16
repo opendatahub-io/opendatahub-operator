@@ -11,8 +11,10 @@ Build a `Config` with your controller-runtime client and namespace/CR names, the
 ```go
 import (
 	"context"
+	"fmt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrl "sigs.k8s.io/controller-runtime/pkg/client/config"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -22,8 +24,12 @@ import (
 kubeConfig, _ := ctrl.GetConfig()
 c, _ := client.New(kubeConfig, client.Options{Scheme: clientgoscheme.Scheme})
 
+// Optional: create a clientset for pod log capture
+clientset, _ := kubernetes.NewForConfig(kubeConfig)
+
 cfg := clusterhealth.Config{
 	Client:   c,
+	Clientset: clientset, // enables log capture for unhealthy containers; nil = skip
 	Operator: clusterhealth.OperatorConfig{Namespace: "op-ns", Name: "op-deploy"},
 	Namespaces: clusterhealth.NamespaceConfig{
 		Apps:       "my-apps",
@@ -70,6 +76,8 @@ for _, cond := range report.DSC.Data.Conditions {
 - **DSCI / DSC**: `types.NamespacedName`. Leave empty to discover the singleton DSCI/DSC on the cluster; set to check a specific CR.
 - **OnlySections**: run only these sections (see Section constants). Overrides `Layers` when non-empty.
 - **Layers**: run sections from these layers (see Layer constants). Ignored if `OnlySections` is set.
+- **Clientset** (optional): `*kubernetes.Clientset` for pod log capture. When set, the library captures the tail of container logs for unhealthy pods (CrashLoopBackOff, terminated, not-ready with restarts, etc.). When nil, log capture is silently skipped. The controller-runtime `client.Client` does not support log streaming, so a separate clientset is needed.
+- **LogTailLines** (optional): number of log lines per container. Default 50 (when 0). Negative disables log capture.
 
 ### Running a subset of sections
 
@@ -152,6 +160,9 @@ go run . -json                        # full report as JSON
 go run . -layer=infrastructure
 go run . -layer=operator
 go run . -sections=nodes,dsci,dsc -l
+go run . -json       # full report as JSON (includes logs in ContainerInfo)
+go run . -log-lines=20  # capture 20 lines per container (default 50)
+go run . -log-lines=-1  # disable log capture
 ```
 
 Makefile targets (from repo root, see `cmd/health-check/Makefile`):

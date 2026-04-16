@@ -404,10 +404,12 @@ func (r *Report) longDetailsDeployments() string {
 }
 
 func (r *Report) longDetailsPods() string {
-	if r.Pods.Error != "" {
-		return "  " + r.Pods.Error + "\n"
-	}
 	var b strings.Builder
+	if r.Pods.Error != "" {
+		b.WriteString("  ")
+		b.WriteString(r.Pods.Error)
+		b.WriteString("\n")
+	}
 	for ns, infos := range r.Pods.Data.ByNamespace {
 		for _, p := range infos {
 			b.WriteString("  ")
@@ -417,6 +419,8 @@ func (r *Report) longDetailsPods() string {
 			b.WriteString(" ")
 			b.WriteString(p.Phase)
 			b.WriteString("\n")
+			writeContainerRestartWarnings(&b, p.Containers, "    ")
+			writeContainerLogs(&b, p.Containers, "    ")
 		}
 	}
 	return b.String()
@@ -463,16 +467,21 @@ func (r *Report) longDetailsQuotas() string {
 }
 
 func (r *Report) longDetailsOperator() string {
-	if r.Operator.Error != "" {
-		return "  " + r.Operator.Error + "\n"
-	}
 	var b strings.Builder
+	if r.Operator.Error != "" {
+		b.WriteString("  ")
+		b.WriteString(r.Operator.Error)
+		b.WriteString("\n")
+	}
 	d := r.Operator.Data.Deployment
 	if d != nil {
 		b.WriteString("  ")
 		b.WriteString(d.Name)
 		fmt.Fprintf(&b, " %d/%d ready", d.Ready, d.Replicas)
 		b.WriteString("\n")
+	}
+	for _, p := range r.Operator.Data.Pods {
+		writeContainerLogs(&b, p.Containers, "    ")
 	}
 	for _, dep := range r.Operator.Data.DependentOperators {
 		b.WriteString("  dependent: ")
@@ -509,4 +518,45 @@ func (r *Report) longDetailsCRConditions(name string, conditions []ConditionSumm
 		b.WriteString("\n")
 	}
 	return b.String()
+}
+
+// writeContainerRestartWarnings flags containers with restart counts above the
+// threshold. These are informational — they don't cause a section failure.
+func writeContainerRestartWarnings(b *strings.Builder, containers []ContainerInfo, indent string) {
+	for _, c := range containers {
+		if c.RestartCount > restartWarningThreshold {
+			b.WriteString(indent)
+			fmt.Fprintf(b, "WARNING: container %s has %d restarts\n", c.Name, c.RestartCount)
+		}
+	}
+}
+
+// writeContainerLogs appends captured container logs to b for any container
+// that has Logs or LogError set. Only produces output when there is something to show.
+func writeContainerLogs(b *strings.Builder, containers []ContainerInfo, indent string) {
+	for _, c := range containers {
+		if c.Logs == "" && c.LogError == "" {
+			continue
+		}
+		logLabel := "CURRENT"
+		if c.LogPrevious {
+			logLabel = "PREVIOUS"
+		}
+		b.WriteString(indent)
+		fmt.Fprintf(b, "--- logs (%s) container %s ---\n", logLabel, c.Name)
+		if c.LogError != "" {
+			b.WriteString(indent)
+			b.WriteString("  [log fetch failed: ")
+			b.WriteString(c.LogError)
+			b.WriteString("]\n")
+		}
+		if c.Logs != "" {
+			for _, line := range strings.Split(c.Logs, "\n") {
+				b.WriteString(indent)
+				b.WriteString("  ")
+				b.WriteString(line)
+				b.WriteString("\n")
+			}
+		}
+	}
 }
