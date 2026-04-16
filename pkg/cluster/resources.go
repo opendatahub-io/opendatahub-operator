@@ -269,7 +269,7 @@ func CreateOrUpdateConfigMap(ctx context.Context, c client.Client, desiredCfgMap
 		Kind:       gvk.ConfigMap.Kind,
 	}
 
-	opts := []client.PatchOption{
+	opts := []client.ApplyOption{
 		client.ForceOwnership,
 		client.FieldOwner(resources.PlatformFieldOwner),
 	}
@@ -297,7 +297,7 @@ func CreateNamespace(ctx context.Context, cli client.Client, namespace string, m
 		return nil, err
 	}
 
-	opts := []client.PatchOption{
+	opts := []client.ApplyOption{
 		client.ForceOwnership,
 		client.FieldOwner(resources.PlatformFieldOwner),
 	}
