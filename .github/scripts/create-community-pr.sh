@@ -50,7 +50,12 @@ echo " Creating pull request"
 PR_TITLE="operator opendatahub-operator (${VERSION})"
 PR_HEAD="${COMMUNITY_FORK%%/*}:${BRANCH_NAME}"
 
-PR_URL=$(gh pr create \
+# Use COMMUNITY_PR_TOKEN (classic PAT) for cross-org PR creation on upstream.
+# GitHub App tokens are installation-scoped and cannot create PRs on repos
+# outside their installation org. Falls back to GITHUB_TOKEN if not set.
+PR_TOKEN="${COMMUNITY_PR_TOKEN:-${GITHUB_TOKEN}}"
+
+PR_URL=$(GH_TOKEN="${PR_TOKEN}" gh pr create \
   --repo "${COMMUNITY_UPSTREAM}" \
   --title "${PR_TITLE}" \
   --head "${PR_HEAD}" \
