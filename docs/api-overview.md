@@ -746,6 +746,24 @@ _Appears in:_
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
+#### ExternalOIDCConfig
+
+
+
+ExternalOIDCConfig defines the external OIDC provider settings.
+
+
+
+_Appears in:_
+- [ModelsAsServiceSpec](#modelsasservicespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `issuerUrl` _string_ | IssuerURL is the OIDC issuer URL (e.g. https://keycloak.example.com/realms/maas).<br />Must serve a .well-known/openid-configuration endpoint over HTTPS. |  | MaxLength: 2048 <br />MinLength: 9 <br />Pattern: `^https://\S+$` <br /> |
+| `clientId` _string_ | ClientID is the OAuth2 client ID. Incoming OIDC tokens must have an<br />azp (authorized party) claim matching this value. |  | MaxLength: 256 <br />MinLength: 1 <br />Pattern: `^\S+$` <br /> |
+| `ttl` _integer_ | TTL is the JWKS cache duration in seconds. | 300 | Minimum: 30 <br />Optional: \{\} <br /> |
+
+
 #### FeastOperator
 
 
@@ -1484,6 +1502,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `gatewayRef` _[GatewayRef](#gatewayref)_ | GatewayRef specifies which Gateway (Gateway API) to use for exposing model endpoints.<br />If omitted, defaults to openshift-ingress/maas-default-gateway. |  | Optional: \{\} <br /> |
 | `apiKeys` _[APIKeysConfig](#apikeysconfig)_ | APIKeys contains configuration for API key management. |  | Optional: \{\} <br /> |
+| `externalOIDC` _[ExternalOIDCConfig](#externaloidcconfig)_ | ExternalOIDC configures an external OIDC identity provider (e.g. Keycloak, Azure AD)<br />for the maas-api AuthPolicy. When set, the operator patches the AuthPolicy to accept<br />JWTs from the specified issuer alongside OpenShift TokenReview and API key authentication. |  | Optional: \{\} <br /> |
 | `telemetry` _[TelemetryConfig](#telemetryconfig)_ | Telemetry contains configuration for telemetry and metrics collection.<br />When enabled, deploys TelemetryPolicy for usage metrics and<br />Istio Telemetry for per-subscription latency tracking. |  | Optional: \{\} <br /> |
 
 
@@ -3268,8 +3287,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `size` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | Size specifies the storage size for the MonitoringStack (e.g, "5Gi", "10Mi") | 5Gi |  |
-| `retention` _string_ | Retention specifies how long metrics data should be retained (e.g., "1d", "2w") | 90d |  |
+| `size` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | Size specifies the storage size for the MonitoringStack (e.g, "5Gi", "10Mi") |  |  |
+| `retention` _string_ | Retention specifies how long metrics data should be retained (e.g., "1d", "2w") |  |  |
 
 
 #### Monitoring
@@ -3406,7 +3425,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `storage` _[TracesStorage](#tracesstorage)_ |  |  |  |
-| `sampleRatio` _string_ | SampleRatio determines the sampling rate for traces<br />Value should be between 0.0 (no sampling) and 1.0 (sample all traces) | 0.1 | Pattern: `^(0(\.[0-9]+)?\|1(\.0+)?)$` <br /> |
+| `sampleRatio` _string_ | SampleRatio determines the sampling rate for traces<br />Value should be between 0.0 (no sampling) and 1.0 (sample all traces) |  | Pattern: `^(0(\.[0-9]+)?\|1(\.0+)?)$` <br /> |
 | `tls` _[TracesTLS](#tracestls)_ | TLS configuration for Tempo gRPC connections |  |  |
 | `exporters` _object (keys:string, values:[RawExtension](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#rawextension-runtime-pkg))_ | Exporters defines custom trace exporters for sending traces to external observability tools.<br />Each key represents the exporter name, and the value contains the exporter configuration.<br />The configuration follows the OpenTelemetry Collector exporter format. |  |  |
 
@@ -3424,10 +3443,10 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `backend` _string_ | Backend defines the storage backend type.<br />Valid values are "pv", "s3", and "gcs". | pv | Enum: [pv s3 gcs] <br /> |
+| `backend` _string_ | Backend defines the storage backend type.<br />Valid values are "pv", "s3", and "gcs". |  | Enum: [pv s3 gcs] <br /> |
 | `size` _string_ | Size specifies the size of the storage.<br />This field is optional. |  |  |
 | `secret` _string_ | Secret specifies the secret name for storage credentials.<br />This field is required when the backend is not "pv". |  |  |
-| `retention` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#duration-v1-meta)_ | Retention specifies how long trace data should be retained globally (e.g., "60m", "10h") | 2160h |  |
+| `retention` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#duration-v1-meta)_ | Retention specifies how long trace data should be retained globally (e.g., "60m", "10h") |  |  |
 
 
 #### TracesTLS

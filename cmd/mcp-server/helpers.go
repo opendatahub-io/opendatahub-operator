@@ -32,6 +32,31 @@ func stringParam(req mcp.CallToolRequest, name, fallback string) string {
 	return fallback
 }
 
+// numberParam extracts a numeric param from an MCP request, returning fallback if missing or non-positive.
+func numberParam(req mcp.CallToolRequest, name string, fallback int64) int64 {
+	args, ok := req.Params.Arguments.(map[string]any)
+	if !ok {
+		return fallback
+	}
+	var val float64
+	switch n := args[name].(type) {
+	case float64:
+		val = n
+	case float32:
+		val = float64(n)
+	case int:
+		val = float64(n)
+	case int64:
+		val = float64(n)
+	default:
+		return fallback
+	}
+	if val > 0 {
+		return int64(val)
+	}
+	return fallback
+}
+
 // getEnvDefault returns the env var value if set, otherwise fallback.
 func getEnvDefault(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {

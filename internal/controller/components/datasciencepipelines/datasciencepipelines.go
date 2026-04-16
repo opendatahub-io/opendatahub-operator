@@ -21,6 +21,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 )
 
 type componentHandler struct{}
@@ -31,15 +32,16 @@ func (s *componentHandler) GetName() string {
 	return componentApi.DataSciencePipelinesComponentName
 }
 
-func (s *componentHandler) Init(_ common.Platform) error {
+func (s *componentHandler) Init(_ common.Platform, cfg operatorconfig.OperatorSettings) error {
+	manifestsBasePath := cfg.ManifestsBasePath
 	release := cluster.GetRelease()
 	clusterInfo := cluster.GetClusterInfo()
 	extraParams := map[string]string{
 		platformVersionParamsKey: release.Version.String(),
 		fipsEnabledParamsKey:     strconv.FormatBool(clusterInfo.FipsEnabled),
 	}
-	if err := deploy.ApplyParams(paramsPath, "params.env", imageParamMap, extraParams); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", paramsPath, err)
+	if err := deploy.ApplyParams(paramsPath(manifestsBasePath), "params.env", imageParamMap, extraParams); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", paramsPath(manifestsBasePath), err)
 	}
 
 	return nil

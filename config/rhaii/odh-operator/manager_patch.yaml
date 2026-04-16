@@ -59,5 +59,7 @@ spec:
           value: 'true'
         - name: RHAI_APPLICATIONS_NAMESPACE
           value: opendatahub
+        - name: RHAI_VERSION
+          value: REPLACE_RHAI_VERSION
         - name: ODH_PLATFORM_TYPE
           value: XKS

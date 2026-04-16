@@ -17,7 +17,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 const (
@@ -74,27 +73,27 @@ var (
 )
 
 // manifests for nbc in ODH and RHOAI + downstream use it for imageparams.
-func notebookControllerManifestInfo(sourcePath string) odhtypes.ManifestInfo {
+func notebookControllerManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
-		Path:       odhdeploy.DefaultManifestPath,
+		Path:       basePath,
 		ContextDir: notebookControllerContextDir,
 		SourcePath: sourcePath,
 	}
 }
 
 // manifests for ODH nbc + downstream use it for imageparams.
-func kfNotebookControllerManifestInfo(sourcePath string) odhtypes.ManifestInfo {
+func kfNotebookControllerManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
-		Path:       odhdeploy.DefaultManifestPath,
+		Path:       basePath,
 		ContextDir: kfNotebookControllerContextDir,
 		SourcePath: sourcePath,
 	}
 }
 
 // notebook image manifests.
-func notebookImagesManifestInfo(sourcePath string) odhtypes.ManifestInfo {
+func notebookImagesManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
-		Path:       odhdeploy.DefaultManifestPath,
+		Path:       basePath,
 		ContextDir: notebookContextDir,
 		SourcePath: sourcePath,
 	}

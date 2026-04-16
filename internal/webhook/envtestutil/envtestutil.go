@@ -103,13 +103,18 @@ func SetupEnvAndClient(
 ) (context.Context, *envt.EnvT, func()) {
 	t.Helper()
 
-	testCtx, testCancel := context.WithTimeout(t.Context(), timeout)
+	// setupCtx is used only for the setup retry loop and WaitForWebhookServer;
+	// it does not leak into the returned context or the manager context so that
+	// tests are not bound by the setup timeout.
+	setupCtx, setupCancel := context.WithTimeout(t.Context(), timeout)
+	defer setupCancel()
+
 	backoff := 500 * time.Millisecond
 
-	// keep trying until the test context is cancelled or the environment is setup
+	// keep trying until the setup context is cancelled or the environment is setup
 	for attempt := 1; ; attempt++ {
-		if testCtx.Err() != nil {
-			t.Fatalf("test context cancelled or timed out while trying to setup test environment: %+v", testCtx.Err())
+		if setupCtx.Err() != nil {
+			t.Fatalf("test context cancelled or timed out while trying to setup test environment: %+v", setupCtx.Err())
 		}
 
 		env, err := envt.New(
@@ -117,12 +122,12 @@ func SetupEnvAndClient(
 			envt.WithRegisterControllers(registerControllers...),
 		)
 		if err != nil {
-			testCancel()
 			t.Fatalf("failed to start envtest: %+v", err)
 		}
 
-		// new shared context for the manager and the wait function
-		mgrCtx, mgrCancel := context.WithCancel(testCtx)
+		// mgrCtx is derived from t.Context() (no deadline) so the manager and
+		// tests are not constrained by the setup timeout.
+		mgrCtx, mgrCancel := context.WithCancel(t.Context())
 
 		// try to start the manager in the background
 		go func() {
@@ -134,9 +139,18 @@ func SetupEnvAndClient(
 			}
 		}()
 
+		// waitCtx combines the setup deadline with the manager lifetime:
+		// it expires if either the setup timeout elapses or the manager stops.
+		waitCtx, waitCancel := context.WithCancel(setupCtx)
+		go func() {
+			<-mgrCtx.Done()
+			waitCancel()
+		}()
+
 		// sync wait for the webhook server to be ready
-		if err := env.WaitForWebhookServer(mgrCtx); err != nil {
+		if err := env.WaitForWebhookServer(waitCtx); err != nil {
 			t.Logf("failed to wait for webhook server to be ready: %v", err)
+			waitCancel()
 			mgrCancel()
 
 			if err := env.Stop(); err != nil {
@@ -148,6 +162,7 @@ func SetupEnvAndClient(
 			time.Sleep(backoff)
 			continue
 		}
+		waitCancel()
 
 		// webhook server is ready
 		teardown := func() {
@@ -155,9 +170,8 @@ func SetupEnvAndClient(
 			if err := env.Stop(); err != nil {
 				t.Logf("failed to stop envtest: %v", err)
 			}
-			testCancel()
 		}
-		return testCtx, env, teardown
+		return t.Context(), env, teardown
 	}
 }
 
@@ -200,6 +214,28 @@ func SetupEnvAndClientWithCRDs(
 	}
 
 	return ctx, env, teardown
+}
+
+// SetupSharedEnvForSubtests creates a single envtest environment with webhook support and CRDs
+// that is shared across all subtests within a test function. This avoids the overhead of
+// creating separate envtest instances for each table-driven subtest.
+// Cleanup is handled automatically via t.Cleanup.
+//
+// Each subtest should create its own unique namespace (e.g., via xid.New()) for resource isolation.
+// Only use this when subtests operate exclusively on namespace-scoped resources.
+func SetupSharedEnvForSubtests(
+	t *testing.T,
+	registerWebhooks []envt.RegisterWebhooksFn,
+	registerControllers []envt.RegisterControllersFn,
+	timeout time.Duration,
+	opts ...CRDSetupOption,
+) (context.Context, *envt.EnvT) {
+	t.Helper()
+
+	ctx, env, teardown := SetupEnvAndClientWithCRDs(t, registerWebhooks, registerControllers, timeout, opts...)
+	t.Cleanup(teardown)
+
+	return ctx, env
 }
 
 // =============================================================================

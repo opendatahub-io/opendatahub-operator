@@ -53,6 +53,8 @@ COPY go.mod go.mod
 COPY go.sum go.sum
 COPY pkg/clusterhealth/go.mod pkg/clusterhealth/go.mod
 COPY pkg/clusterhealth/go.sum pkg/clusterhealth/go.sum
+COPY pkg/failureclassifier/go.mod pkg/failureclassifier/go.mod
+COPY pkg/failureclassifier/go.sum pkg/failureclassifier/go.sum
 # cache deps before building and copying source so that we don't need to re-download as much
 # and so that source changes don't invalidate our downloaded layer
 RUN go mod download
@@ -75,7 +77,7 @@ FROM --platform=$TARGETPLATFORM registry.access.redhat.com/ubi9/ubi-minimal:late
 WORKDIR /
 COPY --from=builder /workspace/manager .
 COPY --from=builder /workspace/cloudmanager .
-COPY --chown=1001:0 --from=manifests /opt/manifests /opt/manifests
+COPY --chown=1001:0 --from=manifests /opt/manifests /opt/manifests-template
 COPY --chown=1001:0 --from=manifests /opt/charts /opt/charts
 
 # tar installed to allow easy use of "oc cp" for component dev use cases.
@@ -83,7 +85,7 @@ COPY --chown=1001:0 --from=manifests /opt/charts /opt/charts
 RUN microdnf install -y tar && microdnf clean all
 
 # Recursive change all files
-RUN chmod -R g=u /opt/manifests /opt/charts
+RUN chmod -R g=u /opt/manifests-template /opt/charts
 USER 1001
 
 ENTRYPOINT ["/manager"]

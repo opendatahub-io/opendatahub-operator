@@ -41,6 +41,13 @@ func AddOperatorFlagsAndEnvvars(envvarPrefix string) error {
 		return err
 	}
 
+	pflag.String("rhai-version", "",
+		"The operator version to report. When set, overrides CSV-based version detection. "+
+			"Must be a valid semver string (e.g. 3.4.0).")
+	if err := viper.BindEnv("rhai-version", "RHAI_VERSION"); err != nil {
+		return err
+	}
+
 	// zap logging flags
 	// these are taken from https://github.com/kubernetes-sigs/controller-runtime/blob/4161b012d114e6c1ea861fd8afcebf7ba2417b49/pkg/log/zap/zap.go#L255
 	// and need to be kept in sync.
@@ -68,6 +75,29 @@ func AddOperatorFlagsAndEnvvars(envvarPrefix string) error {
 	}
 	pflag.String("zap-time-encoding", "", "Zap time encoding (one of 'epoch', 'millis', 'nano', 'iso8601', 'rfc3339' or 'rfc3339nano'). Defaults to 'epoch'.")
 	if err := viper.BindEnv("zap-time-encoding", "ZAP_TIME_ENCODING"); err != nil {
+		return err
+	}
+
+	// Operator environment configuration
+	pflag.String("operator-namespace", "", "The namespace the operator is deployed in. "+
+		"If not set, falls back to the in-cluster service account namespace.")
+	if err := viper.BindEnv("operator-namespace", "OPERATOR_NAMESPACE"); err != nil {
+		return err
+	}
+
+	pflag.String("disable-dsc-config", "", "Disable automatic creation of default DSCInitialization CR.")
+	if err := viper.BindEnv("disable-dsc-config", "DISABLE_DSC_CONFIG"); err != nil {
+		return err
+	}
+
+	pflag.String("default-manifests-path", "", "Base path for component manifests.")
+	if err := viper.BindEnv("default-manifests-path", "DEFAULT_MANIFESTS_PATH"); err != nil {
+		return err
+	}
+
+	pflag.String("platform-type", "", "Platform type override (OpenDataHub, ManagedRHOAI, SelfManagedRHOAI, XKS). "+
+		"If empty, auto-detects from the cluster.")
+	if err := viper.BindEnv("platform-type", "ODH_PLATFORM_TYPE"); err != nil {
 		return err
 	}
 
@@ -106,4 +136,10 @@ func ParseZapFlags(zapFlagSet *flag.FlagSet, zapDevel bool, zapEncoder string, z
 // with surrounding whitespace trimmed.
 func GetRHAIApplicationsNamespace() string {
 	return strings.TrimSpace(viper.GetString("rhai-applications-namespace"))
+}
+
+// GetRHAIVersion returns the configured RHAI version,
+// with surrounding whitespace trimmed.
+func GetRHAIVersion() string {
+	return strings.TrimSpace(viper.GetString("rhai-version"))
 }

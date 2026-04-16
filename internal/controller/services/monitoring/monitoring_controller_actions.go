@@ -19,7 +19,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 const (
@@ -94,7 +93,7 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { /
 	// Only set prometheus configmap path
 	rr.Manifests = []odhtypes.ManifestInfo{
 		{
-			Path:       odhdeploy.DefaultManifestPath,
+			Path:       rr.ManifestsBasePath,
 			ContextDir: "monitoring/prometheus/apps",
 		},
 	}
@@ -174,9 +173,9 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 				return nil
 			}
 			// add
-			return updatePrometheusConfig(ctx, true, componentRules[ch.GetName()])
+			return updatePrometheusConfig(ctx, rr.ManifestsBasePath, true, componentRules[ch.GetName()])
 		} else {
-			return updatePrometheusConfig(ctx, false, componentRules[ch.GetName()])
+			return updatePrometheusConfig(ctx, rr.ManifestsBasePath, false, componentRules[ch.GetName()])
 		}
 	})
 }
@@ -276,9 +275,13 @@ func deployTracingStack(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 	traces := monitoring.Spec.Traces
 
 	// Determine required Tempo CRD based on storage backend
+	// Default to "pv" when backend is empty (kubebuilder default removed to prevent
+	// Form View UI from auto-populating values)
+	backend := getStringValueOrDefault(traces.Storage.Backend, defaultTracesBackend)
+
 	var tempoCRD schema.GroupVersionKind
 	var tempoTemplate string
-	if traces.Storage.Backend == "pv" {
+	if backend == serviceApi.StorageBackendPV {
 		tempoCRD = gvk.TempoMonolithic
 		tempoTemplate = TempoMonolithicTemplate
 	} else {

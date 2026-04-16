@@ -9,7 +9,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 const (
@@ -52,6 +51,7 @@ var (
 		"IMAGES_TOOLBOX":                 "RELATED_IMAGE_DSP_TOOLBOX_IMAGE",
 		"IMAGES_RHELAI":                  "RELATED_IMAGE_DSP_INSTRUCTLAB_NVIDIA_IMAGE",
 		"kube-rbac-proxy":                "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
+		"IMAGES_PIPELINES_COMPONENTS":    "RELATED_IMAGE_ODH_PIPELINES_COMPONENTS_IMAGE",
 	}
 
 	overlaysSourcePaths = map[common.Platform]string{
@@ -64,13 +64,15 @@ var (
 		status.ConditionArgoWorkflowAvailable,
 		status.ConditionDeploymentsAvailable,
 	}
-
-	paramsPath = path.Join(odhdeploy.DefaultManifestPath, ComponentName, "base")
 )
 
-func manifestPath(p common.Platform) types.ManifestInfo {
+func paramsPath(basePath string) string {
+	return path.Join(basePath, ComponentName, "base")
+}
+
+func manifestPath(basePath string, p common.Platform) types.ManifestInfo {
 	return types.ManifestInfo{
-		Path:       odhdeploy.DefaultManifestPath,
+		Path:       basePath,
 		ContextDir: ComponentName,
 		SourcePath: overlaysSourcePaths[p],
 	}

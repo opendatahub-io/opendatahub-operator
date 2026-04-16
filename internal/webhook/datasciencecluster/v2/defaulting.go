@@ -12,7 +12,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
@@ -23,15 +22,15 @@ import (
 //+kubebuilder:webhook:path=/mutate-datasciencecluster-v2,matchPolicy=Exact,mutating=true,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io,resources=datascienceclusters,verbs=create;update,versions=v2,name=datasciencecluster-v2-defaulter.opendatahub.io,admissionReviewVersions=v1
 //nolint:lll
 
-// Defaulter implements webhook.CustomDefaulter for DataScienceCluster v2 resources.
+// Defaulter implements admission.Defaulter for DataScienceCluster v2 resources.
 // It sets default values for fields in the DataScienceCluster CR, such as ModelRegistry.RegistriesNamespace.
 type Defaulter struct {
 	// Name is used for logging and webhook identification.
 	Name string
 }
 
-// just assert that Defaulter implements webhook.CustomDefaulter.
-var _ webhook.CustomDefaulter = &Defaulter{}
+// just assert that Defaulter implements admission.Defaulter.
+var _ admission.Defaulter[runtime.Object] = &Defaulter{}
 
 // SetupWithManager registers the defaulting webhook with the provided controller-runtime manager.
 //

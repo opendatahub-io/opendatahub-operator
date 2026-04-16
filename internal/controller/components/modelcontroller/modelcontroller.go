@@ -19,6 +19,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 )
 
 type componentHandler struct{}
@@ -69,14 +70,15 @@ func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *
 }
 
 // Init for set images.
-func (s *componentHandler) Init(_ common.Platform) error {
+func (s *componentHandler) Init(_ common.Platform, cfg operatorconfig.OperatorSettings) error {
+	mBasePath := cfg.ManifestsBasePath
 	// Update image parameters
-	if err := odhdeploy.ApplyParams(manifestsPath().String(), "params.env", imageParamMap); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", manifestsPath(), err)
+	if err := odhdeploy.ApplyParams(manifestsPath(mBasePath).String(), "params.env", imageParamMap); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", manifestsPath(mBasePath), err)
 	}
 
-	if err := odhdeploy.ApplyParams(wvaManifestsPath().String(), "params.env", wvaImageParamMap); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", wvaManifestsPath(), err)
+	if err := odhdeploy.ApplyParams(wvaManifestsPath(mBasePath).String(), "params.env", wvaImageParamMap); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", wvaManifestsPath(mBasePath), err)
 	}
 
 	return nil

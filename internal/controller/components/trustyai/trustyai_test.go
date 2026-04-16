@@ -393,7 +393,7 @@ func TestInitializeWithMCPGuardrailsMode(t *testing.T) {
 		err := initialize(context.Background(), rr)
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(rr.Manifests).Should(HaveLen(1))
-		g.Expect(rr.Manifests[0].SourcePath).Should(Equal(manifestsPath(cluster.OpenDataHub).SourcePath))
+		g.Expect(rr.Manifests[0].SourcePath).Should(Equal(manifestsPath("", cluster.OpenDataHub).SourcePath))
 	})
 }
 

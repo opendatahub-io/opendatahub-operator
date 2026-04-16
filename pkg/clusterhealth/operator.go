@@ -106,9 +106,9 @@ func runOperatorSection(ctx context.Context, c client.Client, op OperatorConfig)
 	return out
 }
 
-// findOperatorDeploymentInNamespace lists deployments in the namespace and returns the one to use for health.
+// FindOperatorDeploymentInNamespace lists deployments in the namespace and returns the one to use for health.
 // Prefers a deployment whose name contains "operator"; otherwise returns the first.
-func findOperatorDeploymentInNamespace(ctx context.Context, c client.Client, namespace string) (*appsv1.Deployment, error) {
+func FindOperatorDeploymentInNamespace(ctx context.Context, c client.Client, namespace string) (*appsv1.Deployment, error) {
 	list := &appsv1.DeploymentList{}
 	if err := c.List(ctx, list, client.InNamespace(namespace)); err != nil {
 		return nil, err
@@ -131,7 +131,7 @@ func findOperatorDeploymentInNamespace(ctx context.Context, c client.Client, nam
 
 func runDependentOperatorCheck(ctx context.Context, c client.Client, name, namespace string) DependentOperatorResult {
 	out := DependentOperatorResult{Name: name}
-	deploy, err := findOperatorDeploymentInNamespace(ctx, c, namespace)
+	deploy, err := FindOperatorDeploymentInNamespace(ctx, c, namespace)
 	if err != nil {
 		if k8serr.IsForbidden(err) {
 			out.Error = "list deployments: permission denied"

@@ -45,7 +45,7 @@ func TestCleanupDeprecatedKueueVAPB(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		// Call CleanupExistingResource which should trigger the Kueue VAPB cleanup
-		err = upgrade.CleanupExistingResource(ctx, cli)
+		err = upgrade.CleanupExistingResource(ctx, cli, "")
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		// Verify that the ValidatingAdmissionPolicyBinding was deleted
@@ -82,7 +82,7 @@ func TestCleanupDeprecatedKueueVAPB(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		// Call CleanupExistingResource when the VAPB doesn't exist (NotFound error)
-		err = upgrade.CleanupExistingResource(ctx, cli)
+		err = upgrade.CleanupExistingResource(ctx, cli, "")
 		g.Expect(err).ShouldNot(HaveOccurred(), "Should handle NotFound error gracefully")
 	})
 
@@ -116,7 +116,7 @@ func TestCleanupDeprecatedKueueVAPB(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		// Call CleanupExistingResource when the VAPB API v1beta1 is not available (NoMatch error)
-		err = upgrade.CleanupExistingResource(ctx, cli)
+		err = upgrade.CleanupExistingResource(ctx, cli, "")
 		g.Expect(err).ShouldNot(HaveOccurred(), "Should handle NoMatch error gracefully")
 	})
 }

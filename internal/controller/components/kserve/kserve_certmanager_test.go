@@ -8,7 +8,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
-	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 
 	. "github.com/onsi/gomega"
 )
@@ -28,9 +28,6 @@ func TestInit_InjectsCertManagerParamsFromEnv(t *testing.T) {
 	}
 
 	tmpDir := t.TempDir()
-	origPath := odhdeploy.DefaultManifestPath
-	odhdeploy.DefaultManifestPath = tmpDir
-	t.Cleanup(func() { odhdeploy.DefaultManifestPath = origPath })
 
 	// Create the xKS overlay params.env with default values.
 	xksDir := filepath.Join(tmpDir, componentName, kserveManifestSourcePathXKS)
@@ -55,7 +52,7 @@ ISTIO_CA_CERTIFICATE_PATH=/var/run/secrets/opendatahub/ca.crt
 	t.Setenv(certmanager.EnvCAIssuerName, "test-issuer")
 
 	handler := &componentHandler{}
-	err := handler.Init(cluster.XKS)
+	err := handler.Init(cluster.XKS, operatorconfig.OperatorSettings{ManifestsBasePath: tmpDir})
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// Read back and verify: overridden values updated, rest unchanged.
@@ -89,9 +86,6 @@ func TestInit_PreservesDefaultsWhenEnvVarsUnset(t *testing.T) {
 	}
 
 	tmpDir := t.TempDir()
-	origPath := odhdeploy.DefaultManifestPath
-	odhdeploy.DefaultManifestPath = tmpDir
-	t.Cleanup(func() { odhdeploy.DefaultManifestPath = origPath })
 
 	// Create the xKS overlay params.env with default values.
 	xksDir := filepath.Join(tmpDir, componentName, kserveManifestSourcePathXKS)
@@ -113,7 +107,7 @@ ISTIO_CA_CERTIFICATE_PATH=/var/run/secrets/opendatahub/ca.crt
 	g.Expect(os.WriteFile(filepath.Join(odhDir, "params.env"), []byte(""), 0o600)).Should(Succeed())
 
 	handler := &componentHandler{}
-	err := handler.Init(cluster.XKS)
+	err := handler.Init(cluster.XKS, operatorconfig.OperatorSettings{ManifestsBasePath: tmpDir})
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// No env vars set → params.env should remain unchanged.
@@ -148,9 +142,6 @@ func TestInit_NoErrorWhenXKSOverlayMissing(t *testing.T) {
 	g := NewWithT(t)
 
 	tmpDir := t.TempDir()
-	origPath := odhdeploy.DefaultManifestPath
-	odhdeploy.DefaultManifestPath = tmpDir
-	t.Cleanup(func() { odhdeploy.DefaultManifestPath = origPath })
 
 	// Create only the odh overlay — xKS overlay does not exist on disk.
 	odhDir := filepath.Join(tmpDir, componentName, kserveManifestSourcePath)
@@ -158,7 +149,7 @@ func TestInit_NoErrorWhenXKSOverlayMissing(t *testing.T) {
 	g.Expect(os.WriteFile(filepath.Join(odhDir, "params.env"), []byte(""), 0o600)).Should(Succeed())
 
 	handler := &componentHandler{}
-	err := handler.Init(cluster.XKS)
+	err := handler.Init(cluster.XKS, operatorconfig.OperatorSettings{ManifestsBasePath: tmpDir})
 	// ApplyParams safely no-ops when params.env doesn't exist.
 	g.Expect(err).ShouldNot(HaveOccurred())
 }

@@ -748,6 +748,97 @@ func TestBuildTelemetryLabels(t *testing.T) {
 	})
 }
 
+func TestValidatePersesResources(t *testing.T) {
+	g := NewWithT(t)
+
+	t.Run("should remove Perses resources when PersesDashboard CRD is not available", func(t *testing.T) {
+		cli := createFakeClientWithoutGateway()
+
+		dashboard := unstructured.Unstructured{}
+		dashboard.SetGroupVersionKind(gvk.PersesDashboardV1Alpha2)
+		dashboard.SetName("usage-dashboard")
+		dashboard.SetNamespace("monitoring")
+
+		datasource := unstructured.Unstructured{}
+		datasource.SetGroupVersionKind(gvk.PersesDatasourceV1Alpha1)
+		datasource.SetName("prom-datasource")
+		datasource.SetNamespace("monitoring")
+
+		configMap := unstructured.Unstructured{}
+		configMap.SetGroupVersionKind(gvk.ConfigMap)
+		configMap.SetName("other-config")
+		configMap.SetNamespace("default")
+
+		rr := &types.ReconciliationRequest{
+			Client:    cli,
+			Resources: []unstructured.Unstructured{dashboard, datasource, configMap},
+		}
+
+		err := validatePersesResources(t.Context(), rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(rr.Resources).Should(HaveLen(1))
+		g.Expect(rr.Resources[0].GetName()).Should(Equal("other-config"))
+	})
+}
+
+func TestConfigurePersesResources(t *testing.T) {
+	g := NewWithT(t)
+
+	t.Run("should set ModelsAsService as controller owner on Perses resources", func(t *testing.T) {
+		cli, err := fakeclient.New()
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		maas := &componentApi.ModelsAsService{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "components.platform.opendatahub.io/v1alpha1",
+				Kind:       "ModelsAsService",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.ModelsAsServiceInstanceName,
+				UID:  "maas-uid",
+			},
+		}
+
+		dashboard := unstructured.Unstructured{}
+		dashboard.SetGroupVersionKind(gvk.PersesDashboardV1Alpha2)
+		dashboard.SetName("usage-dashboard")
+		dashboard.SetNamespace("monitoring")
+
+		datasource := unstructured.Unstructured{}
+		datasource.SetGroupVersionKind(gvk.PersesDatasourceV1Alpha2)
+		datasource.SetName("prom-datasource")
+		datasource.SetNamespace("monitoring")
+
+		configMap := unstructured.Unstructured{}
+		configMap.SetGroupVersionKind(gvk.ConfigMap)
+		configMap.SetName("other-config")
+		configMap.SetNamespace("default")
+
+		rr := &types.ReconciliationRequest{
+			Instance:  maas,
+			Client:    cli,
+			Resources: []unstructured.Unstructured{dashboard, datasource, configMap},
+		}
+
+		err = configurePersesResources(t.Context(), rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		refs := rr.Resources[0].GetOwnerReferences()
+		g.Expect(refs).Should(HaveLen(1))
+		g.Expect(refs[0].Kind).Should(Equal("ModelsAsService"))
+		g.Expect(refs[0].Name).Should(Equal(componentApi.ModelsAsServiceInstanceName))
+		g.Expect(string(refs[0].UID)).Should(Equal("maas-uid"))
+		g.Expect(refs[0].Controller).ShouldNot(BeNil())
+		g.Expect(*refs[0].Controller).Should(BeTrue())
+
+		refsDS := rr.Resources[1].GetOwnerReferences()
+		g.Expect(refsDS).Should(HaveLen(1))
+		g.Expect(refsDS[0].Kind).Should(Equal("ModelsAsService"))
+
+		g.Expect(rr.Resources[2].GetOwnerReferences()).Should(BeEmpty())
+	})
+}
+
 //nolint:dupl,maintidx // Similar test structure to TestConfigureIstioTelemetry is intentional for test clarity
 func TestConfigureTelemetryPolicy(t *testing.T) {
 	g := NewWithT(t)
@@ -1284,6 +1375,183 @@ func createDeployment() unstructured.Unstructured {
 		panic(fmt.Sprintf("failed to convert Deployment to unstructured: %v", err))
 	}
 	return unstructured.Unstructured{Object: u}
+}
+
+func TestConfigureExternalOIDC(t *testing.T) {
+	g := NewWithT(t)
+
+	t.Run("should patch AuthPolicy with OIDC rules when externalOIDC is set", func(t *testing.T) {
+		maas := &componentApi.ModelsAsService{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.ModelsAsServiceInstanceName,
+			},
+			Spec: componentApi.ModelsAsServiceSpec{
+				ExternalOIDC: &componentApi.ExternalOIDCConfig{
+					IssuerURL: "https://keycloak.example.com/realms/maas",
+					ClientID:  "maas-cli",
+					TTL:       300,
+				},
+			},
+		}
+
+		authPolicy := createAuthPolicy(MaaSAPIAuthPolicyName, "opendatahub", "maas-api-route")
+
+		rr := &types.ReconciliationRequest{
+			Instance:  maas,
+			Resources: []unstructured.Unstructured{authPolicy},
+		}
+
+		err := configureExternalOIDC(t.Context(), rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// oidc-identities authentication should be added
+		issuer, found, err := unstructured.NestedString(rr.Resources[0].Object,
+			"spec", "rules", "authentication", "oidc-identities", "jwt", "issuerUrl")
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(found).Should(BeTrue())
+		g.Expect(issuer).Should(Equal("https://keycloak.example.com/realms/maas"))
+
+		// openshift-identities priority should be bumped to 2
+		priority, found, err := unstructured.NestedFieldNoCopy(rr.Resources[0].Object,
+			"spec", "rules", "authentication", "openshift-identities", "priority")
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(found).Should(BeTrue())
+		g.Expect(priority).Should(Equal(int64(2)))
+
+		// oidc-client-bound authorization should be added
+		patterns, found, err := unstructured.NestedSlice(rr.Resources[0].Object,
+			"spec", "rules", "authorization", "oidc-client-bound", "patternMatching", "patterns")
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(found).Should(BeTrue())
+		g.Expect(patterns).Should(HaveLen(1))
+		pattern, ok := patterns[0].(map[string]interface{})
+		g.Expect(ok).Should(BeTrue())
+		g.Expect(pattern["selector"]).Should(Equal("auth.identity.azp"))
+		g.Expect(pattern["operator"]).Should(Equal("eq"))
+		g.Expect(pattern["value"]).Should(Equal("maas-cli"))
+	})
+
+	t.Run("should not modify AuthPolicy when externalOIDC is nil", func(t *testing.T) {
+		maas := &componentApi.ModelsAsService{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.ModelsAsServiceInstanceName,
+			},
+			Spec: componentApi.ModelsAsServiceSpec{},
+		}
+
+		authPolicy := createAuthPolicy(MaaSAPIAuthPolicyName, "opendatahub", "maas-api-route")
+
+		rr := &types.ReconciliationRequest{
+			Instance:  maas,
+			Resources: []unstructured.Unstructured{authPolicy},
+		}
+
+		err := configureExternalOIDC(t.Context(), rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// No OIDC rules should be present
+		_, found, _ := unstructured.NestedMap(rr.Resources[0].Object,
+			"spec", "rules", "authentication", "oidc-identities")
+		g.Expect(found).Should(BeFalse())
+	})
+
+	t.Run("should succeed silently when maas-api AuthPolicy is not found", func(t *testing.T) {
+		maas := &componentApi.ModelsAsService{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.ModelsAsServiceInstanceName,
+			},
+			Spec: componentApi.ModelsAsServiceSpec{
+				ExternalOIDC: &componentApi.ExternalOIDCConfig{
+					IssuerURL: "https://keycloak.example.com/realms/maas",
+					ClientID:  "maas-cli",
+				},
+			},
+		}
+
+		// Different AuthPolicy name -- maas-api-auth-policy not present
+		otherPolicy := createAuthPolicy("other-policy", "opendatahub", "some-route")
+
+		rr := &types.ReconciliationRequest{
+			Instance:  maas,
+			Resources: []unstructured.Unstructured{otherPolicy},
+		}
+
+		err := configureExternalOIDC(t.Context(), rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// other-policy should not be modified
+		_, found, _ := unstructured.NestedMap(rr.Resources[0].Object,
+			"spec", "rules", "authentication", "oidc-identities")
+		g.Expect(found).Should(BeFalse())
+	})
+
+	t.Run("should only modify maas-api AuthPolicy when multiple resources present", func(t *testing.T) {
+		maas := &componentApi.ModelsAsService{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.ModelsAsServiceInstanceName,
+			},
+			Spec: componentApi.ModelsAsServiceSpec{
+				ExternalOIDC: &componentApi.ExternalOIDCConfig{
+					IssuerURL: "https://idp.example.com/realms/test",
+					ClientID:  "test-client",
+				},
+			},
+		}
+
+		gatewayPolicy := createAuthPolicy(GatewayAuthPolicyName, "openshift-ingress", "gateway")
+		maasAPIPolicy := createAuthPolicy(MaaSAPIAuthPolicyName, "opendatahub", "maas-api-route")
+
+		rr := &types.ReconciliationRequest{
+			Instance:  maas,
+			Resources: []unstructured.Unstructured{gatewayPolicy, maasAPIPolicy},
+		}
+
+		err := configureExternalOIDC(t.Context(), rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// gateway-auth-policy should NOT have OIDC rules
+		_, found, _ := unstructured.NestedMap(rr.Resources[0].Object,
+			"spec", "rules", "authentication", "oidc-identities")
+		g.Expect(found).Should(BeFalse())
+
+		// maas-api-auth-policy SHOULD have OIDC rules
+		issuer, found, err := unstructured.NestedString(rr.Resources[1].Object,
+			"spec", "rules", "authentication", "oidc-identities", "jwt", "issuerUrl")
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(found).Should(BeTrue())
+		g.Expect(issuer).Should(Equal("https://idp.example.com/realms/test"))
+	})
+
+	t.Run("should use default TTL when not specified", func(t *testing.T) {
+		maas := &componentApi.ModelsAsService{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.ModelsAsServiceInstanceName,
+			},
+			Spec: componentApi.ModelsAsServiceSpec{
+				ExternalOIDC: &componentApi.ExternalOIDCConfig{
+					IssuerURL: "https://keycloak.example.com/realms/maas",
+					ClientID:  "maas-cli",
+					TTL:       0,
+				},
+			},
+		}
+
+		authPolicy := createAuthPolicy(MaaSAPIAuthPolicyName, "opendatahub", "maas-api-route")
+
+		rr := &types.ReconciliationRequest{
+			Instance:  maas,
+			Resources: []unstructured.Unstructured{authPolicy},
+		}
+
+		err := configureExternalOIDC(t.Context(), rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		ttl, found, err := unstructured.NestedFieldNoCopy(rr.Resources[0].Object,
+			"spec", "rules", "authentication", "oidc-identities", "jwt", "ttl")
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(found).Should(BeTrue())
+		g.Expect(ttl).Should(Equal(int64(300)))
+	})
 }
 
 //nolint:dupl // Similar test structure to TestConfigureTelemetryPolicy is intentional for test clarity

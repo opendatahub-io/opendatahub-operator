@@ -27,6 +27,8 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -73,7 +75,15 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithEventHandler(
 				handlers.ToNamed(componentApi.ModelsAsServiceInstanceName)),
 			reconciler.WithPredicates(
-				component.ForLabel(labels.ODH.Component(ComponentName), labels.True)),
+				predicate.Or(
+					component.ForLabel(labels.ODH.Component(ComponentName), labels.True),
+					// Watch PersesDashboard CRD to trigger reconciliation when COO is installed
+					// This enables automatic deployment of observability dashboards when COO is installed
+					predicate.NewPredicateFuncs(func(obj client.Object) bool {
+						return obj.GetName() == "persesdashboards.perses.dev"
+					}),
+				),
+			),
 		).
 		// Note: The component manifests define a configmap with the annotation
 		// opendatahub.io/managed: "false". Adding this watch allows the controller to
@@ -115,8 +125,11 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		)).
 		// WithAction(releases.NewAction()). // TODO: Do we need this? How to fix annotation of "platform.opendatahub.io/version:0.0.0"
 		WithAction(configureGatewayNamespaceResources).
+		WithAction(configureExternalOIDC).
 		WithAction(configureTelemetryPolicy).
 		WithAction(configureIstioTelemetry).
+		WithAction(validatePersesResources).
+		WithAction(configurePersesResources).
 		WithAction(configureConfigHashAnnotation).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),

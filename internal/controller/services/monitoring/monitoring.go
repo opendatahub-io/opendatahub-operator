@@ -16,20 +16,19 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
-	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 const (
 	ServiceName = serviceApi.MonitoringServiceName
 )
 
-var (
-	prometheusConfigPath = filepath.Join(odhdeploy.DefaultManifestPath, ServiceName, "prometheus", "apps", "prometheus-configs.yaml")
-)
+func prometheusConfigPath(basePath string) string {
+	return filepath.Join(basePath, ServiceName, "prometheus", "apps", "prometheus-configs.yaml")
+}
 
 // updatePrometheusConfig update prometheus-configs.yaml to include/exclude <component>.rules
 // parameter enable when set to true to add new rules, when set to false to remove existing rules.
-func updatePrometheusConfig(ctx context.Context, enable bool, component string) error {
+func updatePrometheusConfig(ctx context.Context, basePath string, enable bool, component string) error {
 	l := logf.FromContext(ctx)
 
 	// create a struct to mock poremtheus.yml
@@ -79,7 +78,7 @@ func updatePrometheusConfig(ctx context.Context, enable bool, component string) 
 	var prometheusContent map[any]any
 
 	// read prometheus.yml from local disk /opt/mainfests/monitoring/prometheus/apps/
-	yamlData, err := os.ReadFile(prometheusConfigPath)
+	yamlData, err := os.ReadFile(prometheusConfigPath(basePath))
 	if err != nil {
 		return err
 	}
@@ -132,7 +131,7 @@ func updatePrometheusConfig(ctx context.Context, enable bool, component string) 
 	}
 
 	// Write the modified content back to the file
-	err = os.WriteFile(prometheusConfigPath, newyamlData, 0)
+	err = os.WriteFile(prometheusConfigPath(basePath), newyamlData, 0)
 
 	return err
 }

@@ -12,8 +12,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
-// OperatorConfig defines the operator manager configuration loaded from environment
-// variables and flags via Viper.
+// Config holds common configuration shared by all binaries (main operator and cloudmanager).
 type Config struct {
 	MetricsAddr         string `mapstructure:"metrics-bind-address"`
 	HealthProbeAddr     string `mapstructure:"health-probe-bind-address"`
@@ -35,9 +34,27 @@ type Config struct {
 	ZapOptions *zap.Options `mapstructure:"-"`
 }
 
+// OperatorSettings holds operator-specific settings for the main binary.
+type OperatorSettings struct {
+	OperatorNamespace string `mapstructure:"operator-namespace"`
+	DisableDSCConfig  string `mapstructure:"disable-dsc-config"`
+	ManifestsBasePath string `mapstructure:"default-manifests-path"`
+	PlatformType      string `mapstructure:"platform-type"`
+}
+
+// IsDSCICreationDisabled returns true if automatic DSCI creation is disabled.
+func (s OperatorSettings) IsDSCICreationDisabled() bool {
+	return s.DisableDSCConfig != "" && s.DisableDSCConfig != "false"
+}
+
+// OperatorConfig holds the full configuration for the main operator binary.
+type OperatorConfig struct {
+	Config           `mapstructure:",squash"`
+	OperatorSettings `mapstructure:",squash"`
+}
+
 // LoadConfig loads complete operator configuration including flags parsing and rest.Config loading.
-// This is the main entry point for configuration initialization when using pflag directly (not cobra).
-func LoadConfig() (*Config, error) {
+func LoadConfig() (*OperatorConfig, error) {
 	// Define flags and env vars
 	if err := flags.AddOperatorFlagsAndEnvvars(viper.GetEnvPrefix()); err != nil {
 		return nil, fmt.Errorf("error adding flags or binding env vars: %w", err)
@@ -49,16 +66,16 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("error binding flags: %w", err)
 	}
 
-	var cfg Config
-	if err := viper.Unmarshal(&cfg); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal operator manager config: %w", err)
+	var oc OperatorConfig
+	if err := viper.Unmarshal(&oc); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal operator config: %w", err)
 	}
 
-	if err := setupConfig(&cfg); err != nil {
+	if err := setupConfig(&oc.Config); err != nil {
 		return nil, err
 	}
 
-	return &cfg, nil
+	return &oc, nil
 }
 
 // setupConfig loads the Kubernetes rest.Config and configures zap logger options

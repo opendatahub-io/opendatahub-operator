@@ -34,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -95,7 +96,7 @@ func validateGatewayExists(ctx context.Context, rr *types.ReconciliationRequest,
 // initialize sets up the manifests for the ModelsAsService component.
 func initialize(_ context.Context, rr *types.ReconciliationRequest) error { //nolint:unparam
 	rr.Manifests = []types.ManifestInfo{
-		baseManifestInfo(BaseManifestsSourcePath),
+		baseManifestInfo(rr.ManifestsBasePath, BaseManifestsSourcePath),
 	}
 
 	return nil
@@ -230,6 +231,122 @@ func configureDestinationRule(log logr.Logger, resource *unstructured.Unstructur
 	resource.SetNamespace(gatewayNamespace)
 }
 
+// configureExternalOIDC is a post-render action that patches the maas-api AuthPolicy
+// to add external OIDC JWT authentication when spec.externalOIDC is configured.
+// When externalOIDC is nil, the AuthPolicy is left unchanged (base: API keys + OpenShift).
+func configureExternalOIDC(ctx context.Context, rr *types.ReconciliationRequest) error {
+	log := logf.FromContext(ctx)
+
+	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
+	}
+
+	if maas.Spec.ExternalOIDC == nil {
+		return nil
+	}
+
+	oidc := maas.Spec.ExternalOIDC
+	log.V(4).Info("Configuring external OIDC on maas-api AuthPolicy",
+		"issuerUrl", oidc.IssuerURL, "clientId", oidc.ClientID)
+
+	for idx := range rr.Resources {
+		resource := &rr.Resources[idx]
+		if resource.GroupVersionKind() == gvk.AuthPolicyv1 && resource.GetName() == MaaSAPIAuthPolicyName {
+			return patchAuthPolicyWithOIDC(log, resource, oidc)
+		}
+	}
+
+	log.V(1).Info("maas-api AuthPolicy not found in rendered resources, skipping OIDC configuration",
+		"expectedName", MaaSAPIAuthPolicyName)
+	return nil
+}
+
+// patchAuthPolicyWithOIDC adds OIDC authentication, authorization, and response
+// header rules to the maas-api AuthPolicy.
+func patchAuthPolicyWithOIDC(log logr.Logger, resource *unstructured.Unstructured, oidc *componentApi.ExternalOIDCConfig) error {
+	ttl := int64(oidc.TTL)
+	if ttl == 0 {
+		ttl = 300
+	}
+
+	// Add oidc-identities authentication (priority 1, JWT validation)
+	if err := unstructured.SetNestedField(resource.Object, map[string]interface{}{
+		"when": []interface{}{
+			map[string]interface{}{
+				"predicate": `!request.headers.authorization.startsWith("Bearer sk-oai-") && request.headers.authorization.matches("^Bearer [^.]+\\.[^.]+\\.[^.]+$")`,
+			},
+		},
+		"jwt": map[string]interface{}{
+			"issuerUrl": oidc.IssuerURL,
+			"ttl":       ttl,
+		},
+		"priority": int64(1),
+	}, "spec", "rules", "authentication", "oidc-identities"); err != nil {
+		return fmt.Errorf("failed to set oidc-identities: %w", err)
+	}
+
+	// Bump openshift-identities priority to 2 (OIDC takes priority 1)
+	if err := unstructured.SetNestedField(resource.Object, int64(2),
+		"spec", "rules", "authentication", "openshift-identities", "priority"); err != nil {
+		return fmt.Errorf("failed to set openshift-identities priority: %w", err)
+	}
+
+	// Add when clause to openshift-identities to skip for API key tokens
+	if err := unstructured.SetNestedField(resource.Object, []interface{}{
+		map[string]interface{}{
+			"predicate": `!request.headers.authorization.startsWith("Bearer sk-oai-")`,
+		},
+	}, "spec", "rules", "authentication", "openshift-identities", "when"); err != nil {
+		return fmt.Errorf("failed to set openshift-identities when: %w", err)
+	}
+
+	// Add oidc-client-bound authorization (azp claim must match clientId)
+	if err := unstructured.SetNestedField(resource.Object, map[string]interface{}{
+		"when": []interface{}{
+			map[string]interface{}{
+				"predicate": `!request.headers.authorization.startsWith("Bearer sk-oai-") && request.headers.authorization.matches("^Bearer [^.]+\\.[^.]+\\.[^.]+$")`,
+			},
+		},
+		"patternMatching": map[string]interface{}{
+			"patterns": []interface{}{
+				map[string]interface{}{
+					"selector": "auth.identity.azp",
+					"operator": "eq",
+					"value":    oidc.ClientID,
+				},
+			},
+		},
+		"priority": int64(1),
+	}, "spec", "rules", "authorization", "oidc-client-bound"); err != nil {
+		return fmt.Errorf("failed to set oidc-client-bound: %w", err)
+	}
+
+	// Update X-MaaS-Username-OC to handle both OIDC and OpenShift claims
+	if err := unstructured.SetNestedField(resource.Object, map[string]interface{}{
+		"expression": `has(auth.identity.preferred_username) ? auth.identity.preferred_username : (has(auth.identity.sub) ? auth.identity.sub : auth.identity.user.username)`,
+	}, "spec", "rules", "response", "success", "headers", "X-MaaS-Username-OC", "plain"); err != nil {
+		return fmt.Errorf("failed to set X-MaaS-Username-OC: %w", err)
+	}
+
+	// Update X-MaaS-Group-OC to handle both OIDC and OpenShift group claims.
+	// OIDC tokens carry groups in a flat claim; OpenShift identity uses user.groups.
+	groupsExpr := `has(auth.identity.groups) ? ` +
+		`(size(auth.identity.groups) > 0 ? ` +
+		`'["system:authenticated","' + auth.identity.groups.join('","') + '"]' : ` +
+		`'["system:authenticated"]') : ` +
+		`'["' + auth.identity.user.groups.join('","') + '"]'`
+	if err := unstructured.SetNestedField(resource.Object, map[string]interface{}{
+		"expression": groupsExpr,
+	}, "spec", "rules", "response", "success", "headers", "X-MaaS-Group-OC", "plain"); err != nil {
+		return fmt.Errorf("failed to set X-MaaS-Group-OC: %w", err)
+	}
+
+	log.Info("Patched maas-api AuthPolicy with external OIDC configuration",
+		"issuerUrl", oidc.IssuerURL, "clientId", oidc.ClientID)
+	return nil
+}
+
 // configureTelemetryPolicy is a post-render action that creates a TelemetryPolicy
 // resource based on the ModelsAsService telemetry configuration.
 //
@@ -259,6 +376,72 @@ func configureTelemetryPolicy(ctx context.Context, rr *types.ReconciliationReque
 	}
 
 	return configureTelemetryPolicyCore(ctx, rr)
+}
+
+// validatePersesResources ensures PersesDashboard and PersesDatasource objects from rendered
+// manifests are only applied when the PersesDashboard CRD is installed.
+//
+// When the CRD is missing, those resources are removed from rr so the subsequent deploy action
+// does not fail with an unsupported API. When the CRD exists, Perses resources remain in
+// rr.Resources and are applied by deploy.NewAction like other manifests.
+func validatePersesResources(ctx context.Context, rr *types.ReconciliationRequest) error {
+	log := logf.FromContext(ctx)
+
+	// Check if PersesDashboard CRD exists in either v1alpha1 or v1alpha2 (COO installed)
+	if crdAvailable, err := cluster.HasCRD(ctx, rr.Client, gvk.PersesDashboardV1Alpha1); err != nil {
+		return fmt.Errorf("failed to check PersesDashboardV1Alpha1 CRD availability: %w", err)
+	} else if crdAvailable {
+		return nil
+	}
+
+	if crdAvailable, err := cluster.HasCRD(ctx, rr.Client, gvk.PersesDashboardV1Alpha2); err != nil {
+		return fmt.Errorf("failed to check PersesDashboardV1Alpha2 CRD availability: %w", err)
+	} else if crdAvailable {
+		return nil
+	}
+
+	log.V(2).Info("PersesDashboard CRD not available, skipping Perses resources")
+	skipPersesResources(rr)
+
+	return nil
+}
+
+// skipPersesResources drops perses.dev resources from the reconciliation request when the
+// Perses API is not available (any API version).
+func skipPersesResources(rr *types.ReconciliationRequest) {
+	persesGroup := gvk.PersesDashboard.Group
+	out := rr.Resources[:0]
+	for i := range rr.Resources {
+		gvkObj := rr.Resources[i].GroupVersionKind()
+		if gvkObj.Group != persesGroup {
+			out = append(out, rr.Resources[i])
+		}
+	}
+	rr.Resources = out
+}
+
+// configurePersesResources sets the ModelsAsService instance as controller owner of PersesDashboard
+// and PersesDatasource resources still present in rr (after validatePersesDashboards). This ensures
+// they are garbage-collected with MaaS and recognized as managed children when the deploy action runs.
+func configurePersesResources(_ context.Context, rr *types.ReconciliationRequest) error {
+	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.ModelsAsService", rr.Instance)
+	}
+
+	persesGroup := gvk.PersesDashboard.Group
+	for i := range rr.Resources {
+		res := &rr.Resources[i]
+		objGVK := res.GroupVersionKind()
+		if objGVK.Group == persesGroup {
+			if err := ctrl.SetControllerReference(maas, res, rr.Client.Scheme()); err != nil {
+				return fmt.Errorf("failed to set controller reference on %s %s/%s: %w",
+					objGVK.Kind, res.GetNamespace(), res.GetName(), err)
+			}
+		}
+	}
+
+	return nil
 }
 
 // configureTelemetryPolicyCore contains the core business logic for creating TelemetryPolicy resources.
