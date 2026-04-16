@@ -40,6 +40,8 @@ func main() {
 	s := server.NewMCPServer("opendatahub-health", "0.1.0")
 
 	registerPlatformHealth(s, kubeClient)
+	registerOperatorDependencies(s, kubeClient)
+	registerDescribeResource(s, kubeClient)
 	registerRecentEvents(s, kubeClient)
 	registerClassifyFailure(s, kubeClient)
 	registerComponentStatus(s, kubeClient)

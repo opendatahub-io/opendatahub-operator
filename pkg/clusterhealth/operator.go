@@ -25,6 +25,11 @@ var dependentOperatorNamespaces = []struct{ name, namespace string }{
 	{"kuadrant", "kuadrant-system"},
 }
 
+// DependentOperatorCount returns the number of dependent operators checked by the health report.
+func DependentOperatorCount() int {
+	return len(dependentOperatorNamespaces)
+}
+
 func runOperatorSection(ctx context.Context, c client.Client, op OperatorConfig) SectionResult[OperatorSection] {
 	var out SectionResult[OperatorSection]
 	var errs []string
@@ -141,6 +146,9 @@ func runDependentOperatorCheck(ctx context.Context, c client.Client, name, names
 		return out
 	}
 	out.Installed = true
+	if containers := deploy.Spec.Template.Spec.Containers; len(containers) > 0 {
+		out.ImageRef = imageVersion(containers[0].Image)
+	}
 	depInfo := deploymentToInfo(deploy)
 	out.Deployment = &depInfo
 	// we don't expect this to ever be empty for an operator but check it just in case
@@ -166,4 +174,18 @@ func runDependentOperatorCheck(ctx context.Context, c client.Client, name, names
 		}
 	}
 	return out
+}
+
+// imageVersion extracts the version tag from a container image reference.
+// Falls back to the digest if no tag is present.
+func imageVersion(image string) string {
+	digest := ""
+	if idx := strings.LastIndex(image, "@"); idx != -1 {
+		digest = image[idx+1:]
+		image = image[:idx]
+	}
+	if idx := strings.LastIndex(image, ":"); idx != -1 {
+		return image[idx+1:]
+	}
+	return digest
 }

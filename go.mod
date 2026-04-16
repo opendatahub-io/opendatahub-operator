@@ -15,7 +15,7 @@ require (
 	github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth v0.0.0
 	github.com/opendatahub-io/opendatahub-operator/v2/pkg/failureclassifier v0.0.0-00010101000000-000000000000
 	github.com/openshift/api v0.0.0-20230823114715-5fdd7511b790
-	github.com/operator-framework/api v0.31.0
+	github.com/operator-framework/api v0.42.0
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.68.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/rs/xid v1.6.0
@@ -27,10 +27,10 @@ require (
 	golang.org/x/mod v0.32.0
 	gomodules.xyz/jsonpatch/v2 v2.5.0
 	gopkg.in/yaml.v3 v3.0.1
-	k8s.io/api v0.35.2
-	k8s.io/apiextensions-apiserver v0.35.2
-	k8s.io/apimachinery v0.35.2
-	k8s.io/client-go v0.35.2
+	k8s.io/api v0.35.3
+	k8s.io/apiextensions-apiserver v0.35.3
+	k8s.io/apimachinery v0.35.3
+	k8s.io/client-go v0.35.3
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/utils v0.0.0-20260210185600-b8788abfbbc2
 	sigs.k8s.io/controller-runtime v0.23.3
@@ -103,7 +103,7 @@ require (
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
-	github.com/sirupsen/logrus v1.9.3 // indirect
+	github.com/sirupsen/logrus v1.9.4 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.12.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect

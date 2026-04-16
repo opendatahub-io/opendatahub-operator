@@ -126,12 +126,14 @@ func WithOperatorCert(namespace string) BootstrapConfigOpt {
 // By default, Operator is nil and no webhook Certificate is created.
 // Use [WithOperatorCert] to enable the operator webhook certificate.
 func DefaultBootstrapConfig(opts ...BootstrapConfigOpt) BootstrapConfig {
+	prefix := "opendatahub"
+
 	config := BootstrapConfig{
 		// Not overridable: internal bootstrap detail, not referenced by downstream components.
-		IssuerName:           "opendatahub-selfsigned-issuer",
-		CertName:             env.GetOrDefault(EnvCertName, "opendatahub-ca"),
+		IssuerName:           prefix + "-selfsigned-issuer",
+		CertName:             env.GetOrDefault(EnvCertName, prefix+"-ca"),
 		CertManagerNamespace: env.GetOrDefault(EnvCertManagerNS, "cert-manager"),
-		CAIssuerName:         env.GetOrDefault(EnvCAIssuerName, "opendatahub-ca-issuer"),
+		CAIssuerName:         env.GetOrDefault(EnvCAIssuerName, prefix+"-ca-issuer"),
 	}
 	for _, opt := range opts {
 		opt(&config)
@@ -142,11 +144,13 @@ func DefaultBootstrapConfig(opts ...BootstrapConfigOpt) BootstrapConfig {
 // BootstrapOperatorCertConfig returns the default operator webhook certificate configuration,
 // reading overrides from environment variables.
 func BootstrapOperatorCertConfig(namespace string) *OperatorCertConfig {
+	prefix := "opendatahub"
+
 	return &OperatorCertConfig{
 		Namespace:             namespace,
-		WebhookCertName:       env.GetOrDefault(EnvOperatorWebhookCertName, "opendatahub-operator-webhook-cert"),
-		WebhookCertSecretName: env.GetOrDefault(EnvOperatorWebhookCertSecretName, "opendatahub-operator-controller-webhook-cert"),
-		WebhookServiceName:    env.GetOrDefault(EnvOperatorWebhookServiceName, "opendatahub-operator-webhook-service"),
+		WebhookCertName:       env.GetOrDefault(EnvOperatorWebhookCertName, prefix+"-operator-webhook-cert"),
+		WebhookCertSecretName: env.GetOrDefault(EnvOperatorWebhookCertSecretName, prefix+"-operator-controller-webhook-cert"),
+		WebhookServiceName:    env.GetOrDefault(EnvOperatorWebhookServiceName, prefix+"-operator-webhook-service"),
 	}
 }
 
