@@ -17,7 +17,7 @@ on:
         type: string
         description: OpenShift version compatibility (e.g., "v4.19" or "v4.19-v4.20").
         required: false
-        default: "v4.19-v4.20"
+        default: "v4.19-v4.21"
 
 env:
   VERSION: ${{ github.event.inputs.version }}
@@ -33,8 +33,7 @@ jobs:
   create-community-release:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
     steps:
     - name: Checkout opendatahub-operator release branch
       uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
@@ -162,6 +161,7 @@ jobs:
       id: create-pr
       env:
         GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
+        COMMUNITY_PR_TOKEN: ${{ secrets.COMMUNITY_PR_TOKEN }}
         VERSION: ${{ env.VERSION }}
         COMMUNITY_FORK: ${{ env.COMMUNITY_FORK }}
         COMMUNITY_UPSTREAM: ${{ env.COMMUNITY_UPSTREAM }}
