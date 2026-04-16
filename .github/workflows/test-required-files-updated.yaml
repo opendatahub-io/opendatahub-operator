@@ -20,6 +20,8 @@ jobs:
           name: pr_number
           path: ./pr_number.txt
           retention-days: 1 # This will delete the generated artifacts every day.
+      - name: Clean generated manifests
+        run: make clean-manifests
       - name: Generate files
         run: make generate manifests-all api-docs
       - name: Ensure generated files are up-to-date
