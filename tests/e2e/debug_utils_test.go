@@ -529,19 +529,25 @@ func getDSCI(ctx context.Context) *unstructured.Unstructured {
 }
 
 func getControllerDeploymentName(ctx context.Context) string {
-	defaultControllerDeploymentName := controllerDeploymentODH
+	// First try to detect platform from the DSCI status.
 	dsci := getDSCI(ctx)
-	if dsci == nil {
-		return defaultControllerDeploymentName
+	if dsci != nil {
+		platform, ok, err := unstructured.NestedString(dsci.Object, "status", "release", "name")
+		if err == nil && ok {
+			return getControllerDeploymentNameByPlatform(common.Platform(platform))
+		}
+		log.Printf("Failed to get platform from DSCI (err=%v, ok=%v), falling back to deployment probe", err, ok)
 	}
-	platform, ok, err := unstructured.NestedString(dsci.Object, "status", "release", "name")
-	if err != nil {
-		log.Printf("Failed to get platform from DSCI: %v", err)
-		return defaultControllerDeploymentName
+
+	// Fall back to discovering the operator deployment in the namespace.
+	// This is needed during preflight health checks when the DSCI may not exist yet.
+	if globalDebugClient != nil {
+		deploy, err := clusterhealth.FindOperatorDeploymentInNamespace(ctx, globalDebugClient, testOpts.operatorNamespace)
+		if err == nil && deploy != nil {
+			return deploy.Name
+		}
+		log.Printf("Failed to discover operator deployment in namespace %s: %v", testOpts.operatorNamespace, err)
 	}
-	if !ok {
-		log.Printf("Failed to get platform from DSCI: platform not found")
-		return defaultControllerDeploymentName
-	}
-	return getControllerDeploymentNameByPlatform(common.Platform(platform))
+
+	return controllerDeploymentODH
 }

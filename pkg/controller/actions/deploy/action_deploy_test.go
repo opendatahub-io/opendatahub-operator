@@ -396,15 +396,10 @@ func TestDeployDeOwn(t *testing.T) {
 	))
 }
 
-func setupManagedAnnotationTest(t *testing.T, managed string, replicas *int32, containers []corev1.Container) (client.Client, types.ReconciliationRequest, string) {
+func setupManagedAnnotationTest(t *testing.T, cl client.Client, managed string, replicas *int32, containers []corev1.Container) (types.ReconciliationRequest, string) {
 	t.Helper()
 	g := NewWithT(t)
 
-	et, err := envt.New()
-	g.Expect(err).NotTo(HaveOccurred())
-	t.Cleanup(func() { _ = et.Stop() })
-
-	cl := et.Client()
 	ns := xid.New().String()
 	g.Expect(cl.Create(t.Context(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})).To(Succeed())
 
@@ -434,10 +429,18 @@ func setupManagedAnnotationTest(t *testing.T, managed string, replicas *int32, c
 		},
 	})).To(Succeed())
 
-	return cl, rr, ns
+	return rr, ns
 }
 
 func TestDeployWithManagedAnnotation(t *testing.T) {
+	g := NewWithT(t)
+
+	et, err := envt.New()
+	g.Expect(err).NotTo(HaveOccurred())
+	t.Cleanup(func() { _ = et.Stop() })
+
+	cl := et.Client()
+
 	tests := []struct {
 		name        string
 		mode        deploy.Mode
@@ -458,7 +461,7 @@ func TestDeployWithManagedAnnotation(t *testing.T) {
 			ctx := t.Context()
 
 			replicas := int32(2)
-			cl, rr, ns := setupManagedAnnotationTest(t, tt.managed, &replicas,
+			rr, ns := setupManagedAnnotationTest(t, cl, tt.managed, &replicas,
 				[]corev1.Container{{Name: "test", Image: "test:v1"}})
 
 			action := deploy.NewAction(deploy.WithMode(tt.mode))
@@ -482,7 +485,7 @@ func TestDeployWithManagedAnnotation(t *testing.T) {
 		ctx := t.Context()
 
 		replicas := int32(1)
-		cl, rr, ns := setupManagedAnnotationTest(t, "true", &replicas,
+		rr, ns := setupManagedAnnotationTest(t, cl, "true", &replicas,
 			[]corev1.Container{{
 				Name:  "test",
 				Image: "test:v1",

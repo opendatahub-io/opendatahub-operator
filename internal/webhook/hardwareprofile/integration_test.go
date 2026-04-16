@@ -604,19 +604,18 @@ func TestHardwareProfileWebhook_Notebook(t *testing.T) {
 		},
 	}
 
+	ctx, env := envtestutil.SetupSharedEnvForSubtests(
+		t,
+		[]envt.RegisterWebhooksFn{envtestutil.RegisterWebhooks},
+		[]envt.RegisterControllersFn{},
+		envtestutil.DefaultWebhookTimeout,
+		envtestutil.WithNotebook(),
+	)
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			g := NewWithT(t)
-
-			ctx, env, teardown := envtestutil.SetupEnvAndClientWithCRDs(
-				t,
-				[]envt.RegisterWebhooksFn{envtestutil.RegisterWebhooks},
-				[]envt.RegisterControllersFn{},
-				envtestutil.DefaultWebhookTimeout,
-				envtestutil.WithNotebook(),
-			)
-			defer teardown()
 
 			// Create test namespace
 			ns := fmt.Sprintf("test-ns-%s", xid.New().String())
@@ -624,9 +623,6 @@ func TestHardwareProfileWebhook_Notebook(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: ns},
 			}
 			g.Expect(env.Client().Create(ctx, testNamespace)).To(Succeed())
-
-			// Add HardwareProfile types to scheme for client operations
-			g.Expect(infrav1.AddToScheme(env.Scheme())).To(Succeed())
 
 			// Run the specific test case
 			tc.test(g, ctx, env.Client(), ns)
@@ -697,19 +693,18 @@ func TestHardwareProfileWebhook_LlmInferenceService(t *testing.T) {
 			},
 		},
 	}
+	ctx, env := envtestutil.SetupSharedEnvForSubtests(
+		t,
+		[]envt.RegisterWebhooksFn{envtestutil.RegisterWebhooks},
+		[]envt.RegisterControllersFn{},
+		envtestutil.DefaultWebhookTimeout,
+		envtestutil.WithLlmInferenceService(),
+	)
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			g := NewWithT(t)
-
-			ctx, env, teardown := envtestutil.SetupEnvAndClientWithCRDs(
-				t,
-				[]envt.RegisterWebhooksFn{envtestutil.RegisterWebhooks},
-				[]envt.RegisterControllersFn{},
-				envtestutil.DefaultWebhookTimeout,
-				envtestutil.WithLlmInferenceService(),
-			)
-			defer teardown()
 
 			// Create test namespace
 			ns := fmt.Sprintf("test-ns-%s", xid.New().String())
@@ -717,9 +712,6 @@ func TestHardwareProfileWebhook_LlmInferenceService(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: ns},
 			}
 			g.Expect(env.Client().Create(ctx, testNamespace)).To(Succeed())
-
-			// Add HardwareProfile types to scheme for client operations
-			g.Expect(infrav1.AddToScheme(env.Scheme())).To(Succeed())
 
 			// Run the specific test case
 			tc.test(g, ctx, env.Client(), ns)
@@ -800,19 +792,18 @@ func TestHardwareProfileWebhook_InferenceService(t *testing.T) {
 			},
 		},
 	}
+	ctx, env := envtestutil.SetupSharedEnvForSubtests(
+		t,
+		[]envt.RegisterWebhooksFn{envtestutil.RegisterWebhooks},
+		[]envt.RegisterControllersFn{},
+		envtestutil.DefaultWebhookTimeout,
+		envtestutil.WithInferenceService(),
+	)
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			g := NewWithT(t)
-
-			ctx, env, teardown := envtestutil.SetupEnvAndClientWithCRDs(
-				t,
-				[]envt.RegisterWebhooksFn{envtestutil.RegisterWebhooks},
-				[]envt.RegisterControllersFn{},
-				envtestutil.DefaultWebhookTimeout,
-				envtestutil.WithInferenceService(),
-			)
-			defer teardown()
 
 			// Create test namespace
 			ns := fmt.Sprintf("test-ns-%s", xid.New().String())
@@ -820,9 +811,6 @@ func TestHardwareProfileWebhook_InferenceService(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: ns},
 			}
 			g.Expect(env.Client().Create(ctx, testNamespace)).To(Succeed())
-
-			// Add HardwareProfile types to scheme for client operations
-			g.Expect(infrav1.AddToScheme(env.Scheme())).To(Succeed())
 
 			// Run the specific test case
 			tc.test(g, ctx, env.Client(), ns)
@@ -896,19 +884,18 @@ func TestHardwareProfile_CRDValidation(t *testing.T) {
 		},
 	}
 
+	ctx, env := envtestutil.SetupSharedEnvForSubtests(
+		t,
+		[]envt.RegisterWebhooksFn{envtestutil.RegisterWebhooks},
+		[]envt.RegisterControllersFn{},
+		envtestutil.DefaultWebhookTimeout,
+		envtestutil.WithNotebook(),
+		envtestutil.WithInferenceService(),
+	)
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			g := NewWithT(t)
-
-			ctx, env, teardown := envtestutil.SetupEnvAndClientWithCRDs(
-				t,
-				[]envt.RegisterWebhooksFn{envtestutil.RegisterWebhooks},
-				[]envt.RegisterControllersFn{},
-				envtestutil.DefaultWebhookTimeout,
-				envtestutil.WithNotebook(),
-				envtestutil.WithInferenceService(),
-			)
-			t.Cleanup(teardown)
 
 			// Create test namespace
 			ns := fmt.Sprintf("test-ns-%s", xid.New().String())
@@ -916,9 +903,6 @@ func TestHardwareProfile_CRDValidation(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: ns},
 			}
 			g.Expect(env.Client().Create(ctx, testNamespace)).To(Succeed())
-
-			// Add HardwareProfile types to scheme for client operations
-			g.Expect(infrav1.AddToScheme(env.Scheme())).To(Succeed())
 
 			// Create hardware profile with test case specific options
 			hwp := envtestutil.NewHardwareProfile(fmt.Sprintf("test-hwp-%s", xid.New().String()), ns, tc.hwpOptions...)
