@@ -149,7 +149,8 @@ type OperatorSection struct {
 
 type DependentOperatorResult struct {
 	Name       string          `json:"name"`
-	Installed  bool            `json:"installed"` // true if a deployment was found in the dependent's namespace
+	Installed  bool            `json:"installed"`          // true if a deployment was found in the dependent's namespace
+	ImageRef   string          `json:"imageRef,omitempty"` // version tag from the operator's container image; falls back to digest if no tag is present
 	Deployment *DeploymentInfo `json:"deployment,omitempty"`
 	Pods       []PodInfo       `json:"pods,omitempty"`
 	Error      string          `json:"error,omitempty"`
