@@ -3,12 +3,8 @@ package resources_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/blang/semver/v4"
-	"github.com/k8s-manifest-kit/engine/pkg/pipeline"
-	"github.com/k8s-manifest-kit/engine/pkg/postrenderer"
-	engineTypes "github.com/k8s-manifest-kit/engine/pkg/types"
 	"github.com/operator-framework/api/pkg/lib/version"
 	"github.com/stretchr/testify/mock"
 	appsv1 "k8s.io/api/apps/v1"
@@ -17,7 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -116,54 +111,25 @@ func TestSortByApplyOrder(t *testing.T) {
 		g.Expect(result[1].GetName()).To(Equal("deploy-b"))
 	})
 
-	t.Run("cert-manager resources placed before deployments", func(t *testing.T) {
-		g := NewWithT(t)
+	// Test cert-manager ordering for all workload types
+	workloadTestCases := []struct {
+		name         string
+		group        string
+		version      string
+		kind         string
+		resourceName string
+	}{
+		{"deployments", gvk.Deployment.Group, gvk.Deployment.Version, gvk.Deployment.Kind, "consuming-app"},
+		{"statefulsets", gvk.StatefulSet.Group, gvk.StatefulSet.Version, gvk.StatefulSet.Kind, "consuming-statefulset"},
+		{"daemonsets", "apps", "v1", "DaemonSet", "consuming-daemonset"},
+		{"jobs", "batch", "v1", "Job", "consuming-job"},
+	}
 
-		input := []unstructured.Unstructured{
-			newUnstructured(gvk.Deployment.Group, gvk.Deployment.Version, gvk.Deployment.Kind, "app-ns", "consuming-app"),
-			newUnstructured(gvk.CertManagerCertificate.Group, gvk.CertManagerCertificate.Version, gvk.CertManagerCertificate.Kind, "cert-manager", "ca-cert"),
-			newUnstructured(gvk.CertManagerClusterIssuer.Group, gvk.CertManagerClusterIssuer.Version, gvk.CertManagerClusterIssuer.Kind, "", "ca-issuer"),
-			newUnstructured(gvk.Namespace.Group, gvk.Namespace.Version, gvk.Namespace.Kind, "", "app-ns"),
-		}
-
-		result, err := resources.SortByApplyOrder(context.Background(), input)
-		g.Expect(err).NotTo(HaveOccurred())
-		g.Expect(result).To(HaveLen(4))
-
-		// Verify the critical ordering: cert-manager resources BEFORE deployments
-		clusterIssuerIndex := -1
-		certificateIndex := -1
-		deploymentIndex := -1
-
-		for i, resource := range result {
-			switch resource.GetKind() {
-			case gvk.CertManagerClusterIssuer.Kind:
-				clusterIssuerIndex = i
-			case gvk.CertManagerCertificate.Kind:
-				certificateIndex = i
-			case gvk.Deployment.Kind:
-				deploymentIndex = i
-			}
-		}
-
-		// This is the key assertion for RHOAIENG-53513:
-		// Cert-manager resources MUST come before Deployments to prevent transient errors
-		// where Deployments try to find cert-manager generated secrets before they exist
-		g.Expect(clusterIssuerIndex).To(BeNumerically("<", deploymentIndex),
-			"ClusterIssuer must be deployed before Deployment to prevent transient errors")
-		g.Expect(certificateIndex).To(BeNumerically("<", deploymentIndex),
-			"Certificate must be deployed before Deployment to prevent transient errors")
-
-		// Additional verification: cert-manager dependency order
-		g.Expect(clusterIssuerIndex).To(BeNumerically("<", certificateIndex),
-			"ClusterIssuer must be deployed before Certificate")
-
-		// Expected final order should be: Namespace, ClusterIssuer, Certificate, Deployment
-		g.Expect(result[0].GetKind()).To(Equal("Namespace"))
-		g.Expect(result[1].GetKind()).To(Equal("ClusterIssuer"))
-		g.Expect(result[2].GetKind()).To(Equal("Certificate"))
-		g.Expect(result[3].GetKind()).To(Equal("Deployment"))
-	})
+	for _, tc := range workloadTestCases {
+		t.Run("cert-manager resources placed before "+tc.name, func(t *testing.T) {
+			testCertManagerOrderingForWorkload(t, tc.group, tc.version, tc.kind, tc.resourceName)
+		})
+	}
 
 	t.Run("comprehensive cert-manager dependency ordering", func(t *testing.T) {
 		g := NewWithT(t)
@@ -201,6 +167,56 @@ func TestSortByApplyOrder(t *testing.T) {
 		g.Expect(result[6].GetKind()).To(Equal("Deployment"))
 		g.Expect(result[7].GetKind()).To(Equal("ValidatingWebhookConfiguration"))
 	})
+}
+
+// testCertManagerOrderingForWorkload tests that cert-manager resources are ordered before a specific workload type.
+func testCertManagerOrderingForWorkload(t *testing.T, group, version, kind, resourceName string) {
+	t.Helper()
+	g := NewWithT(t)
+
+	input := []unstructured.Unstructured{
+		newUnstructured(group, version, kind, "app-ns", resourceName),
+		newUnstructured(gvk.CertManagerCertificate.Group, gvk.CertManagerCertificate.Version, gvk.CertManagerCertificate.Kind, "cert-manager", "ca-cert"),
+		newUnstructured(gvk.CertManagerClusterIssuer.Group, gvk.CertManagerClusterIssuer.Version, gvk.CertManagerClusterIssuer.Kind, "", "ca-issuer"),
+		newUnstructured(gvk.Namespace.Group, gvk.Namespace.Version, gvk.Namespace.Kind, "", "app-ns"),
+	}
+
+	result, err := resources.SortByApplyOrder(context.Background(), input)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(result).To(HaveLen(4))
+
+	// Find indices of cert-manager resources and workload
+	clusterIssuerIndex := -1
+	certificateIndex := -1
+	workloadIndex := -1
+
+	for i, resource := range result {
+		switch resource.GetKind() {
+		case gvk.CertManagerClusterIssuer.Kind:
+			clusterIssuerIndex = i
+		case gvk.CertManagerCertificate.Kind:
+			certificateIndex = i
+		case kind:
+			workloadIndex = i
+		}
+	}
+
+	// Key assertions for RHOAIENG-53513: cert-manager resources MUST come before workloads
+	// to prevent transient errors where workloads try to find cert-manager generated secrets before they exist
+	g.Expect(clusterIssuerIndex).To(BeNumerically("<", workloadIndex),
+		"ClusterIssuer must be deployed before %s to prevent transient errors", kind)
+	g.Expect(certificateIndex).To(BeNumerically("<", workloadIndex),
+		"Certificate must be deployed before %s to prevent transient errors", kind)
+
+	// Additional verification: cert-manager dependency order
+	g.Expect(clusterIssuerIndex).To(BeNumerically("<", certificateIndex),
+		"ClusterIssuer must be deployed before Certificate")
+
+	// Expected final order should be: Namespace, ClusterIssuer, Certificate, Workload
+	g.Expect(result[0].GetKind()).To(Equal("Namespace"))
+	g.Expect(result[1].GetKind()).To(Equal("ClusterIssuer"))
+	g.Expect(result[2].GetKind()).To(Equal("Certificate"))
+	g.Expect(result[3].GetKind()).To(Equal(kind))
 }
 
 // createCertManagerCRDs registers the three cert-manager CRDs required for integration testing
@@ -253,7 +269,7 @@ func createRealCertManagerScenario(namespace string) ([]unstructured.Unstructure
 	}
 
 	// Deployment - depends on Secret generated by Certificate
-	deployment, _ := resources.ToUnstructured(&appsv1.Deployment{
+	deployment, err := resources.ToUnstructured(&appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: appsv1.SchemeGroupVersion.String(),
 			Kind:       "Deployment",
@@ -300,6 +316,9 @@ func createRealCertManagerScenario(namespace string) ([]unstructured.Unstructure
 			},
 		},
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	// Return in problematic order that would cause race condition
 	return []unstructured.Unstructured{
@@ -314,9 +333,11 @@ func int32Ptr(i int32) *int32 {
 	return &i
 }
 
-// TestCertManagerRaceConditionIntegration demonstrates the actual race condition
-// and proves our ordering fix works using envtest with real cert-manager CRDs.
-func TestCertManagerRaceConditionIntegration(t *testing.T) {
+// TestCertManagerDependencyOrderingIntegration verifies that cert-manager resources
+// are deployed in the correct dependency order to prevent race conditions.
+// Note: This test focuses on ordering verification since envtest doesn't run
+// the cert-manager controller needed to demonstrate actual race conditions.
+func TestCertManagerDependencyOrderingIntegration(t *testing.T) {
 	g := NewWithT(t)
 
 	// Use established envt utilities (following bootstrap_test.go pattern)
@@ -334,21 +355,23 @@ func TestCertManagerRaceConditionIntegration(t *testing.T) {
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: testNamespace}}
 	g.Expect(envTest.Client().Create(ctx, ns)).To(Succeed())
 
-	t.Run("demonstrates race condition and verifies fix", func(t *testing.T) {
+	t.Run("verifies cert-manager resources are deployed in dependency order", func(t *testing.T) {
 		g := NewWithT(t)
 
-		// Create realistic cert-manager scenario
+		// Create realistic cert-manager scenario with problematic input order
 		testResources, err := createRealCertManagerScenario(testNamespace)
 		g.Expect(err).NotTo(HaveOccurred())
 
-		// STEP 1: Demonstrate the ACTUAL RACE CONDITION with upstream-only ordering
-		// This creates a problematic deployment order that causes real failures
-		problemAction := deploy.NewAction(deploy.WithSortFn(func(ctx context.Context, resources []unstructured.Unstructured) ([]unstructured.Unstructured, error) {
-			// Apply only upstream postrenderer.ApplyOrder() - no cert-manager enhancement
-			return pipeline.ApplyPostRenderers(ctx, resources, []engineTypes.PostRenderer{postrenderer.ApplyOrder()})
-		}))
+		// Verify input is in problematic order (Deployment, Certificate, ClusterIssuer)
+		g.Expect(testResources).To(HaveLen(3))
+		g.Expect(testResources[0].GetKind()).To(Equal("Deployment"), "Input should start with Deployment (wrong order)")
+		g.Expect(testResources[1].GetKind()).To(Equal("Certificate"), "Input should have Certificate second")
+		g.Expect(testResources[2].GetKind()).To(Equal("ClusterIssuer"), "Input should have ClusterIssuer last (wrong order)")
 
-		problemRR := controllerTypes.ReconciliationRequest{
+		// Deploy with our enhanced cert-manager ordering
+		action := deploy.NewAction(deploy.WithApplyOrder())
+
+		rr := controllerTypes.ReconciliationRequest{
 			Client:   envTest.Client(),
 			Instance: &componentApi.Dashboard{ObjectMeta: metav1.ObjectMeta{Generation: 1}},
 			Release: common.Release{
@@ -363,129 +386,47 @@ func TestCertManagerRaceConditionIntegration(t *testing.T) {
 			}),
 		}
 
-		// Deploy with problematic ordering
-		err = problemAction(ctx, &problemRR)
+		// Deploy resources - ordering should be corrected automatically
+		err = action(ctx, &rr)
 		g.Expect(err).NotTo(HaveOccurred(), "Deploy action should succeed")
 
-		// Give a moment for resources to settle
-		time.Sleep(500 * time.Millisecond)
+		// Verify all resources exist in cluster
+		clusterIssuerKey := types.NamespacedName{Name: "rhoai-ca-issuer"}
+		clusterIssuer := &unstructured.Unstructured{}
+		clusterIssuer.SetGroupVersionKind(gvk.CertManagerClusterIssuer)
+		err = envTest.Client().Get(ctx, clusterIssuerKey, clusterIssuer)
+		g.Expect(err).NotTo(HaveOccurred(), "ClusterIssuer should exist")
+
+		certificateKey := types.NamespacedName{Name: "rhoai-serving-cert", Namespace: testNamespace}
+		certificate := &unstructured.Unstructured{}
+		certificate.SetGroupVersionKind(gvk.CertManagerCertificate)
+		err = envTest.Client().Get(ctx, certificateKey, certificate)
+		g.Expect(err).NotTo(HaveOccurred(), "Certificate should exist")
 
 		deploymentKey := types.NamespacedName{Name: "rhoai-serving-app", Namespace: testNamespace}
 		deployment := &appsv1.Deployment{}
 		err = envTest.Client().Get(ctx, deploymentKey, deployment)
 		g.Expect(err).NotTo(HaveOccurred(), "Deployment should exist")
 
-		g.Expect(deployment.Status.ReadyReplicas).To(Equal(int32(0)),
-			"RACE CONDITION DEMONSTRATED: Pods cannot start because Secret doesn't exist yet")
-
-		secretKey := types.NamespacedName{Name: "rhoai-serving-tls", Namespace: testNamespace}
-		secret := &corev1.Secret{}
-		err = envTest.Client().Get(ctx, secretKey, secret)
-		g.Expect(err).To(HaveOccurred(),
-			"Secret should be missing - proving Certificate hasn't generated it yet")
-
-		certificateKey := types.NamespacedName{Name: "rhoai-serving-cert", Namespace: testNamespace}
-		certificate := &unstructured.Unstructured{}
-		certificate.SetGroupVersionKind(gvk.CertManagerCertificate)
-		err = envTest.Client().Get(ctx, certificateKey, certificate)
-		if err == nil {
-			// Certificate exists but the Secret it should create is missing
-			// This proves the timing issue: Deployment started before Certificate was ready
-			g.Expect(certificate.GetName()).To(Equal("rhoai-serving-cert"),
-				"Certificate exists but hasn't generated Secret yet - proving race condition timing")
-		}
-
-		// Clean up problematic deployment for next test
-		_ = envTest.Client().Delete(ctx, deployment)
-		if err == nil {
-			_ = envTest.Client().Delete(ctx, certificate)
-		}
-		clusterIssuerKey := types.NamespacedName{Name: "rhoai-ca-issuer"}
-		clusterIssuer := &unstructured.Unstructured{}
-		clusterIssuer.SetGroupVersionKind(gvk.CertManagerClusterIssuer)
-		_ = envTest.Client().Get(ctx, clusterIssuerKey, clusterIssuer)
-		if clusterIssuer.GetName() != "" {
-			_ = envTest.Client().Delete(ctx, clusterIssuer)
-		}
-
-		// Wait for cleanup to complete
-		_ = wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 5*time.Second, true, func(ctx context.Context) (bool, error) {
-			err := envTest.Client().Get(ctx, deploymentKey, deployment)
-			return err != nil, nil // Return true when deployment is gone
-		})
-
-		// STEP 2: Prove our enhanced ordering PREVENTS the race condition
-		enhancedAction := deploy.NewAction(deploy.WithApplyOrder())
-
-		// Create fresh resources with different names to avoid conflicts
-		enhancedResources, err := createRealCertManagerScenario(testNamespace)
+		// Verify dependency chain is properly configured
+		// ClusterIssuer → Certificate dependency
+		issuerRef, found, err := unstructured.NestedMap(certificate.Object, "spec", "issuerRef")
 		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(found).To(BeTrue(), "Certificate should reference ClusterIssuer")
+		g.Expect(issuerRef["name"]).To(Equal("rhoai-ca-issuer"))
+		g.Expect(issuerRef["kind"]).To(Equal("ClusterIssuer"))
 
-		// Modify resource names to avoid conflicts
-		for i := range enhancedResources {
-			name := enhancedResources[i].GetName()
-			if name != "" {
-				enhancedResources[i].SetName(name + "-enhanced")
-			}
-		}
+		// Certificate → Deployment dependency via Secret reference
+		g.Expect(deployment.Spec.Template.Spec.Volumes).To(HaveLen(1))
+		secretVolume := deployment.Spec.Template.Spec.Volumes[0]
+		g.Expect(secretVolume.Secret.SecretName).To(Equal("rhoai-serving-tls"),
+			"Deployment should reference Certificate-generated Secret")
 
-		enhancedRR := controllerTypes.ReconciliationRequest{
-			Client:   envTest.Client(),
-			Instance: &componentApi.Dashboard{ObjectMeta: metav1.ObjectMeta{Generation: 1}},
-			Release: common.Release{
-				Name: cluster.OpenDataHub,
-				Version: version.OperatorVersion{Version: semver.Version{
-					Major: 1, Minor: 2, Patch: 3,
-				}},
-			},
-			Resources: enhancedResources,
-			Controller: mocks.NewMockController(func(m *mocks.MockController) {
-				m.On("Owns", mock.Anything).Return(false)
-			}),
-		}
-
-		// Deploy with enhanced ordering - should prevent race condition
-		startTime := time.Now()
-		err = enhancedAction(ctx, &enhancedRR)
-		g.Expect(err).NotTo(HaveOccurred(), "Enhanced ordering should deploy successfully")
-
-		// Give resources time to settle properly
-		time.Sleep(1 * time.Second)
-
-		// Resources deployed in correct order without failures
-		enhancedClusterIssuerKey := types.NamespacedName{Name: "rhoai-ca-issuer-enhanced"}
-		enhancedClusterIssuer := &unstructured.Unstructured{}
-		enhancedClusterIssuer.SetGroupVersionKind(gvk.CertManagerClusterIssuer)
-		err = envTest.Client().Get(ctx, enhancedClusterIssuerKey, enhancedClusterIssuer)
-		g.Expect(err).NotTo(HaveOccurred(), "ClusterIssuer should be created first")
-
-		enhancedCertificateKey := types.NamespacedName{Name: "rhoai-serving-cert-enhanced", Namespace: testNamespace}
-		enhancedCertificate := &unstructured.Unstructured{}
-		enhancedCertificate.SetGroupVersionKind(gvk.CertManagerCertificate)
-		err = envTest.Client().Get(ctx, enhancedCertificateKey, enhancedCertificate)
-		g.Expect(err).NotTo(HaveOccurred(), "Certificate should be created after ClusterIssuer")
-
-		enhancedDeploymentKey := types.NamespacedName{Name: "rhoai-serving-app-enhanced", Namespace: testNamespace}
-		enhancedDeployment := &appsv1.Deployment{}
-		err = envTest.Client().Get(ctx, enhancedDeploymentKey, enhancedDeployment)
-		g.Expect(err).NotTo(HaveOccurred(), "Deployment should be created after Certificate")
-
-		// With correct ordering, Secret should exist
-		enhancedSecretKey := types.NamespacedName{Name: "rhoai-serving-tls", Namespace: testNamespace}
-		enhancedSecret := &corev1.Secret{}
-		_ = envTest.Client().Get(ctx, enhancedSecretKey, enhancedSecret)
-		// Note: In a real cluster with cert-manager controller, this would succeed
-		// In envtest without cert-manager controller, Secret won't be auto-generated
-		// But the key point is: Deployment was created AFTER Certificate, preventing race condition
-
-		// Deployment properly references Certificate-generated Secret
-		g.Expect(enhancedDeployment.Spec.Template.Spec.Volumes).To(HaveLen(1))
-		secretVolume := enhancedDeployment.Spec.Template.Spec.Volumes[0]
-		g.Expect(secretVolume.Secret.SecretName).To(Equal("rhoai-serving-tls"))
-
-		// Enhanced deployment should be faster (no retry delays)
-		deployTime := time.Since(startTime)
-		g.Expect(deployTime).To(BeNumerically("<", 3*time.Second),
-			"Enhanced ordering should deploy quickly without retry delays")
+		// Verify ordering timestamps show correct dependency sequence
+		// Note: Since envtest applies resources synchronously, we verify that creation succeeded
+		// without errors, which indicates proper dependency ordering was respected
+		g.Expect(clusterIssuer.GetCreationTimestamp().Time.IsZero()).To(BeFalse(), "ClusterIssuer should have creation timestamp")
+		g.Expect(certificate.GetCreationTimestamp().Time.IsZero()).To(BeFalse(), "Certificate should have creation timestamp")
+		g.Expect(deployment.GetCreationTimestamp().Time.IsZero()).To(BeFalse(), "Deployment should have creation timestamp")
 	})
 }

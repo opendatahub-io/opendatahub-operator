@@ -7,6 +7,7 @@ import (
 	"github.com/k8s-manifest-kit/engine/pkg/postrenderer"
 	engineTypes "github.com/k8s-manifest-kit/engine/pkg/types"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
@@ -39,7 +40,7 @@ func CertManagerPostRenderer() engineTypes.PostRenderer {
 		var otherResources []unstructured.Unstructured
 
 		for _, resource := range objects {
-			if isCertManagerResource(resource.GetKind()) {
+			if isCertManagerResource(resource) {
 				certManagerResources = append(certManagerResources, resource)
 			} else {
 				otherResources = append(otherResources, resource)
@@ -51,10 +52,10 @@ func CertManagerPostRenderer() engineTypes.PostRenderer {
 			return objects, nil
 		}
 
-		// Find insertion point: before first Deployment
+		// Find insertion point: before first workload (Deployment, StatefulSet, DaemonSet, Job, CronJob)
 		insertIndex := len(otherResources) // Default: insert at end
 		for i, resource := range otherResources {
-			if resource.GetKind() == gvk.Deployment.Kind {
+			if isWorkloadKind(resource) {
 				insertIndex = i
 				break
 			}
@@ -65,9 +66,9 @@ func CertManagerPostRenderer() engineTypes.PostRenderer {
 		result = append(result, otherResources[:insertIndex]...)
 
 		// Add cert-manager resources in dependency order: ClusterIssuer, Issuer, Certificate
-		for _, kind := range []string{gvk.CertManagerClusterIssuer.Kind, gvk.CertManagerIssuer.Kind, gvk.CertManagerCertificate.Kind} {
+		for _, targetGVK := range []schema.GroupVersionKind{gvk.CertManagerClusterIssuer, gvk.CertManagerIssuer, gvk.CertManagerCertificate} {
 			for _, resource := range certManagerResources {
-				if resource.GetKind() == kind {
+				if resource.GroupVersionKind() == targetGVK {
 					result = append(result, resource)
 				}
 			}
@@ -78,9 +79,22 @@ func CertManagerPostRenderer() engineTypes.PostRenderer {
 	}
 }
 
-// isCertManagerResource checks if the given kind is a cert-manager resource type.
-func isCertManagerResource(kind string) bool {
-	return kind == gvk.CertManagerClusterIssuer.Kind ||
-		kind == gvk.CertManagerIssuer.Kind ||
-		kind == gvk.CertManagerCertificate.Kind
+// isCertManagerResource checks if the given resource is a cert-manager resource type
+// by matching the full GroupVersionKind to avoid false positives with other CRDs.
+func isCertManagerResource(r unstructured.Unstructured) bool {
+	g := r.GroupVersionKind()
+	return g == gvk.CertManagerClusterIssuer ||
+		g == gvk.CertManagerIssuer ||
+		g == gvk.CertManagerCertificate
+}
+
+// isWorkloadKind returns true if the resource represents a workload that can consume
+// cert-manager-generated secrets and should be deployed after cert-manager resources.
+func isWorkloadKind(r unstructured.Unstructured) bool {
+	g := r.GroupVersionKind()
+	return g == gvk.Deployment ||
+		g == gvk.StatefulSet ||
+		g == gvk.DaemonSet ||
+		g == gvk.Job ||
+		g == gvk.CronJob
 }

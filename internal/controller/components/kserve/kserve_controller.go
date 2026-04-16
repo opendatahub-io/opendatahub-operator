@@ -162,7 +162,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 			WithApplyOrderLLMInferenceServiceConfigLast(),
-			deploy.WithApplyOrderWithCertificates(),
+			deploy.WithApplyOrder(),
 		)).
 		WithAction(deployments.NewAction()).
 		// must be the final action
