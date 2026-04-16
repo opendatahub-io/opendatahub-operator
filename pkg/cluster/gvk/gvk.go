@@ -547,6 +547,12 @@ var (
 
 	// operator.openshift.io.
 
+	CertManagerV1Alpha1 = schema.GroupVersionKind{
+		Group:   "operator.openshift.io",
+		Version: "v1alpha1",
+		Kind:    "CertManager",
+	}
+
 	LeaderWorkerSetOperatorV1 = schema.GroupVersionKind{
 		Group:   "operator.openshift.io",
 		Version: "v1",
