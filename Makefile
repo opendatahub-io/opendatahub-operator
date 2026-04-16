@@ -140,11 +140,17 @@ paths=$(shell go env GOPATH)/pkg/mod/$(1)@$(call go-mod-version,$(1))/$(2)/... \
 output:crd:artifacts:config=config/crd/external
 endef
 
+MANIFEST_GENERATED_FILES = config/crd/bases config/crd/external config/rbac/role.yaml config/webhook/manifests.yaml
+
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) rbac:roleName=controller-manager-role crd:ignoreUnexportedFields=true webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 	$(call fetch-external-crds,github.com/openshift/api,route/v1)
 	$(call fetch-external-crds,github.com/openshift/api,user/v1)
+
+.PHONY: clean-manifests
+clean-manifests: ## Remove generated manifest files (CRDs, RBAC, webhooks).
+	rm -rf $(MANIFEST_GENERATED_FILES)
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
