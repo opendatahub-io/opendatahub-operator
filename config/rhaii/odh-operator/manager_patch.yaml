@@ -64,10 +64,10 @@ spec:
         - name: ODH_PLATFORM_TYPE
           value: XKS
         - name: RHAI_CA_SECRET_NAME
-          value: rhaii-ca
+          value: rhai-ca
         - name: RHAI_CA_SECRET_NAMESPACE
           value: cert-manager
         - name: RHAI_ISSUER_REF_NAME
-          value: rhaii-ca-issuer
+          value: rhai-ca-issuer
         - name: RHAI_ISTIO_CA_CERTIFICATE_PATH
           value: /var/run/secrets/rhaii/ca.crt

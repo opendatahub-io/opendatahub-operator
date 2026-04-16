@@ -15,3 +15,11 @@ spec:
           value: rhai-operator-controller-webhook-cert
         - name: RHAI_WEBHOOK_SERVICE_NAME
           value: rhai-operator-webhook-service
+        - name: RHAI_WEBHOOK_CERT_NAME
+          value: rhai-operator-webhook-cert
+        - name: RHAI_CA_SECRET_NAME
+          value: rhai-ca
+        - name: RHAI_CA_SECRET_NAMESPACE
+          value: cert-manager
+        - name: RHAI_ISSUER_REF_NAME
+          value: rhai-ca-issuer
