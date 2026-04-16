@@ -1513,15 +1513,20 @@ func (tc *TestContext) ApproveInstallPlan(plan *ofapi.InstallPlan) {
 	// Prepare the InstallPlan object to be approved
 	obj := tc.createInstallPlan(plan.Name, plan.Namespace, plan.Spec.ClusterServiceVersionNames)
 
-	// Set up patch options
-	force := true
-	opt := &client.PatchOptions{
-		FieldManager: dscInstanceName,
-		Force:        &force,
+	// Convert InstallPlan to unstructured and use new Apply API
+	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
+	if err != nil {
+		tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to convert InstallPlan to unstructured: %v", err)
+		return
 	}
+	unstrObj := &unstructured.Unstructured{Object: u}
 
-	// Apply the patch to approve the InstallPlan
-	err := tc.Client().Patch(tc.Context(), obj, client.Apply, opt) //nolint:staticcheck // TODO: migrate to cli.Apply() with client.ApplyOption
+	// Apply using new client.Apply API with typed options
+	err = tc.Client().Apply(tc.Context(),
+		client.ApplyConfigurationFromUnstructured(unstrObj),
+		client.FieldOwner(dscInstanceName),
+		client.ForceOwnership,
+	)
 	tc.g.Expect(err).
 		NotTo(
 			HaveOccurred(),
