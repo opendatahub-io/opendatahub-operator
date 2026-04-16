@@ -860,7 +860,7 @@ kind-setup-pull-secrets: ## Setup pull secrets for operator dependencies in the 
 	@for ns in $(PULL_SECRET_NAMESPACES); do \
 		echo "Setting up pull secret in namespace: $$ns"; \
 		kubectl create namespace $$ns --dry-run=client -o yaml | kubectl apply -f -; \
-		kubectl create secret generic rhaii-pull-secret \
+		kubectl create secret generic rhai-pull-secret \
 			--from-file=.dockerconfigjson="$(PULL_SECRET)" \
 			--type=kubernetes.io/dockerconfigjson \
 			-n $$ns --dry-run=client -o yaml | kubectl apply -f -; \
