@@ -54,7 +54,7 @@ declare -A RHOAI_COMPONENT_MANIFESTS=(
     ["maas"]="red-hat-data-services:maas-billing:rhoai-3.4@c04f0e2b68f545fbe2deca2ca9b19972e3baac0b:deployment"
     ["mlflowoperator"]="red-hat-data-services:mlflow-operator:rhoai-3.4@45ad3d560ce1e241733e55614d157f53c7cbeacc:config"
     ["sparkoperator"]="red-hat-data-services:spark-operator:rhoai-3.4@8ecee53b4752854eeff7456ddaf9a81251147ca4:config"
-    ["wva"]="red-hat-data-services:workload-variant-autoscaler:rhoai-3.4-ea.2@da1e961bf28f9db47b30f9ba52b4f08a3177c258:config"
+    ["wva"]="red-hat-data-services:workload-variant-autoscaler:rhoai-3.4@63b6911bb789e5fbc800e526cea2cc5168a2543c:config"
 )
 
 # {ODH,RHOAI}_COMPONENT_CHARTS are lists of chart repositories info to fetch helm charts
@@ -71,6 +71,10 @@ declare -A ODH_COMPONENT_CHARTS=(
 
 # RHOAI Component Charts
 declare -A RHOAI_COMPONENT_CHARTS=(
+    ["cert-manager-operator"]="red-hat-data-services:odh-gitops:main@38fde97044b04fb7b0a37b58df3e7e6ce577ebeb:charts/dependencies/cert-manager-operator"
+    ["lws-operator"]="red-hat-data-services:odh-gitops:main@38fde97044b04fb7b0a37b58df3e7e6ce577ebeb:charts/dependencies/lws-operator"
+    ["sail-operator"]="red-hat-data-services:odh-gitops:main@38fde97044b04fb7b0a37b58df3e7e6ce577ebeb:charts/dependencies/sail-operator"
+    ["gateway-api"]="red-hat-data-services:odh-gitops:main@38fde97044b04fb7b0a37b58df3e7e6ce577ebeb:charts/dependencies/gateway-api"
 )
 
 # Select the appropriate manifest based on platform type
