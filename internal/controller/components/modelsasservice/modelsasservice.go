@@ -23,7 +23,6 @@ import (
 
 	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
 	operatorv1 "github.com/openshift/api/operator/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -95,20 +94,39 @@ func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
 func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
 	cs := metav1.ConditionUnknown
 
-	t := maasv1alpha1.Tenant{}
-	t.Name = maasv1alpha1.TenantInstanceName
-	t.Namespace = MaaSSubscriptionNamespace
-
-	if err := rr.Client.Get(ctx, client.ObjectKeyFromObject(&t), &t); err != nil && !k8serr.IsNotFound(err) {
-		return cs, nil
-	}
-
 	dsc, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
 		return cs, errors.New("failed to convert to DataScienceCluster")
 	}
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
+
+	if !s.IsEnabled(dsc) {
+		ms := dsc.Spec.Components.Kserve.ModelsAsService.ManagementState
+		if ms == "" {
+			ms = operatorv1.Removed
+		}
+		rr.Conditions.MarkFalse(
+			ReadyConditionType,
+			conditions.WithReason(string(ms)),
+			conditions.WithMessage("Component ManagementState is set to %s", string(ms)),
+			conditions.WithSeverity(common.ConditionSeverityInfo),
+		)
+		return cs, nil
+	}
+
+	t := maasv1alpha1.Tenant{}
+	t.Name = maasv1alpha1.TenantInstanceName
+	t.Namespace = MaaSSubscriptionNamespace
+
+	if err := rr.Client.Get(ctx, client.ObjectKeyFromObject(&t), &t); err != nil {
+		rr.Conditions.MarkFalse(
+			ReadyConditionType,
+			conditions.WithReason(status.NotReadyReason),
+			conditions.WithMessage("Tenant CR not available yet"),
+		)
+		return metav1.ConditionFalse, nil
+	}
 
 	if !t.GetDeletionTimestamp().IsZero() {
 		rr.Conditions.MarkFalse(
@@ -119,29 +137,16 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		return metav1.ConditionFalse, nil
 	}
 
-	if s.IsEnabled(dsc) {
-		if rc := apimeta.FindStatusCondition(t.Status.Conditions, status.ConditionTypeReady); rc != nil {
-			rr.Conditions.MarkFrom(ReadyConditionType, metav1ConditionToCommon(*rc))
-			cs = rc.Status
-		} else {
-			cs = metav1.ConditionFalse
-		}
+	if rc := apimeta.FindStatusCondition(t.Status.Conditions, status.ConditionTypeReady); rc != nil {
+		rr.Conditions.MarkFrom(ReadyConditionType, metav1ConditionToCommon(*rc))
+		cs = rc.Status
 	} else {
-		if dsc.Spec.Components.Kserve.ManagementState != operatorv1.Managed {
-			rr.Conditions.MarkFalse(
-				ReadyConditionType,
-				conditions.WithReason("KServeDisabled"),
-				conditions.WithMessage("KServe component is not managed, ModelsAsService requires KServe to be enabled"),
-				conditions.WithSeverity(common.ConditionSeverityInfo),
-			)
-		} else {
-			rr.Conditions.MarkFalse(
-				ReadyConditionType,
-				conditions.WithReason(string(operatorv1.Removed)),
-				conditions.WithMessage("Component ManagementState is set to Removed"),
-				conditions.WithSeverity(common.ConditionSeverityInfo),
-			)
-		}
+		rr.Conditions.MarkFalse(
+			ReadyConditionType,
+			conditions.WithReason(status.NotReadyReason),
+			conditions.WithMessage("Tenant CR exists but has no ready condition yet"),
+		)
+		cs = metav1.ConditionFalse
 	}
 
 	return cs, nil

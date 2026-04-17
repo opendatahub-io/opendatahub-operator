@@ -177,11 +177,8 @@ relatedImages:
       value: quay.io/opendatahub/odh-kube-auth-proxy@sha256:a528c85ba07a473250d72119de75b65b5d1cc6f0ce5d61abcfe89b3bb20d2839
       component: odh-kube-auth-proxy
     - name: RELATED_IMAGE_ODH_MAAS_API_IMAGE
-      value: quay.io/isequeir/maas-api@sha256:0fa3e47229911d9e7882eef080dfd47579c283ba83db9322b91af61309d0174e
+      value: quay.io/opendatahub/maas-api@sha256:e83852905c7c4f65699daaad9d1f90e56f8f6b7477e6a11d76f31ae91b711197
       component: odh-maas-api
-    - name: RELATED_IMAGE_ODH_MAAS_CONTROLLER_IMAGE
-      value: quay.io/isequeir/maas-controller@sha256:ca06ae0e484ee6b5a6eb0cd7c1bd16f52c506f41af01754b293795f94b7aba63
-      component: odh-maas-controller
     - name: RELATED_IMAGE_ODH_AI_GATEWAY_PAYLOAD_PROCESSING_IMAGE
       value: quay.io/opendatahub/odh-ai-gateway-payload-processing@sha256:f3e78bb597d5eab68d88fd83b87b67f63de8a34800d620462fc63fd1acb4d0b3
       component: odh-ai-gateway-payload-processing

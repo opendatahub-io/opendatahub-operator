@@ -137,7 +137,32 @@ func TestUpdateDSCStatus(t *testing.T) {
 		)))
 	})
 
-	t.Run("should handle disabled component when KServe is not managed", func(t *testing.T) {
+	t.Run("should show MaaS management state when disabled via MaaS Removed", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Removed)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(testDSCI(testApplicationsNamespace), dsc))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cs, err := handler.UpdateDSCStatus(ctx, &pkgtypes.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(cs).Should(Equal(metav1.ConditionUnknown))
+
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, string(operatorv1.Removed)),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .severity == "%s"`, ReadyConditionType, common.ConditionSeverityInfo),
+		)))
+	})
+
+	t.Run("should show MaaS management state when disabled via KServe not managed", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
@@ -157,8 +182,89 @@ func TestUpdateDSCStatus(t *testing.T) {
 
 		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, "KServeDisabled"),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, string(operatorv1.Managed)),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .severity == "%s"`, ReadyConditionType, common.ConditionSeverityInfo),
+		)))
+	})
+
+	t.Run("should return NotReady when Tenant CR does not exist", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(testDSCI(testApplicationsNamespace), dsc))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cs, err := handler.UpdateDSCStatus(ctx, &pkgtypes.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(cs).Should(Equal(metav1.ConditionFalse))
+
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, status.NotReadyReason),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "Tenant CR not available yet"`, ReadyConditionType),
+		)))
+	})
+
+	t.Run("should handle enabled component with not-ready Tenant CR", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
+		cr := createTenantCR(false)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(testDSCI(testApplicationsNamespace), dsc, cr))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cs, err := handler.UpdateDSCStatus(ctx, &pkgtypes.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(cs).Should(Equal(metav1.ConditionFalse))
+
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, status.NotReadyReason),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "Component is not ready"`, ReadyConditionType),
+		)))
+	})
+
+	t.Run("should handle Tenant CR with no status conditions", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
+		cr := &maasv1alpha1.Tenant{}
+		cr.SetName(maasv1alpha1.TenantInstanceName)
+		cr.SetNamespace(MaaSSubscriptionNamespace)
+		cr.APIVersion = maasv1alpha1.GroupVersion.String()
+		cr.Kind = maasv1alpha1.TenantKind
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(testDSCI(testApplicationsNamespace), dsc, cr))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cs, err := handler.UpdateDSCStatus(ctx, &pkgtypes.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(cs).Should(Equal(metav1.ConditionFalse))
+
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, status.NotReadyReason),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "Tenant CR exists but has no ready condition yet"`, ReadyConditionType),
 		)))
 	})
 }

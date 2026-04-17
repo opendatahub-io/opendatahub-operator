@@ -7,6 +7,7 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -290,8 +291,13 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantSingletonEnforcement(t *testing.
 
 	err := tc.Client().Create(tc.Context(), u)
 	require.Error(t, err, "creating Tenant with non-singleton name should be rejected by CEL validation")
-	require.Contains(t, err.Error(), "default-tenant",
-		"rejection message should reference the required singleton name")
+	require.True(t, k8serr.IsInvalid(err),
+		"expected Invalid status error from CEL validation, got: %v", err)
+
+	// Clean up in case the CEL rule regresses and the create unexpectedly succeeds.
+	t.Cleanup(func() {
+		_ = tc.Client().Delete(tc.Context(), u) //nolint:errcheck
+	})
 }
 
 // ValidateTenantDeletedOnDisable verifies that the Tenant CR is cleaned up when MaaS is

@@ -154,6 +154,11 @@ func removeTenantIfModelsAsServiceDisabled(
 		return fmt.Errorf("get Tenant %s: %w", maasv1alpha1.TenantInstanceName, err)
 	}
 
+	// Already being finalized; no need to re-issue the delete.
+	if !t.GetDeletionTimestamp().IsZero() {
+		return nil
+	}
+
 	if err := rr.Client.Delete(ctx, t); err != nil && !k8serr.IsNotFound(err) {
 		return fmt.Errorf("delete Tenant %s when ModelsAsService disabled: %w", maasv1alpha1.TenantInstanceName, err)
 	}
