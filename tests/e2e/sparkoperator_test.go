@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/rs/xid"
@@ -11,6 +12,11 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+)
+
+const (
+	sparkVersion = "4.0.1"
+	sparkImage   = "quay.io/opendatahub/data-processing:Spark-v" + sparkVersion
 )
 
 type SparkOperatorTestCtx struct {
@@ -119,7 +125,7 @@ func (tc *SparkOperatorTestCtx) ValidateScheduledSparkPiWorkload(t *testing.T) {
 			jq.Match(`.status.lastRunName != null and .status.lastRunName != ""`),
 		),
 		WithCustomErrorMsg("ScheduledSparkApplication %s did not schedule a run", scheduledSparkAppName),
-		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithEventuallyTimeout(tc.TestTimeouts.defaultEventuallyTimeout),
 		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
 	)
 
@@ -130,17 +136,20 @@ func (tc *SparkOperatorTestCtx) ValidateScheduledSparkPiWorkload(t *testing.T) {
 
 	t.Logf("ScheduledSparkApplication %s created SparkApplication: %s", scheduledSparkAppName, lastRunName)
 
-	// Wait for the spawned SparkApplication to complete
-	t.Logf("Waiting for SparkApplication %s to complete", lastRunName)
-	tc.EnsureResourceExists(
+	// Wait for the spawned SparkApplication to reach a terminal state
+	t.Logf("Waiting for SparkApplication %s to reach terminal state", lastRunName)
+	completedApp := tc.EnsureResourceExists(
 		WithMinimalObject(gvk.SparkApplication, types.NamespacedName{Name: lastRunName, Namespace: namespace}),
 		WithCondition(
-			jq.Match(`.status.applicationState.state == "COMPLETED"`),
+			jq.Match(`.status.applicationState.state == "COMPLETED" or .status.applicationState.state == "FAILED"`),
 		),
-		WithCustomErrorMsg("SparkApplication %s (created by ScheduledSparkApplication) did not complete successfully", lastRunName),
-		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithCustomErrorMsg("SparkApplication %s (created by ScheduledSparkApplication) did not reach terminal state", lastRunName),
+		WithEventuallyTimeout(tc.TestTimeouts.defaultEventuallyTimeout),
 		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
 	)
+
+	state, _, _ := unstructured.NestedString(completedApp.Object, "status", "applicationState", "state")
+	require.Equal(t, "COMPLETED", state, "SparkApplication %s ended in %s state instead of COMPLETED", lastRunName, state)
 
 	t.Logf("ScheduledSparkApplication %s successfully scheduled and executed SparkApplication %s", scheduledSparkAppName, lastRunName)
 }
@@ -155,68 +164,70 @@ func (tc *SparkOperatorTestCtx) createSparkPiApplication(name, namespace string)
 				"name":      name,
 				"namespace": namespace,
 			},
-			"spec": map[string]any{
-				"type":                "Scala",
-				"mode":                "cluster",
-				"image":               "quay.io/opendatahub/data-processing:Spark-v4.0.1",
-				"imagePullPolicy":     "IfNotPresent",
-				"mainClass":           "org.apache.spark.examples.SparkPi",
-				"mainApplicationFile": "local:///opt/spark/examples/jars/spark-examples_2.13-4.0.1.jar",
-				"arguments":           []any{"1000"},
-				"sparkVersion":        "4.0.1",
-				"restartPolicy": map[string]any{
-					"type": "Never",
+			"spec": sparkPiSpec(),
+		},
+	}
+}
+
+func sparkPiSpec() map[string]any {
+	return map[string]any{
+		"type":                "Scala",
+		"mode":                "cluster",
+		"image":               sparkImage,
+		"imagePullPolicy":     "IfNotPresent",
+		"mainClass":           "org.apache.spark.examples.SparkPi",
+		"mainApplicationFile": fmt.Sprintf("local:///opt/spark/examples/jars/spark-examples_2.13-%s.jar", sparkVersion),
+		"arguments":           []any{"1000"},
+		"sparkVersion":        sparkVersion,
+		"restartPolicy": map[string]any{
+			"type": "Never",
+		},
+		"sparkConf": map[string]any{
+			"spark.driver.port":              "8080",
+			"spark.driver.blockManager.port": "8082",
+			"spark.blockManager.port":        "8081",
+			"spark.port.maxRetries":          "0",
+		},
+		"volumes": []any{
+			map[string]any{
+				"name":     "spark-work-dir",
+				"emptyDir": map[string]any{},
+			},
+		},
+		"driver": map[string]any{
+			"labels": map[string]any{
+				"version": sparkVersion,
+			},
+			"cores":           int64(1),
+			"coreLimit":       "1200m",
+			"memory":          "512m",
+			"serviceAccount":  "spark-operator-spark",
+			"securityContext": map[string]any{},
+			"volumeMounts": []any{
+				map[string]any{
+					"name":      "spark-work-dir",
+					"mountPath": "/opt/spark/work-dir",
 				},
-				"sparkConf": map[string]any{
-					"spark.driver.port":              "8080",
-					"spark.driver.blockManager.port": "8082",
-					"spark.blockManager.port":        "8081",
-					"spark.port.maxRetries":          "0",
-				},
-				// Volume for OpenShift compatibility - provides writable work directory
-				"volumes": []any{
-					map[string]any{
-						"name":     "spark-work-dir",
-						"emptyDir": map[string]any{},
-					},
-				},
-				"driver": map[string]any{
-					"labels": map[string]any{
-						"version": "4.0.1",
-					},
-					"cores":           int64(1),
-					"coreLimit":       "1200m",
-					"memory":          "512m",
-					"serviceAccount":  "spark-operator-spark",
-					"securityContext": map[string]any{},
-					"volumeMounts": []any{
-						map[string]any{
-							"name":      "spark-work-dir",
-							"mountPath": "/opt/spark/work-dir",
-						},
-					},
-				},
-				"executor": map[string]any{
-					"labels": map[string]any{
-						"version": "4.0.1",
-					},
-					"instances":       int64(1),
-					"cores":           int64(1),
-					"memory":          "512m",
-					"securityContext": map[string]any{},
-					"volumeMounts": []any{
-						map[string]any{
-							"name":      "spark-work-dir",
-							"mountPath": "/opt/spark/work-dir",
-						},
-					},
+			},
+		},
+		"executor": map[string]any{
+			"labels": map[string]any{
+				"version": sparkVersion,
+			},
+			"instances":       int64(1),
+			"cores":           int64(1),
+			"memory":          "512m",
+			"securityContext": map[string]any{},
+			"volumeMounts": []any{
+				map[string]any{
+					"name":      "spark-work-dir",
+					"mountPath": "/opt/spark/work-dir",
 				},
 			},
 		},
 	}
 }
 
-// createScheduledSparkPiApplication creates a ScheduledSparkApplication CR for spark-pi test.
 func (tc *SparkOperatorTestCtx) createScheduledSparkPiApplication(name, namespace string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{
 		Object: map[string]any{
@@ -227,71 +238,11 @@ func (tc *SparkOperatorTestCtx) createScheduledSparkPiApplication(name, namespac
 				"namespace": namespace,
 			},
 			"spec": map[string]any{
-				// Run immediately and then every 5 minutes
-				"schedule": "@every 1m",
-				// Don't allow concurrent runs
-				"concurrencyPolicy": "Forbid",
-				// Keep only the last successful and failed run
+				"schedule":                  "@every 30s",
+				"concurrencyPolicy":         "Forbid",
 				"successfulRunHistoryLimit": int64(1),
 				"failedRunHistoryLimit":     int64(1),
-				// SparkApplication template - same as the regular SparkPi test
-				"template": map[string]any{
-					"type":                "Scala",
-					"mode":                "cluster",
-					"image":               "quay.io/opendatahub/data-processing:Spark-v4.0.1",
-					"imagePullPolicy":     "IfNotPresent",
-					"mainClass":           "org.apache.spark.examples.SparkPi",
-					"mainApplicationFile": "local:///opt/spark/examples/jars/spark-examples_2.13-4.0.1.jar",
-					"arguments":           []any{"1000"},
-					"sparkVersion":        "4.0.1",
-					"restartPolicy": map[string]any{
-						"type": "Never",
-					},
-					"sparkConf": map[string]any{
-						"spark.driver.port":              "8080",
-						"spark.driver.blockManager.port": "8082",
-						"spark.blockManager.port":        "8081",
-						"spark.port.maxRetries":          "0",
-					},
-					// Volume for OpenShift compatibility - provides writable work directory
-					"volumes": []any{
-						map[string]any{
-							"name":     "spark-work-dir",
-							"emptyDir": map[string]any{},
-						},
-					},
-					"driver": map[string]any{
-						"labels": map[string]any{
-							"version": "4.0.1",
-						},
-						"cores":           int64(1),
-						"coreLimit":       "1200m",
-						"memory":          "512m",
-						"serviceAccount":  "spark-operator-spark",
-						"securityContext": map[string]any{},
-						"volumeMounts": []any{
-							map[string]any{
-								"name":      "spark-work-dir",
-								"mountPath": "/opt/spark/work-dir",
-							},
-						},
-					},
-					"executor": map[string]any{
-						"labels": map[string]any{
-							"version": "4.0.1",
-						},
-						"instances":       int64(1),
-						"cores":           int64(1),
-						"memory":          "512m",
-						"securityContext": map[string]any{},
-						"volumeMounts": []any{
-							map[string]any{
-								"name":      "spark-work-dir",
-								"mountPath": "/opt/spark/work-dir",
-							},
-						},
-					},
-				},
+				"template":                  sparkPiSpec(),
 			},
 		},
 	}
