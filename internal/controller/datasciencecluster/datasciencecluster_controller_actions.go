@@ -3,10 +3,12 @@ package datasciencecluster
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -24,6 +26,17 @@ const (
 	// TODO: remove after https://issues.redhat.com/browse/RHOAIENG-15920
 	finalizerName = "datasciencecluster.opendatahub.io/finalizer"
 )
+
+// persistAPI is implemented by component CRs that expose an alternative object
+// for the deploy action to persist (e.g. when the "public" CR wraps an inner
+// object that should actually be applied to the cluster).
+type persistAPI interface {
+	APIPersistObject() client.Object
+}
+
+func isNilInterface(v interface{}) bool {
+	return v == nil || (reflect.ValueOf(v).Kind() == reflect.Ptr && reflect.ValueOf(v).IsNil())
+}
 
 func initialize(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
@@ -92,18 +105,15 @@ func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest)
 		if err != nil {
 			return err
 		}
-		if ci == nil {
+		if isNilInterface(ci) {
 			return nil
 		}
 		obj, ok := ci.(client.Object)
 		if !ok {
 			return fmt.Errorf("component CR %T does not implement client.Object", ci)
 		}
-		type persistAPI interface {
-			APIPersistObject() client.Object
-		}
 		if p, ok := ci.(persistAPI); ok {
-			if inner := p.APIPersistObject(); inner != nil {
+			if inner := p.APIPersistObject(); !isNilInterface(inner) {
 				obj = inner
 			}
 		}
@@ -159,7 +169,7 @@ func removeTenantIfModelsAsServiceDisabled(
 		return nil
 	}
 
-	if err := rr.Client.Delete(ctx, t); err != nil && !k8serr.IsNotFound(err) {
+	if err := rr.Client.Delete(ctx, t, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil && !k8serr.IsNotFound(err) {
 		return fmt.Errorf("delete Tenant %s when ModelsAsService disabled: %w", maasv1alpha1.TenantInstanceName, err)
 	}
 

@@ -165,6 +165,12 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 			return err
 		}
 		if ch.IsEnabled(dsc) {
+			// NewCRObject may legitimately return (nil, nil) for components that
+			// delegate CR ownership elsewhere (e.g. ModelsAsService). Treat as
+			// not-ready so prometheus rules are not added until the CR appears.
+			if ci == nil {
+				return nil
+			}
 			ready, err := isComponentReady(ctx, rr.Client, ci)
 			if err != nil {
 				return fmt.Errorf("failed to get component status %w", err)
