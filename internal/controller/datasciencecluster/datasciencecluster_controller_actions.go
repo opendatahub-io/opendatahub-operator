@@ -6,6 +6,7 @@ import (
 
 	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -147,7 +148,7 @@ func removeTenantIfModelsAsServiceDisabled(
 	key := client.ObjectKey{Name: maasv1alpha1.TenantInstanceName, Namespace: modelsasservicectrl.MaaSSubscriptionNamespace}
 	t := &maasv1alpha1.Tenant{}
 	if err := rr.Client.Get(ctx, key, t); err != nil {
-		if k8serr.IsNotFound(err) {
+		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
 			return nil
 		}
 		return fmt.Errorf("get Tenant %s: %w", maasv1alpha1.TenantInstanceName, err)

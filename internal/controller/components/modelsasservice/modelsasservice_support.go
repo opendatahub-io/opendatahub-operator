@@ -32,7 +32,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -135,9 +134,9 @@ func baseManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInfo 
 // (e.g. registry IsComponentEnabled(ModelsAsServiceComponentName)); platform reconcile for
 // Tenant remains in maas-controller.
 func AppendOperatorInstallManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	root := deploy.DefaultManifestPath
+	root := rr.ManifestsBasePath
 	if root == "" {
-		return errors.New("DEFAULT_MANIFESTS_PATH is unset; cannot render maas-controller install bundle")
+		return errors.New("ManifestsBasePath is unset; cannot render maas-controller install bundle")
 	}
 
 	kPath := filepath.Join(root, "maas", "base", "maas-controller", "default")
