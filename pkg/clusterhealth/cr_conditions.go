@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -78,7 +79,7 @@ func getCRByGVK(ctx context.Context, c client.Client, objGVK schema.GroupVersion
 		obj.SetGroupVersionKind(objGVK)
 		err := c.Get(ctx, nn, obj)
 		if err != nil {
-			if k8serr.IsNotFound(err) {
+			if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
 				if nn.Namespace != "" {
 					return nil, fmt.Errorf("CR %s not found in namespace %s", nn.Name, nn.Namespace)
 				}
@@ -96,6 +97,9 @@ func getCRByGVK(ctx context.Context, c client.Client, objGVK schema.GroupVersion
 		Kind:    objGVK.Kind + "List",
 	})
 	if err := c.List(ctx, list); err != nil {
+		if meta.IsNoMatchError(err) {
+			return nil, nil // Kind not registered, treat as not found
+		}
 		return nil, fmt.Errorf("failed to list %s: %w", objGVK.Kind, err)
 	}
 	if len(list.Items) == 0 {

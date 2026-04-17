@@ -128,6 +128,8 @@ func (tc *DSCTestCtx) ValidateResourcesCreation(t *testing.T) {
 func (tc *DSCTestCtx) ValidateDSCICreation(t *testing.T) {
 	t.Helper()
 
+	tc.SkipIfXKSCluster(t)
+
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithObjectToCreate(CreateDSCI(tc.DSCInitializationNamespacedName.Name, tc.AppsNamespace, tc.MonitoringNamespace)),
 		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
@@ -143,6 +145,8 @@ func (tc *DSCTestCtx) ValidateDSCICreation(t *testing.T) {
 func (tc *DSCTestCtx) ValidateDSCCreation(t *testing.T) {
 	t.Helper()
 
+	tc.SkipIfXKSCluster(t)
+
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithObjectToCreate(CreateDSC(tc.DataScienceClusterNamespacedName.Name, tc.WorkbenchesNamespace)),
 		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
@@ -157,6 +161,8 @@ func (tc *DSCTestCtx) ValidateDSCCreation(t *testing.T) {
 // ValidateOwnedNamespacesAllExist verifies that the owned namespaces exist.
 func (tc *DSCTestCtx) ValidateOwnedNamespacesAllExist(t *testing.T) {
 	t.Helper()
+
+	tc.SkipIfXKSCluster(t)
 
 	skipUnless(t, Smoke)
 
@@ -177,6 +183,8 @@ func (tc *DSCTestCtx) ValidateOwnedNamespacesAllExist(t *testing.T) {
 // ValidateDefaultNetworkPolicyExists verifies that the default network policy exists.
 func (tc *DSCTestCtx) ValidateDefaultNetworkPolicyExists(t *testing.T) {
 	t.Helper()
+
+	tc.SkipIfXKSCluster(t)
 
 	skipUnless(t, Smoke)
 

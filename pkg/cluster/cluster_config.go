@@ -197,7 +197,7 @@ func getOperatorNamespace(configured string) (string, error) {
 		return configured, nil
 	}
 	data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
-	return string(data), err
+	return strings.TrimSpace(string(data)), err
 }
 
 func IsNotReservedNamespace(ns *corev1.Namespace) bool {
@@ -267,6 +267,9 @@ func GetClusterServiceVersion(ctx context.Context, c client.Client, namespace st
 		Namespace: namespace,
 	}
 	if err := c.List(ctx, clusterServiceVersionList, listOption); err != nil {
+		if meta.IsNoMatchError(err) {
+			return nil, k8serr.NewNotFound(schema.GroupResource{Group: gvk.ClusterServiceVersion.Group}, gvk.ClusterServiceVersion.Kind)
+		}
 		return nil, fmt.Errorf("failed listing cluster service versions for %s: %w", namespace, err)
 	}
 	for _, csv := range clusterServiceVersionList.Items {
@@ -299,6 +302,9 @@ func detectManagedRhoai(ctx context.Context, cli client.Client) (common.Platform
 	}
 	err = cli.Get(ctx, client.ObjectKey{Name: "addon-managed-odh-catalog", Namespace: operatorNs}, catalogSource)
 	if err != nil {
+		if meta.IsNoMatchError(err) {
+			return OpenDataHub, nil
+		}
 		return OpenDataHub, client.IgnoreNotFound(err)
 	}
 	return ManagedRhoai, nil
@@ -339,6 +345,10 @@ func getRelease(ctx context.Context, cli client.Client, platformType string) (co
 	// Set platform
 	platform, err := getPlatform(ctx, cli, platformType)
 	if err != nil {
+		if meta.IsNoMatchError(err) {
+			initRelease.Name = OpenDataHub
+			return initRelease, nil
+		}
 		return initRelease, err
 	}
 	initRelease.Name = platform
@@ -400,7 +410,7 @@ func getClusterInfo(ctx context.Context, cli client.Client) (ClusterInfo, error)
 	// Auto-detect: if the ClusterVersion CRD is absent this is not OpenShift.
 	ocpVersion, err := getOCPVersion(ctx, cli)
 	if err != nil {
-		if meta.IsNoMatchError(err) {
+		if meta.IsNoMatchError(err) || k8serr.IsForbidden(err) {
 			c.Type = ClusterTypeKubernetes
 			return c, nil
 		}
@@ -428,6 +438,9 @@ func IsFipsEnabled(ctx context.Context, cli client.Client) (bool, error) {
 	}
 
 	if err := cli.Get(ctx, namespacedName, cm); err != nil {
+		if k8serr.IsNotFound(err) || k8serr.IsForbidden(err) {
+			return false, nil
+		}
 		return false, err
 	}
 
@@ -449,6 +462,7 @@ func IsFipsEnabled(ctx context.Context, cli client.Client) (bool, error) {
 func setApplicationNamespace(ctx context.Context, cli client.Client) error {
 	platform := clusterConfig.Release.Name
 	defaultRHOAIApplicationNamespace := "redhat-ods-applications"
+	defaultODHApplicationNamespace := "opendatahub"
 
 	if platform == ManagedRhoai {
 		clusterConfig.ApplicationNamespace = defaultRHOAIApplicationNamespace
@@ -460,6 +474,15 @@ func setApplicationNamespace(ctx context.Context, cli client.Client) error {
 	}
 
 	if err := cli.List(ctx, namespaceList, labelSelector); err != nil {
+		if meta.IsNoMatchError(err) || k8serr.IsForbidden(err) {
+			// Fallback to defaults if we can't list namespaces
+			if platform == SelfManagedRhoai {
+				clusterConfig.ApplicationNamespace = defaultRHOAIApplicationNamespace
+			} else {
+				clusterConfig.ApplicationNamespace = defaultODHApplicationNamespace
+			}
+			return nil
+		}
 		return err
 	}
 
@@ -469,7 +492,7 @@ func setApplicationNamespace(ctx context.Context, cli client.Client) error {
 		if platform == SelfManagedRhoai {
 			clusterConfig.ApplicationNamespace = defaultRHOAIApplicationNamespace
 		} else {
-			clusterConfig.ApplicationNamespace = "opendatahub"
+			clusterConfig.ApplicationNamespace = defaultODHApplicationNamespace
 		}
 	case 1:
 		// One labeled namespace found, use it
