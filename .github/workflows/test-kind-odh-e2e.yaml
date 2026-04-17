@@ -16,9 +16,9 @@ env:
 
 jobs:
   get-merge-commit:
-    # if: >-
-    #  github.event.action == 'labeled' && github.event.label.name == 'run-xks-e2e'
-    #  || github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'run-xks-e2e')
+    if: >-
+     github.event.action == 'labeled' && github.event.label.name == 'run-xks-e2e' ||
+     github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'run-xks-e2e')
     name: Get merge commit
     uses: ./.github/workflows/get-merge-commit.yaml
 
@@ -26,9 +26,9 @@ jobs:
     needs: get-merge-commit
     # Label gate: only runs when a maintainer adds this label, preventing
     # untrusted fork PRs from executing arbitrary code with repo secrets.
-    # if: >-
-    #  github.event.action == 'labeled' && github.event.label.name == 'run-xks-e2e'
-    #  || github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'run-xks-e2e')
+    if: >-
+     github.event.action == 'labeled' && github.event.label.name == 'run-xks-e2e' ||
+     github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'run-xks-e2e')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -81,7 +81,7 @@ jobs:
         run: |
           make deploy-ccm-local-azure
           echo "Waiting for Cloud Manager deployment to be available..."
-          kubectl rollout status deployment -n opendatahub-cloudmanager-system -l control-plane=controller-manager --timeout=180s          
+          kubectl rollout status deployment -n opendatahub-cloudmanager-system -l control-plane=controller-manager --timeout=180s
           echo "✅ Cloud Manager is Ready!"
 
       - name: Deploy AzureKubernetesEngine CR
