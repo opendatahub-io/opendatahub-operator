@@ -71,10 +71,10 @@ declare -A ODH_COMPONENT_CHARTS=(
 
 # RHOAI Component Charts
 declare -A RHOAI_COMPONENT_CHARTS=(
-    ["cert-manager-operator"]="red-hat-data-services:odh-gitops:main@38fde97044b04fb7b0a37b58df3e7e6ce577ebeb:charts/dependencies/cert-manager-operator"
-    ["lws-operator"]="red-hat-data-services:odh-gitops:main@38fde97044b04fb7b0a37b58df3e7e6ce577ebeb:charts/dependencies/lws-operator"
-    ["sail-operator"]="red-hat-data-services:odh-gitops:main@38fde97044b04fb7b0a37b58df3e7e6ce577ebeb:charts/dependencies/sail-operator"
-    ["gateway-api"]="red-hat-data-services:odh-gitops:main@38fde97044b04fb7b0a37b58df3e7e6ce577ebeb:charts/dependencies/gateway-api"
+    ["cert-manager-operator"]="red-hat-data-services:odh-gitops:rhoai-3.4@eaeef9830e88ff9a6f588d4b1cb38efd3cb54cc2:charts/dependencies/cert-manager-operator"
+    ["lws-operator"]="red-hat-data-services:odh-gitops:rhoai-3.4@eaeef9830e88ff9a6f588d4b1cb38efd3cb54cc2:charts/dependencies/lws-operator"
+    ["sail-operator"]="red-hat-data-services:odh-gitops:rhoai-3.4@eaeef9830e88ff9a6f588d4b1cb38efd3cb54cc2:charts/dependencies/sail-operator"
+    ["gateway-api"]="red-hat-data-services:odh-gitops:rhoai-3.4@eaeef9830e88ff9a6f588d4b1cb38efd3cb54cc2:charts/dependencies/gateway-api"
 )
 
 # Select the appropriate manifest based on platform type
