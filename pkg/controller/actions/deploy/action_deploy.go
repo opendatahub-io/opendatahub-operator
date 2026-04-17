@@ -248,7 +248,14 @@ func (a *Action) deployCRD(
 
 	var deployedObj *unstructured.Unstructured
 
-	ops := []client.PatchOption{
+	// Prepare options for both patch and apply modes
+	patchOps := []client.PatchOption{
+		client.ForceOwnership,
+		// Since CRDs are not bound to a component, set the field
+		// owner to the platform itself
+		client.FieldOwner(resources.PlatformFieldOwner),
+	}
+	applyOps := []client.ApplyOption{
 		client.ForceOwnership,
 		// Since CRDs are not bound to a component, set the field
 		// owner to the platform itself
@@ -257,9 +264,9 @@ func (a *Action) deployCRD(
 
 	switch a.deployMode {
 	case ModePatch:
-		deployedObj, err = a.patch(ctx, rr.Client, &obj, current, ops...)
+		deployedObj, err = a.patch(ctx, rr.Client, &obj, current, patchOps...)
 	case ModeSSA:
-		deployedObj, err = a.apply(ctx, rr.Client, &obj, current, ops...)
+		deployedObj, err = a.apply(ctx, rr.Client, &obj, current, applyOps...)
 	default:
 		err = fmt.Errorf("unsupported deploy mode %s", a.deployMode)
 	}
@@ -347,16 +354,21 @@ func (a *Action) deploy(
 			}
 		}
 
-		ops := []client.PatchOption{
+		// Prepare options for both patch and apply modes
+		patchOps := []client.PatchOption{
+			client.ForceOwnership,
+			client.FieldOwner(fo),
+		}
+		applyOps := []client.ApplyOption{
 			client.ForceOwnership,
 			client.FieldOwner(fo),
 		}
 
 		switch a.deployMode {
 		case ModePatch:
-			deployedObj, err = a.patch(ctx, rr.Client, &obj, current, ops...)
+			deployedObj, err = a.patch(ctx, rr.Client, &obj, current, patchOps...)
 		case ModeSSA:
-			deployedObj, err = a.apply(ctx, rr.Client, &obj, current, ops...)
+			deployedObj, err = a.apply(ctx, rr.Client, &obj, current, applyOps...)
 		default:
 			err = fmt.Errorf("unsupported deploy mode %s", a.deployMode)
 		}
@@ -458,7 +470,7 @@ func (a *Action) apply(
 	cli client.Client,
 	obj *unstructured.Unstructured,
 	old *unstructured.Unstructured,
-	opts ...client.PatchOption,
+	opts ...client.ApplyOption,
 ) (*unstructured.Unstructured, error) {
 	logf.FromContext(ctx).V(3).Info("apply",
 		"gvk", obj.GroupVersionKind(),

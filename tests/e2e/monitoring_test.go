@@ -215,6 +215,9 @@ func monitoringTestSuite(t *testing.T) {
 
 		// Subtest 2: With metrics
 		t.Run("Test ThanosQuerier deployment with metrics", monitoringServiceCtx.ValidateThanosQuerierDeployment)
+
+		// Subtest 3: NetworkPolicy allows Thanos Querier on gRPC port
+		t.Run("Test Prometheus NetworkPolicy allows Thanos Querier on gRPC port", monitoringServiceCtx.ValidatePrometheusNetworkPolicyAllowsThanosQuerier)
 	})
 
 	// ========================================================================
@@ -1754,6 +1757,52 @@ func (tc *MonitoringTestCtx) ValidateThanosQuerierNotDeployedWithoutMetrics(t *t
 
 	// Cleanup: Reset monitoring configuration
 	tc.resetMonitoringConfigToManaged()
+}
+
+// ValidatePrometheusNetworkPolicyAllowsThanosQuerier tests that the Prometheus instance NetworkPolicy
+// includes an ingress rule allowing the Thanos Querier to reach the Thanos Sidecar on gRPC port 10901.
+func (tc *MonitoringTestCtx) ValidatePrometheusNetworkPolicyAllowsThanosQuerier(t *testing.T) {
+	t.Helper()
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(And(
+			jq.Match(`.spec.metrics != null`),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionMonitoringStackAvailable, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Monitoring resource should be ready with MonitoringStack available before checking NetworkPolicy"),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.NetworkPolicy, types.NamespacedName{
+			Name:      "data-science-prometheus-instance-ingress",
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.metadata.labels["platform.opendatahub.io/part-of"] == "monitoring"`),
+			// Validate podSelector targets Prometheus pods
+			jq.Match(`.spec.podSelector.matchLabels["app.kubernetes.io/name"] == "prometheus"`),
+			jq.Match(`.spec.podSelector.matchLabels["app.kubernetes.io/instance"] == "data-science-monitoringstack"`),
+			jq.Match(`.spec.policyTypes[0] == "Ingress"`),
+			// Validate proxy ingress rule (port 9090)
+			jq.Match(`.spec.ingress[0].from[0].podSelector.matchLabels.app == "data-science-prometheus-namespace-proxy"`),
+			jq.Match(`.spec.ingress[0].from[1].podSelector.matchLabels.app == "data-science-prometheus-cluster-proxy"`),
+			jq.Match(`.spec.ingress[0].ports[0].protocol == "TCP"`),
+			jq.Match(`.spec.ingress[0].ports[0].port == 9090`),
+			// Validate Thanos Querier ingress rule (gRPC port 10901)
+			jq.Match(`.spec.ingress[1].from[0].podSelector.matchLabels["app.kubernetes.io/part-of"] == "ThanosQuerier"`),
+			jq.Match(`.spec.ingress[1].from[0].podSelector.matchLabels["app.kubernetes.io/managed-by"] == "observability-operator"`),
+			jq.Match(`.spec.ingress[1].ports[0].protocol == "TCP"`),
+			jq.Match(`.spec.ingress[1].ports[0].port == 10901`),
+		)),
+		WithCustomErrorMsg("Prometheus NetworkPolicy should allow Thanos Querier ingress on gRPC port 10901"),
+	)
 }
 
 // ValidatePrometheusSelfServiceMonitorTLSFix tests that the prometheus-self-fixed ServiceMonitor is deployed

@@ -24,3 +24,11 @@ spec:
       ports:
         - protocol: TCP
           port: 9090
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: ThanosQuerier
+              app.kubernetes.io/managed-by: observability-operator
+      ports:
+        - protocol: TCP
+          port: 10901
