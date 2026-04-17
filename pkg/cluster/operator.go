@@ -10,6 +10,7 @@ import (
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -34,6 +35,9 @@ func GetSubscription(ctx context.Context, cli client.Client, namespace string, n
 func SubscriptionExists(ctx context.Context, cli client.Client, name string) (bool, error) {
 	subscriptionList := &v1alpha1.SubscriptionList{}
 	if err := cli.List(ctx, subscriptionList); err != nil {
+		if meta.IsNoMatchError(err) {
+			return false, nil
+		}
 		return false, err
 	}
 
@@ -67,6 +71,9 @@ func OperatorExists(ctx context.Context, cli client.Client, operatorPrefix strin
 	opConditionList := &ofapiv2.OperatorConditionList{}
 	err := cli.List(ctx, opConditionList)
 	if err != nil {
+		if meta.IsNoMatchError(err) {
+			return nil, nil
+		}
 		// return nil reference and the error when parsing the list
 		return nil, err
 	}

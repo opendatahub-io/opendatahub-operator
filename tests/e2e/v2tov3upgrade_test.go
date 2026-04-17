@@ -51,10 +51,13 @@ type V2Tov3UpgradeTestCtx struct {
 func v2Tov3UpgradeTestSuite(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, Tier1)
-
 	tc, err := NewTestContext(t)
 	require.NoError(t, err)
+
+	// Upgrade tests rely on DSC/DSCI which don't exist in XKS/KinD.
+	tc.SkipIfXKSCluster(t)
+
+	skipUnless(t, Tier1)
 
 	// Create an instance of test context.
 	v2Tov3UpgradeTestCtx := V2Tov3UpgradeTestCtx{
@@ -88,10 +91,13 @@ func v2Tov3UpgradeTestSuite(t *testing.T) {
 func v2Tov3UpgradeDeletingDscDsciTestSuite(t *testing.T) {
 	t.Helper()
 
-	skipUnless(t, Tier3)
-
 	tc, err := NewTestContext(t)
 	require.NoError(t, err)
+
+	// Upgrade tests rely on DSC/DSCI which don't exist in XKS/KinD.
+	tc.SkipIfXKSCluster(t)
+
+	skipUnless(t, Tier3)
 
 	// Create an instance of test context.
 	v2Tov3UpgradeTestCtx := V2Tov3UpgradeTestCtx{

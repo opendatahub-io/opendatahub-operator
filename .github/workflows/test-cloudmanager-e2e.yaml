@@ -9,12 +9,14 @@ permissions:
   contents: read
 
 env:
-  IMG: localhost/odh-operator:e2e
   IMAGE_BUILDER: podman
+  IMG: localhost/odh-operator:e2e
 
 jobs:
   get-merge-commit:
-    if: contains(github.event.pull_request.labels.*.name, 'run-xks-e2e')
+    if: >-
+      github.event.action == 'labeled' && github.event.label.name == 'run-xks-e2e'
+      || github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'run-xks-e2e')
     name: Get merge commit
     uses: ./.github/workflows/get-merge-commit.yaml
 
@@ -23,7 +25,9 @@ jobs:
     name: Cloud Manager E2E (${{ matrix.provider }})
     # Label gate: only runs when a maintainer adds this label, preventing
     # untrusted fork PRs from executing arbitrary code with repo secrets.
-    if: contains(github.event.pull_request.labels.*.name, 'run-xks-e2e')
+    if: >-
+      github.event.action == 'labeled' && github.event.label.name == 'run-xks-e2e'
+      || github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'run-xks-e2e')
     runs-on: ubuntu-latest
     env:
       KIND_CLUSTER_NAME: kind-${{ matrix.provider }}

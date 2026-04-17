@@ -1,9 +1,12 @@
 package e2e_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
 type OperatorTestCtx struct {
@@ -29,6 +32,36 @@ func odhOperatorTestSuite(t *testing.T) {
 
 	// Run the test suite.
 	RunTestCases(t, testCases)
+}
+
+func (tc *OperatorTestCtx) filterCRDTestCases(crds []struct {
+	name string
+	crd  string
+}) []struct {
+	name string
+	crd  string
+} {
+	platform := tc.FetchPlatformRelease()
+	if platform != cluster.XKS {
+		return crds
+	}
+
+	// In XKS platform (KinD cluster), only a subset of CRDs is expected.
+	// Only the KServe CRD is expected
+	allowedCRDs := []string{
+		"kserves.components.platform.opendatahub.io",
+	}
+
+	var filtered []struct {
+		name string
+		crd  string
+	}
+	for _, c := range crds {
+		if slices.Contains(allowedCRDs, c.crd) {
+			filtered = append(filtered, c)
+		}
+	}
+	return filtered
 }
 
 // ValidateOwnedCRDs validates if the owned CRDs are properly created and available.
@@ -61,6 +94,8 @@ func (tc *OperatorTestCtx) ValidateOwnedCRDs(t *testing.T) {
 		{"SparkOperator CRD", "sparkoperators.components.platform.opendatahub.io"},
 		{"MLflowOperator CRD", "mlflowoperators.components.platform.opendatahub.io"},
 	}
+
+	crdsTestCases = tc.filterCRDTestCases(crdsTestCases)
 
 	for _, testCase := range crdsTestCases {
 		t.Run("Validate "+testCase.name, func(t *testing.T) {

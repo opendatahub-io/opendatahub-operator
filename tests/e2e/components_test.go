@@ -87,7 +87,7 @@ func (tc *ComponentTestCtx) ValidateComponentEnabled(t *testing.T) {
 	skipUnless(t, Smoke, Tier1)
 
 	// if the cluster is Openshift, we rely in the DSC. If not, in the component CR existence
-	if tc.IsOpenshift() {
+	if !tc.IsXKS() {
 		// As these tests can be executed in a non-cleaned scenario, we need to move the component first to Removed.
 		tc.UpdateComponentStateInDataScienceCluster(operatorv1.Removed)
 
@@ -99,16 +99,22 @@ func (tc *ComponentTestCtx) ValidateComponentEnabled(t *testing.T) {
 
 	// Ensure the component resource exists and is marked "Ready".
 	// Note: Ready=True already implies deployments exist and are ready (checked by DeploymentsAvailable condition)
+	matchersList := []gTypes.GomegaMatcher{
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
+	}
+
+	if !tc.IsXKS() {
+		// Only check for DataScienceCluster owner on non-XKS platforms (OpenShift)
+		matchersList = append(matchersList, jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DataScienceCluster.Kind))
+	}
+
 	tc.EnsureResourcesExist(
 		WithMinimalObject(tc.GVK, tc.NamespacedName),
 		WithCondition(
 			And(
 				HaveLen(1),
-				HaveEach(And(
-					jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DataScienceCluster.Kind),
-					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
-					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
-				)),
+				HaveEach(And(matchersList...)),
 			),
 		),
 	)
@@ -148,6 +154,10 @@ func (tc *ComponentTestCtx) ValidateOperandsOwnerReferences(t *testing.T) {
 	t.Helper()
 
 	skipUnless(t, Smoke)
+
+	if tc.IsXKS() {
+		t.Skip("Skipping test because operands ownership by component CR is not enforced/guaranteed on XKS platform")
+	}
 
 	// Ensure that the Deployment resources exist with the proper owner references
 	tc.EnsureResourcesExist(
@@ -258,7 +268,7 @@ func (tc *ComponentTestCtx) ValidateCRDsReinstated(t *testing.T, crds []CRD) {
 func (tc *ComponentTestCtx) ValidateComponentReleases(t *testing.T) {
 	t.Helper()
 
-	tc.SkipIfNonOpenshiftCluster(t)
+	tc.SkipIfXKSCluster(t)
 
 	skipUnless(t, Smoke)
 
@@ -458,7 +468,7 @@ func (tc *ComponentTestCtx) ValidateComponentCondition(gvk schema.GroupVersionKi
 
 // UpdateComponentState updates the management state of a specified component in the DataScienceCluster or in the Component CR depending on the kind of cluster.
 func (tc *ComponentTestCtx) UpdateComponentState(state operatorv1.ManagementState) {
-	if tc.IsOpenshift() {
+	if !tc.IsXKS() {
 		tc.UpdateComponentStateInDataScienceCluster(state)
 	} else {
 		tc.CheckComponentResourceExistsOrNot(state)

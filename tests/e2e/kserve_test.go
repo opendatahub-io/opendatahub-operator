@@ -94,10 +94,16 @@ func (tc *KserveTestCtx) ValidateSpec(t *testing.T) {
 
 	skipUnless(t, Smoke)
 
-	tc.SkipIfNonOpenshiftCluster(t)
+	tc.SkipIfXKSCluster(t)
 
 	// Retrieve the DataScienceCluster instance.
 	dsc := tc.FetchDataScienceCluster()
+	if dsc == nil {
+		if tc.IsXKS() {
+			t.Skip("Skipping DataScienceCluster validation on XKS as DSC is not present")
+		}
+		t.Fatal("DataScienceCluster not found")
+	}
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: componentApi.KserveInstanceName}),
@@ -195,10 +201,13 @@ func (tc *KserveTestCtx) ensureLWSBaseline(t *testing.T) *unstructured.Unstructu
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionDependenciesAvailable, metav1.ConditionTrue)),
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue)),
 	)
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionTrue)),
-	)
+
+	if !tc.IsXKS() {
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+			WithCondition(jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionTrue)),
+		)
+	}
 
 	return lwsCR
 }

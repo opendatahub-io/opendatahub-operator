@@ -389,7 +389,9 @@ image: image-build image-push ## Build and push image with the manager.
 
 .PHONY: image-kind-load
 image-kind-load:
-	$(IMAGE_BUILDER) save $(IMG) | kind load image-archive /dev/stdin $(if $(KIND_CLUSTER_NAME),--name $(KIND_CLUSTER_NAME))
+	$(IMAGE_BUILDER) save -o image.tar $(IMG)
+	kind load image-archive image.tar $(if $(KIND_CLUSTER_NAME),--name $(KIND_CLUSTER_NAME))
+	rm -rf image.tar
 
 .PHONY: e2e-test-ccm
 e2e-test-ccm: ## Run cloud manager e2e tests (requires CLOUD_MANAGER_PROVIDER, e.g. azure)

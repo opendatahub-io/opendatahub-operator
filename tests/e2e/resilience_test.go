@@ -43,9 +43,12 @@ const (
 func operatorResilienceTestSuite(t *testing.T) {
 	t.Helper()
 
-	// Initialize the test context.
+	// Initialize the test context to check platform early.
 	tc, err := NewTestContext(t)
 	require.NoError(t, err, "Failed to initialize test context")
+
+	// Resilience tests often rely on DSC/DSCI which don't exist in XKS/KinD.
+	tc.SkipIfXKSCluster(t)
 
 	// Create an instance of resilience test context.
 	resilienceTestCtx := OperatorResilienceTestCtx{
