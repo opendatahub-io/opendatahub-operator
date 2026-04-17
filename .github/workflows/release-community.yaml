@@ -36,7 +36,7 @@ jobs:
       contents: read
     steps:
     - name: Checkout opendatahub-operator release branch
-      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         repository: opendatahub-io/opendatahub-operator
         ref: odh-${{ env.VERSION }}
@@ -44,7 +44,7 @@ jobs:
         fetch-depth: 0
 
     - name: Setup Go
-      uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+      uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
       with:
         go-version-file: opendatahub-operator/go.mod
         cache: false
@@ -100,7 +100,7 @@ jobs:
 
     - name: Generate GitHub App Token
       id: generate-token
-      uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+      uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
       with:
         app-id: ${{ secrets.ODH_RELEASE_BOT_APP_ID }}
         private-key: ${{ secrets.ODH_RELEASE_BOT_PRIVATE_KEY }}
@@ -108,7 +108,7 @@ jobs:
         repositories: community-operators-prod
 
     - name: Checkout community-operators-prod fork
-      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         repository: ${{ env.COMMUNITY_FORK }}
         path: community-operators-prod
