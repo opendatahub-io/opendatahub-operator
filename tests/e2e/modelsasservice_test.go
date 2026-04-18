@@ -296,7 +296,7 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantSingletonEnforcement(t *testing.
 
 	// Clean up in case the CEL rule regresses and the create unexpectedly succeeds.
 	t.Cleanup(func() {
-		_ = tc.Client().Delete(tc.Context(), u) //nolint:errcheck
+		_ = tc.Client().Delete(tc.Context(), u)
 	})
 }
 
