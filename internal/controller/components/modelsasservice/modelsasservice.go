@@ -125,7 +125,7 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 			conditions.WithReason(status.NotReadyReason),
 			conditions.WithMessage("Tenant CR not available yet"),
 		)
-		return metav1.ConditionFalse, nil
+		return metav1.ConditionFalse, nil //nolint:nilerr // Get failure is expected when Tenant doesn't exist yet; treat as not-ready.
 	}
 
 	if !t.GetDeletionTimestamp().IsZero() {
