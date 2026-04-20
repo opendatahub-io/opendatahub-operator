@@ -4,7 +4,7 @@ package modelsasservice
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/onsi/gomega/types"
@@ -291,7 +291,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 			fakeclient.WithInterceptorFuncs(interceptor.Funcs{
 				Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 					if _, ok := obj.(*maasv1alpha1.Tenant); ok {
-						return fmt.Errorf("simulated API server error")
+						return errors.New("simulated API server error")
 					}
 					return c.Get(ctx, key, obj, opts...)
 				},
