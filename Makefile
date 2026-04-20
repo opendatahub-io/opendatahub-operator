@@ -856,7 +856,7 @@ kind-setup-pull-secrets: ## Setup pull secrets for operator dependencies in the 
 		exit 1; \
 	fi
 	@if [ ! -f "$(PULL_SECRET)" ]; then \
-		echo "Error: PULL_SECRET file '$(PULL_SECRET)' does not exist."; \
+		echo "Error: PULL_SECRET file '$(PULL_SECRET)' does not exist. Use '\$$HOME' instead of '~'."; \
 		exit 1; \
 	fi
 	@for ns in $(PULL_SECRET_NAMESPACES); do \
