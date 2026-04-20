@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/kustomize/api/krusty"
@@ -69,6 +70,11 @@ var (
 		"gateway-namespace": DefaultGatewayNamespace,
 		"gateway-name":      DefaultGatewayName,
 	}
+
+	// Defaults for maas-parameters ConfigMap (only runtime-consumed keys).
+	defaultMetadataCacheTTL int64 = 60
+	defaultAuthzCacheTTL    int64 = 60
+	defaultAPIKeyMaxExpDays       = "90"
 )
 
 func baseManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInfo {
@@ -120,7 +126,7 @@ func AppendOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconcilia
 	}
 
 	rendered := resMap.Resources()
-	extra := make([]unstructured.Unstructured, 0, len(rendered))
+	extra := make([]unstructured.Unstructured, 0, len(rendered)+1)
 	for i := range rendered {
 		m, err := rendered[i].Map()
 		if err != nil {
@@ -135,6 +141,12 @@ func AppendOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconcilia
 		extra = append(extra, unstructured.Unstructured{Object: m})
 	}
 
+	paramsCM, err := defaultMaaSParametersConfigMap(ctx, rr, appNs, componentLabels)
+	if err != nil {
+		return fmt.Errorf("build default maas-parameters ConfigMap: %w", err)
+	}
+	extra = append(extra, *paramsCM)
+
 	sortedExtra, err := resources.SortByApplyOrder(ctx, extra)
 	if err != nil {
 		return fmt.Errorf("sort maas-controller install bundle: %w", err)
@@ -143,6 +155,42 @@ func AppendOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconcilia
 	// CRDs and namespaced operator resources must apply before Tenant and other component CRs.
 	rr.Resources = append(sortedExtra, rr.Resources...)
 	return nil
+}
+
+// defaultMaaSParametersConfigMap builds a minimal maas-parameters ConfigMap
+// containing only the keys consumed at runtime via configMapKeyRef by
+// maas-controller (metadata-cache-ttl, authz-cache-ttl) and maas-api
+// (gateway-namespace, gateway-name, api-key-max-expiration-days).
+// The Tenant reconciler overwrites these values on first reconcile.
+// Images and other build-time values are handled by ApplyParams + kustomize replacements.
+func defaultMaaSParametersConfigMap(_ context.Context, _ *odhtypes.ReconciliationRequest, appNs string, componentLabels map[string]string) (*unstructured.Unstructured, error) {
+	cm := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "ConfigMap",
+			"metadata": map[string]interface{}{
+				"name":      "maas-parameters",
+				"namespace": appNs,
+				"labels":    toStringInterfaceMap(componentLabels),
+			},
+			"data": map[string]interface{}{
+				"gateway-namespace":           DefaultGatewayNamespace,
+				"gateway-name":                DefaultGatewayName,
+				"api-key-max-expiration-days": defaultAPIKeyMaxExpDays,
+				"metadata-cache-ttl":          strconv.FormatInt(defaultMetadataCacheTTL, 10),
+				"authz-cache-ttl":             strconv.FormatInt(defaultAuthzCacheTTL, 10),
+			},
+		},
+	}
+	return cm, nil
+}
+
+func toStringInterfaceMap(m map[string]string) map[string]interface{} {
+	out := make(map[string]interface{}, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
 }
 
 func normalizeUnstructuredObject(obj map[string]interface{}) (map[string]interface{}, error) {

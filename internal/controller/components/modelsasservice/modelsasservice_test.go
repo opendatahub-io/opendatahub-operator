@@ -4,12 +4,17 @@ package modelsasservice
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/onsi/gomega/types"
 	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -234,6 +239,74 @@ func TestUpdateDSCStatus(t *testing.T) {
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, status.NotReadyReason),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "Tenant CR exists but has no ready condition yet"`, ReadyConditionType),
 		)))
+	})
+
+	t.Run("should report CRD not installed when Tenant CRD is missing", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
+
+		noMatchErr := &apimeta.NoResourceMatchError{PartialResource: schema.GroupVersionResource{
+			Group: "maas.opendatahub.io", Version: "v1alpha1", Resource: "tenants",
+		}}
+
+		cli, err := fakeclient.New(
+			fakeclient.WithObjects(testDSCI(), dsc),
+			fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+				Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+					if _, ok := obj.(*maasv1alpha1.Tenant); ok {
+						return noMatchErr
+					}
+					return c.Get(ctx, key, obj, opts...)
+				},
+			}),
+		)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cs, err := handler.UpdateDSCStatus(ctx, &pkgtypes.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(cs).Should(Equal(metav1.ConditionFalse))
+
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, status.NotReadyReason),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "Tenant CRD not installed"`, ReadyConditionType),
+		)))
+	})
+
+	t.Run("should propagate unexpected API errors", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
+
+		cli, err := fakeclient.New(
+			fakeclient.WithObjects(testDSCI(), dsc),
+			fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+				Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+					if _, ok := obj.(*maasv1alpha1.Tenant); ok {
+						return fmt.Errorf("simulated API server error")
+					}
+					return c.Get(ctx, key, obj, opts...)
+				},
+			}),
+		)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		_, err = handler.UpdateDSCStatus(ctx, &pkgtypes.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+		})
+
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(err.Error()).Should(ContainSubstring("failed to get Tenant"))
 	})
 }
 

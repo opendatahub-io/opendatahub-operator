@@ -448,6 +448,9 @@ func deployAlerting(ctx context.Context, rr *odhtypes.ReconciliationRequest) err
 			return nil // Continue processing other components
 		}
 		if ch.IsEnabled(dsc) {
+			if ci == nil {
+				return nil
+			}
 			ready, err := isComponentReady(ctx, rr.Client, ci)
 			if err != nil {
 				addErrors = append(addErrors, fmt.Errorf("failed to get status for component %s: %w", componentName, err))

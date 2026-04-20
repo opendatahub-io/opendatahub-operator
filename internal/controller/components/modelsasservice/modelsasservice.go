@@ -23,6 +23,7 @@ import (
 
 	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -120,12 +121,24 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	t.Namespace = MaaSSubscriptionNamespace
 
 	if err := rr.Client.Get(ctx, client.ObjectKeyFromObject(&t), &t); err != nil {
-		rr.Conditions.MarkFalse(
-			ReadyConditionType,
-			conditions.WithReason(status.NotReadyReason),
-			conditions.WithMessage("Tenant CR not available yet"),
-		)
-		return metav1.ConditionFalse, nil //nolint:nilerr // Get failure is expected when Tenant doesn't exist yet; treat as not-ready.
+		switch {
+		case k8serr.IsNotFound(err):
+			rr.Conditions.MarkFalse(
+				ReadyConditionType,
+				conditions.WithReason(status.NotReadyReason),
+				conditions.WithMessage("Tenant CR not available yet"),
+			)
+			return metav1.ConditionFalse, nil
+		case apimeta.IsNoMatchError(err):
+			rr.Conditions.MarkFalse(
+				ReadyConditionType,
+				conditions.WithReason(status.NotReadyReason),
+				conditions.WithMessage("Tenant CRD not installed"),
+			)
+			return metav1.ConditionFalse, nil
+		default:
+			return cs, fmt.Errorf("failed to get Tenant %s/%s: %w", t.Namespace, t.Name, err)
+		}
 	}
 
 	if !t.GetDeletionTimestamp().IsZero() {
