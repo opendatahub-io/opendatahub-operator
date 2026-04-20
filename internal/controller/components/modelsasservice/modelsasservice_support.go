@@ -17,13 +17,14 @@ limitations under the License.
 package modelsasservice
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/kustomize/api/krusty"
@@ -70,11 +71,6 @@ var (
 		"gateway-namespace": DefaultGatewayNamespace,
 		"gateway-name":      DefaultGatewayName,
 	}
-
-	// Defaults for maas-parameters ConfigMap (only runtime-consumed keys).
-	defaultMetadataCacheTTL int64 = 60
-	defaultAuthzCacheTTL    int64 = 60
-	defaultAPIKeyMaxExpDays       = "90"
 )
 
 func baseManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInfo {
@@ -141,9 +137,9 @@ func AppendOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconcilia
 		extra = append(extra, unstructured.Unstructured{Object: m})
 	}
 
-	paramsCM, err := defaultMaaSParametersConfigMap(ctx, rr, appNs, componentLabels)
+	paramsCM, err := maasParametersConfigMapFromParamsEnv(root, appNs, componentLabels)
 	if err != nil {
-		return fmt.Errorf("build default maas-parameters ConfigMap: %w", err)
+		return fmt.Errorf("build maas-parameters ConfigMap from params.env: %w", err)
 	}
 	extra = append(extra, *paramsCM)
 
@@ -157,13 +153,23 @@ func AppendOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconcilia
 	return nil
 }
 
-// defaultMaaSParametersConfigMap builds a minimal maas-parameters ConfigMap
-// containing only the keys consumed at runtime via configMapKeyRef by
-// maas-controller (metadata-cache-ttl, authz-cache-ttl) and maas-api
-// (gateway-namespace, gateway-name, api-key-max-expiration-days).
-// The Tenant reconciler overwrites these values on first reconcile.
-// Images and other build-time values are handled by ApplyParams + kustomize replacements.
-func defaultMaaSParametersConfigMap(_ context.Context, _ *odhtypes.ReconciliationRequest, appNs string, componentLabels map[string]string) (*unstructured.Unstructured, error) {
+// maasParametersConfigMapFromParamsEnv reads the already-updated params.env
+// (Init → ApplyParams has already merged RELATED_IMAGE_* and extraParamsMap)
+// and builds the maas-parameters ConfigMap that is deployed alongside
+// maas-controller. This is the authoritative source of maas-parameters;
+// the Tenant reconciler consumes it rather than regenerating it.
+func maasParametersConfigMapFromParamsEnv(manifestsBasePath string, appNs string, componentLabels map[string]string) (*unstructured.Unstructured, error) {
+	paramsFile := filepath.Join(manifestsBasePath, "maas", BaseManifestsSourcePath, "params.env")
+	paramsMap, err := parseParamsEnv(paramsFile)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", paramsFile, err)
+	}
+
+	data := make(map[string]interface{}, len(paramsMap))
+	for k, v := range paramsMap {
+		data[k] = v
+	}
+
 	cm := &unstructured.Unstructured{
 		Object: map[string]interface{}{
 			"apiVersion": "v1",
@@ -173,16 +179,32 @@ func defaultMaaSParametersConfigMap(_ context.Context, _ *odhtypes.Reconciliatio
 				"namespace": appNs,
 				"labels":    toStringInterfaceMap(componentLabels),
 			},
-			"data": map[string]interface{}{
-				"gateway-namespace":           DefaultGatewayNamespace,
-				"gateway-name":                DefaultGatewayName,
-				"api-key-max-expiration-days": defaultAPIKeyMaxExpDays,
-				"metadata-cache-ttl":          strconv.FormatInt(defaultMetadataCacheTTL, 10),
-				"authz-cache-ttl":             strconv.FormatInt(defaultAuthzCacheTTL, 10),
-			},
+			"data": data,
 		},
 	}
 	return cm, nil
+}
+
+// parseParamsEnv reads a key=value env file, skipping comments and blank lines.
+func parseParamsEnv(filename string) (map[string]string, error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	m := make(map[string]string)
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if key, value, ok := strings.Cut(line, "="); ok {
+			m[key] = value
+		}
+	}
+	return m, scanner.Err()
 }
 
 func toStringInterfaceMap(m map[string]string) map[string]interface{} {
