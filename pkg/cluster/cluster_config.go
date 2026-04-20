@@ -410,7 +410,7 @@ func getClusterInfo(ctx context.Context, cli client.Client) (ClusterInfo, error)
 	// Auto-detect: if the ClusterVersion CRD is absent this is not OpenShift.
 	ocpVersion, err := getOCPVersion(ctx, cli)
 	if err != nil {
-		if meta.IsNoMatchError(err) || k8serr.IsForbidden(err) {
+		if meta.IsNoMatchError(err) {
 			c.Type = ClusterTypeKubernetes
 			return c, nil
 		}
@@ -438,9 +438,6 @@ func IsFipsEnabled(ctx context.Context, cli client.Client) (bool, error) {
 	}
 
 	if err := cli.Get(ctx, namespacedName, cm); err != nil {
-		if k8serr.IsNotFound(err) || k8serr.IsForbidden(err) {
-			return false, nil
-		}
 		return false, err
 	}
 
