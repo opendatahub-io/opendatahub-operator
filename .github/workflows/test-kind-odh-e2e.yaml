@@ -95,14 +95,6 @@ jobs:
           kubectl wait --for=condition=Available deployment/opendatahub-operator-controller-manager -n opendatahub-operator-system --timeout=600s
           echo "✅ ODH is Ready!"
 
-      - name: Deploy KServe CR
-        timeout-minutes: 15
-        run: |
-          kubectl apply -f config/rhaii/samples/kserve.yaml
-          echo "Waiting for Kserve CR default-kserve to be Ready..."
-          kubectl wait --for=condition=Ready kserve/default-kserve --timeout=300s
-          echo "✅ Kserve CR is Ready!"
-
       - name: Run E2E Tests
         run: make e2e-test-xks
 
