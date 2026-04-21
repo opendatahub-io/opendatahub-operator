@@ -2,7 +2,7 @@ module github.com/opendatahub-io/opendatahub-operator/v2/pkg/failureclassifier
 
 go 1.25.7
 
-require github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth v0.0.0
+require github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth v0.0.0
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -47,4 +47,4 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-replace github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth => ../clusterhealth
+replace github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth => ../clusterhealth
