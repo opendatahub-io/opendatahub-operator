@@ -42,7 +42,7 @@ import (
 const (
 	ComponentName = componentApi.ModelsAsServiceComponentName
 
-	ReadyConditionType = "Tenant" + status.ReadySuffix
+	ReadyConditionType = componentApi.ModelsAsServiceKind + status.ReadySuffix
 
 	// Default Gateway values as specified in the spec.
 	DefaultGatewayNamespace = "openshift-ingress"
