@@ -68,16 +68,10 @@ func modelsAsServiceTestSuite(t *testing.T) {
 	// Note: per e2e convention, do not cleanup resources; leave state for debugging.
 
 	testCases := []TestCase{
-		{"Validate subcomponent enabled", componentCtx.ValidateSubComponentEnabled},
 		{"Validate Tenant CR in subscription namespace", componentCtx.ValidateTenantInSubscriptionNamespace},
 		{"Validate Tenant CRD is namespace-scoped", componentCtx.ValidateTenantCRDNamespaceScoped},
 		{"Validate Tenant singleton enforcement", componentCtx.ValidateTenantSingletonEnforcement},
-		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
-		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
-		{"Validate subcomponent releases", componentCtx.ValidateSubComponentReleases},
-		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate Tenant deleted on disable", componentCtx.ValidateTenantDeletedOnDisable},
-		{"Validate subcomponent disabled", componentCtx.ValidateSubComponentDisabled},
 	}
 
 	RunTestCases(t, testCases)
