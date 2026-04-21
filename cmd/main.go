@@ -208,7 +208,7 @@ func registerServices() {
 }
 
 func main() { //nolint:funlen,maintidx,gocyclo
-	// Setup Viper
+	// Setup Viperr
 	viper.SetEnvPrefix("ODH_MANAGER")
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
