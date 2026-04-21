@@ -58,6 +58,8 @@ func cfgMapDeletionTestSuite(t *testing.T) {
 func (tc *CfgMapDeletionTestCtx) ValidateDSCDeletionUsingConfigMap(t *testing.T) {
 	t.Helper()
 
+	tc.SkipIfXKSCluster(t)
+
 	skipUnless(t, Tier3)
 
 	// Create or update the deletion config map
@@ -88,6 +90,8 @@ func (tc *CfgMapDeletionTestCtx) ValidateDSCDeletionUsingConfigMap(t *testing.T)
 // ValidateOwnedNamespacesAllExist verifies that the owned namespaces exist.
 func (tc *CfgMapDeletionTestCtx) ValidateOwnedNamespacesAllExist(t *testing.T) {
 	t.Helper()
+
+	tc.SkipIfXKSCluster(t)
 
 	skipUnless(t, Tier3)
 
