@@ -19,6 +19,8 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+
+	. "github.com/onsi/gomega"
 )
 
 // erroringClient is a wrapper around a client.Client that allows us to inject errors.
@@ -153,6 +155,8 @@ invalid: yaml`,
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
 			// Create a fake client
 			var fakeClient client.Client
 			if tc.configMap != nil || tc.clientErr != nil {
@@ -177,38 +181,30 @@ invalid: yaml`,
 			result, err := cluster.IsFipsEnabled(ctx, fakeClient)
 
 			// Check the result
-			if result != tc.expectedResult {
-				t.Errorf("IsFIPSEnabled() = %v, want %v", result, tc.expectedResult)
-			}
+			g.Expect(result).Should(Equal(tc.expectedResult))
 
-			// Check the error.  We need to handle nil vs. non-nil errors carefully.
+			// Check the error
 			if tc.expectedError != nil {
-				switch {
-				case err == nil:
-					t.Errorf("IsFIPSEnabled() error = nil, want %v", tc.expectedError)
-				case k8serr.IsNotFound(tc.expectedError):
-					if !k8serr.IsNotFound(err) {
-						t.Errorf("IsFipsEnabled() error = %v, want NotFound error", err)
-					}
-				default:
-					if err.Error() != tc.expectedError.Error() {
-						t.Errorf("IsFIPSEnabled() error = %v, want %v", err, tc.expectedError)
-					}
+				g.Expect(err).Should(HaveOccurred())
+				if k8serr.IsNotFound(tc.expectedError) {
+					g.Expect(k8serr.IsNotFound(err)).Should(BeTrue())
+				} else {
+					g.Expect(err).Should(MatchError(tc.expectedError.Error()))
 				}
-			} else if err != nil {
-				t.Errorf("IsFIPSEnabled() error = %v, want nil", err)
+			} else {
+				g.Expect(err).ShouldNot(HaveOccurred())
 			}
 		})
 	}
 }
 
 func TestGetClusterAuthenticationMode(t *testing.T) {
+	g := NewWithT(t)
+
 	// Register the configv1 scheme
 	scheme := runtime.NewScheme()
 	err := configv1.AddToScheme(scheme)
-	if err != nil {
-		t.Fatalf("failed to add configv1 scheme: %v", err)
-	}
+	g.Expect(err).ShouldNot(HaveOccurred())
 
 	testCases := []struct {
 		name          string
@@ -293,6 +289,7 @@ func TestGetClusterAuthenticationMode(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
 			ctx := context.Background()
 
 			var fakeClient client.Client
@@ -306,30 +303,25 @@ func TestGetClusterAuthenticationMode(t *testing.T) {
 			result, err := cluster.GetClusterAuthenticationMode(ctx, fakeClient)
 
 			if tc.expectedError {
-				if err == nil {
-					t.Errorf("GetClusterAuthenticationMode() expected error but got nil")
-				} else if tc.errorType == "notfound" && !k8serr.IsNotFound(err) {
-					t.Errorf("GetClusterAuthenticationMode() expected NotFound error but got %v", err)
+				g.Expect(err).Should(HaveOccurred())
+				if tc.errorType == "notfound" {
+					g.Expect(k8serr.IsNotFound(err)).Should(BeTrue())
 				}
 			} else {
-				if err != nil {
-					t.Errorf("GetClusterAuthenticationMode() unexpected error: %v", err)
-				}
-				if result != tc.expectedMode {
-					t.Errorf("GetClusterAuthenticationMode() = %v, want %v", result, tc.expectedMode)
-				}
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(result).Should(Equal(tc.expectedMode))
 			}
 		})
 	}
 }
 
 func TestIsIntegratedOAuth(t *testing.T) {
+	g := NewWithT(t)
+
 	// Register the configv1 scheme
 	scheme := runtime.NewScheme()
 	err := configv1.AddToScheme(scheme)
-	if err != nil {
-		t.Fatalf("failed to add configv1 scheme: %v", err)
-	}
+	g.Expect(err).ShouldNot(HaveOccurred())
 
 	testCases := []struct {
 		name           string
@@ -411,6 +403,7 @@ func TestIsIntegratedOAuth(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
 			ctx := context.Background()
 
 			var fakeClient client.Client
@@ -424,16 +417,10 @@ func TestIsIntegratedOAuth(t *testing.T) {
 			result, err := cluster.IsIntegratedOAuth(ctx, fakeClient)
 
 			if tc.expectedError {
-				if err == nil {
-					t.Errorf("IsIntegratedOAuth() expected error but got nil")
-				}
+				g.Expect(err).Should(HaveOccurred())
 			} else {
-				if err != nil {
-					t.Errorf("IsIntegratedOAuth() unexpected error: %v", err)
-				}
-				if result != tc.expectedResult {
-					t.Errorf("IsIntegratedOAuth() = %v, want %v", result, tc.expectedResult)
-				}
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(result).Should(Equal(tc.expectedResult))
 			}
 		})
 	}

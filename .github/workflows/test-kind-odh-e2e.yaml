@@ -16,8 +16,8 @@ env:
 jobs:
   get-merge-commit:
     if: >-
-      github.event.action == 'labeled' && github.event.label.name == 'run-xks-e2e'
-      || github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'run-xks-e2e')
+      github.event.action == 'labeled' && github.event.label.name == 'run-xks-e2e' ||
+      github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'run-xks-e2e')
     name: Get merge commit
     uses: ./.github/workflows/get-merge-commit.yaml
 
@@ -26,8 +26,8 @@ jobs:
     # Label gate: only runs when a maintainer adds this label, preventing
     # untrusted fork PRs from executing arbitrary code with repo secrets.
     if: >-
-      github.event.action == 'labeled' && github.event.label.name == 'run-xks-e2e'
-      || github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'run-xks-e2e')
+      github.event.action == 'labeled' && github.event.label.name == 'run-xks-e2e' ||
+      github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'run-xks-e2e')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -71,16 +71,12 @@ jobs:
         run: |
           kubectl create namespace opendatahub-operator-system
 
-      - name: Create Cloud Manager Namespace
-        run: |
-          kubectl create namespace opendatahub-cloudmanager-system
-
       - name: Deploy Cloud Manager
         timeout-minutes: 15
         run: |
           make deploy-ccm-local-azure
           echo "Waiting for Cloud Manager deployment to be available..."
-          kubectl rollout status deployment -n opendatahub-cloudmanager-system -l control-plane=controller-manager --timeout=180s          
+          kubectl rollout status deployment -n opendatahub-cloudmanager-system -l control-plane=controller-manager --timeout=180s
           echo "✅ Cloud Manager is Ready!"
 
       - name: Deploy AzureKubernetesEngine CR
@@ -99,20 +95,13 @@ jobs:
           kubectl wait --for=condition=Available deployment/opendatahub-operator-controller-manager -n opendatahub-operator-system --timeout=600s
           echo "✅ ODH is Ready!"
 
-      - name: Deploy KServe CR
-        timeout-minutes: 15
-        run: |
-          kubectl apply -f config/rhaii/samples/kserve.yaml
-          echo "Waiting for Kserve CR default-kserve to be Ready..."
-          kubectl wait --for=condition=Ready kserve/default-kserve --timeout=300s
-          echo "✅ Kserve CR is Ready!"
-
       - name: Run E2E Tests
         run: make e2e-test-xks
 
       - name: Collect Cloud Manager logs on failure
         if: failure()
         run: |
+          kubectl get azurekubernetesengine -o yaml || true
           kubectl -n opendatahub-cloudmanager-system describe pods -l control-plane=controller-manager || true
           kubectl logs -n opendatahub-cloudmanager-system \
             -l control-plane=controller-manager \
@@ -121,6 +110,7 @@ jobs:
       - name: Collect ODH Operator logs on failure
         if: failure()
         run: |
+          kubectl get kserve -o yaml || true
           kubectl -n opendatahub-operator-system describe pods -l control-plane=controller-manager || true
           kubectl logs -n opendatahub-operator-system \
             -l control-plane=controller-manager \
