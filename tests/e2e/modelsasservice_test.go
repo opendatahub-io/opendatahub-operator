@@ -59,13 +59,13 @@ func modelsAsServiceTestSuite(t *testing.T) {
 		ComponentTestCtx: ct,
 	}
 
-	// Setup: Create PostgreSQL and the MaaS Gateway before running tests.
+	// Setup: Create prerequisites and enable the subcomponent.
 	// PostgreSQL must be created before enabling the component because
 	// maas-api reads the maas-db-config secret on startup.
 	componentCtx.createMaaSPostgres(t)
 	componentCtx.createMaaSGateway(t)
-
-	// Note: per e2e convention, do not cleanup resources; leave state for debugging.
+	componentCtx.EnsureParentComponentEnabled(t)
+	componentCtx.UpdateSubComponentStateInDataScienceCluster(t, operatorv1.Managed)
 
 	testCases := []TestCase{
 		{"Validate Tenant CR in subscription namespace", componentCtx.ValidateTenantInSubscriptionNamespace},
