@@ -1436,7 +1436,7 @@ func (tc *TestContext) FetchPlatformRelease() common.Platform {
 // Returns:
 //   - *dsciv2.DSCInitialization: The retrieved DSCInitialization object.
 func (tc *TestContext) FetchDSCInitialization() *dsciv2.DSCInitialization {
-	// In XKS, DSCInitialization does not exist
+	// In XKS, DSCInitialization does not exist, so returning nil
 	if tc.IsXKS() {
 		return nil
 	}
@@ -1456,7 +1456,7 @@ func (tc *TestContext) FetchDSCInitialization() *dsciv2.DSCInitialization {
 // Returns:
 //   - *dsciv2.DataScienceCluster: The retrieved DataScienceCluster object.
 func (tc *TestContext) FetchDataScienceCluster() *dscv2.DataScienceCluster {
-	// In XKS, DataScienceCluster does not exist
+	// In XKS, DataScienceCluster does not exist, so returning nil
 	if tc.IsXKS() {
 		return nil
 	}
