@@ -86,16 +86,12 @@ func (tc *ComponentTestCtx) ValidateComponentEnabled(t *testing.T) {
 
 	skipUnless(t, Smoke, Tier1)
 
-	// if the cluster is Openshift, we rely in the DSC. If not, in the component CR existence
 	if !tc.IsXKS() {
 		// As these tests can be executed in a non-cleaned scenario, we need to move the component first to Removed.
 		tc.UpdateComponentStateInDataScienceCluster(operatorv1.Removed)
-
-		// Ensure that DataScienceCluster exists and its component state is "Managed", with the "Ready" condition true.
-		tc.UpdateComponentStateInDataScienceCluster(operatorv1.Managed)
-	} else {
-		tc.CheckComponentResourceExistsOrNot(operatorv1.Managed)
 	}
+
+	tc.UpdateComponentState(operatorv1.Managed)
 
 	// Ensure the component resource exists and is marked "Ready".
 	// Note: Ready=True already implies deployments exist and are ready (checked by DeploymentsAvailable condition)
@@ -129,8 +125,7 @@ func (tc *ComponentTestCtx) ValidateComponentDisabled(t *testing.T) {
 	// Ensure that the resources associated with the component exist
 	tc.EnsureResourcesExist(WithMinimalObject(tc.GVK, tc.NamespacedName))
 
-	// Ensure that DataScienceCluster exists and its component state is "Removed", with the "Ready" condition false.
-	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Removed)
+	tc.UpdateComponentState(operatorv1.Removed)
 
 	// Ensure that any Deployment resources for the component are not present
 	tc.EnsureResourcesGone(
@@ -469,9 +464,28 @@ func (tc *ComponentTestCtx) ValidateComponentCondition(gvk schema.GroupVersionKi
 // UpdateComponentState updates the management state of a specified component in the DataScienceCluster or in the Component CR depending on the kind of cluster.
 func (tc *ComponentTestCtx) UpdateComponentState(state operatorv1.ManagementState) {
 	if !tc.IsXKS() {
+		// Ensure that DataScienceCluster exists and its component state is "Managed", with the "Ready" condition true.
 		tc.UpdateComponentStateInDataScienceCluster(state)
-	} else {
-		tc.CheckComponentResourceExistsOrNot(state)
+
+		return
+	}
+
+	if state == operatorv1.Managed {
+		tc.EventuallyResourceCreatedOrUpdated(
+			WithObjectToCreate(tc.CreateComponent(tc.GVK)),
+			WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue)),
+			WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+		)
+
+		return
+	}
+	if state == operatorv1.Removed {
+		tc.DeleteResource(
+			WithMinimalObject(tc.GVK, types.NamespacedName{Name: tc.GetInstanceName(tc.GVK)}),
+			WithForegroundDeletion(),
+			WithWaitForDeletion(true),
+			WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+		)
 	}
 }
 
@@ -483,6 +497,10 @@ func (tc *ComponentTestCtx) CheckComponentResourceExistsOrNot(state operatorv1.M
 
 // UpdateComponentStateInDataScienceCluster updates the management state of a specified component in the DataScienceCluster.
 func (tc *ComponentTestCtx) UpdateComponentStateInDataScienceCluster(state operatorv1.ManagementState) {
+	if tc.IsXKS() {
+		tc.Logf("Updating component state in DataScienceCluster is not supported on XKS platform, skipping")
+		return
+	}
 	tc.UpdateComponentStateInDataScienceClusterWithKind(state, tc.GVK.Kind)
 }
 
@@ -533,6 +551,7 @@ func (tc *ComponentTestCtx) ValidateModelControllerInstance(t *testing.T) {
 	t.Helper()
 
 	skipUnless(t, Smoke)
+	tc.SkipIfXKSCluster(t)
 
 	// Ensure ModelController resource exists with the expected owner references and status phase.
 	tc.EnsureResourceExists(

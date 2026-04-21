@@ -790,9 +790,25 @@ func (tc *TestContext) EnsureCRDEstablished(name string) {
 		), "Expected CRD condition 'Established' to be True for CRD %s", name)
 }
 
+func (tc *TestContext) GetInstanceName(gvk schema.GroupVersionKind) string {
+	return fmt.Sprintf("default-%s", strings.ToLower(gvk.Kind))
+}
+
+func (tc *TestContext) CreateComponent(gvk schema.GroupVersionKind) *unstructured.Unstructured {
+	instanceName := tc.GetInstanceName(gvk)
+	return &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": gvk.GroupVersion().String(),
+			"kind":       gvk.Kind,
+			"metadata":   map[string]interface{}{"name": instanceName},
+			"spec":       map[string]interface{}{},
+		},
+	}
+}
+
 // CheckComponentResourceExistsOrNotWithKind validates if a component resource's state and readiness match the expected values.
 func (tc *TestContext) CheckComponentResourceExistsOrNotWithKind(shouldExist bool, gvk schema.GroupVersionKind) {
-	instanceName := "default-" + strings.ToLower(gvk.Kind)
+	instanceName := tc.GetInstanceName(gvk)
 
 	// Check if the component CR exists or not depending on the shouldExist flag
 	if shouldExist {

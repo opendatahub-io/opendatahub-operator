@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	azurev1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/azure/v1alpha1"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -98,12 +99,6 @@ func (tc *KserveTestCtx) ValidateSpec(t *testing.T) {
 
 	// Retrieve the DataScienceCluster instance.
 	dsc := tc.FetchDataScienceCluster()
-	if dsc == nil {
-		if tc.IsXKS() {
-			t.Skip("Skipping DataScienceCluster validation on XKS as DSC is not present")
-		}
-		t.Fatal("DataScienceCluster not found")
-	}
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: componentApi.KserveInstanceName}),
@@ -120,6 +115,9 @@ func (tc *KserveTestCtx) ValidateNoKserveFeatureTrackers(t *testing.T) {
 	t.Helper()
 
 	skipUnless(t, Smoke)
+
+	// FeatureTrackers are not supported on XKS platform (also CRD are not installed), skip the test
+	tc.SkipIfXKSCluster(t)
 
 	tc.EnsureResourcesDoNotExist(
 		WithMinimalObject(gvk.FeatureTracker, tc.NamespacedName),
@@ -223,6 +221,13 @@ func (tc *KserveTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.T
 
 	skipUnless(t, Tier1)
 
+	kserveNN := types.NamespacedName{Name: componentApi.KserveInstanceName}
+
+	if tc.IsXKS() {
+		tc.runXKSDegradedMonitoringTest(t, kserveNN)
+		return
+	}
+
 	// condition types monitored by the Kserve Component
 	testCases := []degradedConditionTestCase{
 		{
@@ -241,8 +246,6 @@ func (tc *KserveTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.T
 			conditionStatus: metav1.ConditionFalse,
 		},
 	}
-
-	kserveNN := types.NamespacedName{Name: componentApi.KserveInstanceName}
 
 	// Scale external operator only; per-case helpers handle condition clears
 	t.Logf("Ensuring LWS operator deployment is scaled down to prevent condition reset (namespace=%s, name=%s).", leaderWorkerSetNamespace, lwsOperatorDeploymentName)
@@ -379,4 +382,55 @@ func (tc *KserveTestCtx) runDegradedConditionTest(t *testing.T, testCase degrade
 	)
 
 	t.Logf("Test case passed: %s", testCase.name)
+}
+
+// runXKSDegradedMonitoringTest verifies that setting the AzureKubernetesEngine LWS dependency
+// to Unmanaged causes the Kserve DependenciesAvailable condition to become False,
+// and that setting it back to Managed restores it to True.
+func (tc *KserveTestCtx) runXKSDegradedMonitoringTest(t *testing.T, kserveNN types.NamespacedName) {
+	t.Helper()
+
+	t.Logf("Verifying Kserve component DependenciesAvailable=True before test (name=%s).", kserveNN.Name)
+	tc.EnsureResourceExists(
+		WithMinimalObject(tc.GVK, kserveNN),
+		WithCondition(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionDependenciesAvailable, metav1.ConditionTrue),
+		),
+	)
+
+	t.Logf("Setting AzureKubernetesEngine LWS managementPolicy to Unmanaged.")
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.AzureKubernetesEngine, types.NamespacedName{Name: azurev1alpha1.AzureKubernetesEngineInstanceName}),
+		WithMutateFunc(func(obj *unstructured.Unstructured) error {
+			return unstructured.SetNestedField(obj.Object, "Unmanaged", "spec", "dependencies", "lws", "managementPolicy")
+		}),
+		WithCustomErrorMsg("Failed to set AzureKubernetesEngine LWS managementPolicy to Unmanaged"),
+	)
+
+	t.Logf("Verifying Kserve component DependenciesAvailable=False after setting LWS to Unmanaged (name=%s).", kserveNN.Name)
+	tc.EnsureResourceExists(
+		WithMinimalObject(tc.GVK, kserveNN),
+		WithCondition(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionDependenciesAvailable, metav1.ConditionFalse),
+		),
+	)
+
+	t.Logf("Setting AzureKubernetesEngine LWS managementPolicy back to Managed.")
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.AzureKubernetesEngine, types.NamespacedName{Name: azurev1alpha1.AzureKubernetesEngineInstanceName}),
+		WithMutateFunc(func(obj *unstructured.Unstructured) error {
+			return unstructured.SetNestedField(obj.Object, "Managed", "spec", "dependencies", "lws", "managementPolicy")
+		}),
+		WithCustomErrorMsg("Failed to set AzureKubernetesEngine LWS managementPolicy to Managed"),
+	)
+
+	t.Logf("Verifying Kserve component DependenciesAvailable=True after restoring LWS to Managed (name=%s).", kserveNN.Name)
+	tc.EnsureResourceExists(
+		WithMinimalObject(tc.GVK, kserveNN),
+		WithCondition(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionDependenciesAvailable, metav1.ConditionTrue),
+		),
+	)
+
+	t.Log("XKS external operator degraded monitoring test passed")
 }
