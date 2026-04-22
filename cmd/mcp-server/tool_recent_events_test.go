@@ -23,7 +23,7 @@ func makeEvent(ns, name, kind, objName, etype, reason, msg string, lastTime time
 		Type:           etype,
 		Reason:         reason,
 		Message:        msg,
-		LastTimestamp:   metav1.NewTime(lastTime),
+		LastTimestamp:  metav1.NewTime(lastTime),
 	}
 }
 
@@ -114,9 +114,9 @@ func TestRecentEvents_SortOrder(t *testing.T) {
 
 func TestDiscoverODHNamespaces(t *testing.T) {
 	tests := []struct {
-		name    string
-		dsci    *unstructured.Unstructured
-		wantNS  string
+		name   string
+		dsci   *unstructured.Unstructured
+		wantNS string
 	}{
 		{"with DSCI", &unstructured.Unstructured{
 			Object: map[string]interface{}{

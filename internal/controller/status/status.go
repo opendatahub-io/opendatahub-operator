@@ -83,6 +83,7 @@ const (
 	ConditionDependenciesAvailable               = "DependenciesAvailable"
 	ConditionArgoWorkflowAvailable               = "ArgoWorkflowAvailable"
 	ConditionTypeComponentsReady                 = "ComponentsReady"
+	ConditionTypeModulesReady                    = "ModulesReady"
 	ConditionMonitoringAvailable                 = "MonitoringAvailable"
 	ConditionMonitoringStackAvailable            = "MonitoringStackAvailable"
 	ConditionTempoAvailable                      = "TempoAvailable"
@@ -106,6 +107,7 @@ const (
 	CapabilityFailed          string = "CapabilityFailed"
 	ArgoWorkflowExist         string = "ArgoWorkflowExist"
 	NoManagedComponentsReason        = "NoManagedComponents"
+	NoRegisteredModulesReason        = "NoRegisteredModules"
 
 	AvailableReason = "Available"
 	NotReadyReason  = "NotReady"

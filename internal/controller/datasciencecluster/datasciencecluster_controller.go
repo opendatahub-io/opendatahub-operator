@@ -19,6 +19,7 @@ package datasciencecluster
 
 import (
 	"context"
+	"fmt"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -29,9 +30,11 @@ import (
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
+	helmrender "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/helm"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
@@ -41,7 +44,7 @@ import (
 func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	componentsPredicate := dependent.New(dependent.WithWatchStatus(true))
 
-	_, err := reconciler.ReconcilerFor(mgr, &dscv2.DataScienceCluster{}).
+	rec, err := reconciler.ReconcilerFor(mgr, &dscv2.DataScienceCluster{}).
 		Owns(&componentApi.Dashboard{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.Workbenches{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.Ray{}, reconciler.WithPredicates(componentsPredicate)).
@@ -73,9 +76,12 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 		WithAction(checkPreConditions).
 		WithAction(updateStatus).
 		WithAction(provisionComponents).
+		WithAction(provisionModules).
+		WithAction(helmrender.NewAction()).
 		WithAction(deploy.NewAction(
 			deploy.WithCache()),
 		).
+		WithAction(updateModuleStatus).
 		WithAction(gc.NewAction(
 			gc.WithTypePredicate(
 				func(rr *types.ReconciliationRequest, objGVK schema.GroupVersionKind) (bool, error) {
@@ -84,10 +90,15 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 			),
 		)).
 		WithConditions(status.ConditionTypeComponentsReady).
+		WithConditions(status.ConditionTypeModulesReady).
 		Build(ctx)
 
 	if err != nil {
 		return err
+	}
+
+	if err := modules.SetupModuleWatches(ctx, mgr, rec.Controller); err != nil {
+		return fmt.Errorf("failed to set up module watches: %w", err)
 	}
 
 	return nil
