@@ -94,6 +94,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/workbenches"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
+	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
@@ -141,6 +142,8 @@ var (
 		serviceApi.MonitoringServiceName:   monitoring.NewHandler(),
 		setup.ServiceName:                  setup.NewHandler(),
 	}
+
+	existingModules = map[string]mr.ModuleHandler{}
 )
 
 func init() { //nolint:gochecknoinits
@@ -208,6 +211,15 @@ func registerServices() {
 	}
 }
 
+func registerModules() {
+	for name, handler := range existingModules {
+		mr.Add(handler)
+		if !flags.IsModuleEnabled(name) {
+			mr.Disable(name)
+		}
+	}
+}
+
 func main() { //nolint:funlen,maintidx,gocyclo
 	// Setup Viper
 	viper.SetEnvPrefix("ODH_MANAGER")
@@ -223,6 +235,10 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		fmt.Printf("Error registering service suppression flags: %s", err.Error())
 		os.Exit(1)
 	}
+	if err := flags.RegisterModuleSuppressionFlags(slices.Collect(maps.Keys(existingModules))); err != nil {
+		fmt.Printf("Error registering module suppression flags: %s", err.Error())
+		os.Exit(1)
+	}
 
 	oconfig, err := operatorconfig.LoadConfig()
 	if err != nil {
@@ -230,9 +246,10 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	// Register handlers and apply suppression flags disabling the corresponding component/service
+	// Register handlers and apply suppression flags disabling the corresponding component/service/module
 	registerComponents()
 	registerServices()
+	registerModules()
 
 	ctrl.SetLogger(logger.NewLogger(oconfig.LogMode, oconfig.ZapOptions))
 
