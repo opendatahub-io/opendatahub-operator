@@ -6,12 +6,14 @@ import (
 
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 )
 
 const (
@@ -94,9 +96,7 @@ func (tc *SparkOperatorTestCtx) ValidateSparkPiWorkload(t *testing.T) {
 func (tc *SparkOperatorTestCtx) ValidateScheduledSparkPiWorkload(t *testing.T) {
 	t.Helper()
 
-	// Use a unique name to avoid conflicts with previous test runs
 	scheduledSparkAppName := "scheduled-spark-pi-" + xid.New().String()
-	// Run in the applications namespace where spark-operator-spark SA exists
 	namespace := tc.AppsNamespace
 
 	t.Logf("Creating ScheduledSparkApplication %s in namespace %s", scheduledSparkAppName, namespace)
@@ -110,21 +110,34 @@ func (tc *SparkOperatorTestCtx) ValidateScheduledSparkPiWorkload(t *testing.T) {
 	var lastRunName string
 
 	defer func() {
-		if lastRunName != "" {
-			t.Logf("Cleaning up SparkApplication %s", lastRunName)
-			tc.DeleteResource(
-				WithMinimalObject(gvk.SparkApplication, types.NamespacedName{Name: lastRunName, Namespace: namespace}),
-				WithIgnoreNotFound(true),
-				WithWaitForDeletion(true),
-			)
-		}
-
 		t.Logf("Cleaning up ScheduledSparkApplication %s", scheduledSparkAppName)
 		tc.DeleteResource(
 			WithMinimalObject(gvk.ScheduledSparkApplication, types.NamespacedName{Name: scheduledSparkAppName, Namespace: namespace}),
 			WithIgnoreNotFound(true),
 			WithWaitForDeletion(true),
 		)
+
+		if lastRunName != "" {
+			t.Logf("Verifying cascade deletion of SparkApplication %s", lastRunName)
+
+			child := &unstructured.Unstructured{}
+			child.SetGroupVersionKind(gvk.SparkApplication)
+
+			err := tc.Client().Get(tc.Context(), types.NamespacedName{Name: lastRunName, Namespace: namespace}, child)
+			switch {
+			case err == nil:
+				t.Errorf("cascade deletion failed: SparkApplication %s still exists after deleting parent", lastRunName)
+				t.Logf("Manually cleaning up leaked SparkApplication %s", lastRunName)
+				tc.DeleteResource(
+					WithMinimalObject(gvk.SparkApplication, types.NamespacedName{Name: lastRunName, Namespace: namespace}),
+					WithIgnoreNotFound(true),
+				)
+			case k8serr.IsNotFound(err):
+				t.Logf("Cascade deletion verified: SparkApplication %s was deleted with parent", lastRunName)
+			default:
+				t.Errorf("failed to check SparkApplication %s after cascade deletion: %v", lastRunName, err)
+			}
+		}
 	}()
 
 	t.Logf("Waiting for ScheduledSparkApplication %s to schedule a run", scheduledSparkAppName)
@@ -138,16 +151,18 @@ func (tc *SparkOperatorTestCtx) ValidateScheduledSparkPiWorkload(t *testing.T) {
 		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
 	)
 
-	var found bool
-	var err error
-
-	lastRunName, found, err = unstructured.NestedString(scheduledApp.Object, "status", "lastRunName")
+	lastRunName, found, err := unstructured.NestedString(scheduledApp.Object, "status", "lastRunName")
 	require.NoError(t, err, "Failed to extract lastRunName from ScheduledSparkApplication status")
 	require.True(t, found, "lastRunName not found in ScheduledSparkApplication status")
 
 	t.Logf("ScheduledSparkApplication %s created SparkApplication: %s", scheduledSparkAppName, lastRunName)
 
-	// Wait for the spawned SparkApplication to reach a terminal state
+	t.Logf("Suspending ScheduledSparkApplication %s to prevent additional runs", scheduledSparkAppName)
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.ScheduledSparkApplication, types.NamespacedName{Name: scheduledSparkAppName, Namespace: namespace}),
+		WithMutateFunc(testf.Transform(`.spec.suspend = true`)),
+	)
+
 	t.Logf("Waiting for SparkApplication %s to reach terminal state", lastRunName)
 	completedApp := tc.EnsureResourceExists(
 		WithMinimalObject(gvk.SparkApplication, types.NamespacedName{Name: lastRunName, Namespace: namespace}),
@@ -159,8 +174,7 @@ func (tc *SparkOperatorTestCtx) ValidateScheduledSparkPiWorkload(t *testing.T) {
 		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
 	)
 
-	var state string
-	state, found, err = unstructured.NestedString(completedApp.Object, "status", "applicationState", "state")
+	state, found, err := unstructured.NestedString(completedApp.Object, "status", "applicationState", "state")
 	require.NoError(t, err, "Failed to extract state from SparkApplication %s status", lastRunName)
 	require.True(t, found, "state not found in SparkApplication %s status", lastRunName)
 	require.Equal(t, "COMPLETED", state, "SparkApplication %s ended in %s state instead of COMPLETED", lastRunName, state)
