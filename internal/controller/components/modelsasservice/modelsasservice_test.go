@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/onsi/gomega/types"
@@ -15,6 +17,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
+	"sigs.k8s.io/kustomize/api/krusty"
+	"sigs.k8s.io/kustomize/api/resmap"
+	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -350,3 +355,155 @@ func createTenantCR(ready bool) *maasv1alpha1.Tenant {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// TestApplyImageOverridesFromParams verifies that the Option B image override
+// pipeline (kustomize build → ImageTagTransformerPlugin) correctly replaces the
+// default :latest image with a pinned image reference from params.env.
+// This is the exact flow that runs in CI via AppendOperatorInstallManifests.
+func TestApplyImageOverridesFromParams(t *testing.T) {
+	g := NewWithT(t)
+
+	manifestsRoot := findManifestsRoot(t)
+	kPath := filepath.Join(manifestsRoot, "maas", "base", "maas-controller", "default")
+
+	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
+	fs := filesys.MakeFsOnDisk()
+	resMap, err := k.Run(fs, kPath)
+	g.Expect(err).ShouldNot(HaveOccurred(), "kustomize build should succeed")
+
+	// Before override: the images transformer renders quay.io/opendatahub/maas-controller:latest
+	depBefore := findDeploymentImage(g, resMap)
+	g.Expect(depBefore).To(Equal("quay.io/opendatahub/maas-controller:latest"),
+		"kustomize images transformer should produce the default :latest image")
+
+	// Write a temporary params.env with a pinned digest to simulate what
+	// ApplyParams does when RELATED_IMAGE_* env vars are set in CI.
+	pinnedImage := "registry.redhat.io/rhoai/odh-maas-controller-rhel9@sha256:abc123def456"
+	tmpDir := t.TempDir()
+	paramsContent := "maas-controller-image=" + pinnedImage + "\n"
+	err = os.WriteFile(filepath.Join(tmpDir, "params.env"), []byte(paramsContent), 0o600)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = applyImageOverridesFromParams(resMap, filepath.Join(tmpDir, "params.env"))
+	g.Expect(err).ShouldNot(HaveOccurred(), "applyImageOverridesFromParams should succeed")
+
+	// After override: the image must be the pinned digest, not :latest.
+	depAfter := findDeploymentImage(g, resMap)
+	g.Expect(depAfter).To(Equal(pinnedImage),
+		"ImageTagTransformerPlugin must replace the :latest image with the pinned digest from params.env")
+}
+
+// TestApplyImageOverridesFromParams_TagFormat verifies tag-style overrides (repo:tag).
+func TestApplyImageOverridesFromParams_TagFormat(t *testing.T) {
+	g := NewWithT(t)
+
+	manifestsRoot := findManifestsRoot(t)
+	kPath := filepath.Join(manifestsRoot, "maas", "base", "maas-controller", "default")
+
+	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
+	resMap, err := k.Run(filesys.MakeFsOnDisk(), kPath)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	pinnedImage := "quay.io/myorg/maas-controller:v1.2.3"
+	tmpDir := t.TempDir()
+	err = os.WriteFile(filepath.Join(tmpDir, "params.env"),
+		[]byte("maas-controller-image="+pinnedImage+"\n"), 0o600)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = applyImageOverridesFromParams(resMap, filepath.Join(tmpDir, "params.env"))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	depAfter := findDeploymentImage(g, resMap)
+	g.Expect(depAfter).To(Equal(pinnedImage))
+}
+
+// TestApplyImageOverridesFromParams_NoOverride verifies no-op when params.env
+// has no maas-controller-image key.
+func TestApplyImageOverridesFromParams_NoOverride(t *testing.T) {
+	g := NewWithT(t)
+
+	manifestsRoot := findManifestsRoot(t)
+	kPath := filepath.Join(manifestsRoot, "maas", "base", "maas-controller", "default")
+
+	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
+	resMap, err := k.Run(filesys.MakeFsOnDisk(), kPath)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	tmpDir := t.TempDir()
+	err = os.WriteFile(filepath.Join(tmpDir, "params.env"),
+		[]byte("some-other-key=somevalue\n"), 0o600)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = applyImageOverridesFromParams(resMap, filepath.Join(tmpDir, "params.env"))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	depAfter := findDeploymentImage(g, resMap)
+	g.Expect(depAfter).To(Equal("quay.io/opendatahub/maas-controller:latest"),
+		"image should remain unchanged when params.env has no controller image key")
+}
+
+// findManifestsRoot walks up from the test file to locate the opt/manifests directory.
+func findManifestsRoot(t *testing.T) string {
+	t.Helper()
+	// Start from the module root (go test runs from the package directory)
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("cannot get working directory: %v", err)
+	}
+	for {
+		candidate := filepath.Join(dir, "opt", "manifests")
+		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			return candidate
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Skip("opt/manifests not found; skipping (manifests not downloaded)")
+		}
+		dir = parent
+	}
+}
+
+// findDeploymentImage extracts the image of the "manager" container from the
+// maas-controller Deployment in the rendered resmap.
+func findDeploymentImage(g Gomega, rm resmap.ResMap) string {
+	for _, r := range rm.Resources() {
+		if r.GetKind() != "Deployment" || r.GetName() != "maas-controller" {
+			continue
+		}
+		m, err := r.Map()
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		containers, found := nestedSlice(m, "spec", "template", "spec", "containers")
+		g.Expect(found).To(BeTrue(), "containers field must exist")
+
+		for _, c := range containers {
+			cm, ok := c.(map[string]any)
+			if !ok {
+				continue
+			}
+			if cm["name"] == "manager" {
+				img, ok := cm["image"].(string)
+				g.Expect(ok).To(BeTrue(), "image must be a string")
+				return img
+			}
+		}
+	}
+	g.Expect(false).To(BeTrue(), "Deployment maas-controller with container manager not found in resMap")
+	return ""
+}
+
+func nestedSlice(obj map[string]any, fields ...string) ([]any, bool) {
+	var current any = obj
+	for _, f := range fields {
+		m, ok := current.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		current, ok = m[f]
+		if !ok {
+			return nil, false
+		}
+	}
+	s, ok := current.([]any)
+	return s, ok
+}

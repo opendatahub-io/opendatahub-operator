@@ -27,7 +27,10 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/kustomize/api/builtins" //nolint:staticcheck // Remove after package update
 	"sigs.k8s.io/kustomize/api/krusty"
+	"sigs.k8s.io/kustomize/api/resmap"
+	"sigs.k8s.io/kustomize/api/types"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -121,6 +124,11 @@ func AppendOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconcilia
 		return fmt.Errorf("labels transform for maas-controller bundle: %w", err)
 	}
 
+	paramsEnvPath := filepath.Join(root, "maas", BaseManifestsSourcePath, "params.env")
+	if err := applyImageOverridesFromParams(resMap, paramsEnvPath); err != nil {
+		return fmt.Errorf("image override for maas-controller bundle: %w", err)
+	}
+
 	rendered := resMap.Resources()
 	extra := make([]unstructured.Unstructured, 0, len(rendered)+1)
 	for i := range rendered {
@@ -128,8 +136,6 @@ func AppendOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconcilia
 		if err != nil {
 			return fmt.Errorf("maas-controller bundle resource map: %w", err)
 		}
-		// Kustomize map values may include Go int; deploy Hash→DeepCopy cannot copy int
-		// (runtime.DeepCopyJSONValue). JSON round-trip yields float64 for numbers.
 		m, err = normalizeUnstructuredObject(m)
 		if err != nil {
 			return fmt.Errorf("normalize maas-controller bundle object: %w", err)
@@ -170,16 +176,16 @@ func maasParametersConfigMapFromParamsEnv(manifestsBasePath string, appNs string
 	// hardcoded in params.env (opendatahub).
 	paramsMap["app-namespace"] = appNs
 
-	data := make(map[string]interface{}, len(paramsMap))
+	data := make(map[string]any, len(paramsMap))
 	for k, v := range paramsMap {
 		data[k] = v
 	}
 
 	cm := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "v1",
 			"kind":       "ConfigMap",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      "maas-parameters",
 				"namespace": appNs,
 				"labels":    toStringInterfaceMap(componentLabels),
@@ -212,22 +218,78 @@ func parseParamsEnv(filename string) (map[string]string, error) {
 	return m, scanner.Err()
 }
 
-func toStringInterfaceMap(m map[string]string) map[string]interface{} {
-	out := make(map[string]interface{}, len(m))
+func toStringInterfaceMap(m map[string]string) map[string]any {
+	out := make(map[string]any, len(m))
 	for k, v := range m {
 		out[k] = v
 	}
 	return out
 }
 
-func normalizeUnstructuredObject(obj map[string]interface{}) (map[string]interface{}, error) {
+func normalizeUnstructuredObject(obj map[string]any) (map[string]any, error) {
 	b, err := json.Marshal(obj)
 	if err != nil {
 		return nil, err
 	}
-	var out map[string]interface{}
+	var out map[string]any
 	if err := json.Unmarshal(b, &out); err != nil {
 		return nil, err
 	}
 	return out, nil
+}
+
+// deployImageParams maps the kustomize image name (as rendered by the images
+// transformer in manager/kustomization.yaml) to the params.env key that
+// Init → ApplyParams populates from RELATED_IMAGE_* env vars.
+var deployImageParams = map[string]string{
+	"quay.io/opendatahub/maas-controller": "maas-controller-image",
+}
+
+// applyImageOverridesFromParams reads the already-updated params.env and uses
+// kustomize's ImageTagTransformerPlugin to replace default images in the
+// rendered resources. Init → ApplyParams has already merged RELATED_IMAGE_*
+// values into params.env, so this keeps params.env as the single source of
+// truth -- consistent with how all other components handle image substitution.
+func applyImageOverridesFromParams(m resmap.ResMap, paramsEnvPath string) error {
+	params, err := parseParamsEnv(paramsEnvPath)
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", paramsEnvPath, err)
+	}
+
+	for kustomizeName, paramKey := range deployImageParams {
+		override := params[paramKey]
+		if override == "" {
+			continue
+		}
+
+		img := parseImageRef(kustomizeName, override)
+		plugin := &builtins.ImageTagTransformerPlugin{ImageTag: img}
+		if err := plugin.Transform(m); err != nil {
+			return fmt.Errorf("applying image override %s=%s: %w", paramKey, override, err)
+		}
+	}
+	return nil
+}
+
+// parseImageRef builds a kustomize Image from a full image reference.
+// It handles both tag (repo:tag) and digest (repo@sha256:...) formats.
+func parseImageRef(kustomizeName, ref string) types.Image {
+	if idx := strings.LastIndex(ref, "@"); idx > 0 {
+		return types.Image{
+			Name:    kustomizeName,
+			NewName: ref[:idx],
+			Digest:  ref[idx+1:],
+		}
+	}
+	if idx := strings.LastIndex(ref, ":"); idx > 0 {
+		return types.Image{
+			Name:    kustomizeName,
+			NewName: ref[:idx],
+			NewTag:  ref[idx+1:],
+		}
+	}
+	return types.Image{
+		Name:    kustomizeName,
+		NewName: ref,
+	}
 }
