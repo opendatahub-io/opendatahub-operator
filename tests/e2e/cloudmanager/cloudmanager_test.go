@@ -40,7 +40,7 @@ func TestCloudManager_InvalidNameRejected(t *testing.T) {
 //
 //  1. DeploymentsAvailable — verify initial deploy
 //  2. ReadOnlyValidation  — status, labels, workload checks, self-healing
-//  3. NamespaceImmutability — verify namespace fields cannot be c
+//  3. NamespaceImmutability — verify namespace fields cannot be changed after creation
 //  4. StatusAfterSpecChange — mutates spec but restores to all-Managed
 //  5. UnmanagedNotReconciled — switches cert-manager to Unmanaged
 //  6. GarbageCollection — GC action: stale deletion, protected PKI, unmanaged transition
@@ -62,7 +62,7 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 	// Read namespace values from the CR spec (custom namespaces configured in allManagedWithCustomNamespaces).
 	crObj := wt.Get(provider.GVK, k8sEngineCrNn()).Eventually().Should(Not(BeNil()))
 	deployments := getManagedDependencyDeployments(wt, crObj)
-	certManagerOperandNS := getCertManagerOperandNamespace(wt, crObj)
+	certManagerOperandNS := getCertManagerOperandNamespace()
 	sailOperatorNS := getSailOperatorNamespace(wt, crObj)
 
 	// --- 1. DeploymentsAvailable ---
@@ -551,7 +551,6 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 	// (those with ownerReferences). Namespaces are excluded from ownership and
 	// survive deletion. Must be the last test since it destroys the CR.
 	t.Run("CascadeDeletionOnCRDelete", func(t *testing.T) {
-		t.Skip("Skipping cascade deletion on CR delete test, as it's not working as expected.")
 		wt := tc.NewWithT(t)
 
 		// Restore all dependencies to Managed (previous tests may have changed

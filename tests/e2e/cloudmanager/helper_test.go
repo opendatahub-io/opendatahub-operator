@@ -156,7 +156,7 @@ func getManagedDependencyDeploymentByName(t *testing.T, wt *testf.WithT, cr *uns
 }
 
 // getCertManagerOperandNamespace returns the hardcoded cert-manager operand namespace.
-func getCertManagerOperandNamespace(wt *testf.WithT, cr *unstructured.Unstructured) string {
+func getCertManagerOperandNamespace() string {
 	return certManagerOperandNS
 }
 

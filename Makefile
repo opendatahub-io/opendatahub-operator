@@ -842,7 +842,7 @@ $(CCM_RUN_TARGETS): run-ccm-%: generate fmt vet ## Run CCM locally (e.g., run-cc
 #   make kind-setup-pull-secrets PULL_SECRET=$${XDG_RUNTIME_DIR}/containers/auth.json
 PULL_SECRET ?=
 
-PULL_SECRET_NAMESPACES := \
+PULL_SECRET_NAMESPACES ?= \
 	cert-manager \
 	cert-manager-operator \
 	openshift-lws-operator \
