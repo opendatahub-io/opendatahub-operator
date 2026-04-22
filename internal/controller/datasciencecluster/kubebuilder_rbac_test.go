@@ -1,4 +1,4 @@
-package datasciencecluster
+package datasciencecluster_test
 
 import (
 	"os"
