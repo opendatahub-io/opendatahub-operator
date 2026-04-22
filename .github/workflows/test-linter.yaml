@@ -111,18 +111,12 @@ jobs:
             --format json \
             "$TMP_FILE" > kube-linter-pr-check.json || true
 
-          # Install PyYAML for baseline loading (required for yaml.safe_load)
-          python3 -m pip install --quiet --user "pyyaml==6.0.3"
-
           # Analyze findings and block only on CRITICAL/HIGH
           python3 - <<'EOF'
           import json
           import sys
-          import yaml
 
-          # Severity mapping (matches generate-security-report.py)
-          # ⚠️ IMPORTANT: These must stay synchronized with .github/scripts/generate-security-report.py lines 384-401
-          # If you update this, update that file too! Drift causes security gaps.
+          # Severity mapping for kube-linter checks
           CRITICAL_CHECKS = {
               'cluster-admin-role-binding', 'privileged-container',
               'host-network', 'host-pid', 'host-ipc', 'docker-sock',
@@ -142,55 +136,6 @@ jobs:
               'use-namespace', 'non-existent-service-account'
           }
 
-          # Load acknowledged findings baseline (if exists)
-          # Teams can acknowledge findings that aren't real issues to prevent repeated reports
-          # Supports: .github/config/security-baseline.yaml (v2.0), .security-baseline.json (v2.0 legacy), .kube-linter-baseline.json (v1.0)
-          baseline_findings = set()
-          baseline_file_used = None
-
-          # Try unified YAML baseline first (version 2.0 - preferred format)
-          try:
-              with open('.github/config/security-baseline.yaml') as f:
-                  baseline = yaml.safe_load(f) or {}
-                  if not isinstance(baseline, dict):
-                      baseline = {}
-                  findings_list = baseline.get('kube-linter', [])
-                  baseline_file_used = '.github/config/security-baseline.yaml'
-          except FileNotFoundError:
-              # Fall back to JSON unified baseline (version 2.0 - backward compat)
-              try:
-                  with open('.security-baseline.json') as f:
-                      baseline = json.load(f) or {}
-                      if not isinstance(baseline, dict):
-                          baseline = {}
-                      findings_list = baseline.get('kube-linter', [])
-                      baseline_file_used = '.security-baseline.json'
-              except (FileNotFoundError, json.JSONDecodeError):
-                  # Fall back to legacy kube-linter baseline (version 1.0)
-                  try:
-                      with open('.kube-linter-baseline.json') as f:
-                          baseline = json.load(f) or {}
-                          if not isinstance(baseline, dict):
-                              baseline = {}
-                          findings_list = baseline.get('acknowledged_findings', [])
-                          baseline_file_used = '.kube-linter-baseline.json'
-                  except (FileNotFoundError, json.JSONDecodeError):
-                      findings_list = []
-                      baseline_file_used = None
-
-          # Process baseline findings
-          for finding in findings_list:
-              check = finding.get('check')
-              obj = finding.get('object', {})
-              # Create tuple for matching: (check, kind, name, namespace)
-              baseline_key = (check, obj.get('kind'), obj.get('name'), obj.get('namespace'))
-              baseline_findings.add(baseline_key)
-
-          if baseline_file_used:
-              print(f"\nℹ️  Loaded {len(baseline_findings)} acknowledged findings from {baseline_file_used}")
-          else:
-              print("\nℹ️  No baseline file found - validating all findings")
-
           # Operator infrastructure RBAC that requires broad permissions
           # These are excluded from certain checks, but component RBAC is still validated
           # Uses (Kind, Name, Namespace) tuples to prevent name-only spoofing (CWE-693)
@@ -200,13 +145,16 @@ jobs:
               ('ClusterRoleBinding', 'controller-manager-rolebinding', None),
               ('ClusterRole', 'opendatahub-operator-controller-manager-role', None),
               ('ClusterRoleBinding', 'opendatahub-operator-controller-manager-rolebinding', None),
+              ('Deployment', 'opendatahub-operator-controller-manager', 'opendatahub-operator-system'),
           }
 
           # Checks to skip for operator infrastructure only
           OPERATOR_EXEMPT_CHECKS = {
               'access-to-create-pods',  # Operator deploys workload pods
               'wildcard-in-rules',      # Operator needs dynamic CRD management
-              'access-to-secrets'       # Operator manages component credentials
+              'access-to-secrets',      # Operator manages component credentials
+              'latest-tag',             # Image tag is a kustomize placeholder (REPLACE_IMAGE), patched at build time
+              'non-isolated-pod',       # NetworkPolicy managed at platform level (OCP/K8s network plugin)
           }
 
           try:
@@ -227,20 +175,12 @@ jobs:
           medium_findings = []
           low_count = 0
           filtered_count = 0
-          baselined_count = 0
-
           for report in reports:
               check_name = report.get('Check', 'unknown')
               obj = report.get('Object', {}).get('K8sObject', {})
               obj_name = obj.get('Name', 'unknown')
               obj_kind = obj.get('GroupVersionKind', {}).get('Kind', 'unknown')
               obj_namespace = obj.get('Namespace') or None  # None for cluster-scoped
-
-              # Check if this finding is in the acknowledged baseline
-              baseline_key = (check_name, obj_kind, obj_name, obj_namespace)
-              if baseline_key in baseline_findings:
-                  baselined_count += 1
-                  continue
 
               # Filter out operator infrastructure for exempt checks (structural identity matching)
               if check_name in OPERATOR_EXEMPT_CHECKS and (obj_kind, obj_name, obj_namespace) in OPERATOR_INFRASTRUCTURE:
@@ -260,9 +200,6 @@ jobs:
           print("\n" + "="*80)
           print("🔍 Kube-linter PR Check Results")
           print("="*80)
-
-          if baselined_count > 0:
-              print(f"\nℹ️  Filtered {baselined_count} acknowledged findings (see {baseline_file_used})")
 
           if filtered_count > 0:
               print(f"\nℹ️  Filtered {filtered_count} operator infrastructure findings")
