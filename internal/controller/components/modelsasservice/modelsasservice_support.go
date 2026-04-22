@@ -165,6 +165,11 @@ func maasParametersConfigMapFromParamsEnv(manifestsBasePath string, appNs string
 		return nil, fmt.Errorf("reading %s: %w", paramsFile, err)
 	}
 
+	// Override app-namespace with the resolved application namespace so that
+	// RHOAI deployments (redhat-ods-applications) don't use the ODH default
+	// hardcoded in params.env (opendatahub).
+	paramsMap["app-namespace"] = appNs
+
 	data := make(map[string]interface{}, len(paramsMap))
 	for k, v := range paramsMap {
 		data[k] = v
