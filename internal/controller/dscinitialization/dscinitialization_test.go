@@ -41,7 +41,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			desiredDsci := createDSCI(operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
 			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
 			foundDsci := &dsciv2.DSCInitialization{}
-			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
+			Eventually(dscInitializationIsReady(foundDsci)).
 				WithContext(ctx).
 				WithTimeout(timeout).
 				WithPolling(interval).
@@ -89,13 +89,12 @@ var _ = Describe("DataScienceCluster initialization", func() {
 	Context("Monitoring Resource", func() {
 		AfterEach(cleanupResources)
 		const monitoringNamespace2 = "test-monitoring-ns2"
-		const applicationName = "default-dsci"
 		It("Should not create monitoring namespace if monitoring is disabled", func(ctx context.Context) {
 			// when
 			desiredDsci := createDSCI(operatorv1.Removed, operatorv1.Managed, monitoringNamespace2)
 			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
 			foundDsci := &dsciv2.DSCInitialization{}
-			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
+			Eventually(dscInitializationIsReady(foundDsci)).
 				WithContext(ctx).
 				WithTimeout(timeout).
 				WithPolling(interval).
@@ -113,7 +112,6 @@ var _ = Describe("DataScienceCluster initialization", func() {
 
 	Context("Handling existing resources", func() {
 		AfterEach(cleanupResources)
-		const applicationName = "default-dsci"
 
 		It("Should not update namespace if it exists", func(ctx context.Context) {
 			anotherNamespace := "test-another-ns"
@@ -136,7 +134,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			desiredDsci := createDSCI(operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
 			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
 			foundDsci := &dsciv2.DSCInitialization{}
-			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
+			Eventually(dscInitializationIsReady(foundDsci)).
 				WithContext(ctx).
 				WithTimeout(timeout).
 				WithPolling(interval).
@@ -259,7 +257,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
 
 			foundDsci := &dsciv2.DSCInitialization{}
-			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
+			Eventually(dscInitializationIsReady(foundDsci)).
 				WithContext(ctx).
 				WithTimeout(timeout).
 				WithPolling(interval).
@@ -404,9 +402,9 @@ func createCustomizedDSCI(appNS string) *dsciv2.DSCInitialization {
 	}
 }
 
-func dscInitializationIsReady(name string, namespace string, dsciObj *dsciv2.DSCInitialization) func(ctx context.Context) bool {
+func dscInitializationIsReady(dsciObj *dsciv2.DSCInitialization) func(ctx context.Context) bool {
 	return func(ctx context.Context) bool {
-		_ = k8sClient.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, dsciObj)
+		_ = k8sClient.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: workingNamespace}, dsciObj)
 
 		return dsciObj.Status.Phase == readyPhase
 	}
