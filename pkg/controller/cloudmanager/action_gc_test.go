@@ -59,6 +59,14 @@ func ccmAnns(uid string, generation string) map[string]string {
 	}
 }
 
+// legacyCCMAnns returns the old platform.opendatahub.io annotations for the test UID and generation.
+func legacyCCMAnns(uid string, generation string) map[string]string {
+	return map[string]string{
+		labels.ODHPlatformPrefix + odhAnnotations.SuffixInstanceUID:        uid,
+		labels.ODHPlatformPrefix + odhAnnotations.SuffixInstanceGeneration: generation,
+	}
+}
+
 var testProtectedObjects = []ProtectedObject{
 	{Group: "cert-manager.io", Kind: "ClusterIssuer", Name: "opendatahub-selfsigned-issuer"},
 	{Group: "cert-manager.io", Kind: "Certificate", Name: "opendatahub-ca", Namespace: "cert-manager"},
@@ -156,6 +164,27 @@ func TestNewGCPredicate(t *testing.T) {
 		{
 			name:       "malformed InstanceGeneration — skip (do not delete)",
 			obj:        simpleObj(ccmAnns(string(testUID), "not-a-number")),
+			wantDelete: false,
+		},
+		// Legacy platform.opendatahub.io annotation fallback cases.
+		{
+			name:       "legacy annotations: UID matches, generation matches — keep",
+			obj:        simpleObj(legacyCCMAnns(string(testUID), "5")),
+			wantDelete: false,
+		},
+		{
+			name:       "legacy annotations: UID mismatch — delete",
+			obj:        simpleObj(legacyCCMAnns("different-uid", "5")),
+			wantDelete: true,
+		},
+		{
+			name:       "legacy annotations: UID matches, generation mismatch — delete",
+			obj:        simpleObj(legacyCCMAnns(string(testUID), "3")),
+			wantDelete: true,
+		},
+		{
+			name:       "legacy annotations: malformed generation — skip (do not delete)",
+			obj:        simpleObj(legacyCCMAnns(string(testUID), "not-a-number")),
 			wantDelete: false,
 		},
 	}
