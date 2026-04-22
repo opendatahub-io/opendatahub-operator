@@ -59,6 +59,11 @@ func modelsAsServiceTestSuite(t *testing.T) {
 		ComponentTestCtx: ct,
 	}
 
+	// MaaS startup involves multiple dependencies (postgres, gateway, maas-controller leader election,
+	// ServiceAccount/TLS cert provisioning) that can take longer than the default 5m timeout.
+	reset := componentCtx.OverrideEventuallyTimeout(ct.TestTimeouts.longEventuallyTimeout, ct.TestTimeouts.defaultEventuallyPollInterval)
+	defer reset()
+
 	// Setup: Create prerequisites and enable the subcomponent.
 	// PostgreSQL must be created before enabling the component because
 	// maas-api reads the maas-db-config secret on startup.
