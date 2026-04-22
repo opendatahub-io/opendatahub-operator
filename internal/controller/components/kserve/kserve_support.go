@@ -45,6 +45,8 @@ var (
 		"kserve-llm-d-routing-sidecar":     "RELATED_IMAGE_ODH_LLM_D_ROUTING_SIDECAR_IMAGE",
 		"kube-rbac-proxy":                  "RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
 		"kserve-llm-d-uds-tokenizer":       "RELATED_IMAGE_ODH_LLM_D_KV_CACHE_IMAGE",
+		"kserve-localmodel-controller":     "RELATED_IMAGE_ODH_KSERVE_LOCALMODEL_CONTROLLER_IMAGE",
+		"kserve-localmodelnode-agent":      "RELATED_IMAGE_ODH_KSERVE_LOCALMODELNODE_AGENT_IMAGE",
 	}
 )
 
