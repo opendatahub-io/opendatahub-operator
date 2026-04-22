@@ -215,5 +215,6 @@ func sortLLMInferenceServiceConfigLast(_ context.Context, objects []unstructured
 }
 
 func isLLMInferenceServiceConfig(r unstructured.Unstructured) bool {
-	return r.GetKind() == gvk.LLMInferenceServiceConfigV1Alpha2.Kind
+	return r.GroupVersionKind().Group == gvk.LLMInferenceServiceConfigV1Alpha2.Group &&
+		r.GetKind() == gvk.LLMInferenceServiceConfigV1Alpha2.Kind
 }

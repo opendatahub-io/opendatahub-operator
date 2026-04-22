@@ -784,6 +784,9 @@ func TestSortLLMInferenceServiceConfigLast(t *testing.T) {
 		result, err := sortLLMInferenceServiceConfigLast(ctx, input)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(result).To(HaveLen(3))
+		g.Expect(result[0].GetName()).To(Equal("deploy"))
+		g.Expect(result[1].GetName()).To(Equal("svc"))
+		g.Expect(result[2].GetName()).To(Equal("cm"))
 	})
 
 	t.Run("all LLMInferenceServiceConfig resources preserves input order", func(t *testing.T) {
