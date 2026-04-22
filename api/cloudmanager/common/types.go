@@ -18,6 +18,12 @@ const (
 	DefaultNamespaceSailOperator = "istio-system"
 )
 
+// Namespace represents a Kubernetes namespace name (RFC 1123 DNS label).
+// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
+// +kubebuilder:validation:MaxLength=63
+// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="namespace is immutable"
+type Namespace string
+
 // CertManagerConfiguration defines the configuration for the cert-manager operator dependency.
 // +kubebuilder:object:generate=true
 type CertManagerConfiguration struct{}
@@ -27,10 +33,7 @@ type CertManagerConfiguration struct{}
 type LWSConfiguration struct {
 	// Namespace is the namespace where the LWS operator is deployed.
 	// +kubebuilder:default=openshift-lws-operator
-	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
-	// +kubebuilder:validation:MaxLength=63
-	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="namespace is immutable"
-	Namespace string `json:"namespace,omitempty"`
+	Namespace Namespace `json:"namespace,omitempty"`
 }
 
 // SailOperatorConfiguration defines the configuration for the Sail operator (Istio) dependency.
@@ -38,10 +41,7 @@ type LWSConfiguration struct {
 type SailOperatorConfiguration struct {
 	// Namespace is the namespace where the Sail operator (Istio) is deployed.
 	// +kubebuilder:default=istio-system
-	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
-	// +kubebuilder:validation:MaxLength=63
-	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="namespace is immutable"
-	Namespace string `json:"namespace,omitempty"`
+	Namespace Namespace `json:"namespace,omitempty"`
 }
 
 // GatewayAPIConfiguration defines the configuration for the Gateway API dependency.
@@ -81,7 +81,7 @@ type LWSDependency struct {
 // falling back to DefaultNamespaceLWSOperator if empty.
 func (d *LWSDependency) GetNamespace() string {
 	if d.Configuration.Namespace != "" {
-		return d.Configuration.Namespace
+		return string(d.Configuration.Namespace)
 	}
 
 	return DefaultNamespaceLWSOperator
@@ -106,7 +106,7 @@ type SailOperatorDependency struct {
 // falling back to DefaultNamespaceSailOperator if empty.
 func (d *SailOperatorDependency) GetNamespace() string {
 	if d.Configuration.Namespace != "" {
-		return d.Configuration.Namespace
+		return string(d.Configuration.Namespace)
 	}
 
 	return DefaultNamespaceSailOperator
