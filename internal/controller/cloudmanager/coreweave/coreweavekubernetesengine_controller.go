@@ -29,7 +29,7 @@ func NewReconciler(ctx context.Context, mgr ctrl.Manager, cfg *operatorconfig.Cl
 			reconciler.WithEventHandler(handlers.ToNamed(ccmv1alpha1.CoreWeaveKubernetesEngineInstanceName)),
 			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed(common.ServiceMonitorCRDName)),
 		).
-		WithAction(initialize).
+		WithAction(newInitializeAction(cfg.DefaultChartsPath)).
 		ComposeWith(certmanager.Bootstrap[*ccmv1alpha1.CoreWeaveKubernetesEngine](
 			ccmv1alpha1.CoreWeaveKubernetesEngineInstanceName,
 			bootstrapConfig,

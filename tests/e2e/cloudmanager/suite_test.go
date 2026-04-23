@@ -3,6 +3,7 @@ package cloudmanager_test
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -13,13 +14,15 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
+	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 )
 
 const rhaiOperatorNamespace = "opendatahub-operator-system"
 
 var (
-	tc       *testf.TestContext
-	provider ProviderConfig
+	tc         *testf.TestContext
+	provider   ProviderConfig
+	chartsPath string
 )
 
 func TestMain(m *testing.M) {
@@ -40,7 +43,13 @@ func TestMain(m *testing.M) {
 	}
 	provider = p
 
-	var err error
+	rootPath, err := envtestutil.FindProjectRoot()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to find project root: %v\n", err)
+		os.Exit(1)
+	}
+	chartsPath = filepath.Join(rootPath, "opt", "charts")
+
 	tc, err = testf.NewTestContext(
 		testf.WithTOptions(
 			testf.WithEventuallyTimeout(5*time.Minute),
