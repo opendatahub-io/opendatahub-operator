@@ -22,7 +22,6 @@ import (
 	ctrlmanager "sigs.k8s.io/controller-runtime/pkg/manager"
 
 	ccmcommon "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
@@ -140,12 +139,20 @@ func StartIsolatedController(t *testing.T, ctx context.Context, cfg ControllerTe
 
 	RequireCharts(t)
 
+	rootPath, pathErr := envtestutil.FindProjectRoot()
+	if pathErr != nil {
+		t.Fatalf("failed to find project root: %v", pathErr)
+	}
+
 	et, err := SetupEnvTest(cfg.CRDSubdir,
 		envt.WithManager(ctrl.Options{
 			Controller: ctrlconfig.Controller{SkipNameValidation: ptr.To(true)},
 		}),
 		envt.WithRegisterControllers(func(mgr ctrlmanager.Manager) error {
-			return cfg.NewReconciler(ctx, mgr, &operatorconfig.CloudManagerConfig{RhaiOperatorNamespace: TestOperatorNamespace})
+			return cfg.NewReconciler(ctx, mgr, &operatorconfig.CloudManagerConfig{
+				RhaiOperatorNamespace: TestOperatorNamespace,
+				DefaultChartsPath:     filepath.Join(rootPath, "opt", "charts"),
+			})
 		}),
 	)
 	if err != nil {
@@ -232,13 +239,14 @@ func RunTestMain(m *testing.M, tc **testf.TestContext, cfg ControllerTestConfig)
 		os.Exit(m.Run())
 	}
 
-	common.DefaultChartsPath = chartsPath
-
 	ctx, cancel := context.WithCancel(context.Background())
 
 	et, err := SetupEnvTest(cfg.CRDSubdir,
 		envt.WithRegisterControllers(func(mgr ctrlmanager.Manager) error {
-			return cfg.NewReconciler(ctx, mgr, &operatorconfig.CloudManagerConfig{RhaiOperatorNamespace: TestOperatorNamespace})
+			return cfg.NewReconciler(ctx, mgr, &operatorconfig.CloudManagerConfig{
+				RhaiOperatorNamespace: TestOperatorNamespace,
+				DefaultChartsPath:     chartsPath,
+			})
 		}),
 	)
 	if err != nil {

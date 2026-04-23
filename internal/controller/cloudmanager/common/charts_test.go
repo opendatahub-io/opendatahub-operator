@@ -10,6 +10,8 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const testChartsPath = "/test/charts"
+
 func getAllUnmanagedDependencies() ccmcommon.Dependencies {
 	return ccmcommon.Dependencies{
 		GatewayAPI:   ccmcommon.GatewayAPIDependency{ManagementPolicy: ccmcommon.Unmanaged},
@@ -32,18 +34,14 @@ func TestBuildHelmCharts(t *testing.T) {
 	t.Run("returns all charts in order when all managed", func(t *testing.T) {
 		g := NewWithT(t)
 
-		original := DefaultChartsPath
-		DefaultChartsPath = "/test/charts"
-		t.Cleanup(func() { DefaultChartsPath = original })
-
 		// Zero-value ManagementPolicy ("") is not "Unmanaged", so all charts are returned.
 		// In practice, kubebuilder defaults ManagementPolicy to "Managed".
-		charts := BuildHelmCharts(ccmcommon.Dependencies{})
+		charts := BuildHelmCharts(ccmcommon.Dependencies{}, testChartsPath)
 
 		g.Expect(charts).To(HaveLen(len(expectedReleaseNames)))
 		for i, name := range expectedReleaseNames {
 			g.Expect(charts[i].ReleaseName).To(Equal(name))
-			g.Expect(charts[i].Chart).To(Equal(filepath.Join("/test/charts", name)))
+			g.Expect(charts[i].Chart).To(Equal(filepath.Join(testChartsPath, name)))
 		}
 	})
 
@@ -53,7 +51,7 @@ func TestBuildHelmCharts(t *testing.T) {
 		deps := getAllUnmanagedDependencies()
 		deps.LWS.ManagementPolicy = ccmcommon.Managed
 
-		charts := BuildHelmCharts(deps)
+		charts := BuildHelmCharts(deps, testChartsPath)
 
 		g.Expect(charts).To(HaveLen(1))
 		g.Expect(charts[0].ReleaseName).To(Equal("lws-operator"))
@@ -64,17 +62,13 @@ func TestBuildHelmCharts(t *testing.T) {
 
 		deps := getAllUnmanagedDependencies()
 
-		charts := BuildHelmCharts(deps)
+		charts := BuildHelmCharts(deps, testChartsPath)
 
 		g.Expect(charts).To(BeEmpty())
 	})
 
 	t.Run("uses custom namespaces in chart values", func(t *testing.T) {
 		g := NewWithT(t)
-
-		original := DefaultChartsPath
-		DefaultChartsPath = "/test/charts"
-		t.Cleanup(func() { DefaultChartsPath = original })
 
 		deps := ccmcommon.Dependencies{
 			LWS: ccmcommon.LWSDependency{
@@ -89,7 +83,7 @@ func TestBuildHelmCharts(t *testing.T) {
 			},
 		}
 
-		charts := BuildHelmCharts(deps)
+		charts := BuildHelmCharts(deps, testChartsPath)
 
 		g.Expect(charts).To(HaveLen(4))
 
