@@ -17,8 +17,8 @@ import (
 )
 
 // provisionModules iterates over enabled modules in the registry and for each:
-//   - Appends the module's operator Helm charts to rr.HelmCharts (rendered by
-//     helm.NewAction, applied by deploy.NewAction).
+//   - Appends the module's operator manifests to rr.HelmCharts and/or
+//     rr.Manifests (rendered by helm/kustomize actions, applied by deploy.NewAction).
 //   - Builds the module CR and adds it to rr.Resources (applied by
 //     deploy.NewAction alongside operator resources).
 //
@@ -54,7 +54,9 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 
 		log.Info("provisioning module", "module", name)
 
-		rr.HelmCharts = append(rr.HelmCharts, handler.GetOperatorCharts()...)
+		operatorManifests := handler.GetOperatorManifests()
+		rr.HelmCharts = append(rr.HelmCharts, operatorManifests.HelmCharts...)
+		rr.Manifests = append(rr.Manifests, operatorManifests.Manifests...)
 
 		moduleCR, err := handler.BuildModuleCR(ctx, rr.Client, instance, dsci)
 		if err != nil {
@@ -92,6 +94,7 @@ func updateModuleStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 	}
 
 	var notReadyModules []string
+	var degradedModules []string
 
 	err := reg.ForEach(func(handler modules.ModuleHandler) error {
 		name := handler.GetName()
@@ -100,23 +103,39 @@ func updateModuleStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 			return nil
 		}
 
-		conditions, err := handler.GetModuleStatus(ctx, rr.Client)
+		moduleStatus, err := handler.GetModuleStatus(ctx, rr.Client)
 		if err != nil {
 			log.V(1).Info("failed to get module status", "module", name, "error", err)
 			notReadyModules = append(notReadyModules, name)
 			return nil
 		}
 
+		if moduleStatus.ObservedGeneration > 0 && moduleStatus.ObservedGeneration < moduleStatus.Generation {
+			log.V(1).Info("module status is stale",
+				"module", name,
+				"observedGeneration", moduleStatus.ObservedGeneration,
+				"generation", moduleStatus.Generation,
+			)
+			notReadyModules = append(notReadyModules, name+" (stale)")
+			return nil
+		}
+
 		ready := false
-		for _, c := range conditions {
-			if c.Type == status.ConditionTypeReady && c.Status == metav1.ConditionTrue {
-				ready = true
-				break
+		degraded := false
+
+		for _, c := range moduleStatus.Conditions {
+			switch c.Type {
+			case status.ConditionTypeReady:
+				ready = c.Status == metav1.ConditionTrue
+			case status.ConditionTypeDegraded:
+				degraded = c.Status == metav1.ConditionTrue
 			}
 		}
 
 		if !ready {
 			notReadyModules = append(notReadyModules, name)
+		} else if degraded {
+			degradedModules = append(degradedModules, name)
 		}
 
 		return nil
@@ -126,14 +145,26 @@ func updateModuleStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 		return err
 	}
 
-	if len(notReadyModules) > 0 {
+	switch {
+	case len(notReadyModules) > 0:
+		msg := fmt.Sprintf("Some modules are not ready: %s", strings.Join(notReadyModules, ", "))
+		if len(degradedModules) > 0 {
+			msg += fmt.Sprintf("; degraded: %s", strings.Join(degradedModules, ", "))
+		}
 		rr.Conditions.SetCondition(common.Condition{
 			Type:    status.ConditionTypeModulesReady,
 			Status:  metav1.ConditionFalse,
 			Reason:  status.NotReadyReason,
-			Message: fmt.Sprintf("Some modules are not ready: %s", strings.Join(notReadyModules, ",")),
+			Message: msg,
 		})
-	} else {
+	case len(degradedModules) > 0:
+		rr.Conditions.SetCondition(common.Condition{
+			Type:    status.ConditionTypeModulesReady,
+			Status:  metav1.ConditionFalse,
+			Reason:  status.ConditionTypeDegraded,
+			Message: fmt.Sprintf("Some modules are degraded: %s", strings.Join(degradedModules, ", ")),
+		})
+	default:
 		rr.Conditions.MarkTrue(status.ConditionTypeModulesReady)
 	}
 

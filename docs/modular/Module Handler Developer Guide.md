@@ -15,9 +15,9 @@ Before starting, your module team must have:
 2. A **CRD** that follows the
    [API requirements](Onboarding%20Guide%20for%20ODH%20Operator%20Modules.md#2-api-requirements-crd)
    in the onboarding guide.
-3. A **Helm chart** packaging the module operator's Deployment, RBAC, CRD, and
-   ConfigMap. The chart must **not** include a CR instance; the platform creates
-   the CR.
+3. A **Helm chart** or **Kustomize overlays** packaging the module operator's
+   Deployment, RBAC, CRD, and ConfigMap. The manifests must **not** include a
+   CR instance; the platform creates the CR.
 
 ## Overview
 
@@ -25,7 +25,7 @@ Adding a module to the operator requires changes in four areas:
 
 | Area | What you add | Where |
 |---|---|---|
-| **Chart source** | Entry in manifest-gathering script | `get_all_manifests.sh` |
+| **Manifest source** | Entry in manifest-gathering script | `get_all_manifests.sh` |
 | **Handler** | Go package implementing `ModuleHandler` | `internal/controller/modules/<name>/` |
 | **DSC API** | Component stanza on `DataScienceCluster` | `api/datasciencecluster/v2/` |
 | **Registration** | Import + map entry | `cmd/main.go` |
@@ -35,9 +35,9 @@ an example.
 
 ---
 
-## Step 1: Provide the Helm Chart
+## Step 1: Provide the Manifests
 
-The operator pulls module charts at image build time via
+The operator pulls module manifests at image build time via
 `get_all_manifests.sh`. Add entries to the `ODH_COMPONENT_CHARTS` (community)
 and `RHOAI_COMPONENT_CHARTS` (product) maps:
 
@@ -49,18 +49,19 @@ and `RHOAI_COMPONENT_CHARTS` (product) maps:
 ["mymodule"]="red-hat-data-services:mymodule-operator:rhoai-X.Y@<commit-sha>:charts/operator"
 ```
 
-The chart will be extracted to `opt/manifests/mymodule/` inside the operator
-image. This path is used by `BaseHandler.GetOperatorCharts()` via
-`ModuleConfig.ChartDir`.
+Module teams can package their operator manifests as either **Helm charts** or
+**Kustomize overlays**. The manifests will be extracted to `opt/manifests/mymodule/`
+inside the operator image. Set `ModuleConfig.ChartDir` for Helm or
+`ModuleConfig.ManifestDir` for Kustomize in the handler.
 
-### What the chart should contain
+### What the manifests should contain
 
 - `Deployment` for the module controller
 - `ServiceAccount`, `ClusterRole`, `ClusterRoleBinding` for RBAC
 - The module's `CRD` (so the platform can create instances)
 - Optional: `ConfigMap` for controller configuration
 
-### What the chart must NOT contain
+### What the manifests must NOT contain
 
 - A CR instance (e.g., `MyModule` kind). The platform operator creates and owns
   the CR via `BuildModuleCR`.
@@ -74,6 +75,11 @@ embeds `modules.BaseHandler` and only implements two methods: `IsEnabled` and
 `BuildModuleCR`.
 
 ### File: `internal/controller/modules/mymodule/handler.go`
+
+The `ModuleConfig` determines the manifest format. Set `ChartDir` for Helm or
+`ManifestDir` for Kustomize.
+
+**Helm variant:**
 
 ```go
 package mymodule
@@ -101,8 +107,8 @@ func NewHandler() *handler {
             Config: modules.ModuleConfig{
                 Name:        "mymodule",
                 CRName:      "default",
-                ReleaseName: "mymodule-operator",
                 ChartDir:    "mymodule",
+                ReleaseName: "mymodule-operator",
                 GVK: schema.GroupVersionKind{
                     Group:   "components.platform.opendatahub.io",
                     Version: "v1alpha1",
@@ -127,7 +133,6 @@ func (h *handler) BuildModuleCR(
     u.SetGroupVersionKind(h.Config.GVK)
     u.SetName(h.Config.CRName)
 
-    // Project platform-level fields from DSC/DSCI into the module CR.
     u.Object["spec"] = map[string]any{
         "managementState": string(dsc.Spec.Components.MyModule.ManagementState),
     }
@@ -135,6 +140,32 @@ func (h *handler) BuildModuleCR(
     return u, nil
 }
 ```
+
+**Kustomize variant** -- only `ModuleConfig` differs:
+
+```go
+func NewHandler() *handler {
+    return &handler{
+        BaseHandler: modules.BaseHandler{
+            Config: modules.ModuleConfig{
+                Name:        "mymodule",
+                CRName:      "default",
+                ManifestDir: "mymodule",
+                ContextDir:  "operator",
+                SourcePath:  "overlays/production",
+                GVK: schema.GroupVersionKind{
+                    Group:   "components.platform.opendatahub.io",
+                    Version: "v1alpha1",
+                    Kind:    "MyModule",
+                },
+            },
+        },
+    }
+}
+```
+
+The `IsEnabled` and `BuildModuleCR` methods are identical regardless of
+manifest format.
 
 ### What BaseHandler provides for free
 
@@ -145,8 +176,8 @@ implementations of four interface methods:
 |---|---|
 | `GetName()` | Returns `Config.Name` |
 | `GetGVK()` | Returns `Config.GVK` (used for dynamic watch registration) |
-| `GetOperatorCharts()` | Builds `HelmChartInfo` from `Config.ChartDir`, `Config.ReleaseName`, and `Config.Values` |
-| `GetModuleStatus()` | GETs the module CR by GVK + CRName and parses `.status.conditions` |
+| `GetOperatorManifests()` | Returns `OperatorManifests` with `HelmCharts` (if `ChartDir` set) and/or `Manifests` (if `ManifestDir` set) |
+| `GetModuleStatus()` | GETs the module CR by GVK + CRName, parses `.status.conditions` and `.status.observedGeneration`, returns `*ModuleStatus` |
 
 You only need to implement:
 
@@ -160,7 +191,7 @@ Any default method can be overridden by defining it on your handler struct. For
 example, if the module needs custom status parsing:
 
 ```go
-func (h *handler) GetModuleStatus(ctx context.Context, cli client.Client) ([]metav1.Condition, error) {
+func (h *handler) GetModuleStatus(ctx context.Context, cli client.Client) (*modules.ModuleStatus, error) {
     // Custom logic...
 }
 ```
@@ -178,6 +209,39 @@ The module CR returned by `BuildModuleCR` is:
 The platform owns the fields it sets in `.spec`. The module operator can own
 additional `.spec` fields via its own field manager. This is the shared
 ownership model described in the onboarding guide.
+
+### Platform labels and annotations
+
+`deploy.NewAction` automatically sets `platform.opendatahub.io/part-of` and
+platform annotations (instance generation, name, UID, release info) on every
+resource in `rr.Resources`. Module CRs and module operator resources both
+receive these labels without any extra code in the handler. Module teams do
+**not** need to set platform labels in `BuildModuleCR`.
+
+### Module CR status contract
+
+The platform reads module CR status per the
+[onboarding guide's PlatformObject contract](Onboarding%20Guide%20for%20ODH%20Operator%20Modules.md#23-status-specification-platformobject).
+Module teams must ensure their CRD status includes:
+
+- `observedGeneration` (int64): the last `.metadata.generation` the module
+  controller has reconciled. The platform treats status as stale when this
+  falls behind `metadata.generation`.
+- `conditions` ([]metav1.Condition) with at least:
+  - `Ready`: aggregate health (`True` = fully functional, `False` = unusable).
+  - `ProvisioningSucceeded`: manifest application result (aggregated into
+    `Ready`).
+  - `Degraded`: `True` when functional but degraded. The platform propagates
+    this into the DSC `ModulesReady` condition message even when `Ready=True`.
+- `releases` (array of {name, repoUrl, version}): installed component info.
+
+### ConfigMap enforcement
+
+If the module chart includes a ConfigMap for controller configuration, the
+platform applies it via `deploy.NewAction` (Server-Side Apply). User edits to
+platform-managed ConfigMap fields are automatically reverted on the next
+reconcile cycle, matching the enforcement model described in the onboarding
+guide (section 2.4).
 
 ---
 
@@ -241,15 +305,24 @@ This registration:
 When the DSC controller reconciles:
 
 1. **`provisionModules`** iterates enabled handlers:
-   - Appends the module's Helm chart info to `rr.HelmCharts`.
+   - Appends the module's manifest descriptors to `rr.HelmCharts` and/or
+     `rr.Manifests` (depending on the handler's `ModuleConfig`).
    - Calls `BuildModuleCR` and appends the result to `rr.Resources`.
-2. **`helm.NewAction`** renders all Helm charts (component + module) into
-   Kubernetes resources and appends them to `rr.Resources`.
-3. **`deploy.NewAction`** applies everything in `rr.Resources` via
-   Server-Side Apply.
-4. **`updateModuleStatus`** reads each module CR's `.status.conditions` and
-   aggregates them into the DSC's `ModulesReady` condition.
-5. **`gc.NewAction`** deletes resources that were previously managed but are no
+2. **`helm.NewAction`** renders Helm charts into Kubernetes resources and
+   appends them to `rr.Resources`.
+3. **`kustomize.NewAction`** renders Kustomize manifests into Kubernetes
+   resources and appends them to `rr.Resources`.
+4. **`deploy.NewAction`** applies everything in `rr.Resources` via
+   Server-Side Apply. It automatically sets `platform.opendatahub.io/part-of`
+   labels and platform annotations on all resources, including module CRs.
+5. **`updateModuleStatus`** reads each module CR's status and aggregates it
+   into the DSC's `ModulesReady` condition. It performs:
+   - **Staleness detection**: if `status.observedGeneration` is behind
+     `metadata.generation`, the module is treated as not-ready.
+   - **Ready check**: the `Ready` condition must be `True`.
+   - **Degraded propagation**: if `Ready=True` but `Degraded=True`, the
+     module is reported as degraded (`ModulesReady` is set to `False`).
+6. **`gc.NewAction`** deletes resources that were previously managed but are no
    longer in `rr.Resources` (handles disablement and removal).
 
 ### Watch infrastructure
@@ -273,9 +346,12 @@ detects they are missing and cleans them up.
 ### ParseConditions
 
 The `modules.ParseConditions(u)` function extracts `[]metav1.Condition` from an
-unstructured object's `.status.conditions` field. It is used internally by
-`BaseHandler.GetModuleStatus` but is also exported for custom status
-implementations.
+unstructured object's `.status.conditions` field, including all six standard
+fields (`Type`, `Status`, `Reason`, `Message`, `ObservedGeneration`,
+`LastTransitionTime`). It handles JSON number-to-int64 conversion for
+`ObservedGeneration` and RFC3339 string parsing for `LastTransitionTime`. It is
+used internally by `BaseHandler.GetModuleStatus` but is also exported for
+custom status implementations.
 
 ### RegistrationOptions
 
@@ -309,3 +385,27 @@ adding a new module, consider adding a test case that:
 3. Verifies the module CR exists with the expected `.spec` fields.
 4. Simulates a status update on the module CR and verifies the DSC
    `ModulesReady` condition reflects it.
+
+---
+
+## Shared Library (`odh-platform-utilities`)
+
+The [odh-platform-utilities](https://github.com/opendatahub-io/odh-platform-utilities)
+repository provides shared rendering primitives (`ReconciliationRequest`,
+`HelmChartInfo`, Helm/Kustomize/Template action adapters, resource helpers)
+intended for **module operator teams** building their own controllers.
+
+This modules package in the ODH operator is **platform-side orchestration
+code** -- it is not a consumer of that library. The operator has its own
+`ReconciliationRequest` (a superset with `Controller`, `Conditions`, `Release`)
+and its own action pipeline (`deploy.NewAction`, `gc.NewAction`,
+`helmrender.NewAction`) that the modules package integrates with.
+
+Module teams building their own operators should use `odh-platform-utilities`
+for manifest rendering and resource management. The platform operator does not
+import it because the type systems serve different roles and forcing a
+conversion layer adds complexity without benefit.
+
+If the operator's rendering pipeline is eventually refactored to share a common
+base type with the library, the modules package types are already structurally
+aligned to make that migration straightforward.

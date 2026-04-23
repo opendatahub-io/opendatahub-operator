@@ -149,17 +149,64 @@ func TestRegistryIsModuleEnabled(t *testing.T) {
 	g.Expect(reg.IsModuleEnabled("enabled-mod", dsc)).Should(BeFalse())
 }
 
-func TestBaseHandlerDefaults(t *testing.T) {
+func TestBaseHandlerDefaultsHelmOnly(t *testing.T) {
 	g := NewWithT(t)
 
-	h := newMockHandler("test", true)
+	h := &mockHandler{
+		BaseHandler: modules.BaseHandler{
+			Config: modules.ModuleConfig{
+				Name:        "helm-mod",
+				CRName:      "default",
+				GVK:         schema.GroupVersionKind{Group: "test.io", Version: "v1", Kind: "Mock"},
+				ChartDir:    "mymodule",
+				ReleaseName: "mymodule-operator",
+			},
+		},
+		enabled: true,
+	}
 
-	g.Expect(h.GetName()).Should(Equal("test"))
+	g.Expect(h.GetName()).Should(Equal("helm-mod"))
 	g.Expect(h.GetGVK()).Should(Equal(schema.GroupVersionKind{Group: "test.io", Version: "v1", Kind: "Mock"}))
 
-	charts := h.GetOperatorCharts()
-	g.Expect(charts).Should(HaveLen(1))
-	g.Expect(charts[0].ReleaseName).Should(BeEmpty())
+	manifests := h.GetOperatorManifests()
+	g.Expect(manifests.HelmCharts).Should(HaveLen(1))
+	g.Expect(manifests.HelmCharts[0].ReleaseName).Should(Equal("mymodule-operator"))
+	g.Expect(manifests.Manifests).Should(BeEmpty())
+}
+
+func TestBaseHandlerDefaultsKustomizeOnly(t *testing.T) {
+	g := NewWithT(t)
+
+	h := &mockHandler{
+		BaseHandler: modules.BaseHandler{
+			Config: modules.ModuleConfig{
+				Name:        "kustomize-mod",
+				CRName:      "default",
+				GVK:         schema.GroupVersionKind{Group: "test.io", Version: "v1", Kind: "Mock"},
+				ManifestDir: "mymodule",
+				ContextDir:  "operator",
+				SourcePath:  "overlays/production",
+			},
+		},
+		enabled: true,
+	}
+
+	manifests := h.GetOperatorManifests()
+	g.Expect(manifests.HelmCharts).Should(BeEmpty())
+	g.Expect(manifests.Manifests).Should(HaveLen(1))
+	g.Expect(manifests.Manifests[0].Path).Should(Equal("mymodule"))
+	g.Expect(manifests.Manifests[0].ContextDir).Should(Equal("operator"))
+	g.Expect(manifests.Manifests[0].SourcePath).Should(Equal("overlays/production"))
+}
+
+func TestBaseHandlerDefaultsNoManifests(t *testing.T) {
+	g := NewWithT(t)
+
+	h := newMockHandler("empty", true)
+
+	manifests := h.GetOperatorManifests()
+	g.Expect(manifests.HelmCharts).Should(BeEmpty())
+	g.Expect(manifests.Manifests).Should(BeEmpty())
 }
 
 func TestParseConditions(t *testing.T) {
@@ -170,10 +217,12 @@ func TestParseConditions(t *testing.T) {
 			"status": map[string]any{
 				"conditions": []any{
 					map[string]any{
-						"type":    "Ready",
-						"status":  "True",
-						"reason":  "AllGood",
-						"message": "Everything is fine",
+						"type":               "Ready",
+						"status":             "True",
+						"reason":             "AllGood",
+						"message":            "Everything is fine",
+						"observedGeneration": float64(3),
+						"lastTransitionTime": "2026-04-22T10:30:00Z",
 					},
 					map[string]any{
 						"type":   "Degraded",
@@ -191,8 +240,12 @@ func TestParseConditions(t *testing.T) {
 	g.Expect(conditions[0].Status).Should(Equal(metav1.ConditionTrue))
 	g.Expect(conditions[0].Reason).Should(Equal("AllGood"))
 	g.Expect(conditions[0].Message).Should(Equal("Everything is fine"))
+	g.Expect(conditions[0].ObservedGeneration).Should(Equal(int64(3)))
+	g.Expect(conditions[0].LastTransitionTime.IsZero()).Should(BeFalse())
 	g.Expect(conditions[1].Type).Should(Equal("Degraded"))
 	g.Expect(conditions[1].Status).Should(Equal(metav1.ConditionFalse))
+	g.Expect(conditions[1].ObservedGeneration).Should(Equal(int64(0)))
+	g.Expect(conditions[1].LastTransitionTime.IsZero()).Should(BeTrue())
 }
 
 func TestParseConditionsNoStatus(t *testing.T) {

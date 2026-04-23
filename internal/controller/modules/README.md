@@ -16,9 +16,10 @@ existing in-tree components. The DSC controller's action pipeline handles both:
 ```
 DSC Reconcile
   -> provisionComponents    (component CRs -> rr.Resources)
-  -> provisionModules       (module operator charts -> rr.HelmCharts,
-                             module CRs -> rr.Resources)
-  -> helm.NewAction         (renders charts into rr.Resources)
+  -> provisionModules       (module operator manifests -> rr.HelmCharts
+                             and/or rr.Manifests; module CRs -> rr.Resources)
+  -> helm.NewAction         (renders Helm charts into rr.Resources)
+  -> kustomize.NewAction    (renders Kustomize manifests into rr.Resources)
   -> deploy.NewAction       (SSA-applies everything in rr.Resources)
   -> updateModuleStatus     (reads module CR status -> DSC conditions)
   -> gc.NewAction           (deletes resources missing from rr.Resources)
@@ -27,14 +28,23 @@ DSC Reconcile
 Module CRs follow the same lifecycle as component CRs: they are added to
 `rr.Resources` when enabled and removed by the GC action when disabled.
 
+`deploy.NewAction` automatically sets `platform.opendatahub.io/part-of` labels
+and platform annotations on all resources in `rr.Resources`, including module
+CRs and module operator resources.
+
+`updateModuleStatus` performs staleness detection (comparing
+`status.observedGeneration` against `metadata.generation`) and propagates
+`Degraded` status. If all modules are `Ready` but some report `Degraded=True`,
+`ModulesReady` is set to `False` with a message listing the degraded modules.
+
 ## Adding a New Module
 
 A module team contributes four things to this repository:
 
-### 1. Chart source entry (`get_all_manifests.sh`)
+### 1. Manifest source entry (`get_all_manifests.sh`)
 
-Add the module's chart to the `ODH_COMPONENT_CHARTS` and
-`RHOAI_COMPONENT_CHARTS` maps:
+Add the module's manifests (Helm chart **or** Kustomize overlays) to the
+`ODH_COMPONENT_CHARTS` and `RHOAI_COMPONENT_CHARTS` maps:
 
 ```bash
 # ODH_COMPONENT_CHARTS
@@ -44,41 +54,26 @@ Add the module's chart to the `ODH_COMPONENT_CHARTS` and
 ["mymodule"]="red-hat-data-services:mymodule-operator:rhoai-X.Y@<commit-sha>:charts/operator"
 ```
 
-The chart must contain the module operator's Deployment, RBAC, CRD, and
-ConfigMap. It must **not** contain a CR instance; the platform creates the CR.
+The manifests must contain the module operator's Deployment, RBAC, CRD, and
+ConfigMap. They must **not** contain a CR instance; the platform creates the CR.
 
 ### 2. Handler implementation (`internal/controller/modules/<name>/handler.go`)
 
-Embed `BaseHandler` and implement only `IsEnabled` and `BuildModuleCR`:
+Embed `BaseHandler` and implement only `IsEnabled` and `BuildModuleCR`.
+Set **either** `ChartDir` (Helm) or `ManifestDir` (Kustomize) in `ModuleConfig`
+to select the manifest format.
+
+**Helm example:**
 
 ```go
-package mymodule
-
-import (
-    "context"
-
-    operatorv1 "github.com/openshift/api/operator/v1"
-    "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-    "k8s.io/apimachinery/pkg/runtime/schema"
-    "sigs.k8s.io/controller-runtime/pkg/client"
-
-    dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
-    dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
-    "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
-)
-
-type handler struct {
-    modules.BaseHandler
-}
-
 func NewHandler() *handler {
     return &handler{
         BaseHandler: modules.BaseHandler{
             Config: modules.ModuleConfig{
                 Name:        "mymodule",
                 CRName:      "default",
-                ReleaseName: "mymodule-operator",
                 ChartDir:    "mymodule",
+                ReleaseName: "mymodule-operator",
                 GVK: schema.GroupVersionKind{
                     Group:   "components.platform.opendatahub.io",
                     Version: "v1alpha1",
@@ -88,29 +83,34 @@ func NewHandler() *handler {
         },
     }
 }
+```
 
-func (h *handler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
-    return dsc.Spec.Components.MyModule.ManagementState == operatorv1.Managed
-}
+**Kustomize example:**
 
-func (h *handler) BuildModuleCR(
-    ctx context.Context,
-    cli client.Client,
-    dsc *dscv2.DataScienceCluster,
-    dsci *dsciv2.DSCInitialization,
-) (*unstructured.Unstructured, error) {
-    u := &unstructured.Unstructured{}
-    u.SetGroupVersionKind(h.Config.GVK)
-    u.SetName(h.Config.CRName)
-
-    u.Object["spec"] = map[string]any{
-        "managementState": string(dsc.Spec.Components.MyModule.ManagementState),
-        // Add other platform field projections here.
+```go
+func NewHandler() *handler {
+    return &handler{
+        BaseHandler: modules.BaseHandler{
+            Config: modules.ModuleConfig{
+                Name:        "mymodule",
+                CRName:      "default",
+                ManifestDir: "mymodule",
+                ContextDir:  "operator",
+                SourcePath:  "overlays/production",
+                GVK: schema.GroupVersionKind{
+                    Group:   "components.platform.opendatahub.io",
+                    Version: "v1alpha1",
+                    Kind:    "MyModule",
+                },
+            },
+        },
     }
-
-    return u, nil
 }
 ```
+
+Both variants still require `IsEnabled` and `BuildModuleCR` -- see the
+[Developer Guide](../../../docs/modular/Module%20Handler%20Developer%20Guide.md)
+for the full handler code.
 
 `BaseHandler` provides default implementations for the remaining four
 interface methods:
@@ -119,8 +119,8 @@ interface methods:
 |---|---|
 | `GetName()` | Returns `Config.Name` |
 | `GetGVK()` | Returns `Config.GVK` |
-| `GetOperatorCharts()` | Builds `HelmChartInfo` from `Config.ChartDir`, `Config.ReleaseName`, `Config.Values` |
-| `GetModuleStatus()` | GETs the module CR by `Config.GVK` + `Config.CRName` and parses `.status.conditions` |
+| `GetOperatorManifests()` | Returns `OperatorManifests` with `HelmCharts` (if `ChartDir` set) and/or `Manifests` (if `ManifestDir` set) |
+| `GetModuleStatus()` | GETs the module CR by `Config.GVK` + `Config.CRName`, parses `.status.conditions` and `.status.observedGeneration`, returns a `*ModuleStatus` |
 
 ### 3. DSC API stanza (`api/datasciencecluster/v2/datasciencecluster_types.go`)
 
@@ -171,20 +171,27 @@ The 6-method contract between the platform and each module handler:
 - `GetName()` -- unique identifier (registry key, log messages)
 - `IsEnabled(dsc)` -- reads DSC spec to determine enablement
 - `GetGVK()` -- module CR's GroupVersionKind (used for watch registration)
-- `GetOperatorCharts()` -- Helm chart descriptors for the module operator
+- `GetOperatorManifests()` -- returns `OperatorManifests` with Helm charts
+  and/or Kustomize manifests for the module operator
 - `BuildModuleCR(ctx, cli, dsc, dsci)` -- constructs the module CR with
   platform fields projected from the DSC/DSCI
-- `GetModuleStatus(ctx, cli)` -- reads module CR status conditions
+- `GetModuleStatus(ctx, cli)` -- returns `*ModuleStatus` with conditions and
+  generation metadata for staleness detection
 
 ### `base.go` -- BaseHandler and ModuleConfig
 
-`ModuleConfig` holds static metadata (name, GVK, chart info). `BaseHandler`
-provides default implementations for `GetName`, `GetGVK`, `GetOperatorCharts`,
-and `GetModuleStatus`. Module teams embed `BaseHandler` and only implement
+`ModuleConfig` holds static metadata (name, GVK, manifest info). Set `ChartDir`
+for Helm or `ManifestDir` for Kustomize (or both). `BaseHandler` provides
+default implementations for `GetName`, `GetGVK`, `GetOperatorManifests`, and
+`GetModuleStatus`. Module teams embed `BaseHandler` and only implement
 `IsEnabled` and `BuildModuleCR`.
 
+`ModuleStatus` bundles parsed conditions with generation metadata
+(`ObservedGeneration`, `Generation`) for staleness detection.
+
 `ParseConditions(u)` is a shared utility that extracts `[]metav1.Condition`
-from an unstructured object's `.status.conditions` field.
+from an unstructured object's `.status.conditions` field, including
+`ObservedGeneration` and `LastTransitionTime`.
 
 ### `registry.go` -- Module registry
 
@@ -215,3 +222,9 @@ Module handlers can be disabled at startup via CLI flags. The flags package
 
 These integrate with the registry's `Enable`/`Disable` methods in
 `cmd/main.go`'s `registerModules()` function.
+
+## Relationship to `odh-platform-utilities`
+
+The [odh-platform-utilities](https://github.com/opendatahub-io/odh-platform-utilities)
+library provides shared rendering primitives for **module operator teams**
+(Helm/Kustomize/Template actions, `ReconciliationRequest`, resource helpers).

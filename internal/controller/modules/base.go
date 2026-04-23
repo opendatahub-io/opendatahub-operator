@@ -3,6 +3,7 @@ package modules
 import (
 	"context"
 	"path/filepath"
+	"time"
 
 	helm "github.com/k8s-manifest-kit/renderer-helm/pkg"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,6 +18,9 @@ import (
 // ModuleConfig holds the static, declarative metadata for a module.
 // Module teams populate this struct; BaseHandler provides default
 // implementations of ModuleHandler methods that operate on it.
+//
+// Set either ChartDir (Helm) or ManifestDir (Kustomize) to select the
+// manifest format. If both are set, both are returned.
 type ModuleConfig struct {
 	// Name is the unique identifier for this module (used as registry key).
 	Name string
@@ -27,6 +31,8 @@ type ModuleConfig struct {
 	// CRName is the singleton name of the module CR instance (e.g. "default").
 	CRName string
 
+	// Helm fields -- used when ChartDir is set.
+
 	// ReleaseName is the Helm release name for the module operator chart.
 	ReleaseName string
 
@@ -35,6 +41,18 @@ type ModuleConfig struct {
 
 	// Values are additional Helm values passed when rendering the chart.
 	Values map[string]any
+
+	// Kustomize fields -- used when ManifestDir is set.
+
+	// ManifestDir is the directory name relative to rr.ManifestsBasePath
+	// containing Kustomize overlays for the module operator.
+	ManifestDir string
+
+	// ContextDir is an optional subdirectory within ManifestDir.
+	ContextDir string
+
+	// SourcePath is an optional overlay path within ContextDir.
+	SourcePath string
 }
 
 // BaseHandler provides default implementations for ModuleHandler methods
@@ -52,24 +70,38 @@ func (b *BaseHandler) GetGVK() schema.GroupVersionKind {
 	return b.Config.GVK
 }
 
-func (b *BaseHandler) GetOperatorCharts() []types.HelmChartInfo {
-	vals := b.Config.Values
-	if vals == nil {
-		vals = map[string]any{}
+func (b *BaseHandler) GetOperatorManifests() OperatorManifests {
+	var result OperatorManifests
+
+	if b.Config.ChartDir != "" {
+		vals := b.Config.Values
+		if vals == nil {
+			vals = map[string]any{}
+		}
+
+		result.HelmCharts = []types.HelmChartInfo{{
+			Source: helm.Source{
+				Chart:       filepath.Join(ccmcommon.DefaultChartsPath, b.Config.ChartDir),
+				ReleaseName: b.Config.ReleaseName,
+				Values:      helm.Values(vals),
+			},
+		}}
 	}
 
-	return []types.HelmChartInfo{{
-		Source: helm.Source{
-			Chart:       filepath.Join(ccmcommon.DefaultChartsPath, b.Config.ChartDir),
-			ReleaseName: b.Config.ReleaseName,
-			Values:      helm.Values(vals),
-		},
-	}}
+	if b.Config.ManifestDir != "" {
+		result.Manifests = []types.ManifestInfo{{
+			Path:       b.Config.ManifestDir,
+			ContextDir: b.Config.ContextDir,
+			SourcePath: b.Config.SourcePath,
+		}}
+	}
+
+	return result
 }
 
-// GetModuleStatus reads the module CR by GVK+CRName and extracts
-// .status.conditions as []metav1.Condition.
-func (b *BaseHandler) GetModuleStatus(ctx context.Context, cli client.Client) ([]metav1.Condition, error) {
+// GetModuleStatus reads the module CR by GVK+CRName and extracts status
+// conditions and generation metadata for staleness detection.
+func (b *BaseHandler) GetModuleStatus(ctx context.Context, cli client.Client) (*ModuleStatus, error) {
 	u := &unstructured.Unstructured{}
 	u.SetGroupVersionKind(b.Config.GVK)
 	u.SetName(b.Config.CRName)
@@ -78,7 +110,18 @@ func (b *BaseHandler) GetModuleStatus(ctx context.Context, cli client.Client) ([
 		return nil, err
 	}
 
-	return ParseConditions(u)
+	conditions, err := ParseConditions(u)
+	if err != nil {
+		return nil, err
+	}
+
+	observedGen, _, _ := unstructured.NestedInt64(u.Object, "status", "observedGeneration")
+
+	return &ModuleStatus{
+		Conditions:         conditions,
+		ObservedGeneration: observedGen,
+		Generation:         u.GetGeneration(),
+	}, nil
 }
 
 // ParseConditions extracts []metav1.Condition from an unstructured object's
@@ -117,6 +160,18 @@ func ParseConditions(u *unstructured.Unstructured) ([]metav1.Condition, error) {
 
 		if v, ok := cm["message"].(string); ok {
 			c.Message = v
+		}
+
+		if v, ok := cm["observedGeneration"].(int64); ok {
+			c.ObservedGeneration = v
+		} else if v, ok := cm["observedGeneration"].(float64); ok {
+			c.ObservedGeneration = int64(v)
+		}
+
+		if v, ok := cm["lastTransitionTime"].(string); ok {
+			if t, err := time.Parse(time.RFC3339, v); err == nil {
+				c.LastTransitionTime = metav1.NewTime(t)
+			}
 		}
 
 		conditions = append(conditions, c)
