@@ -113,7 +113,7 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="core",resources=namespaces,verbs=get;create;patch;delete;watch;update;list
 
 // +kubebuilder:rbac:groups="core",resources=events,verbs=get;create;watch;update;list;patch;delete
-// +kubebuilder:rbac:groups="events.k8s.io",resources=events,verbs=list;watch;patch;delete;get
+// +kubebuilder:rbac:groups="events.k8s.io",resources=events,verbs=create;list;watch;patch;delete;get
 
 // +kubebuilder:rbac:groups="core",resources=endpoints,verbs=watch;list;get;create;update;delete
 
