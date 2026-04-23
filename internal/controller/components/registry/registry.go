@@ -19,7 +19,11 @@ import (
 type ComponentHandler interface {
 	Init(platform common.Platform, cfg operatorconfig.OperatorSettings) error
 	GetName() string
-	// NewCRObject returns the component CR; if it returns an error, reconciliation fails (e.g. Dashboard/ModelRegistry when gateway domain is unavailable).
+	// NewCRObject returns the component CR; if it returns an error, reconciliation fails
+	// (e.g. Dashboard/ModelRegistry when gateway domain is unavailable).
+	// Returning (nil, nil) is valid and indicates the component does not own a CR
+	// (e.g. ModelsAsService delegates Tenant creation to maas-controller).
+	// Callers must handle a nil return before dereferencing the result.
 	NewCRObject(ctx context.Context, cli client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error)
 	NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error
 	// UpdateDSCStatus updates the component specific status part of the DSC

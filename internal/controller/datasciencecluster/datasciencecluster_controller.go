@@ -30,6 +30,7 @@ import (
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
@@ -52,12 +53,18 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 		Owns(&componentApi.Trainer{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.DataSciencePipelines{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.Kserve{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.ModelsAsService{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.ModelController{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.FeastOperator{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.LlamaStackOperator{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.MLflowOperator{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.SparkOperator{}, reconciler.WithPredicates(componentsPredicate)).
+		WatchesGVK(gvk.Tenant,
+			reconciler.Dynamic(reconciler.CrdExists(gvk.Tenant)),
+			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
+				return watchDataScienceClusters(ctx, mgr.GetClient())
+			}),
+			reconciler.WithPredicates(componentsPredicate),
+		).
 		Watches(
 			&dsciv2.DSCInitialization{},
 			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {

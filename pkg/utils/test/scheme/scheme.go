@@ -1,6 +1,7 @@
 package scheme
 
 import (
+	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
 	imagev1 "github.com/openshift/api/image/v1"
 	oauthv1 "github.com/openshift/api/oauth/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -43,6 +44,7 @@ var (
 		ofapi.AddToScheme,
 		operatorv1.AddToScheme,
 		componentApi.AddToScheme,
+		maasv1alpha1.AddToScheme,
 		apiextensionsv1.AddToScheme,
 		oauthv1.AddToScheme,
 		ofapiv1.AddToScheme,
