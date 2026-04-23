@@ -387,22 +387,123 @@ ordered provisioning in the future.
 
 ## Testing
 
-### Unit tests
+Module teams must provide tests at three levels: handler unit tests (in this
+repository), CRD schema validation tests (in this repository), and module
+operator tests (in the module's own repository).
 
-Add unit tests in the handler package. The `BaseHandler` provides testable
-defaults. For examples of testing with mock handlers, see
+### Handler unit tests
+
+Add unit tests in `internal/controller/modules/<name>/handler_test.go` that
+cover:
+
+1. **`IsEnabled`** -- returns `true` when the DSC component stanza is
+   `Managed`, `false` otherwise.
+2. **`BuildModuleCR`** -- returns a well-formed unstructured object with the
+   correct GVK, name, namespace, and `.spec` fields projected from
+   `PlatformContext`.
+3. **`GetOperatorManifests`** -- returns the expected chart or manifest
+   descriptors (inherited from `BaseHandler`, but worth a sanity check).
+
+Use `PlatformContext` directly in tests -- no real client or cluster needed:
+
+```go
+func TestBuildModuleCR(t *testing.T) {
+    g := NewWithT(t)
+    h := NewHandler()
+
+    platform := &modules.PlatformContext{
+        ApplicationsNamespace: "opendatahub",
+        GatewayDomain:         "apps.cluster.example.com",
+        Release:               common.Release{Name: "Open Data Hub"},
+        DSC:                   testDSCWithMyModuleManaged(),
+    }
+
+    cr, err := h.BuildModuleCR(context.Background(), nil, platform)
+    g.Expect(err).ShouldNot(HaveOccurred())
+    g.Expect(cr.GetKind()).Should(Equal("MyModule"))
+    g.Expect(cr.GetNamespace()).Should(Equal("opendatahub"))
+
+    spec, _, _ := unstructured.NestedMap(cr.Object, "spec")
+    g.Expect(spec["managementState"]).Should(Equal("Managed"))
+}
+```
+
+For examples of registry and `ParseConditions` testing with mock handlers, see
 `internal/controller/modules/registry_test.go`.
 
-### Integration tests
+### CRD schema validation tests
 
-The existing DSC controller e2e tests cover the reconciliation pipeline. When
-adding a new module, consider adding a test case that:
+Because `BuildModuleCR` returns `*unstructured.Unstructured`, there is no
+compile-time guarantee the object matches the module CRD. Add a test that
+validates the CR against the CRD's OpenAPI schema:
 
-1. Creates a DSC with the module enabled.
-2. Verifies the module operator Deployment exists.
-3. Verifies the module CR exists with the expected `.spec` fields.
-4. Simulates a status update on the module CR and verifies the DSC
-   `ModulesReady` condition reflects it.
+1. Load the module CRD from `opt/manifests/<name>/crd/` (or embed it as a
+   test fixture).
+2. Build the module CR via `BuildModuleCR` with a realistic `PlatformContext`.
+3. Use `apiextensionsv1.CustomResourceValidation` to validate the CR object
+   against the CRD schema.
+
+This catches field name typos, missing required fields, and type mismatches
+that would otherwise only surface at deploy time. It is the primary safety net
+for the typed-to-unstructured boundary.
+
+```go
+func TestModuleCRMatchesCRDSchema(t *testing.T) {
+    g := NewWithT(t)
+
+    crdBytes, err := os.ReadFile("testdata/mymodule-crd.yaml")
+    g.Expect(err).ShouldNot(HaveOccurred())
+
+    crd := &apiextensionsv1.CustomResourceDefinition{}
+    g.Expect(yaml.Unmarshal(crdBytes, crd)).Should(Succeed())
+
+    cr, err := NewHandler().BuildModuleCR(ctx, nil, testPlatformContext())
+    g.Expect(err).ShouldNot(HaveOccurred())
+
+    errs := validateAgainstSchema(crd, cr)
+    g.Expect(errs).Should(BeEmpty(), "CR does not match CRD schema: %v", errs)
+}
+```
+
+This test should live alongside the handler unit tests and run as part of
+`go test ./internal/controller/modules/<name>/...`.
+
+### E2E tests (platform side)
+
+The DSC controller e2e suite (`tests/e2e/`) follows a standard pattern for
+component tests. When adding a new module, add a test file
+`tests/e2e/<name>_test.go` that covers:
+
+| Test case | What it verifies |
+|---|---|
+| **Module enabled** | DSC with module `Managed` -> module operator Deployment exists, module CR exists with expected `.spec` fields, `ModulesReady` condition is `True` |
+| **Spec projection** | Changing DSC component stanza fields -> module CR `.spec` is updated on next reconcile |
+| **Status aggregation** | Simulating `Ready=True` on module CR -> `ModulesReady=True`; simulating `Ready=False` -> `ModulesReady=False` |
+| **Degraded propagation** | Setting `Degraded=True` on module CR -> `ModulesReady=False` with degraded message |
+| **Staleness detection** | `observedGeneration` behind `metadata.generation` -> module treated as not-ready |
+| **Module disabled** | DSC with module `Removed` -> module CR and operator resources are garbage collected |
+| **Deletion recovery** | Deleting the module CRD -> platform re-creates it from manifests on next reconcile |
+
+Use the existing `ComponentTestCtx` pattern and `jq` matchers for status
+assertions. Tag tests with `Smoke` / `Tier1` as appropriate.
+
+### Module operator tests (module team's responsibility)
+
+The module's own repository should have its own test suite covering:
+
+- **Controller reconciliation**: the module operator correctly reconciles its
+  CR and deploys operands.
+- **Status reporting**: the module operator sets `Ready`, `Degraded`,
+  `ProvisioningSucceeded` conditions and `observedGeneration` correctly.
+- **Platform field consumption**: the module operator correctly reads
+  platform-projected fields from its CR `.spec` (namespace, gateway domain,
+  management state).
+- **Upgrade/downgrade**: operand resources are updated when the CR spec changes.
+
+These are outside the scope of this repository but are critical for the
+end-to-end contract to work. The
+[onboarding guide](Onboarding%20Guide%20for%20ODH%20Operator%20Modules.md)
+defines the status and API requirements the module operator must satisfy.
 
 ---
 
