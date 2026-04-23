@@ -259,7 +259,7 @@ func (tc *WVATestCtx) InstallRequiredOperators(t *testing.T) {
 			name: fmt.Sprintf("Install %s operator", op.nn.Name),
 			testFn: func(t *testing.T) {
 				t.Helper()
-				tc.EnsureOperatorInstalledWithChannel(op.nn, op.skipOperatorGroup, op.channel)
+				tc.EnsureOperatorInstalledWithChannel(op.nn, op.channel)
 			},
 		}
 	}
@@ -285,7 +285,7 @@ func (tc *WVATestCtx) WaitForPrerequisiteOperators(t *testing.T) {
 		{name: certManagerOpName, namespace: certManagerOpNamespace, channel: certManagerOpChannel},
 		{name: observabilityOpName, namespace: observabilityOpNamespace, channel: defaultOperatorChannel},
 		{name: tempoOpName, namespace: tempoOpNamespace, channel: defaultOperatorChannel},
-		{name: telemetryOpName, namespace: telemetryOpNamespace, channel: defaultOperatorChannel},
+		{name: opentelemetryOpName, namespace: opentelemetryOpNamespace, channel: defaultOperatorChannel},
 		{name: kedaOpName, namespace: kedaOpNamespace, channel: kedaOpChannel},
 	}
 
@@ -314,10 +314,12 @@ func (tc *WVATestCtx) WaitForPrerequisiteOperators(t *testing.T) {
 
 				// Wait for CSV to reach Succeeded phase
 				tc.g.Eventually(func(g Gomega) {
-					csv := tc.FetchClusterServiceVersion(types.NamespacedName{
+					csv, err := tc.FetchActualClusterServiceVersion(types.NamespacedName{
 						Namespace: op.namespace,
 						Name:      csvName,
 					})
+					g.Expect(err).NotTo(HaveOccurred(),
+						"Failed to fetch CSV %s for operator %s", csvName, op.name)
 					g.Expect(csv.Status.Phase).To(
 						Equal(operatorsv1alpha1.CSVPhaseSucceeded),
 						"CSV %s for operator %s did not reach 'Succeeded' phase", csvName, op.name,

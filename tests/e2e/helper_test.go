@@ -251,7 +251,7 @@ func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceClust
 						ManagementState: operatorv1.Removed,
 					},
 					KserveCommonSpec: componentApi.KserveCommonSpec{
-						WVA: componentApi.WvaSpec{
+						WVA: componentApi.WVASpec{
 							ManagementState: operatorv1.Removed,
 						},
 					},
@@ -356,7 +356,7 @@ func CreateDSCv1(name string, workbenchesNamespace string) *dscv1.DataScienceClu
 						ManagementState: operatorv1.Removed,
 					},
 					KserveCommonSpec: componentApi.KserveCommonSpec{
-						WVA: componentApi.WvaSpec{
+						WVA: componentApi.WVASpec{
 							ManagementState: operatorv1.Removed,
 						},
 					},
