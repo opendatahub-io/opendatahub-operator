@@ -108,7 +108,8 @@ func NewHandler() *handler {
 }
 ```
 
-Both variants still require `IsEnabled` and `BuildModuleCR` -- see the
+Both variants still require `IsEnabled` and `BuildModuleCR`. `BuildModuleCR`
+receives a `*PlatformContext` containing all platform-level fields -- see the
 [Developer Guide](../../../docs/modular/Module%20Handler%20Developer%20Guide.md)
 for the full handler code.
 
@@ -164,7 +165,7 @@ existingModules = map[string]mr.ModuleHandler{
 
 ## Package Reference
 
-### `types.go` -- ModuleHandler interface
+### `types.go` -- ModuleHandler interface and PlatformContext
 
 The 6-method contract between the platform and each module handler:
 
@@ -173,10 +174,20 @@ The 6-method contract between the platform and each module handler:
 - `GetGVK()` -- module CR's GroupVersionKind (used for watch registration)
 - `GetOperatorManifests()` -- returns `OperatorManifests` with Helm charts
   and/or Kustomize manifests for the module operator
-- `BuildModuleCR(ctx, cli, dsc, dsci)` -- constructs the module CR with
-  platform fields projected from the DSC/DSCI
+- `BuildModuleCR(ctx, cli, platform)` -- constructs the module CR with
+  platform fields projected from `*PlatformContext`
 - `GetModuleStatus(ctx, cli)` -- returns `*ModuleStatus` with conditions and
   generation metadata for staleness detection
+
+`PlatformContext` is built once per reconcile in `provisionModules` and passed
+to every handler's `BuildModuleCR`. It exposes:
+
+| Field | Source | Description |
+|---|---|---|
+| `ApplicationsNamespace` | `DSCI.Spec.ApplicationsNamespace` | Namespace where module operands deploy |
+| `GatewayDomain` | `GatewayConfig.Status.Domain` | Cluster ingress domain (empty if not yet provisioned) |
+| `Release` | `rr.Release` | Platform identity (ODH/RHOAI) and version |
+| `DSC` | reconcile instance | The `DataScienceCluster` instance for reading module-specific component stanzas |
 
 ### `base.go` -- BaseHandler and ModuleConfig
 

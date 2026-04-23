@@ -14,6 +14,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 // provisionModules iterates over enabled modules in the registry and for each:
@@ -45,6 +46,18 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 		return fmt.Errorf("failed to get DSCI for module provisioning: %w", err)
 	}
 
+	gatewayDomain, err := resources.GetGatewayDomain(ctx, rr.Client)
+	if err != nil {
+		log.V(1).Info("gateway domain not available, modules needing it should handle empty value", "error", err)
+	}
+
+	platformCtx := modules.PlatformContext{
+		ApplicationsNamespace: dsci.Spec.ApplicationsNamespace,
+		GatewayDomain:         gatewayDomain,
+		Release:               rr.Release,
+		DSC:                   instance,
+	}
+
 	return reg.ForEach(func(handler modules.ModuleHandler) error {
 		name := handler.GetName()
 
@@ -62,7 +75,7 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 			rr.Manifests = append(rr.Manifests, operatorManifests.Manifests...)
 		}
 
-		moduleCR, err := handler.BuildModuleCR(ctx, rr.Client, instance, dsci)
+		moduleCR, err := handler.BuildModuleCR(ctx, rr.Client, &platformCtx)
 		if err != nil {
 			return fmt.Errorf("failed to build module CR for %s: %w", name, err)
 		}

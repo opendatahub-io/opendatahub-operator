@@ -93,7 +93,6 @@ import (
     "sigs.k8s.io/controller-runtime/pkg/client"
 
     dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
-    dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
     "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 )
 
@@ -126,15 +125,15 @@ func (h *handler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
 func (h *handler) BuildModuleCR(
     ctx context.Context,
     cli client.Client,
-    dsc *dscv2.DataScienceCluster,
-    dsci *dsciv2.DSCInitialization,
+    platform *modules.PlatformContext,
 ) (*unstructured.Unstructured, error) {
     u := &unstructured.Unstructured{}
     u.SetGroupVersionKind(h.Config.GVK)
     u.SetName(h.Config.CRName)
+    u.SetNamespace(platform.ApplicationsNamespace)
 
     u.Object["spec"] = map[string]any{
-        "managementState": string(dsc.Spec.Components.MyModule.ManagementState),
+        "managementState": string(platform.DSC.Spec.Components.MyModule.ManagementState),
     }
 
     return u, nil
@@ -167,6 +166,23 @@ func NewHandler() *handler {
 The `IsEnabled` and `BuildModuleCR` methods are identical regardless of
 manifest format.
 
+### PlatformContext -- available platform fields
+
+`BuildModuleCR` receives a `*modules.PlatformContext` that is built once per
+reconcile and contains all platform-level fields a handler may need:
+
+| Field | Type | Source | Description |
+|---|---|---|---|
+| `ApplicationsNamespace` | `string` | `DSCI.Spec.ApplicationsNamespace` | Namespace where module operands deploy. All modules need this. |
+| `GatewayDomain` | `string` | `GatewayConfig.Status.Domain` | Cluster ingress domain. Empty if the gateway is not yet provisioned; handlers needing it should check for empty and handle gracefully. |
+| `Release` | `common.Release` | `rr.Release` | Platform identity (ODH vs RHOAI) and version. Useful for conditional behaviour. |
+| `DSC` | `*dscv2.DataScienceCluster` | reconcile instance | The DSC instance. Handlers read their module-specific component stanza (e.g., `platform.DSC.Spec.Components.MyModule`). |
+
+The struct intentionally omits the raw `DSCI` -- the only field modules need
+from it is `ApplicationsNamespace`, which is already extracted. This keeps the
+handler contract explicit and prevents handlers from reaching into fields they
+don't own.
+
 ### What BaseHandler provides for free
 
 By embedding `BaseHandler` with a populated `ModuleConfig`, you inherit working
@@ -183,7 +199,7 @@ You only need to implement:
 
 - **`IsEnabled`**: Read the DSC to decide if this module should be deployed.
 - **`BuildModuleCR`**: Construct the module CR as an `unstructured.Unstructured`
-  object, projecting platform fields from the DSC and DSCI.
+  object, projecting platform fields from the `PlatformContext`.
 
 ### Overriding defaults
 
@@ -304,10 +320,12 @@ This registration:
 
 When the DSC controller reconciles:
 
-1. **`provisionModules`** iterates enabled handlers:
+1. **`provisionModules`** builds a `PlatformContext` once (fetching
+   `ApplicationsNamespace`, `GatewayDomain`, `Release`, and the DSC instance),
+   then iterates enabled handlers:
    - Appends the module's manifest descriptors to `rr.HelmCharts` and/or
      `rr.Manifests` (depending on the handler's `ModuleConfig`).
-   - Calls `BuildModuleCR` and appends the result to `rr.Resources`.
+   - Calls `BuildModuleCR(&platformCtx)` and appends the result to `rr.Resources`.
 2. **`helm.NewAction`** renders Helm charts into Kubernetes resources and
    appends them to `rr.Resources`.
 3. **`kustomize.NewAction`** renders Kustomize manifests into Kubernetes
