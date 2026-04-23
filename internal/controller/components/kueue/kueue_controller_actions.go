@@ -29,7 +29,7 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 	case operatorv1.Managed:
 		return ErrKueueStateManagedNotSupported
 	case operatorv1.Unmanaged:
-		if found, err := cluster.OperatorExists(ctx, rr.Client, kueueOperator); err != nil || !found {
+		if kueueInfo, err := cluster.OperatorExists(ctx, rr.Client, kueueOperator); err != nil || kueueInfo == nil {
 			if err != nil {
 				return odherrors.NewStopErrorW(err)
 			}
@@ -174,6 +174,11 @@ func manageDefaultKueueResourcesAction(ctx context.Context, rr *odhtypes.Reconci
 
 	// Generate LocalQueues in each managed namespaces.
 	for _, ns := range managedNamespaces {
+		// Skip namespaces that are being terminated - Kubernetes rejects resource
+		// creation in terminating namespaces.
+		if !ns.GetDeletionTimestamp().IsZero() {
+			continue
+		}
 		localQueue := createDefaultLocalQueue(kueueCRInstance.Spec.DefaultLocalQueueName, kueueCRInstance.Spec.DefaultClusterQueueName, ns.Name)
 		rr.Resources = append(rr.Resources, *localQueue)
 	}

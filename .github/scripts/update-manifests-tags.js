@@ -8,13 +8,16 @@ const { parseManifestFile, updateManifestFile } = require('./manifest-utils');
 module.exports = () => {
     const manifestFile = 'get_all_manifests.sh';
 
-    console.log('Updating component branches/tags...');
+    console.log('Updating component branches/tags for ODH...');
 
-    const manifestComponents = parseManifestFile(manifestFile);
+    const parsedManifests = parseManifestFile(manifestFile);
+
+    // Only process ODH components for this script
+    const manifestComponents = parsedManifests.odh;
 
     const specPrefix = 'component_spec_';
 
-    const updates = new Map();
+    const updates = [];
 
     for (const [key, value] of Object.entries(process.env)) {
         if (!key.startsWith(specPrefix)) {
@@ -30,14 +33,14 @@ module.exports = () => {
         const newRef = shaValue ? `${value}@${shaValue}` : value;
 
         let found = false;
-        for (const [manifestComponentName, componentInfo] of manifestComponents) {
+        for (const componentInfo of manifestComponents) {
             // Normalize both to dashes for comparison
             // get-release-branches.js uses: "/" -> "-", so we normalize everything to "-"
-            const normalizedManifest = manifestComponentName.toLowerCase().replace(/[\/\-_]/g, '-');
+            const normalizedManifest = componentInfo.componentName.toLowerCase().replace(/[\/\-_]/g, '-');
             const normalizedKey = componentKey.toLowerCase().replace(/[\/\-_]/g, '-');
 
             // Also try without workbenches prefix for special notebook-controller case
-            const normalizedManifestWithoutPrefix = manifestComponentName.toLowerCase()
+            const normalizedManifestWithoutPrefix = componentInfo.componentName.toLowerCase()
                 .replace(/^workbenches[\/\-]/, '')
                 .replace(/[\/\-_]/g, '-');
 
@@ -45,16 +48,17 @@ module.exports = () => {
                 normalizedManifestWithoutPrefix === normalizedKey) {
                 const displayRef = shaValue ? `${value}@${shaValue.substring(0, 8)}` : value;
 
-                updates.set(manifestComponentName, {
+                updates.push({
+                    componentName: componentInfo.componentName,
                     org: orgValue || componentInfo.org,
                     repo: componentInfo.repo,
                     newRef: newRef,
                     sourcePath: componentInfo.sourcePath,
                     originalLine: componentInfo.originalLine,
-                    logMessage: `Updated ${manifestComponentName} to ${displayRef}`
+                    logMessage: `Updated ${componentInfo.platform}:${componentInfo.componentName} to ${displayRef}`
                 });
 
-                console.log(`  Updating ${manifestComponentName} to: ${displayRef}`);
+                console.log(`  Updating ${componentInfo.platform}:${componentInfo.componentName} to: ${displayRef}`);
                 found = true;
                 break;
             }

@@ -37,8 +37,12 @@ func (m *MockComponentHandler) GetManagementState(dsc *dscv2.DataScienceCluster)
 	return m.Called(dsc).Get(0).(operatorv1.ManagementState)
 }
 
-func (m *MockComponentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
-	return m.Called(dsc).Get(0).(common.PlatformObject)
+func (m *MockComponentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
+	args := m.Called(dsc)
+	if args.Get(1) != nil {
+		return nil, args.Get(1).(error)
+	}
+	return args.Get(0).(common.PlatformObject), nil
 }
 
 func (m *MockComponentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
@@ -69,9 +73,36 @@ func (m *MockController) GetDynamicClient() dynamic.Interface {
 	return m.Called().Get(0).(dynamic.Interface)
 }
 
+func (m *MockController) IsDynamicOwnershipEnabled() bool {
+	args := m.Called()
+	if len(args) == 0 {
+		return false
+	}
+	return args.Bool(0)
+}
+
+func (m *MockController) IsExcludedFromDynamicOwnership(gvk schema.GroupVersionKind) bool {
+	args := m.Called(gvk)
+	if len(args) == 0 {
+		return false
+	}
+	return args.Bool(0)
+}
+
+func (m *MockController) AddDynamicOwnedType(gvk schema.GroupVersionKind) {
+	m.Called(gvk)
+}
+
 func NewMockController(f func(m *MockController)) *MockController {
 	m := new(MockController)
 	f(m)
+
+	// Set default expectations for commonly used methods if not already set by the callback.
+	// This allows tests to override with specific expectations before these defaults.
+	m.On("Owns", mock.Anything).Return(false).Maybe()
+	m.On("IsExcludedFromDynamicOwnership", mock.Anything).Return(false).Maybe()
+	m.On("IsDynamicOwnershipEnabled").Return(false).Maybe()
+	m.On("AddDynamicOwnedType", mock.Anything).Return().Maybe()
 
 	return m
 }

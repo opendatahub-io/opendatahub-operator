@@ -19,16 +19,16 @@ func RemoveDeploymentsResources(obj *unstructured.Unstructured) error {
 		return err
 	}
 
-	var sourceContainers []interface{}
+	var sourceContainers []any
 	if sc != nil {
-		sourceContainers, ok = sc.([]interface{})
+		sourceContainers, ok = sc.([]any)
 		if !ok {
 			return errors.New("field is not a slice")
 		}
 	}
 
 	for i := range sourceContainers {
-		m, ok := sourceContainers[i].(map[string]interface{})
+		m, ok := sourceContainers[i].(map[string]any)
 		if !ok {
 			return errors.New("field is not a map")
 		}

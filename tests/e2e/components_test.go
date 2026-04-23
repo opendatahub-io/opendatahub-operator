@@ -32,6 +32,10 @@ type ComponentTestCtx struct {
 	// Any additional fields specific to component tests
 	GVK            schema.GroupVersionKind
 	NamespacedName types.NamespacedName
+
+	// Subcomponent information (optional, only set for subcomponents)
+	ParentKind            string // Kind of the parent component (e.g., "Kserve")
+	SubComponentFieldName string // JSON field name of the subcomponent in parent's spec (e.g., "modelsAsService")
 }
 
 // CRD represents a custom resource definition with a name and version.
@@ -61,25 +65,52 @@ func NewComponentTestCtx(t *testing.T, object common.PlatformObject) (*Component
 	return &componentCtx, nil
 }
 
+// NewSubComponentTestCtx initializes a new component test context for a subcomponent.
+// parentKind is the kind of the parent component (e.g., "Kserve").
+// subComponentFieldName is the JSON field name of the subcomponent in the parent's spec (e.g., "modelsAsService").
+func NewSubComponentTestCtx(t *testing.T, object common.PlatformObject, parentKind string, subComponentFieldName string) (*ComponentTestCtx, error) { //nolint:thelper
+	componentCtx, err := NewComponentTestCtx(t, object)
+	if err != nil {
+		return nil, err
+	}
+
+	componentCtx.ParentKind = parentKind
+	componentCtx.SubComponentFieldName = subComponentFieldName
+
+	return componentCtx, nil
+}
+
 // ValidateComponentEnabled ensures that the component is enabled and its status is "Ready".
 func (tc *ComponentTestCtx) ValidateComponentEnabled(t *testing.T) {
 	t.Helper()
 
-	// Ensure that DataScienceCluster exists and its component state is "Managed", with the "Ready" condition true.
-	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Managed)
+	skipUnless(t, Smoke, Tier1)
+
+	if !tc.IsXKS() {
+		// As these tests can be executed in a non-cleaned scenario, we need to move the component first to Removed.
+		tc.UpdateComponentStateInDataScienceCluster(operatorv1.Removed)
+	}
+
+	tc.UpdateComponentState(operatorv1.Managed)
 
 	// Ensure the component resource exists and is marked "Ready".
 	// Note: Ready=True already implies deployments exist and are ready (checked by DeploymentsAvailable condition)
+	matchersList := []gTypes.GomegaMatcher{
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
+	}
+
+	if !tc.IsXKS() {
+		// Only check for DataScienceCluster owner on non-XKS platforms (OpenShift)
+		matchersList = append(matchersList, jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DataScienceCluster.Kind))
+	}
+
 	tc.EnsureResourcesExist(
 		WithMinimalObject(tc.GVK, tc.NamespacedName),
 		WithCondition(
 			And(
 				HaveLen(1),
-				HaveEach(And(
-					jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DataScienceCluster.Kind),
-					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
-					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
-				)),
+				HaveEach(And(matchersList...)),
 			),
 		),
 	)
@@ -89,11 +120,12 @@ func (tc *ComponentTestCtx) ValidateComponentEnabled(t *testing.T) {
 func (tc *ComponentTestCtx) ValidateComponentDisabled(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, Smoke, Tier1)
+
 	// Ensure that the resources associated with the component exist
 	tc.EnsureResourcesExist(WithMinimalObject(tc.GVK, tc.NamespacedName))
 
-	// Ensure that DataScienceCluster exists and its component state is "Removed", with the "Ready" condition false.
-	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Removed)
+	tc.UpdateComponentState(operatorv1.Removed)
 
 	// Ensure that any Deployment resources for the component are not present
 	tc.EnsureResourcesGone(
@@ -115,6 +147,12 @@ func (tc *ComponentTestCtx) ValidateComponentDisabled(t *testing.T) {
 // ValidateOperandsOwnerReferences ensures that all deployment resources have the correct owner references.
 func (tc *ComponentTestCtx) ValidateOperandsOwnerReferences(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, Smoke)
+
+	if tc.IsXKS() {
+		t.Skip("Skipping test because operands ownership by component CR is not enforced/guaranteed on XKS platform")
+	}
 
 	// Ensure that the Deployment resources exist with the proper owner references
 	tc.EnsureResourcesExist(
@@ -139,6 +177,8 @@ func (tc *ComponentTestCtx) ValidateOperandsOwnerReferences(t *testing.T) {
 func (tc *ComponentTestCtx) ValidateS3SecretCheckBucketExist(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, Tier1)
+
 	// Ensure the component is actually enabled before checking for the VAP
 	// This handles cases where the component might have been temporarily disabled
 	// by other test suites (e.g., ModelController, TrustyAI) and needs time to reconcile
@@ -155,6 +195,8 @@ func (tc *ComponentTestCtx) ValidateS3SecretCheckBucketExist(t *testing.T) {
 // ValidateUpdateDeploymentsResources verifies the update of deployment replicas for the component.
 func (tc *ComponentTestCtx) ValidateUpdateDeploymentsResources(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, Smoke)
 
 	// Ensure that deployments exist for the component
 	deployments := tc.EnsureResourcesExist(
@@ -221,6 +263,10 @@ func (tc *ComponentTestCtx) ValidateCRDsReinstated(t *testing.T, crds []CRD) {
 func (tc *ComponentTestCtx) ValidateComponentReleases(t *testing.T) {
 	t.Helper()
 
+	tc.SkipIfXKSCluster(t)
+
+	skipUnless(t, Smoke)
+
 	componentName := strings.ToLower(tc.GVK.Kind)
 
 	// Map DataSciencePipelines to aipipelines for v2 API
@@ -252,30 +298,28 @@ func (tc *ComponentTestCtx) ValidateComponentReleases(t *testing.T) {
 	)
 }
 
-// ValidateComponentCondition ensures that the specified component instance has the expected condition set to "True".
-func (tc *ComponentTestCtx) ValidateComponentCondition(gvk schema.GroupVersionKind, componentName, statusType string) {
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk, types.NamespacedName{Name: componentName}),
-		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, statusType, metav1.ConditionTrue)),
-	)
-}
+// EnsureParentComponentEnabled ensures that the parent component is enabled and ready before enabling a subcomponent.
+func (tc *ComponentTestCtx) EnsureParentComponentEnabled(t *testing.T) {
+	t.Helper()
 
-// UpdateComponentStateInDataScienceCluster updates the management state of a specified component in the DataScienceCluster.
-func (tc *ComponentTestCtx) UpdateComponentStateInDataScienceCluster(state operatorv1.ManagementState) {
-	tc.UpdateComponentStateInDataScienceClusterWithKind(state, tc.GVK.Kind)
-}
-
-// UpdateComponentStateInDataScienceClusterWithKind updates the management state of a specified component kind in the DataScienceCluster.
-func (tc *ComponentTestCtx) UpdateComponentStateInDataScienceClusterWithKind(state operatorv1.ManagementState, kind string) {
-	componentName := strings.ToLower(kind)
-
-	// Map DataSciencePipelines to aipipelines for v2 API
-	componentFieldName := componentName
-	conditionKind := kind
-	if kind == dataSciencePipelinesKind {
-		componentFieldName = aiPipelinesFieldName
-		conditionKind = "AIPipelines"
+	if tc.ParentKind == "" {
+		t.Fatal("EnsureParentComponentEnabled called on a component without parent information.")
 	}
+
+	// Enable the parent component
+	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, tc.ParentKind)
+}
+
+// UpdateSubComponentStateInDataScienceCluster updates the management state of a subcomponent in the DataScienceCluster.
+func (tc *ComponentTestCtx) UpdateSubComponentStateInDataScienceCluster(t *testing.T, state operatorv1.ManagementState) {
+	t.Helper()
+
+	if tc.ParentKind == "" || tc.SubComponentFieldName == "" {
+		t.Fatal("UpdateSubComponentStateInDataScienceCluster called on a component without parent/subcomponent information.")
+	}
+
+	parentComponentName, parentConditionKind := getComponentNameFromKind(tc.ParentKind)
+	subComponentName := tc.SubComponentFieldName
 
 	readyCondition := metav1.ConditionFalse
 	if state == operatorv1.Managed {
@@ -285,32 +329,190 @@ func (tc *ComponentTestCtx) UpdateComponentStateInDataScienceClusterWithKind(sta
 	// Define common conditions to match.
 	conditions := []gTypes.GomegaMatcher{
 		// Validate that the component's management state is updated correctly
-		jq.Match(`.spec.components.%s.managementState == "%s"`, componentFieldName, state),
-
-		// Validate the "Ready" condition for the component
-		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, conditionKind, readyCondition),
+		jq.Match(`.spec.components.%s.%s.managementState == "%s"`, parentComponentName, subComponentName, state),
 	}
 
-	// TODO: Commented out because this check does not work with parallel component tests.
-	// Verify it is still needed, otherwise remove it. A new test only for those conditions is added in resilience tests.
-	//
-	// If the state is "Managed", add additional checks for provisioning and components readiness.
-	// if state == operatorv1.Managed {
-	// 	conditions = append(conditions,
-	// 		// Validate the "ProvisioningSucceeded" condition
-	// 		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, readyCondition),
+	if readyCondition == metav1.ConditionTrue {
+		// If the component is managed, the parent component should be ready
+		conditions = append(conditions,
+			// Validate the "Ready" condition for the parent component
+			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, parentConditionKind, metav1.ConditionTrue),
+		)
+	}
 
-	// 		// Validate the "ComponentsReady" condition
-	// 		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeComponentsReady, readyCondition),
-	// 	)
-	// }
+	conditions = append(conditions,
+		// Validate the "Ready" condition for the subcomponent
+		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, readyCondition),
+	)
 
-	// Update the management state of the component in the DataScienceCluster.
+	// Update the subcomponent's management state
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentFieldName, state)),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.%s.managementState = "%s"`, parentComponentName, subComponentName, state)),
 		WithCondition(And(conditions...)),
 	)
+}
+
+// ValidateSubComponentEnabled ensures that a subcomponent is enabled and its status is "Ready".
+func (tc *ComponentTestCtx) ValidateSubComponentEnabled(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke, Tier1)
+
+	if tc.ParentKind == "" || tc.SubComponentFieldName == "" {
+		t.Fatal("ValidateSubComponentEnabled called on a component without parent/subcomponent information.")
+	}
+
+	// First, ensure the parent component is enabled and ready
+	tc.EnsureParentComponentEnabled(t)
+
+	// Enable the subcomponent
+	tc.UpdateSubComponentStateInDataScienceCluster(t, operatorv1.Managed)
+
+	// Ensure the subcomponent resource exists and is marked "Ready"
+	tc.EnsureResourcesExist(
+		WithMinimalObject(tc.GVK, tc.NamespacedName),
+		WithCondition(
+			And(
+				HaveLen(1),
+				HaveEach(And(
+					jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DataScienceCluster.Kind),
+					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
+				)),
+			),
+		),
+	)
+}
+
+// ValidateSubComponentReleases ensures that the subcomponent releases exist and have valid fields.
+func (tc *ComponentTestCtx) ValidateSubComponentReleases(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke)
+
+	if tc.ParentKind == "" || tc.SubComponentFieldName == "" {
+		t.Fatal("ValidateSubComponentReleases called on a component without parent/subcomponent information.")
+	}
+
+	parentComponentName, _ := getComponentNameFromKind(tc.ParentKind)
+	subComponentName := tc.SubComponentFieldName
+
+	// Ensure the DataScienceCluster exists and the parent component's conditions are met
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(
+			And(
+				// Ensure the parent component's management state is "Managed"
+				jq.Match(`.spec.components.%s.managementState == "%s"`, parentComponentName, operatorv1.Managed),
+				// Ensure the subcomponent's management state is "Managed"
+				jq.Match(`.spec.components.%s.%s.managementState == "%s"`, parentComponentName, subComponentName, operatorv1.Managed),
+				// Validate that the releases field contains at least one release for the parent component
+				jq.Match(`.status.components.%s.releases | length > 0`, parentComponentName),
+				// Validate the fields (name, version, repoUrl) for each release
+				And(
+					jq.Match(`.status.components.%s.releases[].name != ""`, parentComponentName),
+					jq.Match(`.status.components.%s.releases[].version != ""`, parentComponentName),
+					jq.Match(`.status.components.%s.releases[].repoUrl != ""`, parentComponentName),
+				),
+			),
+		),
+	)
+}
+
+// ValidateSubComponentDisabled ensures that a subcomponent is disabled and its resources are deleted.
+func (tc *ComponentTestCtx) ValidateSubComponentDisabled(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke, Tier1)
+
+	if tc.ParentKind == "" || tc.SubComponentFieldName == "" {
+		t.Fatal("ValidateSubComponentDisabled called on a component without parent/subcomponent information.")
+	}
+
+	// Ensure that the resources associated with the subcomponent exist
+	tc.EnsureResourcesExist(WithMinimalObject(tc.GVK, tc.NamespacedName))
+
+	// Disable the subcomponent
+	tc.UpdateSubComponentStateInDataScienceCluster(t, operatorv1.Removed)
+
+	// Ensure that any Deployment resources for the subcomponent are not present
+	tc.EnsureResourcesGone(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(
+			&client.ListOptions{
+				LabelSelector: k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+				}.AsSelector(),
+			},
+		),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+	)
+
+	// Ensure that the resources associated with the subcomponent do not exist
+	tc.EnsureResourcesGone(WithMinimalObject(tc.GVK, tc.NamespacedName))
+}
+
+// ValidateComponentCondition ensures that the specified component instance has the expected condition set to "True".
+func (tc *ComponentTestCtx) ValidateComponentCondition(gvk schema.GroupVersionKind, componentName, statusType string) {
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk, types.NamespacedName{Name: componentName}),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, statusType, metav1.ConditionTrue)),
+	)
+}
+
+// UpdateComponentState updates the management state of a specified component in the DataScienceCluster or in the Component CR depending on the kind of cluster.
+func (tc *ComponentTestCtx) UpdateComponentState(state operatorv1.ManagementState) {
+	if !tc.IsXKS() {
+		// Ensure that DataScienceCluster exists and its component state is "Managed", with the "Ready" condition true.
+		tc.UpdateComponentStateInDataScienceCluster(state)
+
+		return
+	}
+
+	if state == operatorv1.Managed {
+		tc.EventuallyResourceCreatedOrUpdated(
+			WithObjectToCreate(tc.CreateComponent(tc.GVK)),
+			WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue)),
+			WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+		)
+
+		return
+	}
+	if state == operatorv1.Removed {
+		tc.DeleteResource(
+			WithMinimalObject(tc.GVK, types.NamespacedName{Name: tc.GetInstanceName(tc.GVK)}),
+			WithForegroundDeletion(),
+			WithWaitForDeletion(true),
+			WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+		)
+	}
+}
+
+// CheckComponentResourceExistsOrNot checks if the component resource exists or not based on the management state.
+func (tc *ComponentTestCtx) CheckComponentResourceExistsOrNot(state operatorv1.ManagementState) {
+	shouldExist := state == operatorv1.Managed
+	tc.CheckComponentResourceExistsOrNotWithKind(shouldExist, tc.GVK)
+}
+
+// UpdateComponentStateInDataScienceCluster updates the management state of a specified component in the DataScienceCluster.
+func (tc *ComponentTestCtx) UpdateComponentStateInDataScienceCluster(state operatorv1.ManagementState) {
+	if tc.IsXKS() {
+		tc.Logf("Updating component state in DataScienceCluster is not supported on XKS platform, skipping")
+		return
+	}
+	tc.UpdateComponentStateInDataScienceClusterWithKind(state, tc.GVK.Kind)
+}
+
+// CheckComponentResourceExistsOrNotWithKind checks if the component resource exists or not based on the management state and the kind of the component.
+func (tc *ComponentTestCtx) CheckComponentResourceExistsOrNotWithKind(shouldExist bool, gvk schema.GroupVersionKind) {
+	tc.TestContext.CheckComponentResourceExistsOrNotWithKind(shouldExist, gvk)
+}
+
+// UpdateComponentStateInDataScienceClusterWithKind updates the management state of a specified component kind in the DataScienceCluster.
+func (tc *ComponentTestCtx) UpdateComponentStateInDataScienceClusterWithKind(state operatorv1.ManagementState, kind string) {
+	// Delegate to the base TestContext method
+	tc.TestContext.UpdateComponentStateInDataScienceClusterWithKind(state, kind)
 }
 
 // ValidateCRDRemoval ensures that the CRD is properly removed when the component is disabled.
@@ -348,6 +550,9 @@ func (tc *ComponentTestCtx) ValidateCRDReinstatement(name string, version string
 func (tc *ComponentTestCtx) ValidateModelControllerInstance(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, Smoke)
+	tc.SkipIfXKSCluster(t)
+
 	// Ensure ModelController resource exists with the expected owner references and status phase.
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.ModelController, types.NamespacedName{Name: componentApi.ModelControllerInstanceName}),
@@ -371,6 +576,8 @@ func (tc *ComponentTestCtx) ValidateModelControllerInstance(t *testing.T) {
 // The order of tests is carefully designed to handle dependencies and avoid timing issues.
 func (tc *ComponentTestCtx) ValidateAllDeletionRecovery(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, Smoke, Tier1)
 
 	// Increase the global eventually timeout for deletion recovery tests
 	// Use longEventuallyTimeout to handle controller performance under load and complex resource dependencies

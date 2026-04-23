@@ -21,8 +21,9 @@ flymd.*
 *.swp
 *.swo
 
-# Files created by Gogland IDE
+# Files created by IDE
 .idea/
+.cursor/
 
 # Exclude wheel files for now.
 # The only wheel file is the TF wheel one which is quite large.
@@ -53,11 +54,14 @@ components/gcp-click-to-deploy/src/user_config/**
 **/reg_tmp
 scripts/gke/build/**
 
-opt/manifests/
+opt/
 
 cover.out
+covmeta*
+covcounters*
 
 config/manager/kustomization.yaml
+config/rhoai/manager/kustomization.yaml
 
 # Ignore any local.mk files that would be consumed by the Makefile
 local.mk
@@ -66,11 +70,26 @@ local.mk
 *.mktmp.*
 
 # Ignore catalog related files
-catalog/
+/catalog/
 
 # Ignore generated files
 config/crd/bases
 config/crd/external
 config/rbac/role.yaml
 config/webhook/manifests.yaml
-bundle/
+config/rhoai/crd/bases
+config/rhoai/crd/external
+config/rhoai/rbac/role.yaml
+config/rhoai/webhook/manifests.yaml
+config/rhaii/crd/bases
+config/rhaii/webhook/manifests.yaml
+rhoai-bundle/
+odh-bundle/
+config/cloudmanager/*/crd/bases
+config/cloudmanager/*/rbac/role.yaml
+config/cloudmanager/*/webhook/manifests.yaml
+config/cloudmanager/*/manager/kustomization.yaml
+
+# Ignore binary files
+cmd/component-codegen/component-codegen
+/cloudmanager

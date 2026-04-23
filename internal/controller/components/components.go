@@ -7,7 +7,9 @@ import (
 )
 
 //go:embed kueue/monitoring
+//go:embed sparkoperator/monitoring
 //go:embed trainingoperator/monitoring
+//go:embed trainer/monitoring
 //go:embed trustyai/monitoring
 //go:embed workbenches/monitoring
 //go:embed dashboard/monitoring
@@ -17,6 +19,7 @@ import (
 //go:embed llamastackoperator/monitoring
 //go:embed modelcontroller/monitoring
 //go:embed modelregistry/monitoring
+//go:embed modelsasservice/monitoring
 //go:embed ray/monitoring
 var ComponentRulesFS embed.FS
 

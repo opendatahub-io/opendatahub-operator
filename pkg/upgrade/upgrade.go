@@ -7,59 +7,61 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
-	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
-	operatorv1 "github.com/openshift/api/operator/v1"
-	templatev1 "github.com/openshift/api/template/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
-	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
-	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
-	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
-	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
-type ResourceSpec struct {
-	Gvk       schema.GroupVersionKind
-	Namespace string
-	// path to the field, like "metadata", "name"
-	Path []string
-	// set of values for the field to match object, any one matches
-	Values []string
-}
-
 const (
-	defaultMinMemory                   = "1Mi"
-	defaultMinCpu                      = "1"
-	odhDashboardConfigPath             = "/dashboard/rhoai/shared/odhdashboardconfig/odhdashboardconfig.yaml"
-	serving                            = "serving"
-	notebooks                          = "notebooks"
-	acceleratorNameAnnotation          = "opendatahub.io/accelerator-name"
-	lastSizeSelectionAnnotation        = "notebooks.opendatahub.io/last-size-selection"
-	hardwareProfileNameAnnotation      = "opendatahub.io/hardware-profile-name"
-	hardwareProfileNamespaceAnnotation = "opendatahub.io/hardware-profile-namespace"
-	containerSizeHWPPrefix             = "containersize-"
+	defaultMinMemory                      = "1Mi"
+	defaultMinCpu                         = "1"
+	odhDashboardConfigPath                = "/dashboard/rhoai/shared/odhdashboardconfig/odhdashboardconfig.yaml"
+	odhDashboardConfigName                = "odh-dashboard-config"
+	serving                               = "serving"
+	notebooks                             = "notebooks"
+	customServing                         = "custom-serving"
+	acceleratorNameAnnotation             = "opendatahub.io/accelerator-name"
+	acceleratorProfileNamespaceAnnotation = "opendatahub.io/accelerator-profile-namespace"
+	lastSizeSelectionAnnotation           = "notebooks.opendatahub.io/last-size-selection"
+	hardwareProfileNameAnnotation         = "opendatahub.io/hardware-profile-name"
+	hardwareProfileNamespaceAnnotation    = "opendatahub.io/hardware-profile-namespace"
+	hardwareProfileManagedAnnotation      = "opendatahub.io/managed"
+	hardwareProfileVisibilityAnnotation   = "opendatahub.io/dashboard-feature-visibility"
+	hardwareProfileModifiedDateAnnotation = "opendatahub.io/modified-date"
+	hardwareProfileDisplayNameAnnotation  = "opendatahub.io/display-name"
+	hardwareProfileDescriptionAnnotation  = "opendatahub.io/description"
+	hardwareProfileDisabledAnnotation     = "opendatahub.io/disabled"
+	featureVisibilityModelServing         = `["model-serving"]`
+	featureVisibilityWorkbench            = `["workbench"]`
+	containerSizeHWPPrefix                = "containersize-"
+
+	// ServerlessMigrationSkipped event fields.
+	eventReasonServerlessMigrationSkipped = "ServerlessMigrationSkipped"
+	eventSourceComponent                  = "opendatahub-operator"
+	// HardwareProfileMigrationSkipped event fields.
+	eventReasonHardwareProfileMigrationSkipped = "HardwareProfileMigrationSkipped"
+	// KServe deployment mode annotation.
+	kserveDeploymentModeAnnotationKey = "serving.kserve.io/deploymentMode"
+	kserveDeploymentModeServerless    = "Serverless"
 )
 
 var defaultResourceLimits = map[string]string{
@@ -69,271 +71,57 @@ var defaultResourceLimits = map[string]string{
 	"minCpu":    "1",
 }
 
-// CreateDefaultDSC creates a default instance of DSC.
-// Note: When the platform is not Managed, and a DSC instance already exists, the function doesn't re-create/update the resource.
-func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
-	// Set the default DSC name depending on the platform
-	releaseDataScienceCluster := &dscv2.DataScienceCluster{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "DataScienceCluster",
-			APIVersion: "datasciencecluster.opendatahub.io/v2",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "default-dsc",
-		},
-		Spec: dscv2.DataScienceClusterSpec{
-			Components: dscv2.Components{
-				Dashboard: componentApi.DSCDashboard{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-				},
-				Workbenches: componentApi.DSCWorkbenches{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-				},
-				AIPipelines: componentApi.DSCDataSciencePipelines{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-				},
-				Kserve: componentApi.DSCKserve{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-				},
-				Ray: componentApi.DSCRay{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-				},
-				Kueue: componentApi.DSCKueue{
-					KueueManagementSpec: componentApi.KueueManagementSpec{ManagementState: operatorv1.Unmanaged},
-				},
-				TrustyAI: componentApi.DSCTrustyAI{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-				},
-				ModelRegistry: componentApi.DSCModelRegistry{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-				},
-				TrainingOperator: componentApi.DSCTrainingOperator{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-				},
-				FeastOperator: componentApi.DSCFeastOperator{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
-				},
-				LlamaStackOperator: componentApi.DSCLlamaStackOperator{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
-				},
-			},
-		},
-	}
-	err := cluster.CreateWithRetry(ctx, cli, releaseDataScienceCluster) // 1 min timeout
-	if err != nil {
-		return fmt.Errorf("failed to create DataScienceCluster custom resource: %w", err)
-	}
-	return nil
-}
-
-// CreateDefaultDSCI creates a default instance of DSCI
-// If there exists default-dsci instance already, it will not update DSCISpec on it.
-// Note: DSCI CR modifcations are not supported, as it is the initial prereq setting for the components.
-func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ common.Platform, monNamespace string) error {
-	log := logf.FromContext(ctx)
-	defaultDsciSpec := &dsciv2.DSCInitializationSpec{
-		Monitoring: serviceApi.DSCIMonitoring{
-			ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-			MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
-				Namespace: monNamespace,
-				Metrics:   &serviceApi.Metrics{},
-			},
-		},
-		TrustedCABundle: &dsciv2.TrustedCABundleSpec{
-			ManagementState: "Managed",
-		},
-	}
-
-	defaultDsci := &dsciv2.DSCInitialization{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "DSCInitialization",
-			APIVersion: "dscinitialization.opendatahub.io/v2",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "default-dsci",
-		},
-		Spec: *defaultDsciSpec,
-	}
-
-	instances := &dsciv2.DSCInitializationList{}
-	if err := cli.List(ctx, instances); err != nil {
-		return err
-	}
-
-	switch {
-	case len(instances.Items) > 1:
-		log.Info("only one instance of DSCInitialization object is allowed. Please delete other instances.")
-		return nil
-	case len(instances.Items) == 1:
-		// Do not patch/update if DSCI already exists.
-		log.Info("DSCInitialization resource already exists. It will not be updated with default DSCI.")
-		return nil
-	case len(instances.Items) == 0:
-		log.Info("create default DSCI CR.")
-		err := cluster.CreateWithRetry(ctx, cli, defaultDsci) // 1 min timeout
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func getJPHOdhDocumentResources(namespace string, matchedName []string) []ResourceSpec {
-	metadataName := []string{"metadata", "name"}
-	return []ResourceSpec{
-		{
-			Gvk:       gvk.OdhDocument,
-			Namespace: namespace,
-			Path:      metadataName,
-			Values:    matchedName,
-		},
-	}
-}
-
-func getDashboardWatsonResources(ns string) []ResourceSpec {
-	metadataName := []string{"metadata", "name"}
-	specAppName := []string{"spec", "appName"}
-	appName := []string{"watson-studio"}
-
-	return []ResourceSpec{
-		{
-			Gvk:       gvk.OdhQuickStart,
-			Namespace: ns,
-			Path:      specAppName,
-			Values:    appName,
-		},
-		{
-			Gvk:       gvk.OdhDocument,
-			Namespace: ns,
-			Path:      specAppName,
-			Values:    appName,
-		},
-		{
-			Gvk:       gvk.OdhApplication,
-			Namespace: ns,
-			Path:      metadataName,
-			Values:    appName,
-		},
-	}
-}
-
 // TODO: remove function once we have a generic solution across all components.
 func CleanupExistingResource(ctx context.Context,
 	cli client.Client,
-	platform common.Platform,
-	oldReleaseVersion common.Release,
+	basePath string,
 ) error {
 	var multiErr *multierror.Error
-	// get DSCI CR to get application namespace
-	dsciList := &dsciv2.DSCInitializationList{}
-	if err := cli.List(ctx, dsciList); err != nil {
+	// get application namespace
+	applicationNS, err := cluster.ApplicationNamespace(ctx, cli)
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			return nil
+		}
 		return err
 	}
-	if len(dsciList.Items) == 0 {
-		return nil
-	}
-	d := &dsciList.Items[0]
-	// Handling for dashboard OdhApplication Jupyterhub CR, see jira #443
-	multiErr = multierror.Append(multiErr, removOdhApplicationsCR(ctx, cli, gvk.OdhApplication, "jupyterhub", d.Spec.ApplicationsNamespace))
-
-	// cleanup for github.com/opendatahub-io/pull/888
-	deprecatedFeatureTrackers := []string{d.Spec.ApplicationsNamespace + "-kserve-temporary-fixes"}
-	multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, d.Spec.ApplicationsNamespace, deprecatedFeatureTrackers, &featuresv1.FeatureTrackerList{}))
 
 	// Cleanup of deprecated default RoleBinding resources
-	deprecatedDefaultRoleBinding := []string{d.Spec.ApplicationsNamespace}
-	multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, d.Spec.ApplicationsNamespace, deprecatedDefaultRoleBinding, &rbacv1.RoleBindingList{}))
+	deprecatedDefaultRoleBinding := []string{applicationNS}
+	multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, applicationNS, deprecatedDefaultRoleBinding, &rbacv1.RoleBindingList{}))
 
-	// Handling for dashboard OdhDocument Jupyterhub CR, see jira #443 comments
-	odhDocJPH := getJPHOdhDocumentResources(
-		d.Spec.ApplicationsNamespace,
-		[]string{
-			"jupyterhub-install-python-packages",
-			"jupyterhub-update-server-settings",
-			"jupyterhub-view-installed-packages",
-			"jupyterhub-use-s3-bucket-data",
-		})
-	multiErr = multierror.Append(multiErr, deleteResources(ctx, cli, &odhDocJPH))
-	// only apply on RHOAI since ODH has a different way to create this CR by dashboard
-	if platform == cluster.SelfManagedRhoai || platform == cluster.ManagedRhoai {
-		if err := upgradeODCCR(ctx, cli, "odh-dashboard-config", d.Spec.ApplicationsNamespace, oldReleaseVersion); err != nil {
-			return err
-		}
-	}
-	// remove modelreg proxy container from deployment in ODH
-	if platform == cluster.OpenDataHub {
-		if err := removeRBACProxyModelRegistry(ctx, cli, "model-registry-operator", "kube-rbac-proxy", d.Spec.ApplicationsNamespace); err != nil {
-			return err
-		}
-	}
-
-	// to take a reference
-	toDelete := getDashboardWatsonResources(d.Spec.ApplicationsNamespace)
-	multiErr = multierror.Append(multiErr, deleteResources(ctx, cli, &toDelete))
-
-	// cleanup nvidia nim integration
-	multiErr = multierror.Append(multiErr, cleanupNimIntegration(ctx, cli, oldReleaseVersion, d.Spec.ApplicationsNamespace))
 	// cleanup model controller legacy deployment
-	multiErr = multierror.Append(multiErr, cleanupModelControllerLegacyDeployment(ctx, cli, d.Spec.ApplicationsNamespace))
+	multiErr = multierror.Append(multiErr, cleanupModelControllerLegacyDeployment(ctx, cli, applicationNS))
 	// cleanup deprecated kueue ValidatingAdmissionPolicyBinding
 	multiErr = multierror.Append(multiErr, cleanupDeprecatedKueueVAPB(ctx, cli))
 
 	// HardwareProfile migration as described in RHOAIENG-33158 and RHOAIENG-33159
 	// This includes creating HardwareProfile resources and updating annotations on Notebooks and InferenceServices
-	if cluster.GetRelease().Version.Major == 3 && oldReleaseVersion.Version.Major == 2 {
-		multiErr = multierror.Append(multiErr, MigrateToInfraHardwareProfiles(ctx, cli, d.Spec.ApplicationsNamespace))
+	// Check if target infrastructure HardwareProfile CRD exists (indicates we should migrate)
+	hasInfraHWP, err := cluster.HasCRD(ctx, cli, gvk.HardwareProfile)
+	if err != nil {
+		multiErr = multierror.Append(multiErr, fmt.Errorf("failed to check HardwareProfile CRD: %w", err))
+	} else if hasInfraHWP {
+		// Check if source AcceleratorProfile CRD exists (indicates we have data to migrate)
+		hasAccelProfile, err := cluster.HasCRD(ctx, cli, gvk.DashboardAcceleratorProfile)
+		if err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to check AcceleratorProfile CRD: %w", err))
+		} else if hasAccelProfile {
+			// Both CRDs exist, run migration (it's idempotent)
+			multiErr = multierror.Append(multiErr, MigrateToInfraHardwareProfiles(ctx, cli, applicationNS, basePath))
+		}
+	}
+
+	// GatewayConfig ingressMode migration: preserve LoadBalancer mode for existing deployments
+	// Check if GatewayConfig CRD exists (indicates feature is available)
+	hasGatewayConfig, err := cluster.HasCRD(ctx, cli, gvk.GatewayConfig)
+	if err != nil {
+		multiErr = multierror.Append(multiErr, fmt.Errorf("failed to check GatewayConfig CRD: %w", err))
+	} else if hasGatewayConfig {
+		multiErr = multierror.Append(multiErr, MigrateGatewayConfigIngressMode(ctx, cli))
 	}
 
 	return multiErr.ErrorOrNil()
-}
-
-func deleteResources(ctx context.Context, c client.Client, resources *[]ResourceSpec) error {
-	var errors *multierror.Error
-
-	for _, res := range *resources {
-		err := deleteOneResource(ctx, c, res)
-		errors = multierror.Append(errors, err)
-	}
-
-	return errors.ErrorOrNil()
-}
-
-func deleteOneResource(ctx context.Context, c client.Client, res ResourceSpec) error {
-	log := logf.FromContext(ctx)
-	list := &unstructured.UnstructuredList{}
-	list.SetGroupVersionKind(res.Gvk)
-
-	err := c.List(ctx, list, client.InNamespace(res.Namespace))
-	if err != nil {
-		if meta.IsNoMatchError(err) {
-			log.Info("CRD not found, will not delete", "gvk", res.Gvk.String())
-			return nil
-		}
-		return fmt.Errorf("failed to list %s: %w", res.Gvk.Kind, err)
-	}
-
-	for _, item := range list.Items {
-		v, ok, err := unstructured.NestedString(item.Object, res.Path...)
-		if err != nil {
-			return fmt.Errorf("failed to get field %v for %s %s/%s: %w", res.Path, res.Gvk.Kind, res.Namespace, item.GetName(), err)
-		}
-
-		if !ok {
-			return fmt.Errorf("unexisting path to delete: %v", res.Path)
-		}
-
-		for _, toDelete := range res.Values {
-			if v == toDelete {
-				err = c.Delete(ctx, &item)
-				if err != nil {
-					return fmt.Errorf("failed to delete %s %s/%s: %w", res.Gvk.Kind, res.Namespace, item.GetName(), err)
-				}
-				log.Info("Deleted object", "name", item.GetName(), "gvk", res.Gvk.String(), "namespace", res.Namespace)
-			}
-		}
-	}
-
-	return nil
 }
 
 func deleteDeprecatedResources(ctx context.Context, cli client.Client, namespace string, resourceList []string, resourceType client.ObjectList) error {
@@ -362,230 +150,6 @@ func deleteDeprecatedResources(ctx context.Context, cli client.Client, namespace
 		}
 	}
 	return multiErr.ErrorOrNil()
-}
-
-func removOdhApplicationsCR(ctx context.Context, cli client.Client, gvk schema.GroupVersionKind, instanceName string, applicationNS string) error {
-	// first check if CRD in cluster
-	crd := &apiextv1.CustomResourceDefinition{}
-	if err := cli.Get(ctx, client.ObjectKey{Name: "odhapplications.dashboard.opendatahub.io"}, crd); err != nil {
-		return client.IgnoreNotFound(err)
-	}
-
-	// then check if CR in cluster to delete
-	odhObject := &unstructured.Unstructured{}
-	odhObject.SetGroupVersionKind(gvk)
-	if err := cli.Get(ctx, client.ObjectKey{
-		Namespace: applicationNS,
-		Name:      instanceName,
-	}, odhObject); err != nil {
-		return client.IgnoreNotFound(err)
-	}
-	if err := cli.Delete(ctx, odhObject); err != nil {
-		return fmt.Errorf("error deleting CR %s : %w", instanceName, err)
-	}
-
-	return nil
-}
-
-// upgradODCCR handles different cases:
-// 1. unset ownerreference for CR odh-dashboard-config
-// 2. flip TrustyAI BiasMetrics to false (.spec.dashboardConfig.disableBiasMetrics) if it is lower release version than input 'release'.
-// 3. flip ModelRegistry to false (.spec.dashboardConfig.disableModelRegistry) if it is lower release version than input 'release'.
-func upgradeODCCR(ctx context.Context, cli client.Client, instanceName string, applicationNS string, release common.Release) error {
-	crd := &apiextv1.CustomResourceDefinition{}
-	if err := cli.Get(ctx, client.ObjectKey{Name: "odhdashboardconfigs.opendatahub.io"}, crd); err != nil {
-		return client.IgnoreNotFound(err)
-	}
-	odhObject := &unstructured.Unstructured{}
-	odhObject.SetGroupVersionKind(gvk.OdhDashboardConfig)
-	if err := cli.Get(ctx, client.ObjectKey{
-		Namespace: applicationNS,
-		Name:      instanceName,
-	}, odhObject); err != nil {
-		return client.IgnoreNotFound(err)
-	}
-
-	if err := unsetOwnerReference(ctx, cli, instanceName, odhObject); err != nil {
-		return err
-	}
-
-	if err := updateODCBiasMetrics(ctx, cli, instanceName, release, odhObject); err != nil {
-		return err
-	}
-
-	return updateODCModelRegistry(ctx, cli, instanceName, release, odhObject)
-}
-
-func unsetOwnerReference(ctx context.Context, cli client.Client, instanceName string, odhObject *unstructured.Unstructured) error {
-	if odhObject.GetOwnerReferences() != nil {
-		// set to nil as updates
-		odhObject.SetOwnerReferences(nil)
-		if err := cli.Update(ctx, odhObject); err != nil {
-			return fmt.Errorf("error unset ownerreference for CR %s : %w", instanceName, err)
-		}
-	}
-	return nil
-}
-
-func updateODCBiasMetrics(ctx context.Context, cli client.Client, instanceName string, oldRelease common.Release, odhObject *unstructured.Unstructured) error {
-	log := logf.FromContext(ctx)
-	// "from version" as oldRelease, if return "0.0.0" meaning running on 2.10- release/dummy CI build
-	// if oldRelease is lower than 2.14.0(e.g 2.13.x-a), flip disableBiasMetrics to false (even the field did not exist)
-	if oldRelease.Version.Minor < 14 {
-		log.Info("Upgrade force BiasMetrics to false due to old release < 2.14.0", "instance", instanceName)
-		// flip TrustyAI BiasMetrics to false (.spec.dashboardConfig.disableBiasMetrics)
-		disableBiasMetricsValue := []byte(`{"spec": {"dashboardConfig": {"disableBiasMetrics": false}}}`)
-		if err := cli.Patch(ctx, odhObject, client.RawPatch(types.MergePatchType, disableBiasMetricsValue)); err != nil {
-			return fmt.Errorf("error enable BiasMetrics in CR %s : %w", instanceName, err)
-		}
-		return nil
-	}
-	log.Info("Upgrade does not force BiasMetrics to false due to from release >= 2.14.0")
-	return nil
-}
-
-func updateODCModelRegistry(ctx context.Context, cli client.Client, instanceName string, oldRelease common.Release, odhObject *unstructured.Unstructured) error {
-	log := logf.FromContext(ctx)
-	// "from version" as oldRelease, if return "0.0.0" meaning running on 2.10- release/dummy CI build
-	// if oldRelease is lower than 2.14.0(e.g 2.13.x-a), flip disableModelRegistry to false (even the field did not exist)
-	if oldRelease.Version.Minor < 14 {
-		log.Info("Upgrade force ModelRegistry to false due to old release < 2.14.0", "instance", instanceName)
-		disableModelRegistryValue := []byte(`{"spec": {"dashboardConfig": {"disableModelRegistry": false}}}`)
-		if err := cli.Patch(ctx, odhObject, client.RawPatch(types.MergePatchType, disableModelRegistryValue)); err != nil {
-			return fmt.Errorf("error enable ModelRegistry in CR %s : %w", instanceName, err)
-		}
-		return nil
-	}
-	log.Info("Upgrade does not force ModelRegistry to false due to from release >= 2.14.0")
-	return nil
-}
-
-// workaround for RHOAIENG-15328
-// TODO: this can be removed from ODH 2.22.
-func removeRBACProxyModelRegistry(ctx context.Context, cli client.Client, componentName string, containerName string, applicationNS string) error {
-	log := logf.FromContext(ctx)
-	deploymentList := &appsv1.DeploymentList{}
-	if err := cli.List(ctx, deploymentList, client.InNamespace(applicationNS), client.HasLabels{labels.ODH.Component(componentName)}); err != nil {
-		return fmt.Errorf("error fetching list of deployments: %w", err)
-	}
-
-	if len(deploymentList.Items) != 1 { // ModelRegistry operator is not deployed
-		return nil
-	}
-	mrDeployment := deploymentList.Items[0]
-	mrContainerList := mrDeployment.Spec.Template.Spec.Containers
-	// if only one container in deployment, we are already on newer deployment, no need more action
-	if len(mrContainerList) == 1 {
-		return nil
-	}
-
-	log.Info("Upgrade force ModelRegistry to remove container from deployment")
-	for i, container := range mrContainerList {
-		if container.Name == containerName {
-			removeUnusedKubeRbacProxy := []byte(fmt.Sprintf("[{\"op\": \"remove\", \"path\": \"/spec/template/spec/containers/%d\"}]", i))
-			if err := cli.Patch(ctx, &mrDeployment, client.RawPatch(types.JSONPatchType, removeUnusedKubeRbacProxy)); err != nil {
-				return fmt.Errorf("error removing ModelRegistry %s container from deployment: %w", containerName, err)
-			}
-			break
-		}
-	}
-	return nil
-}
-
-func GetDeployedRelease(ctx context.Context, cli client.Client) (common.Release, error) {
-	dsciInstance, err := cluster.GetDSCI(ctx, cli)
-	switch {
-	case k8serr.IsNotFound(err):
-		break
-	case err != nil:
-		return common.Release{}, err
-	default:
-		return dsciInstance.Status.Release, nil
-	}
-
-	// no DSCI CR found, try with DSC CR
-	dscInstances, err := cluster.GetDSC(ctx, cli)
-	switch {
-	case k8serr.IsNotFound(err):
-		break
-	case err != nil:
-		return common.Release{}, err
-	default:
-		return dscInstances.Status.Release, nil
-	}
-
-	// could be a clean installation or both CRs are deleted already
-	return common.Release{}, nil
-}
-
-func cleanupNimIntegration(ctx context.Context, cli client.Client, oldRelease common.Release, applicationNS string) error {
-	var errs *multierror.Error
-
-	if oldRelease.Version.Minor >= 14 && oldRelease.Version.Minor <= 16 {
-		log := logf.FromContext(ctx)
-		type objForDel struct {
-			obj        client.Object
-			name, desc string
-		}
-
-		// the following objects created by TP (14-15) and by the first GA (16)
-		deleteObjs := []objForDel{
-			{
-				obj:  &corev1.ConfigMap{},
-				name: "nvidia-nim-images-data",
-				desc: "data ConfigMap",
-			},
-			{
-				obj:  &templatev1.Template{},
-				name: "nvidia-nim-serving-template",
-				desc: "runtime Template",
-			},
-			{
-				obj:  &corev1.Secret{},
-				name: "nvidia-nim-image-pull",
-				desc: "pull Secret",
-			},
-		}
-
-		// the following objects created by TP (14-15)
-		if oldRelease.Version.Minor < 16 {
-			deleteObjs = append(deleteObjs,
-				objForDel{
-					obj:  &batchv1.CronJob{},
-					name: "nvidia-nim-periodic-validator",
-					desc: "validator CronJob",
-				},
-				objForDel{
-					obj:  &corev1.ConfigMap{},
-					name: "nvidia-nim-validation-result",
-					desc: "validation result ConfigMap",
-				},
-				// the api key is also used by GA (16), but cleanup is only required for TP->GA switch
-				objForDel{
-					obj:  &corev1.Secret{},
-					name: "nvidia-nim-access",
-					desc: "API key Secret",
-				})
-		}
-
-		for _, delObj := range deleteObjs {
-			if gErr := cli.Get(ctx, types.NamespacedName{Name: delObj.name, Namespace: applicationNS}, delObj.obj); gErr != nil {
-				if !k8serr.IsNotFound(gErr) {
-					log.V(1).Error(gErr, "failed to get NIM", "desc", delObj.desc, "name", delObj.name)
-					errs = multierror.Append(errs, gErr)
-				}
-			} else {
-				if dErr := cli.Delete(ctx, delObj.obj); dErr != nil {
-					log.Error(dErr, "failed to remove NIM", "desc", delObj.desc, "name", delObj.name)
-					errs = multierror.Append(errs, dErr)
-				} else {
-					log.Info("removed NIM successfully", "desc", delObj.desc)
-				}
-			}
-		}
-	}
-
-	return errs.ErrorOrNil()
 }
 
 // When upgrading from version 2.16 to 2.17, the odh-model-controller
@@ -667,9 +231,21 @@ func cleanupDeprecatedKueueVAPB(ctx context.Context, cli client.Client) error {
 	return nil
 }
 
-// MigrateToInfraHardwareProfiles orchestrates all HardwareProfile migrations including resource creation and annotation updates.
-// This is the parent function that gets OdhDashboardConfig once and calls all child migration functions.
-func MigrateToInfraHardwareProfiles(ctx context.Context, cli client.Client, applicationNS string) error {
+// MigrateToInfraHardwareProfiles performs one-time migration from AcceleratorProfiles to HardwareProfiles.
+// This orchestrates all HardwareProfile migrations including resource creation and annotation updates.
+//
+// IMPORTANT: This migration uses Create-only semantics. Existing HardwareProfiles are never modified.
+// This preserves user customizations and prevents data loss on operator restarts.
+//
+// Behavior:
+//   - Missing HardwareProfiles are created from AcceleratorProfiles and container sizes
+//   - Existing HardwareProfiles are skipped (AlreadyExists is not an error)
+//   - User modifications to HardwareProfiles persist across migration runs
+//   - Notebook and InferenceService annotations are updated if not already set
+//
+// This function is called on every operator startup via CleanupExistingResource.
+// The Create-only approach ensures that frequent operator restarts do not overwrite user changes.
+func MigrateToInfraHardwareProfiles(ctx context.Context, cli client.Client, applicationNS string, basePath string) error {
 	var multiErr *multierror.Error
 	log := logf.FromContext(ctx)
 	// If application namespace is empty, it means dsci is not available or not initialized properly with application namespace.
@@ -679,8 +255,8 @@ func MigrateToInfraHardwareProfiles(ctx context.Context, cli client.Client, appl
 		return nil
 	}
 
-	// Get OdhDashboardConfig once for all migration functions
-	odhConfig, found, err := getOdhDashboardConfig(ctx, cli, applicationNS)
+	// Get OdhDashboardConfig to extract container sizes
+	odhConfig, found, err := GetOdhDashboardConfig(ctx, cli, applicationNS, basePath)
 	if err != nil {
 		return fmt.Errorf("failed to get OdhDashboardConfig: %w", err)
 	}
@@ -699,7 +275,7 @@ func MigrateToInfraHardwareProfiles(ctx context.Context, cli client.Client, appl
 	multiErr = multierror.Append(multiErr, AttachHardwareProfileToNotebooks(ctx, cli, applicationNS, odhConfig))
 
 	// 4. Attach HardwareProfile annotations to existing InferenceServices but create custom-serving HWP first.
-	multiErr = multierror.Append(multiErr, CreateCustomServingHardwareProfile(ctx, cli, applicationNS))
+	multiErr = multierror.Append(multiErr, createCustomServingHardwareProfile(ctx, cli, applicationNS))
 	multiErr = multierror.Append(multiErr, AttachHardwareProfileToInferenceServices(ctx, cli, applicationNS, odhConfig))
 
 	return multiErr.ErrorOrNil()
@@ -833,12 +409,15 @@ func AttachHardwareProfileToNotebooks(ctx context.Context, cli client.Client, ap
 		}
 
 		var hwpName string
+		var hwpNamespace string
 		var migrationSource string
 
 		// Check for AcceleratorProfile annotation first (higher priority)
 		if apName := annotations[acceleratorNameAnnotation]; apName != "" {
 			// Convert to lowercase and replace spaces with dashes to comply with the hardwareprofile CRD validation
 			hwpName = fmt.Sprintf("%s-notebooks", strings.ReplaceAll(strings.ToLower(apName), " ", "-"))
+			// Get the AP namespace if specified (for cross-namespace AP references)
+			hwpNamespace = annotations[acceleratorProfileNamespaceAnnotation]
 			migrationSource = "AcceleratorProfile annotation"
 		} else if sizeSelection := annotations[lastSizeSelectionAnnotation]; sizeSelection != "" && containerSizeExists(containerSizes, sizeSelection) {
 			// Handle container size annotation migration
@@ -849,7 +428,40 @@ func AttachHardwareProfileToNotebooks(ctx context.Context, cli client.Client, ap
 
 		// Set HardwareProfile annotation if we found a migration source
 		if hwpName != "" {
-			if err := setHardwareProfileAnnotation(ctx, cli, notebook, hwpName, applicationNS); err != nil {
+			// RHOAIENG-50667: Only when the Notebook's namespace is Kueue-labeled does the webhook require
+			// the queue-name label on the Notebook. Skip HWP migration only when namespace is Kueue-managed
+			// and the Notebook lacks the label; otherwise we would trigger webhook rejection and CrashLoopBackOff.
+			kueueManagedNS, err := isNamespaceManagedByKueue(ctx, cli, notebook.GetNamespace())
+			if err != nil {
+				log.Error(err, "Failed to check if namespace is Kueue-managed", "notebook", notebook.GetName(), "namespace", notebook.GetNamespace())
+				// Do not fail upgrade; continue and let setHardwareProfileAnnotation run
+			} else if kueueManagedNS {
+				notebookLabels := notebook.GetLabels()
+				if queueName := notebookLabels[cluster.KueueQueueNameLabel]; queueName == "" {
+					log.Info("Skipping HardwareProfile migration for Notebook in Kueue namespace missing queue label (RHOAIENG-50667)",
+						"notebook", notebook.GetName(), "namespace", notebook.GetNamespace())
+					msg := fmt.Sprintf("Skipping HardwareProfile migration for Notebook %s: namespace is Kueue-managed but missing required label %q "+
+						"(add the label to the Workbench to fix; see RHOAIENG-50667)", notebook.GetName(), cluster.KueueQueueNameLabel)
+					if eventErr := recordUpgradeErrorEvent(ctx, cli, notebook, eventReasonHardwareProfileMigrationSkipped, msg); eventErr != nil {
+						log.Error(eventErr, "Failed to record event for Notebook", "notebook", notebook.GetName())
+					}
+					continue
+				}
+			}
+
+			if err := setHardwareProfileAnnotation(ctx, cli, notebook, hwpName, hwpNamespace, applicationNS); err != nil {
+				// RHOAIENG-50667: If the webhook rejects the update due to Kueue label validation, do not
+				// fail the upgrade — skip this notebook, log, and record event so the operator can stay healthy.
+				errStr := err.Error()
+				if strings.Contains(errStr, "Kueue label validation failed") || (strings.Contains(errStr, "missing required label") && strings.Contains(errStr, "kueue")) {
+					log.Info("Skipping HardwareProfile migration for Notebook after Kueue webhook rejection (RHOAIENG-50667)",
+						"notebook", notebook.GetName(), "error", errStr)
+					if eventErr := recordUpgradeErrorEvent(ctx, cli, notebook, eventReasonHardwareProfileMigrationSkipped,
+						fmt.Sprintf("Skipping HardwareProfile migration for Notebook %s: %s", notebook.GetName(), errStr)); eventErr != nil {
+						log.Error(eventErr, "Failed to record event for Notebook", "notebook", notebook.GetName())
+					}
+					continue
+				}
 				multiErr = multierror.Append(multiErr, fmt.Errorf("failed to set HardwareProfile annotation for notebook %s: %w", notebook.GetName(), err))
 				continue
 			}
@@ -860,31 +472,27 @@ func AttachHardwareProfileToNotebooks(ctx context.Context, cli client.Client, ap
 	return multiErr.ErrorOrNil()
 }
 
-func CreateCustomServingHardwareProfile(ctx context.Context, cli client.Client, namespace string) error {
+func createCustomServingHardwareProfile(ctx context.Context, cli client.Client, namespace string) error {
 	log := logf.FromContext(ctx)
 	// Check if custom-serving HardwareProfile CR already exists
-	_, customServingError := cluster.GetHardwareProfile(ctx, cli, "custom-serving", namespace)
+	_, customServingError := cluster.GetHardwareProfile(ctx, cli, customServing, namespace)
 	if client.IgnoreNotFound(customServingError) != nil {
-		return fmt.Errorf("failed to check HardwareProfile CR: custom-serving %w", customServingError)
+		return fmt.Errorf("failed to check HardwareProfile CR: %s %w", customServing, customServingError)
 	}
 	if k8serr.IsNotFound(customServingError) {
 		// Create custom-serving HardwareProfile programmatically
+		annotations := createHardwareProfileAnnotations(serving, customServing, "", false)
+		annotations[hardwareProfileManagedAnnotation] = "false"
+
 		hwp := &infrav1.HardwareProfile{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: infrav1.GroupVersion.String(),
 				Kind:       "HardwareProfile",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "custom-serving",
-				Namespace: namespace,
-				Annotations: map[string]string{
-					"opendatahub.io/dashboard-feature-visibility": `["model-serving"]`,
-					"opendatahub.io/modified-date":                time.Now().Format(time.RFC3339),
-					"opendatahub.io/display-name":                 "custom-serving",
-					"opendatahub.io/description":                  "",
-					"opendatahub.io/disabled":                     "false",
-					"opendatahub.io/managed":                      "false",
-				},
+				Name:        customServing,
+				Namespace:   namespace,
+				Annotations: annotations,
 			},
 			Spec: infrav1.HardwareProfileSpec{
 				Identifiers: []infrav1.HardwareIdentifier{
@@ -906,14 +514,50 @@ func CreateCustomServingHardwareProfile(ctx context.Context, cli client.Client, 
 			},
 		}
 
-		if err := cli.Create(ctx, hwp); err != nil {
-			if !k8serr.IsAlreadyExists(err) {
-				return fmt.Errorf("failed to create custom-serving HardwareProfile v1: %w", err)
-			}
+		if err := cluster.CreateHardwareProfile(ctx, cli, hwp); err != nil {
+			return err
 		}
-		log.Info("Successfully created custom-serving HardwareProfile", "namespace", namespace)
+		log.Info("Successfully created HardwareProfile", "name", customServing, "namespace", namespace)
 	}
 	return nil
+}
+
+// isISVCServerless returns true if the InferenceService is in Serverless mode (annotation or status).
+func isISVCServerless(isvc *unstructured.Unstructured) bool {
+	annotations := isvc.GetAnnotations()
+	if annotations != nil && annotations[kserveDeploymentModeAnnotationKey] == kserveDeploymentModeServerless {
+		return true
+	}
+	status, found, _ := unstructured.NestedString(isvc.Object, "status", "deploymentMode")
+	return found && status == kserveDeploymentModeServerless
+}
+
+// handleISVCSetHWPAnnotationError handles Serverless and Kueue webhook rejection errors from
+// setHardwareProfileAnnotation. Returns true if the error was handled (caller should continue),
+// false if the caller should append to multiErr.
+func handleISVCSetHWPAnnotationError(ctx context.Context, cli client.Client, log logr.Logger, isvc *unstructured.Unstructured, err error) bool {
+	errStr := err.Error()
+	if strings.Contains(errStr, "deploymentMode cannot be changed") || strings.Contains(errStr, "Serverless") {
+		log.Info("Skipping HardwareProfile migration for InferenceService due to Serverless mode",
+			"isvc", isvc.GetName(), "error", errStr)
+		msg := fmt.Sprintf("Skipping HardwareProfile migration due to Serverless mode incompatibility: %s", errStr)
+		if eventErr := recordUpgradeErrorEvent(ctx, cli, isvc, eventReasonServerlessMigrationSkipped, msg); eventErr != nil {
+			log.Error(eventErr, "Failed to record event for Serverless InferenceService", "isvc", isvc.GetName())
+		}
+		return true
+	}
+	if strings.Contains(errStr, "Kueue label validation failed") ||
+		(strings.Contains(errStr, "missing required label") && strings.Contains(errStr, "kueue")) {
+		log.Info("Skipping HardwareProfile migration for InferenceService after Kueue webhook rejection (RHOAIENG-50667)",
+			"isvc", isvc.GetName(), "error", errStr)
+		msg := fmt.Sprintf("Skipping HardwareProfile migration for InferenceService %s: namespace is Kueue-managed but missing required label %q on the InferenceService",
+			isvc.GetName(), cluster.KueueQueueNameLabel)
+		if eventErr := recordUpgradeErrorEvent(ctx, cli, isvc, eventReasonHardwareProfileMigrationSkipped, msg); eventErr != nil {
+			log.Error(eventErr, "Failed to record event for InferenceService", "isvc", isvc.GetName())
+		}
+		return true
+	}
+	return false
 }
 
 // AttachHardwareProfileToInferenceServices migrates AcceleratorProfile annotations from ServingRuntimes
@@ -950,6 +594,40 @@ func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Cl
 			continue
 		}
 
+		// Skip Serverless InferenceServices as they are not supported in RHOAI 3.x
+		// Attempting to update them causes KServe webhook to incorrectly reject with deploymentMode error
+		// Check both the annotation (primary source) and status field (fallback) to determine if ISVC is serverless
+		if isISVCServerless(isvc) {
+			log.Info("Skipping HardwareProfile migration for Serverless InferenceService",
+				"isvc", isvc.GetName(), "deploymentMode", kserveDeploymentModeServerless)
+			msg := fmt.Sprintf("Skipping HardwareProfile migration for Serverless InferenceService %s (Serverless mode not supported in RHOAI 3.x)", isvc.GetName())
+			if err := recordUpgradeErrorEvent(ctx, cli, isvc, eventReasonServerlessMigrationSkipped, msg); err != nil {
+				log.Error(err, "Failed to record event for Serverless InferenceService", "isvc", isvc.GetName())
+			}
+			continue
+		}
+
+		// RHOAIENG-50667: ISVCs in a Kueue-labeled namespace without the queue-name label would be rejected
+		// by the kserve-isvc-kueuelabels-validator webhook on update. Skip HWP migration, emit log and event,
+		// and do not fail the upgrade.
+		kueueManagedNS, err := isNamespaceManagedByKueue(ctx, cli, isvc.GetNamespace())
+		if err != nil {
+			log.Error(err, "Failed to check if namespace is Kueue-managed", "isvc", isvc.GetName(), "namespace", isvc.GetNamespace())
+			// Do not fail upgrade on namespace fetch error; continue and let setHardwareProfileAnnotation run
+		} else if kueueManagedNS {
+			isvcLabels := isvc.GetLabels()
+			if queueName := isvcLabels[cluster.KueueQueueNameLabel]; queueName == "" {
+				log.Info("Skipping HardwareProfile migration for InferenceService in Kueue namespace missing queue label (RHOAIENG-50667)",
+					"isvc", isvc.GetName(), "namespace", isvc.GetNamespace())
+				msg := fmt.Sprintf("Skipping HardwareProfile migration for InferenceService %s: namespace is Kueue-managed but missing required label %q on the InferenceService",
+					isvc.GetName(), cluster.KueueQueueNameLabel)
+				if eventErr := recordUpgradeErrorEvent(ctx, cli, isvc, eventReasonHardwareProfileMigrationSkipped, msg); eventErr != nil {
+					log.Error(eventErr, "Failed to record event for InferenceService", "isvc", isvc.GetName())
+				}
+				continue
+			}
+		}
+
 		// Check ServingRuntime for AcceleratorProfile annotation and apply to InferenceService
 		servingRuntime, err := getSRFromISVC(ctx, cli, isvc)
 		if err == nil {
@@ -959,7 +637,12 @@ func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Cl
 			}
 			if apName := runtimeAnnotations[acceleratorNameAnnotation]; apName != "" {
 				hwpName := fmt.Sprintf("%s-serving", strings.ReplaceAll(strings.ToLower(apName), " ", "-"))
-				if err := setHardwareProfileAnnotation(ctx, cli, isvc, hwpName, applicationNamespace); err != nil {
+				// Get the AP namespace if specified (for cross-namespace AP references)
+				hwpNamespace := runtimeAnnotations[acceleratorProfileNamespaceAnnotation]
+				if err := setHardwareProfileAnnotation(ctx, cli, isvc, hwpName, hwpNamespace, applicationNamespace); err != nil {
+					if handleISVCSetHWPAnnotationError(ctx, cli, log, isvc, err) {
+						continue
+					}
 					multiErr = multierror.Append(multiErr, fmt.Errorf("failed to set HardwareProfile annotation for InferenceService %s: %w", isvc.GetName(), err))
 					continue
 				}
@@ -970,10 +653,9 @@ func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Cl
 		}
 
 		// No AP found, try container size matching
-		// Default usign HWProfile CR "custom-serving", update only if we find a matching size
-		hwpName := "custom-serving"
+		// Default using HWProfile CR "custom-serving", update only if we find a matching size
+		hwpName := customServing
 		var matchedSize string
-
 		resources, err := getInferenceServiceResources(isvc)
 		if err == nil {
 			// Try to match resources to a container size
@@ -983,17 +665,77 @@ func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Cl
 			}
 		}
 
-		if err := setHardwareProfileAnnotation(ctx, cli, isvc, hwpName, applicationNamespace); err != nil {
+		if err := setHardwareProfileAnnotation(ctx, cli, isvc, hwpName, "", applicationNamespace); err != nil {
+			if handleISVCSetHWPAnnotationError(ctx, cli, log, isvc, err) {
+				continue
+			}
 			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to set HardwareProfile annotation for InferenceService %s: %w", isvc.GetName(), err))
 		} else {
 			// Log after successful annotation setting
 			if matchedSize != "" {
-				log.Info("Set HardwareProfile annotation for InferenceService based on container size match", "isvc", isvc.GetName(), "size", matchedSize, "hardwareProfile", hwpName)
+				log.Info("Set HardwareProfile annotation for InferenceService based on container size match",
+					"isvc", isvc.GetName(), "size", matchedSize, "hardwareProfile", hwpName)
 			} else {
-				log.Info("Set HardwareProfile annotation for InferenceService with custom-serving HardwareProfile", "isvc", isvc.GetName(), "hardwareProfile", hwpName)
+				log.Info("Set HardwareProfile annotation for InferenceService with "+customServing+" HardwareProfile",
+					"isvc", isvc.GetName(), "hardwareProfile", hwpName)
 			}
 		}
 	}
 
 	return multiErr.ErrorOrNil()
+}
+
+// MigrateGatewayConfigIngressMode preserves LoadBalancer mode for existing Gateway deployments.
+func MigrateGatewayConfigIngressMode(ctx context.Context, cli client.Client) error {
+	l := logf.FromContext(ctx)
+
+	gatewayConfig := &unstructured.Unstructured{}
+	gatewayConfig.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   "services.platform.opendatahub.io",
+		Version: "v1alpha1",
+		Kind:    "GatewayConfig",
+	})
+
+	err := cli.Get(ctx, client.ObjectKey{Name: "default-gateway"}, gatewayConfig)
+	switch {
+	case k8serr.IsNotFound(err):
+		return nil
+	case err != nil:
+		return fmt.Errorf("failed to get GatewayConfig: %w", err)
+	}
+
+	ingressMode, _, _ := unstructured.NestedString(gatewayConfig.Object, "spec", "ingressMode")
+	if ingressMode != "" {
+		return nil
+	}
+
+	gatewayService := &corev1.Service{}
+	err = cli.Get(ctx, client.ObjectKey{
+		Name:      gateway.GatewayServiceFullName,
+		Namespace: gateway.GatewayNamespace,
+	}, gatewayService)
+	switch {
+	case k8serr.IsNotFound(err):
+		return nil
+	case err != nil:
+		return fmt.Errorf("failed to get Gateway service: %w", err)
+	}
+
+	if gatewayService.Spec.Type != corev1.ServiceTypeLoadBalancer {
+		return nil
+	}
+
+	l.Info("preserving LoadBalancer ingressMode for existing Gateway")
+
+	patch := client.MergeFrom(gatewayConfig.DeepCopy())
+	if err := unstructured.SetNestedField(gatewayConfig.Object, "LoadBalancer", "spec", "ingressMode"); err != nil {
+		return fmt.Errorf("failed to set ingressMode field: %w", err)
+	}
+	if err := cli.Patch(ctx, gatewayConfig, patch); err != nil {
+		return fmt.Errorf("failed to patch GatewayConfig: %w", err)
+	}
+
+	l.Info("GatewayConfig migrated to ingressMode=LoadBalancer")
+
+	return nil
 }

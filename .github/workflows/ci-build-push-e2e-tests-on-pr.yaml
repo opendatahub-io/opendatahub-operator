@@ -1,0 +1,69 @@
+name: Build and push E2E Test Image On PR
+on:
+  pull_request_target:
+    types: [ opened, synchronize, reopened ]
+    branches:
+      - main
+    paths:
+      - 'tests/e2e/**'
+      - 'cmd/main.go'
+      - 'Dockerfiles/e2e-tests/e2e-tests.Dockerfile'
+
+permissions:
+  contents: read
+
+env:
+  E2E_BASE_IMAGE: quay.io/${{ secrets.QUAY_ORG }}/opendatahub-operator-e2e
+  E2E_PR_IMAGE_TAG: pr-${{ github.event.number }}
+
+jobs:
+  get-merge-commit:
+    name: Get merge commit
+    uses: ./.github/workflows/get-merge-commit.yaml
+
+  build-push-e2e-image-on-pr:
+    name: Build and push E2E Test Image On PR
+    runs-on: ubuntu-latest
+    needs: get-merge-commit
+    env:
+      IMAGE_BUILDER: podman
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        if: needs.get-merge-commit.outputs.mergedSha
+        with:
+          ref: ${{ needs.get-merge-commit.outputs.mergedSha }}
+
+      - name: Quay.io login
+        uses: redhat-actions/podman-login@4934294ad0449894bcd1e9f191899d7292469603 # v1.7
+        if: needs.get-merge-commit.outputs.mergedSha
+        env:
+          QUAY_ID: ${{ secrets.QUAY_ID }}
+          QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+        with:
+          registry: quay.io
+          username: ${{ env.QUAY_ID }}
+          password: ${{ env.QUAY_TOKEN }}
+
+      - name: Set up Go
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        if: needs.get-merge-commit.outputs.mergedSha
+        with:
+          go-version-file: go.mod
+
+      - name: Build and push E2E test image
+        if: needs.get-merge-commit.outputs.mergedSha
+        env:
+          E2E_IMAGE: ${{ env.E2E_BASE_IMAGE }}:${{ env.E2E_PR_IMAGE_TAG }}
+        run: |
+          echo "Building E2E test image: ${E2E_IMAGE}"
+          podman build \
+            --platform linux/amd64 \
+            -f Dockerfiles/e2e-tests/e2e-tests.Dockerfile \
+            -t "${E2E_IMAGE}" -t "${E2E_IMAGE}" \
+            .
+
+          echo "Pushing E2E test image: ${E2E_IMAGE}"
+          podman push "${E2E_IMAGE}"
+
+          echo "E2E test image built and pushed successfully!"

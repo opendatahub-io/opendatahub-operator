@@ -27,16 +27,16 @@ const (
 	systemAuthenticatedGroup = "system:authenticated"
 
 	// Role names used for RBAC configuration.
-	adminGroupRoleName = "admingroup-role"
+	adminGroupRoleName = "data-science-admingroup-role"
 
 	// RoleBinding names to bind roles to specific groups.
-	adminGroupRoleBindingName = "admingroup-rolebinding"
+	adminGroupRoleBindingName = "data-science-admingroup-rolebinding"
 
 	// ClusterRole and ClusterRoleBinding names for group access at cluster level.
-	adminGroupClusterRoleName          = "admingroupcluster-role"
-	adminGroupClusterRoleBindingName   = "admingroupcluster-rolebinding"
-	allowedGroupClusterRoleName        = "allowedgroupcluster-role"
-	allowedGroupClusterRoleBindingName = "allowedgroupcluster-rolebinding"
+	adminGroupClusterRoleName          = "data-science-admingroupcluster-role"
+	adminGroupClusterRoleBindingName   = "data-science-admingroupcluster-rolebinding"
+	allowedGroupClusterRoleName        = "data-science-allowedgroupcluster-role"
+	allowedGroupClusterRoleBindingName = "data-science-allowedgroupcluster-rolebinding"
 )
 
 type AuthControllerTestCtx struct {
@@ -75,6 +75,8 @@ func authControllerTestSuite(t *testing.T) {
 // ValidateAuthSystemInitialization ensures RBAC resources are correctly configured.
 func (tc *AuthControllerTestCtx) ValidateAuthSystemInitialization(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, Smoke)
 
 	expectedAdminGroup := tc.getExpectedAdminGroupForPlatform()
 
@@ -121,6 +123,8 @@ func (tc *AuthControllerTestCtx) ValidateAuthSystemInitialization(t *testing.T) 
 func (tc *AuthControllerTestCtx) ValidateAddingGroups(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, Tier1)
+
 	testAdminGroup := "aTestAdminGroup"
 	testAllowedGroup := "aTestAllowedGroup"
 
@@ -146,6 +150,8 @@ func (tc *AuthControllerTestCtx) ValidateAddingGroups(t *testing.T) {
 // ValidateRemovingGroups removes groups from Auth CR and validates the changes.
 func (tc *AuthControllerTestCtx) ValidateRemovingGroups(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, Tier1)
 
 	// Get the expected admin group for the current platform
 	expectedGroup := tc.getExpectedAdminGroupForPlatform()
@@ -176,6 +182,8 @@ func (tc *AuthControllerTestCtx) ValidateRemovingGroups(t *testing.T) {
 // CEL validation by attempting to update the existing Auth resource with invalid values.
 func (tc *AuthControllerTestCtx) ValidateCELBlocksInvalidGroupsViaUpdate(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, Tier1)
 
 	// Test cases for different invalid update scenarios
 	testCases := []struct {
@@ -220,6 +228,8 @@ func (tc *AuthControllerTestCtx) ValidateCELBlocksInvalidGroupsViaUpdate(t *test
 // Since Auth resources must be named "auth", we test by updating the existing resource.
 func (tc *AuthControllerTestCtx) ValidateCELAllowsValidGroups(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, Tier1)
 
 	testCases := []struct {
 		name        string
@@ -301,10 +311,11 @@ func (tc *AuthControllerTestCtx) validateRBACResource(groupVersionKind schema.Gr
 	}
 
 	// Default options for basic existence validation
-	defaultOpts := []ResourceOpts{
+	defaultOpts := make([]ResourceOpts, 0, 2+len(opts))
+	defaultOpts = append(defaultOpts,
 		WithMinimalObject(groupVersionKind, nn),
 		WithCustomErrorMsg("Expected %s %s to be created as part of Auth system initialization", groupVersionKind.Kind, name),
-	}
+	)
 
 	// Merge with provided options (provided options override defaults)
 	defaultOpts = append(defaultOpts, opts...)

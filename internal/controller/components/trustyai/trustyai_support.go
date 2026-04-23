@@ -6,7 +6,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 const (
@@ -29,7 +28,10 @@ var (
 		"guardrails-orchestrator-image":      "RELATED_IMAGE_ODH_FMS_GUARDRAILS_ORCHESTRATOR_IMAGE",
 		"guardrails-sidecar-gateway-image":   "RELATED_IMAGE_ODH_TRUSTYAI_VLLM_ORCHESTRATOR_GATEWAY_IMAGE",
 		"guardrails-built-in-detector-image": "RELATED_IMAGE_ODH_BUILT_IN_DETECTOR_IMAGE",
-		"ragas-provider-image":               "RELATED_IMAGE_ODH_TRUSTYAI_RAGAS_LLS_PROVIDER_DSP_IMAGE",
+		"ragas-provider-image":               "RELATED_IMAGE_ODH_PYTHON_312_IMAGE",
+		"garak-provider-image":               "RELATED_IMAGE_ODH_TRUSTYAI_GARAK_LLS_PROVIDER_DSP_IMAGE",
+		"nemo-guardrails-image":              "RELATED_IMAGE_ODH_TRUSTYAI_NEMO_GUARDRAILS_SERVER_IMAGE",
+		"evalHubImage":                       "RELATED_IMAGE_ODH_EVAL_HUB_IMAGE",
 		"kube-rbac-proxy":                    "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
 	}
 
@@ -44,10 +46,18 @@ var (
 	}
 )
 
-func manifestsPath(p common.Platform) types.ManifestInfo {
+func manifestsPath(basePath string, p common.Platform) types.ManifestInfo {
 	return types.ManifestInfo{
-		Path:       odhdeploy.DefaultManifestPath,
+		Path:       basePath,
 		ContextDir: ComponentName,
 		SourcePath: overlaysSourcePaths[p],
+	}
+}
+
+func mcpGuardrailsManifestInfo(basePath string) types.ManifestInfo {
+	return types.ManifestInfo{
+		Path:       basePath,
+		ContextDir: ComponentName,
+		SourcePath: "/overlays/mcp-guardrails",
 	}
 }

@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
+	"os"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -17,28 +19,68 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/env"
 )
 
 var (
+	ErrResourceNotFound = errors.New("resource not found")
+
 	imageParamMap = map[string]string{
 		"kserve-agent":                     "RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE",
 		"kserve-controller":                "RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE",
+		"llmisvc-controller":               "RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE",
 		"kserve-router":                    "RELATED_IMAGE_ODH_KSERVE_ROUTER_IMAGE",
 		"kserve-storage-initializer":       "RELATED_IMAGE_ODH_KSERVE_STORAGE_INITIALIZER_IMAGE",
-		"kserve-llm-d":                     "RELATED_IMAGE_RHAIIS_VLLM_CUDA_IMAGE",
+		"kserve-llm-d":                     "RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE", // Default image (Nvidia CUDA)
+		"kserve-llm-d-nvidia-cuda":         "RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE",
+		"kserve-llm-d-amd-rocm":            "RELATED_IMAGE_RHAII_VLLM_ROCM_IMAGE",
+		"kserve-llm-d-ibm-spyre":           "RELATED_IMAGE_RHAII_VLLM_SPYRE_IMAGE",
+		"kserve-llm-d-intel-gaudi":         "RELATED_IMAGE_RHAII_VLLM_GAUDI_IMAGE",
 		"kserve-llm-d-inference-scheduler": "RELATED_IMAGE_ODH_LLM_D_INFERENCE_SCHEDULER_IMAGE",
 		"kserve-llm-d-routing-sidecar":     "RELATED_IMAGE_ODH_LLM_D_ROUTING_SIDECAR_IMAGE",
 		"kube-rbac-proxy":                  "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
+		"kserve-llm-d-uds-tokenizer":       "RELATED_IMAGE_ODH_LLM_D_KV_CACHE_IMAGE",
 	}
 )
 
-func kserveManifestInfo(sourcePath string) odhtypes.ManifestInfo {
+// buildCertManagerParams returns the cert-manager configuration to inject into the
+// xKS overlay params.env. PKI resource names (issuer, CA secret, namespace) come from
+// certmanager.DefaultBootstrapConfig(), which already honors RHAI_* env var overrides.
+// ISSUER_REF_KIND and ISTIO_CA_CERTIFICATE_PATH are KServe-specific and resolved here.
+// ISTIO_CA_CERTIFICATE_PATH is only included when its env var is set.
+// NAMESPACE uses cluster.GetApplicationNamespace() for platform-aware resolution.
+func buildCertManagerParams() map[string]string {
+	bc := certmanager.DefaultBootstrapConfig()
+
+	params := map[string]string{
+		"ISSUER_REF_NAME":     bc.CAIssuerName,
+		"ISSUER_REF_KIND":     env.GetOrDefault(certmanager.EnvIssuerRefKind, certmanager.DefaultIssuerRefKind),
+		"CA_SECRET_NAME":      bc.CertName,
+		"CA_SECRET_NAMESPACE": bc.CertManagerNamespace,
+		"NAMESPACE":           cluster.GetApplicationNamespace(),
+	}
+
+	if v := os.Getenv(certmanager.EnvIstioCACertPath); v != "" {
+		params["ISTIO_CA_CERTIFICATE_PATH"] = v
+	}
+
+	return params
+}
+
+const (
+	lwsConditionDegraded                       = "Degraded"
+	lwsConditionTargetConfigControllerDegraded = "TargetConfigControllerDegraded"
+	lwsConditionAvailable                      = "Available"
+)
+
+func kserveManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
-		Path:       odhdeploy.DefaultManifestPath,
+		Path:       basePath,
 		ContextDir: componentName,
 		SourcePath: sourcePath,
 	}
@@ -47,7 +89,7 @@ func kserveManifestInfo(sourcePath string) odhtypes.ManifestInfo {
 func updateInferenceCM(inferenceServiceConfigMap *corev1.ConfigMap, isHeadless bool) error {
 	// ingress
 	// RawDeployment mode is the only supported mode, so always disable ingress creation
-	var ingressData map[string]interface{}
+	var ingressData map[string]any
 	if err := json.Unmarshal([]byte(inferenceServiceConfigMap.Data[IngressConfigKeyName]), &ingressData); err != nil {
 		return fmt.Errorf("error retrieving value for key '%s' from configmap %s. %w", IngressConfigKeyName, kserveConfigMapName, err)
 	}
@@ -59,7 +101,7 @@ func updateInferenceCM(inferenceServiceConfigMap *corev1.ConfigMap, isHeadless b
 	inferenceServiceConfigMap.Data[IngressConfigKeyName] = string(ingressDataBytes)
 
 	// service
-	var serviceData map[string]interface{}
+	var serviceData map[string]any
 	if err := json.Unmarshal([]byte(inferenceServiceConfigMap.Data[ServiceConfigKeyName]), &serviceData); err != nil {
 		return fmt.Errorf("error retrieving value for key '%s' from configmap %s. %w", ServiceConfigKeyName, kserveConfigMapName, err)
 	}
@@ -82,7 +124,7 @@ func getIndexedResource(rs []unstructured.Unstructured, obj any, g schema.GroupV
 	}
 
 	if idx == -1 {
-		return -1, fmt.Errorf("could not find %T with name %v in resources list", obj, name)
+		return -1, fmt.Errorf("could not find %T with name %v in resources list: %w", obj, name, ErrResourceNotFound)
 	}
 
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(rs[idx].Object, obj)
@@ -134,7 +176,7 @@ func getAndRemoveOwnerReferences(
 	current := resources.GvkToUnstructured(res.GroupVersionKind())
 
 	lookupErr := cli.Get(ctx, client.ObjectKeyFromObject(&res), current)
-	if errors.IsNotFound(lookupErr) {
+	if k8serr.IsNotFound(lookupErr) {
 		return nil
 	}
 	if lookupErr != nil {
@@ -166,4 +208,16 @@ func isForDependency(s string) func(u *unstructured.Unstructured) bool {
 func isKserveOwnerRef(or metav1.OwnerReference) bool {
 	return or.APIVersion == componentApi.GroupVersion.String() &&
 		or.Kind == componentApi.KserveKind
+}
+
+// lwsConditionFilter monitors LeaderWorkerSet operator conditions for degraded state.
+func lwsConditionFilter(condType, condStatus string) bool {
+	switch condType {
+	case lwsConditionDegraded, lwsConditionTargetConfigControllerDegraded:
+		return condStatus == string(metav1.ConditionTrue)
+	case lwsConditionAvailable:
+		return condStatus == string(metav1.ConditionFalse)
+	default:
+		return false
+	}
 }

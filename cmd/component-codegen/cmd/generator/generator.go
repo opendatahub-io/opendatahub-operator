@@ -10,7 +10,7 @@ const (
 	cmdDir          = "cmd/component-codegen"
 	ApisDir         = "api/components/v1alpha1"
 	Controllers     = "internal/controller/components"
-	DscTypesPath    = "api/datasciencecluster/v1/datasciencecluster_types.go"
+	DscTypesPath    = "api/datasciencecluster/v2/datasciencecluster_types.go"
 	templatesDir    = cmdDir + "/templates"
 	mainFilePath    = "cmd/main.go"
 	projectFilePath = "PROJECT"

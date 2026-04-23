@@ -51,14 +51,29 @@ type KserveCommonSpec struct {
 	RawDeploymentServiceConfig RawServiceConfig `json:"rawDeploymentServiceConfig,omitempty"`
 	// Configures and enables NVIDIA NIM integration
 	NIM NimSpec `json:"nim,omitempty"`
-	// Configures and enables Workload Variant Autoscaler (WVA) integration
-	WVA WvaSpec `json:"wva,omitempty"`
+	// Configures and enables Models as a Service integration
+	ModelsAsService DSCModelsAsServiceSpec `json:"modelsAsService,omitempty"`
+	// Configures and enables workload-variant-autoscaler (WVA) integration
+	WVA WVASpec `json:"wva,omitempty"`
 }
 
 // nimSpec enables NVIDIA NIM integration
 type NimSpec struct {
 	// +kubebuilder:validation:Enum=Managed;Removed
 	// +kubebuilder:default=Managed
+	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
+	// When true, NIM integration assumes an air-gapped cluster. External API calls
+	// and the NIM model list ConfigMap creation are skipped, while status conditions
+	// are marked successful with an air-gapped message.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	AirGapped bool `json:"airGapped,omitempty"`
+}
+
+// WVASpec enables workload-variant-autoscaler integration
+type WVASpec struct {
+	// +kubebuilder:validation:Enum=Managed;Removed
+	// +kubebuilder:default=Removed
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 }
 

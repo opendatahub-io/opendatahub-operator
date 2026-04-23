@@ -53,21 +53,71 @@ type DashboardHardwareProfileList struct {
 	Items []DashboardHardwareProfile `json:"items"`
 }
 
-func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	rr.Manifests = []odhtypes.ManifestInfo{defaultManifestInfo(rr.Release.Name)}
+func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { //nolint:unparam
+	rr.Manifests = []odhtypes.ManifestInfo{defaultManifestInfo(rr.ManifestsBasePath, rr.Release.Name)}
 
 	return nil
 }
 
-func setKustomizedParams(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	extraParamsMap, err := computeKustomizeVariable(ctx, rr.Client, rr.Release.Name)
+func deployObservabilityManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	// Check if PersesDashboard CRD exists in either v1alpha2 or v1alpha1 (COO installed)
+	v2Exists, err := cluster.HasCRD(ctx, rr.Client, gvk.PersesDashboardV1Alpha2)
 	if err != nil {
-		return errors.New("failed to set variable for url, section-title etc")
+		return odherrors.NewStopError("failed to check if %s CRD exists: %w", gvk.PersesDashboardV1Alpha2, err)
+	}
+	if !v2Exists {
+		v1Exists, err := cluster.HasCRD(ctx, rr.Client, gvk.PersesDashboardV1Alpha1)
+		if err != nil {
+			return odherrors.NewStopError("failed to check if %s CRD exists: %w", gvk.PersesDashboardV1Alpha1, err)
+		}
+		if !v1Exists {
+			return nil
+		}
+	}
+
+	// Get the monitoring namespace from DSCI with platform-specific fallback
+	monitoringNamespace, err := cluster.MonitoringNamespace(ctx, rr.Client)
+	if err != nil {
+		if rr.Release.Name == cluster.OpenDataHub {
+			monitoringNamespace = cluster.DefaultMonitoringNamespaceODH
+		} else {
+			monitoringNamespace = cluster.DefaultMonitoringNamespaceRHOAI
+		}
+	}
+
+	// Safety check: do not deploy if monitoring namespace is empty
+	if monitoringNamespace == "" {
+		return nil
+	}
+
+	manifestPath := observabilityManifestInfo(rr.ManifestsBasePath, rr.Release.Name).String()
+
+	err = odhdeploy.DeployManifestsFromPath(
+		ctx,
+		rr.Client,
+		rr.Instance, // owner for GC
+		manifestPath,
+		monitoringNamespace, // deploy to monitoring namespace
+		ComponentName,       // "dashboard"
+		true,                // enabled
+	)
+	if err != nil {
+		return fmt.Errorf("failed to deploy observability manifests: %w", err)
+	}
+
+	return nil
+}
+
+func setKustomizedParams(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+	extraParamsMap, err := computeKustomizeVariable(rr, rr.Release.Name)
+	if err != nil {
+		return fmt.Errorf("failed to set variable for url, section-title etc: %w", err)
 	}
 
 	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), "params.env", nil, extraParamsMap); err != nil {
 		return fmt.Errorf("failed to update params.env from %s : %w", rr.Manifests[0].String(), err)
 	}
+
 	return nil
 }
 

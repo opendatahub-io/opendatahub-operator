@@ -9,6 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -38,7 +39,9 @@ const (
 	KueueConfigMapName  = "kueue-manager-config"
 	KueueConfigMapEntry = "controller_manager_config.yaml"
 
-	NSListLimit = 500
+	kueueConditionDegraded             = "Degraded"
+	kueueConditionAvailable            = "Available"
+	kueueConditionCertManagerAvailable = "CertManagerAvailable"
 
 	// GPU resource keys.
 	NvidiaGPUResourceKey = "nvidia.com/gpu"
@@ -52,6 +55,7 @@ const (
 var (
 	conditionTypes = []string{
 		status.ConditionDeploymentsAvailable,
+		status.ConditionDependenciesAvailable,
 	}
 
 	supportedGPUMap = map[string]string{
@@ -65,13 +69,13 @@ func getManagedNamespaces(ctx context.Context, c client.Client) ([]corev1.Namesp
 	var uniqueNamespaces = make(map[string]corev1.Namespace)
 
 	// Add all namespaces with management label.
-	if err := collectNamespacesWithPagination(ctx, c, uniqueNamespaces, client.MatchingLabels{
+	if err := collectNamespaces(ctx, c, uniqueNamespaces, client.MatchingLabels{
 		cluster.KueueManagedLabelKey: "true",
 	}); err != nil {
 		return nil, err
 	}
 	// Add namespaces with legacy management label.
-	if err := collectNamespacesWithPagination(ctx, c, uniqueNamespaces, client.MatchingLabels{
+	if err := collectNamespaces(ctx, c, uniqueNamespaces, client.MatchingLabels{
 		cluster.KueueLegacyManagedLabelKey: "true",
 	}); err != nil {
 		return nil, err
@@ -85,27 +89,16 @@ func getManagedNamespaces(ctx context.Context, c client.Client) ([]corev1.Namesp
 	return managedNamespacesList, nil
 }
 
-func collectNamespacesWithPagination(ctx context.Context, c client.Client, namespaceSet map[string]corev1.Namespace, opts ...client.ListOption) error {
-	lo := client.ListOptions{
-		Limit: NSListLimit,
+// Since the namespace resource use cache, we don't need to use pagination.
+func collectNamespaces(ctx context.Context, c client.Client, namespaceSet map[string]corev1.Namespace, opts ...client.ListOption) error {
+	// Listing namespaces with management label
+	namespaces := &corev1.NamespaceList{}
+	if err := c.List(ctx, namespaces, opts...); err != nil {
+		return fmt.Errorf("failed to list namespaces: %w", err)
 	}
-	opts = append(opts, &lo)
-	for {
-		// Listing namespaces with management label
-		namespaces := &corev1.NamespaceList{}
-		if err := c.List(ctx, namespaces, opts...); err != nil {
-			return fmt.Errorf("failed to list namespaces with label %s: %w", cluster.KueueManagedLabelKey+"=true", err)
-		}
 
-		for _, ns := range namespaces.Items {
-			namespaceSet[ns.Name] = ns
-		}
-
-		if namespaces.Continue == "" {
-			break
-		}
-
-		lo.Continue = namespaces.Continue
+	for _, ns := range namespaces.Items {
+		namespaceSet[ns.Name] = ns
 	}
 	return nil
 }
@@ -146,7 +139,7 @@ type Flavors struct {
 	Resources []FlavorResource
 }
 
-func createResourceGroup(flavors []Flavors) map[string]interface{} {
+func createResourceGroup(flavors []Flavors) map[string]any {
 	resourceMap := make(map[string]any)
 	groupFlavors := make([]any, 0, len(flavors))
 
@@ -184,19 +177,17 @@ func createResourceGroup(flavors []Flavors) map[string]interface{} {
 func createDefaultClusterQueue(name string, clusterInfo ClusterResourceInfo) *unstructured.Unstructured {
 	clusterQueue := &unstructured.Unstructured{}
 
-	resourceGroups := []any{
-		createResourceGroup([]Flavors{
-			{
-				Name: DefaultFlavorName,
-				Resources: []FlavorResource{
-					{Name: "cpu", Value: clusterInfo.CPU.Allocatable.String()},
-					{Name: "memory", Value: clusterInfo.Memory.Allocatable.String()},
-				},
-			},
-		}),
-	}
-
 	clusterGPU := slices.Sorted(maps.Keys(clusterInfo.GPUInfo))
+	resourceGroups := make([]any, 0, 1+len(clusterGPU))
+	resourceGroups = append(resourceGroups, createResourceGroup([]Flavors{
+		{
+			Name: DefaultFlavorName,
+			Resources: []FlavorResource{
+				{Name: "cpu", Value: clusterInfo.CPU.Allocatable.String()},
+				{Name: "memory", Value: clusterInfo.Memory.Allocatable.String()},
+			},
+		},
+	}))
 	for _, label := range clusterGPU {
 		gpuInfo := clusterInfo.GPUInfo[label]
 		resourceGroups = append(resourceGroups, createResourceGroup([]Flavors{
@@ -209,18 +200,18 @@ func createDefaultClusterQueue(name string, clusterInfo ClusterResourceInfo) *un
 		}))
 	}
 
-	clusterQueue.Object = map[string]interface{}{
+	clusterQueue.Object = map[string]any{
 		"apiVersion": gvk.ClusterQueue.GroupVersion().String(),
 		"kind":       gvk.ClusterQueue.Kind,
-		"metadata": map[string]interface{}{
+		"metadata": map[string]any{
 			"name": name,
-			"annotations": map[string]interface{}{
+			"annotations": map[string]any{
 				annotations.ManagedByODHOperator: "false",
 			},
 		},
-		"spec": map[string]interface{}{
-			"namespaceSelector": map[string]interface{}{
-				"matchLabels": map[string]interface{}{
+		"spec": map[string]any{
+			"namespaceSelector": map[string]any{
+				"matchLabels": map[string]any{
 					cluster.KueueManagedLabelKey: "true",
 				},
 			},
@@ -234,17 +225,17 @@ func createDefaultClusterQueue(name string, clusterInfo ClusterResourceInfo) *un
 func createDefaultLocalQueue(name string, clusterQueueName string, namespace string) *unstructured.Unstructured {
 	localQueue := &unstructured.Unstructured{}
 
-	localQueue.Object = map[string]interface{}{
+	localQueue.Object = map[string]any{
 		"apiVersion": gvk.LocalQueue.GroupVersion().String(),
 		"kind":       gvk.LocalQueue.Kind,
-		"metadata": map[string]interface{}{
+		"metadata": map[string]any{
 			"name":      name,
 			"namespace": namespace,
-			"annotations": map[string]interface{}{
+			"annotations": map[string]any{
 				annotations.ManagedByODHOperator: "false",
 			},
 		},
-		"spec": map[string]interface{}{
+		"spec": map[string]any{
 			"clusterQueue": clusterQueueName,
 		},
 	}
@@ -253,7 +244,7 @@ func createDefaultLocalQueue(name string, clusterQueueName string, namespace str
 }
 
 func createDefaultResourceFlavors(clusterInfo ClusterResourceInfo) []unstructured.Unstructured {
-	resourceFlavors := []unstructured.Unstructured{}
+	resourceFlavors := make([]unstructured.Unstructured, 0, 1+len(clusterInfo.GPUInfo))
 
 	resourceFlavors = append(resourceFlavors, unstructured.Unstructured{
 		Object: map[string]any{
@@ -339,4 +330,17 @@ func getClusterResourceInfo(ctx context.Context, c client.Client) (ClusterResour
 	}
 
 	return info, nil
+}
+
+// kueueDegradedConditionFilter is used to filter condition that represent a degraded state in
+// the Kueue external operator.
+func kueueDegradedConditionFilter(condType, condStatus string) bool {
+	switch condType {
+	case kueueConditionDegraded:
+		return condStatus == string(metav1.ConditionTrue)
+	case kueueConditionAvailable, kueueConditionCertManagerAvailable:
+		return condStatus == string(metav1.ConditionFalse)
+	default:
+		return false
+	}
 }

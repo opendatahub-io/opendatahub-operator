@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: redhat-ods-operator
+
+resources:
+- ../../crd
+- ../certmanager
+# TODO: here we should use specific rhaii only RBAC rules
+- ../../../rhoai/rbac
+- ../../../rhoai/manager
+
+patches:
+- path: manager_patch.yaml
+- path: manager_auth_proxy_patch.yaml
+- path: manager_webhook_patch.yaml

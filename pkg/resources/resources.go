@@ -8,13 +8,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"slices"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/hashicorp/go-multierror"
 	routev1 "github.com/openshift/api/route/v1"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -23,9 +26,24 @@ import (
 	"k8s.io/client-go/discovery"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 )
 
 const PlatformFieldOwner = "platform.opendatahub.io"
+
+// ResourceSpec defines a specification for identifying and filtering Kubernetes resources
+// based on their GroupVersionKind, namespace, and field values.
+type ResourceSpec struct {
+	Gvk       schema.GroupVersionKind
+	Namespace string
+	// FieldPath specifies the path to the field for filtering, like ["metadata", "name"]
+	FieldPath []string
+	// FilterValues contains the values to match against the field - if the field value
+	// matches any of these values, the resource will be processed (e.g., deleted)
+	FilterValues []string
+}
 
 func ToUnstructured(obj any) (*unstructured.Unstructured, error) {
 	data, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
@@ -88,7 +106,7 @@ func Decode(decoder runtime.Decoder, content []byte) ([]unstructured.Unstructure
 	yd := yaml.NewDecoder(r)
 
 	for {
-		var out map[string]interface{}
+		var out map[string]any
 
 		err := yd.Decode(&out)
 		if err != nil {
@@ -175,9 +193,7 @@ func SetLabels(obj client.Object, values map[string]string) {
 		target = make(map[string]string)
 	}
 
-	for k, v := range values {
-		target[k] = v
-	}
+	maps.Copy(target, values)
 
 	obj.SetLabels(target)
 }
@@ -240,9 +256,7 @@ func SetAnnotations(obj client.Object, values map[string]string) {
 		target = make(map[string]string)
 	}
 
-	for k, v := range values {
-		target[k] = v
-	}
+	maps.Copy(target, values)
 
 	obj.SetAnnotations(target)
 }
@@ -506,11 +520,11 @@ func GvkToPartial(gvk schema.GroupVersionKind) *metav1.PartialObjectMetadata {
 //   - ctx: The context for the client operation
 //   - cli: The Kubernetes client interface used to perform the patch operation
 //   - in: The Kubernetes object to be applied
-//   - opts: Optional client patch options
+//   - opts: Optional client apply options
 //
 // Returns:
 //   - error: nil on success, or an error with context if the operation fails
-func Apply(ctx context.Context, cli client.Client, in client.Object, opts ...client.PatchOption) error {
+func Apply(ctx context.Context, cli client.Client, in client.Object, opts ...client.ApplyOption) error {
 	err := EnsureGroupVersionKind(cli.Scheme(), in)
 	if err != nil {
 		return fmt.Errorf("failed to ensure GVK: %w", err)
@@ -529,7 +543,7 @@ func Apply(ctx context.Context, cli client.Client, in client.Object, opts ...cli
 	unstructured.RemoveNestedField(u.Object, "metadata", "resourceVersion")
 	unstructured.RemoveNestedField(u.Object, "status")
 
-	err = cli.Patch(ctx, u, client.Apply, opts...)
+	err = cli.Apply(ctx, client.ApplyConfigurationFromUnstructured(u), opts...)
 	if err != nil {
 		// Include GVK and namespace/name for debugging context without logging sensitive object data
 		objRef := FormatObjectReference(u)
@@ -558,11 +572,11 @@ func Apply(ctx context.Context, cli client.Client, in client.Object, opts ...cli
 //   - ctx: The context for the client operation
 //   - cli: The Kubernetes client interface used to perform the patch operation
 //   - in: The Kubernetes object whose status should be applied
-//   - opts: Optional client subresource patch options
+//   - opts: Optional client subresource apply options
 //
 // Returns:
 //   - error: nil on success, or an error with context if the operation fails
-func ApplyStatus(ctx context.Context, cli client.Client, in client.Object, opts ...client.SubResourcePatchOption) error {
+func ApplyStatus(ctx context.Context, cli client.Client, in client.Object, opts ...client.SubResourceApplyOption) error {
 	err := EnsureGroupVersionKind(cli.Scheme(), in)
 	if err != nil {
 		return fmt.Errorf("failed to ensure GVK: %w", err)
@@ -580,7 +594,7 @@ func ApplyStatus(ctx context.Context, cli client.Client, in client.Object, opts 
 	unstructured.RemoveNestedField(u.Object, "metadata", "managedFields")
 	unstructured.RemoveNestedField(u.Object, "metadata", "resourceVersion")
 
-	err = cli.Status().Patch(ctx, u, client.Apply, opts...)
+	err = cli.Status().Apply(ctx, client.ApplyConfigurationFromUnstructured(u), opts...)
 	switch {
 	case k8serr.IsNotFound(err): // Cannot be removed like in Apply func because reconciler_finalizer_test.go would then throw an error, needs extensive test rewrite
 		return nil
@@ -630,4 +644,124 @@ func ListAvailableAPIResources(
 	}
 
 	return items, nil
+}
+
+// DeleteResources iterates through a list of ResourceSpec and deletes matching Kubernetes resources.
+// It collects all errors encountered during deletion and returns them as a multierror.
+//
+// Parameters:
+//   - ctx: The context for the operation
+//   - c: The Kubernetes client used to list and delete resources
+//   - resources: A slice of ResourceSpec defining which resources to delete
+//
+// Returns:
+//   - error: A multierror containing all errors encountered, or nil if all deletions succeeded
+func DeleteResources(ctx context.Context, c client.Client, resources []ResourceSpec) error {
+	var errors *multierror.Error
+
+	for _, res := range resources {
+		err := DeleteOneResource(ctx, c, res)
+		errors = multierror.Append(errors, err)
+	}
+
+	return errors.ErrorOrNil()
+}
+
+// DeleteOneResource deletes all Kubernetes resources matching the given ResourceSpec.
+// It lists resources of the specified GVK in the given namespace, filters them based on
+// the field path and values, and deletes matching resources.
+//
+// Parameters:
+//   - ctx: The context for the operation
+//   - c: The Kubernetes client used to list and delete resources
+//   - res: The ResourceSpec defining which resources to delete
+//
+// Returns:
+//   - error: An error if the operation fails, or nil on success
+func DeleteOneResource(ctx context.Context, c client.Client, res ResourceSpec) error {
+	log := logf.FromContext(ctx)
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(res.Gvk)
+
+	err := c.List(ctx, list, client.InNamespace(res.Namespace))
+	if err != nil {
+		if meta.IsNoMatchError(err) {
+			log.Info("CRD not found, will not delete", "gvk", res.Gvk.String())
+			return nil
+		}
+		return fmt.Errorf("failed to list %s: %w", res.Gvk.Kind, err)
+	}
+
+	for _, item := range list.Items {
+		v, ok, err := unstructured.NestedString(item.Object, res.FieldPath...)
+		if err != nil {
+			return fmt.Errorf("failed to get field %v for %s %s/%s: %w", res.FieldPath, res.Gvk.Kind, res.Namespace, item.GetName(), err)
+		}
+
+		if !ok {
+			return fmt.Errorf("nonexistent field path: %v", res.FieldPath)
+		}
+
+		for _, targetValue := range res.FilterValues {
+			if v == targetValue {
+				err = c.Delete(ctx, &item)
+				if err != nil {
+					return fmt.Errorf("failed to delete %s %s/%s: %w", res.Gvk.Kind, res.Namespace, item.GetName(), err)
+				}
+				log.Info("Deleted object", "name", item.GetName(), "gvk", res.Gvk.String(), "namespace", res.Namespace)
+			}
+		}
+	}
+
+	return nil
+}
+
+// UnsetOwnerReferences removes all owner references from a Kubernetes object and updates it.
+// This is useful when you need to orphan a resource from its owner.
+//
+// Parameters:
+//   - ctx: The context for the operation
+//   - cli: The Kubernetes client used to update the resource
+//   - instanceName: The name of the instance (used for error reporting)
+//   - odhObject: The unstructured object whose owner references should be removed
+//
+// Returns:
+//   - error: An error if the update operation fails, or nil if there are no owner references or update succeeds
+func UnsetOwnerReferences(ctx context.Context, cli client.Client, instanceName string, odhObject *unstructured.Unstructured) error {
+	if odhObject.GetOwnerReferences() != nil {
+		// set to nil as updates
+		odhObject.SetOwnerReferences(nil)
+		if err := cli.Update(ctx, odhObject); err != nil {
+			return fmt.Errorf("error unset ownerreference for CR %s : %w", instanceName, err)
+		}
+	}
+	return nil
+}
+
+// GetGatewayDomain retrieves the gateway domain from GatewayConfig.Status.Domain.
+// This is used by the DSC controller to sync the domain to component specs.
+//
+// Parameters:
+//   - ctx: The context for the operation
+//   - cli: The Kubernetes client
+//
+// Returns:
+//   - string: The gateway domain from GatewayConfig.Status.Domain
+//   - error: An error if the GatewayConfig doesn't exist or domain is empty
+func GetGatewayDomain(ctx context.Context, cli client.Client) (string, error) {
+	gatewayConfig := &serviceApi.GatewayConfig{}
+	gatewayConfig.SetName(serviceApi.GatewayConfigName)
+
+	if err := cli.Get(ctx, client.ObjectKeyFromObject(gatewayConfig), gatewayConfig); err != nil {
+		if k8serr.IsNotFound(err) {
+			return "", errors.New("GatewayConfig not found")
+		}
+		return "", fmt.Errorf("failed to get GatewayConfig: %w", err)
+	}
+
+	if gatewayConfig.Status.Domain == "" {
+		return "", errors.New("GatewayConfig.Status.Domain is empty")
+	}
+
+	return gatewayConfig.Status.Domain, nil
 }

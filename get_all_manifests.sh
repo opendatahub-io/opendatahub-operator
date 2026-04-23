@@ -3,29 +3,102 @@ set -e
 
 GITHUB_URL="https://github.com"
 DST_MANIFESTS_DIR="./opt/manifests"
+DST_CHARTS_DIR="./opt/charts"
 
-# COMPONENT_MANIFESTS is a list of components repositories info to fetch the manifests
+# {ODH,RHOAI}_COMPONENT_MANIFESTS are lists of components repositories info to fetch the manifests
 # in the format of "repo-org:repo-name:ref-name:source-folder" and key is the target folder under manifests/
 # ref-name can be a branch name, tag name, or a commit SHA (7-40 hex characters)
-# Supports three ref-name formats:
+# ref-name supports:
 # 1. "branch" - tracks latest commit on branch (e.g., main)
 # 2. "tag" - immutable reference (e.g., v1.0.0)
 # 3. "branch@commit-sha" - tracks branch but pinned to specific commit (e.g., main@a1b2c3d4)
-declare -A COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:main@40edc4b121e9d62a0bdb478105a6678f8ce2e3f5:manifests"
-    ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@40da0d22ed6356961aef3bd640c1be83e10734ab:components/notebook-controller/config"
-    ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@40da0d22ed6356961aef3bd640c1be83e10734ab:components/odh-notebook-controller/config"
-    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@603bf2ff71ed371247c76cba6bd6db4778b1d13a:manifests"
-    ["kserve"]="opendatahub-io:kserve:release-v0.15@e585d3953efb855fb60737e0ec52f5a129f55ce1:config"
-    ["ray"]="opendatahub-io:kuberay:dev@be7bbfc611040115299cd58631140b6d9f0712c1:ray-operator/config"
-    ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@c0d153c22f3a2916fe52aa5819bb754937bae34a:config"
-    ["modelregistry"]="opendatahub-io:model-registry-operator:main@5ba49bfd29aa65f89a4e1eed9adb11e415b63313:config"
-    ["trainingoperator"]="opendatahub-io:training-operator:dev@fc212b8db7fde82f12e801e6778961097899e88d:manifests"
-    ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@324ddef9c98d74865a98ceb1a9470f1fdc7d1240:config"
-    ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@4859b3de43e0c1ed812dc1451323269f9b44c3e2:config"
-    ["feastoperator"]="opendatahub-io:feast:stable@3c6fd777b7d5c9de4f7949ee7b9ee7f829dc8528:infra/feast-operator/config"
-    ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@226e911cca9bf7efa1e632860613087b0bf14d74:config"
+
+# ODH Component Manifests
+declare -A ODH_COMPONENT_MANIFESTS=(
+    ["dashboard"]="opendatahub-io:odh-dashboard:main@9944e2921fe3ae773b0c77c1cff1f76bcc2df221:manifests"
+    ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@b0575069e6179f6897bd649b64346f04e316efa1:components/notebook-controller/config"
+    ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@b0575069e6179f6897bd649b64346f04e316efa1:components/odh-notebook-controller/config"
+    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@7813462a8a3e363e20535291d3ee4e8807f9063e:manifests"
+    ["kserve"]="opendatahub-io:kserve:release-v0.17@4d67d34122aa18a006d6e162c2cf19c42a7562d6:config"
+    ["ray"]="opendatahub-io:kuberay:dev@0384218c547fd988a8427bbe15247a45d04b794c:ray-operator/config"
+    ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@c6b2f1cd3a78fd2e8f71536614768ba099ce8b26:config"
+    ["modelregistry"]="opendatahub-io:model-registry-operator:main@e9656e897c6afdaabe5a2ff60b58d5d156786b0f:config"
+    ["trainingoperator"]="opendatahub-io:training-operator:stable@28a60bd79b9dbbb39cd674d3660fa27ab1b42bdb:manifests"
+    ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@2817bdf9613754dac1961dffa738007de3b398da:config"
+    ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@0c3ee6142e9310cf4015a3159c848f0c24225547:config"
+    ["feastoperator"]="opendatahub-io:feast:stable@d7733ac6ab59274f07c8d583e48f1b08636f8997:infra/feast-operator/config"
+    ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@ba8020a4fc5b6ac86e14aea251992ee2ccdde5ef:config"
+    ["trainer"]="opendatahub-io:trainer:stable@e01525ef2e93fedf34b1313c2d76a4849885a3df:manifests"
+    ["maas"]="opendatahub-io:models-as-a-service:stable@fb75981d44b75009bd9592cf4ef3d7eca7fa08b8:deployment"
+    ["mlflowoperator"]="opendatahub-io:mlflow-operator:main@79aa367028d776986d2f40b3aec94b252ff8d718:config"
+    ["sparkoperator"]="opendatahub-io:spark-operator:main@924ba83b1c4a963748d5e192fbec09a4340990cd:config"
+    ["wva"]="opendatahub-io:workload-variant-autoscaler:main@7cb1465b00cda0b800c3b252dd6f2a1cfcd2453a:config"
 )
+
+# RHOAI Component Manifests
+declare -A RHOAI_COMPONENT_MANIFESTS=(
+    ["dashboard"]="red-hat-data-services:odh-dashboard:rhoai-3.4@91d0620c9839db912b97164e863c0a4248084ee3:manifests"
+    ["workbenches/kf-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.4@41652af3581ecf948e3bce05aca19d90d3eb0ad8:components/notebook-controller/config"
+    ["workbenches/odh-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.4@41652af3581ecf948e3bce05aca19d90d3eb0ad8:components/odh-notebook-controller/config"
+    ["workbenches/notebooks"]="red-hat-data-services:notebooks:rhoai-3.4@bf50833f85f5bab09030cd4d0bd92da49f617d61:manifests"
+    ["kserve"]="red-hat-data-services:kserve:rhoai-3.4@51736b10a3f739c6d0d58e5eb37b5af267bc0b99:config"
+    ["ray"]="red-hat-data-services:kuberay:rhoai-3.4@b825f4adfc0a1cb122ce320228baceace2f1a2fa:ray-operator/config"
+    ["trustyai"]="red-hat-data-services:trustyai-service-operator:rhoai-3.4@2e913a65396fc67424e05fa4ccb03da608242eac:config"
+    ["modelregistry"]="red-hat-data-services:model-registry-operator:rhoai-3.4@015062c882a964d488f7c3151fac9a30b31623f5:config"
+    ["trainingoperator"]="red-hat-data-services:training-operator:rhoai-3.4@8d2e0bf502fcffa22545201339baf5bce96c8a63:manifests"
+    ["datasciencepipelines"]="red-hat-data-services:data-science-pipelines-operator:rhoai-3.4@b90290f65f67cb508a12d0e579e35776d89a4d48:config"
+    ["modelcontroller"]="red-hat-data-services:odh-model-controller:rhoai-3.4@421e05bd40489d010329946e9924bcd273209489:config"
+    ["feastoperator"]="red-hat-data-services:feast:rhoai-3.4@2f2ede6ec09bc7431e554eb3861e265d31458eec:infra/feast-operator/config"
+    ["llamastackoperator"]="red-hat-data-services:llama-stack-k8s-operator:rhoai-3.4@8cc0a4f19368988eeaf34702b2ddf1c771505661:config"
+    ["trainer"]="red-hat-data-services:trainer:rhoai-3.4@f5d41a3679067f707ab62e0ba442fd677903eb6a:manifests"
+    ["maas"]="red-hat-data-services:maas-billing:rhoai-3.4@cd60141fc66e2d2d651cb10ae3fc8066a01ff25d:deployment"
+    ["mlflowoperator"]="red-hat-data-services:mlflow-operator:rhoai-3.4@45ad3d560ce1e241733e55614d157f53c7cbeacc:config"
+    ["sparkoperator"]="red-hat-data-services:spark-operator:rhoai-3.4@8ecee53b4752854eeff7456ddaf9a81251147ca4:config"
+    ["wva"]="red-hat-data-services:workload-variant-autoscaler:rhoai-3.4@64c104fc254e32fb7af16a00008c61b61d0a7e56:config"
+)
+
+# {ODH,RHOAI}_COMPONENT_CHARTS are lists of chart repositories info to fetch helm charts
+# in the same format as manifests: "repo-org:repo-name:ref-name:source-folder"
+# key is the target folder under charts/
+
+# ODH Component Charts
+declare -A ODH_COMPONENT_CHARTS=(
+    ["cert-manager-operator"]="opendatahub-io:odh-gitops:main@1a55af06b8fe85c8ed63b1eff680477d9bf86be3:charts/dependencies/cert-manager-operator"
+    ["lws-operator"]="opendatahub-io:odh-gitops:main@1a55af06b8fe85c8ed63b1eff680477d9bf86be3:charts/dependencies/lws-operator"
+    ["sail-operator"]="opendatahub-io:odh-gitops:main@1a55af06b8fe85c8ed63b1eff680477d9bf86be3:charts/dependencies/sail-operator"
+    ["gateway-api"]="opendatahub-io:odh-gitops:main@1a55af06b8fe85c8ed63b1eff680477d9bf86be3:charts/dependencies/gateway-api"
+)
+
+# RHOAI Component Charts
+declare -A RHOAI_COMPONENT_CHARTS=(
+    ["cert-manager-operator"]="red-hat-data-services:odh-gitops:rhoai-3.4@eaeef9830e88ff9a6f588d4b1cb38efd3cb54cc2:charts/dependencies/cert-manager-operator"
+    ["lws-operator"]="red-hat-data-services:odh-gitops:rhoai-3.4@eaeef9830e88ff9a6f588d4b1cb38efd3cb54cc2:charts/dependencies/lws-operator"
+    ["sail-operator"]="red-hat-data-services:odh-gitops:rhoai-3.4@eaeef9830e88ff9a6f588d4b1cb38efd3cb54cc2:charts/dependencies/sail-operator"
+    ["gateway-api"]="red-hat-data-services:odh-gitops:rhoai-3.4@eaeef9830e88ff9a6f588d4b1cb38efd3cb54cc2:charts/dependencies/gateway-api"
+)
+
+# Select the appropriate manifest based on platform type
+if [ "${ODH_PLATFORM_TYPE:-OpenDataHub}" = "OpenDataHub" ]; then
+    echo "Cloning manifests and charts for ODH"
+    declare -A COMPONENT_MANIFESTS=()
+    for key in "${!ODH_COMPONENT_MANIFESTS[@]}"; do
+        COMPONENT_MANIFESTS["$key"]="${ODH_COMPONENT_MANIFESTS[$key]}"
+    done
+    declare -A COMPONENT_CHARTS=()
+    for key in "${!ODH_COMPONENT_CHARTS[@]}"; do
+        COMPONENT_CHARTS["$key"]="${ODH_COMPONENT_CHARTS[$key]}"
+    done
+else
+    echo "Cloning manifests and charts for RHOAI"
+    declare -A COMPONENT_MANIFESTS=()
+    for key in "${!RHOAI_COMPONENT_MANIFESTS[@]}"; do
+        COMPONENT_MANIFESTS["$key"]="${RHOAI_COMPONENT_MANIFESTS[$key]}"
+    done
+    declare -A COMPONENT_CHARTS=()
+    for key in "${!RHOAI_COMPONENT_CHARTS[@]}"; do
+        COMPONENT_CHARTS["$key"]="${RHOAI_COMPONENT_CHARTS[$key]}"
+    done
+fi
 
 # PLATFORM_MANIFESTS is a list of manifests that are contained in the operator repository. Please also add them to the
 # Dockerfile COPY instructions. Declaring them here causes this script to create a symlink in the manifests folder, so
@@ -131,9 +204,10 @@ function git_fetch_ref()
     popd &>/dev/null
 }
 
-download_manifest() {
+download_repo_content() {
     local key=$1
     local repo_info=$2
+    local dst_dir=$3
     echo -e "\033[32mCloning repo \033[33m${key}\033[32m:\033[0m ${repo_info}"
     IFS=':' read -r -a repo_info <<< "${repo_info}"
 
@@ -144,12 +218,12 @@ download_manifest() {
     target_path="${key}"
 
     repo_url="${GITHUB_URL}/${repo_org}/${repo_name}"
-    repo_dir=${TMP_DIR}/${key}
+    repo_dir="${TMP_DIR}/${dst_dir}/${key}"
 
-    if [[ -v USE_LOCAL ]] && [[ -e ../${repo_name} ]]; then
+    if [[ "${USE_LOCAL}" == "true" ]] && [[ -e ../${repo_name} ]]; then
         echo "copying from adjacent checkout ..."
-        mkdir -p ${DST_MANIFESTS_DIR}/${target_path}
-        cp -rf "../${repo_name}/${source_path}"/* ${DST_MANIFESTS_DIR}/${target_path}
+        mkdir -p "${dst_dir}/${target_path}"
+        cp -rf "../${repo_name}/${source_path}"/* "${dst_dir}/${target_path}"
         return
     fi
 
@@ -158,8 +232,16 @@ download_manifest() {
         return 1
     fi
 
-    mkdir -p ${DST_MANIFESTS_DIR}/${target_path}
-    cp -rf ${repo_dir}/${source_path}/* ${DST_MANIFESTS_DIR}/${target_path}
+    mkdir -p "${dst_dir}/${target_path}"
+    cp -rf "${repo_dir}/${source_path}"/* "${dst_dir}/${target_path}"
+}
+
+download_manifest() {
+    download_repo_content "$1" "$2" "${DST_MANIFESTS_DIR}"
+}
+
+download_chart() {
+    download_repo_content "$1" "$2" "${DST_CHARTS_DIR}"
 }
 
 # Track background job PIDs +declare -a pids=()
@@ -178,6 +260,24 @@ done
 if [ $failed -eq 1 ]; then
     echo "One or more downloads failed"
     exit 1
+fi
+
+# Download charts in parallel
+if [ ${#COMPONENT_CHARTS[@]} -gt 0 ]; then
+    declare -a chart_pids=()
+    for key in "${!COMPONENT_CHARTS[@]}"; do
+        download_chart "$key" "${COMPONENT_CHARTS[$key]}" &
+        chart_pids+=($!)
+    done
+    for pid in "${chart_pids[@]}"; do
+        if ! wait "$pid"; then
+            failed=1
+        fi
+    done
+    if [ $failed -eq 1 ]; then
+        echo "One or more chart downloads failed"
+        exit 1
+    fi
 fi
 
 for key in "${!PLATFORM_MANIFESTS[@]}"; do

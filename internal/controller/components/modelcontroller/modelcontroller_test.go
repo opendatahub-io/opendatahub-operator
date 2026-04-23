@@ -2,6 +2,7 @@
 package modelcontroller
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -12,6 +13,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kserve"
+	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
@@ -20,13 +23,17 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
-	// side import for component registry.
-	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kserve"
-
 	. "github.com/onsi/gomega"
 )
 
+func setupTest(_ testing.TB) {
+	// This is needed because modelcontroller is enabled only if kserv is enabled,
+	// and for that at least kserve must be present in the components registry.
+	cr.Add(kserve.NewHandler())
+}
+
 func TestGetName(t *testing.T) {
+	setupTest(t)
 	g := NewWithT(t)
 	handler := &componentHandler{}
 
@@ -35,6 +42,7 @@ func TestGetName(t *testing.T) {
 }
 
 func TestNewCRObject(t *testing.T) {
+	setupTest(t)
 	handler := &componentHandler{}
 
 	tests := []struct {
@@ -76,7 +84,8 @@ func TestNewCRObject(t *testing.T) {
 			g := NewWithT(t)
 			dsc := createDSCWithModelController(tt.kserveState, tt.modelregistryState)
 
-			cr := handler.NewCRObject(dsc)
+			cr, err := handler.NewCRObject(context.Background(), nil, dsc)
+			g.Expect(err).To(Succeed())
 			g.Expect(cr).ShouldNot(BeNil())
 			g.Expect(cr).Should(BeAssignableToTypeOf(&componentApi.ModelController{}))
 
@@ -93,6 +102,7 @@ func TestNewCRObject(t *testing.T) {
 }
 
 func TestIsEnabled(t *testing.T) {
+	setupTest(t)
 	handler := &componentHandler{}
 
 	tests := []struct {
@@ -132,6 +142,7 @@ func TestIsEnabled(t *testing.T) {
 }
 
 func TestUpdateDSCStatus(t *testing.T) {
+	setupTest(t)
 	handler := &componentHandler{}
 
 	t.Run("should handle enabled component with ready ModelController CR", func(t *testing.T) {
@@ -184,6 +195,35 @@ func TestUpdateDSCStatus(t *testing.T) {
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, status.NotReadyReason),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "Component is not ready"`, ReadyConditionType)),
 		))
+	})
+
+	t.Run("should return ConditionFalse when component CR has deletionTimestamp", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithModelController(operatorv1.Managed, operatorv1.Removed)
+		mc := createModelControllerCR(true)
+		now := metav1.Now()
+		mc.SetDeletionTimestamp(&now)
+		mc.SetFinalizers([]string{"test-finalizer"})
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, mc))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(cs).Should(Equal(metav1.ConditionFalse))
+
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, status.DeletingReason),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "%s"`, ReadyConditionType, status.DeletingMessage),
+		)))
 	})
 
 	t.Run("should handle disabled component", func(t *testing.T) {

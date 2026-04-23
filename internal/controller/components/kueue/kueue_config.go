@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"golang.org/x/mod/semver"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -22,18 +23,19 @@ import (
 
 var (
 	frameworkMapping = map[string]string{
-		"pod":                     "Pod",
-		"deployment":              "Deployment",
-		"statefulset":             "StatefulSet",
-		"batch/job":               "BatchJob",
-		"ray.io/rayjob":           "RayJob",
-		"ray.io/raycluster":       "RayCluster",
-		"jobset.x-k8s.io/jobset":  "JobSet",
-		"kubeflow.org/mpijob":     "MPIJob",
-		"kubeflow.org/paddlejob":  "PaddleJob",
-		"kubeflow.org/pytorchjob": "PyTorchJob",
-		"kubeflow.org/tfjob":      "TFJob",
-		"kubeflow.org/xgboostjob": "XGBoostJob",
+		"pod":                                      "Pod",
+		"deployment":                               "Deployment",
+		"statefulset":                              "StatefulSet",
+		"batch/job":                                "BatchJob",
+		"ray.io/rayjob":                            "RayJob",
+		"ray.io/raycluster":                        "RayCluster",
+		"jobset.x-k8s.io/jobset":                   "JobSet",
+		"kubeflow.org/mpijob":                      "MPIJob",
+		"kubeflow.org/paddlejob":                   "PaddleJob",
+		"kubeflow.org/pytorchjob":                  "PyTorchJob",
+		"kubeflow.org/tfjob":                       "TFJob",
+		"kubeflow.org/xgboostjob":                  "XGBoostJob",
+		"trainer.kubeflow.org/trainjob":            "TrainJob",
 		"leaderworkerset.x-k8s.io/leaderworkerset": "LeaderWorkerSet",
 	}
 )
@@ -79,11 +81,19 @@ func createKueueCR(ctx context.Context, rr *odhtypes.ReconciliationRequest) (*un
 		return nil, fmt.Errorf("failed to lookup kueue manager config: %w", err)
 	}
 
+	kueueInfo, err := cluster.OperatorExists(ctx, rr.Client, kueueOperator)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check if %s exists: %w", kueueOperator, err)
+	}
+
+	if kueueInfo == nil {
+		return nil, ErrKueueOperatorNotInstalled
+	}
 	//
 	// Conversions
 	//
 
-	integrations, err := convertIntegrations(managerConfig)
+	integrations, err := convertIntegrations(managerConfig, kueueInfo.Version)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert integrations: %w", err)
 	}
@@ -107,10 +117,10 @@ func createKueueCR(ctx context.Context, rr *odhtypes.ReconciliationRequest) (*un
 	// Spec
 	//
 
-	config := map[string]interface{}{}
+	config := map[string]any{}
 
-	obj := map[string]interface{}{
-		"spec": map[string]interface{}{
+	obj := map[string]any{
+		"spec": map[string]any{
 			"managementState": string(operatorv1.Managed),
 			"config":          config,
 		},
@@ -148,8 +158,8 @@ func createKueueCR(ctx context.Context, rr *odhtypes.ReconciliationRequest) (*un
 }
 
 // convertIntegrations converts the integrations section from ConfigMap to Kueue operator format.
-func convertIntegrations(config map[string]interface{}) (map[string]interface{}, error) {
-	integrations := map[string]interface{}{}
+func convertIntegrations(config map[string]any, kueueVersion string) (map[string]any, error) {
+	integrations := map[string]any{}
 
 	//
 	// integrations/frameworks
@@ -169,6 +179,13 @@ func convertIntegrations(config map[string]interface{}) (map[string]interface{},
 		"StatefulSet",
 	)
 
+	// Support for TrainJob was added in Kueue 1.2.0, so if the installed version
+	// of kueue is equal or greater than 1.2.0, add TrainJob to the list of frameworks.
+	versionCmp := semver.Compare(kueueVersion, "v1.2.0")
+	if versionCmp >= 0 {
+		frameworkSet.Insert("TrainJob")
+	}
+
 	for _, framework := range frameworks {
 		if converted, ok := frameworkMapping[framework]; ok {
 			frameworkSet.Insert(converted)
@@ -178,7 +195,7 @@ func convertIntegrations(config map[string]interface{}) (map[string]interface{},
 	convertedFrameworks := frameworkSet.UnsortedList()
 	if len(convertedFrameworks) > 0 {
 		slices.Sort(convertedFrameworks)
-		interfaceSlice := make([]interface{}, len(convertedFrameworks))
+		interfaceSlice := make([]any, len(convertedFrameworks))
 		for i, v := range convertedFrameworks {
 			interfaceSlice[i] = v
 		}
@@ -205,7 +222,7 @@ func convertIntegrations(config map[string]interface{}) (map[string]interface{},
 	convertedExternalFrameworks := externalFrameworksSet.UnsortedList()
 	if len(convertedExternalFrameworks) > 0 {
 		slices.Sort(convertedExternalFrameworks)
-		interfaceSlice := make([]interface{}, len(convertedExternalFrameworks))
+		interfaceSlice := make([]any, len(convertedExternalFrameworks))
 		for i, v := range convertedExternalFrameworks {
 			interfaceSlice[i] = v
 		}
@@ -223,7 +240,7 @@ func convertIntegrations(config map[string]interface{}) (map[string]interface{},
 
 	if len(labelKeys) > 0 {
 		slices.Sort(labelKeys)
-		interfaceSlice := make([]interface{}, len(labelKeys))
+		interfaceSlice := make([]any, len(labelKeys))
 		for i, v := range labelKeys {
 			interfaceSlice[i] = v
 		}
@@ -234,7 +251,7 @@ func convertIntegrations(config map[string]interface{}) (map[string]interface{},
 }
 
 // convertWorkloadManagement converts workload management configuration.
-func convertWorkloadManagement(config map[string]interface{}) (map[string]interface{}, error) {
+func convertWorkloadManagement(config map[string]any) (map[string]any, error) {
 	manageJobsWithoutQueueName, found, err := unstructured.NestedBool(config, "manageJobsWithoutQueueName")
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract manageJobsWithoutQueueName: %w", err)
@@ -244,7 +261,7 @@ func convertWorkloadManagement(config map[string]interface{}) (map[string]interf
 		return nil, nil
 	}
 
-	workloadMgmt := map[string]interface{}{
+	workloadMgmt := map[string]any{
 		"labelPolicy": "QueueName",
 	}
 
@@ -255,7 +272,7 @@ func convertWorkloadManagement(config map[string]interface{}) (map[string]interf
 	return workloadMgmt, nil
 }
 
-func convertGangScheduling(config map[string]interface{}) (map[string]interface{}, error) {
+func convertGangScheduling(config map[string]any) (map[string]any, error) {
 	waitForPodsReady, found, err := unstructured.NestedMap(config, "waitForPodsReady")
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract waitForPodsReady: %w", err)
@@ -274,13 +291,13 @@ func convertGangScheduling(config map[string]interface{}) (map[string]interface{
 		return nil, nil
 	}
 
-	gangScheduling := map[string]interface{}{
+	gangScheduling := map[string]any{
 		"policy": "None",
 	}
 
 	gangScheduling["policy"] = "ByWorkload"
 
-	byWorkload := map[string]interface{}{
+	byWorkload := map[string]any{
 		"admission": "Parallel", // Default to Parallel
 	}
 
@@ -307,7 +324,7 @@ func convertGangScheduling(config map[string]interface{}) (map[string]interface{
 	return gangScheduling, nil
 }
 
-func convertPreemption(config map[string]interface{}) (map[string]interface{}, error) {
+func convertPreemption(config map[string]any) (map[string]any, error) {
 	fairSharing, found, err := unstructured.NestedMap(config, "fairSharing")
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract fairSharing: %w", err)
@@ -316,7 +333,7 @@ func convertPreemption(config map[string]interface{}) (map[string]interface{}, e
 		return nil, nil
 	}
 
-	preemption := map[string]interface{}{
+	preemption := map[string]any{
 		"preemptionPolicy": "Classical",
 	}
 

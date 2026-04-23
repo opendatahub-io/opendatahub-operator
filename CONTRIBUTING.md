@@ -16,6 +16,29 @@ Issues are tracked using [Jira](https://issues.redhat.com/secure/RapidBoard.jspa
    - **For all other code changes:** Use the issue type `Story`
    - Add "Platform" in "Components" field
 
+## Development Setup
+
+1. **Install prerequisites:** Go 1.25+, `make`, `kubectl`/`oc`, and access to an OpenShift or Kubernetes cluster.
+2. **Clone and build:**
+   ```bash
+   git clone https://github.com/opendatahub-io/opendatahub-operator.git
+   cd opendatahub-operator
+   make build
+   ```
+3. **Install CRDs and deploy locally:**
+   ```bash
+   make install      # Install CRDs into the cluster
+   make deploy       # Deploy the operator
+   ```
+4. **Run tests:**
+   ```bash
+   make unit-test    # Run unit tests
+   make e2e-test     # Run end-to-end tests (requires cluster)
+   make lint         # Run linters
+   ```
+
+For additional setup options (e.g., overriding Makefile variables, using a `local.mk` file), see [troubleshooting](./docs/troubleshooting.md#using-a-localmk-file-to-override-makefile-variables-for-your-development-environment).
+
 ## Pull Requests
 
 ### Workflow
@@ -25,7 +48,7 @@ Issues are tracked using [Jira](https://issues.redhat.com/secure/RapidBoard.jspa
 3. **Work on Your Changes:** Commit often, and ensure your code adheres to these [Code Style Guidelines](#code-style-guidelines) and passes all the [quality gates](#quality-gates) for the operator.
 4. **Testing:** Make sure your code passes all the tests, including any new tests you've added. And that your changes do not decrease the test coverage as shown on report. Every new feature should come with unit tests that cover that new part of the code.
 5. **Open a PR Against `main`:** See PR guidelines below.
-6. **Sync Changes to Downstream**: After a PR is merged into the `main` branch, the changes need to be synced with the downstream `rhoai` branch with a separate PR, see [details](./docs/sync_code.md#basic-workflow-for-operator)
+6. **Sync Changes to Downstream**: After a PR is merged into the `main` branch, changes will be automatically synced through a two-stage pipeline: first to the `stable` branch via the [sync-main-to-stable workflow](.github/workflows/sync-main-to-stable.yaml), then to the downstream `rhoai` branch via the [sync-stable-to-rhoai workflow](.github/workflows/sync-stable-to-rhoai.yaml)
 
 ### Open a Pull Request
 

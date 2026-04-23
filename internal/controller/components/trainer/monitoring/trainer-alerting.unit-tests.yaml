@@ -1,0 +1,44 @@
+rule_files:
+  - trainer-alerting.rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # Operator running
+  - interval: 1m
+    input_series:
+      - series: up{job="Kubeflow Trainer"}
+        values: "1"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: Kubeflow Trainer is not running
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: Kubeflow Trainer is not running
+        exp_alerts:
+          - exp_labels:
+              alertname: Kubeflow Trainer is not running
+              severity: warning
+            exp_annotations:
+              description: "This alert fires when the Kubeflow Trainer is not running."
+              summary: Alerting for Kubeflow Trainer
+
+  - interval: 1m
+    input_series:
+      - series: up{job="Kubeflow Trainer"}
+        values: "0"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: Kubeflow Trainer is not running
+        exp_alerts:
+          - exp_labels:
+              alertname: Kubeflow Trainer is not running
+              severity: warning
+              job: "Kubeflow Trainer"
+            exp_annotations:
+              description: "This alert fires when the Kubeflow Trainer is not running."
+              summary: Alerting for Kubeflow Trainer

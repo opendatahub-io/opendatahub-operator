@@ -21,20 +21,16 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	routev1 "github.com/openshift/api/route/v1"
-	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	networkingv1 "k8s.io/api/networking/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -50,12 +46,14 @@ import (
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	rp "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
@@ -67,9 +65,10 @@ const (
 
 // DSCInitializationReconciler reconciles a DSCInitialization object.
 type DSCInitializationReconciler struct {
-	Client   client.Client
-	Scheme   *runtime.Scheme
-	Recorder record.EventRecorder
+	Client           client.Client
+	Scheme           *runtime.Scheme
+	Recorder         events.EventRecorder
+	OperatorSettings operatorconfig.OperatorSettings
 }
 
 // Reconcile contains controller logic specific to DSCInitialization instance updates.
@@ -91,7 +90,8 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		ref := &corev1.ObjectReference{Name: req.Name, Namespace: req.Namespace}
 		ref.SetGroupVersionKind(gvk.DSCInitialization)
 
-		r.Recorder.Eventf(ref, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization instance")
+		r.Recorder.Eventf(ref, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
+			"Failed to retrieve DSCInitialization instance: %v", err)
 
 		return ctrl.Result{}, err
 	}
@@ -147,8 +147,8 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		})
 		if err != nil {
 			log.Error(err, "Failed to add conditions to status of DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
-			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
-				"%s for instance %s", message, instance.Name)
+			r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
+				"%s for instance %s: %v", message, instance.Name, err)
 
 			return reconcile.Result{}, err
 		}
@@ -162,8 +162,8 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		})
 		if err != nil {
 			log.Error(err, "Failed to update release version for DSCInitialization resource.", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
-			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
-				"%s for instance %s", message, instance.Name)
+			r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
+				"%s for instance %s: %v", message, instance.Name, err)
 			return reconcile.Result{}, err
 		}
 	}
@@ -176,12 +176,12 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}); err != nil {
 			log.Error(err, "Failed to update DSCInitialization conditions", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
 
-			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
+			r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
 				"%s for instance %s", err.Error(), instance.Name)
 		}
 
 		// no need to log error as it was already logged in createOperatorResource
-		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
+		r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
 			"failed to create operator resources for instance %s: %s", instance.Name, err.Error())
 
 		return reconcile.Result{}, err
@@ -234,10 +234,11 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				}
 			}
 		case cluster.ManagedRhoai:
-			osdConfigsPath := filepath.Join(deploy.DefaultManifestPath, "osd-configs")
+			osdConfigsPath := filepath.Join(r.OperatorSettings.ManifestsBasePath, "osd-configs")
 			if err = deploy.DeployManifestsFromPath(ctx, r.Client, instance, osdConfigsPath, instance.Spec.ApplicationsNamespace, "osd", true); err != nil {
 				log.Error(err, "Failed to apply osd specific configs from manifests", "Manifests path", osdConfigsPath)
-				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to apply "+osdConfigsPath)
+				r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
+					"Failed to apply %s: %v", osdConfigsPath, err)
 
 				return reconcile.Result{}, err
 			}
@@ -296,6 +297,12 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			return ctrl.Result{}, err
 		}
 
+		// Create GatewayConfig, always have one in the cluster but up to user to config.
+		if err = r.CreateGatewayConfig(ctx, instance); err != nil {
+			log.Info("failed to create GatewayConfig")
+			return ctrl.Result{}, err
+		}
+
 		// Create default HWProfile CR
 		if err = r.ManageDefaultAndCustomHWProfileCR(ctx, instance, platform); err != nil {
 			log.Info("failed to manage default and custom HardwareProfile CR")
@@ -309,11 +316,16 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		})
 		if err != nil {
 			log.Error(err, "failed to update DSCInitialization status after successfully completed reconciliation")
-			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to update DSCInitialization status")
+			r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
+				"Failed to update DSCInitialization status: %v", err)
 		}
 
 		return ctrl.Result{}, nil
 	}
+}
+
+func getObject(gvk schema.GroupVersionKind) client.Object {
+	return resources.GvkToUnstructured(gvk)
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -322,79 +334,84 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 		// add predicates prevents meaningless reconciliations from being triggered
 		// not use WithEventFilter() because it conflict with secret and configmap predicate
 		For(
-			&dsciv2.DSCInitialization{},
+			getObject(gvk.DSCInitialization),
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})),
 		).
 		Owns(
-			&corev1.Namespace{},
+			getObject(gvk.Namespace),
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(
-			&corev1.Secret{},
+			getObject(gvk.Secret),
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(
-			&corev1.ConfigMap{},
+			getObject(gvk.ConfigMap),
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(
-			&networkingv1.NetworkPolicy{},
+			getObject(gvk.NetworkPolicy),
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(
-			&rbacv1.Role{},
+			getObject(gvk.Role),
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(
-			&rbacv1.RoleBinding{},
+			getObject(gvk.RoleBinding),
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(
-			&rbacv1.ClusterRole{},
+			getObject(gvk.ClusterRole),
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(
-			&rbacv1.ClusterRoleBinding{},
+			getObject(gvk.ClusterRoleBinding),
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(
-			&appsv1.Deployment{},
+			getObject(gvk.Deployment),
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(
-			&corev1.ServiceAccount{},
+			getObject(gvk.ServiceAccount),
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(
-			&corev1.Service{},
+			getObject(gvk.Service),
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(
-			&routev1.Route{},
+			getObject(gvk.Route),
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Owns(&corev1.PersistentVolumeClaim{},
+		Owns(
+			getObject(gvk.PersistentVolumeClaim),
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns( // ensure always have default one for AcceleratorProfile/HardwareProfile blocking
-			&admissionregistrationv1.ValidatingAdmissionPolicy{},
+			getObject(gvk.ValidatingAdmissionPolicy),
 		).
 		Owns( // ensure always have default one for AcceleratorProfile/HardwareProfile blocking
-			&admissionregistrationv1.ValidatingAdmissionPolicyBinding{},
+			getObject(gvk.ValidatingAdmissionPolicyBinding),
 		).
 		Owns( // ensure always have one platform's HardwareProfile in the cluster.
-			&infrav1.HardwareProfile{},
+			getObject(gvk.HardwareProfile),
 			builder.WithPredicates(rp.Deleted())).
 		Watches(
-			&dscv2.DataScienceCluster{},
+			getObject(gvk.DataScienceCluster),
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
 				return r.watchDSCResource(ctx)
 			}),
 			builder.WithPredicates(rp.DSCDeletionPredicate), // TODO: is it needed?
 		).
 		Watches(
-			&corev1.Secret{},
+			getObject(gvk.Secret),
 			handler.EnqueueRequestsFromMapFunc(r.watchMonitoringSecretResource),
 			builder.WithPredicates(rp.SecretContentChangedPredicate),
 		).
 		Watches(
-			&corev1.ConfigMap{},
+			getObject(gvk.ConfigMap),
 			handler.EnqueueRequestsFromMapFunc(r.watchMonitoringConfigMapResource),
 			builder.WithPredicates(rp.CMContentChangedPredicate),
 		).
 		Watches(
-			&serviceApi.Auth{},
+			getObject(gvk.Auth),
 			handler.EnqueueRequestsFromMapFunc(r.watchAuthResource),
 		).
+		Watches(
+			getObject(gvk.GatewayConfig),
+			handler.EnqueueRequestsFromMapFunc(r.watchGatewayConfigResource),
+		).
 		Watches( // TODO: this might not be needed after v3.3.
-			&apiextensionsv1.CustomResourceDefinition{},
+			getObject(gvk.CustomResourceDefinition),
 			handler.EnqueueRequestsFromMapFunc(r.watchHWProfileCRDResource),
 			builder.WithPredicates(predicate.Or(
 				rp.CreatedOrUpdatedName("acceleratorprofiles.dashboard.opendatahub.io"),
@@ -462,6 +479,23 @@ func (r *DSCInitializationReconciler) watchAuthResource(ctx context.Context, a c
 	return nil
 }
 
+func (r *DSCInitializationReconciler) watchGatewayConfigResource(ctx context.Context, a client.Object) []reconcile.Request {
+	log := logf.FromContext(ctx)
+	instanceList := &serviceApi.GatewayConfigList{}
+	if err := r.Client.List(ctx, instanceList); err != nil {
+		// do not handle if cannot get list
+		log.Error(err, "Failed to get GatewayConfigList")
+		return nil
+	}
+	if len(instanceList.Items) == 0 {
+		log.Info("Found no GatewayConfig instance in cluster, reconciling to recreate one")
+
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: serviceApi.GatewayConfigName}}}
+	}
+
+	return nil
+}
+
 func (r *DSCInitializationReconciler) deleteMonitoringCR(ctx context.Context) error {
 	defaultMonitoring := &serviceApi.Monitoring{
 		ObjectMeta: metav1.ObjectMeta{
@@ -493,7 +527,7 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 		},
 	}
 
-	metricsEnabled := dsci.Spec.Monitoring.Metrics != nil && (dsci.Spec.Monitoring.Metrics.Storage != nil || dsci.Spec.Monitoring.Metrics.Resources != nil)
+	metricsEnabled := dsci.Spec.Monitoring.Metrics != nil && dsci.Spec.Monitoring.Metrics.Storage != nil
 	tracesEnabled := dsci.Spec.Monitoring.Traces != nil
 
 	if metricsEnabled {
@@ -504,6 +538,10 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 
 	if tracesEnabled {
 		defaultMonitoring.Spec.Traces = dsci.Spec.Monitoring.Traces
+		// Without this, when TLS.Enabled is false, the TLS struct is not removed from the Monitoring CR and it causes an error.
+		if defaultMonitoring.Spec.Traces.TLS != nil && !defaultMonitoring.Spec.Traces.TLS.Enabled {
+			defaultMonitoring.Spec.Traces.TLS = nil
+		}
 	} else {
 		defaultMonitoring.Spec.Traces = nil
 	}
@@ -536,6 +574,57 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 	)
 
 	if err != nil && !k8serr.IsAlreadyExists(err) {
+		return err
+	}
+	return nil
+}
+
+// CreateGatewayConfig creates a default GatewayConfig if it doesn't exist.
+// Parameters:
+//   - ctx: context for the operation
+//   - instance: DSCInitialization instance
+//
+// Returns:
+//   - error: nil on success, error if GatewayConfig creation fails
+func (r *DSCInitializationReconciler) CreateGatewayConfig(ctx context.Context, instance *dsciv2.DSCInitialization) error {
+	gatewayConfig := &serviceApi.GatewayConfig{}
+	err := r.Client.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayConfigName}, gatewayConfig)
+	if err == nil {
+		return nil
+	}
+
+	if !k8serr.IsNotFound(err) {
+		return err
+	}
+
+	// GatewayConfig CR not found, create default GatewayConfig CR.
+	defaultGateway := &serviceApi.GatewayConfig{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       serviceApi.GatewayConfigKind,
+			APIVersion: serviceApi.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: serviceApi.GatewayConfigName,
+		},
+		Spec: serviceApi.GatewayConfigSpec{
+			Certificate: &infrav1.CertificateSpec{
+				Type:       infrav1.OpenshiftDefaultIngress,
+				SecretName: gateway.DefaultGatewayTLSSecretName,
+			},
+			Cookie: serviceApi.CookieConfig{
+				Expire:  metav1.Duration{Duration: 24 * time.Hour},
+				Refresh: metav1.Duration{Duration: 1 * time.Hour},
+			},
+			AuthProxyTimeout: metav1.Duration{Duration: 5 * time.Second},
+		},
+	}
+
+	// Set the DSCInitialization instance as the owner of the GatewayConfig
+	if err := ctrl.SetControllerReference(instance, defaultGateway, r.Scheme); err != nil {
+		return err
+	}
+
+	if err := r.Client.Create(ctx, defaultGateway); err != nil && !k8serr.IsAlreadyExists(err) {
 		return err
 	}
 	return nil

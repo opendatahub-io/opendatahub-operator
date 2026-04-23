@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"reflect"
+	"slices"
 
 	"github.com/onsi/gomega/matchers"
 	gTypes "github.com/onsi/gomega/types"
@@ -154,17 +155,13 @@ func isFailureExpected(condition gTypes.GomegaMatcher) bool {
 	switch v := condition.(type) {
 	case *matchers.AndMatcher:
 		// If the condition is And(), we recursively check the inner matchers
-		for _, inner := range v.Matchers {
-			if isFailureExpected(inner) {
-				return true
-			}
+		if slices.ContainsFunc(v.Matchers, isFailureExpected) {
+			return true
 		}
 	case *matchers.OrMatcher:
 		// If the condition is Or(), we recursively check the inner matchers
-		for _, inner := range v.Matchers {
-			if isFailureExpected(inner) {
-				return true
-			}
+		if slices.ContainsFunc(v.Matchers, isFailureExpected) {
+			return true
 		}
 	case *matchers.NotMatcher:
 		// If the condition is Not(Succeed()), we expect failure
@@ -200,7 +197,14 @@ func eventuallyResourceApplied(
 	// Use Eventually to retry getting the resource until it appears
 	var u *unstructured.Unstructured
 
-	ro.tc.g.Eventually(ensureResourceAppliedGomegaFunction(ro, &u, applyResourceFn)).Should(Succeed())
+	eventually := ro.tc.g.Eventually(ensureResourceAppliedGomegaFunction(ro, &u, applyResourceFn))
+
+	ro.applyEventuallyTimeouts(eventually).Should(Succeed())
+
+	// Register cleanup if requested - ensures resource deletion even on test failure/timeout
+	if ro.CleanupT != nil {
+		ro.tc.registerCleanup(ro)
+	}
 
 	return u
 }
@@ -227,14 +231,18 @@ func consistentlyResourceApplied(
 	// If a mutation function is provided, apply it ONCE first using Eventually
 	if ro.MutateFunc != nil {
 		// Apply the mutation once and wait for it to succeed
-		ro.tc.g.Eventually(ensureResourceAppliedGomegaFunction(ro, &u, applyResourceFn)).Should(Succeed())
+		eventually := ro.tc.g.Eventually(ensureResourceAppliedGomegaFunction(ro, &u, applyResourceFn))
+
+		ro.applyEventuallyTimeouts(eventually).Should(Succeed())
 
 		// Clear the mutation function to avoid re-applying it during consistency checks
 		ro.MutateFunc = nil
 	}
 
 	// Use Consistently to verify the resource condition remains stable over time (read-only)
-	ro.tc.g.Consistently(ensureResourceAppliedGomegaFunction(ro, &u, applyResourceFn)).Should(Succeed())
+	consistently := ro.tc.g.Consistently(ensureResourceAppliedGomegaFunction(ro, &u, applyResourceFn))
+
+	ro.applyConsistentlyTimeouts(consistently).Should(Succeed())
 
 	return u
 }

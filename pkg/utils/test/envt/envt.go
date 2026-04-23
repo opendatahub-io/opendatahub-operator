@@ -8,20 +8,35 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"testing"
 	"time"
 
+	"github.com/onsi/gomega"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	opmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
+)
+
+const (
+	// DefaultPollInterval is how often envt helpers poll for resource readiness.
+	DefaultPollInterval = 100 * time.Millisecond
+	// DefaultMaxWait is the maximum time envt helpers wait for resource readiness.
+	DefaultMaxWait = 30 * time.Second
 )
 
 type OptionFn func(in *EnvT)
@@ -43,6 +58,13 @@ func (et *EnvT) createManager() error {
 	// Ensure the manager uses the correct scheme for all registered types.
 	if mgrOpts.Scheme == nil {
 		mgrOpts.Scheme = et.s
+	}
+
+	// Enable unstructured caching to match production configuration (cmd/main.go).
+	// The wrapped manager (opmanager.New) converts typed reads to unstructured,
+	// so the cache must serve unstructured reads for consistency.
+	if mgrOpts.Client.Cache == nil {
+		mgrOpts.Client.Cache = &client.CacheOptions{Unstructured: true}
 	}
 
 	// After envtest is started, retrieve the webhook server options (host, port, cert dir)
@@ -75,6 +97,7 @@ func (et *EnvT) createManager() error {
 	if err != nil {
 		return fmt.Errorf("failed to create manager: %w", err)
 	}
+	mgr = opmanager.New(mgr)
 	et.mgr = mgr
 	for _, reg := range et.registerWebhooks {
 		if err := reg(mgr); err != nil {
@@ -135,6 +158,14 @@ func WithRegisterControllers(funcs ...RegisterControllersFn) OptionFn {
 	}
 }
 
+// WithCRDPaths sets custom paths for loading CRD manifests.
+// If not set, defaults to "<project_root>/config/crd/bases".
+func WithCRDPaths(paths ...string) OptionFn {
+	return func(in *EnvT) {
+		in.crdPaths = paths
+	}
+}
+
 // New creates and configures a new EnvT test environment.
 // Applies all provided OptionFn options, sets up CRDs, webhooks, and the envtest environment.
 // Returns the configured EnvT, or an error if setup fails.
@@ -161,12 +192,15 @@ func New(opts ...OptionFn) (*EnvT, error) {
 		result.root = root
 	}
 
+	crdPaths := result.crdPaths
+	if len(crdPaths) == 0 {
+		crdPaths = []string{filepath.Join(result.root, "config", "crd", "bases")}
+	}
+
 	result.Env = envtest.Environment{
 		CRDInstallOptions: envtest.CRDInstallOptions{
-			Scheme: result.s,
-			Paths: []string{
-				filepath.Join(result.root, "config", "crd", "bases"),
-			},
+			Scheme:             result.s,
+			Paths:              crdPaths,
 			ErrorIfPathMissing: true,
 			CleanUpAfterUse:    false,
 		},
@@ -219,6 +253,7 @@ func New(opts ...OptionFn) (*EnvT, error) {
 
 type EnvT struct {
 	root                string
+	crdPaths            []string
 	withManager         bool
 	managerOpts         *manager.Options
 	registerWebhooks    []RegisterWebhooksFn
@@ -291,12 +326,11 @@ func (et *EnvT) Manager() manager.Manager {
 // WaitForWebhookServer waits until the webhook server managed by this EnvT is ready by dialing the port using TLS.
 //
 // Parameters:
-//   - ctx: A non-nil context passed to the underlying Dialer
-//   - timeout: The maximum duration to wait for the server to become ready.
+//   - ctx: A non-nil context passed to the underlying Dialer; the context is used to cancel the polling loop.
 //
 // Returns:
 //   - error: If the server is not ready within the timeout or a connection error occurs.
-func (et *EnvT) WaitForWebhookServer(ctx context.Context, timeout time.Duration) error {
+func (et *EnvT) WaitForWebhookServer(ctx context.Context) error {
 	host := et.Env.WebhookInstallOptions.LocalServingHost
 	port := et.Env.WebhookInstallOptions.LocalServingPort
 	if host == "" || port == 0 {
@@ -304,24 +338,132 @@ func (et *EnvT) WaitForWebhookServer(ctx context.Context, timeout time.Duration)
 	}
 
 	addrPort := fmt.Sprintf("%s:%d", host, port)
-	deadline := time.Now().Add(timeout)
 
-	for time.Now().Before(deadline) {
-		tlsDialer := &tls.Dialer{
-			Config: &tls.Config{
-				InsecureSkipVerify: true, // #nosec G402
-				MinVersion:         tls.VersionTLS12,
-			},
-			NetDialer: &net.Dialer{Timeout: time.Second},
-		}
+	// setup ticker for polling the webhook server
+	ticker := time.NewTicker(DefaultPollInterval)
+	defer ticker.Stop()
 
+	// setup dialer
+	tlsDialer := &tls.Dialer{
+		Config: &tls.Config{
+			InsecureSkipVerify: true, // #nosec G402
+			MinVersion:         tls.VersionTLS12,
+		},
+		NetDialer: &net.Dialer{Timeout: 1 * time.Second},
+	}
+
+	// keep trying until the context is cancelled or the webhook server is ready
+	for {
 		conn, err := tlsDialer.DialContext(ctx, "tcp", addrPort)
 		if err == nil {
 			return conn.Close()
 		}
-		time.Sleep(100 * time.Millisecond)
+
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("webhook server not ready (%v) before context cancelled: %w", err.Error(), ctx.Err())
+		case <-ticker.C:
+			continue
+		}
 	}
-	return fmt.Errorf("webhook server not ready after %s", timeout)
+}
+
+// CleanupDelete registers a t.Cleanup function that deletes obj from the cluster
+// and blocks until the object is fully gone, including after any finalizers have run.
+func CleanupDelete(t *testing.T, g *gomega.WithT, ctx context.Context, cli client.Client, obj client.Object) {
+	t.Helper()
+	t.Cleanup(func() {
+		err := cli.Delete(ctx, obj)
+		if err != nil && !k8serr.IsNotFound(err) {
+			g.Expect(err).NotTo(gomega.HaveOccurred())
+		}
+		g.Eventually(func() error {
+			return cli.Get(ctx, client.ObjectKeyFromObject(obj), obj)
+		}).WithTimeout(DefaultMaxWait).WithPolling(DefaultPollInterval).Should(
+			gomega.MatchError(k8serr.IsNotFound, "IsNotFound"),
+		)
+	})
+}
+
+// CRDOption configures how RegisterCRD constructs the CRD.
+type CRDOption func(*apiextensionsv1.CustomResourceDefinition)
+
+// WithPermissiveSchema configures the CRD to allow arbitrary fields in spec and status
+// via XPreserveUnknownFields, and enables the status subresource. Use this when tests
+// need to write structured data (e.g. conditions) into the CR.
+func WithPermissiveSchema() CRDOption {
+	return func(crd *apiextensionsv1.CustomResourceDefinition) {
+		v := &crd.Spec.Versions[0]
+		v.Schema.OpenAPIV3Schema.Properties = map[string]apiextensionsv1.JSONSchemaProps{
+			"spec":   {Type: "object", XPreserveUnknownFields: ptr.To(true)},
+			"status": {Type: "object", XPreserveUnknownFields: ptr.To(true)},
+		}
+		v.Subresources = &apiextensionsv1.CustomResourceSubresources{
+			Status: &apiextensionsv1.CustomResourceSubresourceStatus{},
+		}
+	}
+}
+
+// RegisterCRD installs a CRD in the envtest API server and waits until it is established.
+// The returned object can be used by the caller for cleanup.
+// If the CRD already exists it is returned as-is without waiting.
+func (et *EnvT) RegisterCRD(
+	ctx context.Context,
+	gvkDef schema.GroupVersionKind,
+	plural, singular string,
+	scope apiextensionsv1.ResourceScope,
+	opts ...CRDOption,
+) (*apiextensionsv1.CustomResourceDefinition, error) {
+	crd := &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: plural + "." + gvkDef.Group,
+		},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: gvkDef.Group,
+			Names: apiextensionsv1.CustomResourceDefinitionNames{
+				Kind:     gvkDef.Kind,
+				ListKind: gvkDef.Kind + "List",
+				Plural:   plural,
+				Singular: singular,
+			},
+			Scope: scope,
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
+				{
+					Name:    gvkDef.Version,
+					Served:  true,
+					Storage: true,
+					Schema: &apiextensionsv1.CustomResourceValidation{
+						OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+							Type: "object",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, opt := range opts {
+		opt(crd)
+	}
+
+	if err := et.cli.Create(ctx, crd); err != nil {
+		if !k8serr.IsAlreadyExists(err) {
+			return nil, fmt.Errorf("failed to create CRD %s: %w", crd.Name, err)
+		}
+		if err := et.cli.Get(ctx, client.ObjectKeyFromObject(crd), crd); err != nil {
+			return nil, fmt.Errorf("failed to get existing CRD %s: %w", crd.Name, err)
+		}
+		return crd, nil
+	}
+
+	if err := envtest.WaitForCRDs(et.cfg, []*apiextensionsv1.CustomResourceDefinition{crd}, envtest.CRDInstallOptions{
+		PollInterval: DefaultPollInterval,
+		MaxTime:      DefaultMaxWait,
+	}); err != nil {
+		return nil, fmt.Errorf("CRD %s not established: %w", crd.Name, err)
+	}
+
+	return crd, nil
 }
 
 // BypassHandler wraps a handler and allows bypassing validation based on a custom function.

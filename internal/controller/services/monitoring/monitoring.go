@@ -16,20 +16,19 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
-	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 const (
 	ServiceName = serviceApi.MonitoringServiceName
 )
 
-var (
-	prometheusConfigPath = filepath.Join(odhdeploy.DefaultManifestPath, ServiceName, "prometheus", "apps", "prometheus-configs.yaml")
-)
+func prometheusConfigPath(basePath string) string {
+	return filepath.Join(basePath, ServiceName, "prometheus", "apps", "prometheus-configs.yaml")
+}
 
 // updatePrometheusConfig update prometheus-configs.yaml to include/exclude <component>.rules
 // parameter enable when set to true to add new rules, when set to false to remove existing rules.
-func updatePrometheusConfig(ctx context.Context, enable bool, component string) error {
+func updatePrometheusConfig(ctx context.Context, basePath string, enable bool, component string) error {
 	l := logf.FromContext(ctx)
 
 	// create a struct to mock poremtheus.yml
@@ -69,15 +68,17 @@ func updatePrometheusConfig(ctx context.Context, enable bool, component string) 
 			FeastOperatorARules    string `yaml:"feastoperator-alerting.rules"`
 			LLSRRules              string `yaml:"llama-stack-k8s-operator-recording.rules"`
 			LLSARules              string `yaml:"llama-stack-k8s-operator-alerting.rules"`
+			SparkOperatorRRules    string `yaml:"spark-operator-recording.rules"`
+			SparkOperatorARules    string `yaml:"spark-operator-alerting.rules"`
 		} `yaml:"data"`
 	}
 
 	var configMap ConfigMap
 	// prometheusContent will represent content of prometheus.yml due to its dynamic struct
-	var prometheusContent map[interface{}]interface{}
+	var prometheusContent map[any]any
 
 	// read prometheus.yml from local disk /opt/mainfests/monitoring/prometheus/apps/
-	yamlData, err := os.ReadFile(prometheusConfigPath)
+	yamlData, err := os.ReadFile(prometheusConfigPath(basePath))
 	if err != nil {
 		return err
 	}
@@ -96,7 +97,7 @@ func updatePrometheusConfig(ctx context.Context, enable bool, component string) 
 		if !strings.Contains(configMap.Data.PrometheusYML, component+"*.rules") {
 			// check if have rule_files
 			if ruleFiles, ok := prometheusContent["rule_files"]; ok {
-				if ruleList, isList := ruleFiles.([]interface{}); isList {
+				if ruleList, isList := ruleFiles.([]any); isList {
 					// add new component rules back to rule_files
 					ruleList = append(ruleList, component+"*.rules")
 					prometheusContent["rule_files"] = ruleList
@@ -105,7 +106,7 @@ func updatePrometheusConfig(ctx context.Context, enable bool, component string) 
 		}
 	} else { // to remove component rules if it is there
 		l.Info("Removing prometheus rule: " + component + "*.rules")
-		if ruleList, ok := prometheusContent["rule_files"].([]interface{}); ok {
+		if ruleList, ok := prometheusContent["rule_files"].([]any); ok {
 			for i, item := range ruleList {
 				if rule, isStr := item.(string); isStr && rule == component+"*.rules" {
 					ruleList = append(ruleList[:i], ruleList[i+1:]...)
@@ -130,7 +131,7 @@ func updatePrometheusConfig(ctx context.Context, enable bool, component string) 
 	}
 
 	// Write the modified content back to the file
-	err = os.WriteFile(prometheusConfigPath, newyamlData, 0)
+	err = os.WriteFile(prometheusConfigPath(basePath), newyamlData, 0)
 
 	return err
 }

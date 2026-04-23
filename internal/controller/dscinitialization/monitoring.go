@@ -23,13 +23,23 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
-var (
-	ComponentName           = "monitoring"
-	alertManagerPath        = filepath.Join(deploy.DefaultManifestPath, ComponentName, "alertmanager")
-	prometheusManifestsPath = filepath.Join(deploy.DefaultManifestPath, ComponentName, "prometheus", "base")
-	prometheusConfigPath    = filepath.Join(deploy.DefaultManifestPath, ComponentName, "prometheus", "apps")
-	networkpolicyPath       = filepath.Join(deploy.DefaultManifestPath, ComponentName, "networkpolicy")
-)
+const ComponentName = "monitoring"
+
+func (r *DSCInitializationReconciler) alertManagerPath() string {
+	return filepath.Join(r.OperatorSettings.ManifestsBasePath, ComponentName, "alertmanager")
+}
+
+func (r *DSCInitializationReconciler) prometheusManifestsPath() string {
+	return filepath.Join(r.OperatorSettings.ManifestsBasePath, ComponentName, "prometheus", "base")
+}
+
+func (r *DSCInitializationReconciler) prometheusConfigPath() string {
+	return filepath.Join(r.OperatorSettings.ManifestsBasePath, ComponentName, "prometheus", "apps")
+}
+
+func (r *DSCInitializationReconciler) networkpolicyPath() string {
+	return filepath.Join(r.OperatorSettings.ManifestsBasePath, ComponentName, "networkpolicy")
+}
 
 // only when reconcile on DSCI CR, initial set to true
 // if reconcile from monitoring, initial set to false, skip blackbox and rolebinding.
@@ -45,7 +55,7 @@ func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Con
 		// TODO: implement with a better solution
 		// to have - before component name is to filter out the real rules file line
 		// e.g line of "workbenches-recording.rules: |"
-		err := common.MatchLineInFile(filepath.Join(prometheusConfigPath, "prometheus-configs.yaml"),
+		err := common.MatchLineInFile(filepath.Join(r.prometheusConfigPath(), "prometheus-configs.yaml"),
 			map[string]string{
 				"(.*)-(.*)workbenches(.*).rules":                     "",
 				"(.*)-(.*)rhods-dashboard(.*).rules":                 "",
@@ -112,7 +122,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsciv2.DSCInitializati
 
 	// Replace variables in alertmanager configmap for the initial time
 	// TODO: Following variables can later be exposed by the API
-	err = common.ReplaceStringsInFile(filepath.Join(alertManagerPath, "alertmanager-configs.yaml"),
+	err = common.ReplaceStringsInFile(filepath.Join(r.alertManagerPath(), "alertmanager-configs.yaml"),
 		map[string]string{
 			"<snitch_url>":      string(deadmansnitchSecret.Data["SNITCH_URL"]),
 			"<pagerduty_token>": string(pagerDutySecret.Data["PAGERDUTY_KEY"]),
@@ -134,7 +144,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsciv2.DSCInitializati
 	}
 	if strings.Contains(consolelinkDomain, "devshift.org") {
 		log.Info("inject alertmanage-configs.yaml for dev mode1")
-		err = common.ReplaceStringsInFile(filepath.Join(alertManagerPath, "alertmanager-configs.yaml"),
+		err = common.ReplaceStringsInFile(filepath.Join(r.alertManagerPath(), "alertmanager-configs.yaml"),
 			map[string]string{
 				"@devshift.net": "@rhmw.io",
 			})
@@ -145,7 +155,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsciv2.DSCInitializati
 	}
 	if strings.Contains(consolelinkDomain, "aisrhods") {
 		log.Info("inject alertmanage-configs.yaml for dev mode2")
-		err = common.ReplaceStringsInFile(filepath.Join(alertManagerPath, "alertmanager-configs.yaml"),
+		err = common.ReplaceStringsInFile(filepath.Join(r.alertManagerPath(), "alertmanager-configs.yaml"),
 			map[string]string{
 				"receiver: PagerDuty": "receiver: alerts-sink",
 			})
@@ -170,7 +180,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsciv2.DSCInitializati
 	}
 	// log.Info("Success: got smpt email secret")
 	// replace smtpEmailSecret in alertmanager-configs.yaml
-	if err = common.MatchLineInFile(filepath.Join(alertManagerPath, "alertmanager-configs.yaml"),
+	if err = common.MatchLineInFile(filepath.Join(r.alertManagerPath(), "alertmanager-configs.yaml"),
 		map[string]string{
 			"- to: ": "- to: " + string(smtpEmailSecret.Data["notification-email"]),
 		},
@@ -179,9 +189,9 @@ func configureAlertManager(ctx context.Context, dsciInit *dsciv2.DSCInitializati
 		return err
 	}
 	// log.Info("Success: update alertmanage-configs.yaml with email")
-	err = deploy.DeployManifestsFromPath(ctx, r.Client, dsciInit, alertManagerPath, dsciInit.Spec.Monitoring.Namespace, "alertmanager", true)
+	err = deploy.DeployManifestsFromPath(ctx, r.Client, dsciInit, r.alertManagerPath(), dsciInit.Spec.Monitoring.Namespace, "alertmanager", true)
 	if err != nil {
-		log.Error(err, "error to deploy manifests", "path", alertManagerPath)
+		log.Error(err, "error to deploy manifests", "path", r.alertManagerPath())
 		return err
 	}
 	// log.Info("Success: update alertmanager with manifests")
@@ -198,7 +208,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsciv2.DSCInitializati
 func configurePrometheus(ctx context.Context, dsciInit *dsciv2.DSCInitialization, r *DSCInitializationReconciler) error {
 	log := logf.FromContext(ctx)
 	// Update rolebinding-viewer
-	err := common.ReplaceStringsInFile(filepath.Join(prometheusManifestsPath, "prometheus-rolebinding-viewer.yaml"),
+	err := common.ReplaceStringsInFile(filepath.Join(r.prometheusManifestsPath(), "prometheus-rolebinding-viewer.yaml"),
 		map[string]string{
 			"<odh_monitoring_project>": dsciInit.Spec.Monitoring.Namespace,
 		})
@@ -211,7 +221,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsciv2.DSCInitialization
 	if err != nil {
 		return fmt.Errorf("error getting console route URL : %w", err)
 	}
-	err = common.ReplaceStringsInFile(filepath.Join(prometheusConfigPath, "prometheus-configs.yaml"),
+	err = common.ReplaceStringsInFile(filepath.Join(r.prometheusConfigPath(), "prometheus-configs.yaml"),
 		map[string]string{
 			"<odh_application_namespace>": dsciInit.Spec.ApplicationsNamespace,
 			"<odh_monitoring_project>":    dsciInit.Spec.Monitoring.Namespace,
@@ -227,11 +237,11 @@ func configurePrometheus(ctx context.Context, dsciInit *dsciv2.DSCInitialization
 		ctx,
 		r.Client,
 		dsciInit,
-		prometheusConfigPath,
+		r.prometheusConfigPath(),
 		dsciInit.Spec.Monitoring.Namespace,
 		"prometheus",
 		dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
-		log.Error(err, "error to deploy manifests for prometheus configs", "path", prometheusConfigPath)
+		log.Error(err, "error to deploy manifests for prometheus configs", "path", r.prometheusConfigPath())
 		return err
 	}
 	// log.Info("Success: create prometheus configmap 'prometheus'")
@@ -288,7 +298,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsciv2.DSCInitialization
 	// log.Info("Success: read alertmanager data from alertmanage.yml")
 
 	// Update prometheus deployment with alertmanager and prometheus data
-	err = common.ReplaceStringsInFile(filepath.Join(prometheusManifestsPath, "prometheus-deployment.yaml"),
+	err = common.ReplaceStringsInFile(filepath.Join(r.prometheusManifestsPath(), "prometheus-deployment.yaml"),
 		map[string]string{
 			"<set_alertmanager_host>": alertmanagerRoute.Spec.Host,
 		})
@@ -297,7 +307,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsciv2.DSCInitialization
 		return err
 	}
 	// log.Info("Success: update set_alertmanager_host in prometheus-deployment.yaml")
-	err = common.MatchLineInFile(filepath.Join(prometheusManifestsPath, "prometheus-deployment.yaml"),
+	err = common.MatchLineInFile(filepath.Join(r.prometheusManifestsPath(), "prometheus-deployment.yaml"),
 		map[string]string{
 			"alertmanager: ": "alertmanager: " + alertmanagerData,
 			"prometheus: ":   "prometheus: " + prometheusData,
@@ -328,10 +338,10 @@ func configurePrometheus(ctx context.Context, dsciInit *dsciv2.DSCInitialization
 		}
 	}
 
-	err = deploy.DeployManifestsFromPath(ctx, r.Client, dsciInit, prometheusManifestsPath,
+	err = deploy.DeployManifestsFromPath(ctx, r.Client, dsciInit, r.prometheusManifestsPath(),
 		dsciInit.Spec.Monitoring.Namespace, "prometheus", true)
 	if err != nil {
-		log.Error(err, "error to deploy manifests for prometheus", "path", prometheusManifestsPath)
+		log.Error(err, "error to deploy manifests for prometheus", "path", r.prometheusManifestsPath())
 		return err
 	}
 
@@ -372,7 +382,7 @@ func configureBlackboxExporter(ctx context.Context, dsciInit *dsciv2.DSCInitiali
 		}
 	}
 
-	blackBoxPath := filepath.Join(deploy.DefaultManifestPath, "monitoring", "blackbox-exporter")
+	blackBoxPath := filepath.Join(r.OperatorSettings.ManifestsBasePath, "monitoring", "blackbox-exporter")
 	if k8serr.IsNotFound(err) || strings.Contains(consoleRoute.Spec.Host, "redhat.com") {
 		if err := deploy.DeployManifestsFromPath(ctx, r.Client,
 			dsciInit,
@@ -445,7 +455,7 @@ func (r *DSCInitializationReconciler) configureSegmentIO(ctx context.Context, ds
 			log.Error(err, "error to get configmap 'odh-segment-key-config'")
 			return err
 		} else {
-			segmentPath := filepath.Join(deploy.DefaultManifestPath, "monitoring", "segment")
+			segmentPath := filepath.Join(r.OperatorSettings.ManifestsBasePath, "monitoring", "segment")
 			if err := deploy.DeployManifestsFromPath(
 				ctx,
 				r.Client,
@@ -469,7 +479,7 @@ func (r *DSCInitializationReconciler) configureCommonMonitoring(ctx context.Cont
 	}
 
 	// configure monitoring base
-	monitoringBasePath := filepath.Join(deploy.DefaultManifestPath, "monitoring", "base")
+	monitoringBasePath := filepath.Join(r.OperatorSettings.ManifestsBasePath, "monitoring", "base")
 	err := common.ReplaceStringsInFile(filepath.Join(monitoringBasePath, "rhods-servicemonitor.yaml"),
 		map[string]string{
 			"<odh_monitoring_project>": dsciInit.Spec.Monitoring.Namespace,

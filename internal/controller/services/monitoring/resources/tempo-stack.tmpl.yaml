@@ -4,8 +4,19 @@ metadata:
   name: data-science-tempostack
   namespace: {{.Namespace}}
 spec:
+  resources:
+    total:
+      limits:
+        cpu: {{.TempoCPULimit}}
+        memory: {{.TempoMemoryLimit}}
+      requests:
+        cpu: {{.TempoCPURequest}}
+        memory: {{.TempoMemoryRequest}}
   tenants:
     mode: openshift
+    authentication:
+      - tenantId: {{.Namespace}}
+        tenantName: {{.Namespace}}
   retention:
     global:
       traces: {{.TracesRetention}} # default 90days

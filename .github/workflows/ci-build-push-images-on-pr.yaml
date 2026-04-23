@@ -34,13 +34,13 @@ jobs:
       IMAGE_BUILDER: podman
     steps:
       - name: Checkout PR head
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         if: needs.get-merge-commit.outputs.mergedSha
         with:
           ref: ${{ needs.get-merge-commit.outputs.mergedSha }}
 
       - name: Quay.io login
-        uses: redhat-actions/podman-login@v1
+        uses: redhat-actions/podman-login@4934294ad0449894bcd1e9f191899d7292469603 # v1.7
         if: needs.get-merge-commit.outputs.mergedSha
         env:
           QUAY_ID: ${{ secrets.QUAY_ID }}
@@ -51,7 +51,7 @@ jobs:
           password: ${{ env.QUAY_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         if: needs.get-merge-commit.outputs.mergedSha
         with:
           go-version-file: go.mod

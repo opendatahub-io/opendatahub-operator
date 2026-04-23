@@ -1,18 +1,14 @@
 package dashboard
 
 import (
-	"context"
+	"errors"
 	"fmt"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 const (
@@ -26,9 +22,6 @@ const (
 
 	LegacyComponentNameUpstream   = "dashboard"
 	LegacyComponentNameDownstream = "rhods-dashboard"
-
-	// Dashboard path on the gateway.
-	dashboardPath = "/"
 )
 
 var (
@@ -44,11 +37,23 @@ var (
 		cluster.OpenDataHub:      "/odh",
 	}
 
+	observabilitySourcePaths = map[common.Platform]string{
+		cluster.SelfManagedRhoai: "observability/rhoai",
+		cluster.ManagedRhoai:     "observability/rhoai",
+		cluster.OpenDataHub:      "observability/odh",
+	}
+
 	imagesMap = map[string]string{
-		"odh-dashboard-image":     "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
-		"model-registry-ui-image": "RELATED_IMAGE_ODH_MOD_ARCH_MODEL_REGISTRY_IMAGE",
-		"gen-ai-ui-image":         "RELATED_IMAGE_ODH_MOD_ARCH_GEN_AI_IMAGE",
-		"kube-rbac-proxy":         "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
+		"odh-dashboard-image":      "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
+		"model-registry-ui-image":  "RELATED_IMAGE_ODH_MOD_ARCH_MODEL_REGISTRY_IMAGE",
+		"gen-ai-ui-image":          "RELATED_IMAGE_ODH_MOD_ARCH_GEN_AI_IMAGE",
+		"mlflow-ui-image":          "RELATED_IMAGE_ODH_MOD_ARCH_MLFLOW_IMAGE",
+		"maas-ui-image":            "RELATED_IMAGE_ODH_MOD_ARCH_MAAS_IMAGE",
+		"eval-hub-ui-image":        "RELATED_IMAGE_ODH_MOD_ARCH_EVAL_HUB_IMAGE",
+		"kube-rbac-proxy":          "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
+		"images-jobs-async-upload": "RELATED_IMAGE_ODH_MODEL_REGISTRY_JOB_ASYNC_UPLOAD_IMAGE",
+		"automl-ui-image":          "RELATED_IMAGE_ODH_MOD_ARCH_AUTOML_IMAGE",
+		"autorag-ui-image":         "RELATED_IMAGE_ODH_MOD_ARCH_AUTORAG_IMAGE",
 	}
 
 	conditionTypes = []string{
@@ -56,31 +61,51 @@ var (
 	}
 )
 
-func defaultManifestInfo(p common.Platform) odhtypes.ManifestInfo {
+func defaultManifestInfo(basePath string, p common.Platform) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
-		Path:       odhdeploy.DefaultManifestPath,
+		Path:       basePath,
 		ContextDir: ComponentName,
 		SourcePath: overlaysSourcePaths[p],
 	}
 }
 
-func bffManifestsPath() odhtypes.ManifestInfo {
+func bffManifestsPath(basePath string) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
-		Path:       odhdeploy.DefaultManifestPath,
+		Path:       basePath,
 		ContextDir: ComponentName,
 		SourcePath: "modular-architecture",
 	}
 }
 
-func computeKustomizeVariable(ctx context.Context, cli client.Client, platform common.Platform) (map[string]string, error) {
-	gatewayDomain, err := gateway.GetGatewayDomain(ctx, cli)
-	if err != nil {
-		return nil, fmt.Errorf("error getting gateway domain: %w", err)
+func observabilityManifestInfo(basePath string, platform common.Platform) odhtypes.ManifestInfo {
+	return odhtypes.ManifestInfo{
+		Path:       basePath,
+		ContextDir: ComponentName,
+		SourcePath: observabilitySourcePaths[platform],
+	}
+}
+
+func computeKustomizeVariable(rr *odhtypes.ReconciliationRequest, platform common.Platform) (map[string]string, error) {
+	dashboard, ok := rr.Instance.(*componentApi.Dashboard)
+	if !ok {
+		return nil, errors.New("instance is not a Dashboard")
+	}
+
+	// Use domain from Dashboard.Spec.Gateway.Domain (synced from GatewayConfig.Status.Domain by DSC controller)
+	var domain string
+	if dashboard.Spec.Gateway != nil {
+		domain = dashboard.Spec.Gateway.Domain
+	}
+	if domain == "" {
+		return nil, errors.New(
+			"gateway domain is missing for Dashboard; the Data Science Gateway may not be ready yet—check that " +
+				"GatewayConfig exists and its status reports a domain")
 	}
 
 	return map[string]string{
-		"dashboard-url": fmt.Sprintf("https://%s%s", gatewayDomain, dashboardPath),
-		"section-title": sectionTitle[platform],
+		"dashboard-url":  fmt.Sprintf("https://%s/", domain),
+		"section-title":  sectionTitle[platform],
+		"gateway-domain": domain,
 	}, nil
 }
 

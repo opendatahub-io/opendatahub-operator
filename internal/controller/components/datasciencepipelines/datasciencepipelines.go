@@ -15,40 +15,39 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
-	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 )
 
 type componentHandler struct{}
 
-func init() { //nolint:gochecknoinits
-	cr.Add(&componentHandler{})
-}
+func NewHandler() *componentHandler { return &componentHandler{} }
 
 func (s *componentHandler) GetName() string {
 	return componentApi.DataSciencePipelinesComponentName
 }
 
-func (s *componentHandler) Init(_ common.Platform) error {
+func (s *componentHandler) Init(_ common.Platform, cfg operatorconfig.OperatorSettings) error {
+	manifestsBasePath := cfg.ManifestsBasePath
 	release := cluster.GetRelease()
 	clusterInfo := cluster.GetClusterInfo()
 	extraParams := map[string]string{
 		platformVersionParamsKey: release.Version.String(),
 		fipsEnabledParamsKey:     strconv.FormatBool(clusterInfo.FipsEnabled),
 	}
-	if err := deploy.ApplyParams(paramsPath, "params.env", imageParamMap, extraParams); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", paramsPath, err)
+	if err := deploy.ApplyParams(paramsPath(manifestsBasePath), "params.env", imageParamMap, extraParams); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", paramsPath(manifestsBasePath), err)
 	}
 
 	return nil
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
+func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
 	return &componentApi.DataSciencePipelines{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.DataSciencePipelinesKind,
@@ -63,7 +62,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 		Spec: componentApi.DataSciencePipelinesSpec{
 			DataSciencePipelinesCommonSpec: dsc.Spec.Components.AIPipelines.DataSciencePipelinesCommonSpec,
 		},
-	}
+	}, nil
 }
 
 func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
@@ -91,6 +90,15 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	dsc.Status.Components.AIPipelines.DataSciencePipelinesCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
+
+	if !c.GetDeletionTimestamp().IsZero() {
+		rr.Conditions.MarkFalse(
+			ReadyConditionType,
+			conditions.WithReason(status.DeletingReason),
+			conditions.WithMessage(status.DeletingMessage),
+		)
+		return metav1.ConditionFalse, nil
+	}
 
 	if s.IsEnabled(dsc) {
 		dsc.Status.Components.AIPipelines.DataSciencePipelinesCommonStatus = c.Status.DataSciencePipelinesCommonStatus.DeepCopy()

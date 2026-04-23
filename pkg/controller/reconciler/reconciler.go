@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sync"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -13,7 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -35,12 +36,40 @@ type gvkInfo struct {
 	owned bool
 }
 
+type manifestsBasePathProvider interface {
+	GetManifestsBasePath() string
+}
+
+func getManifestsBasePath(mgr manager.Manager) string {
+	if p, ok := mgr.(manifestsBasePathProvider); ok {
+		return p.GetManifestsBasePath()
+	}
+	return ""
+}
+
 type ReconcilerOpt func(*Reconciler)
 
 func WithConditionsManagerFactory(happy string, dependents ...string) ReconcilerOpt {
 	return func(reconciler *Reconciler) {
 		reconciler.conditionsManagerFactory = func(accessor common.ConditionsAccessor) *conditions.Manager {
 			return conditions.NewManager(accessor, happy, dependents...)
+		}
+	}
+}
+
+// withDynamicOwnership enables dynamic ownership mode for the reconciler.
+// When enabled, the controller will automatically track ownership of resources
+// that are deployed, without requiring explicit .Owns() declarations.
+func withDynamicOwnership(opts ...DynamicOwnershipOption) ReconcilerOpt {
+	return func(reconciler *Reconciler) {
+		reconciler.dynamicOwnershipEnabled = true
+
+		cfg := &dynamicOwnershipConfig{}
+		for _, opt := range opts {
+			opt(cfg)
+		}
+		for _, g := range cfg.excludeGVKs {
+			reconciler.excludeFromDynamicOwnership[g] = struct{}{}
 		}
 	}
 }
@@ -53,18 +82,22 @@ type Reconciler struct {
 	discoveryClient discovery.DiscoveryInterface
 	dynamicClient   dynamic.Interface
 
-	Scheme     *runtime.Scheme
-	Actions    []actions.Fn
-	Finalizer  []actions.Fn
-	Log        logr.Logger
-	Controller controller.Controller
-	Recorder   record.EventRecorder
-	Release    common.Release
+	Scheme            *runtime.Scheme
+	Actions           []actions.Fn
+	Finalizer         []actions.Fn
+	Log               logr.Logger
+	Controller        controller.Controller
+	Recorder          events.EventRecorder
+	Release           common.Release
+	ManifestsBasePath string
 
-	name                     string
-	instanceFactory          func() (common.PlatformObject, error)
-	conditionsManagerFactory func(common.ConditionsAccessor) *conditions.Manager
-	gvks                     map[schema.GroupVersionKind]gvkInfo
+	name                        string
+	instanceFactory             func() (common.PlatformObject, error)
+	conditionsManagerFactory    func(common.ConditionsAccessor) *conditions.Manager
+	gvks                        map[schema.GroupVersionKind]gvkInfo
+	dynamicGvks                 sync.Map
+	dynamicOwnershipEnabled     bool
+	excludeFromDynamicOwnership map[schema.GroupVersionKind]struct{}
 }
 
 // NewReconciler creates a new reconciler for the given type.
@@ -79,12 +112,14 @@ func NewReconciler[T common.PlatformObject](mgr manager.Manager, name string, ob
 	}
 
 	cc := Reconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Log:      ctrl.Log.WithName("controllers").WithName(name),
-		Recorder: mgr.GetEventRecorderFor(name),
-		Release:  cluster.GetRelease(),
-		name:     name,
+		Client:            mgr.GetClient(),
+		Scheme:            mgr.GetScheme(),
+		Log:               ctrl.Log.WithName("controllers").WithName(name),
+		Recorder:          mgr.GetEventRecorder(name),
+		Release:           cluster.GetRelease(),
+		ManifestsBasePath: getManifestsBasePath(mgr),
+
+		name: name,
 		instanceFactory: func() (common.PlatformObject, error) {
 			t := reflect.TypeOf(object).Elem()
 			res, ok := reflect.New(t).Interface().(T)
@@ -97,9 +132,10 @@ func NewReconciler[T common.PlatformObject](mgr manager.Manager, name string, ob
 		conditionsManagerFactory: func(accessor common.ConditionsAccessor) *conditions.Manager {
 			return conditions.NewManager(accessor, status.ConditionTypeReady)
 		},
-		gvks:            make(map[schema.GroupVersionKind]gvkInfo),
-		dynamicClient:   dynamicCli,
-		discoveryClient: discoveryCli,
+		gvks:                        make(map[schema.GroupVersionKind]gvkInfo),
+		excludeFromDynamicOwnership: make(map[schema.GroupVersionKind]struct{}),
+		dynamicClient:               dynamicCli,
+		discoveryClient:             discoveryCli,
 	}
 
 	for _, opt := range opts {
@@ -135,9 +171,33 @@ func (r *Reconciler) AddOwnedType(gvk schema.GroupVersionKind) {
 	}
 }
 
+// AddDynamicOwnedType registers a GVK as dynamically owned by this controller.
+// This is called by the dynamic ownership action after registering a watch for a resource type.
+// Once added, Owns() will return true for this GVK.
+func (r *Reconciler) AddDynamicOwnedType(gvk schema.GroupVersionKind) {
+	r.dynamicGvks.Store(gvk, struct{}{})
+}
+
 func (r *Reconciler) Owns(gvk schema.GroupVersionKind) bool {
+	// Check static ownership first
 	i, ok := r.gvks[gvk]
-	return ok && i.owned
+	if ok && i.owned {
+		return true
+	}
+	// Check dynamic ownership
+	_, ok = r.dynamicGvks.Load(gvk)
+	return ok
+}
+
+// IsDynamicOwnershipEnabled returns true if the controller has dynamic ownership enabled.
+func (r *Reconciler) IsDynamicOwnershipEnabled() bool {
+	return r.dynamicOwnershipEnabled
+}
+
+// IsExcludedFromDynamicOwnership returns true if the GVK should not have owner references set.
+func (r *Reconciler) IsExcludedFromDynamicOwnership(gvk schema.GroupVersionKind) bool {
+	_, excluded := r.excludeFromDynamicOwnership[gvk]
+	return excluded
 }
 
 func (r *Reconciler) AddAction(action actions.Fn) {
@@ -231,12 +291,14 @@ func (r *Reconciler) delete(ctx context.Context, res common.PlatformObject) erro
 	l.Info("delete")
 
 	rr := types.ReconciliationRequest{
-		Client:     r.Client,
-		Controller: r,
-		Instance:   res,
-		Conditions: r.conditionsManagerFactory(res),
-		Release:    r.Release,
-		Manifests:  make([]types.ManifestInfo, 0),
+		Client:            r.Client,
+		Controller:        r,
+		Instance:          res,
+		Conditions:        r.conditionsManagerFactory(res),
+		Release:           r.Release,
+		ManifestsBasePath: r.ManifestsBasePath,
+
+		Manifests: make([]types.ManifestInfo, 0),
 	}
 
 	// Execute finalizers
@@ -268,12 +330,14 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error
 	l.Info("apply")
 
 	rr := types.ReconciliationRequest{
-		Client:     r.Client,
-		Controller: r,
-		Instance:   res,
-		Conditions: r.conditionsManagerFactory(res),
-		Release:    r.Release,
-		Manifests:  make([]types.ManifestInfo, 0),
+		Client:            r.Client,
+		Controller:        r,
+		Instance:          res,
+		Conditions:        r.conditionsManagerFactory(res),
+		Release:           r.Release,
+		ManifestsBasePath: r.ManifestsBasePath,
+
+		Manifests: make([]types.ManifestInfo, 0),
 	}
 
 	// reset conditions so any unknown condition eventually set on
@@ -338,10 +402,12 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error
 	)
 
 	if err != nil && !k8serr.IsNotFound(err) {
-		r.Recorder.Event(
+		r.Recorder.Eventf(
 			res,
+			nil,
 			corev1.EventTypeNormal,
 			"ReconcileError",
+			"Reconcile",
 			err.Error(),
 		)
 
@@ -349,10 +415,12 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error
 	}
 
 	if provisionErr != nil {
-		r.Recorder.Event(
+		r.Recorder.Eventf(
 			res,
+			nil,
 			corev1.EventTypeWarning,
 			"ProvisioningError",
+			"Provision",
 			provisionErr.Error(),
 		)
 

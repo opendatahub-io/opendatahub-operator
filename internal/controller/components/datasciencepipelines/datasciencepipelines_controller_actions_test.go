@@ -17,7 +17,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
@@ -303,11 +302,6 @@ func TestCheckPreConditions_WrongInstanceType(t *testing.T) {
 func TestArgoWorkflowsControllersOptions(t *testing.T) {
 	g := NewWithT(t)
 
-	oldDeployPath := odhdeploy.DefaultManifestPath
-	defer func() {
-		odhdeploy.DefaultManifestPath = oldDeployPath
-	}()
-
 	ctx := t.Context()
 
 	tests := []struct {
@@ -360,10 +354,10 @@ func TestArgoWorkflowsControllersOptions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			odhdeploy.DefaultManifestPath = t.TempDir()
+			tmpDir := t.TempDir()
 
 			// Create the base directory structure
-			baseDir := path.Join(odhdeploy.DefaultManifestPath, ComponentName, "base")
+			baseDir := path.Join(tmpDir, ComponentName, "base")
 			err := os.MkdirAll(baseDir, 0o755)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
@@ -376,10 +370,11 @@ func TestArgoWorkflowsControllersOptions(t *testing.T) {
 			g.Expect(err).ShouldNot(HaveOccurred())
 
 			rr := types.ReconciliationRequest{
-				Client:     cli,
-				Instance:   tt.instance,
-				Conditions: conditions.NewManager(tt.instance, "Ready"),
-				Release:    common.Release{Name: cluster.OpenDataHub},
+				Client:            cli,
+				Instance:          tt.instance,
+				Conditions:        conditions.NewManager(tt.instance, "Ready"),
+				Release:           common.Release{Name: cluster.OpenDataHub},
+				ManifestsBasePath: tmpDir,
 			}
 
 			err = argoWorkflowsControllersOptions(ctx, &rr)

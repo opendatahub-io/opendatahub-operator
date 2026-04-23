@@ -45,10 +45,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
 )
 
-var (
-	DefaultManifestPath = os.Getenv("DEFAULT_MANIFESTS_PATH")
-)
-
 func DeployManifestsFromPath(
 	ctx context.Context,
 	cli client.Client,

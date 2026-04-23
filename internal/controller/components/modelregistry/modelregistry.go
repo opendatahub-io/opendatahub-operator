@@ -14,26 +14,26 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
-	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 type componentHandler struct{}
 
-func init() { //nolint:gochecknoinits
-	cr.Add(&componentHandler{})
-}
+func NewHandler() *componentHandler { return &componentHandler{} }
 
 func (s *componentHandler) GetName() string {
 	return componentApi.ModelRegistryComponentName
 }
 
-func (s *componentHandler) Init(_ common.Platform) error {
-	mi := baseManifestInfo(BaseManifestsSourcePath)
+func (s *componentHandler) Init(_ common.Platform, cfg operatorconfig.OperatorSettings) error {
+	manifestsBasePath := cfg.ManifestsBasePath
+	mi := baseManifestInfo(manifestsBasePath, BaseManifestsSourcePath)
 
 	if err := odhdeploy.ApplyParams(mi.String(), "params.env", imagesMap, extraParamsMap); err != nil {
 		return fmt.Errorf("failed to update params on path %s: %w", mi, err)
@@ -42,7 +42,14 @@ func (s *componentHandler) Init(_ common.Platform) error {
 	return nil
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
+func (s *componentHandler) NewCRObject(ctx context.Context, cli client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
+	commonSpec := dsc.Spec.Components.ModelRegistry.ModelRegistryCommonSpec
+	gatewayDomain, err := resources.GetGatewayDomain(ctx, cli)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"gateway domain is missing for ModelRegistry; the Data Science Gateway may not be ready yet—check that "+
+				"GatewayConfig exists and its status reports a domain: %w", err)
+	}
 	return &componentApi.ModelRegistry{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.ModelRegistryKind,
@@ -55,9 +62,10 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 			},
 		},
 		Spec: componentApi.ModelRegistrySpec{
-			ModelRegistryCommonSpec: dsc.Spec.Components.ModelRegistry.ModelRegistryCommonSpec,
+			ModelRegistryCommonSpec: commonSpec,
+			Gateway:                 &common.GatewaySpec{Domain: gatewayDomain},
 		},
-	}
+	}, nil
 }
 
 func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
@@ -85,6 +93,15 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	dsc.Status.Components.ModelRegistry.ModelRegistryCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
+
+	if !c.GetDeletionTimestamp().IsZero() {
+		rr.Conditions.MarkFalse(
+			ReadyConditionType,
+			conditions.WithReason(status.DeletingReason),
+			conditions.WithMessage(status.DeletingMessage),
+		)
+		return metav1.ConditionFalse, nil
+	}
 
 	if s.IsEnabled(dsc) {
 		dsc.Status.Components.ModelRegistry.ModelRegistryCommonStatus = c.Status.ModelRegistryCommonStatus.DeepCopy()

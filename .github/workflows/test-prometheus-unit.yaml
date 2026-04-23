@@ -2,16 +2,18 @@ name: Run prometheus unit tests
 on:
   pull_request:
     paths:
-      - 'config/monitoring/prometheus/**'
-      - 'tests/prometheus_unit_tests/**'
+      - 'internal/controller/components/**/monitoring/*-prometheusrules.tmpl.yaml'
+      - 'internal/controller/components/**/monitoring/*-alerting.unit-tests.yaml'
+      - 'tests/prometheus_unit_tests/scripts/**'
+      - 'Makefile'
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
-      uses: actions/checkout@v5
+      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
     - name: Setup Go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
       with:
         go-version-file: go.mod
     - name: Install Promtool

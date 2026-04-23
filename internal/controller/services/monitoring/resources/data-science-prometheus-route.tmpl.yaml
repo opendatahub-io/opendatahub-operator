@@ -1,0 +1,20 @@
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: data-science-prometheus-route
+  namespace: {{.Namespace}}
+  labels:
+    app: data-science-prometheus-namespace-proxy
+    platform.opendatahub.io/part-of: monitoring
+spec:
+  path: /
+  to:
+    kind: Service
+    name: data-science-prometheus-namespace-proxy
+    weight: 100
+  port:
+    targetPort: https
+  tls:
+    termination: reencrypt
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None

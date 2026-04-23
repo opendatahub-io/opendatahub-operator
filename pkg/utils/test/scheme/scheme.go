@@ -1,9 +1,13 @@
 package scheme
 
 import (
+	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
+	imagev1 "github.com/openshift/api/image/v1"
 	oauthv1 "github.com/openshift/api/oauth/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
+	userv1 "github.com/openshift/api/user/v1"
+	ofapiv1 "github.com/operator-framework/api/pkg/operators/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
@@ -12,7 +16,10 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	ccmAzureV1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/azure/v1alpha1"
+	ccmCoreweaveV1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/coreweave/v1alpha1"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
@@ -29,6 +36,7 @@ var (
 		routev1.AddToScheme,
 		dsciv2.AddToScheme,
 		dscv2.AddToScheme,
+		userv1.AddToScheme,
 		dsciv1.AddToScheme,
 		dscv1.AddToScheme,
 		featurev1.AddToScheme,
@@ -36,13 +44,20 @@ var (
 		ofapi.AddToScheme,
 		operatorv1.AddToScheme,
 		componentApi.AddToScheme,
+		maasv1alpha1.AddToScheme,
 		apiextensionsv1.AddToScheme,
 		oauthv1.AddToScheme,
+		ofapiv1.AddToScheme,
 		ofapiv2.AddToScheme,
 		coordinationv1.AddToScheme,
 		serviceApi.AddToScheme,
 		admissionv1.AddToScheme,
 		infrav1.AddToScheme,
+		gwapiv1.Install,
+		ccmAzureV1alpha1.AddToScheme,
+		ccmCoreweaveV1alpha1.AddToScheme,
+		imagev1.Install,
+		addTestTypesToScheme,
 	}
 )
 

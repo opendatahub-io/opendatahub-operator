@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -10,6 +11,8 @@ import (
 	"github.com/onsi/gomega/gstruct"
 	gTypes "github.com/onsi/gomega/types"
 	configv1 "github.com/openshift/api/config/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -18,8 +21,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -27,12 +32,18 @@ import (
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
 )
+
+type Logger interface {
+	Logf(format string, args ...any)
+	Helper()
+}
 
 // TestContext holds shared context and utilities used during E2E test execution.
 type TestContext struct {
@@ -41,6 +52,9 @@ type TestContext struct {
 
 	// Shared Gomega wrapper for making assertions in tests.
 	g *testf.WithT
+
+	// Logger for test output.
+	logger Logger
 
 	// Test timeouts
 	TestTimeouts TestTimeouts
@@ -90,12 +104,21 @@ func NewTestContext(t *testing.T) (*TestContext, error) { //nolint:thelper
 		return nil, err
 	}
 
-	// Set up global debug client for panic handling
+	// Initialize the cluster config for detecting the platform
+	err = cluster.Init(t.Context(), tcf.Client(), operatorconfig.OperatorSettings{
+		OperatorNamespace: testOpts.operatorNamespace,
+	})
+	if err != nil {
+		t.Logf("Warning: cluster.Init failed: %v", err)
+	}
+
+	// Set up the global debug client for panic handling
 	SetGlobalDebugClient(tcf.Client())
 
 	return &TestContext{
 		TestContext:                      tcf,
 		g:                                tcf.NewWithT(t),
+		logger:                           t,
 		DSCInitializationNamespacedName:  types.NamespacedName{Name: dsciInstanceName},
 		DataScienceClusterNamespacedName: types.NamespacedName{Name: dscInstanceName},
 		OperatorNamespace:                testOpts.operatorNamespace,
@@ -104,6 +127,12 @@ func NewTestContext(t *testing.T) (*TestContext, error) { //nolint:thelper
 		MonitoringNamespace:              testOpts.monitoringNamespace,
 		TestTimeouts:                     testOpts.TestTimeouts,
 	}, nil
+}
+
+// Logf logs a formatted message to the test output.
+func (tc *TestContext) Logf(format string, args ...any) {
+	tc.logger.Helper()
+	tc.logger.Logf(format, args...)
 }
 
 // OverrideEventuallyTimeout temporarily changes the Eventually timeout and polling period.
@@ -178,7 +207,7 @@ func (tc *TestContext) EnsureResourceExists(opts ...ResourceOpts) *unstructured.
 
 	var u *unstructured.Unstructured
 
-	tc.g.Eventually(func(g Gomega) {
+	eventually := tc.g.Eventually(func(g Gomega) {
 		// Use fetchResource to attempt to fetch the resource with retries
 		u, _ = fetchResource(ro)
 
@@ -193,7 +222,9 @@ func (tc *TestContext) EnsureResourceExists(opts ...ResourceOpts) *unstructured.
 			// Apply the provided condition matcher to the resource.
 			applyMatchers(g, ro.ResourceID, ro.GVK, u, nil, ro.Condition, ro.CustomErrorArgs)
 		}
-	}).Should(Succeed())
+	})
+
+	ro.applyEventuallyTimeouts(eventually).Should(Succeed())
 
 	return u
 }
@@ -216,7 +247,7 @@ func (tc *TestContext) EnsureResourceExistsConsistently(opts ...ResourceOpts) *u
 	var u *unstructured.Unstructured
 
 	// Ensure the resource exists and matches the condition consistently over the specified period.
-	tc.g.Consistently(func(g Gomega) {
+	consistently := tc.g.Consistently(func(g Gomega) {
 		// Use fetchResource to attempt to fetch the resource with retries
 		u, _ = fetchResource(ro)
 
@@ -226,12 +257,14 @@ func (tc *TestContext) EnsureResourceExistsConsistently(opts ...ResourceOpts) *u
 			defaultErrorMessageIfNone(resourceNotFoundErrorMsg, []any{ro.ResourceID, ro.GVK.Kind}, ro.CustomErrorArgs)...,
 		)
 
-		// If a condition is provided via WithCondition, apply it inside the Eventually block
+		// If a condition is provided via WithCondition, apply it inside the Consistently block
 		if ro.Condition != nil {
 			// Apply the provided condition matcher to the resource.
 			applyMatchers(g, ro.ResourceID, ro.GVK, u, nil, ro.Condition, ro.CustomErrorArgs)
 		}
-	}).Should(Succeed())
+	})
+
+	ro.applyConsistentlyTimeouts(consistently).Should(Succeed())
 
 	return u
 }
@@ -489,7 +522,7 @@ func (tc *TestContext) EnsureResourceGone(opts ...ResourceOpts) {
 	ro.IgnoreNotFound = true
 
 	// Use Eventually to retry checking the resource until it disappears or timeout occurs
-	tc.g.Eventually(func(g Gomega) {
+	eventually := tc.g.Eventually(func(g Gomega) {
 		err := tc.ensureResourceDoesNotExist(g, ro)
 
 		// Validate the error if an expected error is set
@@ -500,7 +533,9 @@ func (tc *TestContext) EnsureResourceGone(opts ...ResourceOpts) {
 
 		// For deletion checks, we expect no error (resource should be gone)
 		g.Expect(err).NotTo(HaveOccurred())
-	}).Should(Succeed())
+	})
+
+	ro.applyEventuallyTimeouts(eventually).Should(Succeed())
 }
 
 // EnsureResourcesExist ensures that a specific list of Kubernetes resources exists in the cluster.
@@ -518,7 +553,7 @@ func (tc *TestContext) EnsureResourcesExist(opts ...ResourceOpts) []unstructured
 
 	var resourcesList []unstructured.Unstructured
 
-	tc.g.Eventually(func(g Gomega) {
+	eventually := tc.g.Eventually(func(g Gomega) {
 		resourcesList, _ = fetchResourcesSync(ro)
 
 		// If a condition is provided via WithCondition, apply it inside the Eventually block
@@ -529,7 +564,9 @@ func (tc *TestContext) EnsureResourcesExist(opts ...ResourceOpts) []unstructured
 
 		// If no condition is provided, simply ensure the list is not empty
 		g.Expect(resourcesList).NotTo(BeEmpty(), resourceEmptyErrorMsg, ro.ResourceID, ro.GVK.Kind)
-	}).Should(Succeed())
+	})
+
+	ro.applyEventuallyTimeouts(eventually).Should(Succeed())
 
 	return resourcesList
 }
@@ -567,33 +604,42 @@ func (tc *TestContext) EnsureResourcesGone(opts ...ResourceOpts) {
 	ro.IgnoreNotFound = true
 
 	// Use Eventually to retry checking the resource until it disappears or timeout occurs
-	tc.g.Eventually(func(g Gomega) {
+	eventually := tc.g.Eventually(func(g Gomega) {
 		err := tc.ensureResourcesDoNotExist(g, ro)
 		g.Expect(err).NotTo(HaveOccurred())
-	}).Should(Succeed())
+	})
+
+	ro.applyEventuallyTimeouts(eventually).Should(Succeed())
 }
 
-// FetchSubscription get a subscription if exists.
+// FetchActualSubscription gets a Subscription if it exists.
+// It does not use eventually
 //
 // Parameters:
 //   - nn (types.NamespacedName): The namespace and name of the Subscription.
 //
 // Returns:
-//   - *unstructured.Unstructured: The existing subscription or nil.
-func (tc *TestContext) GetSubscription(nn types.NamespacedName, channelName string) *unstructured.Unstructured {
-	// Construct a resource identifier.
-	resourceID := resources.FormatNamespacedName(nn)
+//   - *ofapi.Subscription: The existing Subscription or nil if not found.
+//   - error: Any error encountered during retrieval.
+func (tc *TestContext) FetchActualSubscription(nn types.NamespacedName) (*ofapi.Subscription, error) {
+	// Fetch Subscription synchronously to avoid nested Eventually.
+	subU, err := fetchResourceSync(tc.NewResourceOptions(
+		WithMinimalObject(gvk.Subscription, nn),
+		WithCustomErrorMsg("Failed to fetch Subscription %s/%s", nn.Namespace, nn.Name),
+	))
+	if err != nil {
+		if meta.IsNoMatchError(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if subU == nil {
+		return nil, nil
+	}
+	sub := &ofapi.Subscription{}
+	tc.convertToResource(subU, sub)
 
-	// Create the subscription object using the necessary values (adapt as needed)
-	sub := tc.createSubscription(nn, channelName)
-
-	// Ensure the Subscription exists or create it if missing
-	return tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(sub),
-		WithMutateFunc(testf.TransformSpecToUnstructured(sub.Spec)),
-		WithCondition(jq.Match(`.status | has("installPlanRef")`)),
-		WithCustomErrorMsg("Failed to ensure Subscription '%s' exists", resourceID),
-	)
+	return sub, nil
 }
 
 // EnsureSubscriptionExistsOrCreate ensures that the specified Subscription exists.
@@ -629,7 +675,7 @@ func (tc *TestContext) EnsureSubscriptionExistsOrCreate(nn types.NamespacedName,
 //   - actualResource (interface{}): The resource to be compared.
 //   - expectedResource (interface{}): The expected resource.
 //   - args (...interface{}): Optional Gomega assertion message arguments.
-func (tc *TestContext) EnsureResourcesAreEqual(actualResource, expectedResource interface{}, args ...any) {
+func (tc *TestContext) EnsureResourcesAreEqual(actualResource, expectedResource any, args ...any) {
 	// Use Gomega's BeEquivalentTo for flexible deep comparison
 	tc.g.Expect(actualResource).To(
 		BeEquivalentTo(expectedResource),
@@ -744,105 +790,255 @@ func (tc *TestContext) EnsureCRDEstablished(name string) {
 		), "Expected CRD condition 'Established' to be True for CRD %s", name)
 }
 
-// EnsureResourceIsUnique ensures that creating a second instance of a given resource fails.
-//
-// This function performs the following steps:
-// 1. Converts the provided resource object into an `Unstructured` format using `ObjectToUnstructured`.
-// 2. Extracts the `GroupVersionKind` (GVK) from the object.
-// 3. Ensures that at least one resource of the same kind already exists in the cluster using `EnsureResourceExists`.
-// 4. Attempts to create a duplicate resource using `CreateUnstructured`.
-// 5. Asserts that the creation attempt fails, ensuring uniqueness constraints are enforced.
-//
-// Parameters:
-//   - obj (client.Object): The resource object to create, which must be convertible to an unstructured format.
-//   - args (...interface{}): Optional Gomega assertion message arguments.
-func (tc *TestContext) EnsureResourceIsUnique(obj client.Object, args ...any) {
-	// Ensure obj is not nil before proceeding
-	tc.g.Expect(obj).NotTo(BeNil(), resourceNotNilErrorMsg)
-
-	// Convert the input object to unstructured
-	u, err := resources.ObjectToUnstructured(tc.Scheme(), obj)
-	tc.g.Expect(err).NotTo(HaveOccurred(), err)
-
-	// Extract GroupVersionKind from the unstructured object
-	groupVersionKind := u.GetObjectKind().GroupVersionKind()
-
-	// Ensure that at least one resource of this kind already exists
-	tc.EnsureResourcesExist(
-		WithMinimalObject(groupVersionKind, types.NamespacedName{Namespace: u.GetNamespace()}),
-		WithListOptions(&client.ListOptions{Namespace: u.GetNamespace()}),
-		WithCustomErrorMsg("Failed to verify existence of %s", groupVersionKind.Kind),
-	)
-
-	// Attempt to create the duplicate resource, expecting failure
-	tc.g.Eventually(func(g Gomega) {
-		// Try to create the resource
-		_, err := tc.g.Create(u, types.NamespacedName{Namespace: u.GetNamespace(), Name: u.GetName()}).Get()
-
-		// If there's no error, that means the duplicate creation succeeded, which is a failure
-		g.Expect(err).To(HaveOccurred(), defaultErrorMessageIfNone(
-			"Expected creation of duplicate %s to fail due to uniqueness constraint, but it succeeded.",
-			[]any{groupVersionKind.Kind},
-			args,
-		)...)
-
-		// Check if the error is a Kubernetes StatusError and was denied by an admission webhook
-		// Ensure the failure is due to uniqueness constraints (Forbidden error)
-		g.Expect(k8serr.IsForbidden(err)).To(BeTrue(),
-			defaultErrorMessageIfNone(
-				"Expected failure due to uniqueness constraint (Forbidden), but got: %v",
-				[]any{err},
-				args,
-			)...,
-		)
-	}).Should(Succeed())
+func (tc *TestContext) GetInstanceName(gvk schema.GroupVersionKind) string {
+	return fmt.Sprintf("default-%s", strings.ToLower(gvk.Kind))
 }
 
-// EnsureOperatorInstalled ensures that the specified operator is installed and the associated
-// ClusterServiceVersion (CSV) reaches the 'Succeeded' phase.
+func (tc *TestContext) CreateComponent(gvk schema.GroupVersionKind) *unstructured.Unstructured {
+	instanceName := tc.GetInstanceName(gvk)
+	return &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": gvk.GroupVersion().String(),
+			"kind":       gvk.Kind,
+			"metadata":   map[string]interface{}{"name": instanceName},
+			"spec":       map[string]interface{}{},
+		},
+	}
+}
+
+// CheckComponentResourceExistsOrNotWithKind validates if a component resource's state and readiness match the expected values.
+func (tc *TestContext) CheckComponentResourceExistsOrNotWithKind(shouldExist bool, gvk schema.GroupVersionKind) {
+	instanceName := tc.GetInstanceName(gvk)
+
+	// Check if the component CR exists or not depending on the shouldExist flag
+	if shouldExist {
+		// Define common conditions to match when the component cr should exist
+		existConditions := []gTypes.GomegaMatcher{
+			// Validate the "Ready" condition for the component CR
+			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue),
+		}
+		// Check if the component CR exists with the specified conditions
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk, types.NamespacedName{Name: instanceName}),
+			WithCondition(And(existConditions...)))
+	} else {
+		// Check if the component CR does not exist
+		tc.EnsureResourceDoesNotExist(
+			WithMinimalObject(gvk, types.NamespacedName{Name: instanceName}),
+		)
+	}
+}
+
+// UpdateComponentStateInDataScienceClusterWithKind updates the management state of a specified component kind in the DataScienceCluster.
 //
-// This function performs the following tasks:
-// 1. Creates or updates the namespace for the operator, if necessary.
-// 2. Optionally creates or updates the operator group, depending on the 'skipOperatorGroupCreation' flag.
-// 3. Retrieves the InstallPlan for the operator and approves it if not already approved.
-// 4. Verifies that the operator's ClusterServiceVersion (CSV) reaches the 'Succeeded' phase.
+// This function updates the component's management state in the DataScienceCluster and validates
+// that both the spec and status are updated correctly, including the component's Ready condition.
 //
 // Parameters:
-//   - nn (types.NamespacedName): The namespace and name of the operator being installed.
-//   - skipOperatorGroupCreation (bool): If true, skips the creation or update of the operator group.
-func (tc *TestContext) EnsureOperatorInstalled(nn types.NamespacedName, skipOperatorGroupCreation bool) {
-	tc.EnsureOperatorInstalledWithChannel(nn, skipOperatorGroupCreation, defaultOperatorChannel)
+//   - state (operatorv1.ManagementState): The desired management state (e.g., Managed, Removed).
+//   - kind (string): The component kind (e.g., "Dashboard", "Workbenches").
+func (tc *TestContext) UpdateComponentStateInDataScienceClusterWithKind(state operatorv1.ManagementState, kind string) {
+	componentName, conditionKind := getComponentNameFromKind(kind)
+
+	readyCondition := metav1.ConditionFalse
+	if state == operatorv1.Managed {
+		readyCondition = metav1.ConditionTrue
+	}
+
+	// Define common conditions to match.
+	conditions := []gTypes.GomegaMatcher{
+		// Validate that the component's management state is updated correctly
+		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, state),
+
+		// Validate the "Ready" condition for the component
+		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, conditionKind, readyCondition),
+	}
+
+	// Update the management state of the component in the DataScienceCluster.
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, state)),
+		WithCondition(And(conditions...)),
+	)
 }
 
 // EnsureOperatorInstalledWithChannel ensures that an operator is installed via OLM with a specific channel.
 //
 // This function performs the following steps:
 //  1. Creates the operator's namespace if it doesn't exist
-//  2. Creates an OperatorGroup in the namespace (unless skipOperatorGroupCreation is true)
+//  2. Creates a Subscription for the operator with the specified channel
+//  3. Waits for the CSV (ClusterServiceVersion) to reach "Succeeded" phase
+//
+// Parameters:
+//   - nn (types.NamespacedName): The namespace and name of the operator being installed.
+//   - channelName (string): The OLM channel to use for the operator installation (e.g., "stable", "alpha").
+func (tc *TestContext) EnsureOperatorInstalledWithChannel(nn types.NamespacedName, channelName string) {
+	tc.EnsureOperatorHealthy(nn, channelName, nil)
+}
+
+// EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel ensures that an operator is installed via OLM with a specific channel.
+//
+// This function performs the following steps:
+//  1. Creates the operator's namespace if it doesn't exist
+//  2. Creates an OperatorGroup with global scope in the namespace
 //  3. Creates a Subscription for the operator with the specified channel
 //  4. Waits for the CSV (ClusterServiceVersion) to reach "Succeeded" phase
 //
 // Parameters:
 //   - nn (types.NamespacedName): The namespace and name of the operator being installed.
-//   - skipOperatorGroupCreation (bool): If true, skips the creation or update of the operator group.
 //   - channelName (string): The OLM channel to use for the operator installation (e.g., "stable", "alpha").
-func (tc *TestContext) EnsureOperatorInstalledWithChannel(nn types.NamespacedName, skipOperatorGroupCreation bool, channelName string) {
-	// Construct a resource identifier.
-	resourceID := resources.FormatNamespacedName(nn)
+func (tc *TestContext) EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(nn types.NamespacedName, channelName string) {
+	tc.EnsureOperatorHealthy(nn, channelName, nil)
+}
 
-	// Ensure the operator's namespace is created.
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: nn.Namespace}),
-		WithCustomErrorMsg("Failed to create or update namespace '%s'", nn.Namespace),
+// EnsureOperatorInstalledWithLocalOperatorGroupAndChannel ensures that an operator is installed via OLM with a specific channel.
+//
+// This function performs the following steps:
+//  1. Creates the operator's namespace if it doesn't exist
+//  2. Creates an OperatorGroup targeting operator's namespace
+//  3. Creates a Subscription for the operator with the specified channel
+//  4. Waits for the CSV (ClusterServiceVersion) to reach "Succeeded" phase
+//
+// Parameters:
+//   - nn (types.NamespacedName): The namespace and name of the operator being installed.
+//   - channelName (string): The OLM channel to use for the operator installation (e.g., "stable", "alpha").
+func (tc *TestContext) EnsureOperatorInstalledWithLocalOperatorGroupAndChannel(nn types.NamespacedName, channelName string) {
+	tc.EnsureOperatorHealthy(nn, channelName, []string{nn.Namespace})
+}
+
+// EnsureOperatorHealthy validates that an operator is installed and healthy.
+// If the operator is not present or unhealthy, it will be installed.
+// This function is idempotent and works regardless of how the operator was initially installed.
+func (tc *TestContext) EnsureOperatorHealthy(nn types.NamespacedName, channel string, targetNamespaces []string) {
+	// Quick health check - if already healthy, we're done
+	if tc.isOperatorHealthy(nn) {
+		return
+	}
+
+	// Not healthy - ensure installation
+	tc.ensureOperatorInstalled(nn, channel, targetNamespaces)
+
+	// Wait for the operator to become healthy
+	tc.ensureCSVSucceeded(nn)
+}
+
+// isOperatorHealthy checks if operator CSV is in Succeeded phase.
+func (tc *TestContext) isOperatorHealthy(nn types.NamespacedName) bool {
+	sub, err := tc.FetchActualSubscription(nn)
+	if err != nil || sub == nil {
+		return false
+	}
+
+	// Determine CSV name from subscription status (supports both currentCSV and installedCSV)
+	csvName := extractSubscriptionCSVName(sub)
+	if csvName == "" {
+		return false
+	}
+
+	csv, err := fetchResource(
+		tc.NewResourceOptions(
+			WithMinimalObject(gvk.ClusterServiceVersion, types.NamespacedName{
+				Namespace: nn.Namespace,
+				Name:      csvName,
+			}),
+		),
 	)
 
-	// Ensure the operator group is created or updated only if necessary.
-	if !skipOperatorGroupCreation {
-		tc.EventuallyResourceCreatedOrUpdated(
-			WithMinimalObject(gvk.OperatorGroup, nn),
-			WithCustomErrorMsg("Failed to create or update operator group '%s'", resourceID),
-		)
+	if err != nil || csv == nil {
+		return false
 	}
+
+	clusterServiceVersion := &ofapi.ClusterServiceVersion{}
+	tc.convertToResource(csv, clusterServiceVersion)
+
+	return clusterServiceVersion.Status.Phase == ofapi.CSVPhaseSucceeded
+}
+
+// ensureOperatorInstalled performs operator installation, handling pre-existing resources.
+func (tc *TestContext) ensureOperatorInstalled(nn types.NamespacedName, channel string, targetNamespaces []string) {
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: nn.Namespace}),
+		WithCustomErrorMsg("Failed to create namespace '%s'", nn.Namespace),
+	)
+
+	tc.ensureOperatorGroupExists(nn, targetNamespaces)
+	tc.ensureInstallPlan(nn, channel)
+}
+
+// ensureOperatorGroupExists reuses existing OperatorGroups or creates one.
+func (tc *TestContext) ensureOperatorGroupExists(nn types.NamespacedName, targetNamespaces []string) {
+	existingOG := tc.fetchOperatorGroupInNamespace(nn.Namespace)
+	if existingOG != nil {
+		return // Reuse existing OperatorGroup
+	}
+
+	resourceID := resources.FormatNamespacedName(nn)
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(tc.createOperatorGroup(nn, targetNamespaces)),
+		WithCustomErrorMsg("Failed to create operator group '%s'", resourceID),
+	)
+}
+
+// fetchOperatorGroupInNamespace discovers any OperatorGroup in the namespace.
+func (tc *TestContext) fetchOperatorGroupInNamespace(namespace string) *operatorsv1.OperatorGroup {
+	operatorGroups := tc.FetchResources(
+		WithMinimalObject(gvk.OperatorGroup, types.NamespacedName{Namespace: namespace}),
+		WithListOptions(&client.ListOptions{Namespace: namespace}),
+	)
+
+	if len(operatorGroups) == 0 {
+		return nil
+	}
+
+	og := &operatorsv1.OperatorGroup{}
+	tc.convertToResource(&operatorGroups[0], og)
+
+	return og
+}
+
+// ensureCSVSucceeded waits for CSV to reach the Succeeded phase.
+func (tc *TestContext) ensureCSVSucceeded(nn types.NamespacedName) {
+	resourceID := resources.FormatNamespacedName(nn)
+
+	// Fetch Subscription
+	subscription := &ofapi.Subscription{}
+	tc.FetchTypedResource(subscription,
+		WithMinimalObject(gvk.Subscription, nn),
+		WithCustomErrorMsg("Failed to fetch Subscription %s", resourceID),
+	)
+
+	// Extract CSV name
+	csvName := extractSubscriptionCSVName(subscription)
+	tc.g.Expect(csvName).NotTo(BeEmpty(), "Subscription %s has no current/installed CSV", resourceID)
+
+	tc.g.Eventually(func(g Gomega) {
+		// Fetch CSV
+		csv, err := tc.FetchActualClusterServiceVersion(types.NamespacedName{Namespace: nn.Namespace, Name: csvName})
+		g.Expect(err).NotTo(HaveOccurred(), "error fetching CSV %s/%s", nn.Namespace, csvName)
+		g.Expect(csv).NotTo(BeNil(), "CSV %s/%s not found", nn.Namespace, csvName)
+		g.Expect(csv.Status.Phase).To(Equal(ofapi.CSVPhaseSucceeded),
+			"CSV %s is not Succeeded: %s", csvName, csv.Status.Phase)
+	}).WithTimeout(tc.TestTimeouts.longEventuallyTimeout).
+		WithPolling(tc.TestTimeouts.defaultEventuallyPollInterval).
+		Should(Succeed())
+}
+
+// ensureInstallPlan is a helper function that retrieves and approves an operator's InstallPlan,
+// then waits for the associated ClusterServiceVersion (CSV) to reach the 'Succeeded' phase.
+//
+// This function performs the following steps:
+//  1. Creates a Subscription for the operator with the specified channel
+//  2. Approves the InstallPlan if it's not already approved (required in CI environments)
+//  3. Extracts the CSV name from the InstallPlan
+//  4. Waits for the CSV to reach 'Succeeded' phase, indicating successful installation
+//
+// Parameters:
+//   - nn (types.NamespacedName): The namespace and name of the operator subscription.
+//   - channelName (string): The OLM channel used for the operator installation.
+func (tc *TestContext) ensureInstallPlan(nn types.NamespacedName, channelName string) {
+	// Construct a resource identifier.
+	resourceID := resources.FormatNamespacedName(nn)
 
 	// Retrieve the InstallPlan
 	plan := tc.FetchInstallPlan(nn, channelName)
@@ -857,12 +1053,81 @@ func (tc *TestContext) EnsureOperatorInstalledWithChannel(nn types.NamespacedNam
 	csvName := plan.Spec.ClusterServiceVersionNames[0] // Assuming first in the list
 
 	tc.g.Eventually(func(g Gomega) {
-		csv := tc.FetchClusterServiceVersion(types.NamespacedName{Namespace: nn.Namespace, Name: csvName})
+		// Fetch CSV
+		csv, err := tc.FetchActualClusterServiceVersion(types.NamespacedName{Namespace: nn.Namespace, Name: csvName})
+		g.Expect(err).NotTo(HaveOccurred(), "error fetching CSV %s/%s", nn.Namespace, csvName)
+		g.Expect(csv).NotTo(BeNil(), "CSV %s/%s not found", nn.Namespace, csvName)
+
 		g.Expect(csv.Status.Phase).To(
 			Equal(ofapi.CSVPhaseSucceeded),
 			"CSV %s did not reach 'Succeeded' phase", resourceID,
 		)
-	}).WithTimeout(tc.TestTimeouts.mediumEventuallyTimeout).WithPolling(tc.TestTimeouts.defaultEventuallyPollInterval)
+	}).WithTimeout(tc.TestTimeouts.mediumEventuallyTimeout).
+		WithPolling(tc.TestTimeouts.defaultEventuallyPollInterval).
+		Should(Succeed())
+}
+
+// registerCleanup registers a t.Cleanup() handler that deletes a resource when the test completes.
+// This ensures resources are cleaned up even on test failure or timeout.
+// Cleanup is best-effort and non-fatal: errors are logged but never asserted,
+// so a cleanup failure cannot mask the original test failure.
+func (tc *TestContext) registerCleanup(ro *ResourceOptions) {
+	// Capture GVK and NN to avoid closure over the mutable ResourceOptions
+	cleanupGVK := ro.GVK
+	cleanupNN := ro.NN
+	ro.CleanupT.Cleanup(func() {
+		tc.bestEffortDeleteResource(cleanupGVK, cleanupNN)
+	})
+}
+
+// bestEffortDeleteResource removes finalizers, issues a delete, and waits for the
+// resource to be gone. It never calls tc.g.Expect, so it is safe to use inside
+// t.Cleanup handlers where assertion failures would mask the original test failure.
+// NotFound/NoMatch errors are silently ignored; all other errors are logged.
+func (tc *TestContext) bestEffortDeleteResource(resGVK schema.GroupVersionKind, nn types.NamespacedName) {
+	defer func() {
+		if r := recover(); r != nil {
+			tc.Logf("cleanup: best-effort delete panicked for %s %s: %v", resGVK, nn, r)
+		}
+	}()
+
+	// Remove finalizers before deletion (best-effort, errors are intentionally ignored)
+	tc.tryRemoveFinalizers(resGVK, nn)
+
+	// Issue the delete without assertions — use the raw error return
+	err := tc.g.Delete(resGVK, nn).Get()
+	if err != nil {
+		if meta.IsNoMatchError(err) || k8serr.IsNotFound(err) {
+			return // CRD or resource already gone — nothing to clean up
+		}
+		tc.Logf("cleanup: best-effort delete failed for %s %s: %v", resGVK, nn, err)
+		return
+	}
+
+	// Poll until the resource is gone, without Gomega assertions
+	tc.waitForDeletionBestEffort(resGVK, nn)
+}
+
+// waitForDeletionBestEffort polls until a resource is fully deleted.
+// It never calls tc.g.Expect, so a timeout here is logged but does not fail the test.
+func (tc *TestContext) waitForDeletionBestEffort(gvk schema.GroupVersionKind, nn types.NamespacedName) {
+	timeout := tc.TestTimeouts.mediumEventuallyTimeout
+	interval := tc.TestTimeouts.defaultEventuallyPollInterval
+
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		u := resources.GvkToUnstructured(gvk)
+		err := tc.g.Client().Get(tc.g.Context(), nn, u)
+		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
+			return // Resource is gone
+		}
+		if err != nil {
+			tc.Logf("cleanup: unexpected error polling for deletion of %s %s: %v", gvk, nn, err)
+			return
+		}
+		time.Sleep(interval)
+	}
+	tc.Logf("cleanup: timed out waiting for %s %s to be deleted", gvk, nn)
 }
 
 // DeleteResource deletes a specific Kubernetes resource by name.
@@ -974,7 +1239,12 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 	ro := tc.NewResourceOptions(opts...)
 
 	// Step 1: Capture original resource metadata
-	originalResource := tc.EnsureResourceExists(opts...)
+	originalResource, err := fetchResourceSync(ro)
+	if err != nil {
+		tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to fetch resource %s %s before deletion", ro.GVK.Kind, ro.ResourceID)
+	}
+	tc.g.Expect(originalResource).NotTo(BeNil(), "Resource %s %s should exist before deletion", ro.GVK.Kind, ro.ResourceID)
+
 	originalUID := originalResource.GetUID()
 	originalResourceVersion := originalResource.GetResourceVersion()
 
@@ -982,7 +1252,7 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 	tc.DeleteResource(opts...)
 
 	// Step 2.5: Ensure the resource is actually deleted before looking for recreation
-	tc.g.Eventually(func(g Gomega) {
+	deletionCheck := tc.g.Eventually(func(g Gomega) {
 		// Use direct client.Get() instead of fetchResource() to avoid nested Eventually calls
 		u, err := fetchResourceSync(ro)
 		if err != nil {
@@ -1000,7 +1270,9 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 		g.Expect(u.GetUID()).NotTo(Equal(originalUID),
 			"Resource deletion not yet acknowledged: resource still exists with original UID")
 		// If it has a different UID, it was already recreated, which is fine
-	}).Should(Succeed(), "Resource %s %s deletion was not acknowledged within timeout", ro.GVK.Kind, ro.ResourceID)
+	})
+
+	ro.applyEventuallyTimeouts(deletionCheck).Should(Succeed(), "Resource %s %s deletion was not acknowledged within timeout", ro.GVK.Kind, ro.ResourceID)
 
 	// Step 3: Wait for controller to recreate with new identity
 	// (UID-based verification automatically handles deletion acknowledgment)
@@ -1011,7 +1283,7 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 
 	var recreatedResource *unstructured.Unstructured
 
-	tc.g.Eventually(func(g Gomega) {
+	recreationCheck := tc.g.Eventually(func(g Gomega) {
 		// Poll without nesting Eventually to avoid compounded timeouts
 		// Use direct client.Get() instead of fetchResource() to avoid nested Eventually calls
 		u, err := fetchResourceSync(ro)
@@ -1023,18 +1295,19 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 		newUID := recreatedResource.GetUID()
 		newResourceVersion := recreatedResource.GetResourceVersion()
 
-		// Debug logging to understand what's happening
-		if newUID == originalUID {
-			// This indicates the resource was never actually deleted, just log and continue polling
-			return
-		}
-
 		g.Expect(newUID).NotTo(Equal(originalUID),
 			"Recreated resource should have different UID. Original: %s, New: %s", originalUID, newUID)
 		g.Expect(newResourceVersion).NotTo(Equal(originalResourceVersion),
 			"Recreated resource should have different ResourceVersion. Original: %s, New: %s",
 			originalResourceVersion, newResourceVersion)
-	}).Should(Succeed(),
+
+		// If a condition is provided, check it on the recreated resource
+		if ro.Condition != nil {
+			applyMatchers(g, ro.ResourceID, ro.GVK, recreatedResource, nil, ro.Condition, ro.CustomErrorArgs)
+		}
+	})
+
+	ro.applyEventuallyTimeouts(recreationCheck).Should(Succeed(),
 		"Resource %s %s was not properly recreated with new identity", ro.GVK.Kind, ro.ResourceID)
 
 	return recreatedResource
@@ -1087,26 +1360,34 @@ func (tc *TestContext) FetchInstallPlan(nn types.NamespacedName, channelName str
 	return installPlan
 }
 
-// FetchClusterServiceVersion retrieves a ClusterServiceVersion (CSV) for an operator by name and namespace.
+// FetchActualClusterServiceVersion retrieves a ClusterServiceVersion (CSV) for an operator by name and namespace.
 // If the CSV does not exist, the function will fail the test using Gomega assertions.
+// It does not use eventually
 //
 // Parameters:
 //   - nn (types.NamespacedName): The coordinates of the ClusterServiceVersion to retrieve.
 //
 // Returns:
 //   - *ofapi.ClusterServiceVersion: A pointer to the retrieved ClusterServiceVersion object.
-func (tc *TestContext) FetchClusterServiceVersion(nn types.NamespacedName) *ofapi.ClusterServiceVersion {
-	// Construct a resource identifier.
-	resourceID := resources.FormatNamespacedName(nn)
-
-	// Retrieve the CSV
+func (tc *TestContext) FetchActualClusterServiceVersion(nn types.NamespacedName) (*ofapi.ClusterServiceVersion, error) {
+	// Fetch CSV synchronously to avoid nested Eventually.
+	csvU, err := fetchResourceSync(tc.NewResourceOptions(
+		WithMinimalObject(gvk.ClusterServiceVersion, nn),
+		WithCustomErrorMsg("Failed to fetch CSV %s/%s", nn.Namespace, nn.Name),
+	))
+	if err != nil {
+		if meta.IsNoMatchError(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if csvU == nil {
+		return nil, nil
+	}
 	csv := &ofapi.ClusterServiceVersion{}
-	tc.FetchTypedResource(csv, WithMinimalObject(gvk.ClusterServiceVersion, nn))
+	tc.convertToResource(csvU, csv)
 
-	// Assert that we found the CSV
-	tc.g.Expect(csv).NotTo(BeNil(), "CSV %s not found", resourceID)
-
-	return csv
+	return csv, nil
 }
 
 // FetchClusterVersion retrieves the ClusterVersion for the cluster.
@@ -1133,6 +1414,11 @@ func (tc *TestContext) FetchClusterVersion() *configv1.ClusterVersion {
 // Returns:
 //   - common.Platform: The platform release name retrieved from the DSCInitialization resource.
 func (tc *TestContext) FetchPlatformRelease() common.Platform {
+	// In XKS platform (KinD), the platform release name is XKS
+	if tc.IsXKS() {
+		return cluster.XKS
+	}
+
 	// Fetch the DSCInitialization object
 	dsci := tc.FetchDSCInitialization()
 
@@ -1150,6 +1436,11 @@ func (tc *TestContext) FetchPlatformRelease() common.Platform {
 // Returns:
 //   - *dsciv2.DSCInitialization: The retrieved DSCInitialization object.
 func (tc *TestContext) FetchDSCInitialization() *dsciv2.DSCInitialization {
+	// In XKS, DSCInitialization does not exist, so returning nil
+	if tc.IsXKS() {
+		return nil
+	}
+
 	// Ensure the DSCInitialization exists and retrieve the object
 	dsci := &dsciv2.DSCInitialization{}
 	tc.FetchTypedResource(dsci, WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName))
@@ -1165,11 +1456,34 @@ func (tc *TestContext) FetchDSCInitialization() *dsciv2.DSCInitialization {
 // Returns:
 //   - *dsciv2.DataScienceCluster: The retrieved DataScienceCluster object.
 func (tc *TestContext) FetchDataScienceCluster() *dscv2.DataScienceCluster {
+	// In XKS, DataScienceCluster does not exist, so returning nil
+	if tc.IsXKS() {
+		return nil
+	}
+
 	// Ensure the DataScienceCluster exists and retrieve the object
 	dsc := &dscv2.DataScienceCluster{}
 	tc.FetchTypedResource(dsc, WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName))
 
 	return dsc
+}
+
+// IsXKS checks if the platform is XKS (External Kubernetes Service)
+//
+//	Returns:
+//	  - bool: True if the platform is XKS, false otherwise.
+func (tc *TestContext) IsXKS() bool {
+	// In XKS platform (KinD), the cluster type is Kubernetes
+	return cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes
+}
+
+// SkipIfXKSCluster is used to skip a test if the platform where its being executed is XKS.
+func (tc *TestContext) SkipIfXKSCluster(t *testing.T) {
+	t.Helper()
+
+	if tc.IsXKS() {
+		t.Skip("Skipping test because it is not supported on XKS platform")
+	}
 }
 
 // FetchResource ensures a Kubernetes resource exists and retrieves it as an Unstructured object.
@@ -1240,15 +1554,20 @@ func (tc *TestContext) ApproveInstallPlan(plan *ofapi.InstallPlan) {
 	// Prepare the InstallPlan object to be approved
 	obj := tc.createInstallPlan(plan.Name, plan.Namespace, plan.Spec.ClusterServiceVersionNames)
 
-	// Set up patch options
-	force := true
-	opt := &client.PatchOptions{
-		FieldManager: dscInstanceName,
-		Force:        &force,
+	// Convert InstallPlan to unstructured and use new Apply API
+	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
+	if err != nil {
+		tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to convert InstallPlan to unstructured: %v", err)
+		return
 	}
+	unstrObj := &unstructured.Unstructured{Object: u}
 
-	// Apply the patch to approve the InstallPlan
-	err := tc.Client().Patch(tc.Context(), obj, client.Apply, opt)
+	// Apply using new client.Apply API with typed options
+	err = tc.Client().Apply(tc.Context(),
+		client.ApplyConfigurationFromUnstructured(unstrObj),
+		client.FieldOwner(dscInstanceName),
+		client.ForceOwnership,
+	)
 	tc.g.Expect(err).
 		NotTo(
 			HaveOccurred(),
@@ -1268,7 +1587,8 @@ func (tc *TestContext) ApproveInstallPlan(plan *ofapi.InstallPlan) {
 //   - bool: True if an operator matching the prefix is found, false otherwise.
 //   - error: Any error encountered during the search operation.
 func (tc *TestContext) CheckOperatorExists(operatorNamePrefix string) (bool, error) {
-	return cluster.OperatorExists(tc.Context(), tc.Client(), operatorNamePrefix)
+	operatorInfo, err := cluster.OperatorExists(tc.Context(), tc.Client(), operatorNamePrefix)
+	return operatorInfo != nil, err
 }
 
 // EnsureWebhookBlocksResourceCreation verifies that webhook validation blocks creation of resources with invalid values.
@@ -1317,7 +1637,7 @@ func (tc *TestContext) EnsureWebhookBlocksOperation(operation func() error, oper
 	// Create a ResourceOptions object based on the provided opts.
 	ro := tc.NewResourceOptions(opts...)
 
-	tc.g.Eventually(func(g Gomega) {
+	eventually := tc.g.Eventually(func(g Gomega) {
 		// Execute the operation that should be blocked
 		err := operation()
 
@@ -1339,7 +1659,9 @@ func (tc *TestContext) EnsureWebhookBlocksOperation(operation func() error, oper
 
 		// Validate that it's a webhook validation error, not an infrastructure issue
 		tc.validateWebhookError(g, err, operationType, ro)
-	}).Should(Succeed(), defaultErrorMessageIfNone(
+	})
+
+	ro.applyEventuallyTimeouts(eventually).Should(Succeed(), defaultErrorMessageIfNone(
 		"Failed to validate webhook blocking behavior for %s of %s resource",
 		[]any{operationType, ro.GVK.Kind},
 		ro.CustomErrorArgs,
@@ -1359,43 +1681,39 @@ func (tc *TestContext) EnsureWebhookBlocksOperation(operation func() error, oper
 //   - operatorNamespacedName (types.NamespacedName): The namespace and name of the operator subscription
 //   - opts (variadic ResourceOpts): Optional resource options, such as WithWaitForDeletion(true)
 func (tc *TestContext) UninstallOperator(operatorNamespacedName types.NamespacedName, opts ...ResourceOpts) {
+	// Construct a resource identifier.
+	resourceID := resources.FormatNamespacedName(operatorNamespacedName)
+
 	// Create subscription options with default settings
-	subscriptionOpts := []ResourceOpts{
+	subscriptionOpts := make([]ResourceOpts, 0, 2+len(opts))
+	subscriptionOpts = append(subscriptionOpts,
 		WithMinimalObject(gvk.Subscription, operatorNamespacedName),
 		WithIgnoreNotFound(true),
-	}
+	)
 	// Merge with provided options (provided options override defaults)
 	subscriptionOpts = append(subscriptionOpts, opts...)
 
-	// Check if subscription exists - fetchResource handles errors via gomega assertions
-	ro := tc.NewResourceOptions(subscriptionOpts...)
-	operatorSubscription, err := fetchResource(ro)
+	// Fetch the subscription if it exists.
+	sub, err := tc.FetchActualSubscription(operatorNamespacedName)
 	if err != nil {
-		if meta.IsNoMatchError(err) || k8serr.IsNotFound(err) {
-			return
-		}
-		tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to fetch subscription %s", operatorNamespacedName.Name)
+		// Log error but don't fail immediately, as this is often used in cleanup
+		tc.Logf("Error fetching Subscription %s: %v", resourceID, err)
+		return
 	}
-
-	if operatorSubscription == nil {
-		// Subscription doesn't exist, nothing to uninstall
+	if sub == nil {
 		return
 	}
 
-	// Validate subscription structure and extract related resource information
-	tc.g.Expect(operatorSubscription.GetKind()).To(Equal("Subscription"),
-		"Expected resource to be a Subscription, got %s", operatorSubscription.GetKind())
-
 	// Extract CSV and InstallPlan names with proper error handling
-	csv, foundCSV, errCSV := unstructured.NestedString(operatorSubscription.UnstructuredContent(), "status", "currentCSV")
-	tc.g.Expect(errCSV).NotTo(HaveOccurred(),
-		"Failed to extract currentCSV from subscription %s", operatorNamespacedName.Name)
+	csv := extractSubscriptionCSVName(sub)
+	foundCSV := csv != ""
 
-	installPlan, foundPlan, errPlan := unstructured.NestedString(operatorSubscription.UnstructuredContent(), "status", "installPlanRef", "name")
-	tc.g.Expect(errPlan).NotTo(HaveOccurred(),
-		"Failed to extract installPlanRef.name from subscription %s", operatorNamespacedName.Name)
+	installPlan := ""
+	if sub.Status.InstallPlanRef != nil {
+		installPlan = sub.Status.InstallPlanRef.Name
+	}
 
-	namespace := operatorSubscription.GetNamespace()
+	namespace := sub.Namespace
 	tc.g.Expect(namespace).NotTo(BeEmpty(),
 		"Subscription %s should have a namespace", operatorNamespacedName.Name)
 
@@ -1403,18 +1721,34 @@ func (tc *TestContext) UninstallOperator(operatorNamespacedName types.Namespaced
 	tc.DeleteResource(subscriptionOpts...)
 
 	// Delete CSV if found and valid
-	if foundCSV && csv != "" {
-		csvOpts := []ResourceOpts{WithIgnoreNotFound(true), WithMinimalObject(gvk.ClusterServiceVersion, types.NamespacedName{Name: csv, Namespace: namespace})}
+	if foundCSV {
+		csvOpts := make([]ResourceOpts, 0, 2+len(opts))
+		csvOpts = append(csvOpts, WithIgnoreNotFound(true), WithMinimalObject(gvk.ClusterServiceVersion, types.NamespacedName{Name: csv, Namespace: namespace}))
 		csvOpts = append(csvOpts, opts...) // Add user-provided options
 		tc.DeleteResource(csvOpts...)
 	}
 
 	// Delete InstallPlan if found and valid
-	if foundPlan && installPlan != "" {
-		installPlanOpts := []ResourceOpts{WithIgnoreNotFound(true), WithMinimalObject(gvk.InstallPlan, types.NamespacedName{Name: installPlan, Namespace: namespace})}
+	if installPlan != "" {
+		installPlanOpts := make([]ResourceOpts, 0, 2+len(opts))
+		installPlanOpts = append(installPlanOpts, WithIgnoreNotFound(true), WithMinimalObject(gvk.InstallPlan, types.NamespacedName{Name: installPlan, Namespace: namespace}))
 		installPlanOpts = append(installPlanOpts, opts...) // Add user-provided options
 		tc.DeleteResource(installPlanOpts...)
 	}
+}
+
+// extractSubscriptionCSVName returns the CSV name referenced by a Subscription status.
+func extractSubscriptionCSVName(subscription *ofapi.Subscription) string {
+	if subscription == nil {
+		return ""
+	}
+	if subscription.Status.CurrentCSV != "" {
+		return subscription.Status.CurrentCSV
+	}
+	if subscription.Status.InstalledCSV != "" {
+		return subscription.Status.InstalledCSV
+	}
+	return ""
 }
 
 func (tc *TestContext) convertToResource(u *unstructured.Unstructured, obj client.Object) {
@@ -1500,6 +1834,28 @@ func (tc *TestContext) createSubscription(nn types.NamespacedName, channelName s
 	return subscription
 }
 
+// createOperatorGroup creates an OperatorGroup object.
+func (tc *TestContext) createOperatorGroup(nn types.NamespacedName, targetNamespaces []string) *operatorsv1.OperatorGroup {
+	operatorGroup := &operatorsv1.OperatorGroup{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       operatorsv1.OperatorGroupKind,
+			APIVersion: operatorsv1.SchemeGroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      nn.Name,
+			Namespace: nn.Namespace,
+		},
+	}
+
+	if len(targetNamespaces) > 0 {
+		operatorGroup.Spec = operatorsv1.OperatorGroupSpec{
+			TargetNamespaces: targetNamespaces,
+		}
+	}
+
+	return operatorGroup
+}
+
 // createInstallPlan creates an InstallPlan object.
 func (tc *TestContext) createInstallPlan(name string, ns string, csvNames []string) *ofapi.InstallPlan {
 	return &ofapi.InstallPlan{
@@ -1577,10 +1933,8 @@ func (tc *TestContext) tryRemoveFinalizers(gvk schema.GroupVersionKind, nn types
 		}
 	}()
 
-	// Try to remove finalizers by fetching the existing resource first
-	// This avoids validation issues with minimal objects that have empty specs
 	tc.EventuallyResourcePatched(
-		WithFetchedObject(gvk, nn),
+		WithMinimalObject(gvk, nn),
 		WithMutateFunc(testf.Transform(`.metadata.finalizers = []`)),
 		WithIgnoreNotFound(true),
 		WithAcceptableErr(func(err error) bool {
@@ -1592,6 +1946,8 @@ func (tc *TestContext) tryRemoveFinalizers(gvk schema.GroupVersionKind, nn types
 				k8serr.IsNotFound(err) || // Resource doesn't exist
 				k8serr.IsInvalid(err) || // Resource validation errors
 				k8serr.IsConflict(err) || // Resource version conflicts
+				runtime.IsMissingKind(err) || // Unstructured object has no kind (e.g., CRD removed during cleanup)
+				runtime.IsMissingVersion(err) || // Unstructured object has no version (e.g., CRD removed during cleanup)
 				strings.Contains(err.Error(), "resourceVersion should not be set on objects to be created") // Generic resource version creation errors
 		}, "AcceptableCleanupError"),
 	)
@@ -1621,6 +1977,29 @@ func (tc *TestContext) CheckMinOCPVersion(minVersion string) (bool, error) {
 	return currentVersion.GTE(requiredVersion), nil
 }
 
+// SkipIfBYOIDC skips the current test if the cluster uses external OIDC authentication (BYOIDC).
+// This is useful for tests that verify IntegratedOAuth-specific resources (e.g., OAuthClient)
+// which are not created on BYOIDC clusters.
+func (tc *TestContext) SkipIfBYOIDC(t *testing.T) {
+	t.Helper()
+	authMode, err := cluster.GetClusterAuthenticationMode(tc.Context(), tc.Client())
+	tc.g.Expect(err).ShouldNot(HaveOccurred(), "Failed to detect cluster authentication mode")
+	if authMode == cluster.AuthModeOIDC {
+		t.Skip("Skipping test: not applicable on BYOIDC clusters (cluster uses external OIDC authentication)")
+	}
+}
+
+// SkipUnlessBYOIDC skips the current test unless the cluster uses external OIDC authentication (BYOIDC).
+// This is useful for tests that validate BYOIDC-specific behavior.
+func (tc *TestContext) SkipUnlessBYOIDC(t *testing.T) {
+	t.Helper()
+	authMode, err := cluster.GetClusterAuthenticationMode(tc.Context(), tc.Client())
+	tc.g.Expect(err).ShouldNot(HaveOccurred(), "Failed to detect cluster authentication mode")
+	if authMode != cluster.AuthModeOIDC {
+		t.Skipf("Skipping test: only applicable on BYOIDC clusters (cluster uses %s authentication)", authMode)
+	}
+}
+
 // SkipIfOCPVersionBelow is a test helper that skips the current test if the OpenShift cluster
 // version is below the specified minimum version.
 //
@@ -1639,4 +2018,221 @@ func (tc *TestContext) SkipIfOCPVersionBelow(t *testing.T, minVersion string, re
 		t.Skipf("Skipping test: requires OpenShift %s or above for %s, current version: %s",
 			minVersion, reason, cluster.GetClusterInfo().Version.String())
 	}
+}
+
+// FetchSingleResourceOfKind fetches the first resource of a given GVK in a namespace.
+// This is useful for external operator CRs where the name may vary.
+func (tc *TestContext) FetchSingleResourceOfKind(resourceGVK schema.GroupVersionKind, namespace string) *unstructured.Unstructured {
+	tc.Logf("Fetching single %s resource in namespace %q.", resourceGVK.Kind, namespace)
+	var result *unstructured.Unstructured
+
+	tc.g.Eventually(func(g Gomega) {
+		list := &unstructured.UnstructuredList{}
+		list.SetGroupVersionKind(resourceGVK)
+
+		err := tc.Client().List(tc.Context(), list, client.InNamespace(namespace))
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to list %s resources in namespace %s", resourceGVK.Kind, namespace)
+
+		g.Expect(list.Items).To(HaveLen(1), "Expected exactly one %s resource in namespace %s, got %d", resourceGVK.Kind, namespace, len(list.Items))
+
+		result = &list.Items[0]
+	}).Should(Succeed(), "Failed to fetch single %s resource in namespace %s", resourceGVK.Kind, namespace)
+
+	return result
+}
+
+// InjectConditionIntoResourceStatus injects a condition into a resource's status.conditions field.
+// This is useful for testing things such as external operator degradation scenarios.
+func (tc *TestContext) InjectConditionIntoResourceStatus(
+	resource *unstructured.Unstructured,
+	conditionType string,
+	conditionStatus metav1.ConditionStatus,
+	reason, message string,
+) {
+	tc.Logf("Injecting condition %s=%s into resource %s/%s.", conditionType, conditionStatus, resource.GetNamespace(), resource.GetName())
+
+	tc.g.Eventually(func(g Gomega) {
+		// Refresh, mutate, update, then re-fetch and assert final state in one Eventually
+		err := testf.RefreshResource(tc.Context(), tc.Client(), resource)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to refresh resource %s/%s", resource.GetNamespace(), resource.GetName())
+
+		conditions, err := testf.ExtractTypedConditions(resource)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to extract conditions from resource")
+
+		meta.SetStatusCondition(&conditions, metav1.Condition{
+			Type:    conditionType,
+			Status:  conditionStatus,
+			Reason:  reason,
+			Message: message,
+		})
+		err = testf.SetTypedConditions(resource, conditions)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to set conditions on resource")
+
+		err = tc.Client().Status().Update(tc.Context(), resource)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to update resource status with condition %s=%s", conditionType, conditionStatus)
+
+		// Re-fetch and assert the condition is present with expected status/reason/message
+		err = testf.RefreshResource(tc.Context(), tc.Client(), resource)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to re-fetch resource %s/%s after update", resource.GetNamespace(), resource.GetName())
+
+		conditions, err = testf.ExtractTypedConditions(resource)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to re-extract conditions from resource")
+
+		found := meta.FindStatusCondition(conditions, conditionType)
+		g.Expect(found).NotTo(BeNil(), "Expected condition %s to be present", conditionType)
+		g.Expect(found.Status).To(Equal(conditionStatus), "Expected condition %s status %s", conditionType, conditionStatus)
+		if reason != "" {
+			g.Expect(found.Reason).To(Equal(reason), "Expected condition %s reason %s", conditionType, reason)
+		}
+		if message != "" {
+			g.Expect(found.Message).To(ContainSubstring(message), "Expected condition %s message to contain %q", conditionType, message)
+		}
+	}).Should(Succeed(), "Failed to inject condition %s=%s into resource %s/%s",
+		conditionType, conditionStatus, resource.GetNamespace(), resource.GetName())
+}
+
+// RemoveConditionFromResourceStatus removes a condition from a resource's status.conditions field.
+// This is useful for testing recovery from external operator degradation scenarios.
+func (tc *TestContext) RemoveConditionFromResourceStatus(
+	resource *unstructured.Unstructured,
+	conditionType string,
+) {
+	tc.Logf("Removing condition %s from resource %s/%s.", conditionType, resource.GetNamespace(), resource.GetName())
+
+	tc.g.Eventually(func(g Gomega) {
+		// Refresh, mutate, update, then re-fetch and assert absence in one Eventually
+		err := testf.RefreshResource(tc.Context(), tc.Client(), resource)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to refresh resource %s/%s", resource.GetNamespace(), resource.GetName())
+
+		conditions, err := testf.ExtractTypedConditions(resource)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to extract conditions from resource")
+
+		meta.RemoveStatusCondition(&conditions, conditionType)
+		err = testf.SetTypedConditions(resource, conditions)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to set conditions on resource")
+
+		err = tc.Client().Status().Update(tc.Context(), resource)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to update resource status to remove condition %s", conditionType)
+
+		// Re-fetch and assert the condition is absent
+		err = testf.RefreshResource(tc.Context(), tc.Client(), resource)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to re-fetch resource %s/%s after update", resource.GetNamespace(), resource.GetName())
+
+		conditions, err = testf.ExtractTypedConditions(resource)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to re-extract conditions from resource")
+		found := meta.FindStatusCondition(conditions, conditionType)
+		g.Expect(found).To(BeNil(), "Expected condition %s to be absent", conditionType)
+	}).Should(Succeed(), "Failed to remove condition %s from resource %s/%s",
+		conditionType, resource.GetNamespace(), resource.GetName())
+}
+
+// ClearAllConditionsFromResourceStatus removes all conditions from a resource's status.conditions.
+// Useful to start tests from a clean slate when the external operator is paused.
+func (tc *TestContext) ClearAllConditionsFromResourceStatus(
+	resource *unstructured.Unstructured,
+) {
+	tc.Logf("Clearing all conditions from resource %s/%s.", resource.GetNamespace(), resource.GetName())
+
+	tc.g.Eventually(func(g Gomega) {
+		// Refresh, clear, update, then re-fetch and assert empty in one Eventually
+		err := testf.RefreshResource(tc.Context(), tc.Client(), resource)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to refresh resource %s/%s", resource.GetNamespace(), resource.GetName())
+
+		conditions := []metav1.Condition{}
+		err = testf.SetTypedConditions(resource, conditions)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to clear conditions on resource")
+
+		err = tc.Client().Status().Update(tc.Context(), resource)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to update resource status after clearing conditions")
+
+		// Re-fetch and assert conditions are empty/absent
+		err = testf.RefreshResource(tc.Context(), tc.Client(), resource)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to re-fetch resource %s/%s after update", resource.GetNamespace(), resource.GetName())
+
+		conditions, err = testf.ExtractTypedConditions(resource)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to re-extract conditions from resource")
+		g.Expect(conditions).To(BeEmpty(), "Expected no conditions after clear on %s/%s", resource.GetNamespace(), resource.GetName())
+	}).Should(Succeed(), "Failed to clear all conditions from resource %s/%s",
+		resource.GetNamespace(), resource.GetName())
+}
+
+// ScaleCSVDeploymentReplicas patches a ClusterServiceVersion to change the replica count
+// of a specific deployment. This method blocks until the deployment reaches the target replica count.
+//
+// This is useful for testing scenarios where we need, for e.g., to scale down an external dependency to 0 replicas, without removing the operator.
+//
+// Parameters:
+//   - namespace: The namespace where the CSV is installed
+//   - csvNamePrefix: Prefix to match the CSV name (e.g., "kueue" matches "kueue.v0.10.0")
+//   - deploymentName: The name of the deployment within the CSV to scale
+//   - replicas: The target replica count
+//
+// Returns:
+//   - int: The replica count of the deployment before scaling
+func (tc *TestContext) ScaleCSVDeploymentReplicas(
+	namespace string,
+	csvNamePrefix string,
+	deploymentName string,
+	replicas int32,
+) int32 {
+	tc.Logf("Listing CSVs in namespace %s to find one with prefix %q.", namespace, csvNamePrefix)
+	csvList := &ofapi.ClusterServiceVersionList{}
+	err := tc.Client().List(tc.Context(), csvList, client.InNamespace(namespace))
+	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to list CSVs in namespace %s", namespace)
+
+	csvIdx := slices.IndexFunc(csvList.Items, func(csv ofapi.ClusterServiceVersion) bool {
+		return strings.HasPrefix(csv.Name, csvNamePrefix)
+	})
+	tc.g.Expect(csvIdx).NotTo(Equal(-1), "No CSV found with prefix %s in namespace %s", csvNamePrefix, namespace)
+	targetCSV := &csvList.Items[csvIdx]
+	tc.Logf("Found CSV %s.", targetCSV.Name)
+
+	tc.Logf("Looking for deployment %s in CSV spec.", deploymentName)
+	deployments := targetCSV.Spec.InstallStrategy.StrategySpec.DeploymentSpecs
+	depIdx := slices.IndexFunc(deployments, func(d ofapi.StrategyDeploymentSpec) bool {
+		return d.Name == deploymentName
+	})
+	tc.g.Expect(depIdx).NotTo(Equal(-1), "Deployment %s not found in CSV %s", deploymentName, targetCSV.Name)
+
+	spec := &deployments[depIdx].Spec
+	originalReplicas := ptr.Deref(spec.Replicas, 1)
+	spec.Replicas = ptr.To(replicas)
+	tc.Logf("Scaling deployment %s from %d to %d replicas.", deploymentName, originalReplicas, replicas)
+
+	tc.Logf("Updating CSV %s.", targetCSV.Name)
+	err = tc.Client().Update(tc.Context(), targetCSV)
+	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to update CSV %s", targetCSV.Name)
+
+	tc.Logf("Waiting for deployment %s to reach %d replicas.", deploymentName, replicas)
+	deploymentNN := types.NamespacedName{Name: deploymentName, Namespace: namespace}
+	if replicas == 0 {
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.Deployment, deploymentNN),
+			WithCondition(jq.Match(`.status.replicas == 0 or .status.replicas == null`)),
+			WithCustomErrorMsg("Deployment %s should have 0 replicas", deploymentName),
+		)
+	} else {
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.Deployment, deploymentNN),
+			WithCondition(jq.Match(`.status.readyReplicas == %d`, replicas)),
+			WithCustomErrorMsg("Deployment %s should have %d ready replicas", deploymentName, replicas),
+		)
+	}
+
+	return originalReplicas
+}
+
+func getComponentNameFromKind(kind string) (string, string) {
+	componentName := strings.ToLower(kind)
+
+	componentFieldName := componentName
+	conditionKind := kind
+	const dataSciencePipelinesKind = "DataSciencePipelines"
+	const aiPipelinesFieldName = "aipipelines"
+	if kind == dataSciencePipelinesKind {
+		componentFieldName = aiPipelinesFieldName
+		conditionKind = "AIPipelines"
+	}
+
+	return componentFieldName, conditionKind
 }

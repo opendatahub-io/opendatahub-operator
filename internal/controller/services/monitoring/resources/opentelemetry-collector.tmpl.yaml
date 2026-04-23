@@ -5,7 +5,37 @@ metadata:
   namespace: {{.Namespace}}
 spec:
   replicas: {{.CollectorReplicas}}
-  mode: deployment
+  mode: statefulset
+  {{- if .Metrics }}
+  targetAllocator:
+    enabled: true
+    serviceAccount: data-science-collector-collector
+    prometheusCR:
+      enabled: true
+      podMonitorSelector:
+        matchLabels:
+          opendatahub.io/monitoring: "true"
+      serviceMonitorSelector:
+        matchLabels:
+          opendatahub.io/monitoring: "true"
+  {{- end }}
+  resources:
+    limits:
+      cpu: {{.CollectorCPULimit}}
+      memory: {{.CollectorMemoryLimit}}
+    requests:
+      cpu: {{.CollectorCPURequest}}
+      memory: {{.CollectorMemoryRequest}}
+  {{- if .Metrics }}
+  volumeMounts:
+  - name: tls-certs
+    mountPath: /etc/otel-collector/tls
+    readOnly: true
+  volumes:
+  - name: tls-certs
+    secret:
+      secretName: data-science-collector-tls
+  {{- end }}
   config:
     extensions:
       bearertokenauth:
@@ -136,6 +166,9 @@ spec:
       {{- if .Metrics }}
       prometheus:
         endpoint: 0.0.0.0:8889
+        tls:
+          cert_file: "/etc/otel-collector/tls/tls.crt"
+          key_file: "/etc/otel-collector/tls/tls.key"
         resource_to_telemetry_conversion:
           enabled: true # by default resource attributes are dropped
       {{- if .MetricsExporterNames }}
@@ -147,16 +180,13 @@ spec:
       {{- end }}
       {{- if .Traces }}
       otlp/tempo:
+        # In multitenancy/openshift mode, traces are always sent through the gateway
+        # which uses TLS (service-CA signed cert) and requires bearer token auth.
         endpoint: {{.TempoEndpoint}}
-        {{- if .TempoTLSEnabled }}
         tls:
           ca_file: "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
         auth:
           authenticator: bearertokenauth
-        {{- else }}
-        tls:
-          insecure: true
-        {{- end }}
         headers:
           # must be set to the tenant name from tempo CR
           X-Scope-OrgID: {{ .Namespace }}

@@ -50,7 +50,7 @@ spec:
       - name: SLOs - Llama Stack K8s Operator
         rules:
         - expr: |
-            absent(up{job="llama-stack-k8s-operator"}) * 0 or vector(1)
+            absent(up{job="Llama Stack K8s Operator"}) * 0 or vector(1)
           labels:
             instance: llama-stack-k8s-operator-controller-manager
           record: probe_success

@@ -1,0 +1,34 @@
+# Custom ServiceMonitor for Prometheus self-scraping with correct TLS serverName
+# This works around the TLS SAN mismatch where the auto-generated prometheus-self
+# ServiceMonitor targets data-science-monitoringstack-prometheus but the cert has
+# SANs for prometheus-operated.*
+#
+# We target the same service as prometheus-self (data-science-monitoringstack-prometheus)
+# but override the serverName to use prometheus-operated which matches the certificate SANs.
+apiVersion: monitoring.rhobs/v1
+kind: ServiceMonitor
+metadata:
+  name: prometheus-self-fixed
+  namespace: {{.Namespace}}
+  labels:
+    platform.opendatahub.io/part-of: monitoring
+spec:
+  endpoints:
+    - port: web
+      scheme: https
+      tlsConfig:
+        ca:
+          configMap:
+            name: prometheus-web-tls-ca
+            key: service-ca.crt
+        serverName: "prometheus-operated.{{.Namespace}}.svc"
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      relabelings:
+        - targetLabel: job
+          replacement: prometheus-self-fixed
+  namespaceSelector:
+    matchNames:
+      - {{.Namespace}}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: data-science-monitoringstack-prometheus

@@ -2,6 +2,7 @@
 package trustyai
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -15,6 +16,7 @@ import (
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -39,7 +41,8 @@ func TestNewCRObject(t *testing.T) {
 	g := NewWithT(t)
 	dsc := createDSCWithTrustyAI(operatorv1.Managed)
 
-	cr := handler.NewCRObject(dsc)
+	cr, err := handler.NewCRObject(context.Background(), nil, dsc)
+	g.Expect(err).To(Succeed())
 	g.Expect(cr).ShouldNot(BeNil())
 	g.Expect(cr).Should(BeAssignableToTypeOf(&componentApi.TrustyAI{}))
 
@@ -58,7 +61,8 @@ func TestEvalCRObjectSerialization(t *testing.T) {
 	// Create DSC with no eval fields specified
 	dsc := createDSCWithTrustyAI(operatorv1.Managed)
 
-	cr := handler.NewCRObject(dsc)
+	cr, err := handler.NewCRObject(context.Background(), nil, dsc)
+	g.Expect(err).To(Succeed())
 	g.Expect(cr).ShouldNot(BeNil())
 
 	// Test JSON serialization to ensure required fields are present
@@ -69,6 +73,26 @@ func TestEvalCRObjectSerialization(t *testing.T) {
 		jq.Match(`.spec.eval.lmeval.permitOnline == "%s"`, EvalPermissionDeny),
 		jq.Match(`.spec.eval.lmeval | has("permitCodeExecution")`),
 		jq.Match(`.spec.eval.lmeval | has("permitOnline")`),
+	)))
+}
+
+func TestMCPGuardrailsModeCRObjectSerialization(t *testing.T) {
+	g := NewWithT(t)
+	handler := &componentHandler{}
+
+	// Create DSC with MCPGuardrailsMode enabled
+	dsc := createDSCWithTrustyAI(operatorv1.Managed)
+	dsc.Spec.Components.TrustyAI.MCPGuardrailsMode = true
+
+	cr, err := handler.NewCRObject(context.Background(), nil, dsc)
+	g.Expect(err).To(Succeed())
+	g.Expect(cr).ShouldNot(BeNil())
+
+	// Test JSON serialization to ensure required fields are present
+	trustyaiCR, ok := cr.(*componentApi.TrustyAI)
+	g.Expect(ok).Should(BeTrue(), "Expected cr to be of type *componentApi.TrustyAI")
+	g.Expect(trustyaiCR).Should(WithTransform(json.Marshal, And(
+		jq.Match(`.spec.mcpGuardrailsMode == true`),
 	)))
 }
 
@@ -262,6 +286,35 @@ func TestUpdateDSCStatus(t *testing.T) {
 		))
 	})
 
+	t.Run("should return ConditionFalse when component CR has deletionTimestamp", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithTrustyAI(operatorv1.Managed)
+		trustyai := createTrustyAICR(true)
+		now := metav1.Now()
+		trustyai.SetDeletionTimestamp(&now)
+		trustyai.SetFinalizers([]string{"test-finalizer"})
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, trustyai))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cs, err := handler.UpdateDSCStatus(ctx, &odhtypes.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(cs).Should(Equal(metav1.ConditionFalse))
+
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, status.DeletingReason),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "%s"`, ReadyConditionType, status.DeletingMessage),
+		)))
+	})
+
 	t.Run("should handle disabled component", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
@@ -313,6 +366,34 @@ func TestUpdateDSCStatus(t *testing.T) {
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .severity == "%s"`, ReadyConditionType, common.ConditionSeverityInfo),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("Component ManagementState is set to Removed")`, ReadyConditionType)),
 		))
+	})
+}
+
+func TestInitializeWithMCPGuardrailsMode(t *testing.T) {
+	t.Run("should add mcp-guardrails manifest when MCPGuardrailsMode is enabled", func(t *testing.T) {
+		g := NewWithT(t)
+		trustyai := createTrustyAICRWithMCPGuardrailsMode(true)
+		rr := &odhtypes.ReconciliationRequest{
+			Instance: trustyai,
+			Release:  common.Release{Name: cluster.OpenDataHub},
+		}
+		err := initialize(context.Background(), rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(rr.Manifests).Should(HaveLen(1))
+		g.Expect(rr.Manifests[0].SourcePath).Should(Equal("/overlays/mcp-guardrails"))
+	})
+
+	t.Run("should not add mcp-guardrails manifest when MCPGuardrailsMode is disabled", func(t *testing.T) {
+		g := NewWithT(t)
+		trustyai := createTrustyAICRWithMCPGuardrailsMode(false)
+		rr := &odhtypes.ReconciliationRequest{
+			Instance: trustyai,
+			Release:  common.Release{Name: cluster.OpenDataHub},
+		}
+		err := initialize(context.Background(), rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(rr.Manifests).Should(HaveLen(1))
+		g.Expect(rr.Manifests[0].SourcePath).Should(Equal(manifestsPath("", cluster.OpenDataHub).SourcePath))
 	})
 }
 
@@ -380,5 +461,11 @@ func createTrustyAICRWithPartialConfig(allowCodeExecution bool) *componentApi.Tr
 	} else {
 		c.Spec.Eval.LMEval.PermitCodeExecution = EvalPermissionDeny
 	}
+	return c
+}
+
+func createTrustyAICRWithMCPGuardrailsMode(mcpGuardrailsMode bool) *componentApi.TrustyAI {
+	c := createTrustyAICR(true)
+	c.Spec.MCPGuardrailsMode = mcpGuardrailsMode
 	return c
 }

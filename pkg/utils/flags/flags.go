@@ -2,6 +2,7 @@ package flags
 
 import (
 	"flag"
+	"strings"
 
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -28,6 +29,22 @@ func AddOperatorFlagsAndEnvvars(envvarPrefix string) error {
 	}
 	pflag.String("pprof-bind-address", "", "The address that pprof binds to. ")
 	if err := viper.BindEnv("pprof-bind-address", envvarPrefix+"_PPROF_BIND_ADDRESS", "PPROF_BIND_ADDRESS"); err != nil {
+		return err
+	}
+
+	// RHAI-specific config: uses RHAI_ prefix (not ODH_MANAGER_) to separate
+	// cloud-controller-managed settings from standard operator settings.
+	pflag.String("rhai-applications-namespace", "",
+		"The namespace where RHAI application components are deployed. "+
+			"Required on non-OpenShift clusters; must be unset on OpenShift (use DSCI spec.applicationsNamespace).")
+	if err := viper.BindEnv("rhai-applications-namespace", "RHAI_APPLICATIONS_NAMESPACE"); err != nil {
+		return err
+	}
+
+	pflag.String("rhai-version", "",
+		"The operator version to report. When set, overrides CSV-based version detection. "+
+			"Must be a valid semver string (e.g. 3.4.0).")
+	if err := viper.BindEnv("rhai-version", "RHAI_VERSION"); err != nil {
 		return err
 	}
 
@@ -61,6 +78,33 @@ func AddOperatorFlagsAndEnvvars(envvarPrefix string) error {
 		return err
 	}
 
+	// Operator environment configuration
+	pflag.String("operator-namespace", "", "The namespace the operator is deployed in. "+
+		"If not set, falls back to the in-cluster service account namespace.")
+	if err := viper.BindEnv("operator-namespace", "OPERATOR_NAMESPACE"); err != nil {
+		return err
+	}
+
+	pflag.String("disable-dsc-config", "", "Disable automatic creation of default DSCInitialization CR.")
+	if err := viper.BindEnv("disable-dsc-config", "DISABLE_DSC_CONFIG"); err != nil {
+		return err
+	}
+
+	pflag.String("default-manifests-path", "", "Base path for component manifests.")
+	if err := viper.BindEnv("default-manifests-path", "DEFAULT_MANIFESTS_PATH"); err != nil {
+		return err
+	}
+
+	pflag.String("platform-type", "", "Platform type override (OpenDataHub, ManagedRHOAI, SelfManagedRHOAI, XKS). "+
+		"If empty, auto-detects from the cluster.")
+	if err := viper.BindEnv("platform-type", "ODH_PLATFORM_TYPE"); err != nil {
+		return err
+	}
+
+	if err := addResourceSuppressionFlags(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -86,4 +130,16 @@ func ParseZapFlags(zapFlagSet *flag.FlagSet, zapDevel bool, zapEncoder string, z
 		zapFlagsValues = append(zapFlagsValues, "--zap-time-encoding="+zapTimeEncoding)
 	}
 	return zapFlagSet.Parse(zapFlagsValues)
+}
+
+// GetRHAIApplicationsNamespace returns the configured RHAI applications namespace,
+// with surrounding whitespace trimmed.
+func GetRHAIApplicationsNamespace() string {
+	return strings.TrimSpace(viper.GetString("rhai-applications-namespace"))
+}
+
+// GetRHAIVersion returns the configured RHAI version,
+// with surrounding whitespace trimmed.
+func GetRHAIVersion() string {
+	return strings.TrimSpace(viper.GetString("rhai-version"))
 }

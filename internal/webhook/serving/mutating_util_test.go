@@ -45,8 +45,8 @@ func hasImagePullSecretsPatch(expectedSecretName string) func([]jsonpatch.JsonPa
 		for _, patch := range patches {
 			if patch.Path == isvcImagePullSecretsPath {
 				// Should be a single secret in the array
-				if secretsList, ok := patch.Value.([]interface{}); ok && len(secretsList) == 1 {
-					if secretMap, ok := secretsList[0].(map[string]interface{}); ok {
+				if secretsList, ok := patch.Value.([]any); ok && len(secretsList) == 1 {
+					if secretMap, ok := secretsList[0].(map[string]any); ok {
 						if name, exists := secretMap["name"]; exists && name == expectedSecretName {
 							return true
 						}
@@ -84,7 +84,7 @@ func hasStorageKeyPatch(expectedStorageKey string) func([]jsonpatch.JsonPatchOpe
 				return patch.Value == expectedStorageKey
 			}
 			if patch.Path == isvcStoragePath {
-				if storageMap, ok := patch.Value.(map[string]interface{}); ok {
+				if storageMap, ok := patch.Value.(map[string]any); ok {
 					if key, hasKey := storageMap["key"]; hasKey {
 						if expectedStorageKey == "" {
 							return true
@@ -109,7 +109,7 @@ func hasStoragePathPatch(expectedPath string) func([]jsonpatch.JsonPatchOperatio
 				return patch.Value == expectedPath
 			}
 			if patch.Path == isvcStoragePath {
-				if storageMap, ok := patch.Value.(map[string]interface{}); ok {
+				if storageMap, ok := patch.Value.(map[string]any); ok {
 					if path, hasPath := storageMap["path"]; hasPath {
 						if expectedPath == "" {
 							return true
@@ -205,7 +205,7 @@ func hasUriPath(expectedUri string) func([]jsonpatch.JsonPatchOperation) bool {
 			}
 
 			if patch.Path == llmisvcModelPath {
-				if modelMap, ok := patch.Value.(map[string]interface{}); ok {
+				if modelMap, ok := patch.Value.(map[string]any); ok {
 					if uri, exists := modelMap["uri"]; exists && uri == expectedUri {
 						return true
 					}
@@ -250,8 +250,8 @@ func hasLLMISVCImagePullSecretsPatch(expectedSecretName string) func([]jsonpatch
 		for _, patch := range patches {
 			// Check for direct imagePullSecrets path
 			if patch.Path == llmisvcImagePullSecretsPath {
-				if secretsList, ok := patch.Value.([]interface{}); ok && len(secretsList) == 1 {
-					if secretMap, ok := secretsList[0].(map[string]interface{}); ok {
+				if secretsList, ok := patch.Value.([]any); ok && len(secretsList) == 1 {
+					if secretMap, ok := secretsList[0].(map[string]any); ok {
 						if name, exists := secretMap["name"]; exists && name == expectedSecretName {
 							return true
 						}
@@ -261,10 +261,10 @@ func hasLLMISVCImagePullSecretsPatch(expectedSecretName string) func([]jsonpatch
 
 			// Check for template object containing imagePullSecrets
 			if patch.Path == llmisvcTemplatePath {
-				if templateMap, ok := patch.Value.(map[string]interface{}); ok {
+				if templateMap, ok := patch.Value.(map[string]any); ok {
 					if imagePullSecretsVal, exists := templateMap["imagePullSecrets"]; exists {
-						if secretsList, ok := imagePullSecretsVal.([]interface{}); ok && len(secretsList) == 1 {
-							if secretMap, ok := secretsList[0].(map[string]interface{}); ok {
+						if secretsList, ok := imagePullSecretsVal.([]any); ok && len(secretsList) == 1 {
+							if secretMap, ok := secretsList[0].(map[string]any); ok {
 								if name, exists := secretMap["name"]; exists && name == expectedSecretName {
 									return true
 								}

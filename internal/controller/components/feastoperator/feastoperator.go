@@ -14,25 +14,33 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
-	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 )
 
 type componentHandler struct{}
 
-func init() { //nolint:gochecknoinits
-	cr.Add(&componentHandler{})
-}
+func NewHandler() *componentHandler { return &componentHandler{} }
 
 func (s *componentHandler) GetName() string {
 	return componentApi.FeastOperatorComponentName
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
+func (s *componentHandler) NewCRObject(ctx context.Context, cli client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
+	spec := componentApi.FeastOperatorSpec{
+		FeastOperatorCommonSpec: dsc.Spec.Components.FeastOperator.FeastOperatorCommonSpec,
+	}
+
+	gatewayOIDC, err := getGatewayOIDCSpec(ctx, cli)
+	if err != nil {
+		return nil, err
+	}
+	spec.OIDC = gatewayOIDC
+
 	return &componentApi.FeastOperator{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.FeastOperatorKind,
@@ -44,15 +52,14 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 				annotations.ManagementStateAnnotation: string(dsc.Spec.Components.FeastOperator.ManagementState),
 			},
 		},
-		Spec: componentApi.FeastOperatorSpec{
-			FeastOperatorCommonSpec: dsc.Spec.Components.FeastOperator.FeastOperatorCommonSpec,
-		},
-	}
+		Spec: spec,
+	}, nil
 }
 
-func (s *componentHandler) Init(p common.Platform) error {
-	if err := odhdeploy.ApplyParams(manifestPath(p).String(), "params.env", imageParamMap); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", manifestPath(p), err)
+func (s *componentHandler) Init(p common.Platform, cfg operatorconfig.OperatorSettings) error {
+	manifestsBasePath := cfg.ManifestsBasePath
+	if err := odhdeploy.ApplyParams(manifestPath(manifestsBasePath, p).String(), "params.env", imageParamMap); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", manifestPath(manifestsBasePath, p), err)
 	}
 
 	return nil
@@ -83,6 +90,15 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	dsc.Status.Components.FeastOperator.FeastOperatorCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
+
+	if !c.GetDeletionTimestamp().IsZero() {
+		rr.Conditions.MarkFalse(
+			ReadyConditionType,
+			conditions.WithReason(status.DeletingReason),
+			conditions.WithMessage(status.DeletingMessage),
+		)
+		return metav1.ConditionFalse, nil
+	}
 
 	if s.IsEnabled(dsc) {
 		dsc.Status.Components.FeastOperator.FeastOperatorCommonStatus = c.Status.FeastOperatorCommonStatus.DeepCopy()

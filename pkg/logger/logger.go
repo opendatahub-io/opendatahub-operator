@@ -65,6 +65,7 @@ func SetLevel(levelStr string) error {
 func NewLogger(mode string, override *ctrlzap.Options) logr.Logger {
 	opts := newBaseOptionsFromMode(mode)
 	overrideOptions(opts, override)
+
 	currentLogLevel.Store(opts.Level)
 	return ctrlzap.New(ctrlzap.UseFlagOptions(opts))
 }

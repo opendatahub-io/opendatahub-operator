@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "opendatahub-health": {
+      "command": "bash",
+      "args": ["-c", "cd cmd/mcp-server && go run ."]
+    }
+  }
+}

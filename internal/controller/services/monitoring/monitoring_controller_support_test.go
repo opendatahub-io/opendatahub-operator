@@ -2,16 +2,21 @@
 package monitoring
 
 import (
+	"context"
 	"fmt"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -19,13 +24,33 @@ import (
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	testScheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
 	. "github.com/onsi/gomega"
 )
+
+func TestMain(m *testing.M) {
+	// Initialize cluster config with a minimal fake client
+	// This populates the package-level clusterConfig variable with the operator namespace
+	scheme := runtime.NewScheme()
+	_ = dsciv2.AddToScheme(scheme)
+	_ = serviceApi.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+
+	// Ignore errors from Init as we only care about setting the operator namespace
+	// Other initialization errors (like missing cluster resources) are expected in tests
+	_ = cluster.Init(context.Background(), fakeClient, operatorconfig.OperatorSettings{
+		OperatorNamespace: "test-operator-ns",
+		PlatformType:      "OpenDataHub",
+	})
+
+	os.Exit(m.Run())
+}
 
 // stringToRawExtension converts a YAML string to a runtime.RawExtension for testing.
 func stringToRawExtension(yamlStr string) runtime.RawExtension {
@@ -80,6 +105,9 @@ func setupTestClient(g Gomega, objects ...client.Object) client.Client {
 
 func TestGetTemplateDataAcceleratorMetrics(t *testing.T) {
 	ctx := t.Context()
+
+	// Set environment variable for operator namespace (required by cluster.GetOperatorNamespace)
+	t.Setenv("OPERATOR_NAMESPACE", "test-operator-ns")
 
 	tests := []struct {
 		name                string
@@ -176,9 +204,12 @@ func TestGetTemplateDataAcceleratorMetrics(t *testing.T) {
 }
 
 // runMetricsExporterTest creates a test environment and runs getTemplateData.
-func runMetricsExporterTest(t *testing.T, exporters map[string]runtime.RawExtension) (map[string]interface{}, error) {
+func runMetricsExporterTest(t *testing.T, exporters map[string]runtime.RawExtension) (map[string]any, error) {
 	t.Helper()
 	g := NewWithT(t)
+
+	// Set environment variable for operator namespace (required by cluster.GetOperatorNamespace)
+	t.Setenv("OPERATOR_NAMESPACE", "test-operator-ns")
 
 	// Create DSCI
 	dsci := &dsciv2.DSCInitialization{
@@ -221,7 +252,7 @@ func validateMetricsExporterResult(t *testing.T, tt struct {
 	errorMsg             string
 	expectedParsedConfig map[string]string
 	expectedNames        []string
-}, templateData map[string]interface{}, err error) {
+}, templateData map[string]any, err error) {
 	t.Helper()
 
 	if tt.expectError {
@@ -294,6 +325,9 @@ func validateMetricsExporterResult(t *testing.T, tt struct {
 }
 
 func TestCustomMetricsExporters(t *testing.T) {
+	// Set environment variable for operator namespace (required by cluster.GetOperatorNamespace)
+	t.Setenv("OPERATOR_NAMESPACE", "test-operator-ns")
+
 	tests := []struct {
 		name                 string
 		exporters            map[string]runtime.RawExtension
@@ -558,6 +592,9 @@ func TestGetTemplateDataAcceleratorMetricsWithMetricsConfiguration(t *testing.T)
 	ctx := t.Context()
 	g := NewWithT(t)
 
+	// Set environment variable for operator namespace (required by cluster.GetOperatorNamespace)
+	t.Setenv("OPERATOR_NAMESPACE", "test-operator-ns")
+
 	// Test with full metrics configuration
 	dsci := &dsciv2.DSCInitialization{
 		ObjectMeta: metav1.ObjectMeta{
@@ -584,7 +621,6 @@ func TestGetTemplateDataAcceleratorMetricsWithMetricsConfiguration(t *testing.T)
 					Storage: &serviceApi.MetricsStorage{
 						Retention: "7d",
 					},
-					Resources: &serviceApi.MetricsResources{},
 				},
 			},
 		},
@@ -658,7 +694,6 @@ func createMonitoringStackCRD() *extv1.CustomResourceDefinition {
 			},
 		},
 		Status: extv1.CustomResourceDefinitionStatus{
-			StoredVersions: []string{"v1alpha1"},
 			Conditions: []extv1.CustomResourceDefinitionCondition{
 				{
 					Type:   extv1.Established,
@@ -695,7 +730,6 @@ func createThanosQuerierCRD() *extv1.CustomResourceDefinition {
 			},
 		},
 		Status: extv1.CustomResourceDefinitionStatus{
-			StoredVersions: []string{"v1alpha1"},
 			Conditions: []extv1.CustomResourceDefinitionCondition{
 				{
 					Type:   extv1.Established,
@@ -810,6 +844,8 @@ func validateTemplates(t *testing.T, g Gomega, rr *odhtypes.ReconciliationReques
 			"Alertmanager RBAC template should be included when MonitoringStack enabled")
 		g.Expect(templatePaths).Should(ContainElement(PrometheusRouteTemplate),
 			"Prometheus route template should be included when MonitoringStack enabled")
+		g.Expect(templatePaths).Should(ContainElement(PrometheusSelfServiceMonitorTemplate),
+			"Prometheus self ServiceMonitor template should be included when MonitoringStack enabled")
 	} else {
 		g.Expect(templatePaths).ShouldNot(ContainElement(MonitoringStackTemplate),
 			"MonitoringStack template should be excluded when disabled")
@@ -817,6 +853,8 @@ func validateTemplates(t *testing.T, g Gomega, rr *odhtypes.ReconciliationReques
 			"Alertmanager RBAC template should be excluded when MonitoringStack disabled")
 		g.Expect(templatePaths).ShouldNot(ContainElement(PrometheusRouteTemplate),
 			"Prometheus route template should be excluded when MonitoringStack disabled")
+		g.Expect(templatePaths).ShouldNot(ContainElement(PrometheusSelfServiceMonitorTemplate),
+			"Prometheus self ServiceMonitor template should be excluded when MonitoringStack disabled")
 	}
 
 	if tt.expectedTQTemplates > 0 {
@@ -843,9 +881,11 @@ func TestMonitoringStackThanosQuerierIntegration(t *testing.T) {
 			hasThanosQuerierCRD:       true,
 			expectedMSConditionStatus: "True",
 			expectedTQConditionStatus: "True",
-			expectedMSTemplates:       3, // MonitoringStack + Alertmanager RBAC + PrometheusRoute
-			expectedTQTemplates:       2, // ThanosQuerier + ThanosQuerierRoute
-			description:               "When both CRDs are available and metrics configured, both should be deployed",
+			expectedMSTemplates:       9, // MonitoringStack + Alertmanager RBAC + PrometheusRoute +
+			// PrometheusServiceOverride + PrometheusNetworkPolicy + PrometheusWebTLSService +
+			// PrometheusNamespaceProxy + PrometheusNamespaceProxyNetworkPolicy + PrometheusSelfServiceMonitor
+			expectedTQTemplates: 2, // ThanosQuerier + ThanosQuerierRoute
+			description:         "When both CRDs are available and metrics configured, both should be deployed",
 		},
 		{
 			name:                      "Only MonitoringStack CRD available with metrics - both conditions false, atomic deployment",
@@ -914,11 +954,278 @@ func TestMonitoringStackThanosQuerierIntegration(t *testing.T) {
 
 			initialTemplateCount := len(rr.Templates)
 
-			err = deployMonitoringStackWithQuerier(ctx, rr)
-			g.Expect(err).ShouldNot(HaveOccurred(), "deployMonitoringStackWithQuerier should not return error")
+			err = deployMonitoringStackWithQuerierAndRestrictions(ctx, rr)
+			require.NoError(t, err, "deployMonitoringStackWithQuerierAndRestrictions should not return error")
 
 			validateConditions(t, g, rr, tt)
 			validateTemplates(t, g, rr, tt, initialTemplateCount)
+		})
+	}
+}
+
+func TestDetermineTLSEnabled(t *testing.T) {
+	tests := []struct {
+		name     string
+		traces   *serviceApi.Traces
+		expected bool
+	}{
+		{
+			name: "TLS explicitly enabled",
+			traces: &serviceApi.Traces{
+				TLS: &serviceApi.TracesTLS{
+					Enabled: true,
+				},
+				Storage: serviceApi.TracesStorage{
+					Backend: "pv",
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "TLS explicitly disabled",
+			traces: &serviceApi.Traces{
+				TLS: &serviceApi.TracesTLS{
+					Enabled: false,
+				},
+				Storage: serviceApi.TracesStorage{
+					Backend: "pv",
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "TLS nil - PV backend defaults to false",
+			traces: &serviceApi.Traces{
+				Storage: serviceApi.TracesStorage{
+					Backend: "pv",
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "TLS nil - S3 backend defaults to false",
+			traces: &serviceApi.Traces{
+				Storage: serviceApi.TracesStorage{
+					Backend: "s3",
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "TLS nil - GCS backend defaults to false",
+			traces: &serviceApi.Traces{
+				Storage: serviceApi.TracesStorage{
+					Backend: "gcs",
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := determineTLSEnabled(tt.traces)
+			if result != tt.expected {
+				t.Errorf("determineTLSEnabled() = %v, expected %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestAddTracesTemplateData_TLS(t *testing.T) {
+	tests := []struct {
+		name                 string
+		traces               *serviceApi.Traces
+		namespace            string
+		expectedTLSEnabled   bool
+		expectedHTTPProtocol string
+		expectedPVEndpoint   string
+		expectedS3Endpoint   string
+	}{
+		{
+			name: "PV backend with TLS disabled (default)",
+			traces: &serviceApi.Traces{
+				SampleRatio: "0.1",
+				Storage: serviceApi.TracesStorage{
+					Backend:   "pv",
+					Size:      "5Gi",
+					Retention: metav1.Duration{Duration: 90 * 24 * 60 * 60 * 1000000000}, // 90 days in nanoseconds
+				},
+			},
+			namespace:            "test-namespace",
+			expectedTLSEnabled:   false,
+			expectedHTTPProtocol: "http",
+			expectedPVEndpoint:   "https://tempo-data-science-tempomonolithic-gateway.test-namespace.svc.cluster.local:8080/api/traces/v1/test-namespace/tempo",
+		},
+		{
+			name: "PV backend with TLS explicitly disabled",
+			traces: &serviceApi.Traces{
+				SampleRatio: "0.1",
+				TLS: &serviceApi.TracesTLS{
+					Enabled: false,
+				},
+				Storage: serviceApi.TracesStorage{
+					Backend:   "pv",
+					Size:      "5Gi",
+					Retention: metav1.Duration{Duration: 90 * 24 * 60 * 60 * 1000000000},
+				},
+			},
+			namespace:            "test-namespace",
+			expectedTLSEnabled:   false,
+			expectedHTTPProtocol: "http",
+			expectedPVEndpoint:   "https://tempo-data-science-tempomonolithic-gateway.test-namespace.svc.cluster.local:8080/api/traces/v1/test-namespace/tempo",
+		},
+		{
+			name: "S3 backend with TLS disabled (default)",
+			traces: &serviceApi.Traces{
+				SampleRatio: "0.1",
+				Storage: serviceApi.TracesStorage{
+					Backend:   "s3",
+					Secret:    "s3-secret",
+					Retention: metav1.Duration{Duration: 90 * 24 * 60 * 60 * 1000000000},
+				},
+			},
+			namespace:            "test-namespace",
+			expectedTLSEnabled:   false,
+			expectedHTTPProtocol: "http",
+			expectedS3Endpoint:   "https://tempo-data-science-tempostack-gateway.test-namespace.svc.cluster.local:8080/api/traces/v1/test-namespace/tempo",
+		},
+		{
+			name: "S3 backend with TLS explicitly enabled",
+			traces: &serviceApi.Traces{
+				SampleRatio: "0.1",
+				TLS: &serviceApi.TracesTLS{
+					Enabled: true,
+				},
+				Storage: serviceApi.TracesStorage{
+					Backend:   "s3",
+					Secret:    "s3-secret",
+					Retention: metav1.Duration{Duration: 90 * 24 * 60 * 60 * 1000000000},
+				},
+			},
+			namespace:            "test-namespace",
+			expectedTLSEnabled:   true,
+			expectedHTTPProtocol: "https",
+			expectedS3Endpoint:   "https://tempo-data-science-tempostack-gateway.test-namespace.svc.cluster.local:8080/api/traces/v1/test-namespace/tempo",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			templateData := make(map[string]any)
+			err := addTracesTemplateData(templateData, tt.traces, tt.namespace)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			// Verify TLS enabled flag
+			tlsEnabled, exists := templateData["TempoTLSEnabled"]
+			g.Expect(exists).Should(BeTrue(), "TempoTLSEnabled should be set")
+			g.Expect(tlsEnabled).Should(Equal(tt.expectedTLSEnabled))
+
+			// Verify query endpoint URL based on backend
+			queryEndpoint, exists := templateData["TempoQueryEndpoint"]
+			g.Expect(exists).Should(BeTrue(), "TempoQueryEndpoint should be set")
+
+			switch tt.traces.Storage.Backend {
+			case serviceApi.StorageBackendPV:
+				g.Expect(queryEndpoint).Should(Equal(tt.expectedPVEndpoint))
+			case serviceApi.StorageBackendS3, serviceApi.StorageBackendGCS:
+				g.Expect(queryEndpoint).Should(Equal(tt.expectedS3Endpoint))
+			}
+
+			// Verify other template data fields are set
+			g.Expect(templateData).Should(HaveKey("OtlpEndpoint"))
+			g.Expect(templateData).Should(HaveKey("SampleRatio"))
+			g.Expect(templateData).Should(HaveKey("Backend"))
+			g.Expect(templateData).Should(HaveKey("TracesRetention"))
+		})
+	}
+}
+
+func TestAddTracesTemplateData_ZeroValues(t *testing.T) {
+	tests := []struct {
+		name              string
+		traces            *serviceApi.Traces
+		namespace         string
+		expectedBackend   string
+		expectedSample    string
+		expectedRetention string
+	}{
+		{
+			name: "all zero/empty values get defaults",
+			traces: &serviceApi.Traces{
+				Storage: serviceApi.TracesStorage{},
+			},
+			namespace:         "test-ns",
+			expectedBackend:   "pv",
+			expectedSample:    "0.1",
+			expectedRetention: "2160h",
+		},
+		{
+			name: "explicit values are NOT overwritten by defaults",
+			traces: &serviceApi.Traces{
+				SampleRatio: "0.5",
+				Storage: serviceApi.TracesStorage{
+					Backend:   "s3",
+					Secret:    "my-secret",
+					Retention: metav1.Duration{Duration: 720 * 60 * 60 * 1000000000}, // 720h in nanoseconds
+				},
+			},
+			namespace:         "test-ns",
+			expectedBackend:   "s3",
+			expectedSample:    "0.5",
+			expectedRetention: "720h0m0s",
+		},
+		{
+			name: "empty SampleRatio gets default, explicit backend preserved",
+			traces: &serviceApi.Traces{
+				Storage: serviceApi.TracesStorage{
+					Backend:   "gcs",
+					Secret:    "gcs-secret",
+					Retention: metav1.Duration{Duration: 48 * 60 * 60 * 1000000000}, // 48h
+				},
+			},
+			namespace:         "test-ns",
+			expectedBackend:   "gcs",
+			expectedSample:    "0.1",
+			expectedRetention: "48h0m0s",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			templateData := make(map[string]any)
+			err := addTracesTemplateData(templateData, tt.traces, tt.namespace)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			g.Expect(templateData["Backend"]).Should(Equal(tt.expectedBackend),
+				"Backend should match expected value")
+			g.Expect(templateData["SampleRatio"]).Should(Equal(tt.expectedSample),
+				"SampleRatio should match expected value")
+			g.Expect(templateData["TracesRetention"]).Should(Equal(tt.expectedRetention),
+				"TracesRetention should match expected value")
+
+			// Verify PV-specific template data when backend defaults to "pv"
+			if tt.expectedBackend == "pv" {
+				g.Expect(templateData).Should(HaveKey("TempoEndpoint"))
+				g.Expect(templateData).Should(HaveKey("TempoQueryEndpoint"))
+				endpoint, ok := templateData["TempoEndpoint"].(string)
+				g.Expect(ok).Should(BeTrue())
+				g.Expect(endpoint).Should(ContainSubstring("tempomonolithic"))
+			}
+
+			// Verify S3/GCS-specific template data
+			if tt.expectedBackend == "s3" || tt.expectedBackend == "gcs" {
+				g.Expect(templateData).Should(HaveKey("TempoEndpoint"))
+				g.Expect(templateData).Should(HaveKey("TempoQueryEndpoint"))
+				endpoint, ok := templateData["TempoEndpoint"].(string)
+				g.Expect(ok).Should(BeTrue())
+				g.Expect(endpoint).Should(ContainSubstring("tempostack"))
+				g.Expect(templateData).Should(HaveKey("Secret"))
+			}
 		})
 	}
 }
@@ -971,4 +1278,462 @@ func TestIsLocalServiceEndpoint(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetImageURL(t *testing.T) {
+	tests := []struct {
+		name            string
+		envVar          string
+		envValue        string
+		upstreamDefault string
+		rhoaiDefault    string
+		platform        common.Platform
+		expected        string
+	}{
+		{
+			name:            "Environment variable set",
+			envVar:          "TEST_IMAGE_URL",
+			envValue:        "custom.registry.io/custom-image:v1.0",
+			upstreamDefault: "upstream.io/image:v1.0",
+			rhoaiDefault:    "redhat.io/image:v1.0",
+			platform:        common.Platform("OpenShift AI Self-Managed"),
+			expected:        "custom.registry.io/custom-image:v1.0",
+		},
+		{
+			name:            "RHOAI Self-Managed without env var",
+			envVar:          "TEST_IMAGE_URL",
+			envValue:        "",
+			upstreamDefault: "upstream.io/image:v1.0",
+			rhoaiDefault:    "redhat.io/image:v1.0",
+			platform:        common.Platform("OpenShift AI Self-Managed"),
+			expected:        "redhat.io/image:v1.0",
+		},
+		{
+			name:            "RHOAI Managed without env var",
+			envVar:          "TEST_IMAGE_URL",
+			envValue:        "",
+			upstreamDefault: "upstream.io/image:v1.0",
+			rhoaiDefault:    "redhat.io/image:v1.0",
+			platform:        common.Platform("OpenShift AI Cloud Service"),
+			expected:        "redhat.io/image:v1.0",
+		},
+		{
+			name:            "OpenDataHub without env var",
+			envVar:          "TEST_IMAGE_URL",
+			envValue:        "",
+			upstreamDefault: "upstream.io/image:v1.0",
+			rhoaiDefault:    "redhat.io/image:v1.0",
+			platform:        common.Platform("Open Data Hub"),
+			expected:        "upstream.io/image:v1.0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envValue != "" {
+				t.Setenv(tt.envVar, tt.envValue)
+			}
+
+			result := getImageURL(tt.envVar, tt.upstreamDefault, tt.rhoaiDefault, tt.platform)
+
+			if result != tt.expected {
+				t.Errorf("getImageURL() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrometheusSelfServiceMonitorTemplate(t *testing.T) {
+	ctx := t.Context()
+
+	tests := []struct {
+		name                  string
+		hasMetricsConfig      bool
+		hasMonitoringStackCRD bool
+		hasThanosQuerierCRD   bool
+		expectedTemplate      bool
+		description           string
+	}{
+		{
+			name:                  "Both CRDs available with metrics - ServiceMonitor template included",
+			hasMetricsConfig:      true,
+			hasMonitoringStackCRD: true,
+			hasThanosQuerierCRD:   true,
+			expectedTemplate:      true,
+			description:           "When all prerequisites are met, the prometheus-self ServiceMonitor should be deployed",
+		},
+		{
+			name:                  "Missing MonitoringStack CRD - no ServiceMonitor template",
+			hasMetricsConfig:      true,
+			hasMonitoringStackCRD: false,
+			hasThanosQuerierCRD:   true,
+			expectedTemplate:      false,
+			description:           "When MonitoringStack CRD is missing, no templates should be deployed (atomic deployment)",
+		},
+		{
+			name:                  "Missing ThanosQuerier CRD - no ServiceMonitor template",
+			hasMetricsConfig:      true,
+			hasMonitoringStackCRD: true,
+			hasThanosQuerierCRD:   false,
+			expectedTemplate:      false,
+			description:           "When ThanosQuerier CRD is missing, no templates should be deployed (atomic deployment)",
+		},
+		{
+			name:                  "No metrics configuration - no ServiceMonitor template",
+			hasMetricsConfig:      false,
+			hasMonitoringStackCRD: true,
+			hasThanosQuerierCRD:   true,
+			expectedTemplate:      false,
+			description:           "When metrics are not configured, the ServiceMonitor should not be deployed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			testCase := monitoringIntegrationTestCase{
+				hasMetricsConfig:      tt.hasMetricsConfig,
+				hasMonitoringStackCRD: tt.hasMonitoringStackCRD,
+				hasThanosQuerierCRD:   tt.hasThanosQuerierCRD,
+			}
+
+			objects := setupTestObjects(testCase)
+
+			fakeClient, err := setupFakeClient(objects, testCase)
+			g.Expect(err).ShouldNot(HaveOccurred(), "Failed to create fake client")
+
+			monitoring, ok := objects[0].(*serviceApi.Monitoring)
+			g.Expect(ok).Should(BeTrue(), "First object should be monitoring instance")
+
+			rr := &odhtypes.ReconciliationRequest{
+				Client:     fakeClient,
+				Instance:   monitoring,
+				Templates:  []odhtypes.TemplateInfo{},
+				Conditions: conditions.NewManager(monitoring, status.ConditionTypeReady),
+			}
+
+			err = deployMonitoringStackWithQuerierAndRestrictions(ctx, rr)
+			require.NoError(t, err, "deployMonitoringStackWithQuerierAndRestrictions should not return error")
+
+			// Collect template paths
+			templatePaths := make([]string, 0, len(rr.Templates))
+			for _, template := range rr.Templates {
+				templatePaths = append(templatePaths, template.Path)
+			}
+
+			if tt.expectedTemplate {
+				g.Expect(templatePaths).Should(ContainElement(PrometheusSelfServiceMonitorTemplate),
+					"Prometheus self ServiceMonitor template should be included: %s", tt.description)
+			} else {
+				g.Expect(templatePaths).ShouldNot(ContainElement(PrometheusSelfServiceMonitorTemplate),
+					"Prometheus self ServiceMonitor template should not be included: %s", tt.description)
+			}
+		})
+	}
+}
+
+func TestPrometheusSelfServiceMonitorTemplateContent(t *testing.T) {
+	g := NewWithT(t)
+
+	content, err := resourcesFS.ReadFile(PrometheusSelfServiceMonitorTemplate)
+	g.Expect(err).ShouldNot(HaveOccurred(), "Template file should be readable")
+
+	templateContent := string(content)
+
+	// Verify the template contains the correct serverName for TLS SANs fix
+	g.Expect(templateContent).Should(ContainSubstring("prometheus-operated.{{.Namespace}}.svc"),
+		"Template should use prometheus-operated as serverName to fix TLS SANs mismatch")
+
+	// Verify the template targets the correct service
+	g.Expect(templateContent).Should(ContainSubstring("app.kubernetes.io/name: data-science-monitoringstack-prometheus"),
+		"Template should target data-science-monitoringstack-prometheus service")
+
+	// Verify it uses TLS with the correct CA configmap
+	g.Expect(templateContent).Should(ContainSubstring("prometheus-web-tls-ca"),
+		"Template should reference the prometheus-web-tls-ca ConfigMap for TLS")
+
+	// Verify the ServiceMonitor name indicates the fix
+	g.Expect(templateContent).Should(ContainSubstring("prometheus-self-fixed"),
+		"Template should have the prometheus-self-fixed name")
+
+	// Verify the job label replacement
+	g.Expect(templateContent).Should(ContainSubstring("prometheus-self-fixed"),
+		"Template should set job label to prometheus-self-fixed")
+
+	// Verify correct API group
+	g.Expect(templateContent).Should(ContainSubstring("monitoring.rhobs/v1"),
+		"Template should use monitoring.rhobs/v1 API version")
+}
+
+func TestPrometheusSelfServiceMonitorTemplateConstants(t *testing.T) {
+	// Verify that the template constant is properly defined
+	assert.Equal(t, "resources/prometheus-self-servicemonitor.tmpl.yaml", PrometheusSelfServiceMonitorTemplate,
+		"PrometheusSelfServiceMonitorTemplate constant should have the correct path")
+}
+
+func TestPrometheusWebTLSServiceDeployedWithServiceMonitor(t *testing.T) {
+	ctx := t.Context()
+	g := NewWithT(t)
+
+	testCase := monitoringIntegrationTestCase{
+		hasMetricsConfig:      true,
+		hasMonitoringStackCRD: true,
+		hasThanosQuerierCRD:   true,
+	}
+
+	objects := setupTestObjects(testCase)
+
+	fakeClient, err := setupFakeClient(objects, testCase)
+	g.Expect(err).ShouldNot(HaveOccurred(), "Failed to create fake client")
+
+	monitoring, ok := objects[0].(*serviceApi.Monitoring)
+	g.Expect(ok).Should(BeTrue(), "First object should be monitoring instance")
+
+	rr := &odhtypes.ReconciliationRequest{
+		Client:     fakeClient,
+		Instance:   monitoring,
+		Templates:  []odhtypes.TemplateInfo{},
+		Conditions: conditions.NewManager(monitoring, status.ConditionTypeReady),
+	}
+
+	err = deployMonitoringStackWithQuerierAndRestrictions(ctx, rr)
+	require.NoError(t, err, "deployMonitoringStackWithQuerierAndRestrictions should not return error")
+
+	templatePaths := make([]string, 0, len(rr.Templates))
+	for _, template := range rr.Templates {
+		templatePaths = append(templatePaths, template.Path)
+	}
+
+	// Verify both the TLS service and the ServiceMonitor are deployed together
+	g.Expect(templatePaths).Should(ContainElement(PrometheusWebTLSServiceTemplate),
+		"Prometheus web TLS service template should be deployed with ServiceMonitor")
+	g.Expect(templatePaths).Should(ContainElement(PrometheusSelfServiceMonitorTemplate),
+		"Prometheus self ServiceMonitor template should be deployed with TLS service")
+
+	// Verify the TLS service template is deployed before the ServiceMonitor
+	tlsServiceIdx := -1
+	serviceMonitorIdx := -1
+	for i, path := range templatePaths {
+		if path == PrometheusWebTLSServiceTemplate {
+			tlsServiceIdx = i
+		}
+		if path == PrometheusSelfServiceMonitorTemplate {
+			serviceMonitorIdx = i
+		}
+	}
+	g.Expect(tlsServiceIdx).Should(BeNumerically("<", serviceMonitorIdx),
+		"TLS service should be deployed before ServiceMonitor to ensure certificate is available")
+}
+
+func TestGetTemplateDataImageURLs(t *testing.T) {
+	ctx := t.Context()
+
+	// Set environment variable for operator namespace (required by cluster.GetOperatorNamespace)
+	t.Setenv("OPERATOR_NAMESPACE", "test-operator-ns")
+
+	tests := []struct {
+		name                   string
+		platform               common.Platform
+		envKubeRBACProxy       string
+		envPromLabelProxy      string
+		expectedKubeRBACProxy  string
+		expectedPromLabelProxy string
+	}{
+		{
+			name:                   "OpenDataHub with no env vars",
+			platform:               common.Platform("Open Data Hub"),
+			envKubeRBACProxy:       "",
+			envPromLabelProxy:      "",
+			expectedKubeRBACProxy:  "quay.io/brancz/kube-rbac-proxy:v0.20.0",
+			expectedPromLabelProxy: "quay.io/prometheuscommunity/prom-label-proxy:v0.12.1",
+		},
+		{
+			name:                   "RHOAI Self-Managed with no env vars",
+			platform:               common.Platform("OpenShift AI Self-Managed"),
+			envKubeRBACProxy:       "",
+			envPromLabelProxy:      "",
+			expectedKubeRBACProxy:  "registry.redhat.io/openshift4/ose-kube-rbac-proxy-rhel9:v4.17",
+			expectedPromLabelProxy: "registry.redhat.io/openshift4/ose-prom-label-proxy-rhel9:v4.17",
+		},
+		{
+			name:                   "RHOAI Managed with no env vars",
+			platform:               common.Platform("OpenShift AI Cloud Service"),
+			envKubeRBACProxy:       "",
+			envPromLabelProxy:      "",
+			expectedKubeRBACProxy:  "registry.redhat.io/openshift4/ose-kube-rbac-proxy-rhel9:v4.17",
+			expectedPromLabelProxy: "registry.redhat.io/openshift4/ose-prom-label-proxy-rhel9:v4.17",
+		},
+		{
+			name:                   "Custom images via env vars",
+			platform:               common.Platform("OpenShift AI Self-Managed"),
+			envKubeRBACProxy:       "custom.io/kube-rbac-proxy:custom",
+			envPromLabelProxy:      "custom.io/prom-label-proxy:custom",
+			expectedKubeRBACProxy:  "custom.io/kube-rbac-proxy:custom",
+			expectedPromLabelProxy: "custom.io/prom-label-proxy:custom",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set environment variable for operator namespace (required by cluster.GetOperatorNamespace)
+			t.Setenv("OPERATOR_NAMESPACE", "test-operator-ns")
+
+			if tt.envKubeRBACProxy != "" {
+				t.Setenv("RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE", tt.envKubeRBACProxy)
+			}
+			if tt.envPromLabelProxy != "" {
+				t.Setenv("RELATED_IMAGE_OSE_PROM_LABEL_PROXY_IMAGE", tt.envPromLabelProxy)
+			}
+
+			dsci := &dsciv2.DSCInitialization{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-dsci",
+				},
+				Spec: dsciv2.DSCInitializationSpec{
+					ApplicationsNamespace: "test-apps",
+				},
+			}
+
+			monitoring := &serviceApi.Monitoring{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "default-monitoring",
+				},
+				Spec: serviceApi.MonitoringSpec{
+					MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
+						Namespace: "test-namespace",
+					},
+				},
+			}
+
+			scheme := runtime.NewScheme()
+			require.NoError(t, dsciv2.AddToScheme(scheme))
+			require.NoError(t, serviceApi.AddToScheme(scheme))
+
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithObjects(dsci, monitoring).
+				Build()
+
+			rr := &odhtypes.ReconciliationRequest{
+				Client:   fakeClient,
+				Instance: monitoring,
+				Release: common.Release{
+					Name: tt.platform,
+				},
+			}
+
+			templateData, err := getTemplateData(ctx, rr)
+			require.NoError(t, err)
+
+			// Verify image URLs are present and correct
+			kubeRBACProxy, ok := templateData["KubeRBACProxyImage"]
+			require.True(t, ok, "KubeRBACProxyImage should be present in template data")
+			assert.Equal(t, tt.expectedKubeRBACProxy, kubeRBACProxy)
+
+			promLabelProxy, ok := templateData["PromLabelProxyImage"]
+			require.True(t, ok, "PromLabelProxyImage should be present in template data")
+			assert.Equal(t, tt.expectedPromLabelProxy, promLabelProxy)
+		})
+	}
+}
+
+func TestResolvePersesAPIVersion(t *testing.T) {
+	tests := []struct {
+		name             string
+		registerV1Alpha1 bool
+		registerV1Alpha2 bool
+		expectedVersion  string
+		expectedFound    bool
+	}{
+		{
+			name:             "prefers v1alpha2 when both versions are served",
+			registerV1Alpha1: true,
+			registerV1Alpha2: true,
+			expectedVersion:  "v1alpha2",
+			expectedFound:    true,
+		},
+		{
+			name:             "returns v1alpha2 when only v1alpha2 is served",
+			registerV1Alpha1: false,
+			registerV1Alpha2: true,
+			expectedVersion:  "v1alpha2",
+			expectedFound:    true,
+		},
+		{
+			name:             "falls back to v1alpha1 when only v1alpha1 is served",
+			registerV1Alpha1: true,
+			registerV1Alpha2: false,
+			expectedVersion:  "v1alpha1",
+			expectedFound:    true,
+		},
+		{
+			name:             "returns not found when neither version is served",
+			registerV1Alpha1: false,
+			registerV1Alpha2: false,
+			expectedVersion:  "",
+			expectedFound:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			ctx := t.Context()
+
+			scheme, err := testScheme.New()
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			fakeMapper := meta.NewDefaultRESTMapper(scheme.PreferredVersionAllGroups())
+			for kt := range scheme.AllKnownTypes() {
+				if kt == gvk.CustomResourceDefinition {
+					fakeMapper.Add(kt, meta.RESTScopeRoot)
+				} else {
+					fakeMapper.Add(kt, meta.RESTScopeNamespace)
+				}
+			}
+
+			objects := make([]client.Object, 0, 1)
+			persesCRD := &extv1.CustomResourceDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "perses.perses.dev",
+				},
+			}
+			objects = append(objects, persesCRD)
+
+			if tt.registerV1Alpha1 {
+				r := schema.GroupVersionResource{Group: "perses.dev", Version: "v1alpha1", Resource: "perses"}
+				fakeMapper.AddSpecific(gvk.PersesV1Alpha1, r, r, meta.RESTScopeNamespace)
+			}
+			if tt.registerV1Alpha2 {
+				r := schema.GroupVersionResource{Group: "perses.dev", Version: "v1alpha2", Resource: "perses"}
+				fakeMapper.AddSpecific(gvk.PersesV1Alpha2, r, r, meta.RESTScopeNamespace)
+			}
+
+			cli := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithRESTMapper(fakeMapper).
+				WithObjects(objects...).
+				Build()
+
+			version, found, err := resolvePersesAPIVersion(ctx, cli)
+			g.Expect(err).ShouldNot(HaveOccurred())
+			g.Expect(found).Should(Equal(tt.expectedFound))
+			g.Expect(version).Should(Equal(tt.expectedVersion))
+		})
+	}
+}
+
+func TestPersesGVKs(t *testing.T) {
+	g := NewWithT(t)
+
+	perses, ds, db := persesGVKs("v1alpha2")
+	g.Expect(perses).Should(Equal(gvk.PersesV1Alpha2))
+	g.Expect(ds).Should(Equal(gvk.PersesDatasourceV1Alpha2))
+	g.Expect(db).Should(Equal(gvk.PersesDashboardV1Alpha2))
+
+	perses, ds, db = persesGVKs("v1alpha1")
+	g.Expect(perses).Should(Equal(gvk.PersesV1Alpha1))
+	g.Expect(ds).Should(Equal(gvk.PersesDatasourceV1Alpha1))
+	g.Expect(db).Should(Equal(gvk.PersesDashboardV1Alpha1))
 }

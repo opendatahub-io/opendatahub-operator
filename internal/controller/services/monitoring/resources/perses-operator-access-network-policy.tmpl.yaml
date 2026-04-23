@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: perses-operator-access
+  namespace: {{.Namespace}}
+  labels:
+    platform.opendatahub.io/part-of: monitoring
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/managed-by: perses-operator
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: openshift-cluster-observability-operator
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: perses-operator
+      ports:
+        - protocol: TCP
+          port: 8080

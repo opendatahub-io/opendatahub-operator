@@ -11,7 +11,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
@@ -38,13 +43,9 @@ func TestMigrateHardwareProfiles(t *testing.T) {
 	fakeSchema.AddKnownTypeWithName(gvk.HardwareProfile, &infrav1.HardwareProfile{})
 	fakeSchema.AddKnownTypeWithName(gvk.HardwareProfile.GroupVersion().WithKind("HardwareProfileList"), &infrav1.HardwareProfileList{})
 
-	// Create a CRD for Dashboard HardwareProfile to make HasCRD check pass
 	dashboardHWPCRD := &apiextensionsv1.CustomResourceDefinition{
 		ObjectMeta: v1.ObjectMeta{
 			Name: "hardwareprofiles.dashboard.opendatahub.io",
-		},
-		Status: apiextensionsv1.CustomResourceDefinitionStatus{
-			StoredVersions: []string{gvk.DashboardHardwareProfile.Version},
 		},
 	}
 
@@ -146,4 +147,127 @@ func TestCreateInfraHardwareProfile(t *testing.T) {
 	g.Expect(receivedHardwareProfile.GetAnnotations()["opendatahub.io/display-name"]).Should(Equal("Test Display Name"))
 	g.Expect(receivedHardwareProfile.GetAnnotations()["opendatahub.io/description"]).Should(Equal("Test Description"))
 	g.Expect(receivedHardwareProfile.GetAnnotations()["opendatahub.io/disabled"]).Should(Equal("false"))
+}
+
+func TestDeployObservabilityManifests_WithPersesCRD(t *testing.T) {
+	tests := []struct {
+		name     string
+		platform common.Platform
+	}{
+		{
+			name:     "RHOAI platform attempts deployment when CRD exists",
+			platform: cluster.SelfManagedRhoai,
+		},
+		{
+			name:     "ODH platform attempts deployment when CRD exists",
+			platform: cluster.OpenDataHub,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := t.Context()
+			g := NewWithT(t)
+
+			fakeSchema, err := scheme.New()
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			fakeSchema.AddKnownTypeWithName(gvk.PersesDashboard, &unstructured.Unstructured{})
+			fakeSchema.AddKnownTypeWithName(gvk.PersesDashboard.GroupVersion().WithKind("PersesDashboardList"), &unstructured.UnstructuredList{})
+
+			persesDashboardCRD := &apiextensionsv1.CustomResourceDefinition{
+				ObjectMeta: v1.ObjectMeta{
+					Name: "persesdashboards.perses.dev",
+				},
+			}
+
+			cli, err := fakeclient.New(
+				fakeclient.WithObjects(persesDashboardCRD),
+				fakeclient.WithScheme(fakeSchema),
+			)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			rr := &types.ReconciliationRequest{
+				Client:    cli,
+				Instance:  &componentApi.Dashboard{},
+				Release:   common.Release{Name: tt.platform},
+				Manifests: []types.ManifestInfo{},
+			}
+
+			// This test verifies the function attempts to deploy when CRD exists.
+			// In test environment, DeployManifestsFromPath will fail because manifest files don't exist.
+			// This is expected - the important thing is that the function reaches the deploy call.
+			err = deployObservabilityManifests(ctx, rr)
+			g.Expect(err).Should(HaveOccurred())
+			g.Expect(err.Error()).Should(ContainSubstring("failed to deploy observability manifests"))
+		})
+	}
+}
+
+func TestDeployObservabilityManifests_WithoutPersesCRD(t *testing.T) {
+	ctx := t.Context()
+	g := NewWithT(t)
+
+	fakeSchema, err := scheme.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	cli, err := fakeclient.New(
+		fakeclient.WithScheme(fakeSchema),
+	)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := &types.ReconciliationRequest{
+		Client:  cli,
+		Release: common.Release{Name: cluster.SelfManagedRhoai},
+	}
+
+	// When PersesDashboard CRD doesn't exist, function should return early without error
+	err = deployObservabilityManifests(ctx, rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+}
+
+func TestDeployObservabilityManifests_SkippedForEmptyMonitoringNamespace(t *testing.T) {
+	ctx := t.Context()
+	g := NewWithT(t)
+
+	fakeSchema, err := scheme.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	fakeSchema.AddKnownTypeWithName(gvk.PersesDashboard, &unstructured.Unstructured{})
+	fakeSchema.AddKnownTypeWithName(gvk.PersesDashboard.GroupVersion().WithKind("PersesDashboardList"), &unstructured.UnstructuredList{})
+
+	persesDashboardCRD := &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: v1.ObjectMeta{
+			Name: "persesdashboards.perses.dev",
+		},
+	}
+
+	// Create a DSCI with empty monitoring namespace
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: v1.ObjectMeta{
+			Name: "default-dsci",
+		},
+		Spec: dsciv2.DSCInitializationSpec{
+			Monitoring: serviceApi.DSCIMonitoring{
+				MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
+					Namespace: "", // Empty monitoring namespace
+				},
+			},
+		},
+	}
+
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(persesDashboardCRD, dsci),
+		fakeclient.WithScheme(fakeSchema),
+	)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := &types.ReconciliationRequest{
+		Client:  cli,
+		Release: common.Release{Name: cluster.SelfManagedRhoai},
+	}
+
+	// When monitoring namespace is empty, function should return early without error
+	err = deployObservabilityManifests(ctx, rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
 }

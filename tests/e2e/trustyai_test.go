@@ -12,6 +12,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
 )
@@ -40,6 +41,7 @@ func trustyAITestSuite(t *testing.T) {
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
+		{"Validate MCP guardrails mode", componentCtx.ValidateMCPGuardrailsMode},
 		{"Validate pre check", componentCtx.ValidateTrustyAIPreCheck},
 		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
@@ -75,12 +77,58 @@ func (tc *TrustyAITestCtx) ValidateComponentDisabled(t *testing.T) {
 	tc.ComponentTestCtx.ValidateComponentDisabled(t)
 }
 
+// ValidateMCPGuardrailsMode toggles TrustyAI MCPGuardrailsMode on the DataScienceCluster and
+// checks that the TrustyAI CR spec and Ready condition stay consistent with the DSC.
+func (tc *TrustyAITestCtx) ValidateMCPGuardrailsMode(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+
+	// Enable MCP Guardrails mode on the DSC
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.trustyai.mcpGuardrailsMode = true`)),
+	)
+
+	// Validate TrustyAI CR spec and Ready condition
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.TrustyAI, types.NamespacedName{Name: componentApi.TrustyAIInstanceName}),
+		WithCondition(
+			And(
+				jq.Match(`.spec.mcpGuardrailsMode == true`),
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "True"`, status.ConditionTypeReady),
+			),
+		),
+		WithCustomErrorMsg("TrustyAI should expose mcpGuardrailsMode and stay Ready when MCP guardrails mode is enabled on the DSC"),
+	)
+
+	// Disable MCP Guardrails mode on the DSC
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.trustyai.mcpGuardrailsMode = false`)),
+	)
+
+	// Validate TrustyAI CR spec and Ready condition
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.TrustyAI, types.NamespacedName{Name: componentApi.TrustyAIInstanceName}),
+		WithCondition(
+			And(
+				jq.Match(`(.spec.mcpGuardrailsMode // false) == false`),
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "True"`, status.ConditionTypeReady),
+			),
+		),
+		WithCustomErrorMsg("TrustyAI should return to Ready after MCP guardrails mode is disabled on the DSC"),
+	)
+}
+
 // ValidateTrustyAIPreCheck validates TrustyAI's dependency validation and recovery mechanisms.
 // This test verifies that TrustyAI properly detects missing KServe dependencies and automatically
 // recovers when dependencies are restored. The test simulates real-world scenarios where
 // dependencies might be removed or unavailable during cluster operations.
 func (tc *TrustyAITestCtx) ValidateTrustyAIPreCheck(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, Tier1)
 
 	// Step 1: Disable KServe → TrustyAI should detect missing dependency
 	tc.setKserveState(operatorv1.Removed, false)

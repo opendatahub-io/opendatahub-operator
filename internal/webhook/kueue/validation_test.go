@@ -43,6 +43,7 @@ func createDSCWithKueueState(state operatorv1.ManagementState) *dscv2.DataScienc
 
 // TestKueueWebhook_DeniesWhenDecoderNotInitialized tests that the webhook returns an error when the decoder is nil.
 func TestKueueWebhook_DeniesWhenDecoderNotInitialized(t *testing.T) {
+	t.Skip("kueue validating webhook is disabled")
 	t.Parallel()
 	g := NewWithT(t)
 	ctx := t.Context()
@@ -80,6 +81,7 @@ func TestKueueWebhook_DeniesWhenDecoderNotInitialized(t *testing.T) {
 
 // TestKueueWebhook_DeniesUnexpectedKind tests that the webhook properly rejects requests with unexpected kinds.
 func TestKueueWebhook_DeniesUnexpectedKind(t *testing.T) {
+	t.Skip("kueue validating webhook is disabled")
 	t.Parallel()
 	g := NewWithT(t)
 	ctx := t.Context()
@@ -121,6 +123,7 @@ func TestKueueWebhook_DeniesUnexpectedKind(t *testing.T) {
 
 // TestKueueWebhook_AcceptsExpectedKinds tests that the webhook properly accepts requests with expected kinds.
 func TestKueueWebhook_AcceptsExpectedKinds(t *testing.T) {
+	t.Skip("kueue validating webhook is disabled")
 	t.Parallel()
 	g := NewWithT(t)
 	ctx := t.Context()
@@ -170,6 +173,20 @@ func TestKueueWebhook_AcceptsExpectedKinds(t *testing.T) {
 			},
 			objFunc: func() client.Object {
 				return envtestutil.NewNotebook("test-pytorchjob", testNamespace, func(obj client.Object) {
+					obj.SetLabels(map[string]string{objLabelQueueName: validQueueName})
+				})
+			},
+		},
+		{
+			name: "TrainJob",
+			gvk:  gvk.TrainJob,
+			resource: metav1.GroupVersionResource{
+				Group:    gvk.TrainJob.Group,
+				Version:  gvk.TrainJob.Version,
+				Resource: "trainjobs",
+			},
+			objFunc: func() client.Object {
+				return envtestutil.NewTrainJob("test-trainjob", testNamespace, func(obj client.Object) {
 					obj.SetLabels(map[string]string{objLabelQueueName: validQueueName})
 				})
 			},
@@ -285,7 +302,10 @@ func TestKueueWebhook_AcceptsExpectedKinds(t *testing.T) {
 // TestKueueWebhook_ValidatingWebhook exercises the validating webhook logic for Kueue label validation.
 // It verifies that workloads are properly validated based on namespace labels, DSC state, and required Kueue labels
 // using table-driven tests and a fake client.
+//
+//nolint:maintidx // table-driven tests often have high maintainability index
 func TestKueueWebhook_ValidatingWebhook(t *testing.T) {
+	t.Skip("kueue validating webhook is disabled")
 	t.Parallel()
 	g := NewWithT(t)
 	ctx := t.Context()
@@ -485,6 +505,47 @@ func TestKueueWebhook_ValidatingWebhook(t *testing.T) {
 			),
 			allowed:      false,
 			errorMessage: "Kueue label validation failed: missing required label \"kueue.x-k8s.io/queue-name\"",
+		},
+		{
+			name: "TrainJob missing Kueue label",
+			existingObjs: []client.Object{
+				envtestutil.NewNamespace(testNamespace, map[string]string{nsLabelManaged: "true"}),
+				createDSCWithKueueState(operatorv1.Managed),
+			},
+			req: envtestutil.NewAdmissionRequest(
+				t,
+				admissionv1.Create,
+				envtestutil.NewTrainJob("test-trainjob", testNamespace),
+				gvk.TrainJob,
+				metav1.GroupVersionResource{
+					Group:    gvk.TrainJob.Group,
+					Version:  gvk.TrainJob.Version,
+					Resource: "trainjobs",
+				},
+			),
+			allowed:      false,
+			errorMessage: "Kueue label validation failed: missing required label \"kueue.x-k8s.io/queue-name\"",
+		},
+		{
+			name: "TrainJob with valid Kueue label",
+			existingObjs: []client.Object{
+				envtestutil.NewNamespace(testNamespace, map[string]string{nsLabelManaged: "true"}),
+				createDSCWithKueueState(operatorv1.Managed),
+			},
+			req: envtestutil.NewAdmissionRequest(
+				t,
+				admissionv1.Create,
+				envtestutil.NewTrainJob("test-trainjob", testNamespace, func(obj client.Object) {
+					obj.SetLabels(map[string]string{objLabelQueueName: validQueueName})
+				}),
+				gvk.TrainJob,
+				metav1.GroupVersionResource{
+					Group:    gvk.TrainJob.Group,
+					Version:  gvk.TrainJob.Version,
+					Resource: "trainjobs",
+				},
+			),
+			allowed: true,
 		},
 		{
 			name: "Delete operation should be allowed",

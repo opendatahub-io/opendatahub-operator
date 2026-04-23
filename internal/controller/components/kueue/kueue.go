@@ -13,12 +13,12 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
-	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 )
 
 const (
@@ -34,15 +34,13 @@ var (
 
 type componentHandler struct{}
 
-func init() { //nolint:gochecknoinits
-	cr.Add(&componentHandler{})
-}
+func NewHandler() *componentHandler { return &componentHandler{} }
 
 func (s *componentHandler) GetName() string {
 	return componentApi.KueueComponentName
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
+func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
 	return &componentApi.Kueue{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.KueueKind,
@@ -59,10 +57,10 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 			KueueCommonSpec:       dsc.Spec.Components.Kueue.KueueCommonSpec,
 			KueueDefaultQueueSpec: dsc.Spec.Components.Kueue.KueueDefaultQueueSpec,
 		},
-	}
+	}, nil
 }
 
-func (s *componentHandler) Init(platform common.Platform) error {
+func (s *componentHandler) Init(platform common.Platform, _ operatorconfig.OperatorSettings) error {
 	return nil
 }
 
@@ -98,6 +96,15 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	dsc.Status.Components.Kueue.KueueCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
+
+	if !c.GetDeletionTimestamp().IsZero() {
+		rr.Conditions.MarkFalse(
+			ReadyConditionType,
+			conditions.WithReason(status.DeletingReason),
+			conditions.WithMessage(status.DeletingMessage),
+		)
+		return metav1.ConditionFalse, nil
+	}
 
 	if s.IsEnabled(dsc) {
 		dsc.Status.Components.Kueue.KueueCommonStatus = c.Status.KueueCommonStatus.DeepCopy()

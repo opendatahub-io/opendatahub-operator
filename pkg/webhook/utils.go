@@ -25,6 +25,13 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
+// JSON Patch operation constants as defined in RFC 6902.
+const (
+	PatchOpAdd     = "add"
+	PatchOpRemove  = "remove"
+	PatchOpReplace = "replace"
+)
+
 // BaseServingConnectionWebhook provides common type for both isvc and llmisvc webhooks.
 type BaseServingConnectionWebhook struct {
 	APIReader client.Reader
@@ -263,8 +270,10 @@ func ValidateServingConnectionAnnotation(ctx context.Context,
 
 	// If neither connection type is present, allow the operation but skip injection
 	if connectionType == "" {
+		//nolint:staticcheck // SA1019: ConnectionTypeRef is deprecated but still supported for backward compatibility
 		log.Info(fmt.Sprintf("Secret does not have '%s' or '%s' annotation, allowing operation but skipping injection",
 			annotations.ConnectionTypeProtocol, annotations.ConnectionTypeRef), "connectionType", connectionType, "allowedTypes", allowedTypes)
+		//nolint:staticcheck // SA1019: ConnectionTypeRef is deprecated but still supported for backward compatibility
 		return admission.Allowed(fmt.Sprintf("Secret '%s' does not have '%s' or '%s' annotation",
 			annotationValue, annotations.ConnectionTypeProtocol, annotations.ConnectionTypeRef)), ConnectionInfo{}
 	}
@@ -309,9 +318,11 @@ func ValidateInferenceServiceConnectionType(secretMeta *metav1.PartialObjectMeta
 	}
 
 	// If the connection type protocol annotation doesn't exist, check the deprecated connection type ref annotation
+	//nolint:staticcheck // SA1019: ConnectionTypeRef is deprecated but still supported for backward compatibility
 	connectionType = resources.GetAnnotation(secretMeta, annotations.ConnectionTypeRef)
 	if connectionType != "" {
 		// If it exists, check that the connection type is one of the allowed values
+		//nolint:staticcheck // SA1019: ConnectionTypeRef is deprecated but still supported for backward compatibility
 		isValidType := slices.Contains(allowedTypes[annotations.ConnectionTypeRef], connectionType)
 		return connectionType, isValidType
 	}
@@ -390,25 +401,25 @@ func ServiceAccountCreation(ctx context.Context, cli client.Client, secretName, 
 // Returns:
 //   - map[string]interface{}: The existing or newly created nested map
 //   - error: Any error encountered during map access or creation
-func GetOrCreateNestedMap(obj map[string]interface{}, field string) (map[string]interface{}, error) {
+func GetOrCreateNestedMap(obj map[string]any, field string) (map[string]any, error) {
 	nested, found, err := unstructured.NestedMap(obj, field)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get nested map for field %s: %w", field, err)
 	}
 	if !found {
-		nested = make(map[string]interface{})
+		nested = make(map[string]any)
 	}
 	return nested, nil
 }
 
 // GetOrCreateNestedSlice gets a nested slice from an unstructured object, creating it if it doesn't exist.
-func GetOrCreateNestedSlice(obj map[string]interface{}, path ...string) ([]interface{}, error) {
+func GetOrCreateNestedSlice(obj map[string]any, path ...string) ([]any, error) {
 	nested, found, err := unstructured.NestedSlice(obj, path...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get nested slice for path %v: %w", path, err)
 	}
 	if !found {
-		nested = make([]interface{}, 0)
+		nested = make([]any, 0)
 	}
 	return nested, nil
 }
@@ -423,13 +434,13 @@ func GetOrCreateNestedSlice(obj map[string]interface{}, path ...string) ([]inter
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func SetNestedValue(obj map[string]interface{}, value interface{}, path []string) error {
+func SetNestedValue(obj map[string]any, value any, path []string) error {
 	switch v := value.(type) {
 	case string:
 		return unstructured.SetNestedField(obj, v, path...)
-	case map[string]interface{}:
+	case map[string]any:
 		return unstructured.SetNestedMap(obj, v, path...)
-	case []interface{}:
+	case []any:
 		return unstructured.SetNestedSlice(obj, v, path...)
 	default:
 		return fmt.Errorf("unsupported value type %T for SetNestedValue", value)
@@ -504,6 +515,7 @@ func (w *BaseServingConnectionWebhook) GetOldConnectionInfo(ctx context.Context,
 	// First check the connection type protocol annotation, then fall back to the deprecated ref annotation
 	oldConnectionType := resources.GetAnnotation(secretMeta, annotations.ConnectionTypeProtocol)
 	if oldConnectionType == "" {
+		//nolint:staticcheck // SA1019: ConnectionTypeRef is deprecated but still supported for backward compatibility
 		oldConnectionType = resources.GetAnnotation(secretMeta, annotations.ConnectionTypeRef)
 	}
 	oldConnectionPath := resources.GetAnnotation(oldObj, annotations.ConnectionPath)
@@ -567,7 +579,7 @@ func (w *BaseServingConnectionWebhook) InjectOCIImagePullSecrets(obj *unstructur
 
 	// Check if the secret is already in the list, fast exist
 	for _, secret := range imagePullSecrets {
-		if secretMap, ok := secret.(map[string]interface{}); ok {
+		if secretMap, ok := secret.(map[string]any); ok {
 			if name, exists := secretMap["name"]; exists && name == secretName {
 				return nil
 			}
@@ -575,7 +587,7 @@ func (w *BaseServingConnectionWebhook) InjectOCIImagePullSecrets(obj *unstructur
 	}
 
 	// Add new secret to the slice(upon UPDATE)
-	newImagePullSecret := map[string]interface{}{
+	newImagePullSecret := map[string]any{
 		"name": secretName,
 	}
 	imagePullSecrets = append(imagePullSecrets, newImagePullSecret)
@@ -599,9 +611,9 @@ func (w *BaseServingConnectionWebhook) CleanupOCIImagePullSecrets(obj *unstructu
 		return nil
 	}
 
-	var remained []interface{}
+	var remained []any
 	for _, secret := range imagePullSecrets {
-		if secretMap, ok := secret.(map[string]interface{}); ok {
+		if secretMap, ok := secret.(map[string]any); ok {
 			if name, exists := secretMap["name"]; exists && name != secretName {
 				remained = append(remained, secret)
 			}

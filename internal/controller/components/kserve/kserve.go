@@ -14,46 +14,60 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
-	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 )
 
 const (
-	componentName            = componentApi.KserveComponentName
-	kserveConfigMapName      = "inferenceservice-config"
-	kserveManifestSourcePath = "overlays/odh"
+	componentName               = componentApi.KserveComponentName
+	kserveConfigMapName         = "inferenceservice-config"
+	isvcControllerDeployment    = "kserve-controller-manager"
+	kserveManifestSourcePath    = "overlays/odh"
+	kserveManifestSourcePathXKS = "overlays/odh-xks"
 
 	// LegacyComponentName is the name of the component that is assigned to deployments
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
 	// deployment to the new component name, so keep it around till we figure out a solution.
 	LegacyComponentName = "kserve"
 
-	ReadyConditionType = componentApi.KserveKind + status.ReadySuffix
+	ReadyConditionType                    = componentApi.KserveKind + status.ReadySuffix
+	LLMInferenceServiceDependencies       = componentApi.KserveKind + "LLMInferenceServiceDependencies"
+	LLMInferenceServiceWideEPDependencies = componentApi.KserveKind + "LLMInferenceServiceWideEPDependencies"
+	rhclOperatorSubscription              = "rhcl-operator"
+	lwsOperatorSubscription               = "leader-worker-set"
+	certManagerOperatorSubscription       = "openshift-cert-manager-operator"
+	subNotFound                           = "Subscription not found"
 )
 
-var (
-	conditionTypes = []string{
-		status.ConditionDeploymentsAvailable,
-	}
-)
+var conditionTypes = []string{
+	status.ConditionDeploymentsAvailable,
+	status.ConditionDependenciesAvailable,
+}
 
 type componentHandler struct{}
 
-func init() { //nolint:gochecknoinits
-	cr.Add(&componentHandler{})
-}
+func NewHandler() *componentHandler { return &componentHandler{} }
 
-// Init to set oauth image.
-func (s *componentHandler) Init(platform common.Platform) error {
-	mp := kserveManifestInfo(kserveManifestSourcePath)
+// Init updates params.env files with image overrides and cert-manager configuration.
+func (s *componentHandler) Init(_ common.Platform, cfg operatorconfig.OperatorSettings) error {
+	manifestsBasePath := cfg.ManifestsBasePath
+	mp := kserveManifestInfo(manifestsBasePath, kserveManifestSourcePath)
 
 	if err := odhdeploy.ApplyParams(mp.String(), "params.env", imageParamMap); err != nil {
 		return fmt.Errorf("failed to update images on path %s: %w", mp, err)
 	}
+
+	// Apply cert-manager issuer params to the xKS overlay.
+	// ApplyParams safely no-ops if the overlay's params.env does not exist on disk.
+	xksMP := kserveManifestInfo(manifestsBasePath, kserveManifestSourcePathXKS)
+	if err := odhdeploy.ApplyParams(xksMP.String(), "params.env", nil, buildCertManagerParams()); err != nil {
+		return fmt.Errorf("failed to update cert-manager params on path %s: %w", xksMP, err)
+	}
+
 	return nil
 }
 
@@ -62,7 +76,7 @@ func (s *componentHandler) GetName() string {
 }
 
 // for DSC to get component Kserve's CR.
-func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
+func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
 	return &componentApi.Kserve{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.KserveKind,
@@ -77,7 +91,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 		Spec: componentApi.KserveSpec{
 			KserveCommonSpec: dsc.Spec.Components.Kserve.KserveCommonSpec,
 		},
-	}
+	}, nil
 }
 
 func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
@@ -106,6 +120,15 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
+	if !c.GetDeletionTimestamp().IsZero() {
+		rr.Conditions.MarkFalse(
+			ReadyConditionType,
+			conditions.WithReason(status.DeletingReason),
+			conditions.WithMessage(status.DeletingMessage),
+		)
+		return metav1.ConditionFalse, nil
+	}
+
 	if s.IsEnabled(dsc) {
 		dsc.Status.Components.Kserve.KserveCommonStatus = c.Status.KserveCommonStatus.DeepCopy()
 
@@ -114,6 +137,12 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 			cs = rc.Status
 		} else {
 			cs = metav1.ConditionFalse
+		}
+		if rhclCondition := conditions.FindStatusCondition(c.GetStatus(), LLMInferenceServiceDependencies); rhclCondition != nil {
+			rr.Conditions.MarkFrom(LLMInferenceServiceDependencies, *rhclCondition)
+		}
+		if lwsCondition := conditions.FindStatusCondition(c.GetStatus(), LLMInferenceServiceWideEPDependencies); lwsCondition != nil {
+			rr.Conditions.MarkFrom(LLMInferenceServiceWideEPDependencies, *lwsCondition)
 		}
 	} else {
 		rr.Conditions.MarkFalse(

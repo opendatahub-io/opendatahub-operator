@@ -76,18 +76,26 @@ const (
 	ConditionTypeReconcileComplete = "ReconcileComplete"
 
 	// Component-specific condition types.
-	ConditionTypeProvisioningSucceeded       = "ProvisioningSucceeded"
-	ConditionDeploymentsNotAvailableReason   = "DeploymentsNotReady"
-	ConditionDeploymentsAvailable            = "DeploymentsAvailable"
-	ConditionArgoWorkflowAvailable           = "ArgoWorkflowAvailable"
-	ConditionTypeComponentsReady             = "ComponentsReady"
-	ConditionMonitoringAvailable             = "MonitoringAvailable"
-	ConditionMonitoringStackAvailable        = "MonitoringStackAvailable"
-	ConditionTempoAvailable                  = "TempoAvailable"
-	ConditionOpenTelemetryCollectorAvailable = "OpenTelemetryCollectorAvailable"
-	ConditionInstrumentationAvailable        = "InstrumentationAvailable"
-	ConditionAlertingAvailable               = "AlertingAvailable"
-	ConditionThanosQuerierAvailable          = "ThanosQuerierAvailable"
+	ConditionTypeProvisioningSucceeded           = "ProvisioningSucceeded"
+	ConditionDeploymentsNotAvailableReason       = "DeploymentsNotReady"
+	ConditionMaaSPrerequisitesAvailable          = "MaaSPrerequisitesAvailable"
+	ConditionDeploymentsAvailable                = "DeploymentsAvailable"
+	ConditionDependenciesAvailable               = "DependenciesAvailable"
+	ConditionArgoWorkflowAvailable               = "ArgoWorkflowAvailable"
+	ConditionTypeComponentsReady                 = "ComponentsReady"
+	ConditionMonitoringAvailable                 = "MonitoringAvailable"
+	ConditionMonitoringStackAvailable            = "MonitoringStackAvailable"
+	ConditionTempoAvailable                      = "TempoAvailable"
+	ConditionOpenTelemetryCollectorAvailable     = "OpenTelemetryCollectorAvailable"
+	ConditionInstrumentationAvailable            = "InstrumentationAvailable"
+	ConditionAlertingAvailable                   = "AlertingAvailable"
+	ConditionThanosQuerierAvailable              = "ThanosQuerierAvailable"
+	ConditionPersesAvailable                     = "PersesAvailable"
+	ConditionPersesTempoDataSourceAvailable      = "PersesTempoDataSourceAvailable"
+	ConditionPersesPrometheusDataSourceAvailable = "PersesPrometheusDataSourceAvailable"
+	ConditionNodeMetricsEndpointAvailable        = "NodeMetricsEndpointAvailable"
+	ConditionImageStreamsAvailable               = "ImageStreamsAvailable"
+	ConditionImageStreamsNotAvailableReason      = "ImageStreamsNotReady"
 )
 
 const (
@@ -102,6 +110,8 @@ const (
 	AvailableReason = "Available"
 	NotReadyReason  = "NotReady"
 	ReadyReason     = "Ready"
+	DeletingReason  = "Deleting"
+	DeletingMessage = "Component CR is being deleted"
 )
 
 const (
@@ -119,15 +129,11 @@ const (
 	DataSciencePipelinesArgoWorkflowsCRDMissingMessage = "Argo Workflows controllers are not managed by this operator, but the CRD is missing"
 )
 
-// For Kueue MultiKueue CRD.
 const (
-	MultiKueueCRDReason  = "MultiKueueCRDV1Alpha1Exist"
-	MultiKueueCRDMessage = "Kueue CRDs MultiKueueConfig v1alpha1 and/or MultiKueueCluster v1alpha1 exist, please remove them to proceed"
-
 	KueueStateManagedNotSupported        = "KueueStateManagedNotSupported"
 	KueueStateManagedNotSupportedMessage = "Kueue managementState Managed is not supported, please use Removed or Unmanaged"
 	KueueOperatorNotInstalleReason       = "KueueOperatorNotInstalleReason"
-	KueueOperatorNotInstalledMessage     = "Kueue operator not installed, install it or change kueue component state to Managed"
+	KueueOperatorNotInstalledMessage     = "Kueue operator not installed, install it or change kueue component state to Removed"
 )
 
 // For TrustyAI require ISVC CRD.
@@ -171,6 +177,14 @@ const (
 const (
 	CodeFlarePresentMessage = `Failed upgrade: CodeFlare component is present in the cluster. It must be uninstalled to proceed with Ray component upgrade.
 To uninstall it, you should delete all RayClusters resources from the cluster, delete the CodeFlare component resource and recreate the RayClusters.`
+)
+
+// For JobSet operator checks.
+const (
+	JobSetOperatorNotInstalledMessage = "JobSet operator not installed, please install it first"
+	JobSetCRDMissingMessage           = "JobSet CRD does not exist, please inspect JobSetOperator CR status conditions or JobSet controller Pod logs for more details"
+	JobSetOperatorCRNotFoundMessage   = "JobSetOperator CR with name 'cluster' not found, please create it first"
+	JobSetOperatorCRWrongNameMessage  = "JobSetOperator CR found with name '%s' (expected 'cluster'), please ensure the CR is named 'cluster'"
 )
 
 // setConditions is a helper function to set multiple conditions at once.

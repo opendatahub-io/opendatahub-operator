@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -14,25 +15,23 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
-	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 )
 
 type componentHandler struct{}
 
-func init() { //nolint:gochecknoinits
-	cr.Add(&componentHandler{})
-}
+func NewHandler() *componentHandler { return &componentHandler{} }
 
 func (s *componentHandler) GetName() string {
 	return componentApi.WorkbenchesComponentName
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
+func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
 	return &componentApi.Workbenches{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.WorkbenchesKind,
@@ -47,11 +46,12 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 		Spec: componentApi.WorkbenchesSpec{
 			WorkbenchesCommonSpec: dsc.Spec.Components.Workbenches.WorkbenchesCommonSpec,
 		},
-	}
+	}, nil
 }
 
-func (s *componentHandler) Init(platform common.Platform) error {
-	nbcManifestInfo := notebookControllerManifestInfo(notebookControllerManifestSourcePath)
+func (s *componentHandler) Init(platform common.Platform, cfg operatorconfig.OperatorSettings) error {
+	manifestsBasePath := cfg.ManifestsBasePath
+	nbcManifestInfo := notebookControllerManifestInfo(manifestsBasePath, notebookControllerManifestSourcePath)
 	if err := odhdeploy.ApplyParams(nbcManifestInfo.String(), "params.env", map[string]string{
 		"odh-notebook-controller-image": "RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE",
 		"kube-rbac-proxy":               "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
@@ -59,14 +59,14 @@ func (s *componentHandler) Init(platform common.Platform) error {
 		return fmt.Errorf("failed to update params.env from %s : %w", nbcManifestInfo.String(), err)
 	}
 
-	kfNbcManifestInfo := kfNotebookControllerManifestInfo(kfNotebookControllerManifestSourcePath)
+	kfNbcManifestInfo := kfNotebookControllerManifestInfo(manifestsBasePath, kfNotebookControllerManifestSourcePath)
 	if err := odhdeploy.ApplyParams(kfNbcManifestInfo.String(), "params.env", map[string]string{
 		"odh-kf-notebook-controller-image": "RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE",
 	}); err != nil {
 		return fmt.Errorf("failed to update params.env from %s : %w", kfNbcManifestInfo.String(), err)
 	}
 
-	nbImgsManifestInfo := notebookImagesManifestInfo(notebookImagesParamsPath)
+	nbImgsManifestInfo := notebookImagesManifestInfo(manifestsBasePath, notebookImagesParamsPath[platform])
 	if err := odhdeploy.ApplyParams(nbImgsManifestInfo.String(), "params-latest.env", map[string]string{
 		// CodeServer Workbench Images
 		"odh-workbench-codeserver-datascience-cpu-py312-ubi9-n": "RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_DATASCIENCE_CPU_PY312_IMAGE",
@@ -141,11 +141,29 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
+	if !c.GetDeletionTimestamp().IsZero() {
+		rr.Conditions.MarkFalse(
+			ReadyConditionType,
+			conditions.WithReason(status.DeletingReason),
+			conditions.WithMessage(status.DeletingMessage),
+		)
+		return metav1.ConditionFalse, nil
+	}
+
 	if s.IsEnabled(dsc) {
 		dsc.Status.Components.Workbenches.WorkbenchesCommonStatus = c.Status.WorkbenchesCommonStatus.DeepCopy()
 
 		if rc := conditions.FindStatusCondition(c.GetStatus(), status.ConditionTypeReady); rc != nil {
-			rr.Conditions.MarkFrom(ReadyConditionType, *rc)
+			readyCond := *rc
+			// Append ImageStream import failure warning to the Ready condition message.
+			if isCond := conditions.FindStatusCondition(c.GetStatus(), status.ConditionImageStreamsAvailable); isCond != nil && isCond.Status == metav1.ConditionFalse {
+				if readyCond.Message != "" {
+					readyCond.Message = strings.TrimRight(readyCond.Message, ".") + ". " + isCond.Message
+				} else {
+					readyCond.Message = isCond.Message
+				}
+			}
+			rr.Conditions.MarkFrom(ReadyConditionType, readyCond)
 			cs = rc.Status
 		} else {
 			cs = metav1.ConditionFalse

@@ -21,22 +21,22 @@ import (
 	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 )
 
-//nolint:gochecknoinits
-func init() {
-	sr.Add(&ServiceHandler{})
-}
+func NewHandler() *ServiceHandler { return &ServiceHandler{} }
 
 type ServiceHandler struct {
 }
@@ -60,6 +60,20 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		Owns(&rbacv1.ClusterRole{}).
 		Owns(&rbacv1.Role{}).
 		Owns(&rbacv1.RoleBinding{}).
+		Watches(
+			&corev1.Namespace{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(serviceApi.AuthInstanceName),
+			),
+			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed("models-as-a-service")),
+		).
+		Watches(
+			&corev1.Namespace{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(serviceApi.AuthInstanceName),
+			),
+			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed("kuadrant-system")),
+		).
 		// actions
 		WithAction(initialize).
 		WithAction(template.NewAction()).
@@ -68,6 +82,8 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
+		// must be the final action
+		WithAction(gc.NewAction()).
 		Build(ctx)
 
 	if err != nil {

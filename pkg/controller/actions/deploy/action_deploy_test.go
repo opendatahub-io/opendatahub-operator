@@ -16,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -35,6 +36,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/mocks"
@@ -252,6 +254,57 @@ func TestDeployNotOwnedCreate(t *testing.T) {
 	))
 }
 
+func TestDeployErrorFormat(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := t.Context()
+	ns := xid.New().String()
+	name := xid.New().String()
+
+	// Use an unsupported deploy mode to force a deploy error and exercise the
+	// error message format introduced in run().
+	action := deploy.NewAction(
+		deploy.WithMode(deploy.Mode("invalid")),
+	)
+
+	obj, err := resources.ToUnstructured(&appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: appsv1.SchemeGroupVersion.String(),
+			Kind:       "Deployment",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := types.ReconciliationRequest{
+		Client: cl,
+		Instance: &componentApi.Dashboard{
+			ObjectMeta: metav1.ObjectMeta{
+				Generation: 1,
+			},
+		},
+		Release: common.Release{
+			Name: cluster.OpenDataHub,
+			Version: version.OperatorVersion{Version: semver.Version{
+				Major: 1, Minor: 2, Patch: 3,
+			}}},
+		Resources: []unstructured.Unstructured{*obj},
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("Owns", mock.Anything).Return(false)
+		}),
+	}
+
+	err = action(ctx, &rr)
+	g.Expect(err).Should(HaveOccurred())
+	g.Expect(err.Error()).Should(ContainSubstring("failure deploying resource " + ns + "/" + name))
+}
+
 func TestDeployDeOwn(t *testing.T) {
 	g := NewWithT(t)
 
@@ -341,6 +394,134 @@ func TestDeployDeOwn(t *testing.T) {
 		jq.Match(`.metadata.annotations | has("%s") `, annotations.ManagedByODHOperator),
 		jq.Match(`.metadata.ownerReferences | length == 0`),
 	))
+}
+
+func setupManagedAnnotationTest(t *testing.T, cl client.Client, managed string, replicas *int32, containers []corev1.Container) (types.ReconciliationRequest, string) {
+	t.Helper()
+	g := NewWithT(t)
+
+	ns := xid.New().String()
+	g.Expect(cl.Create(t.Context(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})).To(Succeed())
+
+	rr := types.ReconciliationRequest{
+		Client:     cl,
+		Controller: mocks.NewMockController(func(m *mocks.MockController) { m.On("Owns", mock.Anything).Return(true) }),
+		Instance: &componentApi.Dashboard{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       componentApi.DashboardInstanceName,
+				UID:        apimachinery.UID(xid.New().String()),
+				Generation: 1,
+			},
+		},
+		Release: common.Release{Name: cluster.OpenDataHub, Version: version.OperatorVersion{Version: semver.Version{Major: 1, Minor: 2, Patch: 3}}},
+	}
+
+	g.Expect(rr.AddResources(&appsv1.Deployment{
+		TypeMeta:   metav1.TypeMeta{APIVersion: appsv1.SchemeGroupVersion.String(), Kind: "Deployment"},
+		ObjectMeta: metav1.ObjectMeta{Name: "test-deployment", Namespace: ns, Annotations: map[string]string{annotations.ManagedByODHOperator: managed}},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: replicas,
+			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "test"}},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "test"}},
+				Spec:       corev1.PodSpec{Containers: containers},
+			},
+		},
+	})).To(Succeed())
+
+	return rr, ns
+}
+
+func TestDeployWithManagedAnnotation(t *testing.T) {
+	g := NewWithT(t)
+
+	et, err := envt.New()
+	g.Expect(err).NotTo(HaveOccurred())
+	t.Cleanup(func() { _ = et.Stop() })
+
+	cl := et.Client()
+
+	tests := []struct {
+		name        string
+		mode        deploy.Mode
+		managed     string
+		userValue   int32
+		finalValue  int32
+		description string
+	}{
+		{"ssa mode managed=true", deploy.ModeSSA, "true", 5, 2, "reverts modifications"},
+		{"ssa mode managed=false", deploy.ModeSSA, "false", 5, 5, "preserves modifications"},
+		{"patch mode managed=true", deploy.ModePatch, "true", 5, 2, "reverts modifications"},
+		{"patch mode managed=false", deploy.ModePatch, "false", 5, 5, "preserves modifications"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			ctx := t.Context()
+
+			replicas := int32(2)
+			rr, ns := setupManagedAnnotationTest(t, cl, tt.managed, &replicas,
+				[]corev1.Container{{Name: "test", Image: "test:v1"}})
+
+			action := deploy.NewAction(deploy.WithMode(tt.mode))
+			g.Expect(action(ctx, &rr)).To(Succeed())
+
+			deployed := &appsv1.Deployment{}
+			g.Expect(cl.Get(ctx, client.ObjectKey{Namespace: ns, Name: "test-deployment"}, deployed)).To(Succeed())
+			g.Expect(*deployed.Spec.Replicas).To(Equal(int32(2)))
+
+			deployed.Spec.Replicas = &tt.userValue
+			g.Expect(cl.Update(ctx, deployed)).To(Succeed())
+			g.Expect(action(ctx, &rr)).To(Succeed())
+
+			g.Expect(cl.Get(ctx, client.ObjectKey{Namespace: ns, Name: "test-deployment"}, deployed)).To(Succeed())
+			g.Expect(*deployed.Spec.Replicas).To(Equal(tt.finalValue), tt.description)
+		})
+	}
+
+	t.Run("ssa managed=true resets resources to manifest values", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		replicas := int32(1)
+		rr, ns := setupManagedAnnotationTest(t, cl, "true", &replicas,
+			[]corev1.Container{{
+				Name:  "test",
+				Image: "test:v1",
+				Resources: corev1.ResourceRequirements{
+					Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("1Gi")},
+					Limits:   corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("1Gi")},
+				},
+			}})
+
+		action := deploy.NewAction(deploy.WithMode(deploy.ModeSSA))
+		g.Expect(action(ctx, &rr)).To(Succeed())
+
+		deployed := &appsv1.Deployment{}
+		g.Expect(cl.Get(ctx, client.ObjectKey{Namespace: ns, Name: "test-deployment"}, deployed)).To(Succeed())
+		deployed.Spec.Template.Spec.Containers[0].Resources = corev1.ResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceMemory: resource.MustParse("64Mi"),
+				corev1.ResourceCPU:    resource.MustParse("250m"),
+			},
+			Limits: corev1.ResourceList{
+				corev1.ResourceMemory: resource.MustParse("128Mi"),
+				corev1.ResourceCPU:    resource.MustParse("500m"),
+			},
+		}
+		g.Expect(cl.Update(ctx, deployed)).To(Succeed())
+
+		g.Expect(action(ctx, &rr)).To(Succeed())
+
+		g.Expect(cl.Get(ctx, client.ObjectKey{Namespace: ns, Name: "test-deployment"}, deployed)).To(Succeed())
+		g.Expect(deployed.Spec.Template.Spec.Containers[0].Resources.Requests).To(Equal(
+			corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("1Gi")}),
+			"should have only manifest memory request, user-added cpu removed")
+		g.Expect(deployed.Spec.Template.Spec.Containers[0].Resources.Limits).To(Equal(
+			corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("1Gi")}),
+			"should have only manifest memory limit, user-added cpu removed")
+	})
 }
 
 func TestDeployClusterRole(t *testing.T) {
@@ -709,4 +890,750 @@ func TestDeployOwnerRef(t *testing.T) {
 
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(updatedCRD.GetOwnerReferences()).Should(BeEmpty())
+}
+
+func TestDeployDynamicOwnership_SetsOwnerReferences(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := t.Context()
+	ns := xid.New().String()
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Create namespace for resources
+	err = cl.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Create the owner instance
+	instance := &componentApi.Dashboard{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       componentApi.DashboardInstanceName,
+			UID:        "test-uid-12345",
+			Generation: 1,
+		},
+	}
+	instance.SetGroupVersionKind(gvk.Dashboard)
+
+	// Resources to deploy
+	configMap, err := resources.ToUnstructured(&corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "ConfigMap",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-cm",
+			Namespace: ns,
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	secret, err := resources.ToUnstructured(&corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "Secret",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-secret",
+			Namespace: ns,
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := types.ReconciliationRequest{
+		Client:   cl,
+		Instance: instance,
+		Release: common.Release{
+			Name: cluster.OpenDataHub,
+			Version: version.OperatorVersion{Version: semver.Version{
+				Major: 1, Minor: 2, Patch: 3,
+			}},
+		},
+		Resources: []unstructured.Unstructured{*configMap, *secret},
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			// Simulate dynamic ownership enabled
+			m.On("IsDynamicOwnershipEnabled").Return(true)
+			// No GVKs are excluded
+			m.On("IsExcludedFromDynamicOwnership", mock.Anything).Return(false)
+		}),
+	}
+
+	action := deploy.NewAction()
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Verify ConfigMap has owner reference
+	cm := resources.GvkToUnstructured(gvk.ConfigMap)
+	err = cl.Get(ctx, apimachinery.NamespacedName{Namespace: ns, Name: "test-cm"}, cm)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(cm.GetOwnerReferences()).Should(HaveLen(1))
+	g.Expect(cm.GetOwnerReferences()[0].Kind).Should(Equal(instance.GroupVersionKind().Kind))
+
+	// Verify Secret has owner reference
+	sec := resources.GvkToUnstructured(gvk.Secret)
+	err = cl.Get(ctx, apimachinery.NamespacedName{Namespace: ns, Name: "test-secret"}, sec)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(sec.GetOwnerReferences()).Should(HaveLen(1))
+	g.Expect(sec.GetOwnerReferences()[0].Kind).Should(Equal(instance.GroupVersionKind().Kind))
+}
+
+func TestDeployDynamicOwnership_ExcludesGVKs(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := t.Context()
+	ns := xid.New().String()
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Create namespace
+	err = cl.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	instance := &componentApi.Dashboard{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       componentApi.DashboardInstanceName,
+			UID:        "test-uid-12345",
+			Generation: 1,
+		},
+	}
+	instance.SetGroupVersionKind(gvk.Dashboard)
+
+	// ConfigMap will be owned, Secret will be excluded
+	configMap, err := resources.ToUnstructured(&corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "ConfigMap",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-cm",
+			Namespace: ns,
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	secret, err := resources.ToUnstructured(&corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "Secret",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-secret",
+			Namespace: ns,
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := types.ReconciliationRequest{
+		Client:   cl,
+		Instance: instance,
+		Release: common.Release{
+			Name: cluster.OpenDataHub,
+			Version: version.OperatorVersion{Version: semver.Version{
+				Major: 1, Minor: 2, Patch: 3,
+			}},
+		},
+		Resources: []unstructured.Unstructured{*configMap, *secret},
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("IsDynamicOwnershipEnabled").Return(true)
+			// Exclude Secret from ownership
+			m.On("IsExcludedFromDynamicOwnership", gvk.Secret).Return(true)
+			m.On("IsExcludedFromDynamicOwnership", gvk.ConfigMap).Return(false)
+		}),
+	}
+
+	action := deploy.NewAction()
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Verify ConfigMap has owner reference (not excluded)
+	cm := resources.GvkToUnstructured(gvk.ConfigMap)
+	err = cl.Get(ctx, apimachinery.NamespacedName{Namespace: ns, Name: "test-cm"}, cm)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(cm.GetOwnerReferences()).Should(HaveLen(1))
+
+	// Verify Secret does NOT have owner reference (excluded)
+	sec := resources.GvkToUnstructured(gvk.Secret)
+	err = cl.Get(ctx, apimachinery.NamespacedName{Namespace: ns, Name: "test-secret"}, sec)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(sec.GetOwnerReferences()).Should(BeEmpty(), "Excluded GVK should not have owner reference")
+}
+
+func TestDeployDynamicOwnership_FallsBackToStaticOwnership(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := t.Context()
+	ns := xid.New().String()
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = cl.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	instance := &componentApi.Dashboard{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       componentApi.DashboardInstanceName,
+			UID:        "test-uid-12345",
+			Generation: 1,
+		},
+	}
+	instance.SetGroupVersionKind(gvk.Dashboard)
+
+	// ConfigMap is statically owned, Secret is not
+	configMap, err := resources.ToUnstructured(&corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "ConfigMap",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-cm",
+			Namespace: ns,
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	secret, err := resources.ToUnstructured(&corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "Secret",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-secret",
+			Namespace: ns,
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := types.ReconciliationRequest{
+		Client:   cl,
+		Instance: instance,
+		Release: common.Release{
+			Name: cluster.OpenDataHub,
+			Version: version.OperatorVersion{Version: semver.Version{
+				Major: 1, Minor: 2, Patch: 3,
+			}},
+		},
+		Resources: []unstructured.Unstructured{*configMap, *secret},
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			// Dynamic ownership disabled
+			m.On("IsDynamicOwnershipEnabled").Return(false)
+			m.On("IsExcludedFromDynamicOwnership", mock.Anything).Return(false)
+			// Static ownership: ConfigMap is owned, Secret is not
+			m.On("Owns", gvk.ConfigMap).Return(true)
+			m.On("Owns", gvk.Secret).Return(false)
+		}),
+	}
+
+	action := deploy.NewAction()
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Verify ConfigMap has owner reference (statically owned)
+	cm := resources.GvkToUnstructured(gvk.ConfigMap)
+	err = cl.Get(ctx, apimachinery.NamespacedName{Namespace: ns, Name: "test-cm"}, cm)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(cm.GetOwnerReferences()).Should(HaveLen(1))
+
+	// Verify Secret does NOT have owner reference (not statically owned)
+	sec := resources.GvkToUnstructured(gvk.Secret)
+	err = cl.Get(ctx, apimachinery.NamespacedName{Namespace: ns, Name: "test-secret"}, sec)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(sec.GetOwnerReferences()).Should(BeEmpty(), "Non-owned GVK should not have owner reference")
+}
+
+func newDashboardInstance(uid apimachinery.UID) *componentApi.Dashboard {
+	instance := &componentApi.Dashboard{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       componentApi.DashboardInstanceName,
+			UID:        uid,
+			Generation: 1,
+		},
+	}
+	instance.SetGroupVersionKind(gvk.Dashboard)
+	return instance
+}
+
+func newOwnerRefReconciliationRequest(cl client.Client, instance *componentApi.Dashboard) types.ReconciliationRequest {
+	return types.ReconciliationRequest{
+		Client:   cl,
+		Instance: instance,
+		Release: common.Release{
+			Name: cluster.OpenDataHub,
+			Version: version.OperatorVersion{Version: semver.Version{
+				Major: 1, Minor: 2, Patch: 3,
+			}},
+		},
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("Owns", gvk.ConfigMap).Return(true)
+		}),
+	}
+}
+
+func assertControllerOwnerRef(g Gomega, ownerRefs []metav1.OwnerReference, instance *componentApi.Dashboard, msgAndArgs ...interface{}) {
+	g.Expect(ownerRefs).Should(HaveLen(1), msgAndArgs...)
+	g.Expect(ownerRefs[0].Kind).Should(Equal(gvk.Dashboard.Kind), msgAndArgs...)
+	g.Expect(ownerRefs[0].Name).Should(Equal(instance.Name), msgAndArgs...)
+	g.Expect(ownerRefs[0].UID).Should(Equal(instance.UID), msgAndArgs...)
+	g.Expect(*ownerRefs[0].Controller).Should(BeTrue(), msgAndArgs...)
+	g.Expect(*ownerRefs[0].BlockOwnerDeletion).Should(BeTrue(), msgAndArgs...)
+}
+
+func TestDeployStripsTemplateOwnerReferences(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := t.Context()
+	ns := xid.New().String()
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = cl.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	instance := newDashboardInstance("test-uid-12345")
+
+	templateOwnerRef := metav1.OwnerReference{
+		APIVersion: gvk.Dashboard.GroupVersion().String(),
+		Kind:       gvk.Dashboard.Kind,
+		Name:       instance.Name,
+		UID:        instance.UID,
+	}
+
+	configMap, err := resources.ToUnstructured(&corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "ConfigMap",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "test-cm",
+			Namespace:       ns,
+			OwnerReferences: []metav1.OwnerReference{templateOwnerRef},
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := newOwnerRefReconciliationRequest(cl, instance)
+	rr.Resources = []unstructured.Unstructured{*configMap}
+
+	action := deploy.NewAction(deploy.WithMode(deploy.ModePatch))
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	cm := resources.GvkToUnstructured(gvk.ConfigMap)
+	err = cl.Get(ctx, apimachinery.NamespacedName{Namespace: ns, Name: "test-cm"}, cm)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	assertControllerOwnerRef(g, cm.GetOwnerReferences(), instance)
+}
+
+func TestDeployStripsTemplateOwnerReferences_RepeatedReconciliation(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := t.Context()
+	ns := xid.New().String()
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = cl.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	instance := newDashboardInstance("test-uid-12345")
+
+	templateOwnerRef := metav1.OwnerReference{
+		APIVersion: gvk.Dashboard.GroupVersion().String(),
+		Kind:       gvk.Dashboard.Kind,
+		Name:       instance.Name,
+		UID:        instance.UID,
+	}
+
+	action := deploy.NewAction(deploy.WithMode(deploy.ModePatch))
+
+	for i := range 2 {
+		configMap, err := resources.ToUnstructured(&corev1.ConfigMap{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: corev1.SchemeGroupVersion.String(),
+				Kind:       "ConfigMap",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            "test-cm",
+				Namespace:       ns,
+				OwnerReferences: []metav1.OwnerReference{templateOwnerRef},
+			},
+		})
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := newOwnerRefReconciliationRequest(cl, instance)
+		rr.Resources = []unstructured.Unstructured{*configMap}
+
+		err = action(ctx, &rr)
+		g.Expect(err).ShouldNot(HaveOccurred(), "reconciliation %d should not fail", i+1)
+
+		cm := resources.GvkToUnstructured(gvk.ConfigMap)
+		err = cl.Get(ctx, apimachinery.NamespacedName{Namespace: ns, Name: "test-cm"}, cm)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		assertControllerOwnerRef(g, cm.GetOwnerReferences(), instance,
+			"reconciliation %d: unexpected ownerReferences", i+1)
+	}
+}
+
+func TestDeployStripsTemplateOwnerReferences_ForeignOwner(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := t.Context()
+	ns := xid.New().String()
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = cl.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	instance := newDashboardInstance("dashboard-uid-12345")
+
+	// Template ownerRef pointing to a different resource (DataScienceCluster),
+	// simulating the actual bug where a template ownerRef points to a parent
+	// resource rather than the component controller.
+	foreignOwnerRef := metav1.OwnerReference{
+		APIVersion: gvk.DataScienceCluster.GroupVersion().String(),
+		Kind:       gvk.DataScienceCluster.Kind,
+		Name:       "default-dsc",
+		UID:        "dsc-uid-99999",
+	}
+
+	configMap, err := resources.ToUnstructured(&corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "ConfigMap",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "test-cm",
+			Namespace:       ns,
+			OwnerReferences: []metav1.OwnerReference{foreignOwnerRef},
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := newOwnerRefReconciliationRequest(cl, instance)
+	rr.Resources = []unstructured.Unstructured{*configMap}
+
+	action := deploy.NewAction(deploy.WithMode(deploy.ModePatch))
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	cm := resources.GvkToUnstructured(gvk.ConfigMap)
+	err = cl.Get(ctx, apimachinery.NamespacedName{Namespace: ns, Name: "test-cm"}, cm)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	assertControllerOwnerRef(g, cm.GetOwnerReferences(), instance,
+		"ownerReference should point to Dashboard, not DataScienceCluster")
+}
+
+func TestDeployStripsTemplateOwnerReferences_SSAMode(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := t.Context()
+
+	et, err := envt.New()
+	g.Expect(err).NotTo(HaveOccurred())
+	t.Cleanup(func() { _ = et.Stop() })
+
+	cl := et.Client()
+	ns := xid.New().String()
+	g.Expect(cl.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})).To(Succeed())
+
+	instance := newDashboardInstance("")
+	g.Expect(cl.Create(ctx, instance)).To(Succeed())
+
+	templateOwnerRef := metav1.OwnerReference{
+		APIVersion: gvk.Dashboard.GroupVersion().String(),
+		Kind:       gvk.Dashboard.Kind,
+		Name:       instance.Name,
+		UID:        instance.UID,
+	}
+
+	rr := newOwnerRefReconciliationRequest(cl, instance)
+
+	action := deploy.NewAction()
+
+	// Run two reconciliation cycles with the same template ownerRef present each time.
+	// The second cycle validates that SSA doesn't re-detect the (already correct) ownerRef
+	// as drift, which was the root cause of the infinite reconciliation loop.
+	for i := range 2 {
+		rr.Resources = nil
+		g.Expect(rr.AddResources(&corev1.ConfigMap{
+			TypeMeta:   metav1.TypeMeta{APIVersion: corev1.SchemeGroupVersion.String(), Kind: "ConfigMap"},
+			ObjectMeta: metav1.ObjectMeta{Name: "test-cm", Namespace: ns, OwnerReferences: []metav1.OwnerReference{templateOwnerRef}},
+		})).To(Succeed())
+
+		err = action(ctx, &rr)
+		g.Expect(err).ShouldNot(HaveOccurred(), "reconciliation %d should not fail", i+1)
+
+		cm := &corev1.ConfigMap{}
+		g.Expect(cl.Get(ctx, apimachinery.NamespacedName{Namespace: ns, Name: "test-cm"}, cm)).To(Succeed())
+
+		assertControllerOwnerRef(g, cm.GetOwnerReferences(), instance,
+			"reconciliation %d: unexpected ownerReferences", i+1)
+	}
+}
+
+func TestDeployDynamicOwnership_CRDsExcludedByDefault(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := t.Context()
+	ns := xid.New().String()
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = cl.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	instance := &componentApi.Dashboard{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       componentApi.DashboardInstanceName,
+			UID:        "test-uid-12345",
+			Generation: 1,
+		},
+	}
+	instance.SetGroupVersionKind(gvk.Dashboard)
+
+	configMap, err := resources.ToUnstructured(&corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "ConfigMap",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-cm",
+			Namespace: ns,
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	crd, err := resources.ToUnstructured(&apiextensionsv1.CustomResourceDefinition{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: apiextensionsv1.SchemeGroupVersion.String(),
+			Kind:       "CustomResourceDefinition",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "testresources.test.opendatahub.io",
+		},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: "test.opendatahub.io",
+			Names: apiextensionsv1.CustomResourceDefinitionNames{
+				Kind:     "TestResource",
+				ListKind: "TestResourceList",
+				Plural:   "testresources",
+				Singular: "testresource",
+			},
+			Scope: apiextensionsv1.NamespaceScoped,
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
+				{
+					Name:    "v1",
+					Served:  true,
+					Storage: true,
+					Schema: &apiextensionsv1.CustomResourceValidation{
+						OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+							Type: "object",
+						},
+					},
+				},
+			},
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := types.ReconciliationRequest{
+		Client:   cl,
+		Instance: instance,
+		Release: common.Release{
+			Name: cluster.OpenDataHub,
+			Version: version.OperatorVersion{Version: semver.Version{
+				Major: 1, Minor: 2, Patch: 3,
+			}},
+		},
+		Resources: []unstructured.Unstructured{*crd, *configMap},
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("IsDynamicOwnershipEnabled").Return(true)
+			m.On("IsExcludedFromDynamicOwnership", mock.Anything).Return(false)
+		}),
+	}
+
+	action := deploy.NewAction()
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Verify CRD does NOT have owner reference
+	obj := resources.GvkToUnstructured(gvk.CustomResourceDefinition)
+	err = cl.Get(ctx, apimachinery.NamespacedName{Name: "testresources.test.opendatahub.io"}, obj)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(obj.GetOwnerReferences()).Should(BeEmpty(), "CRDs should not have owner references")
+
+	// Verify ConfigMap has owner reference
+	cm := resources.GvkToUnstructured(gvk.ConfigMap)
+	err = cl.Get(ctx, apimachinery.NamespacedName{Namespace: ns, Name: "test-cm"}, cm)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(cm.GetOwnerReferences()).Should(HaveLen(1))
+	g.Expect(cm.GetOwnerReferences()[0].Kind).Should(Equal(instance.GroupVersionKind().Kind))
+}
+
+func TestWithSortFn(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := t.Context()
+	ns := xid.New().String()
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	var sortCalled bool
+	var sortInput []string
+
+	action := deploy.NewAction(
+		deploy.WithSortFn(func(ctx context.Context, res []unstructured.Unstructured) ([]unstructured.Unstructured, error) {
+			sortCalled = true
+			for _, r := range res {
+				sortInput = append(sortInput, r.GetKind())
+			}
+			// Reverse the order to prove sorting was applied
+			reversed := make([]unstructured.Unstructured, len(res))
+			for i, r := range res {
+				reversed[len(res)-1-i] = r
+			}
+			return reversed, nil
+		}),
+	)
+
+	obj1, err := resources.ToUnstructured(&corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       gvk.ConfigMap.Kind,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cm-1",
+			Namespace: ns,
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	obj2, err := resources.ToUnstructured(&appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: appsv1.SchemeGroupVersion.String(),
+			Kind:       gvk.Deployment.Kind,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "deploy-1",
+			Namespace: ns,
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := types.ReconciliationRequest{
+		Client: cl,
+		Instance: &componentApi.Dashboard{
+			ObjectMeta: metav1.ObjectMeta{
+				Generation: 1,
+			},
+		},
+		Release: common.Release{
+			Name: cluster.OpenDataHub,
+			Version: version.OperatorVersion{Version: semver.Version{
+				Major: 1, Minor: 2, Patch: 3,
+			}},
+		},
+		Resources: []unstructured.Unstructured{*obj1, *obj2},
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("Owns", mock.Anything).Return(false)
+		}),
+	}
+
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(sortCalled).To(BeTrue(), "sort function should have been called")
+	g.Expect(sortInput).To(Equal([]string{gvk.ConfigMap.Kind, gvk.Deployment.Kind}))
+
+	// Verify resources were reordered (reversed by our sort fn)
+	g.Expect(rr.Resources[0].GetKind()).To(Equal(gvk.Deployment.Kind))
+	g.Expect(rr.Resources[1].GetKind()).To(Equal(gvk.ConfigMap.Kind))
+
+	// Verify both resources were deployed
+	err = cl.Get(ctx, apimachinery.NamespacedName{Namespace: ns, Name: "cm-1"}, resources.GvkToUnstructured(gvk.ConfigMap))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = cl.Get(ctx, apimachinery.NamespacedName{Namespace: ns, Name: "deploy-1"}, resources.GvkToUnstructured(gvk.Deployment))
+	g.Expect(err).ShouldNot(HaveOccurred())
+}
+
+func TestWithApplyOrder(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := t.Context()
+	ns := xid.New().String()
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	action := deploy.NewAction(
+		deploy.WithApplyOrder(),
+	)
+
+	obj1, err := resources.ToUnstructured(&appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: appsv1.SchemeGroupVersion.String(),
+			Kind:       "Deployment",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "deploy-1",
+			Namespace: ns,
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	obj2, err := resources.ToUnstructured(&corev1.Namespace{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "Namespace",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-ns-" + xid.New().String(),
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Input order: Deployment, Namespace (wrong order)
+	rr := types.ReconciliationRequest{
+		Client: cl,
+		Instance: &componentApi.Dashboard{
+			ObjectMeta: metav1.ObjectMeta{
+				Generation: 1,
+			},
+		},
+		Release: common.Release{
+			Name: cluster.OpenDataHub,
+			Version: version.OperatorVersion{Version: semver.Version{
+				Major: 1, Minor: 2, Patch: 3,
+			}},
+		},
+		Resources: []unstructured.Unstructured{*obj1, *obj2},
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("Owns", mock.Anything).Return(false)
+		}),
+	}
+
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Verify resources were reordered: Namespace before Deployment
+	g.Expect(rr.Resources[0].GetKind()).To(Equal(gvk.Namespace.Kind))
+	g.Expect(rr.Resources[1].GetKind()).To(Equal(gvk.Deployment.Kind))
+
+	// Verify both resources were deployed
+	err = cl.Get(ctx, apimachinery.NamespacedName{Namespace: ns, Name: "deploy-1"}, resources.GvkToUnstructured(gvk.Deployment))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = cl.Get(ctx, apimachinery.NamespacedName{Name: obj2.GetName()}, resources.GvkToUnstructured(gvk.Namespace))
+	g.Expect(err).ShouldNot(HaveOccurred())
 }

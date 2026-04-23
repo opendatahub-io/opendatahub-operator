@@ -7,9 +7,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
+	"strconv"
 
 	admissionv1 "k8s.io/api/admission/v1"
+	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,6 +39,26 @@ const (
 	HardwareProfileNameAnnotation      = "opendatahub.io/hardware-profile-name"
 	HardwareProfileNamespaceAnnotation = "opendatahub.io/hardware-profile-namespace"
 )
+
+// Container name constants.
+const (
+	LLMInferenceServiceMainContainerName = "main"
+)
+
+// NoMatchingContainerError is returned when no container matching the expected name is found.
+// For Notebooks, the container name must match the Notebook name.
+// For LLMInferenceServices, the container name must be "main".
+type NoMatchingContainerError struct {
+	WorkloadKind      string
+	WorkloadName      string
+	WorkloadNamespace string
+	ExpectedName      string
+}
+
+func (e *NoMatchingContainerError) Error() string {
+	return fmt.Sprintf("no matching main container found in %s '%s/%s': expected container name '%s'",
+		e.WorkloadKind, e.WorkloadNamespace, e.WorkloadName, e.ExpectedName)
+}
 
 // WorkloadConfig defines path configuration for different workload types.
 type WorkloadConfig struct {
@@ -64,7 +88,7 @@ var WorkloadConfigs = map[string]WorkloadConfig{
 
 //+kubebuilder:webhook:path=/mutate-hardware-profile,mutating=true,failurePolicy=fail,groups=kubeflow.org,resources=notebooks,verbs=create;update,versions=v1,name=hardwareprofile-notebook-injector.opendatahub.io,sideEffects=None,admissionReviewVersions=v1
 //+kubebuilder:webhook:path=/mutate-hardware-profile,mutating=true,failurePolicy=fail,groups=serving.kserve.io,resources=inferenceservices,verbs=create;update,versions=v1beta1,name=hardwareprofile-isvc-injector.opendatahub.io,sideEffects=None,admissionReviewVersions=v1
-//+kubebuilder:webhook:path=/mutate-hardware-profile,mutating=true,failurePolicy=fail,groups=serving.kserve.io,resources=llminferenceservices,verbs=create;update,versions=v1alpha1,name=hardwareprofile-llmisvc-injector.opendatahub.io,sideEffects=None,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/mutate-hardware-profile,mutating=true,failurePolicy=fail,groups=serving.kserve.io,resources=llminferenceservices,verbs=create;update,versions=v1alpha1;v1alpha2,name=hardwareprofile-llmisvc-injector.opendatahub.io,sideEffects=None,admissionReviewVersions=v1
 //nolint:lll
 
 // Injector implements a mutating admission webhook for hardware profile injection.
@@ -77,7 +101,7 @@ type Injector struct {
 // Assert that Injector implements admission.Handler interface.
 var _ admission.Handler = &Injector{}
 
-// SetupWithManager registers the validating webhook with the provided controller-runtime manager.
+// SetupWithManager registers the mutating webhook with the provided controller-runtime manager.
 //
 // Parameters:
 //   - mgr: The controller-runtime manager to register the webhook with.
@@ -87,7 +111,7 @@ var _ admission.Handler = &Injector{}
 func (i *Injector) SetupWithManager(mgr ctrl.Manager) error {
 	hookServer := mgr.GetWebhookServer()
 
-	// Register single webhook path for both Notebooks and InferenceServices
+	// Register single webhook path for Notebooks, InferenceServices, and LLMInferenceServices
 	hookServer.Register("/mutate-hardware-profile", &webhook.Admission{
 		Handler:        i,
 		LogConstructor: webhookutils.NewWebhookLogConstructor(i.Name),
@@ -165,6 +189,7 @@ func isExpectedKind(kind metav1.GroupVersionKind) bool {
 		gvk.Notebook,                    // kubeflow.org/v1/Notebook
 		gvk.InferenceServices,           // serving.kserve.io/v1beta1/InferenceService
 		gvk.LLMInferenceServiceV1Alpha1, // serving.kserve.io/v1alpha1/LLMInferenceService
+		gvk.LLMInferenceServiceV1Alpha2, // serving.kserve.io/v1alpha2/LLMInferenceService
 	}
 
 	requestGVK := schema.GroupVersionKind{
@@ -173,13 +198,7 @@ func isExpectedKind(kind metav1.GroupVersionKind) bool {
 		Kind:    kind.Kind,
 	}
 
-	for _, expectedGVK := range expectedGVKs {
-		if requestGVK == expectedGVK {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(expectedGVKs, requestGVK)
 }
 
 // performHardwareProfileInjection handles the core logic for hardware profile injection.
@@ -187,18 +206,23 @@ func isExpectedKind(kind metav1.GroupVersionKind) bool {
 // to workload resources.
 //
 // The injection process follows these steps:
-//  1. Decode the workload object from the admission request
-//  2. Check for hardware profile annotations on the object
-//  3. Determine the namespace for the hardware profile lookup
-//  4. Fetch the HardwareProfile resource from the Kubernetes API
-//  5. Validate that the hardware profile has meaningful configuration
-//  6. Set the hardware profile namespace annotation if not present
+//  1. Check for hardware profile annotations on the object
+//  2. Determine the namespace for the hardware profile lookup
+//  3. Fetch the HardwareProfile resource from the Kubernetes API
+//  4. Validate that the hardware profile has meaningful configuration
+//  5. Set the hardware profile namespace annotation if not present
+//  6. Detect if the hardware profile changed (on UPDATE operations)
 //  7. Apply hardware profile specifications to the workload
 //  8. Return the modified object as a patch response
 //
 // Annotation Handling:
 //   - opendatahub.io/hardware-profile-name: Required annotation specifying the profile name
 //   - opendatahub.io/hardware-profile-namespace: Optional annotation for cross-namespace profiles
+//
+// Profile Change Detection:
+//   - On UPDATE operations, compares old and new hardware profile annotations
+//   - When profile changes, clears existing scheduling configuration before applying new settings
+//   - When profile is unchanged, merges tolerations to preserve manually-added ones
 //
 // Error Conditions:
 //   - Returns HTTP 400 for object decoding failures or missing profile namespace
@@ -217,6 +241,12 @@ func (i *Injector) performHardwareProfileInjection(ctx context.Context, req *adm
 	// Check if the object has hardware profile annotations
 	profileName := resources.GetAnnotation(obj, HardwareProfileNameAnnotation)
 	if profileName == "" {
+		// Check if HWP annotation was removed (old object had it, new doesn't)
+		if req.Operation == admissionv1.Update {
+			if resp := i.handleHWPRemoval(ctx, req, obj); resp != nil {
+				return *resp
+			}
+		}
 		return admission.Allowed("No hardware profile annotation found")
 	}
 
@@ -243,18 +273,80 @@ func (i *Injector) performHardwareProfileInjection(ctx context.Context, req *adm
 		}
 	}
 
-	// Early exit if hardware profile has no meaningful configuration
-	if len(hwp.Spec.Identifiers) == 0 && hwp.Spec.SchedulingSpec == nil {
-		return admission.Allowed("HardwareProfile has no configuration to apply")
-	}
-
 	// Only set the annotation if it wasn't already set
 	if resources.GetAnnotation(obj, HardwareProfileNamespaceAnnotation) == "" {
 		resources.SetAnnotation(obj, HardwareProfileNamespaceAnnotation, profileNamespace)
 	}
 
+	// Early validation: Check if workload has correct container names before applying HWP
+	// CRITICAL: This validation must NEVER block admission to avoid breaking 2.x to 3.x upgrades.
+	// If validation fails, we admit with a warning and skip all HWP application.
+	if err := i.validateContainerNames(obj); err != nil {
+		var noContainerErr *NoMatchingContainerError
+		if errors.As(err, &noContainerErr) {
+			// Emit event for traceability (never blocks admission - see function implementation)
+			i.emitContainerNameWarningEvent(ctx, obj, noContainerErr, hwp.Name)
+
+			// Add warning to response - use clear language about ALL settings being skipped
+			warningMsg := fmt.Sprintf("Hardware profile '%s' was not applied: %s. "+
+				"To use this hardware profile, rename your container to '%s'. "+
+				"All hardware profile settings (identifiers, scheduling, etc.) are skipped.",
+				hwp.Name, noContainerErr.Error(), noContainerErr.ExpectedName)
+
+			log.Info("skipping all hardware profile application due to container name mismatch",
+				"workload", obj.GetName(), "kind", obj.GetKind(), "namespace", obj.GetNamespace(),
+				"expectedContainerName", noContainerErr.ExpectedName, "hardwareProfile", hwp.Name)
+
+			// Marshal and return with warning (skip all HWP application)
+			marshaledObj, marshalErr := json.Marshal(obj)
+			if marshalErr != nil {
+				// CRITICAL: Even marshal failures must not block admission during upgrades
+				log.Error(marshalErr, "Failed to marshal object after container validation, admitting anyway")
+				// Return allowed with warning - don't block on marshal error
+				resp := admission.Allowed("Admitted but marshal failed after validation")
+				resp.Warnings = []string{warningMsg, "Internal error: failed to marshal object"}
+				return resp
+			}
+			resp := admission.PatchResponseFromRaw(req.Object.Raw, marshaledObj)
+			resp.Warnings = []string{warningMsg}
+			return resp
+		}
+		// For other validation errors (e.g., failed to access containers, unexpected structure)
+		// CRITICAL: Must not block admission - emit event, warn, and skip HWP application
+		i.emitValidationErrorEvent(ctx, obj, err, hwp.Name)
+
+		warningMsg := fmt.Sprintf("Hardware profile '%s' was not applied due to validation error: %v. "+
+			"All hardware profile settings are skipped. Please check your workload structure.",
+			hwp.Name, err)
+
+		log.Info("skipping all hardware profile application due to validation error",
+			"error", err, "workload", obj.GetName(), "kind", obj.GetKind(),
+			"namespace", obj.GetNamespace(), "hardwareProfile", hwp.Name)
+
+		// Marshal and return with warning (skip all HWP application)
+		marshaledObj, marshalErr := json.Marshal(obj)
+		if marshalErr != nil {
+			// CRITICAL: Even marshal failures must not block admission during upgrades
+			log.Error(marshalErr, "Failed to marshal object after validation error, admitting anyway")
+			resp := admission.Allowed("Admitted but marshal failed after validation")
+			resp.Warnings = []string{warningMsg, "Internal error: failed to marshal object"}
+			return resp
+		}
+		resp := admission.PatchResponseFromRaw(req.Object.Raw, marshaledObj)
+		resp.Warnings = []string{warningMsg}
+		return resp
+	}
+
+	// Detect if the hardware profile changed (only on UPDATE operations)
+	profileChanged := i.detectProfileChange(req, profileName, profileNamespace)
+	if profileChanged {
+		log.V(1).Info("hardware profile changed, will clear existing scheduling settings",
+			"workload", obj.GetName(), "newProfile", profileName, "newNamespace", profileNamespace)
+	}
+
 	// Apply hardware profile specifications
-	if err := i.applyHardwareProfileToWorkload(ctx, obj, hwp); err != nil {
+	warnings, err := i.applyHardwareProfileToWorkload(ctx, obj, hwp, profileChanged)
+	if err != nil {
 		log.Error(err, "Failed to apply hardware profile", "profile", profileName)
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
@@ -266,8 +358,457 @@ func (i *Injector) performHardwareProfileInjection(ctx context.Context, req *adm
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
 
-	// Return the admission response with the modified object
-	return admission.PatchResponseFromRaw(req.Object.Raw, marshaledObj)
+	// Return the admission response with the modified object and any warnings
+	resp := admission.PatchResponseFromRaw(req.Object.Raw, marshaledObj)
+	if len(warnings) > 0 {
+		resp.Warnings = warnings
+		log.V(1).Info("admission response includes warnings", "warnings", warnings)
+	}
+	return resp
+}
+
+// detectProfileChange checks if the hardware profile annotation changed during an UPDATE operation.
+// This is used to determine whether to clear existing scheduling configuration before applying
+// new settings (on profile change) or merge tolerations (when profile is unchanged).
+//
+// The function returns false (no change / merge behavior) in these cases:
+//   - CREATE operation: No old object to compare
+//   - Initial HWP assignment: Old object had no HWP annotation (preserves existing tolerations)
+//   - Same profile: Old and new annotations match
+//
+// The function returns true (clear and replace behavior) when:
+//   - Profile name changed: User switched from one HWP to another
+//   - Profile namespace changed: User switched to a different namespace's HWP
+//
+// Parameters:
+//   - req: The admission.Request containing both old and new object states
+//   - newProfileName: The hardware profile name from the new object
+//   - newProfileNamespace: The hardware profile namespace from the new object
+//
+// Returns:
+//   - bool: true if switching profiles (triggers clearing), false otherwise (triggers merging)
+func (i *Injector) detectProfileChange(req *admission.Request, newProfileName, newProfileNamespace string) bool {
+	// On CREATE, there's no old object to compare - no clearing needed for new resources
+	if req.Operation == admissionv1.Create {
+		return false
+	}
+
+	// On UPDATE, if we somehow don't have the old object, assume profile changed to be safe
+	if req.OldObject.Raw == nil {
+		return true
+	}
+
+	oldObj := &unstructured.Unstructured{}
+	if err := json.Unmarshal(req.OldObject.Raw, oldObj); err != nil {
+		// If we can't unmarshal, assume profile changed to be safe
+		return true
+	}
+
+	oldProfileName := resources.GetAnnotation(oldObj, HardwareProfileNameAnnotation)
+
+	// If old object had no HWP annotation, this is an initial assignment, not a profile change.
+	// We should merge tolerations rather than clear, to preserve any existing manual tolerations.
+	if oldProfileName == "" {
+		return false
+	}
+
+	oldProfileNamespace := resources.GetAnnotation(oldObj, HardwareProfileNamespaceAnnotation)
+
+	// If old object had no namespace annotation, it defaulted to object's namespace
+	if oldProfileNamespace == "" {
+		oldProfileNamespace = oldObj.GetNamespace()
+	}
+
+	// Profile changed if either name or namespace differs
+	return oldProfileName != newProfileName || oldProfileNamespace != newProfileNamespace
+}
+
+// validateContainerNames validates that the workload has the expected container name
+// for hardware profile application. This validation is performed early to provide
+// clear feedback before any modifications are made.
+//
+// Container name requirements:
+//   - Notebooks (single container): Always valid (no validation needed)
+//   - Notebooks (multiple containers): One must match the Notebook CR name
+//   - LLMInferenceServices: Must have a container named "main"
+//   - InferenceServices: Not validated (uses predictor model path, not containers)
+//
+// CRITICAL: This function should return NoMatchingContainerError for name mismatches,
+// but must be defensive about structural errors. The caller handles NoMatchingContainerError
+// as a warning, while other errors are logged and HWP application continues.
+//
+// Returns:
+//   - error: NoMatchingContainerError if validation fails, other errors for structural issues, nil otherwise
+func (i *Injector) validateContainerNames(obj *unstructured.Unstructured) error {
+	config, err := GetWorkloadConfig(obj.GetKind())
+	if err != nil {
+		// Unsupported kind - return error but caller will log and continue
+		return err
+	}
+
+	// InferenceServices use predictor.model path, not containers - skip validation
+	if obj.GetKind() == gvk.InferenceServices.Kind {
+		return nil
+	}
+
+	// Get containers from the workload
+	// If this fails, return error but caller should log and continue (defensive)
+	containers, found, err := unstructured.NestedSlice(obj.Object, config.ContainersPath...)
+	if err != nil {
+		return fmt.Errorf("failed to access containers: %w", err)
+	}
+	if !found || len(containers) == 0 {
+		return nil // No containers to validate (will be created by controller)
+	}
+
+	// Determine expected container name based on workload type
+	var expectedName string
+	switch obj.GetKind() {
+	case gvk.Notebook.Kind:
+		// For Notebooks with a single container, always valid
+		if len(containers) == 1 {
+			return nil
+		}
+		// For multiple containers, one must match the Notebook name
+		expectedName = obj.GetName()
+		for _, c := range containers {
+			m, ok := c.(map[string]any)
+			if !ok {
+				continue
+			}
+			name, _ := m["name"].(string)
+			if name == expectedName {
+				return nil // Found matching container
+			}
+		}
+		// No matching container found
+		return &NoMatchingContainerError{
+			WorkloadKind:      obj.GetKind(),
+			WorkloadName:      obj.GetName(),
+			WorkloadNamespace: obj.GetNamespace(),
+			ExpectedName:      expectedName,
+		}
+
+	case gvk.LLMInferenceServiceV1Alpha1.Kind:
+		// For LLMInferenceServices, must have a container named "main"
+		expectedName = LLMInferenceServiceMainContainerName
+		for _, c := range containers {
+			m, ok := c.(map[string]any)
+			if !ok {
+				continue
+			}
+			name, _ := m["name"].(string)
+			if name == expectedName {
+				return nil // Found "main" container
+			}
+		}
+		// No "main" container found
+		return &NoMatchingContainerError{
+			WorkloadKind:      obj.GetKind(),
+			WorkloadName:      obj.GetName(),
+			WorkloadNamespace: obj.GetNamespace(),
+			ExpectedName:      expectedName,
+		}
+	}
+
+	return nil
+}
+
+// emitContainerNameWarningEvent creates a Warning event on the workload to indicate
+// that hardware profile settings were not applied due to container name mismatch.
+// This provides persistent traceability for operators and users.
+//
+// CRITICAL: This function must NEVER return an error or cause admission to fail.
+// Event creation failures are logged only - they must not block the 2.x to 3.x upgrade.
+func (i *Injector) emitContainerNameWarningEvent(ctx context.Context, obj *unstructured.Unstructured,
+	noContainerErr *NoMatchingContainerError, hwpName string) {
+	log := logf.FromContext(ctx)
+
+	// Check if the client supports writing (for event creation)
+	// The client.Reader interface used in tests doesn't support Create
+	writer, ok := i.Client.(client.Writer)
+	if !ok {
+		log.V(1).Info("client does not support event creation (likely test environment)")
+		return
+	}
+
+	eventMessage := fmt.Sprintf("Hardware profile '%s' settings not applied to this workload: %s. "+
+		"Rename container to '%s' to enable hardware profile injection.",
+		hwpName, noContainerErr.Error(), noContainerErr.ExpectedName)
+
+	event := &corev1.Event{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s.%s", obj.GetName(), "hwp-container-name-mismatch"),
+			Namespace: obj.GetNamespace(),
+		},
+		InvolvedObject: corev1.ObjectReference{
+			Kind:       obj.GetKind(),
+			Namespace:  obj.GetNamespace(),
+			Name:       obj.GetName(),
+			UID:        obj.GetUID(),
+			APIVersion: obj.GetAPIVersion(),
+		},
+		Reason:  "ContainerNameMismatch",
+		Message: eventMessage,
+		Source: corev1.EventSource{
+			Component: "hardwareprofile-webhook",
+		},
+		FirstTimestamp: metav1.Now(),
+		LastTimestamp:  metav1.Now(),
+		Count:          1,
+		Type:           corev1.EventTypeWarning,
+	}
+
+	if createErr := writer.Create(ctx, event); createErr != nil {
+		// CRITICAL: Event creation failure must NEVER block admission or cause upgrade failures.
+		// We log the error but allow the admission to proceed normally.
+		log.Info("failed to create warning event for container name mismatch (non-blocking)",
+			"error", createErr, "workload", obj.GetName(), "kind", obj.GetKind())
+	} else {
+		log.V(1).Info("created warning event for container name mismatch",
+			"workload", obj.GetName(), "kind", obj.GetKind(),
+			"expectedContainerName", noContainerErr.ExpectedName)
+	}
+}
+
+// emitValidationErrorEvent creates a Warning event on the workload to indicate
+// that hardware profile settings were not applied due to a validation error
+// (typically structural issues accessing containers).
+//
+// CRITICAL: This function must NEVER return an error or cause admission to fail.
+// Event creation failures are logged only - they must not block the 2.x to 3.x upgrade.
+func (i *Injector) emitValidationErrorEvent(ctx context.Context, obj *unstructured.Unstructured,
+	validationErr error, hwpName string) {
+	log := logf.FromContext(ctx)
+
+	// Check if the client supports writing (for event creation)
+	// The client.Reader interface used in tests doesn't support Create
+	writer, ok := i.Client.(client.Writer)
+	if !ok {
+		log.V(1).Info("client does not support event creation (likely test environment)")
+		return
+	}
+
+	eventMessage := fmt.Sprintf("Hardware profile '%s' was not applied due to validation error: %v. "+
+		"Check your workload structure.",
+		hwpName, validationErr)
+
+	event := &corev1.Event{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s.%s", obj.GetName(), "hwp-validation-error"),
+			Namespace: obj.GetNamespace(),
+		},
+		InvolvedObject: corev1.ObjectReference{
+			Kind:       obj.GetKind(),
+			Namespace:  obj.GetNamespace(),
+			Name:       obj.GetName(),
+			UID:        obj.GetUID(),
+			APIVersion: obj.GetAPIVersion(),
+		},
+		Reason:  "ValidationError",
+		Message: eventMessage,
+		Source: corev1.EventSource{
+			Component: "hardwareprofile-webhook",
+		},
+		FirstTimestamp: metav1.Now(),
+		LastTimestamp:  metav1.Now(),
+		Count:          1,
+		Type:           corev1.EventTypeWarning,
+	}
+
+	if createErr := writer.Create(ctx, event); createErr != nil {
+		// CRITICAL: Event creation failure must NEVER block admission or cause upgrade failures.
+		// We log the error but allow the admission to proceed normally.
+		log.Info("failed to create warning event for validation error (non-blocking)",
+			"error", createErr, "workload", obj.GetName(), "kind", obj.GetKind())
+	} else {
+		log.V(1).Info("created warning event for validation error",
+			"workload", obj.GetName(), "kind", obj.GetKind())
+	}
+}
+
+// handleHWPRemoval handles the case where an HWP annotation is removed from a workload.
+// It fetches the old HWP using the old object's annotations and removes only the
+// tolerations and nodeSelector entries that match the HWP's settings.
+//
+// Returns:
+//   - *admission.Response: Response with patches if HWP was removed and cleanup performed, nil otherwise
+func (i *Injector) handleHWPRemoval(ctx context.Context, req *admission.Request, obj *unstructured.Unstructured) *admission.Response {
+	log := logf.FromContext(ctx)
+
+	if req.OldObject.Raw == nil {
+		return nil
+	}
+
+	oldObj := &unstructured.Unstructured{}
+	if err := json.Unmarshal(req.OldObject.Raw, oldObj); err != nil {
+		return nil
+	}
+
+	// Check if old object had HWP annotation
+	oldProfileName := resources.GetAnnotation(oldObj, HardwareProfileNameAnnotation)
+	if oldProfileName == "" {
+		return nil // Old object didn't have HWP, nothing to clean up
+	}
+
+	log.V(1).Info("HWP annotation removed, cleaning up HWP-applied settings",
+		"workload", obj.GetName(), "oldProfile", oldProfileName)
+
+	// Get old HWP namespace
+	oldProfileNamespace := resources.GetAnnotation(oldObj, HardwareProfileNamespaceAnnotation)
+	if oldProfileNamespace == "" {
+		oldProfileNamespace = oldObj.GetNamespace()
+	}
+
+	// Fetch the old HWP to know what to remove
+	oldHWP, err := i.fetchHardwareProfile(ctx, oldProfileNamespace, oldProfileName)
+	if err != nil {
+		// If HWP is not found or can't be fetched, we can't clean up
+		// Log a warning but allow the request (don't block user from removing annotation)
+		log.V(1).Info("Could not fetch old HWP for cleanup, HWP-applied settings may remain",
+			"error", err, "oldProfile", oldProfileName, "oldNamespace", oldProfileNamespace)
+		// Still remove the namespace annotation
+		resources.RemoveAnnotation(obj, HardwareProfileNamespaceAnnotation)
+		marshaledObj, marshalErr := json.Marshal(obj)
+		if marshalErr != nil {
+			return nil
+		}
+		resp := admission.PatchResponseFromRaw(req.Object.Raw, marshaledObj)
+		return &resp
+	}
+
+	// Clean up HWP-applied settings
+	if err := i.removeHWPSettings(obj, oldHWP); err != nil {
+		log.Error(err, "Failed to remove HWP settings")
+		resp := admission.Errored(http.StatusInternalServerError, err)
+		return &resp
+	}
+
+	// Remove the HWP namespace annotation
+	resources.RemoveAnnotation(obj, HardwareProfileNamespaceAnnotation)
+
+	// Marshal and return the modified object
+	marshaledObj, err := json.Marshal(obj)
+	if err != nil {
+		log.Error(err, "Failed to marshal modified object")
+		resp := admission.Errored(http.StatusInternalServerError, err)
+		return &resp
+	}
+
+	resp := admission.PatchResponseFromRaw(req.Object.Raw, marshaledObj)
+	return &resp
+}
+
+// removeHWPSettings removes tolerations, nodeSelector, and Kueue label entries that were applied by the HWP.
+// It compares tolerations/nodeSelector on the workload with those defined in the HWP
+// and removes only the matching ones, preserving manually-added settings.
+func (i *Injector) removeHWPSettings(obj *unstructured.Unstructured, hwp *infrav1.HardwareProfile) error {
+	config, err := GetWorkloadConfig(obj.GetKind())
+	if err != nil {
+		return err
+	}
+
+	// Remove HWP-applied tolerations
+	if hwp.Spec.SchedulingSpec != nil && hwp.Spec.SchedulingSpec.Node != nil {
+		if len(hwp.Spec.SchedulingSpec.Node.Tolerations) > 0 {
+			if err := i.removeHWPTolerations(obj, config.TolerationsPath, hwp.Spec.SchedulingSpec.Node.Tolerations); err != nil {
+				return fmt.Errorf("failed to remove HWP tolerations: %w", err)
+			}
+		}
+
+		// Remove HWP-applied nodeSelector
+		if len(hwp.Spec.SchedulingSpec.Node.NodeSelector) > 0 {
+			if err := i.removeHWPNodeSelector(obj, config.NodeSelectorPath, hwp.Spec.SchedulingSpec.Node.NodeSelector); err != nil {
+				return fmt.Errorf("failed to remove HWP nodeSelector: %w", err)
+			}
+		}
+	}
+
+	// Remove Kueue label if HWP had Kueue scheduling
+	if hwp.Spec.SchedulingSpec != nil && hwp.Spec.SchedulingSpec.Kueue != nil && hwp.Spec.SchedulingSpec.Kueue.LocalQueueName != "" {
+		resources.RemoveLabel(obj, cluster.KueueQueueNameLabel)
+	}
+
+	return nil
+}
+
+// removeHWPTolerations removes tolerations from the workload that match the HWP's tolerations.
+func (i *Injector) removeHWPTolerations(obj *unstructured.Unstructured, tolerationsPath []string, hwpTolerations []corev1.Toleration) error {
+	existingTolerations, found, err := unstructured.NestedSlice(obj.Object, tolerationsPath...)
+	if err != nil {
+		return err
+	}
+	if !found || len(existingTolerations) == 0 {
+		return nil // No tolerations to remove
+	}
+
+	// Build set of HWP toleration keys for matching
+	hwpTolKeys := make(map[string]bool)
+	for _, tol := range hwpTolerations {
+		hwpTolKeys[tolerationKeyFromCoreV1(tol)] = true
+	}
+
+	// Keep only tolerations that don't match HWP tolerations
+	remaining := make([]any, 0, len(existingTolerations))
+	for _, existing := range existingTolerations {
+		if existingMap, ok := existing.(map[string]any); ok {
+			if !hwpTolKeys[TolerationKey(existingMap)] {
+				remaining = append(remaining, existing)
+			}
+		}
+	}
+
+	// Update or remove tolerations field
+	if len(remaining) == 0 {
+		unstructured.RemoveNestedField(obj.Object, tolerationsPath...)
+	} else {
+		if err := unstructured.SetNestedSlice(obj.Object, remaining, tolerationsPath...); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// tolerationKeyFromCoreV1 generates a unique key for a corev1.Toleration.
+// The key includes key, operator, value, effect, and tolerationSeconds to ensure
+// tolerations with the same key/operator/effect but different values are treated as distinct.
+// This prevents accidental removal of user-specified tolerations during HWP cleanup.
+func tolerationKeyFromCoreV1(tol corev1.Toleration) string {
+	ts := ""
+	if tol.TolerationSeconds != nil {
+		ts = strconv.FormatInt(*tol.TolerationSeconds, 10)
+	}
+	return fmt.Sprintf("%s:%s:%s:%s:%s", tol.Key, string(tol.Operator), tol.Value, string(tol.Effect), ts)
+}
+
+// removeHWPNodeSelector removes nodeSelector entries from the workload that match the HWP's nodeSelector.
+func (i *Injector) removeHWPNodeSelector(obj *unstructured.Unstructured, nodeSelectorPath []string, hwpNodeSelector map[string]string) error {
+	existingNodeSelector, found, err := unstructured.NestedStringMap(obj.Object, nodeSelectorPath...)
+	if err != nil {
+		return err
+	}
+	if !found || len(existingNodeSelector) == 0 {
+		return nil // No nodeSelector to remove
+	}
+
+	// Remove keys that match HWP nodeSelector
+	for key, value := range hwpNodeSelector {
+		if existingValue, exists := existingNodeSelector[key]; exists && existingValue == value {
+			delete(existingNodeSelector, key)
+		}
+	}
+
+	// Update or remove nodeSelector field
+	if len(existingNodeSelector) == 0 {
+		unstructured.RemoveNestedField(obj.Object, nodeSelectorPath...)
+	} else {
+		if err := unstructured.SetNestedStringMap(obj.Object, existingNodeSelector, nodeSelectorPath...); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // fetchHardwareProfile retrieves the HardwareProfile resource from the Kubernetes API server.
@@ -280,8 +821,7 @@ func (i *Injector) performHardwareProfileInjection(ctx context.Context, req *adm
 //  3. Provides specific error messages for not found vs. other API errors
 //
 // Error Handling:
-//   - Returns a descriptive error for non-existent hardware profiles (404)
-//   - Returns a generic error for other API failures (network, permissions, etc.)
+//   - Returns a generic error for all errors encountered during the lookup
 //
 // Parameters:
 //   - ctx: Request context for the Kubernetes API call
@@ -318,44 +858,82 @@ func (i *Injector) fetchHardwareProfile(ctx context.Context, namespace, name str
 // Scheduling Configuration:
 //   - Applies Kueue LocalQueue labels for queue-based scheduling
 //   - Applies node scheduling constraints (nodeSelector, tolerations)
-//   - Always applies scheduling configuration regardless of existing values
+//   - When profileChanged is true, clears existing scheduling configuration before applying new settings
+//   - When profileChanged is false, merges tolerations to preserve manually-added ones
 //
 // Parameters:
 //   - ctx: Request context containing logger for operation tracking
 //   - obj: The unstructured workload object to modify (Notebook, InferenceService, etc.)
 //   - hwp: The HardwareProfile resource containing specifications to apply
+//   - profileChanged: Whether the hardware profile annotation changed (triggers clearing)
 //
 // Returns:
+//   - []string: Warnings about configuration values that will be overwritten
 //   - error: Any error encountered during hardwareprofile application, nil on success
-func (i *Injector) applyHardwareProfileToWorkload(ctx context.Context, obj *unstructured.Unstructured, hwp *infrav1.HardwareProfile) error {
+func (i *Injector) applyHardwareProfileToWorkload(ctx context.Context, obj *unstructured.Unstructured, hwp *infrav1.HardwareProfile, profileChanged bool) ([]string, error) {
 	log := logf.FromContext(ctx)
 
-	log.V(1).Info("applying hardware profile to workload", "workload", obj.GetName(), "kind", obj.GetKind(), "hardwareProfile", hwp.Name)
+	var warnings []string
+
+	// When the hardware profile changes, clear existing scheduling configuration first
+	// This ensures stale tolerations/nodeSelector from the old profile are removed
+	if profileChanged {
+		log.V(1).Info("clearing existing scheduling settings due to profile change",
+			"workload", obj.GetName(), "kind", obj.GetKind(), "hardwareProfile", hwp.Name)
+
+		// Remove Kueue label
+		resources.RemoveLabel(obj, cluster.KueueQueueNameLabel)
+
+		// Remove nodeSelector and tolerations
+		if config, err := GetWorkloadConfig(obj.GetKind()); err == nil {
+			unstructured.RemoveNestedField(obj.Object, config.NodeSelectorPath...)
+			unstructured.RemoveNestedField(obj.Object, config.TolerationsPath...)
+		} else {
+			return nil, fmt.Errorf("failed to clear scheduling fields - unsupported workload kind: %s: %w", obj.GetKind(), err)
+		}
+	}
+
+	log.V(1).Info("applying HWP settings to workload", "workload", obj.GetName(), "kind", obj.GetKind(), "hardwareProfile", hwp.Name)
 
 	// Apply resource requirements to containers (only if there are identifiers)
 	if len(hwp.Spec.Identifiers) > 0 {
-		if err := i.applyResourceRequirementsToWorkload(obj, hwp); err != nil {
-			return fmt.Errorf("failed to apply resource requirements: %w", err)
+		if err := i.applyResourceRequirementsToWorkload(ctx, obj, hwp); err != nil {
+			return nil, fmt.Errorf("failed to apply resource requirements: %w", err)
 		}
 	}
 
 	// Apply scheduling configuration if present
 	if hwp.Spec.SchedulingSpec != nil {
-		// Apply Kueue LocalQueue label if .spec.schedulingSpec.kueue.localQueueName  is set
+		// Apply Kueue LocalQueue label if .spec.schedulingSpec.kueue.localQueueName is set
 		if hwp.Spec.SchedulingSpec.Kueue != nil && hwp.Spec.SchedulingSpec.Kueue.LocalQueueName != "" {
-			resources.SetLabel(obj, cluster.KueueQueueNameLabel, hwp.Spec.SchedulingSpec.Kueue.LocalQueueName)
-			return nil // won't need to continue handling Node scheduling configuration
+			hwpKueueValue := hwp.Spec.SchedulingSpec.Kueue.LocalQueueName
+
+			// Check if user modified the Kueue label to a different value - warn them it will be overwritten
+			// Only warn when the profile hasn't changed (merge behavior), not when switching profiles
+			if !profileChanged {
+				existingKueueValue := resources.GetLabel(obj, cluster.KueueQueueNameLabel)
+				if existingKueueValue != "" && existingKueueValue != hwpKueueValue {
+					warnings = append(warnings, fmt.Sprintf(
+						"label '%s' has value '%s' which will be overwritten by HardwareProfile '%s' which has value '%s'",
+						cluster.KueueQueueNameLabel, existingKueueValue, hwp.Name, hwpKueueValue))
+				}
+			}
+
+			resources.SetLabel(obj, cluster.KueueQueueNameLabel, hwpKueueValue)
+			return warnings, nil // won't need to continue handling Node scheduling configuration
 		}
 
 		// Apply Node scheduling configuration if .spec.schedulingSpec.node is set
 		if hwp.Spec.SchedulingSpec.Node != nil {
-			if err := i.applyNodeSchedulingConfiguration(obj, hwp.Spec.SchedulingSpec.Node); err != nil {
-				return fmt.Errorf("failed to apply node scheduling configuration: %w", err)
+			nodeWarnings, err := i.applyNodeSchedulingConfiguration(obj, hwp.Spec.SchedulingSpec.Node, profileChanged, hwp.Name)
+			if err != nil {
+				return nil, fmt.Errorf("failed to apply node scheduling configuration: %w", err)
 			}
+			warnings = append(warnings, nodeWarnings...)
 		}
 	}
 
-	return nil
+	return warnings, nil
 }
 
 // GetWorkloadConfig returns the workload configuration for a given kind.
@@ -384,12 +962,12 @@ func GetWorkloadConfig(kind string) (WorkloadConfig, error) {
 //
 // Parameters:
 //   - obj: The unstructured workload object containing containers to modify
-//   - identifiers: The HardwareProfile resource containing resource identifiers to apply
+//   - hwp: The HardwareProfile resource containing resource identifiers to apply
 //
 // Returns:
 //   - error: Any error encountered during resource requirement application, nil on success
 
-func (i *Injector) applyResourceRequirementsToWorkload(obj *unstructured.Unstructured, hwp *infrav1.HardwareProfile) error {
+func (i *Injector) applyResourceRequirementsToWorkload(ctx context.Context, obj *unstructured.Unstructured, hwp *infrav1.HardwareProfile) error {
 	config, err := GetWorkloadConfig(obj.GetKind())
 	if err != nil {
 		return err
@@ -400,11 +978,11 @@ func (i *Injector) applyResourceRequirementsToWorkload(obj *unstructured.Unstruc
 		// For InferenceServices, apply resources to the model object
 		return i.applyResourceRequirementsToInferenceServiceModel(obj, hwp, config.ContainersPath)
 	case gvk.Notebook.Kind:
-		// For Notebooks, apply resources to containers
-		return i.applyResourceRequirementsToContainers(obj, hwp, config.ContainersPath)
+		// For Notebooks, apply resources only to the main container (not sidecars like oauth-proxy)
+		return i.applyResourceRequirementsToContainers(ctx, obj, hwp, config.ContainersPath, notebookMainContainerIndices(obj, config.ContainersPath))
 	case gvk.LLMInferenceServiceV1Alpha1.Kind:
-		// For LLMInferenceServices, apply resources to containers
-		return i.applyResourceRequirementsToContainers(obj, hwp, config.ContainersPath)
+		// For LLMInferenceServices, apply resources only to the main container
+		return i.applyResourceRequirementsToContainers(ctx, obj, hwp, config.ContainersPath, llmInferenceServiceMainContainerIndices(obj, config.ContainersPath))
 	default:
 		// This should never happen since isExpectedKind() should catch unsupported kinds earlier
 		return fmt.Errorf("unsupported workload kind: %s", obj.GetKind())
@@ -431,8 +1009,58 @@ func (i *Injector) applyResourceRequirementsToInferenceServiceModel(obj *unstruc
 	return unstructured.SetNestedMap(obj.Object, model, modelPath...)
 }
 
-// for notebooks.
-func (i *Injector) applyResourceRequirementsToContainers(obj *unstructured.Unstructured, hwp *infrav1.HardwareProfile, containersPath []string) error {
+// notebookMainContainerIndices returns the indices of the "main" container(s) for a Notebook
+// that should receive HWP resource injection. Sidecars (e.g. oauth-proxy, istio-proxy) must not
+// receive HWP resources. Returns nil to mean "all containers" (caller uses this for non-Notebook).
+// Strategy: if 1 container -> [0]; if >1 containers -> container whose name == Notebook name, else none.
+func notebookMainContainerIndices(obj *unstructured.Unstructured, containersPath []string) []int {
+	containers, found, err := unstructured.NestedSlice(obj.Object, containersPath...)
+	if err != nil || !found || len(containers) == 0 {
+		return nil
+	}
+	if len(containers) == 1 {
+		return []int{0}
+	}
+	notebookName := obj.GetName()
+	for idx, c := range containers {
+		m, ok := c.(map[string]any)
+		if !ok {
+			continue
+		}
+		name, _ := m["name"].(string)
+		if name == notebookName {
+			return []int{idx}
+		}
+	}
+	return []int{} // no main container found; apply to none
+}
+
+// llmInferenceServiceMainContainerIndices returns the indices of the main container for an LLMInferenceService.
+// For LLMInferenceService, we always use the container named LLMInferenceServiceMainContainerName.
+func llmInferenceServiceMainContainerIndices(obj *unstructured.Unstructured, containersPath []string) []int {
+	containers, found, err := unstructured.NestedSlice(obj.Object, containersPath...)
+	if err != nil || !found || len(containers) == 0 {
+		return nil
+	}
+	for idx, c := range containers {
+		m, ok := c.(map[string]any)
+		if !ok {
+			continue
+		}
+		name, _ := m["name"].(string)
+		if name == LLMInferenceServiceMainContainerName {
+			return []int{idx}
+		}
+	}
+	return []int{} // no main container found; apply to none
+}
+
+// applyResourceRequirementsToContainers applies resource requirements to workload containers.
+// When mainContainerIndices is non-nil (Notebook), only those indices are modified; otherwise all containers are.
+func (i *Injector) applyResourceRequirementsToContainers(ctx context.Context, obj *unstructured.Unstructured,
+	hwp *infrav1.HardwareProfile, containersPath []string, mainContainerIndices []int) error {
+	log := logf.FromContext(ctx)
+
 	// Get containers from the workload
 	containers, found, err := unstructured.NestedSlice(obj.Object, containersPath...)
 	if err != nil {
@@ -443,7 +1071,7 @@ func (i *Injector) applyResourceRequirementsToContainers(obj *unstructured.Unstr
 	if !found || len(containers) == 0 {
 		if obj.GetKind() == gvk.LLMInferenceServiceV1Alpha1.Kind {
 			// Create minimal container with name "main"
-			containers = []interface{}{map[string]interface{}{
+			containers = []any{map[string]any{
 				"name": "main",
 			}}
 		} else { // notebook kind
@@ -451,8 +1079,33 @@ func (i *Injector) applyResourceRequirementsToContainers(obj *unstructured.Unstr
 		}
 	}
 
-	// Apply resource requirements to each existing container
+	// When mainContainerIndices is empty (not nil), no matching main container was found
+	if mainContainerIndices != nil && len(mainContainerIndices) == 0 {
+		log.Info("No matching main container found; skipping HWP resource injection",
+			"workload", obj.GetName(), "kind", obj.GetKind(), "namespace", obj.GetNamespace())
+		return nil
+	}
+
+	// Determine which container indices to apply to
+	indicesToApply := mainContainerIndices
+	if indicesToApply == nil {
+		indicesToApply = make([]int, len(containers))
+		for j := range containers {
+			indicesToApply[j] = j
+		}
+	}
+
+	applySet := make(map[int]bool)
+	for _, idx := range indicesToApply {
+		if idx >= 0 && idx < len(containers) {
+			applySet[idx] = true
+		}
+	}
+
 	for idx, container := range containers {
+		if !applySet[idx] {
+			continue
+		}
 		if err := i.applyIdentifiersToContainer(container, hwp.Spec.Identifiers); err != nil {
 			return fmt.Errorf("failed to apply resources to container %d: %w", idx, err)
 		}
@@ -472,8 +1125,8 @@ func (i *Injector) applyResourceRequirementsToContainers(obj *unstructured.Unstr
 //
 // Returns:
 //   - error: Any error encountered during resource application, nil on success
-func (i *Injector) applyIdentifiersToContainer(container interface{}, identifiers []infrav1.HardwareIdentifier) error {
-	containerMap, ok := container.(map[string]interface{})
+func (i *Injector) applyIdentifiersToContainer(container any, identifiers []infrav1.HardwareIdentifier) error {
+	containerMap, ok := container.(map[string]any)
 	if !ok {
 		return errors.New("container is not a map[string]interface{}")
 	}
@@ -491,6 +1144,8 @@ func (i *Injector) applyIdentifiersToContainer(container interface{}, identifier
 	}
 
 	// For requests - always applies DefaultCount
+	// Note: MinCount is not used by the webhook - it's for UI validation/guidance only
+	// For non-standard resources (GPUs), DefaultCount will be used for both requests and limits
 	if err := i.applyIdentifiersToRequests(requests, identifiers, func(id infrav1.HardwareIdentifier) (intstr.IntOrString, bool) {
 		return id.DefaultCount, true
 	}); err != nil {
@@ -503,13 +1158,10 @@ func (i *Injector) applyIdentifiersToContainer(container interface{}, identifier
 		return err
 	}
 
-	// For limits - only applies MaxCount if it exists in HWProfile
-	if err := i.applyIdentifiersToRequests(limits, identifiers, func(id infrav1.HardwareIdentifier) (intstr.IntOrString, bool) {
-		if id.MaxCount == nil {
-			return intstr.IntOrString{}, false
-		}
-		return *id.MaxCount, true
-	}); err != nil {
+	// Apply limits for identifiers
+	// For extended resources (GPUs, etc.), limits must equal requests (Kubernetes requirement)
+	// For standard resources (cpu, memory, ephemeral-storage), only set limits if MaxCount is specified
+	if err := i.applyIdentifiersToLimits(requests, limits, identifiers); err != nil {
 		return err
 	}
 
@@ -537,7 +1189,7 @@ func (i *Injector) applyIdentifiersToContainer(container interface{}, identifier
 // Returns:
 //   - error: Any error encountered during identifier application or quantity conversion
 func (i *Injector) applyIdentifiersToRequests(
-	requests map[string]interface{},
+	requests map[string]any,
 	identifiers []infrav1.HardwareIdentifier,
 	valueExtractor func(infrav1.HardwareIdentifier) (intstr.IntOrString, bool),
 ) error {
@@ -559,6 +1211,57 @@ func (i *Injector) applyIdentifiersToRequests(
 	return nil
 }
 
+// applyIdentifiersToLimits applies hardware identifiers to resource limits map.
+// For extended resources (anything except cpu, memory, ephemeral-storage), limits must equal requests.
+// For standard resources, only set limits if MaxCount is specified in the HardwareProfile.
+//
+// Parameters:
+//   - requests: The container's resource requests map (to read values from for extended resources)
+//   - limits: The container's resource limits map to modify
+//   - identifiers: Array of hardware identifiers from the hardware profile
+//
+// Returns:
+//   - error: Any error encountered during identifier application or quantity conversion
+func (i *Injector) applyIdentifiersToLimits(
+	requests map[string]any,
+	limits map[string]any,
+	identifiers []infrav1.HardwareIdentifier,
+) error {
+	// Standard Kubernetes resources that don't require limits to equal requests
+	standardResources := map[string]bool{
+		"cpu":               true,
+		"memory":            true,
+		"ephemeral-storage": true,
+	}
+
+	for _, identifier := range identifiers {
+		// Skip if the limit already exists (preserve existing limits)
+		if _, exists := limits[identifier.Identifier]; exists {
+			continue
+		}
+
+		// Skip if request wasn't set (either it already existed or we didn't set it)
+		requestValue, requestExists := requests[identifier.Identifier]
+		if !requestExists {
+			continue
+		}
+
+		// For extended resources (GPUs, etc.), limits must equal requests
+		// Since requests were set to DefaultCount, limits will also be DefaultCount
+		if !standardResources[identifier.Identifier] {
+			limits[identifier.Identifier] = requestValue
+		} else if identifier.MaxCount != nil {
+			// For standard resources, only set limit if MaxCount is specified in the HWP
+			quantity, err := convertIntOrStringToQuantity(*identifier.MaxCount)
+			if err != nil {
+				return fmt.Errorf("failed to convert max resource quantity for %s: %w", identifier.Identifier, err)
+			}
+			limits[identifier.Identifier] = quantity.String()
+		}
+	}
+	return nil
+}
+
 // applyNodeSchedulingConfiguration applies node scheduling constraints to the workload.
 // This method handles the application of nodeSelector and tolerations from the hardware
 // profile to ensure workloads are scheduled on appropriate nodes.
@@ -568,46 +1271,188 @@ func (i *Injector) applyIdentifiersToRequests(
 //  2. Tolerations: Specifications that allow scheduling on nodes with matching taints
 //
 // Configuration Application:
-//   - NodeSelector is applied as a complete replacement of existing values
-//   - Tolerations are applied as a complete replacement of existing values
+//   - Both nodeSelector and tolerations follow the same behavior based on profileChanged:
+//   - When profileChanged is true: Replace existing values (clearing already done)
+//   - When profileChanged is false: Merge with existing ones to preserve manually-added values
 //   - Both configurations are applied only if present in the hardware profile
 //
 // Parameters:
 //   - obj: The unstructured workload object to modify
 //   - nodeSpec: The NodeSchedulingSpec resource containing node scheduling specifications
+//   - profileChanged: Whether the hardware profile changed (determines merge vs replace behavior)
+//   - hwpName: The name of the HardwareProfile (for warning messages)
 //
 // Returns:
+//   - []string: Warnings about nodeSelector values that will be overwritten
 //   - error: Any error encountered during node scheduling configuration application
-func (i *Injector) applyNodeSchedulingConfiguration(obj *unstructured.Unstructured, nodeSpec *infrav1.NodeSchedulingSpec) error {
+func (i *Injector) applyNodeSchedulingConfiguration(obj *unstructured.Unstructured, nodeSpec *infrav1.NodeSchedulingSpec, profileChanged bool, hwpName string) ([]string, error) {
 	config, err := GetWorkloadConfig(obj.GetKind())
 	if err != nil {
-		return fmt.Errorf("unsupported workload kind for node scheduling: %s", obj.GetKind())
+		return nil, fmt.Errorf("unsupported workload kind for node scheduling: %s", obj.GetKind())
 	}
+
+	var warnings []string
 
 	// Apply nodeSelector if present
 	if len(nodeSpec.NodeSelector) > 0 {
-		if err := unstructured.SetNestedStringMap(obj.Object, nodeSpec.NodeSelector, config.NodeSelectorPath...); err != nil {
-			return fmt.Errorf("failed to set nodeSelector: %w", err)
+		// If profile changed, nodeSelector was already cleared, so just set the new one
+		// If profile didn't change, merge with existing nodeSelector to preserve manual ones
+		if profileChanged {
+			if err := unstructured.SetNestedStringMap(obj.Object, nodeSpec.NodeSelector, config.NodeSelectorPath...); err != nil {
+				return nil, fmt.Errorf("failed to set nodeSelector: %w", err)
+			}
+		} else {
+			mergedNodeSelector, nodeSelectorWarnings, err := mergeNodeSelector(obj, config.NodeSelectorPath, nodeSpec.NodeSelector, hwpName)
+			if err != nil {
+				return nil, fmt.Errorf("failed to merge nodeSelector: %w", err)
+			}
+			warnings = append(warnings, nodeSelectorWarnings...)
+			if err := unstructured.SetNestedStringMap(obj.Object, mergedNodeSelector, config.NodeSelectorPath...); err != nil {
+				return nil, fmt.Errorf("failed to set merged nodeSelector: %w", err)
+			}
 		}
 	}
 
 	// Apply tolerations if present
 	if len(nodeSpec.Tolerations) > 0 {
-		tolerationsSlice := make([]interface{}, len(nodeSpec.Tolerations))
-		for i, toleration := range nodeSpec.Tolerations {
+		// Convert HWP tolerations to unstructured
+		hwpTolerations := make([]any, len(nodeSpec.Tolerations))
+		for idx, toleration := range nodeSpec.Tolerations {
 			tolerationUnstructured, err := resources.ToUnstructured(&toleration)
 			if err != nil {
-				return fmt.Errorf("failed to convert tolerations to unstructured: %w", err)
+				return nil, fmt.Errorf("failed to convert tolerations to unstructured: %w", err)
 			}
-			tolerationsSlice[i] = tolerationUnstructured.Object
+			hwpTolerations[idx] = tolerationUnstructured.Object
 		}
 
-		if err := unstructured.SetNestedSlice(obj.Object, tolerationsSlice, config.TolerationsPath...); err != nil {
-			return fmt.Errorf("failed to set tolerations: %w", err)
+		// If profile changed, tolerations were already cleared, so just set the new ones
+		// If profile didn't change, merge with existing tolerations to preserve manual ones
+		if profileChanged {
+			if err := unstructured.SetNestedSlice(obj.Object, hwpTolerations, config.TolerationsPath...); err != nil {
+				return nil, fmt.Errorf("failed to set tolerations: %w", err)
+			}
+		} else {
+			mergedTolerations, err := mergeTolerations(obj, config.TolerationsPath, hwpTolerations)
+			if err != nil {
+				return nil, fmt.Errorf("failed to merge tolerations: %w", err)
+			}
+			if err := unstructured.SetNestedSlice(obj.Object, mergedTolerations, config.TolerationsPath...); err != nil {
+				return nil, fmt.Errorf("failed to set merged tolerations: %w", err)
+			}
 		}
 	}
 
-	return nil
+	return warnings, nil
+}
+
+// mergeNodeSelector merges HardwareProfile nodeSelector with existing nodeSelector on the workload.
+// This preserves manually-added nodeSelector entries while ensuring HardwareProfile ones are applied.
+// However, HardwareProfile nodeSelector entries take precedence over existing ones with the same key.
+//
+// When a user has modified a nodeSelector key that the HardwareProfile also specifies, a warning
+// is returned to notify them that their value will be overwritten by the HardwareProfile value.
+//
+// Parameters:
+//   - obj: The unstructured workload object containing existing nodeSelector
+//   - nodeSelectorPath: The path to the nodeSelector field in the workload
+//   - hwpNodeSelector: The nodeSelector from the HardwareProfile to apply
+//   - hwpName: The name of the HardwareProfile (for warning messages)
+//
+// Returns:
+//   - map[string]string: The merged nodeSelector map
+//   - []string: Warnings about nodeSelector values that will be overwritten
+//   - error: Any error encountered during the merge operation
+func mergeNodeSelector(obj *unstructured.Unstructured, nodeSelectorPath []string, hwpNodeSelector map[string]string, hwpName string) (map[string]string, []string, error) {
+	// Get existing nodeSelector from the workload
+	existingNodeSelector, _, err := unstructured.NestedStringMap(obj.Object, nodeSelectorPath...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get existing nodeSelector: %w", err)
+	}
+
+	var warnings []string
+
+	// Start with existing nodeSelector
+	merged := make(map[string]string)
+	maps.Copy(merged, existingNodeSelector)
+
+	// Apply HWP nodeSelector (overwrites existing keys)
+	for k, v := range hwpNodeSelector {
+		// Check if user has a different value for this key - warn them it will be overwritten
+		if existingValue, exists := existingNodeSelector[k]; exists && existingValue != v {
+			warnings = append(warnings, fmt.Sprintf(
+				"nodeSelector key '%s' has value '%s' which will be overwritten by HardwareProfile '%s' which has value '%s'",
+				k, existingValue, hwpName, v))
+		}
+		merged[k] = v
+	}
+
+	return merged, warnings, nil
+}
+
+// mergeTolerations merges HardwareProfile tolerations with existing tolerations on the workload.
+// HardwareProfile tolerations take precedence over existing ones with the same key.
+// This preserves manually-added tolerations while ensuring HardwareProfile tolerations are applied.
+//
+// Parameters:
+//   - obj: The unstructured workload object containing existing tolerations
+//   - tolerationsPath: The path to the tolerations field in the workload
+//   - hwpTolerations: The tolerations from the HardwareProfile to apply
+//
+// Returns:
+//   - []interface{}: The merged tolerations slice
+//   - error: Any error encountered during the merge operation
+func mergeTolerations(obj *unstructured.Unstructured, tolerationsPath []string, hwpTolerations []any) ([]any, error) {
+	// Get existing tolerations from the workload
+	existingTolerations, _, err := unstructured.NestedSlice(obj.Object, tolerationsPath...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get existing tolerations: %w", err)
+	}
+
+	// Build a set of HWP toleration keys for deduplication
+	hwpTolKeys := make(map[string]bool)
+	for _, tol := range hwpTolerations {
+		if tolMap, ok := tol.(map[string]any); ok {
+			hwpTolKeys[TolerationKey(tolMap)] = true
+		}
+	}
+
+	// Start with HWP tolerations (they take precedence)
+	merged := make([]any, 0, len(hwpTolerations)+len(existingTolerations))
+	merged = append(merged, hwpTolerations...)
+
+	// Add existing tolerations that don't conflict with HWP ones
+	for _, existing := range existingTolerations {
+		if existingMap, ok := existing.(map[string]any); ok {
+			if !hwpTolKeys[TolerationKey(existingMap)] {
+				merged = append(merged, existing)
+			}
+		}
+	}
+
+	return merged, nil
+}
+
+// TolerationKey generates a unique key for a toleration based on its key, operator, value, effect,
+// and tolerationSeconds. This is used for deduplication when merging tolerations.
+// Two tolerations are considered equivalent only if all five fields match.
+// Including value and tolerationSeconds prevents accidental removal of user-specified tolerations
+// that share the same key/operator/effect but have different values.
+//
+// Parameters:
+//   - tol: The toleration map to generate a key for
+//
+// Returns:
+//   - string: A unique key string for the toleration
+func TolerationKey(tol map[string]any) string {
+	key, _ := tol["key"].(string)
+	operator, _ := tol["operator"].(string)
+	value, _ := tol["value"].(string)
+	effect, _ := tol["effect"].(string)
+	ts := ""
+	if v, ok := tol["tolerationSeconds"]; ok {
+		ts = fmt.Sprintf("%v", v)
+	}
+	return fmt.Sprintf("%s:%s:%s:%s:%s", key, operator, value, effect, ts)
 }
 
 // convertIntOrStringToQuantity converts an IntOrString value to a Kubernetes resource.Quantity.

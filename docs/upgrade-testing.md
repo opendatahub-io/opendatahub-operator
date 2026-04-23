@@ -143,6 +143,10 @@ spec:
       managementState: Managed
     llamastackoperator:
       managementState: Managed
+    mlflowoperator:
+      managementState: Managed
+    sparkoperator:
+      managementState: Managed
       
 EOF
 ```

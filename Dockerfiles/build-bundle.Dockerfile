@@ -1,5 +1,5 @@
 # Build the bundle, golang version shouldn't matter much here, but if in doubt, keep it up-to-date with main Dockerfile
-ARG GOLANG_VERSION=1.24
+ARG GOLANG_VERSION=1.25
 
 FROM registry.access.redhat.com/ubi9/go-toolset:$GOLANG_VERSION as builder
 ARG IMAGE_TAG_BASE
@@ -12,6 +12,10 @@ WORKDIR /workspace
 # Copy the Go Modules manifests
 COPY go.mod go.mod
 COPY go.sum go.sum
+COPY pkg/clusterhealth/go.mod pkg/clusterhealth/go.mod
+COPY pkg/clusterhealth/go.sum pkg/clusterhealth/go.sum
+COPY pkg/failureclassifier/go.mod pkg/failureclassifier/go.mod
+COPY pkg/failureclassifier/go.sum pkg/failureclassifier/go.sum
 # cache deps before building and copying source so that we don't need to re-download as much
 # and so that source changes don't invalidate our downloaded layer
 RUN go mod download
@@ -36,3 +40,4 @@ COPY config/ config/
 COPY Dockerfiles/ Dockerfiles/
 
 RUN VERSION=$OPERATOR_VERSION make bundle
+RUN VERSION=$OPERATOR_VERSION make bundle ODH_PLATFORM_TYPE=rhoai

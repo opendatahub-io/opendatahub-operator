@@ -1,0 +1,32 @@
+apiVersion: perses.dev/{{.PersesAPIVersion}}
+kind: PersesDatasource
+metadata:
+  name: tempo-datasource
+  namespace: {{.Namespace}}
+spec:
+  # The Tempo gateway always uses HTTPS (service-CA signed cert) in multitenancy/openshift mode,
+  # so TLS verification is always required regardless of the user's explicit TLS setting.
+  client:
+    tls:
+      enable: true
+      caCert:
+        type: configmap
+        name: tempo-service-ca
+        certPath: service-ca.crt
+  config:
+    default: false
+    display:
+      name: "RHOAI Tempo Datasource"
+      description: "Tempo datasource for distributed tracing in RHOAI"
+    plugin:
+      kind: "TempoDatasource"
+      spec:
+        proxy:
+          kind: HTTPProxy
+          spec:
+            # Secret references the Perses secret created by the operator from client.tls config.
+            # This links the CA cert to the proxy, enabling TLS verification for the gateway.
+            secret: tempo-datasource-secret
+            url: {{.TempoQueryEndpoint}}
+            headers:
+              X-Scope-OrgID: {{.Namespace}}

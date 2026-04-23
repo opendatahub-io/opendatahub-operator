@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strconv"
 	"strings"
 
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -29,6 +31,19 @@ const (
 	ModeSSA   Mode = "ssa"
 )
 
+// SortFn defines a function that reorders resources before deployment.
+type SortFn func(ctx context.Context, resources []unstructured.Unstructured) ([]unstructured.Unstructured, error)
+
+func (s SortFn) Then(then SortFn) SortFn {
+	return func(ctx context.Context, resources []unstructured.Unstructured) ([]unstructured.Unstructured, error) {
+		output, err := s(ctx, resources)
+		if err != nil {
+			return nil, err
+		}
+		return then(ctx, output)
+	}
+}
+
 // Action deploys the resources that are included in the ReconciliationRequest using
 // the same create or patch machinery implemented as part of deploy.DeployManifestsFromPath.
 type Action struct {
@@ -37,6 +52,7 @@ type Action struct {
 	labels      map[string]string
 	annotations map[string]string
 	cache       *Cache
+	sortFn      SortFn
 }
 
 type ActionOpts func(*Action)
@@ -69,9 +85,7 @@ func WithLabels(values map[string]string) ActionOpts {
 			action.labels = map[string]string{}
 		}
 
-		for k, v := range values {
-			action.labels[k] = v
-		}
+		maps.Copy(action.labels, values)
 	}
 }
 
@@ -91,9 +105,7 @@ func WithAnnotations(values map[string]string) ActionOpts {
 			action.annotations = map[string]string{}
 		}
 
-		for k, v := range values {
-			action.annotations[k] = v
-		}
+		maps.Copy(action.annotations, values)
 	}
 }
 
@@ -103,7 +115,28 @@ func WithCache(opts ...CacheOpt) ActionOpts {
 	}
 }
 
+// WithSortFn sets a custom sort function to reorder resources before deploying.
+func WithSortFn(fn SortFn) ActionOpts {
+	return func(action *Action) {
+		action.sortFn = fn
+	}
+}
+
+// WithApplyOrder is a convenience option that sorts resources into
+// dependency order (CRDs first, webhooks last) before deploying.
+func WithApplyOrder() ActionOpts {
+	return WithSortFn(resources.SortByApplyOrder)
+}
+
 func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) error {
+	if a.sortFn != nil {
+		sorted, err := a.sortFn(ctx, rr.Resources)
+		if err != nil {
+			return fmt.Errorf("failed to sort resources: %w", err)
+		}
+		rr.Resources = sorted
+	}
+
 	// cleanup old entries if needed
 	if a.cache != nil {
 		a.cache.Sync()
@@ -159,7 +192,7 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 		}
 
 		if err != nil {
-			return fmt.Errorf("failure deploying resource %s: %w", res, err)
+			return fmt.Errorf("failure deploying resource %s/%s: %w", res.GetNamespace(), res.GetName(), err)
 		}
 
 		if ok {
@@ -218,12 +251,21 @@ func (a *Action) deployCRD(
 		return false, nil
 	}
 
+	// Deep copy to avoid modifying rr.Resources (which may be used by subsequent actions)
+	obj = *obj.DeepCopy()
 	// backup copy for caching
 	origObj := obj.DeepCopy()
 
 	var deployedObj *unstructured.Unstructured
 
-	ops := []client.PatchOption{
+	// Prepare options for both patch and apply modes
+	patchOps := []client.PatchOption{
+		client.ForceOwnership,
+		// Since CRDs are not bound to a component, set the field
+		// owner to the platform itself
+		client.FieldOwner(resources.PlatformFieldOwner),
+	}
+	applyOps := []client.ApplyOption{
 		client.ForceOwnership,
 		// Since CRDs are not bound to a component, set the field
 		// owner to the platform itself
@@ -232,9 +274,9 @@ func (a *Action) deployCRD(
 
 	switch a.deployMode {
 	case ModePatch:
-		deployedObj, err = a.patch(ctx, rr.Client, &obj, current, ops...)
+		deployedObj, err = a.patch(ctx, rr.Client, &obj, current, patchOps...)
 	case ModeSSA:
-		deployedObj, err = a.apply(ctx, rr.Client, &obj, current, ops...)
+		deployedObj, err = a.apply(ctx, rr.Client, &obj, current, applyOps...)
 	default:
 		err = fmt.Errorf("unsupported deploy mode %s", a.deployMode)
 	}
@@ -289,6 +331,8 @@ func (a *Action) deploy(
 		return false, nil
 	}
 
+	// Deep copy to avoid modifying rr.Resources (which may be used by subsequent actions)
+	obj = *obj.DeepCopy()
 	// backup copy for caching
 	origObj := obj.DeepCopy()
 
@@ -308,23 +352,33 @@ func (a *Action) deploy(
 		}
 
 	default:
-		owned := rr.Controller.Owns(obj.GroupVersionKind())
+		owned := a.shouldOwn(rr, obj.GroupVersionKind())
 		if owned {
+			// Clear any template-defined ownerReferences before setting the
+			// controller reference. For resource types declared in Owns(), the
+			// deploy action is the single source of truth for ownership.
+			obj.SetOwnerReferences(nil)
+
 			if err := ctrl.SetControllerReference(rr.Instance, &obj, rr.Client.Scheme()); err != nil {
 				return false, err
 			}
 		}
 
-		ops := []client.PatchOption{
+		// Prepare options for both patch and apply modes
+		patchOps := []client.PatchOption{
+			client.ForceOwnership,
+			client.FieldOwner(fo),
+		}
+		applyOps := []client.ApplyOption{
 			client.ForceOwnership,
 			client.FieldOwner(fo),
 		}
 
 		switch a.deployMode {
 		case ModePatch:
-			deployedObj, err = a.patch(ctx, rr.Client, &obj, current, ops...)
+			deployedObj, err = a.patch(ctx, rr.Client, &obj, current, patchOps...)
 		case ModeSSA:
-			deployedObj, err = a.apply(ctx, rr.Client, &obj, current, ops...)
+			deployedObj, err = a.apply(ctx, rr.Client, &obj, current, applyOps...)
 		default:
 			err = fmt.Errorf("unsupported deploy mode %s", a.deployMode)
 		}
@@ -376,20 +430,17 @@ func (a *Action) patch(
 
 	switch obj.GroupVersionKind() {
 	case gvk.Deployment:
-		// For deployments, we allow the user to change some parameters, such as
-		// container resources and replicas except:
-		// - If the resource does not exist (the resource must be created)
-		// - If the resource is forcefully marked as managed by the operator via
-		//   annotations (i.e. to bring it back to the default values)
-		if old == nil || resources.GetAnnotation(old, annotations.ManagedByODHOperator) == "true" {
+		if old == nil {
 			break
 		}
 
-		// To preserve backward compatibility with the current model, fields are being
-		// removed, hence not included in the final PATCH. Ideally with should leverage
-		// Server-Side Apply.
-		//
-		// Ideally deployed resources should be configured only via the platform API
+		if resources.GetAnnotation(old, annotations.ManagedByODHOperator) == "true" {
+			if err := RevertManagedDeploymentDrift(ctx, cli, obj, old); err != nil {
+				return nil, fmt.Errorf("failed to prepare managed Deployment %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
+			}
+			break
+		}
+
 		if err := RemoveDeploymentsResources(obj); err != nil {
 			return nil, fmt.Errorf("failed to apply allow list to Deployment %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
 		}
@@ -429,7 +480,7 @@ func (a *Action) apply(
 	cli client.Client,
 	obj *unstructured.Unstructured,
 	old *unstructured.Unstructured,
-	opts ...client.PatchOption,
+	opts ...client.ApplyOption,
 ) (*unstructured.Unstructured, error) {
 	logf.FromContext(ctx).V(3).Info("apply",
 		"gvk", obj.GroupVersionKind(),
@@ -443,7 +494,17 @@ func (a *Action) apply(
 		// - If the resource does not exist (the resource must be created)
 		// - If the resource is forcefully marked as managed by the operator via
 		//   annotations (i.e. to bring it back to the default values)
-		if old == nil || resources.GetAnnotation(old, annotations.ManagedByODHOperator) == "true" {
+		if old == nil {
+			break
+		}
+
+		if resources.GetAnnotation(old, annotations.ManagedByODHOperator) == "true" {
+			// When explicitly managed, conditionally apply Strategic Merge Patch to remove user modifications.
+			// Only patches when drift is detected: manifest and deployed values differ for resources or replicas.
+			// NOTE: Strategic Merge Patch clears user-owned fields that SSA cannot remove, then SSA (line 500) applies manifest with operator ownership.
+			if err := RevertManagedDeploymentDrift(ctx, cli, obj, old); err != nil {
+				return nil, fmt.Errorf("failed to prepare managed Deployment %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
+			}
 			break
 		}
 
@@ -469,6 +530,14 @@ func (a *Action) apply(
 		if found {
 			unstructured.RemoveNestedField(obj.Object, "rules")
 		}
+	// For observability components, we preserve user changes to resource requests/limits
+	case gvk.MonitoringStack, gvk.TempoStack, gvk.TempoMonolithic, gvk.OpenTelemetryCollector:
+		if old == nil || resources.GetAnnotation(old, annotations.ManagedByODHOperator) == "true" {
+			break
+		}
+		if err := MergeObservabilityResources(old, obj); err != nil {
+			return nil, fmt.Errorf("failed to merge %s %s/%s: %w", obj.GetKind(), obj.GetNamespace(), obj.GetName(), err)
+		}
 	default:
 		// do nothing
 		break
@@ -480,6 +549,36 @@ func (a *Action) apply(
 	}
 
 	return obj, nil
+}
+
+// shouldOwn determines whether the action should set an owner reference on a resource.
+//
+// Static ownership (from .Owns()/.OwnsGVK() in the builder) always takes precedence.
+// ExcludeGVKs is a DynamicOwnershipOption and only gates the dynamic registration path.
+//
+// Note: CRDs are routed to deployCRD() by the run() method and never reach
+// this function. CRDs do not get owner references.
+func (a *Action) shouldOwn(rr *odhTypes.ReconciliationRequest, objGVK schema.GroupVersionKind) bool {
+	// Static and dynamic ownership from previous cycles always wins
+	if rr.Controller.Owns(objGVK) {
+		return true
+	}
+
+	// Exclusion only gates the dynamic path below — it does not override
+	// static ownership checked above. ExcludeGVKs is a DynamicOwnershipOption.
+	if rr.Controller.IsExcludedFromDynamicOwnership(objGVK) {
+		return false
+	}
+
+	// In dynamic ownership mode, register the type as dynamically owned so that
+	// subsequent actions in this same reconciliation cycle (e.g., GC) can query
+	// Owns() and get the correct result. AddDynamicOwnedType is idempotent.
+	if rr.Controller.IsDynamicOwnershipEnabled() {
+		rr.Controller.AddDynamicOwnedType(objGVK)
+		return true
+	}
+
+	return false
 }
 
 func NewAction(opts ...ActionOpts) actions.Fn {

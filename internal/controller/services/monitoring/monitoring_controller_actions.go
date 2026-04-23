@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -18,22 +19,45 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 const (
 	// Template files.
-	MonitoringStackTemplate                 = "resources/monitoring-stack.tmpl.yaml"
-	MonitoringStackAlertmanagerRBACTemplate = "resources/monitoringstack-alertmanager-rbac.tmpl.yaml"
-	TempoMonolithicTemplate                 = "resources/tempo-monolithic.tmpl.yaml"
-	TempoStackTemplate                      = "resources/tempo-stack.tmpl.yaml"
-	OpenTelemetryCollectorTemplate          = "resources/opentelemetry-collector.tmpl.yaml"
-	CollectorServiceMonitorsTemplate        = "resources/collector-servicemonitors.tmpl.yaml"
-	CollectorRBACTemplate                   = "resources/collector-rbac.tmpl.yaml"
-	PrometheusRouteTemplate                 = "resources/prometheus-route.tmpl.yaml"
-	InstrumentationTemplate                 = "resources/instrumentation.tmpl.yaml"
-	ThanosQuerierTemplate                   = "resources/thanos-querier-cr.tmpl.yaml"
-	ThanosQuerierRouteTemplate              = "resources/thanos-querier-route.tmpl.yaml"
+	MonitoringStackTemplate                       = "resources/monitoring-stack.tmpl.yaml"
+	MonitoringAdmissionPoliciesTemplate           = "resources/monitoring-admission-policies.tmpl.yaml"
+	MonitoringStackAlertmanagerRBACTemplate       = "resources/monitoringstack-alertmanager-rbac.tmpl.yaml"
+	TempoMonolithicTemplate                       = "resources/tempo-monolithic.tmpl.yaml"
+	TempoStackTemplate                            = "resources/tempo-stack.tmpl.yaml"
+	OpenTelemetryCollectorTemplate                = "resources/opentelemetry-collector.tmpl.yaml"
+	CollectorServiceMonitorsTemplate              = "resources/collector-servicemonitors.tmpl.yaml"
+	CollectorPrometheusServiceTemplate            = "resources/collector-prometheus-service.tmpl.yaml"
+	CollectorRBACTemplate                         = "resources/collector-rbac.tmpl.yaml"
+	PrometheusRouteTemplate                       = "resources/data-science-prometheus-route.tmpl.yaml"
+	InstrumentationTemplate                       = "resources/instrumentation.tmpl.yaml"
+	PrometheusNamespaceProxyTemplate              = "resources/data-science-prometheus-namespace-proxy.tmpl.yaml"
+	PrometheusNamespaceProxyNetworkPolicyTemplate = "resources/data-science-prometheus-namespace-proxy-network-policy.tmpl.yaml"
+	PrometheusServiceOverrideTemplate             = "resources/data-science-prometheus-service-override.tmpl.yaml"
+	PrometheusNetworkPolicyTemplate               = "resources/data-science-prometheus-network-policy.tmpl.yaml"
+	PrometheusWebTLSServiceTemplate               = "resources/prometheus-web-tls-service.tmpl.yaml"
+	PrometheusSelfServiceMonitorTemplate          = "resources/prometheus-self-servicemonitor.tmpl.yaml"
+	ThanosQuerierTemplate                         = "resources/thanos-querier-cr.tmpl.yaml"
+	ThanosQuerierRouteTemplate                    = "resources/thanos-querier-route.tmpl.yaml"
+	PersesTemplate                                = "resources/perses.tmpl.yaml"
+	PersesTempoDatasourceTemplate                 = "resources/perses-tempo-datasource.tmpl.yaml"
+	PersesTempoDashboardV1Alpha1Template          = "resources/perses-tempo-dashboard-v1alpha1.tmpl.yaml"
+	PersesTempoDashboardV1Alpha2Template          = "resources/perses-tempo-dashboard-v1alpha2.tmpl.yaml"
+	PersesDatasourcePrometheusTemplate            = "resources/perses-datasource-prometheus.tmpl.yaml"
+	PersesDatasourceClusterPrometheusTemplate     = "resources/perses-datasource-cluster-prometheus.tmpl.yaml"
+	PrometheusClusterProxyTemplate                = "resources/data-science-prometheus-cluster-proxy.tmpl.yaml"
+	TempoServiceCAConfigMapTemplate               = "resources/tempo-service-ca-configmap.tmpl.yaml"
+	PersesOperatorAccessNetworkPolicyTemplate     = "resources/perses-operator-access-network-policy.tmpl.yaml"
+
+	// API versions.
+	persesV1Alpha2 = "v1alpha2"
+
+	// Resource names.
+	PersesTempoDatasourceName = "tempo-datasource"
+	PersesTempoDashboardName  = "data-science-tempo-traces"
 )
 
 // CRDRequirement defines a required CRD and its associated condition for monitoring components.
@@ -51,10 +75,13 @@ var componentRules = map[string]string{
 	componentApi.TrustyAIComponentName:             "trustyai",
 	componentApi.KserveComponentName:               "kserve",
 	componentApi.TrainingOperatorComponentName:     "trainingoperator",
+	componentApi.TrainerComponentName:              "trainer",
 	componentApi.ModelRegistryComponentName:        "model-registry-operator",
 	componentApi.ModelControllerComponentName:      "odh-model-controller",
 	componentApi.FeastOperatorComponentName:        "feastoperator",
 	componentApi.LlamaStackOperatorComponentName:   "llamastackoperator",
+	componentApi.SparkOperatorComponentName:        "spark-operator",
+	componentApi.ModelsAsServiceComponentName:      "modelsasservice",
 }
 
 //go:embed resources
@@ -62,11 +89,11 @@ var componentRules = map[string]string{
 var resourcesFS embed.FS
 
 // initialize handles all pre-deployment configurations.
-func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { //nolint:unparam
 	// Only set prometheus configmap path
 	rr.Manifests = []odhtypes.ManifestInfo{
 		{
-			Path:       odhdeploy.DefaultManifestPath,
+			Path:       rr.ManifestsBasePath,
 			ContextDir: "monitoring/prometheus/apps",
 		},
 	}
@@ -133,8 +160,17 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 	}
 
 	return cr.ForEach(func(ch cr.ComponentHandler) error {
-		ci := ch.NewCRObject(dsc)
+		ci, err := ch.NewCRObject(ctx, rr.Client, dsc)
+		if err != nil {
+			return err
+		}
 		if ch.IsEnabled(dsc) {
+			// NewCRObject may legitimately return (nil, nil) for components that
+			// delegate CR ownership elsewhere (e.g. ModelsAsService). Treat as
+			// not-ready so prometheus rules are not added until the CR appears.
+			if ci == nil {
+				return nil
+			}
 			ready, err := isComponentReady(ctx, rr.Client, ci)
 			if err != nil {
 				return fmt.Errorf("failed to get component status %w", err)
@@ -143,16 +179,40 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 				return nil
 			}
 			// add
-			return updatePrometheusConfig(ctx, true, componentRules[ch.GetName()])
+			return updatePrometheusConfig(ctx, rr.ManifestsBasePath, true, componentRules[ch.GetName()])
 		} else {
-			return updatePrometheusConfig(ctx, false, componentRules[ch.GetName()])
+			return updatePrometheusConfig(ctx, rr.ManifestsBasePath, false, componentRules[ch.GetName()])
 		}
 	})
 }
 
-// deployMonitoringStackWithQuerier handles deployment of both MonitoringStack and ThanosQuerier components.
+// deployMonitoringAdmissionPolicies handles deployment of admission policies for monitoring resources.
+// Base policies (label value validation) are always deployed.
+// Strict policies (namespace restrictions) are only deployed when admission.strictNamespaces is enabled.
+//
+// Note: ValidatingAdmissionPolicy is a built-in Kubernetes API resource (not a CRD) available in K8s 1.26+.
+// If the API is not available, the controller setup will fail when trying to create the watch, providing
+// a clear error message to the user that their cluster doesn't support this feature.
+func deployMonitoringAdmissionPolicies(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+	if _, ok := rr.Instance.(*serviceApi.Monitoring); !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	// no need to validate gvk of validation policy and binding because its a builtin type not a crd
+
+	// Deploy admission policy templates
+	// If the ValidatingAdmissionPolicy API doesn't exist, deployment will fail with a clear error
+	templates := []odhtypes.TemplateInfo{
+		{FS: resourcesFS, Path: MonitoringAdmissionPoliciesTemplate},
+	}
+
+	rr.Templates = append(rr.Templates, templates...)
+	return nil
+}
+
+// deployMonitoringStackWithQuerierAndRestrictions handles deployment of MonitoringStack and ThanosQuerier components.
 // These components are deployed together as ThanosQuerier depends on MonitoringStack for proper functioning.
-func deployMonitoringStackWithQuerier(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func deployMonitoringStackWithQuerierAndRestrictions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
 	if !ok {
 		return errors.New("instance is not of type *services.Monitoring")
@@ -176,20 +236,26 @@ func deployMonitoringStackWithQuerier(ctx context.Context, rr *odhtypes.Reconcil
 		return nil
 	}
 
-	// All prerequisites met, mark both components as available and deploy
+	// All prerequisites met, mark all components as available and deploy
 	rr.Conditions.MarkTrue(status.ConditionMonitoringStackAvailable)
 	rr.Conditions.MarkTrue(status.ConditionThanosQuerierAvailable)
 
-	// Prepare and deploy both component templates atomically
+	// Prepare and deploy all component templates atomically
 	templates := []odhtypes.TemplateInfo{
+		{FS: resourcesFS, Path: PrometheusWebTLSServiceTemplate},
 		{FS: resourcesFS, Path: MonitoringStackTemplate},
+		{FS: resourcesFS, Path: PrometheusSelfServiceMonitorTemplate},
 		{FS: resourcesFS, Path: MonitoringStackAlertmanagerRBACTemplate},
 		{FS: resourcesFS, Path: PrometheusRouteTemplate},
+		{FS: resourcesFS, Path: PrometheusServiceOverrideTemplate},
+		{FS: resourcesFS, Path: PrometheusNetworkPolicyTemplate},
+		{FS: resourcesFS, Path: PrometheusNamespaceProxyTemplate},
+		{FS: resourcesFS, Path: PrometheusNamespaceProxyNetworkPolicyTemplate},
 		{FS: resourcesFS, Path: ThanosQuerierTemplate},
 		{FS: resourcesFS, Path: ThanosQuerierRouteTemplate},
 	}
 
-	// Deploy both components atomically with the same generation annotation
+	// Deploy all components atomically with the same generation annotation
 	rr.Templates = append(rr.Templates, templates...)
 	return nil
 }
@@ -215,9 +281,13 @@ func deployTracingStack(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 	traces := monitoring.Spec.Traces
 
 	// Determine required Tempo CRD based on storage backend
+	// Default to "pv" when backend is empty (kubebuilder default removed to prevent
+	// Form View UI from auto-populating values)
+	backend := getStringValueOrDefault(traces.Storage.Backend, defaultTracesBackend)
+
 	var tempoCRD schema.GroupVersionKind
 	var tempoTemplate string
-	if traces.Storage.Backend == "pv" {
+	if backend == serviceApi.StorageBackendPV {
 		tempoCRD = gvk.TempoMonolithic
 		tempoTemplate = TempoMonolithicTemplate
 	} else {
@@ -293,11 +363,23 @@ func deployOpenTelemetryCollector(ctx context.Context, rr *odhtypes.Reconciliati
 			FS:   resourcesFS,
 			Path: CollectorRBACTemplate,
 		},
+		// ServiceMonitors (always deployed for collector health monitoring)
+		// Note: The template contains conditional logic that only renders the
+		// data-science-prometheus-monitor ServiceMonitor when .Metrics != nil
 		{
 			FS:   resourcesFS,
 			Path: CollectorServiceMonitorsTemplate,
 		},
 	}
+
+	// Prometheus Service with TLS (only when metrics collection is enabled)
+	if monitoring.Spec.Metrics != nil {
+		template = append(template, odhtypes.TemplateInfo{
+			FS:   resourcesFS,
+			Path: CollectorPrometheusServiceTemplate,
+		})
+	}
+
 	rr.Templates = append(rr.Templates, template...)
 
 	return nil
@@ -360,9 +442,15 @@ func deployAlerting(ctx context.Context, rr *odhtypes.ReconciliationRequest) err
 
 	forEachErr := cr.ForEach(func(ch cr.ComponentHandler) error {
 		componentName := ch.GetName()
-		ci := ch.NewCRObject(dsc)
-
+		ci, err := ch.NewCRObject(ctx, rr.Client, dsc)
+		if err != nil {
+			addErrors = append(addErrors, fmt.Errorf("failed to get CR for component %s: %w", componentName, err))
+			return nil // Continue processing other components
+		}
 		if ch.IsEnabled(dsc) {
+			if ci == nil {
+				return nil
+			}
 			ready, err := isComponentReady(ctx, rr.Client, ci)
 			if err != nil {
 				addErrors = append(addErrors, fmt.Errorf("failed to get status for component %s: %w", componentName, err))
@@ -407,9 +495,239 @@ func deployAlerting(ctx context.Context, rr *odhtypes.ReconciliationRequest) err
 		}
 	}
 
-	if len(addErrors) > 0 || len(cleanupErrors) > 0 {
-		return errors.New("errors occurred while adding or cleaning up prometheus rules for components")
+	return nil
+}
+
+func deployPerses(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
 	}
+
+	if monitoring.Spec.Metrics == nil && monitoring.Spec.Traces == nil {
+		setConditionFalse(rr, status.ConditionPersesAvailable,
+			status.MetricsNotConfiguredReason+"And"+status.TracesNotConfiguredReason,
+			"Perses requires at least Metrics or Traces to be configured")
+		return nil
+	}
+
+	version, found, err := resolvePersesAPIVersion(ctx, rr.Client)
+	if err != nil {
+		return fmt.Errorf("failed to resolve Perses API version: %w", err)
+	}
+	if !found {
+		setConditionFalse(rr, status.ConditionPersesAvailable,
+			"PersesCRDNotFoundReason",
+			"Perses CRD not found in any supported version (v1alpha2, v1alpha1)")
+		return nil
+	}
+
+	persesGVK, _, _ := persesGVKs(version)
+	requirements := []CRDRequirement{
+		{GVK: persesGVK, ConditionType: status.ConditionPersesAvailable},
+	}
+
+	if !validateRequiredCRDs(ctx, rr, requirements) {
+		return nil
+	}
+
+	rr.Conditions.MarkTrue(status.ConditionPersesAvailable)
+
+	template := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: PersesTemplate,
+		},
+		{
+			FS:   resourcesFS,
+			Path: PersesOperatorAccessNetworkPolicyTemplate,
+		},
+	}
+	rr.Templates = append(rr.Templates, template...)
+
+	return nil
+}
+
+func deployPersesTempoIntegration(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	version, versionFound, err := resolvePersesAPIVersion(ctx, rr.Client)
+	if err != nil {
+		return fmt.Errorf("failed to resolve Perses API version: %w", err)
+	}
+
+	_, datasourceGVK, dashboardGVK := persesGVKs(version)
+
+	persesDatasourceExists := false
+	persesDashboardExists := false
+
+	if versionFound {
+		persesDatasourceExists, err = cluster.HasCRD(ctx, rr.Client, datasourceGVK)
+		if err != nil {
+			return fmt.Errorf("failed to check if PersesDatasource CRD exists: %w", err)
+		}
+
+		persesDashboardExists, err = cluster.HasCRD(ctx, rr.Client, dashboardGVK)
+		if err != nil {
+			return fmt.Errorf("failed to check if PersesDashboard CRD exists: %w", err)
+		}
+	}
+
+	if monitoring.Spec.Traces == nil {
+		if persesDatasourceExists {
+			datasource := &unstructured.Unstructured{}
+			datasource.SetGroupVersionKind(datasourceGVK)
+			datasource.SetName(PersesTempoDatasourceName)
+			datasource.SetNamespace(monitoring.Spec.Namespace)
+
+			if err := rr.Client.Delete(ctx, datasource); err != nil {
+				if !k8serr.IsNotFound(err) {
+					return fmt.Errorf("failed to delete PersesDatasource: %w", err)
+				}
+			}
+		}
+
+		if persesDashboardExists {
+			dashboard := &unstructured.Unstructured{}
+			dashboard.SetGroupVersionKind(dashboardGVK)
+			dashboard.SetName(PersesTempoDashboardName)
+			dashboard.SetNamespace(monitoring.Spec.Namespace)
+
+			if err := rr.Client.Delete(ctx, dashboard); err != nil {
+				if !k8serr.IsNotFound(err) {
+					return fmt.Errorf("failed to delete PersesDashboard: %w", err)
+				}
+			}
+		}
+
+		rr.Conditions.MarkFalse(
+			status.ConditionPersesTempoDataSourceAvailable,
+			conditions.WithReason(status.TracesNotConfiguredReason),
+			conditions.WithMessage(status.TracesNotConfiguredMessage),
+		)
+		return nil
+	}
+
+	if !persesDatasourceExists {
+		rr.Conditions.MarkFalse(
+			status.ConditionPersesTempoDataSourceAvailable,
+			conditions.WithReason(datasourceGVK.Kind+"CRDNotFoundReason"),
+			conditions.WithMessage("%s CRD Not Found", datasourceGVK.Kind),
+		)
+		return nil
+	}
+
+	rr.Conditions.MarkTrue(status.ConditionPersesTempoDataSourceAvailable)
+
+	templates := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: PersesTempoDatasourceTemplate,
+		},
+		{
+			FS:   resourcesFS,
+			Path: TempoServiceCAConfigMapTemplate,
+		},
+	}
+
+	if persesDashboardExists {
+		dashboardTemplate := PersesTempoDashboardV1Alpha1Template
+		if version == persesV1Alpha2 {
+			dashboardTemplate = PersesTempoDashboardV1Alpha2Template
+		}
+		templates = append(templates, odhtypes.TemplateInfo{
+			FS:   resourcesFS,
+			Path: dashboardTemplate,
+		})
+	}
+
+	rr.Templates = append(rr.Templates, templates...)
+
+	return nil
+}
+
+func deployPersesPrometheusIntegration(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	if monitoring.Spec.Metrics == nil {
+		setConditionFalse(rr, status.ConditionPersesPrometheusDataSourceAvailable,
+			status.MetricsNotConfiguredReason,
+			"Prometheus datasource requires metrics configuration")
+		return nil
+	}
+
+	version, versionFound, err := resolvePersesAPIVersion(ctx, rr.Client)
+	if err != nil {
+		return fmt.Errorf("failed to resolve Perses API version: %w", err)
+	}
+	if !versionFound {
+		setConditionFalse(rr, status.ConditionPersesPrometheusDataSourceAvailable,
+			"PersesDatasourceCRDNotFoundReason",
+			"PersesDatasource CRD not found in any supported version")
+		return nil
+	}
+
+	_, datasourceGVK, _ := persesGVKs(version)
+
+	datasourceExists, err := cluster.HasCRD(ctx, rr.Client, datasourceGVK)
+	if err != nil {
+		return fmt.Errorf("failed to check if CRD PersesDatasource exists: %w", err)
+	}
+	if !datasourceExists {
+		setConditionFalse(rr, status.ConditionPersesPrometheusDataSourceAvailable,
+			datasourceGVK.Kind+"CRDNotFoundReason",
+			fmt.Sprintf("%s CRD Not Found", datasourceGVK.Kind))
+		return nil
+	}
+
+	rr.Conditions.MarkTrue(status.ConditionPersesPrometheusDataSourceAvailable)
+
+	templates := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: PersesDatasourcePrometheusTemplate,
+		},
+		{
+			FS:   resourcesFS,
+			Path: PersesDatasourceClusterPrometheusTemplate,
+		},
+	}
+	rr.Templates = append(rr.Templates, templates...)
+
+	return nil
+}
+
+func deployNodeMetricsEndpoint(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	if monitoring.Spec.Metrics == nil {
+		rr.Conditions.MarkFalse(
+			status.ConditionNodeMetricsEndpointAvailable,
+			conditions.WithReason(status.MetricsNotConfiguredReason),
+			conditions.WithMessage(status.MetricsNotConfiguredMessage),
+		)
+		return nil
+	}
+
+	rr.Conditions.MarkTrue(status.ConditionNodeMetricsEndpointAvailable)
+
+	templates := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: PrometheusClusterProxyTemplate,
+		},
+	}
+
+	rr.Templates = append(rr.Templates, templates...)
 
 	return nil
 }

@@ -1,0 +1,202 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: data-science-prometheus-cluster-proxy
+  namespace: {{.Namespace}}
+  labels:
+    app: data-science-prometheus-cluster-proxy
+    platform.opendatahub.io/part-of: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: data-science-prometheus-cluster-proxy
+  labels:
+    platform.opendatahub.io/part-of: monitoring
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-monitoring-view
+subjects:
+  - kind: ServiceAccount
+    name: data-science-prometheus-cluster-proxy
+    namespace: {{.Namespace}}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: data-science-prometheus-cluster-proxy-auth-delegator
+  labels:
+    platform.opendatahub.io/part-of: monitoring
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: data-science-prometheus-cluster-proxy
+    namespace: {{.Namespace}}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: data-science-prometheus-cluster-proxy-kube-rbac-proxy
+  namespace: {{.Namespace}}
+  labels:
+    app: data-science-prometheus-cluster-proxy
+    platform.opendatahub.io/part-of: monitoring
+type: Opaque
+data: {}
+stringData:
+  config.yaml: |
+    authorization:
+      resourceAttributes:
+        apiGroup: metrics.k8s.io
+        resource: nodes
+        verb: get
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data-science-prometheus-cluster-proxy
+  namespace: {{.Namespace}}
+  labels:
+    app: data-science-prometheus-cluster-proxy
+    platform.opendatahub.io/part-of: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: data-science-prometheus-cluster-proxy
+  template:
+    metadata:
+      labels:
+        app: data-science-prometheus-cluster-proxy
+    spec:
+      serviceAccountName: data-science-prometheus-cluster-proxy
+      containers:
+        # kube-rbac-proxy for authentication and authorization based on NodeMetrics access
+        - name: kube-rbac-proxy
+          image: {{.KubeRBACProxyImage}}
+          args:
+            - --secure-listen-address=0.0.0.0:8443
+            - --upstream=https://prometheus-operated.{{.Namespace}}.svc:9090
+            - --config-file=/etc/kube-rbac-proxy/config.yaml
+            - --tls-cert-file=/etc/tls/private/tls.crt
+            - --tls-private-key-file=/etc/tls/private/tls.key
+            - --upstream-ca-file=/etc/prometheus-ca/service-ca.crt
+            - --upstream-client-cert-file=/etc/prometheus-client/tls.crt
+            - --upstream-client-key-file=/etc/prometheus-client/tls.key
+            - --logtostderr=true
+            - --v=1
+            # Allow only metrics endpoint
+            - --allow-paths=/metrics
+          ports:
+            - containerPort: 8443
+              name: https
+              protocol: TCP
+          resources:
+            limits:
+              cpu: 20m
+              memory: 40Mi
+            requests:
+              cpu: 10m
+              memory: 20Mi
+          terminationMessagePolicy: FallbackToLogsOnError
+          volumeMounts:
+            - name: kube-rbac-proxy-config
+              mountPath: /etc/kube-rbac-proxy
+              readOnly: true
+            - name: tls
+              mountPath: /etc/tls/private
+              readOnly: true
+            - name: prometheus-ca
+              mountPath: /etc/prometheus-ca
+              readOnly: true
+            - name: prometheus-client-cert
+              mountPath: /etc/prometheus-client
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+          livenessProbe:
+            tcpSocket:
+              port: 8443
+            initialDelaySeconds: 5
+            periodSeconds: 30
+            failureThreshold: 4
+          readinessProbe:
+            tcpSocket:
+              port: 8443
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 20
+      volumes:
+        - name: kube-rbac-proxy-config
+          secret:
+            secretName: data-science-prometheus-cluster-proxy-kube-rbac-proxy
+        - name: tls
+          secret:
+            secretName: data-science-prometheus-cluster-proxy-tls
+        - name: prometheus-ca
+          configMap:
+            name: prometheus-web-tls-ca
+        - name: prometheus-client-cert
+          secret:
+            secretName: prometheus-operated-tls
+      nodeSelector:
+        kubernetes.io/os: linux
+      securityContext:
+        runAsNonRoot: true
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
+          operator: Exists
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/control-plane
+          operator: Exists
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: data-science-prometheus-cluster-proxy
+  namespace: {{.Namespace}}
+  labels:
+    app: data-science-prometheus-cluster-proxy
+    platform.opendatahub.io/part-of: monitoring
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: data-science-prometheus-cluster-proxy-tls
+spec:
+  type: ClusterIP
+  ports:
+    - name: https
+      port: 8443
+      protocol: TCP
+      targetPort: https
+  selector:
+    app: data-science-prometheus-cluster-proxy
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: data-science-prometheus-cluster-proxy
+  namespace: {{.Namespace}}
+  labels:
+    app: data-science-prometheus-cluster-proxy
+    platform.opendatahub.io/part-of: monitoring
+spec:
+  to:
+    kind: Service
+    name: data-science-prometheus-cluster-proxy
+    weight: 100
+  port:
+    targetPort: https
+  tls:
+    termination: reencrypt
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None

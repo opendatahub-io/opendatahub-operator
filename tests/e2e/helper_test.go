@@ -13,6 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -22,7 +23,9 @@ import (
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
 	. "github.com/onsi/gomega"
@@ -48,9 +51,10 @@ const (
 	certManagerOpName           = "openshift-cert-manager-operator"          // Name of the cert-manager Operator
 	certManagerOpNamespace      = "cert-manager-operator"                    // Name of the cert-manager Namespace
 	certManagerOpChannel        = "stable-v1"                                // Name of cert-manager operator stable channel
-	telemetryOpName             = "opentelemetry-product"                    // Name of the Telemetry Operator
+	jobSetOpName                = "job-set"                                  // Name of the JobSet Operator
+	jobSetOpNamespace           = "openshift-jobset-operator"                // Namespace for the JobSet Operator
+	jobSetOpChannel             = "stable-v1.0"                              // Name of the JobSet Operator stable channel
 	openshiftOperatorsNamespace = "openshift-operators"                      // Namespace for OpenShift Operators
-	telemetryOpNamespace        = "openshift-opentelemetry-operator"         // Namespace for the Telemetry Operator
 	observabilityOpName         = "cluster-observability-operator"           // Name of the Cluster Observability Operator
 	observabilityOpNamespace    = "openshift-cluster-observability-operator" // Namespace for the Cluster Observability Operator
 	tempoOpName                 = "tempo-product"                            // Name of the Tempo Operator
@@ -62,14 +66,22 @@ const (
 	kedaOpChannel               = "stable"                                   // Channel for KEDA operator
 	controllerDeploymentODH     = "opendatahub-operator-controller-manager"  // Name of the ODH deployment
 	controllerDeploymentRhoai   = "rhods-operator"                           // Name of the Rhoai deployment
+	leaderWorkerSetOpName       = "leader-worker-set"                        // Name of the Leader Worker Set Operator
+	leaderWorkerSetNamespace    = "openshift-lws-operator"                   // Namespace for the Leader Worker Set Operator
+	leaderWorkerSetChannel      = "stable-v1.0"                              // Channel for the Leader Worker Set Operator
+	kueueOcpOperatorNamespace   = "openshift-kueue-operator"                 // Namespace for the OCP Kueue Operator
+	kueueOcpOperatorChannel     = "stable-v1.2"                              // Channel for the OCP Kueue Operator
+	kuadrantOpName              = "rhcl-operator"                            // Name of the Red Hat Connectivity Link Operator subscription.
+	kuadrantNamespace           = "kuadrant-system"                          // Namespace for the Red Hat Connectivity Link Operator.
+
 )
 
 // Configuration and Miscellaneous Constants.
 const (
 	ownedNamespaceNumber = 1 // Number of namespaces owned, adjust to 4 for RHOAI deployment
 
-	dsciInstanceName = "e2e-test-dsci" // Instance name for the DSCInitialization
-	dscInstanceName  = "e2e-test-dsc"  // Instance name for the DataScienceCluster
+	dsciInstanceName = "default-dsci" // Instance name for the DSCInitialization
+	dscInstanceName  = "default-dsc"  // Instance name for the DataScienceCluster
 
 	// Standard error messages format.
 	resourceNotNilErrorMsg       = "Expected a non-nil resource object but got nil."
@@ -81,10 +93,24 @@ const (
 	unexpectedErrorMismatchMsg   = "Expected error '%v' to match the actual error '%v' for resource of kind '%s'."
 )
 
+type Operator struct {
+	nn                  types.NamespacedName
+	skipOperatorGroup   bool
+	globalOperatorGroup bool
+	channel             string
+}
+
 // TestCaseOpts defines a function type that can be used to modify how individual test cases are executed.
 type TestCaseOpts func(t *testing.T)
 
 // RunTestCases runs a series of test cases, optionally in parallel based on the provided options.
+// If the circuit breaker has tripped, remaining test cases are skipped with a clear message.
+//
+// Results are NOT recorded to the circuit breaker here because some suites call
+// t.Parallel() inside their test functions (not via WithParallel). In that case
+// t.Run returns immediately with a false "pass" that would reset the failure
+// counter. Recording happens at the mustRun level instead, which reliably waits
+// for all subtests to complete.
 //
 // Parameters:
 //   - t (*testing.T): The test context passed into the test function.
@@ -93,8 +119,15 @@ type TestCaseOpts func(t *testing.T)
 func RunTestCases(t *testing.T, testCases []TestCase, opts ...TestCaseOpts) {
 	t.Helper()
 
-	// Apply all provided options (e.g., parallel execution) to each test case.
 	for _, testCase := range testCases {
+		if circuitBreaker.IsOpen() {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Helper()
+				circuitBreaker.SkipIfOpen(t)
+			})
+			continue
+		}
+
 		t.Run(testCase.name, func(t *testing.T) {
 			// Set up panic handler for each individual test (must be first defer)
 			defer HandleGlobalPanic()
@@ -121,7 +154,6 @@ func RunTestCases(t *testing.T, testCases []TestCase, opts ...TestCaseOpts) {
 func WithParallel() TestCaseOpts {
 	return func(t *testing.T) {
 		t.Helper()
-
 		t.Parallel() // Marks the test case to run in parallel with other tests
 	}
 }
@@ -150,14 +182,17 @@ func ExtractAndExpectValue[T any](g Gomega, in any, expression string, matchers 
 }
 
 // CreateDSCI creates a DSCInitialization CR.
-func CreateDSCI(name, groupVersion string, appNamespace, monitoringNamespace string) *dsciv2.DSCInitialization {
+func CreateDSCI(name, appNamespace, monitoringNamespace string) *dsciv2.DSCInitialization {
 	return &dsciv2.DSCInitialization{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       "DSCInitialization",
-			APIVersion: groupVersion,
+			Kind:       gvk.DSCInitialization.Kind,
+			APIVersion: gvk.DSCInitialization.GroupVersion().String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
+			Labels: map[string]string{
+				"opendatahub.io/created-by-e2e-tests": "true",
+			},
 		},
 		Spec: dsciv2.DSCInitializationSpec{
 			ApplicationsNamespace: appNamespace,
@@ -186,6 +221,9 @@ func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceClust
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
+			Labels: map[string]string{
+				"opendatahub.io/created-by-e2e-tests": "true",
+			},
 		},
 		Spec: dscv2.DataScienceClusterSpec{
 			Components: dscv2.Components{
@@ -246,12 +284,27 @@ func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceClust
 						ManagementState: operatorv1.Removed,
 					},
 				},
+				Trainer: componentApi.DSCTrainer{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
 				FeastOperator: componentApi.DSCFeastOperator{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
 				LlamaStackOperator: componentApi.DSCLlamaStackOperator{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				MLflowOperator: componentApi.DSCMLflowOperator{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				SparkOperator: componentApi.DSCSparkOperator{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
@@ -269,6 +322,9 @@ func CreateDSCv1(name string, workbenchesNamespace string) *dscv1.DataScienceClu
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
+			Labels: map[string]string{
+				"opendatahub.io/created-by-e2e-tests": "true",
+			},
 		},
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
@@ -359,15 +415,15 @@ func CreateHardwareProfile(name, namespace, apiVersion string) *unstructured.Uns
 	defaultCount := intstr.FromInt32(2)
 
 	hwProfile := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": apiVersion,
 			"kind":       "HardwareProfile",
-			"metadata": map[string]interface{}{
+			"metadata": map[string]any{
 				"name":      name,
 				"namespace": namespace,
 			},
-			"spec": map[string]interface{}{
-				"identifiers": []map[string]interface{}{
+			"spec": map[string]any{
+				"identifiers": []map[string]any{
 					{
 						"displayName":  "GPU",
 						"identifier":   "nvidia.com/gpu",
@@ -377,14 +433,14 @@ func CreateHardwareProfile(name, namespace, apiVersion string) *unstructured.Uns
 						"resourceType": "Accelerator",
 					},
 				},
-				"scheduling": map[string]interface{}{
+				"scheduling": map[string]any{
 					"type": "Node",
-					"node": map[string]interface{}{
-						"nodeSelector": map[string]interface{}{
+					"node": map[string]any{
+						"nodeSelector": map[string]any{
 							"kubernetes.io/arch":             "amd64",
 							"node-role.kubernetes.io/worker": "",
 						},
-						"tolerations": []map[string]interface{}{
+						"tolerations": []map[string]any{
 							{
 								"key":      "nvidia.com/gpu",
 								"operator": "Exists",
@@ -398,6 +454,23 @@ func CreateHardwareProfile(name, namespace, apiVersion string) *unstructured.Uns
 	}
 
 	return hwProfile
+}
+
+// CreateJobSetOperator creates a JobSetOperator CR.
+func CreateJobSetOperator() *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "operator.openshift.io/v1",
+			"kind":       "JobSetOperator",
+			"metadata": map[string]any{
+				"name": "cluster",
+			},
+			"spec": map[string]any{
+				"logLevel":         "Normal",
+				"operatorLogLevel": "Normal",
+			},
+		},
+	}
 }
 
 // CreateNamespaceWithLabels creates a namespace manifest with optional labels for use with WithObjectToCreate.
@@ -445,6 +518,31 @@ func (tc *TestContext) getControllerDeploymentName() string {
 	return getControllerDeploymentNameByPlatform(platform)
 }
 
+// ensureOperatorsAreInstalled ensures the specified operators are installed using parallel test cases.
+func (tc *TestContext) ensureOperatorsAreInstalled(t *testing.T, operators []Operator) {
+	t.Helper()
+	// Create and run test cases in parallel.
+	testCases := make([]TestCase, len(operators))
+	for i, op := range operators {
+		testCases[i] = TestCase{
+			name: fmt.Sprintf("Ensure %s is installed", op.nn.Name),
+			testFn: func(t *testing.T) {
+				t.Helper()
+				switch {
+				case op.skipOperatorGroup:
+					tc.EnsureOperatorInstalledWithChannel(op.nn, op.channel)
+				case op.globalOperatorGroup:
+					tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(op.nn, op.channel)
+				default:
+					tc.EnsureOperatorInstalledWithLocalOperatorGroupAndChannel(op.nn, op.channel)
+				}
+			},
+		}
+	}
+
+	RunTestCases(t, testCases, WithParallel())
+}
+
 func getControllerDeploymentNameByPlatform(platform common.Platform) string {
 	switch platform {
 	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
@@ -453,5 +551,16 @@ func getControllerDeploymentNameByPlatform(platform common.Platform) string {
 		return controllerDeploymentODH
 	default:
 		return controllerDeploymentODH
+	}
+}
+
+func getDashboardRouteNameByPlatform(platform common.Platform) string {
+	switch platform {
+	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
+		return gateway.DashboardRouteNameRHOAI
+	case cluster.OpenDataHub:
+		return gateway.DashboardRouteNameODH
+	default:
+		return gateway.DashboardRouteNameODH
 	}
 }

@@ -51,6 +51,28 @@ spec:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+      - name: copy-manifests
+        # NOTE: image is provided in CI by pullspec substitution, and by make/kustomize for local builds
+        image: REPLACE_IMAGE:v0.0.0-placeholder
+        imagePullPolicy: Always
+        command: ["cp", "-r", "/opt/manifests-template/.", "/opt/manifests/"]
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - "ALL"
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            cpu: 100m
+            memory: 256Mi
+        volumeMounts:
+        - name: manifests
+          mountPath: /opt/manifests
       containers:
       - command:
         - /manager
@@ -65,15 +87,11 @@ spec:
             value: /opt/manifests
           - name: ODH_PLATFORM_TYPE
             value: OpenDataHub
-          # Kube-auth-proxy image configuration
-          # For RHOAI: Overridden by CSV. For ODH: Uses jtanner's public image
-          - name: RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
-            value: quay.io/opendatahub/odh-kube-auth-proxy:latest
         args:
         - --leader-elect
         - --operator-name=opendatahub
         # NOTE: image is provided in CI by pullspec substitution, and by make/kustomize for local builds
-        image: REPLACE_IMAGE:latest
+        image: REPLACE_IMAGE:v0.0.0-placeholder
         imagePullPolicy: Always
         name: manager
         ports:
@@ -82,6 +100,7 @@ spec:
             name: http
         securityContext:
           allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
           capabilities:
             drop:
               - "ALL"
@@ -101,10 +120,23 @@ spec:
         # More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
         resources:
           limits:
-            cpu: 500m
+            cpu: 1000m
             memory: 4Gi
           requests:
             cpu: 100m
             memory: 780Mi
+        volumeMounts:
+        - name: manifests
+          mountPath: /opt/manifests
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: manifests
+        emptyDir:
+          sizeLimit: 256Mi
+      - name: tmp
+        emptyDir:
+          medium: Memory
+          sizeLimit: 10Mi
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10

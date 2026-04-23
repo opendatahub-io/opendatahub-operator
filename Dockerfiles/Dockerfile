@@ -1,5 +1,5 @@
 # Build the manager binary
-ARG GOLANG_VERSION=1.24
+ARG GOLANG_VERSION=1.25
 
 ARG BUILDPLATFORM
 ARG TARGETPLATFORM
@@ -11,6 +11,7 @@ ARG OVERWRITE_MANIFESTS=""
 USER root
 WORKDIR /
 COPY opt/manifests/ /opt/manifests/
+COPY opt/charts/ /opt/charts/
 COPY get_all_manifests.sh get_all_manifests.sh
 RUN if [ "${USE_LOCAL}" != "true" ]; then \
         rm -rf /opt/manifests/*; \
@@ -21,9 +22,6 @@ RUN if [ "${USE_LOCAL}" != "true" ]; then \
 RUN rm -rf /opt/manifests/*/e2e /opt/manifests/*/scorecard /opt/manifests/*/test /opt/manifests/*/samples /opt/manifests/*/example-* \
     && find /opt/manifests -name "README.md" -delete
 
-# Copy monitoring config removing any possibly pre-existing symlinks
-RUN rm -f /opt/manifests/monitoring
-COPY config/monitoring/ /opt/manifests/monitoring
 # Copy ods-configs removing any possibly pre-existing symlinks
 RUN rm -f /opt/manifests/osd-configs
 COPY config/osd-configs/ /opt/manifests/osd-configs
@@ -43,6 +41,10 @@ WORKDIR /workspace
 # Copy the Go Modules manifests
 COPY go.mod go.mod
 COPY go.sum go.sum
+COPY pkg/clusterhealth/go.mod pkg/clusterhealth/go.mod
+COPY pkg/clusterhealth/go.sum pkg/clusterhealth/go.sum
+COPY pkg/failureclassifier/go.mod pkg/failureclassifier/go.mod
+COPY pkg/failureclassifier/go.sum pkg/failureclassifier/go.sum
 # cache deps before building and copying source so that we don't need to re-download as much
 # and so that source changes don't invalidate our downloaded layer
 RUN go mod download
@@ -51,23 +53,29 @@ RUN go mod download
 COPY api/ api/
 COPY internal/ internal/
 COPY cmd/main.go cmd/main.go
+COPY cmd/cloudmanager/ cmd/cloudmanager/
 COPY pkg/ pkg/
 
 # Build stripe out debug info to minimize binary size
 RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go build -a -ldflags="-s -w" -tags strictfipsruntime -o manager cmd/main.go
 
+# Build cloudmanager binary
+RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go build -a -ldflags="-s -w" -tags strictfipsruntime -o cloudmanager ./cmd/cloudmanager/
+
 ################################################################################
 FROM --platform=$TARGETPLATFORM registry.access.redhat.com/ubi9/ubi-minimal:latest
 WORKDIR /
 COPY --from=builder /workspace/manager .
-COPY --chown=1001:0 --from=manifests /opt/manifests /opt/manifests
+COPY --from=builder /workspace/cloudmanager .
+COPY --chown=1001:0 --from=manifests /opt/manifests /opt/manifests-template
+COPY --chown=1001:0 --from=manifests /opt/charts /opt/charts
 
 # tar installed to allow easy use of "oc cp" for component dev use cases.
 # See hack/component-dev/README.md in the source repo for more info.
 RUN microdnf install -y tar && microdnf clean all
 
 # Recursive change all files
-RUN chmod -R g=u /opt/manifests
+RUN chmod -R g=u /opt/manifests-template /opt/charts
 USER 1001
 
 ENTRYPOINT ["/manager"]

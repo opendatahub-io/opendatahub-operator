@@ -42,8 +42,7 @@ func dashboardTestSuite(t *testing.T) {
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate dynamically watches operands", componentCtx.ValidateOperandsDynamicallyWatchedResources},
 		{"Validate CRDs reinstated", componentCtx.ValidateCRDReinstated},
-		{"Validate hardware profile creation blocked by WebHook", componentCtx.ValidateHardwareProfileCreationBlockedByWebHook},
-		{"Validate accelerator profile creation blocked by WebHook", componentCtx.ValidateAcceleratorProfileCreationBlockedByWebHook},
+		{"Validate VAP blocks dashboard HardwareProfile and AcceleratorProfile creation", componentCtx.ValidateVAPBlocksDashboardCRCreation},
 		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
@@ -55,6 +54,8 @@ func dashboardTestSuite(t *testing.T) {
 // ValidateOperandsDynamicallyWatchedResources ensures that operands are correctly watched for dynamic updates.
 func (tc *DashboardTestCtx) ValidateOperandsDynamicallyWatchedResources(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, Smoke)
 
 	// Generate unique platform type values
 	newPt := xid.New().String()
@@ -94,12 +95,49 @@ func (tc *DashboardTestCtx) ValidateOperandsDynamicallyWatchedResources(t *testi
 func (tc *DashboardTestCtx) ValidateCRDReinstated(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, Tier1)
+
 	crds := []CRD{
 		{Name: "odhapplications.dashboard.opendatahub.io", Version: ""},
 		{Name: "odhdocuments.dashboard.opendatahub.io", Version: ""},
 	}
 
 	tc.ValidateCRDsReinstated(t, crds)
+}
+
+// ValidateVAPBlocksDashboardCRCreation verifies that ValidatingAdmissionPolicy blocks
+// creation of Dashboard HardwareProfile and AcceleratorProfile CRs.
+func (tc *DashboardTestCtx) ValidateVAPBlocksDashboardCRCreation(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+
+	t.Run("HardwareProfile blocked", func(t *testing.T) {
+		hwp := &unstructured.Unstructured{}
+		hwp.SetGroupVersionKind(gvk.DashboardHardwareProfile)
+		hwp.SetName("test-hwp-" + xid.New().String())
+		hwp.SetNamespace(tc.AppsNamespace)
+		hwp.Object["spec"] = map[string]any{
+			"displayName": "Test HardwareProfile",
+			"enabled":     true,
+		}
+		err := tc.Client().Create(tc.Context(), hwp)
+		tc.g.Expect(err).To(HaveOccurred(), "Expected HardwareProfile creation to be blocked by VAP")
+	})
+
+	t.Run("AcceleratorProfile blocked", func(t *testing.T) {
+		ap := &unstructured.Unstructured{}
+		ap.SetGroupVersionKind(gvk.DashboardAcceleratorProfile)
+		ap.SetName("test-ap-" + xid.New().String())
+		ap.SetNamespace(tc.AppsNamespace)
+		ap.Object["spec"] = map[string]any{
+			"displayName": "Test AcceleratorProfile",
+			"enabled":     true,
+			"identifier":  "nvidia.com/gpu",
+		}
+		err := tc.Client().Create(tc.Context(), ap)
+		tc.g.Expect(err).To(HaveOccurred(), "Expected AcceleratorProfile creation to be blocked by VAP")
+	})
 }
 
 // ValidateAllDeletionRecovery runs the standard set of deletion recovery tests.
@@ -113,43 +151,4 @@ func (tc *DashboardTestCtx) ValidateAllDeletionRecovery(t *testing.T) {
 	t.Run("Route deletion recovery", func(t *testing.T) {
 		tc.ValidateResourceDeletionRecovery(t, gvk.Route, types.NamespacedName{Namespace: tc.AppsNamespace})
 	})
-}
-
-// todo: remove this when CRD is not included
-func (tc *DashboardTestCtx) ValidateHardwareProfileCreationBlockedByWebHook(t *testing.T) {
-	t.Helper()
-
-	testHWPName := "test-hwp-" + xid.New().String()
-	// Create the HardwareProfile object
-	// not use EventuallyResourceCreatedOrUpdated to skip timeout and should expect failure
-	hwProfile := &unstructured.Unstructured{}
-	hwProfile.SetGroupVersionKind(gvk.DashboardHardwareProfile)
-	hwProfile.SetName(testHWPName)
-	hwProfile.SetNamespace(tc.AppsNamespace)
-	hwProfile.Object["spec"] = map[string]interface{}{
-		"displayName": "Test HardwareProfile",
-		"enabled":     true,
-	}
-
-	err := tc.Client().Create(tc.Context(), hwProfile)
-	tc.g.Expect(err).To(HaveOccurred(), "Expected HardwareProfile creation to be blocked by VAP")
-}
-
-// todo: remove this when CRD is not included
-func (tc *DashboardTestCtx) ValidateAcceleratorProfileCreationBlockedByWebHook(t *testing.T) {
-	t.Helper()
-
-	testAPName := "test-ap-" + xid.New().String()
-	apProfile := &unstructured.Unstructured{}
-	apProfile.SetGroupVersionKind(gvk.DashboardAcceleratorProfile)
-	apProfile.SetName(testAPName)
-	apProfile.SetNamespace(tc.AppsNamespace)
-	apProfile.Object["spec"] = map[string]interface{}{
-		"displayName": "Test AcceleratorProfile",
-		"enabled":     true,
-		"identifier":  "nvidia.com/gpu",
-	}
-
-	err := tc.Client().Create(tc.Context(), apProfile)
-	tc.g.Expect(err).To(HaveOccurred(), "Expected AcceleratorProfile creation to be blocked by VAP")
 }

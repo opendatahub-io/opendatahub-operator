@@ -13,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func formattedMessage(comparisonMessage string, failurePath []interface{}) string {
+func formattedMessage(comparisonMessage string, failurePath []any) string {
 	diffMessage := ""
 
 	if len(failurePath) != 0 {
@@ -23,7 +23,7 @@ func formattedMessage(comparisonMessage string, failurePath []interface{}) strin
 	return comparisonMessage + diffMessage
 }
 
-func formattedFailurePath(failurePath []interface{}) string {
+func formattedFailurePath(failurePath []any) string {
 	formattedPaths := make([]string, 0)
 
 	for i := len(failurePath) - 1; i >= 0; i-- {
@@ -98,35 +98,67 @@ func toType(in any) (any, error) {
 	case unstructured.UnstructuredList:
 		res := make([]any, 0, len(v.Items))
 		for i := range v.Items {
-			res = append(res, v.Items[i].Object)
+			d, err := normalizeObject(v.Items[i].Object)
+			if err != nil {
+				return nil, err
+			}
+			res = append(res, d)
 		}
 		return res, nil
 	case []unstructured.Unstructured:
 		res := make([]any, 0, len(v))
 		for i := range v {
-			res = append(res, v[i].Object)
+			d, err := normalizeObject(v[i].Object)
+			if err != nil {
+				return nil, err
+			}
+			res = append(res, d)
 		}
 		return res, nil
 	case unstructured.Unstructured:
-		return v.Object, nil
+		return normalizeObject(v.Object)
 	case []*unstructured.Unstructured:
 		res := make([]any, 0, len(v))
 		for i := range v {
-			res = append(res, v[i].Object)
+			if v[i] == nil {
+				return nil, fmt.Errorf("nil pointer at index %d in []*unstructured.Unstructured", i)
+			}
+			d, err := normalizeObject(v[i].Object)
+			if err != nil {
+				return nil, err
+			}
+			res = append(res, d)
 		}
 		return res, nil
 	case *unstructured.Unstructured:
-		return v.Object, nil
+		return normalizeObject(v.Object)
 	}
 
 	switch reflect.TypeOf(in).Kind() {
-	case reflect.Map:
-		return in, nil
-	case reflect.Slice:
-		return in, nil
+	case reflect.Map, reflect.Slice:
+		data, err := json.Marshal(in)
+		if err != nil {
+			return nil, fmt.Errorf("unable to marshal object: %w", err)
+		}
+
+		return byteToType(data)
 	default:
 		return nil, fmt.Errorf("unsuported type:\n%s", format.Object(in, 1))
 	}
+}
+
+// normalizeObject round-trips a map through JSON to normalize numeric types
+// (e.g. int64 → float64/int) so they match gojq literal types.
+func normalizeObject(obj map[string]any) (any, error) {
+	if obj == nil {
+		return obj, nil
+	}
+	data, err := json.Marshal(obj)
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal object: %w", err)
+	}
+
+	return byteToType(data)
 }
 
 func byteToType(in []byte) (any, error) {

@@ -1,0 +1,165 @@
+# clusterhealth
+
+Library for running health and diagnostics checks against a Kubernetes cluster. It returns structured data only; callers decide logging and formatting.
+
+This is a **standalone Go module** (`github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth`) that can be imported without pulling in the full operator dependency tree. Its only runtime dependencies are `controller-runtime`, `client-go`, and `k8s.io/apimachinery`.
+
+## Quick start
+
+Build a `Config` with your controller-runtime client and namespace/CR names, then call `Run`:
+
+```go
+import (
+	"context"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrl "sigs.k8s.io/controller-runtime/pkg/client/config"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+)
+
+// Get a client (e.g. from controller-runtime)
+kubeConfig, _ := ctrl.GetConfig()
+c, _ := client.New(kubeConfig, client.Options{Scheme: clientgoscheme.Scheme})
+
+cfg := clusterhealth.Config{
+	Client:   c,
+	Operator: clusterhealth.OperatorConfig{Namespace: "op-ns", Name: "op-deploy"},
+	Namespaces: clusterhealth.NamespaceConfig{
+		Apps:       "my-apps",
+		Monitoring: "my-monitoring",
+		Extra:      []string{"kube-system"},
+	},
+	DSCI: types.NamespacedName{}, // empty = discover DSCI on cluster
+	DSC:  types.NamespacedName{}, // empty = discover DSC on cluster
+}
+
+report, err := clusterhealth.Run(context.Background(), cfg)
+if err != nil {
+	// Only when client is nil or config invalid
+	return err
+}
+
+if !report.Healthy() {
+	// One or more sections have Error set
+	for _, name := range report.SectionsRun {
+		// Inspect report.Nodes.Error, report.Deployments.Error, etc.
+	}
+}
+
+// Human-readable table (optional long format with conditions/details)
+fmt.Print(report.PrettyPrint(false))  // summary only
+fmt.Print(report.PrettyPrint(true))   // summary + details (-l style)
+
+// Or use structured data
+for _, node := range report.Nodes.Data.Nodes {
+	if node.UnhealthyReason != "" {
+		// handle unhealthy node
+	}
+}
+for _, cond := range report.DSC.Data.Conditions {
+	// Type, Status, Message
+}
+```
+
+## Config
+
+- **Client** (required): controller-runtime `client.Client`.
+- **Operator** (required when running the operator section): namespace and deployment name of the main operator. If either is empty and the operator section runs, it returns error "operator config missing namespace or name".
+- **Namespaces** (optional): `Apps`, `Monitoring`, and `Extra` namespaces to scan for deployments, pods, events, quotas. None are required; empty or zero values are valid. If `List()` returns no namespaces, those sections return empty data with no error. The Nodes section does not use namespaces.
+- **DSCI / DSC**: `types.NamespacedName`. Leave empty to discover the singleton DSCI/DSC on the cluster; set to check a specific CR.
+- **OnlySections**: run only these sections (see Section constants). Overrides `Layers` when non-empty.
+- **Layers**: run sections from these layers (see Layer constants). Ignored if `OnlySections` is set.
+
+### Running a subset of sections
+
+```go
+// Only nodes and quotas (infrastructure)
+cfg.Layers = []string{clusterhealth.LayerInfrastructure}
+
+// Only workload sections (deployments, pods, events, operator, DSCI, DSC)
+cfg.Layers = []string{clusterhealth.LayerWorkload}
+
+// Only operator and CRs (operator deployment, DSCI, DSC)
+cfg.Layers = []string{clusterhealth.LayerOperator}
+
+// Specific sections by name
+cfg.OnlySections = []string{
+	clusterhealth.SectionNodes,
+	clusterhealth.SectionDSCI,
+	clusterhealth.SectionDSC,
+}
+
+// Section constants: SectionNodes, SectionDeployments, SectionPods, SectionEvents,
+// SectionQuotas, SectionOperator, SectionDSCI, SectionDSC.
+// Layer constants: LayerInfrastructure (nodes + quotas), LayerWorkload (rest), LayerOperator (operator, DSCI, DSC).
+```
+
+## Report
+
+- **CollectedAt**: time the run started.
+- **SectionsRun**: section names that were executed (useful when using `OnlySections` or `Layers`). `PrettyPrint` shows only these.
+- **Per-section**: `Nodes`, `Deployments`, `Pods`, `Events`, `Quotas`, `Operator`, `DSCI`, `DSC`, each a `SectionResult[T]` with:
+  - **Error**: non-empty if the check failed or found an unhealthy state.
+  - **Data**: typed section data (e.g. `NodesSection`, `DeploymentsSection`, `CRConditionsSection`).
+
+  For DSCI and DSC (CR condition sections), Error is set when the CR is not found, when `status.conditions` is malformed (e.g. not a slice), or when conditions indicate unhealthy.
+
+**Healthy()** returns true only when every section has no error. Partial failures (e.g. one namespace list fails) still populate other sections and set the failed section’s `Error`.
+
+### PrettyPrint
+
+`report.PrettyPrint(long bool)` returns a human-readable table. If `long` is true, it appends a "Details" block listing conditions and per-item data (e.g. each DSCI/DSC condition with type, status, message; each node with status; deployments/pods/events/quotas/operator details).
+
+### Operator section and dependent operators
+
+The operator section checks the main operator deployment and **all known dependent operators** (see the main repo README "External Operators (Prerequisites)" table). For each dependent we look for deployments in its known namespace; if any exist we treat it as installed. Every known dependent is listed in `report.Operator.Data.DependentOperators` with `Installed` true or false (and when installed: name, deployment, pods, error). Not-installed dependents are recorded but do not cause a section error.
+
+### Adding a CR condition check
+
+To add health checks for a new Custom Resource (CR) that has `status.conditions` (same shape as DSCI/DSC), wire it through the following. Use DSCI/DSC as the reference implementation.
+
+1. **GVK** (`pkg/clusterhealth/types.go`): Add a package-level `schema.GroupVersionKind` var for the CR (e.g. `MyCRGVK`). The `Kind` string is used to look up an optional unhealthy checker.
+
+2. **Section constant and layers** (`pkg/clusterhealth/sections.go`):
+   - Add a section constant, e.g. `SectionMyCR = "mycr"`.
+   - Add the section to `layerSections` for any layers that should include it (e.g. `LayerWorkload`, `LayerOperator`).
+   - Add it to the default list in `sectionsToRun()` (the slice passed to `sliceToSet` when no `OnlySections`/`Layers` are set).
+
+3. **Config** (`pkg/clusterhealth/config.go`): Add a field for the CR's namespaced name, e.g. `MyCR types.NamespacedName`. Empty name means "discover singleton via List".
+
+4. **Report and Healthy()** (`pkg/clusterhealth/types.go`): Add a field to `Report`, e.g. `MyCR SectionResult[CRConditionsSection]`, and include `r.MyCR.Error == ""` in `Healthy()`.
+
+5. **Run** (`pkg/clusterhealth/run.go`): Append the new section name to `sectionOrder`. Add a conditional: `if run[SectionMyCR] { report.MyCR = runCRConditionsSection(ctx, cfg.Client, MyCRGVK, cfg.MyCR) }`.
+
+6. **Format** (`pkg/clusterhealth/format.go`): Add an entry to `sectionDisplayOrder`. In `sectionStatusForKey` and `sectionSummaryForKey`, add a case for the new section (status from `r.MyCR.Error`, summary e.g. name + condition count). In `longDetailsForSection`, add a case that calls `r.longDetailsCRConditions(r.MyCR.Data.Name, r.MyCR.Data.Conditions)`.
+
+7. **Optional – custom unhealthy logic** (`pkg/clusterhealth/cr_helpers.go`): By default, any condition with `status != True` is reported as unhealthy. To override (e.g. ignore certain condition types or respect `managementState: Removed`), add an entry to `kindUnhealthyCheckers` keyed by the CR’s **Kind** and implement an `UnhealthyChecker`: `func(obj map[string]interface{}, conditions []ConditionSummary) []string` returning messages for conditions that count as unhealthy.
+
+8. **CLI** (`cmd/health-check/main.go`): In `loadConfig`, set the new Config field (e.g. `MyCR: types.NamespacedName{}`). The `-sections` and `-layer` flags already accept section names by string, so the new section is selectable as soon as it appears in `sections.go`.
+
+The CR must expose `status.conditions` as a slice of objects with `type`, `status`, and optional `message`. If `status.conditions` is missing, the section gets no error and empty conditions; if it is present but malformed (e.g. not a slice), the section’s `Error` is set.
+
+## CLI
+
+The `cmd/health-check` binary uses this library. It is its own Go module (`cmd/health-check/go.mod`), so run it from within that directory. Set the same env vars as e2e (`E2E_TEST_OPERATOR_NAMESPACE`, `E2E_TEST_APPLICATIONS_NAMESPACE`, `E2E_TEST_WORKBENCHES_NAMESPACE`, `E2E_TEST_DSC_MONITORING_NAMESPACE`), then:
+
+```bash
+cd cmd/health-check
+go run .                              # all sections, summary
+go run . -l                           # all sections, long format (conditions/details)
+go run . -json                        # full report as JSON
+go run . -layer=infrastructure
+go run . -layer=operator
+go run . -sections=nodes,dsci,dsc -l
+```
+
+Makefile targets (from repo root, see `cmd/health-check/Makefile`):
+
+- `make cluster-health` — all sections
+- `make cluster-health-l` — all sections, long format
+- `make cluster-health-json` — JSON output
+- `make cluster-health-infrastructure`, `make cluster-health-workload`, `make cluster-health-operator-layer` — by layer (infrastructure = nodes + quotas; workload = deployments, pods, events, operator, DSCI, DSC; operator = operator, DSCI, DSC)
+- `make cluster-health-infrastructure-l`, `make cluster-health-workload-l`, `make cluster-health-operator-layer-l` — by layer, long format
+
+To run a single section (e.g. nodes or dsc), use the CLI: `go run . -sections=nodes` or `-sections=dsc -l` for long format.

@@ -9,7 +9,7 @@ The list of the currently integrated ODH components is provided [at the end of t
 
 ## Use scaffolding to create boilerplate code
 
-Integrating a new component into the Open Data Hub (ODH) operator is  easier with the [component-codegen CLI](../cmd/component-codegen/README.md). The CLI automates much of the boilerplate code and file generation, significantly reducing manual effort and ensuring consistency.
+Integrating a new component into the Open Data Hub (ODH) operator is easier with the [component-codegen CLI](../cmd/component-codegen/README.md). The CLI automates much of the boilerplate code and file generation, significantly reducing manual effort and ensuring consistency.
 
 While the CLI handles most of the heavy lifting, it’s still important to understand the purpose of each generated file. Please refer to the following sections for a detailed breakdown of the key files and their roles in the integration process.
 
@@ -59,6 +59,11 @@ type ExampleComponentSpec struct {
 	ExampleComponentCommonSpec `json:",inline"`
 
 	// new component spec exposed only to internal api
+	// IMPORTANT: fields here must only be written by the operator itself (e.g. values
+	// discovered at run time based on cluster config). Never place user-facing configuration
+	// here — anything a user must set belongs in ExampleComponentCommonSpec so it is
+	// reachable through the DSC API. Internal CRDs are hidden from the OperatorHub UI
+	// and are not the expected user-facing API surface.
   	// ( refer/define here if applicable to the new component )
 }
 
@@ -95,19 +100,19 @@ func (c *ExampleComponent) GetStatus() *common.Status {
 	return &c.Status.Status
 }
 
-func (c *TrainingOperator) GetConditions() []common.Condition {
+func (c *ExampleComponent) GetConditions() []common.Condition {
 	return c.Status.GetConditions()
 }
 
-func (c *TrainingOperator) SetConditions(conditions []common.Condition) {
+func (c *ExampleComponent) SetConditions(conditions []common.Condition) {
 	c.Status.SetConditions(conditions)
 }
 
-func (c *TrainingOperator) GetReleaseStatus() *[]common.ComponentRelease {
+func (c *ExampleComponent) GetReleaseStatus() *[]common.ComponentRelease {
 	return &c.Status.Releases
 }
 
-func (c *TrainingOperator) SetReleaseStatus(releases []common.ComponentRelease) {
+func (c *ExampleComponent) SetReleaseStatus(releases []common.ComponentRelease) {
 	c.Status.Releases = releases
 }
 
@@ -143,6 +148,37 @@ type DSCExampleComponentStatus struct {
 ```
 
 Alternatively, you can refer to the existing integrated component APIs located within `api/component/v1alpha1` directory.
+
+#### Define internal resources for the new component
+
+Component CRDs can be marked as internal to hide them from users in the OperatorHub UI. Internal component CRDs are **not** the expected user-facing API surface — the DataScienceCluster (DSC) is. Any configuration field that a user must set must be surfaced through the DSC spec via `DSCExampleComponent` (using `ExampleComponentCommonSpec`). Fields that live only on the internal `ExampleComponentSpec` (outside of `CommonSpec`) must be values written exclusively by the operator itself, such as infrastructure details propagated from `GatewayConfig`. Most component resources should be internal; this means users are NOT expected to edit them directly.
+
+To mark your component as internal, update `config/manifests/bases/opendatahub-operator.clusterserviceversion.yaml` and `config/rhoai/manifests/bases/rhods-operator.clusterserviceversion.yaml`to add your component's CRD to the `operators.operatorframework.io/internal-objects` annotation:
+
+```yaml
+operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
+  "dashboards.components.platform.opendatahub.io", "datasciencepipelines.components.platform.opendatahub.io",
+  ...
+  "examplecomponents.components.platform.opendatahub.io"]'
+```
+
+#### Add component to the owned objects list
+
+Add your component to the `resources` list in `PROJECT` file (if you used [component-codegen CLI](../cmd/component-codegen/README.md), it should have been already added):
+
+```yaml
+    resources:
+    - api:
+        crdVersion: v1alpha1
+      controller: true
+      domain: platform.opendatahub.io
+      group: components
+      kind: ExampleComponent
+      path: github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1
+      version: v1alpha1
+```
+
+and run `make bundle-all` to verify your component has been correctly added to `config/manifests/bases/opendatahub-operator.clusterserviceversion.yaml` and `config/rhoai/manifests/bases/rhods-operator.clusterserviceversion.yaml`.
 
 #### Add Component to DataScienceCluster API spec
 
@@ -218,7 +254,7 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.PlatformObject
 
-func (s *componentHandler) Init(platform common.Platform) error 
+func (s *componentHandler) Init(platform common.Platform) error
 
 func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error)
 ```
@@ -310,8 +346,7 @@ the e2e test suite to capture deployments introduced by the new component.
 Existing e2e test suites for the integrated components can be also found there.
 
 Lastly, please update the following files to fully integrate new component tests into the overall test suite:
-- update `setupDSCInstance()` function in `tests/e2e/helper_test.go` to set new component in DSC
-- update `newDSC()` function in `/internal/webhook/webhook_suite_test.go` to update creation of DSC include the new component
+- update `CreateDSC()` function in `tests/e2e/helper_test.go` to set new component in DSC
 - update `componentsTestSuites` map in `tests/e2e/controller_test.go` to include the reference for the new component e2e test suite
 
 ### 4. Update Prometheus config and tests
@@ -319,6 +354,16 @@ Lastly, please update the following files to fully integrate new component tests
 If the component is planned to be released for downstream, Prometheus rules and promtest need to be updated for the component.
 - Rules are located in `./internal/controller/components/<component>/monitoring/<component>-prometheusrules.tmpl.yaml` file
 - Tests are grouped in `tests/prometheus_unit_tests` <component>_unit_tests.yam file
+
+
+### 5. Update CRD Kustomization reference
+
+Add new component CRD reference in `./config/crd/kustomization.yaml` file.
+
+
+### 6. Update list of owned/watched types by DataScienceCluster reconciler
+
+Adjust function `NewDataScienceClusterReconciler` in `./internal/controller/datasciencecluster/datasciencecluster_controller.go` to add component CR to be owned by DataScienceCluster .
 
 
 ## Integrated components
@@ -332,8 +377,11 @@ Currently integrated components are:
 - [ModelRegistry](https://github.com/opendatahub-io/model-registry)
 - [Ray](https://github.com/opendatahub-io/kuberay)
 - [Training Operator](https://github.com/opendatahub-io/training-operator)
+- [Trainer](https://github.com/opendatahub-io/trainer)
 - [TrustyAI](https://github.com/opendatahub-io/trustyai-service-operator)
 - [Workbenches](https://github.com/opendatahub-io/notebooks)
 - [Feast Operator](https://github.com/opendatahub-io/feast)
+- [MLflow Operator](https://github.com/opendatahub-io/mlflow-operator)
+- [Spark Operator](https://github.com/opendatahub-io/spark-operator)
 
 The particular controller implementations for the listed components are located in the `internal/controller/components` directory and the corresponding internal component APIs are located in `api/component/v1alpha1`.

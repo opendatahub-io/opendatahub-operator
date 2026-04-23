@@ -28,16 +28,18 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/imagestreams"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
-	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -53,7 +55,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&corev1.ServiceAccount{}).
 		Owns(&corev1.Service{}).
 		Owns(&admissionregistrationv1.MutatingWebhookConfiguration{}).
-		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
+		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(predicates.DefaultDeploymentPredicate)).
 		Watches(
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(
@@ -62,12 +64,23 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
 		).
 		Watches(&corev1.Namespace{}).
+		Watches(
+			&componentApi.MLflowOperator{},
+			reconciler.WithEventHandler(handlers.ToNamed(componentApi.WorkbenchesInstanceName)),
+		).
+		WatchesGVK(gvk.ImageStream,
+			reconciler.Dynamic(reconciler.CrdExists(gvk.ImageStream)),
+			reconciler.WithEventHandler(handlers.ToNamed(componentApi.WorkbenchesInstanceName)),
+		).
 		WithAction(initialize).
 		WithAction(releases.NewAction(
-			releases.WithMetadataFilePath(
-				path.Join(odhdeploy.DefaultManifestPath, ComponentName, kfNotebookControllerPath, releases.ComponentMetadataFilename)))).
+			releases.WithMetadataFilePath(func(rr *odhtypes.ReconciliationRequest) string {
+				return path.Join(rr.ManifestsBasePath, ComponentName, kfNotebookControllerPath, releases.ComponentMetadataFilename)
+			}))).
 		WithAction(configureDependencies).
+		WithAction(setKustomizedParams).
 		WithAction(kustomize.NewAction(
+			kustomize.WithCache(false),
 			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),
 		)).
@@ -75,6 +88,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			deploy.WithCache(),
 		)).
 		WithAction(deployments.NewAction()).
+		WithAction(imagestreams.NewAction()).
 		WithAction(updateStatus).
 		// must be the final action
 		WithAction(gc.NewAction()).

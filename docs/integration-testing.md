@@ -16,7 +16,6 @@ Integration tests are **MANDATORY** for pull requests that modify:
 - **Core Controller Logic** (`internal/controller/` changes)
 - **API Definitions** (`api/` directory changes)
 - **Webhook Implementations** (`internal/webhook/` changes)
-- **Bundle Manifests** (`bundle/` directory changes)
 - **Operator Configuration** (`config/` directory changes)
 - **Feature Framework** (`pkg/feature/` changes)
 
@@ -31,7 +30,7 @@ Integration tests are **RECOMMENDED** for:
 While using integration tests, please respect the following considerations and guidelines:
 
 ### Pipeline resource usage
-- Integration tests pipeline consumes significant cluster resources 
+- Integration tests pipeline consumes significant cluster resources
 - Typical execution time: around 60 minutes
 - Uses dedicated OpenShift clusters for testing
   - RHOAI Platform team owns two pre-configured clusters dedicated to integration testing
@@ -71,11 +70,11 @@ Step-by-step guide for enabling/disabling the test pipeline is provided below.
 1. **Label the PR as ready for integration tests**: comment `/label run-integration-tests` on the PR
 2. **Wait for the bot**: `openshift-ci bot` will add the label to your PR
 3. **Trigger the tests**: once PR is labeled, any new commit push into the PR branch will trigger the integration tests pipeline
-4. **Monitor the image building process**: Keep an eye on the `Build Catalog FBC and run Integration tests` GitHub Action. 
-Once this action succeeds, 
+4. **Monitor the image building process**: Keep an eye on the `Build Catalog FBC and run Integration tests` GitHub Action.
+Once this action succeeds,
    `github-actions bot` will comment on the PR, which will automatically trigger the Jenkins pipeline
    - **Troubleshooting:** please refer to [the dedicated troubleshooting section](#image-buildpush-action-issues)
-5. **Monitor the test process**: Once test pipeline starts in Jenkins, `rhods-ci-bot` will comment that the 
+5. **Monitor the test process**: Once test pipeline starts in Jenkins, `rhods-ci-bot` will comment that the
 tests have started, and provide a link to the Jenkins pipeline run details page
    - **Note:** Accessing the Jenkins pipeline run details requires active Red Hat VPN connection
    - **Troubleshooting:** please refer to [the dedicated troubleshooting sections](#jenkins-pipeline-not-triggering)
@@ -111,7 +110,7 @@ tests have started, and provide a link to the Jenkins pipeline run details page
 
 ### Jenkins pipeline not triggering
 - Verify the `/label run-integration-tests` command was successful
-- Check that your changes affect monitored paths (`bundle/`, `cmd/`, `config/`, `internal/`, `pkg/`)
+- Check that your changes affect monitored paths (`odh-bundle/`, `rhoai-bundle/`, `cmd/`, `config/`, `internal/`, `pkg/`)
 - Ensure the GitHub Action `Build Catalog FBC and run Integration tests` completed successfully
 - Look for the automated `/test-integration` comment from the `github-actions bot`
 

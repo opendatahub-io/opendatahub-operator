@@ -10,6 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -27,7 +28,6 @@ const (
 	CADataFieldName           = "odh-ca-bundle.crt"
 	TrustedCABundleFieldOwner = resources.PlatformFieldOwner + "/trustedcabundle"
 	PartOf                    = "opendatahub-operator"
-	NSListLimit               = 500
 )
 
 // CreateOdhTrustedCABundleConfigMap creates a configMap 'odh-trusted-ca-bundle' in given namespace with labels and data
@@ -105,6 +105,7 @@ func ShouldInjectTrustedCABundle(obj client.Object) bool {
 // dsciEventHandler creates an event handler for DSCInitialization events. When a DSCInitialization
 // resource changes, this handler enqueues reconciliation requests for all namespaces in the cluster,
 // allowing the controller to update CA Bundle configuration across all namespaces.
+// Since the namespace resource use cache, we don't need to use pagination.
 //
 // Parameters:
 //   - cli: Kubernetes client used to list namespaces
@@ -115,28 +116,18 @@ func dsciEventHandler(cli client.Client) handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
 		requests := make([]reconcile.Request, 0)
 
-		lo := client.ListOptions{
-			Limit: NSListLimit,
+		lo := client.ListOptions{}
+
+		namespaces := corev1.NamespaceList{}
+
+		if err := cli.List(ctx, &namespaces, &lo); err != nil {
+			return []reconcile.Request{}
 		}
 
-		for {
-			namespaces := corev1.NamespaceList{}
-
-			if err := cli.List(ctx, &namespaces, &lo); err != nil {
-				return []reconcile.Request{}
-			}
-
-			for _, ns := range namespaces.Items {
-				requests = append(requests, reconcile.Request{
-					NamespacedName: resources.NamespacedNameFromObject(&ns),
-				})
-			}
-
-			if namespaces.Continue == "" {
-				break
-			}
-
-			lo.Continue = namespaces.Continue
+		for _, ns := range namespaces.Items {
+			requests = append(requests, reconcile.Request{
+				NamespacedName: resources.NamespacedNameFromObject(&ns),
+			})
 		}
 
 		return requests
@@ -161,20 +152,28 @@ func dsciPredicates(_ client.Client) predicate.Funcs {
 		},
 
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			dsciOld, ok := e.ObjectOld.(*dsciv2.DSCInitialization)
-			if !ok {
-				return false
-			}
-			dsciNew, ok := e.ObjectNew.(*dsciv2.DSCInitialization)
-			if !ok {
-				return false
-			}
+			oldBundle := getTrustedCABundle(e.ObjectOld)
+			newBundle := getTrustedCABundle(e.ObjectNew)
 
-			return !reflect.DeepEqual(dsciOld.Spec.TrustedCABundle, dsciNew.Spec.TrustedCABundle)
+			return !reflect.DeepEqual(oldBundle, newBundle)
 		},
 
 		DeleteFunc: func(deleteEvent event.DeleteEvent) bool {
 			return false
 		},
+	}
+}
+
+// getTrustedCABundle extracts the TrustedCABundle field from a DSCInitialization object.
+// It handles both typed (*dsciv2.DSCInitialization) and unstructured objects.
+func getTrustedCABundle(obj client.Object) any {
+	switch o := obj.(type) {
+	case *dsciv2.DSCInitialization:
+		return o.Spec.TrustedCABundle
+	case *unstructured.Unstructured:
+		val, _, _ := unstructured.NestedFieldCopy(o.Object, "spec", "trustedCABundle")
+		return val
+	default:
+		return nil
 	}
 }

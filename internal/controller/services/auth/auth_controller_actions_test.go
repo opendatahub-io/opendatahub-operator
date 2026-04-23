@@ -2,10 +2,12 @@
 package auth
 
 import (
+	"slices"
 	"testing"
 
 	configv1 "github.com/openshift/api/config/v1"
 	userv1 "github.com/openshift/api/user/v1"
+	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -21,10 +23,16 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const (
+	roleBindingKind        = "RoleBinding"
+	clusterRoleBindingKind = "ClusterRoleBinding"
+)
+
 // setupTestClient creates a fake client with DSCI pre-configured
 // Set includeMockAuth to true if the test needs OAuth authentication.
 func setupTestClient(g Gomega, includeMockAuth bool) client.Client {
 	scheme := runtime.NewScheme()
+	g.Expect(corev1.AddToScheme(scheme)).Should(Succeed())
 	g.Expect(dsciv2.AddToScheme(scheme)).Should(Succeed())
 	g.Expect(rbacv1.AddToScheme(scheme)).Should(Succeed())
 	g.Expect(serviceApi.AddToScheme(scheme)).Should(Succeed())
@@ -40,7 +48,25 @@ func setupTestClient(g Gomega, includeMockAuth bool) client.Client {
 		},
 	}
 
-	objects := []client.Object{dsci}
+	testNs := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-namespace",
+		},
+	}
+
+	maasNs := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "models-as-a-service",
+		},
+	}
+
+	kuadrantNs := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "kuadrant-system",
+		},
+	}
+
+	objects := []client.Object{dsci, testNs, maasNs, kuadrantNs}
 
 	if includeMockAuth {
 		mockAuth := &configv1.Authentication{
@@ -65,19 +91,24 @@ func TestInitialize(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
 
+	fakeClient := setupTestClient(g, false)
+
 	// Create a basic reconciliation request
 	rr := &odhtypes.ReconciliationRequest{
+		Client:    fakeClient,
 		Templates: []odhtypes.TemplateInfo{},
 	}
 
 	err := initialize(ctx, rr)
 	g.Expect(err).ToNot(HaveOccurred())
 
-	// Verify templates were added
-	g.Expect(rr.Templates).To(HaveLen(3))
+	// Verify templates: 3 always + 1 for models-as-a-service + 1 for kuadrant-system = 5
+	g.Expect(rr.Templates).To(HaveLen(5))
 	g.Expect(rr.Templates[0].Path).To(Equal(AdminGroupRoleTemplate))
 	g.Expect(rr.Templates[1].Path).To(Equal(AdminGroupClusterRoleTemplate))
 	g.Expect(rr.Templates[2].Path).To(Equal(AllowedGroupClusterRoleTemplate))
+	g.Expect(rr.Templates[3].Path).To(Equal(AdminGroupMaaSRoleTemplate))
+	g.Expect(rr.Templates[4].Path).To(Equal(AdminGroupKuadrantRoleTemplate))
 }
 
 // TestBindRoleValidation validates the security filtering logic in the bindRole function.
@@ -108,14 +139,14 @@ func TestBindRoleValidation(t *testing.T) {
 		{
 			name:          "admin role skips system:authenticated",
 			groups:        []string{"admin1", "system:authenticated", "admin2"},
-			roleName:      "admingroup-role",
+			roleName:      "data-science-admingroup-role",
 			expectSkipped: []string{"system:authenticated"},
 			description:   "Should skip system:authenticated for admin roles",
 		},
 		{
 			name:          "admin role skips empty strings",
 			groups:        []string{"admin1", "", "admin2"},
-			roleName:      "admingroup-role",
+			roleName:      "data-science-admingroup-role",
 			expectSkipped: []string{""},
 			description:   "Should skip empty strings for admin roles",
 		},
@@ -138,7 +169,7 @@ func TestBindRoleValidation(t *testing.T) {
 				Resources: []unstructured.Unstructured{},
 			}
 
-			err := bindRole(ctx, rr, tt.groups, "test-binding", tt.roleName)
+			err := bindRole(ctx, rr, tt.groups, "test-binding", tt.roleName, "test-namespace")
 			g.Expect(err).ToNot(HaveOccurred(), tt.description)
 
 			// Verify a resource was added
@@ -147,11 +178,8 @@ func TestBindRoleValidation(t *testing.T) {
 			// Count expected valid groups (all groups minus skipped ones)
 			validGroupCount := len(tt.groups)
 			for _, group := range tt.groups {
-				for _, skipped := range tt.expectSkipped {
-					if group == skipped {
-						validGroupCount--
-						break
-					}
+				if slices.Contains(tt.expectSkipped, group) {
+					validGroupCount--
 				}
 			}
 
@@ -192,24 +220,23 @@ func TestManagePermissionsBasic(t *testing.T) {
 	err := managePermissions(ctx, rr)
 	g.Expect(err).ToNot(HaveOccurred(), "Should create all required RBAC resources")
 
-	// Verify resources were created (3 total: 1 RoleBindings + 2 ClusterRoleBinding)
-	g.Expect(rr.Resources).To(HaveLen(3), "Should create 3 RBAC resources")
+	// Verify resources: 3 RoleBindings + 2 ClusterRoleBindings = 5
+	g.Expect(rr.Resources).To(HaveLen(5), "Should create 5 RBAC resources")
 
-	// Count different resource types
 	roleBindings := 0
 	clusterRoleBindings := 0
 
 	for _, resource := range rr.Resources {
 		switch resource.GetKind() {
-		case "RoleBinding":
+		case roleBindingKind:
 			roleBindings++
-		case "ClusterRoleBinding":
+		case clusterRoleBindingKind:
 			clusterRoleBindings++
 		}
 	}
 
-	g.Expect(roleBindings).To(Equal(1), "Should create 1 RoleBindings")
-	g.Expect(clusterRoleBindings).To(Equal(2), "Should create 2 ClusterRoleBinding")
+	g.Expect(roleBindings).To(Equal(3), "Should create 3 RoleBindings")
+	g.Expect(clusterRoleBindings).To(Equal(2), "Should create 2 ClusterRoleBindings")
 }
 
 // TestManagePermissionsInvalidInstance validates error handling when the controller
@@ -257,4 +284,325 @@ func TestCreateDefaultGroupBasic(t *testing.T) {
 
 	err := createDefaultGroup(ctx, rr)
 	g.Expect(err).ToNot(HaveOccurred(), "Should handle group creation without error")
+}
+
+// TestManagePermissions validates that the controller creates the correct RBAC
+// resources. This test ensures:
+//
+//  1. Admin and allowed groups are configured correctly
+//  2. The correct number of RBAC resources are created
+//  3. All role bindings reference the correct roles
+func TestManagePermissions(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	fakeClient := setupTestClient(g, false)
+
+	auth := &serviceApi.Auth{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "auth",
+		},
+		Spec: serviceApi.AuthSpec{
+			AdminGroups:   []string{"admin1", "admin2"},
+			AllowedGroups: []string{"user1", "system:authenticated"},
+		},
+	}
+
+	// Create reconciliation request
+	rr := &odhtypes.ReconciliationRequest{
+		Client:    fakeClient,
+		Instance:  auth,
+		Resources: []unstructured.Unstructured{},
+	}
+
+	err := managePermissions(ctx, rr)
+	g.Expect(err).ToNot(HaveOccurred(), "Should create all required RBAC resources")
+
+	// Verify resources: 3 RoleBindings + 2 ClusterRoleBindings = 5
+	g.Expect(rr.Resources).To(HaveLen(5), "Should create 5 RBAC resources")
+
+	roleBindings := 0
+	clusterRoleBindings := 0
+	roleNames := []string{}
+	clusterRoleNames := []string{}
+
+	for _, resource := range rr.Resources {
+		switch resource.GetKind() {
+		case roleBindingKind:
+			roleBindings++
+			if roleRef, found, err := unstructured.NestedMap(resource.Object, "roleRef"); found && err == nil {
+				if roleName, ok := roleRef["name"].(string); ok {
+					roleNames = append(roleNames, roleName)
+				}
+			}
+		case clusterRoleBindingKind:
+			clusterRoleBindings++
+			if roleRef, found, err := unstructured.NestedMap(resource.Object, "roleRef"); found && err == nil {
+				if roleName, ok := roleRef["name"].(string); ok {
+					clusterRoleNames = append(clusterRoleNames, roleName)
+				}
+			}
+		}
+	}
+
+	g.Expect(roleBindings).To(Equal(3), "Should create 3 RoleBindings")
+	g.Expect(clusterRoleBindings).To(Equal(2), "Should create 2 ClusterRoleBindings")
+
+	// Verify cluster-scoped roles
+	g.Expect(clusterRoleNames).To(ContainElement("data-science-admingroupcluster-role"), "Should create admin group cluster role")
+	g.Expect(clusterRoleNames).To(ContainElement("data-science-allowedgroupcluster-role"), "Should create allowed group cluster role")
+
+	// Verify namespace-scoped roles
+	g.Expect(roleNames).To(ContainElement("data-science-admingroup-role"), "Should create admin group role")
+	g.Expect(roleNames).To(ContainElement("data-science-admingroup-maas-role"), "Should create MaaS admin group role")
+	g.Expect(roleNames).To(ContainElement("data-science-admingroup-kuadrant-role"), "Should create Kuadrant admin group role")
+}
+
+// TestManagePermissionsMultipleGroups validates that the controller works correctly
+// with multiple admin and allowed groups. This test ensures:
+//
+//  1. Multiple groups can be configured for both admin and allowed access
+//  2. The correct number of RBAC resources are created
+//  3. All role bindings are created with the correct subjects for each group
+//  4. Metrics admin role is not created (that's part of monitoring, not auth)
+func TestManagePermissionsMultipleGroups(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	fakeClient := setupTestClient(g, false)
+
+	// Use a distinctly different configuration with more groups
+	auth := &serviceApi.Auth{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "auth",
+		},
+		Spec: serviceApi.AuthSpec{
+			AdminGroups:   []string{"platform-admins", "data-science-admins", "ml-ops-admins"},
+			AllowedGroups: []string{"data-scientists", "analysts", "system:authenticated"},
+		},
+	}
+
+	// Create reconciliation request
+	rr := &odhtypes.ReconciliationRequest{
+		Client:    fakeClient,
+		Instance:  auth,
+		Resources: []unstructured.Unstructured{},
+	}
+
+	err := managePermissions(ctx, rr)
+	g.Expect(err).ToNot(HaveOccurred(), "Should create all required RBAC resources")
+
+	// Verify resources: 3 RoleBindings + 2 ClusterRoleBindings = 5
+	g.Expect(rr.Resources).To(HaveLen(5), "Should create 5 RBAC resources")
+
+	roleBindings := 0
+	clusterRoleBindings := 0
+	roleNames := []string{}
+	clusterRoleNames := []string{}
+
+	var adminGroupSubjects []any
+	var allowedGroupSubjects []any
+	var adminRoleSubjects []any
+	var kuadrantRoleSubjects []any
+
+	for _, resource := range rr.Resources {
+		switch resource.GetKind() {
+		case roleBindingKind:
+			roleBindings++
+			if roleRef, found, err := unstructured.NestedMap(resource.Object, "roleRef"); found && err == nil {
+				if roleName, ok := roleRef["name"].(string); ok {
+					roleNames = append(roleNames, roleName)
+					if subjects, found, err := unstructured.NestedSlice(resource.Object, "subjects"); found && err == nil {
+						switch roleName {
+						case "data-science-admingroup-role":
+							adminRoleSubjects = subjects
+						case "data-science-admingroup-kuadrant-role":
+							kuadrantRoleSubjects = subjects
+						}
+					}
+				}
+			}
+		case clusterRoleBindingKind:
+			clusterRoleBindings++
+			if roleRef, found, err := unstructured.NestedMap(resource.Object, "roleRef"); found && err == nil {
+				if roleName, ok := roleRef["name"].(string); ok {
+					clusterRoleNames = append(clusterRoleNames, roleName)
+					if subjects, found, err := unstructured.NestedSlice(resource.Object, "subjects"); found && err == nil {
+						switch roleName {
+						case "data-science-admingroupcluster-role":
+							adminGroupSubjects = subjects
+						case "data-science-allowedgroupcluster-role":
+							allowedGroupSubjects = subjects
+						}
+					}
+				}
+			}
+		}
+	}
+
+	g.Expect(roleBindings).To(Equal(3), "Should create 3 RoleBindings")
+	g.Expect(clusterRoleBindings).To(Equal(2), "Should create 2 ClusterRoleBindings")
+	g.Expect(clusterRoleNames).To(ContainElement("data-science-admingroupcluster-role"), "Should create admin group cluster role")
+	g.Expect(clusterRoleNames).To(ContainElement("data-science-allowedgroupcluster-role"), "Should create allowed group cluster role")
+	g.Expect(roleNames).To(ContainElement("data-science-admingroup-role"), "Should create admin group role")
+	g.Expect(roleNames).To(ContainElement("data-science-admingroup-kuadrant-role"), "Should create Kuadrant role")
+
+	// Verify subjects for admin groups (3 groups)
+	g.Expect(adminGroupSubjects).To(HaveLen(3), "Admin cluster role binding should have 3 subjects")
+	g.Expect(adminRoleSubjects).To(HaveLen(3), "Admin role binding should have 3 subjects")
+
+	// Verify subjects for new role bindings also get the admin groups
+	g.Expect(kuadrantRoleSubjects).To(HaveLen(3), "Kuadrant role binding should have 3 subjects")
+
+	// Verify subjects for allowed groups (3 groups)
+	g.Expect(allowedGroupSubjects).To(HaveLen(3), "Allowed cluster role binding should have 3 subjects")
+
+	// Verify specific group names are present in subjects
+	adminGroupNames := extractGroupNamesFromSubjects(adminGroupSubjects)
+	g.Expect(adminGroupNames).To(ConsistOf("platform-admins", "data-science-admins", "ml-ops-admins"))
+
+	kuadrantGroupNames := extractGroupNamesFromSubjects(kuadrantRoleSubjects)
+	g.Expect(kuadrantGroupNames).To(ConsistOf("platform-admins", "data-science-admins", "ml-ops-admins"))
+
+	allowedGroupNames := extractGroupNamesFromSubjects(allowedGroupSubjects)
+	g.Expect(allowedGroupNames).To(ConsistOf("data-scientists", "analysts", "system:authenticated"))
+}
+
+// TestManagePermissionsKuadrantNamespaceMissing validates that when the kuadrant-system
+// namespace does not exist, the kuadrant role binding is skipped while all other
+// bindings are still created. This tests the defensive namespace-existence check
+// in bindRole for externally-managed namespaces.
+func TestManagePermissionsKuadrantNamespaceMissing(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	// Build a client without the kuadrant-system namespace
+	scheme := runtime.NewScheme()
+	g.Expect(corev1.AddToScheme(scheme)).Should(Succeed())
+	g.Expect(dsciv2.AddToScheme(scheme)).Should(Succeed())
+	g.Expect(rbacv1.AddToScheme(scheme)).Should(Succeed())
+	g.Expect(serviceApi.AddToScheme(scheme)).Should(Succeed())
+	g.Expect(configv1.AddToScheme(scheme)).Should(Succeed())
+	g.Expect(userv1.AddToScheme(scheme)).Should(Succeed())
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(
+			&dsciv2.DSCInitialization{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-dsci"},
+				Spec:       dsciv2.DSCInitializationSpec{ApplicationsNamespace: "test-namespace"},
+			},
+			&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-namespace"}},
+			&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "models-as-a-service"}},
+		).
+		Build()
+
+	auth := &serviceApi.Auth{
+		ObjectMeta: metav1.ObjectMeta{Name: "auth"},
+		Spec: serviceApi.AuthSpec{
+			AdminGroups:   []string{"admin1"},
+			AllowedGroups: []string{"user1"},
+		},
+	}
+
+	rr := &odhtypes.ReconciliationRequest{
+		Client:    fakeClient,
+		Instance:  auth,
+		Resources: []unstructured.Unstructured{},
+	}
+
+	err := managePermissions(ctx, rr)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// 4 total: admin RB + maas RB + admin CRB + allowed CRB
+	// kuadrant RB skipped (no kuadrant-system namespace)
+	g.Expect(rr.Resources).To(HaveLen(4), "Should skip kuadrant RB when namespace is missing")
+
+	roleNames := []string{}
+	for _, resource := range rr.Resources {
+		if resource.GetKind() == roleBindingKind {
+			if roleRef, found, err := unstructured.NestedMap(resource.Object, "roleRef"); found && err == nil {
+				if roleName, ok := roleRef["name"].(string); ok {
+					roleNames = append(roleNames, roleName)
+				}
+			}
+		}
+	}
+
+	g.Expect(roleNames).To(ContainElement("data-science-admingroup-role"))
+	g.Expect(roleNames).To(ContainElement("data-science-admingroup-maas-role"))
+	g.Expect(roleNames).ToNot(ContainElement("data-science-admingroup-kuadrant-role"),
+		"Kuadrant role binding should not be created when namespace is missing")
+}
+
+// TestBindRoleSkipsWhenNamespaceMissing validates that bindRole gracefully skips
+// RoleBinding creation when the target namespace does not exist, returning nil
+// rather than an error.
+func TestBindRoleSkipsWhenNamespaceMissing(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	fakeClient := setupTestClient(g, false)
+
+	rr := &odhtypes.ReconciliationRequest{
+		Client:    fakeClient,
+		Resources: []unstructured.Unstructured{},
+	}
+
+	err := bindRole(ctx, rr, []string{"admin1"}, "test-binding", "test-role", "nonexistent-namespace")
+	g.Expect(err).ToNot(HaveOccurred(), "Should not error when namespace is missing")
+	g.Expect(rr.Resources).To(BeEmpty(), "Should not create RoleBinding when namespace is missing")
+}
+
+// TestManagePermissionsRoleBindingNamespaces validates that role bindings created by
+// managePermissions are placed in the correct namespaces.
+func TestManagePermissionsRoleBindingNamespaces(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	fakeClient := setupTestClient(g, false)
+
+	auth := &serviceApi.Auth{
+		ObjectMeta: metav1.ObjectMeta{Name: "auth"},
+		Spec: serviceApi.AuthSpec{
+			AdminGroups:   []string{"admin1"},
+			AllowedGroups: []string{"user1"},
+		},
+	}
+
+	rr := &odhtypes.ReconciliationRequest{
+		Client:    fakeClient,
+		Instance:  auth,
+		Resources: []unstructured.Unstructured{},
+	}
+
+	err := managePermissions(ctx, rr)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	namespaceByRole := map[string]string{}
+	for _, resource := range rr.Resources {
+		if resource.GetKind() == roleBindingKind {
+			if roleRef, found, err := unstructured.NestedMap(resource.Object, "roleRef"); found && err == nil {
+				if roleName, ok := roleRef["name"].(string); ok {
+					namespaceByRole[roleName] = resource.GetNamespace()
+				}
+			}
+		}
+	}
+
+	g.Expect(namespaceByRole).To(HaveKeyWithValue("data-science-admingroup-role", "test-namespace"))
+	g.Expect(namespaceByRole).To(HaveKeyWithValue("data-science-admingroup-maas-role", "models-as-a-service"))
+	g.Expect(namespaceByRole).To(HaveKeyWithValue("data-science-admingroup-kuadrant-role", "kuadrant-system"))
+}
+
+func extractGroupNamesFromSubjects(subjects []any) []string {
+	names := []string{}
+	for _, subject := range subjects {
+		if subjectMap, ok := subject.(map[string]any); ok {
+			if name, ok := subjectMap["name"].(string); ok {
+				names = append(names, name)
+			}
+		}
+	}
+	return names
 }

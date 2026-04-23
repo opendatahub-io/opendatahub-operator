@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -26,6 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/conversion"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
@@ -51,14 +53,19 @@ type MockManager struct {
 func (f *MockManager) GetClient() client.Client   { return f.client }
 func (f *MockManager) GetScheme() *runtime.Scheme { return f.scheme }
 
-func (f *MockManager) GetRESTMapper() meta.RESTMapper { return f.mapper } //nolint:ireturn
+func (f *MockManager) GetRESTMapper() meta.RESTMapper { return f.mapper }
 func (f *MockManager) GetConfig() *rest.Config        { return &rest.Config{} }
 
-func (f *MockManager) GetFieldIndexer() client.FieldIndexer { return nil } //nolint:ireturn
+//nolint:ireturn // Returns stdlib interface required by manager.Manager
+func (f *MockManager) GetFieldIndexer() client.FieldIndexer { return nil }
 
-func (f *MockManager) GetEventRecorderFor(name string) record.EventRecorder { return nil } //nolint:ireturn
+//nolint:ireturn // Returns stdlib interface required by manager.Manager
+func (f *MockManager) GetEventRecorderFor(name string) record.EventRecorder { return nil }
 
-//nolint:ireturn
+//nolint:ireturn // Returns stdlib interface required by manager.Manager
+func (f *MockManager) GetEventRecorder(name string) events.EventRecorder { return nil }
+
+//nolint:ireturn // Returns stdlib interface required by manager.Manager
 func (f *MockManager) GetCache() cache.Cache                                    { return nil }
 func (f *MockManager) GetLogger() logr.Logger                                   { return ctrl.Log }
 func (f *MockManager) Add(runnable manager.Runnable) error                      { return nil }
@@ -79,6 +86,9 @@ func (f *MockManager) GetHTTPClient() *http.Client { return &http.Client{} }
 
 //nolint:ireturn
 func (f *MockManager) GetWebhookServer() webhook.Server { return nil }
+
+//nolint:ireturn
+func (f *MockManager) GetConverterRegistry() conversion.Registry { return nil }
 
 //nolint:ireturn
 func setupTest(mockDashboard *componentApi.Dashboard) (context.Context, *MockManager, client.WithWatch) {

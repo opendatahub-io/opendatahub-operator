@@ -7,6 +7,12 @@ and configure these applications.
 ### Table of contents 
 - [Usage](#usage)
   - [Prerequisites](#prerequisites)
+    - [Platform Requirements](#platform-requirements)
+    - [External Operators (Prerequisites)](#external-operators-prerequisites)
+    - [ODH Component Operators (Managed by ODH)](#odh-component-operators-managed-by-odh)
+    - [Optional Components](#optional-components)
+    - [Namespace Requirements](#namespace-requirements)
+    - [Resource Requirements](#resource-requirements)
   - [Installation](#installation)
   - [Configuration](#configuration)
     - [Log mode values](#log-mode-values)
@@ -24,15 +30,28 @@ and configure these applications.
       - [for build operator image](#for-build-operator-image)
     - [Build Image](#build-image)
     - [Deployment](#deployment)
+      - [Deployment Methods Comparison](#deployment-methods-comparison)
+  - [Cloud Manager (CCM)](#cloud-manager-ccm)
+    - [Supported Providers](#supported-providers)
+    - [CCM Deployment](#ccm-deployment)
+  - [RHAII Mode](#rhaii-mode)
+    - [Prerequisites](#prerequisites-1)
+    - [Supported Providers](#supported-providers-1)
+    - [RHAII Deployment](#rhaii-deployment)
   - [Test with customized manifests](#test-with-customized-manifests)
   - [Update API docs](#update-api-docs)
   - [Change logging level at runtime](#change-logging-level-at-runtime)
   - [Example DSCInitialization](#example-dscinitialization)
   - [Example DataScienceCluster](#example-datasciencecluster)
+  - [Example GatewayConfig](#example-gatewayconfig)
   - [Run functional Tests](#run-functional-tests)
   - [Run e2e Tests](#run-e2e-tests)
     - [Configuring e2e Tests](#configuring-e2e-tests)
+    - [Cluster Setup for E2E](#cluster-setup-for-e2e)
+    - [Running a Single E2E Test](#running-a-single-e2e-test)
+    - [Change-to-Test Mapping](#change-to-test-mapping)
     - [E2E Tips/FAQ](#e2e-tipsfaq)
+      - [Alternative using E2E\_TEST\_FLAGS](#alternative-using-e2e_test_flags)
   - [Run Integration tests (Jenkins pipeline)](#run-integration-tests-jenkins-pipeline)
   - [Run Prometheus Unit Tests for Alerts](#run-prometheus-unit-tests-for-alerts)
   - [API Overview](#api-overview)
@@ -65,6 +84,7 @@ The following external operators are **required** or **recommended** depending o
 | **Tempo Operator** | Distributed tracing backend | Tracing infrastructure | Optional - for trace storage |
 | **Cluster Observability Operator** | Enhanced cluster monitoring | Production monitoring | Optional - for comprehensive observability |
 | **Perses Operator** | Dashboard and visualization for metrics | Monitoring dashboards and visualizations | Optional - Install from OperatorHub for enhanced metric visualization |
+| **JobSet Operator** | Providing JobSet controller | Trainer component | Optional - Install from OperatorHub for Trainer component integration |
 
 
 #### ODH Component Operators (Managed by ODH)
@@ -76,6 +96,7 @@ The following components are **automatically integrated** by the ODH operator ba
 | **KServe** | [opendatahub-io/kserve](https://github.com/opendatahub-io/kserve) | Model serving platform | Optional |
 | **Ray** | [opendatahub-io/kuberay](https://github.com/opendatahub-io/kuberay) | Distributed computing framework | Optional |
 | **Training Operator** | [opendatahub-io/training-operator](https://github.com/opendatahub-io/training-operator) | ML training job management | Optional |
+| **Trainer** | [opendatahub-io/trainer](https://github.com/opendatahub-io/trainer) | ML training job management | Optional |
 | **Feast Operator** | [opendatahub-io/feast](https://github.com/opendatahub-io/feast) | Feature store for ML | Optional |
 | **Model Registry Operator** | [opendatahub-io/model-registry](https://github.com/opendatahub-io/model-registry-operator) | Model versioning and registry | Optional |
 | **TrustyAI** | [opendatahub-io/trustyai-service-operator](https://github.com/opendatahub-io/trustyai-service-operator) | AI explainability and governance | Optional |
@@ -95,6 +116,7 @@ The following components are **automatically integrated** by the ODH operator ba
   - Prometheus (for metrics collection)
   - OpenTelemetry Collector (for distributed tracing)
   - Cluster monitoring capabilities
+  - See [Namespace-Restricted Metrics Documentation](docs/NAMESPACE_RESTRICTED_METRICS.md) for secure metrics access
 
 #### Namespace Requirements
 
@@ -157,6 +179,10 @@ ODH operator can be configured both through flags and environment variables, her
 | ZAP_LOG_LEVEL                                        | --zap-log-level             | Zap Level to configure the verbosity of logging. Can be one of 'debug', 'info', 'error'                                                                                    | info          |
 | ZAP_STACKTRACE_LEVEL                                 | --zap-stacktrace-level      | Zap Level at and above which stacktraces are captured (one of 'info', 'error', 'panic').                                                                                   |               |
 | ZAP_TIME_ENCODING                                    | --zap-time-encoding         | Zap time encoding (one of 'epoch', 'millis', 'nano', 'iso8601', 'rfc3339' or 'rfc3339nano').                                                                               |               |
+| OPERATOR_NAMESPACE                                   | --operator-namespace        | The namespace the operator is deployed in. Falls back to in-cluster service account namespace.                                                                              | (auto-detected) |
+| DISABLE_DSC_CONFIG                                   | --disable-dsc-config        | Disable automatic creation of default DSCInitialization CR.                                                                                                                 | false         |
+| DEFAULT_MANIFESTS_PATH                               | --default-manifests-path    | Base path for component manifests.                                                                                                                                          |               |
+| ODH_PLATFORM_TYPE                                    | --platform-type             | Platform type override (OpenDataHub, ManagedRHOAI, SelfManagedRHOAI, XKS). Auto-detects if empty.                                                                          | (auto-detected) |
 
 If both env variables and flags are set for the same configuration, flags values will be used.
 
@@ -296,7 +322,21 @@ e.g `make image-build USE_LOCAL=true"`
   export KUBECONFIG=<path to kubeconfig>
   ```
 
+- The operator can be built in ODH or RHOAI mode (build defaults to ODH mode); to build in RHOAI mode, use
+  `ODH_PLATFORM_TYPE=rhoai`
+
+  ```commandline
+  make image ODH_PLATFORM_TYPE=rhoai
+  ```
+
 #### Deployment
+
+##### Deployment Methods Comparison
+
+| Method | Use Case | OLM Required | Appears in OpenShift Console |
+|--------|----------|--------------|------------------------------|
+| **OLM Deployment** | Production-like, catalog-based | ✅ Yes | ✅ Yes (Operators section) |
+| **Direct Deployment** (`make deploy`) | Development, testing | ❌ No | ❌ No |
 
 **Deploying operator locally**
 
@@ -320,6 +360,11 @@ e.g `make image-build USE_LOCAL=true"`
 
 **Deploying operator using OLM**
 
+***Detailed Deployement instructions***
+- [OpenDataHub and RHOAI OLM Deployment](./docs/OLMDeployment.md)
+
+***Quick-Start***
+
 - To create a new bundle in defined operator namespace, run following command:
 
   ```commandline
@@ -334,6 +379,8 @@ e.g `make image-build USE_LOCAL=true"`
   ```commandline
   make bundle-build bundle-push BUNDLE_IMG=quay.io/<username>/opendatahub-operator-bundle:<VERSION>
   ```
+
+- RHOAI bundle can be built using `ODH_PLATFORM_TYPE=rhoai` with any of the bundle make targets.
 
 - Run the Bundle on a cluster:
 
@@ -368,6 +415,150 @@ e.g `make image-build USE_LOCAL=true"`
   ```commandline
   make catalog-build catalog-push -e CATALOG_IMG=quay.io/<username>/opendatahub-operator-index:<target_version> BUNDLE_IMGS=<list-of-comma-separated-bundle-images>
   ```
+
+### Cloud Manager (CCM)
+
+The Cloud Manager (CCM) is a separate controller that manages cloud-based Kubernetes clusters. It handles infrastructure provisioning and dependency management for supported cloud providers.
+
+#### Supported Providers
+
+| Provider | CRD | Description |
+|----------|-----|-------------|
+| **Azure** | `AzureKubernetesEngine` | Manages Azure AKS cluster infrastructure |
+| **CoreWeave** | `CoreWeaveKubernetesEngine` | Manages CoreWeave cluster infrastructure |
+
+Each provider manages dependencies such as Gateway API, cert-manager, LeaderWorkerSet (LWS), and Sail Operator.
+
+#### CCM Deployment
+
+**Build the cloud manager binary:**
+
+```commandline
+make build-ccm
+```
+
+**Deploy a cloud manager to the cluster (e.g., Azure):**
+
+```commandline
+make deploy-ccm-azure IMG=quay.io/<username>/opendatahub-operator:<custom-tag>
+```
+
+**Deploy with local image pull policy (for development):**
+
+```commandline
+make deploy-ccm-local-azure IMG=quay.io/<username>/opendatahub-operator:<custom-tag>
+```
+
+**Run a cloud manager locally:**
+
+```commandline
+make run-ccm-azure
+```
+
+**Install only the CRDs:**
+
+```commandline
+make install-ccm-azure
+```
+
+**Undeploy / Uninstall:**
+
+```commandline
+make undeploy-ccm-azure
+make uninstall-ccm-azure
+```
+
+Replace `azure` with `coreweave` for CoreWeave targets.
+
+**Example `AzureKubernetesEngine` CR:**
+
+```yaml
+apiVersion: infrastructure.opendatahub.io/v1alpha1
+kind: AzureKubernetesEngine
+metadata:
+  name: default-azurekubernetesengine
+spec:
+  dependencies:
+    gatewayAPI:
+      managementPolicy: Managed
+    certManager:
+      managementPolicy: Managed
+    lws:
+      managementPolicy: Managed
+    sailOperator:
+      managementPolicy: Managed
+```
+
+**Example `CoreWeaveKubernetesEngine` CR:**
+
+```yaml
+apiVersion: infrastructure.opendatahub.io/v1alpha1
+kind: CoreWeaveKubernetesEngine
+metadata:
+  name: default-coreweavekubernetesengine
+spec:
+  dependencies:
+    gatewayAPI:
+      managementPolicy: Managed
+    certManager:
+      managementPolicy: Managed
+    lws:
+      managementPolicy: Managed
+    sailOperator:
+      managementPolicy: Managed
+```
+
+### RHAII Mode
+
+RHAII (Red Hat AI Inference) is a deployment mode that runs a subset of the operator focused exclusively on **KServe**. This is useful when you only need model serving capabilities without the full Open Data Hub stack.
+
+In RHAII mode, the operator deploys only the KServe component CRD and its associated webhooks (connection-isvc and connection-llmisvc mutation webhooks).
+
+#### Prerequisites
+
+RHAII mode requires **cert-manager** to be available in the cluster. This dependency can be satisfied in one of two ways:
+
+1. **`CoreWeaveKubernetesEngine` CR**: Deploy the appropriate Cloud Manager (Azure or CoreWeave) and create the corresponding `AzureKubernetesEngine` or `CoreWeaveKubernetesEngine` CR with `certManager.managementPolicy: Managed`. The Cloud Manager will install and manage cert-manager automatically along with other dependencies. To deploy a Cloud Manager, see [CCM Deployment](#ccm-deployment).
+2. **Installing cert-manager manually**: Install cert-manager directly in the cluster before deploying the RHAII operator.
+
+#### Supported Providers
+
+Tests are also performed with a KinD instance.
+
+| Provider | Description |
+|----------|-------------|
+| **Azure** | Azure Kubernetes Engine cloud provider |
+| **CoreWeave** | CoreWeave Kubernetes Engine cloud provider |
+
+#### RHAII Deployment
+
+**Deploy in RHAII mode:**
+
+```commandline
+make deploy-rhaii IMG=quay.io/<username>/opendatahub-operator:<custom-tag>
+```
+
+**Deploy with local image pull policy (for development):**
+
+```commandline
+make deploy-rhaii-local IMG=quay.io/<username>/opendatahub-operator:<custom-tag>
+```
+
+**Undeploy:**
+
+```commandline
+make undeploy-rhaii
+```
+
+**Example KServe CR for RHAII:**
+
+```yaml
+apiVersion: components.platform.opendatahub.io/v1alpha1
+kind: Kserve
+metadata:
+  name: default-kserve
+spec: {}
+```
 
 ### Test with customized manifests
 
@@ -479,15 +670,18 @@ spec:
       managementState: Managed
       nim:
         managementState: Managed
+      wva:
+        managementState: Removed
       rawDeploymentServiceConfig: Headed
     kueue:
-      managementState: Unmanaged
+      managementState: Removed
     modelregistry:
       managementState: Managed
-      registriesNamespace: "odh-model-registries"
     ray:
       managementState: Managed
     trainingoperator:
+      managementState: Managed
+    trainer:
       managementState: Managed
     trustyai:
       managementState: Managed
@@ -497,6 +691,10 @@ spec:
       managementState: Managed
     llamastackoperator:
       managementState: Removed
+    mlflowoperator:
+      managementState: Managed
+    sparkoperator:
+      managementState: Managed
 ```
 
 2. Enable only Dashboard and Workbenches
@@ -529,6 +727,126 @@ spec:
 ```
 
 **Note:** The `workbenchNamespace` field once set, it cannot be changed (immutable).
+
+### Example GatewayConfig
+
+The GatewayConfig custom resource is used to configure gateway settings for OpenDataHub, including OIDC authentication and ingress gateway configuration. This CR is cluster-scoped and must be named `default-gateway`.
+
+**Automatic Creation**: The GatewayConfig CR is automatically created when a DSCInitialization CR is applied to the cluster. Users typically don't need to create this CR manually unless they want to configure OIDC authentication mode or customize ingress gateway settings.
+
+Here's an example of the default GatewayConfig CR (automatically created):
+
+```yaml
+apiVersion: services.platform.opendatahub.io/v1alpha1
+kind: GatewayConfig
+metadata:
+  name: default-gateway
+spec:
+  cookie: {}  # Uses defaults: expire: 24h, refresh: 1h
+  certificate:
+    type: OpenshiftDefaultIngress
+```
+
+For a setup with custom certificate (Provided type):
+
+```yaml
+apiVersion: services.platform.opendatahub.io/v1alpha1
+kind: GatewayConfig
+metadata:
+  name: default-gateway
+spec:
+  cookie: {}  # Uses defaults: expire: 24h, refresh: 1h
+  domain: "*.apps.example.com"
+  certificate:
+    type: Provided
+    secretName: custom-tls-cert  # Secret must already exist in openshift-ingress namespace with tls.crt and tls.key
+```
+
+For an advanced example with OIDC authentication:
+
+```yaml
+apiVersion: services.platform.opendatahub.io/v1alpha1
+kind: GatewayConfig
+metadata:
+  name: default-gateway
+spec:
+  oidc:
+    issuerURL: "https://keycloak.example.com/auth/realms/opendatahub"
+    clientID: "opendatahub-client"
+    clientSecretRef:
+      name: oidc-client-secret
+      key: client-secret
+  cookie:
+    expire: 24h  # Default: 24h
+    refresh: 1h  # Default: 1h
+  domain: "*.apps.example.com"
+  authTimeout: 10s  # Default: 5s
+  certificate:
+    type: SelfSigned
+```
+
+For an advanced example using cluster domain with custom subdomain:
+
+```yaml
+apiVersion: services.platform.opendatahub.io/v1alpha1
+kind: GatewayConfig
+metadata:
+  name: default-gateway
+spec:
+  cookie: {}  # Uses defaults
+  domain: apps.example.com
+  certificate:
+    type: SelfSigned
+```
+
+This will create a gateway `rh-ai.apps.example.com` (using default subdomain)
+
+
+For an advanced example with custom subdomain:
+
+```yaml
+apiVersion: services.platform.opendatahub.io/v1alpha1
+kind: GatewayConfig
+metadata:
+  name: default-gateway
+spec:
+  cookie: {}  # Uses defaults
+  domain: apps.cluster.example.com
+  subdomain: custom-gateway
+  certificate:
+    type: SelfSigned
+```
+
+This will use the cluster's default domain with your custom subdomain: `custom-gateway.apps.cluster.example.com`
+
+For an advanced example to disable NetworkPolicy creation for auth proxy:
+
+```yaml
+apiVersion: services.platform.opendatahub.io/v1alpha1
+kind: GatewayConfig
+metadata:
+  name: default-gateway
+spec:
+  cookie: {}
+  certificate:
+    type: SelfSigned
+  networkPolicy:
+    ingress:
+      enabled: false
+```
+
+**Note:** NetworkPolicy is enabled by default to restrict access to the kube-auth-proxy.
+
+**Important Notes:**
+- The GatewayConfig name must be exactly `default-gateway`
+- This is a cluster-scoped resource
+- **Automatic creation**: This CR is automatically created after DSCInitialization CR is applied
+- **Manual configuration needed**: Only configure this CR manually if you want to enable OIDC authentication mode or customize ingress gateway settings
+- OIDC configuration is optional and only needed when cluster is in OIDC authentication mode
+- Certificate types can be `OpenshiftDefaultIngress`, `SelfSigned`, or `Provided`
+- If `subdomain` is not specified or is empty, the default value `rh-ai` is used.
+- If `domain` is not specified, the cluster's default domain is used.
+- **NetworkPolicy is enabled by default** to secure kube-auth-proxy traffic. It restricts ingress to Gateway pods and monitoring namespaces only.
 
 ### Run functional Tests
 
@@ -568,43 +886,54 @@ make e2e-test
 #### Configuring e2e Tests
 Evn vars can be set to configure e2e tests:
 
-| Configuration Env var           | Description                                                                                                                                                                  | Default value                 |
-|---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------|
-| E2E_TEST_OPERATOR_NAMESPACE     | Namespace where the ODH operator is deployed.                                                                                                                                | `opendatahub-operator-system` |
-| E2E_TEST_APPLICATIONS_NAMESPACE | Namespace where the ODH applications are deployed.                                                                                                                           | `opendatahub`                 |
-| E2E_TEST_WORKBENCHES_NAMESPACE | Namespace where the workbenches are deployed. | `opendatahub` |
-| E2E_TEST_DSC_MONITORING_NAMESPACE | Namespace where the ODH monitoring is deployed. | `opendatahub` |
-| E2E_TEST_OPERATOR_CONTROLLER    | To configure the execution of tests related to the Operator POD, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes      | `true`                        |
-| E2E_TEST_OPERATOR_RESILIENCE    | To configure the execution of operator resilience tests, useful for testing operator fault tolerance scenarios                                 | `true`                        |
-| E2E_TEST_WEBHOOK                | To configure the execution of tests related to the Operator WebHooks, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes | `true`                        |
-| E2E_TEST_DELETION_POLICY        | Specify when to delete `DataScienceCluster`, `DSCInitialization`, and controllers. Valid options are: `always`, `on-failure`, and `never`.                                   | `always`                      |
-| E2E_TEST_COMPONENTS             | Enable testing of individual components specified by --test-component flag                                                                                                   | `true`                        |
-| E2E_TEST_COMPONENT              | A space separated configuration to control which component should be tested, by default all component specific test are executed                                             | `all components`              |
-| E2E_TEST_SERVICES               | Enable testing of individual services specified by --test-service flag                                                                                                       | `true`                        |
-| E2E_TEST_SERVICE                | A space separated configuration to control which services should be tested, by default all service specific test are executed                                                | `all services`                |
-| E2E_TEST_OPERATOR_V2TOV3UPGRADE | To configure the execution of V2 to V3 upgrade tests, useful for testing V2 to V3 upgrade scenarios                                                                       | `true`                        |
-| E2E_TEST_HARDWARE_PROFILE       | To configure the execution of hardware profile tests, useful for testing hardware profile functionality for v1 and v1alpha1                                              | `true`                        |
-|                                 |                                                                                                                                                                              |                               |
-| E2E_TEST_FLAGS                  | Alternatively the above configurations can be passed to e2e-tests as flags using this env var (see flags table below)                                                        |                               |
+| Configuration Env var                | Description                                                                                                                                                                                                  | Default value                 |
+|--------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------|
+| E2E_TEST_OPERATOR_NAMESPACE          | Namespace where the ODH operator is deployed.                                                                                                                                                                | `opendatahub-operator-system` |
+| E2E_TEST_APPLICATIONS_NAMESPACE      | Namespace where the ODH applications are deployed.                                                                                                                                                           | `opendatahub`                 |
+| E2E_TEST_WORKBENCHES_NAMESPACE       | Namespace where the workbenches are deployed.                                                                                                                                                                | `opendatahub`                 |
+| E2E_TEST_DSC_MONITORING_NAMESPACE    | Namespace where the ODH monitoring is deployed.                                                                                                                                                              | `opendatahub`                 |
+| E2E_TEST_DEPENDANT_OPERATORS_MANAGEMENT | To configure the execution of tests related to the Dependant Operators management, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes                     | `true`                        |
+| E2E_TEST_DSC_MANAGEMENT             | To configure the execution of DSCI/DSC management tests, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes                                              | `true`                        |
+| E2E_TEST_DSC_VALIDATION             | To configure the execution of DSCI/DSC validation tests, this is useful to run e2e tests for an operator running in xKS cluster                                              | `true`                        |
+| E2E_TEST_OPERATOR_CONTROLLER         | To configure the execution of tests related to the Operator POD, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes                                      | `true`                        |
+| E2E_TEST_OPERATOR_RESILIENCE         | To configure the execution of operator resilience tests, useful for testing operator fault tolerance scenarios                                                                                               | `true`                        |
+| E2E_TEST_WEBHOOK                     | To configure the execution of tests related to the Operator WebHooks, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes                                 | `true`                        |
+| E2E_TEST_DELETION_POLICY             | Specify when to delete `DataScienceCluster`, `DSCInitialization`, and controllers. Valid options are: `always`, `on-failure`, and `never`.                                                                   | `always`                      |
+| E2E_TEST_COMPONENTS                  | Enable testing of individual components specified by --test-component flag                                                                                                                                   | `true`                        |
+| E2E_TEST_COMPONENT                   | A space separated configuration to control which component should be tested, by default all component specific test are executed                                                                             | `all components`              |
+| E2E_TEST_SERVICES                    | Enable testing of individual services specified by --test-service flag                                                                                                                                       | `true`                        |
+| E2E_TEST_SERVICE                     | A space separated configuration to control which services should be tested, by default all service specific test are executed                                                                                | `all services`                |
+| E2E_TEST_OPERATOR_V2TOV3UPGRADE      | To configure the execution of V2 to V3 upgrade tests, useful for testing V2 to V3 upgrade scenarios                                                                                                          | `true`                        |
+| E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES | To configure the cleaning-up of the previous resources in the cluster. This flag is quite useful to test custom scenarios, as well as running the tests after upgrade, to keep the previous DSC and test it. | `true`                        |
+| E2E_TEST_CIRCUIT_BREAKER             | Enable circuit breaker to halt tests on repeated infrastructure failures.                                                                                                                                    | `true`                        |
+| E2E_TEST_CIRCUIT_BREAKER_THRESHOLD   | Consecutive infrastructure failures before health-checking for infrastructure problems.                                                                                                                      | `3`                           |
+| E2E_TEST_TAG                         | Tag to run tests for. Options: `All`, `Smoke`, `Tier1`.                                                                                                                                                      | `All`                         |
+| E2E_TEST_FLAGS                       | Alternatively the above configurations can be passed to e2e-tests as flags using this env var (see flags table below)                                                                                        |                               |
 
 Alternatively the above configurations can be passed to e2e-tests as flags by setting up `E2E_TEST_FLAGS` variable. Following table lists all the available flags:
 
-| Flag                          | Description                                                                                                                                                                  | Default value                 |
-|----------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------|
-| --operator-namespace          | Namespace where the ODH operator is deployed.                                                                                                                                | `opendatahub-operator-system` |
-| --applications-namespace      | Namespace where the ODH applications are deployed.                                                                                                                           | `opendatahub`                 |
-| --workbenches-namespace | Namespace where the workbenches are deployed. | `opendatahub` |
-| --dsc-monitoring-namespace | Namespace where the ODH monitoring is deployed. | `opendatahub` |
-| --test-operator-controller    | To configure the execution of tests related to the Operator POD, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes      | `true`                        |
-| --test-operator-resilience    | To configure the execution of operator resilience tests, useful for testing operator fault tolerance scenarios                                 | `true`                        |
-| --test-webhook                | To configure the execution of tests related to the Operator WebHooks, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes | `true`                        |
-| --deletion-policy             | Specify when to delete `DataScienceCluster`, `DSCInitialization`, and controllers. Valid options are: `always`, `on-failure`, and `never`.                                   | `always`                      |
-| --test-components             | Enable testing of individual components specified by --test-component flag                                                                                                   | `true`                        |
-| --test-component              | A repeatable (or comma separated no spaces) flag that control which component should be tested, by default all component specific test are executed                          | `all components`              |
-| --test-services               | Enable testing of individual services specified by --test-service flag                                                                                                       | `true`                        |
-| --test-service                | A repeatable (or comma separated no spaces) flag that control which services should be tested, by default all service specific test are executed                             | `all services`                |
-| --test-operator-v2tov3upgrade | To configure the execution of V2 to V3 upgrade tests, useful for testing V2 to V3 upgrade scenarios                                                                       | `true`                        |
-| --test-hardware-profile       | To configure the execution of hardware profile tests, useful for testing hardware profile functionality between v1 and v1alpah1                                               | `true`                        |
+| Flag                          | Description                                                                                                                                                                                                  | Default value                 |
+|-------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------|
+| --operator-namespace          | Namespace where the ODH operator is deployed.                                                                                                                                                                | `opendatahub-operator-system` |
+| --applications-namespace      | Namespace where the ODH applications are deployed.                                                                                                                                                           | `opendatahub`                 |
+| --workbenches-namespace       | Namespace where the workbenches are deployed.                                                                                                                                                                | `opendatahub` |
+| --dsc-monitoring-namespace    | Namespace where the ODH monitoring is deployed.                                                                                                                                                              | `opendatahub` |
+| --test-dependant-operators-management | To configure the execution of tests related to the Dependant Operators management, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes                     | `true`                        |
+| --test-dsc-management        | To configure the execution of DSCI/DSC management tests, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes                                              | `true`                        |
+| --test-dsc-validation        | To configure the execution of DSCI/DSC validation tests, this is useful to run e2e tests for an operator running in xKS cluster                                              | `true`                        |
+| --test-operator-controller    | To configure the execution of tests related to the Operator POD, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes                                      | `true`                        |
+| --test-operator-resilience    | To configure the execution of operator resilience tests, useful for testing operator fault tolerance scenarios                                                                                               | `true`                        |
+| --test-webhook                | To configure the execution of tests related to the Operator WebHooks, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes                                 | `true`                        |
+| --deletion-policy             | Specify when to delete `DataScienceCluster`, `DSCInitialization`, and controllers. Valid options are: `always`, `on-failure`, and `never`.                                                                   | `always`                      |
+| --test-components             | Enable testing of individual components specified by --test-component flag                                                                                                                                   | `true`                        |
+| --test-component              | A repeatable (or comma separated no spaces) flag that control which component should be tested, by default all component specific test are executed                                                          | `all components`              |
+| --test-services               | Enable testing of individual services specified by --test-service flag                                                                                                                                       | `true`                        |
+| --test-service                | A repeatable (or comma separated no spaces) flag that control which services should be tested, by default all service specific test are executed                                                             | `all services`                |
+| --test-operator-v2tov3upgrade | To configure the execution of V2 to V3 upgrade tests, useful for testing V2 to V3 upgrade scenarios                                                                                                          | `true`                        |
+| --clean-up-previous-resources | To configure the cleaning-up of the previous resources in the cluster. This flag is quite useful to test custom scenarios, as well as running the tests after upgrade, to keep the previous DSC and test it. | `true`                        |
+| --circuit-breaker             | Enable circuit breaker to halt tests on repeated infrastructure failures.                                                                                                                                    | `true`                        |
+| --circuit-breaker-threshold   | Consecutive infrastructure failures before health-checking for infrastructure problems.                                                                                                                      | `3`                           |
+| --tag                         | Tag to run tests for. Options: `All`, `Smoke`, `Tier1`.                                                                                                                                                      | `All`                         |
 
 <details>
 <summary>Running E2E tests with custom application namespace</summary>
@@ -658,6 +987,40 @@ Example commands to run test suite excluding tests for ray `component`:
 make e2e-test -e E2E_TEST_OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_COMPONENT=!ray
 ```
 
+#### Cluster Setup for E2E
+
+Before running any single E2E test, DSCI and DSC resources must exist. Use this setup command to create DSCI and DSC and run operator controller tests to make sure everything is ready:
+```shell
+make e2e-setup-cluster
+```
+
+This runs `e2e-test` with component tests, webhook tests, services tests, resilience tests, upgrade tests, and hardware profile tests
+disabled, deletion policy set to `never`, and cleanup enabled. After setup completes, you can run individual
+component or service tests against the prepared cluster.
+
+#### Running a Single E2E Test
+
+Use `e2e-test-single` to run a single test function by its full path. The test path follows the format
+`TestOdhOperator/<group>/<component-or-service>/<test-name>`:
+
+```shell
+# Run a single component test
+make e2e-test-single TEST="TestOdhOperator/Component_Tests/dashboard/Validate component enabled"
+
+# Run a single service test
+make e2e-test-single TEST="TestOdhOperator/Service_Tests/monitoring/Validate.*Prometheus"
+
+# Run a single test matching a pattern (regex supported)
+make e2e-test-single TEST="TestOdhOperator/Component_Tests/mlflowoperator/Validate update operand resources"
+```
+
+```shell
+go test -v -run "TestOdhOperator/Component_Tests/dashboard/Validate component enabled" ./tests/e2e/ --timeout=15m
+```
+
+**Note:** `e2e-test-single` does **not** create DSCI/DSC or handle component dependencies. Ensure prerequisites
+exist before running (see [Cluster Setup for E2E](#cluster-setup-for-e2e)).
+
 Additionally specific env vars can be used to configure tests timeouts
 
 | Timeouts Env var                         | Description                                                                             | Default value |
@@ -668,6 +1031,40 @@ Additionally specific env vars can be used to configure tests timeouts
 | E2E_TEST_DEFAULTEVENTUALLYPOLLINTERVAL   | Polling interval for Eventually; overrides Gomega's default of 10 milliseconds.         | `2s`          |
 | E2E_TEST_DEFAULTCONSISTENTLYTIMEOUT      | Duration used for Consistently; overrides Gomega's default of 2 seconds.                | `10s`         |
 | E2E_TEST_DEFAULTCONSISTENTLYPOLLINTERVAL | Polling interval for Consistently; overrides Gomega's default of 50 milliseconds.       | `2s`          |
+
+#### Change-to-Test Mapping
+
+Quick reference: "I changed code in directory X — which E2E test(s) should I run?"
+
+| What You Changed | Pre-Test Steps | E2E Test Command |
+|---|---|---|
+| `internal/controller/components/<comp>/` | None | `make e2e-test -e E2E_TEST_COMPONENT=<comp>` |
+| `internal/controller/services/<svc>/` | None | `make e2e-test -e E2E_TEST_SERVICE=<svc>` |
+| `api/components/v1alpha1/<comp>_types.go` | `make generate manifests api-docs` | `make e2e-test -e E2E_TEST_COMPONENT=<comp>` |
+| `api/datasciencecluster/`, `api/dscinitialization/` | `make generate manifests api-docs` | `make e2e-test` (full suite) |
+| `internal/controller/datasciencecluster/` or `dscinitialization/` | None | `make e2e-test` (full suite) |
+| `pkg/`, `config/`, `cmd/main.go` | None | `make e2e-test` (full suite) |
+| `opt/manifests/<comp>/` | None | `make e2e-test -e E2E_TEST_COMPONENT=<comp>` |
+
+**Components with dependencies** — include dependencies in `E2E_TEST_COMPONENT`:
+
+| Component | Dependencies | E2E Command |
+|---|---|---|
+| kueue | workbenches | `make e2e-test -e E2E_TEST_COMPONENT=workbenches,kueue` |
+| modelcontroller | kserve, modelregistry | `make e2e-test -e E2E_TEST_COMPONENT=kserve,modelregistry,modelcontroller` |
+| modelsasservice | kserve | `make e2e-test -e E2E_TEST_COMPONENT=kserve,modelsasservice` |
+| trustyai | kserve | `make e2e-test -e E2E_TEST_COMPONENT=kserve,trustyai` |
+
+**Webhook directory mapping** — webhook dirs don't always match their component:
+
+| Webhook Directory | Test Command |
+|---|---|
+| `webhook/serving/` | `E2E_TEST_COMPONENT=kserve` |
+| `webhook/notebook/` | `E2E_TEST_COMPONENT=workbenches` |
+| `webhook/kueue/` | `E2E_TEST_COMPONENT=workbenches,kueue` |
+| `webhook/dashboard/` | `E2E_TEST_COMPONENT=dashboard` |
+| `webhook/monitoring/` | `E2E_TEST_SERVICE=monitoring` |
+| `webhook/datasciencecluster/`, `webhook/dscinitialization/` | `make e2e-test` (full suite) |
 
 #### E2E Tips/FAQ
 
@@ -733,9 +1130,15 @@ make e2e-test -e E2E_TEST_FLAGS="--test-operator-controller=false --test-webhook
 <details>
 <summary>How do I run a specific test?</summary>
 
+Use the `e2e-test-single` target:
+
 ```shell
-go test -v -run "TestOdhOperator/Operator_Resilience_E2E_Tests/Validate_components_deployment_failure" ./tests/e2e --timeout=15m
+make e2e-test-single TEST="TestOdhOperator/Component_Tests/dashboard/Validate component enabled"
+make e2e-test-single TEST="TestOdhOperator/Service_Tests/monitoring/Validate.*Prometheus"
 ```
+
+
+See [Running a Single E2E Test](#running-a-single-e2e-test) for more details.
 
 </details>
 

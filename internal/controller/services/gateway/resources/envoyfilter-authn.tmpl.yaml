@@ -1,0 +1,127 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: {{.EnvoyFilter}}
+  namespace: {{.GatewayNamespace}}
+  labels:
+    {{.PartOfLabelKey}}: {{.PartOfLabelValue}}
+    {{.ComponentLabelKey}}: {{.ComponentLabelValue}}
+    {{.IstioRevisionLabel}}: {{.IstioRevisionValue}}
+spec:
+  workloadSelector:
+    labels:
+      {{.GatewayNameLabelKey}}: {{.GatewayName}}
+  configPatches:
+  # ext_authz for authentication
+  - applyTo: HTTP_FILTER
+    match:
+      context: GATEWAY
+      listener:
+        filterChain:
+          filter:
+            name: "envoy.filters.network.http_connection_manager"
+            subFilter:
+              name: "envoy.filters.http.router"
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: envoy.filters.http.ext_authz
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+          transport_api_version: V3
+          http_service:
+            server_uri:
+              uri: https://{{.KubeAuthProxyServiceName}}.{{.GatewayNamespace}}.svc.cluster.local:{{.GatewayHTTPSPort}}/oauth2/auth
+              # Use Istio's auto-created EDS cluster for better load balancing across all pods
+              cluster: outbound|{{.GatewayHTTPSPort}}||{{.KubeAuthProxyServiceName}}.{{.GatewayNamespace}}.svc.cluster.local
+              timeout: {{.AuthProxyTimeout}}
+            authorization_request:
+              allowed_headers:
+                patterns:
+                - exact: cookie
+                - exact: authorization
+            authorization_response:
+              allowed_upstream_headers:
+                patterns:
+                - exact: x-auth-request-user
+                - exact: x-auth-request-email
+                - exact: x-auth-request-access-token
+                - exact: authorization
+              allowed_client_headers:
+                patterns:
+                - exact: set-cookie
+  # Lua for token forwarding after auth
+  - applyTo: HTTP_FILTER
+    match:
+      context: GATEWAY
+      listener:
+        filterChain:
+          filter:
+            name: "envoy.filters.network.http_connection_manager"
+            subFilter:
+              name: "envoy.filters.http.router"
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: envoy.filters.http.lua
+        typed_config:
+          "@type": "type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua"
+          inline_code: |
+            function envoy_on_request(request_handle)
+              -- Check for authentication success indicators from ext_authz response.
+              -- OAuth mode: x-auth-request-access-token is set (--pass-access-token + --set-xauthrequest)
+              -- OIDC mode: x-auth-request-user is set (--set-xauthrequest), authorization header
+              --   is already set by ext_authz via allowed_upstream_headers (--set-authorization-header)
+              local access_token = request_handle:headers():get("x-auth-request-access-token")
+              local auth_user = request_handle:headers():get("x-auth-request-user")
+
+              -- OAuth mode: set authorization and forwarded token from access_token
+              if access_token then
+                request_handle:headers():add("x-forwarded-access-token", access_token)
+                request_handle:headers():replace("authorization", "Bearer " .. access_token)
+              elseif auth_user then
+                -- OIDC mode: authorization header already set by ext_authz (contains id_token)
+                -- Extract token from authorization header for x-forwarded-access-token
+                local auth_header = request_handle:headers():get("authorization")
+                if auth_header then
+                  local token = auth_header:match("^Bearer%s+(.+)")
+                  if token then
+                    request_handle:headers():add("x-forwarded-access-token", token)
+                  end
+                end
+              end
+
+              -- Strip OAuth2 proxy cookies when authenticated (either mode)
+              if access_token or auth_user then
+                -- Cookie name is injected at runtime from AuthProxyCookieName constant (gateway_support.go:59)
+                -- Pattern matches cookies starting with the cookie name, handling variations like:
+                --   - _oauth2_proxy (main cookie)
+                --   - _oauth2_proxy_1, _oauth2_proxy_2 (split cookies if cookie size exceeds limits)
+                local cookie_header = request_handle:headers():get("cookie")
+                if cookie_header then
+                  local filtered_cookies = {}
+                  local cookie_pattern = "^{{.AuthProxyCookieName}}"
+
+                  -- Parse and filter cookies in a single pass
+                  for cookie in cookie_header:gmatch("([^;]+)") do
+                    -- Trim whitespace and extract cookie name
+                    local trimmed = cookie:match("^%s*(.-)%s*$")
+                    if trimmed and trimmed ~= "" then
+                      local cookie_name = trimmed:match("^([^=]+)")
+                      -- Only keep cookies that don't match the OAuth2 proxy cookie pattern
+                      if cookie_name and not cookie_name:match(cookie_pattern) then
+                        table.insert(filtered_cookies, trimmed)
+                      end
+                    end
+                  end
+
+                  -- Update or remove Cookie header based on filtered results
+                  if #filtered_cookies > 0 then
+                    request_handle:headers():replace("cookie", table.concat(filtered_cookies, "; "))
+                  else
+                    request_handle:headers():remove("cookie")
+                  end
+                end
+              end
+              -- If no auth indicators present, preserve cookies (needed for ext_authz authentication)
+            end

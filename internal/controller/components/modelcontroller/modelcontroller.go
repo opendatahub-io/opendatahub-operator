@@ -19,19 +19,18 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 )
 
 type componentHandler struct{}
 
-func init() { //nolint:gochecknoinits
-	cr.Add(&componentHandler{})
-}
+func NewHandler() *componentHandler { return &componentHandler{} }
 
 func (s *componentHandler) GetName() string {
 	return componentApi.ModelControllerComponentName
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
+func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
 	// extra logic to set the management .spec.component.managementState, to not leave blank {}
 	kState := operatorv1.Removed
 	if dsc.Spec.Components.Kserve.ManagementState == operatorv1.Managed {
@@ -61,19 +60,25 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 			Kserve: &componentApi.ModelControllerKerveSpec{
 				ManagementState: kState,
 				NIM:             dsc.Spec.Components.Kserve.NIM,
+				WVA:             dsc.Spec.Components.Kserve.WVA,
 			},
 			ModelRegistry: &componentApi.ModelControllerMRSpec{
 				ManagementState: mrState,
 			},
 		},
-	}
+	}, nil
 }
 
 // Init for set images.
-func (s *componentHandler) Init(_ common.Platform) error {
+func (s *componentHandler) Init(_ common.Platform, cfg operatorconfig.OperatorSettings) error {
+	mBasePath := cfg.ManifestsBasePath
 	// Update image parameters
-	if err := odhdeploy.ApplyParams(manifestsPath().String(), "params.env", imageParamMap); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", manifestsPath(), err)
+	if err := odhdeploy.ApplyParams(manifestsPath(mBasePath).String(), "params.env", imageParamMap); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", manifestsPath(mBasePath), err)
+	}
+
+	if err := odhdeploy.ApplyParams(wvaManifestsPath(mBasePath).String(), "params.env", wvaImageParamMap); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", wvaManifestsPath(mBasePath), err)
 	}
 
 	return nil
@@ -101,12 +106,24 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
+	if !c.GetDeletionTimestamp().IsZero() {
+		rr.Conditions.MarkFalse(
+			ReadyConditionType,
+			conditions.WithReason(status.DeletingReason),
+			conditions.WithMessage(status.DeletingMessage),
+		)
+		return metav1.ConditionFalse, nil
+	}
+
 	if s.IsEnabled(dsc) {
 		if rc := conditions.FindStatusCondition(c.GetStatus(), status.ConditionTypeReady); rc != nil {
 			rr.Conditions.MarkFrom(ReadyConditionType, *rc)
 			cs = rc.Status
 		} else {
 			cs = metav1.ConditionFalse
+		}
+		if wvaCondition := conditions.FindStatusCondition(c.GetStatus(), LLMDWVADependencies); wvaCondition != nil {
+			rr.Conditions.MarkFrom(LLMDWVADependencies, *wvaCondition)
 		}
 	} else {
 		rr.Conditions.MarkFalse(

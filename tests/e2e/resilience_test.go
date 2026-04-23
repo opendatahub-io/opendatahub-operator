@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strings"
 	"testing"
-	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
@@ -44,9 +43,12 @@ const (
 func operatorResilienceTestSuite(t *testing.T) {
 	t.Helper()
 
-	// Initialize the test context.
+	// Initialize the test context to check platform early.
 	tc, err := NewTestContext(t)
 	require.NoError(t, err, "Failed to initialize test context")
+
+	// Resilience tests often rely on DSC/DSCI which don't exist in XKS/KinD.
+	tc.SkipIfXKSCluster(t)
 
 	// Create an instance of resilience test context.
 	resilienceTestCtx := OperatorResilienceTestCtx{
@@ -72,6 +74,8 @@ func operatorResilienceTestSuite(t *testing.T) {
 func (tc *OperatorResilienceTestCtx) ValidateOperatorDeployment(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, Tier1)
+
 	deploymentName := tc.getControllerDeploymentName()
 
 	// Verify if the operator deployment is created and healthy
@@ -84,6 +88,8 @@ func (tc *OperatorResilienceTestCtx) ValidateOperatorDeployment(t *testing.T) {
 // ValidateLeaderElectionBehavior validates that leader election works correctly when the current leader pod is deleted.
 func (tc *OperatorResilienceTestCtx) ValidateLeaderElectionBehavior(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, Tier1)
 
 	// Find and delete current leader
 	originalLeader := tc.findLeaderPodFromLeases()
@@ -113,6 +119,8 @@ func (tc *OperatorResilienceTestCtx) ValidateLeaderElectionBehavior(t *testing.T
 func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentSuccess(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, Tier1)
+
 	componentName := componentApi.DashboardComponentName
 
 	tc.EventuallyResourcePatched(
@@ -129,6 +137,8 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentSuccess(t *test
 func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *testing.T) {
 	t.Helper()
 
+	skipUnless(t, Tier1)
+
 	// To handle upstream/downstream i trimmed prefix(odh) from few controller names
 	componentToControllerMap := map[string]string{
 		componentApi.DashboardComponentName:            "dashboard",
@@ -136,9 +146,12 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 		componentApi.FeastOperatorComponentName:        "feast-operator-controller-manager",
 		componentApi.KserveComponentName:               "kserve-controller-manager",
 		componentApi.LlamaStackOperatorComponentName:   "llama-stack-k8s-operator-controller-manager",
+		componentApi.MLflowOperatorComponentName:       "mlflow-operator-controller-manager",
 		componentApi.ModelRegistryComponentName:        "model-registry-operator-controller-manager",
 		componentApi.RayComponentName:                  "kuberay-operator",
+		componentApi.SparkOperatorComponentName:        "spark-operator-controller",
 		componentApi.TrainingOperatorComponentName:     "kubeflow-training-operator",
+		componentApi.TrainerComponentName:              "kubeflow-trainer-controller-manager",
 		// componentApi.TrustyAIComponentName:             "trustyai-service-operator-controller-manager",
 		componentApi.WorkbenchesComponentName: "notebook-controller-manager",
 	}
@@ -153,7 +166,7 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 
 	t.Log("Verifying component count matches DSC Components struct")
 
-	expectedComponentCount := reflect.TypeOf(dscv2.Components{}).NumField()
+	expectedComponentCount := reflect.TypeFor[dscv2.Components]().NumField()
 	// TrustyAI is excluded from quota failure testing due to InferenceServices CRD dependency
 	// Kueue is excluded because it does not have any deployment to manage anymore
 	excludedComponents := 2 // TrustyAI and Kueue
@@ -184,8 +197,8 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 		slices.Collect(maps.Values(internalComponentToControllerMap)),
 	)
 
-	t.Log("Rollout deployments restart to trigger resource quota if pod already exists")
-	tc.rolloutDeployments(t, allControllers)
+	t.Log("Deleting existing pods to trigger resource quota enforcement")
+	tc.deletePodsForDeployments(t, allControllers)
 
 	t.Log("Enabling all components in DataScienceCluster")
 	tc.EventuallyResourcePatched(
@@ -238,6 +251,8 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 
 func (tc *OperatorResilienceTestCtx) ValidateMissingComponentsCRDHandling(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, Tier1)
 
 	crdTestingName := "dashboards.components.platform.opendatahub.io"
 	crd := tc.FetchResource(
@@ -310,6 +325,8 @@ func (tc *OperatorResilienceTestCtx) ValidateMissingComponentsCRDHandling(t *tes
 
 func (tc *OperatorResilienceTestCtx) ValidateRBACRestrictionHandling(t *testing.T) {
 	t.Helper()
+
+	skipUnless(t, Tier1)
 
 	// Get the predictable ServiceAccount name based on deployment name
 	deploymentName := tc.getControllerDeploymentName()
@@ -465,17 +482,19 @@ func (tc *OperatorResilienceTestCtx) verifyDeploymentsStuckDueToQuota(t *testing
 	t.Helper()
 
 	expectedCount := len(allControllers)
+	allControllersMatch := strings.Join(allControllers, "|")
 
 	// Then check that the matching deployments have 0 ready replicas
 	tc.EnsureResourcesExist(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
 		WithCondition(jq.Match(`
 			[.[] | select(
-				(.metadata.name | test("%s"; "i")) or
-				(.metadata.name | test("odh-(%s)"; "i"))
+				(.metadata.name | test("^(%s)$"; "i")) or
+				(.metadata.name | test("^odh-(%s)$"; "i")) or
+				(.metadata.name | test("^rhods-(%s)$"; "i"))
 			) | select((.status.readyReplicas // 0) == 0)] |
         	length == %d
-		`, strings.Join(allControllers, "|"), strings.Join(allControllers, "|"), expectedCount)),
+		`, allControllersMatch, allControllersMatch, allControllersMatch, expectedCount)),
 		WithCustomErrorMsg(fmt.Sprintf("Expected all %d component deployments to have 0 ready replicas due to quota", expectedCount)),
 		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 	)
@@ -563,7 +582,7 @@ func (tc *OperatorResilienceTestCtx) findAndBackupAllCRBsForServiceAccount(opera
 
 		// Check if any subject matches our ServiceAccount
 		for _, subject := range subjects {
-			subj, ok := subject.(map[string]interface{})
+			subj, ok := subject.(map[string]any)
 			if !ok {
 				continue
 			}
@@ -589,21 +608,68 @@ func (tc *OperatorResilienceTestCtx) findAndBackupAllCRBsForServiceAccount(opera
 	return crbBackups, crbNames
 }
 
-func (tc *OperatorResilienceTestCtx) rolloutDeployment(t *testing.T, nn types.NamespacedName) {
+// deletePodsForDeployment deletes all pods belonging to a deployment.
+// This is used instead of rollout restart to avoid quota issues where
+// rolling updates get stuck waiting for new pods to be created.
+func (tc *OperatorResilienceTestCtx) deletePodsForDeployment(t *testing.T, nn types.NamespacedName) {
 	t.Helper()
 
-	t.Logf("Triggering rollout restart for deployment: %s", nn.Name)
-	tc.EventuallyResourcePatched(
-		WithMinimalObject(gvk.Deployment, nn),
-		WithMutateFunc(testf.Transform(`.spec.template.metadata.annotations["kubectl.kubernetes.io/restartedAt"] = "%s"`, time.Now().Format(time.RFC3339))),
-		WithIgnoreNotFound(true),
+	deployment := tc.getDeployment(t, nn)
+	if deployment == nil {
+		t.Logf("Deployment %s or odh-%s or rhods-%s not found, skipping pod deletion", nn.Name, nn.Name, nn.Name)
+		return
+	}
+
+	// Extract matchLabels from deployment spec.selector
+	matchLabels, found, err := unstructured.NestedStringMap(deployment.Object, "spec", "selector", "matchLabels")
+	if err != nil || !found || len(matchLabels) == 0 {
+		t.Logf("No matchLabels found for deployment %s, skipping pod deletion", nn.Name)
+		return
+	}
+
+	t.Logf("Deleting pods for deployment %s with labels: %v", nn.Name, matchLabels)
+
+	tc.DeleteResources(
+		WithMinimalObject(gvk.Pod, types.NamespacedName{}),
+		WithNamespaceFilter(nn.Namespace),
+		WithDeleteAllOfOptions(client.MatchingLabels(matchLabels)),
 	)
 }
 
-func (tc *OperatorResilienceTestCtx) rolloutDeployments(t *testing.T, allControllers []string) {
+func (tc *OperatorResilienceTestCtx) getDeployment(t *testing.T, nn types.NamespacedName) *unstructured.Unstructured {
+	t.Helper()
+
+	// Fetch the deployment to get its actual selector labels
+	deployment := tc.FetchResource(
+		WithMinimalObject(gvk.Deployment, nn),
+	)
+	if deployment != nil {
+		return deployment
+	}
+
+	t.Logf("Deployment %s not found, checking for odh- prefix", nn.Name)
+
+	deployment = tc.FetchResource(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: nn.Namespace, Name: "odh-" + nn.Name}),
+	)
+	if deployment != nil {
+		return deployment
+	}
+
+	t.Logf("Deployment %s not found, checking for rhods- prefix", nn.Name)
+
+	deployment = tc.FetchResource(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: nn.Namespace, Name: "rhods-" + nn.Name}),
+	)
+
+	return deployment
+}
+
+// deletePodsForDeployments deletes pods for all specified deployments.
+func (tc *OperatorResilienceTestCtx) deletePodsForDeployments(t *testing.T, allControllers []string) {
 	t.Helper()
 
 	for _, deployment := range allControllers {
-		tc.rolloutDeployment(t, types.NamespacedName{Namespace: tc.AppsNamespace, Name: deployment})
+		tc.deletePodsForDeployment(t, types.NamespacedName{Namespace: tc.AppsNamespace, Name: deployment})
 	}
 }

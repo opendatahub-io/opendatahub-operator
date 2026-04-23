@@ -31,7 +31,7 @@ var LlmisvcConfigs = LLMInferenceServingPath{
 	ServiceAccountNamePath: []string{"spec", "template", "serviceAccountName"},
 }
 
-//+kubebuilder:webhook:path=/platform-connection-llmisvc,mutating=true,failurePolicy=fail,groups=serving.kserve.io,resources=llminferenceservices,verbs=create;update,versions=v1alpha1,name=connection-llmisvc.opendatahub.io,sideEffects=NoneOnDryRun,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/platform-connection-llmisvc,mutating=true,failurePolicy=fail,groups=serving.kserve.io,resources=llminferenceservices,verbs=create;update,versions=v1alpha1;v1alpha2,name=connection-llmisvc.opendatahub.io,sideEffects=NoneOnDryRun,admissionReviewVersions=v1
 //nolint:lll
 
 type LLMISVCConnectionWebhook struct {
@@ -70,6 +70,7 @@ func (w *LLMISVCConnectionWebhook) Handle(ctx context.Context, req admission.Req
 	switch req.Operation {
 	case admissionv1.Create, admissionv1.Update:
 		// allowed connection types for connection validation on llmisvc.
+		//nolint:staticcheck // SA1019: ConnectionTypeRef is deprecated but still supported for backward compatibility
 		allowedTypes := map[string][]string{
 			annotations.ConnectionTypeProtocol: {
 				webhookutils.ConnectionTypeProtocolURI.String(), // this is going to work for both uri:// and hf://

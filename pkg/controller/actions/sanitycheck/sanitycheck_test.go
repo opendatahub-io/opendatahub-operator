@@ -80,7 +80,6 @@ func TestPerformV3UpgradeSanityChecks(t *testing.T) {
 			errorMessage := "TestFake resources present"
 
 			mockCRD := mocks.NewMockCRD("components.platform.opendatahub.io", "v1alpha1", "TestFake", "fakeName")
-			mockCRD.Status.StoredVersions = append(mockCRD.Status.StoredVersions, "v1alpha1")
 
 			cli := tc.setupClient(g, mockCRD)
 

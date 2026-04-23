@@ -1,0 +1,39 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+- ../../webhook
+
+namePrefix: rhai-operator-
+
+patches:
+# Add cert-manager CA injection annotations
+- target:
+    kind: MutatingWebhookConfiguration
+  patch: |
+    - op: add
+      path: /metadata/annotations/cert-manager.io~1inject-ca-from
+      value: redhat-ods-operator/rhai-operator-webhook-cert
+# Patch service labels for RHOAI
+- target:
+    kind: Service
+    name: webhook-service
+  patch: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: webhook-service
+      labels:
+        app.kubernetes.io/name: rhai-operator-webhook-service
+        app.kubernetes.io/instance: rhai-operator
+        app.kubernetes.io/created-by: rhai-operator
+        app.kubernetes.io/part-of: rhai-operator
+# Replace service selector for RHOAI pods (strategic merge can't replace, need JSON patch)
+- target:
+    kind: Service
+    name: webhook-service
+  patch: |
+    - op: replace
+      path: /spec/selector
+      value:
+        name: rhods-operator

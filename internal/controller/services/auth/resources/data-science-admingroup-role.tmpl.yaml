@@ -1,0 +1,162 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: data-science-admingroup-role
+  namespace: {{.AppNamespace}}
+rules:
+- apiGroups:
+  - services.platform.opendatahub.io
+  resources:
+  - auths
+  verbs:
+  - get
+  - list
+  - watch
+  - patch
+  - update
+- apiGroups:
+  - services.opendatahub.io
+  resources:
+  - auths/status
+  verbs:
+  - get
+- apiGroups:
+  - infrastructure.opendatahub.io
+  resources:
+  - hardwareprofiles
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+  - patch
+  - update
+  - delete
+- apiGroups:
+  - route.openshift.io
+  resources:
+  - routes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - cronjobs
+  verbs:
+  - get
+  - update
+  - watch
+- apiGroups:
+  - image.openshift.io
+  resources:
+  - imagestreams
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - delete
+  - watch
+- apiGroups:
+  - build.openshift.io
+  resources:
+  - builds
+  - buildconfigs
+  verbs:
+  - list
+  - get
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - opendatahub.io
+  resources:
+  - odhdashboardconfigs
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+- apiGroups:
+  - dashboard.opendatahub.io
+  resources:
+  - odhapplications
+  - odhdocuments
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - console.openshift.io
+  resources:
+  - odhquickstarts
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - template.openshift.io
+  resources:
+  - templates
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - patch
+  - update
+  - delete
+- apiGroups:
+  - serving.kserve.io
+  resources:
+  - servingruntimes
+  verbs:
+  - create
+- apiGroups:
+    - nim.opendatahub.io
+  resources:
+    - accounts
+  verbs:
+    - watch
+    - update
+    - get
+    - list
+    - create
+    - patch
+    - delete
+- apiGroups:
+    - ''
+  resources:
+    - configmaps
+  resourceNames:
+    - tier-to-group-mapping
+  verbs:
+    - get
+    - list
+    - watch
+    - patch
+    - update
+# Support managing customer LLMInferenceServiceConfigs
+# Our out of the box LLMInferenceServiceConfigs should be operator reconciled
+- apiGroups:
+    - serving.kserve.io
+  resources:
+    - llminferenceserviceconfigs
+  verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - patch
+    - delete

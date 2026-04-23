@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"slices"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -17,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -134,21 +134,25 @@ func GetDSCI(ctx context.Context, cli client.Client) (*dsciv2.DSCInitialization,
 	}
 }
 
-// ApplicationNamespace returns the applications namespace from DSCInitialization.
-// Returns an error if DSCI is not found or cannot be retrieved.
+// ApplicationNamespace returns the applications namespace.
+// If RHAI_APPLICATIONS_NAMESPACE is explicitly configured it is returned directly,
+// independently of whether DSCI is enabled or not.
+// Otherwise the namespace is read from DSCI (OpenShift path); a missing DSCI
+// propagates as an error so callers requeue correctly.
 func ApplicationNamespace(ctx context.Context, cli client.Client) (string, error) {
+	if ns := GetRHAIApplicationsNamespace(); ns != "" {
+		return ns, nil
+	}
 	dsci, err := GetDSCI(ctx, cli)
 	if err != nil {
-		if k8serr.IsNotFound(err) {
-			return "", fmt.Errorf("ApplicationsNamespace not available, DSCI not found: %w", err)
-		}
 		return "", fmt.Errorf("failed to get DSCInitialization: %w", err)
 	}
 	return dsci.Spec.ApplicationsNamespace, nil
 }
 
 // MonitoringNamespace returns the monitoring namespace from DSCInitialization.
-// Returns an error if DSCI is not found or cannot be retrieved.
+// Unlike ApplicationNamespace, this does not fall back to a cached value because
+// the monitoring namespace has no equivalent override mechanism (no RHAI_ env var).
 func MonitoringNamespace(ctx context.Context, cli client.Client) (string, error) {
 	dsci, err := GetDSCI(ctx, cli)
 	if err != nil {
@@ -158,6 +162,23 @@ func MonitoringNamespace(ctx context.Context, cli client.Client) (string, error)
 		return "", fmt.Errorf("failed to get DSCInitialization: %w", err)
 	}
 	return dsci.Spec.Monitoring.Namespace, nil
+}
+
+// NamespaceExists checks if a given namespace exists in the cluster and is not terminating.
+func NamespaceExists(ctx context.Context, c client.Client, name string) (bool, error) {
+	ns := &corev1.Namespace{}
+	err := c.Get(ctx, types.NamespacedName{Name: name}, ns)
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	// Do not consider terminating namespaces as "existing" for resource creation
+	if ns.DeletionTimestamp != nil {
+		return false, nil
+	}
+	return true, nil
 }
 
 // GetHardwareProfile retrieves a specific HardwareProfile instance by name and namespace.
@@ -171,6 +192,25 @@ func GetHardwareProfile(ctx context.Context, cli client.Client, name, namespace 
 		return nil, err
 	}
 	return hwProfile, nil
+}
+
+// CreateHardwareProfile creates a HardwareProfile resource in the cluster.
+// If the resource already exists, it returns nil (idempotent operation).
+//
+// Parameters:
+//   - ctx: The context for the request
+//   - cli: The Kubernetes client used to create the resource
+//   - hwp: The HardwareProfile to create
+//
+// Returns:
+//   - error: An error if the creation fails for reasons other than "already exists"
+func CreateHardwareProfile(ctx context.Context, cli client.Client, hwp *infrav1.HardwareProfile) error {
+	if err := cli.Create(ctx, hwp); err != nil {
+		if !k8serr.IsAlreadyExists(err) {
+			return fmt.Errorf("failed to create HardwareProfile '%s/%s': %w", hwp.Namespace, hwp.Name, err)
+		}
+	}
+	return nil
 }
 
 // UpdatePodSecurityRolebinding update default rolebinding which is created in applications namespace by manifests
@@ -229,7 +269,7 @@ func CreateOrUpdateConfigMap(ctx context.Context, c client.Client, desiredCfgMap
 		Kind:       gvk.ConfigMap.Kind,
 	}
 
-	opts := []client.PatchOption{
+	opts := []client.ApplyOption{
 		client.ForceOwnership,
 		client.FieldOwner(resources.PlatformFieldOwner),
 	}
@@ -257,7 +297,7 @@ func CreateNamespace(ctx context.Context, cli client.Client, namespace string, m
 		return nil, err
 	}
 
-	opts := []client.PatchOption{
+	opts := []client.ApplyOption{
 		client.ForceOwnership,
 		client.FieldOwner(resources.PlatformFieldOwner),
 	}
@@ -267,30 +307,6 @@ func CreateNamespace(ctx context.Context, cli client.Client, namespace string, m
 	}
 
 	return desiredNamespace, nil
-}
-
-// ExecuteOnAllNamespaces executes the passed function for all namespaces in the cluster retrieved in batches.
-func ExecuteOnAllNamespaces(ctx context.Context, cli client.Client, processFunc func(*corev1.Namespace) error) error {
-	namespaces := &corev1.NamespaceList{}
-	paginateListOption := &client.ListOptions{
-		Limit: 500,
-	}
-
-	for { // loop over all paged results
-		if err := cli.List(ctx, namespaces, paginateListOption); err != nil {
-			return err
-		}
-		for i := range namespaces.Items {
-			ns := &namespaces.Items[i]
-			if err := processFunc(ns); err != nil {
-				return err
-			}
-		}
-		if paginateListOption.Continue = namespaces.GetContinue(); namespaces.GetContinue() == "" {
-			break
-		}
-	}
-	return nil
 }
 
 func CreateWithRetry(ctx context.Context, cli client.Client, obj client.Object) error {
@@ -348,8 +364,42 @@ func HasCRD(ctx context.Context, cli client.Client, gvk schema.GroupVersionKind)
 	return HasCRDWithVersion(ctx, cli, gvk.GroupKind(), gvk.Version)
 }
 
+// IsAPIAvailable reports whether the given GVK is registered in the cluster's REST API,
+// by querying the RESTMapper (discovery cache).
+//
+// Unlike HasCRD, this works for both custom resources and built-in Kubernetes types
+// (ConfigMap, Deployment, etc.), but it does not verify whether a CRD object actually
+// exists, is terminating, or has the requested version stored. The RESTMapper cache
+// will lag behind recent CRD deletions, as cache is only updated on cache miss.
+//
+// Prefer HasCRD when reacting to CRD lifecycle events (install, upgrade, deletion).
+// Use this function for stable, well-established resource types where a lightweight
+// API presence check is sufficient.
+//
+// Returns:
+//   - (true, nil) if the API is available
+//   - (false, nil) if the API is not available (no matching resource type found)
+//   - (false, error) if there was a transient error (e.g., discovery or RBAC failure)
+func IsAPIAvailable(cli client.Client, gvk schema.GroupVersionKind) (bool, error) {
+	_, err := cli.RESTMapper().RESTMapping(gvk.GroupKind(), gvk.Version)
+	if err != nil {
+		if meta.IsNoMatchError(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 // HasCRDWithVersion checks if a CustomResourceDefinition (CRD) exists with the specified version.
-// It verifies the CRD's existence, ensures that the version is stored, and checks if the CRD is under deletion.
+// It verifies the CRD's existence via the RESTMapper (which only resolves served versions),
+// fetches the CRD object to confirm it hasn't been deleted, and checks if the CRD is under deletion.
+//
+// This function intentionally does not check Status.StoredVersions, as that field reflects
+// which API versions have objects persisted in etcd — an internal detail that does not
+// determine whether a version is usable. A CRD can serve a version without having any
+// objects stored in it, and conversely may have removed a version from StoredVersions
+// after a storage migration while still serving it.
 //
 // Parameters:
 //   - ctx: The context for the request.
@@ -359,7 +409,7 @@ func HasCRD(ctx context.Context, cli client.Client, gvk schema.GroupVersionKind)
 //
 // Returns:
 //   - (true, nil) if the CRD with the specified version exists and is not terminating.
-//   - (false, nil) if the CRD does not exist, does not store the requested version, or is terminating.
+//   - (false, nil) if the CRD does not exist, the version is not served, or the CRD is terminating.
 //   - (false, error) if there was an error fetching the CRD.
 func HasCRDWithVersion(ctx context.Context, cli client.Client, gk schema.GroupKind, version string) (bool, error) {
 	m, err := cli.RESTMapper().RESTMapping(gk, version)
@@ -376,8 +426,6 @@ func HasCRDWithVersion(ctx context.Context, cli client.Client, gk schema.GroupKi
 	case err != nil:
 		return false, client.IgnoreNotFound(err)
 	case apihelpers.IsCRDConditionTrue(&crd, apiextensionsv1.Terminating):
-		return false, nil
-	case !slices.Contains(crd.Status.StoredVersions, version):
 		return false, nil
 	default:
 		return true, nil

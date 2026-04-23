@@ -24,12 +24,14 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -38,6 +40,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
@@ -61,16 +64,23 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// By default, a predicated for changed generation is added by the Owns()
 		// method, however for deployments, we also need to retrieve status info
 		// hence we need a dedicated predicate to react to replicas status change
-		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
+		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(predicates.DefaultDeploymentPredicate)).
 		// operands - openshift
 		Owns(&routev1.Route{}).
+		Owns(&gwapiv1.HTTPRoute{}).
 		Owns(&consolev1.ConsoleLink{}).
+		// NetworkPolicy for cross-namespace communication (e.g., dashboard to perses)
+		Owns(&networkingv1.NetworkPolicy{}).
 		// Those APIs are provided by the component itself hence they should
 		// be watched dynamically
 		OwnsGVK(gvk.DashboardAcceleratorProfile, reconciler.Dynamic(reconciler.CrdExists(gvk.DashboardAcceleratorProfile))).
 		OwnsGVK(gvk.OdhApplication, reconciler.Dynamic()).
 		OwnsGVK(gvk.OdhDocument, reconciler.Dynamic()).
 		OwnsGVK(gvk.OdhQuickStart, reconciler.Dynamic()).
+		// PersesDashboard resources are conditionally deployed when COO is installed
+		// and should be garbage collected when dashboard is removed
+		OwnsGVK(gvk.PersesDashboardV1Alpha1, reconciler.Dynamic(reconciler.CrdExistsWithoutPreferred(gvk.PersesDashboardV1Alpha1, gvk.PersesDashboardV1Alpha2))).
+		OwnsGVK(gvk.PersesDashboardV1Alpha2, reconciler.Dynamic(reconciler.CrdExists(gvk.PersesDashboardV1Alpha2))).
 		// CRDs are not owned by the component and should be left on the cluster,
 		// so by default, the deploy action won't add all the annotation added to
 		// other resources. Hence, a custom handling is required in order to minimize
@@ -81,6 +91,16 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				handlers.ToNamed(componentApi.DashboardInstanceName)),
 			reconciler.WithPredicates(
 				component.ForLabel(labels.ODH.Component(componentName), labels.True)),
+		).
+		// Watch PersesDashboard CRD to trigger reconciliation when COO is installed
+		// This enables automatic deployment of observability dashboards
+		Watches(
+			&extv1.CustomResourceDefinition{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.DashboardInstanceName)),
+			reconciler.WithPredicates(predicate.NewPredicateFuncs(func(obj client.Object) bool {
+				return obj.GetName() == "persesdashboards.perses.dev"
+			})),
 		).
 		// The OdhDashboardConfig resource is expected to be created by the operator
 		// but then owned by the user so we only re-create it with factory values if
@@ -96,6 +116,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			DeleteFunc:  func(tde event.TypedDeleteEvent[client.Object]) bool { return false },
 		}), reconciler.Dynamic(reconciler.CrdExists(gvk.DashboardHardwareProfile))).
 		WithAction(initialize).
+		WithAction(deployObservabilityManifests).
 		WithAction(setKustomizedParams).
 		WithAction(configureDependencies).
 		WithAction(kustomize.NewAction(

@@ -1,0 +1,7 @@
+apiVersion: test.opendatahub.io/v1alpha1
+kind: TestResource
+metadata:
+  name: {{ .Release.Name }}-instance
+  namespace: {{ .Values.namespace }}
+spec:
+  message: "Hello from {{ .Release.Name }}"

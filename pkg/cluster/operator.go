@@ -10,10 +10,16 @@ import (
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+// OperatorInfo Struct to retrieve the information about an installed operator.
+type OperatorInfo struct {
+	Version string
+}
 
 // GetSubscription checks if a Subscription for the operator exists in the given namespace.
 // if exists, return object; otherwise, return error.
@@ -29,6 +35,9 @@ func GetSubscription(ctx context.Context, cli client.Client, namespace string, n
 func SubscriptionExists(ctx context.Context, cli client.Client, name string) (bool, error) {
 	subscriptionList := &v1alpha1.SubscriptionList{}
 	if err := cli.List(ctx, subscriptionList); err != nil {
+		if meta.IsNoMatchError(err) {
+			return false, nil
+		}
 		return false, err
 	}
 
@@ -56,21 +65,38 @@ func DeleteExistingSubscription(ctx context.Context, cli client.Client, operator
 }
 
 // OperatorExists checks if an Operator with 'operatorPrefix' is installed.
-// Return true if found it, false if not.
-// if we need to check exact version of the operator installed, can append vX.Y.Z later.
-func OperatorExists(ctx context.Context, cli client.Client, operatorPrefix string) (bool, error) {
+// If the operator exists, it returns some operator information.
+// If the operator does not exist, it returns a nil reference.
+func OperatorExists(ctx context.Context, cli client.Client, operatorPrefix string) (*OperatorInfo, error) {
 	opConditionList := &ofapiv2.OperatorConditionList{}
 	err := cli.List(ctx, opConditionList)
 	if err != nil {
-		return false, err
+		if meta.IsNoMatchError(err) {
+			return nil, nil
+		}
+		// return nil reference and the error when parsing the list
+		return nil, err
 	}
 	for _, opCondition := range opConditionList.Items {
-		if strings.HasPrefix(opCondition.Name, operatorPrefix) {
-			return true, nil
+		expectedPrefix := fmt.Sprintf("%s.", operatorPrefix)
+		if !strings.HasPrefix(opCondition.Name, expectedPrefix) {
+			// Skip if no OperatorCondition is found with the expected prefix
+			continue
 		}
+		// Get the version from the operatorCondition name, trimming the prefix.
+		version := strings.TrimPrefix(opCondition.Name, expectedPrefix)
+		if version == "" {
+			// Return Operator info with an empty version if the version is empty.
+			return &OperatorInfo{Version: ""}, nil
+		}
+		// Return the OperatorInfo
+		if !strings.HasPrefix(version, "v") {
+			version = fmt.Sprintf("v%s", version)
+		}
+		return &OperatorInfo{Version: version}, nil
 	}
-
-	return false, nil
+	// return nil reference if the operator is not installed in the cluster
+	return nil, nil
 }
 
 // CustomResourceDefinitionExists checks if a CustomResourceDefinition with the given GVK exists.
