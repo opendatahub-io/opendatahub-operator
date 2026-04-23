@@ -708,6 +708,115 @@ func TestCheckOperatorAndCRDDependencies(t *testing.T) {
 	})
 }
 
+func TestSortLLMInferenceServiceConfigLast(t *testing.T) {
+	newRes := func(group, version, kind, name string) unstructured.Unstructured {
+		u := unstructured.Unstructured{}
+		u.SetGroupVersionKind(schema.GroupVersionKind{Group: group, Version: version, Kind: kind})
+		u.SetName(name)
+		return u
+	}
+
+	llmISvcConfig := func(name string) unstructured.Unstructured {
+		return newRes(
+			gvk.LLMInferenceServiceConfigV1Alpha2.Group,
+			gvk.LLMInferenceServiceConfigV1Alpha2.Version,
+			gvk.LLMInferenceServiceConfigV1Alpha2.Kind,
+			name,
+		)
+	}
+
+	t.Run("LLMInferenceServiceConfig resources are placed after all other resources", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		input := []unstructured.Unstructured{
+			llmISvcConfig("config-a"),
+			newRes("apps", "v1", "Deployment", "my-deploy"),
+			llmISvcConfig("config-b"),
+			newRes("", "v1", "Service", "my-svc"),
+		}
+
+		result, err := sortLLMInferenceServiceConfigLast(ctx, input)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		// Non-LLMInferenceServiceConfig resources should come first
+		g.Expect(result[len(result)-2].GetName()).To(Equal("config-a"))
+		g.Expect(result[len(result)-1].GetName()).To(Equal("config-b"))
+
+		// All non-LLMInferenceServiceConfig resources should precede them
+		for _, r := range result[:len(result)-2] {
+			g.Expect(r.GetKind()).NotTo(Equal(gvk.LLMInferenceServiceConfigV1Alpha2.Kind))
+		}
+	})
+
+	t.Run("preserves relative order among LLMInferenceServiceConfig resources", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		input := []unstructured.Unstructured{
+			llmISvcConfig("config-z"),
+			newRes("apps", "v1", "Deployment", "deploy"),
+			llmISvcConfig("config-a"),
+			llmISvcConfig("config-m"),
+		}
+
+		result, err := sortLLMInferenceServiceConfigLast(ctx, input)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		// The three LLMInferenceServiceConfig resources should be at the end,
+		// in their original relative order (stable sort).
+		configs := result[len(result)-3:]
+		g.Expect(configs[0].GetName()).To(Equal("config-z"))
+		g.Expect(configs[1].GetName()).To(Equal("config-a"))
+		g.Expect(configs[2].GetName()).To(Equal("config-m"))
+	})
+
+	t.Run("no LLMInferenceServiceConfig resources leaves order unchanged", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		input := []unstructured.Unstructured{
+			newRes("apps", "v1", "Deployment", "deploy"),
+			newRes("", "v1", "Service", "svc"),
+			newRes("", "v1", "ConfigMap", "cm"),
+		}
+
+		result, err := sortLLMInferenceServiceConfigLast(ctx, input)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(result).To(HaveLen(3))
+		g.Expect(result[0].GetName()).To(Equal("deploy"))
+		g.Expect(result[1].GetName()).To(Equal("svc"))
+		g.Expect(result[2].GetName()).To(Equal("cm"))
+	})
+
+	t.Run("all LLMInferenceServiceConfig resources preserves input order", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		input := []unstructured.Unstructured{
+			llmISvcConfig("config-b"),
+			llmISvcConfig("config-a"),
+			llmISvcConfig("config-c"),
+		}
+
+		result, err := sortLLMInferenceServiceConfigLast(ctx, input)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(result).To(HaveLen(3))
+		g.Expect(result[0].GetName()).To(Equal("config-b"))
+		g.Expect(result[1].GetName()).To(Equal("config-a"))
+		g.Expect(result[2].GetName()).To(Equal("config-c"))
+	})
+
+	t.Run("empty input returns empty", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		result, err := sortLLMInferenceServiceConfigLast(ctx, nil)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(result).To(BeEmpty())
+	})
+}
+
 func createTestConfigMap() *corev1.ConfigMap {
 	return &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{

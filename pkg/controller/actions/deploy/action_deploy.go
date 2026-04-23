@@ -34,6 +34,16 @@ const (
 // SortFn defines a function that reorders resources before deployment.
 type SortFn func(ctx context.Context, resources []unstructured.Unstructured) ([]unstructured.Unstructured, error)
 
+func (s SortFn) Then(then SortFn) SortFn {
+	return func(ctx context.Context, resources []unstructured.Unstructured) ([]unstructured.Unstructured, error) {
+		output, err := s(ctx, resources)
+		if err != nil {
+			return nil, err
+		}
+		return then(ctx, output)
+	}
+}
+
 // Action deploys the resources that are included in the ReconciliationRequest using
 // the same create or patch machinery implemented as part of deploy.DeployManifestsFromPath.
 type Action struct {
