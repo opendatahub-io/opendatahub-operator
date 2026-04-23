@@ -539,13 +539,12 @@ func getKubeAuthProxyImage() string {
 
 // getDashboardRedirectImage returns the nginx image for dashboard redirects.
 // For RHOAI deployments, this comes from the CSV (via RHOAI-Build-Config/bundle/additional-images-patch.yaml).
-// For ODH deployments, this comes from build/operands-map.yaml.
-// Falls back to a publicly accessible UBI9 nginx S2I image for local development/testing.
+// For ODH deployments and local development/testing, falls back to a publicly accessible UBI9 nginx S2I image.
 func getDashboardRedirectImage() string {
 	if image := os.Getenv("RELATED_IMAGE_NGINX_126_IMAGE"); image != "" {
 		return image
 	}
-	// Fallback for ODH development - publicly accessible UBI9 nginx S2I image
+	// Fallback for ODH and local development - publicly accessible UBI9 nginx S2I image
 	// This image is identical to registry.redhat.io/ubi9/nginx-126 but does not require authentication
 	return "registry.access.redhat.com/ubi9/nginx-126:latest"
 }
