@@ -51,12 +51,21 @@ type KserveCommonSpec struct {
 	RawDeploymentServiceConfig RawServiceConfig `json:"rawDeploymentServiceConfig,omitempty"`
 	// Configures and enables NVIDIA NIM integration
 	NIM NimSpec `json:"nim,omitempty"`
+	// Configures and enables Workload Variant Autoscaler (WVA) integration
+	WVA WvaSpec `json:"wva,omitempty"`
 }
 
 // nimSpec enables NVIDIA NIM integration
 type NimSpec struct {
 	// +kubebuilder:validation:Enum=Managed;Removed
 	// +kubebuilder:default=Managed
+	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
+}
+
+// WvaSpec enables Workload Variant Autoscaler (WVA) integration
+type WvaSpec struct {
+	// +kubebuilder:validation:Enum=Managed;Removed
+	// +kubebuilder:default=Removed
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 }
 

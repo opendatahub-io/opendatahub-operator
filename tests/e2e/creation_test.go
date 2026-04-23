@@ -92,6 +92,7 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false, channel: defaultOperatorChannel},
 		{nn: types.NamespacedName{Name: tempoOpName, Namespace: tempoOpNamespace}, skipOperatorGroup: false, channel: defaultOperatorChannel},
 		{nn: types.NamespacedName{Name: telemetryOpName, Namespace: telemetryOpNamespace}, skipOperatorGroup: false, channel: defaultOperatorChannel},
+		{nn: types.NamespacedName{Name: kedaOpName, Namespace: kedaOpNamespace}, skipOperatorGroup: false, channel: kedaOpChannel},
 	}
 
 	// Create and run test cases in parallel.

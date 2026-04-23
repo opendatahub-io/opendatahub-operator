@@ -57,6 +57,9 @@ const (
 	tempoOpNamespace            = "openshift-tempo-operator"                 // Namespace for the Tempo Operator
 	opentelemetryOpName         = "opentelemetry-product"                    // Name of the OpenTelemetry Operator
 	opentelemetryOpNamespace    = "openshift-opentelemetry-operator"         // Namespace for the OpenTelemetry Operator
+	kedaOpName                  = "openshift-custom-metrics-autoscaler-operator" // Name of the KEDA (Custom Metrics Autoscaler) Operator
+	kedaOpNamespace             = "openshift-keda"                           // Namespace for the KEDA Operator
+	kedaOpChannel               = "stable"                                   // Channel for KEDA operator
 	controllerDeploymentODH     = "opendatahub-operator-controller-manager"  // Name of the ODH deployment
 	controllerDeploymentRhoai   = "rhods-operator"                           // Name of the Rhoai deployment
 )
@@ -209,7 +212,11 @@ func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceClust
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
-					KserveCommonSpec: componentApi.KserveCommonSpec{},
+					KserveCommonSpec: componentApi.KserveCommonSpec{
+						WVA: componentApi.WvaSpec{
+							ManagementState: operatorv1.Removed,
+						},
+					},
 				},
 				Ray: componentApi.DSCRay{
 					ManagementSpec: common.ManagementSpec{
@@ -292,7 +299,11 @@ func CreateDSCv1(name string, workbenchesNamespace string) *dscv1.DataScienceClu
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
-					KserveCommonSpec: componentApi.KserveCommonSpec{},
+					KserveCommonSpec: componentApi.KserveCommonSpec{
+						WVA: componentApi.WvaSpec{
+							ManagementState: operatorv1.Removed,
+						},
+					},
 				},
 				CodeFlare: componentApi.DSCCodeFlare{
 					ManagementSpec: common.ManagementSpec{
