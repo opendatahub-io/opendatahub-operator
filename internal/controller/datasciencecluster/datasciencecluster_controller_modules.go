@@ -55,8 +55,12 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 		log.Info("provisioning module", "module", name)
 
 		operatorManifests := handler.GetOperatorManifests()
-		rr.HelmCharts = append(rr.HelmCharts, operatorManifests.HelmCharts...)
-		rr.Manifests = append(rr.Manifests, operatorManifests.Manifests...)
+		if len(operatorManifests.HelmCharts) > 0 {
+			rr.HelmCharts = append(rr.HelmCharts, operatorManifests.HelmCharts...)
+		}
+		if len(operatorManifests.Manifests) > 0 {
+			rr.Manifests = append(rr.Manifests, operatorManifests.Manifests...)
+		}
 
 		moduleCR, err := handler.BuildModuleCR(ctx, rr.Client, instance, dsci)
 		if err != nil {
