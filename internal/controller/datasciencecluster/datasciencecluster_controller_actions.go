@@ -3,13 +3,20 @@ package datasciencecluster
 import (
 	"context"
 	"fmt"
+	"reflect"
 
+	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	modelsasservicectrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelsasservice"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -19,6 +26,17 @@ const (
 	// TODO: remove after https://issues.redhat.com/browse/RHOAIENG-15920
 	finalizerName = "datasciencecluster.opendatahub.io/finalizer"
 )
+
+// persistAPI is implemented by component CRs that expose an alternative object
+// for the deploy action to persist (e.g. when the "public" CR wraps an inner
+// object that should actually be applied to the cluster).
+type persistAPI interface {
+	APIPersistObject() client.Object
+}
+
+func isNilInterface(v interface{}) bool {
+	return v == nil || (reflect.ValueOf(v).Kind() == reflect.Ptr && reflect.ValueOf(v).IsNil())
+}
 
 func initialize(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
@@ -87,7 +105,19 @@ func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest)
 		if err != nil {
 			return err
 		}
-		if err := rr.AddResources(ci); err != nil {
+		if isNilInterface(ci) {
+			return nil
+		}
+		obj, ok := ci.(client.Object)
+		if !ok {
+			return fmt.Errorf("component CR %T does not implement client.Object", ci)
+		}
+		if p, ok := ci.(persistAPI); ok {
+			if inner := p.APIPersistObject(); !isNilInterface(inner) {
+				obj = inner
+			}
+		}
+		if err := rr.AddResources(obj); err != nil {
 			return err
 		}
 
@@ -96,6 +126,51 @@ func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest)
 
 	if err != nil {
 		return err
+	}
+
+	if cr.DefaultRegistry().IsComponentEnabled(componentApi.ModelsAsServiceComponentName, instance) {
+		// maas-controller install bundle (CRDs, RBAC, Deployment); Tenant/platform reconcile stays in maas-controller.
+		if err := modelsasservicectrl.AppendOperatorInstallManifests(ctx, rr); err != nil {
+			return err
+		}
+	}
+
+	if err := removeTenantIfModelsAsServiceDisabled(ctx, rr, instance, cr.DefaultRegistry()); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// removeTenantIfModelsAsServiceDisabled deletes the DSC-managed singleton Tenant when
+// Models-as-a-Service is not enabled. Deploy only applies objects in rr.Resources, so omitting
+// the CR on disable does not remove it; this keeps cluster state aligned with DSC intent.
+func removeTenantIfModelsAsServiceDisabled(
+	ctx context.Context,
+	rr *odhtype.ReconciliationRequest,
+	dsc *dscv2.DataScienceCluster,
+	reg *cr.Registry,
+) error {
+	if reg.IsComponentEnabled(componentApi.ModelsAsServiceComponentName, dsc) {
+		return nil
+	}
+
+	key := client.ObjectKey{Name: maasv1alpha1.TenantInstanceName, Namespace: modelsasservicectrl.MaaSSubscriptionNamespace}
+	t := &maasv1alpha1.Tenant{}
+	if err := rr.Client.Get(ctx, key, t); err != nil {
+		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
+			return nil
+		}
+		return fmt.Errorf("get Tenant %s: %w", maasv1alpha1.TenantInstanceName, err)
+	}
+
+	// Already being finalized; no need to re-issue the delete.
+	if !t.GetDeletionTimestamp().IsZero() {
+		return nil
+	}
+
+	if err := rr.Client.Delete(ctx, t, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil && !k8serr.IsNotFound(err) {
+		return fmt.Errorf("delete Tenant %s when ModelsAsService disabled: %w", maasv1alpha1.TenantInstanceName, err)
 	}
 
 	return nil

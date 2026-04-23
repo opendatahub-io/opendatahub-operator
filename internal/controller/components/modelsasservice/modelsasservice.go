@@ -21,9 +21,12 @@ import (
 	"errors"
 	"fmt"
 
+	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -33,7 +36,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 )
 
@@ -58,29 +60,21 @@ func (s *componentHandler) Init(_ common.Platform, cfg operatorconfig.OperatorSe
 	return nil
 }
 
-// NewCRObject constructs a new ModelsAsService Custom Resource.
-func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
-	// Extract ModelsAsService configuration from KServe component in DSC
-	maasConfig := dsc.Spec.Components.Kserve.ModelsAsService
+// NewComponentReconciler is a no-op: Tenant platform reconciliation (kustomize, deploy, GC)
+// is owned by maas-controller. ODH still materialises the CR from the DSC via
+// AppendOperatorInstallManifests and aggregates status in UpdateDSCStatus.
+func (s *componentHandler) NewComponentReconciler(_ context.Context, _ ctrl.Manager) error {
+	ctrl.Log.WithName("controllers").WithName("modelsasservice").Info(
+		"Tenant platform reconcile owned by maas-controller; no ODH component controller registered",
+	)
+	return nil
+}
 
-	// Determine management state from the DSC configuration
-	managementState := operatorv1.Removed
-	if maasConfig.ManagementState == operatorv1.Managed {
-		managementState = maasConfig.ManagementState
-	}
-
-	return &componentApi.ModelsAsService{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       componentApi.ModelsAsServiceKind,
-			APIVersion: componentApi.GroupVersion.String(),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: componentApi.ModelsAsServiceInstanceName,
-			Annotations: map[string]string{
-				annotations.ManagementStateAnnotation: string(managementState),
-			},
-		},
-	}, nil
+// NewCRObject returns nil — maas-controller owns Tenant CR creation via its
+// ensureDefaultTenant startup runnable. The ODH operator only reads Tenant
+// status (UpdateDSCStatus) and deletes it on MaaS disable.
+func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, _ *dscv2.DataScienceCluster) (common.PlatformObject, error) {
+	return nil, nil
 }
 
 // IsEnabled checks if the ModelsAsService component should be deployed.
@@ -97,16 +91,9 @@ func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
 	return dsc.Spec.Components.Kserve.ModelsAsService.ManagementState == operatorv1.Managed
 }
 
-// UpdateDSCStatus updates the ModelsAsService component status in the DataScienceCluster.
+// UpdateDSCStatus updates the ModelsAsService component status in the DataScienceCluster from Tenant.
 func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
 	cs := metav1.ConditionUnknown
-
-	c := componentApi.ModelsAsService{}
-	c.Name = componentApi.ModelsAsServiceInstanceName
-
-	if err := rr.Client.Get(ctx, client.ObjectKeyFromObject(&c), &c); err != nil && !k8serr.IsNotFound(err) {
-		return cs, nil
-	}
 
 	dsc, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
@@ -115,7 +102,46 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
-	if !c.GetDeletionTimestamp().IsZero() {
+	if !s.IsEnabled(dsc) {
+		ms := dsc.Spec.Components.Kserve.ModelsAsService.ManagementState
+		if ms == "" {
+			ms = operatorv1.Removed
+		}
+		rr.Conditions.MarkFalse(
+			ReadyConditionType,
+			conditions.WithReason(string(ms)),
+			conditions.WithMessage("Component ManagementState is set to %s", string(ms)),
+			conditions.WithSeverity(common.ConditionSeverityInfo),
+		)
+		return cs, nil
+	}
+
+	t := maasv1alpha1.Tenant{}
+	t.Name = maasv1alpha1.TenantInstanceName
+	t.Namespace = MaaSSubscriptionNamespace
+
+	if err := rr.Client.Get(ctx, client.ObjectKeyFromObject(&t), &t); err != nil {
+		switch {
+		case k8serr.IsNotFound(err):
+			rr.Conditions.MarkFalse(
+				ReadyConditionType,
+				conditions.WithReason(status.NotReadyReason),
+				conditions.WithMessage("Tenant CR not available yet"),
+			)
+			return metav1.ConditionFalse, nil
+		case apimeta.IsNoMatchError(err):
+			rr.Conditions.MarkFalse(
+				ReadyConditionType,
+				conditions.WithReason(status.NotReadyReason),
+				conditions.WithMessage("Tenant CRD not installed"),
+			)
+			return metav1.ConditionFalse, nil
+		default:
+			return cs, fmt.Errorf("failed to get Tenant %s/%s: %w", t.Namespace, t.Name, err)
+		}
+	}
+
+	if !t.GetDeletionTimestamp().IsZero() {
 		rr.Conditions.MarkFalse(
 			ReadyConditionType,
 			conditions.WithReason(status.DeletingReason),
@@ -124,30 +150,28 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		return metav1.ConditionFalse, nil
 	}
 
-	if s.IsEnabled(dsc) {
-		if rc := conditions.FindStatusCondition(c.GetStatus(), status.ConditionTypeReady); rc != nil {
-			rr.Conditions.MarkFrom(ReadyConditionType, *rc)
-			cs = rc.Status
-		} else {
-			cs = metav1.ConditionFalse
-		}
+	if rc := apimeta.FindStatusCondition(t.Status.Conditions, status.ConditionTypeReady); rc != nil {
+		rr.Conditions.MarkFrom(ReadyConditionType, metav1ConditionToCommon(*rc))
+		cs = rc.Status
 	} else {
-		if dsc.Spec.Components.Kserve.ManagementState != operatorv1.Managed {
-			rr.Conditions.MarkFalse(
-				ReadyConditionType,
-				conditions.WithReason("KServeDisabled"),
-				conditions.WithMessage("KServe component is not managed, ModelsAsService requires KServe to be enabled"),
-				conditions.WithSeverity(common.ConditionSeverityInfo),
-			)
-		} else {
-			rr.Conditions.MarkFalse(
-				ReadyConditionType,
-				conditions.WithReason(string(operatorv1.Removed)),
-				conditions.WithMessage("Component ManagementState is set to Removed"),
-				conditions.WithSeverity(common.ConditionSeverityInfo),
-			)
-		}
+		rr.Conditions.MarkFalse(
+			ReadyConditionType,
+			conditions.WithReason(status.NotReadyReason),
+			conditions.WithMessage("Tenant CR exists but has no ready condition yet"),
+		)
+		cs = metav1.ConditionFalse
 	}
 
 	return cs, nil
+}
+
+func metav1ConditionToCommon(c metav1.Condition) common.Condition {
+	return common.Condition{
+		Type:               c.Type,
+		Status:             c.Status,
+		Reason:             c.Reason,
+		Message:            c.Message,
+		ObservedGeneration: c.ObservedGeneration,
+		LastTransitionTime: c.LastTransitionTime,
+	}
 }
