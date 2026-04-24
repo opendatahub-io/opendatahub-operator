@@ -6,7 +6,6 @@ import (
 
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -119,24 +118,10 @@ func (tc *SparkOperatorTestCtx) ValidateScheduledSparkPiWorkload(t *testing.T) {
 
 		if lastRunName != "" {
 			t.Logf("Verifying cascade deletion of SparkApplication %s", lastRunName)
-
-			child := &unstructured.Unstructured{}
-			child.SetGroupVersionKind(gvk.SparkApplication)
-
-			err := tc.Client().Get(tc.Context(), types.NamespacedName{Name: lastRunName, Namespace: namespace}, child)
-			switch {
-			case err == nil:
-				t.Errorf("cascade deletion failed: SparkApplication %s still exists after deleting parent", lastRunName)
-				t.Logf("Manually cleaning up leaked SparkApplication %s", lastRunName)
-				tc.DeleteResource(
-					WithMinimalObject(gvk.SparkApplication, types.NamespacedName{Name: lastRunName, Namespace: namespace}),
-					WithIgnoreNotFound(true),
-				)
-			case k8serr.IsNotFound(err):
-				t.Logf("Cascade deletion verified: SparkApplication %s was deleted with parent", lastRunName)
-			default:
-				t.Errorf("failed to check SparkApplication %s after cascade deletion: %v", lastRunName, err)
-			}
+			tc.EnsureResourceGone(
+				WithMinimalObject(gvk.SparkApplication, types.NamespacedName{Name: lastRunName, Namespace: namespace}),
+				WithCustomErrorMsg("cascade deletion failed: SparkApplication %s still exists after deleting parent", lastRunName),
+			)
 		}
 	}()
 
