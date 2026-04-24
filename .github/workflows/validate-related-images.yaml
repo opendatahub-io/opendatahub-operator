@@ -1,0 +1,38 @@
+name: Validate RELATED_IMAGE references
+on:
+  pull_request:
+    # TODO: Uncomment this when all existent issues are resolved
+    # paths:
+    #   - 'internal/**'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Check RELATED_IMAGE names against build configs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0
+      - name: Save the PR number for artifact upload
+        run: |
+          echo ${{ github.event.number }} > pr_number.txt
+      - name: Upload the PR number as artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pr_number_related_images
+          path: ./pr_number.txt
+          retention-days: 1
+      # TODO: Uncomment this when all existent issues are resolved
+      # - name: Check if RELATED_IMAGE references changed
+      #   id: check
+      #   run: |
+      #     if git diff origin/${{ github.event.pull_request.base.ref }}...HEAD -- internal/ | grep -qE '^\+.*RELATED_IMAGE_'; then
+      #       echo "changed=true" >> $GITHUB_OUTPUT
+      #     else
+      #       echo "No RELATED_IMAGE_* changes detected, skipping validation."
+      #       echo "changed=false" >> $GITHUB_OUTPUT
+      #     fi
+      - name: Validate RELATED_IMAGE references
+        # if: steps.check.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+        run: make validate-related-images
