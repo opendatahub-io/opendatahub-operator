@@ -1,0 +1,70 @@
+name: Check Jira Token Expiry
+
+on:
+  schedule:
+    - cron: '0 9 * * 1' # Every Monday at 09:00 UTC
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  check-token:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate Jira token
+        id: check
+        env:
+          QUARANTINE_JIRA_API_TOKEN: ${{ secrets.QUARANTINE_JIRA_API_TOKEN }}
+        run: |
+          if [ -z "$QUARANTINE_JIRA_API_TOKEN" ]; then
+            echo "status=missing" >> "$GITHUB_OUTPUT"
+            echo "No QUARANTINE_JIRA_API_TOKEN secret configured"
+            exit 0
+          fi
+
+          HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer $QUARANTINE_JIRA_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://redhat.atlassian.net/rest/api/2/myself")
+
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "status=valid" >> "$GITHUB_OUTPUT"
+            echo "Jira token is valid"
+          else
+            echo "status=expired" >> "$GITHUB_OUTPUT"
+            echo "Jira token returned HTTP $HTTP_CODE"
+          fi
+
+      - name: Open rotation issue
+        if: steps.check.outputs.status == 'expired'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          EXISTING=$(gh issue list \
+            --repo "${{ github.repository }}" \
+            --label "jira-token-rotation" \
+            --state open \
+            --limit 1 \
+            --json number -q '.[0].number // empty')
+
+          if [ -n "$EXISTING" ]; then
+            echo "Rotation issue #${EXISTING} already open — skipping"
+            exit 0
+          fi
+
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "Rotate QUARANTINE_JIRA_API_TOKEN — token expired or invalid" \
+            --label "jira-token-rotation" \
+            --body "$(cat <<'EOF'
+The weekly token check detected that `QUARANTINE_JIRA_API_TOKEN` is expired or returning non-200 responses.
+
+**Action required:**
+1. Reach out to the [repo owners](../OWNERS) to generate a new API token
+
+The flake-report workflow skips Jira ticket creation when the token is invalid,
+so quarantine entries will still be generated but without linked Jira tickets.
+EOF
+)"
+          echo "Opened token rotation issue"

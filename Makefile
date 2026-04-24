@@ -731,7 +731,6 @@ endif
 
 .PHONY: e2e-test e2e
 e2e: e2e-test ## Alias for e2e-test
-e2e-test:
 # Specifies the namespace where the operator pods are deployed
 ifndef E2E_TEST_OPERATOR_NAMESPACE
 export E2E_TEST_OPERATOR_NAMESPACE = $(OPERATOR_NAMESPACE)
@@ -751,8 +750,17 @@ endif
 ifdef ARTIFACT_DIR
 export JUNIT_OUTPUT_PATH = ${ARTIFACT_DIR}/junit_report.xml
 endif
+# Resolve commit SHA for JUnit regression tracking (Prow presubmit → postsubmit → GitHub Actions)
+COMMIT_SHA ?= $(or $(PULL_PULL_SHA),$(PULL_BASE_SHA),$(GITHUB_SHA))
+# Use repo quarantine config when no explicit override is set and the file exists.
+# Path must be absolute because `go run -C ./cmd/test-retry` changes the process CWD.
+QUARANTINE_CONFIG ?= $(wildcard $(CURDIR)/tests/e2e/quarantine.json)
 e2e-test:
-	go run -C ./cmd/test-retry main.go e2e --verbose --working-dir=$(CURDIR) $(if $(JUNIT_OUTPUT_PATH),--junit-output=$(JUNIT_OUTPUT_PATH)) -- ${E2E_TEST_FLAGS}
+	go run -C ./cmd/test-retry main.go e2e --verbose --working-dir=$(CURDIR) \
+		$(if $(JUNIT_OUTPUT_PATH),--junit-output="$(JUNIT_OUTPUT_PATH)") \
+		$(if $(QUARANTINE_CONFIG),--quarantine-config="$(QUARANTINE_CONFIG)") \
+		$(if $(COMMIT_SHA),--commit-sha="$(COMMIT_SHA)") \
+		-- ${E2E_TEST_FLAGS}
 
 .PHONY: e2e-test-single
 e2e-test-single:

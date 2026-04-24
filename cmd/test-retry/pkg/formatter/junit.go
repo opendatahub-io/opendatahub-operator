@@ -14,11 +14,13 @@ import (
 
 // TestSuite represents a JUnit XML test suite
 type TestSuite struct {
-	XMLName   xml.Name   `xml:"testsuite"`
-	Name      string     `xml:"name,attr"`
-	Tests     int        `xml:"tests,attr"`
-	Failures  int        `xml:"failures,attr"`
-	TestCases []TestCase `xml:"testcase"`
+	XMLName    xml.Name    `xml:"testsuite"`
+	Name       string      `xml:"name,attr"`
+	Timestamp  string      `xml:"timestamp,attr,omitempty"`
+	Tests      int         `xml:"tests,attr"`
+	Failures   int         `xml:"failures,attr"`
+	Properties *Properties `xml:"properties,omitempty"`
+	TestCases  []TestCase  `xml:"testcase"`
 }
 
 // TestCase represents a JUnit XML test case
@@ -51,6 +53,7 @@ type Property struct {
 type JUnitExportOptions struct {
 	OutputPath string
 	SuiteName  string
+	CommitSHA  string // Git commit SHA to embed as a suite-level property (optional)
 }
 
 // ExportToJUnit exports test results to JUnit XML format
@@ -66,7 +69,7 @@ func ExportToJUnit(result *types.TestResult, opts JUnitExportOptions) error {
 		return fmt.Errorf("suite name is required")
 	}
 
-	suite := convertToJUnitSuite(result, opts.SuiteName)
+	suite := convertToJUnitSuite(result, opts)
 
 	// Marshal to XML with indentation
 	output, err := xml.MarshalIndent(suite, "", "  ")
@@ -85,11 +88,13 @@ func ExportToJUnit(result *types.TestResult, opts JUnitExportOptions) error {
 	return nil
 }
 
-// convertToJUnitSuite converts TestResult to JUnit TestSuite
-func convertToJUnitSuite(result *types.TestResult, suiteName string) TestSuite {
+// convertToJUnitSuite converts TestResult to JUnit TestSuite.
+func convertToJUnitSuite(result *types.TestResult, opts JUnitExportOptions) TestSuite {
 	suite := TestSuite{
-		Name:      suiteName,
-		TestCases: make([]TestCase, 0),
+		Name:       opts.SuiteName,
+		Timestamp:  time.Now().UTC().Format(time.RFC3339),
+		Properties: buildSuiteProperties(opts),
+		TestCases:  make([]TestCase, 0),
 	}
 
 	unorderedTestCases := make([]TestCase, 0)
@@ -137,6 +142,19 @@ func convertToJUnitSuite(result *types.TestResult, suiteName string) TestSuite {
 // formatDuration formats a duration to a string in seconds with decimals
 func formatDuration(d time.Duration) string {
 	return fmt.Sprintf("%.3f", d.Seconds())
+}
+
+// buildSuiteProperties creates suite-level properties (e.g. commit SHA).
+// Returns nil if no suite-level metadata is configured.
+func buildSuiteProperties(opts JUnitExportOptions) *Properties {
+	if opts.CommitSHA == "" {
+		return nil
+	}
+	return &Properties{
+		Property: []Property{
+			{Name: "commit.sha", Value: opts.CommitSHA},
+		},
+	}
 }
 
 // buildClassificationProperties creates JUnit properties from FailureClassification.
