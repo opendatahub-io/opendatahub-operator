@@ -25,6 +25,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	cond "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	testscheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
@@ -1576,7 +1577,7 @@ func TestUpdateNamespacePSA(t *testing.T) {
 		}
 	}
 
-	t.Run("upgrades baseline to privileged", func(t *testing.T) {
+	t.Run("upgrades baseline to privileged and sets annotation", func(t *testing.T) {
 		ns := newNamespace(cluster.GetApplicationNamespace(), "baseline")
 		cli, err := fakeclient.New(fakeclient.WithObjects(ns))
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -1587,10 +1588,12 @@ func TestUpdateNamespacePSA(t *testing.T) {
 		updated := &corev1.Namespace{}
 		g.Expect(cli.Get(ctx, client.ObjectKey{Name: cluster.GetApplicationNamespace()}, updated)).Should(Succeed())
 		g.Expect(updated.Labels[labels.SecurityEnforce]).To(Equal("privileged"))
+		g.Expect(updated.Annotations[annotations.PSAElevatedBy]).To(Equal("kserve-modelcache"))
 	})
 
-	t.Run("restores privileged to baseline", func(t *testing.T) {
+	t.Run("restores privileged to baseline and removes annotation", func(t *testing.T) {
 		ns := newNamespace(cluster.GetApplicationNamespace(), "privileged")
+		ns.Annotations = map[string]string{annotations.PSAElevatedBy: "kserve-modelcache"}
 		cli, err := fakeclient.New(fakeclient.WithObjects(ns))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
@@ -1600,10 +1603,12 @@ func TestUpdateNamespacePSA(t *testing.T) {
 		updated := &corev1.Namespace{}
 		g.Expect(cli.Get(ctx, client.ObjectKey{Name: cluster.GetApplicationNamespace()}, updated)).Should(Succeed())
 		g.Expect(updated.Labels[labels.SecurityEnforce]).To(Equal("baseline"))
+		g.Expect(updated.Annotations).ShouldNot(HaveKey(annotations.PSAElevatedBy))
 	})
 
-	t.Run("no-op when label already matches", func(t *testing.T) {
+	t.Run("no-op when label and annotation already match", func(t *testing.T) {
 		ns := newNamespace(cluster.GetApplicationNamespace(), "privileged")
+		ns.Annotations = map[string]string{annotations.PSAElevatedBy: "kserve-modelcache"}
 		cli, err := fakeclient.New(fakeclient.WithObjects(ns))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
@@ -1613,6 +1618,7 @@ func TestUpdateNamespacePSA(t *testing.T) {
 		updated := &corev1.Namespace{}
 		g.Expect(cli.Get(ctx, client.ObjectKey{Name: cluster.GetApplicationNamespace()}, updated)).Should(Succeed())
 		g.Expect(updated.Labels[labels.SecurityEnforce]).To(Equal("privileged"))
+		g.Expect(updated.Annotations[annotations.PSAElevatedBy]).To(Equal("kserve-modelcache"))
 	})
 }
 
@@ -1698,6 +1704,7 @@ func TestReconcileModelCache(t *testing.T) {
 		ctx := t.Context()
 
 		ns := newNamespace("privileged")
+		ns.Annotations = map[string]string{annotations.PSAElevatedBy: "kserve-modelcache"}
 
 		pv := &corev1.PersistentVolume{
 			ObjectMeta: metav1.ObjectMeta{Name: "kserve-localmodelnode-pv"},
@@ -1758,6 +1765,7 @@ func TestReconcileModelCache(t *testing.T) {
 		updatedNs := &corev1.Namespace{}
 		g.Expect(cli.Get(ctx, client.ObjectKey{Name: cluster.GetApplicationNamespace()}, updatedNs)).Should(Succeed())
 		g.Expect(updatedNs.Labels[labels.SecurityEnforce]).To(Equal("baseline"))
+		g.Expect(updatedNs.Annotations).ShouldNot(HaveKey(annotations.PSAElevatedBy))
 	}
 
 	t.Run("ModelCache Removed cleans up all resources", func(t *testing.T) {
