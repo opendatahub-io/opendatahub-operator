@@ -54,7 +54,7 @@ func (s *componentHandler) Init(platform common.Platform, cfg operatorconfig.Ope
 	nbcManifestInfo := notebookControllerManifestInfo(manifestsBasePath, notebookControllerManifestSourcePath)
 	if err := odhdeploy.ApplyParams(nbcManifestInfo.String(), "params.env", map[string]string{
 		"odh-notebook-controller-image": "RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE",
-		"kube-rbac-proxy":               "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
+		"kube-rbac-proxy":               "RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
 	}); err != nil {
 		return fmt.Errorf("failed to update params.env from %s : %w", nbcManifestInfo.String(), err)
 	}
