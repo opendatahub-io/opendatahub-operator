@@ -55,7 +55,7 @@ func CertManagerPostRenderer() engineTypes.PostRenderer {
 		// Find insertion point: before first workload (Deployment, StatefulSet, DaemonSet, Job, CronJob)
 		insertIndex := len(otherResources) // Default: insert at end
 		for i, resource := range otherResources {
-			if isWorkloadKind(resource) {
+			if isWorkloadKind(resource) || IsWebhookResource(resource) {
 				insertIndex = i
 				break
 			}
@@ -97,4 +97,13 @@ func isWorkloadKind(r unstructured.Unstructured) bool {
 		g == gvk.DaemonSet ||
 		g == gvk.Job ||
 		g == gvk.CronJob
+}
+
+// IsWebhookResource returns true if the resource is a webhook configuration.
+func IsWebhookResource(r unstructured.Unstructured) bool {
+	g := r.GroupVersionKind()
+	return g == gvk.MutatingWebhookConfiguration ||
+		g == gvk.ValidatingWebhookConfiguration ||
+		g == gvk.ValidatingAdmissionPolicy ||
+		g == gvk.ValidatingAdmissionPolicyBinding
 }
