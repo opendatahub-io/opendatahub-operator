@@ -14,6 +14,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -202,6 +203,9 @@ var _ = Describe("DataScienceCluster initialization", func() {
 					Labels: map[string]string{
 						labels.CustomizedAppNamespace: labels.True,
 						labels.SecurityEnforce:        "privileged",
+					},
+					Annotations: map[string]string{
+						annotations.PSAElevatedBy: "kserve-modelcache",
 					},
 				},
 			})).Should(Succeed())

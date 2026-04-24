@@ -23,6 +23,7 @@ import (
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -120,9 +121,10 @@ func (r *DSCInitializationReconciler) createAppNamespace(ctx context.Context, ns
 	}
 
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, desiredDefaultNS, func() error {
-		// Don't downgrade PSA from privileged — other controllers (e.g. KServe ModelCache)
-		// may have elevated it and will manage the downgrade when appropriate.
-		if desiredDefaultNS.Labels[labels.SecurityEnforce] == "privileged" {
+		// Preserve elevated PSA only when another controller explicitly claims ownership
+		// via the PSAElevatedBy annotation (e.g. KServe ModelCache).
+		if desiredDefaultNS.Labels[labels.SecurityEnforce] == "privileged" &&
+			resources.GetAnnotation(desiredDefaultNS, annotations.PSAElevatedBy) != "" {
 			delete(labelList, labels.SecurityEnforce)
 		}
 		resources.SetLabels(desiredDefaultNS, labelList)
