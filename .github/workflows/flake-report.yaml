@@ -1,0 +1,264 @@
+name: Flake Report
+
+on:
+  schedule:
+    - cron: '0 20 * * 0' # Every Sunday at 20:00 UTC
+  workflow_dispatch:
+    inputs:
+      max_builds:
+        description: 'Maximum number of recent builds to analyze'
+        required: false
+        default: '30'
+      threshold:
+        description: 'Flake rate threshold (0.0-1.0)'
+        required: false
+        default: '0.2'
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+env:
+  PROW_JOB: periodic-ci-opendatahub-io-opendatahub-operator-main-opendatahub-operator-e2e-periodic
+  GCS_BUCKET: test-platform-results
+  QUARANTINE_PATH: tests/e2e/quarantine.json
+
+jobs:
+  flake-report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ./cmd/test-retry/go.mod
+
+      - name: Fetch JUnit artifacts from GCS
+        id: fetch
+        run: |
+          MAX_BUILDS="${{ inputs.max_builds || '30' }}"
+          JUNIT_DIR="$(mktemp -d)"
+
+          BUILDS=$(curl -sf \
+            "https://storage.googleapis.com/storage/v1/b/${GCS_BUCKET}/o?prefix=logs/${PROW_JOB}/&delimiter=/&maxResults=1000" \
+            | jq -r '.prefixes // [] | .[]' \
+            | grep -oP '\d+(?=/)' \
+            | sort -rn \
+            | head -n "$MAX_BUILDS")
+
+          if [ -z "$BUILDS" ]; then
+            echo "No builds found for ${PROW_JOB} — periodic job may not have run yet"
+            echo "count=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # ci-operator places step artifacts at different paths depending on
+          # version; try the two known layouts for each build.
+          ARTIFACT_PATHS=(
+            "opendatahub-operator-e2e-periodic/e2e/junit_report.xml"
+            "opendatahub-operator-e2e-periodic/e2e/artifacts/junit_report.xml"
+          )
+
+          count=0
+          for build_id in $BUILDS; do
+            output_file="${JUNIT_DIR}/junit_${build_id}.xml"
+            for subpath in "${ARTIFACT_PATHS[@]}"; do
+              artifact_url="https://storage.googleapis.com/${GCS_BUCKET}/logs/${PROW_JOB}/${build_id}/artifacts/${subpath}"
+              if curl -sfL "$artifact_url" -o "$output_file" 2>/dev/null; then
+                count=$((count + 1))
+                break
+              fi
+            done
+          done
+
+          echo "Downloaded ${count} JUnit files from ${MAX_BUILDS} most recent builds"
+          echo "count=${count}" >> "$GITHUB_OUTPUT"
+          echo "dir=${JUNIT_DIR}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate Jira token
+        if: steps.fetch.outputs.count != '0'
+        id: jira
+        env:
+          QUARANTINE_JIRA_API_TOKEN: ${{ secrets.QUARANTINE_JIRA_API_TOKEN }}
+        run: |
+          if [ -z "$QUARANTINE_JIRA_API_TOKEN" ]; then
+            echo "valid=false" >> "$GITHUB_OUTPUT"
+            echo "No QUARANTINE_JIRA_API_TOKEN secret configured — skipping Jira integration"
+            exit 0
+          fi
+
+          HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer $QUARANTINE_JIRA_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://redhat.atlassian.net/rest/api/2/myself")
+
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "valid=true" >> "$GITHUB_OUTPUT"
+            echo "Jira token is valid"
+          else
+            echo "valid=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Jira token returned HTTP $HTTP_CODE — token may be expired. Rotate at https://id.atlassian.com/manage-profile/security/api-tokens"
+          fi
+
+      - name: Run flake report
+        if: steps.fetch.outputs.count != '0'
+        env:
+          QUARANTINE_JIRA_API_TOKEN: ${{ secrets.QUARANTINE_JIRA_API_TOKEN }}
+        run: |
+          THRESHOLD="${{ inputs.threshold || '0.2' }}"
+
+          QUARANTINE_ABS="${{ github.workspace }}/${{ env.QUARANTINE_PATH }}"
+
+          ARGS=(
+            --junit-dir "${{ steps.fetch.outputs.dir }}"
+            --threshold "$THRESHOLD"
+            --auto-quarantine
+            --quarantine-config "$QUARANTINE_ABS"
+            --json
+          )
+
+          if [ "${{ steps.jira.outputs.valid }}" = "true" ]; then
+            ARGS+=(
+              --jira-server "https://redhat.atlassian.net"
+              --jira-project "RHOAIENG"
+            )
+          fi
+
+          go run -C ./cmd/test-retry main.go flake-report "${ARGS[@]}" \
+            | tee /tmp/flake-report.json
+
+      - name: Open PR for quarantine config update
+        if: steps.fetch.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if git diff --quiet "${{ env.QUARANTINE_PATH }}" 2>/dev/null; then
+            echo "Quarantine config unchanged — nothing to commit"
+            exit 0
+          fi
+
+          BRANCH="chore/update-quarantine-$(date -u +%Y%m%d)"
+
+          # Re-use existing branch/PR if one was already opened today
+          EXISTING_PR=$(gh pr list \
+            --repo "${{ github.repository }}" \
+            --head "$BRANCH" \
+            --state open \
+            --limit 1 \
+            --json number -q '.[0].number // empty')
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add "${{ env.QUARANTINE_PATH }}"
+          git commit -m "chore: update quarantine config from flake report"
+          git push -u origin "$BRANCH" --force
+
+          if [ -n "$EXISTING_PR" ]; then
+            echo "Updated existing PR #${EXISTING_PR}"
+          else
+            gh pr create \
+              --repo "${{ github.repository }}" \
+              --head "$BRANCH" \
+              --base main \
+              --title "chore: update quarantine config from flake report" \
+              --label "e2e-flake-report" \
+              --body "Auto-generated by the [Flake Report](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) workflow.
+
+          This PR updates \`tests/e2e/quarantine.json\` based on the latest flake rate analysis of periodic e2e runs."
+            echo "Quarantine config PR created"
+          fi
+
+      - name: Upload report
+        if: steps.fetch.outputs.count != '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: flake-report
+          path: |
+            /tmp/flake-report.json
+            ${{ env.QUARANTINE_PATH }}
+
+      - name: Post report to tracking issue
+        if: steps.fetch.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE_LABEL="e2e-flake-report"
+          ISSUE_TITLE="E2E Flake Report — automated weekly summary"
+
+          ISSUE_NUMBER=$(gh issue list \
+            --repo "${{ github.repository }}" \
+            --label "$ISSUE_LABEL" \
+            --state open \
+            --limit 1 \
+            --json number -q '.[0].number // empty')
+
+          if [ -z "$ISSUE_NUMBER" ]; then
+            ISSUE_NUMBER=$(gh issue create \
+              --repo "${{ github.repository }}" \
+              --title "$ISSUE_TITLE" \
+              --label "$ISSUE_LABEL" \
+              --body "Weekly flake rate reports are posted as comments on this issue by the Flake Report workflow." \
+              | grep -oP '\d+$')
+            gh issue pin --repo "${{ github.repository }}" "$ISSUE_NUMBER" || true
+          fi
+
+          REPORT=/tmp/flake-report.json
+          QCFG="${{ env.QUARANTINE_PATH }}"
+          MD=/tmp/comment.md
+
+          echo "## Flake Report — $(date -u '+%Y-%m-%d %H:%M UTC')" > "$MD"
+          echo "" >> "$MD"
+          printf '**Files analyzed:** %s | **Tests tracked:** %s | **Threshold:** %s%%\n' \
+            "$(jq -r '.total_files' "$REPORT")" \
+            "$(jq -r '.total_tests' "$REPORT")" \
+            "$(jq -r '(.threshold * 100 | floor)' "$REPORT")" >> "$MD"
+          echo "" >> "$MD"
+
+          REG_COUNT=$(jq '.regressions | length' "$REPORT")
+          if [ "$REG_COUNT" -gt 0 ]; then
+            echo "### Regressions ($REG_COUNT)" >> "$MD"
+            echo "" >> "$MD"
+            echo "| Test | Flake Rate | Failed/Total | Transition Commit |" >> "$MD"
+            echo "|------|-----------|--------------|-------------------|" >> "$MD"
+            jq -r '.regressions[] | "| `\(.name)` | \(.flake_rate * 100 | floor)% | \(.failed_runs)/\(.total_runs) | \(.transition_commit // "—") |"' "$REPORT" >> "$MD"
+            echo "" >> "$MD"
+          fi
+
+          FLAKY_COUNT=$(jq '.flaky_tests | length' "$REPORT")
+          if [ "$FLAKY_COUNT" -gt 0 ]; then
+            echo "### Flaky Tests ($FLAKY_COUNT)" >> "$MD"
+            echo "" >> "$MD"
+            echo "| Test | Flake Rate | Failed/Total |" >> "$MD"
+            echo "|------|-----------|--------------|" >> "$MD"
+            jq -r '.flaky_tests[] | "| `\(.name)` | \(.flake_rate * 100 | floor)% | \(.failed_runs)/\(.total_runs) |"' "$REPORT" >> "$MD"
+            echo "" >> "$MD"
+          fi
+
+          Q_COUNT=$(jq '.tests | length' "$QCFG")
+          if [ "$Q_COUNT" -gt 0 ]; then
+            echo "### Quarantined Tests ($Q_COUNT)" >> "$MD"
+            echo "" >> "$MD"
+            echo "| Test | Jira | Flake Rate | Re-enable After |" >> "$MD"
+            echo "|------|------|-----------|-----------------|" >> "$MD"
+            jq -r '.tests[] | "| `\(.name)` | \(.jira // "—") | \(.flake_rate * 100 | floor)% | \(.re_enable_after // "never") |"' "$QCFG" >> "$MD"
+            echo "" >> "$MD"
+          fi
+
+          if [ "$REG_COUNT" -eq 0 ] && [ "$FLAKY_COUNT" -eq 0 ]; then
+            echo "All tests healthy — no regressions or flaky tests detected." >> "$MD"
+            echo "" >> "$MD"
+          fi
+
+          echo "---" >> "$MD"
+          echo "<sub>Generated by <a href=\"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\">Flake Report</a> from ${{ steps.fetch.outputs.count }} JUnit files</sub>" >> "$MD"
+
+          gh issue comment "$ISSUE_NUMBER" \
+            --repo "${{ github.repository }}" \
+            --body-file "$MD"
+
+          echo "Posted report to issue #${ISSUE_NUMBER}"
