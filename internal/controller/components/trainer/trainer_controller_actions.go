@@ -44,20 +44,6 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 		return ErrJobSetOperatorNotInstalled
 	}
 
-	// Check if any JobSetOperator CR exists with a name other than "cluster"
-	// This check is done before checking for "cluster" CR to provide better context if user creates wrong named CR
-	// This is a workaround for https://issues.redhat.com/browse/OCPBUGS-72507, once JobSetOperator is enforced to have "cluster" as the name, we can remove this check
-	jobSetOperatorList := &unstructured.UnstructuredList{}
-	jobSetOperatorList.SetGroupVersionKind(gvk.JobSetOperatorV1)
-	if err := rr.Client.List(ctx, jobSetOperatorList); err != nil {
-		return odherrors.NewStopErrorW(err)
-	}
-	for _, item := range jobSetOperatorList.Items {
-		if item.GetName() != "cluster" {
-			return odherrors.NewStopError(status.JobSetOperatorCRWrongNameMessage, item.GetName())
-		}
-	}
-
 	// Check that JobSetOperator CR exists with name "cluster"
 	jobSetOperatorCR := &unstructured.Unstructured{}
 	jobSetOperatorCR.SetGroupVersionKind(gvk.JobSetOperatorV1)
@@ -68,6 +54,13 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 		return odherrors.NewStopErrorW(err)
 	}
 
+	return nil
+}
+
+// checkJobSetCRD verifies that the JobSet CRD exists.
+// This runs after the dependency monitor action so that JobSetOperator
+// conditions are surfaced even when the CRD is missing.
+func checkJobSetCRD(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	jobset, err := cluster.HasCRD(ctx, rr.Client, gvk.JobSetv1alpha2)
 	if err != nil {
 		return odherrors.NewStopError("failed to check %s CRDs version: %w", gvk.JobSetv1alpha2, err)
