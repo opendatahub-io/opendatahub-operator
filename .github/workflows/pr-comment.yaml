@@ -1,47 +1,91 @@
 name: Comment on pr
 on:
   workflow_run:
-    workflows: ["Check config and readme updates"]
+    workflows: ["Check config and readme updates", "Validate RELATED_IMAGE references"]
     types:
       - completed
 jobs:
-  download-artifact-data:
+  resolve-workflow:
     runs-on: ubuntu-latest
     outputs:
       pr_number: ${{ steps.artifact-data.outputs.pr_number }}
+      comment_tag: ${{ steps.resolve.outputs.comment_tag }}
+      message: ${{ steps.resolve.outputs.message }}
     steps:
-      - name: Download artifact
-        id: artifact-download
+      - name: Resolve workflow config and download PR number
+        id: resolve
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           script: |
-            let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
-               owner: context.repo.owner,
-               repo: context.repo.repo,
-               run_id: context.payload.workflow_run.id,
+            // Add new workflow checks here: artifact name, comment tag, and failure message.
+            const workflows = {
+              "Check config and readme updates": {
+                artifactName: "pr_number",
+                commentTag: "required-files-check",
+                message: `## This PR can't be merged just yet 😢
+
+            Please run \`make generate manifests-all api-docs\` and commit the changes.`,
+              },
+              "Validate RELATED_IMAGE references": {
+                artifactName: "pr_number_related_images",
+                commentTag: "related-images-check",
+                message: `## RELATED_IMAGE validation failed
+
+            Some \`RELATED_IMAGE_*\` names used in the operator are not present in ODH-Build-Config or RHOAI-Build-Config.
+
+            Please ensure the images are added to the build config repos before merging.`,
+              },
+            };
+
+            const workflowName = context.payload.workflow_run.name;
+            const config = workflows[workflowName];
+            if (!config) {
+              core.setFailed(`Unknown workflow: ${workflowName}`);
+              return;
+            }
+
+            // Download PR number artifact
+            const allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.payload.workflow_run.id,
             });
 
-            let matchArtifact = allArtifacts.data.artifacts.filter((artifact) => {
-              return artifact.name == "pr_number"
-            })[0];
+            const matchArtifact = allArtifacts.data.artifacts.find(
+              (a) => a.name === config.artifactName
+            );
+            if (!matchArtifact) {
+              core.setFailed(`Artifact "${config.artifactName}" not found`);
+              return;
+            }
 
-            let download = await github.rest.actions.downloadArtifact({
-               owner: context.repo.owner,
-               repo: context.repo.repo,
-               artifact_id: matchArtifact.id,
-               archive_format: 'zip',
+            const download = await github.rest.actions.downloadArtifact({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              artifact_id: matchArtifact.id,
+              archive_format: "zip",
             });
-            let fs = require('fs');
-            fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/pr_number.zip`, Buffer.from(download.data));
+            const fs = require("fs");
+            fs.writeFileSync(
+              `${process.env.GITHUB_WORKSPACE}/pr_number.zip`,
+              Buffer.from(download.data)
+            );
+
+            // Set outputs
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${context.payload.workflow_run.id}`;
+            const fullMessage = `${config.message}\n\nFor more info: ${runUrl}`;
+
+            core.setOutput("comment_tag", config.commentTag);
+            core.setOutput("message", fullMessage);
       - name: Unzip artifact
         run: unzip pr_number.zip
-      - name: Extract data
+      - name: Extract PR number
         id: artifact-data
         run: |
           echo "pr_number=$(head -n 1 pr_number.txt)" >> $GITHUB_OUTPUT
   comment-on-pr:
     needs:
-      - download-artifact-data
+      - resolve-workflow
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
@@ -50,19 +94,14 @@ jobs:
         if: ${{ github.event.workflow_run.conclusion == 'failure' }}
         uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
         with:
-          message: |
-              ## This PR can't be merged just yet 😢
-
-                Please run `make generate manifests-all api-docs` and commit the changes.
-
-                For more info: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}
-          pr-number: ${{ needs.download-artifact-data.outputs.pr_number }}
-          comment-tag: required-files-check
+          message: ${{ needs.resolve-workflow.outputs.message }}
+          pr-number: ${{ needs.resolve-workflow.outputs.pr_number }}
+          comment-tag: ${{ needs.resolve-workflow.outputs.comment_tag }}
           mode: upsert
       - name: Delete resolved comment
         if: ${{ github.event.workflow_run.conclusion == 'success' }}
         uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
         with:
-          pr-number: ${{ needs.download-artifact-data.outputs.pr_number }}
-          comment-tag: required-files-check
+          pr-number: ${{ needs.resolve-workflow.outputs.pr_number }}
+          comment-tag: ${{ needs.resolve-workflow.outputs.comment_tag }}
           mode: delete

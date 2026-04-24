@@ -334,6 +334,11 @@ get-manifests: ## Fetch components manifests from remote git repo
 	@./.github/scripts/validate-manifest-images.sh
 CLEANFILES += opt/manifests/*
 
+.PHONY: validate-related-images
+validate-related-images: ## Validate RELATED_IMAGE_* names against build configs
+	@RHOAI_BUILD_CONFIG_BRANCH=rhoai-$(shell echo $(VERSION) | sed 's/\([0-9]*\.[0-9]*\)\.[0-9]*/\1/') \
+		./.github/scripts/validate-related-images.sh
+
 # Default to standard sed command
 SED_COMMAND = sed
 
