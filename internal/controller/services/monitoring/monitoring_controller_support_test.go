@@ -1580,7 +1580,7 @@ func TestGetTemplateDataImageURLs(t *testing.T) {
 			t.Setenv("OPERATOR_NAMESPACE", "test-operator-ns")
 
 			if tt.envKubeRBACProxy != "" {
-				t.Setenv("RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE", tt.envKubeRBACProxy)
+				t.Setenv("RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE", tt.envKubeRBACProxy)
 			}
 			if tt.envPromLabelProxy != "" {
 				t.Setenv("RELATED_IMAGE_OSE_PROM_LABEL_PROXY_IMAGE", tt.envPromLabelProxy)
