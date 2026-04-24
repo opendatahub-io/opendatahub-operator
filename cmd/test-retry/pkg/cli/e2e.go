@@ -9,7 +9,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/test-retry/pkg/types"
 )
 
-// NewE2ECommand creates the e2e test command
+// NewE2ECommand creates the e2e test command.
 func NewE2ECommand(cfg *config.Config) *cobra.Command {
 	var testFilter string
 	var testFlags string
@@ -20,6 +20,8 @@ func NewE2ECommand(cfg *config.Config) *cobra.Command {
 	var neverSkip []string
 	var skipAtPrefix []string
 	var junitOutput string
+	var quarantineConfig string
+	var commitSHA string
 	var prOpts types.PROptions
 
 	cmd := &cobra.Command{
@@ -63,6 +65,8 @@ Example: test-retry e2e -- -run TestFoo -v`,
 				SkipAtPrefixes:    skipAtPrefix,
 				PROptions:         prOpts,
 				JUnitOutputPath:   junitOutput,
+				QuarantineConfig:  quarantineConfig,
+				CommitSHA:         commitSHA,
 			}
 
 			testRunner := runner.NewE2ETestRunner(opts)
@@ -82,6 +86,8 @@ Example: test-retry e2e -- -run TestFoo -v`,
 		"TestOdhOperator/",              // Fallback: extract at root level
 	}, "Test prefixes where tests should be extracted at prefix + 1 level (repeatable)")
 	cmd.Flags().StringVar(&junitOutput, "junit-output", "", "Path to JUnit XML output file (optional)")
+	cmd.Flags().StringVar(&quarantineConfig, "quarantine-config", "", "Path to quarantine config JSON (quarantined tests are skipped)")
+	cmd.Flags().StringVar(&commitSHA, "commit-sha", "", "Git commit SHA to embed in JUnit XML for regression tracking")
 
 	// GitHub PR notification flags
 	cmd.Flags().StringVar(&prOpts.Token, "github-token", "", "GitHub token for authentication (can also use GITHUB_TOKEN env var)")

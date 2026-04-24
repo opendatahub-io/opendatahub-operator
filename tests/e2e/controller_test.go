@@ -7,6 +7,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -99,6 +100,7 @@ type TestGroup struct {
 	name      string
 	enabled   bool
 	parallel  bool
+	timeout   time.Duration // per-group timeout budget; 0 means no limit
 	scenarios []map[string]TestFn
 	flags     arrayFlags
 }
@@ -136,6 +138,7 @@ var (
 		name:     "components",
 		enabled:  true,
 		parallel: true,
+		timeout:  35 * time.Minute,
 		scenarios: []map[string]TestFn{
 			{
 				componentApi.DashboardComponentName:            dashboardTestSuite,
@@ -179,6 +182,7 @@ var (
 		name:     "services",
 		enabled:  true,
 		parallel: true,
+		timeout:  25 * time.Minute,
 		scenarios: []map[string]TestFn{{
 			serviceApi.MonitoringServiceName: monitoringTestSuite,
 			serviceApi.AuthServiceName:       authControllerTestSuite,
@@ -268,6 +272,27 @@ func (tg *TestGroup) Run(t *testing.T) {
 	if !tg.enabled {
 		t.Skipf("Test group %s is disabled", tg.name)
 		return
+	}
+
+	if tg.timeout > 0 {
+		var (
+			mu       sync.Mutex
+			finished bool
+		)
+		timer := time.AfterFunc(tg.timeout, func() {
+			mu.Lock()
+			defer mu.Unlock()
+			if finished {
+				return
+			}
+			t.Errorf("Test group %s exceeded its %s timeout budget", tg.name, tg.timeout)
+		})
+		t.Cleanup(func() {
+			timer.Stop()
+			mu.Lock()
+			finished = true
+			mu.Unlock()
+		})
 	}
 
 	enabledTests := tg.resolveEnabledTests()
