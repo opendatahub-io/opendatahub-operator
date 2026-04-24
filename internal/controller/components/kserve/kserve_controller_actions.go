@@ -28,6 +28,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -512,11 +513,12 @@ func labelModelCacheNodes(ctx context.Context, rr *odhtypes.ReconciliationReques
 		if node.Labels[modelCacheLabelKey] == modelCacheLabelValue {
 			continue
 		}
+		original := node.DeepCopy()
 		if node.Labels == nil {
 			node.Labels = make(map[string]string)
 		}
 		node.Labels[modelCacheLabelKey] = modelCacheLabelValue
-		if err := rr.Client.Update(ctx, node); err != nil {
+		if err := rr.Client.Patch(ctx, node, client.MergeFrom(original)); err != nil {
 			return fmt.Errorf("failed to label node %q: %w", node.Name, err)
 		}
 		logger.Info("Labeled node for model cache", "node", node.Name)
@@ -529,8 +531,9 @@ func labelModelCacheNodes(ctx context.Context, rr *odhtypes.ReconciliationReques
 	for i := range allLabeled.Items {
 		node := &allLabeled.Items[i]
 		if _, desired := desiredNodes[node.Name]; !desired {
+			original := node.DeepCopy()
 			delete(node.Labels, modelCacheLabelKey)
-			if err := rr.Client.Update(ctx, node); err != nil {
+			if err := rr.Client.Patch(ctx, node, client.MergeFrom(original)); err != nil {
 				return fmt.Errorf("failed to unlabel node %q: %w", node.Name, err)
 			}
 			logger.Info("Removed stale model cache label from node", "node", node.Name)
@@ -620,8 +623,9 @@ func cleanupModelCache(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 	}
 	for i := range nodeList.Items {
 		node := &nodeList.Items[i]
+		original := node.DeepCopy()
 		delete(node.Labels, modelCacheLabelKey)
-		if err := rr.Client.Update(ctx, node); err != nil {
+		if err := rr.Client.Patch(ctx, node, client.MergeFrom(original)); err != nil {
 			return fmt.Errorf("failed to unlabel node %q: %w", node.Name, err)
 		}
 		logger.Info("Removed model cache label from node", "node", node.Name)
@@ -639,14 +643,28 @@ func updateNamespacePSA(ctx context.Context, cli client.Client, desiredLevel str
 	}
 
 	current := ns.Labels[labels.SecurityEnforce]
-	if current == desiredLevel {
-		return nil
+	currentAnnotation := resources.GetAnnotation(ns, annotations.PSAElevatedBy)
+	needsUpdate := false
+
+	if current != desiredLevel {
+		if ns.Labels == nil {
+			ns.Labels = make(map[string]string)
+		}
+		ns.Labels[labels.SecurityEnforce] = desiredLevel
+		needsUpdate = true
 	}
 
-	if ns.Labels == nil {
-		ns.Labels = make(map[string]string)
+	if desiredLevel == "privileged" && currentAnnotation != "kserve-modelcache" {
+		resources.SetAnnotation(ns, annotations.PSAElevatedBy, "kserve-modelcache")
+		needsUpdate = true
+	} else if desiredLevel != "privileged" && currentAnnotation != "" {
+		resources.RemoveAnnotation(ns, annotations.PSAElevatedBy)
+		needsUpdate = true
 	}
-	ns.Labels[labels.SecurityEnforce] = desiredLevel
+
+	if !needsUpdate {
+		return nil
+	}
 
 	if err := cli.Update(ctx, ns); err != nil {
 		return fmt.Errorf("failed to update namespace PSA label: %w", err)

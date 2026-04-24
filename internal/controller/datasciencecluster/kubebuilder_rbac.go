@@ -20,6 +20,10 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=get;list;watch
 // +kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=get;list;watch;use,resourceNames=restricted
 // +kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=get;list;watch;use,resourceNames=anyuid
+// SCC names must match the manifests in opt/manifests/kserve/overlays/:
+//   openshift-ai-localmodel-scc        -> odh-modelcache/localmodel-scc.yaml
+//   kserve-localmodel-permissions-scc  -> odh-modelcache/localmodel-permissions-scc.yaml
+//   openshift-ai-llminferenceservice-scc -> odh/rbac/llmisvc/llm-svc-scc.yaml
 //+kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=create;update;patch;delete;use,resourceNames=openshift-ai-localmodel-scc
 //+kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=create;update;patch;delete;use,resourceNames=kserve-localmodel-permissions-scc
 //+kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=create;update;patch;delete;use,resourceNames=openshift-ai-llminferenceservice-scc
