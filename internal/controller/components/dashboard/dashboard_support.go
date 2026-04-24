@@ -32,8 +32,8 @@ var (
 	}
 
 	overlaysSourcePaths = map[common.Platform]string{
-		cluster.SelfManagedRhoai: "/rhoai/onprem",
-		cluster.ManagedRhoai:     "/rhoai/addon",
+		cluster.SelfManagedRhoai: "/rhoai",
+		cluster.ManagedRhoai:     "/rhoai", // not official anymore
 		cluster.OpenDataHub:      "/odh",
 	}
 
