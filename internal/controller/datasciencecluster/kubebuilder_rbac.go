@@ -18,15 +18,8 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="snapshot.storage.k8s.io",resources=volumesnapshots,verbs=create;delete;patch;get
 
 // +kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=get;list;watch
-// +kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=get;list;watch;use,resourceNames=restricted
-// +kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=get;list;watch;use,resourceNames=anyuid
-// SCC names must match the manifests in opt/manifests/kserve/overlays/:
-//   openshift-ai-localmodel-scc        -> odh-modelcache/localmodel-scc.yaml
-//   kserve-localmodel-permissions-scc  -> odh-modelcache/localmodel-permissions-scc.yaml
-//   openshift-ai-llminferenceservice-scc -> odh/rbac/llmisvc/llm-svc-scc.yaml
-//+kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=create;update;patch;delete;use,resourceNames=openshift-ai-localmodel-scc
-//+kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=create;update;patch;delete;use,resourceNames=kserve-localmodel-permissions-scc
-//+kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=create;update;patch;delete;use,resourceNames=openshift-ai-llminferenceservice-scc
+// +kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=get;list;watch;use
+// +kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=create;update;patch;delete;use
 
 // +kubebuilder:rbac:groups="route.openshift.io",resources=routes,verbs=get;list;watch;create;delete;update;patch
 
