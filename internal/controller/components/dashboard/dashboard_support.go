@@ -33,7 +33,7 @@ var (
 
 	overlaysSourcePaths = map[common.Platform]string{
 		cluster.SelfManagedRhoai: "/rhoai",
-		cluster.ManagedRhoai:     "/rhoai", // not offical anymore
+		cluster.ManagedRhoai:     "/not-supported", // not official anymore
 		cluster.OpenDataHub:      "/odh",
 	}
 
