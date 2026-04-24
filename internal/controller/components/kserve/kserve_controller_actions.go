@@ -593,13 +593,6 @@ func cleanupModelCache(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 		return err
 	}
 
-	pv := &corev1.PersistentVolume{
-		ObjectMeta: metav1.ObjectMeta{Name: "kserve-localmodelnode-pv"},
-	}
-	if err := deleteIfExists(ctx, rr.Client, pv, "model cache PV"); err != nil {
-		return err
-	}
-
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "kserve-localmodelnode-pvc",
@@ -607,6 +600,13 @@ func cleanupModelCache(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 		},
 	}
 	if err := deleteIfExists(ctx, rr.Client, pvc, "model cache PVC"); err != nil {
+		return err
+	}
+
+	pv := &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{Name: "kserve-localmodelnode-pv"},
+	}
+	if err := deleteIfExists(ctx, rr.Client, pv, "model cache PV"); err != nil {
 		return err
 	}
 
@@ -642,6 +642,8 @@ func updateNamespacePSA(ctx context.Context, cli client.Client, desiredLevel str
 		return fmt.Errorf("failed to get application namespace: %w", err)
 	}
 
+	original := ns.DeepCopy()
+
 	current := ns.Labels[labels.SecurityEnforce]
 	currentAnnotation := resources.GetAnnotation(ns, annotations.PSAElevatedBy)
 	needsUpdate := false
@@ -666,7 +668,7 @@ func updateNamespacePSA(ctx context.Context, cli client.Client, desiredLevel str
 		return nil
 	}
 
-	if err := cli.Update(ctx, ns); err != nil {
+	if err := cli.Patch(ctx, ns, client.MergeFrom(original)); err != nil {
 		return fmt.Errorf("failed to update namespace PSA label: %w", err)
 	}
 
