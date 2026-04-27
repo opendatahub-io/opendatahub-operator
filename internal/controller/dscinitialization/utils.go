@@ -2,19 +2,15 @@ package dscinitialization
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
 	"fmt"
 	"maps"
-	"path/filepath"
-	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -22,13 +18,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
-)
-
-var (
-	resourceInterval = 2 * time.Second
 )
 
 // createOperatorResource include steps:
@@ -37,7 +28,7 @@ var (
 //   - Odh specific labels for access
 //   - Pod security labels for baseline permissions
 //
-// - 2. Patch monitoring namespace
+// - 2. Patch monitoring namespace (create + label for cluster monitoring scraping)
 // - 3. Network Policies 'opendatahub' that allow traffic between the ODH namespaces.
 func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context, dscInit *dsciv2.DSCInitialization, platform common.Platform) error {
 	log := logf.FromContext(ctx)
@@ -47,15 +38,15 @@ func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context
 		return err
 	}
 
-	if dscInit.Spec.Monitoring.ManagementState == operatorv1.Managed || platform == cluster.ManagedRhoai {
+	if dscInit.Spec.Monitoring.ManagementState == operatorv1.Managed {
 		if err := PatchMonitoringNS(ctx, r.Client, dscInit); err != nil {
-			log.Error(err, "error patch monitoring namespace")
+			log.Error(err, "error patching monitoring namespace")
 			return err
 		}
 	}
 
 	// Create default NetworkPolicy for the namespace
-	if err := ReconcileDefaultNetworkPolicy(ctx, r.Client, dscInit, platform, r.networkpolicyPath()); err != nil {
+	if err := ReconcileDefaultNetworkPolicy(ctx, r.Client, dscInit, platform); err != nil {
 		return err
 	}
 
@@ -126,13 +117,13 @@ func (r *DSCInitializationReconciler) createAppNamespace(ctx context.Context, ns
 	return err
 }
 
+// PatchMonitoringNS ensures the monitoring namespace exists and is labeled for
+// OpenShift cluster monitoring scraping, pod security, and operator ownership.
 func PatchMonitoringNS(ctx context.Context, cli client.Client, dscInit *dsciv2.DSCInitialization) error {
-	log := logf.FromContext(ctx)
 	monitoringName := dscInit.Spec.Monitoring.Namespace
-	if dscInit.Spec.Monitoring.ManagementState != operatorv1.Managed || dscInit.Spec.ApplicationsNamespace == monitoringName {
+	if dscInit.Spec.ApplicationsNamespace == monitoringName {
 		return nil
 	}
-	// Create Monitoring Namespace if it is enabled and not exists
 
 	desiredMonitoringNamespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -144,13 +135,10 @@ func PatchMonitoringNS(ctx context.Context, cli client.Client, dscInit *dsciv2.D
 		resources.SetLabels(desiredMonitoringNamespace, map[string]string{
 			labels.ODH.OwnedNamespace: labels.True,
 			labels.SecurityEnforce:    "baseline",
-			labels.ClusterMonitoring:  labels.True,
 		})
 		return nil
 	})
-	if err != nil {
-		log.Error(err, "Unable to create or patch monitoring namespace")
-	}
+
 	return err
 }
 
@@ -158,42 +146,8 @@ func ReconcileDefaultNetworkPolicy(
 	ctx context.Context,
 	cli client.Client,
 	dscInit *dsciv2.DSCInitialization,
-	platform common.Platform,
-	networkpolicyPath string,
+	_ common.Platform,
 ) error {
-	if platform == cluster.ManagedRhoai || platform == cluster.SelfManagedRhoai {
-		log := logf.FromContext(ctx)
-
-		// Get operator namespace
-		operatorNs, err := cluster.GetOperatorNamespace()
-		if err != nil {
-			log.Error(err, "error getting operator namespace for networkpolicy creation")
-			return err
-		}
-		// Deploy networkpolicy for operator namespace
-		err = deploy.DeployManifestsFromPath(ctx, cli, dscInit, filepath.Join(networkpolicyPath, "operator"), operatorNs, "networkpolicy", true)
-		if err != nil {
-			log.Error(err, "error to set networkpolicy in operator namespace", "path", networkpolicyPath)
-			return err
-		}
-		// Deploy networkpolicy for monitoring namespace only when it is managed cluster.
-		if platform == cluster.ManagedRhoai {
-			err = deploy.DeployManifestsFromPath(ctx, cli, dscInit, filepath.Join(networkpolicyPath, "monitoring"), dscInit.Spec.Monitoring.Namespace, "networkpolicy", true)
-			if err != nil {
-				log.Error(err, "error to set networkpolicy in monitoring namespace", "path", networkpolicyPath)
-				return err
-			}
-		}
-		// Deploy networkpolicy for applications namespace
-		err = deploy.DeployManifestsFromPath(ctx, cli, dscInit, filepath.Join(networkpolicyPath, "applications"), dscInit.Spec.ApplicationsNamespace, "networkpolicy", true)
-		if err != nil {
-			log.Error(err, "error to set networkpolicy in applications namespace", "path", networkpolicyPath)
-			return err
-		}
-		return nil
-	}
-
-	// Expected namespace for the given name in ODH
 	np := networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      dscInit.Spec.ApplicationsNamespace,
@@ -235,44 +189,6 @@ func ReconcileDefaultNetworkPolicy(
 	}
 
 	return nil
-}
-
-func (r *DSCInitializationReconciler) waitForManagedSecret(ctx context.Context, name string, namespace string) (*corev1.Secret, error) {
-	managedSecret := &corev1.Secret{}
-	backoff := wait.Backoff{
-		Duration: resourceInterval,
-		Factor:   2.0,
-		Steps:    5,
-	}
-
-	err := wait.ExponentialBackoffWithContext(ctx, backoff, func(ctx context.Context) (bool, error) {
-		err := r.Client.Get(ctx, client.ObjectKey{
-			Namespace: namespace,
-			Name:      name,
-		}, managedSecret)
-
-		if err != nil {
-			return false, client.IgnoreNotFound(err)
-		}
-		return true, nil
-	})
-
-	return managedSecret, err
-}
-
-func GenerateRandomHex(length int) ([]byte, error) {
-	// Calculate the required number of bytes
-	numBytes := length / 2
-
-	// Create a byte slice with the appropriate size
-	randomBytes := make([]byte, numBytes)
-
-	// Read random bytes from the crypto/rand source
-	if _, err := rand.Read(randomBytes); err != nil {
-		return nil, err
-	}
-
-	return randomBytes, nil
 }
 
 func createNetworkPolicyPeer(key, value string) []networkingv1.NetworkPolicyPeer {

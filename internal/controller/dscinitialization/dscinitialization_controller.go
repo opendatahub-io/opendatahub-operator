@@ -41,7 +41,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
@@ -55,7 +54,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
 const (
@@ -72,7 +70,7 @@ type DSCInitializationReconciler struct {
 }
 
 // Reconcile contains controller logic specific to DSCInitialization instance updates.
-func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:funlen,gocyclo,maintidx
+func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:funlen,maintidx
 	log := logf.FromContext(ctx).WithName("DSCInitialization")
 	log.Info("Reconciling DSCInitialization.", "DSCInitialization Request.Name", req.Name)
 
@@ -187,141 +185,81 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return reconcile.Result{}, err
 	}
 
-	switch req.Name {
-	case "prometheus": // prometheus configmap
-		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhoai {
-			log.Info("Monitoring enabled to restart deployment", "cluster", "Managed Service Mode")
-			if err := r.configureManagedMonitoring(ctx, instance, "updates"); err != nil {
-				return reconcile.Result{}, err
-			}
-		}
-
-		return ctrl.Result{}, nil
-	case "addon-managed-odh-parameters":
-		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhoai {
-			log.Info("Monitoring enabled when notification updated", "cluster", "Managed Service Mode")
-			if err := r.configureManagedMonitoring(ctx, instance, "updates"); err != nil {
-				return reconcile.Result{}, err
-			}
-		}
-
-		return ctrl.Result{}, nil
-	case "backup": // revert back to the original prometheus.yml
-		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhoai {
-			log.Info("Monitoring enabled to restore back", "cluster", "Managed Service Mode")
-			if err := r.configureManagedMonitoring(ctx, instance, "revertbackup"); err != nil {
-				return reconcile.Result{}, err
-			}
-		}
-
-		return ctrl.Result{}, nil
-	default:
-		switch platform {
-		case cluster.SelfManagedRhoai:
-			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
-				log.Info("Monitoring enabled", "cluster", "Self-Managed Mode")
-				if err = r.configureSegmentIO(ctx, instance); err != nil {
-					return reconcile.Result{}, err
-				}
-
-				if err = r.newMonitoringCR(ctx, instance); err != nil {
-					return ctrl.Result{}, err
-				}
-			} else {
-				log.Info("Monitoring disabled", "cluster", "Self-Managed Mode")
-				if err := r.deleteMonitoringCR(ctx); err != nil {
-					return reconcile.Result{}, err
-				}
-			}
-		case cluster.ManagedRhoai:
-			osdConfigsPath := filepath.Join(r.OperatorSettings.ManifestsBasePath, "osd-configs")
-			if err = deploy.DeployManifestsFromPath(ctx, r.Client, instance, osdConfigsPath, instance.Spec.ApplicationsNamespace, "osd", true); err != nil {
-				log.Error(err, "Failed to apply osd specific configs from manifests", "Manifests path", osdConfigsPath)
-				r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
-					"Failed to apply %s: %v", osdConfigsPath, err)
-
-				return reconcile.Result{}, err
-			}
-			// TODO: till we allow user to disable Monitoring in Managed cluster
-			log.Info("Monitoring enabled in initialization stage", "cluster", "Managed Service Mode")
-			if err = r.newMonitoringCR(ctx, instance); err != nil {
-				return ctrl.Result{}, err
-			}
-			if err = r.configureManagedMonitoring(ctx, instance, "init"); err != nil {
-				return reconcile.Result{}, err
-			}
-			if err = r.configureCommonMonitoring(ctx, instance); err != nil {
-				return reconcile.Result{}, err
-			}
-		default: // TODO: see if this can be conbimed with self-managed case
-			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
-				log.Info("Monitoring enabled", "cluster", "ODH Mode")
-				if err = r.newMonitoringCR(ctx, instance); err != nil {
-					return ctrl.Result{}, err
-				}
-			} else {
-				log.Info("Monitoring disabled", "cluster", "ODH Mode")
-				if err := r.deleteMonitoringCR(ctx); err != nil {
-					return reconcile.Result{}, err
-				}
-			}
-		}
-
-		// legacy ServiceMesh FeatureTracker cleanup, retained from the remove ServiceMesh controller
-		// TODO where exactly to put this logic ?
-		ftNames := []string{
-			instance.Spec.ApplicationsNamespace + "-mesh-shared-configmap",
-			instance.Spec.ApplicationsNamespace + "-mesh-control-plane-creation",
-			instance.Spec.ApplicationsNamespace + "-mesh-metrics-collection",
-			instance.Spec.ApplicationsNamespace + "-enable-proxy-injection-in-authorino-deployment",
-			instance.Spec.ApplicationsNamespace + "-mesh-control-plane-external-authz",
-		}
-		for _, name := range ftNames {
-			ft := featuresv1.FeatureTracker{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: name,
-				},
-			}
-
-			err := r.Client.Delete(ctx, &ft, client.PropagationPolicy(metav1.DeletePropagationForeground))
-			if k8serr.IsNotFound(err) {
-				continue
-			} else if err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to delete FeatureTracker %s: %w", ft.GetName(), err)
-			}
-		}
-
-		// Create Auth
-		if err = r.CreateAuth(ctx, platform); err != nil {
-			log.Info("failed to create Auth")
-			return ctrl.Result{}, err
-		}
-
-		// Create GatewayConfig, always have one in the cluster but up to user to config.
-		if err = r.CreateGatewayConfig(ctx, instance); err != nil {
-			log.Info("failed to create GatewayConfig")
-			return ctrl.Result{}, err
-		}
-
-		// Create default HWProfile CR
-		if err = r.ManageDefaultAndCustomHWProfileCR(ctx, instance, platform); err != nil {
-			log.Info("failed to manage default and custom HardwareProfile CR")
-			return ctrl.Result{}, err
-		}
-
-		// Finish reconciling
-		_, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv2.DSCInitialization) {
-			status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
-			saved.Status.Phase = status.PhaseReady
-		})
-		if err != nil {
-			log.Error(err, "failed to update DSCInitialization status after successfully completed reconciliation")
+	if platform == cluster.ManagedRhoai {
+		osdConfigsPath := filepath.Join(r.OperatorSettings.ManifestsBasePath, "osd-configs")
+		if err = deploy.DeployManifestsFromPath(ctx, r.Client, instance, osdConfigsPath, instance.Spec.ApplicationsNamespace, "osd", true); err != nil {
+			log.Error(err, "Failed to apply osd specific configs from manifests", "Manifests path", osdConfigsPath)
 			r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
-				"Failed to update DSCInitialization status: %v", err)
+				"Failed to apply %s: %v", osdConfigsPath, err)
+
+			return reconcile.Result{}, err
+		}
+	}
+
+	if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
+		if err = r.newMonitoringCR(ctx, instance); err != nil {
+			return ctrl.Result{}, err
+		}
+	} else {
+		if err = r.deleteMonitoringCR(ctx); err != nil {
+			return reconcile.Result{}, err
+		}
+	}
+
+	// legacy ServiceMesh FeatureTracker cleanup, retained from the remove ServiceMesh controller
+	// TODO where exactly to put this logic ?
+	ftNames := []string{
+		instance.Spec.ApplicationsNamespace + "-mesh-shared-configmap",
+		instance.Spec.ApplicationsNamespace + "-mesh-control-plane-creation",
+		instance.Spec.ApplicationsNamespace + "-mesh-metrics-collection",
+		instance.Spec.ApplicationsNamespace + "-enable-proxy-injection-in-authorino-deployment",
+		instance.Spec.ApplicationsNamespace + "-mesh-control-plane-external-authz",
+	}
+	for _, name := range ftNames {
+		ft := featuresv1.FeatureTracker{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: name,
+			},
 		}
 
-		return ctrl.Result{}, nil
+		err := r.Client.Delete(ctx, &ft, client.PropagationPolicy(metav1.DeletePropagationForeground))
+		if k8serr.IsNotFound(err) {
+			continue
+		} else if err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to delete FeatureTracker %s: %w", ft.GetName(), err)
+		}
 	}
+
+	// Create Auth
+	if err = r.CreateAuth(ctx, platform); err != nil {
+		log.Info("failed to create Auth")
+		return ctrl.Result{}, err
+	}
+
+	// Create GatewayConfig, always have one in the cluster but up to user to config.
+	if err = r.CreateGatewayConfig(ctx, instance); err != nil {
+		log.Info("failed to create GatewayConfig")
+		return ctrl.Result{}, err
+	}
+
+	// Create default HWProfile CR
+	if err = r.ManageDefaultAndCustomHWProfileCR(ctx, instance, platform); err != nil {
+		log.Info("failed to manage default and custom HardwareProfile CR")
+		return ctrl.Result{}, err
+	}
+
+	// Finish reconciling
+	_, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv2.DSCInitialization) {
+		status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
+		saved.Status.Phase = status.PhaseReady
+	})
+	if err != nil {
+		log.Error(err, "failed to update DSCInitialization status after successfully completed reconciliation")
+		r.Recorder.Eventf(instance, nil, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Reconcile",
+			"Failed to update DSCInitialization status: %v", err)
+	}
+
+	return ctrl.Result{}, nil
 }
 
 func getObject(gvk schema.GroupVersionKind) client.Object {
@@ -386,23 +324,6 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			getObject(gvk.HardwareProfile),
 			builder.WithPredicates(rp.Deleted())).
 		Watches(
-			getObject(gvk.DataScienceCluster),
-			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
-				return r.watchDSCResource(ctx)
-			}),
-			builder.WithPredicates(rp.DSCDeletionPredicate), // TODO: is it needed?
-		).
-		Watches(
-			getObject(gvk.Secret),
-			handler.EnqueueRequestsFromMapFunc(r.watchMonitoringSecretResource),
-			builder.WithPredicates(rp.SecretContentChangedPredicate),
-		).
-		Watches(
-			getObject(gvk.ConfigMap),
-			handler.EnqueueRequestsFromMapFunc(r.watchMonitoringConfigMapResource),
-			builder.WithPredicates(rp.CMContentChangedPredicate),
-		).
-		Watches(
 			getObject(gvk.Auth),
 			handler.EnqueueRequestsFromMapFunc(r.watchAuthResource),
 		).
@@ -419,47 +340,6 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			)),
 		).
 		Complete(r)
-}
-
-func (r *DSCInitializationReconciler) watchMonitoringConfigMapResource(ctx context.Context, a client.Object) []reconcile.Request {
-	log := logf.FromContext(ctx)
-	if a.GetName() == "prometheus" && a.GetNamespace() == "redhat-ods-monitoring" {
-		log.Info("Found monitoring configmap has updated, start reconcile")
-
-		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "prometheus", Namespace: "redhat-ods-monitoring"}}}
-	}
-	return nil
-}
-
-func (r *DSCInitializationReconciler) watchMonitoringSecretResource(ctx context.Context, a client.Object) []reconcile.Request {
-	log := logf.FromContext(ctx)
-	operatorNs, err := cluster.GetOperatorNamespace()
-	if err != nil {
-		return nil
-	}
-
-	if a.GetName() == "addon-managed-odh-parameters" && a.GetNamespace() == operatorNs {
-		log.Info("Found monitoring secret has updated, start reconcile")
-
-		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "addon-managed-odh-parameters", Namespace: operatorNs}}}
-	}
-	return nil
-}
-
-func (r *DSCInitializationReconciler) watchDSCResource(ctx context.Context) []reconcile.Request {
-	log := logf.FromContext(ctx)
-	instanceList := &dscv2.DataScienceClusterList{}
-	if err := r.Client.List(ctx, instanceList); err != nil {
-		// do not handle if cannot get list
-		log.Error(err, "Failed to get DataScienceClusterList")
-		return nil
-	}
-	if len(instanceList.Items) == 0 && !upgrade.HasDeleteConfigMap(ctx, r.Client) {
-		log.Info("Found no DSC instance in cluster but not in uninstallation process, reset monitoring stack config")
-
-		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "backup"}}}
-	}
-	return nil
 }
 
 func (r *DSCInitializationReconciler) watchAuthResource(ctx context.Context, a client.Object) []reconcile.Request {

@@ -8,7 +8,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
@@ -70,24 +69,5 @@ func RequestFromObject() handler.EventHandler {
 		return []reconcile.Request{{
 			NamespacedName: resources.NamespacedNameFromObject(obj),
 		}}
-	})
-}
-
-func ToAddonParamReq() handler.EventHandler {
-	return handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
-		operatorNs, err := cluster.GetOperatorNamespace()
-		if err != nil {
-			return nil
-		}
-
-		if obj.GetName() == "addon-managed-odh-parameters" && obj.GetNamespace() == operatorNs {
-			return []reconcile.Request{{
-				NamespacedName: types.NamespacedName{
-					Name:      "addon-managed-odh-parameters",
-					Namespace: operatorNs,
-				},
-			}}
-		}
-		return nil
 	})
 }
