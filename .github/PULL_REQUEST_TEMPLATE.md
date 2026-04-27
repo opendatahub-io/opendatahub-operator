@@ -27,7 +27,7 @@ Please complete the following sections for a smooth review.
 - [ ] Testing instructions have been added in the PR body (for PRs involving changes that are not immediately obvious).
 - [ ] The developer has manually tested the changes and verified that the changes work
 - [ ] The developer has run the integration test pipeline and verified that it passed successfully
-- [ ] New RELATED_IMAGE mappings are already listed in ODH-Build-Config and RHOAI-Build-Config, and links are included in PR description
+- [ ] New RELATED_IMAGE mappings are already listed in ODH-Build-Config and RHOAI-Build-Config, and links are included in PR description (validated by CI)
 
 ### E2E test suite update requirement
 
