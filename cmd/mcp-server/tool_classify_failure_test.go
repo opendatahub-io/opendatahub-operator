@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/failureclassifier"
 )
 

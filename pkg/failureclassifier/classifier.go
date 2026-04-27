@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth"
 )
 
 // PendingThreshold is the minimum duration a pod must be in Pending phase
