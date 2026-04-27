@@ -19,8 +19,9 @@ import (
 )
 
 type Action struct {
-	labels      map[string]string
-	namespaceFn actions.Getter[string]
+	partOfLabelKey string
+	labels         map[string]string
+	namespaceFn    actions.Getter[string]
 }
 
 type ActionOpts func(*Action)
@@ -34,6 +35,14 @@ func WithSelectorLabel(k string, v string) ActionOpts {
 func WithSelectorLabels(values map[string]string) ActionOpts {
 	return func(action *Action) {
 		maps.Copy(action.labels, values)
+	}
+}
+
+// WithPartOfLabel overrides the label key used to discover Deployments belonging
+// to this controller for availability checks.
+func WithPartOfLabel(key string) ActionOpts {
+	return func(action *Action) {
+		action.partOfLabelKey = key
 	}
 }
 
@@ -58,13 +67,13 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 	l := make(map[string]string, len(a.labels))
 	maps.Copy(l, a.labels)
 
-	if l[labels.PlatformPartOf] == "" {
+	if l[a.partOfLabelKey] == "" {
 		kind, err := resources.KindForObject(rr.Client.Scheme(), rr.Instance)
 		if err != nil {
 			return err
 		}
 
-		l[labels.PlatformPartOf] = strings.ToLower(kind)
+		l[a.partOfLabelKey] = strings.ToLower(kind)
 	}
 
 	obj, ok := rr.Instance.(types.ResourceObject)
@@ -115,7 +124,8 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 
 func NewAction(opts ...ActionOpts) actions.Fn {
 	action := Action{
-		labels: map[string]string{},
+		partOfLabelKey: labels.PlatformPartOf,
+		labels:         map[string]string{},
 		namespaceFn: func(ctx context.Context, rr *types.ReconciliationRequest) (string, error) {
 			return cluster.ApplicationNamespace(ctx, rr.Client)
 		},
