@@ -467,7 +467,7 @@ func TestBootstrapOperatorCertConfig(t *testing.T) {
 		expectedCertSecretName string
 		expectedServiceName    string
 	}{
-		{ //nolint:gosec // G101 false positive: field name contains "Secret" but holds a resource name, not a credential
+		{
 			name:                   "uses the provided namespace",
 			namespace:              "my-namespace",
 			expectedNamespace:      "my-namespace",
@@ -475,7 +475,7 @@ func TestBootstrapOperatorCertConfig(t *testing.T) {
 			expectedCertSecretName: "opendatahub-operator-controller-webhook-cert",
 			expectedServiceName:    "opendatahub-operator-webhook-service",
 		},
-		{ //nolint:gosec // G101 false positive: field name contains "Secret" but holds a resource name, not a credential
+		{
 			name:                   "returns default webhook config when env is unset",
 			namespace:              "ns",
 			expectedNamespace:      "ns",
@@ -494,7 +494,7 @@ func TestBootstrapOperatorCertConfig(t *testing.T) {
 			expectedCertSecretName: "custom-secret",
 			expectedServiceName:    "opendatahub-operator-webhook-service",
 		},
-		{ //nolint:gosec // G101 false positive: field name contains "Secret" but holds a resource name, not a credential
+		{
 			name:      "overrides webhook service name from env",
 			namespace: "ns",
 			envVars: map[string]string{
@@ -505,7 +505,7 @@ func TestBootstrapOperatorCertConfig(t *testing.T) {
 			expectedCertSecretName: "opendatahub-operator-controller-webhook-cert",
 			expectedServiceName:    "custom-service",
 		},
-		{ //nolint:gosec // G101 false positive: field name contains "Secret" but holds a resource name, not a credential
+		{
 			name:      "overrides webhook cert name from env",
 			namespace: "ns",
 			envVars: map[string]string{

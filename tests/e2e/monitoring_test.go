@@ -1483,10 +1483,11 @@ func (tc *MonitoringTestCtx) cleanupGroup(t *testing.T, secretName string) {
 // resetMonitoringConfigToManaged completely resets monitoring configuration and sets management state to Managed.
 // It waits for any in-flight deletions to complete to ensure clean state for the next test.
 func (tc *MonitoringTestCtx) resetMonitoringConfigToManaged() {
-	tc.updateMonitoringConfig(testf.Transform(`.spec.monitoring = {"managementState": "%s"}`, operatorv1.Managed))
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		testf.Transform(`del(.spec.monitoring.metrics, .spec.monitoring.traces, .spec.monitoring.alerting, .spec.monitoring.collectorReplicas)`),
+	)
 
-	// Wait for OpenTelemetryCollector to be deleted if it was running with metrics/traces
-	// The controller will delete it when monitoring is reset to empty config
 	tc.EnsureResourcesGone(
 		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{
 			Name:      OpenTelemetryCollectorName,
@@ -1501,6 +1502,13 @@ func (tc *MonitoringTestCtx) resetMonitoringConfigToRemoved() {
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Removed),
 		testf.Transform(`del(.spec.monitoring.metrics, .spec.monitoring.traces, .spec.monitoring.alerting, .spec.monitoring.collectorReplicas)`),
+	)
+
+	tc.EnsureResourcesGone(
+		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{
+			Name:      OpenTelemetryCollectorName,
+			Namespace: tc.MonitoringNamespace,
+		}),
 	)
 }
 
