@@ -15,7 +15,7 @@ DST_CHARTS_DIR="./opt/charts"
 
 # ODH Component Manifests
 declare -A ODH_COMPONENT_MANIFESTS=(
-    ["dashboard"]="andrewballantyne:odh-dashboard:retarget-onprem:manifests"
+    ["dashboard"]="andrewballantyne:odh-dashboard:drop-managed-addon-manifests:manifests"
     ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@b0575069e6179f6897bd649b64346f04e316efa1:components/notebook-controller/config"
     ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@b0575069e6179f6897bd649b64346f04e316efa1:components/odh-notebook-controller/config"
     ["workbenches/notebooks"]="opendatahub-io:notebooks:main@7813462a8a3e363e20535291d3ee4e8807f9063e:manifests"
