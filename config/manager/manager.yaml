@@ -87,6 +87,14 @@ spec:
             value: /opt/manifests
           - name: ODH_PLATFORM_TYPE
             value: OpenDataHub
+          - name: RELATED_IMAGE_ODH_MAAS_API_IMAGE
+            value: quay.io/opendatahub/maas-api:latest
+          - name: RELATED_IMAGE_ODH_MAAS_CONTROLLER_IMAGE
+            value: quay.io/opendatahub/maas-controller:latest
+          - name: RELATED_IMAGE_ODH_AI_GATEWAY_PAYLOAD_PROCESSING_IMAGE
+            value: quay.io/opendatahub/odh-ai-gateway-payload-processing:odh-stable
+          - name: RELATED_IMAGE_UBI_MINIMAL_IMAGE
+            value: registry.redhat.io/ubi9/ubi-minimal:9.7
         args:
         - --leader-elect
         - --operator-name=opendatahub
