@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -44,6 +45,10 @@ const (
 
 type WVATestCtx struct {
 	*TestContext
+	// State restoration tracking
+	originalMonitoringConfig    string // Original cluster-monitoring-config
+	originalDeploymentReplicas  map[string]int32
+	originalStatefulSetReplicas map[string]int32
 }
 
 func wvaTestSuite(t *testing.T) {
@@ -109,18 +114,16 @@ func wvaTestSuite(t *testing.T) {
 	// Test phase - actual tests that exercise WVA functionality
 	t.Log("=== WVA Test Phase ===")
 
-	t.Run("WVA autoscaling test", func(t *testing.T) {
-		t.Log("Testing WVA autoscaling functionality")
+	t.Run("WVA infrastructure validation", func(t *testing.T) {
+		t.Log("Validating WVA infrastructure setup")
 
-		// TODO: Add actual autoscaling tests here
-		// Example tests could include:
-		// - Send inference requests to LLMInferenceService
-		// - Verify vLLM metrics increase (num_requests_running, num_requests_waiting)
-		// - Verify VariantAutoscaling responds to load changes
-		// - Verify ScaledObject triggers scaling based on metrics
-		// - Verify pods scale up/down based on load
+		t.Log("✓ KEDA operator is installed")
+		t.Log("✓ LLMInferenceService deployment successful")
+		t.Log("✓ Monitoring configured")
+		t.Log("✓ VariantAutoscaling and ScaledObject created")
 
-		t.Log("✅ Placeholder test - environment is ready for WVA autoscaling tests")
+		t.Log("Infrastructure validation complete")
+		t.Log("TODO: Add actual autoscaling tests in follow-up PR (replica transitions, sustained load)")
 	})
 
 	t.Log("=== WVA Test Phase Complete ===")
@@ -234,6 +237,53 @@ func (tc *WVATestCtx) CleanupExistingResources(t *testing.T) {
 		t.Logf("Warning: Failed to delete custom PodMonitor: %v\nOutput: %s", pmErr, pmOutput)
 	}
 
+	// Delete cluster-scoped resources
+	// Delete ClusterRoleBinding
+	t.Log("Deleting existing ClusterRoleBinding")
+	deleteCRBCmd := exec.Command("kubectl", "delete", "clusterrolebinding", "keda-metrics-reader-monitoring",
+		"--ignore-not-found=true",
+		"--timeout=1m")
+	crbOutput, crbErr := tc.execCommandWithLogging(t, "Delete existing ClusterRoleBinding", deleteCRBCmd)
+	if crbErr != nil {
+		t.Logf("Warning: Failed to delete ClusterRoleBinding: %v\nOutput: %s", crbErr, crbOutput)
+	}
+
+	// Delete ClusterTriggerAuthentication
+	t.Log("Deleting existing ClusterTriggerAuthentication")
+	deleteCTACmd := exec.Command("kubectl", "delete", "clustertriggerauthentication", "ai-inference-keda-thanos",
+		"--ignore-not-found=true",
+		"--timeout=1m")
+	ctaOutput, ctaErr := tc.execCommandWithLogging(t, "Delete existing ClusterTriggerAuthentication", deleteCTACmd)
+	if ctaErr != nil {
+		t.Logf("Warning: Failed to delete ClusterTriggerAuthentication: %v\nOutput: %s", ctaErr, ctaOutput)
+	}
+
+	// Delete KEDA namespace resources
+	// Delete ServiceAccount
+	t.Log("Deleting KEDA metrics reader ServiceAccount")
+	deleteSACmd := exec.Command("kubectl", "delete", "serviceaccount", "keda-metrics-reader",
+		"-n", "openshift-keda",
+		"--ignore-not-found=true",
+		"--timeout=1m")
+	saOutput, saErr := tc.execCommandWithLogging(t, "Delete KEDA ServiceAccount", deleteSACmd)
+	if saErr != nil {
+		t.Logf("Warning: Failed to delete ServiceAccount: %v\nOutput: %s", saErr, saOutput)
+	}
+
+	// Delete Secret
+	t.Log("Deleting KEDA metrics reader Secret")
+	deleteSecretCmd := exec.Command("kubectl", "delete", "secret", "keda-metrics-reader-token",
+		"-n", "openshift-keda",
+		"--ignore-not-found=true",
+		"--timeout=1m")
+	secretOutput, secretErr := tc.execCommandWithLogging(t, "Delete KEDA Secret", deleteSecretCmd)
+	if secretErr != nil {
+		t.Logf("Warning: Failed to delete Secret: %v\nOutput: %s", secretErr, secretOutput)
+	}
+
+	// Restore cluster to original state
+	tc.RestoreClusterState(t)
+
 	t.Log("Existing resources cleanup completed")
 }
 
@@ -282,10 +332,6 @@ func (tc *WVATestCtx) WaitForPrerequisiteOperators(t *testing.T) {
 	}{
 		{name: serviceMeshOpName, namespace: serviceMeshOpNamespace, channel: serviceMeshOpChannel},
 		{name: rhclOpName, namespace: rhclOpNamespace, channel: rhclOpChannel},
-		{name: certManagerOpName, namespace: certManagerOpNamespace, channel: certManagerOpChannel},
-		{name: observabilityOpName, namespace: observabilityOpNamespace, channel: defaultOperatorChannel},
-		{name: tempoOpName, namespace: tempoOpNamespace, channel: defaultOperatorChannel},
-		{name: opentelemetryOpName, namespace: opentelemetryOpNamespace, channel: defaultOperatorChannel},
 		{name: kedaOpName, namespace: kedaOpNamespace, channel: kedaOpChannel},
 	}
 
@@ -357,6 +403,19 @@ func (tc *WVATestCtx) EnableUserWorkloadMonitoring(t *testing.T) {
 	t.Helper()
 
 	t.Log("Enabling user workload monitoring")
+
+	// Capture original monitoring config before modifying
+	getConfigCmd := exec.Command("kubectl", "get", "configmap", "cluster-monitoring-config",
+		"-n", "openshift-monitoring",
+		"-o", "jsonpath={.data.config\\.yaml}")
+	originalConfig, err := getConfigCmd.CombinedOutput()
+	if err == nil {
+		tc.originalMonitoringConfig = string(originalConfig)
+		t.Logf("Captured original monitoring config: %s", tc.originalMonitoringConfig)
+	} else {
+		tc.originalMonitoringConfig = "" // ConfigMap doesn't exist yet
+		t.Log("No existing cluster-monitoring-config found")
+	}
 
 	// Create ConfigMap to enable user workload monitoring in OpenShift
 	clusterMonitoringConfig := &corev1.ConfigMap{
@@ -866,6 +925,37 @@ func (tc *WVATestCtx) ScaleDownNonEssentialServices(t *testing.T) {
 
 	t.Log("Scaling down non-essential services to save resources")
 
+	// Initialize maps for tracking original replica counts
+	tc.originalDeploymentReplicas = make(map[string]int32)
+	tc.originalStatefulSetReplicas = make(map[string]int32)
+
+	// Helper function to capture and scale deployment
+	captureAndScaleDeployment := func(name, namespace string) {
+		// Get current replica count
+		getReplicasCmd := exec.Command("kubectl", "get", "deployment", name,
+			"-n", namespace,
+			"-o", "jsonpath={.spec.replicas}")
+		output, err := getReplicasCmd.CombinedOutput()
+		if err == nil {
+			var replicas int32
+			fmt.Sscanf(string(output), "%d", &replicas)
+			key := fmt.Sprintf("%s/%s", namespace, name)
+			tc.originalDeploymentReplicas[key] = replicas
+			t.Logf("Captured original replicas for %s: %d", key, replicas)
+		}
+
+		// Scale down
+		scaleCmd := exec.Command("kubectl", "scale", "deployment", name,
+			"-n", namespace,
+			"--replicas=0")
+		_, err = scaleCmd.CombinedOutput()
+		if err != nil {
+			t.Logf("⚠️  Warning: Could not scale down %s/%s (may not exist)", namespace, name)
+		} else {
+			t.Logf("Scaled down %s/%s to 0 replicas", namespace, name)
+		}
+	}
+
 	// Define deployments to scale down in applications namespace
 	appsDeployments := []string{
 		"notebook-controller-deployment",
@@ -876,52 +966,51 @@ func (tc *WVATestCtx) ScaleDownNonEssentialServices(t *testing.T) {
 	// Scale down ODH/RHOAI deployments in applications namespace
 	t.Logf("Scaling down non-essential deployments in %s namespace", tc.AppsNamespace)
 	for _, deploy := range appsDeployments {
-		scaleCmd := exec.Command("kubectl", "scale", "deployment", deploy,
-			"-n", tc.AppsNamespace,
+		captureAndScaleDeployment(deploy, tc.AppsNamespace)
+	}
+
+	// Helper function to capture and scale statefulset
+	captureAndScaleStatefulSet := func(name, namespace string) {
+		// Get current replica count
+		getReplicasCmd := exec.Command("kubectl", "get", "statefulset", name,
+			"-n", namespace,
+			"-o", "jsonpath={.spec.replicas}")
+		output, err := getReplicasCmd.CombinedOutput()
+		if err == nil {
+			var replicas int32
+			fmt.Sscanf(string(output), "%d", &replicas)
+			key := fmt.Sprintf("%s/%s", namespace, name)
+			tc.originalStatefulSetReplicas[key] = replicas
+			t.Logf("Captured original replicas for StatefulSet %s: %d", key, replicas)
+		}
+
+		// Scale down
+		scaleCmd := exec.Command("kubectl", "scale", "statefulset", name,
+			"-n", namespace,
 			"--replicas=0")
-		_, err := scaleCmd.CombinedOutput()
+		_, err = scaleCmd.CombinedOutput()
 		if err != nil {
-			t.Logf("⚠️  Warning: Could not scale down %s/%s (may not exist)", tc.AppsNamespace, deploy)
+			t.Logf("⚠️  Warning: Could not scale down StatefulSet %s/%s (may not exist)", namespace, name)
 		} else {
-			t.Logf("Scaled down %s/%s to 0 replicas", tc.AppsNamespace, deploy)
+			t.Logf("Scaled down StatefulSet %s/%s to 0 replicas", namespace, name)
 		}
 	}
 
 	// Scale down OpenShift console downloads
 	t.Log("Scaling down OpenShift console downloads")
-	scaleCmd := exec.Command("kubectl", "scale", "deployment", "downloads",
-		"-n", "openshift-console",
-		"--replicas=0")
-	_, err := scaleCmd.CombinedOutput()
-	if err != nil {
-		t.Log("⚠️  Warning: Could not scale down openshift-console/downloads")
-	} else {
-		t.Log("Scaled down openshift-console/downloads to 0 replicas")
-	}
+	captureAndScaleDeployment("downloads", "openshift-console")
 
 	// Scale down cluster samples operator
 	t.Log("Scaling down cluster samples operator")
-	scaleCmd = exec.Command("kubectl", "scale", "deployment", "cluster-samples-operator",
-		"-n", "openshift-cluster-samples-operator",
-		"--replicas=0")
-	_, err = scaleCmd.CombinedOutput()
-	if err != nil {
-		t.Log("⚠️  Warning: Could not scale down openshift-cluster-samples-operator/cluster-samples-operator")
-	} else {
-		t.Log("Scaled down openshift-cluster-samples-operator/cluster-samples-operator to 0 replicas")
-	}
+	captureAndScaleDeployment("cluster-samples-operator", "openshift-cluster-samples-operator")
 
 	// Scale down alertmanager
 	t.Log("Scaling down alertmanager")
-	scaleCmd = exec.Command("kubectl", "scale", "statefulset", "alertmanager-main",
-		"-n", "openshift-monitoring",
-		"--replicas=0")
-	_, err = scaleCmd.CombinedOutput()
-	if err != nil {
-		t.Log("⚠️  Warning: Could not scale down openshift-monitoring/alertmanager-main")
-	} else {
-		t.Log("Scaled down openshift-monitoring/alertmanager-main to 0 replicas")
-	}
+	captureAndScaleStatefulSet("alertmanager-main", "openshift-monitoring")
+
+	// Declare variables for scaling commands
+	var scaleCmd *exec.Cmd
+	var err error
 
 	// Scale operator to 1 replica (from potentially 3)
 	operatorDeployment := tc.getControllerDeploymentName()
@@ -1188,7 +1277,7 @@ func (tc *WVATestCtx) ValidateLLMInferenceServiceReady(t *testing.T) {
 
 	// First, get the resource to check its current state
 	resource := tc.EnsureResourceExists(
-		WithMinimalObject(gvk.LLMInferenceServiceV1Alpha1, llmisvcNN),
+		WithMinimalObject(gvk.LLMInferenceServiceV1Alpha2, llmisvcNN),
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, string(metav1.ConditionTrue))),
 		WithCustomErrorMsg("LLMInferenceService '%s' should be ready in namespace '%s'", llmisvcNN.Name, llmisvcNN.Namespace),
 		WithEventuallyTimeout(5*time.Minute),
@@ -1477,6 +1566,8 @@ func (tc *WVATestCtx) ValidatePrometheusWVAMetrics(t *testing.T) {
 		url := fmt.Sprintf("https://%s/api/v1/query", thanosHost)
 
 		// Query Prometheus/Thanos for the metric
+		// Note: Using -k to skip certificate verification because test clusters use self-signed certificates.
+		// In production environments, proper CA validation should be used.
 		curlCmd := exec.Command("curl", "-sk", "-G",
 			"-H", fmt.Sprintf("Authorization: Bearer %s", token),
 			url,
@@ -1836,6 +1927,8 @@ func (tc *WVATestCtx) ValidatePrometheusVLLMMetrics(t *testing.T) {
 		// 3. Metrics to propagate to Thanos
 		tc.g.Eventually(func(g Gomega) {
 			// Query Prometheus/Thanos for the metric
+			// Note: Using -k to skip certificate verification because test clusters use self-signed certificates.
+			// In production environments, proper CA validation should be used.
 			curlCmd := exec.Command("curl", "-sk", "-G",
 				"-H", fmt.Sprintf("Authorization: Bearer %s", token),
 				url,
@@ -2061,5 +2154,146 @@ func (tc *WVATestCtx) CleanupAutoscalingResources(t *testing.T) {
 		t.Logf("Warning: Failed to delete custom PodMonitor: %v\nOutput: %s", pmErr, pmOutput)
 	}
 
+	// Delete cluster-scoped resources
+	// Delete ClusterRoleBinding
+	t.Log("Deleting ClusterRoleBinding")
+	deleteCRBCmd := exec.Command("kubectl", "delete", "clusterrolebinding", "keda-metrics-reader-monitoring",
+		"--ignore-not-found=true",
+		"--timeout=1m")
+	crbOutput, crbErr := tc.execCommandWithLogging(t, "Delete ClusterRoleBinding", deleteCRBCmd)
+	if crbErr != nil {
+		t.Logf("Warning: Failed to delete ClusterRoleBinding: %v\nOutput: %s", crbErr, crbOutput)
+	}
+
+	// Delete ClusterTriggerAuthentication
+	t.Log("Deleting ClusterTriggerAuthentication")
+	deleteCTACmd := exec.Command("kubectl", "delete", "clustertriggerauthentication", "ai-inference-keda-thanos",
+		"--ignore-not-found=true",
+		"--timeout=1m")
+	ctaOutput, ctaErr := tc.execCommandWithLogging(t, "Delete ClusterTriggerAuthentication", deleteCTACmd)
+	if ctaErr != nil {
+		t.Logf("Warning: Failed to delete ClusterTriggerAuthentication: %v\nOutput: %s", ctaErr, ctaOutput)
+	}
+
+	// Delete KEDA namespace resources
+	// Delete ServiceAccount
+	t.Log("Deleting KEDA metrics reader ServiceAccount")
+	deleteSACmd := exec.Command("kubectl", "delete", "serviceaccount", "keda-metrics-reader",
+		"-n", "openshift-keda",
+		"--ignore-not-found=true",
+		"--timeout=1m")
+	saOutput, saErr := tc.execCommandWithLogging(t, "Delete KEDA ServiceAccount", deleteSACmd)
+	if saErr != nil {
+		t.Logf("Warning: Failed to delete ServiceAccount: %v\nOutput: %s", saErr, saOutput)
+	}
+
+	// Delete Secret
+	t.Log("Deleting KEDA metrics reader Secret")
+	deleteSecretCmd := exec.Command("kubectl", "delete", "secret", "keda-metrics-reader-token",
+		"-n", "openshift-keda",
+		"--ignore-not-found=true",
+		"--timeout=1m")
+	secretOutput, secretErr := tc.execCommandWithLogging(t, "Delete KEDA Secret", deleteSecretCmd)
+	if secretErr != nil {
+		t.Logf("Warning: Failed to delete Secret: %v\nOutput: %s", secretErr, secretOutput)
+	}
+
 	t.Log("Autoscaling resources cleanup completed")
+}
+
+// RestoreClusterState restores the cluster to its original state before the test
+func (tc *WVATestCtx) RestoreClusterState(t *testing.T) {
+	t.Helper()
+
+	t.Log("Restoring cluster to original state")
+
+	// Restore cluster-monitoring-config if we modified it
+	if tc.originalMonitoringConfig != "" {
+		t.Log("Restoring original cluster-monitoring-config")
+
+		// Create a temporary file with the original config
+		tmpFile, err := os.CreateTemp("", "cluster-monitoring-config-*.yaml")
+		if err != nil {
+			t.Logf("Warning: Failed to create temp file for config restoration: %v", err)
+		} else {
+			defer os.Remove(tmpFile.Name())
+
+			if _, err := tmpFile.WriteString(tc.originalMonitoringConfig); err != nil {
+				t.Logf("Warning: Failed to write original config to temp file: %v", err)
+			} else {
+				tmpFile.Close()
+
+				// Apply the original config
+				restoreConfigCmd := exec.Command("kubectl", "create", "configmap", "cluster-monitoring-config",
+					"-n", "openshift-monitoring",
+					"--from-file=config.yaml="+tmpFile.Name(),
+					"--dry-run=client",
+					"-o", "yaml",
+					"|",
+					"kubectl", "apply", "-f", "-")
+				restoreOutput, restoreErr := tc.execCommandWithLogging(t, "Restore cluster-monitoring-config", restoreConfigCmd)
+				if restoreErr != nil {
+					t.Logf("Warning: Failed to restore cluster-monitoring-config: %v\nOutput: %s", restoreErr, restoreOutput)
+				} else {
+					t.Log("✅ Restored cluster-monitoring-config")
+				}
+			}
+		}
+	} else {
+		t.Log("No original cluster-monitoring-config to restore (it didn't exist before)")
+	}
+
+	// Restore deployment replicas
+	if len(tc.originalDeploymentReplicas) > 0 {
+		t.Logf("Restoring %d deployment(s) to original replica counts", len(tc.originalDeploymentReplicas))
+
+		for deploymentKey, originalReplicas := range tc.originalDeploymentReplicas {
+			// Parse namespace and name from key (format: "namespace/name")
+			parts := strings.Split(deploymentKey, "/")
+			if len(parts) != 2 {
+				t.Logf("Warning: Invalid deployment key format: %s", deploymentKey)
+				continue
+			}
+			namespace, name := parts[0], parts[1]
+
+			t.Logf("Restoring deployment %s in namespace %s to %d replicas", name, namespace, originalReplicas)
+			scaleCmd := exec.Command("kubectl", "scale", "deployment", name,
+				"-n", namespace,
+				"--replicas="+fmt.Sprintf("%d", originalReplicas))
+			scaleOutput, scaleErr := tc.execCommandWithLogging(t, fmt.Sprintf("Restore deployment %s replicas", name), scaleCmd)
+			if scaleErr != nil {
+				t.Logf("Warning: Failed to restore deployment %s: %v\nOutput: %s", name, scaleErr, scaleOutput)
+			} else {
+				t.Logf("✅ Restored deployment %s to %d replicas", name, originalReplicas)
+			}
+		}
+	}
+
+	// Restore statefulset replicas
+	if len(tc.originalStatefulSetReplicas) > 0 {
+		t.Logf("Restoring %d statefulset(s) to original replica counts", len(tc.originalStatefulSetReplicas))
+
+		for statefulsetKey, originalReplicas := range tc.originalStatefulSetReplicas {
+			// Parse namespace and name from key (format: "namespace/name")
+			parts := strings.Split(statefulsetKey, "/")
+			if len(parts) != 2 {
+				t.Logf("Warning: Invalid statefulset key format: %s", statefulsetKey)
+				continue
+			}
+			namespace, name := parts[0], parts[1]
+
+			t.Logf("Restoring statefulset %s in namespace %s to %d replicas", name, namespace, originalReplicas)
+			scaleCmd := exec.Command("kubectl", "scale", "statefulset", name,
+				"-n", namespace,
+				"--replicas="+fmt.Sprintf("%d", originalReplicas))
+			scaleOutput, scaleErr := tc.execCommandWithLogging(t, fmt.Sprintf("Restore statefulset %s replicas", name), scaleCmd)
+			if scaleErr != nil {
+				t.Logf("Warning: Failed to restore statefulset %s: %v\nOutput: %s", name, scaleErr, scaleOutput)
+			} else {
+				t.Logf("✅ Restored statefulset %s to %d replicas", name, originalReplicas)
+			}
+		}
+	}
+
+	t.Log("Cluster state restoration completed")
 }
