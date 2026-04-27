@@ -77,6 +77,13 @@ type WVASpec struct {
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 }
 
+// WvaSpec enables Workload Variant Autoscaler (WVA) integration
+type WvaSpec struct {
+	// +kubebuilder:validation:Enum=Managed;Removed
+	// +kubebuilder:default=Removed
+	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
+}
+
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // KserveSpec defines the desired state of Kserve

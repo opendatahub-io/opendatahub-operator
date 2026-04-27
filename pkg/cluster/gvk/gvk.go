@@ -595,6 +595,18 @@ var (
 		Kind:    "LLMInferenceService",
 	}
 
+	VariantAutoscalingV1Alpha1 = schema.GroupVersionKind{
+		Group:   "llmd.ai",
+		Version: "v1alpha1",
+		Kind:    "VariantAutoscaling",
+	}
+
+	ScaledObject = schema.GroupVersionKind{
+		Group:   "keda.sh",
+		Version: "v1alpha1",
+		Kind:    "ScaledObject",
+  }
+  
 	LLMInferenceServiceV1Alpha2 = schema.GroupVersionKind{
 		Group:   "serving.kserve.io",
 		Version: "v1alpha2",

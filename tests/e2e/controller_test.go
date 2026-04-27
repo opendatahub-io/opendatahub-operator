@@ -138,6 +138,7 @@ var (
 				componentApi.KserveComponentName:               kserveTestSuite,
 				componentApi.FeastOperatorComponentName:        feastOperatorTestSuite,
 				componentApi.LlamaStackOperatorComponentName:   llamastackOperatorTestSuite,
+				"wva": wvaTestSuite,
 				componentApi.SparkOperatorComponentName:        sparkOperatorTestSuite,
 			},
 			{
