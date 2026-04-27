@@ -181,6 +181,20 @@ func sortLLMInferenceServiceConfigLast(_ context.Context, objects []unstructured
 
 	// Stable-sort LLMInferenceServiceConfig resources after everything else
 	// so they are applied only once the webhook(s) are updated.
+	//
+	// This ordering is critical for upgrades (especially 3.3→3.4) where the
+	// ValidatingWebhookConfiguration initially points to the old kserve-webhook-server-service,
+	// but the new webhook deployment serves validation on a different service endpoint.
+	//
+	// Without this ordering:
+	// 1. LLMInferenceServiceConfig resources are created/updated first
+	// 2. Kubernetes tries to validate them using the old webhook service reference
+	// 3. The old service either doesn't exist or doesn't serve the validation endpoint
+	// 4. Validation fails and the resource creation is rejected
+	//
+	// By deploying webhooks (including ValidatingWebhookConfiguration updates) first,
+	// we ensure the validation endpoint is correctly configured and available before
+	// any LLMInferenceServiceConfig resources undergo validation.
 	slices.SortStableFunc(objects, func(a, b unstructured.Unstructured) int {
 		aIsLLM := isLLMInferenceServiceConfig(a)
 		bIsLLM := isLLMInferenceServiceConfig(b)
