@@ -1,0 +1,10 @@
+# Configuration for validate-related-images.sh.
+#
+# known_issues: RELATED_IMAGE errors to downgrade to warnings.
+# Each entry MUST include a Jira link and reason.
+
+known_issues: []
+# Example:
+# - image: RELATED_IMAGE_ODH_CAIKIT_NLP_IMAGE
+#   jira: https://issues.redhat.com/browse/RHOAIENG-XXXXX
+#   reason: Deprecated image, removal tracked in Jira

@@ -33,6 +33,8 @@ jobs:
       #       echo "No RELATED_IMAGE_* changes detected, skipping validation."
       #       echo "changed=false" >> $GITHUB_OUTPUT
       #     fi
+      - name: Fetch component manifests
+        run: make get-manifests
       - name: Validate RELATED_IMAGE references
         # if: steps.check.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
         run: make validate-related-images
