@@ -154,8 +154,12 @@ func (tc *WorkbenchesTestCtx) ValidateAllDeletionRecovery(t *testing.T) {
 
 	skipUnless(t, Smoke, Tier1)
 
-	reset := tc.OverrideEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout, tc.TestTimeouts.defaultEventuallyPollInterval)
-	defer reset()
+	savedOpts := tc.DefaultResourceOpts
+	tc.DefaultResourceOpts = []ResourceOpts{
+		WithEventuallyTimeout(tc.TestTimeouts.deletionRecoveryTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+	}
+	defer func() { tc.DefaultResourceOpts = savedOpts }()
 
 	testCases := []TestCase{
 		{"ConfigMap deletion recovery", tc.validateConfigMapDeletionRecovery},
