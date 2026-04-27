@@ -1495,9 +1495,13 @@ func (tc *MonitoringTestCtx) resetMonitoringConfigToManaged() {
 	)
 }
 
-// resetMonitoringConfigToRemoved completely resets monitoring configuration and sets management state to Removed.
+// resetMonitoringConfigToRemoved resets monitoring configuration and sets management state to Removed.
+// It preserves the immutable namespace field while clearing all optional config fields.
 func (tc *MonitoringTestCtx) resetMonitoringConfigToRemoved() {
-	tc.updateMonitoringConfig(testf.Transform(`.spec.monitoring = {"managementState": "%s"}`, operatorv1.Removed))
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Removed),
+		testf.Transform(`del(.spec.monitoring.metrics, .spec.monitoring.traces, .spec.monitoring.alerting, .spec.monitoring.collectorReplicas)`),
+	)
 }
 
 // updateMonitoringConfig provides a flexible way to update DSCI monitoring configuration.
