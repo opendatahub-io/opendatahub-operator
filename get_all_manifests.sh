@@ -36,7 +36,6 @@ declare -A ODH_COMPONENT_MANIFESTS=(
 )
 
 # RHOAI Component Manifests
-RHOAI_BRANCH="${RHOAI_BRANCH:-main}"
 declare -A RHOAI_COMPONENT_MANIFESTS=(
     ["dashboard"]="red-hat-data-services:odh-dashboard:rhoai-3.4@658e2eba40786f213882162351cdddc7be7a55da:manifests"
     ["workbenches/kf-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.4@41652af3581ecf948e3bce05aca19d90d3eb0ad8:components/notebook-controller/config"
@@ -44,7 +43,7 @@ declare -A RHOAI_COMPONENT_MANIFESTS=(
     ["workbenches/notebooks"]="red-hat-data-services:notebooks:rhoai-3.4@ebddf988d9f285248a3a028260031b841b52431d:manifests"
     ["kserve"]="red-hat-data-services:kserve:rhoai-3.4@90edb52c67a466cf1478590463aab96073d873bb:config"
     ["ray"]="red-hat-data-services:kuberay:rhoai-3.4@b825f4adfc0a1cb122ce320228baceace2f1a2fa:ray-operator/config"
-    ["trustyai"]="red-hat-data-services:trustyai-service-operator:rhoai-3.4@2e913a65396fc67424e05fa4ccb03da608242eac:config"
+    ["trustyai"]="red-hat-data-services:trustyai-service-operator:rhoai-3.4@2e913a65396fc674 24e05fa4ccb03da608242eac:config"
     ["modelregistry"]="red-hat-data-services:model-registry-operator:rhoai-3.4@015062c882a964d488f7c3151fac9a30b31623f5:config"
     ["trainingoperator"]="red-hat-data-services:training-operator:rhoai-3.4@8d2e0bf502fcffa22545201339baf5bce96c8a63:manifests"
     ["datasciencepipelines"]="red-hat-data-services:data-science-pipelines-operator:rhoai-3.4@b90290f65f67cb508a12d0e579e35776d89a4d48:config"
