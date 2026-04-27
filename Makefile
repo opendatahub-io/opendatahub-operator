@@ -22,8 +22,6 @@ BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
 # default platform type
 ODH_PLATFORM_TYPE ?= OpenDataHub
 
-# default RHOAI branch for fetching manifests and images
-RHOAI_BRANCH ?= rhoai-3.4
 
 ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	# VERSION defines the project version for the bundle.
@@ -332,15 +330,26 @@ kube-lint: prepare ## Run kube-linter against rendered manifests.
 
 .PHONY: get-manifests
 get-manifests: ## Fetch components manifests from remote git repo
-	ODH_PLATFORM_TYPE=$(ODH_PLATFORM_TYPE) RHOAI_BRANCH=$(RHOAI_BRANCH) VERSION=$(VERSION) ./get_all_manifests.sh
+	ODH_PLATFORM_TYPE=$(ODH_PLATFORM_TYPE) VERSION=$(VERSION) ./get_all_manifests.sh
 	@echo "Validating manifest image tags..."
 	@./.github/scripts/validate-manifest-images.sh
 CLEANFILES += opt/manifests/*
 
 .PHONY: update-rhoai-images
 update-rhoai-images: ## Fetch RHOAI component manifests and update images from bundle-patch.yaml
-	$(MAKE) get-manifests ODH_PLATFORM_TYPE=rhoai RHOAI_BRANCH=$(RHOAI_BRANCH)
-	MANIFESTS_DIR=./opt/manifests YQ=$(YQ) ./hack/update-rhoai-images.sh --branch $(RHOAI_BRANCH)
+	@if [ -n "$(RHOAI_BRANCH)" ]; then \
+		echo "Fetching manifests from rhods-operator branch $(RHOAI_BRANCH)..."; \
+		TMP_RHODS=$$(mktemp -d) && \
+		git clone --depth 1 -b $(RHOAI_BRANCH) -q https://github.com/red-hat-data-services/rhods-operator $$TMP_RHODS || \
+			{ echo "ERROR: Failed to clone rhods-operator branch $(RHOAI_BRANCH)"; exit 1; } && \
+		rm -rf opt/manifests opt/charts && cp -r $$TMP_RHODS/prefetched-manifests opt/manifests && cp -r $$TMP_RHODS/prefetched-charts opt/charts && \
+		touch opt/manifests/.gitkeep opt/charts/.gitkeep && \
+		rm -rf $$TMP_RHODS; \
+	else \
+		echo "RHOAI_BRANCH not set, fetching manifests via get_all_manifests.sh..."; \
+		ODH_PLATFORM_TYPE=rhoai ./get_all_manifests.sh; \
+	fi
+	MANIFESTS_DIR=./opt/manifests YQ=$(YQ) ./hack/update-rhoai-images.sh
 
 # Default to standard sed command
 SED_COMMAND = sed
