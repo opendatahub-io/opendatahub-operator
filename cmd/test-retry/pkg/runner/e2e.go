@@ -13,13 +13,15 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/test-retry/pkg/formatter"
 	github "github.com/opendatahub-io/opendatahub-operator/v2/cmd/test-retry/pkg/github"
 	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/test-retry/pkg/parser"
+	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/test-retry/pkg/quarantine"
 	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/test-retry/pkg/types"
 )
 
 // E2ETestRunner handles e2e test execution with retries
 type E2ETestRunner struct {
-	opts         types.E2ETestOptions
-	githubClient github.GitHubClient
+	opts          types.E2ETestOptions
+	githubClient  github.GitHubClient
+	quarantineCfg *quarantine.Config
 }
 
 // NewE2ETestRunner creates a new e2e test runner
@@ -36,14 +38,33 @@ func (r *E2ETestRunner) Run() error {
 		fmt.Println("Starting e2e test execution with retry functionality...")
 	}
 
+	// Load quarantine config if specified
+	if r.opts.QuarantineConfig != "" {
+		cfg, err := quarantine.LoadConfig(r.opts.QuarantineConfig)
+		if err != nil {
+			return fmt.Errorf("failed to load quarantine config: %w", err)
+		}
+		r.quarantineCfg = cfg
+		quarantined := cfg.QuarantinedNames()
+		if len(quarantined) > 0 {
+			fmt.Printf("Quarantined tests (%d):\n", len(quarantined))
+			for _, name := range quarantined {
+				fmt.Printf("  ⊘ %s\n", name)
+			}
+		}
+	}
+
 	// Aggregate results to collect all test attempts for JUnit export
 	aggregateResult := &types.TestResult{
 		PassedTest: make([]types.TestCase, 0),
 		FailedTest: make([]types.TestCase, 0),
 	}
 
+	// Build initial skip filter from quarantine config
+	initialSkip := r.quarantineSkipFilter()
+
 	// Run initial test execution
-	testResult, err := r.runE2ETests("")
+	testResult, err := r.runE2ETests(initialSkip)
 	if err != nil {
 		return fmt.Errorf("failed to run initial e2e tests: %w", err)
 	}
@@ -66,8 +87,9 @@ func (r *E2ETestRunner) Run() error {
 			fmt.Printf("Retry attempt %d\n", attempt)
 		}
 
-		// Run tests again, skipping the ones that passed
-		retrySummary, err := r.runE2ETests(r.buildSkipFilter(aggregateResult))
+		// Run tests again, skipping the ones that passed and quarantined tests
+		retrySkip := r.combineSkipFilters(r.buildSkipFilter(aggregateResult), r.quarantineSkipFilter())
+		retrySummary, err := r.runE2ETests(retrySkip)
 		if err != nil {
 			if r.opts.Config.Verbose {
 				fmt.Printf("Error in retry attempt %d: %v\n", attempt, err)
@@ -432,12 +454,33 @@ func expandWildcardPrefix(testName, prefix string) string {
 	return strings.Join(testParts[:len(prefixParts)], "/")
 }
 
-// exportJUnit exports test results to JUnit XML format
+// exportJUnit exports test results to JUnit XML format.
 func (r *E2ETestRunner) exportJUnit(result *types.TestResult) error {
 	return formatter.ExportToJUnit(result, formatter.JUnitExportOptions{
 		OutputPath: r.opts.JUnitOutputPath,
 		SuiteName:  "e2e-test",
+		CommitSHA:  r.opts.CommitSHA,
 	})
+}
+
+// quarantineSkipFilter returns a -skip regex for quarantined tests, or "" if
+// no quarantine config is loaded.
+func (r *E2ETestRunner) quarantineSkipFilter() string {
+	if r.quarantineCfg == nil {
+		return ""
+	}
+	return r.quarantineCfg.BuildSkipRegex()
+}
+
+// combineSkipFilters merges two -skip regex patterns with "|".
+func (r *E2ETestRunner) combineSkipFilters(a, b string) string {
+	if a == "" {
+		return b
+	}
+	if b == "" {
+		return a
+	}
+	return a + "|" + b
 }
 
 // notifyPROnFailure adds a label and/or comment to the GitHub PR if configured
