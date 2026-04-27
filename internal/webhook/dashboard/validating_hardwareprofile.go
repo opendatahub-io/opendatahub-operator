@@ -19,7 +19,7 @@ const (
 )
 
 //nolint:lll
-//+kubebuilder:webhook:path=/validate-dashboard-hardwareprofile,mutating=false,failurePolicy=fail,sideEffects=None,groups=dashboard.opendatahub.io,resources=hardwareprofiles,verbs=create;update,versions=v1alpha1,name=dashboard-hardwareprofile-validator.opendatahub.io,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/validate-dashboard-hardwareprofile,mutating=false,failurePolicy=fail,sideEffects=None,groups=dashboard.opendatahub.io,resources=hardwareprofiles,verbs=create;update,versions=v1alpha1,name=dashboard-hardwareprofile-validator.opendatahub.io,admissionReviewVersions=v1,timeoutSeconds=10
 
 func NewHardwareProfileWebhook(s *runtime.Scheme) *deprecation.TypeValidator {
 	return &deprecation.TypeValidator{
