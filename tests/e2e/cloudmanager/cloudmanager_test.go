@@ -65,7 +65,7 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 	t.Run("DeploymentsAvailable", func(t *testing.T) {
 		wt := tc.NewWithT(t)
 
-		for _, ns := range common.ManagedNamespaces() {
+		for _, ns := range common.ManagedNamespaces(chartsPath) {
 			t.Run("namespace/"+ns, func(t *testing.T) {
 				wt := tc.NewWithT(t)
 				wt.Get(gvk.Namespace, types.NamespacedName{Name: ns}).
@@ -471,7 +471,7 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 		// Namespaces are excluded from dynamic ownership to prevent cascade
 		// deletion of the entire namespace (and all third-party resources in it)
 		// when the CR is deleted. Verify they have no owner references.
-		for _, ns := range common.ManagedNamespaces() {
+		for _, ns := range common.ManagedNamespaces(chartsPath) {
 			wt.Get(gvk.Namespace, types.NamespacedName{Name: ns}).
 				Eventually().Should(
 				jq.Match(`.metadata.ownerReferences == null or (.metadata.ownerReferences | length == 0)`),
@@ -490,7 +490,7 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 		}
 
 		// Namespaces survive CR deletion because they have no owner references.
-		for _, ns := range common.ManagedNamespaces() {
+		for _, ns := range common.ManagedNamespaces(chartsPath) {
 			wt.Get(gvk.Namespace, types.NamespacedName{Name: ns}).
 				Eventually().Should(Not(BeNil()))
 		}

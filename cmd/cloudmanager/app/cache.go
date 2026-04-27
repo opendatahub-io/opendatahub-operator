@@ -25,7 +25,7 @@ import (
 // managed namespaces shared by all cloud managers and filtering cluster-scoped
 // resources by the existence of the infrastructure part-of label.
 func DefaultCacheOptions(scheme *runtime.Scheme, cfg *operatorconfig.CloudManagerConfig) (cache.Options, error) {
-	managedNamespaces := common.ManagedNamespaces()
+	managedNamespaces := common.ManagedNamespaces(cfg.DefaultChartsPath)
 
 	requirement, err := k8slabels.NewRequirement(labels.InfrastructurePartOf, selection.Exists, nil)
 	if err != nil {

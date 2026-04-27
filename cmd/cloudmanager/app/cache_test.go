@@ -1,6 +1,7 @@
 package app_test
 
 import (
+	"path/filepath"
 	"testing"
 
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -18,6 +19,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
+	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
 	. "github.com/onsi/gomega"
 )
@@ -25,7 +27,14 @@ import (
 func TestDefaultCacheOptions(t *testing.T) {
 	g := NewWithT(t)
 	s := runtime.NewScheme()
-	testCfg := &operatorconfig.CloudManagerConfig{RhaiOperatorNamespace: "test-operator-ns"}
+
+	rootPath, err := envtestutil.FindProjectRoot()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	testCfg := &operatorconfig.CloudManagerConfig{
+		RhaiOperatorNamespace: "test-operator-ns",
+		DefaultChartsPath:     filepath.Join(rootPath, "opt", "charts"),
+	}
 
 	t.Run("label selector matches resources with infrastructure label", func(t *testing.T) {
 		g := NewWithT(t)
@@ -113,7 +122,7 @@ func TestDefaultCacheOptions(t *testing.T) {
 
 		rbByObj := findByObjectGVK(g, opts.ByObject, gvk.RoleBinding)
 
-		expectedNS := append(common.ManagedNamespaces(), common.NamespaceKubeSystem)
+		expectedNS := append(common.ManagedNamespaces(testCfg.DefaultChartsPath), common.NamespaceKubeSystem)
 		g.Expect(rbByObj.Namespaces).To(HaveLen(len(expectedNS)))
 		for _, ns := range expectedNS {
 			g.Expect(rbByObj.Namespaces).To(HaveKey(ns),
@@ -155,7 +164,7 @@ func TestDefaultCacheOptions(t *testing.T) {
 		cmByObj := findByObjectGVK(g, opts.ByObject, gvk.CertManagerCertificate)
 
 		certManagerNamespace := certmanager.DefaultBootstrapConfig().CertManagerNamespace
-		expectedNS := append(common.ManagedNamespaces(), certManagerNamespace)
+		expectedNS := append(common.ManagedNamespaces(testCfg.DefaultChartsPath), certManagerNamespace)
 		g.Expect(cmByObj.Namespaces).To(HaveLen(len(expectedNS)))
 		for _, ns := range expectedNS {
 			g.Expect(cmByObj.Namespaces).To(HaveKey(ns),
@@ -171,7 +180,7 @@ func TestDefaultCacheOptions(t *testing.T) {
 
 		rbByObj := findByObjectGVK(g, opts.ByObject, gvk.RoleBinding)
 
-		for _, ns := range common.ManagedNamespaces() {
+		for _, ns := range common.ManagedNamespaces(testCfg.DefaultChartsPath) {
 			nsConfig := rbByObj.Namespaces[ns]
 			g.Expect(nsConfig.LabelSelector).To(BeNil(),
 				"managed namespace %s should not have a label selector", ns)

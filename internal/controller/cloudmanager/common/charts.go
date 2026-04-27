@@ -1,7 +1,6 @@
 package common
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -10,10 +9,6 @@ import (
 	ccmcommon "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
-
-// DefaultChartsPath is the base directory for locally-bundled Helm charts.
-// It mirrors the pattern of DefaultManifestPath in pkg/deploy/deploy.go.
-var DefaultChartsPath = os.Getenv("DEFAULT_CHARTS_PATH")
 
 const (
 	NamespaceCertManagerOperator = "cert-manager-operator"
@@ -32,7 +27,7 @@ type chartDef struct {
 
 // allChartDefs is the single source of truth for all charts and their target
 // namespaces. Both ManagedNamespaces and BuildHelmCharts derive from this list.
-func allChartDefs() []chartDef {
+func allChartDefs(chartsPath string) []chartDef {
 	return []chartDef{
 		{
 			policyFn: func(d ccmcommon.Dependencies) ccmcommon.ManagementPolicy {
@@ -40,7 +35,7 @@ func allChartDefs() []chartDef {
 			},
 			chart: types.HelmChartInfo{
 				Source: helm.Source{
-					Chart:       filepath.Join(DefaultChartsPath, "gateway-api"),
+					Chart:       filepath.Join(chartsPath, "gateway-api"),
 					ReleaseName: "gateway-api",
 					Values:      helm.Values(map[string]any{}),
 				},
@@ -53,7 +48,7 @@ func allChartDefs() []chartDef {
 			},
 			chart: types.HelmChartInfo{
 				Source: helm.Source{
-					Chart:       filepath.Join(DefaultChartsPath, "cert-manager-operator"),
+					Chart:       filepath.Join(chartsPath, "cert-manager-operator"),
 					ReleaseName: "cert-manager-operator",
 					Values: helm.Values(map[string]any{
 						"operatorNamespace": NamespaceCertManagerOperator,
@@ -69,7 +64,7 @@ func allChartDefs() []chartDef {
 			},
 			chart: types.HelmChartInfo{
 				Source: helm.Source{
-					Chart:       filepath.Join(DefaultChartsPath, "lws-operator"),
+					Chart:       filepath.Join(chartsPath, "lws-operator"),
 					ReleaseName: "lws-operator",
 					Values: helm.Values(map[string]any{
 						"namespace": NamespaceLWSOperator,
@@ -85,7 +80,7 @@ func allChartDefs() []chartDef {
 			},
 			chart: types.HelmChartInfo{
 				Source: helm.Source{
-					Chart:       filepath.Join(DefaultChartsPath, "sail-operator"),
+					Chart:       filepath.Join(chartsPath, "sail-operator"),
 					ReleaseName: "sail-operator",
 					Values: helm.Values(map[string]any{
 						"namespace": NamespaceSailOperator,
@@ -101,11 +96,11 @@ func allChartDefs() []chartDef {
 
 // ManagedNamespaces returns all namespaces the cache must watch,
 // derived from the central chart registry.
-func ManagedNamespaces() []string {
+func ManagedNamespaces(chartsPath string) []string {
 	seen := make(map[string]struct{})
 	var namespaces []string
 
-	for _, def := range allChartDefs() {
+	for _, def := range allChartDefs(chartsPath) {
 		if strings.TrimSpace(def.namespace) == "" {
 			continue
 		}
@@ -120,10 +115,10 @@ func ManagedNamespaces() []string {
 
 // BuildHelmCharts returns the default charts filtered by management policy,
 // in deterministic installation order.
-func BuildHelmCharts(deps ccmcommon.Dependencies) []types.HelmChartInfo {
+func BuildHelmCharts(chartsPath string, deps ccmcommon.Dependencies) []types.HelmChartInfo {
 	var charts []types.HelmChartInfo
 
-	for _, def := range allChartDefs() {
+	for _, def := range allChartDefs(chartsPath) {
 		if def.policyFn(deps) != ccmcommon.Unmanaged {
 			charts = append(charts, def.chart)
 		}

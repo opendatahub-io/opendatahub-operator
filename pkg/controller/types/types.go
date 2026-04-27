@@ -110,6 +110,7 @@ type ReconciliationRequest struct {
 	Instance          common.PlatformObject
 	Release           common.Release
 	ManifestsBasePath string
+	ChartsBasePath    string
 	Manifests         []ManifestInfo
 
 	//

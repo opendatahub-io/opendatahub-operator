@@ -10,11 +10,13 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const testChartsPath = "/test/charts"
+
 func TestManagedNamespaces(t *testing.T) {
 	t.Run("returns namespaces derived from chart registry", func(t *testing.T) {
 		g := NewWithT(t)
 
-		namespaces := ManagedNamespaces()
+		namespaces := ManagedNamespaces(testChartsPath)
 
 		g.Expect(namespaces).To(HaveLen(3))
 		g.Expect(namespaces).To(Equal([]string{
@@ -47,18 +49,14 @@ func TestBuildHelmCharts(t *testing.T) {
 	t.Run("returns all charts in order when all managed", func(t *testing.T) {
 		g := NewWithT(t)
 
-		original := DefaultChartsPath
-		DefaultChartsPath = "/test/charts"
-		t.Cleanup(func() { DefaultChartsPath = original })
-
 		// Zero-value ManagementPolicy ("") is not "Unmanaged", so all charts are returned.
 		// In practice, kubebuilder defaults ManagementPolicy to "Managed".
-		charts := BuildHelmCharts(ccmcommon.Dependencies{})
+		charts := BuildHelmCharts(testChartsPath, ccmcommon.Dependencies{})
 
 		g.Expect(charts).To(HaveLen(len(expectedReleaseNames)))
 		for i, name := range expectedReleaseNames {
 			g.Expect(charts[i].ReleaseName).To(Equal(name))
-			g.Expect(charts[i].Chart).To(Equal(filepath.Join("/test/charts", name)))
+			g.Expect(charts[i].Chart).To(Equal(filepath.Join(testChartsPath, name)))
 		}
 	})
 
@@ -68,7 +66,7 @@ func TestBuildHelmCharts(t *testing.T) {
 		deps := getAllUnmanagedDependencies()
 		deps.LWS.ManagementPolicy = ccmcommon.Managed
 
-		charts := BuildHelmCharts(deps)
+		charts := BuildHelmCharts(testChartsPath, deps)
 
 		g.Expect(charts).To(HaveLen(1))
 		g.Expect(charts[0].ReleaseName).To(Equal("lws-operator"))
@@ -79,7 +77,7 @@ func TestBuildHelmCharts(t *testing.T) {
 
 		deps := getAllUnmanagedDependencies()
 
-		charts := BuildHelmCharts(deps)
+		charts := BuildHelmCharts(testChartsPath, deps)
 
 		g.Expect(charts).To(BeEmpty())
 	})

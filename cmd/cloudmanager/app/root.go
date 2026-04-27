@@ -45,6 +45,7 @@ func addCommonFlags() {
 			"Enabling this will ensure there is only one active controller manager.")
 	pf.String("log-mode", "", "Log mode ('', prod, devel), default to ''")
 	pf.String(operatorconfig.FlagRhaiOperatorNamespace, "", "The namespace where the operator is deployed.")
+	pf.String(operatorconfig.FlagDefaultChartsPath, "", "The base directory for locally-bundled Helm charts.")
 
 	// zap logging flags
 	pf.Bool("zap-devel", false,
@@ -64,6 +65,7 @@ func addCommonFlags() {
 	must(viper.BindEnv("leader-elect", envPrefix+"_LEADER_ELECT"))
 	must(viper.BindEnv("log-mode", envPrefix+"_LOG_MODE"))
 	must(viper.BindEnv(operatorconfig.FlagRhaiOperatorNamespace, operatorconfig.EnvRhaiOperatorNamespace))
+	must(viper.BindEnv(operatorconfig.FlagDefaultChartsPath, operatorconfig.EnvDefaultChartsPath))
 	must(viper.BindEnv("zap-devel", "ZAP_DEVEL"))
 	must(viper.BindEnv("zap-encoder", "ZAP_ENCODER"))
 	must(viper.BindEnv("zap-log-level", "ZAP_LOG_LEVEL"))

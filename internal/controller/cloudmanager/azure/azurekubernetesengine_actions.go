@@ -17,6 +17,6 @@ func initialize(ctx context.Context, rr *types.ReconciliationRequest) error {
 		return fmt.Errorf("resource instance is not an AzureKubernetesEngine (got %T)", rr.Instance)
 	}
 
-	rr.HelmCharts = common.BuildHelmCharts(instance.Spec.Dependencies)
+	rr.HelmCharts = common.BuildHelmCharts(rr.ChartsBasePath, instance.Spec.Dependencies)
 	return nil
 }

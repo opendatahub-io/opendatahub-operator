@@ -470,6 +470,18 @@ make uninstall-ccm-azure
 
 Replace `azure` with `coreweave` for CoreWeave targets.
 
+#### CCM Configuration
+
+The cloud manager is configured via environment variables or command-line flags:
+
+| Environment Variable | Flag | Description |
+|---------------------|------|-------------|
+| `RHAI_OPERATOR_NAMESPACE` | `--rhai-operator-namespace` | The namespace where the operator is deployed (required) |
+| `DEFAULT_CHARTS_PATH` | `--default-charts-path` | The base directory for locally-bundled Helm charts (required) |
+
+When running locally via `make run-ccm-<provider>`, `DEFAULT_CHARTS_PATH` defaults to `opt/charts`.
+In production deployments, it is set to `/opt/charts` in the manager manifests.
+
 **Example `AzureKubernetesEngine` CR:**
 
 ```yaml
