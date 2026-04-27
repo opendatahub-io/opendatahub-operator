@@ -45,6 +45,8 @@ var (
 		"kserve-llm-d-routing-sidecar":     "RELATED_IMAGE_ODH_LLM_D_ROUTING_SIDECAR_IMAGE",
 		"kube-rbac-proxy":                  "RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
 		"kserve-llm-d-uds-tokenizer":       "RELATED_IMAGE_ODH_LLM_D_KV_CACHE_IMAGE",
+		"kserve-localmodel-controller":     "RELATED_IMAGE_ODH_KSERVE_LOCALMODEL_CONTROLLER_IMAGE",
+		"kserve-localmodelnode-agent":      "RELATED_IMAGE_ODH_KSERVE_LOCALMODELNODE_AGENT_IMAGE",
 	}
 )
 
@@ -86,7 +88,7 @@ func kserveManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInf
 	}
 }
 
-func updateInferenceCM(inferenceServiceConfigMap *corev1.ConfigMap, isHeadless bool) error {
+func updateInferenceCM(inferenceServiceConfigMap *corev1.ConfigMap, isHeadless bool, modelCacheEnabled bool) error {
 	// ingress
 	// RawDeployment mode is the only supported mode, so always disable ingress creation
 	var ingressData map[string]any
@@ -111,6 +113,23 @@ func updateInferenceCM(inferenceServiceConfigMap *corev1.ConfigMap, isHeadless b
 		return fmt.Errorf("could not set values in configmap %s. %w", kserveConfigMapName, err)
 	}
 	inferenceServiceConfigMap.Data[ServiceConfigKeyName] = string(serviceDataBytes)
+
+	localModelRaw, ok := inferenceServiceConfigMap.Data[LocalModelConfigKeyName]
+	if !ok {
+		return fmt.Errorf("key '%s' not found in configmap %s", LocalModelConfigKeyName, kserveConfigMapName)
+	}
+	var localModelData map[string]interface{}
+	if err := json.Unmarshal([]byte(localModelRaw), &localModelData); err != nil {
+		return fmt.Errorf("error retrieving value for key '%s' from configmap %s. %w", LocalModelConfigKeyName, kserveConfigMapName, err)
+	}
+	localModelData["enabled"] = modelCacheEnabled
+	localModelData["jobNamespace"] = cluster.GetApplicationNamespace()
+	localModelDataBytes, err := json.MarshalIndent(localModelData, "", " ")
+	if err != nil {
+		return fmt.Errorf("could not set values in configmap %s. %w", kserveConfigMapName, err)
+	}
+	inferenceServiceConfigMap.Data[LocalModelConfigKeyName] = string(localModelDataBytes)
+
 	return nil
 }
 

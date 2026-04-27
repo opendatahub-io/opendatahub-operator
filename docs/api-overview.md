@@ -191,6 +191,7 @@ _Appears in:_
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration |  |  |
 | `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Configures and enables Models as a Service integration |  |  |
 | `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration |  |  |
+| `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
 
 
 #### DSCKserveStatus
@@ -908,6 +909,7 @@ _Appears in:_
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration |  |  |
 | `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Configures and enables Models as a Service integration |  |  |
 | `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration |  |  |
+| `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
 
 
 #### KserveCommonStatus
@@ -944,6 +946,7 @@ _Appears in:_
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration |  |  |
 | `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Configures and enables Models as a Service integration |  |  |
 | `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration |  |  |
+| `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
 
 
 #### KserveStatus
@@ -1279,6 +1282,27 @@ _Appears in:_
 | `captureUser` _boolean_ | CaptureUser enables the user label on metrics.<br />Disabled by default for privacy/GDPR compliance. | false | Optional: \{\} <br /> |
 | `captureGroup` _boolean_ | CaptureGroup enables the group label on metrics for team-based chargeback.<br />Note: This is a high-cardinality dimension and is disabled by default. | false | Optional: \{\} <br /> |
 | `captureModelUsage` _boolean_ | CaptureModelUsage enables the model label on metrics. | true | Optional: \{\} <br /> |
+
+
+#### ModelCacheSpec
+
+
+
+ModelCacheSpec enables Model Cache integration
+
+
+
+_Appears in:_
+- [DSCKserve](#dsckserve)
+- [KserveCommonSpec](#kservecommonspec)
+- [KserveSpec](#kservespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  | Removed | Enum: [Managed Removed] <br /> |
+| `cacheSize` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | CacheSize specifies the storage capacity for the model cache PersistentVolume<br />and PersistentVolumeClaim (e.g., "100Gi", "500Gi", "1Ti"). |  |  |
+| `nodeNames` _string array_ | NodeNames is a list of specific node names to enable model caching on.<br />The operator will label these nodes with kserve/localmodel=worker.<br />Mutually exclusive with NodeSelector. |  | MinItems: 1 <br />Optional: \{\} <br /> |
+| `nodeSelector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#labelselector-v1-meta)_ | NodeSelector is a label selector that identifies nodes for model caching<br />using pre-existing node labels (e.g., nvidia.com/gpu).<br />The operator will label matching nodes with kserve/localmodel=worker.<br />Mutually exclusive with NodeNames. |  | Optional: \{\} <br /> |
 
 
 #### ModelController

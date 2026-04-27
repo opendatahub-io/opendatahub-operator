@@ -25,6 +25,10 @@ const (
 	InstanceUID        = "platform.opendatahub.io/instance.uid"
 )
 
+// PSAElevatedBy records which component elevated the namespace PSA level to "privileged".
+// DSCI preserves the elevated level only while this annotation is present.
+const PSAElevatedBy = "opendatahub.io/psa-elevated-by"
+
 // Connection annotation for referencing secrets containing connection information.
 const Connection = "opendatahub.io/connections"
 
