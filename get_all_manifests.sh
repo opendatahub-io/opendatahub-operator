@@ -168,6 +168,10 @@ function git_fetch_ref()
     mkdir -p $dir
     pushd $dir &>/dev/null
     git init -q
+    # Disable LFS filter to avoid failures when git-lfs is not installed
+    git config --local filter.lfs.smudge cat
+    git config --local filter.lfs.process cat
+    git config --local filter.lfs.required false
 
     # Check if ref is in tracking format: branch@sha
     if [[ $ref =~ ^([a-zA-Z0-9_./-]+)@([a-f0-9]{7,40})$ ]]; then
