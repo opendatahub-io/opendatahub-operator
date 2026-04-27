@@ -357,6 +357,12 @@ var (
 		Kind:    componentApi.ModelsAsServiceKind,
 	}
 
+	Tenant = schema.GroupVersionKind{
+		Group:   "maas.opendatahub.io",
+		Version: "v1alpha1",
+		Kind:    "Tenant",
+	}
+
 	CustomResourceDefinition = schema.GroupVersionKind{
 		Group:   "apiextensions.k8s.io",
 		Version: "v1",
@@ -895,5 +901,11 @@ var (
 		Group:   "sparkoperator.k8s.io",
 		Version: "v1beta2",
 		Kind:    "SparkApplication",
+	}
+
+	ScheduledSparkApplication = schema.GroupVersionKind{
+		Group:   "sparkoperator.k8s.io",
+		Version: "v1beta2",
+		Kind:    "ScheduledSparkApplication",
 	}
 )

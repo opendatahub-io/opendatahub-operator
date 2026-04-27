@@ -289,7 +289,7 @@ func addTracesTemplateData(templateData map[string]any, traces *serviceApi.Trace
 // Images can be overridden via environment variables, with defaults based on platform.
 func addImageURLs(rr *odhtypes.ReconciliationRequest, templateData map[string]any) {
 	templateData["KubeRBACProxyImage"] = getImageURL(
-		"RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
+		"RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
 		"quay.io/brancz/kube-rbac-proxy:v0.20.0",
 		"registry.redhat.io/openshift4/ose-kube-rbac-proxy-rhel9:v4.17",
 		rr.Release.Name,

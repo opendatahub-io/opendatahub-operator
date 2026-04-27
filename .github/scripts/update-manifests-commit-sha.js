@@ -1,4 +1,4 @@
-const { getLatestCommitSha, parseManifestFile, updateManifestFile } = require('./manifest-utils');
+const { getLatestCommitSha, parseManifestFile, updateManifestFile, filterComponentsWithBranchSha } = require('./manifest-utils');
 
 module.exports = async function ({ github, core }) {
   const manifestFile = 'get_all_manifests.sh';
@@ -8,31 +8,7 @@ module.exports = async function ({ github, core }) {
 
   // Process both ODH and RHOAI platforms
   for (const components of [parsedManifests.odh, parsedManifests.rhoai, parsedManifests.odhCharts, parsedManifests.rhoaiCharts]) {
-    // Filter to only components with branch@sha format
-    const componentsWithSha = [];
-    for (const componentInfo of components) {
-      if (!componentInfo.ref.includes('@')) {
-        continue;
-      }
-
-      const refParts = componentInfo.ref.split('@');
-      if (refParts.length !== 2) {
-        console.log(`⚠️  Skipping ${componentInfo.platform}:${componentInfo.componentName}: invalid ref format "${componentInfo.ref}" (expected "branch@sha")`);
-        continue;
-      }
-
-      const [branchRef, commitSha] = refParts;
-      if (!branchRef || !commitSha) {
-        console.log(`⚠️  Skipping ${componentInfo.platform}:${componentInfo.componentName}: empty branch or SHA in ref "${componentInfo.ref}"`);
-        continue;
-      }
-
-      componentsWithSha.push({
-        ...componentInfo,
-        branchRef,
-        commitSha
-      });
-    }
+    const componentsWithSha = filterComponentsWithBranchSha(components);
 
     console.log(`Found ${componentsWithSha.length} ${componentsWithSha.length > 0 ? componentsWithSha[0].platform.toUpperCase() : ''} components with branch@sha format`);
 

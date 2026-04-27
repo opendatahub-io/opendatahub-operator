@@ -25,6 +25,7 @@ import (
 	"slices"
 	"strings"
 
+	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
 	ocappsv1 "github.com/openshift/api/apps/v1" //nolint:importas //reason: conflicts with appsv1 "k8s.io/api/apps/v1"
 	buildv1 "github.com/openshift/api/build/v1"
 	configv1 "github.com/openshift/api/config/v1"
@@ -100,14 +101,13 @@ import (
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/setup"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/bootstrap"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/initialinstall"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
@@ -175,6 +175,7 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(securityv1.Install(scheme))
 	utilruntime.Must(templatev1.Install(scheme))
 	utilruntime.Must(gwapiv1.Install(scheme))
+	utilruntime.Must(maasv1alpha1.AddToScheme(scheme))
 }
 
 func initComponents(_ context.Context, p common.Platform, cfg operatorconfig.OperatorSettings) error {
@@ -464,59 +465,25 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	// Check if user opted for disabling DSC configuration
-	switch {
-	case !flags.IsDSCIEnabled():
-		setupLog.Info("DSCI is disabled")
-	case oconfig.IsDSCICreationDisabled():
-		setupLog.Info("DSCI auto creation is disabled")
-	default:
-		createDefaultDSCIFunc := LeaderElectionRunnableFunc(func(ctx context.Context) error {
-			setupLog.Info("create default DSCI")
-			err := initialinstall.CreateDefaultDSCI(ctx, setupClient, platform, oconfig.MonitoringNamespace)
-			if err != nil {
-				setupLog.Error(err, "unable to create initial setup for the operator")
-			}
-			return err
-		})
-
-		err := mgr.Add(createDefaultDSCIFunc)
-		if err != nil {
-			setupLog.Error(err, "error scheduling DSCI creation")
-			os.Exit(1)
-		}
+	// Combined sequential initialization to avoid race conditions between
+	// cleanup and DSCI/DSC creation (RHOAIENG-48054).
+	leaderInitCfg := bootstrap.LeaderElectionInitConfig{
+		Platform:                  platform,
+		ManifestsBasePath:         oconfig.ManifestsBasePath,
+		MonitoringNamespace:       oconfig.MonitoringNamespace,
+		DSCIEnabled:               flags.IsDSCIEnabled(),
+		DSCEnabled:                flags.IsDSCEnabled(),
+		CreateDefaultDSCIDisabled: oconfig.IsDSCICreationDisabled(),
 	}
-
-	// Create default DSC CR for managed RHOAI
-	if platform == cluster.ManagedRhoai && flags.IsDSCEnabled() {
-		createDefaultDSCFunc := LeaderElectionRunnableFunc(func(ctx context.Context) error {
-			setupLog.Info("create default DSC")
-			err := initialinstall.CreateDefaultDSC(ctx, setupClient)
-			if err != nil {
-				setupLog.Error(err, "unable to create default DSC CR by the operator")
-			}
-			return err
-		})
-		err := mgr.Add(createDefaultDSCFunc)
-		if err != nil {
-			setupLog.Error(err, "error scheduling DSC creation")
-			os.Exit(1)
-		}
-	}
-
-	// Cleanup resources from previous v2 releases
-	cleanup := LeaderElectionRunnableFunc(func(ctx context.Context) error {
-		setupLog.Info("run upgrade task")
-		if err := upgrade.CleanupExistingResource(ctx, setupClient, oconfig.ManifestsBasePath); err != nil {
-			setupLog.Error(err, "unable to perform cleanup")
-			return err
-		}
-		return nil
+	leaderInitHooks := bootstrap.DefaultLeaderElectionInitHooks()
+	initFunc := LeaderElectionRunnableFunc(func(ctx context.Context) error {
+		return bootstrap.RunLeaderElectionInit(ctx, setupLog, setupClient, leaderInitCfg, leaderInitHooks)
 	})
 
-	err = mgr.Add(cleanup)
+	err = mgr.Add(initFunc)
 	if err != nil {
-		setupLog.Error(err, "error remove deprecated resources from previous version")
+		setupLog.Error(err, "error scheduling initialization")
+		os.Exit(1)
 	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

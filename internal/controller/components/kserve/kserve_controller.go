@@ -18,6 +18,7 @@ package kserve
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -26,6 +27,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
@@ -46,6 +48,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	pkgresources "github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 // NewComponentReconciler creates a ComponentReconciler for the Kserve API.
@@ -158,7 +161,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		}).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
-			deploy.WithApplyOrder(),
+			WithApplyOrderLLMInferenceServiceConfigLast(),
 		)).
 		WithAction(deployments.NewAction()).
 		// must be the final action
@@ -169,4 +172,49 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Build(ctx)
 
 	return err
+}
+
+// WithApplyOrderLLMInferenceServiceConfigLast returns a deploy option that sorts
+// resources using the standard apply order (CRDs first, webhooks last), then
+// moves all LLMInferenceServiceConfig resources to the very end.
+//
+// This ordering is critical for upgrades (e.g. 3.3 → 3.4). In 3.3, a single
+// kserve controller handled LLMInferenceServiceConfig validation. In 3.4,
+// validation moves to the separate llmisvc controller with its own webhook.
+// During upgrades the kserve controller is updated to 3.4 first, but the old
+// ValidatingWebhookConfiguration still points to kserve-webhook-server-service
+// which no longer serves the LLMInferenceServiceConfig validation endpoint.
+// Since WithApplyOrder places webhooks last, if LLMInferenceServiceConfig
+// resources are applied before the new ValidatingWebhookConfiguration replaces
+// the old one, validation fails and the operator stops — preventing the new
+// webhook configuration from ever being applied.
+// Placing LLMInferenceServiceConfig resources after webhooks ensures the new
+// ValidatingWebhookConfiguration is applied first.
+func WithApplyOrderLLMInferenceServiceConfigLast() deploy.ActionOpts {
+	return deploy.WithSortFn(deploy.SortFn(pkgresources.SortByApplyOrder).Then(sortLLMInferenceServiceConfigLast))
+}
+
+func sortLLMInferenceServiceConfigLast(_ context.Context, objects []unstructured.Unstructured) ([]unstructured.Unstructured, error) {
+	result := objects
+	// Stable-sort LLMInferenceServiceConfig resources after everything else
+	// so they are applied only once the webhook(s) are updated.
+	slices.SortStableFunc(result, func(a, b unstructured.Unstructured) int {
+		if isLLMInferenceServiceConfig(a) && isLLMInferenceServiceConfig(b) {
+			// Keep the original order.
+			return 0
+		}
+		if isLLMInferenceServiceConfig(a) {
+			return 1
+		}
+		if isLLMInferenceServiceConfig(b) {
+			return -1
+		}
+		return 0
+	})
+	return result, nil
+}
+
+func isLLMInferenceServiceConfig(r unstructured.Unstructured) bool {
+	return r.GroupVersionKind().Group == gvk.LLMInferenceServiceConfigV1Alpha2.Group &&
+		r.GetKind() == gvk.LLMInferenceServiceConfigV1Alpha2.Kind
 }
