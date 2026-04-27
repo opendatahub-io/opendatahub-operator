@@ -1498,10 +1498,15 @@ func (tc *MonitoringTestCtx) resetMonitoringConfigToManaged() {
 // resetMonitoringConfigToRemoved resets monitoring configuration and sets management state to Removed.
 // It preserves the immutable namespace field while clearing all optional config fields.
 func (tc *MonitoringTestCtx) resetMonitoringConfigToRemoved() {
+func (tc *MonitoringTestCtx) resetMonitoringConfigToManaged() {
 	tc.updateMonitoringConfig(
-		withManagementState(operatorv1.Removed),
+		withManagementState(operatorv1.Managed),
 		testf.Transform(`del(.spec.monitoring.metrics, .spec.monitoring.traces, .spec.monitoring.alerting, .spec.monitoring.collectorReplicas)`),
 	)
+
+	// Wait for OpenTelemetryCollector to be deleted if it was running with metrics/traces
+	// The controller will delete it when monitoring is reset to empty config
+	tc.EnsureResourcesGone(
 }
 
 // updateMonitoringConfig provides a flexible way to update DSCI monitoring configuration.
