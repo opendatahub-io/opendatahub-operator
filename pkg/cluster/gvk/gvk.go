@@ -605,8 +605,8 @@ var (
 		Group:   "keda.sh",
 		Version: "v1alpha1",
 		Kind:    "ScaledObject",
-  }
-  
+	}
+
 	LLMInferenceServiceV1Alpha2 = schema.GroupVersionKind{
 		Group:   "serving.kserve.io",
 		Version: "v1alpha2",

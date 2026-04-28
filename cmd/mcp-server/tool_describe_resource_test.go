@@ -69,7 +69,7 @@ func TestDescribeResource(t *testing.T) {
 		Data:       map[string][]byte{"password": []byte("s3cret")},
 	}
 	sa := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-sa", Namespace: "default"},
+		ObjectMeta:       metav1.ObjectMeta{Name: "my-sa", Namespace: "default"},
 		Secrets:          []corev1.ObjectReference{{Name: "my-sa-token"}},
 		ImagePullSecrets: []corev1.LocalObjectReference{{Name: "my-pull-secret"}},
 	}

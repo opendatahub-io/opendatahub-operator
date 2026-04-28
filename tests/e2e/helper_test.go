@@ -46,33 +46,33 @@ const (
 	controllerCacheRefreshDelay = 5 * time.Second
 
 	// Operators constants.
-	defaultOperatorChannel      = "stable"                                   // The default channel to install/check operators
-	kueueOpName                 = "kueue-operator"                           // Name of the Kueue Operator
-	certManagerOpName           = "openshift-cert-manager-operator"          // Name of the cert-manager Operator
-	certManagerOpNamespace      = "cert-manager-operator"                    // Name of the cert-manager Namespace
-	certManagerOpChannel        = "stable-v1"                                // Name of cert-manager operator stable channel
-	jobSetOpName                = "job-set"                                  // Name of the JobSet Operator
-	jobSetOpNamespace           = "openshift-jobset-operator"                // Namespace for the JobSet Operator
-	jobSetOpChannel             = "stable-v1.0"                              // Name of the JobSet Operator stable channel
-	openshiftOperatorsNamespace = "openshift-operators"                      // Namespace for OpenShift Operators
-	observabilityOpName         = "cluster-observability-operator"           // Name of the Cluster Observability Operator
-	observabilityOpNamespace    = "openshift-cluster-observability-operator" // Namespace for the Cluster Observability Operator
-	tempoOpName                 = "tempo-product"                            // Name of the Tempo Operator
-	tempoOpNamespace            = "openshift-tempo-operator"                 // Namespace for the Tempo Operator
-	opentelemetryOpName         = "opentelemetry-product"                    // Name of the OpenTelemetry Operator
-	opentelemetryOpNamespace    = "openshift-opentelemetry-operator"         // Namespace for the OpenTelemetry Operator
+	defaultOperatorChannel      = "stable"                                       // The default channel to install/check operators
+	kueueOpName                 = "kueue-operator"                               // Name of the Kueue Operator
+	certManagerOpName           = "openshift-cert-manager-operator"              // Name of the cert-manager Operator
+	certManagerOpNamespace      = "cert-manager-operator"                        // Name of the cert-manager Namespace
+	certManagerOpChannel        = "stable-v1"                                    // Name of cert-manager operator stable channel
+	jobSetOpName                = "job-set"                                      // Name of the JobSet Operator
+	jobSetOpNamespace           = "openshift-jobset-operator"                    // Namespace for the JobSet Operator
+	jobSetOpChannel             = "stable-v1.0"                                  // Name of the JobSet Operator stable channel
+	openshiftOperatorsNamespace = "openshift-operators"                          // Namespace for OpenShift Operators
+	observabilityOpName         = "cluster-observability-operator"               // Name of the Cluster Observability Operator
+	observabilityOpNamespace    = "openshift-cluster-observability-operator"     // Namespace for the Cluster Observability Operator
+	tempoOpName                 = "tempo-product"                                // Name of the Tempo Operator
+	tempoOpNamespace            = "openshift-tempo-operator"                     // Namespace for the Tempo Operator
+	opentelemetryOpName         = "opentelemetry-product"                        // Name of the OpenTelemetry Operator
+	opentelemetryOpNamespace    = "openshift-opentelemetry-operator"             // Namespace for the OpenTelemetry Operator
 	kedaOpName                  = "openshift-custom-metrics-autoscaler-operator" // Name of the KEDA (Custom Metrics Autoscaler) Operator
-	kedaOpNamespace             = "openshift-keda"                           // Namespace for the KEDA Operator
-	kedaOpChannel               = "stable"                                   // Channel for KEDA operator
-	controllerDeploymentODH     = "opendatahub-operator-controller-manager"  // Name of the ODH deployment
-	controllerDeploymentRhoai   = "rhods-operator"                           // Name of the Rhoai deployment
-	leaderWorkerSetOpName       = "leader-worker-set"                        // Name of the Leader Worker Set Operator
-	leaderWorkerSetNamespace    = "openshift-lws-operator"                   // Namespace for the Leader Worker Set Operator
-	leaderWorkerSetChannel      = "stable-v1.0"                              // Channel for the Leader Worker Set Operator
-	kueueOcpOperatorNamespace   = "openshift-kueue-operator"                 // Namespace for the OCP Kueue Operator
-	kueueOcpOperatorChannel     = "stable-v1.2"                              // Channel for the OCP Kueue Operator
-	kuadrantOpName              = "rhcl-operator"                            // Name of the Red Hat Connectivity Link Operator subscription.
-	kuadrantNamespace           = "kuadrant-system"                          // Namespace for the Red Hat Connectivity Link Operator.
+	kedaOpNamespace             = "openshift-keda"                               // Namespace for the KEDA Operator
+	kedaOpChannel               = "stable"                                       // Channel for KEDA operator
+	controllerDeploymentODH     = "opendatahub-operator-controller-manager"      // Name of the ODH deployment
+	controllerDeploymentRhoai   = "rhods-operator"                               // Name of the Rhoai deployment
+	leaderWorkerSetOpName       = "leader-worker-set"                            // Name of the Leader Worker Set Operator
+	leaderWorkerSetNamespace    = "openshift-lws-operator"                       // Namespace for the Leader Worker Set Operator
+	leaderWorkerSetChannel      = "stable-v1.0"                                  // Channel for the Leader Worker Set Operator
+	kueueOcpOperatorNamespace   = "openshift-kueue-operator"                     // Namespace for the OCP Kueue Operator
+	kueueOcpOperatorChannel     = "stable-v1.2"                                  // Channel for the OCP Kueue Operator
+	kuadrantOpName              = "rhcl-operator"                                // Name of the Red Hat Connectivity Link Operator subscription.
+	kuadrantNamespace           = "kuadrant-system"                              // Namespace for the Red Hat Connectivity Link Operator.
 
 )
 

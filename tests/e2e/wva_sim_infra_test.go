@@ -1,9 +1,11 @@
 package e2e_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -31,7 +33,7 @@ const (
 	wvaVariantAutoscalingConfigMap = "workload-variant-autoscaler-wva-variantautoscaling-config"
 	wvaTestNamespace               = "autoscaling-example"
 
-	// Operator constants for WVA dependencies
+	// Operator constants for WVA dependencies.
 	serviceMeshOpName      = "servicemeshoperator3"
 	serviceMeshOpNamespace = "openshift-operators"
 	serviceMeshOpChannel   = "stable"
@@ -39,12 +41,13 @@ const (
 	rhclOpNamespace        = "openshift-operators"
 	rhclOpChannel          = "stable"
 
-	// Container image versions
+	// Container image versions.
 	llmInferenceSimulatorImage = "ghcr.io/llm-d/llm-d-inference-sim:v0.5.1"
 )
 
 type WVATestCtx struct {
 	*TestContext
+
 	// State restoration tracking
 	originalMonitoringConfig    string // Original cluster-monitoring-config
 	originalDeploymentReplicas  map[string]int32
@@ -70,7 +73,7 @@ func wvaTestSuite(t *testing.T) {
 		{"Enable user workload monitoring", componentCtx.EnableUserWorkloadMonitoring},
 		{"Setup KEDA RBAC permissions", componentCtx.SetupKEDARBAC},
 		{"Create autoscaling example namespace", componentCtx.CreateAutoscalingNamespace},
-		//{"Label namespace for user workload monitoring", componentCtx.LabelNamespaceForMonitoring},
+		// {"Label namespace for user workload monitoring", componentCtx.LabelNamespaceForMonitoring},
 		{"Create autoscaling example gateway", componentCtx.CreateAutoscalingGateway},
 		{"Validate autoscaling gateway resources exist", componentCtx.ValidateAutoscalingGatewayResources},
 		{"Enable WVA through KServe", componentCtx.EnableWVA},
@@ -129,7 +132,7 @@ func wvaTestSuite(t *testing.T) {
 	t.Log("=== WVA Test Phase Complete ===")
 }
 
-// execCommandWithLogging executes a command and logs detailed information on failure
+// execCommandWithLogging executes a command and logs detailed information on failure.
 func (tc *WVATestCtx) execCommandWithLogging(t *testing.T, description string, cmd *exec.Cmd) (string, error) {
 	t.Helper()
 
@@ -163,14 +166,14 @@ func (tc *WVATestCtx) CleanupExistingResources(t *testing.T) {
 	// Delete LLMInferenceService if it exists
 	// First, check if resource exists and remove finalizers to avoid getting stuck during deletion
 	t.Log("Checking for existing LLMInferenceService")
-	checkCmd := exec.Command("kubectl", "get", "llminferenceservice", "sim-llama",
+	checkCmd := exec.CommandContext(context.Background(), "kubectl", "get", "llminferenceservice", "sim-llama",
 		"-n", wvaTestNamespace,
 		"--ignore-not-found")
 	checkOutput, err := checkCmd.CombinedOutput()
 
 	if err == nil && len(checkOutput) > 0 {
 		t.Log("Removing finalizers from existing LLMInferenceService")
-		removeFinalizers := exec.Command("kubectl", "patch", "llminferenceservice", "sim-llama",
+		removeFinalizers := exec.CommandContext(context.Background(), "kubectl", "patch", "llminferenceservice", "sim-llama",
 			"-n", wvaTestNamespace,
 			"--type=json",
 			"-p", `[{"op": "remove", "path": "/metadata/finalizers"}]`)
@@ -184,7 +187,7 @@ func (tc *WVATestCtx) CleanupExistingResources(t *testing.T) {
 	}
 
 	t.Log("Deleting existing LLMInferenceService")
-	deleteLLMISvcCmd := exec.Command("kubectl", "delete", "llminferenceservice", "sim-llama",
+	deleteLLMISvcCmd := exec.CommandContext(context.Background(), "kubectl", "delete", "llminferenceservice", "sim-llama",
 		"-n", wvaTestNamespace,
 		"--ignore-not-found=true",
 		"--timeout=30s")
@@ -195,7 +198,7 @@ func (tc *WVATestCtx) CleanupExistingResources(t *testing.T) {
 
 	// Delete Gateway if it exists
 	t.Log("Deleting existing Gateway")
-	deleteGatewayCmd := exec.Command("kubectl", "delete", "gateway", "autoscaling-example-gateway",
+	deleteGatewayCmd := exec.CommandContext(context.Background(), "kubectl", "delete", "gateway", "autoscaling-example-gateway",
 		"-n", wvaTestNamespace,
 		"--ignore-not-found=true",
 		"--timeout=2m")
@@ -206,7 +209,7 @@ func (tc *WVATestCtx) CleanupExistingResources(t *testing.T) {
 
 	// Delete Gateway ConfigMap if it exists
 	t.Log("Deleting existing Gateway ConfigMap")
-	deleteConfigMapCmd := exec.Command("kubectl", "delete", "configmap", "autoscaling-example-gateway-config",
+	deleteConfigMapCmd := exec.CommandContext(context.Background(), "kubectl", "delete", "configmap", "autoscaling-example-gateway-config",
 		"-n", wvaTestNamespace,
 		"--ignore-not-found=true",
 		"--timeout=1m")
@@ -217,7 +220,7 @@ func (tc *WVATestCtx) CleanupExistingResources(t *testing.T) {
 
 	// Delete PrometheusRule if it exists
 	t.Log("Deleting existing PrometheusRule")
-	deletePrometheusRuleCmd := exec.Command("kubectl", "delete", "prometheusrule", "vllm-metrics-alias",
+	deletePrometheusRuleCmd := exec.CommandContext(context.Background(), "kubectl", "delete", "prometheusrule", "vllm-metrics-alias",
 		"-n", wvaTestNamespace,
 		"--ignore-not-found=true",
 		"--timeout=1m")
@@ -228,7 +231,7 @@ func (tc *WVATestCtx) CleanupExistingResources(t *testing.T) {
 
 	// Delete custom PodMonitor if it exists
 	t.Log("Deleting existing custom PodMonitor")
-	deletePodMonitorCmd := exec.Command("kubectl", "delete", "podmonitor", "kserve-llm-isvc-vllm-engine-http",
+	deletePodMonitorCmd := exec.CommandContext(context.Background(), "kubectl", "delete", "podmonitor", "kserve-llm-isvc-vllm-engine-http",
 		"-n", wvaTestNamespace,
 		"--ignore-not-found=true",
 		"--timeout=1m")
@@ -240,7 +243,7 @@ func (tc *WVATestCtx) CleanupExistingResources(t *testing.T) {
 	// Delete cluster-scoped resources
 	// Delete ClusterRoleBinding
 	t.Log("Deleting existing ClusterRoleBinding")
-	deleteCRBCmd := exec.Command("kubectl", "delete", "clusterrolebinding", "keda-metrics-reader-monitoring",
+	deleteCRBCmd := exec.CommandContext(context.Background(), "kubectl", "delete", "clusterrolebinding", "keda-metrics-reader-monitoring",
 		"--ignore-not-found=true",
 		"--timeout=1m")
 	crbOutput, crbErr := tc.execCommandWithLogging(t, "Delete existing ClusterRoleBinding", deleteCRBCmd)
@@ -250,7 +253,7 @@ func (tc *WVATestCtx) CleanupExistingResources(t *testing.T) {
 
 	// Delete ClusterTriggerAuthentication
 	t.Log("Deleting existing ClusterTriggerAuthentication")
-	deleteCTACmd := exec.Command("kubectl", "delete", "clustertriggerauthentication", "ai-inference-keda-thanos",
+	deleteCTACmd := exec.CommandContext(context.Background(), "kubectl", "delete", "clustertriggerauthentication", "ai-inference-keda-thanos",
 		"--ignore-not-found=true",
 		"--timeout=1m")
 	ctaOutput, ctaErr := tc.execCommandWithLogging(t, "Delete existing ClusterTriggerAuthentication", deleteCTACmd)
@@ -261,7 +264,7 @@ func (tc *WVATestCtx) CleanupExistingResources(t *testing.T) {
 	// Delete KEDA namespace resources
 	// Delete ServiceAccount
 	t.Log("Deleting KEDA metrics reader ServiceAccount")
-	deleteSACmd := exec.Command("kubectl", "delete", "serviceaccount", "keda-metrics-reader",
+	deleteSACmd := exec.CommandContext(context.Background(), "kubectl", "delete", "serviceaccount", "keda-metrics-reader",
 		"-n", "openshift-keda",
 		"--ignore-not-found=true",
 		"--timeout=1m")
@@ -272,7 +275,7 @@ func (tc *WVATestCtx) CleanupExistingResources(t *testing.T) {
 
 	// Delete Secret
 	t.Log("Deleting KEDA metrics reader Secret")
-	deleteSecretCmd := exec.Command("kubectl", "delete", "secret", "keda-metrics-reader-token",
+	deleteSecretCmd := exec.CommandContext(context.Background(), "kubectl", "delete", "secret", "keda-metrics-reader-token",
 		"-n", "openshift-keda",
 		"--ignore-not-found=true",
 		"--timeout=1m")
@@ -405,7 +408,7 @@ func (tc *WVATestCtx) EnableUserWorkloadMonitoring(t *testing.T) {
 	t.Log("Enabling user workload monitoring")
 
 	// Capture original monitoring config before modifying
-	getConfigCmd := exec.Command("kubectl", "get", "configmap", "cluster-monitoring-config",
+	getConfigCmd := exec.CommandContext(context.Background(), "kubectl", "get", "configmap", "cluster-monitoring-config",
 		"-n", "openshift-monitoring",
 		"-o", "jsonpath={.data.config\\.yaml}")
 	originalConfig, err := getConfigCmd.CombinedOutput()
@@ -567,7 +570,7 @@ func (tc *WVATestCtx) LabelNamespaceForMonitoring(t *testing.T) {
 
 	// Label the namespace with openshift.io/user-monitoring=true
 	// This is required for Prometheus to discover PodMonitors in the namespace
-	labelCmd := exec.Command("kubectl", "label", "namespace", wvaTestNamespace,
+	labelCmd := exec.CommandContext(context.Background(), "kubectl", "label", "namespace", wvaTestNamespace,
 		"openshift.io/user-monitoring=true",
 		"--overwrite")
 
@@ -865,16 +868,15 @@ func (tc *WVATestCtx) PatchInferenceServiceConfig(t *testing.T) {
 	t.Log("Patching inferenceservice-config ConfigMap for autoscaling")
 
 	// Define the JSON patch content
-	patchContent := `[
-  {
-    "op": "replace",
-    "path": "/data/autoscaling-wva-controller-config",
-    "value": "{\"prometheus\":{\"url\":\"https://thanos-querier.openshift-monitoring.svc.cluster.local:9091\",\"authModes\":\"bearer\",\"triggerAuthName\":\"ai-inference-keda-thanos\",\"triggerAuthKind\":\"ClusterTriggerAuthentication\"}}"
-  }
-]`
+	prometheusConfig := `{"prometheus":{"url":"https://thanos-querier.openshift-monitoring.svc.cluster.local:9091",` +
+		`"authModes":"bearer","triggerAuthName":"ai-inference-keda-thanos",` +
+		`"triggerAuthKind":"ClusterTriggerAuthentication"}}`
+	patchContent := fmt.Sprintf(`[{"op":"replace","path":"/data/autoscaling-wva-controller-config","value":%q}]`,
+		prometheusConfig)
 
 	// Execute kubectl patch command
-	patchCmd := exec.Command("kubectl", "patch", "configmap", "inferenceservice-config",
+	//nolint:gosec // Test code with controlled namespace value
+	patchCmd := exec.CommandContext(context.Background(), "kubectl", "patch", "configmap", "inferenceservice-config",
 		"-n", tc.AppsNamespace,
 		"--type=json",
 		"--patch", patchContent)
@@ -892,7 +894,8 @@ func (tc *WVATestCtx) RestartLLMISvcController(t *testing.T) {
 	t.Log("Restarting llmisvc controller to pick up config change")
 
 	// Use kubectl rollout restart to restart the deployment
-	restartCmd := exec.Command("kubectl", "rollout", "restart", "deployment",
+	//nolint:gosec // Test code with controlled namespace and deployment name
+	restartCmd := exec.CommandContext(context.Background(), "kubectl", "rollout", "restart", "deployment",
 		llmisvcControllerName,
 		"-n", tc.AppsNamespace)
 
@@ -902,7 +905,8 @@ func (tc *WVATestCtx) RestartLLMISvcController(t *testing.T) {
 
 	// Wait for the rollout to complete
 	t.Log("Waiting for llmisvc controller rollout to complete")
-	rolloutStatusCmd := exec.Command("kubectl", "rollout", "status", "deployment",
+	//nolint:gosec // Test code with controlled namespace and deployment name
+	rolloutStatusCmd := exec.CommandContext(context.Background(), "kubectl", "rollout", "status", "deployment",
 		llmisvcControllerName,
 		"-n", tc.AppsNamespace,
 		"--timeout=5m")
@@ -932,20 +936,22 @@ func (tc *WVATestCtx) ScaleDownNonEssentialServices(t *testing.T) {
 	// Helper function to capture and scale deployment
 	captureAndScaleDeployment := func(name, namespace string) {
 		// Get current replica count
-		getReplicasCmd := exec.Command("kubectl", "get", "deployment", name,
+		getReplicasCmd := exec.CommandContext(context.Background(), "kubectl", "get", "deployment", name,
 			"-n", namespace,
 			"-o", "jsonpath={.spec.replicas}")
 		output, err := getReplicasCmd.CombinedOutput()
 		if err == nil {
 			var replicas int32
-			fmt.Sscanf(string(output), "%d", &replicas)
-			key := fmt.Sprintf("%s/%s", namespace, name)
-			tc.originalDeploymentReplicas[key] = replicas
-			t.Logf("Captured original replicas for %s: %d", key, replicas)
+			_, scanErr := fmt.Sscanf(string(output), "%d", &replicas)
+			if scanErr == nil {
+				key := fmt.Sprintf("%s/%s", namespace, name)
+				tc.originalDeploymentReplicas[key] = replicas
+				t.Logf("Captured original replicas for %s: %d", key, replicas)
+			}
 		}
 
 		// Scale down
-		scaleCmd := exec.Command("kubectl", "scale", "deployment", name,
+		scaleCmd := exec.CommandContext(context.Background(), "kubectl", "scale", "deployment", name,
 			"-n", namespace,
 			"--replicas=0")
 		_, err = scaleCmd.CombinedOutput()
@@ -972,20 +978,22 @@ func (tc *WVATestCtx) ScaleDownNonEssentialServices(t *testing.T) {
 	// Helper function to capture and scale statefulset
 	captureAndScaleStatefulSet := func(name, namespace string) {
 		// Get current replica count
-		getReplicasCmd := exec.Command("kubectl", "get", "statefulset", name,
+		getReplicasCmd := exec.CommandContext(context.Background(), "kubectl", "get", "statefulset", name,
 			"-n", namespace,
 			"-o", "jsonpath={.spec.replicas}")
 		output, err := getReplicasCmd.CombinedOutput()
 		if err == nil {
 			var replicas int32
-			fmt.Sscanf(string(output), "%d", &replicas)
-			key := fmt.Sprintf("%s/%s", namespace, name)
-			tc.originalStatefulSetReplicas[key] = replicas
-			t.Logf("Captured original replicas for StatefulSet %s: %d", key, replicas)
+			_, scanErr := fmt.Sscanf(string(output), "%d", &replicas)
+			if scanErr == nil {
+				key := fmt.Sprintf("%s/%s", namespace, name)
+				tc.originalStatefulSetReplicas[key] = replicas
+				t.Logf("Captured original replicas for StatefulSet %s: %d", key, replicas)
+			}
 		}
 
 		// Scale down
-		scaleCmd := exec.Command("kubectl", "scale", "statefulset", name,
+		scaleCmd := exec.CommandContext(context.Background(), "kubectl", "scale", "statefulset", name,
 			"-n", namespace,
 			"--replicas=0")
 		_, err = scaleCmd.CombinedOutput()
@@ -1015,7 +1023,7 @@ func (tc *WVATestCtx) ScaleDownNonEssentialServices(t *testing.T) {
 	// Scale operator to 1 replica (from potentially 3)
 	operatorDeployment := tc.getControllerDeploymentName()
 	t.Logf("Scaling %s to 1 replica", operatorDeployment)
-	scaleCmd = exec.Command("kubectl", "scale", "deployment", operatorDeployment,
+	scaleCmd = exec.CommandContext(context.Background(), "kubectl", "scale", "deployment", operatorDeployment,
 		"-n", tc.OperatorNamespace,
 		"--replicas=1")
 	_, err = scaleCmd.CombinedOutput()
@@ -1027,7 +1035,8 @@ func (tc *WVATestCtx) ScaleDownNonEssentialServices(t *testing.T) {
 
 	// Scale odh-model-controller to 1 replica
 	t.Log("Scaling odh-model-controller to 1 replica")
-	scaleCmd = exec.Command("kubectl", "scale", "deployment", "odh-model-controller",
+	//nolint:gosec // Test code with controlled namespace from test context
+	scaleCmd = exec.CommandContext(context.Background(), "kubectl", "scale", "deployment", "odh-model-controller",
 		"-n", tc.AppsNamespace,
 		"--replicas=1")
 	_, err = scaleCmd.CombinedOutput()
@@ -1039,7 +1048,7 @@ func (tc *WVATestCtx) ScaleDownNonEssentialServices(t *testing.T) {
 
 	// Scale lws-controller-manager to 1 replica if it exists
 	t.Log("Scaling lws-controller-manager to 1 replica if it exists")
-	scaleCmd = exec.Command("kubectl", "scale", "deployment", "lws-controller-manager",
+	scaleCmd = exec.CommandContext(context.Background(), "kubectl", "scale", "deployment", "lws-controller-manager",
 		"-n", "openshift-lws-operator",
 		"--replicas=1")
 	_, err = scaleCmd.CombinedOutput()
@@ -1434,7 +1443,7 @@ func (tc *WVATestCtx) DiagnosePrometheusScraping(t *testing.T, metricName, names
 
 	// Check for ServiceMonitor resources
 	t.Log("Checking for ServiceMonitor resources in the namespace")
-	smCmd := exec.Command("kubectl", "get", "servicemonitor",
+	smCmd := exec.CommandContext(context.Background(), "kubectl", "get", "servicemonitor",
 		"-n", namespace,
 		"-o", "yaml")
 	smOutput, err := smCmd.CombinedOutput()
@@ -1446,7 +1455,7 @@ func (tc *WVATestCtx) DiagnosePrometheusScraping(t *testing.T, metricName, names
 
 	// Check for PodMonitor resources
 	t.Log("Checking for PodMonitor resources in the namespace")
-	pmCmd := exec.Command("kubectl", "get", "podmonitor",
+	pmCmd := exec.CommandContext(context.Background(), "kubectl", "get", "podmonitor",
 		"-n", namespace,
 		"-o", "yaml")
 	pmOutput, err := pmCmd.CombinedOutput()
@@ -1458,7 +1467,7 @@ func (tc *WVATestCtx) DiagnosePrometheusScraping(t *testing.T, metricName, names
 
 	// Get Prometheus pods and check their logs for scrape errors
 	t.Log("Checking Prometheus logs for scrape errors")
-	prometheusPodsCmd := exec.Command("kubectl", "get", "pods",
+	prometheusPodsCmd := exec.CommandContext(context.Background(), "kubectl", "get", "pods",
 		"-n", "openshift-user-workload-monitoring",
 		"-l", "app.kubernetes.io/name=prometheus",
 		"-o", "jsonpath={.items[*].metadata.name}")
@@ -1472,7 +1481,7 @@ func (tc *WVATestCtx) DiagnosePrometheusScraping(t *testing.T, metricName, names
 		}
 		for _, pod := range podNames {
 			t.Logf("Checking logs for Prometheus pod: %s", pod)
-			logsCmd := exec.Command("kubectl", "logs",
+			logsCmd := exec.CommandContext(context.Background(), "kubectl", "logs",
 				"-n", "openshift-user-workload-monitoring",
 				pod,
 				"-c", "prometheus",
@@ -1503,7 +1512,7 @@ func (tc *WVATestCtx) DiagnosePrometheusScraping(t *testing.T, metricName, names
 
 	// Check if pods have the required annotations for Prometheus scraping
 	t.Logf("Checking pod annotations for Prometheus scraping in namespace %s", namespace)
-	podAnnotationsCmd := exec.Command("kubectl", "get", "pods",
+	podAnnotationsCmd := exec.CommandContext(context.Background(), "kubectl", "get", "pods",
 		"-n", namespace,
 		"-o", "json")
 	podAnnotationsOutput, err := podAnnotationsCmd.CombinedOutput()
@@ -1523,7 +1532,7 @@ func (tc *WVATestCtx) ValidatePrometheusWVAMetrics(t *testing.T) {
 
 	// Get authentication token
 	t.Log("Getting authentication token")
-	tokenCmd := exec.Command("oc", "whoami", "-t")
+	tokenCmd := exec.CommandContext(context.Background(), "oc", "whoami", "-t")
 	token, err := tc.execCommandWithLogging(t, "Get authentication token", tokenCmd)
 	tc.g.Expect(err).NotTo(HaveOccurred(),
 		"Expected: Successfully get authentication token from 'oc whoami -t'\nActual: Command failed\nError: %v", err)
@@ -1532,7 +1541,7 @@ func (tc *WVATestCtx) ValidatePrometheusWVAMetrics(t *testing.T) {
 
 	// Get Thanos querier route
 	t.Log("Getting Thanos querier route")
-	thanosCmd := exec.Command("oc", "get", "route", "thanos-querier", "-n", "openshift-monitoring", "-o", "jsonpath={.spec.host}")
+	thanosCmd := exec.CommandContext(context.Background(), "oc", "get", "route", "thanos-querier", "-n", "openshift-monitoring", "-o", "jsonpath={.spec.host}")
 	thanosHost, err := tc.execCommandWithLogging(t, "Get Thanos querier route", thanosCmd)
 	tc.g.Expect(err).NotTo(HaveOccurred(),
 		"Expected: Thanos querier route to exist in openshift-monitoring namespace\nActual: Failed to get route\nError: %v", err)
@@ -1568,7 +1577,8 @@ func (tc *WVATestCtx) ValidatePrometheusWVAMetrics(t *testing.T) {
 		// Query Prometheus/Thanos for the metric
 		// Note: Using -k to skip certificate verification because test clusters use self-signed certificates.
 		// In production environments, proper CA validation should be used.
-		curlCmd := exec.Command("curl", "-sk", "-G",
+		//nolint:gosec // Test code with controlled token/url/query values from test context
+		curlCmd := exec.CommandContext(context.Background(), "curl", "-sk", "-G",
 			"-H", fmt.Sprintf("Authorization: Bearer %s", token),
 			url,
 			"--data-urlencode", fmt.Sprintf("query=%s", metric.query))
@@ -1650,7 +1660,7 @@ func (tc *WVATestCtx) ValidateVLLMMetricsFromPods(t *testing.T) {
 	labelSelector := "app.kubernetes.io/component=llminferenceservice-workload"
 	t.Logf("Finding pods with label: %s in namespace: %s", labelSelector, wvaTestNamespace)
 
-	getPodCmd := exec.Command("oc", "get", "pods",
+	getPodCmd := exec.CommandContext(context.Background(), "oc", "get", "pods",
 		"-n", wvaTestNamespace,
 		"-l", labelSelector,
 		"-o", "jsonpath={.items[*].metadata.name}")
@@ -1678,7 +1688,7 @@ func (tc *WVATestCtx) ValidateVLLMMetricsFromPods(t *testing.T) {
 		t.Logf("Checking metrics from pod: %s", podName)
 
 		// Curl the /metrics endpoint from inside the pod
-		curlCmd := exec.Command("oc", "exec", "-n", wvaTestNamespace, podName,
+		curlCmd := exec.CommandContext(context.Background(), "oc", "exec", "-n", wvaTestNamespace, podName,
 			"--", "curl", "-s", "localhost:8000/metrics")
 
 		metricsContent, err := tc.execCommandWithLogging(t, fmt.Sprintf("Curl metrics from pod %s", podName), curlCmd)
@@ -1727,7 +1737,7 @@ func (tc *WVATestCtx) ValidateServiceMonitorCreated(t *testing.T) {
 	}
 
 	// List ServiceMonitors in the namespace
-	listSMCmd := exec.Command("kubectl", "get", "servicemonitor",
+	listSMCmd := exec.CommandContext(context.Background(), "kubectl", "get", "servicemonitor",
 		"-n", wvaTestNamespace,
 		"-o", "jsonpath={.items[*].metadata.name}")
 
@@ -1750,7 +1760,7 @@ func (tc *WVATestCtx) ValidateServiceMonitorCreated(t *testing.T) {
 	t.Logf("✅ ServiceMonitor(s) found in namespace: %s", smOutput)
 
 	// Get detailed information about ServiceMonitors for debugging
-	describeSMCmd := exec.Command("kubectl", "get", "servicemonitor",
+	describeSMCmd := exec.CommandContext(context.Background(), "kubectl", "get", "servicemonitor",
 		"-n", wvaTestNamespace,
 		"-o", "yaml")
 
@@ -1788,7 +1798,7 @@ func (tc *WVATestCtx) ValidateServiceForMetrics(t *testing.T) {
 	}
 
 	// List all Services in the namespace
-	listSvcCmd := exec.Command("kubectl", "get", "service",
+	listSvcCmd := exec.CommandContext(context.Background(), "kubectl", "get", "service",
 		"-n", wvaTestNamespace,
 		"-o", "jsonpath={.items[*].metadata.name}")
 
@@ -1811,7 +1821,7 @@ func (tc *WVATestCtx) ValidateServiceForMetrics(t *testing.T) {
 	t.Logf("✅ Service(s) found in namespace: %s", svcOutput)
 
 	// Get detailed information about Services for debugging
-	describeSvcCmd := exec.Command("kubectl", "get", "service",
+	describeSvcCmd := exec.CommandContext(context.Background(), "kubectl", "get", "service",
 		"-n", wvaTestNamespace,
 		"-o", "yaml")
 
@@ -1831,13 +1841,13 @@ func (tc *WVATestCtx) ValidateServiceMonitorMatchesService(t *testing.T) {
 	t.Log("Validating ServiceMonitor selector matches Service labels")
 
 	// Get ServiceMonitor names
-	listSMCmd := exec.Command("kubectl", "get", "servicemonitor",
+	listSMCmd := exec.CommandContext(context.Background(), "kubectl", "get", "servicemonitor",
 		"-n", wvaTestNamespace,
 		"-o", "jsonpath={.items[*].metadata.name}")
 	smNames, _ := listSMCmd.CombinedOutput()
 
 	// Get Service names
-	listSvcCmd := exec.Command("kubectl", "get", "service",
+	listSvcCmd := exec.CommandContext(context.Background(), "kubectl", "get", "service",
 		"-n", wvaTestNamespace,
 		"-o", "jsonpath={.items[*].metadata.name}")
 	svcNames, _ := listSvcCmd.CombinedOutput()
@@ -1846,7 +1856,7 @@ func (tc *WVATestCtx) ValidateServiceMonitorMatchesService(t *testing.T) {
 	t.Logf("Found Services: %s", string(svcNames))
 
 	// Get ServiceMonitor with selector information
-	getSMCmd := exec.Command("kubectl", "get", "servicemonitor",
+	getSMCmd := exec.CommandContext(context.Background(), "kubectl", "get", "servicemonitor",
 		"-n", wvaTestNamespace,
 		"-o", "json")
 
@@ -1855,7 +1865,7 @@ func (tc *WVATestCtx) ValidateServiceMonitorMatchesService(t *testing.T) {
 		"Expected: Successfully get ServiceMonitor\nActual: Command failed\nError: %v", err)
 
 	// Get Services with labels
-	getSvcCmd := exec.Command("kubectl", "get", "service",
+	getSvcCmd := exec.CommandContext(context.Background(), "kubectl", "get", "service",
 		"-n", wvaTestNamespace,
 		"-o", "json")
 
@@ -1894,7 +1904,7 @@ func (tc *WVATestCtx) ValidatePrometheusVLLMMetrics(t *testing.T) {
 
 	// Get authentication token
 	t.Log("Getting authentication token")
-	tokenCmd := exec.Command("oc", "whoami", "-t")
+	tokenCmd := exec.CommandContext(context.Background(), "oc", "whoami", "-t")
 	token, err := tc.execCommandWithLogging(t, "Get authentication token", tokenCmd)
 	tc.g.Expect(err).NotTo(HaveOccurred(),
 		"Expected: Successfully get authentication token from 'oc whoami -t'\nActual: Command failed\nError: %v", err)
@@ -1903,7 +1913,7 @@ func (tc *WVATestCtx) ValidatePrometheusVLLMMetrics(t *testing.T) {
 
 	// Get Thanos querier route
 	t.Log("Getting Thanos querier route")
-	thanosCmd := exec.Command("oc", "get", "route", "thanos-querier", "-n", "openshift-monitoring", "-o", "jsonpath={.spec.host}")
+	thanosCmd := exec.CommandContext(context.Background(), "oc", "get", "route", "thanos-querier", "-n", "openshift-monitoring", "-o", "jsonpath={.spec.host}")
 	thanosHost, err := tc.execCommandWithLogging(t, "Get Thanos querier route", thanosCmd)
 	tc.g.Expect(err).NotTo(HaveOccurred(),
 		"Expected: Thanos querier route to exist in openshift-monitoring namespace\nActual: Failed to get route\nError: %v", err)
@@ -1929,7 +1939,8 @@ func (tc *WVATestCtx) ValidatePrometheusVLLMMetrics(t *testing.T) {
 			// Query Prometheus/Thanos for the metric
 			// Note: Using -k to skip certificate verification because test clusters use self-signed certificates.
 			// In production environments, proper CA validation should be used.
-			curlCmd := exec.Command("curl", "-sk", "-G",
+			//nolint:gosec // Test code with controlled token/url/query values from test context
+			curlCmd := exec.CommandContext(context.Background(), "curl", "-sk", "-G",
 				"-H", fmt.Sprintf("Authorization: Bearer %s", token),
 				url,
 				"--data-urlencode", fmt.Sprintf("query=%s", query))
@@ -2084,14 +2095,14 @@ func (tc *WVATestCtx) CleanupAutoscalingResources(t *testing.T) {
 	// Delete LLMInferenceService
 	// First, check if resource exists and remove finalizers to avoid getting stuck during deletion
 	t.Log("Checking for LLMInferenceService")
-	checkCmd := exec.Command("kubectl", "get", "llminferenceservice", "sim-llama",
+	checkCmd := exec.CommandContext(context.Background(), "kubectl", "get", "llminferenceservice", "sim-llama",
 		"-n", wvaTestNamespace,
 		"--ignore-not-found")
 	checkOutput, err := checkCmd.CombinedOutput()
 
 	if err == nil && len(checkOutput) > 0 {
 		t.Log("Removing finalizers from LLMInferenceService")
-		removeFinalizers := exec.Command("kubectl", "patch", "llminferenceservice", "sim-llama",
+		removeFinalizers := exec.CommandContext(context.Background(), "kubectl", "patch", "llminferenceservice", "sim-llama",
 			"-n", wvaTestNamespace,
 			"--type=json",
 			"-p", `[{"op": "remove", "path": "/metadata/finalizers"}]`)
@@ -2105,7 +2116,7 @@ func (tc *WVATestCtx) CleanupAutoscalingResources(t *testing.T) {
 	}
 
 	t.Log("Deleting LLMInferenceService")
-	deleteLLMISvcCmd := exec.Command("kubectl", "delete", "llminferenceservice", "sim-llama",
+	deleteLLMISvcCmd := exec.CommandContext(context.Background(), "kubectl", "delete", "llminferenceservice", "sim-llama",
 		"-n", wvaTestNamespace,
 		"--ignore-not-found=true",
 		"--timeout=30s")
@@ -2116,7 +2127,7 @@ func (tc *WVATestCtx) CleanupAutoscalingResources(t *testing.T) {
 
 	// Delete Gateway
 	t.Log("Deleting Gateway")
-	deleteGatewayCmd := exec.Command("kubectl", "delete", "gateway", "autoscaling-example-gateway",
+	deleteGatewayCmd := exec.CommandContext(context.Background(), "kubectl", "delete", "gateway", "autoscaling-example-gateway",
 		"-n", wvaTestNamespace,
 		"--ignore-not-found=true")
 	gwOutput, gwErr := tc.execCommandWithLogging(t, "Delete Gateway", deleteGatewayCmd)
@@ -2126,7 +2137,7 @@ func (tc *WVATestCtx) CleanupAutoscalingResources(t *testing.T) {
 
 	// Delete Gateway ConfigMap
 	t.Log("Deleting Gateway ConfigMap")
-	deleteConfigMapCmd := exec.Command("kubectl", "delete", "configmap", "autoscaling-example-gateway-config",
+	deleteConfigMapCmd := exec.CommandContext(context.Background(), "kubectl", "delete", "configmap", "autoscaling-example-gateway-config",
 		"-n", wvaTestNamespace,
 		"--ignore-not-found=true")
 	cmOutput, cmErr := tc.execCommandWithLogging(t, "Delete Gateway ConfigMap", deleteConfigMapCmd)
@@ -2136,7 +2147,7 @@ func (tc *WVATestCtx) CleanupAutoscalingResources(t *testing.T) {
 
 	// Delete PrometheusRule
 	t.Log("Deleting PrometheusRule")
-	deletePrometheusRuleCmd := exec.Command("kubectl", "delete", "prometheusrule", "vllm-metrics-alias",
+	deletePrometheusRuleCmd := exec.CommandContext(context.Background(), "kubectl", "delete", "prometheusrule", "vllm-metrics-alias",
 		"-n", wvaTestNamespace,
 		"--ignore-not-found=true")
 	prOutput, prErr := tc.execCommandWithLogging(t, "Delete PrometheusRule", deletePrometheusRuleCmd)
@@ -2146,7 +2157,7 @@ func (tc *WVATestCtx) CleanupAutoscalingResources(t *testing.T) {
 
 	// Delete custom PodMonitor
 	t.Log("Deleting custom PodMonitor")
-	deletePodMonitorCmd := exec.Command("kubectl", "delete", "podmonitor", "kserve-llm-isvc-vllm-engine-http",
+	deletePodMonitorCmd := exec.CommandContext(context.Background(), "kubectl", "delete", "podmonitor", "kserve-llm-isvc-vllm-engine-http",
 		"-n", wvaTestNamespace,
 		"--ignore-not-found=true")
 	pmOutput, pmErr := tc.execCommandWithLogging(t, "Delete custom PodMonitor", deletePodMonitorCmd)
@@ -2157,7 +2168,7 @@ func (tc *WVATestCtx) CleanupAutoscalingResources(t *testing.T) {
 	// Delete cluster-scoped resources
 	// Delete ClusterRoleBinding
 	t.Log("Deleting ClusterRoleBinding")
-	deleteCRBCmd := exec.Command("kubectl", "delete", "clusterrolebinding", "keda-metrics-reader-monitoring",
+	deleteCRBCmd := exec.CommandContext(context.Background(), "kubectl", "delete", "clusterrolebinding", "keda-metrics-reader-monitoring",
 		"--ignore-not-found=true",
 		"--timeout=1m")
 	crbOutput, crbErr := tc.execCommandWithLogging(t, "Delete ClusterRoleBinding", deleteCRBCmd)
@@ -2167,7 +2178,7 @@ func (tc *WVATestCtx) CleanupAutoscalingResources(t *testing.T) {
 
 	// Delete ClusterTriggerAuthentication
 	t.Log("Deleting ClusterTriggerAuthentication")
-	deleteCTACmd := exec.Command("kubectl", "delete", "clustertriggerauthentication", "ai-inference-keda-thanos",
+	deleteCTACmd := exec.CommandContext(context.Background(), "kubectl", "delete", "clustertriggerauthentication", "ai-inference-keda-thanos",
 		"--ignore-not-found=true",
 		"--timeout=1m")
 	ctaOutput, ctaErr := tc.execCommandWithLogging(t, "Delete ClusterTriggerAuthentication", deleteCTACmd)
@@ -2178,7 +2189,7 @@ func (tc *WVATestCtx) CleanupAutoscalingResources(t *testing.T) {
 	// Delete KEDA namespace resources
 	// Delete ServiceAccount
 	t.Log("Deleting KEDA metrics reader ServiceAccount")
-	deleteSACmd := exec.Command("kubectl", "delete", "serviceaccount", "keda-metrics-reader",
+	deleteSACmd := exec.CommandContext(context.Background(), "kubectl", "delete", "serviceaccount", "keda-metrics-reader",
 		"-n", "openshift-keda",
 		"--ignore-not-found=true",
 		"--timeout=1m")
@@ -2189,7 +2200,7 @@ func (tc *WVATestCtx) CleanupAutoscalingResources(t *testing.T) {
 
 	// Delete Secret
 	t.Log("Deleting KEDA metrics reader Secret")
-	deleteSecretCmd := exec.Command("kubectl", "delete", "secret", "keda-metrics-reader-token",
+	deleteSecretCmd := exec.CommandContext(context.Background(), "kubectl", "delete", "secret", "keda-metrics-reader-token",
 		"-n", "openshift-keda",
 		"--ignore-not-found=true",
 		"--timeout=1m")
@@ -2201,7 +2212,7 @@ func (tc *WVATestCtx) CleanupAutoscalingResources(t *testing.T) {
 	t.Log("Autoscaling resources cleanup completed")
 }
 
-// RestoreClusterState restores the cluster to its original state before the test
+// RestoreClusterState restores the cluster to its original state before the test.
 func (tc *WVATestCtx) RestoreClusterState(t *testing.T) {
 	t.Helper()
 
@@ -2212,7 +2223,7 @@ func (tc *WVATestCtx) RestoreClusterState(t *testing.T) {
 		t.Log("Restoring original cluster-monitoring-config")
 
 		// Create a temporary file with the original config
-		tmpFile, err := os.CreateTemp("", "cluster-monitoring-config-*.yaml")
+		tmpFile, err := os.CreateTemp(t.TempDir(), "cluster-monitoring-config-*.yaml")
 		if err != nil {
 			t.Logf("Warning: Failed to create temp file for config restoration: %v", err)
 		} else {
@@ -2224,7 +2235,8 @@ func (tc *WVATestCtx) RestoreClusterState(t *testing.T) {
 				tmpFile.Close()
 
 				// Apply the original config
-				restoreConfigCmd := exec.Command("kubectl", "create", "configmap", "cluster-monitoring-config",
+				//nolint:gosec // Test code with controlled temporary file path from t.TempDir()
+				restoreConfigCmd := exec.CommandContext(context.Background(), "kubectl", "create", "configmap", "cluster-monitoring-config",
 					"-n", "openshift-monitoring",
 					"--from-file=config.yaml="+tmpFile.Name(),
 					"--dry-run=client",
@@ -2257,9 +2269,9 @@ func (tc *WVATestCtx) RestoreClusterState(t *testing.T) {
 			namespace, name := parts[0], parts[1]
 
 			t.Logf("Restoring deployment %s in namespace %s to %d replicas", name, namespace, originalReplicas)
-			scaleCmd := exec.Command("kubectl", "scale", "deployment", name,
+			scaleCmd := exec.CommandContext(context.Background(), "kubectl", "scale", "deployment", name,
 				"-n", namespace,
-				"--replicas="+fmt.Sprintf("%d", originalReplicas))
+				"--replicas="+strconv.Itoa(int(originalReplicas)))
 			scaleOutput, scaleErr := tc.execCommandWithLogging(t, fmt.Sprintf("Restore deployment %s replicas", name), scaleCmd)
 			if scaleErr != nil {
 				t.Logf("Warning: Failed to restore deployment %s: %v\nOutput: %s", name, scaleErr, scaleOutput)
@@ -2283,9 +2295,9 @@ func (tc *WVATestCtx) RestoreClusterState(t *testing.T) {
 			namespace, name := parts[0], parts[1]
 
 			t.Logf("Restoring statefulset %s in namespace %s to %d replicas", name, namespace, originalReplicas)
-			scaleCmd := exec.Command("kubectl", "scale", "statefulset", name,
+			scaleCmd := exec.CommandContext(context.Background(), "kubectl", "scale", "statefulset", name,
 				"-n", namespace,
-				"--replicas="+fmt.Sprintf("%d", originalReplicas))
+				"--replicas="+strconv.Itoa(int(originalReplicas)))
 			scaleOutput, scaleErr := tc.execCommandWithLogging(t, fmt.Sprintf("Restore statefulset %s replicas", name), scaleCmd)
 			if scaleErr != nil {
 				t.Logf("Warning: Failed to restore statefulset %s: %v\nOutput: %s", name, scaleErr, scaleOutput)

@@ -108,7 +108,7 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 		{nn: types.NamespacedName{Name: kuadrantOpName, Namespace: kuadrantNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: defaultOperatorChannel},
 		{nn: types.NamespacedName{Name: leaderWorkerSetOpName, Namespace: leaderWorkerSetNamespace}, skipOperatorGroup: false, globalOperatorGroup: false, channel: leaderWorkerSetChannel}, //nolint:lll
 		{nn: types.NamespacedName{Name: jobSetOpName, Namespace: jobSetOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: false, channel: jobSetOpChannel},
-    {nn: types.NamespacedName{Name: kedaOpName, Namespace: kedaOpNamespace}, skipOperatorGroup: false, channel: kedaOpChannel},
+		{nn: types.NamespacedName{Name: kedaOpName, Namespace: kedaOpNamespace}, skipOperatorGroup: false, channel: kedaOpChannel},
 	}
 
 	tc.ensureOperatorsAreInstalled(t, operators)
