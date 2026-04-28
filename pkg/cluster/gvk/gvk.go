@@ -914,4 +914,10 @@ var (
 		Version: "v1beta2",
 		Kind:    "SparkApplication",
 	}
+
+	ScheduledSparkApplication = schema.GroupVersionKind{
+		Group:   "sparkoperator.k8s.io",
+		Version: "v1beta2",
+		Kind:    "ScheduledSparkApplication",
+	}
 )

@@ -37,7 +37,7 @@ func (o *TestPlatformObject) GetConditions() []common.Condition { return o.Statu
 // SetConditions implements common.ConditionsAccessor.
 func (o *TestPlatformObject) SetConditions(c []common.Condition) { o.Status.SetConditions(c) }
 
-//nolint:ireturn // DeepCopyObject must return runtime.Object interface as required by Kubernetes API
+//nolint:ireturn // DeepCopyObject must return runtime.Object per k8s apimachinery contract.
 func (o *TestPlatformObject) DeepCopyObject() runtime.Object {
 	if o == nil {
 		return nil
@@ -58,7 +58,7 @@ type TestPlatformObjectList struct {
 	Items []TestPlatformObject `json:"items"`
 }
 
-//nolint:ireturn // DeepCopyObject must return runtime.Object interface as required by Kubernetes API
+//nolint:ireturn // DeepCopyObject must return runtime.Object per k8s apimachinery contract.
 func (l *TestPlatformObjectList) DeepCopyObject() runtime.Object {
 	if l == nil {
 		return nil

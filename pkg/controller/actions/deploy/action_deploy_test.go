@@ -1170,7 +1170,7 @@ func newOwnerRefReconciliationRequest(cl client.Client, instance *componentApi.D
 	}
 }
 
-func assertControllerOwnerRef(g Gomega, ownerRefs []metav1.OwnerReference, instance *componentApi.Dashboard, msgAndArgs ...interface{}) {
+func assertControllerOwnerRef(g Gomega, ownerRefs []metav1.OwnerReference, instance *componentApi.Dashboard, msgAndArgs ...any) {
 	g.Expect(ownerRefs).Should(HaveLen(1), msgAndArgs...)
 	g.Expect(ownerRefs[0].Kind).Should(Equal(gvk.Dashboard.Kind), msgAndArgs...)
 	g.Expect(ownerRefs[0].Name).Should(Equal(instance.Name), msgAndArgs...)
