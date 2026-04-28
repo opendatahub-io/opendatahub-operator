@@ -1480,8 +1480,8 @@ func (tc *MonitoringTestCtx) cleanupGroup(t *testing.T, secretName string) {
 	)
 }
 
-// resetMonitoringConfigToManaged completely resets monitoring configuration and sets management state to Managed.
-// It waits for any in-flight deletions to complete to ensure clean state for the next test.
+// resetMonitoringConfigToManaged selectively deletes optional monitoring config fields and sets management state to Managed.
+// It preserves the immutable namespace field and waits for any in-flight deletions to complete to ensure clean state for the next test.
 func (tc *MonitoringTestCtx) resetMonitoringConfigToManaged() {
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
