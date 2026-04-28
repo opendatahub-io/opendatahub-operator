@@ -200,6 +200,27 @@ ISSUER_REF_KIND=ClusterIssuer
 	g.Expect(xksStr).Should(ContainSubstring("ISSUER_REF_KIND="))
 }
 
+func TestInit_ErrorWhenXKSOverlayParamsUnreadable(t *testing.T) {
+	g := NewWithT(t)
+
+	tmpDir := t.TempDir()
+
+	// Create the odh overlay params.env (required by Init).
+	odhDir := filepath.Join(tmpDir, componentName, kserveManifestSourcePath)
+	g.Expect(os.MkdirAll(odhDir, 0o755)).Should(Succeed())
+	g.Expect(os.WriteFile(filepath.Join(odhDir, "params.env"), []byte(""), 0o600)).Should(Succeed())
+
+	// Create the xKS overlay directory, but make params.env a directory
+	// instead of a file so that os.Open succeeds but reading fails.
+	xksDir := filepath.Join(tmpDir, componentName, kserveManifestSourcePathXKS)
+	g.Expect(os.MkdirAll(filepath.Join(xksDir, "params.env"), 0o755)).Should(Succeed())
+
+	handler := &componentHandler{}
+	err := handler.Init(cluster.XKS, operatorconfig.OperatorSettings{ManifestsBasePath: tmpDir})
+	g.Expect(err).Should(HaveOccurred())
+	g.Expect(err.Error()).Should(ContainSubstring("failed to update cert-manager params on path"))
+}
+
 func TestInit_NoErrorWhenXKSOverlayMissing(t *testing.T) {
 	g := NewWithT(t)
 
