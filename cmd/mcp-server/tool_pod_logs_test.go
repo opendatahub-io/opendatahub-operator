@@ -135,6 +135,12 @@ func TestPodLogs(t *testing.T) {
 			fmt.Fprint(w, `{"kind":"Status","apiVersion":"v1","status":"Failure","message":"container \"bad\" is not valid for pod \"my-pod\"","reason":"BadRequest","code":400}`)
 		}, map[string]interface{}{"pod_name": "my-pod", "namespace": "default", "container": "bad"},
 			"Available containers", true},
+		{"RBAC forbidden", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprint(w, `{"kind":"Status","apiVersion":"v1","status":"Failure","message":"pods \"my-pod\" is forbidden: User \"system:serviceaccount:test:default\" cannot get resource \"pods/log\" in API group \"\" in the namespace \"secure-ns\"","reason":"Forbidden","code":403}`)
+		}, map[string]interface{}{"pod_name": "my-pod", "namespace": "secure-ns"},
+			"RBAC insufficient", true},
 	}
 
 	for _, tt := range tests {

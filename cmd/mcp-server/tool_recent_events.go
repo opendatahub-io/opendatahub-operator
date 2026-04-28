@@ -9,8 +9,6 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth"
@@ -61,7 +59,7 @@ func registerRecentEvents(s *server.MCPServer, kubeClient client.Client) {
 		} else {
 			discovered, discErr := discoverODHNamespaces(ctx, kubeClient)
 			if discErr != nil {
-				return mcp.NewToolResultError(fmt.Sprintf("namespace discovery failed: %v", discErr)), nil
+				return discoveryErrorResult("recent_events", discErr), nil
 			}
 			cfg.Namespaces = discovered
 		}
@@ -87,25 +85,11 @@ func registerRecentEvents(s *server.MCPServer, kubeClient client.Client) {
 // discoverODHNamespaces reads the DSCI singleton to find .spec.applicationsNamespace,
 // combined with the operator namespace for a deduplicated list.
 func discoverODHNamespaces(ctx context.Context, kubeClient client.Client) ([]string, error) {
-	appsNS := getEnvDefault(envApplicationsNamespace, defaultAppsNS)
-	operatorNS := getEnvDefault(envOperatorNamespace, defaultOperatorNS)
-
-	list := &unstructured.UnstructuredList{}
-	list.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   clusterhealth.DSCInitializationGVK.Group,
-		Version: clusterhealth.DSCInitializationGVK.Version,
-		Kind:    clusterhealth.DSCInitializationGVK.Kind + "List",
-	})
-	if err := kubeClient.List(ctx, list); err != nil {
-		return nil, fmt.Errorf("failed to list DSCI: %w", err)
+	appsNS, err := discoverAppsNamespace(ctx, kubeClient)
+	if err != nil {
+		return nil, err
 	}
-
-	if len(list.Items) > 0 {
-		if ns, found, _ := unstructured.NestedString(list.Items[0].Object, "spec", "applicationsNamespace"); found && ns != "" {
-			appsNS = ns
-		}
-	}
-
+	operatorNS := discoverOperatorNamespace()
 	if operatorNS == appsNS {
 		return []string{appsNS}, nil
 	}
