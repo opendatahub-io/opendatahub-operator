@@ -26,20 +26,33 @@ func registerClassifyFailure(s *server.MCPServer, kubeClient client.Client) {
 			mcp.Description("Comma-separated layers: infrastructure,workload,"+
 				"operator. Ignored if sections is set. Omit for all.")),
 		mcp.WithString("operator_namespace",
-			mcp.Description("Operator namespace. Default: opendatahub-operator-system")),
+			mcp.Description("Operator namespace. Auto-discovered from env or defaults to opendatahub-operator-system.")),
 		mcp.WithString("applications_namespace",
-			mcp.Description("Apps namespace. Default: opendatahub")),
+			mcp.Description("Apps namespace. Auto-discovered from DSCI if not provided. Falls back to env var or 'opendatahub'.")),
 	)
 
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		operatorNS := stringParam(req, "operator_namespace", "")
+		if operatorNS == "" {
+			operatorNS = discoverOperatorNamespace()
+		}
+		appsNS := stringParam(req, "applications_namespace", "")
+		if appsNS == "" {
+			var err error
+			appsNS, err = discoverAppsNamespace(ctx, kubeClient)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("namespace discovery failed: %v", err)), nil
+			}
+		}
+
 		cfg := clusterhealth.Config{
 			Client: kubeClient,
 			Operator: clusterhealth.OperatorConfig{
-				Namespace: stringParam(req, "operator_namespace", getEnvDefault(envOperatorNamespace, defaultOperatorNS)),
+				Namespace: operatorNS,
 				Name:      getEnvDefault(envOperatorDeployment, defaultOperatorDeploy),
 			},
 			Namespaces: clusterhealth.NamespaceConfig{
-				Apps:       stringParam(req, "applications_namespace", getEnvDefault(envApplicationsNamespace, defaultAppsNS)),
+				Apps:       appsNS,
 				Monitoring: getEnvDefault(envMonitoringNamespace, defaultMonitoringNS),
 				Extra:      []string{"kube-system"},
 			},

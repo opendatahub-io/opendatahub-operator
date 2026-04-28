@@ -109,6 +109,12 @@ func TestPodLogs(t *testing.T) {
 			w.Write(make([]byte, maxLogBytes+100))
 		}, map[string]interface{}{"pod_name": "my-pod", "namespace": "default"},
 			"[truncated: output exceeded 50KB limit]", false},
+		{"RBAC forbidden", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprint(w, `{"kind":"Status","apiVersion":"v1","status":"Failure","message":"pods \"my-pod\" is forbidden: User \"system:serviceaccount:test:default\" cannot get resource \"pods/log\" in API group \"\" in the namespace \"secure-ns\"","reason":"Forbidden","code":403}`)
+		}, map[string]interface{}{"pod_name": "my-pod", "namespace": "secure-ns"},
+			"RBAC insufficient", true},
 	}
 
 	for _, tt := range tests {

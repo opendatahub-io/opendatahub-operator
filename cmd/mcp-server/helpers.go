@@ -1,10 +1,19 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth"
 )
 
 const (
@@ -63,6 +72,44 @@ func getEnvDefault(key, fallback string) string {
 		return strings.TrimSpace(v)
 	}
 	return fallback
+}
+
+// discoverAppsNamespace reads the DSCI singleton to find spec.applicationsNamespace.
+// Falls back to env var / hardcoded default if DSCI is absent or field is empty.
+// Returns an error for RBAC or CRD issues that should not be silently masked.
+func discoverAppsNamespace(ctx context.Context, kubeClient client.Client) (string, error) {
+	fallback := getEnvDefault(envApplicationsNamespace, defaultAppsNS)
+
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   clusterhealth.DSCInitializationGVK.Group,
+		Version: clusterhealth.DSCInitializationGVK.Version,
+		Kind:    clusterhealth.DSCInitializationGVK.Kind + "List",
+	})
+	if err := kubeClient.List(ctx, list); err != nil {
+		switch {
+		case k8serr.IsForbidden(err):
+			return "", fmt.Errorf("RBAC insufficient: cannot list DSCInitialization resources: %w", err)
+		case meta.IsNoMatchError(err):
+			return "", fmt.Errorf("CRD not installed: DSCInitialization CRD is not registered on this cluster: %w", err)
+		default:
+			return "", fmt.Errorf("failed to list DSCI: %w", err)
+		}
+	}
+
+	if len(list.Items) > 0 {
+		if ns, found, _ := unstructured.NestedString(list.Items[0].Object, "spec", "applicationsNamespace"); found && ns != "" {
+			return ns, nil
+		}
+	}
+
+	return fallback, nil
+}
+
+// discoverOperatorNamespace returns the operator namespace.
+// Operator namespace is not stored in DSCI, so this wraps env var / hardcoded default.
+func discoverOperatorNamespace() string {
+	return getEnvDefault(envOperatorNamespace, defaultOperatorNS)
 }
 
 // splitTrimmed splits a comma-separated string into trimmed, non-empty parts.

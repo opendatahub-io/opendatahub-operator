@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -109,6 +110,32 @@ func TestRecentEvents_SortOrder(t *testing.T) {
 	}
 	if events[0].Name != "pod-b" {
 		t.Errorf("first event = %q, want pod-b (most recent)", events[0].Name)
+	}
+}
+
+func TestRecentEvents_ErrorClients(t *testing.T) {
+	tests := []struct {
+		name           string
+		client         client.Client
+		wantErrContains string
+	}{
+		{"RBAC forbidden", newForbiddenClient(), "forbidden"},
+		{"CRD not installed", newNoMatchClient(), "no matches for kind"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := clusterhealth.RunRecentEvents(context.Background(), clusterhealth.RecentEventsConfig{
+				Client:     tt.client,
+				Namespaces: []string{"opendatahub"},
+			})
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), tt.wantErrContains) {
+				t.Errorf("error = %q, want substring %q", err.Error(), tt.wantErrContains)
+			}
+		})
 	}
 }
 

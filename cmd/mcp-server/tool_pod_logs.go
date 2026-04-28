@@ -74,7 +74,11 @@ func fetchPodLogs(ctx context.Context, clientset kubernetes.Interface, req mcp.C
 			case strings.Contains(msg, "not found") || strings.Contains(msg, "is not valid"):
 				return mcp.NewToolResultError(fmt.Sprintf("container not found in pod %q (namespace %q): %v", podName, namespace, err)), nil
 			}
-			fallthrough
+			return mcp.NewToolResultError(fmt.Sprintf("invalid pod log request for pod %q (namespace %q): %v", podName, namespace, err)), nil
+		case k8serr.IsForbidden(err):
+			return mcp.NewToolResultError(fmt.Sprintf(
+				"RBAC insufficient: the operator service-account lacks permission to read pod logs in namespace %q: %v",
+				namespace, err)), nil
 		default:
 			return mcp.NewToolResultError(fmt.Sprintf("pod logs error: %v", err)), nil
 		}

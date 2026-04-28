@@ -6,7 +6,10 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth"
 )
@@ -30,6 +33,33 @@ func TestComponentStatus(t *testing.T) {
 			t.Error("expected crFound=false")
 		}
 	})
+}
+
+func TestComponentStatus_ErrorClients(t *testing.T) {
+	components := []string{"kserve", "dashboard", "ray"}
+
+	tests := []struct {
+		name       string
+		client     client.Client
+		errorCheck func(error) bool
+	}{
+		{"RBAC forbidden", newForbiddenClient(), k8serr.IsForbidden},
+		{"CRD not installed", newNoMatchClient(), meta.IsNoMatchError},
+	}
+
+	for _, tt := range tests {
+		for _, comp := range components {
+			t.Run(tt.name+"/"+comp, func(t *testing.T) {
+				_, err := clusterhealth.GetComponentStatus(context.Background(), tt.client, comp, defaultAppsNS)
+				if err == nil {
+					t.Fatalf("expected error for component %q, got nil", comp)
+				}
+				if !tt.errorCheck(err) {
+					t.Fatalf("expected %s error, got: %v", tt.name, err)
+				}
+			})
+		}
+	}
 }
 
 func TestComponentStatus_DeploymentsAndPods(t *testing.T) {

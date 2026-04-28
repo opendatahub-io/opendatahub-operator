@@ -7,6 +7,8 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth"
@@ -20,17 +22,34 @@ func registerComponentStatus(s *server.MCPServer, kubeClient client.Client) {
 		mcp.WithString("component", mcp.Required(),
 			mcp.Description("Component name, e.g. kserve, dashboard, workbenches")),
 		mcp.WithString("applications_namespace",
-			mcp.Description("Apps namespace. Default: opendatahub")),
+			mcp.Description("Apps namespace. Auto-discovered from DSCI if not provided. Falls back to env var or 'opendatahub'.")),
 	)
 
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		appsNS := stringParam(req, "applications_namespace", "")
+		if appsNS == "" {
+			var err error
+			appsNS, err = discoverAppsNamespace(ctx, kubeClient)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("namespace discovery failed: %v", err)), nil
+			}
+		}
+
 		result, err := clusterhealth.GetComponentStatus(ctx, kubeClient,
 			stringParam(req, "component", ""),
-			stringParam(req, "applications_namespace",
-				getEnvDefault(envApplicationsNamespace, defaultAppsNS)),
+			appsNS,
 		)
 		if err != nil {
-			return mcp.NewToolResultError(err.Error()), nil
+			switch {
+			case k8serr.IsForbidden(err):
+				return mcp.NewToolResultError(fmt.Sprintf("RBAC insufficient: %v", err)), nil
+			case meta.IsNoMatchError(err):
+				return mcp.NewToolResultError(fmt.Sprintf(
+					"CRD not installed: component %q requires a CRD that is not registered on this cluster",
+					stringParam(req, "component", ""))), nil
+			default:
+				return mcp.NewToolResultError(err.Error()), nil
+			}
 		}
 		data, err := json.MarshalIndent(result, "", "  ")
 		if err != nil {
