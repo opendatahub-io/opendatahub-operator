@@ -143,39 +143,61 @@ func TestInit_PropagatesImageOverridesToXKSOverlay(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	// Create the odh overlay params.env with an image key.
+	// Create the odh overlay params.env with multiple image keys.
 	odhDir := filepath.Join(tmpDir, componentName, kserveManifestSourcePath)
 	g.Expect(os.MkdirAll(odhDir, 0o755)).Should(Succeed())
-	g.Expect(os.WriteFile(filepath.Join(odhDir, "params.env"),
-		[]byte("kserve-llm-d=registry.redhat.io/rhaiis/vllm-cuda-rhel9@sha256:original\n"), 0o600)).Should(Succeed())
+	odhContent := `kserve-llm-d=registry.redhat.io/rhaiis/vllm-cuda-rhel9@sha256:original
+kserve-llm-d-amd-rocm=registry.redhat.io/rhaiis/vllm-rocm-rhel9@sha256:original
+kserve-controller=registry.redhat.io/rhaiis/kserve-controller@sha256:original
+`
+	g.Expect(os.WriteFile(filepath.Join(odhDir, "params.env"), []byte(odhContent), 0o600)).Should(Succeed())
 
-	// Create the xKS overlay params.env with the same image key and cert-manager keys.
+	// Create the xKS overlay params.env with the same image keys plus cert-manager keys.
 	xksDir := filepath.Join(tmpDir, componentName, kserveManifestSourcePathXKS)
 	g.Expect(os.MkdirAll(xksDir, 0o755)).Should(Succeed())
 	xksContent := `kserve-llm-d=registry.redhat.io/rhaiis/vllm-cuda-rhel9@sha256:original
+kserve-llm-d-amd-rocm=registry.redhat.io/rhaiis/vllm-rocm-rhel9@sha256:original
+kserve-controller=registry.redhat.io/rhaiis/kserve-controller@sha256:original
 NAMESPACE=opendatahub
 ISSUER_REF_NAME=opendatahub-ca-issuer
+ISSUER_REF_KIND=ClusterIssuer
 `
 	g.Expect(os.WriteFile(filepath.Join(xksDir, "params.env"), []byte(xksContent), 0o600)).Should(Succeed())
 
-	// Set the RELATED_IMAGE override that should propagate to both overlays.
+	// Set RELATED_IMAGE overrides for two image keys; leave kserve-controller unset.
 	t.Setenv("RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE", "registry.stage.redhat.io/rhaiis/vllm-cuda-rhel9@sha256:override")
+	t.Setenv("RELATED_IMAGE_RHAII_VLLM_ROCM_IMAGE", "registry.stage.redhat.io/rhaiis/vllm-rocm-rhel9@sha256:rocm-override")
 
 	handler := &componentHandler{}
 	err := handler.Init(cluster.XKS, operatorconfig.OperatorSettings{ManifestsBasePath: tmpDir})
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	// Verify the odh overlay got the override.
+	// Verify the odh overlay got overrides for both set env vars.
 	odhData, err := os.ReadFile(filepath.Join(odhDir, "params.env"))
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(string(odhData)).Should(ContainSubstring(
+	odhStr := string(odhData)
+	g.Expect(odhStr).Should(ContainSubstring(
 		"kserve-llm-d=registry.stage.redhat.io/rhaiis/vllm-cuda-rhel9@sha256:override"))
+	g.Expect(odhStr).Should(ContainSubstring(
+		"kserve-llm-d-amd-rocm=registry.stage.redhat.io/rhaiis/vllm-rocm-rhel9@sha256:rocm-override"))
 
-	// Verify the xKS overlay also got the image override (this was the bug).
+	// Verify the xKS overlay got image overrides (this was the bug).
 	xksData, err := os.ReadFile(filepath.Join(xksDir, "params.env"))
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(string(xksData)).Should(ContainSubstring(
+	xksStr := string(xksData)
+	g.Expect(xksStr).Should(ContainSubstring(
 		"kserve-llm-d=registry.stage.redhat.io/rhaiis/vllm-cuda-rhel9@sha256:override"))
+	g.Expect(xksStr).Should(ContainSubstring(
+		"kserve-llm-d-amd-rocm=registry.stage.redhat.io/rhaiis/vllm-rocm-rhel9@sha256:rocm-override"))
+
+	// Verify unset RELATED_IMAGE keeps original value in xKS overlay.
+	g.Expect(xksStr).Should(ContainSubstring(
+		"kserve-controller=registry.redhat.io/rhaiis/kserve-controller@sha256:original"))
+
+	// Verify cert-manager params are still applied alongside image overrides.
+	g.Expect(xksStr).Should(ContainSubstring("NAMESPACE=opendatahub"))
+	g.Expect(xksStr).Should(ContainSubstring("ISSUER_REF_NAME="))
+	g.Expect(xksStr).Should(ContainSubstring("ISSUER_REF_KIND="))
 }
 
 func TestInit_NoErrorWhenXKSOverlayMissing(t *testing.T) {
