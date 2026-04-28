@@ -1,4 +1,3 @@
-//nolint:ireturn // DeepCopyObject methods must return runtime.Object interface as required by Kubernetes API
 package scheme
 
 import (
