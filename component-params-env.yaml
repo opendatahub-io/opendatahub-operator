@@ -1,7 +1,12 @@
 # Configuration for validate-related-images.sh.
 #
+# rhai_helm_components: components whose RELATED_IMAGE_* must also be present
+#   in RHOAI-Build-Config helm/rhai-on-xks-chart/values.yaml (rhaiOperator.relatedImages).
 # known_issues: RELATED_IMAGE errors to downgrade to warnings.
-# Each entry MUST include a Jira link and reason.
+#   Each entry MUST include a Jira link and reason.
+
+rhai_helm_components:
+  - kserve
 
 known_issues:
 - image: RELATED_IMAGE_RHAII_VLLM_CPU_IMAGE

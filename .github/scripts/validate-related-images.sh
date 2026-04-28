@@ -133,8 +133,13 @@ fetch_repo_images() {
 ODH_BUILD_CONFIG="$WORKDIR/odh-build-config.txt"
 RHOAI_BUILD_CONFIG="$WORKDIR/rhoai-build-config.txt"
 
-# --- Step 2: Load known issues from config ---
-# Store as a file: each line is "RELATED_IMAGE_NAME|jira|reason"
+# --- Step 2: Load config ---
+
+# Components that require RHAI Helm chart check
+RHAI_HELM_COMPONENTS="$WORKDIR/rhai-helm-components.txt"
+yq -r '.rhai_helm_components[]' "$CONFIG_FILE" 2>/dev/null > "$RHAI_HELM_COMPONENTS" || true
+
+# Known issues: each line is "RELATED_IMAGE_NAME|jira|reason"
 
 KNOWN_ISSUES_FILE="$WORKDIR/known-issues.txt"
 KNOWN_ISSUES_MATCHED="$WORKDIR/known-issues-matched.txt"
@@ -225,8 +230,26 @@ fetch_repo_images "RHOAI-Build-Config (${RHOAI_BUILD_CONFIG_BRANCH})" "$RHOAI_BA
 echo ""
 fetch_repo_images "ODH-Build-Config (${ODH_BUILD_CONFIG_BRANCH})" "$ODH_BASE_URL" "$ODH_BUILD_CONFIG"
 
+# Fetch RHAI Helm chart relatedImages (kserve images for xKS deployments)
+RHAI_HELM_CONFIG="$WORKDIR/rhai-helm-config.txt"
+touch "$RHAI_HELM_CONFIG"
+echo ""
+echo "Fetching RHAI Helm chart values (${RHOAI_BUILD_CONFIG_BRANCH})..."
+RHAI_HELM_URL="${RHOAI_BASE_URL}/helm/rhai-on-xks-chart/values.yaml"
+rhai_temp=$(mktemp "${WORKDIR}/fetched.XXXXXX.yaml")
+if curl -sfL --max-filesize 10485760 --connect-timeout 10 --max-time 30 \
+        "$RHAI_HELM_URL" -o "$rhai_temp" 2>/dev/null; then
+    yq '.rhaiOperator.relatedImages[].name' "$rhai_temp" 2>/dev/null | sort -u > "$RHAI_HELM_CONFIG"
+    rhai_count=$(wc -l < "$RHAI_HELM_CONFIG" | tr -d ' ')
+    echo "  Found ${rhai_count} RELATED_IMAGE_* names in RHAI Helm chart"
+else
+    echo "  WARNING: Failed to fetch RHAI Helm chart values.yaml"
+fi
+rm -f "$rhai_temp"
+
 ODH_LABEL="ODH (${ODH_BUILD_CONFIG_BRANCH})"
 RHOAI_LABEL="RHOAI (${RHOAI_BUILD_CONFIG_BRANCH})"
+RHAI_LABEL="RHAI Helm"
 
 # --- Step 6: Unified validation ---
 # Build a single list of all RELATED_IMAGE entries to check, then validate each once.
@@ -274,8 +297,10 @@ sort -u -t'|' -k1,1 "$ALL_ENTRIES" | cut -d'|' -f1 | sort -u > "$WORKDIR/unique-
 while IFS= read -r related_image; do
     in_odh=false
     in_rhoai=false
+    in_rhai=false
     grep -qx "$related_image" "$ODH_BUILD_CONFIG" && in_odh=true || true
     grep -qx "$related_image" "$RHOAI_BUILD_CONFIG" && in_rhoai=true || true
+    grep -qx "$related_image" "$RHAI_HELM_CONFIG" && in_rhai=true || true
 
     # Collect all references to this RELATED_IMAGE
     entries=$(grep "^${related_image}|" "$ALL_ENTRIES")
@@ -295,20 +320,41 @@ while IFS= read -r related_image; do
         params_info="Not in any map (used via os.Getenv or function arg)"
     fi
 
+    # Check if this image is used by a component that requires RHAI Helm check
+    needs_rhai_helm=false
+    if [ -s "$RHAI_HELM_COMPONENTS" ]; then
+        while IFS= read -r rhai_comp; do
+            echo "$entries" | grep -q "|${rhai_comp}|" && needs_rhai_helm=true && break
+        done < "$RHAI_HELM_COMPONENTS"
+    fi
+
     # Skip if everything is OK
-    $in_params_env && $in_odh && $in_rhoai && continue
-    [ -z "$has_map_entry" ] && $in_odh && $in_rhoai && continue
+    if $in_params_env && $in_odh && $in_rhoai; then
+        if $needs_rhai_helm && [ -s "$RHAI_HELM_CONFIG" ]; then
+            $in_rhai && continue
+        else
+            continue
+        fi
+    fi
+    if [ -z "$has_map_entry" ] && $in_odh && $in_rhoai; then
+        if $needs_rhai_helm && [ -s "$RHAI_HELM_CONFIG" ]; then
+            $in_rhai && continue
+        else
+            continue
+        fi
+    fi
 
     # Build config status
-    bc_status=""
-    if $in_odh && $in_rhoai; then
-        bc_status="${GREEN}ODH ✓${RESET}, ${GREEN}RHOAI ✓${RESET}"
-    elif $in_odh; then
-        bc_status="${GREEN}ODH ✓${RESET}, ${RED}RHOAI ✗${RESET}"
-    elif $in_rhoai; then
-        bc_status="${RED}ODH ✗${RESET}, ${GREEN}RHOAI ✓${RESET}"
-    else
-        bc_status="${RED}ODH ✗${RESET}, ${RED}RHOAI ✗${RESET}"
+    bc_odh="${RED}ODH ✗${RESET}"
+    $in_odh && bc_odh="${GREEN}ODH ✓${RESET}"
+    bc_rhoai="${RED}RHOAI ✗${RESET}"
+    $in_rhoai && bc_rhoai="${GREEN}RHOAI ✓${RESET}"
+
+    bc_status="${bc_odh}, ${bc_rhoai}"
+    if $needs_rhai_helm && [ -s "$RHAI_HELM_CONFIG" ]; then
+        bc_rhai="${RED}RHAI Helm ✗${RESET}"
+        $in_rhai && bc_rhai="${GREEN}RHAI Helm ✓${RESET}"
+        bc_status="${bc_status}, ${bc_rhai}"
     fi
 
     # Known issue check
@@ -322,11 +368,18 @@ while IFS= read -r related_image; do
     if ! $in_odh || ! $in_rhoai; then
         is_error=true
     fi
+    if $needs_rhai_helm && [ -s "$RHAI_HELM_CONFIG" ] && ! $in_rhai; then
+        is_error=true
+    fi
     if [ -z "$has_map_entry" ] && ! $in_odh && ! $in_rhoai; then
         is_error=true
     fi
     if ! $in_params_env && $in_odh && $in_rhoai; then
-        is_error=false
+        if $needs_rhai_helm && [ -s "$RHAI_HELM_CONFIG" ] && ! $in_rhai; then
+            : # still error - missing from RHAI Helm
+        else
+            is_error=false
+        fi
     fi
 
     target_file="$ERRORS_FILE"
