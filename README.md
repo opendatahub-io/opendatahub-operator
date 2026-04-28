@@ -4,7 +4,7 @@ This operator is the primary operator for Open Data Hub. It is responsible for e
 Jupyter Notebooks, Datascience pipelines etc. The operator makes use of `DataScienceCluster` CRD to deploy
 and configure these applications.
 
-### Table of contents 
+### Table of contents
 - [Usage](#usage)
   - [Prerequisites](#prerequisites)
     - [Platform Requirements](#platform-requirements)
