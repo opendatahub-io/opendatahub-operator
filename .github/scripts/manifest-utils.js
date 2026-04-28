@@ -135,8 +135,42 @@ function updateManifestFile(filePath, updates) {
     return hasChanges;
 }
 
+/**
+ * Filter components that use the branch@sha ref format and extract the parts
+ * @param {Array} components - Array of component info objects from parseManifestFile
+ * @returns {Array} Filtered array with added branchRef and commitSha properties
+ */
+function filterComponentsWithBranchSha(components) {
+    const result = [];
+    for (const componentInfo of components) {
+        if (!componentInfo.ref.includes('@')) {
+            continue;
+        }
+
+        const refParts = componentInfo.ref.split('@');
+        if (refParts.length !== 2) {
+            console.log(`⚠️  Skipping ${componentInfo.platform}:${componentInfo.componentName}: invalid ref format "${componentInfo.ref}" (expected "branch@sha")`);
+            continue;
+        }
+
+        const [branchRef, commitSha] = refParts;
+        if (!branchRef || !commitSha) {
+            console.log(`⚠️  Skipping ${componentInfo.platform}:${componentInfo.componentName}: empty branch or SHA in ref "${componentInfo.ref}"`);
+            continue;
+        }
+
+        result.push({
+            ...componentInfo,
+            branchRef,
+            commitSha
+        });
+    }
+    return result;
+}
+
 module.exports = {
     getLatestCommitSha,
     parseManifestFile,
-    updateManifestFile
+    updateManifestFile,
+    filterComponentsWithBranchSha
 };

@@ -81,6 +81,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				Filter:      jobSetConditionFilter,
 			}),
 		)).
+		WithAction(checkJobSetCRD).
 		WithAction(releases.NewAction()).
 		WithAction(kustomize.NewAction()).
 		WithAction(deploy.NewAction(
