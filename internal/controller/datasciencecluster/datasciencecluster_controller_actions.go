@@ -34,7 +34,7 @@ type persistAPI interface {
 	APIPersistObject() client.Object
 }
 
-func isNilInterface(v interface{}) bool {
+func isNilInterface(v any) bool {
 	return v == nil || (reflect.ValueOf(v).Kind() == reflect.Ptr && reflect.ValueOf(v).IsNil())
 }
 

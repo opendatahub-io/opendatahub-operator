@@ -29,7 +29,7 @@ ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	# - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 	ifeq ($(VERSION), )
-		VERSION = 3.3.0
+		VERSION = 3.5.0-ea.1
 	endif
 	# Specifies the namespace where the operator pods are deployed (defaults to opendatahub-operator-system)
 	OPERATOR_NAMESPACE ?= opendatahub-operator-system
@@ -61,7 +61,7 @@ else
 	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 	# NOTE: see also the git branches for RHOAI in get_all_manifests.sh. This variable does NOT affect those
 	ifeq ($(VERSION), )
-		VERSION = 3.3.0
+		VERSION = 3.5.0-ea.1
 	endif
 	# Specifies the namespace where the operator pods are deployed (defaults to redhat-ods-operator)
 	OPERATOR_NAMESPACE ?= redhat-ods-operator
