@@ -208,7 +208,7 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 			t.Run("selfsigned ClusterIssuer is ready", func(t *testing.T) {
 				wt := tc.NewWithT(t)
 				wt.Get(gvk.CertManagerClusterIssuer, types.NamespacedName{
-					Name: "opendatahub-selfsigned-issuer",
+					Name: pki.IssuerName,
 				}).Eventually().Should(
 					jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`),
 				)
@@ -217,7 +217,7 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 			t.Run("root CA Certificate is issued", func(t *testing.T) {
 				wt := tc.NewWithT(t)
 				wt.Get(gvk.CertManagerCertificate, types.NamespacedName{
-					Name: "opendatahub-ca", Namespace: certManagerOperandNS,
+					Name: pki.CertName, Namespace: pki.CertManagerNamespace,
 				}).Eventually().Should(
 					jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`),
 				)
@@ -226,7 +226,7 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 			t.Run("CA-backed ClusterIssuer is ready", func(t *testing.T) {
 				wt := tc.NewWithT(t)
 				wt.Get(gvk.CertManagerClusterIssuer, types.NamespacedName{
-					Name: "opendatahub-ca-issuer",
+					Name: pki.CAIssuerName,
 				}).Eventually().Should(
 					jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`),
 				)
@@ -235,7 +235,7 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 			t.Run("CA Secret is created", func(t *testing.T) {
 				wt := tc.NewWithT(t)
 				wt.Get(gvk.Secret, types.NamespacedName{
-					Name: "opendatahub-ca", Namespace: certManagerOperandNS,
+					Name: pki.CertName, Namespace: pki.CertManagerNamespace,
 				}).Eventually().Should(Not(BeNil()))
 			})
 		})
@@ -533,13 +533,13 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 
 			// PKI resources must survive the GC run.
 			wt.Get(gvk.CertManagerClusterIssuer, types.NamespacedName{
-				Name: "opendatahub-selfsigned-issuer",
+				Name: pki.IssuerName,
 			}).Eventually().Should(Not(BeNil()))
 			wt.Get(gvk.CertManagerCertificate, types.NamespacedName{
-				Name: "opendatahub-ca", Namespace: "cert-manager",
+				Name: pki.CertName, Namespace: pki.CertManagerNamespace,
 			}).Eventually().Should(Not(BeNil()))
 			wt.Get(gvk.CertManagerClusterIssuer, types.NamespacedName{
-				Name: "opendatahub-ca-issuer",
+				Name: pki.CAIssuerName,
 			}).Eventually().Should(Not(BeNil()))
 
 			// Restore sailOperator.
