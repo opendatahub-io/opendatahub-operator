@@ -64,7 +64,7 @@ func (s *componentHandler) Init(_ common.Platform, cfg operatorconfig.OperatorSe
 	// Apply cert-manager issuer params to the xKS overlay.
 	// ApplyParams safely no-ops if the overlay's params.env does not exist on disk.
 	xksMP := kserveManifestInfo(manifestsBasePath, kserveManifestSourcePathXKS)
-	if err := odhdeploy.ApplyParams(xksMP.String(), "params.env", imageParamMap, buildCertManagerParams()); err != nil {
+	if err := odhdeploy.ApplyParams(xksMP.String(), "params.env", nil, buildCertManagerParams()); err != nil {
 		return fmt.Errorf("failed to update cert-manager params on path %s: %w", xksMP, err)
 	}
 
