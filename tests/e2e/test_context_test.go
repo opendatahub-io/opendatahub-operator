@@ -797,11 +797,11 @@ func (tc *TestContext) GetInstanceName(gvk schema.GroupVersionKind) string {
 func (tc *TestContext) CreateComponent(gvk schema.GroupVersionKind) *unstructured.Unstructured {
 	instanceName := tc.GetInstanceName(gvk)
 	return &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": gvk.GroupVersion().String(),
 			"kind":       gvk.Kind,
-			"metadata":   map[string]interface{}{"name": instanceName},
-			"spec":       map[string]interface{}{},
+			"metadata":   map[string]any{"name": instanceName},
+			"spec":       map[string]any{},
 		},
 	}
 }
