@@ -20,6 +20,7 @@ const rhaiOperatorNamespace = "opendatahub-operator-system"
 var (
 	tc       *testf.TestContext
 	provider ProviderConfig
+	pki      pkiNames
 )
 
 func TestMain(m *testing.M) {
@@ -51,6 +52,14 @@ func TestMain(m *testing.M) {
 		fmt.Fprintf(os.Stderr, "failed to create test context: %v\n", err)
 		os.Exit(1)
 	}
+
+	pki, err = discoverPKIConfig(tc, provider.Name)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to discover PKI config: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("PKI config: issuer=%s, cert=%s, caIssuer=%s, ns=%s\n",
+		pki.IssuerName, pki.CertName, pki.CAIssuerName, pki.CertManagerNamespace)
 
 	if err := preflightCheck(); err != nil {
 		fmt.Fprintf(os.Stderr, "preflight check failed: %v\n", err)

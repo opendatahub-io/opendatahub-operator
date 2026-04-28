@@ -1,13 +1,17 @@
 package cloudmanager_test
 
 import (
+	"fmt"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	ccmapi "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
@@ -76,4 +80,54 @@ func consistentlyGone(wt *testf.WithT, nn types.NamespacedName) {
 		WithTimeout(30 * time.Second).
 		WithPolling(5 * time.Second).
 		Should(BeNil())
+}
+
+// pkiNames holds cert-manager PKI resource names discovered from the cloud manager deployment.
+type pkiNames struct {
+	IssuerName           string
+	CertName             string
+	CAIssuerName         string
+	CertManagerNamespace string
+}
+
+// discoverPKIConfig reads the RHAI_* env vars from the cloud manager deployment
+// on the cluster to determine the cert-manager PKI resource names. Falls back to
+// opendatahub-prefixed defaults if the deployment is not found or env vars are absent.
+func discoverPKIConfig(tc *testf.TestContext, providerName string) (pkiNames, error) {
+	defaults := certmanager.DefaultBootstrapConfig()
+	cfg := pkiNames{
+		IssuerName:           defaults.IssuerName,
+		CertName:             defaults.CertName,
+		CAIssuerName:         defaults.CAIssuerName,
+		CertManagerNamespace: defaults.CertManagerNamespace,
+	}
+
+	deployName := providerName + "-cloud-manager-operator"
+
+	deployList := &appsv1.DeploymentList{}
+	if err := tc.Client().List(tc.Context(), deployList, client.MatchingLabels{"name": deployName}); err != nil {
+		return cfg, fmt.Errorf("failed to list deployments: %w", err)
+	}
+
+	if len(deployList.Items) == 0 {
+		return cfg, nil
+	}
+
+	envVars := deployList.Items[0].Spec.Template.Spec.Containers[0].Env
+	envMap := make(map[string]string, len(envVars))
+	for _, e := range envVars {
+		envMap[e.Name] = e.Value
+	}
+
+	if v, ok := envMap[certmanager.EnvCertName]; ok && v != "" {
+		cfg.CertName = v
+	}
+	if v, ok := envMap[certmanager.EnvCAIssuerName]; ok && v != "" {
+		cfg.CAIssuerName = v
+	}
+	if v, ok := envMap[certmanager.EnvCertManagerNS]; ok && v != "" {
+		cfg.CertManagerNamespace = v
+	}
+
+	return cfg, nil
 }
