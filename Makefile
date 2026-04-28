@@ -335,21 +335,20 @@ get-manifests: ## Fetch components manifests from remote git repo
 	@./.github/scripts/validate-manifest-images.sh
 CLEANFILES += opt/manifests/*
 
-.PHONY: update-rhoai-images
-update-rhoai-images: ## Fetch RHOAI component manifests and update images from bundle-patch.yaml
-	@if [ -n "$(RHOAI_BRANCH)" ]; then \
-		echo "Fetching manifests from rhods-operator branch $(RHOAI_BRANCH)..."; \
+.PHONY: update-rhai-images
+update-rhai-images: ## Fetch RHAI component manifests and update images from RHOAI-Build-Config CSV 
+	@if [ -n "$(RHAI_BRANCH)" ]; then \
+		echo "Fetching manifests from rhods-operator branch $(RHAI_BRANCH)..."; \
 		TMP_RHODS=$$(mktemp -d) && \
-		git clone --depth 1 -b $(RHOAI_BRANCH) -q https://github.com/red-hat-data-services/rhods-operator $$TMP_RHODS || \
-			{ echo "ERROR: Failed to clone rhods-operator branch $(RHOAI_BRANCH)"; exit 1; } && \
+		git clone --depth 1 -b $(RHAI_BRANCH) -q https://github.com/red-hat-data-services/rhods-operator $$TMP_RHODS || \
+			{ echo "ERROR: Failed to clone rhods-operator branch $(RHAI_BRANCH)"; exit 1; } && \
 		rm -rf opt/manifests opt/charts && cp -r $$TMP_RHODS/prefetched-manifests opt/manifests && cp -r $$TMP_RHODS/prefetched-charts opt/charts && \
 		touch opt/manifests/.gitkeep opt/charts/.gitkeep && \
 		rm -rf $$TMP_RHODS; \
 	else \
-		echo "RHOAI_BRANCH not set, fetching manifests via get_all_manifests.sh..."; \
-		ODH_PLATFORM_TYPE=rhoai ./get_all_manifests.sh; \
+		echo "ERROR: RHAI_BRANCH is not set. Use --branch flag or set RHAI_BRANCH env var."; exit 1; \
 	fi
-	MANIFESTS_DIR=./opt/manifests YQ=$(YQ) ./hack/update-rhoai-images.sh
+	MANIFESTS_DIR=./opt/manifests RHAI_BRANCH=$(RHAI_BRANCH) YQ=$(YQ) ./hack/update-rhai-images.sh
 
 # Default to standard sed command
 SED_COMMAND = sed
