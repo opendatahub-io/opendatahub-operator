@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth"
 )
 
 func assertClassification(t *testing.T, got FailureClassification, wantCategory, wantSubcategory string, wantErrorCode int, wantConfidence string) {

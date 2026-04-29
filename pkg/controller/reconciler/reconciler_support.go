@@ -307,11 +307,10 @@ func (b *ReconcilerBuilder[T]) Watches(object client.Object, opts ...WatchOpts) 
 		in.eventHandler = handlers.AnnotationToName(annotations.InstanceName)
 	}
 
+	// CCM controllers supply explicit Watches predicates, so this default does not apply to them
 	if len(in.predicates) == 0 {
 		in.predicates = append(in.predicates, predicate.And(
 			predicates.DefaultPredicate,
-			// use the platform.opendatahub.io/part-of label to filter
-			// events not related to the owner type
 			component.ForLabel(labels.PlatformPartOf, strings.ToLower(b.input.gvk.Kind)),
 		))
 	}
