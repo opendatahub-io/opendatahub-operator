@@ -137,7 +137,7 @@ func (tc *ComponentTestCtx) ValidateComponentDisabled(t *testing.T) {
 				}.AsSelector(),
 			},
 		),
-		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+		WithEventuallyTimeout(tc.TestTimeouts.componentReadinessTimeout),
 	)
 
 	// Ensure that the resources associated with the component do not exist
@@ -446,7 +446,7 @@ func (tc *ComponentTestCtx) ValidateSubComponentDisabled(t *testing.T) {
 				}.AsSelector(),
 			},
 		),
-		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+		WithEventuallyTimeout(tc.TestTimeouts.componentReadinessTimeout),
 	)
 
 	// Ensure that the resources associated with the subcomponent do not exist
@@ -579,10 +579,13 @@ func (tc *ComponentTestCtx) ValidateAllDeletionRecovery(t *testing.T) {
 
 	skipUnless(t, Smoke, Tier1)
 
-	// Increase the global eventually timeout for deletion recovery tests
-	// Use longEventuallyTimeout to handle controller performance under load and complex resource dependencies
-	reset := tc.OverrideEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout, tc.TestTimeouts.defaultEventuallyPollInterval)
-	defer reset() // Make sure it's reset after all tests run
+	// Set per-operation timeout defaults for deletion recovery tests.
+	savedOpts := tc.DefaultResourceOpts
+	tc.DefaultResourceOpts = []ResourceOpts{
+		WithEventuallyTimeout(tc.TestTimeouts.deletionRecoveryTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+	}
+	defer func() { tc.DefaultResourceOpts = savedOpts }()
 
 	// Test order explanation:
 	// 1. ConfigMaps/Services - these are stateless resources with no dependencies

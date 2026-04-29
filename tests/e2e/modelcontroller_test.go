@@ -52,9 +52,11 @@ func modelControllerTestSuite(t *testing.T) {
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
 
-	// Increase the global eventually timeout
-	reset := componentCtx.OverrideEventuallyTimeout(ct.TestTimeouts.mediumEventuallyTimeout, ct.TestTimeouts.defaultEventuallyPollInterval)
-	defer reset() // Make sure it's reset after all tests run
+	// Set per-operation timeout defaults for all operations in this suite.
+	componentCtx.DefaultResourceOpts = []ResourceOpts{
+		WithEventuallyTimeout(ct.TestTimeouts.mediumEventuallyTimeout),
+		WithEventuallyPollingInterval(ct.TestTimeouts.defaultEventuallyPollInterval),
+	}
 
 	// Run the test suite.
 	RunTestCases(t, testCases)
