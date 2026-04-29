@@ -13,7 +13,7 @@ import (
 	certmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	odhTypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	odhAnnotations "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -39,6 +39,12 @@ type ProtectedObject struct {
 //   - Missing InstanceUID or InstanceGeneration annotations: keep (not a CCM resource).
 //   - UID mismatch with the current CR: delete (orphaned from a different CR instance).
 //   - Generation mismatch with the current CR: delete (stale resource).
+//
+// To handle upgrades from the old annotation prefix (platform.opendatahub.io) to the
+// new one (infrastructure.opendatahub.io), the predicate falls back to reading the old
+// annotations when the new ones are absent. This ensures resources deployed by the old
+// version are still subject to GC even if SSA did not re-apply them (e.g. a resource
+// removed from the Helm chart between versions).
 func newGCPredicate(protectedObjects []ProtectedObject) gc.ObjectPredicateFn {
 	log := logf.Log.WithName("ccm-gc")
 	protected := make(map[ProtectedObject]struct{}, len(protectedObjects))
@@ -54,8 +60,17 @@ func newGCPredicate(protectedObjects []ProtectedObject) gc.ObjectPredicateFn {
 			return false, nil
 		}
 
-		iUID := resources.GetAnnotation(&obj, annotations.InstanceUID)
-		iGeneration := resources.GetAnnotation(&obj, annotations.InstanceGeneration)
+		iUID := resources.GetAnnotation(&obj, labels.ODHInfrastructurePrefix+odhAnnotations.SuffixInstanceUID)
+		iGeneration := resources.GetAnnotation(&obj, labels.ODHInfrastructurePrefix+odhAnnotations.SuffixInstanceGeneration)
+
+		// Fall back to old platform annotations as well, to ensure that GC is aware of potential leftover
+		// resources deployed before the infrastructure annotation migration.
+		if iUID == "" {
+			iUID = resources.GetAnnotation(&obj, labels.ODHPlatformPrefix+odhAnnotations.SuffixInstanceUID)
+		}
+		if iGeneration == "" {
+			iGeneration = resources.GetAnnotation(&obj, labels.ODHPlatformPrefix+odhAnnotations.SuffixInstanceGeneration)
+		}
 
 		if iUID == "" || iGeneration == "" {
 			return false, nil
