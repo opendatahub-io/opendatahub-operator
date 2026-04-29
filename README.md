@@ -1160,7 +1160,7 @@ To check for alerts that don't have unit tests, run the below command:
 make check-prometheus-alert-unit-tests
 ```
 
-To add a new unit test file, name it the same as the rules file in the [prometheus ConfigMap](./config/monitoring/prometheus/apps/prometheus-configs.yaml), just with the `.rules` suffix replaced with `.unit-tests.yaml`
+To add a new unit test file, place it alongside the corresponding PrometheusRule template under `internal/controller/components/<component>/monitoring/`, replacing the `-prometheusrules.tmpl.yaml` suffix with `-alerting.unit-tests.yaml` (e.g. `dashboard-prometheusrules.tmpl.yaml` → `dashboard-alerting.unit-tests.yaml`)
 
 ### API Overview
 
