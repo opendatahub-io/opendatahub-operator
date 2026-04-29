@@ -35,6 +35,7 @@ import (
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
@@ -165,6 +166,19 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		)).
 		// Sync CA from ConfigMap to Secret (handles initial creation and rotation updates)
 		WithAction(syncPrometheusWebTLSCA).
+		WithConditions(
+			status.ConditionMonitoringAvailable,
+			status.ConditionMonitoringStackAvailable,
+			status.ConditionTempoAvailable,
+			status.ConditionOpenTelemetryCollectorAvailable,
+			status.ConditionInstrumentationAvailable,
+			status.ConditionAlertingAvailable,
+			status.ConditionThanosQuerierAvailable,
+			status.ConditionPersesAvailable,
+			status.ConditionPersesTempoDataSourceAvailable,
+			status.ConditionPersesPrometheusDataSourceAvailable,
+			status.ConditionNodeMetricsEndpointAvailable,
+		).
 		WithAction(gc.NewAction()).
 		Build(ctx)
 
