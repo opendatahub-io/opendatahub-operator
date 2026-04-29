@@ -336,7 +336,7 @@ get-manifests: ## Fetch components manifests from remote git repo
 CLEANFILES += opt/manifests/*
 
 .PHONY: update-rhai-images
-update-rhai-images: ## Fetch RHAI component manifests and update images from RHOAI-Build-Config CSV 
+update-rhai-images: yq ## Fetch RHAI component manifests and update images from RHOAI-Build-Config CSV
 	@if [ -n "$(RHAI_BRANCH)" ]; then \
 		echo "Fetching manifests from rhods-operator branch $(RHAI_BRANCH)..."; \
 		TMP_RHODS=$$(mktemp -d) && \
@@ -348,7 +348,7 @@ update-rhai-images: ## Fetch RHAI component manifests and update images from RHO
 	else \
 		echo "ERROR: RHAI_BRANCH is not set. Use --branch flag or set RHAI_BRANCH env var."; exit 1; \
 	fi
-	MANIFESTS_DIR=./opt/manifests RHAI_BRANCH=$(RHAI_BRANCH) YQ=$(YQ) ./hack/update-rhai-images.sh
+	MANIFESTS_DIR=./opt/manifests RHAI_BRANCH=$(RHAI_BRANCH) YQ=$(YQ) SED_COMMAND=$(SED_COMMAND) ./hack/update-rhai-images.sh
 
 # Default to standard sed command
 SED_COMMAND = sed

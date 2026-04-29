@@ -17,10 +17,13 @@ BUILD_CONFIG_REPO="https://github.com/red-hat-data-services/RHOAI-Build-Config"
 CSV_PATH="bundle/manifests/rhods-operator.clusterserviceversion.yaml"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MANIFESTS_DIR="${MANIFESTS_DIR:-${SCRIPT_DIR}/opt/manifests}"
+[[ -d "$MANIFESTS_DIR" ]] || { echo "ERROR: Manifests directory not found: ${MANIFESTS_DIR}"; exit 1; }
 COMPONENTS_DIR="${SCRIPT_DIR}/internal/controller/components"
 
 YQ="${YQ:-$(command -v yq || true)}"
 [[ -n "$YQ" ]] || { echo "ERROR: yq is required but not found in PATH"; exit 1; }
+
+SED_COMMAND="${SED_COMMAND:-sed}"
 
 # This is a list we need maintain esp. when new component is added
 declare -A RHAI_COMPONENT_PATHS=(
@@ -102,7 +105,7 @@ update_params_env() {
     if ! grep -q "^${key}=" "$file"; then
         return 1
     fi
-    sed -i "s#^${key}=.*#${key}=${value}#" "$file"
+    $SED_COMMAND -i'' "s#^${key}=.*#${key}=${value}#" "$file"
 }
 
 declare -A IMAGE_MAP
