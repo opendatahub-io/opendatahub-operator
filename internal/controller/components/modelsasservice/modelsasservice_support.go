@@ -176,6 +176,10 @@ func maasParametersConfigMapFromParamsEnv(manifestsBasePath string, appNs string
 	// hardcoded in params.env (opendatahub).
 	paramsMap["app-namespace"] = appNs
 
+	// payload-processing runs in the app namespace, not the gateway namespace.
+	// The manifest overlay uses this to build the EnvoyFilter cluster_name FQDN.
+	paramsMap["payload-processing-namespace"] = appNs
+
 	data := make(map[string]any, len(paramsMap))
 	for k, v := range paramsMap {
 		data[k] = v
