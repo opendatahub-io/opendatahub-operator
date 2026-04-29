@@ -28,7 +28,7 @@ import (
 //   - Odh specific labels for access
 //   - Pod security labels for baseline permissions
 //
-// - 2. Patch monitoring namespace (create + label for cluster monitoring scraping)
+// - 2. Patch monitoring namespace (create + label for ownership and pod security)
 // - 3. Network Policies 'opendatahub' that allow traffic between the ODH namespaces.
 func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context, dscInit *dsciv2.DSCInitialization, platform common.Platform) error {
 	log := logf.FromContext(ctx)
@@ -117,8 +117,8 @@ func (r *DSCInitializationReconciler) createAppNamespace(ctx context.Context, ns
 	return err
 }
 
-// PatchMonitoringNS ensures the monitoring namespace exists and is labeled for
-// OpenShift cluster monitoring scraping, pod security, and operator ownership.
+// PatchMonitoringNS ensures the monitoring namespace exists and sets labels for
+// operator ownership (ODH.OwnedNamespace) and pod security baseline (SecurityEnforce).
 func PatchMonitoringNS(ctx context.Context, cli client.Client, dscInit *dsciv2.DSCInitialization) error {
 	monitoringName := dscInit.Spec.Monitoring.Namespace
 	if dscInit.Spec.ApplicationsNamespace == monitoringName {

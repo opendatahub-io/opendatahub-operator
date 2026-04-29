@@ -70,7 +70,7 @@ type DSCInitializationReconciler struct {
 }
 
 // Reconcile contains controller logic specific to DSCInitialization instance updates.
-func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:funlen,maintidx
+func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:funlen,maintidx,gocyclo
 	log := logf.FromContext(ctx).WithName("DSCInitialization")
 	log.Info("Reconciling DSCInitialization.", "DSCInitialization Request.Name", req.Name)
 
@@ -196,14 +196,17 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 	}
 
-	if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
+	switch instance.Spec.Monitoring.ManagementState {
+	case operatorv1.Managed:
 		if err = r.newMonitoringCR(ctx, instance); err != nil {
 			return ctrl.Result{}, err
 		}
-	} else {
+	case operatorv1.Removed:
 		if err = r.deleteMonitoringCR(ctx); err != nil {
 			return reconcile.Result{}, err
 		}
+	default:
+		// Unknown or empty state: do nothing
 	}
 
 	// legacy ServiceMesh FeatureTracker cleanup, retained from the remove ServiceMesh controller
