@@ -13,7 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth"
 )
 
 func makeEvent(ns, name, kind, objName, etype, reason, msg string, lastTime time.Time) *corev1.Event {
