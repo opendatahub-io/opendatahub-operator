@@ -18,11 +18,19 @@ const (
 const ManagementStateAnnotation = "component.opendatahub.io/management-state"
 
 const (
-	PlatformVersion    = "platform.opendatahub.io/version"
-	PlatformType       = "platform.opendatahub.io/type"
-	InstanceGeneration = "platform.opendatahub.io/instance.generation"
-	InstanceName       = "platform.opendatahub.io/instance.name"
-	InstanceUID        = "platform.opendatahub.io/instance.uid"
+	SuffixVersion            = "/version"
+	SuffixType               = "/type"
+	SuffixInstanceGeneration = "/instance.generation"
+	SuffixInstanceName       = "/instance.name"
+	SuffixInstanceUID        = "/instance.uid"
+)
+
+const (
+	PlatformVersion    = "platform.opendatahub.io" + SuffixVersion
+	PlatformType       = "platform.opendatahub.io" + SuffixType
+	InstanceGeneration = "platform.opendatahub.io" + SuffixInstanceGeneration
+	InstanceName       = "platform.opendatahub.io" + SuffixInstanceName
+	InstanceUID        = "platform.opendatahub.io" + SuffixInstanceUID
 )
 
 // Connection annotation for referencing secrets containing connection information.

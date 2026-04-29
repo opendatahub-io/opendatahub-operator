@@ -26,17 +26,19 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/mocks"
 
 	. "github.com/onsi/gomega"
 )
 
-const (
-	testReleaseName = "test"
-	testResourceID  = "testresourceid"
-)
+const testReleaseName = "test"
+
+// only azurekubernetesengine is used as resourceID for the test suite as coreweave setup is analogous to azure at the moment
+//
+// in case more CCM controllers with their own configuration options were added in the future,
+// the test suite should be expanded upon accordingly.
+var testResourceID = labels.NormalizePartOfValue(ccmv1alpha1.AzureKubernetesEngineKind)
 
 func newTestReconcileAction(t *testing.T) func(context.Context, *types.ReconciliationRequest) error {
 	t.Helper()
@@ -303,10 +305,11 @@ func TestNewReconcileAction_SetsInfrastructureLabel(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(rr.Resources).Should(HaveLen(1))
 
-	for _, res := range rr.Resources {
-		g.Expect(resources.GetLabel(&res, labels.InfrastructurePartOf)).
-			Should(Equal(testResourceID))
-	}
+	cm := &corev1.ConfigMap{}
+	err = cl.Get(ctx, client.ObjectKey{Namespace: ns, Name: fmt.Sprintf("%s-config", testReleaseName)}, cm)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(cm.Labels).Should(HaveKeyWithValue(labels.InfrastructurePartOf, "azurekubernetesengine"))
+	g.Expect(cm.Labels).ShouldNot(HaveKey(labels.PlatformPartOf))
 }
 
 func TestNewReconcileAction_MultipleCharts(t *testing.T) {
