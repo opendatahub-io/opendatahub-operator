@@ -135,8 +135,8 @@ func (tc *DSCTestCtx) ValidateDSCICreation(t *testing.T) {
 		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
 		WithCustomErrorMsg("Failed to create DSCInitialization resource %s", tc.DSCInitializationNamespacedName.Name),
 
-		// Increase time required to get DSCI created
-		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		// CR creation can be slow due to webhook setup and initial reconciliation
+		WithEventuallyTimeout(tc.TestTimeouts.crCreationTimeout),
 		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
 	)
 }
@@ -152,8 +152,8 @@ func (tc *DSCTestCtx) ValidateDSCCreation(t *testing.T) {
 		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
 		WithCustomErrorMsg("Failed to create DataScienceCluster resource %s", tc.DataScienceClusterNamespacedName.Name),
 
-		// Increase time required to get DSC created
-		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+		// CR creation can be slow due to component reconciliation
+		WithEventuallyTimeout(tc.TestTimeouts.crCreationTimeout),
 		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
 	)
 }
