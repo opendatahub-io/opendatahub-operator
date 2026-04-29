@@ -5,6 +5,19 @@ on:
     types: [opened, labeled, synchronize, reopened]
     branches:
       - main
+    paths-ignore:
+      - 'cmd/cloudmanager/**'
+      - 'internal/controller/cloudmanager/**'
+      - 'config/cloudmanager/**'
+      - 'api/cloudmanager/**'
+      - 'tests/e2e/cloudmanager/**'
+      - 'pkg/controller/cloudmanager/**'
+      - 'docs/cloudmanager-api-overview.md'
+      - 'hack/update-cloudmanager-rbac.sh'
+      - '.github/workflows/test-cloudmanager-e2e.yaml'
+      - 'crd-ref-docs.cloudmanager.config.yaml'
+      - 'pkg/operatorconfig/cloudmanager.go'
+      - 'pkg/utils/test/cloudmanager/**'
 
 permissions:
   contents: read
