@@ -8,8 +8,10 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -341,5 +343,83 @@ func TestAzureKubernetesEngineWithoutCertManager(t *testing.T) {
 			Eventually().ShouldNot(BeNil())
 		wtC.Get(gvk.CertManagerClusterIssuer, types.NamespacedName{Name: "opendatahub-ca-issuer"}).
 			Eventually().ShouldNot(BeNil())
+	})
+}
+
+// TestAzureKubernetesEngineCleanupAction verifies that the certmanager Bootstrap finalizer
+// action deletes CertManager/cluster before cascade deletion is released, allowing
+// cert-manager-operator to process its own finalizers while still running.
+func TestAzureKubernetesEngineCleanupAction(t *testing.T) {
+	ccmtest.RequireCharts(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	et, wt := ccmtest.StartIsolatedController(t, ctx, azureCfg)
+	t.Cleanup(cancel)
+
+	t.Run("cleanup action deletes CertManager/cluster before cascade", func(t *testing.T) {
+		// Register the CertManager operator CRD so CertManager/cluster can be created.
+		_, err := et.RegisterCRD(wt.Context(),
+			gvk.CertManagerV1Alpha1,
+			"certmanagers", "certmanager",
+			apiextensionsv1.ClusterScoped,
+		)
+		wt.Expect(err).NotTo(HaveOccurred())
+
+		// Create the AKE CR. The Bootstrap function registers NewCleanupAction as a
+		// finalizer, so the controller adds the platform finalizer after the first reconcile.
+		ccmtest.CreateCR(t, wt, azureCfg, ccmcommon.Dependencies{
+			CertManager: ccmcommon.CertManagerDependency{ManagementPolicy: ccmcommon.Managed},
+		})
+
+		nn := types.NamespacedName{Name: ccmv1alpha1.AzureKubernetesEngineInstanceName}
+
+		// Wait for the platform finalizer to be set, confirming the finalizer action is wired.
+		wt.Get(gvk.AzureKubernetesEngine, nn).Eventually().Should(
+			jq.Match(`.metadata.finalizers | index("platform.opendatahub.io/finalizer") != null`),
+		)
+
+		// Fetch the AKE CR to obtain its UID for the OwnerReference.
+		ake := &ccmv1alpha1.AzureKubernetesEngine{}
+		wt.Expect(wt.Client().Get(wt.Context(), nn, ake)).To(Succeed())
+
+		// Create CertManager/cluster with an OwnerReference to the AKE CR and a test
+		// finalizer simulating cert-manager-operator's runtime finalizers.
+		cm := &unstructured.Unstructured{}
+		cm.SetGroupVersionKind(gvk.CertManagerV1Alpha1)
+		cm.SetName("cluster")
+		cm.SetOwnerReferences([]metav1.OwnerReference{{
+			APIVersion: gvk.AzureKubernetesEngine.GroupVersion().String(),
+			Kind:       gvk.AzureKubernetesEngine.Kind,
+			Name:       ake.GetName(),
+			UID:        ake.GetUID(),
+		}})
+		cm.SetFinalizers([]string{"cert-manager-operator.operator.openshift.io/test-hold"})
+		cm.Object["spec"] = map[string]any{"managementState": "Managed"}
+		wt.Expect(wt.Client().Create(wt.Context(), cm)).To(Succeed())
+
+		// Delete the AKE CR. The cleanup action holds the platform finalizer until
+		// CertManager/cluster is fully gone.
+		wt.Expect(wt.Client().Delete(wt.Context(), ake)).To(Succeed())
+
+		// The cleanup action must trigger deletion of CertManager/cluster.
+		// Verify it receives a DeletionTimestamp, confirming the action fired.
+		wt.Get(gvk.CertManagerV1Alpha1, types.NamespacedName{Name: "cluster"}).
+			Eventually().Should(jq.Match(`.metadata.deletionTimestamp != null`))
+
+		// Simulate cert-manager-operator completing its finalizer processing by
+		// removing the test finalizer. This unblocks CertManager/cluster deletion.
+		cmGot := &unstructured.Unstructured{}
+		cmGot.SetGroupVersionKind(gvk.CertManagerV1Alpha1)
+		wt.Expect(wt.Client().Get(wt.Context(), types.NamespacedName{Name: "cluster"}, cmGot)).To(Succeed())
+		cmGot.SetFinalizers(nil)
+		wt.Expect(wt.Client().Update(wt.Context(), cmGot)).To(Succeed())
+
+		// CertManager/cluster must be fully deleted.
+		wt.Get(gvk.CertManagerV1Alpha1, types.NamespacedName{Name: "cluster"}).
+			Eventually().Should(BeNil())
+
+		// With CertManager/cluster gone, the cleanup action returns nil, the reconciler
+		// removes the platform finalizer, and the AKE CR is fully deleted.
+		wt.Get(gvk.AzureKubernetesEngine, nn).Eventually().Should(BeNil())
 	})
 }

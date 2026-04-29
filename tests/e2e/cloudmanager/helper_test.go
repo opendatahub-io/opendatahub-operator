@@ -25,6 +25,18 @@ var managedDependencyDeployments = []deploymentRef{
 	{Name: "servicemesh-operator3", Namespace: "istio-system"},
 }
 
+// certManagerOperandDeployments lists the cert-manager operand Deployments created
+// by cert-manager-operator when it processes the CertManager/cluster CR. These are
+// not directly owned by the *Engine CRs (no OwnerRef), so they do not appear in
+// managedDependencyDeployments. They are cleaned up transitively: the CCM finalizer
+// action deletes CertManager/cluster, cert-manager-operator processes its own
+// finalizers, and removes these Deployments before the operator pod is killed.
+var certManagerOperandDeployments = []deploymentRef{
+	{Name: "cert-manager", Namespace: "cert-manager"},
+	{Name: "cert-manager-cainjector", Namespace: "cert-manager"},
+	{Name: "cert-manager-webhook", Namespace: "cert-manager"},
+}
+
 func newCloudManagerCR(deps map[string]any) *unstructured.Unstructured {
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(provider.GVK)
