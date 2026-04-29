@@ -1,13 +1,21 @@
 package e2e_test
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/remotecommand"
+	ctrlcfg "sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -16,8 +24,9 @@ import (
 )
 
 const (
-	sparkVersion = "4.0.1"
-	sparkImage   = "quay.io/opendatahub/data-processing:Spark-v" + sparkVersion
+	sparkVersion       = "4.0.1"
+	sparkImage         = "quay.io/opendatahub/data-processing:Spark-v" + sparkVersion
+	pysparkClientImage = "quay.io/fedora/python-312:latest"
 )
 
 type SparkOperatorTestCtx struct {
@@ -42,6 +51,7 @@ func sparkOperatorTestSuite(t *testing.T) {
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
 		{"Validate SparkPi workload execution", componentCtx.ValidateSparkPiWorkload},
 		{"Validate ScheduledSparkApplication workload execution", componentCtx.ValidateScheduledSparkPiWorkload},
+		{"Validate SparkConnect server provisioning", componentCtx.ValidateSparkConnectServer},
 		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
@@ -256,6 +266,204 @@ func (tc *SparkOperatorTestCtx) createScheduledSparkPiApplication(name, namespac
 				"successfulRunHistoryLimit": int64(1),
 				"failedRunHistoryLimit":     int64(1),
 				"template":                  sparkPiSpec(),
+			},
+		},
+	}
+}
+
+// ValidateSparkConnectServer validates that a SparkConnect server can be provisioned
+// and a separate PySpark client pod can connect and execute a query via the Spark Connect protocol.
+func (tc *SparkOperatorTestCtx) ValidateSparkConnectServer(t *testing.T) {
+	t.Helper()
+
+	sparkConnectName := "spark-connect-" + xid.New().String()
+	clientPodName := "pyspark-client-" + xid.New().String()
+	namespace := tc.AppsNamespace
+	containerName := "pyspark-client"
+
+	t.Logf("Creating SparkConnect %s in namespace %s", sparkConnectName, namespace)
+	sparkConnect := tc.createSparkConnectInstance(sparkConnectName, namespace)
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(sparkConnect),
+		WithCustomErrorMsg("Failed to create SparkConnect %s", sparkConnectName),
+	)
+
+	defer func() {
+		t.Logf("Cleaning up SparkConnect %s", sparkConnectName)
+		tc.DeleteResource(
+			WithMinimalObject(gvk.SparkConnect, types.NamespacedName{Name: sparkConnectName, Namespace: namespace}),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+	}()
+
+	t.Logf("Waiting for SparkConnect %s to reach Ready state", sparkConnectName)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.SparkConnect, types.NamespacedName{Name: sparkConnectName, Namespace: namespace}),
+		WithCondition(
+			jq.Match(`.status.state == "Ready"`),
+		),
+		WithCustomErrorMsg("SparkConnect %s did not reach Ready state", sparkConnectName),
+		WithEventuallyTimeout(tc.TestTimeouts.defaultEventuallyTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+	)
+
+	t.Logf("Creating PySpark client pod %s", clientPodName)
+	clientPod := createPySparkClientPod(clientPodName, namespace)
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(clientPod),
+		WithCustomErrorMsg("Failed to create PySpark client pod %s", clientPodName),
+	)
+
+	defer func() {
+		t.Logf("Cleaning up PySpark client pod %s", clientPodName)
+		tc.DeleteResource(
+			WithMinimalObject(gvk.Pod, types.NamespacedName{Name: clientPodName, Namespace: namespace}),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+	}()
+
+	t.Logf("Waiting for PySpark client pod %s to be Running", clientPodName)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Pod, types.NamespacedName{Name: clientPodName, Namespace: namespace}),
+		WithCondition(
+			jq.Match(`.status.phase == "Running"`),
+		),
+		WithCustomErrorMsg("PySpark client pod %s is not Running", clientPodName),
+		WithEventuallyTimeout(tc.TestTimeouts.defaultEventuallyTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+	)
+
+	t.Logf("Installing Python dependencies in client pod %s", clientPodName)
+	pipCmd := "pip install --quiet --disable-pip-version-check 'pyspark[connect]' pandas pyarrow grpcio grpcio-status zstandard"
+	_, pipStderr, err := execInPod(namespace, clientPodName, containerName, []string{"sh", "-c", pipCmd})
+	require.NoError(t, err, "pip install failed in pod %s: stderr=%s", clientPodName, pipStderr)
+
+	connectURL := fmt.Sprintf("sc://%s-server.%s.svc.cluster.local:15002", sparkConnectName, namespace)
+	pyScript := fmt.Sprintf(`
+from pyspark.sql import SparkSession
+spark = SparkSession.builder.remote("%s").getOrCreate()
+df = spark.range(100).selectExpr("id", "id * 2 as doubled")
+print("ROW_COUNT=" + str(df.count()))
+spark.stop()
+`, connectURL)
+
+	t.Logf("Executing PySpark query from client pod %s against %s", clientPodName, connectURL)
+	stdout, stderr, err := execInPod(namespace, clientPodName, containerName, []string{"python3", "-c", pyScript})
+	require.NoError(t, err, "PySpark query failed in pod %s: stderr=%s", clientPodName, stderr)
+	require.Contains(t, stdout, "ROW_COUNT=100", "Expected ROW_COUNT=100 in output, got: %s", stdout)
+
+	t.Logf("SparkConnect %s successfully executed PySpark query from client pod (ROW_COUNT=100)", sparkConnectName)
+}
+
+// execInPod executes a command in a container and returns stdout, stderr, and any error.
+func execInPod(namespace, podName, containerName string, command []string) (string, string, error) {
+	config, err := ctrlcfg.GetConfig()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get Kubernetes config: %w", err)
+	}
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to create clientset: %w", err)
+	}
+
+	req := clientset.CoreV1().RESTClient().Post().
+		Resource("pods").
+		Name(podName).
+		Namespace(namespace).
+		SubResource("exec").
+		VersionedParams(&corev1.PodExecOptions{
+			Container: containerName,
+			Command:   command,
+			Stdout:    true,
+			Stderr:    true,
+		}, scheme.ParameterCodec)
+
+	exec, err := remotecommand.NewSPDYExecutor(config, "POST", req.URL())
+	if err != nil {
+		return "", "", fmt.Errorf("failed to create SPDY executor: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	var stdout, stderr bytes.Buffer
+	err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
+		Stdout: &stdout,
+		Stderr: &stderr,
+	})
+
+	return stdout.String(), stderr.String(), err
+}
+
+func (tc *SparkOperatorTestCtx) createSparkConnectInstance(name, namespace string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "sparkoperator.k8s.io/v1alpha1",
+			"kind":       "SparkConnect",
+			"metadata": map[string]any{
+				"name":      name,
+				"namespace": namespace,
+			},
+			"spec": map[string]any{
+				"sparkVersion": sparkVersion,
+				"sparkConf": map[string]any{
+					"spark.driver.blockManager.port": "7079",
+				},
+				"server": map[string]any{
+					"template": map[string]any{
+						"spec": map[string]any{
+							"serviceAccount": "spark-operator-spark",
+							"containers": []any{
+								map[string]any{
+									"name":  "spark-kubernetes-driver",
+									"image": sparkImage,
+									"resources": map[string]any{
+										"requests": map[string]any{
+											"cpu":    "1",
+											"memory": "512Mi",
+										},
+										"limits": map[string]any{
+											"cpu":    "1",
+											"memory": "512Mi",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				"executor": map[string]any{
+					"instances": int64(1),
+					"cores":     int64(1),
+					"memory":    "512m",
+				},
+			},
+		},
+	}
+}
+
+func createPySparkClientPod(name, namespace string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "v1",
+			"kind":       "Pod",
+			"metadata": map[string]any{
+				"name":      name,
+				"namespace": namespace,
+			},
+			"spec": map[string]any{
+				"containers": []any{
+					map[string]any{
+						"name":    "pyspark-client",
+						"image":   pysparkClientImage,
+						"command": []any{"sleep", "infinity"},
+					},
+				},
 			},
 		},
 	}
