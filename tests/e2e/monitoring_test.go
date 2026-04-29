@@ -99,10 +99,12 @@ func monitoringTestSuite(t *testing.T) {
 		expectedDefaultReplicas: expectedReplicas,
 	}
 
-	// Increase the global eventually timeout for monitoring tests involve complex operator dependencies (OpenTelemetry, Tempo, etc.)
-	// that can take longer to reconcile, especially under load or in slower environments.
-	reset := tc.OverrideEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout, tc.TestTimeouts.defaultEventuallyPollInterval)
-	defer reset() // Make sure it's reset after all tests run
+	// Set per-operation timeout defaults for monitoring tests that involve complex operator
+	// dependencies (OpenTelemetry, Tempo, etc.) that can take longer to reconcile.
+	tc.DefaultResourceOpts = []ResourceOpts{
+		WithEventuallyTimeout(tc.TestTimeouts.monitoringStackTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+	}
 
 	// ========================================================================
 	// Pre-requisite: Ensure required monitoring operators are installed
@@ -1335,7 +1337,7 @@ func (tc *MonitoringTestCtx) validateTempoStackCreationWithBackend(t *testing.T,
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
 			),
 		),
-		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithEventuallyTimeout(tc.TestTimeouts.monitoringStackTimeout),
 		WithCustomErrorMsg("TempoStack should be created by controller with %s backend, but was not found or has incorrect backend type", backend),
 	)
 
@@ -2187,7 +2189,7 @@ func (tc *MonitoringTestCtx) waitForPrometheusNamespaceProxyPrerequisites(t *tes
 			Namespace: namespace,
 		}),
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Available") | .status == "True"`)),
-		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithEventuallyTimeout(tc.TestTimeouts.monitoringStackTimeout),
 		WithCustomErrorMsg("MonitoringStack should be Available before prometheus-namespace-proxy deployment"),
 	)
 
@@ -2572,7 +2574,7 @@ func (tc *MonitoringTestCtx) validatePersesDatasourceTLSWithCloudBackend(t *test
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
 			),
 		),
-		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithEventuallyTimeout(tc.TestTimeouts.monitoringStackTimeout),
 		WithCustomErrorMsg("TempoStack should be ready with %s backend before checking PersesDatasource", backend),
 	)
 
@@ -2596,7 +2598,7 @@ func (tc *MonitoringTestCtx) validatePersesDatasourceTLSWithCloudBackend(t *test
 				jq.Match(`.spec.config.plugin.spec.proxy.spec.secret == "tempo-datasource-secret"`),
 			),
 		),
-		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithEventuallyTimeout(tc.TestTimeouts.monitoringStackTimeout),
 		WithCustomErrorMsg("PersesDatasource should have TLS enabled for %s backend", backend),
 	)
 

@@ -76,6 +76,10 @@ type TestContext struct {
 
 	// Namespaced name of the DataScienceCluster custom resource used for testing.
 	DataScienceClusterNamespacedName types.NamespacedName
+
+	// DefaultResourceOpts are applied as a baseline to every NewResourceOptions call.
+	// Individual per-operation opts (e.g., WithEventuallyTimeout) override these defaults.
+	DefaultResourceOpts []ResourceOpts
 }
 
 // NewTestContext creates and initializes a new TestContext instance.
@@ -135,42 +139,10 @@ func (tc *TestContext) Logf(format string, args ...any) {
 	tc.logger.Logf(format, args...)
 }
 
-// OverrideEventuallyTimeout temporarily changes the Eventually timeout and polling period.
-func (tc *TestContext) OverrideEventuallyTimeout(timeout, pollInterval time.Duration) func() {
-	// Save current timeout values (you'll need to store these manually)
-	previousTimeout := tc.g.DurationBundle.EventuallyTimeout
-	previousPollInterval := tc.g.DurationBundle.EventuallyPollingInterval
-
-	// Override with new values
-	tc.g.SetDefaultEventuallyTimeout(timeout)
-	tc.g.SetDefaultEventuallyPollingInterval(pollInterval)
-
-	// Return a function to reset them back
-	return func() {
-		// Override with new values
-		tc.g.SetDefaultEventuallyTimeout(previousTimeout)
-		tc.g.SetDefaultEventuallyPollingInterval(previousPollInterval)
-	}
-}
-
 // NewResourceOptions creates and returns a ResourceOptions object
 // It configures a ResourceOptions object by applying the provided ResourceOpts.
 func (tc *TestContext) NewResourceOptions(opts ...ResourceOpts) *ResourceOptions {
 	ro := &ResourceOptions{tc: tc}
-	for _, opt := range opts {
-		opt(ro)
-	}
-
-	// Ensure ObjFn is set and fetch the object.
-	if ro.Obj == nil && ro.ObjFn != nil {
-		// If Obj is not provided, call ObjFn to get the object.
-		ro.Obj = ro.ObjFn(tc)
-	}
-
-	// Ensure that Obj is not nil before returning the options.
-	if ro.Obj == nil {
-		panic("Obj must be set in ResourceOptions") // Panics if Obj is nil to enforce validation.
-	}
 
 	// Ensure ListOptions is not nil before using it
 	if ro.ListOptions == nil {
@@ -190,6 +162,25 @@ func (tc *TestContext) NewResourceOptions(opts ...ResourceOpts) *ResourceOptions
 	// Ensure IgnoreNotFound is true by default
 	ro.IgnoreNotFound = true
 
+	// Apply context-level defaults first (can be overridden by explicit opts)
+	for _, opt := range tc.DefaultResourceOpts {
+		opt(ro)
+	}
+	for _, opt := range opts {
+		opt(ro)
+	}
+
+	// Ensure ObjFn is set and fetch the object.
+	if ro.Obj == nil && ro.ObjFn != nil {
+		// If Obj is not provided, call ObjFn to get the object.
+		ro.Obj = ro.ObjFn(tc)
+	}
+
+	// Ensure that Obj is not nil before returning the options.
+	if ro.Obj == nil {
+		panic("Obj must be set in ResourceOptions") // Panics if Obj is nil to enforce validation.
+	}
+
 	return ro
 }
 
@@ -208,8 +199,13 @@ func (tc *TestContext) EnsureResourceExists(opts ...ResourceOpts) *unstructured.
 	var u *unstructured.Unstructured
 
 	eventually := tc.g.Eventually(func(g Gomega) {
-		// Use fetchResource to attempt to fetch the resource with retries
-		u, _ = fetchResource(ro)
+		// Use fetchResourceSync to avoid nested Eventually calls
+		var fetchErr error
+		u, fetchErr = fetchResourceSync(ro)
+		g.Expect(fetchErr).NotTo(
+			HaveOccurred(),
+			defaultErrorMessageIfNone(resourceFetchErrorMsg, []any{ro.ResourceID, ro.GVK.Kind, fetchErr}, ro.CustomErrorArgs)...,
+		)
 
 		// Ensure that the resource object is not nil
 		g.Expect(u).NotTo(
@@ -248,8 +244,13 @@ func (tc *TestContext) EnsureResourceExistsConsistently(opts ...ResourceOpts) *u
 
 	// Ensure the resource exists and matches the condition consistently over the specified period.
 	consistently := tc.g.Consistently(func(g Gomega) {
-		// Use fetchResource to attempt to fetch the resource with retries
-		u, _ = fetchResource(ro)
+		// Use fetchResourceSync to avoid nested Eventually inside Consistently
+		var fetchErr error
+		u, fetchErr = fetchResourceSync(ro)
+		g.Expect(fetchErr).NotTo(
+			HaveOccurred(),
+			defaultErrorMessageIfNone(resourceFetchErrorMsg, []any{ro.ResourceID, ro.GVK.Kind, fetchErr}, ro.CustomErrorArgs)...,
+		)
 
 		// Ensure that the resource object is not nil
 		g.Expect(u).NotTo(
@@ -502,6 +503,8 @@ func (tc *TestContext) EnsureResourceDoesNotExist(opts ...ResourceOpts) {
 	// Validate the error if an expected error is set
 	if ro.AcceptableErrMatcher != nil {
 		tc.g.Expect(err).To(ro.AcceptableErrMatcher, unexpectedErrorMismatchMsg, ro.AcceptableErrMatcher, err, ro.GVK.Kind)
+	} else {
+		tc.g.Expect(err).To(BeNil(), unexpectedErrorMismatchMsg, ro.GVK.Kind, err)
 	}
 }
 
@@ -935,7 +938,7 @@ func (tc *TestContext) isOperatorHealthy(nn types.NamespacedName) bool {
 		return false
 	}
 
-	csv, err := fetchResource(
+	csv, err := fetchResourceSync(
 		tc.NewResourceOptions(
 			WithMinimalObject(gvk.ClusterServiceVersion, types.NamespacedName{
 				Namespace: nn.Namespace,
@@ -1019,7 +1022,7 @@ func (tc *TestContext) ensureCSVSucceeded(nn types.NamespacedName) {
 		g.Expect(csv).NotTo(BeNil(), "CSV %s/%s not found", nn.Namespace, csvName)
 		g.Expect(csv.Status.Phase).To(Equal(ofapi.CSVPhaseSucceeded),
 			"CSV %s is not Succeeded: %s", csvName, csv.Status.Phase)
-	}).WithTimeout(tc.TestTimeouts.longEventuallyTimeout).
+	}).WithTimeout(tc.TestTimeouts.olmOperationTimeout).
 		WithPolling(tc.TestTimeouts.defaultEventuallyPollInterval).
 		Should(Succeed())
 }
@@ -1062,7 +1065,7 @@ func (tc *TestContext) ensureInstallPlan(nn types.NamespacedName, channelName st
 			Equal(ofapi.CSVPhaseSucceeded),
 			"CSV %s did not reach 'Succeeded' phase", resourceID,
 		)
-	}).WithTimeout(tc.TestTimeouts.mediumEventuallyTimeout).
+	}).WithTimeout(tc.TestTimeouts.olmOperationTimeout).
 		WithPolling(tc.TestTimeouts.defaultEventuallyPollInterval).
 		Should(Succeed())
 }
@@ -1767,11 +1770,16 @@ func (tc *TestContext) convertToResource(u *unstructured.Unstructured, obj clien
 // Returns:
 //   - error: An error if the resource is found, or nil if the resource does not exist.
 func (tc *TestContext) ensureResourceDoesNotExist(g Gomega, ro *ResourceOptions) error {
-	// Fetch the resource using fetchResource.
-	u, err := fetchResource(ro)
+	// Use fetchResourceSync to avoid nested Eventually calls.
+	// When called from EnsureResourceGone (inside Eventually), the outer Eventually handles retries.
+	u, err := fetchResourceSync(ro)
 
-	// If we have an error, let the caller handle it
 	if err != nil {
+		// For deletion checks, NotFound/NoMatch means the resource (or its CRD) is gone (success)
+		if ro.IgnoreNotFound && (k8serr.IsNotFound(err) || meta.IsNoMatchError(err)) {
+			return nil
+		}
+		// Transient errors bubble up so the caller (or outer Eventually) can retry
 		return err
 	}
 
@@ -1792,15 +1800,14 @@ func (tc *TestContext) ensureResourceDoesNotExist(g Gomega, ro *ResourceOptions)
 // Returns:
 //   - error: An error if the resource is found in the cluster, or nil if the resource does not exist.
 func (tc *TestContext) ensureResourcesDoNotExist(g Gomega, ro *ResourceOptions) error {
-	resourcesList, err := fetchResources(ro)
+	resourcesList, err := fetchResourcesSync(ro)
 
-	// Handle "not found" errors based on IgnoreNotFound setting
-	if ro.IgnoreNotFound && k8serr.IsNotFound(err) {
-		// For deletion scenarios, "not found" means success - resource is gone
+	// Handle "not found"/"no match" errors based on IgnoreNotFound setting
+	if ro.IgnoreNotFound && (k8serr.IsNotFound(err) || meta.IsNoMatchError(err)) {
+		// For deletion scenarios, "not found" or missing CRD means success - resource is gone
 		return nil
 	}
 
-	// If we have an error that's not "not found", let the caller handle it
 	if err != nil {
 		return err
 	}
