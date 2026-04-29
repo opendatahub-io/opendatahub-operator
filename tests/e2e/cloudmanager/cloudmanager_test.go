@@ -118,7 +118,10 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 
 					wt.Get(gvk.Deployment, nn).Eventually().Should(And(
 						jq.Match(`.metadata.labels."%s" == "%s"`, labels.InfrastructurePartOf, partOfValue),
-						jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.InstanceName, provider.InstanceName),
+						Not(jq.Match(`.metadata.labels | has("%s")`, labels.PlatformPartOf)),
+						jq.Match(`.metadata.annotations."%s" == "%s"`,
+							labels.ODHInfrastructurePrefix+annotations.SuffixInstanceName, provider.InstanceName),
+						Not(jq.Match(`.metadata.annotations | has("%s")`, annotations.InstanceName)),
 					))
 				})
 			}
@@ -387,8 +390,8 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 				labels.InfrastructurePartOf: strings.ToLower(provider.GVK.Kind),
 			})
 			staleCM.SetAnnotations(map[string]string{
-				annotations.InstanceUID:        string(cr.GetUID()),
-				annotations.InstanceGeneration: "-1",
+				labels.ODHInfrastructurePrefix + annotations.SuffixInstanceUID:        string(cr.GetUID()),
+				labels.ODHInfrastructurePrefix + annotations.SuffixInstanceGeneration: "-1",
 			})
 			_ = unstructured.SetNestedSlice(staleCM.Object, []any{
 				map[string]any{

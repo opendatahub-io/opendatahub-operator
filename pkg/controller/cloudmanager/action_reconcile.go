@@ -12,7 +12,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 var ConditionsTypes = []string{
@@ -46,7 +45,6 @@ func WithDeployOptions(opts ...deploy.ActionOpts) ReconcileActionOpts {
 // NewReconcileAction creates a combined action that:
 // - Renders Helm charts
 // - Runs PreApply hooks from HelmCharts
-// - Sets infrastructure labels on rendered resources
 // - Deploys resources via SSA
 // - Runs PostApply hooks from HelmCharts
 // - Checks deployment status.
@@ -65,11 +63,16 @@ func NewReconcileAction(resourceID string, opts ...ReconcileActionOpts) (actions
 	}
 
 	helmRender := helm.NewAction(action.helmOpts...)
-	deployAction := deploy.NewAction(append(action.deployOpts, deploy.WithApplyOrder())...)
+	deployAction := deploy.NewAction(append(action.deployOpts,
+		deploy.WithApplyOrder(),
+		deploy.WithPartOfLabel(labels.InfrastructurePartOf),
+		deploy.WithAnnotationPrefix(labels.ODHInfrastructurePrefix),
+	)...)
 	deploymentsAction := deployments.NewAction(
 		deployments.InNamespaceFn(func(_ context.Context, _ *types.ReconciliationRequest) (string, error) {
 			return "", nil
 		}),
+		deployments.WithPartOfLabel(labels.InfrastructurePartOf),
 		deployments.WithSelectorLabel(labels.InfrastructurePartOf, action.resourceID),
 	)
 
@@ -85,11 +88,6 @@ func NewReconcileAction(resourceID string, opts ...ReconcileActionOpts) (actions
 		})
 		if err != nil {
 			return err
-		}
-
-		// Set infrastructure label on all rendered resources
-		for i := range rr.Resources {
-			resources.SetLabel(&rr.Resources[i], labels.InfrastructurePartOf, action.resourceID)
 		}
 
 		// Deploy resources via SSA

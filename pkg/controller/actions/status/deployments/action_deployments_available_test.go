@@ -274,6 +274,58 @@ func TestDeploymentsAvailableReadyAutoSelector(t *testing.T) {
 	)
 }
 
+func TestDeploymentsAvailableActionWithPartOfLabel(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := t.Context()
+	ns := xid.New().String()
+	customLabelKey := "custom.example.io/part-of"
+
+	cl, err := fakeclient.New(
+		fakeclient.WithObjects(
+			&appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-deployment",
+					Namespace: ns,
+					Labels: map[string]string{
+						customLabelKey: strings.ToLower(componentApi.DashboardKind),
+					},
+				},
+				Status: appsv1.DeploymentStatus{
+					Replicas:      1,
+					ReadyReplicas: 1,
+				},
+			},
+		),
+	)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	action := deployments.NewAction(
+		deployments.WithPartOfLabel(customLabelKey),
+		deployments.InNamespace(ns),
+	)
+
+	rr := types.ReconciliationRequest{
+		Client:   cl,
+		Instance: &componentApi.Dashboard{},
+		Release:  common.Release{Name: cluster.OpenDataHub},
+	}
+
+	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
+
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(rr.Instance).Should(
+		WithTransform(
+			matchers.ExtractStatusCondition(status.ConditionDeploymentsAvailable),
+			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+				"Status": Equal(metav1.ConditionTrue),
+			}),
+		),
+	)
+}
+
 func TestDeploymentsAvailableActionNotReadyNotFound(t *testing.T) {
 	g := NewWithT(t)
 

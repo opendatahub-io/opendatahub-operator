@@ -106,7 +106,6 @@ fi
 # location instead, as this script DOES NOT manage platform manifest files for a container build.
 declare -A PLATFORM_MANIFESTS=(
     ["osd-configs"]="config/osd-configs"
-    ["monitoring"]="config/monitoring"
     ["hardwareprofiles"]="config/hardwareprofiles"
     ["connectionAPI"]="config/connectionAPI"
 )

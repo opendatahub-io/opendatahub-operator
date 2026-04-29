@@ -1,4 +1,4 @@
-module github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth
+module github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth
 
 go 1.25.7
 

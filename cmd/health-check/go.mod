@@ -3,7 +3,7 @@ module github.com/opendatahub-io/opendatahub-operator/v2/cmd/health-check
 go 1.25.7
 
 require (
-	github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth v0.0.0
+	github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth v0.0.0
 	k8s.io/apimachinery v0.35.2
 	k8s.io/client-go v0.35.2
 	sigs.k8s.io/controller-runtime v0.22.4
@@ -50,4 +50,4 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-replace github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth => ../../pkg/clusterhealth
+replace github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth => ../../pkg/clusterhealth

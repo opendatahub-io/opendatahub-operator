@@ -19,91 +19,11 @@ limitations under the License.
 package common
 
 import (
-	"crypto/sha256"
 	"embed"
-	b64 "encoding/base64"
-	"fmt"
 	"io/fs"
-	"os"
-	"regexp"
 	"slices"
 	"strings"
 )
-
-// ReplaceStringsInFile replaces variable with value in manifests during runtime.
-func ReplaceStringsInFile(fileName string, replacements map[string]string) error {
-	// Read the contents of the file
-	fileContent, err := os.ReadFile(fileName)
-	if err != nil {
-		return fmt.Errorf("failed to read file: %w", err)
-	}
-
-	// Replace all occurrences of the strings in the map
-	newContent := string(fileContent)
-	for string1, string2 := range replacements {
-		newContent = strings.ReplaceAll(newContent, string1, string2)
-	}
-
-	// Write the modified content back to the file
-	// #nosec G703 -- fileName is controlled internally and not from user input
-	err = os.WriteFile(fileName, []byte(newContent), 0)
-	if err != nil {
-		return fmt.Errorf("failed to write to file: %w", err)
-	}
-
-	return nil
-}
-
-// MatchLineInFile use the 'key' of the replacements as match pattern and replace the line with 'value'.
-func MatchLineInFile(fileName string, replacements map[string]string) error {
-	fileContent, err := os.ReadFile(fileName)
-	if err != nil {
-		return fmt.Errorf("failed to read file: %w", err)
-	}
-
-	// Pre-compile all regex patterns to avoid compilation in loop
-	compiledRegexes := make(map[*regexp.Regexp]string, len(replacements))
-	for matchPattern, newValue := range replacements {
-		re, err := regexp.Compile(matchPattern + `(.*)`)
-		if err != nil {
-			return fmt.Errorf("failed to compile regex pattern %q: %w", matchPattern, err)
-		}
-		compiledRegexes[re] = newValue
-	}
-
-	newContent := string(fileContent)
-	for re, newValue := range compiledRegexes {
-		newContent = re.ReplaceAllString(newContent, newValue)
-	}
-
-	// #nosec G703 -- fileName is controlled internally and not from user input
-	err = os.WriteFile(fileName, []byte(newContent), 0)
-	if err != nil {
-		return fmt.Errorf("failed to write to file: %w", err)
-	}
-
-	return nil
-}
-
-// encode configmap data and return in base64.
-func GetMonitoringData(data string) (string, error) {
-	// Create a new SHA-256 hash object
-	hash := sha256.New()
-
-	// Write the input data to the hash object
-	_, err := hash.Write([]byte(data))
-	if err != nil {
-		return "", err
-	}
-
-	// Get the computed hash sum
-	hashSum := hash.Sum(nil)
-
-	// Encode the hash sum to Base64
-	encodedData := b64.StdEncoding.EncodeToString(hashSum)
-
-	return encodedData, nil
-}
 
 func sliceAddMissing(s *[]string, e string) int {
 	e = strings.TrimSpace(e)

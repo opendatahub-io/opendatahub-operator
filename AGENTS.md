@@ -214,6 +214,22 @@ IsEnabled(dsc *dscv2.DataScienceCluster) bool
 - **Check Kubernetes errors**: Use `k8serr.IsNotFound(err)`, `k8serr.IsAlreadyExists(err)`, etc.
 - **Multierror support**: Use `github.com/hashicorp/go-multierror` for collecting multiple errors
 
+## Quality Gates (MANDATORY before completing any task)
+
+Before considering ANY code change complete, agents **MUST** run the following
+commands **every time** and fix all failures:
+
+```bash
+make generate manifests api-docs   # Regenerate all codegen (safe no-ops when unchanged)
+make fmt                           # Format code and imports
+make lint                          # Run golangci-lint
+```
+
+If any command fails, **you are not done** — fix the issues and re-run until
+all three pass cleanly. If a command produces new diff (e.g. generated code
+or formatting changes), ensure those changes are included before finishing
+and inform the user. Do NOT skip these steps or defer them to the reviewer.
+
 ## Critical Rules
 
 1. **Garbage collection action MUST be last** in the action chain

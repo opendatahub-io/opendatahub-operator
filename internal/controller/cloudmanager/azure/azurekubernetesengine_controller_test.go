@@ -207,9 +207,9 @@ func TestAzureKubernetesEngineGC(t *testing.T) {
 					labels.InfrastructurePartOf: "azurekubernetesengine",
 				},
 				Annotations: map[string]string{
-					annotations.InstanceUID: string(ake.GetUID()),
+					labels.ODHInfrastructurePrefix + annotations.SuffixInstanceUID: string(ake.GetUID()),
 					// A generation far in the past — will never match the current CR generation.
-					annotations.InstanceGeneration: strconv.FormatInt(-1, 10),
+					labels.ODHInfrastructurePrefix + annotations.SuffixInstanceGeneration: strconv.FormatInt(-1, 10),
 				},
 				OwnerReferences: []metav1.OwnerReference{{
 					APIVersion: gvk.AzureKubernetesEngine.GroupVersion().String(),

@@ -11,7 +11,8 @@ import (
 
 	ccmv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/azure/v1alpha1"
 	odhTypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	odhAnnotations "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 
 	. "github.com/onsi/gomega"
 )
@@ -53,8 +54,16 @@ func simpleObj(anns map[string]string) unstructured.Unstructured {
 // ccmAnns returns the standard cloud manager annotations for the test UID and generation.
 func ccmAnns(uid string, generation string) map[string]string {
 	return map[string]string{
-		annotations.InstanceUID:        uid,
-		annotations.InstanceGeneration: generation,
+		labels.ODHInfrastructurePrefix + odhAnnotations.SuffixInstanceUID:        uid,
+		labels.ODHInfrastructurePrefix + odhAnnotations.SuffixInstanceGeneration: generation,
+	}
+}
+
+// legacyCCMAnns returns the old platform.opendatahub.io annotations for the test UID and generation.
+func legacyCCMAnns(uid string, generation string) map[string]string {
+	return map[string]string{
+		labels.ODHPlatformPrefix + odhAnnotations.SuffixInstanceUID:        uid,
+		labels.ODHPlatformPrefix + odhAnnotations.SuffixInstanceGeneration: generation,
 	}
 }
 
@@ -80,12 +89,12 @@ func TestNewGCPredicate(t *testing.T) {
 		},
 		{
 			name:       "missing UID annotation only — keep",
-			obj:        simpleObj(map[string]string{annotations.InstanceGeneration: "5"}),
+			obj:        simpleObj(map[string]string{labels.ODHInfrastructurePrefix + odhAnnotations.SuffixInstanceGeneration: "5"}),
 			wantDelete: false,
 		},
 		{
 			name:       "missing generation annotation only — keep",
-			obj:        simpleObj(map[string]string{annotations.InstanceUID: string(testUID)}),
+			obj:        simpleObj(map[string]string{labels.ODHInfrastructurePrefix + odhAnnotations.SuffixInstanceUID: string(testUID)}),
 			wantDelete: false,
 		},
 		{
@@ -94,8 +103,11 @@ func TestNewGCPredicate(t *testing.T) {
 			wantDelete: false,
 		},
 		{
-			name:       "empty-string generation annotation — keep",
-			obj:        simpleObj(map[string]string{annotations.InstanceUID: string(testUID), annotations.InstanceGeneration: ""}),
+			name: "empty-string generation annotation — keep",
+			obj: simpleObj(map[string]string{
+				labels.ODHInfrastructurePrefix + odhAnnotations.SuffixInstanceUID:        string(testUID),
+				labels.ODHInfrastructurePrefix + odhAnnotations.SuffixInstanceGeneration: "",
+			}),
 			wantDelete: false,
 		},
 		{
@@ -152,6 +164,27 @@ func TestNewGCPredicate(t *testing.T) {
 		{
 			name:       "malformed InstanceGeneration — skip (do not delete)",
 			obj:        simpleObj(ccmAnns(string(testUID), "not-a-number")),
+			wantDelete: false,
+		},
+		// Legacy platform.opendatahub.io annotation fallback cases.
+		{
+			name:       "legacy annotations: UID matches, generation matches — keep",
+			obj:        simpleObj(legacyCCMAnns(string(testUID), "5")),
+			wantDelete: false,
+		},
+		{
+			name:       "legacy annotations: UID mismatch — delete",
+			obj:        simpleObj(legacyCCMAnns("different-uid", "5")),
+			wantDelete: true,
+		},
+		{
+			name:       "legacy annotations: UID matches, generation mismatch — delete",
+			obj:        simpleObj(legacyCCMAnns(string(testUID), "3")),
+			wantDelete: true,
+		},
+		{
+			name:       "legacy annotations: malformed generation — skip (do not delete)",
+			obj:        simpleObj(legacyCCMAnns(string(testUID), "not-a-number")),
 			wantDelete: false,
 		},
 	}

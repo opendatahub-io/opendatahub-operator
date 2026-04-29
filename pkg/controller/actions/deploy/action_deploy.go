@@ -47,12 +47,14 @@ func (s SortFn) Then(then SortFn) SortFn {
 // Action deploys the resources that are included in the ReconciliationRequest using
 // the same create or patch machinery implemented as part of deploy.DeployManifestsFromPath.
 type Action struct {
-	fieldOwner  string
-	deployMode  Mode
-	labels      map[string]string
-	annotations map[string]string
-	cache       *Cache
-	sortFn      SortFn
+	fieldOwner       string
+	deployMode       Mode
+	partOfLabelKey   string
+	annotationPrefix string
+	labels           map[string]string
+	annotations      map[string]string
+	cache            *Cache
+	sortFn           SortFn
 }
 
 type ActionOpts func(*Action)
@@ -66,6 +68,18 @@ func WithFieldOwner(value string) ActionOpts {
 func WithMode(value Mode) ActionOpts {
 	return func(action *Action) {
 		action.deployMode = value
+	}
+}
+
+func WithPartOfLabel(key string) ActionOpts {
+	return func(action *Action) {
+		action.partOfLabelKey = key
+	}
+}
+
+func WithAnnotationPrefix(prefix string) ActionOpts {
+	return func(action *Action) {
+		action.annotationPrefix = prefix
 	}
 }
 
@@ -128,6 +142,22 @@ func WithApplyOrder() ActionOpts {
 	return WithSortFn(resources.SortByApplyOrder)
 }
 
+// resolveFieldOwner returns the effective field owner for the reconciled
+// instance.  When a.fieldOwner is explicitly configured it is returned
+// as-is; otherwise the owner is derived from the instance's Kind.
+func (a *Action) resolveFieldOwner(rr *odhTypes.ReconciliationRequest) (string, error) {
+	if a.fieldOwner != "" {
+		return a.fieldOwner, nil
+	}
+
+	kind, err := resources.KindForObject(rr.Client.Scheme(), rr.Instance)
+	if err != nil {
+		return "", err
+	}
+
+	return strings.ToLower(kind), nil
+}
+
 func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) error {
 	if a.sortFn != nil {
 		sorted, err := a.sortFn(ctx, rr.Resources)
@@ -142,12 +172,11 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 		a.cache.Sync()
 	}
 
-	kind, err := resources.KindForObject(rr.Client.Scheme(), rr.Instance)
+	controllerName, err := a.resolveFieldOwner(rr)
 	if err != nil {
 		return err
 	}
 
-	controllerName := strings.ToLower(kind)
 	igvk := rr.Instance.GetObjectKind().GroupVersionKind()
 
 	for i := range rr.Resources {
@@ -241,7 +270,21 @@ func (a *Action) deployCRD(
 ) (bool, error) {
 	resources.SetLabels(&obj, a.labels)
 	resources.SetAnnotations(&obj, a.annotations)
-	resources.SetLabel(&obj, labels.PlatformPartOf, labels.Platform)
+
+	if resources.GetLabel(&obj, a.partOfLabelKey) == "" {
+		if a.partOfLabelKey == labels.PlatformPartOf {
+			resources.SetLabel(&obj, a.partOfLabelKey, labels.Platform)
+		} else {
+			fo, err := a.resolveFieldOwner(rr)
+			if err != nil {
+				return false, err
+			}
+
+			if fo != "" {
+				resources.SetLabel(&obj, a.partOfLabelKey, fo)
+			}
+		}
+	}
 
 	shouldSkip, err := a.ShouldSkip(current, &obj)
 	if err != nil {
@@ -301,26 +344,21 @@ func (a *Action) deploy(
 	obj unstructured.Unstructured,
 	current *unstructured.Unstructured,
 ) (bool, error) {
-	fo := a.fieldOwner
-	if fo == "" {
-		kind, err := resources.KindForObject(rr.Client.Scheme(), rr.Instance)
-		if err != nil {
-			return false, err
-		}
-
-		fo = strings.ToLower(kind)
+	fo, err := a.resolveFieldOwner(rr)
+	if err != nil {
+		return false, err
 	}
 
 	resources.SetLabels(&obj, a.labels)
 	resources.SetAnnotations(&obj, a.annotations)
-	resources.SetAnnotation(&obj, annotations.InstanceGeneration, strconv.FormatInt(rr.Instance.GetGeneration(), 10))
-	resources.SetAnnotation(&obj, annotations.InstanceName, rr.Instance.GetName())
-	resources.SetAnnotation(&obj, annotations.InstanceUID, string(rr.Instance.GetUID()))
-	resources.SetAnnotation(&obj, annotations.PlatformType, string(rr.Release.Name))
-	resources.SetAnnotation(&obj, annotations.PlatformVersion, rr.Release.Version.String())
+	resources.SetAnnotation(&obj, a.annotationPrefix+annotations.SuffixInstanceGeneration, strconv.FormatInt(rr.Instance.GetGeneration(), 10))
+	resources.SetAnnotation(&obj, a.annotationPrefix+annotations.SuffixInstanceName, rr.Instance.GetName())
+	resources.SetAnnotation(&obj, a.annotationPrefix+annotations.SuffixInstanceUID, string(rr.Instance.GetUID()))
+	resources.SetAnnotation(&obj, a.annotationPrefix+annotations.SuffixType, string(rr.Release.Name))
+	resources.SetAnnotation(&obj, a.annotationPrefix+annotations.SuffixVersion, rr.Release.Version.String())
 
-	if resources.GetLabel(&obj, labels.PlatformPartOf) == "" && fo != "" {
-		resources.SetLabel(&obj, labels.PlatformPartOf, fo)
+	if resources.GetLabel(&obj, a.partOfLabelKey) == "" && fo != "" {
+		resources.SetLabel(&obj, a.partOfLabelKey, fo)
 	}
 
 	shouldSkip, err := a.ShouldSkip(current, &obj)
@@ -583,7 +621,9 @@ func (a *Action) shouldOwn(rr *odhTypes.ReconciliationRequest, objGVK schema.Gro
 
 func NewAction(opts ...ActionOpts) actions.Fn {
 	action := Action{
-		deployMode: ModeSSA,
+		deployMode:       ModeSSA,
+		partOfLabelKey:   labels.PlatformPartOf,
+		annotationPrefix: labels.ODHPlatformPrefix,
 	}
 
 	for _, opt := range opts {

@@ -13,7 +13,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.39.1
 	github.com/opendatahub-io/models-as-a-service/maas-controller v0.0.0-20260420142354-89fba298f42a
-	github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth v0.0.0
+	github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth v0.0.0
 	github.com/opendatahub-io/opendatahub-operator/v2/pkg/failureclassifier v0.0.0-00010101000000-000000000000
 	github.com/openshift/api v0.0.0-20230823114715-5fdd7511b790
 	github.com/operator-framework/api v0.42.0
@@ -135,7 +135,7 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
 )
 
-replace github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth => ./pkg/clusterhealth
+replace github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth => ./pkg/clusterhealth
 
 replace github.com/opendatahub-io/opendatahub-operator/v2/pkg/failureclassifier => ./pkg/failureclassifier
 

@@ -2,7 +2,7 @@
 
 Library for running health and diagnostics checks against a Kubernetes cluster. It returns structured data only; callers decide logging and formatting.
 
-This is a **standalone Go module** (`github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth`) that can be imported without pulling in the full operator dependency tree. Its only runtime dependencies are `controller-runtime`, `client-go`, and `k8s.io/apimachinery`.
+This is a **standalone Go module** (`github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth`) that can be imported without pulling in the full operator dependency tree. Its only runtime dependencies are `controller-runtime`, `client-go`, and `k8s.io/apimachinery`.
 
 ## Quick start
 
@@ -11,7 +11,7 @@ Build a `Config` with your controller-runtime client and namespace/CR names, the
 ```go
 import (
 	"context"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/clusterhealth"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrl "sigs.k8s.io/controller-runtime/pkg/client/config"

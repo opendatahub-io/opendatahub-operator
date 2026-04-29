@@ -147,10 +147,6 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.MonitoringInstanceName)),
 			reconciler.WithPredicates(resources.CMContentChangedPredicate),
 		).
-		// These are only for SRE Monitoring
-		WithAction(initialize).
-		WithAction(updatePrometheusConfigMap).
-		// These are only for new monitoring stack dependent Operators
 		WithAction(addMonitoringCapability).
 		WithAction(deployMonitoringAdmissionPolicies).
 		WithAction(deployMonitoringStackWithQuerierAndRestrictions).
