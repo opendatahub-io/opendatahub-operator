@@ -172,6 +172,33 @@ Module controllers that need internal TLS certificates (e.g., for admission
 webhooks or mTLS) should use **cert-manager** for provisioning and rotation.
 Do not depend on OpenShift serving certificates.
 
+### Webhook ownership
+
+Module operators are responsible for managing all admission webhooks related
+to their workloads. This includes:
+
+- **HardwareProfile injection.** The platform deploys the HardwareProfile CRD
+  and default profiles, but the mutating webhook that injects HWP settings
+  (resource requests, tolerations, node selectors, Kueue queue labels) into
+  workloads is the module's responsibility. If your module creates workloads
+  that users attach hardware profiles to (e.g., Notebooks, InferenceServices),
+  your module operator must register and maintain the mutating webhook for
+  those GVKs.
+
+- **CRD conversion / migration webhooks.** If your module CRD evolves across
+  API versions (e.g., `v1alpha1` to `v1beta1`), your module operator owns
+  the conversion webhook. The platform does not manage CRD version conversion
+  for module CRDs.
+
+- **Validating webhooks.** Any validation logic for resources your module
+  manages (e.g., blocking invalid configurations, enforcing naming
+  conventions) is your module operator's responsibility.
+
+The platform operator does **not** register or manage webhooks on behalf of
+modules. When a component migrates from in-tree to a module, any webhooks the
+platform previously managed for that component's workloads must be
+re-implemented in the module operator.
+
 ---
 
 ## Overview
