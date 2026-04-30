@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -619,6 +620,63 @@ func TestExtractTestLevel(t *testing.T) {
 			require.Equal(t, tt.shouldSkip, shouldSkip, "shouldSkip mismatch")
 		})
 	}
+}
+
+func TestExportJUnitBestEffort(t *testing.T) {
+	t.Run("no-op when JUnitOutputPath is empty", func(t *testing.T) {
+		runner := &E2ETestRunner{opts: types.E2ETestOptions{JUnitOutputPath: ""}}
+		// Should not panic or write anything
+		runner.exportJUnitBestEffort(nil, "some reason")
+	})
+
+	t.Run("nil result produces synthetic failure", func(t *testing.T) {
+		out := filepath.Join(t.TempDir(), "junit.xml")
+		runner := &E2ETestRunner{opts: types.E2ETestOptions{JUnitOutputPath: out}}
+
+		runner.exportJUnitBestEffort(nil, "initial run crashed")
+
+		suite := readJUnitFile(t, out)
+		require.Equal(t, 1, suite.Tests)
+		require.Equal(t, 1, suite.Failures)
+		require.Equal(t, "TestOdhOperator", suite.TestCases[0].Name)
+		require.Contains(t, suite.TestCases[0].Failure.Content, "initial run crashed")
+	})
+
+	t.Run("empty result produces synthetic failure", func(t *testing.T) {
+		out := filepath.Join(t.TempDir(), "junit.xml")
+		runner := &E2ETestRunner{opts: types.E2ETestOptions{JUnitOutputPath: out}}
+
+		runner.exportJUnitBestEffort(&types.TestResult{
+			PassedTest: []types.TestCase{},
+			FailedTest: []types.TestCase{},
+		}, "timeout")
+
+		suite := readJUnitFile(t, out)
+		require.Equal(t, 1, suite.Tests)
+		require.Equal(t, 1, suite.Failures)
+		require.Equal(t, "TestOdhOperator", suite.TestCases[0].Name)
+	})
+
+	t.Run("preserves existing results without adding synthetic entry", func(t *testing.T) {
+		out := filepath.Join(t.TempDir(), "junit.xml")
+		runner := &E2ETestRunner{opts: types.E2ETestOptions{JUnitOutputPath: out}}
+
+		runner.exportJUnitBestEffort(&types.TestResult{
+			PassedTest: []types.TestCase{{Name: "TestOdhOperator/components/dashboard"}},
+			FailedTest: []types.TestCase{{Name: "TestOdhOperator/services/monitoring", FailureOutput: "timed out"}},
+		}, "partial failure")
+
+		suite := readJUnitFile(t, out)
+		require.Equal(t, 2, suite.Tests)
+		require.Equal(t, 1, suite.Failures)
+
+		names := make([]string, 0, len(suite.TestCases))
+		for _, tc := range suite.TestCases {
+			names = append(names, tc.Name)
+		}
+		require.Contains(t, names, "TestOdhOperator/components/dashboard")
+		require.Contains(t, names, "TestOdhOperator/services/monitoring")
+	})
 }
 
 func TestNotifyPROnFailure(t *testing.T) {

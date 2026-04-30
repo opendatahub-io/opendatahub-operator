@@ -1183,7 +1183,11 @@ func (tc *MonitoringTestCtx) ValidateMonitoringServiceDisabled(t *testing.T) {
 	// Disable monitoring service
 	tc.resetMonitoringConfigToRemoved()
 
-	// Verify all monitoring-related resources are cleaned up
+	// Verify all monitoring-related resources are cleaned up.
+	// Use EnsureResourceGone (singular/Get-by-name) instead of EnsureResourcesGone
+	// (plural/namespace-wide List) because other controllers (e.g. MaaS) may create
+	// their own PersesDatasource resources in the same namespace. A List would pick
+	// those up and fail even though monitoring cleanup succeeded.
 	for _, resource := range []struct {
 		gvk  schema.GroupVersionKind
 		name string
@@ -1198,7 +1202,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringServiceDisabled(t *testing.T) {
 		{gvk.PersesDatasource, PersesDatasourceName},
 		{gvk.PersesDatasource, ClusterPrometheusDatasourceName},
 	} {
-		tc.EnsureResourcesGone(
+		tc.EnsureResourceGone(
 			WithMinimalObject(resource.gvk, types.NamespacedName{
 				Name:      resource.name,
 				Namespace: tc.MonitoringNamespace,

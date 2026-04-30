@@ -45,6 +45,8 @@ func (r *E2ETestRunner) Run() error {
 	// Run initial test execution
 	testResult, err := r.runE2ETests("")
 	if err != nil {
+		// Best-effort JUnit: write whatever we collected so far.
+		r.exportJUnitBestEffort(aggregateResult, "initial run failed: "+err.Error())
 		return fmt.Errorf("failed to run initial e2e tests: %w", err)
 	}
 
@@ -438,6 +440,36 @@ func (r *E2ETestRunner) exportJUnit(result *types.TestResult) error {
 		OutputPath: r.opts.JUnitOutputPath,
 		SuiteName:  "e2e-test",
 	})
+}
+
+// exportJUnitBestEffort writes a JUnit file with whatever results were
+// collected before a fatal error.
+// If there are no collected results, it writes a single synthetic failure entry.
+func (r *E2ETestRunner) exportJUnitBestEffort(result *types.TestResult, reason string) {
+	if r.opts.JUnitOutputPath == "" {
+		return
+	}
+
+	if result == nil {
+		result = &types.TestResult{
+			PassedTest: make([]types.TestCase, 0),
+			FailedTest: make([]types.TestCase, 0),
+		}
+	}
+
+	if len(result.PassedTest) == 0 && len(result.FailedTest) == 0 {
+		result.FailedTest = append(result.FailedTest, types.TestCase{
+			Name:          "TestOdhOperator",
+			Package:       "e2e",
+			FailureOutput: reason,
+		})
+	}
+
+	if err := r.exportJUnit(result); err != nil {
+		fmt.Printf("Warning: failed to export best-effort JUnit XML: %v\n", err)
+	} else {
+		fmt.Printf("Best-effort JUnit XML exported to %s (reason: %s)\n", r.opts.JUnitOutputPath, reason)
+	}
 }
 
 // notifyPROnFailure adds a label and/or comment to the GitHub PR if configured
