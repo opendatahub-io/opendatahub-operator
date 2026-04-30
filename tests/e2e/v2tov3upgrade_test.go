@@ -204,12 +204,23 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateRayRaiseErrorIfCodeFlarePresent(t *testi
 func (tc *V2Tov3UpgradeTestCtx) triggerDSCReconciliation(t *testing.T) {
 	t.Helper()
 
+	// Use a two-step toggle to guarantee a spec change even on consecutive calls.
+	// A single idempotent patch (e.g. dashboard = {}) won't bump generation on
+	// the second call, so no reconciliation happens.
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.dashboard = {}`)),
 		WithCondition(jq.Match(`.metadata.generation == .status.observedGeneration`)),
 		WithEventuallyTimeout(tc.TestTimeouts.defaultEventuallyTimeout),
-		WithCustomErrorMsg("Failed to trigger DSC reconciliation"),
+		WithCustomErrorMsg("Failed to trigger DSC reconciliation (set dashboard to default)"),
+	)
+
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.dashboard.managementState = "Removed"`)),
+		WithCondition(jq.Match(`.metadata.generation == .status.observedGeneration`)),
+		WithEventuallyTimeout(tc.TestTimeouts.defaultEventuallyTimeout),
+		WithCustomErrorMsg("Failed to trigger DSC reconciliation (restore dashboard to Removed)"),
 	)
 }
 
