@@ -462,6 +462,29 @@ if [ -s "$KNOWN_ISSUES_MATCHED" ]; then
     done
 fi
 
+# Detect stale known issues (configured but no longer triggered)
+if [ -s "$KNOWN_ISSUES_FILE" ]; then
+    matched_images="$WORKDIR/matched-images.txt"
+    sort -u "$KNOWN_ISSUES_MATCHED" | cut -d'|' -f2 | sort -u > "$matched_images" 2>/dev/null || true
+
+    stale_count=0
+    while IFS='|' read -r ki_image ki_jira ki_reason; do
+        if ! grep -qxF "$ki_image" "$matched_images" 2>/dev/null; then
+            if [ "$stale_count" -eq 0 ]; then
+                echo ""
+                printf "  ${YELLOW}${BOLD}Stale known issues (no longer triggered, please remove from ${CONFIG_FILE}):${RESET}\n"
+            fi
+            printf "    ${YELLOW}%s${RESET} - %s (%s)\n" "$ki_image" "$ki_reason" "$ki_jira"
+            stale_count=$((stale_count + 1))
+        fi
+    done < "$KNOWN_ISSUES_FILE"
+    rm -f "$matched_images"
+
+    if [ "$stale_count" -gt 0 ]; then
+        WARNINGS=$((WARNINGS + stale_count))
+    fi
+fi
+
 if [ "$ERRORS" -gt 0 ]; then
     echo ""
     printf "${RED}Please ensure images are added to the build config repos and params.env before merging.${RESET}\n"

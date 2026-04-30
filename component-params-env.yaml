@@ -8,20 +8,41 @@
 rhai_helm_components:
   - kserve
 
-known_issues:
-- image: RELATED_IMAGE_RHAII_VLLM_CPU_IMAGE
-  jira: https://redhat.atlassian.net/browse/RHOAIENG-59802
-  reason: RHAII image must be renamed from RHAIIS
-- image: RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE
-  jira: https://redhat.atlassian.net/browse/RHOAIENG-59802
-  reason: RHAII image must be renamed from RHAIIS
-- image: RELATED_IMAGE_RHAII_VLLM_ROCM_IMAGE
-  jira: https://redhat.atlassian.net/browse/RHOAIENG-59802
-  reason: RHAII image must be renamed from RHAIIS
-- image: RELATED_IMAGE_RHAII_VLLM_SPYRE_IMAGE
-  jira: https://redhat.atlassian.net/browse/RHOAIENG-59802
-  reason: RHAII image must be renamed from RHAIIS
 # Example:
 # - image: RELATED_IMAGE_ODH_CAIKIT_NLP_IMAGE
 #   jira: https://issues.redhat.com/browse/RHOAIENG-XXXXX
 #   reason: Deprecated image, removal tracked in Jira
+known_issues:
+- image: RELATED_IMAGE_ODH_ML_PIPELINES_RUNTIME_GENERIC_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-60396
+  reason: Removed with InstrutLab pipeline removal since RHOAI 3.0
+- image: RELATED_IMAGE_DSP_INSTRUCTLAB_NVIDIA_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-60396
+  reason: Removed with InstrutLab pipeline removal since RHOAI 3.0
+- image: RELATED_IMAGE_DSP_TOOLBOX_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-60396
+  reason: Removed with InstrutLab pipeline removal since RHOAI 3.0
+- image: RELATED_IMAGE_CLI_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-60519
+  reason: image is not used in monitoring templates and should be removed
+- image: RELATED_IMAGE_ODH_CAIKIT_NLP_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-60523
+  reason: caikit-nlp support is removed since RHOAI 3.0
+- image: RELATED_IMAGE_ODH_EVAL_HUB_IMAGE
+  jira: https://redhat.enterprise.slack.com/lists/T027F3GAJ/F07SBP17R7Z?record_id=Rec0B00862M6J
+  reason: PR created, need to be merged
+- image: RELATED_IMAGE_ODH_TRUSTYAI_NEMO_GUARDRAILS_SERVER_IMAGE
+  jira: https://redhat.enterprise.slack.com/lists/T027F3GAJ/F07SBP17R7Z?record_id=Rec0B00862M6J
+  reason: PR created, need to be merged
+- image: RELATED_IMAGE_ODH_TRUSTYAI_GARAK_LLS_PROVIDER_DSP_IMAGE
+  jira: https://redhat.enterprise.slack.com/lists/T027F3GAJ/F07SBP17R7Z?record_id=Rec0B00862M6J
+  reason: need to be added the image
+- image: RELATED_IMAGE_ODH_LLM_D_KV_CACHE_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-60572
+  reason: need to be added the image to ODH-Build-Config
+- image: RELATED_IMAGE_ODH_MODEL_PERFORMANCE_DATA_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-60572
+  reason: need to be added the image to ODH-Build-Config, or set an exception for the image
+- image: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-60572
+  reason: need to be added the image to ODH-Build-Config, or set an exception for the image
