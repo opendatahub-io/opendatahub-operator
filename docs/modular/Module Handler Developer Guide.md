@@ -19,6 +19,161 @@ Before starting, your module team must have:
    Deployment, RBAC, CRD, and ConfigMap. The manifests must **not** include a
    CR instance; the platform creates the CR.
 
+## Module CRD API Requirements
+
+Your module CRD is the contract between the platform and your module operator.
+The platform creates instances of it, projects fields into `.spec`, and reads
+`.status` for aggregation. The following requirements must be met.
+
+### Scope and cardinality
+
+- **Scope:** Cluster-scoped.
+- **Cardinality:** Singleton -- the platform creates exactly one instance.
+- **Name enforcement:** The CRD must validate `metadata.name` to a single
+  allowed value (e.g., `default`) using a CEL rule:
+  ```yaml
+  x-kubernetes-validations:
+    - rule: "self.metadata.name == 'default'"
+      message: "Only the name 'default' is allowed"
+  ```
+
+### API group and versioning
+
+- **Group:** `components.platform.opendatahub.io` (for user-facing modules) or
+  `services.platform.opendatahub.io` (for infrastructure services).
+- **Version:** Must reflect the module's support level:
+  - Developer preview: `v1alpha1`
+  - Technology preview: `v1beta1`
+  - General availability: `v1`
+
+### Spec requirements
+
+The CRD `.spec` is the primary source of truth for configuration.
+
+**Zero-config defaults:** Every optional field must have a sensible default
+that results in a working configuration. Mandatory fields must have strict
+OpenAPI or CEL validation.
+
+**Platform-managed fields:** The platform projects global settings (auth,
+certificates, observability) into specific `.spec` fields on your CR. Your CRD
+must expose these fields. For example, if your module needs authentication:
+
+```yaml
+spec:
+  auth:
+    enabled: true
+    audiences:
+      - https://api.openshift.com
+```
+
+The platform continuously reconciles these fields via Server-Side Apply and
+will revert manual edits. Do not use a ConfigMap for platform-managed settings.
+
+**Module-owned fields:** Your CRD can have additional `.spec` fields that the
+platform does not set. These are managed by your module operator's own field
+manager. Advanced users can edit the module CR directly for configuration not
+exposed in the DSC (e.g., `spec.controllers[].resources` for pod sizing).
+
+### Status requirements
+
+The CRD `.status` must conform to the `PlatformObject` interface so the
+platform can parse it generically.
+
+**Required fields:**
+
+| Field | Type | Description |
+|---|---|---|
+| `observedGeneration` | `int64` | Last `.metadata.generation` the module controller reconciled. The platform treats status as stale when this falls behind `metadata.generation`. |
+| `conditions` | `[]metav1.Condition` | Standard Kubernetes conditions (see below). |
+| `releases` | `[]Release` | Installed component versions (`name`, `repoUrl`, `version`). |
+
+**Mandatory conditions:**
+
+| Condition | True | False |
+|---|---|---|
+| `Ready` | Module is fully functional and available | Module is unhealthy, installing, or failed |
+| `ProvisioningSucceeded` | Manifests applied successfully | Error during manifest application. Must be aggregated into `Ready`. |
+| `Degraded` | Functional but degraded (non-critical sub-component failing) | Operating normally |
+
+**Semantics:**
+- `Ready=True, Degraded=True` -- partial availability (e.g., main service up
+  but metrics collector crashing). The platform reports `ModulesReady=False`
+  with a degraded message.
+- `Ready=False` -- unusable. The platform reports `ModulesReady=False`.
+- `Ready=True, Degraded=False` -- healthy. The platform reports
+  `ModulesReady=True`.
+
+### ConfigMap (strictly minimal)
+
+If your module needs runtime flags that are not user-facing APIs, use a
+ConfigMap included in your operator manifests.
+
+| Belongs in `.spec` | Belongs in ConfigMap |
+|---|---|
+| User-configurable settings (ports, storage classes) | Internal controller flags (feature gates, debug toggles) |
+| Platform-managed settings (auth, certs) | Environmental overrides |
+
+The platform applies and enforces the ConfigMap via SSA. Your module operator
+decides how to consume it (volume mount, watch, restart).
+
+### Example CRD instance
+
+```yaml
+apiVersion: components.platform.opendatahub.io/v1alpha1
+kind: MyModule
+metadata:
+  name: default
+spec:
+  managementState: Managed
+  auth:
+    enabled: true
+    audiences:
+      - https://api.openshift.com
+  # Module-specific fields below
+  grpcPort: 9090
+  restPort: 8080
+status:
+  observedGeneration: 3
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Available
+      message: "All components healthy"
+      lastTransitionTime: "2026-04-28T10:00:00Z"
+    - type: ProvisioningSucceeded
+      status: "True"
+      reason: Applied
+      message: "Manifests applied successfully"
+      lastTransitionTime: "2026-04-28T09:55:00Z"
+    - type: Degraded
+      status: "False"
+      reason: NoWarnings
+      message: ""
+      lastTransitionTime: "2026-04-28T09:55:00Z"
+  releases:
+    - name: mymodule
+      repoUrl: https://github.com/opendatahub-io/mymodule-operator
+      version: "1.2.0"
+```
+
+### Dependency management
+
+Modules must discover dependencies dynamically by querying the Kubernetes API
+for the existence and status of other module/component CRs.
+
+- **Optional dependency missing:** Disable related functionality, set
+  `Degraded=True` if needed, keep `Ready=True`.
+- **Critical dependency missing:** Set `Ready=False` with a clear reason.
+  Do not crash the controller loop -- wait for the dependency to appear.
+
+### Certificate management
+
+Module controllers that need internal TLS certificates (e.g., for admission
+webhooks or mTLS) should use **cert-manager** for provisioning and rotation.
+Do not depend on OpenShift serving certificates.
+
+---
+
 ## Overview
 
 Adding a module to the operator requires changes in four areas:
