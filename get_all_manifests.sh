@@ -15,10 +15,10 @@ DST_CHARTS_DIR="./opt/charts"
 
 # ODH Component Manifests
 declare -A ODH_COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:main@7a3d93bd97d2944a95a3179a188d6b585ac6a922:manifests"
+    ["dashboard"]="opendatahub-io:odh-dashboard:main@377478628dd75c0a28a84123928237b938eda8ea:manifests"
     ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@ec116787be830a287a314e370ff732cdfffda873:components/notebook-controller/config"
     ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@ec116787be830a287a314e370ff732cdfffda873:components/odh-notebook-controller/config"
-    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@89f89e3147aa774d80469ecdeff43b7e3d010ce0:manifests"
+    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@a7fb323e748a9c720de2bca7feb4566e7e22a99c:manifests"
     ["kserve"]="opendatahub-io:kserve:release-v0.17@6effd2fc4006d07602b3134fe37d33610eda7bfc:config"
     ["ray"]="opendatahub-io:kuberay:dev@05169e64f7a41f72076c9d3a41eb5ae0ff5e083b:ray-operator/config"
     ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@958611b13f5a62da76cc6933d83bf97fe3b36181:config"
@@ -31,16 +31,16 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["trainer"]="opendatahub-io:trainer:stable@cc7a343111358bf1c1c8fccc73db141ebda521e2:manifests"
     ["maas"]="opendatahub-io:models-as-a-service:stable@44afbe21de59248e96448aa941af9811e339a68f:deployment"
     ["mlflowoperator"]="opendatahub-io:mlflow-operator:main@9a0ea2c59dc32a19ad60a648ea61d1b33659cc17:config"
-    ["sparkoperator"]="opendatahub-io:spark-operator:main@39b1d20a7fd4163c7c0efa15c3e0194942aa1df1:config"
+    ["sparkoperator"]="opendatahub-io:spark-operator:main@49a9947eadc1d5cf5bab92e7af5169ba4d677726:config"
     ["wva"]="opendatahub-io:workload-variant-autoscaler:main@3c221bc56e7303daf8e9aa6ac671012131764a3c:config"
 )
 
 # RHOAI Component Manifests
 declare -A RHOAI_COMPONENT_MANIFESTS=(
-    ["dashboard"]="red-hat-data-services:odh-dashboard:rhoai-3.5-ea.1@ee1234a87be3b1945be35bb68d3af8b760a9c6d0:manifests"
+    ["dashboard"]="red-hat-data-services:odh-dashboard:rhoai-3.5-ea.1@55b593481af1ddd86fd1aa4c4ef681e3cdd7f433:manifests"
     ["workbenches/kf-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.5-ea.1@32b9d3643d7a5c9341882ceb96c62ed4abd6f255:components/notebook-controller/config"
     ["workbenches/odh-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.5-ea.1@32b9d3643d7a5c9341882ceb96c62ed4abd6f255:components/odh-notebook-controller/config"
-    ["workbenches/notebooks"]="red-hat-data-services:notebooks:rhoai-3.5-ea.1@a77b7c07798abbaa1b5d6f9b43729d6ed6c2a5f5:manifests"
+    ["workbenches/notebooks"]="red-hat-data-services:notebooks:rhoai-3.5-ea.1@e297f8b4816505e7a4f2ebbf8c7b9b4f59c4723c:manifests"
     ["kserve"]="red-hat-data-services:kserve:rhoai-3.5-ea.1@a0331d5707e0adda0c2dc0c94b3c9826e0cec45b:config"
     ["ray"]="red-hat-data-services:kuberay:rhoai-3.5-ea.1@5aa1935387c5d73b394fe6e3baa76c97aebe6992:ray-operator/config"
     ["trustyai"]="red-hat-data-services:trustyai-service-operator:rhoai-3.5-ea.1@addb3370eeaadb263a0c19d9d08241ece299bc92:config"
