@@ -504,7 +504,6 @@ func (a *Action) patch(
 			client.RawPatch(types.ApplyPatchType, data),
 			opts...,
 		)
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to patch object %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
 		}

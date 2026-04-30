@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -109,6 +110,31 @@ func TestRecentEvents_SortOrder(t *testing.T) {
 	}
 	if events[0].Name != "pod-b" {
 		t.Errorf("first event = %q, want pod-b (most recent)", events[0].Name)
+	}
+}
+
+func TestRecentEvents_Count(t *testing.T) {
+	now := time.Now()
+
+	for _, count := range []int32{0, 1, 150} {
+		t.Run(fmt.Sprintf("count_%d", count), func(t *testing.T) {
+			evt := makeEvent("opendatahub", "evt1", "Pod", "pod-a", "Warning", "BackOff", "back-off", now.Add(-1*time.Minute))
+			evt.Count = count
+			cl := newFakeClient(evt)
+
+			events, err := clusterhealth.RunRecentEvents(context.Background(), clusterhealth.RecentEventsConfig{
+				Client: cl, Namespaces: []string{"opendatahub"},
+			})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(events) != 1 {
+				t.Fatalf("got %d events, want 1", len(events))
+			}
+			if events[0].Count != count {
+				t.Errorf("Count = %d, want %d", events[0].Count, count)
+			}
+		})
 	}
 }
 

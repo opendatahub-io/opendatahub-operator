@@ -1603,7 +1603,19 @@ func TestWithApplyOrder(t *testing.T) {
 	})
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	// Input order: Deployment, Namespace (wrong order)
+	// Add cert-manager resources to test ordering
+	obj3, err := resources.ToUnstructured(&unstructured.Unstructured{})
+	obj3.SetGroupVersionKind(gvk.CertManagerCertificate)
+	obj3.SetNamespace("cert-manager")
+	obj3.SetName("test-cert")
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	obj4, err := resources.ToUnstructured(&unstructured.Unstructured{})
+	obj4.SetGroupVersionKind(gvk.CertManagerClusterIssuer)
+	obj4.SetName("test-issuer")
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Input order: Deployment, Namespace, Certificate, ClusterIssuer (wrong order)
 	rr := types.ReconciliationRequest{
 		Client: cl,
 		Instance: &componentApi.Dashboard{
@@ -1617,7 +1629,7 @@ func TestWithApplyOrder(t *testing.T) {
 				Major: 1, Minor: 2, Patch: 3,
 			}},
 		},
-		Resources: []unstructured.Unstructured{*obj1, *obj2},
+		Resources: []unstructured.Unstructured{*obj1, *obj2, *obj3, *obj4},
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
 			m.On("Owns", mock.Anything).Return(false)
 		}),
@@ -1626,15 +1638,27 @@ func TestWithApplyOrder(t *testing.T) {
 	err = action(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	// Verify resources were reordered: Namespace before Deployment
+	// Verify resources were reordered correctly:
+	// RHOAIENG-53513: Certificate BEFORE Deployment to reduce transient errors
+	// Expected: Namespace → ClusterIssuer → Certificate → Deployment
+	g.Expect(rr.Resources).To(HaveLen(4))
 	g.Expect(rr.Resources[0].GetKind()).To(Equal(gvk.Namespace.Kind))
-	g.Expect(rr.Resources[1].GetKind()).To(Equal(gvk.Deployment.Kind))
+	g.Expect(rr.Resources[1].GetKind()).To(Equal(gvk.CertManagerClusterIssuer.Kind))
+	g.Expect(rr.Resources[2].GetKind()).To(Equal(gvk.CertManagerCertificate.Kind))
+	g.Expect(rr.Resources[3].GetKind()).To(Equal(gvk.Deployment.Kind))
 
-	// Verify both resources were deployed
+	// Verify all resources were deployed
 	err = cl.Get(ctx, apimachinery.NamespacedName{Namespace: ns, Name: "deploy-1"}, resources.GvkToUnstructured(gvk.Deployment))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	err = cl.Get(ctx, apimachinery.NamespacedName{Name: obj2.GetName()}, resources.GvkToUnstructured(gvk.Namespace))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Verify cert-manager resources were also deployed
+	err = cl.Get(ctx, apimachinery.NamespacedName{Namespace: "cert-manager", Name: "test-cert"}, resources.GvkToUnstructured(gvk.CertManagerCertificate))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = cl.Get(ctx, apimachinery.NamespacedName{Name: obj4.GetName()}, resources.GvkToUnstructured(gvk.CertManagerClusterIssuer))
 	g.Expect(err).ShouldNot(HaveOccurred())
 }
 
