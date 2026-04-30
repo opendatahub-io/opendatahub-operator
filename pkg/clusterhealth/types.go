@@ -125,6 +125,7 @@ type EventInfo struct {
 	Reason    string    `json:"reason"`
 	Message   string    `json:"message"`
 	LastTime  time.Time `json:"lastTime"`
+	Count     int32     `json:"count"`
 }
 
 type QuotasSection struct {

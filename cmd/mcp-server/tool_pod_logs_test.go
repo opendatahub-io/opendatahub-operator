@@ -109,6 +109,32 @@ func TestPodLogs(t *testing.T) {
 			w.Write(make([]byte, maxLogBytes+100))
 		}, map[string]interface{}{"pod_name": "my-pod", "namespace": "default"},
 			"[truncated: output exceeded 50KB limit]", false},
+		{"list containers", func(w http.ResponseWriter, r *http.Request) {
+			if !strings.Contains(r.URL.Path, "/log") {
+				w.Header().Set("Content-Type", "application/json")
+				fmt.Fprint(w, `{"apiVersion":"v1","kind":"Pod","metadata":{"name":"my-pod","namespace":"default"},`+
+					`"spec":{"initContainers":[{"name":"init-setup"}],"containers":[{"name":"main"},{"name":"sidecar"}]},`+
+					`"status":{"initContainerStatuses":[{"name":"init-setup","ready":false,"restartCount":0,"state":{"terminated":{"reason":"Completed"}}}],`+
+					`"containerStatuses":[{"name":"main","ready":true,"restartCount":0,"state":{"running":{}}},`+
+					`{"name":"sidecar","ready":true,"restartCount":3,"state":{"running":{}}}]}}`)
+				return
+			}
+			http.NotFound(w, r)
+		}, map[string]interface{}{"pod_name": "my-pod", "namespace": "default", "list_containers": true},
+			`"name": "init-setup"`, false},
+		{"container not found includes available containers", func(w http.ResponseWriter, r *http.Request) {
+			if !strings.Contains(r.URL.Path, "/log") {
+				w.Header().Set("Content-Type", "application/json")
+				fmt.Fprint(w, `{"apiVersion":"v1","kind":"Pod","metadata":{"name":"my-pod","namespace":"default"},`+
+					`"spec":{"containers":[{"name":"main"}]},`+
+					`"status":{"containerStatuses":[{"name":"main","ready":true,"restartCount":0,"state":{"running":{}}}]}}`)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprint(w, `{"kind":"Status","apiVersion":"v1","status":"Failure","message":"container \"bad\" is not valid for pod \"my-pod\"","reason":"BadRequest","code":400}`)
+		}, map[string]interface{}{"pod_name": "my-pod", "namespace": "default", "container": "bad"},
+			"Available containers", true},
 	}
 
 	for _, tt := range tests {
