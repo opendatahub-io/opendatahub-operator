@@ -58,7 +58,7 @@ jobs:
         run: |
           pull_secret_file="$RUNNER_TEMP/pull-secret.json"
           echo "$PULL_SECRET" > "$pull_secret_file"
-          make kind-setup-pull-secrets PULL_SECRET="$pull_secret_file"
+          make kind-setup-pull-secrets PULL_SECRET="$pull_secret_file" PULL_SECRET_NAMESPACES="cert-manager cert-manager-operator test-lws-operator test-istio-system"
           rm -f "$pull_secret_file"
         env:
           PULL_SECRET: ${{ secrets.CCM_PULL_SECRET }}
@@ -88,6 +88,7 @@ jobs:
       - name: Collect operator logs on failure
         if: failure()
         run: |
+          kubectl get azurekubernetesengine -o yaml || true
           kubectl logs -n opendatahub-cloudmanager-system \
             -l control-plane=controller-manager \
             --tail=500 || true
