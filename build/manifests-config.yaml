@@ -60,3 +60,6 @@ map:
   odh-spark-operator:
     src: config
     dest: sparkoperator
+  odh-ai-third-demo:
+    src: config/manifests
+    dest: opt/manifests/odh-ai-third-demo
