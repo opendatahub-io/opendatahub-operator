@@ -34,6 +34,11 @@ Example: test-retry e2e -- -run TestFoo -v`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// viper.BindEnv populates viper, not cobra's StringVar; bridge manually.
+			if prOpts.Token == "" {
+				prOpts.Token = viper.GetString("github-token")
+			}
+
 			// Combine testFlags with additional args passed after --
 			finalTestFlags := testFlags
 			if len(args) > 0 {
@@ -72,10 +77,9 @@ Example: test-retry e2e -- -run TestFoo -v`,
 	cmd.Flags().IntVar(&maxRetries, "max-retries", 3, "Maximum number of retries for failed tests")
 	cmd.Flags().StringSliceVar(&neverSkip, "never-skip", []string{"TestOdhOperator/DSCInitialization_and_DataScienceCluster_management_E2E_Tests", "TestOdhOperator/DataScienceCluster"}, "Test prefixes that should never be skipped (always run, repeatable)")
 	cmd.Flags().StringSliceVar(&skipAtPrefix, "skip-at-prefix", []string{
-		"TestOdhOperator/services/*/monitoring", // Extract monitoring tests at group level for efficient retry
-		"TestOdhOperator/services/*/",           // Extract other services at service level
-		"TestOdhOperator/components/*/",         // Extract components at component level
-		"TestOdhOperator/",                      // Fallback: extract at root level
+		"TestOdhOperator/services/*/",   // Extract services at service level
+		"TestOdhOperator/components/*/", // Extract components at component level
+		"TestOdhOperator/",              // Fallback: extract at root level
 	}, "Test prefixes where tests should be extracted at prefix + 1 level (repeatable)")
 	cmd.Flags().StringVar(&junitOutput, "junit-output", "", "Path to JUnit XML output file (optional)")
 
