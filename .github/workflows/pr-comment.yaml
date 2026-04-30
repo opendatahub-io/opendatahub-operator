@@ -6,7 +6,10 @@ on:
       - completed
 jobs:
   resolve-workflow:
+    if: github.event.workflow_run.event == 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
     outputs:
       pr_number: ${{ steps.artifact-data.outputs.pr_number }}
       comment_tag: ${{ steps.resolve.outputs.comment_tag }}
@@ -82,7 +85,7 @@ jobs:
       - name: Extract PR number
         id: artifact-data
         run: |
-          echo "pr_number=$(head -n 1 pr_number.txt)" >> $GITHUB_OUTPUT
+          echo "pr_number=$(head -n 1 pr_number.txt)" >> "$GITHUB_OUTPUT"
   comment-on-pr:
     needs:
       - resolve-workflow

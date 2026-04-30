@@ -120,8 +120,8 @@ fetch_repo_images() {
         fi
     done
 
-    if [ "$fetch_failed" -eq 1 ] && [ ! -s "$output" ]; then
-        echo "ERROR: Could not fetch any files from ${label}"
+    if [ "$fetch_failed" -eq 1 ]; then
+        echo "ERROR: Failed to fetch one or more files from ${label}"
         exit 1
     fi
     sort -u -o "$output" "$output"
@@ -137,15 +137,15 @@ RHOAI_BUILD_CONFIG="$WORKDIR/rhoai-build-config.txt"
 
 # Components that require RHAI Helm chart check
 RHAI_HELM_COMPONENTS="$WORKDIR/rhai-helm-components.txt"
-yq -r '.rhai_helm_components[]' "$CONFIG_FILE" 2>/dev/null > "$RHAI_HELM_COMPONENTS" || true
+yq -r '(.rhai_helm_components // [])[]' "$CONFIG_FILE" > "$RHAI_HELM_COMPONENTS"
 
 # Known issues: each line is "RELATED_IMAGE_NAME|jira|reason"
 
 KNOWN_ISSUES_FILE="$WORKDIR/known-issues.txt"
 KNOWN_ISSUES_MATCHED="$WORKDIR/known-issues-matched.txt"
 touch "$KNOWN_ISSUES_FILE" "$KNOWN_ISSUES_MATCHED"
-yq -r '.known_issues[] | .image + "|" + .jira + "|" + .reason' "$CONFIG_FILE" 2>/dev/null \
-    > "$KNOWN_ISSUES_FILE" || true
+yq -r '(.known_issues // [])[] | .image + "|" + .jira + "|" + .reason' "$CONFIG_FILE" \
+    > "$KNOWN_ISSUES_FILE"
 
 is_known_issue() {
     grep -q "^$1|" "$KNOWN_ISSUES_FILE"
@@ -269,7 +269,11 @@ for comp_file in "$WORKDIR/components/"*.txt; do
 done
 
 # Collect unmapped refs (os.Getenv, function args, etc.)
-cat "$WORKDIR/components/"*.txt 2>/dev/null | cut -d'/' -f3 | sort -u > "$WORKDIR/mapped-images.txt"
+if compgen -G "$WORKDIR/components/"*.txt > /dev/null 2>&1; then
+    cat "$WORKDIR/components/"*.txt | cut -d'/' -f3 | sort -u > "$WORKDIR/mapped-images.txt"
+else
+    touch "$WORKDIR/mapped-images.txt"
+fi
 grep -roh 'RELATED_IMAGE_[A-Z0-9_]\+' internal/ \
     --include='*.go' --exclude='*_test.go' \
     | sort -u > "$WORKDIR/all-refs.txt"
