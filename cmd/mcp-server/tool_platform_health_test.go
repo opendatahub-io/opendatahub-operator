@@ -96,3 +96,38 @@ func TestPlatformHealth_NilClient(t *testing.T) {
 		t.Error("Run(nil client) should return error")
 	}
 }
+
+func TestSummarizeReport(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		sections     string
+		wantHealthy  bool
+		checkSection string
+		wantStatus   string
+	}{
+		{"healthy nodes only", "nodes", true, "nodes", "ok"},
+		{"healthy quotas only", "quotas", true, "quotas", "ok"},
+		{"unhealthy operator missing", "operator", false, "operator", "error"},
+		{"unhealthy dsc missing", "dsc", false, "dsc", "error"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			report := callTool(t, newFakeClient(), map[string]interface{}{"sections": tt.sections})
+			summary := summarizeReport(&report)
+
+			if summary.Healthy != tt.wantHealthy {
+				t.Errorf("Healthy = %v, want %v", summary.Healthy, tt.wantHealthy)
+			}
+			if summary.CollectedAt.IsZero() {
+				t.Error("CollectedAt should not be zero")
+			}
+			sec, ok := summary.Sections[tt.checkSection]
+			if !ok {
+				t.Fatalf("missing section %q", tt.checkSection)
+			}
+			if sec.Status != tt.wantStatus {
+				t.Errorf("section %q status = %q, want %q", tt.checkSection, sec.Status, tt.wantStatus)
+			}
+		})
+	}
+}
+

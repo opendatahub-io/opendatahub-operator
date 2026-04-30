@@ -47,6 +47,32 @@ func TestGetEnvDefault(t *testing.T) {
 	}
 }
 
+func TestBoolParam(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     map[string]interface{}
+		param    string
+		fallback bool
+		want     bool
+	}{
+		{"missing param", map[string]interface{}{}, "summary", false, false},
+		{"true value", map[string]interface{}{"summary": true}, "summary", false, true},
+		{"false value", map[string]interface{}{"summary": false}, "summary", true, false},
+		{"non-bool type", map[string]interface{}{"summary": "yes"}, "summary", false, false},
+		{"nil args", nil, "summary", true, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := mcp.CallToolRequest{}
+			req.Params.Arguments = tt.args
+			got := boolParam(req, tt.param, tt.fallback)
+			if got != tt.want {
+				t.Errorf("boolParam() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestStringParam(t *testing.T) {
 	tests := []struct {
 		name     string

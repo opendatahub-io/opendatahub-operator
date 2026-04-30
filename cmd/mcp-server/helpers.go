@@ -57,6 +57,18 @@ func numberParam(req mcp.CallToolRequest, name string, fallback int64) int64 {
 	return fallback
 }
 
+// boolParam extracts a boolean param from an MCP request, returning fallback if missing.
+func boolParam(req mcp.CallToolRequest, name string, fallback bool) bool {
+	args, ok := req.Params.Arguments.(map[string]any)
+	if !ok {
+		return fallback
+	}
+	if v, ok := args[name].(bool); ok {
+		return v
+	}
+	return fallback
+}
+
 // getEnvDefault returns the env var value if set, otherwise fallback.
 func getEnvDefault(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
