@@ -377,6 +377,10 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error
 		)
 	}
 
+	// Remove conditions that were present before Reset but were
+	// not re-set during this cycle (e.g. disabled components).
+	rr.Conditions.CleanupStaleConditions()
+
 	is := rr.Instance.GetStatus()
 	is.Phase = status.PhaseNotReady
 
