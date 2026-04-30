@@ -37,7 +37,7 @@ declare -A ODH_COMPONENT_MANIFESTS=(
 
 # RHOAI Component Manifests
 declare -A RHOAI_COMPONENT_MANIFESTS=(
-    ["dashboard"]="red-hat-data-services:odh-dashboard:rhoai-3.5-ea.1@55b593481af1ddd86fd1aa4c4ef681e3cdd7f433:manifests"
+    ["dashboard"]="andrewballantyne:odh-dashboard:drop-managed-addon-manifests:manifests"
     ["workbenches/kf-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.5-ea.1@32b9d3643d7a5c9341882ceb96c62ed4abd6f255:components/notebook-controller/config"
     ["workbenches/odh-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.5-ea.1@32b9d3643d7a5c9341882ceb96c62ed4abd6f255:components/odh-notebook-controller/config"
     ["workbenches/notebooks"]="red-hat-data-services:notebooks:rhoai-3.5-ea.1@e297f8b4816505e7a4f2ebbf8c7b9b4f59c4723c:manifests"
