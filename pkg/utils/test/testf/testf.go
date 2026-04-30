@@ -144,6 +144,7 @@ func (tc *TestContext) NewWithT(t *testing.T, opts ...WithTOpts) *WithT {
 		ctx:    tc.ctx,
 		client: tc.client,
 		WithT:  g,
+		Log:    t.Log,
 	}
 
 	for _, opt := range tc.withTOpts {
