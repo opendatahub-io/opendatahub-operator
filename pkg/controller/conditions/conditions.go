@@ -54,9 +54,10 @@ func WithError(err error) Option {
 }
 
 type Manager struct {
-	happy      string
-	dependents []string
-	accessor   common.ConditionsAccessor
+	happy              string
+	dependents         []string
+	accessor           common.ConditionsAccessor
+	previousConditions []common.Condition
 }
 
 func NewManager(accessor common.ConditionsAccessor, happy string, dependents ...string) *Manager {
@@ -141,6 +142,15 @@ func (r *Manager) GetCondition(t string) *common.Condition {
 func (r *Manager) SetCondition(cond common.Condition) {
 	if r.accessor == nil {
 		return
+	}
+
+	if cond.LastTransitionTime.IsZero() && len(r.previousConditions) > 0 {
+		idx := slices.IndexFunc(r.previousConditions, func(c common.Condition) bool {
+			return c.Type == cond.Type
+		})
+		if idx != -1 && r.previousConditions[idx].Status == cond.Status {
+			cond.LastTransitionTime = r.previousConditions[idx].LastTransitionTime
+		}
 	}
 
 	if !SetStatusCondition(r.accessor, cond) {
@@ -314,9 +324,11 @@ func (r *Manager) findUnhappyDependent() *common.Condition {
 
 // Reset clears all conditions managed by the Manager.
 //
-// It achieves this by setting an empty slice of common.Condition
-// in the underlying accessor.
+// Before clearing, it snapshots the current conditions so that
+// SetCondition can preserve LastTransitionTime for conditions
+// whose status has not changed.
 func (r *Manager) Reset() {
+	r.previousConditions = slices.Clone(r.accessor.GetConditions())
 	r.accessor.SetConditions([]common.Condition{})
 }
 
