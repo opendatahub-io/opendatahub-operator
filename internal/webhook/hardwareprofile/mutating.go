@@ -1158,9 +1158,8 @@ func (i *Injector) applyIdentifiersToContainer(container any, identifiers []infr
 		return err
 	}
 
-	// Apply limits for identifiers
-	// For extended resources (GPUs, etc.), limits must equal requests (Kubernetes requirement)
-	// For standard resources (cpu, memory, ephemeral-storage), only set limits if MaxCount is specified
+	// Apply limits for all identifiers (limits = requests = DefaultCount)
+	// This ensures Guaranteed QoS class consistent with dashboard behavior
 	if err := i.applyIdentifiersToLimits(requests, limits, identifiers); err != nil {
 		return err
 	}
@@ -1212,28 +1211,22 @@ func (i *Injector) applyIdentifiersToRequests(
 }
 
 // applyIdentifiersToLimits applies hardware identifiers to resource limits map.
-// For extended resources (anything except cpu, memory, ephemeral-storage), limits must equal requests.
-// For standard resources, only set limits if MaxCount is specified in the HardwareProfile.
+// For all resources (standard and extended), limits are set equal to requests (DefaultCount).
+// This ensures Guaranteed QoS class regardless of workload creation path,
+// consistent with how the dashboard sets resources.
 //
 // Parameters:
-//   - requests: The container's resource requests map (to read values from for extended resources)
+//   - requests: The container's resource requests map (to read values from)
 //   - limits: The container's resource limits map to modify
 //   - identifiers: Array of hardware identifiers from the hardware profile
 //
 // Returns:
-//   - error: Any error encountered during identifier application or quantity conversion
+//   - error: Any error encountered during identifier application
 func (i *Injector) applyIdentifiersToLimits(
 	requests map[string]any,
 	limits map[string]any,
 	identifiers []infrav1.HardwareIdentifier,
 ) error {
-	// Standard Kubernetes resources that don't require limits to equal requests
-	standardResources := map[string]bool{
-		"cpu":               true,
-		"memory":            true,
-		"ephemeral-storage": true,
-	}
-
 	for _, identifier := range identifiers {
 		// Skip if the limit already exists (preserve existing limits)
 		if _, exists := limits[identifier.Identifier]; exists {
@@ -1246,18 +1239,10 @@ func (i *Injector) applyIdentifiersToLimits(
 			continue
 		}
 
-		// For extended resources (GPUs, etc.), limits must equal requests
-		// Since requests were set to DefaultCount, limits will also be DefaultCount
-		if !standardResources[identifier.Identifier] {
-			limits[identifier.Identifier] = requestValue
-		} else if identifier.MaxCount != nil {
-			// For standard resources, only set limit if MaxCount is specified in the HWP
-			quantity, err := convertIntOrStringToQuantity(*identifier.MaxCount)
-			if err != nil {
-				return fmt.Errorf("failed to convert max resource quantity for %s: %w", identifier.Identifier, err)
-			}
-			limits[identifier.Identifier] = quantity.String()
-		}
+		// Set limits equal to requests (DefaultCount) for all resource types.
+		// MaxCount is only used as a UI-side validation ceiling and does not
+		// flow into pod resource specs.
+		limits[identifier.Identifier] = requestValue
 	}
 	return nil
 }
