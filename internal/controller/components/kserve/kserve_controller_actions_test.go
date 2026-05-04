@@ -299,7 +299,6 @@ func TestCustomizeKserveConfigMap(t *testing.T) { //nolint:maintidx
 		err := customizeKserveConfigMap(ctx, rr)
 		g.Expect(err).ShouldNot(HaveOccurred())
 	})
-
 }
 
 func TestCustomizeKserveConfigMapOAuthProxy(t *testing.T) {
