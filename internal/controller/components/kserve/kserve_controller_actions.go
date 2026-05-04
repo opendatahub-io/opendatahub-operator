@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -195,92 +196,21 @@ func versionedWellKnownLLMInferenceServiceConfigs(_ context.Context, version str
 	return nil
 }
 
-func checkOperatorAndCRDDependencies() actions.Fn {
-	return dependency.NewAction(
-		dependency.MonitorOperator(dependency.OperatorConfig{
-			OperatorGVK: gvk.LeaderWorkerSetOperatorV1,
-			Severity:    common.ConditionSeverityInfo,
-			Filter:      lwsConditionFilter,
-		}),
-		// networking.istio.io.
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.DestinationRule,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.EnvoyFilter,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.IstioGateway,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.ProxyConfig,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.ServiceEntry,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.Sidecar,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.WorkloadEntry,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.WorkloadGroup,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		// security.istio.io.
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.AuthorizationPolicy,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.PeerAuthentication,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.RequestAuthentication,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		// telemetry.istio.io.
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.Telemetry,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		// extensions.istio.io.
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.WasmPlugin,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		// cert-manager.io.
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.CertManagerCertificate,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.CertManagerCertificateRequest,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.CertManagerIssuer,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.CertManagerClusterIssuer,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		// leaderworkerset.x-k8s.io.
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.LeaderWorkerSetV1,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-	)
+var xksDependencyCRDs = []schema.GroupVersionKind{
+	// networking.istio.io
+	gvk.DestinationRule, gvk.EnvoyFilter, gvk.IstioGateway, gvk.ProxyConfig,
+	gvk.ServiceEntry, gvk.Sidecar, gvk.WorkloadEntry, gvk.WorkloadGroup,
+	// security.istio.io
+	gvk.AuthorizationPolicy, gvk.PeerAuthentication, gvk.RequestAuthentication,
+	// telemetry.istio.io
+	gvk.Telemetry,
+	// extensions.istio.io
+	gvk.WasmPlugin,
+	// cert-manager.io
+	gvk.CertManagerCertificate, gvk.CertManagerCertificateRequest,
+	gvk.CertManagerIssuer, gvk.CertManagerClusterIssuer,
+	// leaderworkerset.x-k8s.io
+	gvk.LeaderWorkerSetV1,
 }
 
 func checkSubscriptionDependencies() actions.Fn {

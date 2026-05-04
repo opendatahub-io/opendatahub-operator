@@ -31,6 +31,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -40,6 +41,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
@@ -136,9 +138,16 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// Watch for dependency CRDs (istio, cert-manager, leaderworkerset)
 		// so the controller re-reconciles when they appear or disappear.
 
+		// preconditions
+		WithPreCondition(precondition.MonitorOperator(precondition.OperatorConfig{
+			OperatorGVK: gvk.LeaderWorkerSetOperatorV1,
+			Filter:      lwsConditionFilter,
+		}, precondition.WithSeverity(common.ConditionSeverityInfo))).
+		WithPreCondition(precondition.MonitorCRDs(xksDependencyCRDs,
+			precondition.WithClusterTypes(cluster.ClusterTypeKubernetes))).
+
 		// actions
 		WithAction(initialize).
-		WithAction(checkOperatorAndCRDDependencies()).
 		WithAction(checkSubscriptionDependencies()).
 		WithAction(releases.NewAction()).
 		WithAction(removeOwnershipFromUnmanagedResources).

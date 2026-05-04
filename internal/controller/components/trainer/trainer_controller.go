@@ -29,13 +29,13 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
@@ -75,12 +75,10 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.Dynamic(reconciler.CrdExists(gvk.JobSetOperatorV1))).
 		WithAction(checkPreConditions).
 		WithAction(initialize).
-		WithAction(dependency.NewAction(
-			dependency.MonitorOperator(dependency.OperatorConfig{
-				OperatorGVK: gvk.JobSetOperatorV1,
-				Filter:      jobSetConditionFilter,
-			}),
-		)).
+		WithPreCondition(precondition.MonitorOperator(precondition.OperatorConfig{
+			OperatorGVK: gvk.JobSetOperatorV1,
+			Filter:      jobSetConditionFilter,
+		})).
 		WithAction(checkJobSetCRD).
 		WithAction(releases.NewAction()).
 		WithAction(kustomize.NewAction()).
