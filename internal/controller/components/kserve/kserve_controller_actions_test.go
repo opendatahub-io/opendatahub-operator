@@ -245,6 +245,12 @@ func TestCustomizeKserveConfigMap(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 	})
 
+}
+
+func TestCustomizeKserveConfigMapOAuthProxy(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
 	t.Run("Test KServe config: oauthProxy resource overrides", func(t *testing.T) {
 		kserve := &componentApi.Kserve{
 			ObjectMeta: metav1.ObjectMeta{
@@ -344,7 +350,7 @@ func TestCustomizeKserveConfigMap(t *testing.T) {
 		g.Expect(oauthProxyData["cpuLimit"]).Should(Equal("200m"))
 	})
 
-	t.Run("Test KServe config: empty oauthProxy preserves all defaults", func(t *testing.T) {
+	t.Run("Test KServe config: nil oauthProxy preserves all defaults", func(t *testing.T) {
 		kserve := &componentApi.Kserve{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: componentApi.KserveInstanceName,
@@ -381,6 +387,43 @@ func TestCustomizeKserveConfigMap(t *testing.T) {
 		g.Expect(oauthProxyData["memoryLimit"]).Should(Equal("128Mi"))
 		g.Expect(oauthProxyData["cpuRequest"]).Should(Equal("100m"))
 		g.Expect(oauthProxyData["cpuLimit"]).Should(Equal("200m"))
+	})
+
+	t.Run("Test KServe config: non-nil empty oauthProxy preserves all defaults", func(t *testing.T) {
+		kserve := &componentApi.Kserve{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.KserveInstanceName,
+			},
+			Spec: componentApi.KserveSpec{
+				KserveCommonSpec: componentApi.KserveCommonSpec{
+					OAuthProxy: &componentApi.OAuthProxyConfig{},
+				},
+			},
+		}
+
+		initialConfigMap := createTestConfigMap()
+		initialDeployment := createTestDeployment()
+		resources := []unstructured.Unstructured{
+			*convertToUnstructured(t, initialConfigMap),
+			*convertToUnstructured(t, initialDeployment),
+		}
+
+		rr := &odhtypes.ReconciliationRequest{
+			Instance:  kserve,
+			Resources: resources,
+		}
+
+		err := customizeKserveConfigMap(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		updatedConfigMap := &corev1.ConfigMap{}
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(rr.Resources[0].Object, updatedConfigMap)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		g.Expect(updatedConfigMap.Data).Should(HaveKey(OAuthProxyConfigKeyName))
+		var oauthProxyData map[string]any
+		err = json.Unmarshal([]byte(updatedConfigMap.Data[OAuthProxyConfigKeyName]), &oauthProxyData)
+		g.Expect(err).ShouldNot(HaveOccurred())
 	})
 
 	t.Run("Test KServe config: missing oauthProxy key in ConfigMap is tolerated", func(t *testing.T) {

@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -86,7 +87,7 @@ func kserveManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInf
 	}
 }
 
-func updateInferenceCM(inferenceServiceConfigMap *corev1.ConfigMap, isHeadless bool, oauthProxy *componentApi.OAuthProxyConfig) error {
+func updateInferenceCM(ctx context.Context, inferenceServiceConfigMap *corev1.ConfigMap, isHeadless bool, oauthProxy *componentApi.OAuthProxyConfig) error {
 	// ingress
 	// RawDeployment mode is the only supported mode, so always disable ingress creation
 	var ingressData map[string]any
@@ -114,10 +115,17 @@ func updateInferenceCM(inferenceServiceConfigMap *corev1.ConfigMap, isHeadless b
 
 	// oauthProxy
 	if oauthProxy != nil && oauthProxy.Resources != nil {
-		if rawOAuthProxy, ok := inferenceServiceConfigMap.Data[OAuthProxyConfigKeyName]; ok {
+		rawOAuthProxy, ok := inferenceServiceConfigMap.Data[OAuthProxyConfigKeyName]
+		if !ok {
+			logf.FromContext(ctx).Info("ConfigMap is missing key, oauthProxy overrides will not be applied",
+				"configmap", kserveConfigMapName, "key", OAuthProxyConfigKeyName)
+		} else {
 			var oauthProxyData map[string]any
 			if err := json.Unmarshal([]byte(rawOAuthProxy), &oauthProxyData); err != nil {
 				return fmt.Errorf("error retrieving value for key '%s' from configmap %s. %w", OAuthProxyConfigKeyName, kserveConfigMapName, err)
+			}
+			if oauthProxyData == nil {
+				oauthProxyData = map[string]any{}
 			}
 			if v, ok := oauthProxy.Resources.Requests[corev1.ResourceMemory]; ok {
 				oauthProxyData["memoryRequest"] = v.String()
