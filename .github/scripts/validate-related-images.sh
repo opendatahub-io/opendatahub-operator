@@ -17,6 +17,8 @@ CONFIG_FILE="component-params-env.yaml"
 MANIFESTS_DIR="opt/manifests"
 COMPONENTS_DIR="internal/controller/components"
 
+YQ="${YQ:-yq}"
+
 ODH_BUILD_CONFIG_BRANCH="${ODH_BUILD_CONFIG_BRANCH:-main}"
 RHOAI_BUILD_CONFIG_BRANCH="${RHOAI_BUILD_CONFIG_BRANCH:?RHOAI_BUILD_CONFIG_BRANCH is required}"
 
@@ -137,14 +139,14 @@ RHOAI_BUILD_CONFIG="$WORKDIR/rhoai-build-config.txt"
 
 # Components that require RHAI Helm chart check
 RHAI_HELM_COMPONENTS="$WORKDIR/rhai-helm-components.txt"
-yq -r '(.rhai_helm_components // [])[]' "$CONFIG_FILE" > "$RHAI_HELM_COMPONENTS"
+$YQ -r '(.rhai_helm_components // [])[]' "$CONFIG_FILE" > "$RHAI_HELM_COMPONENTS"
 
 # Known issues: each line is "RELATED_IMAGE_NAME|jira|reason"
 
 KNOWN_ISSUES_FILE="$WORKDIR/known-issues.txt"
 KNOWN_ISSUES_MATCHED="$WORKDIR/known-issues-matched.txt"
 touch "$KNOWN_ISSUES_FILE" "$KNOWN_ISSUES_MATCHED"
-yq -r '(.known_issues // [])[] | .image + "|" + .jira + "|" + .reason' "$CONFIG_FILE" \
+$YQ -r '(.known_issues // [])[] | .image + "|" + .jira + "|" + .reason' "$CONFIG_FILE" \
     > "$KNOWN_ISSUES_FILE"
 
 is_known_issue() {
@@ -239,7 +241,7 @@ RHAI_HELM_URL="${RHOAI_BASE_URL}/helm/rhai-on-xks-chart/values.yaml"
 rhai_temp=$(mktemp "${WORKDIR}/fetched.XXXXXX.yaml")
 if curl -sfL --max-filesize 10485760 --connect-timeout 10 --max-time 30 \
         "$RHAI_HELM_URL" -o "$rhai_temp" 2>/dev/null; then
-    yq '.rhaiOperator.relatedImages[].name' "$rhai_temp" 2>/dev/null | sort -u > "$RHAI_HELM_CONFIG"
+    $YQ -r '.rhaiOperator.relatedImages[].name' "$rhai_temp" 2>/dev/null | sort -u > "$RHAI_HELM_CONFIG"
     rhai_count=$(wc -l < "$RHAI_HELM_CONFIG" | tr -d ' ')
     echo "  Found ${rhai_count} RELATED_IMAGE_* names in RHAI Helm chart"
 else

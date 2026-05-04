@@ -49,5 +49,5 @@ jobs:
       - name: Fetch component manifests
         run: make get-manifests
       - name: Validate RELATED_IMAGE references
-        # if: steps.check.outputs.changed == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'push'
+        if: steps.check.outputs.changed == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'push'
         run: make validate-related-images
