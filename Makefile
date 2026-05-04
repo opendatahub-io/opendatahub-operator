@@ -141,7 +141,7 @@ KUSTOMIZE_VERSION ?= v5.8.1
 CONTROLLER_TOOLS_VERSION ?= v0.17.3
 OPERATOR_SDK_VERSION ?= v1.39.2
 GOLANGCI_LINT_VERSION ?= v2.5.0
-YQ_VERSION ?= v4.12.2
+YQ_VERSION ?= v4.53.2
 HELM_VERSION ?= v4.1.1
 KUBE_LINTER_VERSION ?= v0.7.6
 #ENVTEST_K8S_VERSION is the version of Kubernetes to use for setting up ENVTEST binaries (i.e. 1.31)
@@ -333,6 +333,11 @@ get-manifests: ## Fetch components manifests from remote git repo
 	@echo "Validating manifest image tags..."
 	@./.github/scripts/validate-manifest-images.sh
 CLEANFILES += opt/manifests/*
+
+.PHONY: validate-related-images
+validate-related-images: yq ## Validate RELATED_IMAGE_* names against build configs
+	@RHOAI_BUILD_CONFIG_BRANCH=rhoai-$(shell echo $(VERSION) | sed 's/\([0-9]*\.[0-9]*\)\.[0-9]*/\1/') \
+		YQ=$(YQ) ./.github/scripts/validate-related-images.sh
 
 # Default to standard sed command
 SED_COMMAND = sed

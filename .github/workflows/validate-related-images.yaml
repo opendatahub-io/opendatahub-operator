@@ -1,0 +1,53 @@
+name: Validate RELATED_IMAGE references
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - 'internal/**'
+      - '.github/scripts/validate-related-images.sh'
+      - '.github/workflows/validate-related-images.yaml'
+      - 'component-params-env.yaml'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Check RELATED_IMAGE names against build configs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0
+      - name: Save the PR number for artifact upload
+        if: github.event_name == 'pull_request'
+        env:
+          PR_NUMBER: ${{ github.event.number }}
+        run: |
+          echo "$PR_NUMBER" > pr_number.txt
+      - name: Upload the PR number as artifact
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pr_number_related_images
+          path: ./pr_number.txt
+          retention-days: 1
+      - name: Check if RELATED_IMAGE references changed
+        if: github.event_name == 'pull_request'
+        id: check
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          if git diff "origin/${BASE_REF}...HEAD" -- internal/ | grep -qE '^\+.*RELATED_IMAGE_'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No RELATED_IMAGE_* changes detected, skipping validation."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Fetch component manifests
+        run: make get-manifests
+      - name: Validate RELATED_IMAGE references
+        if: steps.check.outputs.changed == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'push'
+        run: make validate-related-images
