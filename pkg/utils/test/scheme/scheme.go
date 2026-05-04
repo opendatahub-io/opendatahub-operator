@@ -6,6 +6,7 @@ import (
 	oauthv1 "github.com/openshift/api/oauth/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
+	securityv1 "github.com/openshift/api/security/v1"
 	userv1 "github.com/openshift/api/user/v1"
 	ofapiv1 "github.com/operator-framework/api/pkg/operators/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -44,6 +45,7 @@ var (
 		monitoringv1.AddToScheme,
 		ofapi.AddToScheme,
 		operatorv1.AddToScheme,
+		securityv1.Install,
 		componentApi.AddToScheme,
 		maasv1alpha1.AddToScheme,
 		apiextensionsv1.AddToScheme,
