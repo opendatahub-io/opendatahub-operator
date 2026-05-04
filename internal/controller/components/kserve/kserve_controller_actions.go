@@ -110,7 +110,7 @@ func customizeKserveConfigMap(_ context.Context, rr *odhtypes.ReconciliationRequ
 		return err
 	}
 
-	if err := updateInferenceCM(&kserveConfigMap, serviceClusterIPNone); err != nil {
+	if err := updateInferenceCM(&kserveConfigMap, serviceClusterIPNone, k.Spec.OAuthProxy); err != nil {
 		return err
 	}
 

@@ -86,7 +86,7 @@ func kserveManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInf
 	}
 }
 
-func updateInferenceCM(inferenceServiceConfigMap *corev1.ConfigMap, isHeadless bool) error {
+func updateInferenceCM(inferenceServiceConfigMap *corev1.ConfigMap, isHeadless bool, oauthProxy *componentApi.OAuthProxyConfig) error {
 	// ingress
 	// RawDeployment mode is the only supported mode, so always disable ingress creation
 	var ingressData map[string]any
@@ -111,6 +111,34 @@ func updateInferenceCM(inferenceServiceConfigMap *corev1.ConfigMap, isHeadless b
 		return fmt.Errorf("could not set values in configmap %s. %w", kserveConfigMapName, err)
 	}
 	inferenceServiceConfigMap.Data[ServiceConfigKeyName] = string(serviceDataBytes)
+
+	// oauthProxy
+	if oauthProxy != nil && oauthProxy.Resources != nil {
+		if rawOAuthProxy, ok := inferenceServiceConfigMap.Data[OAuthProxyConfigKeyName]; ok {
+			var oauthProxyData map[string]any
+			if err := json.Unmarshal([]byte(rawOAuthProxy), &oauthProxyData); err != nil {
+				return fmt.Errorf("error retrieving value for key '%s' from configmap %s. %w", OAuthProxyConfigKeyName, kserveConfigMapName, err)
+			}
+			if v, ok := oauthProxy.Resources.Requests[corev1.ResourceMemory]; ok {
+				oauthProxyData["memoryRequest"] = v.String()
+			}
+			if v, ok := oauthProxy.Resources.Limits[corev1.ResourceMemory]; ok {
+				oauthProxyData["memoryLimit"] = v.String()
+			}
+			if v, ok := oauthProxy.Resources.Requests[corev1.ResourceCPU]; ok {
+				oauthProxyData["cpuRequest"] = v.String()
+			}
+			if v, ok := oauthProxy.Resources.Limits[corev1.ResourceCPU]; ok {
+				oauthProxyData["cpuLimit"] = v.String()
+			}
+			oauthProxyDataBytes, err := json.MarshalIndent(oauthProxyData, "", " ")
+			if err != nil {
+				return fmt.Errorf("could not set values in configmap %s. %w", kserveConfigMapName, err)
+			}
+			inferenceServiceConfigMap.Data[OAuthProxyConfigKeyName] = string(oauthProxyDataBytes)
+		}
+	}
+
 	return nil
 }
 

@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	operatorv1 "github.com/openshift/api/operator/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -41,6 +42,25 @@ const (
 // Check that the component implements common.PlatformObject.
 var _ common.PlatformObject = (*Kserve)(nil)
 
+// OAuthProxyResourceRequirements describes the resource requirements
+// for the OAuth proxy sidecar container.
+type OAuthProxyResourceRequirements struct {
+	// Requests describes the minimum amount of resources required.
+	// +optional
+	Requests corev1.ResourceList `json:"requests,omitempty"`
+	// Limits describes the maximum amount of resources allowed.
+	// +optional
+	Limits corev1.ResourceList `json:"limits,omitempty"`
+}
+
+// OAuthProxyConfig configures the OAuth proxy sidecar container in the
+// 'inferenceservice-config' ConfigMap for KServe.
+type OAuthProxyConfig struct {
+	// Resources describes the compute resource requirements for the OAuth proxy sidecar container.
+	// +optional
+	Resources *OAuthProxyResourceRequirements `json:"resources,omitempty"`
+}
+
 // KserveCommonSpec spec defines the shared desired state of Kserve
 type KserveCommonSpec struct {
 	// Configures the type of service that is created for InferenceServices using RawDeployment.
@@ -49,6 +69,11 @@ type KserveCommonSpec struct {
 	// Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve.
 	// +kubebuilder:default=Headless
 	RawDeploymentServiceConfig RawServiceConfig `json:"rawDeploymentServiceConfig,omitempty"`
+	// Configures the OAuth proxy sidecar container resources in the
+	// 'inferenceservice-config' ConfigMap for KServe. Only non-nil fields
+	// override the defaults shipped with the operator manifests.
+	// +optional
+	OAuthProxy *OAuthProxyConfig `json:"oauthProxy,omitempty"`
 	// Configures and enables NVIDIA NIM integration
 	NIM NimSpec `json:"nim,omitempty"`
 	// Configures and enables Models as a Service integration
