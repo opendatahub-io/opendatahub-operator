@@ -299,6 +299,197 @@ func TestCustomizeKserveConfigMap(t *testing.T) { //nolint:maintidx
 		err := customizeKserveConfigMap(ctx, rr)
 		g.Expect(err).ShouldNot(HaveOccurred())
 	})
+
+	t.Run("Test KServe config: oauthProxy resource overrides", func(t *testing.T) {
+		kserve := &componentApi.Kserve{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.KserveInstanceName,
+			},
+			Spec: componentApi.KserveSpec{
+				KserveCommonSpec: componentApi.KserveCommonSpec{
+					OAuthProxy: &componentApi.OAuthProxyConfig{
+						Resources: &componentApi.OAuthProxyResourceRequirements{
+							Requests: corev1.ResourceList{
+								corev1.ResourceMemory: resource.MustParse("256Mi"),
+								corev1.ResourceCPU:    resource.MustParse("200m"),
+							},
+							Limits: corev1.ResourceList{
+								corev1.ResourceMemory: resource.MustParse("512Mi"),
+								corev1.ResourceCPU:    resource.MustParse("500m"),
+							},
+						},
+					},
+				},
+			},
+		}
+
+		initialConfigMap := createTestConfigMap()
+		initialDeployment := createTestDeployment()
+		resources := []unstructured.Unstructured{
+			*convertToUnstructured(t, initialConfigMap),
+			*convertToUnstructured(t, initialDeployment),
+		}
+
+		rr := &odhtypes.ReconciliationRequest{
+			Instance:  kserve,
+			Resources: resources,
+		}
+
+		err := customizeKserveConfigMap(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		updatedConfigMap := &corev1.ConfigMap{}
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(rr.Resources[0].Object, updatedConfigMap)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		var oauthProxyData map[string]any
+		err = json.Unmarshal([]byte(updatedConfigMap.Data[OAuthProxyConfigKeyName]), &oauthProxyData)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(oauthProxyData["image"]).Should(Equal("registry.example.com/oauth-proxy:latest"))
+		g.Expect(oauthProxyData["memoryRequest"]).Should(Equal("256Mi"))
+		g.Expect(oauthProxyData["memoryLimit"]).Should(Equal("512Mi"))
+		g.Expect(oauthProxyData["cpuRequest"]).Should(Equal("200m"))
+		g.Expect(oauthProxyData["cpuLimit"]).Should(Equal("500m"))
+	})
+
+	t.Run("Test KServe config: oauthProxy partial overrides preserve defaults", func(t *testing.T) {
+		kserve := &componentApi.Kserve{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.KserveInstanceName,
+			},
+			Spec: componentApi.KserveSpec{
+				KserveCommonSpec: componentApi.KserveCommonSpec{
+					OAuthProxy: &componentApi.OAuthProxyConfig{
+						Resources: &componentApi.OAuthProxyResourceRequirements{
+							Limits: corev1.ResourceList{
+								corev1.ResourceMemory: resource.MustParse("512Mi"),
+							},
+						},
+					},
+				},
+			},
+		}
+
+		initialConfigMap := createTestConfigMap()
+		initialDeployment := createTestDeployment()
+		resources := []unstructured.Unstructured{
+			*convertToUnstructured(t, initialConfigMap),
+			*convertToUnstructured(t, initialDeployment),
+		}
+
+		rr := &odhtypes.ReconciliationRequest{
+			Instance:  kserve,
+			Resources: resources,
+		}
+
+		err := customizeKserveConfigMap(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		updatedConfigMap := &corev1.ConfigMap{}
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(rr.Resources[0].Object, updatedConfigMap)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		var oauthProxyData map[string]any
+		err = json.Unmarshal([]byte(updatedConfigMap.Data[OAuthProxyConfigKeyName]), &oauthProxyData)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(oauthProxyData["image"]).Should(Equal("registry.example.com/oauth-proxy:latest"))
+		g.Expect(oauthProxyData["memoryRequest"]).Should(Equal("64Mi"))
+		g.Expect(oauthProxyData["memoryLimit"]).Should(Equal("512Mi"))
+		g.Expect(oauthProxyData["cpuRequest"]).Should(Equal("100m"))
+		g.Expect(oauthProxyData["cpuLimit"]).Should(Equal("200m"))
+	})
+
+	t.Run("Test KServe config: empty oauthProxy preserves all defaults", func(t *testing.T) {
+		kserve := &componentApi.Kserve{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.KserveInstanceName,
+			},
+			Spec: componentApi.KserveSpec{
+				KserveCommonSpec: componentApi.KserveCommonSpec{},
+			},
+		}
+
+		initialConfigMap := createTestConfigMap()
+		initialDeployment := createTestDeployment()
+		resources := []unstructured.Unstructured{
+			*convertToUnstructured(t, initialConfigMap),
+			*convertToUnstructured(t, initialDeployment),
+		}
+
+		rr := &odhtypes.ReconciliationRequest{
+			Instance:  kserve,
+			Resources: resources,
+		}
+
+		err := customizeKserveConfigMap(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		updatedConfigMap := &corev1.ConfigMap{}
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(rr.Resources[0].Object, updatedConfigMap)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		var oauthProxyData map[string]any
+		err = json.Unmarshal([]byte(updatedConfigMap.Data[OAuthProxyConfigKeyName]), &oauthProxyData)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(oauthProxyData["image"]).Should(Equal("registry.example.com/oauth-proxy:latest"))
+		g.Expect(oauthProxyData["memoryRequest"]).Should(Equal("64Mi"))
+		g.Expect(oauthProxyData["memoryLimit"]).Should(Equal("128Mi"))
+		g.Expect(oauthProxyData["cpuRequest"]).Should(Equal("100m"))
+		g.Expect(oauthProxyData["cpuLimit"]).Should(Equal("200m"))
+	})
+
+	t.Run("Test KServe config: missing oauthProxy key in ConfigMap is tolerated", func(t *testing.T) {
+		kserve := &componentApi.Kserve{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.KserveInstanceName,
+			},
+			Spec: componentApi.KserveSpec{
+				KserveCommonSpec: componentApi.KserveCommonSpec{
+					OAuthProxy: &componentApi.OAuthProxyConfig{
+						Resources: &componentApi.OAuthProxyResourceRequirements{
+							Limits: corev1.ResourceList{
+								corev1.ResourceMemory: resource.MustParse("512Mi"),
+							},
+						},
+					},
+				},
+			},
+		}
+
+		cmWithoutOAuthProxy := &corev1.ConfigMap{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "v1",
+				Kind:       "ConfigMap",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: kserveConfigMapName,
+			},
+			Data: map[string]string{
+				IngressConfigKeyName:    `{"disableIngressCreation": false}`,
+				ServiceConfigKeyName:    `{"serviceClusterIPNone": false}`,
+				LocalModelConfigKeyName: `{"jobNamespace": "default", "enabled": false}`,
+			},
+		}
+
+		initialDeployment := createTestDeployment()
+		resources := []unstructured.Unstructured{
+			*convertToUnstructured(t, cmWithoutOAuthProxy),
+			*convertToUnstructured(t, initialDeployment),
+		}
+
+		rr := &odhtypes.ReconciliationRequest{
+			Instance:  kserve,
+			Resources: resources,
+		}
+
+		err := customizeKserveConfigMap(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		updatedConfigMap := &corev1.ConfigMap{}
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(rr.Resources[0].Object, updatedConfigMap)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(updatedConfigMap.Data).ShouldNot(HaveKey(OAuthProxyConfigKeyName))
+	})
 }
 
 //nolint:maintidx
@@ -892,6 +1083,13 @@ func createTestConfigMap() *corev1.ConfigMap {
 			LocalModelConfigKeyName: `{
 				"jobNamespace": "wrong-namespace",
 				"enabled": true
+			}`,
+			OAuthProxyConfigKeyName: `{
+				"image": "registry.example.com/oauth-proxy:latest",
+				"memoryRequest": "64Mi",
+				"memoryLimit": "128Mi",
+				"cpuRequest": "100m",
+				"cpuLimit": "200m"
 			}`,
 		},
 	}
