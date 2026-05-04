@@ -95,8 +95,11 @@ func bindRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, groups []
 
 	groupsToBind := []rbacv1.Subject{}
 	for _, e := range groups {
+		isAdminRole := roleName == "data-science-admingroup-role" ||
+			roleName == "data-science-admingroup-maas-role" ||
+			roleName == "data-science-admingroup-kuadrant-role"
 		// we want to disallow adding system:authenticated to the adminGroups
-		if roleName == "data-science-admingroup-role" && e == "system:authenticated" || e == "" {
+		if e == "" || (isAdminRole && e == "system:authenticated") {
 			log := logf.FromContext(ctx)
 			log.Info("skipping adding invalid group to RoleBinding")
 			continue
@@ -133,7 +136,8 @@ func bindClusterRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, gr
 	groupsToBind := []rbacv1.Subject{}
 	for _, e := range groups {
 		// we want to disallow adding system:authenticated to the adminGroups
-		if roleName == "data-science-admingroupcluster-role" && e == "system:authenticated" || e == "" {
+		isAdminRole := roleName == "data-science-admingroupcluster-role"
+		if e == "" || (isAdminRole && e == "system:authenticated") {
 			log := logf.FromContext(ctx)
 			log.Info("skipping adding invalid group to ClusterRoleBinding")
 			continue
