@@ -9,6 +9,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -62,7 +64,10 @@ func computeKustomizeVariable(rr *odhtypes.ReconciliationRequest) (map[string]st
 	}
 
 	return map[string]string{
-		"GATEWAY_DOMAIN": domain,
+		"GATEWAY_DOMAIN":      domain,
+		"GATEWAY_NAME":        gateway.DefaultGatewayName,
+		"GATEWAY_NAMESPACE":   gateway.GatewayNamespace,
+		"HTTPROUTE_NAMESPACE": cluster.GetApplicationNamespace(),
 	}, nil
 }
 
