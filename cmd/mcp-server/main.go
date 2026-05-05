@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"os"
 	"time"
@@ -16,6 +17,10 @@ import (
 func main() {
 	log.SetOutput(os.Stderr)
 
+	oneShot := flag.Bool("one-shot", false, "Run diagnostics once (health check + failure classification), output JSON, and exit.")
+	testName := flag.String("test-name", "ci-diagnose", "Test name for failure classification (used with --one-shot)")
+	flag.Parse()
+
 	kubeConfig, err := ctrl.GetConfig()
 	if err != nil {
 		log.Fatalf("mcp-server: kubeconfig: %v", err)
@@ -26,6 +31,10 @@ func main() {
 	})
 	if err != nil {
 		log.Fatalf("mcp-server: kube client: %v", err)
+	}
+
+	if *oneShot {
+		os.Exit(runOneShot(kubeClient, *testName))
 	}
 
 	clientsetCfg := rest.CopyConfig(kubeConfig)
