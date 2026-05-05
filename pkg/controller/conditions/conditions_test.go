@@ -117,6 +117,100 @@ func TestManager_RecomputeHappiness(t *testing.T) {
 	g.Expect(manager.IsHappy()).To(BeTrue())
 }
 
+func TestManager_ResetPreservesConditions(t *testing.T) {
+	g := NewWithT(t)
+
+	accessor := &fakeAccessor{}
+	manager := conditions.NewManager(accessor, readyCondition, dependency1Condition, dependency2Condition)
+
+	manager.MarkTrue(dependency1Condition)
+	manager.MarkTrue(dependency2Condition)
+	g.Expect(accessor.GetConditions()).To(HaveLen(3))
+
+	manager.Reset()
+
+	g.Expect(accessor.GetConditions()).To(HaveLen(3))
+	g.Expect(manager.GetCondition(readyCondition)).NotTo(BeNil())
+	g.Expect(manager.GetCondition(dependency1Condition)).NotTo(BeNil())
+	g.Expect(manager.GetCondition(dependency2Condition)).NotTo(BeNil())
+}
+
+func TestManager_CleanupStaleConditions(t *testing.T) {
+	g := NewWithT(t)
+
+	accessor := &fakeAccessor{}
+	manager := conditions.NewManager(accessor, readyCondition, dependency1Condition, dependency2Condition)
+
+	manager.MarkTrue(dependency1Condition)
+	manager.MarkTrue(dependency2Condition)
+	g.Expect(accessor.GetConditions()).To(HaveLen(3))
+
+	manager.Reset()
+
+	manager.MarkTrue(dependency1Condition)
+
+	manager.CleanupStaleConditions()
+
+	g.Expect(manager.GetCondition(dependency1Condition)).NotTo(BeNil())
+	g.Expect(manager.GetCondition(dependency2Condition)).To(BeNil())
+	g.Expect(manager.GetCondition(readyCondition)).NotTo(BeNil())
+}
+
+func TestManager_CleanupStaleConditionsPreservesHappy(t *testing.T) {
+	g := NewWithT(t)
+
+	accessor := &fakeAccessor{}
+	manager := conditions.NewManager(accessor, readyCondition, dependency1Condition)
+
+	manager.MarkTrue(dependency1Condition)
+	g.Expect(manager.IsHappy()).To(BeTrue())
+
+	manager.Reset()
+
+	manager.MarkTrue(dependency1Condition)
+
+	manager.CleanupStaleConditions()
+
+	g.Expect(manager.GetCondition(readyCondition)).NotTo(BeNil())
+	g.Expect(manager.IsHappy()).To(BeTrue())
+}
+
+func TestManager_TimestampPreservedWhenConditionUnchanged(t *testing.T) {
+	g := NewWithT(t)
+
+	accessor := &fakeAccessor{}
+	manager := conditions.NewManager(accessor, readyCondition, dependency1Condition)
+
+	manager.MarkTrue(dependency1Condition, conditions.WithReason("TestReason"), conditions.WithMessage("test message"))
+
+	originalCondition := manager.GetCondition(dependency1Condition)
+	g.Expect(originalCondition).NotTo(BeNil())
+	originalTime := originalCondition.LastTransitionTime
+
+	manager.Reset()
+
+	manager.MarkTrue(dependency1Condition, conditions.WithReason("TestReason"), conditions.WithMessage("test message"))
+
+	updatedCondition := manager.GetCondition(dependency1Condition)
+	g.Expect(updatedCondition).NotTo(BeNil())
+	g.Expect(updatedCondition.LastTransitionTime).To(Equal(originalTime))
+}
+
+func TestManager_CleanupStaleConditionsNoopWithoutReset(t *testing.T) {
+	g := NewWithT(t)
+
+	accessor := &fakeAccessor{}
+	manager := conditions.NewManager(accessor, readyCondition, dependency1Condition, dependency2Condition)
+
+	manager.MarkTrue(dependency1Condition)
+	manager.MarkTrue(dependency2Condition)
+	g.Expect(accessor.GetConditions()).To(HaveLen(3))
+
+	manager.CleanupStaleConditions()
+
+	g.Expect(accessor.GetConditions()).To(HaveLen(3))
+}
+
 func TestManager_Sort(t *testing.T) {
 	g := NewWithT(t)
 
