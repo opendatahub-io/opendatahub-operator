@@ -22,6 +22,7 @@ BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
 # default platform type
 ODH_PLATFORM_TYPE ?= OpenDataHub
 
+
 ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	# VERSION defines the project version for the bundle.
 	# Update this value when you upgrade the version of your project.
@@ -334,6 +335,20 @@ get-manifests: ## Fetch components manifests from remote git repo
 	@./.github/scripts/validate-manifest-images.sh
 CLEANFILES += opt/manifests/*
 
+.PHONY: update-rhai-images
+update-rhai-images: yq ## Fetch RHAI component manifests and update images from RHOAI-Build-Config CSV
+	@if [ -n "$(RHAI_BRANCH)" ]; then \
+		echo "Fetching manifests from rhods-operator branch $(RHAI_BRANCH)..."; \
+		TMP_RHODS=$$(mktemp -d) && \
+		git clone --depth 1 -b $(RHAI_BRANCH) -q https://github.com/red-hat-data-services/rhods-operator $$TMP_RHODS || \
+			{ echo "ERROR: Failed to clone rhods-operator branch $(RHAI_BRANCH)"; exit 1; } && \
+		rm -rf opt/manifests opt/charts && cp -r $$TMP_RHODS/prefetched-manifests opt/manifests && cp -r $$TMP_RHODS/prefetched-charts opt/charts && \
+		touch opt/manifests/.gitkeep opt/charts/.gitkeep && \
+		rm -rf $$TMP_RHODS; \
+	else \
+		echo "ERROR: RHAI_BRANCH is not set. Use --branch flag or set RHAI_BRANCH env var."; exit 1; \
+	fi
+	MANIFESTS_DIR=./opt/manifests RHAI_BRANCH=$(RHAI_BRANCH) YQ=$(YQ) SED_COMMAND=$(SED_COMMAND) ./hack/update-rhai-images.sh
 .PHONY: validate-related-images
 validate-related-images: yq ## Validate RELATED_IMAGE_* names against build configs
 	@RHOAI_BUILD_CONFIG_BRANCH=rhoai-$(shell echo $(VERSION) | sed 's/\([0-9]*\.[0-9]*\)\.[0-9]*/\1/') \
