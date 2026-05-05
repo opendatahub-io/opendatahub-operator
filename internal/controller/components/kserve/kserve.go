@@ -23,11 +23,12 @@ import (
 )
 
 const (
-	componentName               = componentApi.KserveComponentName
-	kserveConfigMapName         = "inferenceservice-config"
-	isvcControllerDeployment    = "kserve-controller-manager"
-	kserveManifestSourcePath    = "overlays/odh"
-	kserveManifestSourcePathXKS = "overlays/odh-xks"
+	componentName                      = componentApi.KserveComponentName
+	kserveConfigMapName                = "inferenceservice-config"
+	isvcControllerDeployment           = "kserve-controller-manager"
+	kserveManifestSourcePath           = "overlays/odh"
+	kserveManifestSourcePathXKS        = "overlays/odh-xks"
+	kserveManifestSourcePathModelCache = "overlays/odh-modelcache"
 
 	// LegacyComponentName is the name of the component that is assigned to deployments
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
@@ -59,6 +60,13 @@ func (s *componentHandler) Init(_ common.Platform, cfg operatorconfig.OperatorSe
 
 	if err := odhdeploy.ApplyParams(mp.String(), "params.env", imageParamMap); err != nil {
 		return fmt.Errorf("failed to update images on path %s: %w", mp, err)
+	}
+
+	// Apply image params to the modelcache overlay.
+	// ApplyParams safely no-ops if the overlay's params.env does not exist on disk.
+	mcMP := kserveManifestInfo(manifestsBasePath, kserveManifestSourcePathModelCache)
+	if err := odhdeploy.ApplyParams(mcMP.String(), "params.env", imageParamMap); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", mcMP, err)
 	}
 
 	// Apply cert-manager issuer params to the xKS overlay.
