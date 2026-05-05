@@ -356,6 +356,31 @@ func createTenantCR(ready bool) *maasv1alpha1.Tenant {
 
 func ptr[T any](v T) *T { return &v }
 
+// TestMaasParametersConfigMapSetsPayloadProcessingNamespace verifies that the
+// maas-parameters ConfigMap includes payload-processing-namespace set to the
+// resolved application namespace, not the gateway namespace. This is critical
+// because the EnvoyFilter cluster_name FQDN must reference the namespace where
+// the payload-processing service actually runs (RHOAIENG-59726).
+func TestMaasParametersConfigMapSetsPayloadProcessingNamespace(t *testing.T) {
+	g := NewWithT(t)
+
+	manifestsRoot := findManifestsRoot(t)
+
+	cm, err := maasParametersConfigMapFromParamsEnv(manifestsRoot, testApplicationsNamespace, map[string]string{"app": "test"})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	data, ok := cm.Object["data"].(map[string]any)
+	g.Expect(ok).To(BeTrue(), "ConfigMap must have a data section")
+
+	g.Expect(data).To(HaveKeyWithValue("app-namespace", testApplicationsNamespace),
+		"app-namespace must be the resolved application namespace")
+	g.Expect(data).To(HaveKeyWithValue("payload-processing-namespace", testApplicationsNamespace),
+		"payload-processing-namespace must match the application namespace, not the gateway namespace")
+
+	g.Expect(data["payload-processing-namespace"]).ToNot(Equal(DefaultGatewayNamespace),
+		"payload-processing-namespace must not be the gateway namespace")
+}
+
 // TestApplyImageOverridesFromParams verifies that the Option B image override
 // pipeline (kustomize build → ImageTagTransformerPlugin) correctly replaces the
 // default :latest image with a pinned image reference from params.env.

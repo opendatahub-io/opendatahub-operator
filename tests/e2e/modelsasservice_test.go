@@ -76,6 +76,7 @@ func modelsAsServiceTestSuite(t *testing.T) {
 	componentCtx.UpdateSubComponentStateInDataScienceCluster(t, operatorv1.Managed)
 
 	testCases := []TestCase{
+		{"Validate maas-parameters ConfigMap payload-processing-namespace", componentCtx.ValidateMaaSParametersPayloadProcessingNamespace},
 		{"Validate Tenant CR in subscription namespace", componentCtx.ValidateTenantInSubscriptionNamespace},
 		{"Validate Tenant CRD is namespace-scoped", componentCtx.ValidateTenantCRDNamespaceScoped},
 		{"Validate Tenant singleton enforcement", componentCtx.ValidateTenantSingletonEnforcement},
@@ -239,6 +240,34 @@ const (
 	tenantSubscriptionNS = modelsasservice.MaaSSubscriptionNamespace
 	tenantCRDName        = "tenants.maas.opendatahub.io"
 )
+
+// ValidateMaaSParametersPayloadProcessingNamespace verifies that the maas-parameters ConfigMap
+// sets payload-processing-namespace to the application namespace, not the gateway namespace.
+// This is the regression test for RHOAIENG-59726: the EnvoyFilter cluster_name FQDN must
+// reference the namespace where payload-processing actually runs.
+func (tc *ModelsAsServiceTestCtx) ValidateMaaSParametersPayloadProcessingNamespace(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Smoke, Tier1)
+
+	t.Logf("Checking maas-parameters ConfigMap in namespace %s has correct payload-processing-namespace", tc.AppsNamespace)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
+			Name:      "maas-parameters",
+			Namespace: tc.AppsNamespace,
+		}),
+		WithCondition(
+			And(
+				jq.Match(`.data["payload-processing-namespace"] == "%s"`, tc.AppsNamespace),
+				jq.Match(`.data["app-namespace"] == "%s"`, tc.AppsNamespace),
+			),
+		),
+		WithCustomErrorMsg(
+			"maas-parameters ConfigMap payload-processing-namespace must be %q (app namespace), not %q (gateway namespace)",
+			tc.AppsNamespace, maasGatewayNamespace,
+		),
+	)
+}
 
 // ValidateTenantInSubscriptionNamespace verifies that the maas-controller self-bootstrapped
 // the default-tenant Tenant CR in the models-as-a-service namespace (not the operator namespace).
