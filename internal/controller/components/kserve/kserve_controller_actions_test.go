@@ -22,6 +22,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	cond "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
@@ -567,30 +568,8 @@ func TestCheckSubscriptionDependencies(t *testing.T) {
 	})
 }
 
-func TestCheckOperatorAndCRDDependencies(t *testing.T) {
+func TestXKSDependencyCRDMonitoring(t *testing.T) {
 	const happyCondition = "Ready"
-
-	// All CRD GVKs that the action monitors on Kubernetes clusters.
-	monitoredCRDGVKs := []string{
-		gvk.DestinationRule.Kind,
-		gvk.EnvoyFilter.Kind,
-		gvk.IstioGateway.Kind,
-		gvk.ProxyConfig.Kind,
-		gvk.ServiceEntry.Kind,
-		gvk.Sidecar.Kind,
-		gvk.WorkloadEntry.Kind,
-		gvk.WorkloadGroup.Kind,
-		gvk.AuthorizationPolicy.Kind,
-		gvk.PeerAuthentication.Kind,
-		gvk.RequestAuthentication.Kind,
-		gvk.Telemetry.Kind,
-		gvk.WasmPlugin.Kind,
-		gvk.CertManagerCertificate.Kind,
-		gvk.CertManagerCertificateRequest.Kind,
-		gvk.CertManagerIssuer.Kind,
-		gvk.CertManagerClusterIssuer.Kind,
-		gvk.LeaderWorkerSetV1.Kind,
-	}
 
 	t.Run("Kubernetes cluster with missing CRDs sets DependenciesAvailable to False", func(t *testing.T) {
 		g := NewWithT(t)
@@ -613,16 +592,17 @@ func TestCheckOperatorAndCRDDependencies(t *testing.T) {
 			Conditions: condManager,
 		}
 
-		action := checkOperatorAndCRDDependencies()
-		err = action(ctx, rr)
-		g.Expect(err).ShouldNot(HaveOccurred())
+		pcs := []precondition.PreCondition{
+			precondition.MonitorCRDs(xksDependencyCRDs, precondition.WithClusterTypes(cluster.ClusterTypeKubernetes)),
+		}
+		precondition.RunAll(ctx, rr, pcs)
 
 		got := condManager.GetCondition(status.ConditionDependenciesAvailable)
 		g.Expect(got).ShouldNot(BeNil())
 		g.Expect(got.Status).Should(Equal(metav1.ConditionFalse))
 
-		for _, kind := range monitoredCRDGVKs {
-			g.Expect(got.Message).Should(ContainSubstring(kind), "expected message to mention %s", kind)
+		for _, crdGVK := range xksDependencyCRDs {
+			g.Expect(got.Message).Should(ContainSubstring(crdGVK.Kind), "expected message to mention %s", crdGVK.Kind)
 		}
 	})
 
@@ -633,28 +613,7 @@ func TestCheckOperatorAndCRDDependencies(t *testing.T) {
 		cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
 		t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
 
-		allMonitoredGVKs := []schema.GroupVersionKind{
-			gvk.DestinationRule,
-			gvk.EnvoyFilter,
-			gvk.IstioGateway,
-			gvk.ProxyConfig,
-			gvk.ServiceEntry,
-			gvk.Sidecar,
-			gvk.WorkloadEntry,
-			gvk.WorkloadGroup,
-			gvk.AuthorizationPolicy,
-			gvk.PeerAuthentication,
-			gvk.RequestAuthentication,
-			gvk.Telemetry,
-			gvk.WasmPlugin,
-			gvk.CertManagerCertificate,
-			gvk.CertManagerCertificateRequest,
-			gvk.CertManagerIssuer,
-			gvk.CertManagerClusterIssuer,
-			gvk.LeaderWorkerSetV1,
-		}
-
-		cli, err := fakeclientWithCRDs(allMonitoredGVKs)
+		cli, err := fakeclientWithCRDs(xksDependencyCRDs)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		instance := &componentApi.Kserve{
@@ -668,16 +627,17 @@ func TestCheckOperatorAndCRDDependencies(t *testing.T) {
 			Conditions: condManager,
 		}
 
-		action := checkOperatorAndCRDDependencies()
-		err = action(ctx, rr)
-		g.Expect(err).ShouldNot(HaveOccurred())
+		pcs := []precondition.PreCondition{
+			precondition.MonitorCRDs(xksDependencyCRDs, precondition.WithClusterTypes(cluster.ClusterTypeKubernetes)),
+		}
+		precondition.RunAll(ctx, rr, pcs)
 
 		got := condManager.GetCondition(status.ConditionDependenciesAvailable)
 		g.Expect(got).ShouldNot(BeNil())
 		g.Expect(got.Status).Should(Equal(metav1.ConditionTrue))
 	})
 
-	t.Run("OpenShift cluster skips CRD checks and sets DependenciesAvailable to True", func(t *testing.T) {
+	t.Run("OpenShift cluster skips CRD checks", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
@@ -698,13 +658,15 @@ func TestCheckOperatorAndCRDDependencies(t *testing.T) {
 			Conditions: condManager,
 		}
 
-		action := checkOperatorAndCRDDependencies()
-		err = action(ctx, rr)
-		g.Expect(err).ShouldNot(HaveOccurred())
+		pcs := []precondition.PreCondition{
+			precondition.MonitorCRDs(xksDependencyCRDs, precondition.WithClusterTypes(cluster.ClusterTypeKubernetes)),
+		}
+		shouldStop := precondition.RunAll(ctx, rr, pcs)
+		g.Expect(shouldStop).To(BeFalse())
 
 		got := condManager.GetCondition(status.ConditionDependenciesAvailable)
 		g.Expect(got).ShouldNot(BeNil())
-		g.Expect(got.Status).Should(Equal(metav1.ConditionTrue))
+		g.Expect(got.Status).ShouldNot(Equal(metav1.ConditionFalse))
 	})
 }
 

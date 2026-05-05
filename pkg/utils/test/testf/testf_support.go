@@ -9,6 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -172,6 +173,42 @@ func SetTypedConditions(obj *unstructured.Unstructured, conditions []metav1.Cond
 		raw[i] = m
 	}
 	return unstructured.SetNestedSlice(obj.Object, raw, "status", "conditions")
+}
+
+// NewUnstructuredCR creates a minimal unstructured CR with the given name, namespace, and GVK.
+func NewUnstructuredCR(name, namespace string, gvk schema.GroupVersionKind) *unstructured.Unstructured {
+	cr := &unstructured.Unstructured{}
+	cr.SetGroupVersionKind(gvk)
+	cr.SetName(name)
+	cr.SetNamespace(namespace)
+
+	return cr
+}
+
+// CreateAndUpdateStatus creates the given unstructured CR and then updates its status subresource
+// if the object has a status field set. This two-step process is needed because the Kubernetes API
+// does not allow setting status on create for most resources.
+func CreateAndUpdateStatus(ctx context.Context, c client.Client, obj *unstructured.Unstructured) error {
+	statusObj, hasStatus, err := unstructured.NestedMap(obj.Object, "status")
+	if err != nil {
+		return fmt.Errorf("failed to extract status: %w", err)
+	}
+
+	if err := c.Create(ctx, obj); err != nil {
+		return fmt.Errorf("failed to create resource: %w", err)
+	}
+
+	if hasStatus {
+		if err := unstructured.SetNestedMap(obj.Object, statusObj, "status"); err != nil {
+			return fmt.Errorf("failed to set status: %w", err)
+		}
+
+		if err := c.Status().Update(ctx, obj); err != nil {
+			return fmt.Errorf("failed to update status: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // RefreshResource fetches the latest version of a resource from the cluster.

@@ -24,6 +24,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dynamicownership"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -113,6 +114,7 @@ type ReconcilerBuilder[T common.PlatformObject] struct {
 	watches                  []watchInput
 	predicates               []predicate.Predicate
 	instanceName             string
+	preConditions            []precondition.PreCondition
 	actions                  []actions.Fn
 	finalizers               []actions.Fn
 	errors                   error
@@ -153,6 +155,12 @@ func ReconcilerFor[T common.PlatformObject](mgr ctrl.Manager, object T, opts ...
 
 func (b *ReconcilerBuilder[T]) WithConditions(dependents ...string) *ReconcilerBuilder[T] {
 	b.dependentConditions = append(b.dependentConditions, dependents...)
+	return b
+}
+
+func (b *ReconcilerBuilder[T]) WithPreCondition(pc precondition.PreCondition) *ReconcilerBuilder[T] {
+	b.preConditions = append(b.preConditions, pc)
+
 	return b
 }
 
@@ -454,6 +462,8 @@ func (b *ReconcilerBuilder[T]) Build(_ context.Context) (*Reconciler, error) {
 	for i := range b.predicates {
 		c = c.WithEventFilter(b.predicates[i])
 	}
+
+	r.preConditions = append(r.preConditions, b.preConditions...)
 
 	for i := range b.actions {
 		r.AddAction(b.actions[i])
