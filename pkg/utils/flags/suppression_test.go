@@ -57,3 +57,27 @@ func TestServiceSuppressionFlagEnvBinding(t *testing.T) {
 	t.Setenv("RHAI_DISABLE_MONITORING_SERVICE", "true")
 	g.Expect(flags.IsServiceEnabled("monitoring")).Should(BeFalse(), "should be disabled when env var is set")
 }
+
+func TestRegisterModuleSuppressionFlag(t *testing.T) {
+	t.Cleanup(func() { viper.Reset() })
+	g := NewWithT(t)
+
+	err := flags.RegisterModuleSuppressionFlags([]string{"testmod1"})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(flags.IsModuleEnabled("testmod1")).Should(BeTrue(), "should be enabled by default")
+
+	viper.Set("disable-testmod1-module", true)
+	g.Expect(flags.IsModuleEnabled("testmod1")).Should(BeFalse(), "should be disabled when flag is set")
+}
+
+func TestModuleSuppressionFlagEnvBinding(t *testing.T) {
+	t.Cleanup(func() { viper.Reset() })
+	g := NewWithT(t)
+
+	err := flags.RegisterModuleSuppressionFlags([]string{"testmod2"})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	t.Setenv("RHAI_DISABLE_TESTMOD2_MODULE", "true")
+	g.Expect(flags.IsModuleEnabled("testmod2")).Should(BeFalse(), "should be disabled when env var is set")
+}
