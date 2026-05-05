@@ -4,31 +4,36 @@
 
 The Open Data Hub operator is a Kubernetes operator that deploys and manages a complete data science and AI/ML platform on OpenShift. It orchestrates 16 specialized components (Jupyter notebooks, KServe model serving, Ray distributed computing, ML pipelines, TrustyAI, ModelRegistry, etc.) through two primary Custom Resources: **DataScienceCluster (DSC)** for enabling/configuring components and **DSCInitialization (DSCI)** for platform-level setup. The operator uses a modern architecture with dedicated controllers per component, action-based reconciliation, and dynamic resource ownership.
 
-## CRITICAL: Required Reading for All Agents
+## Required Reading
 
-**Before starting ANY work on this project, agents MUST read the following documents in their entirety:**
+**Before starting ANY work on this project, agents MUST read these documents in their entirety:**
 
-### Core Documentation
-- @README.md - Project overview, installation, prerequisites, developer quick start
 - @CONTRIBUTING.md - PR workflow, code review, testing requirements, quality gates
 - @docs/DESIGN.md - Architecture, CRDs (DSC/DSCI), reconciliation refactor, component controllers
-- @docs/COMPONENT_INTEGRATION.md - Step-by-step guide for integrating new components
 
-### Build and Development
-- @Makefile - All build, test, deploy, and development commands (run `make help`)
+## Documentation Index
 
-### Specialized Documentation
-- @docs/troubleshooting.md - Debugging, common issues, environment setup
-- @docs/api-overview.md - Generated API reference for all CRDs
-- @docs/cloudmanager-api-overview.md - CloudManager infrastructure APIs
-- @docs/OLMDeployment.md - Operator Lifecycle Manager installation
-- @docs/integration-testing.md - Integration test architecture and execution
-- @docs/release-workflow-guide.md - Release process, branching strategy
-- @docs/ACCELERATOR_METRICS.md - GPU/accelerator metrics via OpenTelemetry
-- @docs/NAMESPACE_RESTRICTED_METRICS.md - Metrics access control and namespace isolation
-- @docs/AUTOMATED_MANIFEST_UPDATES.md - Manifest synchronization and automated updates
-- @docs/e2e-update-requirement-guidelines.md - E2E test requirements for new features
-- @docs/upgrade-testing.md - Upgrade path testing procedures
+Read these files as needed for specific tasks:
+
+### Core
+- `README.md` — Project overview, installation, prerequisites, developer guide, CR examples
+- `docs/COMPONENT_INTEGRATION.md` — Step-by-step guide for integrating new components
+
+### Build
+- `Makefile` — All build, test, deploy commands (run `make help`)
+
+### Reference
+- `docs/api-overview.md` — Generated API reference for all CRDs (large, read specific sections only)
+- `docs/cloudmanager-api-overview.md` — CloudManager infrastructure APIs
+- `docs/troubleshooting.md` — Debugging, common issues, environment setup
+- `docs/OLMDeployment.md` — Operator Lifecycle Manager installation
+- `docs/integration-testing.md` — Integration test architecture and execution
+- `docs/release-workflow-guide.md` — Release process, branching strategy
+- `docs/ACCELERATOR_METRICS.md` — GPU/accelerator metrics via OpenTelemetry
+- `docs/NAMESPACE_RESTRICTED_METRICS.md` — Metrics access control and namespace isolation
+- `docs/AUTOMATED_MANIFEST_UPDATES.md` — Manifest synchronization and automated updates
+- `docs/e2e-update-requirement-guidelines.md` — E2E test requirements for new features
+- `docs/upgrade-testing.md` — Upgrade path testing procedures
 
 ## Repository Structure
 ```
