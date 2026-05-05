@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -86,7 +87,7 @@ func kserveManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInf
 	}
 }
 
-func updateInferenceCM(inferenceServiceConfigMap *corev1.ConfigMap, isHeadless bool) error {
+func updateInferenceCM(ctx context.Context, inferenceServiceConfigMap *corev1.ConfigMap, isHeadless bool, oauthProxy *componentApi.OAuthProxyConfig) error {
 	// ingress
 	// RawDeployment mode is the only supported mode, so always disable ingress creation
 	var ingressData map[string]any
@@ -111,6 +112,41 @@ func updateInferenceCM(inferenceServiceConfigMap *corev1.ConfigMap, isHeadless b
 		return fmt.Errorf("could not set values in configmap %s. %w", kserveConfigMapName, err)
 	}
 	inferenceServiceConfigMap.Data[ServiceConfigKeyName] = string(serviceDataBytes)
+
+	// oauthProxy
+	if oauthProxy != nil && oauthProxy.Resources != nil {
+		rawOAuthProxy, ok := inferenceServiceConfigMap.Data[OAuthProxyConfigKeyName]
+		if !ok {
+			logf.FromContext(ctx).Info("ConfigMap is missing key, oauthProxy overrides will not be applied",
+				"configmap", kserveConfigMapName, "key", OAuthProxyConfigKeyName)
+		} else {
+			var oauthProxyData map[string]any
+			if err := json.Unmarshal([]byte(rawOAuthProxy), &oauthProxyData); err != nil {
+				return fmt.Errorf("error retrieving value for key '%s' from configmap %s. %w", OAuthProxyConfigKeyName, kserveConfigMapName, err)
+			}
+			if oauthProxyData == nil {
+				oauthProxyData = map[string]any{}
+			}
+			if v, ok := oauthProxy.Resources.Requests[corev1.ResourceMemory]; ok {
+				oauthProxyData["memoryRequest"] = v.String()
+			}
+			if v, ok := oauthProxy.Resources.Limits[corev1.ResourceMemory]; ok {
+				oauthProxyData["memoryLimit"] = v.String()
+			}
+			if v, ok := oauthProxy.Resources.Requests[corev1.ResourceCPU]; ok {
+				oauthProxyData["cpuRequest"] = v.String()
+			}
+			if v, ok := oauthProxy.Resources.Limits[corev1.ResourceCPU]; ok {
+				oauthProxyData["cpuLimit"] = v.String()
+			}
+			oauthProxyDataBytes, err := json.MarshalIndent(oauthProxyData, "", " ")
+			if err != nil {
+				return fmt.Errorf("could not set values in configmap %s. %w", kserveConfigMapName, err)
+			}
+			inferenceServiceConfigMap.Data[OAuthProxyConfigKeyName] = string(oauthProxyDataBytes)
+		}
+	}
+
 	return nil
 }
 
