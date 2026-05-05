@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/mark3labs/mcp-go/server"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -133,6 +136,55 @@ func TestRecentEvents_Count(t *testing.T) {
 			}
 			if events[0].Count != count {
 				t.Errorf("Count = %d, want %d", events[0].Count, count)
+			}
+		})
+	}
+}
+
+func TestRecentEvents_ErrorClients(t *testing.T) {
+	tests := []struct {
+		name      string
+		client    client.Client
+		args      map[string]any
+		wantInErr string
+	}{
+		{"RBAC forbidden", newForbiddenClient(), map[string]any{"namespace": "opendatahub"}, "forbidden"},
+		{"CRD not installed", newNoMatchClient(), map[string]any{"namespace": "opendatahub"}, "no matches for kind"},
+		{"namespace discovery failed (RBAC)", newForbiddenClient(), map[string]any{}, "namespace discovery failed"},
+		{"namespace discovery failed (CRD)", newNoMatchClient(), map[string]any{}, "namespace discovery failed"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := server.NewMCPServer("test", "0.0.1")
+			registerRecentEvents(s, tt.client)
+
+			msg, err := json.Marshal(map[string]any{
+				"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+				"params": map[string]any{"name": "recent_events", "arguments": tt.args},
+			})
+			if err != nil {
+				t.Fatalf("marshal request: %v", err)
+			}
+			raw, err := json.Marshal(s.HandleMessage(context.Background(), msg))
+			if err != nil {
+				t.Fatalf("marshal handler response: %v", err)
+			}
+
+			var rpc struct {
+				Result struct {
+					Content []struct{ Text string } `json:"content"`
+					IsError bool                    `json:"isError"`
+				} `json:"result"`
+			}
+			if err := json.Unmarshal(raw, &rpc); err != nil {
+				t.Fatalf("unmarshal rpc: %v", err)
+			}
+			if len(rpc.Result.Content) == 0 {
+				t.Fatal("empty content")
+			}
+			if !strings.Contains(rpc.Result.Content[0].Text, tt.wantInErr) {
+				t.Errorf("error text=%q, want substring %q", rpc.Result.Content[0].Text, tt.wantInErr)
 			}
 		})
 	}

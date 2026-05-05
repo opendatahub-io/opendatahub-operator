@@ -202,3 +202,25 @@ func TestOperatorDependencies_NilClient(t *testing.T) {
 		t.Error("operator_dependencies with nil client should return error")
 	}
 }
+
+func TestOperatorDependencies_ErrorClients(t *testing.T) {
+	tests := []struct {
+		name   string
+		client client.Client
+	}{
+		{"RBAC forbidden", newForbiddenClient()},
+		{"CRD not installed", newNoMatchClient()},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			text, isError := callDeps(t, tt.client, map[string]any{})
+			if isError {
+				t.Fatalf("expected isError=false (errors captured per-section), got true; text: %s", text)
+			}
+			if !strings.Contains(strings.ToLower(text), "warning:") && !strings.Contains(text, `"error"`) {
+				t.Errorf("expected response to contain warning prefix or dependency error details; got: %s", text)
+			}
+		})
+	}
+}
