@@ -31,7 +31,7 @@ var LlmisvcConfigs = LLMInferenceServingPath{
 	ServiceAccountNamePath: []string{"spec", "template", "serviceAccountName"},
 }
 
-//+kubebuilder:webhook:path=/platform-connection-llmisvc,mutating=true,failurePolicy=fail,groups=serving.kserve.io,resources=llminferenceservices,verbs=create;update,versions=v1alpha1;v1alpha2,name=connection-llmisvc.opendatahub.io,sideEffects=NoneOnDryRun,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/platform-connection-llmisvc,mutating=true,failurePolicy=fail,groups=serving.kserve.io,resources=llminferenceservices,verbs=create;update,versions=v1alpha1;v1alpha2,name=connection-llmisvc.opendatahub.io,sideEffects=NoneOnDryRun,admissionReviewVersions=v1,timeoutSeconds=10
 //nolint:lll
 
 type LLMISVCConnectionWebhook struct {

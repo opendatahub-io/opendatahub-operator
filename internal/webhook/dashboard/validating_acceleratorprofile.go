@@ -19,7 +19,7 @@ const (
 )
 
 //nolint:lll
-//+kubebuilder:webhook:path=/validate-dashboard-acceleratorprofile,mutating=false,failurePolicy=fail,sideEffects=None,groups=dashboard.opendatahub.io,resources=acceleratorprofiles,verbs=create;update,versions=v1,name=dashboard-acceleratorprofile-validator.opendatahub.io,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/validate-dashboard-acceleratorprofile,mutating=false,failurePolicy=fail,sideEffects=None,groups=dashboard.opendatahub.io,resources=acceleratorprofiles,verbs=create;update,versions=v1,name=dashboard-acceleratorprofile-validator.opendatahub.io,admissionReviewVersions=v1,timeoutSeconds=10
 
 func NewAcceleratorProfileWebhook(s *runtime.Scheme) *deprecation.TypeValidator {
 	return &deprecation.TypeValidator{
