@@ -423,6 +423,11 @@ func TestCustomizeKserveConfigMapOAuthProxy(t *testing.T) {
 		var oauthProxyData map[string]any
 		err = json.Unmarshal([]byte(updatedConfigMap.Data[OAuthProxyConfigKeyName]), &oauthProxyData)
 		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(oauthProxyData["image"]).Should(Equal("registry.example.com/oauth-proxy:latest"))
+		g.Expect(oauthProxyData["memoryRequest"]).Should(Equal("64Mi"))
+		g.Expect(oauthProxyData["memoryLimit"]).Should(Equal("128Mi"))
+		g.Expect(oauthProxyData["cpuRequest"]).Should(Equal("100m"))
+		g.Expect(oauthProxyData["cpuLimit"]).Should(Equal("200m"))
 	})
 
 	t.Run("Test KServe config: missing oauthProxy key in ConfigMap is tolerated", func(t *testing.T) {
