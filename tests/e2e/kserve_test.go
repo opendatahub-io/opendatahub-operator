@@ -458,9 +458,6 @@ func kserveModelCacheTestSuite(t *testing.T) {
 		ComponentTestCtx: ct,
 	}
 
-	reset := componentCtx.OverrideEventuallyTimeout(ct.TestTimeouts.longEventuallyTimeout, ct.TestTimeouts.defaultEventuallyPollInterval)
-	defer reset()
-
 	testCases := []TestCase{
 		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
 		{"Validate ModelCache enabled", componentCtx.ValidateModelCacheEnabled},
