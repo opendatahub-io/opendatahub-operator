@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -42,6 +43,17 @@ type handler struct {
 	modules.BaseHandler
 }
 
+// relatedImageEnvVars maps operator-side env var names to the module-side
+// names. The operator's CSV sets RELATED_IMAGE_* on the operator pod;
+// these are forwarded to the module deployment via Helm values so the
+// module can use pinned/mirrored images in disconnected environments.
+var relatedImageEnvVars = []struct{ operatorEnv, moduleEnv string }{
+	{"RELATED_IMAGE_PERSES_IMAGE", "RELATED_IMAGE_PERSES_IMAGE"},
+	{"RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE", "RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE"},
+	{"RELATED_IMAGE_OSE_PROM_LABEL_PROXY_IMAGE", "RELATED_IMAGE_OSE_PROM_LABEL_PROXY_IMAGE"},
+	{"RELATED_IMAGE_CLI_IMAGE", "RELATED_IMAGE_CLI_IMAGE"},
+}
+
 func NewHandler() modules.ModuleHandler {
 	return &handler{
 		BaseHandler: modules.BaseHandler{
@@ -51,8 +63,29 @@ func NewHandler() modules.ModuleHandler {
 				CRName:      serviceApi.MonitoringInstanceName,
 				ReleaseName: "odh-observability",
 				ChartDir:    "odh-observability",
+				Values:      buildChartValues(),
 			},
 		},
+	}
+}
+
+func buildChartValues() map[string]any {
+	var envVars []map[string]string
+	for _, img := range relatedImageEnvVars {
+		if v := os.Getenv(img.operatorEnv); v != "" {
+			envVars = append(envVars, map[string]string{
+				"name":  img.moduleEnv,
+				"value": v,
+			})
+		}
+	}
+
+	if len(envVars) == 0 {
+		return nil
+	}
+
+	return map[string]any{
+		"env": envVars,
 	}
 }
 
