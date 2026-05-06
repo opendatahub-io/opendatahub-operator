@@ -71,7 +71,8 @@ type MetricsStorage struct {
 
 // MonitoringStatus defines the observed state of Monitoring
 type MonitoringStatus struct {
-	common.Status `json:",inline"`
+	common.Status                `json:",inline"`
+	common.ComponentReleaseStatus `json:",inline"`
 
 	URL string `json:"url,omitempty"`
 }
@@ -179,6 +180,14 @@ func (c *Monitoring) GetConditions() []common.Condition {
 
 func (c *Monitoring) SetConditions(conditions []common.Condition) {
 	c.Status.SetConditions(conditions)
+}
+
+func (c *Monitoring) GetReleaseStatus() *[]common.ComponentRelease {
+	return &c.Status.Releases
+}
+
+func (c *Monitoring) SetReleaseStatus(releases []common.ComponentRelease) {
+	c.Status.Releases = releases
 }
 
 func init() {
