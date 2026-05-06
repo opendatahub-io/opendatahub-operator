@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -50,7 +51,8 @@ func listContainers(ctx context.Context, clientset kubernetes.Interface, podName
 		if k8serr.IsNotFound(err) {
 			return mcp.NewToolResultError(fmt.Sprintf("pod %q not found in namespace %q", podName, namespace)), nil
 		}
-		return mcp.NewToolResultError(fmt.Sprintf("error getting pod: %v", err)), nil
+		log.Printf("pod_logs: error getting pod %q in namespace %q: %v", podName, namespace, err)
+		return mcp.NewToolResultError(fmt.Sprintf("failed to get pod %q in namespace %q", podName, namespace)), nil
 	}
 
 	toMap := func(statuses []corev1.ContainerStatus) map[string]corev1.ContainerStatus {
@@ -85,7 +87,8 @@ func listContainers(ctx context.Context, clientset kubernetes.Interface, podName
 
 	data, err := json.MarshalIndent(entries, "", "  ")
 	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("json marshal error: %v", err)), nil
+		log.Printf("pod_logs: json marshal: %v", err)
+		return mcp.NewToolResultError("failed to format container list"), nil
 	}
 	return mcp.NewToolResultText(string(data)), nil
 }
@@ -151,9 +154,9 @@ func fetchPodLogs(ctx context.Context, clientset kubernetes.Interface, req mcp.C
 			msg := err.Error()
 			switch {
 			case strings.Contains(msg, "previous terminated container"):
-				return mcp.NewToolResultError(fmt.Sprintf("no previous logs available for pod %q (namespace %q): %v", podName, namespace, err)), nil
+				return mcp.NewToolResultError(fmt.Sprintf("no previous logs available for pod %q (namespace %q)", podName, namespace)), nil
 			case strings.Contains(msg, "not found") || strings.Contains(msg, "is not valid"):
-				errMsg := fmt.Sprintf("container not found in pod %q (namespace %q): %v", podName, namespace, err)
+				errMsg := fmt.Sprintf("container not found in pod %q (namespace %q)", podName, namespace)
 				if result, listErr := listContainers(ctx, clientset, podName, namespace); listErr == nil && !result.IsError {
 					if len(result.Content) > 0 {
 						if tc, ok := result.Content[0].(mcp.TextContent); ok {
@@ -163,16 +166,23 @@ func fetchPodLogs(ctx context.Context, clientset kubernetes.Interface, req mcp.C
 				}
 				return mcp.NewToolResultError(errMsg), nil
 			}
-			fallthrough
+			log.Printf("pod_logs: invalid request for pod %q in namespace %q: %v", podName, namespace, err)
+			return mcp.NewToolResultError(fmt.Sprintf("invalid pod log request for pod %q (namespace %q)", podName, namespace)), nil
+		case k8serr.IsForbidden(err):
+			return mcp.NewToolResultError(fmt.Sprintf(
+				"RBAC insufficient: the operator service-account lacks permission to read pod logs in namespace %q",
+				namespace)), nil
 		default:
-			return mcp.NewToolResultError(fmt.Sprintf("pod logs error: %v", err)), nil
+			log.Printf("pod_logs: %v", err)
+			return mcp.NewToolResultError("failed to retrieve pod logs"), nil
 		}
 	}
 	defer stream.Close()
 
 	data, err := io.ReadAll(io.LimitReader(stream, maxLogBytes+1))
 	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("pod logs error: %v", err)), nil
+		log.Printf("pod_logs: error reading log stream: %v", err)
+		return mcp.NewToolResultError("failed to read pod logs"), nil
 	}
 
 	truncated := int64(len(data)) > maxLogBytes
