@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -70,11 +71,13 @@ func registerDescribeResource(s *server.MCPServer, kubeClient client.Client) {
 				}
 				return mcp.NewToolResultError(fmt.Sprintf("%s %q not found", kind, name)), nil
 			case k8serr.IsForbidden(err):
-				return mcp.NewToolResultError(fmt.Sprintf("RBAC insufficient: %v", err)), nil
+				return mcp.NewToolResultError(fmt.Sprintf(
+					"RBAC insufficient: the operator service-account lacks permission to get %s %q", kind, name)), nil
 			case meta.IsNoMatchError(err):
 				return mcp.NewToolResultError(fmt.Sprintf("CRD not installed: %s in %s is not recognized", kind, apiVersion)), nil
 			default:
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get resource: %v", err)), nil
+				log.Printf("describe_resource: failed to get %s %q: %v", kind, name, err)
+				return mcp.NewToolResultError(fmt.Sprintf("failed to get %s %q", kind, name)), nil
 			}
 		}
 
@@ -100,7 +103,8 @@ func registerDescribeResource(s *server.MCPServer, kubeClient client.Client) {
 
 		data, err := json.MarshalIndent(obj.Object, "", "  ")
 		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("json marshal error: %v", err)), nil
+			log.Printf("describe_resource: json marshal: %v", err)
+			return mcp.NewToolResultError("failed to format resource"), nil
 		}
 		output := string(data)
 		if len(output) > maxResponseBytes {

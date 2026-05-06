@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -131,3 +133,136 @@ func TestSummarizeReport(t *testing.T) {
 	}
 }
 
+func TestPlatformHealth_HandlerHappyPath(t *testing.T) {
+	cl := newFakeClient()
+	tests := []struct {
+		name string
+		args map[string]any
+		want []string
+	}{
+		{"empty arguments", map[string]any{}, nil},
+		{"explicit namespace overrides", map[string]any{
+			"operator_namespace":     "custom-op-ns",
+			"applications_namespace": "custom-apps-ns",
+			"sections":               "nodes,pods",
+		}, []string{"nodes", "pods"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := server.NewMCPServer("test", "0.0.1")
+			registerPlatformHealth(s, cl)
+			msg, err := json.Marshal(map[string]any{
+				"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+				"params": map[string]any{"name": "platform_health", "arguments": tt.args},
+			})
+			if err != nil {
+				t.Fatalf("marshal request: %v", err)
+			}
+			raw, err := json.Marshal(s.HandleMessage(context.Background(), msg))
+			if err != nil {
+				t.Fatalf("marshal handler response: %v", err)
+			}
+			var rpc struct {
+				Result struct {
+					Content []struct{ Text string } `json:"content"`
+					IsError bool                    `json:"isError"`
+				} `json:"result"`
+			}
+			if err := json.Unmarshal(raw, &rpc); err != nil {
+				t.Fatalf("unmarshal rpc: %v", err)
+			}
+			if len(rpc.Result.Content) == 0 {
+				t.Fatal("empty content")
+			}
+			if rpc.Result.IsError {
+				t.Fatalf("handler returned error: %s", rpc.Result.Content[0].Text)
+			}
+			var summary HealthSummary
+			if err := json.Unmarshal([]byte(rpc.Result.Content[0].Text), &summary); err != nil {
+				t.Fatalf("unmarshal summary: %v", err)
+			}
+			if summary.CollectedAt.IsZero() {
+				t.Error("CollectedAt should be non-zero")
+			}
+			if tt.want != nil {
+				if len(summary.Sections) != len(tt.want) {
+					t.Fatalf("Sections = %v, want %v", summary.Sections, tt.want)
+				}
+				for _, s := range tt.want {
+					if _, ok := summary.Sections[s]; !ok {
+						t.Errorf("missing section %q", s)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestPlatformHealth_ErrorClients(t *testing.T) {
+	tests := []struct {
+		name      string
+		client    client.Client
+		args      map[string]any
+		wantInErr string
+	}{
+		{"namespace discovery RBAC", newForbiddenClient(), map[string]any{}, "RBAC insufficient"},
+		{"namespace discovery CRD", newNoMatchClient(), map[string]any{}, "CRD not installed"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := server.NewMCPServer("test", "0.0.1")
+			registerPlatformHealth(s, tt.client)
+
+			msg, err := json.Marshal(map[string]any{
+				"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+				"params": map[string]any{"name": "platform_health", "arguments": tt.args},
+			})
+			if err != nil {
+				t.Fatalf("marshal request: %v", err)
+			}
+			raw, err := json.Marshal(s.HandleMessage(context.Background(), msg))
+			if err != nil {
+				t.Fatalf("marshal handler response: %v", err)
+			}
+
+			var rpc struct {
+				Result struct {
+					Content []struct{ Text string } `json:"content"`
+					IsError bool                    `json:"isError"`
+				} `json:"result"`
+			}
+			if err := json.Unmarshal(raw, &rpc); err != nil {
+				t.Fatalf("unmarshal rpc: %v", err)
+			}
+			if len(rpc.Result.Content) == 0 {
+				t.Fatal("empty content")
+			}
+
+			text := rpc.Result.Content[0].Text
+
+			if rpc.Result.IsError {
+				if !strings.Contains(text, tt.wantInErr) {
+					t.Errorf("error text=%q, want substring %q", text, tt.wantInErr)
+				}
+				return
+			}
+
+			var summary HealthSummary
+			if err := json.Unmarshal([]byte(text), &summary); err != nil {
+				t.Fatalf("unmarshal summary: %v", err)
+			}
+
+			found := false
+			for _, sec := range summary.Sections {
+				if strings.Contains(sec.Error, tt.wantInErr) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("no section contains error substring %q", tt.wantInErr)
+			}
+		})
+	}
+}

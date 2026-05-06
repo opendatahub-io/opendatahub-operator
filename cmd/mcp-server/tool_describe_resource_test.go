@@ -115,11 +115,27 @@ func TestDescribeResource(t *testing.T) {
 	}
 }
 
-func TestDescribeResource_NilClient(t *testing.T) {
-	_, isError := callDescribe(t, nil, map[string]any{
-		"apiVersion": "v1", "kind": "ConfigMap", "name": "x", "namespace": "default",
-	})
-	if !isError {
-		t.Error("describe with nil client should return error")
+func TestDescribeResource_ErrorClients(t *testing.T) {
+	args := map[string]any{"apiVersion": "v1", "kind": "ConfigMap", "name": "x", "namespace": "default"}
+
+	tests := []struct {
+		name   string
+		client client.Client
+	}{
+		{"nil client", nil},
+		{"RBAC forbidden", newForbiddenClient()},
+		{"CRD not installed", newNoMatchClient()},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			text, isError := callDescribe(t, tt.client, args)
+			if !isError {
+				t.Fatalf("expected isError=true, got text: %s", text)
+			}
+			if text == "" {
+				t.Error("expected non-empty error text")
+			}
+		})
 	}
 }

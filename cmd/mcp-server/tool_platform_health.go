@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"log"
 	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -26,22 +26,35 @@ func registerPlatformHealth(s *server.MCPServer, kubeClient client.Client) {
 			mcp.Description("Comma-separated layers: infrastructure,workload,"+
 				"operator. Ignored if sections is set. Omit for all.")),
 		mcp.WithString("operator_namespace",
-			mcp.Description("Operator namespace. Default: opendatahub-operator-system")),
+			mcp.Description("Operator namespace. Auto-discovered from env or defaults to opendatahub-operator-system.")),
 		mcp.WithString("applications_namespace",
-			mcp.Description("Apps namespace. Default: opendatahub")),
+			mcp.Description("Apps namespace. Auto-discovered from DSCI if not provided. Returns an error if DSCI discovery fails due to RBAC or missing CRD. Falls back to env var or 'opendatahub' when DSCI is absent.")),
 		mcp.WithBoolean("summary",
 			mcp.Description("If true, return a compact summary instead of the full report. Default: true")),
 	)
 
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		operatorNS := stringParam(req, "operator_namespace", "")
+		if operatorNS == "" {
+			operatorNS = discoverOperatorNamespace()
+		}
+		appsNS := stringParam(req, "applications_namespace", "")
+		if appsNS == "" {
+			var err error
+			appsNS, err = discoverAppsNamespace(ctx, kubeClient)
+			if err != nil {
+				return discoveryErrorResult("platform_health", err), nil
+			}
+		}
+
 		cfg := clusterhealth.Config{
 			Client: kubeClient,
 			Operator: clusterhealth.OperatorConfig{
-				Namespace: stringParam(req, "operator_namespace", getEnvDefault(envOperatorNamespace, defaultOperatorNS)),
+				Namespace: operatorNS,
 				Name:      getEnvDefault(envOperatorDeployment, defaultOperatorDeploy),
 			},
 			Namespaces: clusterhealth.NamespaceConfig{
-				Apps:       stringParam(req, "applications_namespace", getEnvDefault(envApplicationsNamespace, defaultAppsNS)),
+				Apps:       appsNS,
 				Monitoring: getEnvDefault(envMonitoringNamespace, defaultMonitoringNS),
 				Extra:      []string{"kube-system"},
 			},
@@ -55,7 +68,8 @@ func registerPlatformHealth(s *server.MCPServer, kubeClient client.Client) {
 
 		report, err := clusterhealth.Run(ctx, cfg)
 		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("clusterhealth error: %v", err)), nil
+			log.Printf("platform_health: %v", err)
+			return mcp.NewToolResultError("failed to run cluster health checks"), nil
 		}
 
 		var output any
@@ -67,7 +81,8 @@ func registerPlatformHealth(s *server.MCPServer, kubeClient client.Client) {
 
 		data, err := json.MarshalIndent(output, "", "  ")
 		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("json marshal error: %v", err)), nil
+			log.Printf("platform_health: json marshal: %v", err)
+			return mcp.NewToolResultError("failed to format health report"), nil
 		}
 		return mcp.NewToolResultText(string(data)), nil
 	})
