@@ -28,15 +28,6 @@ known_issues:
 - image: RELATED_IMAGE_ODH_CAIKIT_NLP_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-60523
   reason: caikit-nlp support is removed since RHOAI 3.0
-- image: RELATED_IMAGE_ODH_EVAL_HUB_IMAGE
-  jira: https://redhat.enterprise.slack.com/lists/T027F3GAJ/F07SBP17R7Z?record_id=Rec0B00862M6J
-  reason: PR created, need to be merged
-- image: RELATED_IMAGE_ODH_TRUSTYAI_NEMO_GUARDRAILS_SERVER_IMAGE
-  jira: https://redhat.enterprise.slack.com/lists/T027F3GAJ/F07SBP17R7Z?record_id=Rec0B00862M6J
-  reason: PR created, need to be merged
-- image: RELATED_IMAGE_ODH_TRUSTYAI_GARAK_LLS_PROVIDER_DSP_IMAGE
-  jira: https://redhat.enterprise.slack.com/lists/T027F3GAJ/F07SBP17R7Z?record_id=Rec0B00862M6J
-  reason: need to be added the image
 - image: RELATED_IMAGE_ODH_LLM_D_KV_CACHE_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-60572
   reason: need to be added the image to ODH-Build-Config
@@ -46,3 +37,9 @@ known_issues:
 - image: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-60572
   reason: need to be added the image to ODH-Build-Config, or set an exception for the image
+- image: RELATED_IMAGE_ODH_TH06_CPU_TORCH210_PY312_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-60758
+  reason: need to be onboarded to RHOAI 3.5-ea.1
+- image: RELATED_IMAGE_ODH_TH06_CUDA130_TORCH210_PY312_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-60756
+  reason: need to be onboarded to RHOAI 3.5-ea.1
