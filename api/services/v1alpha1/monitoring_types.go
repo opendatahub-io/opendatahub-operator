@@ -143,6 +143,19 @@ type TracesStorage struct {
 type Alerting struct {
 }
 
+// Logs enables and defines the configuration for logs collection via OpenTelemetry
+type Logs struct {
+	// Endpoint specifies the Loki endpoint URI for log ingestion
+	// Must include the full path to the push API, e.g., "/loki/api/v1/push"
+	// Examples:
+	//   - "http://loki.monitoring.svc:3100/loki/api/v1/push" (in-cluster)
+	//   - "https://loki.example.com:3100/loki/api/v1/push" (external)
+	// +kubebuilder:validation:Pattern=`^https?://[a-zA-Z0-9.-]+(:[0-9]+)?(/.*)?$`
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=2048
+	Endpoint string `json:"endpoint"`
+}
+
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster

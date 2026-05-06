@@ -96,6 +96,7 @@ const (
 	ConditionPersesTempoDataSourceAvailable      = "PersesTempoDataSourceAvailable"
 	ConditionPersesPrometheusDataSourceAvailable = "PersesPrometheusDataSourceAvailable"
 	ConditionNodeMetricsEndpointAvailable        = "NodeMetricsEndpointAvailable"
+	ConditionLogsCollectorAvailable              = "LogsCollectorAvailable"
 	ConditionImageStreamsAvailable               = "ImageStreamsAvailable"
 	ConditionImageStreamsNotAvailableReason      = "ImageStreamsNotReady"
 
@@ -163,6 +164,9 @@ const (
 
 	AlertingNotConfiguredReason  = "AlertingNotConfigured"
 	AlertingNotConfiguredMessage = "Alerting not configured in DSCI CR"
+
+	LogsNotConfiguredReason  = "LogsNotConfigured"
+	LogsNotConfiguredMessage = "Logs collection is not configured"
 
 	TempoOperatorMissingMessage                  = "Tempo operator must be installed for traces configuration"
 	COOMissingMessage                            = "ClusterObservability operator must be installed for metrics configuration"

@@ -52,6 +52,8 @@ const (
 	PrometheusClusterProxyTemplate                   = "resources/data-science-prometheus-cluster-proxy.tmpl.yaml"
 	TempoServiceCAConfigMapTemplate                  = "resources/tempo-service-ca-configmap.tmpl.yaml"
 	PersesOperatorAccessNetworkPolicyTemplate        = "resources/perses-operator-access-network-policy.tmpl.yaml"
+	OpenTelemetryLogsCollectorTemplate               = "resources/opentelemetry-logs-collector.tmpl.yaml"
+	LogsCollectorRBACTemplate                        = "resources/logs-collector-rbac.tmpl.yaml"
 
 	// API versions.
 	persesV1Alpha2 = "v1alpha2"
@@ -59,6 +61,11 @@ const (
 	// Resource names.
 	PersesTempoDatasourceName = "tempo-datasource"
 	PersesTempoDashboardName  = "data-science-tempo-traces"
+
+	// Logs collector routing constants.
+	LogsCollectorName           = "data-science-logs-collector"
+	MaasServiceName             = "maas-gateway"
+	MaasServiceNameResourceAttr = "service_name"
 )
 
 // CRDRequirement defines a required CRD and its associated condition for monitoring components.
@@ -315,6 +322,55 @@ func deployOpenTelemetryCollector(ctx context.Context, rr *odhtypes.Reconciliati
 
 	rr.Templates = append(rr.Templates, template...)
 
+	return nil
+}
+
+func deployLogsCollector(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	// Early exit if logs not configured
+	if monitoring.Spec.Logs == nil {
+		rr.Conditions.MarkFalse(
+			status.ConditionLogsCollectorAvailable,
+			conditions.WithReason(status.LogsNotConfiguredReason),
+			conditions.WithMessage(status.LogsNotConfiguredMessage),
+		)
+		return nil
+	}
+
+	// Check if OpenTelemetryCollector CRD exists
+	otcExists, err := cluster.HasCRD(ctx, rr.Client, gvk.OpenTelemetryCollector)
+	if err != nil {
+		return fmt.Errorf("failed to check if CRD OpenTelemetryCollector exists: %w", err)
+	}
+	if !otcExists {
+		rr.Conditions.MarkFalse(
+			status.ConditionLogsCollectorAvailable,
+			conditions.WithReason(gvk.OpenTelemetryCollector.Kind+"CRDNotFoundReason"),
+			conditions.WithMessage("%s CRD Not Found (required for logs collection)", gvk.OpenTelemetryCollector.Kind),
+		)
+		return nil
+	}
+
+	// Mark condition as available
+	rr.Conditions.MarkTrue(status.ConditionLogsCollectorAvailable)
+
+	// Add templates for logs collector
+	templates := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: OpenTelemetryLogsCollectorTemplate,
+		},
+		{
+			FS:   resourcesFS,
+			Path: LogsCollectorRBACTemplate,
+		},
+	}
+
+	rr.Templates = append(rr.Templates, templates...)
 	return nil
 }
 

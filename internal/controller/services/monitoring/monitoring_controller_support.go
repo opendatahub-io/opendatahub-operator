@@ -286,6 +286,45 @@ func addTracesTemplateData(templateData map[string]any, traces *serviceApi.Trace
 	return nil
 }
 
+func validateLogsEndpoint(endpoint string) error {
+	// Parse URL
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return fmt.Errorf("invalid logs endpoint URL: %w", err)
+	}
+
+	// Validate scheme
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("logs endpoint must use http or https scheme, got: %s", u.Scheme)
+	}
+
+	// Validate host is not empty
+	if u.Host == "" {
+		return errors.New("logs endpoint must include a host")
+	}
+
+	// Security check: warn about HTTP for external endpoints (don't fail)
+	if u.Scheme == "http" && !isLocalServiceEndpoint(endpoint) {
+		logf.Log.Info("Warning: using insecure HTTP for external Loki endpoint", "endpoint", endpoint)
+	}
+
+	return nil
+}
+
+func addLogsTemplateData(templateData map[string]any, logs *serviceApi.Logs) error {
+	// Validate endpoint
+	if err := validateLogsEndpoint(logs.Endpoint); err != nil {
+		return err
+	}
+
+	templateData["LogsEndpoint"] = logs.Endpoint
+	templateData["LogsCollectorName"] = LogsCollectorName
+	templateData["MaasServiceName"] = MaasServiceName
+	templateData["MaasServiceNameResourceAttr"] = MaasServiceNameResourceAttr
+
+	return nil
+}
+
 // Images can be overridden via environment variables, with defaults based on platform.
 func addImageURLs(rr *odhtypes.ReconciliationRequest, templateData map[string]any) {
 	templateData["KubeRBACProxyImage"] = getImageURL(
@@ -383,6 +422,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"Namespace":            monitoring.Spec.Namespace,
 		"Traces":               monitoring.Spec.Traces != nil,
 		"Metrics":              monitoring.Spec.Metrics != nil,
+		"Logs":                 monitoring.Spec.Logs != nil,
 		"AcceleratorMetrics":   monitoring.Spec.Metrics != nil,
 		"ApplicationNamespace": appNamespace,
 		"OperatorNamespace":    operatorNamespace,
@@ -406,6 +446,13 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	// Add traces-related data if traces are configured
 	if traces := monitoring.Spec.Traces; traces != nil {
 		if err := addTracesTemplateData(templateData, traces, monitoring.Spec.Namespace); err != nil {
+			return nil, err
+		}
+	}
+
+	// Add logs-related data if logs are configured
+	if logs := monitoring.Spec.Logs; logs != nil {
+		if err := addLogsTemplateData(templateData, logs); err != nil {
 			return nil, err
 		}
 	}
