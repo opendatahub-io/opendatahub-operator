@@ -23,7 +23,6 @@ import (
 	"path/filepath"
 	"time"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -187,53 +186,11 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return reconcile.Result{}, err
 	}
 
-	switch req.Name {
-	case "prometheus": // prometheus configmap
-		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhoai {
-			log.Info("Monitoring enabled to restart deployment", "cluster", "Managed Service Mode")
-			if err := r.configureManagedMonitoring(ctx, instance, "updates"); err != nil {
-				return reconcile.Result{}, err
-			}
-		}
-
-		return ctrl.Result{}, nil
-	case "addon-managed-odh-parameters":
-		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhoai {
-			log.Info("Monitoring enabled when notification updated", "cluster", "Managed Service Mode")
-			if err := r.configureManagedMonitoring(ctx, instance, "updates"); err != nil {
-				return reconcile.Result{}, err
-			}
-		}
-
-		return ctrl.Result{}, nil
-	case "backup": // revert back to the original prometheus.yml
-		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhoai {
-			log.Info("Monitoring enabled to restore back", "cluster", "Managed Service Mode")
-			if err := r.configureManagedMonitoring(ctx, instance, "revertbackup"); err != nil {
-				return reconcile.Result{}, err
-			}
-		}
-
-		return ctrl.Result{}, nil
-	default:
-		switch platform {
-		case cluster.SelfManagedRhoai:
-			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
-				log.Info("Monitoring enabled", "cluster", "Self-Managed Mode")
-				if err = r.configureSegmentIO(ctx, instance); err != nil {
-					return reconcile.Result{}, err
-				}
-
-				if err = r.newMonitoringCR(ctx, instance); err != nil {
-					return ctrl.Result{}, err
-				}
-			} else {
-				log.Info("Monitoring disabled", "cluster", "Self-Managed Mode")
-				if err := r.deleteMonitoringCR(ctx); err != nil {
-					return reconcile.Result{}, err
-				}
-			}
-		case cluster.ManagedRhoai:
+	{
+		// Monitoring is now managed by the module operator (odh-observability).
+		// The module handler in provisionModules creates the Monitoring CR.
+		// Only platform-level concerns (osd-configs) remain here.
+		if platform == cluster.ManagedRhoai {
 			osdConfigsPath := filepath.Join(r.OperatorSettings.ManifestsBasePath, "osd-configs")
 			if err = deploy.DeployManifestsFromPath(ctx, r.Client, instance, osdConfigsPath, instance.Spec.ApplicationsNamespace, "osd", true); err != nil {
 				log.Error(err, "Failed to apply osd specific configs from manifests", "Manifests path", osdConfigsPath)
@@ -241,29 +198,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 					"Failed to apply %s: %v", osdConfigsPath, err)
 
 				return reconcile.Result{}, err
-			}
-			// TODO: till we allow user to disable Monitoring in Managed cluster
-			log.Info("Monitoring enabled in initialization stage", "cluster", "Managed Service Mode")
-			if err = r.newMonitoringCR(ctx, instance); err != nil {
-				return ctrl.Result{}, err
-			}
-			if err = r.configureManagedMonitoring(ctx, instance, "init"); err != nil {
-				return reconcile.Result{}, err
-			}
-			if err = r.configureCommonMonitoring(ctx, instance); err != nil {
-				return reconcile.Result{}, err
-			}
-		default: // TODO: see if this can be conbimed with self-managed case
-			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
-				log.Info("Monitoring enabled", "cluster", "ODH Mode")
-				if err = r.newMonitoringCR(ctx, instance); err != nil {
-					return ctrl.Result{}, err
-				}
-			} else {
-				log.Info("Monitoring disabled", "cluster", "ODH Mode")
-				if err := r.deleteMonitoringCR(ctx); err != nil {
-					return reconcile.Result{}, err
-				}
 			}
 		}
 
@@ -322,6 +256,10 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 		return ctrl.Result{}, nil
 	}
+}
+
+func (r *DSCInitializationReconciler) networkpolicyPath() string {
+	return filepath.Join(r.OperatorSettings.ManifestsBasePath, "monitoring", "networkpolicy")
 }
 
 func getObject(gvk schema.GroupVersionKind) client.Object {
@@ -393,16 +331,6 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			builder.WithPredicates(rp.DSCDeletionPredicate), // TODO: is it needed?
 		).
 		Watches(
-			getObject(gvk.Secret),
-			handler.EnqueueRequestsFromMapFunc(r.watchMonitoringSecretResource),
-			builder.WithPredicates(rp.SecretContentChangedPredicate),
-		).
-		Watches(
-			getObject(gvk.ConfigMap),
-			handler.EnqueueRequestsFromMapFunc(r.watchMonitoringConfigMapResource),
-			builder.WithPredicates(rp.CMContentChangedPredicate),
-		).
-		Watches(
 			getObject(gvk.Auth),
 			handler.EnqueueRequestsFromMapFunc(r.watchAuthResource),
 		).
@@ -419,31 +347,6 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			)),
 		).
 		Complete(r)
-}
-
-func (r *DSCInitializationReconciler) watchMonitoringConfigMapResource(ctx context.Context, a client.Object) []reconcile.Request {
-	log := logf.FromContext(ctx)
-	if a.GetName() == "prometheus" && a.GetNamespace() == "redhat-ods-monitoring" {
-		log.Info("Found monitoring configmap has updated, start reconcile")
-
-		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "prometheus", Namespace: "redhat-ods-monitoring"}}}
-	}
-	return nil
-}
-
-func (r *DSCInitializationReconciler) watchMonitoringSecretResource(ctx context.Context, a client.Object) []reconcile.Request {
-	log := logf.FromContext(ctx)
-	operatorNs, err := cluster.GetOperatorNamespace()
-	if err != nil {
-		return nil
-	}
-
-	if a.GetName() == "addon-managed-odh-parameters" && a.GetNamespace() == operatorNs {
-		log.Info("Found monitoring secret has updated, start reconcile")
-
-		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "addon-managed-odh-parameters", Namespace: operatorNs}}}
-	}
-	return nil
 }
 
 func (r *DSCInitializationReconciler) watchDSCResource(ctx context.Context) []reconcile.Request {
@@ -493,89 +396,6 @@ func (r *DSCInitializationReconciler) watchGatewayConfigResource(ctx context.Con
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: serviceApi.GatewayConfigName}}}
 	}
 
-	return nil
-}
-
-func (r *DSCInitializationReconciler) deleteMonitoringCR(ctx context.Context) error {
-	defaultMonitoring := &serviceApi.Monitoring{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: serviceApi.MonitoringInstanceName,
-		},
-	}
-	err := r.Client.Delete(ctx, defaultMonitoring)
-	if err != nil && !k8serr.IsNotFound(err) {
-		return err
-	}
-
-	return nil
-}
-
-func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci *dsciv2.DSCInitialization) error {
-	// Create Monitoring CR singleton
-	defaultMonitoring := &serviceApi.Monitoring{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       serviceApi.MonitoringKind,
-			APIVersion: serviceApi.GroupVersion.String(),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: serviceApi.MonitoringInstanceName,
-		},
-		Spec: serviceApi.MonitoringSpec{
-			MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
-				Namespace: dsci.Spec.Monitoring.Namespace,
-			},
-		},
-	}
-
-	metricsEnabled := dsci.Spec.Monitoring.Metrics != nil && dsci.Spec.Monitoring.Metrics.Storage != nil
-	tracesEnabled := dsci.Spec.Monitoring.Traces != nil
-
-	if metricsEnabled {
-		defaultMonitoring.Spec.Metrics = dsci.Spec.Monitoring.Metrics
-	} else {
-		defaultMonitoring.Spec.Metrics = nil
-	}
-
-	if tracesEnabled {
-		defaultMonitoring.Spec.Traces = dsci.Spec.Monitoring.Traces
-		// Without this, when TLS.Enabled is false, the TLS struct is not removed from the Monitoring CR and it causes an error.
-		if defaultMonitoring.Spec.Traces.TLS != nil && !defaultMonitoring.Spec.Traces.TLS.Enabled {
-			defaultMonitoring.Spec.Traces.TLS = nil
-		}
-	} else {
-		defaultMonitoring.Spec.Traces = nil
-	}
-
-	defaultMonitoring.Spec.Alerting = dsci.Spec.Monitoring.Alerting
-
-	if metricsEnabled || tracesEnabled {
-		if dsci.Spec.Monitoring.CollectorReplicas != 0 {
-			defaultMonitoring.Spec.CollectorReplicas = dsci.Spec.Monitoring.CollectorReplicas
-		} else {
-			isSNO := cluster.IsSingleNodeCluster(ctx, r.Client)
-			if isSNO {
-				defaultMonitoring.Spec.CollectorReplicas = 1
-			} else {
-				defaultMonitoring.Spec.CollectorReplicas = 2
-			}
-		}
-	}
-
-	if err := controllerutil.SetOwnerReference(dsci, defaultMonitoring, r.Client.Scheme()); err != nil {
-		return err
-	}
-
-	err := resources.Apply(
-		ctx,
-		r.Client,
-		defaultMonitoring,
-		client.FieldOwner(fieldManager),
-		client.ForceOwnership,
-	)
-
-	if err != nil && !k8serr.IsAlreadyExists(err) {
-		return err
-	}
 	return nil
 }
 
