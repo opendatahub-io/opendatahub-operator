@@ -88,8 +88,8 @@ validate_namespace E2E_TEST_DSC_MONITORING_NAMESPACE
 : "${E2E_TEST_TAG:=All}"
 validate_tag E2E_TEST_TAG
 
-# Toggle for JUnit XML enrichment with failure classification (default: enabled)
-: "${USE_TEST_RETRY:=true}"
+# Toggle for JUnit XML enrichment with failure classification (default: disabled)
+: "${USE_TEST_RETRY:=false}"
 validate_bool USE_TEST_RETRY
 
 # Label to apply to PRs when tests are flaky (pass on retry)
@@ -140,7 +140,7 @@ if [ "$USE_TEST_RETRY" = "true" ] || [ "$USE_TEST_RETRY" = "1" ]; then
 else
   echo "Using gotestsum (standard JUnit XML, no enrichment)"
 
-  # Run with gotestsum (existing behavior)
+  # Run with gotestsum (existing behavior - DEFAULT)
   exec gotestsum --junitfile-project-name odh-operator-e2e \
     --junitfile results/xunit_report.xml --format standard-verbose --raw-command \
     -- test2json -t -p e2e ./e2e-tests --test.v=test2json --test.parallel=8 \
