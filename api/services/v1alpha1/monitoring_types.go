@@ -36,9 +36,8 @@ var _ common.PlatformObject = (*Monitoring)(nil)
 
 // MonitoringSpec defines the desired state of Monitoring
 type MonitoringSpec struct {
-	// monitoring spec exposed to DSCI api
-	MonitoringCommonSpec `json:",inline"`
-	// monitoring spec exposed only to internal api
+	common.ManagementSpec `json:",inline"`
+	MonitoringCommonSpec  `json:",inline"`
 }
 
 // Metrics defines the desired state of metrics for the monitoring service
@@ -71,7 +70,7 @@ type MetricsStorage struct {
 
 // MonitoringStatus defines the observed state of Monitoring
 type MonitoringStatus struct {
-	common.Status                `json:",inline"`
+	common.Status                 `json:",inline"`
 	common.ComponentReleaseStatus `json:",inline"`
 
 	URL string `json:"url,omitempty"`

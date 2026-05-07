@@ -468,6 +468,8 @@ func (b *ReconcilerBuilder[T]) Build(_ context.Context) (*Reconciler, error) {
 		return nil, err
 	}
 
+	r.Controller = cc
+
 	// internal action for existing dynamic watches (OwnsGVK with Dynamic())
 	r.AddAction(
 		newDynamicWatchAction(
