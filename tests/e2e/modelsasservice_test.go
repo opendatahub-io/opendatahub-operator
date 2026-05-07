@@ -259,6 +259,7 @@ func (tc *ModelsAsServiceTestCtx) ValidateMaaSParametersPayloadProcessingNamespa
 		WithCondition(
 			And(
 				jq.Match(`.data["payload-processing-namespace"] == "%s"`, tc.AppsNamespace),
+				jq.Match(`.data["payload-processing-namespace"] != "%s"`, maasGatewayNamespace),
 				jq.Match(`.data["app-namespace"] == "%s"`, tc.AppsNamespace),
 			),
 		),
