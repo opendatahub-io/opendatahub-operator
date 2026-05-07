@@ -128,7 +128,7 @@ func ParseGoTestJSON(cfg ParseConfig) (*types.TestResult, error) {
 	}
 
 	if errs := execution.Errors(); len(errs) > 0 {
-		fmt.Fprintf(os.Stderr, "Warning: stderr output from test execution (non-fatal): %v\n", errs)
+		fmt.Fprintf(os.Stderr, "Warning: stderr output from test execution (non-fatal): %d entries (details redacted)\n", len(errs))
 	}
 
 	testResult := &types.TestResult{
