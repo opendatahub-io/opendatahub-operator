@@ -60,3 +60,6 @@ map:
   odh-spark-operator:
     src: config
     dest: sparkoperator
+  odh-ogx-k8s-operator:
+    src: config
+    dest: ogx
