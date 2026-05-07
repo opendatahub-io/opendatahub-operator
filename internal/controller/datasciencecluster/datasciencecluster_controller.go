@@ -88,6 +88,7 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 		WithAction(provisionModules).
 		WithAction(helmrender.NewAction()).
 		WithAction(kustomizerender.NewAction()).
+		WithAction(injectModuleEnv).
 		WithAction(deploy.NewAction(
 			deploy.WithCache()),
 		).

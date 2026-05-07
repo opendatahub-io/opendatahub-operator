@@ -45,6 +45,10 @@ type ModuleHandler interface {
 	// field mapping.
 	BuildModuleCR(ctx context.Context, cli client.Client, platform *PlatformContext) (*unstructured.Unstructured, error)
 
+	// GetRelatedImages returns the RELATED_IMAGE_* environment variable names
+	// that the module operator needs injected into its Deployment.
+	GetRelatedImages() []string
+
 	// GetModuleStatus reads the current status from the deployed module CR
 	// for aggregation into the DSC ModulesReady condition. The returned
 	// ModuleStatus includes conditions and generation metadata for staleness

@@ -22,6 +22,18 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
+// ModuleEnvInjection holds aggregated environment variable injection data
+// for all enabled modules. Set by provisionModules and consumed by the
+// injectModuleEnv action to inject RELATED_IMAGE_* and APPLICATIONS_NAMESPACE
+// env vars into module operator Deployments.
+type ModuleEnvInjection struct {
+	// RelatedImages is the deduplicated union of RELATED_IMAGE_* env var
+	// names from all enabled modules.
+	RelatedImages []string
+	// ApplicationsNamespace is the platform's shared application namespace.
+	ApplicationsNamespace string
+}
+
 // Controller defines the core interface for a controller in the OpenDataHub Operator.
 type Controller interface {
 	// Owns returns true if the controller manages resources of the specified GroupVersionKind.
@@ -64,6 +76,11 @@ type ManifestInfo struct {
 	Path       string
 	ContextDir string
 	SourcePath string
+
+	// Namespace overrides the default ApplicationsNamespace for Kustomize
+	// rendering. When empty, the render action uses ApplicationsNamespace.
+	// Set this for modules that deploy into a dedicated namespace.
+	Namespace string
 }
 
 func (mi ManifestInfo) String() string {
@@ -142,6 +159,11 @@ type ReconciliationRequest struct {
 	//       replaced with a better way of describing resources and
 	//       their origin
 	Generated bool
+
+	// ModuleEnvInjection holds aggregated env var injection data for module
+	// operator Deployments. Set by provisionModules, consumed by
+	// injectModuleEnv. Nil when no modules are enabled.
+	ModuleEnvInjection *ModuleEnvInjection
 }
 
 // AddResources adds one or more resources to the ReconciliationRequest's Resources slice.

@@ -53,6 +53,20 @@ type ModuleConfig struct {
 
 	// SourcePath is an optional overlay path within ContextDir.
 	SourcePath string
+
+	// Namespace overrides the default ApplicationsNamespace for rendering.
+	// When empty, both Helm and Kustomize use ApplicationsNamespace. Set
+	// this for modules that deploy into a dedicated namespace. For Helm
+	// modules this is also available via Values; for Kustomize modules this
+	// is the only way to override the namespace.
+	Namespace string
+
+	// RelatedImages lists RELATED_IMAGE_* environment variable names that the
+	// module operator needs. The platform reads each name from its own process
+	// environment (where the release pipeline sets digest-pinned references)
+	// and injects them into the module operator's Deployment before apply.
+	// Variables whose values are empty on the platform operator are skipped.
+	RelatedImages []string
 }
 
 // BaseHandler provides default implementations for ModuleHandler methods
@@ -68,6 +82,10 @@ func (b *BaseHandler) GetName() string {
 
 func (b *BaseHandler) GetGVK() schema.GroupVersionKind {
 	return b.Config.GVK
+}
+
+func (b *BaseHandler) GetRelatedImages() []string {
+	return b.Config.RelatedImages
 }
 
 func (b *BaseHandler) GetOperatorManifests() OperatorManifests {
@@ -93,6 +111,7 @@ func (b *BaseHandler) GetOperatorManifests() OperatorManifests {
 			Path:       b.Config.ManifestDir,
 			ContextDir: b.Config.ContextDir,
 			SourcePath: b.Config.SourcePath,
+			Namespace:  b.Config.Namespace,
 		}}
 	}
 

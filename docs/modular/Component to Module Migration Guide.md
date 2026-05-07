@@ -7,7 +7,7 @@ Operator as a platform orchestrator.
 For the module contract and handler implementation details, see the
 [Module Handler Developer Guide](Module%20Handler%20Developer%20Guide.md) and
 the
-[Onboarding Guide](Onboarding%20Guide%20for%20ODH%20Operator%20Modules.md).
+[Onboarding Guide](https://docs.google.com/document/d/1FgN_U-6XH8M-Mu6XNeldUlTPsnw7UyPCWg5NVJJdYnw).
 
 ---
 
