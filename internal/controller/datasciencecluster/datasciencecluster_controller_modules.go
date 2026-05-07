@@ -51,11 +51,14 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 		log.V(1).Info("gateway domain not available, modules needing it should handle empty value", "error", err)
 	}
 
+	rr.DSCI = dsci
+
 	platformCtx := modules.PlatformContext{
 		ApplicationsNamespace: dsci.Spec.ApplicationsNamespace,
 		GatewayDomain:         gatewayDomain,
 		Release:               rr.Release,
 		DSC:                   instance,
+		DSCI:                  dsci,
 	}
 
 	seen := make(map[string]bool)
@@ -64,7 +67,7 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 	err = reg.ForEach(func(handler modules.ModuleHandler) error {
 		name := handler.GetName()
 
-		if !handler.IsEnabled(instance) {
+		if !handler.IsEnabled(&platformCtx) {
 			return nil
 		}
 
@@ -133,13 +136,19 @@ func updateModuleStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 		return nil
 	}
 
+	platformCtx := modules.PlatformContext{
+		Release: rr.Release,
+		DSC:     instance,
+		DSCI:    rr.DSCI,
+	}
+
 	var notReadyModules []string
 	var degradedModules []string
 
 	err := reg.ForEach(func(handler modules.ModuleHandler) error {
 		name := handler.GetName()
 
-		if !handler.IsEnabled(instance) {
+		if !handler.IsEnabled(&platformCtx) {
 			return nil
 		}
 

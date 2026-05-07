@@ -655,7 +655,6 @@ import (
     "k8s.io/apimachinery/pkg/runtime/schema"
     "sigs.k8s.io/controller-runtime/pkg/client"
 
-    dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
     "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 )
 
@@ -685,9 +684,15 @@ func NewHandler() *handler {
     }
 }
 
-func (h *handler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
-    return dsc.Spec.Components.MyModule.ManagementState == operatorv1.Managed
+// Component module: reads DSC component stanza.
+func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
+    return platform.DSC.Spec.Components.MyModule.ManagementState == operatorv1.Managed
 }
+
+// Service module alternative: reads DSCI service configuration.
+// func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
+//     return platform.DSCI.Spec.Monitoring.ManagementState == operatorv1.Managed
+// }
 
 func (h *handler) BuildModuleCR(
     ctx context.Context,
@@ -836,20 +841,17 @@ func (h *handler) BuildModuleCR(
 
 ### PlatformContext -- available platform fields
 
-`BuildModuleCR` receives a `*modules.PlatformContext` that is built once per
-reconcile and contains all platform-level fields a handler may need:
+`IsEnabled` and `BuildModuleCR` both receive a `*modules.PlatformContext`
+that is built once per reconcile and contains all platform-level fields a
+handler may need:
 
 | Field | Type | Source | Description |
 |---|---|---|---|
 | `ApplicationsNamespace` | `string` | `DSCI.Spec.ApplicationsNamespace` | The shared platform namespace. Used as the default for module operators and operands. Modules using a [dedicated namespace](#namespace-model) can ignore this for their own resources but may still need it for cross-namespace discovery. Also injected as an `APPLICATIONS_NAMESPACE` env var on the module operator Deployment. |
 | `GatewayDomain` | `string` | `GatewayConfig.Status.Domain` | Cluster ingress domain. Empty if the gateway is not yet provisioned; handlers needing it should check for empty and handle gracefully. |
 | `Release` | `common.Release` | `rr.Release` | Platform identity (ODH vs RHOAI) and version. Useful for conditional behaviour. |
-| `DSC` | `*dscv2.DataScienceCluster` | reconcile instance | The DSC instance. Handlers read their module-specific component stanza (e.g., `platform.DSC.Spec.Components.MyModule`). |
-
-The struct intentionally omits the raw `DSCI` -- the only field modules need
-from it is `ApplicationsNamespace`, which is already extracted. This keeps the
-handler contract explicit and prevents handlers from reaching into fields they
-don't own.
+| `DSC` | `*dscv2.DataScienceCluster` | reconcile instance | The DSC instance. Component module handlers read their component stanza (e.g., `platform.DSC.Spec.Components.MyModule`). |
+| `DSCI` | `*dsciv2.DSCInitialization` | `cluster.GetDSCI()` | The DSCInitialization instance. Service module handlers read their service configuration (e.g., `platform.DSCI.Spec.Monitoring`). Also used by `IsEnabled` for service modules. |
 
 #### How PlatformContext replaces in-tree component patterns
 
@@ -867,6 +869,7 @@ equivalents:
 |---|---|
 | `rr.Release.Name` for platform-conditional behaviour (ODH vs RHOAI overlay selection, namespace defaults) | `platform.Release.Name` -- same type, same values. |
 | `cluster.GetDSCI(ctx, rr.Client)` to read `ApplicationsNamespace` | `platform.ApplicationsNamespace` -- already resolved, no API call needed. |
+| `cluster.GetDSCI(ctx, rr.Client)` to read service config (e.g., monitoring) | `platform.DSCI` -- the full `DSCInitialization` instance, no API call needed. |
 | `resources.GetGatewayDomain(ctx, rr.Client)` or `gateway.GetGatewayDomain(ctx, cli)` for ingress URLs | `platform.GatewayDomain` -- already resolved. May be empty if gateway is not provisioned. |
 | `rr.Instance.(*componentApi.FeastOperator)` to read the component CR spec | `platform.DSC.Spec.Components.MyModule` -- read your component stanza from the DSC, then project the fields into the module CR via `BuildModuleCR`. |
 | `rr.ManifestsBasePath` for Kustomize overlay paths | Not needed in the handler. `ModuleConfig.ChartDir` / `ManifestDir` declare where manifests live; `BaseHandler` wires the paths. |
@@ -938,7 +941,8 @@ configuration; the module operator discovers cluster-level state.**
 | Gateway domain | FIPS mode, disconnected environment detection |
 | Platform identity (ODH / RHOAI) | Cluster version, node topology |
 | DSC component stanza (management state, user config) | Operand health, pod status, readiness |
-| Auth configuration projected by the platform | Secrets, certificates in the applications namespace |
+| DSCI service configuration (monitoring, trusted CA) | Secrets, certificates in the applications namespace |
+| Auth configuration projected by the platform | |
 
 If your handler needs platform data that is not currently in
 `PlatformContext`, propose adding it to the struct rather than having the
@@ -961,7 +965,7 @@ implementations of five interface methods:
 
 You only need to implement:
 
-- **`IsEnabled`**: Read the DSC to decide if this module should be deployed.
+- **`IsEnabled`**: Read `PlatformContext` to decide if this module should be deployed. Component modules check `platform.DSC`; service modules check `platform.DSCI`.
 - **`BuildModuleCR`**: Construct the module CR as an `unstructured.Unstructured`
   object, projecting platform fields from the `PlatformContext`.
 
@@ -1085,8 +1089,10 @@ This registration:
 When the DSC controller reconciles:
 
 1. **`provisionModules`** builds a `PlatformContext` once (fetching
-   `ApplicationsNamespace`, `GatewayDomain`, `Release`, and the DSC instance),
-   then iterates enabled handlers:
+   `ApplicationsNamespace`, `GatewayDomain`, `Release`, the DSC instance,
+   and the DSCI instance), stores the DSCI on `rr.DSCI` for reuse, then
+   iterates handlers, calling `IsEnabled(&platformCtx)` on each to determine
+   which are active:
    - Calls `GetRelatedImages()` on each handler and collects a deduplicated
      union of `RELATED_IMAGE_*` names.
    - Appends the module's manifest descriptors to `rr.HelmCharts` and/or
@@ -1108,8 +1114,11 @@ When the DSC controller reconciles:
 5. **`deploy.NewAction`** applies everything in `rr.Resources` via
    Server-Side Apply. It automatically sets `platform.opendatahub.io/part-of`
    labels and platform annotations on all resources, including module CRs.
-6. **`updateModuleStatus`** reads each module CR's status and aggregates it
-   into the DSC's `ModulesReady` condition. It performs:
+6. **`updateModuleStatus`** builds a `PlatformContext` from `rr` fields
+   (reusing `rr.DSCI` to avoid a duplicate fetch), calls
+   `IsEnabled(&platformCtx)` to filter to active modules, then reads each
+   module CR's status and aggregates it into the DSC's `ModulesReady`
+   condition. It performs:
    - **Staleness detection**: if `status.observedGeneration` is behind
      `metadata.generation`, the module is treated as not-ready.
    - **Ready check**: the `Ready` condition must be `True`.
@@ -1394,8 +1403,9 @@ operator tests (in the module's own repository).
 Add unit tests in `internal/controller/modules/<name>/handler_test.go` that
 cover:
 
-1. **`IsEnabled`** -- returns `true` when the DSC component stanza is
-   `Managed`, `false` otherwise.
+1. **`IsEnabled`** -- returns `true` when the component/service is
+   `Managed` in the DSC (for components) or DSCI (for services), `false`
+   otherwise.
 2. **`BuildModuleCR`** -- returns a well-formed unstructured object with the
    correct GVK, name, namespace, and `.spec` fields projected from
    `PlatformContext`.
