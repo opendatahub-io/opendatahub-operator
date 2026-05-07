@@ -6,8 +6,10 @@ import (
 	"testing"
 	"time"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -26,6 +28,11 @@ func (tc *GatewayTestCtx) DashboardRedirectTestSuite(t *testing.T) {
 		t.Skip("Dashboard redirects are only created in OcpRoute ingress mode")
 	}
 
+	// Dashboard CR must exist for redirect resources to be created.
+	// The gateway reconciler checks for the Dashboard CR and cleans up redirect
+	// resources when it is absent.
+	tc.ensureDashboardCRExists(t)
+
 	testCases := []TestCase{
 		{"Validate dashboard redirect ConfigMap", tc.ValidateDashboardRedirectConfigMap},
 		{"Validate dashboard redirect Deployment", tc.ValidateDashboardRedirectDeployment},
@@ -35,6 +42,22 @@ func (tc *GatewayTestCtx) DashboardRedirectTestSuite(t *testing.T) {
 	}
 
 	RunTestCases(t, testCases)
+}
+
+// ensureDashboardCRExists sets Dashboard to Managed in the DSC so the operator creates
+// the Dashboard CR through normal reconciliation. The gateway reconciler only creates
+// dashboard redirect resources when the Dashboard CR is present.
+// On cleanup, Dashboard is set back to Removed.
+func (tc *GatewayTestCtx) ensureDashboardCRExists(t *testing.T) {
+	t.Helper()
+
+	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.DashboardKind)
+	t.Logf("Set Dashboard to Managed in DSC for redirect tests")
+
+	t.Cleanup(func() {
+		tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.DashboardKind)
+		t.Log("Restored Dashboard to Removed in DSC after redirect tests")
+	})
 }
 
 // ValidateDashboardRedirectConfigMap validates the nginx configuration for redirects.
