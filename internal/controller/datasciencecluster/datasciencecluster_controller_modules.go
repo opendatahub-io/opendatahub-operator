@@ -58,7 +58,10 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 		DSC:                   instance,
 	}
 
-	return reg.ForEach(func(handler modules.ModuleHandler) error {
+	seen := make(map[string]bool)
+	var allRelatedImages []string
+
+	err = reg.ForEach(func(handler modules.ModuleHandler) error {
 		name := handler.GetName()
 
 		if !handler.IsEnabled(instance) {
@@ -66,6 +69,13 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 		}
 
 		log.Info("provisioning module", "module", name)
+
+		for _, img := range handler.GetRelatedImages() {
+			if !seen[img] {
+				seen[img] = true
+				allRelatedImages = append(allRelatedImages, img)
+			}
+		}
 
 		operatorManifests := handler.GetOperatorManifests()
 		if len(operatorManifests.HelmCharts) > 0 {
@@ -84,6 +94,19 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 
 		return nil
 	})
+
+	if err != nil {
+		return err
+	}
+
+	if len(allRelatedImages) > 0 || dsci.Spec.ApplicationsNamespace != "" {
+		rr.ModuleEnvInjection = &odhtype.ModuleEnvInjection{
+			RelatedImages:         allRelatedImages,
+			ApplicationsNamespace: dsci.Spec.ApplicationsNamespace,
+		}
+	}
+
+	return nil
 }
 
 // updateModuleStatus reads status conditions from each enabled module's CR

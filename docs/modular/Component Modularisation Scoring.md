@@ -1,4 +1,4 @@
-# Component Modularisation Priority
+# Component Modularisation Scoring
 
 This document analyses each in-tree component in the ODH Operator, assesses its
 migration complexity to the modular architecture, and recommends an order for
