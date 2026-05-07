@@ -67,23 +67,30 @@ func modelsAsServiceTestSuite(t *testing.T) {
 		WithEventuallyPollingInterval(ct.TestTimeouts.defaultEventuallyPollInterval),
 	}
 
-	// Setup: Create prerequisites and enable the subcomponent.
-	// PostgreSQL must be created before enabling the component because
-	// maas-api reads the maas-db-config secret on startup.
-	componentCtx.createMaaSPostgres(t)
-	componentCtx.createMaaSGateway(t)
+	// Phase 1: Enable KServe + MaaS without external infrastructure.
+	// The operator creates the maas-parameters ConfigMap during reconciliation
+	// regardless of whether PostgreSQL or the Gateway exist.
 	componentCtx.EnsureParentComponentEnabled(t)
 	componentCtx.UpdateSubComponentStateInDataScienceCluster(t, operatorv1.Managed)
 
-	testCases := []TestCase{
+	operatorOnlyTests := []TestCase{
 		{"Validate maas-parameters ConfigMap payload-processing-namespace", componentCtx.ValidateMaaSParametersPayloadProcessingNamespace},
+	}
+	RunTestCases(t, operatorOnlyTests)
+
+	// Phase 2: Create external infrastructure needed by maas-controller.
+	// PostgreSQL must exist before maas-api can start, and the Gateway
+	// must exist for maas-controller to reconcile Tenants.
+	componentCtx.createMaaSPostgres(t)
+	componentCtx.createMaaSGateway(t)
+
+	infrastructureTests := []TestCase{
 		{"Validate Tenant CR in subscription namespace", componentCtx.ValidateTenantInSubscriptionNamespace},
 		{"Validate Tenant CRD is namespace-scoped", componentCtx.ValidateTenantCRDNamespaceScoped},
 		{"Validate Tenant singleton enforcement", componentCtx.ValidateTenantSingletonEnforcement},
 		{"Validate Tenant deleted on disable", componentCtx.ValidateTenantDeletedOnDisable},
 	}
-
-	RunTestCases(t, testCases)
+	RunTestCases(t, infrastructureTests)
 }
 
 // createMaaSPostgres creates a minimal PostgreSQL instance and the maas-db-config secret
