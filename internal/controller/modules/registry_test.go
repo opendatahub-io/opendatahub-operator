@@ -10,7 +10,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 
 	. "github.com/onsi/gomega"
@@ -35,7 +34,7 @@ func newMockHandler(name string, enabled bool) *mockHandler {
 	}
 }
 
-func (m *mockHandler) IsEnabled(_ *dscv2.DataScienceCluster) bool {
+func (m *mockHandler) IsEnabled(_ *modules.PlatformContext) bool {
 	return m.enabled
 }
 
@@ -138,14 +137,14 @@ func TestRegistryIsModuleEnabled(t *testing.T) {
 	reg.Add(enabledHandler)
 	reg.Add(disabledHandler)
 
-	dsc := &dscv2.DataScienceCluster{}
+	platform := &modules.PlatformContext{}
 
-	g.Expect(reg.IsModuleEnabled("enabled-mod", dsc)).Should(BeTrue())
-	g.Expect(reg.IsModuleEnabled("disabled-mod", dsc)).Should(BeFalse())
-	g.Expect(reg.IsModuleEnabled("nonexistent", dsc)).Should(BeFalse())
+	g.Expect(reg.IsModuleEnabled("enabled-mod", platform)).Should(BeTrue())
+	g.Expect(reg.IsModuleEnabled("disabled-mod", platform)).Should(BeFalse())
+	g.Expect(reg.IsModuleEnabled("nonexistent", platform)).Should(BeFalse())
 
 	reg.Disable("enabled-mod")
-	g.Expect(reg.IsModuleEnabled("enabled-mod", dsc)).Should(BeFalse())
+	g.Expect(reg.IsModuleEnabled("enabled-mod", platform)).Should(BeFalse())
 }
 
 func TestBaseHandlerDefaultsHelmOnly(t *testing.T) {

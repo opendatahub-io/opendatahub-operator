@@ -2,8 +2,6 @@ package modules
 
 import (
 	"github.com/hashicorp/go-multierror"
-
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 )
 
 type registryEntry struct {
@@ -85,10 +83,10 @@ func (r *Registry) ForAll(f func(handler ModuleHandler, registryEnabled bool) er
 }
 
 // IsModuleEnabled checks if a module with the given name is enabled in the
-// registry and also enabled in the DSC.
-func (r *Registry) IsModuleEnabled(moduleName string, dsc *dscv2.DataScienceCluster) bool {
+// registry and also enabled based on platform configuration.
+func (r *Registry) IsModuleEnabled(moduleName string, platform *PlatformContext) bool {
 	e, ok := r.entries[moduleName]
-	return ok && e.enabled && e.handler.IsEnabled(dsc)
+	return ok && e.enabled && e.handler.IsEnabled(platform)
 }
 
 // HasEntries returns true if there are any registered modules.
@@ -122,8 +120,8 @@ func ForAll(f func(handler ModuleHandler, registryEnabled bool) error) error {
 	return r.ForAll(f)
 }
 
-func IsModuleEnabled(moduleName string, dsc *dscv2.DataScienceCluster) bool {
-	return r.IsModuleEnabled(moduleName, dsc)
+func IsModuleEnabled(moduleName string, platform *PlatformContext) bool {
+	return r.IsModuleEnabled(moduleName, platform)
 }
 
 func DefaultRegistry() *Registry {

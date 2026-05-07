@@ -18,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -164,6 +165,11 @@ type ReconciliationRequest struct {
 	// operator Deployments. Set by provisionModules, consumed by
 	// injectModuleEnv. Nil when no modules are enabled.
 	ModuleEnvInjection *ModuleEnvInjection
+
+	// DSCI is the DSCInitialization instance fetched by provisionModules.
+	// Stored here so updateModuleStatus can build a PlatformContext without
+	// a duplicate API call.
+	DSCI *dsciv2.DSCInitialization
 }
 
 // AddResources adds one or more resources to the ReconciliationRequest's Resources slice.

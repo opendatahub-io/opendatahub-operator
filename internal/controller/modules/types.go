@@ -10,6 +10,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
@@ -23,8 +24,10 @@ type ModuleHandler interface {
 	// GetName returns the unique identifier for this module.
 	GetName() string
 
-	// IsEnabled returns whether the module should be deployed based on DSC config.
-	IsEnabled(dsc *dscv2.DataScienceCluster) bool
+	// IsEnabled returns whether the module should be deployed based on platform
+	// configuration. Component modules check platform.DSC; service modules
+	// check platform.DSCI.
+	IsEnabled(platform *PlatformContext) bool
 
 	// GetGVK returns the GroupVersionKind of the module CR that this handler
 	// manages. Used for dynamic watch registration so module CR status changes
@@ -95,6 +98,10 @@ type PlatformContext struct {
 	// DSC is the DataScienceCluster instance. Handlers read their
 	// module-specific component stanza from it (e.g., DSC.Spec.Components.MyModule).
 	DSC *dscv2.DataScienceCluster
+
+	// DSCI is the DSCInitialization instance. Service-type modules read
+	// their configuration from it (e.g., DSCI.Spec.Monitoring).
+	DSCI *dsciv2.DSCInitialization
 }
 
 // RegistrationOption configures optional orchestration metadata when adding
