@@ -127,8 +127,8 @@ func ParseGoTestJSON(cfg ParseConfig) (*types.TestResult, error) {
 		return nil, fmt.Errorf("error scanning test output: %w", err)
 	}
 
-	if len(execution.Errors()) > 0 {
-		return nil, fmt.Errorf("errors found in execution: %v", execution.Errors())
+	if errs := execution.Errors(); len(errs) > 0 {
+		fmt.Fprintf(os.Stderr, "Warning: stderr output from test execution (non-fatal): %v\n", errs)
 	}
 
 	testResult := &types.TestResult{

@@ -78,6 +78,26 @@ func TestParseGoTestJSON(t *testing.T) {
 	}
 }
 
+func TestParseGoTestJSON_StderrDoesNotCauseError(t *testing.T) {
+	input := `{"Time":"2023-01-01T00:00:00Z","Action":"run","Package":"example.com/pkg","Test":"TestFailing"}
+{"Time":"2023-01-01T00:00:01Z","Action":"output","Package":"example.com/pkg","Test":"TestFailing","Output":"=== RUN   TestFailing\n"}
+{"Time":"2023-01-01T00:00:02Z","Action":"output","Package":"example.com/pkg","Test":"TestFailing","Output":"    failing_test.go:10: assertion failed\n"}
+{"Time":"2023-01-01T00:00:02Z","Action":"output","Package":"example.com/pkg","Test":"TestFailing","Output":"--- FAIL: TestFailing (0.50s)\n"}
+{"Time":"2023-01-01T00:00:02Z","Action":"fail","Package":"example.com/pkg","Test":"TestFailing","Elapsed":0.5}`
+
+	stderrContent := "panic: some diagnostic output\ngoroutine 1 [running]:\n"
+
+	result, err := ParseGoTestJSON(ParseConfig{
+		Stdout: bytes.NewBuffer([]byte(input)),
+		Stderr: bytes.NewBuffer([]byte(stderrContent)),
+	})
+
+	require.NoError(t, err, "stderr output from test binary should not cause a parse error")
+	require.NotNil(t, result)
+	require.Len(t, result.FailedTest, 1)
+	require.Equal(t, "TestFailing", result.FailedTest[0].Name)
+}
+
 func TestParseGoTestJSONRealFixtures(t *testing.T) {
 	snapshotTester := snapshot.New(t)
 
