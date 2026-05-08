@@ -56,9 +56,6 @@ map:
   odh-workload-variant-autoscaler-controller:
     src: config
     dest: wva
-  odh-ogx-operator:
-    src: config
-    dest: ogx
   odh-ogx-k8s-operator:
     src: config
     dest: ogx
