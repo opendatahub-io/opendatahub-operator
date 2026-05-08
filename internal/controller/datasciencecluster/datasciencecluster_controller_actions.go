@@ -5,11 +5,8 @@ import (
 	"fmt"
 	"reflect"
 
-	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -137,46 +134,8 @@ func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest)
 		}
 	}
 
-	if err := removeTenantIfModelsAsServiceDisabled(ctx, rr, instance, cr.DefaultRegistry()); err != nil {
-		return err
-	}
-
 	if err := deleteMaaSDeploymentIfDisabled(ctx, rr, instance, cr.DefaultRegistry()); err != nil {
 		return err
-	}
-
-	return nil
-}
-
-// removeTenantIfModelsAsServiceDisabled deletes the DSC-managed singleton Tenant when
-// Models-as-a-Service is not enabled. Deploy only applies objects in rr.Resources, so omitting
-// the CR on disable does not remove it; this keeps cluster state aligned with DSC intent.
-func removeTenantIfModelsAsServiceDisabled(
-	ctx context.Context,
-	rr *odhtype.ReconciliationRequest,
-	dsc *dscv2.DataScienceCluster,
-	reg *cr.Registry,
-) error {
-	if reg.IsComponentEnabled(componentApi.ModelsAsServiceComponentName, dsc) {
-		return nil
-	}
-
-	key := client.ObjectKey{Name: maasv1alpha1.TenantInstanceName, Namespace: modelsasservicectrl.MaaSSubscriptionNamespace}
-	t := &maasv1alpha1.Tenant{}
-	if err := rr.Client.Get(ctx, key, t); err != nil {
-		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
-			return nil
-		}
-		return fmt.Errorf("get Tenant %s: %w", maasv1alpha1.TenantInstanceName, err)
-	}
-
-	// Already being finalized; no need to re-issue the delete.
-	if !t.GetDeletionTimestamp().IsZero() {
-		return nil
-	}
-
-	if err := rr.Client.Delete(ctx, t, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil && !k8serr.IsNotFound(err) {
-		return fmt.Errorf("delete Tenant %s when ModelsAsService disabled: %w", maasv1alpha1.TenantInstanceName, err)
 	}
 
 	return nil
