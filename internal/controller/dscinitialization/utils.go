@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"path/filepath"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -18,6 +19,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -197,4 +199,40 @@ func createNetworkPolicyPeer(key, value string) []networkingv1.NetworkPolicyPeer
 			MatchLabels: map[string]string{key: value},
 		},
 	}}
+}
+
+// configureSegmentIO deploys the odh-segment-key-config ConfigMap and
+// odh-segment-key Secret into the applications namespace when they do not
+// already exist.  The dashboard reads these resources to decide whether to
+// send anonymous usage telemetry; they are only required on Self-Managed
+// RHOAI clusters.
+func (r *DSCInitializationReconciler) configureSegmentIO(ctx context.Context, dsciInit *dsciv2.DSCInitialization) error {
+	log := logf.FromContext(ctx)
+
+	segmentioConfigMap := &corev1.ConfigMap{}
+	if err := r.Client.Get(ctx, client.ObjectKey{
+		Namespace: dsciInit.Spec.ApplicationsNamespace,
+		Name:      "odh-segment-key-config",
+	}, segmentioConfigMap); err != nil {
+		if !k8serr.IsNotFound(err) {
+			log.Error(err, "error getting configmap 'odh-segment-key-config'")
+			return err
+		}
+
+		segmentPath := filepath.Join(r.OperatorSettings.ManifestsBasePath, "segment")
+		if err := deploy.DeployManifestsFromPath(
+			ctx,
+			r.Client,
+			dsciInit,
+			segmentPath,
+			dsciInit.Spec.ApplicationsNamespace,
+			"segment-io",
+			true,
+		); err != nil {
+			log.Error(err, "error deploying segment.io manifests", "path", segmentPath)
+			return err
+		}
+	}
+
+	return nil
 }
