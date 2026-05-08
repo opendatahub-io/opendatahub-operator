@@ -31,7 +31,7 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["trainer"]="opendatahub-io:trainer:release/odh-3.5.0-ea1@6b8096b0d789877efd92d171d6058f1019366a89:manifests"
     ["maas"]="opendatahub-io:models-as-a-service:v0.1.1@dd343722ef247d4c2e1bd446f577e39a76e1ed26:deployment"
     ["mlflowoperator"]="opendatahub-io:mlflow-operator:1.1.0@7abf6b5ea11c9d919998df3418fa031858085f41:config"
-    ["sparkoperator"]="opendatahub-io:spark-operator:main@76f7117b8d183ea98e221265b6a4cf40b6acad9e:config"
+    ["sparkoperator"]="opendatahub-io:spark-operator:odh-3.5.0-ea.1@b8a995788a0bd700354170600d0813db8a597241:config"
     ["wva"]="opendatahub-io:workload-variant-autoscaler:odh-3.5ea1@5096a517c25c005506167c06148ed80e495d033b:config"
 )
 
