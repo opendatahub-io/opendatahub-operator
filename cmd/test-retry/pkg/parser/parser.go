@@ -127,6 +127,10 @@ func ParseGoTestJSON(cfg ParseConfig) (*types.TestResult, error) {
 		return nil, fmt.Errorf("error scanning test output: %w", err)
 	}
 
+	// Stderr from the test binary (captured as execution.Errors()) is non-fatal.
+	// When tests run via --command (e.g. container image e2e), the binary
+	// routinely writes diagnostics to stderr.  Treating these as fatal would
+	// block the retry logic, which is the whole purpose of test-retry.
 	if errs := execution.Errors(); len(errs) > 0 {
 		fmt.Fprintf(os.Stderr, "Warning: stderr output from test execution (non-fatal): %d entries (details redacted)\n", len(errs))
 	}
