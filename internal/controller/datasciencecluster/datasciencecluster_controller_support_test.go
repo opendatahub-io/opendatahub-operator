@@ -221,7 +221,7 @@ func TestDeleteMaaSDeploymentIfDisabled(t *testing.T) {
 		return dsc
 	}
 
-	t.Run("requests Deployment deletion and requeues when Deployment exists", func(t *testing.T) {
+	t.Run("requests Deployment deletion and returns nil when Deployment exists", func(t *testing.T) {
 		g := NewWithT(t)
 		dsc := newDSCWithMaaS(operatorv1.Removed)
 
@@ -233,10 +233,9 @@ func TestDeleteMaaSDeploymentIfDisabled(t *testing.T) {
 
 		reg := newRegistry(&mockHandler{name: componentApi.ModelsAsServiceComponentName, enabled: false})
 		err = deleteMaaSDeploymentIfDisabled(t.Context(), &types.ReconciliationRequest{Client: cli, Instance: dsc}, dsc, reg)
-		g.Expect(err).Should(HaveOccurred())
-		g.Expect(err.Error()).To(ContainSubstring("requeueing"))
+		g.Expect(err).ShouldNot(HaveOccurred())
 
-		// Deployment deleted; LifecycleReconciler will handle RBAC/CRD cleanup via its finalizer.
+		// Deployment deletion requested; LifecycleReconciler handles RBAC/CRD cleanup via its finalizer.
 		depList := &appsv1.DeploymentList{}
 		g.Expect(cli.List(t.Context(), depList, client.InNamespace(appNs))).To(Succeed())
 		g.Expect(depList.Items).To(BeEmpty())

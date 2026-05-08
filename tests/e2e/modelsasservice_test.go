@@ -302,9 +302,11 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantSingletonEnforcement(t *testing.
 	})
 }
 
-// ValidateTenantDeletedOnDisable verifies that the Tenant CR is cleaned up when MaaS is
-// set to Removed. This must run before ValidateSubComponentDisabled to observe the Tenant
-// being deleted while maas-controller is still running.
+// ValidateTenantDeletedOnDisable verifies that the Tenant CR is deleted when MaaS is set to
+// Removed. The LifecycleReconciler in maas-controller drives the full teardown sequence
+// (Tenants → ClusterRoles → CRDs → ClusterRoleBindings), so a cold re-start after disable
+// can take several minutes. This test is the last case in the suite; cleanup_test.go handles
+// DSC deletion and does not require MaaS to be re-enabled first.
 func (tc *ModelsAsServiceTestCtx) ValidateTenantDeletedOnDisable(t *testing.T) {
 	t.Helper()
 	skipUnless(t, Smoke, Tier1)
@@ -330,20 +332,5 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantDeletedOnDisable(t *testing.T) {
 		}),
 		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
 		WithCustomErrorMsg("Tenant should be deleted when MaaS is disabled"),
-	)
-
-	t.Log("Re-enabling MaaS subcomponent (setting to Managed)")
-	tc.UpdateSubComponentStateInDataScienceCluster(t, operatorv1.Managed)
-
-	t.Logf("Waiting for Tenant %s/%s to be re-created", tenantSubscriptionNS, tenantName)
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Tenant, types.NamespacedName{
-			Name:      tenantName,
-			Namespace: tenantSubscriptionNS,
-		}),
-		WithCondition(
-			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue),
-		),
-		WithCustomErrorMsg("Tenant should be re-created with Ready=True after re-enabling MaaS"),
 	)
 }

@@ -142,9 +142,9 @@ func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest)
 }
 
 // deleteMaaSDeploymentIfDisabled deletes the maas-controller Deployment when
-// MaaS is disabled and requeues until it is fully gone. The CleanupFinalizer
-// on the Deployment causes LifecycleReconciler to drain Tenant CRs, RBAC,
-// and CRDs before the Deployment object is removed.
+// MaaS is disabled. The CleanupFinalizer on the Deployment causes
+// LifecycleReconciler to drain Tenant CRs, RBAC, and CRDs before the
+// Deployment object is removed.
 func deleteMaaSDeploymentIfDisabled(
 	ctx context.Context,
 	rr *odhtype.ReconciliationRequest,
@@ -171,7 +171,7 @@ func deleteMaaSDeploymentIfDisabled(
 		return fmt.Errorf("get maas-controller Deployment: %w", err)
 	}
 
-	// Deployment still exists — ensure deletion is requested, then requeue.
+	// Deployment still exists — ensure deletion is requested.
 	// LifecycleReconciler's CleanupFinalizer will drain Tenants, RBAC, and CRDs
 	// before the Deployment object is removed.
 	if dep.DeletionTimestamp.IsZero() {
@@ -180,7 +180,7 @@ func deleteMaaSDeploymentIfDisabled(
 		}
 	}
 	log.Info("maas-controller Deployment is terminating; waiting for CleanupFinalizer to complete")
-	return fmt.Errorf("maas-controller Deployment is terminating; requeueing")
+	return nil
 }
 
 func updateStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
