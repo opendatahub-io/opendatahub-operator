@@ -6,7 +6,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
@@ -22,9 +21,6 @@ type Provider struct {
 	LeaderElectionID string
 	// NewReconciler creates and registers the provider's controller with the manager.
 	NewReconciler func(ctx context.Context, mgr ctrl.Manager, cfg *operatorconfig.CloudManagerConfig) error
-	// CacheOptions returns the provider-specific cache configuration.
-	// If not set, defaults to DefaultCacheOptions.
-	CacheOptions func(scheme *runtime.Scheme, cfg *operatorconfig.CloudManagerConfig) (cache.Options, error)
 	// ClientOptions returns the provider-specific client configuration.
 	// It always sets the unstructured cache to true.
 	ClientOptions func() client.Options
@@ -59,9 +55,5 @@ func (p *Provider) SetDefaults() {
 		p.ClientOptions = func() client.Options {
 			return client.Options{}
 		}
-	}
-
-	if p.CacheOptions == nil {
-		p.CacheOptions = DefaultCacheOptions
 	}
 }

@@ -3,9 +3,37 @@ package main
 import (
 	"testing"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/failureclassifier"
 )
+
+func TestClassifyFailure_ErrorClients(t *testing.T) {
+	tests := []struct {
+		name         string
+		client       client.Client
+		wantCategory string
+		wantEvidence string
+	}{
+		{"RBAC forbidden", newForbiddenClient(), "unknown", "no matching classification rule"},
+		{"CRD not installed", newNoMatchClient(), "unknown", "no matching classification rule"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			report := callTool(t, tt.client, nil)
+			fc := failureclassifier.Classify(&report)
+
+			if fc.Category != tt.wantCategory {
+				t.Errorf("Category = %q, want %q", fc.Category, tt.wantCategory)
+			}
+			if len(fc.Evidence) == 0 || fc.Evidence[0] != tt.wantEvidence {
+				t.Errorf("Evidence = %v, want [%q]", fc.Evidence, tt.wantEvidence)
+			}
+		})
+	}
+}
 
 // TestClassifyFailure_FakeClient exercises the full Run + Classify pipeline with a fake client.
 func TestClassifyFailure_FakeClient(t *testing.T) {

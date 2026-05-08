@@ -10,5 +10,9 @@ spec:
       managementPolicy: Managed
     lws:
       managementPolicy: Managed
+      configuration:
+        namespace: openshift-lws-operator
     sailOperator:
       managementPolicy: Managed
+      configuration:
+        namespace: istio-system

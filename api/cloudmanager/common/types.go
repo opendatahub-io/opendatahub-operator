@@ -12,17 +12,37 @@ const (
 	Unmanaged ManagementPolicy = "Unmanaged"
 )
 
+// Default namespaces for cloud manager dependencies.
+const (
+	DefaultNamespaceLWSOperator  = "openshift-lws-operator"
+	DefaultNamespaceSailOperator = "istio-system"
+)
+
+// Namespace represents a Kubernetes namespace name (RFC 1123 DNS label).
+// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
+// +kubebuilder:validation:MaxLength=63
+// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="namespace is immutable"
+type Namespace string
+
 // CertManagerConfiguration defines the configuration for the cert-manager operator dependency.
 // +kubebuilder:object:generate=true
 type CertManagerConfiguration struct{}
 
 // LWSConfiguration defines the configuration for the LeaderWorkerSet (LWS) operator dependency.
 // +kubebuilder:object:generate=true
-type LWSConfiguration struct{}
+type LWSConfiguration struct {
+	// Namespace is the namespace where the LWS operator is deployed.
+	// +kubebuilder:default=openshift-lws-operator
+	Namespace Namespace `json:"namespace,omitempty"`
+}
 
 // SailOperatorConfiguration defines the configuration for the Sail operator (Istio) dependency.
 // +kubebuilder:object:generate=true
-type SailOperatorConfiguration struct{}
+type SailOperatorConfiguration struct {
+	// Namespace is the namespace where the Sail operator (Istio) is deployed.
+	// +kubebuilder:default=istio-system
+	Namespace Namespace `json:"namespace,omitempty"`
+}
 
 // GatewayAPIConfiguration defines the configuration for the Gateway API dependency.
 // +kubebuilder:object:generate=true
@@ -53,7 +73,18 @@ type LWSDependency struct {
 
 	// Configuration for the LWS operator.
 	// +optional
+	// +kubebuilder:default={}
 	Configuration LWSConfiguration `json:"configuration,omitempty"`
+}
+
+// GetNamespace returns the namespace where the LWS operator is deployed,
+// falling back to DefaultNamespaceLWSOperator if empty.
+func (d *LWSDependency) GetNamespace() string {
+	if d.Configuration.Namespace != "" {
+		return string(d.Configuration.Namespace)
+	}
+
+	return DefaultNamespaceLWSOperator
 }
 
 // SailOperatorDependency defines the Sail operator (Istio) dependency.
@@ -67,7 +98,18 @@ type SailOperatorDependency struct {
 
 	// Configuration for the Sail operator.
 	// +optional
+	// +kubebuilder:default={}
 	Configuration SailOperatorConfiguration `json:"configuration,omitempty"`
+}
+
+// GetNamespace returns the namespace where the Sail operator is deployed,
+// falling back to DefaultNamespaceSailOperator if empty.
+func (d *SailOperatorDependency) GetNamespace() string {
+	if d.Configuration.Namespace != "" {
+		return string(d.Configuration.Namespace)
+	}
+
+	return DefaultNamespaceSailOperator
 }
 
 // GatewayAPIDependency defines the Gateway API dependency.

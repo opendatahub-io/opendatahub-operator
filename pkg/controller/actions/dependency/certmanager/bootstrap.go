@@ -24,6 +24,7 @@ import (
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -33,8 +34,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	resourcespredicates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -45,13 +46,16 @@ import (
 // No automatic renewal is configured; a renewal strategy is tracked as a follow-up.
 const caRootDuration = "876000h"
 
-// These CRD names must be covered consistently by MonitorCRDs and CRDPredicate.
-// If a CRD is added here, update both functions.
-const (
-	certManagerCertificateCRD   = "certificates.cert-manager.io"
-	certManagerIssuerCRD        = "issuers.cert-manager.io"
-	certManagerClusterIssuerCRD = "clusterissuers.cert-manager.io"
-)
+type monitoredCRD struct {
+	gvk          schema.GroupVersionKind
+	resourceName string
+}
+
+var monitoredCRDList = []monitoredCRD{
+	{gvk: gvk.CertManagerCertificate, resourceName: "certificates.cert-manager.io"},
+	{gvk: gvk.CertManagerIssuer, resourceName: "issuers.cert-manager.io"},
+	{gvk: gvk.CertManagerClusterIssuer, resourceName: "clusterissuers.cert-manager.io"},
+}
 
 // DefaultIssuerRefKind is the default issuer reference kind used by downstream components.
 const DefaultIssuerRefKind = "ClusterIssuer"
@@ -363,26 +367,24 @@ func NewCleanupAction() actions.Fn {
 	}
 }
 
-// MonitorCRDs returns a dependency.ActionOpts that checks whether the three core cert-manager
-// CRDs (Certificate, Issuer, ClusterIssuer) are registered on the cluster. If any CRD
-// is absent, DependenciesAvailable is set to False.
-func MonitorCRDs() dependency.ActionOpts {
-	return dependency.Combine(
-		dependency.MonitorCRD(dependency.CRDConfig{GVK: gvk.CertManagerCertificate}),
-		dependency.MonitorCRD(dependency.CRDConfig{GVK: gvk.CertManagerIssuer}),
-		dependency.MonitorCRD(dependency.CRDConfig{GVK: gvk.CertManagerClusterIssuer}),
-	)
+func monitoredCRDs() []schema.GroupVersionKind {
+	gvks := make([]schema.GroupVersionKind, len(monitoredCRDList))
+	for i := range monitoredCRDList {
+		gvks[i] = monitoredCRDList[i].gvk
+	}
+
+	return gvks
 }
 
-// CRDPredicate returns a predicate that matches CustomResourceDefinition events for
-// the three core cert-manager CRDs.
-func CRDPredicate() predicate.Predicate {
+func crdPredicate() predicate.Predicate {
+	names := make(map[string]struct{}, len(monitoredCRDList))
+	for _, m := range monitoredCRDList {
+		names[m.resourceName] = struct{}{}
+	}
+
 	return predicate.NewPredicateFuncs(func(obj client.Object) bool {
-		switch obj.GetName() {
-		case certManagerCertificateCRD, certManagerIssuerCRD, certManagerClusterIssuerCRD:
-			return true
-		}
-		return false
+		_, ok := names[obj.GetName()]
+		return ok
 	})
 }
 
@@ -392,7 +394,7 @@ func CRDPredicate() predicate.Predicate {
 //   - a cert-manager CRDs watch to trigger reconciliation when cert-manager is installed,
 //   - explicit watches for the PKI resource instances (ClusterIssuers, Certificate)
 //     so the controller reconciles when they are modified or deleted,
-//   - a monitoring action to set the DependenciesAvailable condition,
+//   - pre-conditions that monitor the three core cert-manager CRDs,
 //   - a bootstrap action to deploy the PKI trust chain,
 //   - a condition to set the DependenciesAvailable status.
 //
@@ -419,7 +421,7 @@ func Bootstrap[T common.PlatformObject](instanceName string, config BootstrapCon
 		b.Watches(
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(handlers.ToNamed(instanceName)),
-			reconciler.WithPredicates(CRDPredicate()),
+			reconciler.WithPredicates(crdPredicate()),
 		).
 			WatchesGVK(gvk.CertManagerClusterIssuer,
 				reconciler.WithEventHandler(handlers.ToNamed(instanceName)),
@@ -439,7 +441,7 @@ func Bootstrap[T common.PlatformObject](instanceName string, config BootstrapCon
 				reconciler.WithPredicates(resourcespredicates.CreatedOrUpdatedOrDeletedNamed("cluster")),
 				reconciler.Dynamic(reconciler.CrdExists(gvk.CertManagerV1Alpha1)),
 			).
-			WithAction(dependency.NewAction(MonitorCRDs())).
+			WithPreCondition(precondition.MonitorCRDs(monitoredCRDs())).
 			WithActionE(NewBootstrapAction(config)).
 			WithConditions(status.ConditionDependenciesAvailable).
 			WithFinalizer(NewCleanupAction())

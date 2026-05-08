@@ -109,7 +109,7 @@ func NewTestContext(t *testing.T) (*TestContext, error) { //nolint:thelper
 	}
 
 	// Initialize the cluster config for detecting the platform
-	err = cluster.Init(t.Context(), tcf.Client(), operatorconfig.OperatorSettings{
+	err = cluster.Init(tcf.Context(), tcf.Client(), operatorconfig.OperatorSettings{
 		OperatorNamespace: testOpts.operatorNamespace,
 	})
 	if err != nil {

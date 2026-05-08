@@ -161,7 +161,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		}).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
-			WithApplyOrderLLMInferenceServiceConfigLast(),
+			withApplyOrder(),
 		)).
 		WithAction(deployments.NewAction()).
 		// must be the final action
@@ -174,47 +174,58 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 	return err
 }
 
-// WithApplyOrderLLMInferenceServiceConfigLast returns a deploy option that sorts
-// resources using the standard apply order (CRDs first, webhooks last), then
-// moves all LLMInferenceServiceConfig resources to the very end.
-//
-// This ordering is critical for upgrades (e.g. 3.3 → 3.4). In 3.3, a single
-// kserve controller handled LLMInferenceServiceConfig validation. In 3.4,
-// validation moves to the separate llmisvc controller with its own webhook.
-// During upgrades the kserve controller is updated to 3.4 first, but the old
-// ValidatingWebhookConfiguration still points to kserve-webhook-server-service
-// which no longer serves the LLMInferenceServiceConfig validation endpoint.
-// Since WithApplyOrder places webhooks last, if LLMInferenceServiceConfig
-// resources are applied before the new ValidatingWebhookConfiguration replaces
-// the old one, validation fails and the operator stops — preventing the new
-// webhook configuration from ever being applied.
-// Placing LLMInferenceServiceConfig resources after webhooks ensures the new
-// ValidatingWebhookConfiguration is applied first.
-func WithApplyOrderLLMInferenceServiceConfigLast() deploy.ActionOpts {
-	return deploy.WithSortFn(deploy.SortFn(pkgresources.SortByApplyOrder).Then(sortLLMInferenceServiceConfigLast))
-}
-
 func sortLLMInferenceServiceConfigLast(_ context.Context, objects []unstructured.Unstructured) ([]unstructured.Unstructured, error) {
-	result := objects
+	if len(objects) == 0 {
+		return objects, nil
+	}
+
 	// Stable-sort LLMInferenceServiceConfig resources after everything else
 	// so they are applied only once the webhook(s) are updated.
-	slices.SortStableFunc(result, func(a, b unstructured.Unstructured) int {
-		if isLLMInferenceServiceConfig(a) && isLLMInferenceServiceConfig(b) {
-			// Keep the original order.
+	//
+	// This ordering is critical for upgrades (especially 3.3→3.4) where the
+	// ValidatingWebhookConfiguration initially points to the old kserve-webhook-server-service,
+	// but the new webhook deployment serves validation on a different service endpoint.
+	//
+	// Without this ordering:
+	// 1. LLMInferenceServiceConfig resources are created/updated first
+	// 2. Kubernetes tries to validate them using the old webhook service reference
+	// 3. The old service either doesn't exist or doesn't serve the validation endpoint
+	// 4. Validation fails and the resource creation is rejected
+	//
+	// By deploying webhooks (including ValidatingWebhookConfiguration updates) first,
+	// we ensure the validation endpoint is correctly configured and available before
+	// any LLMInferenceServiceConfig resources undergo validation.
+	slices.SortStableFunc(objects, func(a, b unstructured.Unstructured) int {
+		aIsLLM := isLLMInferenceServiceConfig(a)
+		bIsLLM := isLLMInferenceServiceConfig(b)
+
+		if aIsLLM == bIsLLM {
 			return 0
 		}
-		if isLLMInferenceServiceConfig(a) {
+		if aIsLLM {
 			return 1
 		}
-		if isLLMInferenceServiceConfig(b) {
-			return -1
-		}
-		return 0
+		return -1
 	})
-	return result, nil
+
+	return objects, nil
 }
 
+// isLLMInferenceServiceConfig returns true if the resource is an LLMInferenceServiceConfig
+// of any version, which must be deployed after webhooks during upgrades.
 func isLLMInferenceServiceConfig(r unstructured.Unstructured) bool {
 	return r.GroupVersionKind().Group == gvk.LLMInferenceServiceConfigV1Alpha2.Group &&
 		r.GetKind() == gvk.LLMInferenceServiceConfigV1Alpha2.Kind
+}
+
+// withApplyOrder returns a deploy option that applies
+// a 2-stage sorting approach for Kserve resources:
+// 1. Default sorting (Standard K8s + cert-manager dependency ordering)
+// 2. LLMInferenceServiceConfig placement after webhooks (for upgrade safety).
+func withApplyOrder() deploy.ActionOpts {
+	return deploy.WithSortFn(
+		deploy.SortFn(pkgresources.SortByApplyOrder).Then(
+			deploy.SortFn(sortLLMInferenceServiceConfigLast),
+		),
+	)
 }

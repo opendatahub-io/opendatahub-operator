@@ -23,6 +23,7 @@ import (
 type WithT struct {
 	*gomega.WithT
 
+	Log    func(args ...any)
 	ctx    context.Context
 	client client.Client
 }

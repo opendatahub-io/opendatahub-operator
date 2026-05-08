@@ -83,6 +83,7 @@ const (
 	ConditionDependenciesAvailable               = "DependenciesAvailable"
 	ConditionArgoWorkflowAvailable               = "ArgoWorkflowAvailable"
 	ConditionTypeComponentsReady                 = "ComponentsReady"
+	ConditionMonitoringReady                     = "MonitoringReady"
 	ConditionMonitoringAvailable                 = "MonitoringAvailable"
 	ConditionMonitoringStackAvailable            = "MonitoringStackAvailable"
 	ConditionTempoAvailable                      = "TempoAvailable"

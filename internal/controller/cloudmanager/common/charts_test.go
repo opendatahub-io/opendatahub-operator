@@ -10,21 +10,6 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestManagedNamespaces(t *testing.T) {
-	t.Run("returns namespaces derived from chart registry", func(t *testing.T) {
-		g := NewWithT(t)
-
-		namespaces := ManagedNamespaces()
-
-		g.Expect(namespaces).To(HaveLen(3))
-		g.Expect(namespaces).To(Equal([]string{
-			NamespaceCertManagerOperator,
-			NamespaceLWSOperator,
-			NamespaceSailOperator,
-		}))
-	})
-}
-
 func getAllUnmanagedDependencies() ccmcommon.Dependencies {
 	return ccmcommon.Dependencies{
 		GatewayAPI:   ccmcommon.GatewayAPIDependency{ManagementPolicy: ccmcommon.Unmanaged},
@@ -82,5 +67,52 @@ func TestBuildHelmCharts(t *testing.T) {
 		charts := BuildHelmCharts(deps)
 
 		g.Expect(charts).To(BeEmpty())
+	})
+
+	t.Run("uses custom namespaces in chart values", func(t *testing.T) {
+		g := NewWithT(t)
+
+		original := DefaultChartsPath
+		DefaultChartsPath = "/test/charts"
+		t.Cleanup(func() { DefaultChartsPath = original })
+
+		deps := ccmcommon.Dependencies{
+			LWS: ccmcommon.LWSDependency{
+				Configuration: ccmcommon.LWSConfiguration{
+					Namespace: "custom-lws-ns",
+				},
+			},
+			SailOperator: ccmcommon.SailOperatorDependency{
+				Configuration: ccmcommon.SailOperatorConfiguration{
+					Namespace: "custom-sail-ns",
+				},
+			},
+		}
+
+		charts := BuildHelmCharts(deps)
+
+		g.Expect(charts).To(HaveLen(4))
+
+		// cert-manager-operator chart should have hardcoded namespace in values
+		certManagerChart := charts[1]
+		g.Expect(certManagerChart.ReleaseName).To(Equal("cert-manager-operator"))
+		values, err := certManagerChart.Values(nil)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(values).To(HaveKeyWithValue("operatorNamespace", "cert-manager-operator"))
+		g.Expect(values).To(HaveKeyWithValue("operandNamespace", "cert-manager"))
+
+		// lws-operator chart should have custom namespace in values
+		lwsChart := charts[2]
+		g.Expect(lwsChart.ReleaseName).To(Equal("lws-operator"))
+		values, err = lwsChart.Values(nil)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(values).To(HaveKeyWithValue("namespace", "custom-lws-ns"))
+
+		// sail-operator chart should have custom namespace in values
+		sailChart := charts[3]
+		g.Expect(sailChart.ReleaseName).To(Equal("sail-operator"))
+		values, err = sailChart.Values(nil)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(values).To(HaveKeyWithValue("namespace", "custom-sail-ns"))
 	})
 }

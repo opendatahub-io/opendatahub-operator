@@ -6,8 +6,10 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
+	batchv1 "k8s.io/api/batch/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -133,6 +135,24 @@ var (
 		Group:   appsv1.SchemeGroupVersion.Group,
 		Version: appsv1.SchemeGroupVersion.Version,
 		Kind:    "StatefulSet",
+	}
+
+	DaemonSet = schema.GroupVersionKind{
+		Group:   appsv1.SchemeGroupVersion.Group,
+		Version: appsv1.SchemeGroupVersion.Version,
+		Kind:    "DaemonSet",
+	}
+
+	Job = schema.GroupVersionKind{
+		Group:   batchv1.SchemeGroupVersion.Group,
+		Version: batchv1.SchemeGroupVersion.Version,
+		Kind:    "Job",
+	}
+
+	CronJob = schema.GroupVersionKind{
+		Group:   batchv1.SchemeGroupVersion.Group,
+		Version: batchv1.SchemeGroupVersion.Version,
+		Kind:    "CronJob",
 	}
 
 	ResourceQuota = schema.GroupVersionKind{
@@ -809,6 +829,18 @@ var (
 		Group:   "admissionregistration.k8s.io",
 		Version: "v1",
 		Kind:    "ValidatingAdmissionPolicyBinding",
+	}
+
+	MutatingWebhookConfiguration = schema.GroupVersionKind{
+		Group:   admissionregistrationv1.SchemeGroupVersion.Group,
+		Version: admissionregistrationv1.SchemeGroupVersion.Version,
+		Kind:    "MutatingWebhookConfiguration",
+	}
+
+	ValidatingWebhookConfiguration = schema.GroupVersionKind{
+		Group:   admissionregistrationv1.SchemeGroupVersion.Group,
+		Version: admissionregistrationv1.SchemeGroupVersion.Version,
+		Kind:    "ValidatingWebhookConfiguration",
 	}
 
 	AuthPolicyv1 = schema.GroupVersionKind{

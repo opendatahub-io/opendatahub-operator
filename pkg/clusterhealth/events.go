@@ -104,6 +104,7 @@ func eventToInfo(e *corev1.Event) EventInfo {
 		Reason:    e.Reason,
 		Message:   e.Message,
 		LastTime:  eventLastTime(e),
+		Count:     e.Count,
 	}
 }
 

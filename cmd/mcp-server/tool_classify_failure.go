@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"log"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -26,20 +26,33 @@ func registerClassifyFailure(s *server.MCPServer, kubeClient client.Client) {
 			mcp.Description("Comma-separated layers: infrastructure,workload,"+
 				"operator. Ignored if sections is set. Omit for all.")),
 		mcp.WithString("operator_namespace",
-			mcp.Description("Operator namespace. Default: opendatahub-operator-system")),
+			mcp.Description("Operator namespace. Auto-discovered from E2E_TEST_OPERATOR_NAMESPACE env var or defaults to opendatahub-operator-system.")),
 		mcp.WithString("applications_namespace",
-			mcp.Description("Apps namespace. Default: opendatahub")),
+			mcp.Description("Apps namespace. Auto-discovered from DSCI if not provided. Returns an error if DSCI discovery fails due to RBAC or missing CRD. Falls back to E2E_TEST_APPLICATIONS_NAMESPACE env var or 'opendatahub'.")),
 	)
 
 	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		operatorNS := stringParam(req, "operator_namespace", "")
+		if operatorNS == "" {
+			operatorNS = discoverOperatorNamespace()
+		}
+		appsNS := stringParam(req, "applications_namespace", "")
+		if appsNS == "" {
+			var err error
+			appsNS, err = discoverAppsNamespace(ctx, kubeClient)
+			if err != nil {
+				return discoveryErrorResult("classify_failure", err), nil
+			}
+		}
+
 		cfg := clusterhealth.Config{
 			Client: kubeClient,
 			Operator: clusterhealth.OperatorConfig{
-				Namespace: stringParam(req, "operator_namespace", getEnvDefault(envOperatorNamespace, defaultOperatorNS)),
+				Namespace: operatorNS,
 				Name:      getEnvDefault(envOperatorDeployment, defaultOperatorDeploy),
 			},
 			Namespaces: clusterhealth.NamespaceConfig{
-				Apps:       stringParam(req, "applications_namespace", getEnvDefault(envApplicationsNamespace, defaultAppsNS)),
+				Apps:       appsNS,
 				Monitoring: getEnvDefault(envMonitoringNamespace, defaultMonitoringNS),
 				Extra:      []string{"kube-system"},
 			},
@@ -53,14 +66,16 @@ func registerClassifyFailure(s *server.MCPServer, kubeClient client.Client) {
 
 		report, err := clusterhealth.Run(ctx, cfg)
 		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("clusterhealth error: %v", err)), nil
+			log.Printf("classify_failure: %v", err)
+			return mcp.NewToolResultError("failed to run cluster health checks"), nil
 		}
 
 		fc := failureclassifier.Classify(report)
 
 		data, err := json.MarshalIndent(fc, "", "  ")
 		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("json marshal error: %v", err)), nil
+			log.Printf("classify_failure: json marshal: %v", err)
+			return mcp.NewToolResultError("failed to format failure classification"), nil
 		}
 		return mcp.NewToolResultText(string(data)), nil
 	})

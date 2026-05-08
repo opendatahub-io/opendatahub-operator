@@ -81,6 +81,7 @@ type TestContextConfig struct {
 	monitoringNamespace  string
 	deletionPolicy       DeletionPolicy
 
+	backupAndRestoreDSCIandDSC       bool
 	cleanUpPreviousResources         bool
 	dependantOperatorsManagementTest bool
 	dscManagementTest                bool
@@ -231,16 +232,11 @@ func (tg *TestGroup) Validate() error {
 	return nil
 }
 
-func (tg *TestGroup) Run(t *testing.T) {
-	t.Helper()
-
-	if !tg.enabled {
-		t.Skipf("Test group %s is disabled", tg.name)
-		return
-	}
-
+// resolveEnabledTests parses tg.flags into a set of test names that should
+// run. Flags without "!" are inclusions, flags prefixed with "!" are exclusions.
+func (tg *TestGroup) resolveEnabledTests() map[string]bool {
+	enabledTests := make(map[string]bool)
 	disabledTests := make([]string, 0)
-	enabledTests := make(map[string]bool, 0)
 
 	for _, name := range tg.flags {
 		if strings.HasPrefix(name, "!") {
@@ -250,19 +246,29 @@ func (tg *TestGroup) Run(t *testing.T) {
 		}
 	}
 
-	// Run all tests if none are explicitly enabled
 	if len(enabledTests) == 0 {
 		for _, name := range tg.Names() {
 			enabledTests[name] = true
 		}
 	}
 
-	// Remove disabled tests
 	for _, name := range disabledTests {
 		delete(enabledTests, name)
 	}
 
-	// Run each test case by group
+	return enabledTests
+}
+
+func (tg *TestGroup) Run(t *testing.T) {
+	t.Helper()
+
+	if !tg.enabled {
+		t.Skipf("Test group %s is disabled", tg.name)
+		return
+	}
+
+	enabledTests := tg.resolveEnabledTests()
+
 	for i, group := range tg.scenarios {
 		mustRun(t, fmt.Sprintf("group %d", i+1), func(t *testing.T) {
 			t.Helper()
@@ -286,6 +292,81 @@ func (tg *TestGroup) Run(t *testing.T) {
 	}
 }
 
+// RunSingle returns a test function that runs only the named test from this group.
+func (tg *TestGroup) RunSingle(name string) func(t *testing.T) {
+	return func(t *testing.T) {
+		t.Helper()
+
+		if !tg.enabled {
+			t.Skipf("Test group %s is disabled", tg.name)
+			return
+		}
+
+		if !tg.isTestEnabled(name) {
+			t.Skipf("Test %s is disabled by flags in group %s", name, tg.name)
+			return
+		}
+
+		for _, group := range tg.scenarios {
+			if testFunc, ok := group[name]; ok {
+				testFunc(t)
+				return
+			}
+		}
+
+		t.Skipf("Test %s not found in group %s", name, tg.name)
+	}
+}
+
+// isTestEnabled returns true if the named test should run given the group's flags.
+func (tg *TestGroup) isTestEnabled(name string) bool {
+	_, ok := tg.resolveEnabledTests()[name]
+	return ok
+}
+
+// RunExcluding returns a test function that runs this group but skips the
+// named test. Used together with RunSingle to split a test out of its group.
+func (tg *TestGroup) RunExcluding(excludeName string) func(t *testing.T) {
+	return func(t *testing.T) {
+		t.Helper()
+
+		if !tg.enabled {
+			t.Skipf("Test group %s is disabled", tg.name)
+			return
+		}
+
+		enabledTests := tg.resolveEnabledTests()
+		delete(enabledTests, excludeName)
+
+		if len(enabledTests) == 0 {
+			t.Skipf("No tests remaining in group %s after excluding %s", tg.name, excludeName)
+			return
+		}
+
+		for i, group := range tg.scenarios {
+			mustRun(t, fmt.Sprintf("group %d", i+1), func(t *testing.T) {
+				t.Helper()
+
+				groupNames := slices.AppendSeq(make([]string, 0, len(group)), maps.Keys(group))
+				slices.Sort(groupNames)
+
+				for _, testName := range groupNames {
+					testFunc := group[testName]
+					if _, ok := enabledTests[testName]; !ok {
+						t.Logf("Skipping tests for %s/%s", tg.name, testName)
+						continue
+					}
+					if tg.parallel {
+						mustRun(t, testName, testFunc, WithParallel())
+					} else {
+						mustRun(t, testName, testFunc)
+					}
+				}
+			})
+		}
+	}
+}
+
 // Helper function to handle cleanup logic.
 func handleCleanup(t *testing.T) {
 	t.Helper()
@@ -299,6 +380,9 @@ func handleCleanup(t *testing.T) {
 	})
 }
 
+// testDeadlineMargin is the safety margin subtracted from the go test -timeout deadline.
+const testDeadlineMargin = 5 * time.Minute
+
 // TestOdhOperator sets up the testing suite for the Operator.
 func TestOdhOperator(t *testing.T) {
 	// Set up global panic handler for comprehensive debugging
@@ -307,6 +391,25 @@ func TestOdhOperator(t *testing.T) {
 	registerSchemes()
 
 	log.SetLogger(zap.New(zap.UseDevMode(true)))
+
+	if deadline, ok := t.Deadline(); ok {
+		remaining := time.Until(deadline)
+		if remaining > testDeadlineMargin {
+			done := make(chan struct{})
+			watchdog := time.AfterFunc(remaining-testDeadlineMargin, func() {
+				select {
+				case <-done:
+					return
+				default:
+					t.Errorf("Internal timeout watchdog fired (%s before go test deadline) — marking test failed to trigger cleanup and preserve JUnit output", testDeadlineMargin)
+				}
+			})
+			t.Cleanup(func() {
+				close(done)
+				watchdog.Stop()
+			})
+		}
+	}
 
 	if testOpts.circuitBreakerEnabled {
 		healthChecker := NewClusterHealthChecker()
@@ -330,6 +433,13 @@ func TestOdhOperator(t *testing.T) {
 		}
 	}
 
+	// Back up DSCI and DSC to a temp file
+	if testOpts.backupAndRestoreDSCIandDSC {
+		dsciBackupPath, dscBackupPath := BackupDSCIandDSC(t)
+		t.Cleanup(func() {
+			RestoreDSCIandDSCFromBackup(t, dsciBackupPath, dscBackupPath)
+		})
+	}
 	// Remove any leftover resources from previous test runs before starting if the cleanup flag is enabled
 	if testOpts.cleanUpPreviousResources {
 		CleanupPreviousTestResources(t)
@@ -358,9 +468,14 @@ func TestOdhOperator(t *testing.T) {
 		mustRun(t, "DSCInitialization and DataScienceCluster validation E2E Tests", dscValidationTestSuite)
 	}
 
-	// Run components and services test suites
+	// Run monitoring before components — monitoring setup is a prerequisite.
+	mustRun(t, serviceApi.MonitoringServiceName, Services.RunSingle(serviceApi.MonitoringServiceName))
+
+	// Run components test suites
 	mustRun(t, Components.String(), Components.Run)
-	mustRun(t, Services.String(), Services.Run)
+
+	// Run remaining services (auth, gateway)
+	mustRun(t, Services.String(), Services.RunExcluding(serviceApi.MonitoringServiceName))
 
 	// Run operator resilience test suites after functional tests
 	if testOpts.operatorResilienceTest {
@@ -458,6 +573,8 @@ func TestMain(m *testing.M) {
 	pflag.String("tag", "All", "Tag to run tests for. Options: "+strings.Join(tagNames, ", "))
 	checkEnvVarBindingError(viper.BindEnv("tag", viper.GetEnvPrefix()+"_TAG"))
 
+	pflag.Bool("backup-and-restore-dsci-and-dsc", false, "backup DSCI and DSC before tests and restore after tests finish")
+	checkEnvVarBindingError(viper.BindEnv("backup-and-restore-dsci-and-dsc", viper.GetEnvPrefix()+"_BACKUP_AND_RESTORE_DSCI_AND_DSC"))
 	pflag.Bool("clean-up-previous-resources", true, "clean up previous resources before running tests")
 	checkEnvVarBindingError(viper.BindEnv("clean-up-previous-resources", viper.GetEnvPrefix()+"_CLEAN_UP_PREVIOUS_RESOURCES"))
 	pflag.Bool("test-operator-controller", true, "run operator controller tests")
@@ -531,6 +648,7 @@ func TestMain(m *testing.M) {
 		fmt.Printf("Unknown tag: %s. Valid tags are: %v\n", testOpts.tag, allowedTags)
 		os.Exit(1)
 	}
+	testOpts.backupAndRestoreDSCIandDSC = viper.GetBool("backup-and-restore-dsci-and-dsc")
 	testOpts.operatorNamespace = viper.GetString("operator-namespace")
 	testOpts.appsNamespace = viper.GetString("applications-namespace")
 	testOpts.workbenchesNamespace = viper.GetString("workbenches-namespace")

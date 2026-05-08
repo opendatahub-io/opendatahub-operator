@@ -7,15 +7,103 @@ import (
 	"github.com/k8s-manifest-kit/engine/pkg/postrenderer"
 	engineTypes "github.com/k8s-manifest-kit/engine/pkg/types"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
 var defaultPostRenderers = []engineTypes.PostRenderer{
-	postrenderer.ApplyOrder(),
+	postrenderer.ApplyOrder(), // Standard K8s resource ordering
+	CertManagerPostRenderer(), // Cert-manager dependency ordering
 }
 
 // SortByApplyOrder reorders resources into dependency order for cluster
 // application: foundational resources (Namespace, CRD, etc.) first,
-// webhooks last.
+// cert-manager resources (ClusterIssuer/Issuer/Certificate) before workloads,
+// and webhooks last.
 func SortByApplyOrder(ctx context.Context, resources []unstructured.Unstructured) ([]unstructured.Unstructured, error) {
 	return pipeline.ApplyPostRenderers(ctx, resources, defaultPostRenderers)
+}
+
+// CertManagerPostRenderer returns a PostRenderer that orders cert-manager resources
+// in dependency order: ClusterIssuer → Issuer → Certificate before Deployments.
+// This prevents transient failures when Deployments consume Certificate-generated Secrets.
+func CertManagerPostRenderer() engineTypes.PostRenderer {
+	return func(ctx context.Context, objects []unstructured.Unstructured) ([]unstructured.Unstructured, error) {
+		// Early exit for empty input
+		if len(objects) == 0 {
+			return objects, nil
+		}
+
+		// Separate cert-manager resources from others
+		var certManagerResources []unstructured.Unstructured
+		var otherResources []unstructured.Unstructured
+
+		for _, resource := range objects {
+			if isCertManagerResource(resource) {
+				certManagerResources = append(certManagerResources, resource)
+			} else {
+				otherResources = append(otherResources, resource)
+			}
+		}
+
+		// If no cert-manager resources, return unchanged (zero overhead)
+		if len(certManagerResources) == 0 {
+			return objects, nil
+		}
+
+		// Find insertion point: before first workload (Deployment, StatefulSet, DaemonSet, Job, CronJob)
+		insertIndex := len(otherResources) // Default: insert at end
+		for i, resource := range otherResources {
+			if isWorkloadKind(resource) || IsWebhookResource(resource) {
+				insertIndex = i
+				break
+			}
+		}
+
+		// Build result with cert-manager resources in dependency order
+		result := make([]unstructured.Unstructured, 0, len(objects))
+		result = append(result, otherResources[:insertIndex]...)
+
+		// Add cert-manager resources in dependency order: ClusterIssuer, Issuer, Certificate
+		for _, targetGVK := range []schema.GroupVersionKind{gvk.CertManagerClusterIssuer, gvk.CertManagerIssuer, gvk.CertManagerCertificate} {
+			for _, resource := range certManagerResources {
+				if resource.GroupVersionKind() == targetGVK {
+					result = append(result, resource)
+				}
+			}
+		}
+
+		result = append(result, otherResources[insertIndex:]...)
+		return result, nil
+	}
+}
+
+// isCertManagerResource checks if the given resource is a cert-manager resource type
+// by matching the full GroupVersionKind to avoid false positives with other CRDs.
+func isCertManagerResource(r unstructured.Unstructured) bool {
+	g := r.GroupVersionKind()
+	return g == gvk.CertManagerClusterIssuer ||
+		g == gvk.CertManagerIssuer ||
+		g == gvk.CertManagerCertificate
+}
+
+// isWorkloadKind returns true if the resource represents a workload that can consume
+// cert-manager-generated secrets and should be deployed after cert-manager resources.
+func isWorkloadKind(r unstructured.Unstructured) bool {
+	g := r.GroupVersionKind()
+	return g == gvk.Deployment ||
+		g == gvk.StatefulSet ||
+		g == gvk.DaemonSet ||
+		g == gvk.Job ||
+		g == gvk.CronJob
+}
+
+// IsWebhookResource returns true if the resource is a webhook configuration.
+func IsWebhookResource(r unstructured.Unstructured) bool {
+	g := r.GroupVersionKind()
+	return g == gvk.MutatingWebhookConfiguration ||
+		g == gvk.ValidatingWebhookConfiguration ||
+		g == gvk.ValidatingAdmissionPolicy ||
+		g == gvk.ValidatingAdmissionPolicyBinding
 }

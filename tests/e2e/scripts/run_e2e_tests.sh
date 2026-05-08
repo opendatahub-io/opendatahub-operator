@@ -46,6 +46,9 @@ validate_deletion_policy E2E_TEST_DELETION_POLICY
 : "${E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES:=false}"
 validate_bool E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES
 
+: "${E2E_TEST_BACKUP_AND_RESTORE_DSCI_AND_DSC:=true}"
+validate_bool E2E_TEST_BACKUP_AND_RESTORE_DSCI_AND_DSC
+
 : "${E2E_TEST_OPERATOR_CONTROLLER:=true}"
 validate_bool E2E_TEST_OPERATOR_CONTROLLER
 
@@ -85,9 +88,21 @@ validate_namespace E2E_TEST_DSC_MONITORING_NAMESPACE
 : "${E2E_TEST_TAG:=All}"
 validate_tag E2E_TEST_TAG
 
-# Toggle for JUnit XML enrichment with failure classification
+# Toggle for JUnit XML enrichment with failure classification (default: disabled)
 : "${USE_TEST_RETRY:=false}"
 validate_bool USE_TEST_RETRY
+
+# Label to apply to PRs when tests are flaky (pass on retry)
+: "${E2E_FLAKY_LABEL:=ci/flaky-test}"
+
+# Build GitHub PR notification flags when PULL_NUMBER and GITHUB_TOKEN are set
+# (both are injected by Prow into presubmit jobs)
+GITHUB_PR_FLAGS=""
+if [ -n "${PULL_NUMBER:-}" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
+  : "${REPO_OWNER:=opendatahub-io}"
+  : "${REPO_NAME:=opendatahub-operator}"
+  GITHUB_PR_FLAGS="--github-owner=${REPO_OWNER} --github-repo=${REPO_NAME} --github-pr=${PULL_NUMBER} --failure-label=${E2E_FLAKY_LABEL}"
+fi
 
 # Choose test runner based on USE_TEST_RETRY flag
 if [ "$USE_TEST_RETRY" = "true" ] || [ "$USE_TEST_RETRY" = "1" ]; then
@@ -95,6 +110,7 @@ if [ "$USE_TEST_RETRY" = "true" ] || [ "$USE_TEST_RETRY" = "1" ]; then
 
   # Run with test-retry (enriched JUnit XML with <properties>)
   # Note: No --filter flag (uses custom e2e flags like --tag, --test-operator-controller instead)
+  # shellcheck disable=SC2086
   exec test-retry e2e \
     --command ./e2e-tests \
     --filter "" \
@@ -102,9 +118,11 @@ if [ "$USE_TEST_RETRY" = "true" ] || [ "$USE_TEST_RETRY" = "1" ]; then
     --max-retries 3 \
     --junit-output results/xunit_report.xml \
     --verbose \
+    ${GITHUB_PR_FLAGS} \
     -- --test.parallel=8 \
     --deletion-policy="$E2E_TEST_DELETION_POLICY" \
     --clean-up-previous-resources="$E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES" \
+    --backup-and-restore-dsci-and-dsc="$E2E_TEST_BACKUP_AND_RESTORE_DSCI_AND_DSC" \
     --test-operator-controller="$E2E_TEST_OPERATOR_CONTROLLER" \
     --test-dependant-operators-management="$E2E_TEST_DEPENDANT_OPERATORS_MANAGEMENT" \
     --test-dsc-management="$E2E_TEST_DSC_MANAGEMENT" \
@@ -124,10 +142,11 @@ else
 
   # Run with gotestsum (existing behavior - DEFAULT)
   exec gotestsum --junitfile-project-name odh-operator-e2e \
-    --junitfile results/xunit_report.xml --format testname --raw-command \
+    --junitfile results/xunit_report.xml --format standard-verbose --raw-command \
     -- test2json -t -p e2e ./e2e-tests --test.v=test2json --test.parallel=8 \
     --deletion-policy="$E2E_TEST_DELETION_POLICY" \
     --clean-up-previous-resources="$E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES" \
+    --backup-and-restore-dsci-and-dsc="$E2E_TEST_BACKUP_AND_RESTORE_DSCI_AND_DSC" \
     --test-operator-controller="$E2E_TEST_OPERATOR_CONTROLLER" \
     --test-dependant-operators-management="$E2E_TEST_DEPENDANT_OPERATORS_MANAGEMENT" \
     --test-dsc-management="$E2E_TEST_DSC_MANAGEMENT" \

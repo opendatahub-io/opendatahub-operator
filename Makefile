@@ -22,6 +22,7 @@ BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
 # default platform type
 ODH_PLATFORM_TYPE ?= OpenDataHub
 
+
 ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	# VERSION defines the project version for the bundle.
 	# Update this value when you upgrade the version of your project.
@@ -141,7 +142,7 @@ KUSTOMIZE_VERSION ?= v5.8.1
 CONTROLLER_TOOLS_VERSION ?= v0.17.3
 OPERATOR_SDK_VERSION ?= v1.39.2
 GOLANGCI_LINT_VERSION ?= v2.5.0
-YQ_VERSION ?= v4.12.2
+YQ_VERSION ?= v4.53.2
 HELM_VERSION ?= v4.1.1
 KUBE_LINTER_VERSION ?= v0.7.6
 #ENVTEST_K8S_VERSION is the version of Kubernetes to use for setting up ENVTEST binaries (i.e. 1.31)
@@ -333,6 +334,25 @@ get-manifests: ## Fetch components manifests from remote git repo
 	@echo "Validating manifest image tags..."
 	@./.github/scripts/validate-manifest-images.sh
 CLEANFILES += opt/manifests/*
+
+.PHONY: update-rhai-images
+update-rhai-images: yq ## Fetch RHAI component manifests and update images from RHOAI-Build-Config CSV
+	@if [ -n "$(RHAI_BRANCH)" ]; then \
+		echo "Fetching manifests from rhods-operator branch $(RHAI_BRANCH)..."; \
+		TMP_RHODS=$$(mktemp -d) && \
+		git clone --depth 1 -b $(RHAI_BRANCH) -q https://github.com/red-hat-data-services/rhods-operator $$TMP_RHODS || \
+			{ echo "ERROR: Failed to clone rhods-operator branch $(RHAI_BRANCH)"; exit 1; } && \
+		rm -rf opt/manifests opt/charts && cp -r $$TMP_RHODS/prefetched-manifests opt/manifests && cp -r $$TMP_RHODS/prefetched-charts opt/charts && \
+		touch opt/manifests/.gitkeep opt/charts/.gitkeep && \
+		rm -rf $$TMP_RHODS; \
+	else \
+		echo "ERROR: RHAI_BRANCH is not set. Use --branch flag or set RHAI_BRANCH env var."; exit 1; \
+	fi
+	MANIFESTS_DIR=./opt/manifests RHAI_BRANCH=$(RHAI_BRANCH) YQ=$(YQ) SED_COMMAND=$(SED_COMMAND) ./hack/update-rhai-images.sh
+.PHONY: validate-related-images
+validate-related-images: yq ## Validate RELATED_IMAGE_* names against build configs
+	@RHOAI_BUILD_CONFIG_BRANCH=rhoai-$(shell echo $(VERSION) | sed 's/\([0-9]*\.[0-9]*\)\.[0-9]*/\1/') \
+		YQ=$(YQ) ./.github/scripts/validate-related-images.sh
 
 # Default to standard sed command
 SED_COMMAND = sed
@@ -611,7 +631,7 @@ toolbox: ## Create a toolbox instance with the proper Golang and Operator SDK ve
 	toolbox create opendatahub-toolbox --image localhost/opendatahub-toolbox:latest
 
 # Run tests.
-TEST_SRC ?=./internal/... ./tests/integration/... ./pkg/... ./api/services/v1alpha1/...
+TEST_SRC ?=./internal/... ./tests/integration/... ./pkg/... ./api/services/v1alpha1/... ./cmd/cloudmanager/...
 
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download setup-envtest locally if necessary.
@@ -634,7 +654,7 @@ unit-test-operator: envtest ginkgo # directly use ginkgo since the framework is 
     	${GINKGO} -r \
         		--procs=8 \
         		--compilers=2 \
-        		--timeout=20m \
+        		--timeout=25m \
         		--poll-progress-after=30s \
         		--poll-progress-interval=5s \
         		--randomize-all \
@@ -842,7 +862,7 @@ $(CCM_RUN_TARGETS): run-ccm-%: generate fmt vet ## Run CCM locally (e.g., run-cc
 #   make kind-setup-pull-secrets PULL_SECRET=$${XDG_RUNTIME_DIR}/containers/auth.json
 PULL_SECRET ?=
 
-PULL_SECRET_NAMESPACES := \
+PULL_SECRET_NAMESPACES ?= \
 	cert-manager \
 	cert-manager-operator \
 	openshift-lws-operator \
@@ -915,9 +935,9 @@ define go-install-tool
 set -e; \
 package=$(2)@$(3) ;\
 echo "Downloading $${package}" ;\
-rm -f $(1) || true ;\
+rm -f "$(1)" || true ;\
 GOBIN=$(LOCALBIN) go install $${package} ;\
-mv $(1) $(1)-$(3) ;\
+mv "$(1)" "$(1)-$(3)" ;\
 } ;\
-ln -sf $(1)-$(3) $(1)
+[ "$$(readlink "$(1)")" = "$(1)-$(3)" ] || ln -sf "$(1)-$(3)" "$(1)"
 endef
