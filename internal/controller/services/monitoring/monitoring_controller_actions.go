@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -98,13 +99,25 @@ func validateRequiredCRDs(ctx context.Context, rr *odhtypes.ReconciliationReques
 }
 
 // setConditionFalse sets a condition to False with the specified reason and message.
-// This helper reduces code duplication and ensures uniform condition handling across
-// all monitoring components for various failure scenarios (missing CRDs, not managed, not configured, etc.).
+// Uses default Error severity, meaning it WILL block the overall Ready condition.
+// Use setConditionNotConfigured for optional features that are simply not enabled.
 func setConditionFalse(rr *odhtypes.ReconciliationRequest, conditionType, reason, message string) {
 	rr.Conditions.MarkFalse(
 		conditionType,
 		conditions.WithReason(reason),
 		conditions.WithMessage("%s", message),
+	)
+}
+
+// setConditionNotConfigured sets a condition to False with Info severity.
+// Info severity means the condition will NOT block the overall Ready condition.
+// Use this for optional features that are simply not configured/enabled.
+func setConditionNotConfigured(rr *odhtypes.ReconciliationRequest, conditionType, reason, message string) {
+	rr.Conditions.MarkFalse(
+		conditionType,
+		conditions.WithReason(reason),
+		conditions.WithMessage("%s", message),
+		conditions.WithSeverity(common.ConditionSeverityInfo),
 	)
 }
 
@@ -142,8 +155,8 @@ func deployMonitoringStackWithQuerierAndRestrictions(ctx context.Context, rr *od
 
 	// Early exit if no metrics configuration
 	if monitoring.Spec.Metrics == nil {
-		setConditionFalse(rr, status.ConditionMonitoringStackAvailable, status.MetricsNotConfiguredReason, status.MetricsNotConfiguredMessage)
-		setConditionFalse(rr, status.ConditionThanosQuerierAvailable, status.MetricsNotConfiguredReason, status.MetricsNotConfiguredMessage)
+		setConditionNotConfigured(rr, status.ConditionMonitoringStackAvailable, status.MetricsNotConfiguredReason, status.MetricsNotConfiguredMessage)
+		setConditionNotConfigured(rr, status.ConditionThanosQuerierAvailable, status.MetricsNotConfiguredReason, status.MetricsNotConfiguredMessage)
 		return nil
 	}
 
@@ -193,9 +206,9 @@ func deployTracingStack(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 
 	// Early exit if no traces configuration - both components require traces to be configured
 	if monitoring.Spec.Traces == nil {
-		setConditionFalse(rr, status.ConditionTempoAvailable,
+		setConditionNotConfigured(rr, status.ConditionTempoAvailable,
 			status.TracesNotConfiguredReason, status.TracesNotConfiguredMessage)
-		setConditionFalse(rr, status.ConditionInstrumentationAvailable,
+		setConditionNotConfigured(rr, status.ConditionInstrumentationAvailable,
 			status.TracesNotConfiguredReason, status.TracesNotConfiguredMessage)
 		return nil
 	}
@@ -250,6 +263,7 @@ func deployOpenTelemetryCollector(ctx context.Context, rr *odhtypes.Reconciliati
 			status.ConditionOpenTelemetryCollectorAvailable,
 			conditions.WithReason(status.MetricsNotConfiguredReason+"And"+status.TracesNotConfiguredReason),
 			conditions.WithMessage(status.MetricsNotConfiguredMessage+"\n"+status.TracesNotConfiguredMessage),
+			conditions.WithSeverity(common.ConditionSeverityInfo),
 		)
 		return nil
 	}
@@ -314,6 +328,7 @@ func deployAlerting(ctx context.Context, rr *odhtypes.ReconciliationRequest) err
 			status.ConditionAlertingAvailable,
 			conditions.WithReason(status.AlertingNotConfiguredReason),
 			conditions.WithMessage(status.AlertingNotConfiguredMessage),
+			conditions.WithSeverity(common.ConditionSeverityInfo),
 		)
 		return nil
 	}
@@ -423,7 +438,7 @@ func deployPerses(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 	}
 
 	if monitoring.Spec.Metrics == nil && monitoring.Spec.Traces == nil {
-		setConditionFalse(rr, status.ConditionPersesAvailable,
+		setConditionNotConfigured(rr, status.ConditionPersesAvailable,
 			status.MetricsNotConfiguredReason+"And"+status.TracesNotConfiguredReason,
 			"Perses requires at least Metrics or Traces to be configured")
 		return nil
@@ -525,6 +540,7 @@ func deployPersesTempoIntegration(ctx context.Context, rr *odhtypes.Reconciliati
 			status.ConditionPersesTempoDataSourceAvailable,
 			conditions.WithReason(status.TracesNotConfiguredReason),
 			conditions.WithMessage(status.TracesNotConfiguredMessage),
+			conditions.WithSeverity(common.ConditionSeverityInfo),
 		)
 		return nil
 	}
@@ -574,7 +590,7 @@ func deployPersesPrometheusIntegration(ctx context.Context, rr *odhtypes.Reconci
 	}
 
 	if monitoring.Spec.Metrics == nil {
-		setConditionFalse(rr, status.ConditionPersesPrometheusDataSourceAvailable,
+		setConditionNotConfigured(rr, status.ConditionPersesPrometheusDataSourceAvailable,
 			status.MetricsNotConfiguredReason,
 			"Prometheus datasource requires metrics configuration")
 		return nil
@@ -632,6 +648,7 @@ func deployNodeMetricsEndpoint(_ context.Context, rr *odhtypes.ReconciliationReq
 			status.ConditionNodeMetricsEndpointAvailable,
 			conditions.WithReason(status.MetricsNotConfiguredReason),
 			conditions.WithMessage(status.MetricsNotConfiguredMessage),
+			conditions.WithSeverity(common.ConditionSeverityInfo),
 		)
 		return nil
 	}

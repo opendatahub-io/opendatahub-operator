@@ -81,6 +81,7 @@ type TestContextConfig struct {
 	monitoringNamespace  string
 	deletionPolicy       DeletionPolicy
 
+	backupAndRestoreDSCIandDSC       bool
 	cleanUpPreviousResources         bool
 	dependantOperatorsManagementTest bool
 	dscManagementTest                bool
@@ -436,6 +437,13 @@ func TestOdhOperator(t *testing.T) {
 		}
 	}
 
+	// Back up DSCI and DSC to a temp file
+	if testOpts.backupAndRestoreDSCIandDSC {
+		dsciBackupPath, dscBackupPath := BackupDSCIandDSC(t)
+		t.Cleanup(func() {
+			RestoreDSCIandDSCFromBackup(t, dsciBackupPath, dscBackupPath)
+		})
+	}
 	// Remove any leftover resources from previous test runs before starting if the cleanup flag is enabled
 	if testOpts.cleanUpPreviousResources {
 		CleanupPreviousTestResources(t)
@@ -569,6 +577,8 @@ func TestMain(m *testing.M) {
 	pflag.String("tag", "All", "Tag to run tests for. Options: "+strings.Join(tagNames, ", "))
 	checkEnvVarBindingError(viper.BindEnv("tag", viper.GetEnvPrefix()+"_TAG"))
 
+	pflag.Bool("backup-and-restore-dsci-and-dsc", false, "backup DSCI and DSC before tests and restore after tests finish")
+	checkEnvVarBindingError(viper.BindEnv("backup-and-restore-dsci-and-dsc", viper.GetEnvPrefix()+"_BACKUP_AND_RESTORE_DSCI_AND_DSC"))
 	pflag.Bool("clean-up-previous-resources", true, "clean up previous resources before running tests")
 	checkEnvVarBindingError(viper.BindEnv("clean-up-previous-resources", viper.GetEnvPrefix()+"_CLEAN_UP_PREVIOUS_RESOURCES"))
 	pflag.Bool("test-operator-controller", true, "run operator controller tests")
@@ -642,6 +652,7 @@ func TestMain(m *testing.M) {
 		fmt.Printf("Unknown tag: %s. Valid tags are: %v\n", testOpts.tag, allowedTags)
 		os.Exit(1)
 	}
+	testOpts.backupAndRestoreDSCIandDSC = viper.GetBool("backup-and-restore-dsci-and-dsc")
 	testOpts.operatorNamespace = viper.GetString("operator-namespace")
 	testOpts.appsNamespace = viper.GetString("applications-namespace")
 	testOpts.workbenchesNamespace = viper.GetString("workbenches-namespace")
