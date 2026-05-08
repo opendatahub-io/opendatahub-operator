@@ -1,3 +1,7 @@
+---
+paths: ["api/**/*.go", "docs/COMPONENT_INTEGRATION.md"]
+---
+
 # API Type Conventions
 
 User-facing config fields belong in `XxxCommonSpec`, inlined into both `XxxSpec` and `DSCXxx`.

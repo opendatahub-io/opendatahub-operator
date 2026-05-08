@@ -1,3 +1,7 @@
+---
+paths: ["**/*_test.go", "tests/**/*.go"]
+---
+
 # Testing Patterns
 
 Unit tests: use `fake.NewClientBuilder()` with explicit scheme registration via `pkg/utils/test/scheme`.

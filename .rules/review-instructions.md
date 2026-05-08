@@ -5,7 +5,7 @@ Meta-guidance for AI code review tools (CodeRabbit, etc.). Repo-specific pattern
 ## Priority Order
 
 1. Security vulnerabilities (CWE/CVE, severity, exploit scenario, remediation)
-2. RBAC gaps — trace `client.Client` calls to the relevant `kubebuilder_rbac.go`. For component controllers under `internal/controller/components/` (which have no RBAC markers), trace to the top-level controller (`datasciencecluster`, `dscinitialization`, `gateway`, `cloudmanager/*`) whose `kubebuilder_rbac.go` covers those operations, then verify via `config/rbac/role.yaml` after `make manifests`
+2. RBAC gaps — trace `client.Client` calls to the relevant `kubebuilder_rbac.go`. For component controllers under `internal/controller/components/` (which have no RBAC markers), trace to the top-level controller (`datasciencecluster`, `dscinitialization`, `gateway`, `cloudmanager/*`) whose `kubebuilder_rbac.go` covers those operations
 3. Architectural anti-patterns
 4. Bug-prone patterns, error handling gaps
 5. Performance
@@ -20,7 +20,6 @@ Meta-guidance for AI code review tools (CodeRabbit, etc.). Repo-specific pattern
 
 ## Must Always Flag
 
-- `+kubebuilder:rbac` changes without `make manifests` regeneration
 - New `client.Client` ops in `pkg/` without RBAC coverage in all calling controllers
 - Status conditions not updated during deletion or error transitions
 - `InsecureSkipVerify: true` in non-test code
