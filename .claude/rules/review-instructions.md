@@ -1,1 +1,1 @@
-../../.rules/review-instructions.md
+@../../.rules/review-instructions.md
