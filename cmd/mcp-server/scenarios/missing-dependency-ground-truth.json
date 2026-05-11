@@ -1,0 +1,33 @@
+{
+  "scenario_id": "01-missing-dependency",
+  "scenario_name": "Missing Dependency",
+  "description": "cert-manager operator scaled to zero, simulating a missing critical dependency for ODH",
+  "root_cause": "cert-manager-operator-controller-manager deployment scaled to 0 replicas in cert-manager-operator namespace",
+  "expected_classification": {
+    "category": "unknown",
+    "subcategory": "unclassifiable",
+    "error_code": 3000,
+    "confidence": "low"
+  },
+  "expected_tool_outputs": {
+    "operator_dependencies": {
+      "cert-manager.installed": true,
+      "cert-manager.deployment.ready": 0,
+      "cert-manager.deployment.replicas": 0
+    },
+    "platform_health": {
+      "healthy": false
+    }
+  },
+  "expected_symptoms": [
+    "cert-manager operator pod not running",
+    "operator_dependencies shows cert-manager with 0/0 replicas",
+    "platform_health returns healthy=false"
+  ],
+  "tools_that_detect": [
+    "classify_failure",
+    "operator_dependencies",
+    "platform_health"
+  ],
+  "expected_remediation": "Scale cert-manager-operator-controller-manager deployment back to 1 replica in cert-manager-operator namespace"
+}
