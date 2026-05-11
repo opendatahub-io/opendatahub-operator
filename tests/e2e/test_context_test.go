@@ -1198,6 +1198,7 @@ func (tc *TestContext) DeleteResource(opts ...ResourceOpts) {
 // the Namespace field in WithMinimalObject(). The Namespace in NamespacedName is ignored for bulk operations.
 //
 // Behavior is controlled by the following optional flags:
+//   - WithAcceptableErrMatcher: If set, errors matching the provided matcher are treated as acceptable.
 //   - WithNamespaceFilter: Filters deletion to resources in a specific namespace.
 //   - WithDeleteAllOfOptions: Configures the bulk deletion criteria (e.g., label selectors, field selectors).
 //   - WithWaitForDeletion: If true, waits until all matching resources are fully deleted from the cluster.
