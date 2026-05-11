@@ -6,6 +6,7 @@ import (
 	"reflect"
 
 	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
+	appsv1 "k8s.io/api/apps/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -139,6 +140,10 @@ func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest)
 		return err
 	}
 
+	if err := removeMaaSControllerFinalizerIfDisabled(ctx, rr, instance, cr.DefaultRegistry()); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -171,6 +176,52 @@ func removeTenantIfModelsAsServiceDisabled(
 
 	if err := rr.Client.Delete(ctx, t, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil && !k8serr.IsNotFound(err) {
 		return fmt.Errorf("delete Tenant %s when ModelsAsService disabled: %w", maasv1alpha1.TenantInstanceName, err)
+	}
+
+	return nil
+}
+
+const (
+	maasControllerDeploymentName   = "maas-controller"
+	maasControllerCleanupFinalizer = "maas.opendatahub.io/cleanup"
+)
+
+// removeMaaSControllerFinalizerIfDisabled strips the maas-controller's self-referencing
+// CleanupFinalizer from its Deployment when MaaS is disabled. Without this, namespace
+// deletion deadlocks: Kubernetes terminates the controller pod before processing
+// Deployment finalizers, leaving no controller alive to remove the finalizer.
+// See RHOAIENG-61660.
+func removeMaaSControllerFinalizerIfDisabled(
+	ctx context.Context,
+	rr *odhtype.ReconciliationRequest,
+	dsc *dscv2.DataScienceCluster,
+	reg *cr.Registry,
+) error {
+	if reg.IsComponentEnabled(componentApi.ModelsAsServiceComponentName, dsc) {
+		return nil
+	}
+
+	appNs := cluster.GetApplicationNamespace()
+
+	dep := &appsv1.Deployment{}
+	key := client.ObjectKey{Name: maasControllerDeploymentName, Namespace: appNs}
+	if err := rr.Client.Get(ctx, key, dep); err != nil {
+		if k8serr.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("get maas-controller Deployment: %w", err)
+	}
+
+	if !controllerutil.ContainsFinalizer(dep, maasControllerCleanupFinalizer) {
+		return nil
+	}
+
+	controllerutil.RemoveFinalizer(dep, maasControllerCleanupFinalizer)
+	if err := rr.Client.Update(ctx, dep); err != nil {
+		if k8serr.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("remove maas-controller cleanup finalizer: %w", err)
 	}
 
 	return nil
