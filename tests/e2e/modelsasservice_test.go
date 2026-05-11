@@ -165,64 +165,75 @@ func (tc *ModelsAsServiceTestCtx) createMaaSPostgres(t *testing.T) {
 	t.Logf("MaaS PostgreSQL instance and maas-db-config secret created in namespace %s", ns)
 }
 
-// createMaaSGateway creates the maas-default-gateway Gateway resource required by ModelsAsService.
-// The Gateway is based on the MaaS Gateway definition from:
-// https://github.com/opendatahub-io/models-as-a-service/blob/main/deployment/base/networking/maas/maas-gateway-api.yaml
+// createMaaSGateway creates the openshift-default GatewayClass and the
+// maas-default-gateway Gateway resource required by ModelsAsService.
+// The Gateway includes both HTTP and HTTPS listeners — maas-api requires
+// a gateway-owned Service with port 443 for internal host resolution.
 func (tc *ModelsAsServiceTestCtx) createMaaSGateway(t *testing.T) {
 	t.Helper()
-	t.Logf("Creating MaaS Gateway: %s/%s", maasGatewayNamespace, maasGatewayName)
+	t.Logf("Creating MaaS GatewayClass and Gateway: %s/%s", maasGatewayNamespace, maasGatewayName)
 
-	// First, ensure the namespace exists
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: maasGatewayNamespace}),
 		WithCustomErrorMsg("Failed to create/ensure namespace %s for MaaS Gateway", maasGatewayNamespace),
 	)
 
-	// Get the cluster domain for the Gateway hostname
+	// GatewayClass must exist for the Gateway API controller to reconcile the Gateway.
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.GatewayClass, types.NamespacedName{Name: maasGatewayClassName}),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.controllerName = "openshift.io/gateway-controller/v1"`),
+		)),
+		WithCustomErrorMsg("Failed to create GatewayClass %s", maasGatewayClassName),
+	)
+
 	clusterDomain, err := cluster.GetDomain(tc.Context(), tc.Client())
 	require.NoError(t, err, "Failed to get cluster domain")
 
 	hostname := fmt.Sprintf("maas.%s", clusterDomain)
-	t.Logf("Using hostname for MaaS Gateway: %s", hostname)
+	ingressCtrl, err := cluster.FindAvailableIngressController(tc.Context(), tc.Client())
+	require.NoError(t, err, "Failed to find default IngressController")
+	certSecretName := cluster.GetDefaultIngressCertSecretName(ingressCtrl)
+	t.Logf("Using hostname=%s, certSecret=%s", hostname, certSecretName)
 
-	// Create the Gateway resource
-	// Using testf.Transform to build the Gateway spec dynamically
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.KubernetesGateway, types.NamespacedName{
 			Name:      maasGatewayName,
 			Namespace: maasGatewayNamespace,
 		}),
 		WithMutateFunc(testf.TransformPipeline(
-			// Set labels
 			testf.Transform(`.metadata.labels = {
 				"app.kubernetes.io/name": "maas",
 				"app.kubernetes.io/instance": "%s",
 				"app.kubernetes.io/component": "gateway",
 				"opendatahub.io/managed": "false"
 			}`, maasGatewayName),
-			// Set annotations
 			testf.Transform(`.metadata.annotations = {"opendatahub.io/managed": "false"}`),
-			// Set the GatewayClass
 			testf.Transform(`.spec.gatewayClassName = "%s"`, maasGatewayClassName),
-			// Set the HTTP listener
 			testf.Transform(`.spec.listeners = [
 				{
 					"name": "http",
 					"hostname": "%s",
 					"port": 80,
 					"protocol": "HTTP",
-					"allowedRoutes": {
-						"namespaces": {
-							"from": "All"
-						}
+					"allowedRoutes": {"namespaces": {"from": "All"}}
+				},
+				{
+					"name": "https",
+					"hostname": "%s",
+					"port": 443,
+					"protocol": "HTTPS",
+					"allowedRoutes": {"namespaces": {"from": "All"}},
+					"tls": {
+						"mode": "Terminate",
+						"certificateRefs": [{"name": "%s"}]
 					}
 				}
-			]`, hostname),
+			]`, hostname, hostname, certSecretName),
 		)),
 		WithCustomErrorMsg("Failed to create MaaS Gateway %s/%s", maasGatewayNamespace, maasGatewayName),
 	)
 
-	// Wait for the Gateway to exist
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.KubernetesGateway, types.NamespacedName{
 			Name:      maasGatewayName,
@@ -231,7 +242,7 @@ func (tc *ModelsAsServiceTestCtx) createMaaSGateway(t *testing.T) {
 		WithCustomErrorMsg("MaaS Gateway %s/%s should exist", maasGatewayNamespace, maasGatewayName),
 	)
 
-	t.Logf("MaaS Gateway %s/%s created successfully", maasGatewayNamespace, maasGatewayName)
+	t.Logf("MaaS Gateway %s/%s created with HTTP+HTTPS listeners", maasGatewayNamespace, maasGatewayName)
 }
 
 const (
