@@ -21,6 +21,7 @@ import (
 	"embed"
 	"fmt"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -95,6 +96,114 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 		"certificateType", getCertificateType(gatewayConfig))
 
 	return nil
+}
+
+// createMaaSGateway provisions the maas-default-gateway when Models-as-a-Service
+// is enabled in the DSC. It reuses the same GatewayControllerName, certificate
+// detection, and domain logic as the data-science-gateway but with MaaS-specific
+// configuration: allowedRoutes from All namespaces, maas.* subdomain, and both
+// HTTP+HTTPS listeners (auth is handled by Kuadrant AuthPolicy, not kube-auth-proxy).
+func createMaaSGateway(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	l := logf.FromContext(ctx).WithName("createMaaSGateway")
+
+	if !isMaaSEnabled(ctx, rr.Client) {
+		l.V(1).Info("ModelsAsService not enabled, skipping MaaS gateway")
+		return nil
+	}
+
+	gatewayConfig, err := validateGatewayConfig(rr)
+	if err != nil {
+		return err
+	}
+
+	clusterDomain, err := cluster.GetDomain(ctx, rr.Client)
+	if err != nil {
+		return fmt.Errorf("failed to get cluster domain for MaaS gateway: %w", err)
+	}
+	hostname := MaaSGatewaySubdomain + "." + clusterDomain
+
+	certSecretName, err := handleCertificates(ctx, rr, gatewayConfig, hostname)
+	if err != nil {
+		return fmt.Errorf("failed to handle MaaS gateway certificates: %w", err)
+	}
+
+	maasGatewayClass := &gwapiv1.GatewayClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: MaaSGatewayClassName,
+		},
+		Spec: gwapiv1.GatewayClassSpec{
+			ControllerName: GatewayControllerName,
+		},
+	}
+	if err := rr.AddResources(maasGatewayClass); err != nil {
+		return fmt.Errorf("failed to add MaaS GatewayClass: %w", err)
+	}
+
+	httpsMode := gwapiv1.TLSModeTerminate
+	allowAll := gwapiv1.NamespacesFromAll
+	maasHostname := gwapiv1.Hostname(hostname)
+
+	maasGateway := &gwapiv1.Gateway{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      MaaSGatewayName,
+			Namespace: GatewayNamespace,
+			Labels: map[string]string{
+				IstioRevisionLabel: IstioRevisionValue,
+			},
+			Annotations: map[string]string{
+				"security.opendatahub.io/authorino-tls-bootstrap": "true",
+			},
+		},
+		Spec: gwapiv1.GatewaySpec{
+			GatewayClassName: MaaSGatewayClassName,
+			Listeners: []gwapiv1.Listener{
+				{
+					Name:     "http",
+					Protocol: gwapiv1.HTTPProtocolType,
+					Port:     80,
+					Hostname: &maasHostname,
+					AllowedRoutes: &gwapiv1.AllowedRoutes{
+						Namespaces: &gwapiv1.RouteNamespaces{From: &allowAll},
+					},
+				},
+				{
+					Name:     "https",
+					Protocol: gwapiv1.HTTPSProtocolType,
+					Port:     StandardHTTPSPort,
+					Hostname: &maasHostname,
+					TLS: &gwapiv1.GatewayTLSConfig{
+						Mode: &httpsMode,
+						CertificateRefs: []gwapiv1.SecretObjectReference{
+							{Name: gwapiv1.ObjectName(certSecretName)},
+						},
+					},
+					AllowedRoutes: &gwapiv1.AllowedRoutes{
+						Namespaces: &gwapiv1.RouteNamespaces{From: &allowAll},
+					},
+				},
+			},
+		},
+	}
+	if err := rr.AddResources(maasGateway); err != nil {
+		return fmt.Errorf("failed to add MaaS Gateway: %w", err)
+	}
+
+	l.V(1).Info("Created MaaS gateway infrastructure",
+		"gateway", MaaSGatewayName,
+		"hostname", hostname,
+		"certSecret", certSecretName)
+
+	return nil
+}
+
+func isMaaSEnabled(ctx context.Context, cli client.Client) bool {
+	dsc, err := cluster.GetDSC(ctx, cli)
+	if err != nil {
+		return false
+	}
+
+	return dsc.Spec.Components.Kserve.ManagementState == operatorv1.Managed &&
+		dsc.Spec.Components.Kserve.ModelsAsService.ManagementState == operatorv1.Managed
 }
 
 // Check authentication mode and deploy auth proxy (secret + service + deployment) + OAuth client (if integrated mode) + HTTPRoute + DestinationRule.
