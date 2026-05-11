@@ -1,1 +1,0 @@
-../../.rules/review-instructions.md
