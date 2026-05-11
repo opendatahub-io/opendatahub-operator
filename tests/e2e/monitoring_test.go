@@ -107,10 +107,10 @@ func monitoringTestSuite(t *testing.T) {
 	}
 
 	// ========================================================================
-	// Pre-requisite: Ensure required monitoring operators are installed
+	// Pre-requisite: Ensure required monitoring operators are installed (only if the dependant operators tests are enabled)
 	// ========================================================================
-	if !t.Run("Ensure required monitoring operators are installed", monitoringServiceCtx.ValidateMonitoringOperatorsInstallation) {
-		t.Fatalf("Required monitoring operators are not installed. Cannot proceed with monitoring tests on this cluster.")
+	if testOpts.dependantOperatorsManagementTest {
+		t.Run("Ensure required monitoring operators are installed", monitoringServiceCtx.ValidateMonitoringOperatorsInstallation)
 	}
 
 	monitoringServiceCtx.runBaseConfigurationTests(t)
