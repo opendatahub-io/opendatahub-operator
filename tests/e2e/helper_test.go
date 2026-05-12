@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -10,9 +11,11 @@ import (
 
 	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
@@ -24,8 +27,10 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
 	. "github.com/onsi/gomega"
@@ -552,4 +557,146 @@ func getDashboardRouteNameByPlatform(platform common.Platform) string {
 	default:
 		return gateway.DashboardRouteNameODH
 	}
+}
+
+func BackupDSCIandDSC(t *testing.T) (string, string) { //nolint:thelper
+	// Initialize the test context.
+	tc, err := NewTestContext(t)
+	require.NoError(t, err, "Failed to initialize test context")
+
+	dsciBackupPath, dscBackupPath := BackupDSCI(t, tc), BackupDSC(t, tc)
+	t.Logf("Backup completed for DSCI and DSC: %s %s\n", dsciBackupPath, dscBackupPath)
+	return dsciBackupPath, dscBackupPath
+}
+
+func BackupDSCI(t *testing.T, tc *TestContext) string {
+	t.Helper()
+	return BackupResource(t, tc, gvk.DSCInitialization, tc.DSCInitializationNamespacedName, "dsci")
+}
+
+func BackupDSC(t *testing.T, tc *TestContext) string {
+	t.Helper()
+	return BackupResource(t, tc, gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName, "dsc")
+}
+
+func BackupResource(t *testing.T, tc *TestContext, gvk schema.GroupVersionKind, name types.NamespacedName, backupFilePrefix string) string { //nolint:thelper
+	fetched := tc.FetchResource(WithMinimalObject(gvk, name))
+	if fetched == nil {
+		t.Logf("Warning: Backup of %s was configured but %s %s not found, skipping its backup", gvk.Kind, gvk.Kind, name)
+		return ""
+	}
+	backupPath, err := backupResourceToTempFile(fetched, backupFilePrefix)
+	require.NoError(t, err, "Failed to backup %s %s to a file", gvk.Kind, name)
+	t.Logf("%s %s backed up to %s", gvk.Kind, name, backupPath)
+	return backupPath
+}
+
+func backupResourceToTempFile(obj *unstructured.Unstructured, prefix string) (string, error) {
+	stripped := resources.StripServerMetadata(obj)
+	data, err := json.Marshal(stripped.Object)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal resource %s %s: %w", stripped.GetKind(), stripped.GetName(), err)
+	}
+	f, err := os.CreateTemp("", prefix+"-*.json")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp file for %s: %w", prefix, err)
+	}
+	defer func(f *os.File) {
+		err := f.Close()
+		if err != nil {
+			fmt.Printf("Failed to close temp file %s: %v\n", f.Name(), err)
+		}
+	}(f)
+	if _, err := f.Write(data); err != nil {
+		if errRemove := os.Remove(f.Name()); errRemove != nil {
+			return "", fmt.Errorf("Failed to remove backup file %s: %w after failed to write backup: %w", f.Name(), errRemove, err)
+		}
+		return "", fmt.Errorf("failed to write backup %s: %w", f.Name(), err)
+	}
+	return f.Name(), nil
+}
+
+func RestoreDSCIandDSCFromBackup(t *testing.T, dsciBackupPath, dscBackupPath string) { //nolint:thelper
+	var tc *TestContext
+	if dsciBackupPath != "" || dscBackupPath != "" {
+		var err error
+		// Initialize the test context.
+		tc, err = NewTestContext(t)
+		require.NoError(t, err, "Failed to initialize test context")
+	}
+	if dsciBackupPath != "" {
+		RestoreDSCIFromBackup(t, tc, dsciBackupPath)
+	}
+	if dscBackupPath != "" {
+		RestoreDSCFromBackup(t, tc, dscBackupPath)
+	}
+}
+
+func RestoreDSCIFromBackup(t *testing.T, tc *TestContext, dsciBackupPath string) { //nolint:thelper
+	RestoreResourceFromBackup(t, tc, dsciBackupPath)
+	t.Logf("Restore completed for DSCI: %s. Waiting for reconciliation\n", dsciBackupPath)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
+	)
+	t.Logf("DSCI reconciled successfully")
+}
+
+func RestoreDSCFromBackup(t *testing.T, tc *TestContext, dscBackupPath string) { //nolint:thelper
+	tc.DeleteResources( // Remove due to nested components propagation not working correctly (RHOAIENG-61169)
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithWaitForDeletion(true),
+		WithIgnoreNotFound(true),
+	)
+
+	RestoreResourceFromBackup(t, tc, dscBackupPath)
+	t.Logf("Restore completed for DSC: %s. Waiting for reconciliation\n", dscBackupPath)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue)),
+	)
+	t.Logf("DSC reconciled successfully")
+}
+
+func RestoreResourceFromBackup(t *testing.T, tc *TestContext, backupPath string) { //nolint:thelper
+	backedUpObject, err := loadResourceFromTempFile(backupPath)
+	require.NoError(t, err, "Failed to load backup from file: %s", backupPath)
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(backedUpObject),
+		WithMutateFunc(func(obj *unstructured.Unstructured) error {
+			obj.SetAnnotations(backedUpObject.GetAnnotations())
+			obj.SetLabels(backedUpObject.GetLabels())
+			backedUpObjectSpec, ok, err := unstructured.NestedFieldNoCopy(backedUpObject.Object, "spec")
+			if err != nil {
+				return err
+			}
+			if !ok {
+				return fmt.Errorf("failed to get spec from %s %s", backedUpObject.GetKind(), backedUpObject.GetName())
+			}
+			return unstructured.SetNestedField(obj.Object, backedUpObjectSpec, "spec")
+		}),
+		WithCustomErrorMsg("Failed to restore %s %s from backup", backedUpObject.GetKind(), backedUpObject.GetName()),
+		WithEventuallyTimeout(30*time.Second),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+	)
+	t.Logf("%s restored from %s", backedUpObject.GetKind(), backupPath)
+
+	if err := os.Remove(backupPath); err != nil {
+		t.Logf("Failed to remove %s backup file %s: %v", backedUpObject.GetKind(), backupPath, err)
+	} else {
+		t.Logf("%s backup file %s removed successfully", backedUpObject.GetKind(), backupPath)
+	}
+}
+
+func loadResourceFromTempFile(path string) (*unstructured.Unstructured, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read backup file %s: %w", path, err)
+	}
+	obj := make(map[string]interface{})
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal backup from file %s: %w", path, err)
+	}
+	return &unstructured.Unstructured{Object: obj}, nil
 }
