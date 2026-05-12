@@ -62,7 +62,11 @@ type Components struct {
 	FeastOperator componentApi.DSCFeastOperator `json:"feastoperator,omitempty"`
 
 	// LlamaStack Operator component configuration.
+	// Deprecated: Use OGX instead. This field is kept for backward compatibility only.
 	LlamaStackOperator componentApi.DSCLlamaStackOperator `json:"llamastackoperator,omitempty"`
+
+	// OGX component configuration.
+	OGX componentApi.DSCOGX `json:"ogx,omitempty"`
 
 	// MLflow Operator component configuration.
 	MLflowOperator componentApi.DSCMLflowOperator `json:"mlflowoperator,omitempty"`
@@ -107,7 +111,11 @@ type ComponentsStatus struct {
 	FeastOperator componentApi.DSCFeastOperatorStatus `json:"feastoperator,omitempty"`
 
 	// LlamaStack Operator component status.
+	// Deprecated: Use OGX instead. This field is kept for backward compatibility only.
 	LlamaStackOperator componentApi.DSCLlamaStackOperatorStatus `json:"llamastackoperator,omitempty"`
+
+	// OGX component status.
+	OGX componentApi.DSCOGXStatus `json:"ogx,omitempty"`
 
 	// MLflow Operator component status.
 	MLflowOperator componentApi.DSCMLflowOperatorStatus `json:"mlflowoperator,omitempty"`
