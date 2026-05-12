@@ -408,3 +408,63 @@ func TestDeploymentsAvailableActionNotReadyNotFound(t *testing.T) {
 		),
 	)
 }
+
+func TestDeploymentsAvailableActionReadyWithoutAutomaticPartOfUsesComponentLabel(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := t.Context()
+	ns := xid.New().String()
+
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-dsci"},
+		Spec: dsciv2.DSCInitializationSpec{
+			ApplicationsNamespace: ns,
+		},
+	}
+
+	cl, err := fakeclient.New(
+		fakeclient.WithObjects(
+			dsci,
+			&appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "maas-controller",
+					Namespace: ns,
+					Labels: map[string]string{
+						labels.ODH.Component(componentApi.ModelsAsServiceComponentName): labels.True,
+						labels.PlatformPartOf: "datasciencecluster",
+					},
+				},
+				Status: appsv1.DeploymentStatus{
+					Replicas:      1,
+					ReadyReplicas: 1,
+				},
+			},
+		),
+	)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	action := deployments.NewAction(
+		deployments.WithoutAutomaticPartOfDefault(),
+		deployments.WithSelectorLabel(labels.ODH.Component(componentApi.ModelsAsServiceComponentName), labels.True),
+	)
+
+	rr := types.ReconciliationRequest{
+		Client:   cl,
+		Instance: &componentApi.ModelsAsService{},
+		Release:  common.Release{Name: cluster.OpenDataHub},
+	}
+
+	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
+
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(rr.Instance).Should(
+		WithTransform(
+			matchers.ExtractStatusCondition(status.ConditionDeploymentsAvailable),
+			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+				"Status": Equal(metav1.ConditionTrue),
+			}),
+		),
+	)
+}

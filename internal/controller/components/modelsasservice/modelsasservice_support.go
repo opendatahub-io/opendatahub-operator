@@ -61,6 +61,10 @@ const (
 )
 
 var (
+	conditionTypes = []string{
+		status.ConditionDeploymentsAvailable,
+	}
+
 	// Image parameter mappings for manifest substitution.
 	imagesMap = map[string]string{
 		"maas-api-image":             "RELATED_IMAGE_ODH_MAAS_API_IMAGE",
@@ -84,36 +88,35 @@ func baseManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInfo 
 	}
 }
 
-// AppendOperatorInstallManifests renders the maas-controller kustomize bundle and prepends it to
-// rr.Resources so the DataScienceCluster deploy action applies it with the same ownership model
-// as other DSC-managed resources. Call only when Models-as-a-Service is enabled for the DSC
-// (e.g. registry IsComponentEnabled(ModelsAsServiceComponentName)); platform reconcile for
-// Tenant remains in maas-controller.
-func AppendOperatorInstallManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+// buildMaasOperatorInstallManifests renders the maas-controller kustomize bundle (CRDs, RBAC,
+// Deployment, maas-parameters ConfigMap). Used by the ModelsAsService component reconciler so
+// workloads get controller ownership from the ModelsAsService CR; Tenant CR lifecycle remains
+// in maas-controller.
+func buildMaasOperatorInstallManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest) ([]unstructured.Unstructured, error) {
 	root := rr.ManifestsBasePath
 	if root == "" {
-		return errors.New("ManifestsBasePath is unset; cannot render maas-controller install bundle")
+		return nil, errors.New("ManifestsBasePath is unset; cannot render maas-controller install bundle")
 	}
 
 	kPath := filepath.Join(root, "maas", "base", "maas-controller", "default")
 	if _, err := os.Stat(filepath.Join(kPath, "kustomization.yaml")); err != nil {
-		return fmt.Errorf("maas-controller install bundle not found at %q: %w", kPath, err)
+		return nil, fmt.Errorf("maas-controller install bundle not found at %q: %w", kPath, err)
 	}
 
 	appNs, err := cluster.ApplicationNamespace(ctx, rr.Client)
 	if err != nil {
-		return fmt.Errorf("application namespace for maas-controller install: %w", err)
+		return nil, fmt.Errorf("application namespace for maas-controller install: %w", err)
 	}
 
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
 	fs := filesys.MakeFsOnDisk()
 	resMap, err := k.Run(fs, kPath)
 	if err != nil {
-		return fmt.Errorf("kustomize build %q: %w", kPath, err)
+		return nil, fmt.Errorf("kustomize build %q: %w", kPath, err)
 	}
 
 	if err := plugins.CreateNamespaceApplierPlugin(appNs).Transform(resMap); err != nil {
-		return fmt.Errorf("namespace transform for maas-controller bundle: %w", err)
+		return nil, fmt.Errorf("namespace transform for maas-controller bundle: %w", err)
 	}
 
 	componentLabels := map[string]string{
@@ -121,12 +124,12 @@ func AppendOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconcilia
 		labels.K8SCommon.PartOf: componentApi.ModelsAsServiceComponentName,
 	}
 	if err := plugins.CreateSetLabelsPlugin(componentLabels).Transform(resMap); err != nil {
-		return fmt.Errorf("labels transform for maas-controller bundle: %w", err)
+		return nil, fmt.Errorf("labels transform for maas-controller bundle: %w", err)
 	}
 
 	paramsEnvPath := filepath.Join(root, "maas", BaseManifestsSourcePath, "params.env")
 	if err := applyImageOverridesFromParams(resMap, paramsEnvPath); err != nil {
-		return fmt.Errorf("image override for maas-controller bundle: %w", err)
+		return nil, fmt.Errorf("image override for maas-controller bundle: %w", err)
 	}
 
 	rendered := resMap.Resources()
@@ -134,29 +137,27 @@ func AppendOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconcilia
 	for i := range rendered {
 		m, err := rendered[i].Map()
 		if err != nil {
-			return fmt.Errorf("maas-controller bundle resource map: %w", err)
+			return nil, fmt.Errorf("maas-controller bundle resource map: %w", err)
 		}
 		m, err = normalizeUnstructuredObject(m)
 		if err != nil {
-			return fmt.Errorf("normalize maas-controller bundle object: %w", err)
+			return nil, fmt.Errorf("normalize maas-controller bundle object: %w", err)
 		}
 		extra = append(extra, unstructured.Unstructured{Object: m})
 	}
 
 	paramsCM, err := maasParametersConfigMapFromParamsEnv(root, appNs, componentLabels)
 	if err != nil {
-		return fmt.Errorf("build maas-parameters ConfigMap from params.env: %w", err)
+		return nil, fmt.Errorf("build maas-parameters ConfigMap from params.env: %w", err)
 	}
 	extra = append(extra, *paramsCM)
 
 	sortedExtra, err := resources.SortByApplyOrder(ctx, extra)
 	if err != nil {
-		return fmt.Errorf("sort maas-controller install bundle: %w", err)
+		return nil, fmt.Errorf("sort maas-controller install bundle: %w", err)
 	}
 
-	// CRDs and namespaced operator resources must apply before Tenant and other component CRs.
-	rr.Resources = append(sortedExtra, rr.Resources...)
-	return nil
+	return sortedExtra, nil
 }
 
 // maasParametersConfigMapFromParamsEnv reads the already-updated params.env

@@ -54,14 +54,28 @@ func TestGetName(t *testing.T) {
 	g.Expect(name).Should(Equal(componentApi.ModelsAsServiceComponentName))
 }
 
-func TestNewCRObject_ReturnsNil(t *testing.T) {
+func TestNewCRObject_ReturnsModelsAsServiceWhenEnabled(t *testing.T) {
 	g := NewWithT(t)
 	handler := &componentHandler{}
 	dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
 
 	cr, err := handler.NewCRObject(context.Background(), nil, dsc)
 	g.Expect(err).To(Succeed())
-	g.Expect(cr).Should(BeNil(), "maas-controller owns Tenant creation, ODH NewCRObject must return nil")
+	g.Expect(cr).ToNot(BeNil())
+
+	mas, ok := cr.(*componentApi.ModelsAsService)
+	g.Expect(ok).To(BeTrue())
+	g.Expect(mas.GetName()).To(Equal(componentApi.ModelsAsServiceInstanceName))
+}
+
+func TestNewCRObject_ReturnsNilWhenDisabled(t *testing.T) {
+	g := NewWithT(t)
+	handler := &componentHandler{}
+	dsc := createDSCWithKServeAndMaaS(operatorv1.Removed, operatorv1.Managed)
+
+	cr, err := handler.NewCRObject(context.Background(), nil, dsc)
+	g.Expect(err).To(Succeed())
+	g.Expect(cr).To(BeNil())
 }
 
 func TestIsEnabled(t *testing.T) {
@@ -359,7 +373,7 @@ func ptr[T any](v T) *T { return &v }
 // TestApplyImageOverridesFromParams verifies that the Option B image override
 // pipeline (kustomize build → ImageTagTransformerPlugin) correctly replaces the
 // default :latest image with a pinned image reference from params.env.
-// This is the exact flow that runs in CI via AppendOperatorInstallManifests.
+// This is the exact flow that runs in CI via buildMaasOperatorInstallManifests.
 func TestApplyImageOverridesFromParams(t *testing.T) {
 	g := NewWithT(t)
 
