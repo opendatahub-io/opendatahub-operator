@@ -150,9 +150,6 @@ func createMaaSGateway(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 			Labels: map[string]string{
 				IstioRevisionLabel: IstioRevisionValue,
 			},
-			Annotations: map[string]string{
-				"security.opendatahub.io/authorino-tls-bootstrap": "true",
-			},
 		},
 		Spec: gwapiv1.GatewaySpec{
 			GatewayClassName: MaaSGatewayClassName,
