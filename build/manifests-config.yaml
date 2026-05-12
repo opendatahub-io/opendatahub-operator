@@ -45,9 +45,6 @@ map:
   odh-feast-operator:
     src: infra/feast-operator/config
     dest: feastoperator
-  odh-llama-stack-k8s-operator:
-    src: config
-    dest: llamastackoperator
   odh-trainer:
     src: manifests
     dest: trainer
@@ -60,3 +57,6 @@ map:
   odh-spark-operator:
     src: config
     dest: sparkoperator
+  odh-ogx-k8s-operator:
+    src: config
+    dest: ogx
