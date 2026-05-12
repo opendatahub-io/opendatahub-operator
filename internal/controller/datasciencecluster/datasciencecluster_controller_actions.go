@@ -5,11 +5,10 @@ import (
 	"fmt"
 	"reflect"
 
-	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
+	appsv1 "k8s.io/api/apps/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -129,50 +128,58 @@ func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest)
 	}
 
 	if cr.DefaultRegistry().IsComponentEnabled(componentApi.ModelsAsServiceComponentName, instance) {
-		// maas-controller install bundle (CRDs, RBAC, Deployment); Tenant/platform reconcile stays in maas-controller.
+		// maas-controller resources (CRDs, RBAC, Deployment); Tenant/platform reconcile stays in maas-controller.
 		if err := modelsasservicectrl.AppendOperatorInstallManifests(ctx, rr); err != nil {
 			return err
 		}
 	}
 
-	if err := removeTenantIfModelsAsServiceDisabled(ctx, rr, instance, cr.DefaultRegistry()); err != nil {
+	if err := deleteMaaSDeploymentIfDisabled(ctx, rr, instance, cr.DefaultRegistry()); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// removeTenantIfModelsAsServiceDisabled deletes the DSC-managed singleton Tenant when
-// Models-as-a-Service is not enabled. Deploy only applies objects in rr.Resources, so omitting
-// the CR on disable does not remove it; this keeps cluster state aligned with DSC intent.
-func removeTenantIfModelsAsServiceDisabled(
+// deleteMaaSDeploymentIfDisabled deletes the maas-controller Deployment when
+// MaaS is disabled. The CleanupFinalizer on the Deployment causes
+// LifecycleReconciler to drain Tenant CRs, RBAC, and CRDs before the
+// Deployment object is removed.
+func deleteMaaSDeploymentIfDisabled(
 	ctx context.Context,
 	rr *odhtype.ReconciliationRequest,
 	dsc *dscv2.DataScienceCluster,
 	reg *cr.Registry,
 ) error {
+	log := ctrl.LoggerFrom(ctx)
+
 	if reg.IsComponentEnabled(componentApi.ModelsAsServiceComponentName, dsc) {
 		return nil
 	}
 
-	key := client.ObjectKey{Name: maasv1alpha1.TenantInstanceName, Namespace: modelsasservicectrl.MaaSSubscriptionNamespace}
-	t := &maasv1alpha1.Tenant{}
-	if err := rr.Client.Get(ctx, key, t); err != nil {
-		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
-			return nil
-		}
-		return fmt.Errorf("get Tenant %s: %w", maasv1alpha1.TenantInstanceName, err)
+	appNs, err := cluster.ApplicationNamespace(ctx, rr.Client)
+	if err != nil {
+		return fmt.Errorf("get application namespace for maas-controller cleanup: %w", err)
 	}
 
-	// Already being finalized; no need to re-issue the delete.
-	if !t.GetDeletionTimestamp().IsZero() {
+	dep := &appsv1.Deployment{}
+	err = rr.Client.Get(ctx, types.NamespacedName{Name: "maas-controller", Namespace: appNs}, dep)
+	switch {
+	case k8serr.IsNotFound(err):
 		return nil
+	case err != nil:
+		return fmt.Errorf("get maas-controller Deployment: %w", err)
 	}
 
-	if err := rr.Client.Delete(ctx, t, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil && !k8serr.IsNotFound(err) {
-		return fmt.Errorf("delete Tenant %s when ModelsAsService disabled: %w", maasv1alpha1.TenantInstanceName, err)
+	// Deployment still exists — ensure deletion is requested.
+	// LifecycleReconciler's CleanupFinalizer will drain Tenants, RBAC, and CRDs
+	// before the Deployment object is removed.
+	if dep.DeletionTimestamp.IsZero() {
+		if err := rr.Client.Delete(ctx, dep); err != nil && !k8serr.IsNotFound(err) {
+			return fmt.Errorf("delete maas-controller Deployment: %w", err)
+		}
 	}
-
+	log.Info("maas-controller Deployment is terminating; waiting for CleanupFinalizer to complete")
 	return nil
 }
 

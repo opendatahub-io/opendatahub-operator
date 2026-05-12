@@ -1,0 +1,31 @@
+{
+  "scenario_id": "resource-exhaustion",
+  "scenario_name": "Resource Exhaustion",
+  "description": "Impossibly low ResourceQuota applied to apps namespace, preventing pods from scheduling",
+  "root_cause": "ResourceQuota scenario-low-quota limits CPU to 1m and memory to 1Mi, blocking all pod creation",
+  "expected_classification": {
+    "category": "infrastructure",
+    "subcategory": "quota-oom",
+    "error_code": 1004,
+    "confidence": "high"
+  },
+  "expected_tool_outputs": {
+    "platform_health": {
+      "healthy": false
+    },
+    "recent_events": {
+      "FailedCreate_events": ">0"
+    }
+  },
+  "expected_symptoms": [
+    "Pods fail to create due to quota exceeded",
+    "Events show FailedCreate with quota exceeded message",
+    "ReplicaSet unable to create new pods"
+  ],
+  "tools_that_detect": [
+    "classify_failure",
+    "platform_health",
+    "recent_events"
+  ],
+  "expected_remediation": "Delete the ResourceQuota scenario-low-quota from the applications namespace and scale the operator back to 3 replicas"
+}

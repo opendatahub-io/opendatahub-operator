@@ -1,0 +1,29 @@
+{
+  "scenario_id": "operator-crash",
+  "scenario_name": "Operator Crash",
+  "description": "ODH operator deployment scaled to 0 replicas, simulating operator being down",
+  "root_cause": "Operator deployment opendatahub-operator-controller-manager scaled to 0 replicas",
+  "expected_classification": {
+    "category": "infrastructure",
+    "subcategory": "operator",
+    "error_code": 1008,
+    "confidence": "high"
+  },
+  "expected_tool_outputs": {
+    "platform_health": {
+      "healthy": false
+    }
+  },
+  "expected_symptoms": [
+    "No operator pods running",
+    "Operator unable to reconcile ODH resources",
+    "operator_dependencies reports partial failure"
+  ],
+  "tools_that_detect": [
+    "classify_failure",
+    "platform_health",
+    "pod_logs",
+    "operator_dependencies"
+  ],
+  "expected_remediation": "Scale opendatahub-operator-controller-manager deployment back to 3 replicas"
+}
