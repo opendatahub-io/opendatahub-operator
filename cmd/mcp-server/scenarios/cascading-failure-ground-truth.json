@@ -1,0 +1,30 @@
+{
+  "scenario_id": "cascading-failure",
+  "scenario_name": "Cascading Failure",
+  "description": "Deny-all NetworkPolicy applied to applications namespace, causing health probes to fail, pods to become unready, deployments to degrade, and DSC to report multiple components unhealthy",
+  "root_cause": "Deny-all NetworkPolicy blocking all ingress and egress traffic in applications namespace",
+  "expected_classification": {
+    "category": "infrastructure",
+    "subcategory": "pod-startup",
+    "error_code": 1002,
+    "confidence": "medium"
+  },
+  "expected_tool_outputs": {
+    "platform_health": {
+      "healthy": false
+    }
+  },
+  "expected_symptoms": [
+    "Multiple pods become unready due to failed health probes",
+    "Some components crash (CrashLoopBackOff) due to network block",
+    "DSC reports multiple components as not ready",
+    "Errors visible across pods, deployments, and DSC sections simultaneously"
+  ],
+  "tools_that_detect": [
+    "classify_failure",
+    "platform_health",
+    "recent_events",
+    "pod_logs"
+  ],
+  "expected_remediation": "Delete the deny-all-cascade-test NetworkPolicy from the applications namespace; pods will recover as network traffic is restored"
+}

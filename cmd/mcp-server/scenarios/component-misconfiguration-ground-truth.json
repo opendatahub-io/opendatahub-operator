@@ -1,0 +1,29 @@
+{
+  "scenario_id": "component-misconfiguration",
+  "scenario_name": "Component Misconfiguration",
+  "description": "Dashboard deployment patched to reference a nonexistent secret, causing CreateContainerConfigError on pod startup",
+  "root_cause": "Deployment odh-dashboard references nonexistent secret scenario-bad-secret via envFrom",
+  "expected_classification": {
+    "category": "infrastructure",
+    "subcategory": "pod-startup",
+    "error_code": 1002,
+    "confidence": "medium"
+  },
+  "expected_tool_outputs": {
+    "platform_health": {
+      "healthy": false
+    }
+  },
+  "expected_symptoms": [
+    "Dashboard pods in CreateContainerConfigError state",
+    "Deployment shows reduced ready replicas",
+    "component_status shows unhealthy dashboard"
+  ],
+  "tools_that_detect": [
+    "classify_failure",
+    "platform_health",
+    "component_status",
+    "recent_events"
+  ],
+  "expected_remediation": "Stop the background patcher, rollback the odh-dashboard deployment to the previous revision, and delete stuck pods"
+}
