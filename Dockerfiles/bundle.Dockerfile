@@ -59,3 +59,4 @@ LABEL operators.operatorframework.io.test.config.v1=tests/scorecard/
 COPY --from=builder /workspace/odh-bundle/manifests /manifests/
 COPY --from=builder /workspace/odh-bundle/metadata /metadata/
 COPY --from=builder /workspace/odh-bundle/tests/scorecard /tests/scorecard/
+# Build trigger Tue May 12 12:21:51 IST 2026
