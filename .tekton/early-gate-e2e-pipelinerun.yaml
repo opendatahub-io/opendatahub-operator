@@ -19,7 +19,7 @@ metadata:
 spec:
   params:
   - name: group-components
-    value: '{ "odh-operator-ci": "quay.io/opendatahub/opendatahub-operator" }'
+    value: '{ "odh-operator-ci": "opendatahub/opendatahub-operator" }'
   - name: operator-git-url
     value: 'https://github.com/opendatahub-io/opendatahub-operator'
   - name: operator-revision
