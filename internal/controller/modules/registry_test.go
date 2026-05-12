@@ -166,7 +166,8 @@ func TestBaseHandlerDefaultsHelmOnly(t *testing.T) {
 	g.Expect(h.GetName()).Should(Equal("helm-mod"))
 	g.Expect(h.GetGVK()).Should(Equal(schema.GroupVersionKind{Group: "test.io", Version: "v1", Kind: "Mock"}))
 
-	manifests := h.GetOperatorManifests()
+	platform := &modules.PlatformContext{ApplicationsNamespace: "test-ns"}
+	manifests := h.GetOperatorManifests(platform)
 	g.Expect(manifests.HelmCharts).Should(HaveLen(1))
 	g.Expect(manifests.HelmCharts[0].ReleaseName).Should(Equal("mymodule-operator"))
 	g.Expect(manifests.Manifests).Should(BeEmpty())
@@ -189,7 +190,7 @@ func TestBaseHandlerDefaultsKustomizeOnly(t *testing.T) {
 		enabled: true,
 	}
 
-	manifests := h.GetOperatorManifests()
+	manifests := h.GetOperatorManifests(nil)
 	g.Expect(manifests.HelmCharts).Should(BeEmpty())
 	g.Expect(manifests.Manifests).Should(HaveLen(1))
 	g.Expect(manifests.Manifests[0].Path).Should(Equal("mymodule"))
@@ -202,7 +203,7 @@ func TestBaseHandlerDefaultsNoManifests(t *testing.T) {
 
 	h := newMockHandler("empty", true)
 
-	manifests := h.GetOperatorManifests()
+	manifests := h.GetOperatorManifests(nil)
 	g.Expect(manifests.HelmCharts).Should(BeEmpty())
 	g.Expect(manifests.Manifests).Should(BeEmpty())
 }

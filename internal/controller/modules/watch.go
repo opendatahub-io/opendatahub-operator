@@ -18,18 +18,27 @@ import (
 )
 
 // SetupModuleWatches registers a watch for each module's CR GVK on the given
-// controller. This must be called after Build() because it needs the built
-// controller to add dynamic watches. CRDs that don't yet exist are silently
-// skipped; the module operator will deploy them, and the next reconcile will
-// retry the watch setup.
-func SetupModuleWatches(ctx context.Context, mgr ctrl.Manager, c controller.Controller) error {
+// controller and registers the GVK as an owned type via owner.AddOwnedType.
+// Ownership registration enables the deploy action to set the DSC as controller
+// owner of module CRs, and the GC action to delete module CRs when they are
+// no longer in rr.Resources (i.e., when the module is disabled).
+//
+// All registered modules (including CLI-disabled ones) are processed so that
+// cleanup paths work correctly. CRDs that don't yet exist are silently
+// skipped for the watch; the module operator will deploy them and the next
+// reconcile will retry.
+func SetupModuleWatches(ctx context.Context, mgr ctrl.Manager, c controller.Controller, owner OwnedTypeRegistrar) error {
 	reg := DefaultRegistry()
 	if !reg.HasEntries() {
 		return nil
 	}
 
-	return reg.ForEach(func(handler ModuleHandler) error {
-		if err := WatchModuleCR(ctx, mgr, handler.GetGVK(), c); err != nil {
+	return reg.ForAll(func(handler ModuleHandler, _ bool) error {
+		gvk := handler.GetGVK()
+
+		owner.AddOwnedType(gvk)
+
+		if err := WatchModuleCR(ctx, mgr, gvk, c); err != nil {
 			return fmt.Errorf("failed to watch module CR for %s: %w", handler.GetName(), err)
 		}
 

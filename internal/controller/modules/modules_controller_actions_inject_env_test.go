@@ -1,5 +1,5 @@
 //nolint:testpackage
-package datasciencecluster
+package modules
 
 import (
 	"context"

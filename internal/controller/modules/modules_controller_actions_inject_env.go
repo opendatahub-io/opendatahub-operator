@@ -1,4 +1,4 @@
-package datasciencecluster
+package modules
 
 import (
 	"context"
