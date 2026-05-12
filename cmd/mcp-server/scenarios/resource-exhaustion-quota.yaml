@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: scenario-low-quota
+spec:
+  hard:
+    requests.cpu: "1m"
+    requests.memory: "1Mi"
+    limits.cpu: "1m"
+    limits.memory: "1Mi"
