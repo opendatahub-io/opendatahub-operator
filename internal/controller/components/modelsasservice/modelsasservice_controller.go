@@ -19,6 +19,7 @@ limitations under the License.
 // https://github.com/opendatahub-io/models-as-a-service/tree/main/deployment/base/maas-controller/default
 // which pulls in ../crd, ../rbac, ../manager, ../monitoring). CRDs use a separate deploy path
 // and are not listed here. Gateway policy YAMLs under ../policies are not part of default.
+// Cluster-scoped maas Config (config-default.yaml) must be listed for deploy owner refs + watches.
 package modelsasservice
 
 import (
@@ -34,6 +35,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
@@ -60,6 +62,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// Reserved for future webhooks; not in default bundle today.
 		Owns(&admissionregistrationv1.ValidatingWebhookConfiguration{}).
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(predicates.DefaultDeploymentPredicate)).
+		OwnsGVK(gvk.MaasConfig).
 		Watches(
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(

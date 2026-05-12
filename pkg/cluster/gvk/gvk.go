@@ -383,6 +383,13 @@ var (
 		Kind:    "Tenant",
 	}
 
+	// MaasConfig is the cluster-scoped MaaS anchor CR (see models-as-a-service install bundle).
+	MaasConfig = schema.GroupVersionKind{
+		Group:   "maas.opendatahub.io",
+		Version: "v1alpha1",
+		Kind:    "Config",
+	}
+
 	CustomResourceDefinition = schema.GroupVersionKind{
 		Group:   "apiextensions.k8s.io",
 		Version: "v1",
