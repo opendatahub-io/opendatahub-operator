@@ -829,8 +829,8 @@ func TestDeleteLLMInferenceServiceConfigs(t *testing.T) {
 			},
 		}
 
-		llmConfig1 := newLLMInferenceServiceConfig("config-1", "test-ns", "test-kserve-uid")
-		llmConfig2 := newLLMInferenceServiceConfig("config-2", "test-ns", "test-kserve-uid")
+		llmConfig1 := newLLMInferenceServiceConfig("config-1", "test-kserve-uid")
+		llmConfig2 := newLLMInferenceServiceConfig("config-2", "test-kserve-uid")
 
 		cli := buildClientWithLLMConfigs(t, llmConfig1, llmConfig2)
 
@@ -858,7 +858,7 @@ func TestDeleteLLMInferenceServiceConfigs(t *testing.T) {
 			},
 		}
 
-		llmConfig := newLLMInferenceServiceConfig("config-1", "test-ns", "different-uid")
+		llmConfig := newLLMInferenceServiceConfig("config-1", "different-uid")
 
 		cli := buildClientWithLLMConfigs(t, llmConfig)
 
@@ -932,8 +932,8 @@ func TestDeleteLLMInferenceServiceConfigs(t *testing.T) {
 			},
 		}
 
-		ownedConfig := newLLMInferenceServiceConfig("owned-config", "test-ns", "my-uid")
-		unownedConfig := newLLMInferenceServiceConfig("unowned-config", "test-ns", "other-uid")
+		ownedConfig := newLLMInferenceServiceConfig("owned-config", "my-uid")
+		unownedConfig := newLLMInferenceServiceConfig("unowned-config", "other-uid")
 
 		cli := buildClientWithLLMConfigs(t, ownedConfig, unownedConfig)
 
@@ -954,14 +954,14 @@ func TestDeleteLLMInferenceServiceConfigs(t *testing.T) {
 	})
 }
 
-func newLLMInferenceServiceConfig(name, namespace, ownerUID string) *unstructured.Unstructured {
+func newLLMInferenceServiceConfig(name, ownerUID string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{
 		Object: map[string]any{
 			"apiVersion": gvk.LLMInferenceServiceConfigV1Alpha2.Group + "/" + gvk.LLMInferenceServiceConfigV1Alpha2.Version,
 			"kind":       gvk.LLMInferenceServiceConfigV1Alpha2.Kind,
 			"metadata": map[string]any{
 				"name":      name,
-				"namespace": namespace,
+				"namespace": "test-ns",
 				"ownerReferences": []any{
 					map[string]any{
 						"apiVersion": componentApi.GroupVersion.String(),
