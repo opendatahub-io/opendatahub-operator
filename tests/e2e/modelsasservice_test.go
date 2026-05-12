@@ -344,4 +344,14 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantDeletedOnDisable(t *testing.T) {
 		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
 		WithCustomErrorMsg("Tenant should be deleted when MaaS is disabled"),
 	)
+
+	t.Logf("Waiting for maas-controller Deployment to be removed from %s", tc.AppsNamespace)
+	tc.EnsureResourcesGone(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      "maas-controller",
+			Namespace: tc.AppsNamespace,
+		}),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+		WithCustomErrorMsg("maas-controller Deployment should be removed when MaaS is disabled"),
+	)
 }
