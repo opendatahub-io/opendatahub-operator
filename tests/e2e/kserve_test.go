@@ -195,6 +195,28 @@ func (tc *KserveTestCtx) ValidateLLMInferenceServiceConfigVersioned(t *testing.T
 	}
 }
 
+// ValidateComponentDisabled validates that KServe component is properly removed and all
+// LLMInferenceServiceConfig resources are cleaned up. The finalizer deletes these before
+// the webhook service is removed, preventing a conversion webhook deadlock.
+func (tc *KserveTestCtx) ValidateComponentDisabled(t *testing.T) {
+	t.Helper()
+
+	tc.ComponentTestCtx.ValidateComponentDisabled(t)
+
+	for _, configGVK := range []schema.GroupVersionKind{
+		gvk.LLMInferenceServiceConfigV1Alpha1,
+		gvk.LLMInferenceServiceConfigV1Alpha2,
+	} {
+		tc.EnsureResourcesGone(
+			WithMinimalObject(configGVK, types.NamespacedName{Namespace: tc.AppsNamespace}),
+			WithListOptions(&client.ListOptions{
+				Namespace: tc.AppsNamespace,
+			}),
+			WithCustomErrorMsg("LLMInferenceServiceConfig %s resources should not remain after component removal", configGVK.Version),
+		)
+	}
+}
+
 // ensureLWSBaseline clears LWS conditions, asserts Kserve component and DSC health.
 // Returns the LWS CR for use in test assertions.
 func (tc *KserveTestCtx) ensureLWSBaseline(t *testing.T) *unstructured.Unstructured {
