@@ -345,6 +345,9 @@ func cleanupCustomizedResources(ctx context.Context) {
 		WithPolling(interval).
 		Should(BeTrue())
 
+	Expect(k8sClient.DeleteAllOf(ctx, &serviceApi.Auth{})).To(Succeed())
+	Expect(k8sClient.DeleteAllOf(ctx, &serviceApi.GatewayConfig{})).To(Succeed())
+
 	Eventually(func() error {
 		appNs := &corev1.Namespace{}
 		if err := k8sClient.Get(ctx, client.ObjectKey{Name: customizedAppNs}, appNs); err != nil {
@@ -377,15 +380,37 @@ func cleanupResources(ctx context.Context) {
 		Should(BeTrue())
 	Eventually(noInstanceExistsIn(applicationNamespace, &corev1.ConfigMapList{})).
 		WithContext(ctx).
-		WithContext(ctx).
 		WithTimeout(timeout).
 		WithPolling(interval).
 		Should(BeTrue())
+
+	// envtest has no garbage collector, so cluster-scoped resources owned by DSCI
+	// must be cleaned up explicitly to avoid leaking between tests.
+	Expect(k8sClient.DeleteAllOf(ctx, &serviceApi.Monitoring{})).To(Succeed())
+	Expect(k8sClient.DeleteAllOf(ctx, &serviceApi.Auth{})).To(Succeed())
+	Expect(k8sClient.DeleteAllOf(ctx, &serviceApi.GatewayConfig{})).To(Succeed())
+
+	Eventually(noClusterInstanceExists(&serviceApi.MonitoringList{})).
+		WithContext(ctx).WithTimeout(timeout).WithPolling(interval).Should(BeTrue())
+	Eventually(noClusterInstanceExists(&serviceApi.AuthList{})).
+		WithContext(ctx).WithTimeout(timeout).WithPolling(interval).Should(BeTrue())
+	Eventually(noClusterInstanceExists(&serviceApi.GatewayConfigList{})).
+		WithContext(ctx).WithTimeout(timeout).WithPolling(interval).Should(BeTrue())
 }
 
 func noInstanceExistsIn(namespace string, list client.ObjectList) func(ctx context.Context) bool {
 	return func(ctx context.Context) bool {
 		if err := k8sClient.List(ctx, list, &client.ListOptions{Namespace: namespace}); err != nil {
+			return false
+		}
+
+		return meta.LenList(list) == 0
+	}
+}
+
+func noClusterInstanceExists(list client.ObjectList) func(ctx context.Context) bool {
+	return func(ctx context.Context) bool {
+		if err := k8sClient.List(ctx, list); err != nil {
 			return false
 		}
 
