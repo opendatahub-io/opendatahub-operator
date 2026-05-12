@@ -23,7 +23,6 @@ import (
 	"path/filepath"
 	"time"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -77,7 +76,7 @@ type DSCInitializationCondition struct {
 }
 
 // Reconcile contains controller logic specific to DSCInitialization instance updates.
-func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:funlen,maintidx,gocyclo
+func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) { //nolint:funlen,maintidx
 	log := logf.FromContext(ctx).WithName("DSCInitialization")
 	log.Info("Reconciling DSCInitialization.", "DSCInitialization Request.Name", req.Name)
 
@@ -209,18 +208,8 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 	}
 
-	switch instance.Spec.Monitoring.ManagementState {
-	case operatorv1.Managed:
-		if err = r.newMonitoringCR(ctx, instance); err != nil {
-			return ctrl.Result{}, err
-		}
-	case operatorv1.Removed:
-		if err = r.deleteMonitoringCR(ctx); err != nil {
-			return reconcile.Result{}, err
-		}
-	default:
-		// Unknown or empty state: do nothing
-	}
+	// Monitoring CR lifecycle is now handled by the module handler
+	// via provisionModules in the DSC controller.
 
 	// legacy ServiceMesh FeatureTracker cleanup, retained from the remove ServiceMesh controller
 	// TODO where exactly to put this logic ?
@@ -408,12 +397,13 @@ func (r *DSCInitializationReconciler) watchMonitoringResource(ctx context.Contex
 		return nil
 	}
 	if len(instanceList.Items) == 0 {
-		log.Info("Found no Monitoring instance in cluster, reconciling to recreate one")
-		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: serviceApi.MonitoringInstanceName}}}
+		// Monitoring CR lifecycle is owned by the module handler in the
+		// DSC controller — nothing to propagate when the CR is absent.
+		return nil
 	}
 
-	// Monitoring CR exists — trigger DSCI reconciliation so it can propagate
-	// the latest Monitoring status conditions into its own status.
+	// Monitoring CR exists — trigger DSCI reconciliation so it can
+	// propagate the latest Monitoring status into its own conditions.
 	dsciList := &dsciv2.DSCInitializationList{}
 	if err := r.Client.List(ctx, dsciList); err != nil {
 		log.Error(err, "Failed to get DSCInitializationList")
@@ -421,7 +411,7 @@ func (r *DSCInitializationReconciler) watchMonitoringResource(ctx context.Contex
 	}
 	if len(dsciList.Items) == 0 {
 		log.Info("Found no DSCInitialization instance in cluster")
-		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "default-dsci"}}}
+		return nil
 	}
 
 	return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: dsciList.Items[0].Name}}}
@@ -441,8 +431,6 @@ func (r *DSCInitializationReconciler) GetMonitoringReadyCondition(ctx context.Co
 	monitoringConditions := monitoring.GetConditions()
 	conditions := make([]DSCInitializationCondition, 0, len(monitoringConditions)+1)
 
-	// we filter the conditions from the Monitoring CR to the list to be returned later
-	// we only care about the ones that are related to dependant operators (e.g. Thanos, OpenTelemetry, etc.)
 	for _, c := range monitoringConditions {
 		switch c.Type {
 		case status.ConditionTypeReady,
@@ -467,7 +455,6 @@ func (r *DSCInitializationReconciler) GetMonitoringReadyCondition(ctx context.Co
 		return []DSCInitializationCondition{{status.ConditionMonitoringReady, status.NotReadyReason, "Monitoring stack is initializing", metav1.ConditionUnknown}}
 	}
 
-	// If Monitoring stack is initialized, we add the MonitoringReady condition as True
 	conditions = append(conditions, DSCInitializationCondition{
 		Type:         status.ConditionMonitoringReady,
 		ReadyReason:  status.ReadyReason,
@@ -476,89 +463,6 @@ func (r *DSCInitializationReconciler) GetMonitoringReadyCondition(ctx context.Co
 	})
 
 	return conditions
-}
-
-func (r *DSCInitializationReconciler) deleteMonitoringCR(ctx context.Context) error {
-	defaultMonitoring := &serviceApi.Monitoring{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: serviceApi.MonitoringInstanceName,
-		},
-	}
-	err := r.Client.Delete(ctx, defaultMonitoring)
-	if err != nil && !k8serr.IsNotFound(err) {
-		return err
-	}
-
-	return nil
-}
-
-func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci *dsciv2.DSCInitialization) error {
-	// Create Monitoring CR singleton
-	defaultMonitoring := &serviceApi.Monitoring{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       serviceApi.MonitoringKind,
-			APIVersion: serviceApi.GroupVersion.String(),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: serviceApi.MonitoringInstanceName,
-		},
-		Spec: serviceApi.MonitoringSpec{
-			MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
-				Namespace: dsci.Spec.Monitoring.Namespace,
-			},
-		},
-	}
-
-	metricsEnabled := dsci.Spec.Monitoring.Metrics != nil && dsci.Spec.Monitoring.Metrics.Storage != nil
-	tracesEnabled := dsci.Spec.Monitoring.Traces != nil
-
-	if metricsEnabled {
-		defaultMonitoring.Spec.Metrics = dsci.Spec.Monitoring.Metrics
-	} else {
-		defaultMonitoring.Spec.Metrics = nil
-	}
-
-	if tracesEnabled {
-		defaultMonitoring.Spec.Traces = dsci.Spec.Monitoring.Traces
-		// Without this, when TLS.Enabled is false, the TLS struct is not removed from the Monitoring CR and it causes an error.
-		if defaultMonitoring.Spec.Traces.TLS != nil && !defaultMonitoring.Spec.Traces.TLS.Enabled {
-			defaultMonitoring.Spec.Traces.TLS = nil
-		}
-	} else {
-		defaultMonitoring.Spec.Traces = nil
-	}
-
-	defaultMonitoring.Spec.Alerting = dsci.Spec.Monitoring.Alerting
-
-	if metricsEnabled || tracesEnabled {
-		if dsci.Spec.Monitoring.CollectorReplicas != 0 {
-			defaultMonitoring.Spec.CollectorReplicas = dsci.Spec.Monitoring.CollectorReplicas
-		} else {
-			isSNO := cluster.IsSingleNodeCluster(ctx, r.Client)
-			if isSNO {
-				defaultMonitoring.Spec.CollectorReplicas = 1
-			} else {
-				defaultMonitoring.Spec.CollectorReplicas = 2
-			}
-		}
-	}
-
-	if err := controllerutil.SetOwnerReference(dsci, defaultMonitoring, r.Client.Scheme()); err != nil {
-		return err
-	}
-
-	err := resources.Apply(
-		ctx,
-		r.Client,
-		defaultMonitoring,
-		client.FieldOwner(fieldManager),
-		client.ForceOwnership,
-	)
-
-	if err != nil && !k8serr.IsAlreadyExists(err) {
-		return err
-	}
-	return nil
 }
 
 // CreateGatewayConfig creates a default GatewayConfig if it doesn't exist.

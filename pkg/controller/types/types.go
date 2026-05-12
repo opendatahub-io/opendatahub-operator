@@ -95,6 +95,10 @@ func (mi ManifestInfo) String() string {
 		result = path.Join(result, mi.SourcePath)
 	}
 
+	if mi.Namespace != "" {
+		result += "@ns=" + mi.Namespace
+	}
+
 	return result
 }
 

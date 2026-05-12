@@ -95,10 +95,10 @@ import (
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	monitoringModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/monitoring"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/monitoring"
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/setup"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook"
@@ -139,11 +139,12 @@ var (
 		serviceApi.AuthServiceName:         auth.NewHandler(),
 		certconfigmapgenerator.ServiceName: certconfigmapgenerator.NewHandler(),
 		serviceApi.GatewayServiceName:      gateway.NewHandler(),
-		serviceApi.MonitoringServiceName:   monitoring.NewHandler(),
 		setup.ServiceName:                  setup.NewHandler(),
 	}
 
-	existingModules = map[string]mr.ModuleHandler{}
+	existingModules = map[string]mr.ModuleHandler{
+		serviceApi.MonitoringServiceName: monitoringModule.NewHandler(),
+	}
 )
 
 func init() { //nolint:gochecknoinits
@@ -439,7 +440,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 
 	// Wrap the manager to return the wrapped client from GetClient()
-	mgr := manager.New(ctrlMgr, manager.WithManifestsBasePath(oconfig.ManifestsBasePath))
+	mgr := manager.New(ctrlMgr, manager.WithManifestsBasePath(oconfig.ManifestsBasePath), manager.WithChartsBasePath(oconfig.ChartsBasePath))
 
 	// Register all webhooks using the helper
 	if err := webhook.RegisterAllWebhooks(mgr); err != nil {
@@ -464,6 +465,11 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	if flags.IsDSCEnabled() {
 		if err = dscctrl.NewDataScienceClusterReconciler(ctx, mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "DataScienceCluster")
+			os.Exit(1)
+		}
+
+		if err = mr.NewModuleReconciler(ctx, mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "modules")
 			os.Exit(1)
 		}
 	} else {

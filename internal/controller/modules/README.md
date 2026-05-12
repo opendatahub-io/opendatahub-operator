@@ -15,14 +15,15 @@ existing in-tree components. The DSC controller's action pipeline handles both:
 
 ```
 DSC Reconcile
-  -> provisionComponents    (component CRs -> rr.Resources)
-  -> provisionModules       (module operator manifests -> rr.HelmCharts
-                             and/or rr.Manifests; module CRs -> rr.Resources)
-  -> helm.NewAction         (renders Helm charts into rr.Resources)
-  -> kustomize.NewAction    (renders Kustomize manifests into rr.Resources)
-  -> deploy.NewAction       (SSA-applies everything in rr.Resources)
-  -> updateModuleStatus     (reads module CR status -> DSC conditions)
-  -> gc.NewAction           (deletes resources missing from rr.Resources)
+  -> provisionComponents       (component CRs -> rr.Resources)
+  -> cleanupDisabledModules    (two-phase cleanup of disabled module resources)
+  -> provisionModules          (module operator manifests -> rr.HelmCharts
+                                and/or rr.Manifests; module CRs -> rr.Resources)
+  -> helm.NewAction            (renders Helm charts into rr.Resources)
+  -> kustomize.NewAction       (renders Kustomize manifests into rr.Resources)
+  -> deploy.NewAction          (SSA-applies everything in rr.Resources)
+  -> updateModuleStatus        (reads module CR status -> DSC conditions)
+  -> gc.NewAction              (deletes resources missing from rr.Resources)
 ```
 
 Module CRs follow the same lifecycle as component CRs: they are added to
@@ -36,6 +37,34 @@ CRs and module operator resources.
 `status.observedGeneration` against `metadata.generation`) and propagates
 `Degraded` status. If all modules are `Ready` but some report `Degraded=True`,
 `ModulesReady` is set to `False` with a message listing the degraded modules.
+
+### Module CR ownership and cleanup
+
+`SetupModuleWatches` registers each module's CR GVK as an **owned type** on
+the DSC controller via `AddOwnedType`. This ensures:
+
+- `deploy.NewAction` sets the DSC as controller owner of module CRs
+- `gc.NewAction` deletes module CRs when they are missing from `rr.Resources`
+  (i.e., when the module is disabled)
+
+Module **operator** resources (Deployment, RBAC, etc.) are generic Kubernetes
+types that are NOT registered as owned types. They are cleaned up by
+`cleanupDisabledModules`, which implements a two-phase approach:
+
+1. **Phase 1**: Module is disabled, CR still exists. GC deletes the CR. The
+   module operator Deployment is left running so it can process finalizers
+   and Kubernetes can cascade-delete ownerRef'd operands.
+2. **Phase 2**: On the next reconcile, the CR is confirmed gone. The action
+   renders the module's Helm chart and deletes each operator resource.
+
+### Component-to-module migration
+
+Components already use `components.platform.opendatahub.io` -- the GVK stays
+the same when migrating to a module. Migration is a **reconciler handoff**:
+the in-tree reconciler stops and the module operator starts reconciling the
+same CR. No owner-ref stripping or old-CR deletion is needed. See the
+[Component to Module Migration Guide](../../../docs/modular/Component%20to%20Module%20Migration%20Guide.md)
+for the full process.
 
 ## Adding a New Module
 
@@ -167,17 +196,27 @@ existingModules = map[string]mr.ModuleHandler{
 
 ### `types.go` -- ModuleHandler interface and PlatformContext
 
-The 6-method contract between the platform and each module handler:
+The 8-method contract between the platform and each module handler:
 
 - `GetName()` -- unique identifier (registry key, log messages)
-- `IsEnabled(dsc)` -- reads DSC spec to determine enablement
-- `GetGVK()` -- module CR's GroupVersionKind (used for watch registration)
-- `GetOperatorManifests()` -- returns `OperatorManifests` with Helm charts
-  and/or Kustomize manifests for the module operator
+- `IsEnabled(platform)` -- reads DSC/DSCI to determine enablement
+- `GetGVK()` -- module CR's GroupVersionKind (used for watch and ownership
+  registration)
+- `GetOperatorManifests(platform)` -- returns `OperatorManifests` with Helm
+  charts and/or Kustomize manifests for the module operator
 - `BuildModuleCR(ctx, cli, platform)` -- constructs the module CR with
   platform fields projected from `*PlatformContext`
+- `GetRelatedImages()` -- returns `RELATED_IMAGE_*` env var names
 - `GetModuleStatus(ctx, cli)` -- returns `*ModuleStatus` with conditions and
   generation metadata for staleness detection
+- `ModuleCRExists(ctx, cli)` -- checks if the module CR exists on the cluster
+  (returns false when the CRD is absent)
+- `DeleteOperatorResources(ctx, cli, platform)` -- renders the module's Helm
+  chart and deletes each resource from the cluster (for two-phase cleanup)
+
+`OwnedTypeRegistrar` is a single-method interface (`AddOwnedType(gvk)`) used
+by `SetupModuleWatches` to register module CR GVKs as owned types on the DSC
+controller without importing the reconciler package directly.
 
 `PlatformContext` is built once per reconcile in `provisionModules` and passed
 to every handler's `BuildModuleCR`. It exposes:
@@ -204,6 +243,13 @@ default implementations for `GetName`, `GetGVK`, `GetOperatorManifests`, and
 from an unstructured object's `.status.conditions` field, including
 `ObservedGeneration` and `LastTransitionTime`.
 
+`ModuleCRExists` GETs the module CR by GVK + CRName and returns `true` if
+found, `false` if not found or if the CRD does not exist.
+
+`DeleteOperatorResources` renders the module's Helm chart via
+`GetOperatorManifests`, then deletes each rendered resource from the cluster.
+NotFound errors are silently ignored for idempotency.
+
 ### `registry.go` -- Module registry
 
 A singleton registry that stores `ModuleHandler` instances. Handlers are
@@ -216,12 +262,14 @@ registered at program startup in `cmd/main.go`. The registry supports:
 - `RegistrationOption` -- `WithRunlevel(int)` and `WithDependencies(...string)`
   for future DAG-based ordering
 
-### `watch.go` -- Dynamic watch registration
+### `watch.go` -- Dynamic watch and ownership registration
 
-`SetupModuleWatches(ctx, mgr, controller)` registers a watch for each
-module's CR GVK after the DSC controller is built. When a module operator
-updates its CR status, the watch maps the event to a DSC reconcile request
-so the platform can aggregate the updated status.
+`SetupModuleWatches(ctx, mgr, controller, owner)` registers a watch for each
+module's CR GVK after the DSC controller is built, and calls
+`owner.AddOwnedType(gvk)` to register the GVK as an owned type. This ensures
+`deploy.NewAction` sets DSC as controller owner and `gc.NewAction` can delete
+module CRs when disabled. All registered modules (including CLI-disabled ones)
+are processed so cleanup paths work correctly.
 
 ## Suppression Flags
 

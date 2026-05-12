@@ -1,0 +1,111 @@
+package modules_test
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	helmRenderer "github.com/k8s-manifest-kit/renderer-helm/pkg"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/monitoring"
+
+	. "github.com/onsi/gomega"
+)
+
+var allowedKinds = map[string]bool{
+	"Deployment":               true,
+	"ServiceAccount":           true,
+	"ClusterRole":              true,
+	"ClusterRoleBinding":       true,
+	"Role":                     true,
+	"RoleBinding":              true,
+	"ConfigMap":                true,
+	"CustomResourceDefinition": true,
+}
+
+// moduleHandlers returns every module handler that the platform operator
+// registers. Keep this list in sync with existingModules in cmd/main.go.
+// Adding a handler here automatically includes it in the compliance check.
+func moduleHandlers() []modules.ModuleHandler {
+	return []modules.ModuleHandler{
+		monitoring.NewHandler(),
+	}
+}
+
+func TestModuleChartCompliance(t *testing.T) {
+	chartsRoot := os.Getenv("DEFAULT_CHARTS_PATH")
+	if chartsRoot == "" {
+		chartsRoot = filepath.Join("..", "..", "..", "opt", "charts")
+	}
+
+	absChartsRoot, err := filepath.Abs(chartsRoot)
+	if err != nil {
+		t.Fatalf("failed to resolve charts root %s: %v", chartsRoot, err)
+	}
+
+	if _, err := os.Stat(absChartsRoot); os.IsNotExist(err) {
+		t.Skipf("charts root %s not found (run get_all_manifests.sh first)", absChartsRoot)
+	}
+
+	handlers := moduleHandlers()
+	if len(handlers) == 0 {
+		t.Fatal("no module handlers registered; update moduleHandlers()")
+	}
+
+	platform := &modules.PlatformContext{
+		ApplicationsNamespace: "test-ns",
+		ChartsBasePath:        absChartsRoot,
+	}
+
+	testedCount := 0
+	for _, handler := range handlers {
+		manifests := handler.GetOperatorManifests(platform)
+		if len(manifests.HelmCharts) == 0 {
+			continue
+		}
+
+		for _, chartInfo := range manifests.HelmCharts {
+			t.Run(handler.GetName(), func(t *testing.T) {
+				g := NewWithT(t)
+
+				if _, err := os.Stat(chartInfo.Chart); os.IsNotExist(err) {
+					t.Skipf("chart directory %s not found (run get_all_manifests.sh first)", chartInfo.Chart)
+				}
+
+				renderer, err := helmRenderer.New([]helmRenderer.Source{{
+					Chart:       chartInfo.Chart,
+					ReleaseName: chartInfo.ReleaseName,
+					Values:      chartInfo.Values,
+				}})
+				g.Expect(err).ShouldNot(HaveOccurred(), "failed to create helm renderer for %s", handler.GetName())
+
+				resources, err := renderer.Process(t.Context(), nil)
+				g.Expect(err).ShouldNot(HaveOccurred(), "failed to render chart for %s", handler.GetName())
+				g.Expect(resources).ShouldNot(BeEmpty(), "chart %s rendered zero resources", handler.GetName())
+
+				deploymentCount := 0
+				for _, res := range resources {
+					kind := res.GetKind()
+					g.Expect(allowedKinds).Should(HaveKey(kind),
+						"chart %s contains disallowed resource kind %q (name: %s)",
+						handler.GetName(), kind, res.GetName())
+
+					if kind == "Deployment" {
+						deploymentCount++
+					}
+				}
+
+				g.Expect(deploymentCount).Should(Equal(1),
+					"chart %s should contain exactly 1 Deployment, found %d",
+					handler.GetName(), deploymentCount)
+			})
+
+			testedCount++
+		}
+	}
+
+	if testedCount == 0 {
+		t.Fatal("no module handlers have Helm charts to test")
+	}
+}

@@ -14,6 +14,19 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
+// CRState represents the lifecycle state of a module CR on the cluster.
+type CRState int
+
+const (
+	// CRStateAbsent means the CR does not exist (or the CRD is not installed).
+	CRStateAbsent CRState = iota
+	// CRStateAlive means the CR exists and has no deletionTimestamp.
+	CRStateAlive
+	// CRStateDeleting means the CR exists but has a deletionTimestamp set
+	// (the module operator is still processing finalizers).
+	CRStateDeleting
+)
+
 // ModuleHandler defines the interface for managing a modular component.
 // Each module handler manages an out-of-tree module operator and its CR.
 //
@@ -39,7 +52,10 @@ type ModuleHandler interface {
 	// either HelmCharts or Manifests (or both). The returned entries are
 	// appended to rr.HelmCharts and rr.Manifests respectively, then rendered
 	// by the standard action pipeline (helm/kustomize render + deploy).
-	GetOperatorManifests() OperatorManifests
+	//
+	// PlatformContext is provided so the base implementation can inject
+	// runtime values (e.g. operatorNamespace) into Helm chart values.
+	GetOperatorManifests(platform *PlatformContext) OperatorManifests
 
 	// BuildModuleCR constructs the module CR as an unstructured object with
 	// platform fields projected from PlatformContext. The returned object is
@@ -57,6 +73,28 @@ type ModuleHandler interface {
 	// ModuleStatus includes conditions and generation metadata for staleness
 	// detection.
 	GetModuleStatus(ctx context.Context, cli client.Client) (*ModuleStatus, error)
+
+	// GetModuleCRState returns the lifecycle state of the module CR:
+	// CRStateAbsent (not found / CRD missing), CRStateAlive (exists, no
+	// deletionTimestamp), or CRStateDeleting (deletionTimestamp set, operator
+	// is still processing finalizers).
+	GetModuleCRState(ctx context.Context, cli client.Client) (CRState, error)
+
+	// DeleteModuleCR deletes the module CR from the cluster. Returns nil if
+	// the CR (or its CRD) does not exist, making the call idempotent.
+	DeleteModuleCR(ctx context.Context, cli client.Client) error
+
+	// DeleteOperatorResources renders the module's operator manifests and
+	// deletes each resource from the cluster. Used by the two-phase cleanup
+	// action after the module CR has been confirmed deleted.
+	DeleteOperatorResources(ctx context.Context, cli client.Client, platform *PlatformContext) error
+}
+
+// OwnedTypeRegistrar allows registering GVKs as statically owned types
+// on a controller. The DSC controller's *reconciler.Reconciler satisfies
+// this interface.
+type OwnedTypeRegistrar interface {
+	AddOwnedType(gvk schema.GroupVersionKind)
 }
 
 // ModuleStatus holds the parsed status from a module CR. It includes the
@@ -102,6 +140,9 @@ type PlatformContext struct {
 	// DSCI is the DSCInitialization instance. Service-type modules read
 	// their configuration from it (e.g., DSCI.Spec.Monitoring).
 	DSCI *dsciv2.DSCInitialization
+
+	// ChartsBasePath is the base directory for locally-bundled Helm charts.
+	ChartsBasePath string
 }
 
 // RegistrationOption configures optional orchestration metadata when adding

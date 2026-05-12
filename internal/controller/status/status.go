@@ -110,11 +110,12 @@ const (
 	NoManagedComponentsReason        = "NoManagedComponents"
 	NoRegisteredModulesReason        = "NoRegisteredModules"
 
-	AvailableReason = "Available"
-	NotReadyReason  = "NotReady"
-	ReadyReason     = "Ready"
-	DeletingReason  = "Deleting"
-	DeletingMessage = "Component CR is being deleted"
+	AvailableReason          = "Available"
+	NotReadyReason           = "NotReady"
+	ProvisioningFailedReason = "ProvisioningFailed"
+	ReadyReason              = "Ready"
+	DeletingReason           = "Deleting"
+	DeletingMessage          = "Component CR is being deleted"
 )
 
 const (

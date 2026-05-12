@@ -67,6 +67,7 @@ declare -A ODH_COMPONENT_CHARTS=(
     ["lws-operator"]="opendatahub-io:odh-gitops:main@ebd87a2149c6a23248942a3d5d43029ac7a0ad61:charts/dependencies/lws-operator"
     ["sail-operator"]="opendatahub-io:odh-gitops:main@ebd87a2149c6a23248942a3d5d43029ac7a0ad61:charts/dependencies/sail-operator"
     ["gateway-api"]="opendatahub-io:odh-gitops:main@ebd87a2149c6a23248942a3d5d43029ac7a0ad61:charts/dependencies/gateway-api"
+    ["odh-observability"]="opendatahub-io:odh-observability:main:charts/odh-observability"
 )
 
 # RHOAI Component Charts
@@ -75,6 +76,7 @@ declare -A RHOAI_COMPONENT_CHARTS=(
     ["lws-operator"]="red-hat-data-services:odh-gitops:rhoai-3.5-ea.1@2f6a53ff4b6dc968cd8fc482ecd53552874c977b:charts/dependencies/lws-operator"
     ["sail-operator"]="red-hat-data-services:odh-gitops:rhoai-3.5-ea.1@2f6a53ff4b6dc968cd8fc482ecd53552874c977b:charts/dependencies/sail-operator"
     ["gateway-api"]="red-hat-data-services:odh-gitops:rhoai-3.5-ea.1@2f6a53ff4b6dc968cd8fc482ecd53552874c977b:charts/dependencies/gateway-api"
+    ["odh-observability"]="red-hat-data-services:odh-observability:rhoai-3.5-ea.1:charts/odh-observability"
 )
 
 # Select the appropriate manifest based on platform type
