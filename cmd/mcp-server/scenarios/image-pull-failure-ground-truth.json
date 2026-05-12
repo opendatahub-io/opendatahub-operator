@@ -1,0 +1,29 @@
+{
+  "scenario_id": "02-image-pull-failure",
+  "scenario_name": "Image Pull Failure",
+  "description": "ODH dashboard deployment patched to use nonexistent container image",
+  "root_cause": "Deployment odh-dashboard using nonexistent image quay.io/nonexistent/image:v999",
+  "expected_classification": {
+    "category": "infrastructure",
+    "subcategory": "image-pull",
+    "error_code": 1001,
+    "confidence": "medium"
+  },
+  "expected_tool_outputs": {
+    "platform_health": {
+      "healthy": false
+    }
+  },
+  "expected_symptoms": [
+    "Pod in ImagePullBackOff state",
+    "Warning events with ErrImagePull",
+    "Deployment shows reduced ready replicas"
+  ],
+  "tools_that_detect": [
+    "classify_failure",
+    "platform_health",
+    "recent_events",
+    "component_status"
+  ],
+  "expected_remediation": "Restore the odh-dashboard container image to a valid, pullable image and scale the operator back to 3 replicas"
+}

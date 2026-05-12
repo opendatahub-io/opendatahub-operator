@@ -1,0 +1,29 @@
+{
+  "scenario_id": "partial-failure",
+  "scenario_name": "Partial Failure",
+  "description": "One component (model-registry-operator) scaled to 0 while operator and other components remain healthy, causing DSC to report unhealthy conditions",
+  "root_cause": "model-registry-operator-controller-manager deployment scaled to 0 replicas",
+  "expected_classification": {
+    "category": "infrastructure",
+    "subcategory": "dsc-unhealthy",
+    "error_code": 1010,
+    "confidence": "medium"
+  },
+  "expected_tool_outputs": {
+    "platform_health": {
+      "healthy": false
+    }
+  },
+  "expected_symptoms": [
+    "model-registry-operator deployment has 0 ready replicas",
+    "DSC reports ModelRegistryReady=False",
+    "Other components remain healthy and running"
+  ],
+  "tools_that_detect": [
+    "classify_failure",
+    "platform_health",
+    "component_status",
+    "recent_events"
+  ],
+  "expected_remediation": "Stop the background loop and scale model-registry-operator-controller-manager back to 1 replica; operator will reconcile automatically"
+}

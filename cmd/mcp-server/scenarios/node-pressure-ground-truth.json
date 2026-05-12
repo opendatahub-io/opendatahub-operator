@@ -1,0 +1,28 @@
+{
+  "scenario_id": "node-pressure",
+  "scenario_name": "Node Pressure",
+  "description": "Worker node patched with MemoryPressure=True condition, simulating node under memory pressure",
+  "root_cause": "Worker node reporting MemoryPressure condition as True",
+  "expected_classification": {
+    "category": "infrastructure",
+    "subcategory": "node-pressure",
+    "error_code": 1005,
+    "confidence": "high"
+  },
+  "expected_tool_outputs": {
+    "platform_health": {
+      "healthy": false
+    }
+  },
+  "expected_symptoms": [
+    "Node has MemoryPressure=True condition",
+    "Node marked as unhealthy in cluster health report"
+  ],
+  "tools_that_detect": [
+    "classify_failure",
+    "platform_health",
+    "recent_events",
+    "component_status"
+  ],
+  "expected_remediation": "Stop the background patcher and restore MemoryPressure=False on the affected node; kubelet will also auto-restore within seconds"
+}
