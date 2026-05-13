@@ -5,11 +5,11 @@ metadata:
 spec:
   description: |-
     The Open Data Hub is a machine-learning-as-a-service platform built on Red Hat's Kubernetes-based OpenShift® Container Platform. Open Data Hub integrates multiple AI/ML open source components into one operator that can easily be downloaded and installed by OpenShift users.
-    
+
     Open Data Hub operator allows users to install and manage components of the Open Data Hub. Users can mix and match tools from each project to fulfill the needs of their use case. Each of the projects share some components, but can be mostly seen as an extension of each other to provide a complete solution for both novice and skilled enterprise users.
-        
+
     ### Components
-    
+
     * Open Data Hub Dashboard - A web dashboard that displays installed Open Data Hub components with easy access to component UIs and documentation
     * ODH Notebook Controller - Secure management of Jupyter Notebook in Kubernetes environments built on top of Kubeflow Notebook Controller with support for OAuth
     * Jupyter Notebooks - JupyterLab notebook that provide Python support for GPU workloads
@@ -19,6 +19,6 @@ spec:
                                           KubeRay and Kueue.
     * Kserve - Kserve is the Controller for for serving machine learning (ML) models on arbitrary frameworks
     * Feast - Feature Store is the fastest path to manage existing infrastructure to productionize analytic data for model training and online inference.
-    * Llama Stack – unified open‑source APIs for inference, RAG, agents, safety, evals & telemetry
+    * OGX - unified open‑source APIs for inference, RAG, agents, safety, evals & telemetry
     * MLflow - MLflow is an open-source platform, purpose-built to assist machine learning practitioners and teams in handling the complexities of the machine learning process. MLflow focuses on the full lifecycle for machine learning projects, ensuring that each phase is manageable, traceable, and reproducible.
     * Spark Operator - Spark Operator is a Kubernetes operator for managing Apache Spark applications. It provides a way to deploy and manage Spark applications on Kubernetes.

@@ -1,5 +1,5 @@
-## Upgrade testing 
-Follow below step for manual upgrade testing 
+## Upgrade testing
+Follow below step for manual upgrade testing
 
 1. Set environment variables to overwrite values in Makefile. You should overwrite the IMAGE_OWNER and VERSION etc values for pushing container images into your quay.io account.
 
@@ -20,7 +20,7 @@ replaces: opendatahub-operator.v2.4.0
 make image
 ```
 
-4. Build bundle image 
+4. Build bundle image
 
 ```
 make bundle-build
@@ -32,7 +32,7 @@ make bundle-build
 make bundle-push
 ```
 
-6. Build catalog source image 
+6. Build catalog source image
 
 ```
 make catalog-build
@@ -142,11 +142,13 @@ spec:
     feastoperator:
       managementState: Managed
     llamastackoperator:
+      managementState: Removed   # replaced by ogx
+    ogx:
       managementState: Managed
     mlflowoperator:
       managementState: Managed
     sparkoperator:
       managementState: Managed
-      
+
 EOF
 ```

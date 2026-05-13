@@ -1,7 +1,7 @@
 # Open Data Hub Operator Design
 
 The following document outlines the current design of the Open Data Hub operator and the resources it manages.
-The contents of this document reflect the changes brought by the ODH operator reconciliation refactor, introduced in December 2024. 
+The contents of this document reflect the changes brought by the ODH operator reconciliation refactor, introduced in December 2024.
 
 ## Motivation
 
@@ -69,7 +69,7 @@ Together, these CRs are responsible for configuration of ODH at the platform lev
 The ODH operator reconciliation refactor introduced dedicated CRDs for each ODH component.
 From there, if enabled, an ODH component is represented by its dedicated singleton CR instance and the owned subresources, all of which are managed by a dedicated component controller. Component CRs are owned by the DSC.
 The component controller implementations are located in the subdirectories of `internal/controller/components` directory.
- 
+
 List of currently integrated ODH components:
 
 | **ODH Component** | **CR Kind** |
@@ -103,7 +103,7 @@ In addition to the previously-mentioned CRs and their controller, the operator a
   - user-facing CR
   - responsible for auth configuration
   - singleton instance in the cluster
-  - controller implementation located in `internal/controller/services/auth` 
+  - controller implementation located in `internal/controller/services/auth`
 - `Monitoring`
   - responsible for monitoring configuration
   - singleton instance in the cluster
@@ -214,6 +214,8 @@ spec:
     feastoperator:
       managementState: Managed
     llamastackoperator:
+      managementState: Removed
+    ogx:
       managementState: Removed
     mlflowoperator:
       managementState: Removed

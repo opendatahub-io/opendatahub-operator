@@ -691,6 +691,8 @@ spec:
       managementState: Managed
     llamastackoperator:
       managementState: Removed
+    ogx:
+      managementState: Removed
     mlflowoperator:
       managementState: Managed
     sparkoperator:
