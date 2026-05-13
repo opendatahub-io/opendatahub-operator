@@ -173,6 +173,10 @@ var (
 				componentApi.KueueComponentName:   kueueDegradedMonitoringTestSuite,
 				componentApi.TrainerComponentName: trainerDegradedMonitoringTestSuite,
 			},
+			{
+				// ModelCache tests modify namespace PSA labels, so must not run with other KServe tests in parallel
+				componentApi.KserveComponentName + "-modelcache": kserveModelCacheTestSuite,
+			},
 		},
 	}
 

@@ -15,6 +15,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -42,7 +43,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			desiredDsci := createDSCI(operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
 			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
 			foundDsci := &dsciv2.DSCInitialization{}
-			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
+			Eventually(dscInitializationIsReady(foundDsci)).
 				WithContext(ctx).
 				WithTimeout(timeout).
 				WithPolling(interval).
@@ -97,7 +98,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			desiredDsci := createDSCI(operatorv1.Removed, operatorv1.Managed, monitoringNamespace2)
 			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
 			foundDsci := &dsciv2.DSCInitialization{}
-			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
+			Eventually(dscInitializationIsReady(foundDsci)).
 				WithContext(ctx).
 				WithTimeout(timeout).
 				WithPolling(interval).
@@ -255,7 +256,6 @@ var _ = Describe("DataScienceCluster initialization", func() {
 
 	Context("Handling existing resources", func() {
 		AfterEach(cleanupResources)
-		const applicationName = "default-dsci"
 
 		It("Should not update namespace if it exists", func(ctx context.Context) {
 			anotherNamespace := "test-another-ns"
@@ -278,7 +278,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			desiredDsci := createDSCI(operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
 			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
 			foundDsci := &dsciv2.DSCInitialization{}
-			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
+			Eventually(dscInitializationIsReady(foundDsci)).
 				WithContext(ctx).
 				WithTimeout(timeout).
 				WithPolling(interval).
@@ -330,6 +330,96 @@ var _ = Describe("DataScienceCluster initialization", func() {
 				WithPolling(interval).
 				Should(SatisfyAll(
 					HaveKeyWithValue(labels.SecurityEnforce, "baseline"),
+					HaveKeyWithValue(labels.CustomizedAppNamespace, labels.True),
+					Not(HaveKey(labels.ODH.OwnedNamespace)),
+				))
+		})
+	})
+
+	Context("PSA label preservation", func() {
+		const privilegedAppNs = "test-privileged-psa-ns"
+
+		BeforeEach(func(ctx context.Context) {
+			Expect(k8sClient.Create(ctx, &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: privilegedAppNs,
+					Labels: map[string]string{
+						labels.CustomizedAppNamespace: labels.True,
+						labels.SecurityEnforce:        "privileged",
+					},
+					Annotations: map[string]string{
+						annotations.PSAElevatedBy: "kserve-modelcache",
+					},
+				},
+			})).Should(Succeed())
+		})
+
+		AfterEach(func(ctx context.Context) {
+			Expect(k8sClient.DeleteAllOf(ctx, &dsciv2.DSCInitialization{})).To(Succeed())
+			Eventually(noInstanceExistsIn(workingNamespace, &dsciv2.DSCInitializationList{})).
+				WithContext(ctx).
+				WithTimeout(timeout).
+				WithPolling(interval).
+				Should(BeTrue())
+
+			Eventually(func() error {
+				appNs := &corev1.Namespace{}
+				if err := k8sClient.Get(ctx, client.ObjectKey{Name: privilegedAppNs}, appNs); err != nil {
+					return err
+				}
+				delete(appNs.Labels, labels.CustomizedAppNamespace)
+				return k8sClient.Update(ctx, appNs)
+			}, timeout, interval).Should(Succeed())
+
+			Expect(k8sClient.Delete(ctx, &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: privilegedAppNs,
+				},
+			})).To(Succeed())
+		})
+
+		It("Should not downgrade privileged PSA label to baseline", func(ctx context.Context) {
+			desiredDsci := &dsciv2.DSCInitialization{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "DSCInitialization",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      applicationName,
+					Namespace: workingNamespace,
+				},
+				Spec: dsciv2.DSCInitializationSpec{
+					ApplicationsNamespace: privilegedAppNs,
+					Monitoring: serviceApi.DSCIMonitoring{
+						ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
+						MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
+							Namespace: monitoringNamespace,
+						},
+					},
+					TrustedCABundle: &dsciv2.TrustedCABundleSpec{
+						ManagementState: operatorv1.Managed,
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
+
+			foundDsci := &dsciv2.DSCInitialization{}
+			Eventually(dscInitializationIsReady(foundDsci)).
+				WithContext(ctx).
+				WithTimeout(timeout).
+				WithPolling(interval).
+				Should(BeTrue())
+
+			appNS := &corev1.Namespace{}
+			Eventually(func() map[string]string {
+				_ = k8sClient.Get(ctx, client.ObjectKey{Name: privilegedAppNs}, appNS)
+				return appNS.Labels
+			}).
+				WithContext(ctx).
+				WithTimeout(timeout).
+				WithPolling(interval).
+				Should(SatisfyAll(
+					HaveKeyWithValue(labels.SecurityEnforce, "privileged"),
 					HaveKeyWithValue(labels.CustomizedAppNamespace, labels.True),
 					Not(HaveKey(labels.ODH.OwnedNamespace)),
 				))
@@ -459,9 +549,9 @@ func createCustomizedDSCI(appNS string) *dsciv2.DSCInitialization {
 	}
 }
 
-func dscInitializationIsReady(name string, namespace string, dsciObj *dsciv2.DSCInitialization) func(ctx context.Context) bool {
+func dscInitializationIsReady(dsciObj *dsciv2.DSCInitialization) func(ctx context.Context) bool {
 	return func(ctx context.Context) bool {
-		_ = k8sClient.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, dsciObj)
+		_ = k8sClient.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: workingNamespace}, dsciObj)
 
 		return dsciObj.Status.Phase == readyPhase
 	}
