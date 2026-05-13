@@ -97,7 +97,7 @@ func (et *EnvT) createManager() error {
 	if err != nil {
 		return fmt.Errorf("failed to create manager: %w", err)
 	}
-	mgr = opmanager.New(mgr)
+	mgr = opmanager.New(mgr, et.opManagerOpts...)
 	et.mgr = mgr
 	for _, reg := range et.registerWebhooks {
 		if err := reg(mgr); err != nil {
@@ -147,6 +147,13 @@ func WithManager(opts ...manager.Options) OptionFn {
 func WithRegisterWebhooks(funcs ...RegisterWebhooksFn) OptionFn {
 	return func(in *EnvT) {
 		in.registerWebhooks = append(in.registerWebhooks, funcs...)
+	}
+}
+
+// WithOpManagerOptions sets options for the opmanager.New wrapper (e.g. WithChartsBasePath).
+func WithOpManagerOptions(opts ...opmanager.Option) OptionFn {
+	return func(in *EnvT) {
+		in.opManagerOpts = append(in.opManagerOpts, opts...)
 	}
 }
 
@@ -258,6 +265,7 @@ type EnvT struct {
 	managerOpts         *manager.Options
 	registerWebhooks    []RegisterWebhooksFn
 	registerControllers []RegisterControllersFn
+	opManagerOpts       []opmanager.Option
 	s                   *runtime.Scheme
 	Env                 envtest.Environment
 	cfg                 *rest.Config
