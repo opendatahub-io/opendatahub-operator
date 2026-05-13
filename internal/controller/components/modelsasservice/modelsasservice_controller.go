@@ -85,9 +85,5 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithConditions(conditionTypes...).
 		Build(ctx)
 
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
