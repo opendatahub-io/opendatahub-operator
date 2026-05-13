@@ -228,6 +228,7 @@ func (tc *KserveTestCtx) ValidateComponentDisabled(t *testing.T) {
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
 		WithListOptions(
 			&client.ListOptions{
+				Namespace: tc.AppsNamespace,
 				LabelSelector: k8slabels.Set{
 					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
 				}.AsSelector(),
