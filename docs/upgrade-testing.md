@@ -142,6 +142,8 @@ spec:
     feastoperator:
       managementState: Managed
     llamastackoperator:
+      managementState: Removed   # replaced by ogx
+    ogx:
       managementState: Managed
     mlflowoperator:
       managementState: Managed
