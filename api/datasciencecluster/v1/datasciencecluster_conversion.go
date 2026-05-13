@@ -32,6 +32,7 @@ const (
 	LegacyModelRegistryComponentName = "model-registry-operator"
 )
 
+// LlamaStackOperator was renamed to OGX in v2 (PR #3531); the v1 API retains the old name for backward compatibility.
 var componentNameMapping = map[string]string{
 	"DataSciencePipelines": "AIPipelines",
 	"LlamaStackOperator":  "OGX",

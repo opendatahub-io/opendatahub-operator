@@ -236,6 +236,80 @@ func TestConvertFrom_MapsOGXToLlamaStackOperator(t *testing.T) {
 	g.Expect(v1DSC.Status.Components.LlamaStackOperator.ManagementState).To(Equal(operatorv1.Managed))
 }
 
+// TestConvertRoundTrip_V1ToV2ToV1 verifies that converting v1 → v2 → v1 yields the original v1 state.
+func TestConvertRoundTrip_V1ToV2ToV1(t *testing.T) {
+	g := NewWithT(t)
+
+	original := &DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-dsc"},
+		Spec: DataScienceClusterSpec{
+			Components: Components{
+				Dashboard: componentApi.DSCDashboard{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+				},
+				DataSciencePipelines: componentApi.DSCDataSciencePipelines{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+				},
+				LlamaStackOperator: componentApi.DSCLlamaStackOperator{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+				},
+				Kserve: componentApi.DSCKserve{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
+				},
+			},
+		},
+		Status: DataScienceClusterStatus{
+			Status: common.Status{
+				Phase: "Ready",
+				Conditions: []common.Condition{
+					{Type: "LlamaStackOperatorReady", Status: metav1.ConditionTrue},
+					{Type: "DataSciencePipelinesReady", Status: metav1.ConditionTrue},
+					{Type: "DashboardReady", Status: metav1.ConditionTrue},
+				},
+			},
+			Components: ComponentsStatus{
+				Dashboard: componentApi.DSCDashboardStatus{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+				},
+				DataSciencePipelines: componentApi.DSCDataSciencePipelinesStatus{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+				},
+				LlamaStackOperator: componentApi.DSCLlamaStackOperatorStatus{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+				},
+				Kserve: componentApi.DSCKserveStatus{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
+				},
+			},
+		},
+	}
+
+	v2DSC := &dscv2.DataScienceCluster{}
+	err := original.ConvertTo(v2DSC)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	roundTripped := &DataScienceCluster{}
+	err = roundTripped.ConvertFrom(v2DSC)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	g.Expect(roundTripped.Spec.Components.Dashboard.ManagementState).To(Equal(original.Spec.Components.Dashboard.ManagementState))
+	g.Expect(roundTripped.Spec.Components.DataSciencePipelines.ManagementState).To(Equal(original.Spec.Components.DataSciencePipelines.ManagementState))
+	g.Expect(roundTripped.Spec.Components.LlamaStackOperator.ManagementState).To(Equal(original.Spec.Components.LlamaStackOperator.ManagementState))
+	g.Expect(roundTripped.Spec.Components.Kserve.ManagementState).To(Equal(original.Spec.Components.Kserve.ManagementState))
+
+	g.Expect(roundTripped.Status.Components.Dashboard.ManagementState).To(Equal(original.Status.Components.Dashboard.ManagementState))
+	g.Expect(roundTripped.Status.Components.DataSciencePipelines.ManagementState).To(Equal(original.Status.Components.DataSciencePipelines.ManagementState))
+	g.Expect(roundTripped.Status.Components.LlamaStackOperator.ManagementState).To(Equal(original.Status.Components.LlamaStackOperator.ManagementState))
+	g.Expect(roundTripped.Status.Components.Kserve.ManagementState).To(Equal(original.Status.Components.Kserve.ManagementState))
+
+	g.Expect(roundTripped.Status.Phase).To(Equal(original.Status.Phase))
+
+	g.Expect(roundTripped.Status.Conditions).To(HaveLen(3))
+	g.Expect(roundTripped.Status.Conditions[0].Type).To(Equal("LlamaStackOperatorReady"))
+	g.Expect(roundTripped.Status.Conditions[1].Type).To(Equal("DataSciencePipelinesReady"))
+	g.Expect(roundTripped.Status.Conditions[2].Type).To(Equal("DashboardReady"))
+}
+
 // TestConvertConditions_V1ToV2 verifies that condition types containing v1 component names
 // are properly converted to v2 names.
 func TestConvertConditions_V1ToV2(t *testing.T) {
