@@ -72,7 +72,7 @@ func Run(_ *cobra.Command, provider Provider) error {
 		return fmt.Errorf("unable to start manager: %w", err)
 	}
 
-	mgr := manager.New(ctrlMgr)
+	mgr := manager.New(ctrlMgr, manager.WithChartsBasePath(cfg.DefaultChartsPath))
 
 	if err := provider.NewReconciler(ctx, mgr, cfg); err != nil {
 		return fmt.Errorf("unable to create %s cloud manager reconciler: %w", provider.Name, err)
