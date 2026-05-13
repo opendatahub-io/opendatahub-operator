@@ -64,6 +64,11 @@ func TestConstructInstalledComponentsFromV2Status(t *testing.T) {
 					ManagementState: operatorv1.Managed,
 				},
 			},
+			OGX: componentApi.DSCOGXStatus{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Managed,
+				},
+			},
 		},
 	}
 
@@ -73,6 +78,8 @@ func TestConstructInstalledComponentsFromV2Status(t *testing.T) {
 	g.Expect(result).To(HaveKeyWithValue(componentApi.DashboardComponentName, true))
 	g.Expect(result).To(HaveKeyWithValue(LegacyDataScienceComponentName, true))
 	g.Expect(result).To(HaveKeyWithValue(componentApi.RayComponentName, true))
+	// LlamaStackOperator key reflects OGX status (renamed component)
+	g.Expect(result).To(HaveKeyWithValue(componentApi.LlamaStackOperatorComponentName, true))
 
 	// Test components that are not managed (should be false)
 	g.Expect(result).To(HaveKeyWithValue(componentApi.KserveComponentName, false))
@@ -174,6 +181,61 @@ func TestConvertFrom_ConstructsInstalledComponents(t *testing.T) {
 	g.Expect(v1DSC.Status.InstalledComponents).To(HaveKeyWithValue(componentApi.WorkbenchesComponentName, false))
 }
 
+// TestConvertTo_MapsLlamaStackOperatorToOGX verifies that v1 LlamaStackOperator spec
+// is correctly mapped to v2 OGX, and the deprecated v2 LlamaStackOperator field is cleared.
+func TestConvertTo_MapsLlamaStackOperatorToOGX(t *testing.T) {
+	g := NewWithT(t)
+
+	v1DSC := &DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-dsc"},
+		Spec: DataScienceClusterSpec{
+			Components: Components{
+				LlamaStackOperator: componentApi.DSCLlamaStackOperator{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+				},
+			},
+		},
+	}
+
+	v2DSC := &dscv2.DataScienceCluster{}
+	err := v1DSC.ConvertTo(v2DSC)
+
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(v2DSC.Spec.Components.OGX.ManagementState).To(Equal(operatorv1.Managed))
+	g.Expect(v2DSC.Spec.Components.LlamaStackOperator.ManagementState).To(Equal(operatorv1.Removed))
+}
+
+// TestConvertFrom_MapsOGXToLlamaStackOperator verifies that v2 OGX spec
+// is correctly mapped back to v1 LlamaStackOperator.
+func TestConvertFrom_MapsOGXToLlamaStackOperator(t *testing.T) {
+	g := NewWithT(t)
+
+	v2DSC := &dscv2.DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-dsc"},
+		Spec: dscv2.DataScienceClusterSpec{
+			Components: dscv2.Components{
+				OGX: componentApi.DSCOGX{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+				},
+			},
+		},
+		Status: dscv2.DataScienceClusterStatus{
+			Components: dscv2.ComponentsStatus{
+				OGX: componentApi.DSCOGXStatus{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+				},
+			},
+		},
+	}
+
+	v1DSC := &DataScienceCluster{}
+	err := v1DSC.ConvertFrom(v2DSC)
+
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(v1DSC.Spec.Components.LlamaStackOperator.ManagementState).To(Equal(operatorv1.Managed))
+	g.Expect(v1DSC.Status.Components.LlamaStackOperator.ManagementState).To(Equal(operatorv1.Managed))
+}
+
 // TestConvertConditions_V1ToV2 verifies that condition types containing v1 component names
 // are properly converted to v2 names.
 func TestConvertConditions_V1ToV2(t *testing.T) {
@@ -182,15 +244,18 @@ func TestConvertConditions_V1ToV2(t *testing.T) {
 	input := []common.Condition{
 		{Type: "DataSciencePipelinesReady", Status: metav1.ConditionTrue},
 		{Type: "DashboardReady", Status: metav1.ConditionFalse},
+		{Type: "LlamaStackOperatorReady", Status: metav1.ConditionTrue},
 	}
 
 	result := convertConditions(input, true)
 
-	g.Expect(result).To(HaveLen(2))
+	g.Expect(result).To(HaveLen(3))
 	g.Expect(result[0].Type).To(Equal("AIPipelinesReady"))
 	g.Expect(result[0].Status).To(Equal(metav1.ConditionTrue))
 	g.Expect(result[1].Type).To(Equal("DashboardReady"))
 	g.Expect(result[1].Status).To(Equal(metav1.ConditionFalse))
+	g.Expect(result[2].Type).To(Equal("OGXReady"))
+	g.Expect(result[2].Status).To(Equal(metav1.ConditionTrue))
 }
 
 // TestConvertConditions_V2ToV1 verifies that condition types containing v2 component names
@@ -201,15 +266,18 @@ func TestConvertConditions_V2ToV1(t *testing.T) {
 	input := []common.Condition{
 		{Type: "AIPipelinesReady", Status: metav1.ConditionTrue},
 		{Type: "WorkbenchesReady", Status: metav1.ConditionTrue},
+		{Type: "OGXReady", Status: metav1.ConditionFalse},
 	}
 
 	result := convertConditions(input, false)
 
-	g.Expect(result).To(HaveLen(2))
+	g.Expect(result).To(HaveLen(3))
 	g.Expect(result[0].Type).To(Equal("DataSciencePipelinesReady"))
 	g.Expect(result[0].Status).To(Equal(metav1.ConditionTrue))
 	g.Expect(result[1].Type).To(Equal("WorkbenchesReady"))
 	g.Expect(result[1].Status).To(Equal(metav1.ConditionTrue))
+	g.Expect(result[2].Type).To(Equal("LlamaStackOperatorReady"))
+	g.Expect(result[2].Status).To(Equal(metav1.ConditionFalse))
 }
 
 // TestConvertConditions_Nil ensures nil input returns nil without panicking.

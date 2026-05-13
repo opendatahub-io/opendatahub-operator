@@ -34,6 +34,7 @@ const (
 
 var componentNameMapping = map[string]string{
 	"DataSciencePipelines": "AIPipelines",
+	"LlamaStackOperator":  "OGX",
 }
 
 // Mapping for components where v1 and v2 names differ
@@ -88,7 +89,7 @@ func constructInstalledComponentsFromV2Status(v2Status dscv2.DataScienceClusterS
 		getV1ComponentName(componentApi.ModelRegistryComponentName):        v2Status.Components.ModelRegistry.ManagementState == operatorv1.Managed,
 		getV1ComponentName(componentApi.TrainingOperatorComponentName):     v2Status.Components.TrainingOperator.ManagementState == operatorv1.Managed,
 		getV1ComponentName(componentApi.FeastOperatorComponentName):        v2Status.Components.FeastOperator.ManagementState == operatorv1.Managed,
-		getV1ComponentName(componentApi.LlamaStackOperatorComponentName):   v2Status.Components.LlamaStackOperator.ManagementState == operatorv1.Managed,
+		getV1ComponentName(componentApi.LlamaStackOperatorComponentName):   v2Status.Components.OGX.ManagementState == operatorv1.Managed,
 		getV1ComponentName(componentApi.WorkbenchesComponentName):          v2Status.Components.Workbenches.ManagementState == operatorv1.Managed,
 	}
 }
@@ -121,12 +122,14 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 					ManagementState: operatorv1.Removed,
 				},
 			},
-			FeastOperator:      c.Spec.Components.FeastOperator,
-			LlamaStackOperator: c.Spec.Components.LlamaStackOperator,
-			OGX: componentApi.DSCOGX{
+			FeastOperator: c.Spec.Components.FeastOperator,
+			LlamaStackOperator: componentApi.DSCLlamaStackOperator{
 				ManagementSpec: common.ManagementSpec{
 					ManagementState: operatorv1.Removed,
 				},
+			},
+			OGX: componentApi.DSCOGX{
+				ManagementSpec: c.Spec.Components.LlamaStackOperator.ManagementSpec,
 			},
 			MLflowOperator: componentApi.DSCMLflowOperator{
 				ManagementSpec: common.ManagementSpec{
@@ -166,12 +169,14 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 					ManagementState: operatorv1.Removed,
 				},
 			},
-			FeastOperator:      c.Status.Components.FeastOperator,
-			LlamaStackOperator: c.Status.Components.LlamaStackOperator,
-			OGX: componentApi.DSCOGXStatus{
+			FeastOperator: c.Status.Components.FeastOperator,
+			LlamaStackOperator: componentApi.DSCLlamaStackOperatorStatus{
 				ManagementSpec: common.ManagementSpec{
 					ManagementState: operatorv1.Removed,
 				},
+			},
+			OGX: componentApi.DSCOGXStatus{
+				ManagementSpec: c.Status.Components.LlamaStackOperator.ManagementSpec,
 			},
 			MLflowOperator: componentApi.DSCMLflowOperatorStatus{
 				ManagementSpec: common.ManagementSpec{
@@ -213,8 +218,10 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 			TrustyAI:           src.Spec.Components.TrustyAI,
 			ModelRegistry:      src.Spec.Components.ModelRegistry,
 			TrainingOperator:   src.Spec.Components.TrainingOperator,
-			FeastOperator:      src.Spec.Components.FeastOperator,
-			LlamaStackOperator: src.Spec.Components.LlamaStackOperator,
+			FeastOperator: src.Spec.Components.FeastOperator,
+			LlamaStackOperator: componentApi.DSCLlamaStackOperator{
+				ManagementSpec: src.Spec.Components.OGX.ManagementSpec,
+			},
 		},
 	}
 
@@ -240,8 +247,10 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 			TrustyAI:             src.Status.Components.TrustyAI,
 			ModelRegistry:        src.Status.Components.ModelRegistry,
 			TrainingOperator:     src.Status.Components.TrainingOperator,
-			FeastOperator:        src.Status.Components.FeastOperator,
-			LlamaStackOperator:   src.Status.Components.LlamaStackOperator,
+			FeastOperator: src.Status.Components.FeastOperator,
+			LlamaStackOperator: componentApi.DSCLlamaStackOperatorStatus{
+				ManagementSpec: src.Status.Components.OGX.ManagementSpec,
+			},
 		},
 		Release: src.Status.Release,
 	}
