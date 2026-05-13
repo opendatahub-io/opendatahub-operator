@@ -15,6 +15,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	modelsasservicectrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelsasservice"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -124,6 +125,13 @@ func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest)
 
 	if err != nil {
 		return err
+	}
+
+	if cr.DefaultRegistry().IsComponentEnabled(componentApi.ModelsAsServiceComponentName, instance) {
+		// maas-controller resources (CRDs, RBAC, Deployment); Tenant/platform reconcile stays in maas-controller.
+		if err := modelsasservicectrl.AppendOperatorInstallManifests(ctx, rr); err != nil {
+			return err
+		}
 	}
 
 	if err := deleteMaaSDeploymentIfDisabled(ctx, rr, instance, cr.DefaultRegistry()); err != nil {

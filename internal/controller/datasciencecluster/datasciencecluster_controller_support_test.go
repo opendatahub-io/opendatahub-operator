@@ -241,6 +241,18 @@ func TestDeleteMaaSDeploymentIfDisabled(t *testing.T) {
 		g.Expect(depList.Items).To(BeEmpty())
 	})
 
+	t.Run("no-op when MaaS is enabled", func(t *testing.T) {
+		g := NewWithT(t)
+		dsc := newDSCWithMaaS(operatorv1.Managed)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsci, dsc))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		reg := newRegistry(&mockHandler{name: componentApi.ModelsAsServiceComponentName, enabled: true})
+		err = deleteMaaSDeploymentIfDisabled(t.Context(), &types.ReconciliationRequest{Client: cli, Instance: dsc}, dsc, reg)
+		g.Expect(err).ShouldNot(HaveOccurred())
+	})
+
 	t.Run("no-op when Deployment is already gone", func(t *testing.T) {
 		g := NewWithT(t)
 		dsc := newDSCWithMaaS(operatorv1.Removed)
