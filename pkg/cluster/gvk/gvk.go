@@ -299,10 +299,10 @@ var (
 		Kind:    componentApi.KserveKind,
 	}
 
-	LlamaStackOperator = schema.GroupVersionKind{
+	OGX = schema.GroupVersionKind{
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,
-		Kind:    componentApi.LlamaStackOperatorKind,
+		Kind:    componentApi.OGXKind,
 	}
 
 	Kueue = schema.GroupVersionKind{
