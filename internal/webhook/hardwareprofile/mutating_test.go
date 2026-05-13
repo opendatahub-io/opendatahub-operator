@@ -973,18 +973,17 @@ func TestHardwareProfile_SupportsCrossNamespaceAccess_Notebook(t *testing.T) {
 }
 
 // TestHardwareProfile_ResourceLimits_Notebook tests that hardware profiles properly apply limits:
-// - Standard resources (CPU, memory) get limits from MaxCount.
-// - Extended resources (GPU) get limits equal to requests.
+// - All resources (standard and extended) get limits equal to DefaultCount (same as requests).
+// - This ensures Guaranteed QoS class regardless of workload creation path.
 func TestHardwareProfile_ResourceLimits_Notebook(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 	sch, ctx := setupTestEnvironment(t)
 
-	// Create hardware profile with CPU and memory identifiers that include MaxCount
 	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
 		envtestutil.WithCPUIdentifier("1", "2", "4"),                   // min: 1, default: 2, max: 4
 		envtestutil.WithMemoryIdentifier("1Gi", "2Gi", "4Gi"),          // min: 1Gi, default: 2Gi, max: 4Gi
-		envtestutil.WithGPUIdentifier("nvidia.com/gpu", "1", "1", "1"), // min: 1, default: 1, max: 1 (GPU must have equal values)
+		envtestutil.WithGPUIdentifier("nvidia.com/gpu", "1", "1", "1"), // min: 1, default: 1, max: 1
 	)
 
 	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
@@ -1010,7 +1009,6 @@ func TestHardwareProfile_ResourceLimits_Notebook(t *testing.T) {
 	g.Expect(resp.Allowed).Should(BeTrue())
 	g.Expect(resp.Patches).Should(Not(BeEmpty()))
 
-	// Verify that resources were applied with correct values
 	hasResourcesPatch := false
 	for _, patch := range resp.Patches {
 		if strings.Contains(patch.Path, "/resources") {
@@ -1031,15 +1029,13 @@ func TestHardwareProfile_ResourceLimits_Notebook(t *testing.T) {
 				g.Expect(requests["memory"]).Should(Equal("2Gi"), "Memory request should be DefaultCount")
 				g.Expect(requests["nvidia.com/gpu"]).Should(Equal("1"), "GPU request should be DefaultCount")
 
-				// Verify limits:
-				// - CPU/Memory limits should come from MaxCount
-				// - GPU limits should equal GPU requests (extended resource requirement)
+				// Verify limits are also set to DefaultCount (not MaxCount) for Guaranteed QoS
 				g.Expect(limits).Should(HaveKey("cpu"))
 				g.Expect(limits).Should(HaveKey("memory"))
 				g.Expect(limits).Should(HaveKey("nvidia.com/gpu"))
-				g.Expect(limits["cpu"]).Should(Equal("4"), "CPU limit should be MaxCount")
-				g.Expect(limits["memory"]).Should(Equal("4Gi"), "Memory limit should be MaxCount")
-				g.Expect(limits["nvidia.com/gpu"]).Should(Equal("1"), "GPU limit should equal GPU request (extended resource)")
+				g.Expect(limits["cpu"]).Should(Equal("2"), "CPU limit should be DefaultCount for Guaranteed QoS")
+				g.Expect(limits["memory"]).Should(Equal("2Gi"), "Memory limit should be DefaultCount for Guaranteed QoS")
+				g.Expect(limits["nvidia.com/gpu"]).Should(Equal("1"), "GPU limit should equal request")
 			}
 			break
 		}
@@ -1298,18 +1294,17 @@ func TestHardwareProfile_SupportsCrossNamespaceAccess_InferenceService(t *testin
 	g.Expect(resp.Patches).Should(Not(BeEmpty()))
 }
 
-// TestHardwareProfile_ResourceLimits_InferenceService tests that extended resources (GPUs) get limits equal to requests,
-// while standard resources (CPU, memory) without MaxCount don't get limits.
+// TestHardwareProfile_ResourceLimits_InferenceService tests that all resources get limits equal to
+// DefaultCount (same as requests), ensuring Guaranteed QoS regardless of MaxCount presence.
 func TestHardwareProfile_ResourceLimits_InferenceService(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 	sch, ctx := setupTestEnvironment(t)
 
-	// Create hardware profile with CPU and memory identifiers without MaxCount, and GPU (extended resource)
 	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
 		envtestutil.WithCPUIdentifier("1", "2"),                // min: 1, default: 2 (no max)
 		envtestutil.WithMemoryIdentifier("1Gi", "2Gi"),         // min: 1Gi, default: 2Gi (no max)
-		envtestutil.WithGPUIdentifier("amd.com/gpu", "1", "1"), // min: 1, default: 1 (GPU must have equal values)
+		envtestutil.WithGPUIdentifier("amd.com/gpu", "1", "1"), // min: 1, default: 1
 	)
 
 	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
@@ -1335,21 +1330,19 @@ func TestHardwareProfile_ResourceLimits_InferenceService(t *testing.T) {
 	g.Expect(resp.Allowed).Should(BeTrue())
 	g.Expect(resp.Patches).Should(Not(BeEmpty()))
 
-	// Verify that resources were applied
 	hasResourcesPatch := false
 	for _, patch := range resp.Patches {
 		if strings.Contains(patch.Path, "/resources") {
 			hasResourcesPatch = true
 
-			// Check if the patch value contains requests and limits
 			if resourcesMap, ok := patch.Value.(map[string]any); ok {
 				requests, hasRequests := resourcesMap["requests"].(map[string]any)
 				limits, hasLimits := resourcesMap["limits"].(map[string]any)
 
 				g.Expect(hasRequests).Should(BeTrue(), "Resources patch should contain requests")
-				g.Expect(hasLimits).Should(BeTrue(), "Resources patch should contain limits for extended resources")
+				g.Expect(hasLimits).Should(BeTrue(), "Resources patch should contain limits")
 
-				// Verify requests contain all resources
+				// Verify requests contain all resources at DefaultCount
 				g.Expect(requests).Should(HaveKey("cpu"))
 				g.Expect(requests).Should(HaveKey("memory"))
 				g.Expect(requests).Should(HaveKey("amd.com/gpu"))
@@ -1357,11 +1350,13 @@ func TestHardwareProfile_ResourceLimits_InferenceService(t *testing.T) {
 				g.Expect(requests["memory"]).Should(Equal("2Gi"))
 				g.Expect(requests["amd.com/gpu"]).Should(Equal("1"))
 
-				// Verify limits: only GPU should have limits (extended resource), not CPU/memory (no MaxCount)
-				g.Expect(limits).Should(HaveKey("amd.com/gpu"), "Extended resource (GPU) should have limits")
+				// Verify limits equal requests (DefaultCount) for Guaranteed QoS
+				g.Expect(limits).Should(HaveKey("cpu"), "CPU should have limits for Guaranteed QoS")
+				g.Expect(limits["cpu"]).Should(Equal("2"), "CPU limit should equal DefaultCount")
+				g.Expect(limits).Should(HaveKey("memory"), "Memory should have limits for Guaranteed QoS")
+				g.Expect(limits["memory"]).Should(Equal("2Gi"), "Memory limit should equal DefaultCount")
+				g.Expect(limits).Should(HaveKey("amd.com/gpu"), "GPU should have limits")
 				g.Expect(limits["amd.com/gpu"]).Should(Equal("1"), "GPU limits should equal requests")
-				g.Expect(limits).ShouldNot(HaveKey("cpu"), "CPU without MaxCount should not have limits")
-				g.Expect(limits).ShouldNot(HaveKey("memory"), "Memory without MaxCount should not have limits")
 			}
 			break
 		}
@@ -1717,18 +1712,17 @@ func TestHardwareProfile_SupportsCrossNamespaceAccess_LLMInferenceService(t *tes
 	g.Expect(resp.Patches).Should(Not(BeEmpty()))
 }
 
-// TestHardwareProfile_ResourceLimits_LLMInferenceService tests that extended resources (GPUs) get limits equal to requests,
-// while standard resources (CPU, memory) without MaxCount don't get limits.
+// TestHardwareProfile_ResourceLimits_LLMInferenceService tests that all resources get limits equal to
+// DefaultCount (same as requests), ensuring Guaranteed QoS regardless of MaxCount presence.
 func TestHardwareProfile_ResourceLimits_LLMInferenceService(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 	sch, ctx := setupTestEnvironment(t)
 
-	// Create hardware profile with CPU and memory identifiers without MaxCount, and GPU (extended resource)
 	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
 		envtestutil.WithCPUIdentifier("1", "2"),                // min: 1, default: 2 (no max)
 		envtestutil.WithMemoryIdentifier("1Gi", "2Gi"),         // min: 1Gi, default: 2Gi (no max)
-		envtestutil.WithGPUIdentifier("amd.com/gpu", "1", "1"), // min: 1, default: 1 (GPU must have equal values)
+		envtestutil.WithGPUIdentifier("amd.com/gpu", "1", "1"), // min: 1, default: 1
 	)
 
 	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
@@ -1754,7 +1748,6 @@ func TestHardwareProfile_ResourceLimits_LLMInferenceService(t *testing.T) {
 	g.Expect(resp.Allowed).Should(BeTrue())
 	g.Expect(resp.Patches).Should(Not(BeEmpty()))
 
-	// Verify that resources were applied with correct values
 	hasResourcesPatch := false
 	for _, patch := range resp.Patches {
 		if strings.Contains(patch.Path, "/resources") {
@@ -1765,9 +1758,9 @@ func TestHardwareProfile_ResourceLimits_LLMInferenceService(t *testing.T) {
 				limits, hasLimits := resourcesMap["limits"].(map[string]any)
 
 				g.Expect(hasRequests).Should(BeTrue(), "Resources patch should contain requests")
-				g.Expect(hasLimits).Should(BeTrue(), "Resources patch should contain limits for extended resources")
+				g.Expect(hasLimits).Should(BeTrue(), "Resources patch should contain limits")
 
-				// Verify requests contain all resources
+				// Verify requests contain all resources at DefaultCount
 				g.Expect(requests).Should(HaveKey("cpu"))
 				g.Expect(requests).Should(HaveKey("memory"))
 				g.Expect(requests).Should(HaveKey("amd.com/gpu"))
@@ -1775,11 +1768,13 @@ func TestHardwareProfile_ResourceLimits_LLMInferenceService(t *testing.T) {
 				g.Expect(requests["memory"]).Should(Equal("2Gi"))
 				g.Expect(requests["amd.com/gpu"]).Should(Equal("1"))
 
-				// Verify limits: only GPU should have limits (extended resource), not CPU/memory (no MaxCount)
-				g.Expect(limits).Should(HaveKey("amd.com/gpu"), "Extended resource (GPU) should have limits")
+				// Verify limits equal requests (DefaultCount) for Guaranteed QoS
+				g.Expect(limits).Should(HaveKey("cpu"), "CPU should have limits for Guaranteed QoS")
+				g.Expect(limits["cpu"]).Should(Equal("2"), "CPU limit should equal DefaultCount")
+				g.Expect(limits).Should(HaveKey("memory"), "Memory should have limits for Guaranteed QoS")
+				g.Expect(limits["memory"]).Should(Equal("2Gi"), "Memory limit should equal DefaultCount")
+				g.Expect(limits).Should(HaveKey("amd.com/gpu"), "GPU should have limits")
 				g.Expect(limits["amd.com/gpu"]).Should(Equal("1"), "GPU limits should equal requests")
-				g.Expect(limits).ShouldNot(HaveKey("cpu"), "CPU without MaxCount should not have limits")
-				g.Expect(limits).ShouldNot(HaveKey("memory"), "Memory without MaxCount should not have limits")
 			}
 			break
 		}
@@ -1789,33 +1784,29 @@ func TestHardwareProfile_ResourceLimits_LLMInferenceService(t *testing.T) {
 }
 
 // TestHardwareProfile_MixedResourceLimits_Notebook tests comprehensive limits behavior:
-// - Standard resources with MaxCount get limits from MaxCount.
-// - Standard resources without MaxCount don't get limits.
-// - Extended resources always get limits equal to requests (regardless of MaxCount).
+// - All resources (standard and extended) get limits equal to DefaultCount (same as requests).
+// - MaxCount is only a UI-side validation ceiling and does not flow into pod resource specs.
 func TestHardwareProfile_MixedResourceLimits_Notebook(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 	sch, ctx := setupTestEnvironment(t)
 
-	// Create hardware profile with mixed resource types
 	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
 		envtestutil.WithCPUIdentifier("1", "4", "8"),                   // standard resource WITH MaxCount
 		envtestutil.WithMemoryIdentifier("2Gi", "8Gi", "16Gi"),         // standard resource WITH MaxCount
-		envtestutil.WithGPUIdentifier("nvidia.com/gpu", "2", "2", "4"), // extended resource (GPU must have equal values)
-		envtestutil.WithResourceIdentifiers(infrav1.HardwareIdentifier{ // another extended resource without MaxCount
+		envtestutil.WithGPUIdentifier("nvidia.com/gpu", "2", "2", "4"), // extended resource
+		envtestutil.WithResourceIdentifiers(infrav1.HardwareIdentifier{
 			DisplayName:  "Intel QAT",
 			Identifier:   "intel.com/qat",
 			MinCount:     intstr.FromString("1"),
 			DefaultCount: intstr.FromString("1"),
-			// No MaxCount
 			ResourceType: "Accelerator",
 		}),
-		envtestutil.WithResourceIdentifiers(infrav1.HardwareIdentifier{ // standard resource WITHOUT MaxCount (ResourceType omitted per API: CPU|Memory|Accelerator only)
+		envtestutil.WithResourceIdentifiers(infrav1.HardwareIdentifier{
 			DisplayName:  "Ephemeral Storage",
 			Identifier:   "ephemeral-storage",
 			MinCount:     intstr.FromString("1Gi"),
 			DefaultCount: intstr.FromString("10Gi"),
-			// No MaxCount; ResourceType left empty - valid enum values are CPU|Memory|Accelerator only
 		}),
 	)
 
@@ -1842,7 +1833,6 @@ func TestHardwareProfile_MixedResourceLimits_Notebook(t *testing.T) {
 	g.Expect(resp.Allowed).Should(BeTrue())
 	g.Expect(resp.Patches).Should(Not(BeEmpty()))
 
-	// Verify comprehensive limits behavior
 	hasResourcesPatch := false
 	for _, patch := range resp.Patches {
 		if strings.Contains(patch.Path, "/resources") {
@@ -1862,26 +1852,27 @@ func TestHardwareProfile_MixedResourceLimits_Notebook(t *testing.T) {
 				g.Expect(requests["intel.com/qat"]).Should(Equal("1"), "QAT request = DefaultCount")
 				g.Expect(requests["ephemeral-storage"]).Should(Equal("10Gi"), "Ephemeral storage request = DefaultCount")
 
-				// ========== Verify Limits ==========
+				// ========== Verify Limits (all should equal DefaultCount for Guaranteed QoS) ==========
 
-				// Standard resources WITH MaxCount → limits = MaxCount
-				g.Expect(limits).Should(HaveKey("cpu"), "CPU with MaxCount should have limits")
-				g.Expect(limits["cpu"]).Should(Equal("8"), "CPU limit should equal MaxCount (8)")
-				g.Expect(limits).Should(HaveKey("memory"), "Memory with MaxCount should have limits")
-				g.Expect(limits["memory"]).Should(Equal("16Gi"), "Memory limit should equal MaxCount (16Gi)")
+				// Standard resources get limits = DefaultCount (MaxCount is UI-only)
+				g.Expect(limits).Should(HaveKey("cpu"), "CPU should have limits")
+				g.Expect(limits["cpu"]).Should(Equal("4"), "CPU limit should equal DefaultCount (4), not MaxCount")
+				g.Expect(limits).Should(HaveKey("memory"), "Memory should have limits")
+				g.Expect(limits["memory"]).Should(Equal("8Gi"), "Memory limit should equal DefaultCount (8Gi), not MaxCount")
 
-				// Standard resources WITHOUT MaxCount → no limits
-				g.Expect(limits).ShouldNot(HaveKey("ephemeral-storage"),
-					"Ephemeral-storage without MaxCount should NOT have limits")
+				g.Expect(limits).Should(HaveKey("ephemeral-storage"),
+					"Ephemeral-storage should have limits for Guaranteed QoS")
+				g.Expect(limits["ephemeral-storage"]).Should(Equal("10Gi"),
+					"Ephemeral-storage limit should equal DefaultCount (10Gi)")
 
-				// Extended resources → limits = requests (regardless of MaxCount)
+				// Extended resources get limits = requests
 				g.Expect(limits).Should(HaveKey("nvidia.com/gpu"),
 					"GPU (extended resource) should have limits")
 				g.Expect(limits["nvidia.com/gpu"]).Should(Equal("2"),
-					"GPU limit should equal request (2), NOT MaxCount (4)")
+					"GPU limit should equal request (2)")
 
 				g.Expect(limits).Should(HaveKey("intel.com/qat"),
-					"QAT (extended resource) should have limits even without MaxCount")
+					"QAT (extended resource) should have limits")
 				g.Expect(limits["intel.com/qat"]).Should(Equal("1"),
 					"QAT limit should equal request (1)")
 			}
