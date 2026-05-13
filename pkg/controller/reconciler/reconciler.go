@@ -48,6 +48,17 @@ func getManifestsBasePath(mgr manager.Manager) string {
 	return ""
 }
 
+type chartsBasePathProvider interface {
+	GetChartsBasePath() string
+}
+
+func getChartsBasePath(mgr manager.Manager) string {
+	if p, ok := mgr.(chartsBasePathProvider); ok {
+		return p.GetChartsBasePath()
+	}
+	return ""
+}
+
 type ReconcilerOpt func(*Reconciler)
 
 func WithConditionsManagerFactory(happy string, dependents ...string) ReconcilerOpt {
@@ -91,6 +102,7 @@ type Reconciler struct {
 	Recorder          events.EventRecorder
 	Release           common.Release
 	ManifestsBasePath string
+	ChartsBasePath    string
 
 	name                        string
 	preConditions               []precondition.PreCondition
@@ -120,6 +132,7 @@ func NewReconciler[T common.PlatformObject](mgr manager.Manager, name string, ob
 		Recorder:          mgr.GetEventRecorder(name),
 		Release:           cluster.GetRelease(),
 		ManifestsBasePath: getManifestsBasePath(mgr),
+		ChartsBasePath:    getChartsBasePath(mgr),
 
 		name: name,
 		instanceFactory: func() (common.PlatformObject, error) {
@@ -299,6 +312,7 @@ func (r *Reconciler) delete(ctx context.Context, res common.PlatformObject) erro
 		Conditions:        r.conditionsManagerFactory(res),
 		Release:           r.Release,
 		ManifestsBasePath: r.ManifestsBasePath,
+		ChartsBasePath:    r.ChartsBasePath,
 
 		Manifests: make([]types.ManifestInfo, 0),
 	}
@@ -338,6 +352,7 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error
 		Conditions:        r.conditionsManagerFactory(res),
 		Release:           r.Release,
 		ManifestsBasePath: r.ManifestsBasePath,
+		ChartsBasePath:    r.ChartsBasePath,
 
 		Manifests: make([]types.ManifestInfo, 0),
 	}
