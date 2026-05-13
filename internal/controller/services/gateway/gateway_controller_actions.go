@@ -196,6 +196,9 @@ func createMaaSGateway(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 func isMaaSEnabled(ctx context.Context, cli client.Client) bool {
 	dsc, err := cluster.GetDSC(ctx, cli)
 	if err != nil {
+		if !k8serr.IsNotFound(err) {
+			logf.FromContext(ctx).Error(err, "Failed to check DSC for MaaS enablement, treating as disabled")
+		}
 		return false
 	}
 

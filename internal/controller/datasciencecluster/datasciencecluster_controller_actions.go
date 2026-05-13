@@ -175,11 +175,11 @@ func deleteMaaSDeploymentIfDisabled(
 	// LifecycleReconciler's CleanupFinalizer will drain Tenants, RBAC, and CRDs
 	// before the Deployment object is removed.
 	if dep.DeletionTimestamp.IsZero() {
+		log.Info("Requesting maas-controller Deployment deletion; CleanupFinalizer will handle teardown")
 		if err := rr.Client.Delete(ctx, dep); err != nil && !k8serr.IsNotFound(err) {
 			return fmt.Errorf("delete maas-controller Deployment: %w", err)
 		}
 	}
-	log.Info("maas-controller Deployment is terminating; waiting for CleanupFinalizer to complete")
 	return nil
 }
 
