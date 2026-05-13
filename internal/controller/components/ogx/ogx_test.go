@@ -1,5 +1,5 @@
 //nolint:testpackage
-package llamastackoperator
+package ogx
 
 import (
 	"encoding/json"
@@ -26,7 +26,7 @@ func TestGetName(t *testing.T) {
 	handler := &componentHandler{}
 
 	name := handler.GetName()
-	g.Expect(name).Should(Equal(componentApi.LlamaStackOperatorComponentName))
+	g.Expect(name).Should(Equal(componentApi.OGXComponentName))
 }
 
 func TestIsEnabled(t *testing.T) {
@@ -45,7 +45,7 @@ func TestIsEnabled(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			dsc := createDSCWithLlamaStackOperator(tc.state)
+			dsc := createDSCWithOGX(tc.state)
 			if tc.shouldEnabled {
 				g.Expect(handler.IsEnabled(dsc)).Should(BeTrue())
 			} else {
@@ -62,8 +62,8 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
-		dsc := createDSCWithLlamaStackOperator(operatorv1.Managed)
-		cr := createLlamaStackOperatorCR(true)
+		dsc := createDSCWithOGX(operatorv1.Managed)
+		cr := createOGXCR(true)
 		now := metav1.Now()
 		cr.SetDeletionTimestamp(&now)
 		cr.SetFinalizers([]string{"test-finalizer"})
@@ -87,12 +87,12 @@ func TestUpdateDSCStatus(t *testing.T) {
 		)))
 	})
 
-	t.Run("should handle enabled component with ready LlamaStackOperator CR", func(t *testing.T) {
+	t.Run("should handle enabled component with ready OGX CR", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
-		dsc := createDSCWithLlamaStackOperator(operatorv1.Managed)
-		cr := createLlamaStackOperatorCR(true)
+		dsc := createDSCWithOGX(operatorv1.Managed)
+		cr := createOGXCR(true)
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, cr))
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -107,7 +107,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g.Expect(cs).Should(Equal(metav1.ConditionTrue))
 
 		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
-			jq.Match(`.status.components.llamastackoperator.managementState == "%s"`, operatorv1.Managed),
+			jq.Match(`.status.components.ogx.managementState == "%s"`, operatorv1.Managed),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionTrue),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, status.ReadyReason),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "Component is ready"`, ReadyConditionType),
@@ -118,7 +118,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
-		dsc := createDSCWithLlamaStackOperator(operatorv1.Removed)
+		dsc := createDSCWithOGX(operatorv1.Removed)
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -133,28 +133,91 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g.Expect(cs).Should(Equal(metav1.ConditionUnknown))
 
 		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
-			jq.Match(`.status.components.llamastackoperator.managementState == "%s"`, operatorv1.Removed),
+			jq.Match(`.status.components.ogx.managementState == "%s"`, operatorv1.Removed),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, operatorv1.Removed),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .severity == "%s"`, ReadyConditionType, common.ConditionSeverityInfo),
 		)))
 	})
+
+	t.Run("should include deprecation warning when disabled and LlamaStackOperator is Managed", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithOGX(operatorv1.Removed)
+		dsc.Spec.Components.LlamaStackOperator.ManagementState = operatorv1.Managed
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(cs).Should(Equal(metav1.ConditionUnknown))
+
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | test("LlamaStackOperator is set to Managed")`, ReadyConditionType),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | test("deprecated")`, ReadyConditionType),
+		)))
+	})
 }
 
-func createDSCWithLlamaStackOperator(managementState operatorv1.ManagementState) *dscv2.DataScienceCluster {
+func TestCheckPreConditions(t *testing.T) {
+	t.Run("should return error when LlamaStackOperator is Managed", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithOGX(operatorv1.Managed)
+		dsc.Spec.Components.LlamaStackOperator.ManagementState = operatorv1.Managed
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = checkPreConditions(ctx, &types.ReconciliationRequest{
+			Client: cli,
+		})
+
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(err.Error()).Should(ContainSubstring("LlamaStackOperator is set to Managed"))
+		g.Expect(err.Error()).Should(ContainSubstring("deprecated"))
+	})
+
+	t.Run("should succeed when LlamaStackOperator is Removed", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithOGX(operatorv1.Managed)
+		dsc.Spec.Components.LlamaStackOperator.ManagementState = operatorv1.Removed
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = checkPreConditions(ctx, &types.ReconciliationRequest{
+			Client: cli,
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+	})
+}
+
+func createDSCWithOGX(managementState operatorv1.ManagementState) *dscv2.DataScienceCluster {
 	dsc := dscv2.DataScienceCluster{}
 	dsc.SetGroupVersionKind(gvk.DataScienceCluster)
 	dsc.SetName("test-dsc")
 
-	dsc.Spec.Components.LlamaStackOperator.ManagementState = managementState
+	dsc.Spec.Components.OGX.ManagementState = managementState
 
 	return &dsc
 }
 
-func createLlamaStackOperatorCR(ready bool) *componentApi.LlamaStackOperator {
-	c := componentApi.LlamaStackOperator{}
-	c.SetGroupVersionKind(gvk.LlamaStackOperator)
-	c.SetName(componentApi.LlamaStackOperatorInstanceName)
+func createOGXCR(ready bool) *componentApi.OGX {
+	c := componentApi.OGX{}
+	c.SetGroupVersionKind(gvk.OGX)
+	c.SetName(componentApi.OGXInstanceName)
 
 	if ready {
 		c.Status.Conditions = []common.Condition{{

@@ -21,11 +21,11 @@ Package v1 contains API Schema definitions for the components v1 API group
 - [FeastOperator](#feastoperator)
 - [Kserve](#kserve)
 - [Kueue](#kueue)
-- [LlamaStackOperator](#llamastackoperator)
 - [MLflowOperator](#mlflowoperator)
 - [ModelController](#modelcontroller)
 - [ModelRegistry](#modelregistry)
 - [ModelsAsService](#modelsasservice)
+- [OGX](#ogx)
 - [Ray](#ray)
 - [SparkOperator](#sparkoperator)
 - [Trainer](#trainer)
@@ -191,6 +191,7 @@ _Appears in:_
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration |  |  |
 | `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Configures and enables Models as a Service integration |  |  |
 | `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration |  |  |
+| `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
 
 
 #### DSCKserveStatus
@@ -364,6 +365,38 @@ _Appears in:_
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  | Removed | Enum: [Managed Removed] <br /> |
 
 
+
+
+#### DSCOGX
+
+
+
+DSCOGX contains all the configuration exposed in DSC instance for OGX component
+
+
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
+#### DSCOGXStatus
+
+
+
+DSCOGXStatus struct holds the status for the OGX component exposed in the DSC
+
+
+
+_Appears in:_
+- [ComponentsStatus](#componentsstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
 #### DSCRay
@@ -908,6 +941,7 @@ _Appears in:_
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration |  |  |
 | `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Configures and enables Models as a Service integration |  |  |
 | `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration |  |  |
+| `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
 
 
 #### KserveCommonStatus
@@ -944,6 +978,7 @@ _Appears in:_
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration |  |  |
 | `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Configures and enables Models as a Service integration |  |  |
 | `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration |  |  |
+| `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
 
 
 #### KserveStatus
@@ -1092,27 +1127,6 @@ _Appears in:_
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
-#### LlamaStackOperator
-
-
-
-LlamaStackOperator is the Schema for the LlamaStackOperator API
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `LlamaStackOperator` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[LlamaStackOperatorSpec](#llamastackoperatorspec)_ |  |  |  |
-| `status` _[LlamaStackOperatorStatus](#llamastackoperatorstatus)_ |  |  |  |
-
-
 #### LlamaStackOperatorCommonSpec
 
 
@@ -1123,7 +1137,6 @@ LlamaStackOperator is the Schema for the LlamaStackOperator API
 
 _Appears in:_
 - [DSCLlamaStackOperator](#dscllamastackoperator)
-- [LlamaStackOperatorSpec](#llamastackoperatorspec)
 
 
 
@@ -1144,36 +1157,6 @@ _Appears in:_
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
-#### LlamaStackOperatorSpec
-
-
-
-LlamaStackOperatorSpec defines the desired state of LlamaStackOperator
-
-
-
-_Appears in:_
-- [LlamaStackOperator](#llamastackoperator)
-
-
-
-#### LlamaStackOperatorStatus
-
-
-
-LlamaStackOperatorStatus defines the observed state of LlamaStackOperator
-
-
-
-_Appears in:_
-- [LlamaStackOperator](#llamastackoperator)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### MLflowOperator
@@ -1279,6 +1262,27 @@ _Appears in:_
 | `captureUser` _boolean_ | CaptureUser enables the user label on metrics.<br />Disabled by default for privacy/GDPR compliance. | false | Optional: \{\} <br /> |
 | `captureGroup` _boolean_ | CaptureGroup enables the group label on metrics for team-based chargeback.<br />Note: This is a high-cardinality dimension and is disabled by default. | false | Optional: \{\} <br /> |
 | `captureModelUsage` _boolean_ | CaptureModelUsage enables the model label on metrics. | true | Optional: \{\} <br /> |
+
+
+#### ModelCacheSpec
+
+
+
+ModelCacheSpec enables Model Cache integration
+
+
+
+_Appears in:_
+- [DSCKserve](#dsckserve)
+- [KserveCommonSpec](#kservecommonspec)
+- [KserveSpec](#kservespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  | Removed | Enum: [Managed Removed] <br /> |
+| `cacheSize` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | CacheSize specifies the storage capacity for the model cache PersistentVolume<br />and PersistentVolumeClaim (e.g., "100Gi", "500Gi", "1Ti"). |  |  |
+| `nodeNames` _string array_ | NodeNames is a list of specific node names to enable model caching on.<br />The operator will label these nodes with kserve/localmodel=worker.<br />Mutually exclusive with NodeSelector. |  | MinItems: 1 <br />Optional: \{\} <br /> |
+| `nodeSelector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#labelselector-v1-meta)_ | NodeSelector is a label selector that identifies nodes for model caching<br />using pre-existing node labels (e.g., nvidia.com/gpu).<br />The operator will label matching nodes with kserve/localmodel=worker.<br />Mutually exclusive with NodeNames. |  | Optional: \{\} <br /> |
 
 
 #### ModelController
@@ -1542,6 +1546,90 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  | Managed | Enum: [Managed Removed] <br /> |
 | `airGapped` _boolean_ | When true, NIM integration assumes an air-gapped cluster. External API calls<br />and the NIM model list ConfigMap creation are skipped, while status conditions<br />are marked successful with an air-gapped message. | false | Optional: \{\} <br /> |
+
+
+#### OGX
+
+
+
+OGX is the Schema for the OGX API
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
+| `kind` _string_ | `OGX` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[OGXSpec](#ogxspec)_ |  |  |  |
+| `status` _[OGXStatus](#ogxstatus)_ |  |  |  |
+
+
+#### OGXCommonSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [DSCOGX](#dscogx)
+- [OGXSpec](#ogxspec)
+
+
+
+#### OGXCommonStatus
+
+
+
+OGXCommonStatus defines the shared observed state of OGX
+
+
+
+_Appears in:_
+- [DSCOGXStatus](#dscogxstatus)
+- [OGXStatus](#ogxstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
+
+
+#### OGXSpec
+
+
+
+OGXSpec defines the desired state of OGX
+
+
+
+_Appears in:_
+- [OGX](#ogx)
+
+
+
+#### OGXStatus
+
+
+
+OGXStatus defines the observed state of OGX
+
+
+
+_Appears in:_
+- [OGX](#ogx)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `conditions` _[Condition](#condition) array_ |  |  |  |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### RawServiceConfig
@@ -2354,7 +2442,8 @@ _Appears in:_
 | `modelregistry` _[DSCModelRegistry](#dscmodelregistry)_ | ModelRegistry component configuration. |  |  |
 | `trainingoperator` _[DSCTrainingOperator](#dsctrainingoperator)_ | Training Operator component configuration. |  |  |
 | `feastoperator` _[DSCFeastOperator](#dscfeastoperator)_ | Feast Operator component configuration. |  |  |
-| `llamastackoperator` _[DSCLlamaStackOperator](#dscllamastackoperator)_ | LlamaStack Operator component configuration. |  |  |
+| `llamastackoperator` _[DSCLlamaStackOperator](#dscllamastackoperator)_ | LlamaStack Operator component configuration.<br />Deprecated: Use OGX instead. This field is kept for backward compatibility only. |  |  |
+| `ogx` _[DSCOGX](#dscogx)_ | OGX component configuration. |  |  |
 | `mlflowoperator` _[DSCMLflowOperator](#dscmlflowoperator)_ | MLflow Operator component configuration. |  |  |
 | `trainer` _[DSCTrainer](#dsctrainer)_ | Trainer component configuration. |  |  |
 | `sparkoperator` _[DSCSparkOperator](#dscsparkoperator)_ | SparkOperator component configuration. |  |  |
@@ -2383,7 +2472,8 @@ _Appears in:_
 | `modelregistry` _[DSCModelRegistryStatus](#dscmodelregistrystatus)_ | ModelRegistry component status. |  |  |
 | `trainingoperator` _[DSCTrainingOperatorStatus](#dsctrainingoperatorstatus)_ | Training Operator component status. |  |  |
 | `feastoperator` _[DSCFeastOperatorStatus](#dscfeastoperatorstatus)_ | Feast Operator component status. |  |  |
-| `llamastackoperator` _[DSCLlamaStackOperatorStatus](#dscllamastackoperatorstatus)_ | LlamaStack Operator component status. |  |  |
+| `llamastackoperator` _[DSCLlamaStackOperatorStatus](#dscllamastackoperatorstatus)_ | LlamaStack Operator component status.<br />Deprecated: Use OGX instead. This field is kept for backward compatibility only. |  |  |
+| `ogx` _[DSCOGXStatus](#dscogxstatus)_ | OGX component status. |  |  |
 | `mlflowoperator` _[DSCMLflowOperatorStatus](#dscmlflowoperatorstatus)_ | MLflow Operator component status. |  |  |
 | `trainer` _[DSCTrainerStatus](#dsctrainerstatus)_ | Trainer component status. |  |  |
 | `sparkoperator` _[DSCSparkOperatorStatus](#dscsparkoperatorstatus)_ | SparkOperator component status. |  |  |

@@ -1,4 +1,4 @@
-package llamastackoperator
+package ogx
 
 import (
 	"context"
@@ -24,7 +24,7 @@ import (
 )
 
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	_, err := reconciler.ReconcilerFor(mgr, &componentApi.LlamaStackOperator{}).
+	_, err := reconciler.ReconcilerFor(mgr, &componentApi.OGX{}).
 		// customized Owns() for Component with new predicates
 		Owns(&corev1.ConfigMap{}).
 		Owns(&rbacv1.RoleBinding{}).
@@ -38,12 +38,13 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Watches(
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(
-				handlers.ToNamed(componentApi.LlamaStackOperatorInstanceName)),
+				handlers.ToNamed(componentApi.OGXInstanceName)),
 			reconciler.WithPredicates(
 				component.ForLabel(labels.ODH.Component(ComponentName), labels.True)),
 		).
 		// Add LlamaStackOperator-specific actions
 		WithAction(initialize).
+		WithAction(checkPreConditions).
 		WithAction(releases.NewAction()).
 		WithAction(kustomize.NewAction(
 			kustomize.WithLabel(labels.ODH.Component(ComponentName), labels.True),

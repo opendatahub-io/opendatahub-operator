@@ -24,7 +24,7 @@ spec:
           value: 'true'
         - name: RHAI_DISABLE_KUEUE_COMPONENT
           value: 'true'
-        - name: RHAI_DISABLE_LLAMASTACKOPERATOR_COMPONENT
+        - name: RHAI_DISABLE_OGX_COMPONENT
           value: 'true'
         - name: RHAI_DISABLE_MLFLOWOPERATOR_COMPONENT
           value: 'true'

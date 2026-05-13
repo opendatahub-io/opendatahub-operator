@@ -8,17 +8,17 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 )
 
-type LlamaStackOperatorTestCtx struct {
+type OGXTestCtx struct {
 	*ComponentTestCtx
 }
 
-func llamastackOperatorTestSuite(t *testing.T) {
+func ogxTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(t, &componentApi.LlamaStackOperator{})
+	ct, err := NewComponentTestCtx(t, &componentApi.OGX{})
 	require.NoError(t, err)
 
-	componentCtx := LlamaStackOperatorTestCtx{
+	componentCtx := OGXTestCtx{
 		ComponentTestCtx: ct,
 	}
 
