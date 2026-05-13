@@ -95,8 +95,8 @@ func baseManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInfo 
 // buildMaasOperatorInstallManifests renders the maas-controller kustomize bundle (CRDs, RBAC,
 // Deployment, maas-parameters ConfigMap). Used by the ModelsAsService component reconciler so
 // workloads get controller ownership from the ModelsAsService CR; Tenant CR lifecycle remains
-// in maas-controller. Cluster-scoped maas Config is created by maas-controller at runtime, not
-// from this bundle. Do not call from the DataScienceCluster reconciler: deploy would set owner
+// in maas-controller. Cluster-scoped maas Config is created by maas-controller at runtime; the
+// ModelsAsService reconciler sets controller ownership on that Config once it exists. Do not call from the DataScienceCluster reconciler: deploy would set owner
 // references on the DSC instance instead of the ModelsAsService CR.
 func buildMaasOperatorInstallManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest) ([]unstructured.Unstructured, error) {
 	root := rr.ManifestsBasePath

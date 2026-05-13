@@ -17,7 +17,8 @@ limitations under the License.
 // ModelsAsService component reconciler: .Owns() must cover namespaced GVKs the operator applies
 // for this component (see models-as-a-service maas-controller install bundle). CRDs use a
 // separate deploy path. Cluster-scoped maas Config is created by maas-controller at runtime;
-// OwnsGVK keeps GC and status in sync for that object once it exists.
+// ensureMaasClusterConfigControllerRef then sets the ModelsAsService CR as controller owner so
+// OwnsGVK(MaasConfig) watches and GC apply to that object.
 package modelsasservice
 
 import (
@@ -75,6 +76,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
+		WithAction(ensureMaasClusterConfigControllerRef).
 		WithAction(deployments.NewAction(
 			deployments.WithoutAutomaticPartOfDefault(),
 			deployments.WithSelectorLabel(labels.ODH.Component(componentApi.ModelsAsServiceComponentName), labels.True),
