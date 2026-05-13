@@ -21,6 +21,7 @@ import (
 	"slices"
 	"strings"
 
+	securityv1 "github.com/openshift/api/security/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -70,7 +71,27 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&admissionregistrationv1.ValidatingWebhookConfiguration{}).
 		Owns(&admissionregistrationv1.ValidatingAdmissionPolicy{}).
 		Owns(&admissionregistrationv1.ValidatingAdmissionPolicyBinding{}).
+		Owns(&appsv1.DaemonSet{}).
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(predicates.DefaultDeploymentPredicate)).
+		Owns(&securityv1.SecurityContextConstraints{}).
+		Owns(&corev1.PersistentVolume{}).
+		Owns(&corev1.PersistentVolumeClaim{}).
+		OwnsGVK(gvk.LocalModelNodeGroup, reconciler.Dynamic(reconciler.CrdExists(gvk.LocalModelNodeGroup))).
+
+		// Watch Nodes so that newly added or relabeled nodes trigger
+		// reconciliation of labelModelCacheNodes.
+		Watches(
+			&corev1.Node{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.KserveInstanceName),
+			),
+			reconciler.WithPredicates(
+				predicate.Or(
+					predicate.GenerationChangedPredicate{},
+					predicate.LabelChangedPredicate{},
+				),
+			),
+		).
 
 		// The ovms template gets a new resourceVersion periodically without any other
 		// changes. The compareHashPredicate ensures that we don't needlessly enqueue
@@ -163,6 +184,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			deploy.WithCache(),
 			withApplyOrder(),
 		)).
+		WithAction(reconcileModelCache).
 		WithAction(deployments.NewAction()).
 		// must be the final action
 		WithAction(gc.NewAction(gc.WithUnremovables(gvk.LLMInferenceServiceConfigV1Alpha1, gvk.LLMInferenceServiceConfigV1Alpha2))).
