@@ -19,7 +19,8 @@ limitations under the License.
 // https://github.com/opendatahub-io/models-as-a-service/tree/main/deployment/base/maas-controller/default
 // which pulls in ../crd, ../rbac, ../manager, ../monitoring). CRDs use a separate deploy path
 // and are not listed here. Gateway policy YAMLs under ../policies are not part of default.
-// Cluster-scoped maas Config (config-default.yaml) must be listed for deploy owner refs + watches.
+// Cluster-scoped maas Config is created by maas-controller at runtime, not part of the install
+// bundle. OwnsGVK keeps GC and status in sync for that object once it exists.
 package modelsasservice
 
 import (

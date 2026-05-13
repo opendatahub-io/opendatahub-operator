@@ -313,12 +313,14 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantSingletonEnforcement(t *testing.
 	})
 }
 
-// ValidateTenantDeletedOnDisable verifies that the Tenant CR is deleted and the maas-controller
-// Deployment deletion is triggered when MaaS is set to Removed. The LifecycleReconciler in
-// maas-controller drives the full teardown sequence (Tenants → ClusterRoles → CRDs →
-// ClusterRoleBindings), so a cold re-start after disable can take several minutes.
+// ValidateTenantDeletedOnDisable verifies that the Tenant CR is deleted when MaaS is set to
+// Removed, and that maas-controller workload teardown is initiated (Deployment has a deletion
+// timestamp). Teardown is driven by the ModelsAsService component reconciler (GC of owned
+// objects) and maas-controller LifecycleReconciler (CleanupFinalizer on the Deployment), not by
+// the DataScienceCluster reconciler deleting the Deployment directly.
 // Note: we only assert DeletionTimestamp is set on the Deployment (not full removal) because
-// the cleanup finalizer release depends on the maas-controller (RHOAIENG-61660).
+// the cleanup finalizer release depends on the maas-controller pod while it is still terminating
+// (RHOAIENG-61660).
 // This test is the last case in the suite; cleanup_test.go handles DSC deletion and does not
 // require MaaS to be re-enabled first.
 func (tc *ModelsAsServiceTestCtx) ValidateTenantDeletedOnDisable(t *testing.T) {

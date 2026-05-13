@@ -91,7 +91,8 @@ func baseManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInfo 
 // buildMaasOperatorInstallManifests renders the maas-controller kustomize bundle (CRDs, RBAC,
 // Deployment, maas-parameters ConfigMap). Used by the ModelsAsService component reconciler so
 // workloads get controller ownership from the ModelsAsService CR; Tenant CR lifecycle remains
-// in maas-controller.
+// in maas-controller. Cluster-scoped maas Config is created by maas-controller at runtime, not
+// from this bundle.
 func buildMaasOperatorInstallManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest) ([]unstructured.Unstructured, error) {
 	root := rr.ManifestsBasePath
 	if root == "" {
