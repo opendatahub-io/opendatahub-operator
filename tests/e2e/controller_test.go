@@ -148,7 +148,7 @@ var (
 				componentApi.WorkbenchesComponentName:          workbenchesTestSuite,
 				componentApi.KserveComponentName:               kserveTestSuite,
 				componentApi.FeastOperatorComponentName:        feastOperatorTestSuite,
-				componentApi.LlamaStackOperatorComponentName:   llamastackOperatorTestSuite,
+				componentApi.OGXComponentName:                  ogxTestSuite,
 				componentApi.SparkOperatorComponentName:        sparkOperatorTestSuite,
 			},
 			{

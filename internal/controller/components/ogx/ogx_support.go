@@ -1,4 +1,4 @@
-package llamastackoperator
+package ogx
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -9,9 +9,9 @@ import (
 )
 
 const (
-	ComponentName = componentApi.LlamaStackOperatorComponentName
+	ComponentName = componentApi.OGXComponentName
 
-	ReadyConditionType = componentApi.LlamaStackOperatorKind + status.ReadySuffix
+	ReadyConditionType = componentApi.OGXKind + status.ReadySuffix
 )
 
 var (
@@ -23,8 +23,8 @@ var (
 
 	// TODO: double check if downsteam is using this as placeholder.
 	imageParamMap = map[string]string{
-		"RELATED_IMAGE_ODH_LLAMASTACK_OPERATOR": "RELATED_IMAGE_ODH_LLAMA_STACK_K8S_OPERATOR_IMAGE",
-		"RELATED_IMAGE_RH_DISTRIBUTION":         "RELATED_IMAGE_ODH_LLAMA_STACK_CORE_IMAGE",
+		"RELATED_IMAGE_ODH_OGX_OPERATOR": "RELATED_IMAGE_ODH_OGX_K8S_OPERATOR_IMAGE",
+		"RELATED_IMAGE_RH_DISTRIBUTION":  "RELATED_IMAGE_ODH_OGX_CORE_IMAGE",
 	}
 
 	conditionTypes = []string{
