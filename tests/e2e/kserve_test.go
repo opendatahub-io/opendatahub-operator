@@ -220,6 +220,7 @@ func (tc *KserveTestCtx) ValidateComponentDisabled(t *testing.T) {
 			WithListOptions(&client.ListOptions{
 				Namespace: tc.AppsNamespace,
 			}),
+			WithEventuallyTimeout(tc.TestTimeouts.componentReadinessTimeout),
 			WithCustomErrorMsg("LLMInferenceServiceConfig %s resources should not remain after component removal", configGVK.Version),
 		)
 	}
