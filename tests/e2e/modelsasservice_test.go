@@ -353,7 +353,7 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantDeletedOnDisable(t *testing.T) {
 	t.Logf("Verifying maas-controller Deployment deletion was requested in %s", tc.AppsNamespace)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{
-			Name:      "maas-controller",
+			Name:      modelsasservice.MaasControllerDeploymentName,
 			Namespace: tc.AppsNamespace,
 		}),
 		WithCondition(jq.Match(`.metadata.deletionTimestamp != null`)),

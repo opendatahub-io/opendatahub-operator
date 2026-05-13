@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -66,6 +67,7 @@ func TestNewCRObject_ReturnsModelsAsServiceWhenEnabled(t *testing.T) {
 	mas, ok := cr.(*componentApi.ModelsAsService)
 	g.Expect(ok).To(BeTrue())
 	g.Expect(mas.GetName()).To(Equal(componentApi.ModelsAsServiceInstanceName))
+	g.Expect(mas.GetNamespace()).To(BeEmpty(), "ModelsAsService must be cluster-scoped")
 }
 
 func TestNewCRObject_ReturnsNilWhenDisabled(t *testing.T) {
@@ -481,7 +483,7 @@ func findManifestsRoot(t *testing.T) string {
 // maas-controller Deployment in the rendered resmap.
 func findDeploymentImage(g Gomega, rm resmap.ResMap) string {
 	for _, r := range rm.Resources() {
-		if r.GetKind() != "Deployment" || r.GetName() != "maas-controller" {
+		if r.GetKind() != "Deployment" || r.GetName() != MaasControllerDeploymentName {
 			continue
 		}
 		m, err := r.Map()
@@ -502,7 +504,7 @@ func findDeploymentImage(g Gomega, rm resmap.ResMap) string {
 			}
 		}
 	}
-	g.Expect(false).To(BeTrue(), "Deployment maas-controller with container manager not found in resMap")
+	g.Expect(false).To(BeTrue(), fmt.Sprintf("Deployment %s with container manager not found in resMap", MaasControllerDeploymentName))
 	return ""
 }
 

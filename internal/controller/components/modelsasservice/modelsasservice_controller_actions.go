@@ -33,7 +33,11 @@ func renderMaasOperatorInstall(ctx context.Context, rr *odhtypes.ReconciliationR
 	if err != nil {
 		return err
 	}
-
-	rr.Resources = out
+	rr.Resources = nil
+	for i := range out {
+		if err := rr.AddResources(&out[i]); err != nil {
+			return fmt.Errorf("add maas-controller install manifest: %w", err)
+		}
+	}
 	return nil
 }

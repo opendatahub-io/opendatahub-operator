@@ -14,13 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// ModelsAsService component reconciler: .Owns() must cover every namespaced/cluster
-// GVK emitted by the maas-controller install kustomize bundle (see upstream
-// https://github.com/opendatahub-io/models-as-a-service/tree/main/deployment/base/maas-controller/default
-// which pulls in ../crd, ../rbac, ../manager, ../monitoring). CRDs use a separate deploy path
-// and are not listed here. Gateway policy YAMLs under ../policies are not part of default.
-// Cluster-scoped maas Config is created by maas-controller at runtime, not part of the install
-// bundle. OwnsGVK keeps GC and status in sync for that object once it exists.
+// ModelsAsService component reconciler: .Owns() must cover namespaced GVKs the operator applies
+// for this component (see models-as-a-service maas-controller install bundle). CRDs use a
+// separate deploy path. Cluster-scoped maas Config is created by maas-controller at runtime;
+// OwnsGVK keeps GC and status in sync for that object once it exists.
 package modelsasservice
 
 import (
@@ -51,6 +48,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 	_, err := reconciler.ReconcilerFor(mgr, &componentApi.ModelsAsService{}).
 		// maas-parameters ConfigMap is appended by buildMaasOperatorInstallManifests.
 		Owns(&corev1.ConfigMap{}).
+		Owns(&corev1.Service{}).
 		Owns(&corev1.ServiceAccount{}).
 		Owns(&rbacv1.Role{}).
 		Owns(&rbacv1.ClusterRole{}).

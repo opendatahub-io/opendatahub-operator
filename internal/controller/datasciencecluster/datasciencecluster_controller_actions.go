@@ -10,9 +10,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
-	modelsasservicectrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelsasservice"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -124,17 +122,11 @@ func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest)
 		return err
 	}
 
-	if cr.DefaultRegistry().IsComponentEnabled(componentApi.ModelsAsServiceComponentName, instance) {
-		// maas-controller resources (CRDs, RBAC, Deployment); Tenant/platform reconcile stays in maas-controller.
-		if err := modelsasservicectrl.AppendOperatorInstallManifests(ctx, rr); err != nil {
-			return err
-		}
-	}
-
-	// When MaaS is disabled, the ModelsAsService component CR is no longer desired; DSC deploy + GC
-	// removes it, and the ModelsAsService reconciler GC removes owned workloads (including
-	// maas-controller). Do not delete the Deployment from DSC: maas-controller LifecycleReconciler
-	// owns teardown ordering (Tenant → RBAC → CRDs) via the Deployment cleanup finalizer.
+	// maas-controller install manifests (CRDs, RBAC, Deployment, etc.) are applied only by the
+	// ModelsAsService component reconciler so SetControllerReference targets the ModelsAsService CR.
+	// When MaaS is disabled, DSC deploy + GC removes the ModelsAsService CR; the component reconciler
+	// GC removes owned workloads. maas-controller LifecycleReconciler sequences teardown via the
+	// Deployment cleanup finalizer.
 
 	return nil
 }

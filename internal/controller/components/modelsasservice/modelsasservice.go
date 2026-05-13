@@ -61,8 +61,9 @@ func (s *componentHandler) Init(_ common.Platform, cfg operatorconfig.OperatorSe
 
 // NewCRObject returns the cluster-scoped ModelsAsService CR when MaaS is enabled.
 // The ModelsAsService component reconciler applies maas-controller install manifests
-// with controller ownership on that CR. maas-controller continues to own Tenant CR
-// lifecycle; UpdateDSCStatus only reads Tenant status.
+// with controller ownership on that CR. The DataScienceCluster reconciler only ensures
+// this CR exists when MaaS is enabled; it does not apply the install bundle. maas-controller
+// continues to own Tenant CR lifecycle; UpdateDSCStatus only reads Tenant status.
 func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
 	if !s.IsEnabled(dsc) {
 		return nil, nil

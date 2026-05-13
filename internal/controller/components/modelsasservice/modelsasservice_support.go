@@ -56,6 +56,10 @@ const (
 	// maas-controller --maas-subscription-namespace flag.
 	MaaSSubscriptionNamespace = "models-as-a-service"
 
+	// MaasControllerDeploymentName is the maas-controller workload Deployment name in the
+	// application namespace (must match upstream manager kustomize).
+	MaasControllerDeploymentName = "maas-controller"
+
 	// Manifest paths.
 	BaseManifestsSourcePath = "overlays/odh"
 )
@@ -92,14 +96,16 @@ func baseManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInfo 
 // Deployment, maas-parameters ConfigMap). Used by the ModelsAsService component reconciler so
 // workloads get controller ownership from the ModelsAsService CR; Tenant CR lifecycle remains
 // in maas-controller. Cluster-scoped maas Config is created by maas-controller at runtime, not
-// from this bundle.
+// from this bundle. Do not call from the DataScienceCluster reconciler: deploy would set owner
+// references on the DSC instance instead of the ModelsAsService CR.
 func buildMaasOperatorInstallManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest) ([]unstructured.Unstructured, error) {
 	root := rr.ManifestsBasePath
 	if root == "" {
 		return nil, errors.New("ManifestsBasePath is unset; cannot render maas-controller install bundle")
 	}
 
-	kPath := filepath.Join(root, "maas", "base", "maas-controller", "default")
+	mi := baseManifestInfo(root, BaseManifestsSourcePath)
+	kPath := filepath.Join(mi.Path, mi.ContextDir, "base", "maas-controller", "default")
 	if _, err := os.Stat(filepath.Join(kPath, "kustomization.yaml")); err != nil {
 		return nil, fmt.Errorf("maas-controller install bundle not found at %q: %w", kPath, err)
 	}
@@ -128,7 +134,7 @@ func buildMaasOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconci
 		return nil, fmt.Errorf("labels transform for maas-controller bundle: %w", err)
 	}
 
-	paramsEnvPath := filepath.Join(root, "maas", BaseManifestsSourcePath, "params.env")
+	paramsEnvPath := filepath.Join(mi.Path, mi.ContextDir, BaseManifestsSourcePath, "params.env")
 	if err := applyImageOverridesFromParams(resMap, paramsEnvPath); err != nil {
 		return nil, fmt.Errorf("image override for maas-controller bundle: %w", err)
 	}
@@ -159,23 +165,6 @@ func buildMaasOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconci
 	}
 
 	return sortedExtra, nil
-}
-
-// AppendOperatorInstallManifests renders the maas-controller install bundle and appends each
-// object to rr via AddResources. The DataScienceCluster reconciler calls this when MaaS is
-// enabled on the DSC; rr.Instance need not be a ModelsAsService CR because manifest build only
-// uses Client and ManifestsBasePath from the reconciliation request.
-func AppendOperatorInstallManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	out, err := buildMaasOperatorInstallManifests(ctx, rr)
-	if err != nil {
-		return err
-	}
-	for i := range out {
-		if err := rr.AddResources(&out[i]); err != nil {
-			return fmt.Errorf("append maas-controller install manifest: %w", err)
-		}
-	}
-	return nil
 }
 
 // maasParametersConfigMapFromParamsEnv reads the already-updated params.env
