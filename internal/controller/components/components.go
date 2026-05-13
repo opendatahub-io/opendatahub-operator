@@ -16,7 +16,7 @@ import (
 //go:embed datasciencepipelines/monitoring
 //go:embed feastoperator/monitoring
 //go:embed kserve/monitoring
-//go:embed llamastackoperator/monitoring
+//go:embed ogx/monitoring
 //go:embed modelcontroller/monitoring
 //go:embed modelregistry/monitoring
 //go:embed modelsasservice/monitoring
