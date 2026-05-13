@@ -160,6 +160,23 @@ func buildMaasOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconci
 	return sortedExtra, nil
 }
 
+// AppendOperatorInstallManifests renders the maas-controller install bundle and appends each
+// object to rr via AddResources. The DataScienceCluster reconciler calls this when MaaS is
+// enabled on the DSC; rr.Instance need not be a ModelsAsService CR because manifest build only
+// uses Client and ManifestsBasePath from the reconciliation request.
+func AppendOperatorInstallManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	out, err := buildMaasOperatorInstallManifests(ctx, rr)
+	if err != nil {
+		return err
+	}
+	for i := range out {
+		if err := rr.AddResources(&out[i]); err != nil {
+			return fmt.Errorf("append maas-controller install manifest: %w", err)
+		}
+	}
+	return nil
+}
+
 // maasParametersConfigMapFromParamsEnv reads the already-updated params.env
 // (Init → ApplyParams has already merged RELATED_IMAGE_* and extraParamsMap)
 // and builds the maas-parameters ConfigMap that is deployed alongside
