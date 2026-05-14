@@ -83,16 +83,31 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				handlers.ToNamed(componentApi.KueueInstanceName),
 			),
 			reconciler.Dynamic(reconciler.CrdExists(gvk.LocalQueue))).
+		WatchesGVK(gvk.LocalQueueV1Beta1,
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.KueueInstanceName),
+			),
+			reconciler.Dynamic(reconciler.CrdExists(gvk.LocalQueueV1Beta1))).
 		WatchesGVK(gvk.ClusterQueue,
 			reconciler.WithEventHandler(
 				handlers.ToNamed(componentApi.KueueInstanceName),
 			),
 			reconciler.Dynamic(reconciler.CrdExists(gvk.ClusterQueue))).
+		WatchesGVK(gvk.ClusterQueueV1Beta1,
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.KueueInstanceName),
+			),
+			reconciler.Dynamic(reconciler.CrdExists(gvk.ClusterQueueV1Beta1))).
 		WatchesGVK(gvk.ResourceFlavor,
 			reconciler.WithEventHandler(
 				handlers.ToNamed(componentApi.KueueInstanceName),
 			),
 			reconciler.Dynamic(reconciler.CrdExists(gvk.ResourceFlavor))).
+		WatchesGVK(gvk.ResourceFlavorV1Beta1,
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.KueueInstanceName),
+			),
+			reconciler.Dynamic(reconciler.CrdExists(gvk.ResourceFlavorV1Beta1))).
 		WatchesGVK(gvk.KueueConfigV1,
 			reconciler.WithEventHandler(
 				handlers.ToNamed(componentApi.KueueInstanceName),

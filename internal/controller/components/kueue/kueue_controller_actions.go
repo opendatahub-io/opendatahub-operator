@@ -148,17 +148,25 @@ func manageDefaultKueueResourcesAction(ctx context.Context, rr *odhtypes.Reconci
 		rr.Resources = append(rr.Resources, *defaultKueueConfig)
 	}
 
+	resolvedGVKs, err := resolveKueueResourceGVKs(ctx, rr.Client)
+	if err != nil {
+		return fmt.Errorf("failed to resolve kueue resource GVKs: %w", err)
+	}
+	if resolvedGVKs == nil {
+		return nil
+	}
+
 	clusterInfo, err := getClusterResourceInfo(ctx, rr.Client)
 	if err != nil {
 		return fmt.Errorf("failed to get cluster resource info: %w", err)
 	}
 
 	// Generate default ResourceFlavor.
-	resourcesFlavors := createDefaultResourceFlavors(clusterInfo)
+	resourcesFlavors := createDefaultResourceFlavors(clusterInfo, resolvedGVKs)
 	rr.Resources = append(rr.Resources, resourcesFlavors...)
 
 	// Generate default ClusterQueue.
-	clusterQueue := createDefaultClusterQueue(kueueCRInstance.Spec.DefaultClusterQueueName, clusterInfo)
+	clusterQueue := createDefaultClusterQueue(kueueCRInstance.Spec.DefaultClusterQueueName, clusterInfo, resolvedGVKs)
 	rr.Resources = append(rr.Resources, *clusterQueue)
 
 	// Get all managed namespaces (i.e. the one opted in with the addition of the proper labels).
@@ -179,7 +187,7 @@ func manageDefaultKueueResourcesAction(ctx context.Context, rr *odhtypes.Reconci
 		if !ns.GetDeletionTimestamp().IsZero() {
 			continue
 		}
-		localQueue := createDefaultLocalQueue(kueueCRInstance.Spec.DefaultLocalQueueName, kueueCRInstance.Spec.DefaultClusterQueueName, ns.Name)
+		localQueue := createDefaultLocalQueue(kueueCRInstance.Spec.DefaultLocalQueueName, kueueCRInstance.Spec.DefaultClusterQueueName, ns.Name, resolvedGVKs)
 		rr.Resources = append(rr.Resources, *localQueue)
 	}
 
