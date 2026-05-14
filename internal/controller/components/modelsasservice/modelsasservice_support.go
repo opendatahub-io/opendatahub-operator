@@ -116,6 +116,14 @@ func AppendOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconcilia
 		return fmt.Errorf("namespace transform for maas-controller bundle: %w", err)
 	}
 
+	// The blanket namespace transform above moves ALL resources to appNs, but
+	// payload-processing resources must remain in the gateway namespace because
+	// the EnvoyFilter must run in the same namespace as the Gateway for Envoy
+	// to attach ext_proc filters. Restore their namespace to the gateway ns.
+	if err := restoreGatewayNamespaceResources(resMap); err != nil {
+		return fmt.Errorf("restore gateway namespace for payload-processing: %w", err)
+	}
+
 	componentLabels := map[string]string{
 		labels.ODH.Component(componentApi.ModelsAsServiceComponentName): labels.True,
 		labels.K8SCommon.PartOf: componentApi.ModelsAsServiceComponentName,
@@ -236,6 +244,24 @@ func normalizeUnstructuredObject(obj map[string]any) (map[string]any, error) {
 		return nil, err
 	}
 	return out, nil
+}
+
+var gatewayNamespaceResourceNames = map[string]bool{
+	"payload-processing":         true,
+	"payload-processing-plugins": true,
+	"payload-processing-reader":  true,
+}
+
+func restoreGatewayNamespaceResources(resMap resmap.ResMap) error {
+	for _, res := range resMap.Resources() {
+		if !gatewayNamespaceResourceNames[res.GetName()] {
+			continue
+		}
+		if err := res.SetNamespace(DefaultGatewayNamespace); err != nil {
+			return fmt.Errorf("set namespace on %s %s: %w", res.GetKind(), res.GetName(), err)
+		}
+	}
+	return nil
 }
 
 // deployImageParams maps the kustomize image name (as rendered by the images
