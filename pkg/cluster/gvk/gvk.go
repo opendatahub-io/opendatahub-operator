@@ -541,21 +541,39 @@ var (
 
 	// kueue.x-k8s.io.
 
-	LocalQueue = schema.GroupVersionKind{
+	LocalQueueV1Beta1 = schema.GroupVersionKind{
 		Group:   "kueue.x-k8s.io",
 		Version: "v1beta1",
 		Kind:    "LocalQueue",
 	}
 
-	ClusterQueue = schema.GroupVersionKind{
+	LocalQueue = schema.GroupVersionKind{
+		Group:   "kueue.x-k8s.io",
+		Version: "v1beta2",
+		Kind:    "LocalQueue",
+	}
+
+	ClusterQueueV1Beta1 = schema.GroupVersionKind{
 		Group:   "kueue.x-k8s.io",
 		Version: "v1beta1",
 		Kind:    "ClusterQueue",
 	}
 
-	ResourceFlavor = schema.GroupVersionKind{
+	ClusterQueue = schema.GroupVersionKind{
+		Group:   "kueue.x-k8s.io",
+		Version: "v1beta2",
+		Kind:    "ClusterQueue",
+	}
+
+	ResourceFlavorV1Beta1 = schema.GroupVersionKind{
 		Group:   "kueue.x-k8s.io",
 		Version: "v1beta1",
+		Kind:    "ResourceFlavor",
+	}
+
+	ResourceFlavor = schema.GroupVersionKind{
+		Group:   "kueue.x-k8s.io",
+		Version: "v1beta2",
 		Kind:    "ResourceFlavor",
 	}
 

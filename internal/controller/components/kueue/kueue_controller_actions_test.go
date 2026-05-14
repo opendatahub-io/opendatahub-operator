@@ -11,6 +11,8 @@ import (
 	"github.com/rs/xid"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -587,8 +589,20 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 			clusterNodes := getClusterNodes(t, test.withGPU)
 			runtimeObjects = append(runtimeObjects, clusterNodes...)
 
+			kueueCRD := &apiextensionsv1.CustomResourceDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "clusterqueues.kueue.x-k8s.io",
+				},
+			}
+			runtimeObjects = append(runtimeObjects, kueueCRD)
+
 			client, err := fakeclient.New(
 				fakeclient.WithObjects(runtimeObjects...),
+				fakeclient.WithGVKs(
+					fakeclient.GVKMapping{GVK: gvk.ClusterQueue, Scope: meta.RESTScopeRoot},
+					fakeclient.GVKMapping{GVK: gvk.LocalQueue, Scope: meta.RESTScopeNamespace},
+					fakeclient.GVKMapping{GVK: gvk.ResourceFlavor, Scope: meta.RESTScopeRoot},
+				),
 			)
 			g.Expect(err).ToNot(HaveOccurred())
 
