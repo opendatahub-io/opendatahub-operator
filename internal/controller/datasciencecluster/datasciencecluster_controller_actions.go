@@ -122,12 +122,6 @@ func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest)
 		return err
 	}
 
-	// maas-controller install manifests (CRDs, RBAC, Deployment, etc.) are applied only by the
-	// ModelsAsService component reconciler so SetControllerReference targets the ModelsAsService CR.
-	// When MaaS is disabled, DSC deploy + GC removes the ModelsAsService CR; the component reconciler
-	// GC removes owned workloads. maas-controller LifecycleReconciler sequences teardown via the
-	// Deployment cleanup finalizer.
-
 	return nil
 }
 

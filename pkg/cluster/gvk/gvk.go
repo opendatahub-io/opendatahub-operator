@@ -384,7 +384,7 @@ var (
 	}
 
 	// MaasConfig is the cluster-scoped MaaS anchor CR (maas.opendatahub.io/v1alpha1, Kind=Config).
-	// It is created by maas-controller at runtime, not applied from the operator install bundle.
+	// Singleton name is "default" (created by maas-controller Lifecycle, not from the operator bundle).
 	MaasConfig = schema.GroupVersionKind{
 		Group:   "maas.opendatahub.io",
 		Version: "v1alpha1",

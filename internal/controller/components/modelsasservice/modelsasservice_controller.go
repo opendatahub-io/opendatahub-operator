@@ -1,5 +1,5 @@
 /*
-Copyright 2025.
+Copyright 2026.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,11 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// ModelsAsService component reconciler: .Owns() must cover namespaced GVKs the operator applies
-// for this component (see models-as-a-service maas-controller install bundle). CRDs use a
-// separate deploy path. Cluster-scoped maas Config is created by maas-controller at runtime;
-// ensureMaasClusterConfigControllerRef then sets the ModelsAsService CR as controller owner so
-// OwnsGVK(MaasConfig) watches and GC apply to that object.
+// Package modelsasservice implements the ModelsAsService component reconciler. .Owns() entries
+// must match GVKs applied from the bundled maas-controller kustomize output. Cluster-scoped
+// maas Config is created at runtime by maas-controller; ensureMaasClusterConfigControllerRef
+// stamps controller ownership so watches and GC behave like other owned children.
 package modelsasservice
 
 import (
@@ -56,8 +55,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&rbacv1.RoleBinding{}).
 		Owns(&rbacv1.ClusterRoleBinding{}).
 		Owns(&networkingv1.NetworkPolicy{}).
-		// Upstream monitoring uses PodMonitor, not ServiceMonitor
-		// (deployment/base/maas-controller/monitoring/podmonitor.yaml).
 		Owns(&promv1.PodMonitor{}).
 		// Reserved for future webhooks; not in default bundle today.
 		Owns(&admissionregistrationv1.ValidatingWebhookConfiguration{}).
@@ -74,6 +71,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		).
 		WithAction(renderMaasOperatorInstall).
 		WithAction(deploy.NewAction(
+			deploy.WithApplyOrder(),
 			deploy.WithCache(),
 		)).
 		WithAction(ensureMaasClusterConfigControllerRef).

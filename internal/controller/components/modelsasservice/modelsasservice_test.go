@@ -380,7 +380,7 @@ func TestApplyImageOverridesFromParams(t *testing.T) {
 	g := NewWithT(t)
 
 	manifestsRoot := findManifestsRoot(t)
-	kPath := filepath.Join(manifestsRoot, "maas", "base", "maas-controller", "default")
+	kPath := filepath.Join(manifestsRoot, MaasManifestContextDir, "base", "maas-controller", "default")
 
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
 	fs := filesys.MakeFsOnDisk()
@@ -414,7 +414,7 @@ func TestApplyImageOverridesFromParams_TagFormat(t *testing.T) {
 	g := NewWithT(t)
 
 	manifestsRoot := findManifestsRoot(t)
-	kPath := filepath.Join(manifestsRoot, "maas", "base", "maas-controller", "default")
+	kPath := filepath.Join(manifestsRoot, MaasManifestContextDir, "base", "maas-controller", "default")
 
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
 	resMap, err := k.Run(filesys.MakeFsOnDisk(), kPath)
@@ -439,7 +439,7 @@ func TestApplyImageOverridesFromParams_NoOverride(t *testing.T) {
 	g := NewWithT(t)
 
 	manifestsRoot := findManifestsRoot(t)
-	kPath := filepath.Join(manifestsRoot, "maas", "base", "maas-controller", "default")
+	kPath := filepath.Join(manifestsRoot, MaasManifestContextDir, "base", "maas-controller", "default")
 
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
 	resMap, err := k.Run(filesys.MakeFsOnDisk(), kPath)

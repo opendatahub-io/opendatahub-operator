@@ -1,5 +1,5 @@
 /*
-Copyright 2025.
+Copyright 2026.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -39,7 +39,6 @@ import (
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 const (
@@ -62,6 +61,14 @@ const (
 
 	// Manifest paths.
 	BaseManifestsSourcePath = "overlays/odh"
+
+	// MaasManifestContextDir is the kustomize bundle directory under ManifestsBasePath (matches
+	// baseManifestInfo ContextDir).
+	MaasManifestContextDir = "maas"
+
+	// MaasClusterConfigName is the cluster-scoped maas Config singleton name (must match
+	// maas-controller; see models-as-a-service lifecycle).
+	MaasClusterConfigName = "default"
 )
 
 var (
@@ -87,7 +94,7 @@ var (
 func baseManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
 		Path:       basePath,
-		ContextDir: "maas",
+		ContextDir: MaasManifestContextDir,
 		SourcePath: sourcePath,
 	}
 }
@@ -95,9 +102,10 @@ func baseManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInfo 
 // buildMaasOperatorInstallManifests renders the maas-controller kustomize bundle (CRDs, RBAC,
 // Deployment, maas-parameters ConfigMap). Used by the ModelsAsService component reconciler so
 // workloads get controller ownership from the ModelsAsService CR; Tenant CR lifecycle remains
-// in maas-controller. Cluster-scoped maas Config is created by maas-controller at runtime; the
-// ModelsAsService reconciler sets controller ownership on that Config once it exists. Do not call from the DataScienceCluster reconciler: deploy would set owner
-// references on the DSC instance instead of the ModelsAsService CR.
+// in maas-controller. Cluster-scoped maas Config is not in this bundle (Lifecycle in maas-controller
+// owns that CR); the ModelsAsService reconciler patches controller ownership on Config separately.
+// Do not call from the DataScienceCluster reconciler: deploy would set owner references on the DSC
+// instance instead of the ModelsAsService CR.
 func buildMaasOperatorInstallManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest) ([]unstructured.Unstructured, error) {
 	root := rr.ManifestsBasePath
 	if root == "" {
@@ -159,12 +167,7 @@ func buildMaasOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconci
 	}
 	extra = append(extra, *paramsCM)
 
-	sortedExtra, err := resources.SortByApplyOrder(ctx, extra)
-	if err != nil {
-		return nil, fmt.Errorf("sort maas-controller install bundle: %w", err)
-	}
-
-	return sortedExtra, nil
+	return extra, nil
 }
 
 // maasParametersConfigMapFromParamsEnv reads the already-updated params.env
@@ -173,7 +176,7 @@ func buildMaasOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconci
 // maas-controller. This is the authoritative source of maas-parameters;
 // the Tenant reconciler consumes it rather than regenerating it.
 func maasParametersConfigMapFromParamsEnv(manifestsBasePath string, appNs string, componentLabels map[string]string) (*unstructured.Unstructured, error) {
-	paramsFile := filepath.Join(manifestsBasePath, "maas", BaseManifestsSourcePath, "params.env")
+	paramsFile := filepath.Join(manifestsBasePath, MaasManifestContextDir, BaseManifestsSourcePath, "params.env")
 	paramsMap, err := parseParamsEnv(paramsFile)
 	if err != nil {
 		return nil, fmt.Errorf("reading %s: %w", paramsFile, err)

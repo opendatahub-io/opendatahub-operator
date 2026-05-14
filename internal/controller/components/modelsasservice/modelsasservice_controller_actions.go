@@ -1,5 +1,5 @@
 /*
-Copyright 2025.
+Copyright 2026.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -33,6 +33,8 @@ func renderMaasOperatorInstall(ctx context.Context, rr *odhtypes.ReconciliationR
 	if err != nil {
 		return err
 	}
+	// Clear resources accumulated earlier in the pipeline so this action only applies the
+	// maas-controller install bundle (see deploy.WithApplyOrder for apply ordering).
 	rr.Resources = nil
 	for i := range out {
 		if err := rr.AddResources(&out[i]); err != nil {

@@ -314,13 +314,10 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantSingletonEnforcement(t *testing.
 }
 
 // ValidateTenantDeletedOnDisable verifies that the Tenant CR is deleted when MaaS is set to
-// Removed, and that maas-controller workload teardown is initiated (Deployment has a deletion
-// timestamp). Teardown is driven by the ModelsAsService component reconciler (GC of owned
-// objects) and maas-controller LifecycleReconciler (CleanupFinalizer on the Deployment), not by
-// the DataScienceCluster reconciler deleting the Deployment directly.
-// Note: we only assert DeletionTimestamp is set on the Deployment (not full removal) because
-// the cleanup finalizer release depends on the maas-controller pod while it is still terminating
-// (RHOAIENG-61660).
+// Removed, that maas-controller workload deletion is requested, and that the Deployment is
+// eventually removed from the application namespace. Teardown is driven by the ModelsAsService
+// component reconciler (GC of owned objects) and maas-controller LifecycleReconciler
+// (CleanupFinalizer on the Deployment).
 // This test is the last case in the suite; cleanup_test.go handles DSC deletion and does not
 // require MaaS to be re-enabled first.
 func (tc *ModelsAsServiceTestCtx) ValidateTenantDeletedOnDisable(t *testing.T) {
@@ -359,5 +356,16 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantDeletedOnDisable(t *testing.T) {
 		WithCondition(jq.Match(`.metadata.deletionTimestamp != null`)),
 		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
 		WithCustomErrorMsg("maas-controller Deployment should have deletionTimestamp set when MaaS is disabled."),
+	)
+
+	t.Logf("Waiting until maas-controller Deployment is removed from %s", tc.AppsNamespace)
+	tc.EnsureResourcesGone(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      modelsasservice.MaasControllerDeploymentName,
+			Namespace: tc.AppsNamespace,
+		}),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+		WithCustomErrorMsg("maas-controller Deployment should be removed after MaaS is disabled."),
 	)
 }
