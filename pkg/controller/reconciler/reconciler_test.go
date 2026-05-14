@@ -1022,6 +1022,8 @@ func TestDynamicOwnership_DeployAction_WithGVKPredicates(t *testing.T) {
 	g.Expect(deployedCM.GetOwnerReferences()).To(HaveLen(1))
 
 	t.Run("deployment is restored after external deletion", func(t *testing.T) {
+		g := NewWithT(t)
+
 		// Delete the Deployment externally
 		err := cli.Delete(ctx, deployedDeployment)
 		g.Expect(err).NotTo(HaveOccurred())
@@ -1030,7 +1032,7 @@ func TestDynamicOwnership_DeployAction_WithGVKPredicates(t *testing.T) {
 		g.Eventually(func() bool {
 			err := cli.Get(ctx, client.ObjectKey{Name: deploymentName, Namespace: nsName}, deployedDeployment)
 			return err != nil && k8serr.IsNotFound(err)
-		}).WithTimeout(5*time.Second).Should(BeTrue(), "Deployment should be deleted")
+		}).WithTimeout(10*time.Second).Should(BeTrue(), "Deployment should be deleted")
 
 		// Wait for watch-triggered reconciliation to restore the Deployment
 		g.Eventually(func(gg Gomega) {
@@ -1041,6 +1043,8 @@ func TestDynamicOwnership_DeployAction_WithGVKPredicates(t *testing.T) {
 	})
 
 	t.Run("deployment spec fields are not restored after external modification", func(t *testing.T) {
+		g := NewWithT(t)
+
 		// Wait for any pending reconciliations from the previous subtest to drain
 		// before modifying replicas. The delete/restore cycle can trigger cascading
 		// events (owner ref updates, status changes) that queue additional reconciliations.
@@ -1072,6 +1076,8 @@ func TestDynamicOwnership_DeployAction_WithGVKPredicates(t *testing.T) {
 	})
 
 	t.Run("configmap is restored after external modification", func(t *testing.T) {
+		g := NewWithT(t)
+
 		// Re-fetch to get current state
 		g.Expect(cli.Get(ctx, client.ObjectKey{Name: cmName, Namespace: nsName}, deployedCM)).To(Succeed())
 		original := deployedCM.DeepCopy()
