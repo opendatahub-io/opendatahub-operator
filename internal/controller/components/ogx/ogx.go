@@ -1,4 +1,4 @@
-package llamastackoperator
+package ogx
 
 import (
 	"context"
@@ -27,23 +27,23 @@ type componentHandler struct{}
 func NewHandler() *componentHandler { return &componentHandler{} }
 
 func (s *componentHandler) GetName() string {
-	return componentApi.LlamaStackOperatorComponentName
+	return componentApi.OGXComponentName
 }
 
 func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
-	return &componentApi.LlamaStackOperator{
+	return &componentApi.OGX{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       componentApi.LlamaStackOperatorKind,
+			Kind:       componentApi.OGXKind,
 			APIVersion: componentApi.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: componentApi.LlamaStackOperatorInstanceName,
+			Name: componentApi.OGXInstanceName,
 			Annotations: map[string]string{
-				annotations.ManagementStateAnnotation: string(dsc.Spec.Components.LlamaStackOperator.ManagementState),
+				annotations.ManagementStateAnnotation: string(dsc.Spec.Components.OGX.ManagementState),
 			},
 		},
-		Spec: componentApi.LlamaStackOperatorSpec{
-			LlamaStackOperatorCommonSpec: dsc.Spec.Components.LlamaStackOperator.LlamaStackOperatorCommonSpec,
+		Spec: componentApi.OGXSpec{
+			OGXCommonSpec: dsc.Spec.Components.OGX.OGXCommonSpec,
 		},
 	}, nil
 }
@@ -58,14 +58,14 @@ func (s *componentHandler) Init(p common.Platform, cfg operatorconfig.OperatorSe
 }
 
 func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
-	return dsc.Spec.Components.LlamaStackOperator.ManagementState == operatorv1.Managed
+	return dsc.Spec.Components.OGX.ManagementState == operatorv1.Managed
 }
 
 func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
 	cs := metav1.ConditionUnknown
 
-	c := componentApi.LlamaStackOperator{}
-	c.Name = componentApi.LlamaStackOperatorInstanceName
+	c := componentApi.OGX{}
+	c.Name = componentApi.OGXInstanceName
 
 	if err := rr.Client.Get(ctx, client.ObjectKeyFromObject(&c), &c); err != nil && !k8serr.IsNotFound(err) {
 		return cs, nil
@@ -76,10 +76,10 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		return cs, errors.New("failed to convert to DataScienceCluster")
 	}
 
-	ms := components.NormalizeManagementState(dsc.Spec.Components.LlamaStackOperator.ManagementState)
+	ms := components.NormalizeManagementState(dsc.Spec.Components.OGX.ManagementState)
 
-	dsc.Status.Components.LlamaStackOperator.ManagementState = ms
-	dsc.Status.Components.LlamaStackOperator.LlamaStackOperatorCommonStatus = nil
+	dsc.Status.Components.OGX.ManagementState = ms
+	dsc.Status.Components.OGX.OGXCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
@@ -93,7 +93,7 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	}
 
 	if s.IsEnabled(dsc) {
-		dsc.Status.Components.LlamaStackOperator.LlamaStackOperatorCommonStatus = c.Status.LlamaStackOperatorCommonStatus.DeepCopy()
+		dsc.Status.Components.OGX.OGXCommonStatus = c.Status.OGXCommonStatus.DeepCopy()
 
 		if rc := conditions.FindStatusCondition(c.GetStatus(), status.ConditionTypeReady); rc != nil {
 			rr.Conditions.MarkFrom(ReadyConditionType, *rc)
@@ -102,10 +102,14 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 			cs = metav1.ConditionFalse
 		}
 	} else {
+		msg := fmt.Sprintf("Component ManagementState is set to %s", string(ms))
+		if dsc.Spec.Components.LlamaStackOperator.ManagementState == operatorv1.Managed {
+			msg += fmt.Sprintf(". LlamaStackOperator is set to %s, it has been deprecated, please set it to %s", operatorv1.Managed, operatorv1.Removed)
+		}
 		rr.Conditions.MarkFalse(
 			ReadyConditionType,
 			conditions.WithReason(string(ms)),
-			conditions.WithMessage("Component ManagementState is set to %s", string(ms)),
+			conditions.WithMessage("%s", msg),
 			conditions.WithSeverity(common.ConditionSeverityInfo),
 		)
 	}

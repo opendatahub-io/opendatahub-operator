@@ -145,7 +145,7 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 		componentApi.DataSciencePipelinesComponentName: "data-science-pipelines-operator-controller-manager",
 		componentApi.FeastOperatorComponentName:        "feast-operator-controller-manager",
 		componentApi.KserveComponentName:               "kserve-controller-manager",
-		componentApi.LlamaStackOperatorComponentName:   "llama-stack-k8s-operator-controller-manager",
+		componentApi.OGXComponentName:                  "ogx-k8s-operator-controller-manager",
 		componentApi.MLflowOperatorComponentName:       "mlflow-operator-controller-manager",
 		componentApi.ModelRegistryComponentName:        "model-registry-operator-controller-manager",
 		componentApi.RayComponentName:                  "kuberay-operator",
@@ -169,7 +169,8 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	expectedComponentCount := reflect.TypeFor[dscv2.Components]().NumField()
 	// TrustyAI is excluded from quota failure testing due to InferenceServices CRD dependency
 	// Kueue is excluded because it does not have any deployment to manage anymore
-	excludedComponents := 2 // TrustyAI and Kueue
+	// LlamaStack Operator is excluded because it has been replaced by OGX and the field is deprecated (no deployments to manage anymore)
+	excludedComponents := 3 // TrustyAI, Kueue, LlamaStack Operator
 	expectedTestableComponents := expectedComponentCount - excludedComponents
 	tc.g.Expect(componentsLength).Should(Equal(expectedTestableComponents),
 		"allComponents list is out of sync with DSC Components struct. "+

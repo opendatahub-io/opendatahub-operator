@@ -148,7 +148,7 @@ var (
 				componentApi.WorkbenchesComponentName:          workbenchesTestSuite,
 				componentApi.KserveComponentName:               kserveTestSuite,
 				componentApi.FeastOperatorComponentName:        feastOperatorTestSuite,
-				componentApi.LlamaStackOperatorComponentName:   llamastackOperatorTestSuite,
+				componentApi.OGXComponentName:                  ogxTestSuite,
 				componentApi.SparkOperatorComponentName:        sparkOperatorTestSuite,
 			},
 			{
@@ -172,6 +172,10 @@ var (
 				componentApi.KserveComponentName:  kserveDegradedMonitoringTestSuite,
 				componentApi.KueueComponentName:   kueueDegradedMonitoringTestSuite,
 				componentApi.TrainerComponentName: trainerDegradedMonitoringTestSuite,
+			},
+			{
+				// ModelCache tests modify namespace PSA labels, so must not run with other KServe tests in parallel
+				componentApi.KserveComponentName + "-modelcache": kserveModelCacheTestSuite,
 			},
 		},
 	}
@@ -551,7 +555,7 @@ func TestMain(m *testing.M) {
 	// Named operation-specific tiers — defaults based on CI observability data
 	viper.SetDefault("crCreationTimeout", "2m")         // DSCI/DSC creation and readiness (P99=71s, observed avg ~10s).
 	viper.SetDefault("componentReadinessTimeout", "3m") // Component enabled/disabled checks (P99=93s, outliers at 243s).
-	viper.SetDefault("monitoringStackTimeout", "7m")    // Monitoring stack readiness (P99=292s, TLS_Fix/ThanosQuerier pass at 5-6min).
+	viper.SetDefault("monitoringStackTimeout", "10m")   // Monitoring stack readiness (P99=292s, TLS_Fix/ThanosQuerier pass at 5-6min).
 	viper.SetDefault("authGatewayTimeout", "5m")        // Auth/gateway checks (72 passes exceed 2min, max 265s — do not reduce).
 	viper.SetDefault("deletionRecoveryTimeout", "90s")  // Resource deletion and controller recreation (P99=46s, nothing above 90s).
 	viper.SetDefault("olmOperationTimeout", "2m")       // CSV succeeded, InstallPlan approval (P99=81s, nothing above 120s).

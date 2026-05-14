@@ -47,6 +47,9 @@ metadata:
             "llamastackoperator": {
               "managementState": "Removed"
             },
+            "ogx": {
+              "managementState": "Removed"
+            },
             "kueue": {
               "managementState": "Removed"
             },
@@ -87,7 +90,7 @@ metadata:
       "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",
       "workbenches.components.platform.opendatahub.io", "monitorings.services.platform.opendatahub.io",
       "modelcontrollers.components.platform.opendatahub.io", "feastoperators.components.platform.opendatahub.io",
-      "llamastackoperators.components.platform.opendatahub.io", "trainers.components.platform.opendatahub.io",
+      "ogxs.components.platform.opendatahub.io", "trainers.components.platform.opendatahub.io",
       "mlflowoperators.components.platform.opendatahub.io", "modelsasservices.components.platform.opendatahub.io",
       "sparkoperators.components.platform.opendatahub.io"]'
     repository: https://github.com/red-hat-data-services/rhods-operator
@@ -164,11 +167,6 @@ spec:
       kind: Kueue
       name: kueues.components.platform.opendatahub.io
       version: v1alpha1
-    - description: LlamaStackOperator is the Schema for the LlamaStackOperator API
-      displayName: Llama Stack Operator
-      kind: LlamaStackOperator
-      name: llamastackoperators.components.platform.opendatahub.io
-      version: v1alpha1
     - description: MLflowOperator is the Schema for the MLflowOperators API
       displayName: MLflow Operator
       kind: MLflowOperator
@@ -188,6 +186,11 @@ spec:
       displayName: Monitoring
       kind: Monitoring
       name: monitorings.services.platform.opendatahub.io
+      version: v1alpha1
+    - description: OGX is the Schema for the OGX API
+      displayName: OGX
+      kind: OGX
+      name: ogxs.components.platform.opendatahub.io
       version: v1alpha1
     - description: Ray is the Schema for the rays API
       displayName: Ray
@@ -265,7 +268,7 @@ spec:
   - Data Science
   - Feast
   - featurestore
-  - llamastack
+  - ogx
   - mlflow
   - sparkoperator
   links:

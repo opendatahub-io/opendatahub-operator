@@ -299,10 +299,10 @@ var (
 		Kind:    componentApi.KserveKind,
 	}
 
-	LlamaStackOperator = schema.GroupVersionKind{
+	OGX = schema.GroupVersionKind{
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,
-		Kind:    componentApi.LlamaStackOperatorKind,
+		Kind:    componentApi.OGXKind,
 	}
 
 	Kueue = schema.GroupVersionKind{
@@ -549,21 +549,39 @@ var (
 
 	// kueue.x-k8s.io.
 
-	LocalQueue = schema.GroupVersionKind{
+	LocalQueueV1Beta1 = schema.GroupVersionKind{
 		Group:   "kueue.x-k8s.io",
 		Version: "v1beta1",
 		Kind:    "LocalQueue",
 	}
 
-	ClusterQueue = schema.GroupVersionKind{
+	LocalQueue = schema.GroupVersionKind{
+		Group:   "kueue.x-k8s.io",
+		Version: "v1beta2",
+		Kind:    "LocalQueue",
+	}
+
+	ClusterQueueV1Beta1 = schema.GroupVersionKind{
 		Group:   "kueue.x-k8s.io",
 		Version: "v1beta1",
 		Kind:    "ClusterQueue",
 	}
 
-	ResourceFlavor = schema.GroupVersionKind{
+	ClusterQueue = schema.GroupVersionKind{
+		Group:   "kueue.x-k8s.io",
+		Version: "v1beta2",
+		Kind:    "ClusterQueue",
+	}
+
+	ResourceFlavorV1Beta1 = schema.GroupVersionKind{
 		Group:   "kueue.x-k8s.io",
 		Version: "v1beta1",
+		Kind:    "ResourceFlavor",
+	}
+
+	ResourceFlavor = schema.GroupVersionKind{
+		Group:   "kueue.x-k8s.io",
+		Version: "v1beta2",
 		Kind:    "ResourceFlavor",
 	}
 
@@ -633,6 +651,12 @@ var (
 		Group:   "serving.kserve.io",
 		Version: "v1alpha2",
 		Kind:    "LLMInferenceService",
+	}
+
+	LocalModelNodeGroup = schema.GroupVersionKind{
+		Group:   "serving.kserve.io",
+		Version: "v1alpha1",
+		Kind:    "LocalModelNodeGroup",
 	}
 
 	InferencePoolV1alpha2 = schema.GroupVersionKind{
@@ -897,6 +921,12 @@ var (
 		Group:   "mlflow.opendatahub.io",
 		Version: "v1",
 		Kind:    "MLflow",
+	}
+
+	PersistentVolume = schema.GroupVersionKind{
+		Group:   corev1.SchemeGroupVersion.Group,
+		Version: corev1.SchemeGroupVersion.Version,
+		Kind:    "PersistentVolume",
 	}
 
 	PersistentVolumeClaim = schema.GroupVersionKind{
