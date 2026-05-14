@@ -22,11 +22,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/go-logr/logr"
 	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -36,6 +38,7 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -120,7 +123,7 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		return cs, nil
 	}
 
-	checkMaaSGatewayAnnotations(ctx, rr)
+	checkMaaSPrerequisites(ctx, rr)
 
 	t := maasv1alpha1.Tenant{}
 	t.Name = maasv1alpha1.TenantInstanceName
@@ -189,13 +192,42 @@ var requiredGatewayAnnotations = map[string]string{
 	annotations.AuthorinoTLSBootstrap: "true",
 }
 
-// checkMaaSGatewayAnnotations verifies that the maas-default-gateway has the
-// required annotations and sets the MaaSPrerequisitesAvailable condition
-// accordingly. This is an informational check that does not affect
-// ModelsAsServiceReady or block reconciliation.
-func checkMaaSGatewayAnnotations(ctx context.Context, rr *types.ReconciliationRequest) {
-	l := logf.FromContext(ctx).WithName("checkMaaSGatewayAnnotations")
+// checkMaaSPrerequisites verifies MaaS infrastructure prerequisites and sets
+// the MaaSPrerequisitesAvailable condition. Checks:
+//  1. maas-default-gateway exists and has required annotations
+//  2. Authorino has TLS enabled on its listener
+//
+// This is an informational check that does not affect ModelsAsServiceReady
+// or block reconciliation.
+func checkMaaSPrerequisites(ctx context.Context, rr *types.ReconciliationRequest) {
+	l := logf.FromContext(ctx).WithName("checkMaaSPrerequisites")
 
+	var issues []string
+
+	issues = append(issues, checkGatewayAnnotations(ctx, l, rr)...)
+	issues = append(issues, checkAuthorinoTLS(ctx, l, rr)...)
+
+	if len(issues) > 0 {
+		msg := strings.Join(issues, "; ")
+		rr.Conditions.MarkFalse(
+			status.ConditionMaaSPrerequisitesAvailable,
+			conditions.WithReason(status.MaaSPrerequisitesNotMetReason),
+			conditions.WithMessage("%s", msg),
+			conditions.WithSeverity(common.ConditionSeverityInfo),
+		)
+		return
+	}
+
+	rr.Conditions.MarkTrue(
+		status.ConditionMaaSPrerequisitesAvailable,
+		conditions.WithReason(status.MaaSPrerequisitesMetReason),
+		conditions.WithMessage(status.MaaSPrerequisitesMetMessage),
+	)
+}
+
+// checkGatewayAnnotations verifies the maas-default-gateway has required annotations.
+// Returns a list of human-readable issues found (empty if all good).
+func checkGatewayAnnotations(ctx context.Context, l logr.Logger, rr *types.ReconciliationRequest) []string {
 	gw := &gwapiv1.Gateway{}
 	err := rr.Client.Get(ctx, client.ObjectKey{
 		Name:      DefaultGatewayName,
@@ -204,23 +236,15 @@ func checkMaaSGatewayAnnotations(ctx context.Context, rr *types.ReconciliationRe
 
 	if err != nil {
 		if apimeta.IsNoMatchError(err) {
-			l.V(1).Info("Gateway API CRD not installed, skipping MaaS gateway annotation check")
-			return
+			l.V(1).Info("Gateway API CRD not installed, skipping gateway annotation check")
+			return nil
 		}
 		if k8serr.IsNotFound(err) {
-			l.Info("maas-default-gateway not found, MaaS prerequisites not met",
-				"gateway", DefaultGatewayName,
-				"namespace", DefaultGatewayNamespace)
-			rr.Conditions.MarkFalse(
-				status.ConditionMaaSPrerequisitesAvailable,
-				conditions.WithReason(status.MaaSGatewayNotFoundReason),
-				conditions.WithMessage(status.MaaSGatewayNotFoundMessage),
-				conditions.WithSeverity(common.ConditionSeverityInfo),
-			)
-			return
+			l.Info("maas-default-gateway not found", "gateway", DefaultGatewayName, "namespace", DefaultGatewayNamespace)
+			return []string{status.MaaSGatewayNotFoundMessage}
 		}
 		l.Error(err, "Failed to get maas-default-gateway, skipping annotation check")
-		return
+		return nil
 	}
 
 	gwAnnotations := gw.GetAnnotations()
@@ -233,25 +257,47 @@ func checkMaaSGatewayAnnotations(ctx context.Context, rr *types.ReconciliationRe
 	}
 
 	if len(missing) > 0 {
-		msg := fmt.Sprintf(
-			"maas-default-gateway is missing required annotations: %s; "+
-				"MaaS AuthPolicies may be overwritten or Authorino TLS may not function correctly",
-			strings.Join(missing, ", "))
-		l.Info("MaaS gateway missing required annotations",
-			"gateway", DefaultGatewayName,
-			"missing", missing)
-		rr.Conditions.MarkFalse(
-			status.ConditionMaaSPrerequisitesAvailable,
-			conditions.WithReason(status.MaaSGatewayMissingAnnotationsReason),
-			conditions.WithMessage("%s", msg),
-			conditions.WithSeverity(common.ConditionSeverityInfo),
-		)
-		return
+		l.Info("MaaS gateway missing required annotations", "gateway", DefaultGatewayName, "missing", missing)
+		return []string{fmt.Sprintf(
+			"maas-default-gateway is missing required annotations: %s",
+			strings.Join(missing, ", "))}
 	}
 
-	rr.Conditions.MarkTrue(
-		status.ConditionMaaSPrerequisitesAvailable,
-		conditions.WithReason(status.MaaSPrerequisitesMetReason),
-		conditions.WithMessage(status.MaaSPrerequisitesMetMessage),
-	)
+	return nil
+}
+
+// checkAuthorinoTLS verifies that at least one Authorino CR has TLS enabled
+// on its listener (spec.listener.tls.enabled). Returns a list of issues found.
+func checkAuthorinoTLS(ctx context.Context, l logr.Logger, rr *types.ReconciliationRequest) []string {
+	authorinoList := &unstructured.UnstructuredList{}
+	authorinoList.SetGroupVersionKind(gvk.Authorinov1beta1)
+
+	if err := rr.Client.List(ctx, authorinoList); err != nil {
+		if apimeta.IsNoMatchError(err) {
+			l.V(1).Info("Authorino CRD not installed, skipping Authorino TLS check")
+			return nil
+		}
+		l.Error(err, "Failed to list Authorino CRs, skipping TLS check")
+		return nil
+	}
+
+	if len(authorinoList.Items) == 0 {
+		l.Info("No Authorino CR found on the cluster")
+		return []string{"Authorino CR not found; Authorino must be deployed for MaaS authentication to work"}
+	}
+
+	for _, a := range authorinoList.Items {
+		enabled, found, err := unstructured.NestedBool(a.Object, "spec", "listener", "tls", "enabled")
+		if err != nil {
+			l.Error(err, "Failed to read spec.listener.tls.enabled from Authorino CR", "name", a.GetName(), "namespace", a.GetNamespace())
+			continue
+		}
+		if found && enabled {
+			return nil
+		}
+	}
+
+	l.Info("Authorino TLS is not enabled on any Authorino CR")
+	return []string{"Authorino TLS is not enabled (spec.listener.tls.enabled is not true); " +
+		"MaaS requires Authorino to accept TLS connections from the gateway"}
 }
