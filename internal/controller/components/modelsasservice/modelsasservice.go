@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -28,6 +29,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -36,6 +39,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 )
 
@@ -116,6 +120,8 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		return cs, nil
 	}
 
+	checkMaaSGatewayAnnotations(ctx, rr)
+
 	t := maasv1alpha1.Tenant{}
 	t.Name = maasv1alpha1.TenantInstanceName
 	t.Namespace = MaaSSubscriptionNamespace
@@ -174,4 +180,78 @@ func metav1ConditionToCommon(c metav1.Condition) common.Condition {
 		ObservedGeneration: c.ObservedGeneration,
 		LastTransitionTime: c.LastTransitionTime,
 	}
+}
+
+// requiredGatewayAnnotations lists the annotations that must be present on
+// maas-default-gateway for MaaS to work correctly.
+var requiredGatewayAnnotations = map[string]string{
+	annotations.ManagedByODHOperator:  "false",
+	annotations.AuthorinoTLSBootstrap: "true",
+}
+
+// checkMaaSGatewayAnnotations verifies that the maas-default-gateway has the
+// required annotations and sets the MaaSPrerequisitesAvailable condition
+// accordingly. This is an informational check that does not affect
+// ModelsAsServiceReady or block reconciliation.
+func checkMaaSGatewayAnnotations(ctx context.Context, rr *types.ReconciliationRequest) {
+	l := logf.FromContext(ctx).WithName("checkMaaSGatewayAnnotations")
+
+	gw := &gwapiv1.Gateway{}
+	err := rr.Client.Get(ctx, client.ObjectKey{
+		Name:      DefaultGatewayName,
+		Namespace: DefaultGatewayNamespace,
+	}, gw)
+
+	if err != nil {
+		if apimeta.IsNoMatchError(err) {
+			l.V(1).Info("Gateway API CRD not installed, skipping MaaS gateway annotation check")
+			return
+		}
+		if k8serr.IsNotFound(err) {
+			l.Info("maas-default-gateway not found, MaaS prerequisites not met",
+				"gateway", DefaultGatewayName,
+				"namespace", DefaultGatewayNamespace)
+			rr.Conditions.MarkFalse(
+				status.ConditionMaaSPrerequisitesAvailable,
+				conditions.WithReason(status.MaaSGatewayNotFoundReason),
+				conditions.WithMessage(status.MaaSGatewayNotFoundMessage),
+				conditions.WithSeverity(common.ConditionSeverityInfo),
+			)
+			return
+		}
+		l.Error(err, "Failed to get maas-default-gateway, skipping annotation check")
+		return
+	}
+
+	gwAnnotations := gw.GetAnnotations()
+	var missing []string
+	for key, expectedValue := range requiredGatewayAnnotations {
+		actual, ok := gwAnnotations[key]
+		if !ok || actual != expectedValue {
+			missing = append(missing, fmt.Sprintf("%s=%q", key, expectedValue))
+		}
+	}
+
+	if len(missing) > 0 {
+		msg := fmt.Sprintf(
+			"maas-default-gateway is missing required annotations: %s; "+
+				"MaaS AuthPolicies may be overwritten or Authorino TLS may not function correctly",
+			strings.Join(missing, ", "))
+		l.Info("MaaS gateway missing required annotations",
+			"gateway", DefaultGatewayName,
+			"missing", missing)
+		rr.Conditions.MarkFalse(
+			status.ConditionMaaSPrerequisitesAvailable,
+			conditions.WithReason(status.MaaSGatewayMissingAnnotationsReason),
+			conditions.WithMessage("%s", msg),
+			conditions.WithSeverity(common.ConditionSeverityInfo),
+		)
+		return
+	}
+
+	rr.Conditions.MarkTrue(
+		status.ConditionMaaSPrerequisitesAvailable,
+		conditions.WithReason(status.MaaSPrerequisitesMetReason),
+		conditions.WithMessage(status.MaaSPrerequisitesMetMessage),
+	)
 }

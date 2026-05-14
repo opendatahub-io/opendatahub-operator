@@ -37,6 +37,10 @@ const (
 // DSCI preserves the elevated level only while this annotation is present.
 const PSAElevatedBy = "opendatahub.io/psa-elevated-by"
 
+// AuthorinoTLSBootstrap marks a Gateway as requiring an EnvoyFilter for
+// Gateway-to-Authorino TLS when Authorino uses a TLS listener.
+const AuthorinoTLSBootstrap = "security.opendatahub.io/authorino-tls-bootstrap"
+
 // Connection annotation for referencing secrets containing connection information.
 const Connection = "opendatahub.io/connections"
 
