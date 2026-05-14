@@ -243,8 +243,8 @@ func checkGatewayAnnotations(ctx context.Context, l logr.Logger, rr *types.Recon
 			l.Info("maas-default-gateway not found", "gateway", DefaultGatewayName, "namespace", DefaultGatewayNamespace)
 			return []string{status.MaaSGatewayNotFoundMessage}
 		}
-		l.Error(err, "Failed to get maas-default-gateway, skipping annotation check")
-		return nil
+		l.Error(err, "Failed to get maas-default-gateway")
+		return []string{fmt.Sprintf("failed to check maas-default-gateway annotations: %v", err)}
 	}
 
 	gwAnnotations := gw.GetAnnotations()
@@ -277,8 +277,8 @@ func checkAuthorinoTLS(ctx context.Context, l logr.Logger, rr *types.Reconciliat
 			l.V(1).Info("Authorino CRD not installed, skipping Authorino TLS check")
 			return nil
 		}
-		l.Error(err, "Failed to list Authorino CRs, skipping TLS check")
-		return nil
+		l.Error(err, "Failed to list Authorino CRs")
+		return []string{fmt.Sprintf("failed to check Authorino TLS configuration: %v", err)}
 	}
 
 	if len(authorinoList.Items) == 0 {
