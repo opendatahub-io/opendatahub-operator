@@ -231,9 +231,13 @@ var _ = Describe("DataScienceCluster initialization", func() {
 
 			// when - Monitoring is set to Removed in DSCI, which should delete the Monitoring CR
 			foundDsci := &dsciv2.DSCInitialization{}
-			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: workingNamespace}, foundDsci)).To(Succeed())
-			foundDsci.Spec.Monitoring.ManagementState = operatorv1.Removed
-			Expect(k8sClient.Update(ctx, foundDsci)).To(Succeed())
+			Eventually(func() error {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: workingNamespace}, foundDsci); err != nil {
+					return err
+				}
+				foundDsci.Spec.Monitoring.ManagementState = operatorv1.Removed
+				return k8sClient.Update(ctx, foundDsci)
+			}).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
 
 			// then - Monitoring CR should be gone
 			Eventually(func() bool {
