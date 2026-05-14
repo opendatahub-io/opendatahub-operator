@@ -11,7 +11,9 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -174,7 +176,7 @@ func createResourceGroup(flavors []Flavors) map[string]any {
 	}
 }
 
-func createDefaultClusterQueue(name string, clusterInfo ClusterResourceInfo) *unstructured.Unstructured {
+func createDefaultClusterQueue(name string, clusterInfo ClusterResourceInfo, gvks *kueueResourceGVKs) *unstructured.Unstructured {
 	clusterQueue := &unstructured.Unstructured{}
 
 	clusterGPU := slices.Sorted(maps.Keys(clusterInfo.GPUInfo))
@@ -201,8 +203,8 @@ func createDefaultClusterQueue(name string, clusterInfo ClusterResourceInfo) *un
 	}
 
 	clusterQueue.Object = map[string]any{
-		"apiVersion": gvk.ClusterQueue.GroupVersion().String(),
-		"kind":       gvk.ClusterQueue.Kind,
+		"apiVersion": gvks.ClusterQueue.GroupVersion().String(),
+		"kind":       gvks.ClusterQueue.Kind,
 		"metadata": map[string]any{
 			"name": name,
 			"annotations": map[string]any{
@@ -222,12 +224,12 @@ func createDefaultClusterQueue(name string, clusterInfo ClusterResourceInfo) *un
 	return clusterQueue
 }
 
-func createDefaultLocalQueue(name string, clusterQueueName string, namespace string) *unstructured.Unstructured {
+func createDefaultLocalQueue(name string, clusterQueueName string, namespace string, gvks *kueueResourceGVKs) *unstructured.Unstructured {
 	localQueue := &unstructured.Unstructured{}
 
 	localQueue.Object = map[string]any{
-		"apiVersion": gvk.LocalQueue.GroupVersion().String(),
-		"kind":       gvk.LocalQueue.Kind,
+		"apiVersion": gvks.LocalQueue.GroupVersion().String(),
+		"kind":       gvks.LocalQueue.Kind,
 		"metadata": map[string]any{
 			"name":      name,
 			"namespace": namespace,
@@ -243,13 +245,13 @@ func createDefaultLocalQueue(name string, clusterQueueName string, namespace str
 	return localQueue
 }
 
-func createDefaultResourceFlavors(clusterInfo ClusterResourceInfo) []unstructured.Unstructured {
+func createDefaultResourceFlavors(clusterInfo ClusterResourceInfo, gvks *kueueResourceGVKs) []unstructured.Unstructured {
 	resourceFlavors := make([]unstructured.Unstructured, 0, 1+len(clusterInfo.GPUInfo))
 
 	resourceFlavors = append(resourceFlavors, unstructured.Unstructured{
 		Object: map[string]any{
-			"apiVersion": gvk.ResourceFlavor.GroupVersion().String(),
-			"kind":       gvk.ResourceFlavor.Kind,
+			"apiVersion": gvks.ResourceFlavor.GroupVersion().String(),
+			"kind":       gvks.ResourceFlavor.Kind,
 			"metadata": map[string]any{
 				"name": DefaultFlavorName,
 				"annotations": map[string]any{
@@ -263,8 +265,8 @@ func createDefaultResourceFlavors(clusterInfo ClusterResourceInfo) []unstructure
 	for label := range clusterInfo.GPUInfo {
 		resourceFlavor := unstructured.Unstructured{}
 		resourceFlavor.Object = map[string]any{
-			"apiVersion": gvk.ResourceFlavor.GroupVersion().String(),
-			"kind":       gvk.ResourceFlavor.Kind,
+			"apiVersion": gvks.ResourceFlavor.GroupVersion().String(),
+			"kind":       gvks.ResourceFlavor.Kind,
 			"metadata": map[string]any{
 				"name": supportedGPUMap[label],
 				"annotations": map[string]any{
@@ -330,6 +332,51 @@ func getClusterResourceInfo(ctx context.Context, c client.Client) (ClusterResour
 	}
 
 	return info, nil
+}
+
+type kueueResourceGVKs struct {
+	ClusterQueue   schema.GroupVersionKind
+	LocalQueue     schema.GroupVersionKind
+	ResourceFlavor schema.GroupVersionKind
+}
+
+var (
+	kueueGVKsV1Beta2 = &kueueResourceGVKs{
+		ClusterQueue:   gvk.ClusterQueue,
+		LocalQueue:     gvk.LocalQueue,
+		ResourceFlavor: gvk.ResourceFlavor,
+	}
+	kueueGVKsV1Beta1 = &kueueResourceGVKs{
+		ClusterQueue:   gvk.ClusterQueueV1Beta1,
+		LocalQueue:     gvk.LocalQueueV1Beta1,
+		ResourceFlavor: gvk.ResourceFlavorV1Beta1,
+	}
+)
+
+// resolveKueueResourceGVKs probes the cluster to determine which kueue.x-k8s.io
+// API version is available, preferring v1beta2 over v1beta1.
+func resolveKueueResourceGVKs(ctx context.Context, cli client.Client) (*kueueResourceGVKs, error) {
+	log := logf.FromContext(ctx)
+	gk := gvk.ClusterQueue.GroupKind()
+
+	found, err := cluster.HasCRDWithVersion(ctx, cli, gk, gvk.ClusterQueue.Version)
+	if err != nil {
+		return nil, err
+	}
+	if found {
+		return kueueGVKsV1Beta2, nil
+	}
+
+	found, err = cluster.HasCRDWithVersion(ctx, cli, gk, gvk.ClusterQueueV1Beta1.Version)
+	if err != nil {
+		return nil, err
+	}
+	if found {
+		return kueueGVKsV1Beta1, nil
+	}
+
+	log.Info("no supported kueue CRD version found on the cluster")
+	return nil, nil
 }
 
 // kueueDegradedConditionFilter is used to filter condition that represent a degraded state in
