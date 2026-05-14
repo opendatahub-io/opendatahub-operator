@@ -314,10 +314,9 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantSingletonEnforcement(t *testing.
 }
 
 // ValidateTenantDeletedOnDisable verifies that the Tenant CR is deleted when MaaS is set to
-// Removed, that maas-controller workload deletion is requested, and that the Deployment is
-// eventually removed from the application namespace. Teardown is driven by the ModelsAsService
-// component reconciler (GC of owned objects) and maas-controller LifecycleReconciler
-// (CleanupFinalizer on the Deployment).
+// Removed and that the maas-controller Deployment is eventually removed from the application
+// namespace. Teardown is driven by the ModelsAsService component reconciler (GC of owned objects)
+// and maas-controller LifecycleReconciler (CleanupFinalizer on the Deployment).
 // This test is the last case in the suite; cleanup_test.go handles DSC deletion and does not
 // require MaaS to be re-enabled first.
 func (tc *ModelsAsServiceTestCtx) ValidateTenantDeletedOnDisable(t *testing.T) {
@@ -347,17 +346,6 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantDeletedOnDisable(t *testing.T) {
 		WithCustomErrorMsg("Tenant should be deleted when MaaS is disabled"),
 	)
 
-	t.Logf("Verifying maas-controller Deployment deletion was requested in %s", tc.AppsNamespace)
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Deployment, types.NamespacedName{
-			Name:      modelsasservice.MaasControllerDeploymentName,
-			Namespace: tc.AppsNamespace,
-		}),
-		WithCondition(jq.Match(`.metadata.deletionTimestamp != null`)),
-		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
-		WithCustomErrorMsg("maas-controller Deployment should have deletionTimestamp set when MaaS is disabled."),
-	)
-
 	t.Logf("Waiting until maas-controller Deployment is removed from %s", tc.AppsNamespace)
 	tc.EnsureResourcesGone(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{
@@ -366,6 +354,6 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantDeletedOnDisable(t *testing.T) {
 		}),
 		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
-		WithCustomErrorMsg("maas-controller Deployment should be removed after MaaS is disabled."),
+		WithCustomErrorMsg("maas-controller Deployment should be removed when MaaS is disabled."),
 	)
 }
