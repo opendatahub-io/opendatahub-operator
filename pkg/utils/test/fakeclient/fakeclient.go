@@ -5,6 +5,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	clientFake "sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
@@ -14,10 +15,19 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 )
 
+// GVKMapping associates a GVK with a REST scope for registration in the fake
+// client's REST mapper. Use this for types that have no Go struct in the scheme
+// (e.g. kueue resources used as unstructured).
+type GVKMapping struct {
+	GVK   schema.GroupVersionKind
+	Scope meta.RESTScope
+}
+
 type clientOptions struct {
 	scheme      *runtime.Scheme
 	interceptor interceptor.Funcs
 	objects     []client.Object
+	gvkMappings []GVKMapping
 }
 type ClientOpts func(*clientOptions)
 
@@ -36,6 +46,12 @@ func WithObjects(values ...client.Object) ClientOpts {
 func WithScheme(value *runtime.Scheme) ClientOpts {
 	return func(o *clientOptions) {
 		o.scheme = value
+	}
+}
+
+func WithGVKs(mappings ...GVKMapping) ClientOpts {
+	return func(o *clientOptions) {
+		o.gvkMappings = append(o.gvkMappings, mappings...)
 	}
 }
 
@@ -88,6 +104,10 @@ func New(opts ...ClientOpts) (client.Client, error) {
 		default:
 			fakeMapper.Add(kt, meta.RESTScopeNamespace)
 		}
+	}
+
+	for _, m := range co.gvkMappings {
+		fakeMapper.Add(m.GVK, m.Scope)
 	}
 
 	b := clientFake.NewClientBuilder()

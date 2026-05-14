@@ -67,6 +67,31 @@ var (
 	}
 )
 
+// ensureKueueOperatorsInstalled installs the LWS operator (with its CR) and the OCP Kueue operator.
+func (tc *KueueTestCtx) ensureKueueOperatorsInstalled(t *testing.T) {
+	t.Helper()
+
+	t.Logf("Ensuring LWS Operator is installed (namespace=%s, name=%s).", leaderWorkerSetNamespace, leaderWorkerSetOpName)
+	tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(
+		types.NamespacedName{Name: leaderWorkerSetOpName, Namespace: leaderWorkerSetNamespace},
+		leaderWorkerSetChannel,
+	)
+
+	t.Logf("Ensuring LeaderWorkerSetOperator CR exists (namespace=%s, name=cluster).", leaderWorkerSetNamespace)
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.LeaderWorkerSetOperatorV1, types.NamespacedName{Name: "cluster", Namespace: leaderWorkerSetNamespace}),
+		WithMutateFunc(func(obj *unstructured.Unstructured) error {
+			return unstructured.SetNestedField(obj.Object, "Managed", "spec", "managementState")
+		}),
+	)
+
+	t.Logf("Ensuring OCP Kueue Operator is installed (namespace=%s, name=%s).", kueueOcpOperatorNamespace, kueueOpName)
+	tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(
+		types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace},
+		kueueOcpOperatorChannel,
+	)
+}
+
 func kueueTestSuite(t *testing.T) {
 	t.Helper()
 
@@ -121,11 +146,7 @@ func (tc *KueueTestCtx) EnsureKueueReady(t *testing.T) {
 
 	componentName := strings.ToLower(tc.GVK.Kind)
 
-	t.Logf("Ensuring OCP Kueue Operator is installed (namespace=%s, name=%s).", kueueOcpOperatorNamespace, kueueOpName)
-	tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(
-		types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace},
-		kueueOcpOperatorChannel,
-	)
+	tc.ensureKueueOperatorsInstalled(t)
 
 	t.Logf("Ensuring Kueue operator is running (namespace=%s).", kueueOcpOperatorNamespace)
 	tc.scaleKueueOperator(t, 1)
@@ -231,9 +252,7 @@ func (tc *KueueTestCtx) ValidateKueueRemovedToUnmanagedTransition(t *testing.T) 
 		WithCondition(And(conditionsUnmanagedNotReady...)),
 	)
 
-	t.Logf("Installing OCP Kueue Operator (%s/%s) to enable Kueue component readiness.", kueueOcpOperatorNamespace, kueueOpName)
-	// Install ocp kueue-operator
-	tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace}, kueueOcpOperatorChannel)
+	tc.ensureKueueOperatorsInstalled(t)
 
 	conditionsUnmanagedReady := []gTypes.GomegaMatcher{
 		// Validate that the component's management state is updated correctly
@@ -291,10 +310,7 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToRemovedTransition(t *testing.T) 
 	// ... and then cleanup tests resources
 	tc.cleanupKueueTestResources(t)
 
-	t.Logf("Installing OCP Kueue Operator (%s/%s) before testing Unmanaged state.", kueueOcpOperatorNamespace, kueueOpName)
-	// UNMANAGED
-	// Install ocp kueue-operator
-	tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace}, kueueOcpOperatorChannel)
+	tc.ensureKueueOperatorsInstalled(t)
 
 	t.Logf("Defining expected conditions for Unmanaged state (Ready=True).")
 	stateUnmanaged := operatorv1.Unmanaged
@@ -514,11 +530,7 @@ func (tc *KueueTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.T)
 	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Removed)
 	tc.cleanupKueueTestResources(t)
 
-	t.Logf("Ensuring Kueue OCP operator is installed (namespace=%s, name=%s).", kueueOcpOperatorNamespace, kueueOpName)
-	tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(
-		types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace},
-		kueueOcpOperatorChannel,
-	)
+	tc.ensureKueueOperatorsInstalled(t)
 
 	t.Logf("Creating managed test namespace with Kueue management annotation (namespace=%s).", managedNS)
 	tc.setupNamespace(managedNS, KueueManagedLabels)
