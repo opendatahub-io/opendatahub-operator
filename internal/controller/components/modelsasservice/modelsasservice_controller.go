@@ -14,10 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package modelsasservice implements the ModelsAsService component reconciler. .Owns() entries
-// must match GVKs applied from the bundled maas-controller kustomize output. Cluster-scoped
-// maas Config is created at runtime by maas-controller; ensureMaasClusterConfigControllerRef
-// stamps controller ownership so watches and GC behave like other owned children.
+// ModelsAsService component reconciler: .Owns() must cover every namespaced/cluster
+// GVK emitted by the maas-controller install kustomize bundle (see upstream
+// https://github.com/opendatahub-io/models-as-a-service/tree/main/deployment/base/maas-controller/default
+// which pulls in ../crd, ../rbac, ../manager, ../monitoring). CRDs use a separate deploy path
+// and are not listed here. Gateway policy YAMLs under ../policies are not part of default.
+// Config CR (config-default.yaml) is included in the bundle so the deploy action sets ModelsAsService
+// as controller owner, enabling GC on disable. OwnsGVK for Config is intentionally omitted: the
+// Config CRD is GC'd with the component, and registering a watch for it would cause the operator
+// to crash when the CRD is absent (e.g. on a fresh cluster or after MaaS is removed).
 package modelsasservice
 
 import (
@@ -33,7 +38,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
@@ -59,7 +63,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// Reserved for future webhooks; not in default bundle today.
 		Owns(&admissionregistrationv1.ValidatingWebhookConfiguration{}).
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(predicates.DefaultDeploymentPredicate)).
-		OwnsGVK(gvk.MaasConfig).
 		Watches(
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(
