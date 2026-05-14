@@ -36,6 +36,9 @@ func renderMaasOperatorInstall(ctx context.Context, rr *odhtypes.ReconciliationR
 	// Clear resources accumulated earlier in the pipeline so this action only applies the
 	// maas-controller install bundle (see deploy.WithApplyOrder for apply ordering).
 	rr.Resources = nil
-	rr.AddResources(out...)
+	if err := rr.AddResources(out...); err != nil {
+		return fmt.Errorf("add maas-controller install manifest: %w", err)
+	}
+
 	return nil
 }

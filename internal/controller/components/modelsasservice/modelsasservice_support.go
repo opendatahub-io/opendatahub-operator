@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/kustomize/api/builtins" //nolint:staticcheck // Remove after package update
 	"sigs.k8s.io/kustomize/api/krusty"
 	"sigs.k8s.io/kustomize/api/resmap"
@@ -106,7 +107,7 @@ func baseManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInfo 
 // owns that CR); the ModelsAsService reconciler patches controller ownership on Config separately.
 // Do not call from the DataScienceCluster reconciler: deploy would set owner references on the DSC
 // instance instead of the ModelsAsService CR.
-func buildMaasOperatorInstallManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest) ([]unstructured.Unstructured, error) {
+func buildMaasOperatorInstallManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest) ([]client.Object, error) {
 	root := rr.ManifestsBasePath
 	if root == "" {
 		return nil, errors.New("ManifestsBasePath is unset; cannot render maas-controller install bundle")
@@ -167,7 +168,12 @@ func buildMaasOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconci
 	}
 	extra = append(extra, *paramsCM)
 
-	return extra, nil
+	out := make([]client.Object, len(extra))
+	for i := range extra {
+		out[i] = &extra[i]
+	}
+
+	return out, nil
 }
 
 // maasParametersConfigMapFromParamsEnv reads the already-updated params.env
