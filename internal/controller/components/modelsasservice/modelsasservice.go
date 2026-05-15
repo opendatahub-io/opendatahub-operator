@@ -26,7 +26,6 @@ import (
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -60,21 +59,26 @@ func (s *componentHandler) Init(_ common.Platform, cfg operatorconfig.OperatorSe
 	return nil
 }
 
-// NewComponentReconciler is a no-op: Tenant platform reconciliation (kustomize, deploy, GC)
-// is owned by maas-controller. ODH still materialises the CR from the DSC via
-// AppendOperatorInstallManifests and aggregates status in UpdateDSCStatus.
-func (s *componentHandler) NewComponentReconciler(_ context.Context, _ ctrl.Manager) error {
-	ctrl.Log.WithName("controllers").WithName("modelsasservice").Info(
-		"Tenant platform reconcile owned by maas-controller; no ODH component controller registered",
-	)
-	return nil
-}
+// NewCRObject returns the cluster-scoped ModelsAsService CR when MaaS is enabled.
+// The ModelsAsService component reconciler applies maas-controller install manifests
+// with controller ownership on that CR. The DataScienceCluster reconciler only ensures
+// this CR exists when MaaS is enabled; it does not apply the install bundle. maas-controller
+// continues to own Tenant CR lifecycle; UpdateDSCStatus only reads Tenant status.
+func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
+	if !s.IsEnabled(dsc) {
+		return nil, nil
+	}
 
-// NewCRObject returns nil — maas-controller owns Tenant CR creation via its
-// ensureDefaultTenant startup runnable. The ODH operator only reads Tenant
-// status (UpdateDSCStatus) and deletes it on MaaS disable.
-func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, _ *dscv2.DataScienceCluster) (common.PlatformObject, error) {
-	return nil, nil
+	return &componentApi.ModelsAsService{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       componentApi.ModelsAsServiceKind,
+			APIVersion: componentApi.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: componentApi.ModelsAsServiceInstanceName,
+		},
+		Spec: componentApi.ModelsAsServiceSpec{},
+	}, nil
 }
 
 // IsEnabled checks if the ModelsAsService component should be deployed.

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -54,14 +55,29 @@ func TestGetName(t *testing.T) {
 	g.Expect(name).Should(Equal(componentApi.ModelsAsServiceComponentName))
 }
 
-func TestNewCRObject_ReturnsNil(t *testing.T) {
+func TestNewCRObject_ReturnsModelsAsServiceWhenEnabled(t *testing.T) {
 	g := NewWithT(t)
 	handler := &componentHandler{}
 	dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
 
 	cr, err := handler.NewCRObject(context.Background(), nil, dsc)
 	g.Expect(err).To(Succeed())
-	g.Expect(cr).Should(BeNil(), "maas-controller owns Tenant creation, ODH NewCRObject must return nil")
+	g.Expect(cr).ToNot(BeNil())
+
+	mas, ok := cr.(*componentApi.ModelsAsService)
+	g.Expect(ok).To(BeTrue())
+	g.Expect(mas.GetName()).To(Equal(componentApi.ModelsAsServiceInstanceName))
+	g.Expect(mas.GetNamespace()).To(BeEmpty(), "ModelsAsService must be cluster-scoped")
+}
+
+func TestNewCRObject_ReturnsNilWhenDisabled(t *testing.T) {
+	g := NewWithT(t)
+	handler := &componentHandler{}
+	dsc := createDSCWithKServeAndMaaS(operatorv1.Removed, operatorv1.Managed)
+
+	cr, err := handler.NewCRObject(context.Background(), nil, dsc)
+	g.Expect(err).To(Succeed())
+	g.Expect(cr).To(BeNil())
 }
 
 func TestIsEnabled(t *testing.T) {
@@ -359,12 +375,12 @@ func ptr[T any](v T) *T { return &v }
 // TestApplyImageOverridesFromParams verifies that the Option B image override
 // pipeline (kustomize build → ImageTagTransformerPlugin) correctly replaces the
 // default :latest image with a pinned image reference from params.env.
-// This is the exact flow that runs in CI via AppendOperatorInstallManifests.
+// This is the exact flow that runs in CI via buildMaasOperatorInstallManifests.
 func TestApplyImageOverridesFromParams(t *testing.T) {
 	g := NewWithT(t)
 
 	manifestsRoot := findManifestsRoot(t)
-	kPath := filepath.Join(manifestsRoot, "maas", "base", "maas-controller", "default")
+	kPath := filepath.Join(manifestsRoot, MaasManifestContextDir, "base", "maas-controller", "default")
 
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
 	fs := filesys.MakeFsOnDisk()
@@ -398,7 +414,7 @@ func TestApplyImageOverridesFromParams_TagFormat(t *testing.T) {
 	g := NewWithT(t)
 
 	manifestsRoot := findManifestsRoot(t)
-	kPath := filepath.Join(manifestsRoot, "maas", "base", "maas-controller", "default")
+	kPath := filepath.Join(manifestsRoot, MaasManifestContextDir, "base", "maas-controller", "default")
 
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
 	resMap, err := k.Run(filesys.MakeFsOnDisk(), kPath)
@@ -423,7 +439,7 @@ func TestApplyImageOverridesFromParams_NoOverride(t *testing.T) {
 	g := NewWithT(t)
 
 	manifestsRoot := findManifestsRoot(t)
-	kPath := filepath.Join(manifestsRoot, "maas", "base", "maas-controller", "default")
+	kPath := filepath.Join(manifestsRoot, MaasManifestContextDir, "base", "maas-controller", "default")
 
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
 	resMap, err := k.Run(filesys.MakeFsOnDisk(), kPath)
@@ -467,7 +483,7 @@ func findManifestsRoot(t *testing.T) string {
 // maas-controller Deployment in the rendered resmap.
 func findDeploymentImage(g Gomega, rm resmap.ResMap) string {
 	for _, r := range rm.Resources() {
-		if r.GetKind() != "Deployment" || r.GetName() != "maas-controller" {
+		if r.GetKind() != "Deployment" || r.GetName() != MaasControllerDeploymentName {
 			continue
 		}
 		m, err := r.Map()
@@ -488,7 +504,7 @@ func findDeploymentImage(g Gomega, rm resmap.ResMap) string {
 			}
 		}
 	}
-	g.Expect(false).To(BeTrue(), "Deployment maas-controller with container manager not found in resMap")
+	g.Expect(false).To(BeTrue(), fmt.Sprintf("Deployment %s with container manager not found in resMap", MaasControllerDeploymentName))
 	return ""
 }
 
