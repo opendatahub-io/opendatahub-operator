@@ -383,6 +383,14 @@ var (
 		Kind:    "Tenant",
 	}
 
+	// MaasConfig is the cluster-scoped MaaS anchor CR (maas.opendatahub.io/v1alpha1, Kind=Config).
+	// Singleton name is "default" (created by maas-controller Lifecycle, not from the operator bundle).
+	MaasConfig = schema.GroupVersionKind{
+		Group:   "maas.opendatahub.io",
+		Version: "v1alpha1",
+		Kind:    "Config",
+	}
+
 	CustomResourceDefinition = schema.GroupVersionKind{
 		Group:   "apiextensions.k8s.io",
 		Version: "v1",

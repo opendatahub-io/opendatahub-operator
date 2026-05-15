@@ -1,5 +1,5 @@
 /*
-Copyright 2025.
+Copyright 2026.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/kustomize/api/builtins" //nolint:staticcheck // Remove after package update
 	"sigs.k8s.io/kustomize/api/krusty"
 	"sigs.k8s.io/kustomize/api/resmap"
@@ -39,7 +40,6 @@ import (
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 const (
@@ -56,11 +56,27 @@ const (
 	// maas-controller --maas-subscription-namespace flag.
 	MaaSSubscriptionNamespace = "models-as-a-service"
 
+	// MaasControllerDeploymentName is the maas-controller workload Deployment name in the
+	// application namespace (must match upstream manager kustomize).
+	MaasControllerDeploymentName = "maas-controller"
+
 	// Manifest paths.
 	BaseManifestsSourcePath = "overlays/odh"
+
+	// MaasManifestContextDir is the kustomize bundle directory under ManifestsBasePath (matches
+	// baseManifestInfo ContextDir).
+	MaasManifestContextDir = "maas"
+
+	// MaasClusterConfigName is the cluster-scoped maas Config singleton name (must match
+	// maas-controller; see models-as-a-service lifecycle).
+	MaasClusterConfigName = "default"
 )
 
 var (
+	conditionTypes = []string{
+		status.ConditionDeploymentsAvailable,
+	}
+
 	// Image parameter mappings for manifest substitution.
 	imagesMap = map[string]string{
 		"maas-api-image":             "RELATED_IMAGE_ODH_MAAS_API_IMAGE",
@@ -79,41 +95,44 @@ var (
 func baseManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
 		Path:       basePath,
-		ContextDir: "maas",
+		ContextDir: MaasManifestContextDir,
 		SourcePath: sourcePath,
 	}
 }
 
-// AppendOperatorInstallManifests renders the maas-controller kustomize bundle and prepends it to
-// rr.Resources so the DataScienceCluster deploy action applies it with the same ownership model
-// as other DSC-managed resources. Call only when Models-as-a-Service is enabled for the DSC
-// (e.g. registry IsComponentEnabled(ModelsAsServiceComponentName)); platform reconcile for
-// Tenant remains in maas-controller.
-func AppendOperatorInstallManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+// buildMaasOperatorInstallManifests renders the maas-controller kustomize bundle (CRDs, RBAC,
+// Deployment, maas-parameters ConfigMap). Used by the ModelsAsService component reconciler so
+// workloads get controller ownership from the ModelsAsService CR; Tenant CR lifecycle remains
+// in maas-controller. Cluster-scoped maas Config is not in this bundle (Lifecycle in maas-controller
+// owns that CR); the ModelsAsService reconciler patches controller ownership on Config separately.
+// Do not call from the DataScienceCluster reconciler: deploy would set owner references on the DSC
+// instance instead of the ModelsAsService CR.
+func buildMaasOperatorInstallManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest) ([]client.Object, error) {
 	root := rr.ManifestsBasePath
 	if root == "" {
-		return errors.New("ManifestsBasePath is unset; cannot render maas-controller install bundle")
+		return nil, errors.New("ManifestsBasePath is unset; cannot render maas-controller install bundle")
 	}
 
-	kPath := filepath.Join(root, "maas", "base", "maas-controller", "default")
+	mi := baseManifestInfo(root, BaseManifestsSourcePath)
+	kPath := filepath.Join(mi.Path, mi.ContextDir, "base", "maas-controller", "default")
 	if _, err := os.Stat(filepath.Join(kPath, "kustomization.yaml")); err != nil {
-		return fmt.Errorf("maas-controller install bundle not found at %q: %w", kPath, err)
+		return nil, fmt.Errorf("maas-controller install bundle not found at %q: %w", kPath, err)
 	}
 
 	appNs, err := cluster.ApplicationNamespace(ctx, rr.Client)
 	if err != nil {
-		return fmt.Errorf("application namespace for maas-controller install: %w", err)
+		return nil, fmt.Errorf("application namespace for maas-controller install: %w", err)
 	}
 
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
 	fs := filesys.MakeFsOnDisk()
 	resMap, err := k.Run(fs, kPath)
 	if err != nil {
-		return fmt.Errorf("kustomize build %q: %w", kPath, err)
+		return nil, fmt.Errorf("kustomize build %q: %w", kPath, err)
 	}
 
 	if err := plugins.CreateNamespaceApplierPlugin(appNs).Transform(resMap); err != nil {
-		return fmt.Errorf("namespace transform for maas-controller bundle: %w", err)
+		return nil, fmt.Errorf("namespace transform for maas-controller bundle: %w", err)
 	}
 
 	componentLabels := map[string]string{
@@ -121,12 +140,12 @@ func AppendOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconcilia
 		labels.K8SCommon.PartOf: componentApi.ModelsAsServiceComponentName,
 	}
 	if err := plugins.CreateSetLabelsPlugin(componentLabels).Transform(resMap); err != nil {
-		return fmt.Errorf("labels transform for maas-controller bundle: %w", err)
+		return nil, fmt.Errorf("labels transform for maas-controller bundle: %w", err)
 	}
 
-	paramsEnvPath := filepath.Join(root, "maas", BaseManifestsSourcePath, "params.env")
+	paramsEnvPath := filepath.Join(mi.Path, mi.ContextDir, BaseManifestsSourcePath, "params.env")
 	if err := applyImageOverridesFromParams(resMap, paramsEnvPath); err != nil {
-		return fmt.Errorf("image override for maas-controller bundle: %w", err)
+		return nil, fmt.Errorf("image override for maas-controller bundle: %w", err)
 	}
 
 	rendered := resMap.Resources()
@@ -134,29 +153,27 @@ func AppendOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconcilia
 	for i := range rendered {
 		m, err := rendered[i].Map()
 		if err != nil {
-			return fmt.Errorf("maas-controller bundle resource map: %w", err)
+			return nil, fmt.Errorf("maas-controller bundle resource map: %w", err)
 		}
 		m, err = normalizeUnstructuredObject(m)
 		if err != nil {
-			return fmt.Errorf("normalize maas-controller bundle object: %w", err)
+			return nil, fmt.Errorf("normalize maas-controller bundle object: %w", err)
 		}
 		extra = append(extra, unstructured.Unstructured{Object: m})
 	}
 
 	paramsCM, err := maasParametersConfigMapFromParamsEnv(root, appNs, componentLabels)
 	if err != nil {
-		return fmt.Errorf("build maas-parameters ConfigMap from params.env: %w", err)
+		return nil, fmt.Errorf("build maas-parameters ConfigMap from params.env: %w", err)
 	}
 	extra = append(extra, *paramsCM)
 
-	sortedExtra, err := resources.SortByApplyOrder(ctx, extra)
-	if err != nil {
-		return fmt.Errorf("sort maas-controller install bundle: %w", err)
+	out := make([]client.Object, len(extra))
+	for i := range extra {
+		out[i] = &extra[i]
 	}
 
-	// CRDs and namespaced operator resources must apply before Tenant and other component CRs.
-	rr.Resources = append(sortedExtra, rr.Resources...)
-	return nil
+	return out, nil
 }
 
 // maasParametersConfigMapFromParamsEnv reads the already-updated params.env
@@ -165,7 +182,7 @@ func AppendOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconcilia
 // maas-controller. This is the authoritative source of maas-parameters;
 // the Tenant reconciler consumes it rather than regenerating it.
 func maasParametersConfigMapFromParamsEnv(manifestsBasePath string, appNs string, componentLabels map[string]string) (*unstructured.Unstructured, error) {
-	paramsFile := filepath.Join(manifestsBasePath, "maas", BaseManifestsSourcePath, "params.env")
+	paramsFile := filepath.Join(manifestsBasePath, MaasManifestContextDir, BaseManifestsSourcePath, "params.env")
 	paramsMap, err := parseParamsEnv(paramsFile)
 	if err != nil {
 		return nil, fmt.Errorf("reading %s: %w", paramsFile, err)
