@@ -347,7 +347,7 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantDeletedOnDisable(t *testing.T) {
 	)
 
 	t.Logf("Waiting until maas-controller Deployment is removed from %s", tc.AppsNamespace)
-	tc.EnsureResourcesGone(
+	tc.EnsureResourceGone(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{
 			Name:      modelsasservice.MaasControllerDeploymentName,
 			Namespace: tc.AppsNamespace,
