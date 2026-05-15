@@ -7,7 +7,6 @@ metadata:
     build.appstudio.redhat.com/target_branch: "{{target_branch}}"
     pipelinesascode.tekton.dev/cancel-in-progress: "false"
     pipelinesascode.tekton.dev/max-keep-runs: "3"
-    # Trigger on catalog file changes, FBC Dockerfile changes, or manual test comments
     pipelinesascode.tekton.dev/on-cel-expression: |
       (event == "push" && target_branch == "odh-3.5.0-ea.1" &&
        ("catalog/**".pathChanged() || "Dockerfiles/catalog.Dockerfile".pathChanged() ||
