@@ -12,6 +12,8 @@ import (
 
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 
 	. "github.com/onsi/gomega"
 )
@@ -569,4 +571,65 @@ func TestHPATemplateConstant(t *testing.T) {
 	g := NewWithT(t)
 
 	g.Expect(kubeAuthProxyHPATemplate).To(Equal("resources/kube-auth-proxy-hpa.tmpl.yaml"), "HPA template path should be correct")
+}
+
+// TestGetAuthProxySecretValuesOverridesStaleClientID verifies that when a
+// kube-auth-proxy-creds secret already exists with a stale client ID (e.g.
+// "odh" from a prior version), getAuthProxySecretValues returns the desired
+// client ID for the current auth mode instead of the stale value.
+func TestGetAuthProxySecretValuesOverridesStaleClientID(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	staleClientID := "odh"
+	existingSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      KubeAuthProxySecretsName,
+			Namespace: GatewayNamespace,
+		},
+		Data: map[string][]byte{
+			EnvClientID:     []byte(staleClientID),
+			EnvClientSecret: []byte(testAuthClientSecret),
+			EnvCookieSecret: []byte(testAuthCookieSecret),
+		},
+	}
+
+	cli := setupTestClient().WithObjects(existingSecret).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	clientID, clientSecret, cookieSecret, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeIntegratedOAuth, nil)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(clientID).To(Equal(AuthClientID), "must return the current AuthClientID, not the stale value from the secret")
+	g.Expect(clientSecret).To(Equal(testAuthClientSecret), "must preserve existing client secret")
+	g.Expect(cookieSecret).To(Equal(testAuthCookieSecret), "must preserve existing cookie secret")
+}
+
+// TestGetAuthProxySecretValuesPreservesCurrentClientID verifies that when the
+// secret already contains the correct client ID, it is returned unchanged.
+func TestGetAuthProxySecretValuesPreservesCurrentClientID(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	existingSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      KubeAuthProxySecretsName,
+			Namespace: GatewayNamespace,
+		},
+		Data: map[string][]byte{
+			EnvClientID:     []byte(AuthClientID),
+			EnvClientSecret: []byte(testAuthClientSecret),
+			EnvCookieSecret: []byte(testAuthCookieSecret),
+		},
+	}
+
+	cli := setupTestClient().WithObjects(existingSecret).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	clientID, clientSecret, cookieSecret, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeIntegratedOAuth, nil)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(clientID).To(Equal(AuthClientID))
+	g.Expect(clientSecret).To(Equal(testAuthClientSecret))
+	g.Expect(cookieSecret).To(Equal(testAuthCookieSecret))
 }
