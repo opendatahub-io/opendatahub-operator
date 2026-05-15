@@ -605,6 +605,22 @@ func TestGetAuthProxySecretValuesOverridesStaleClientID(t *testing.T) {
 	g.Expect(cookieSecret).To(Equal(testAuthCookieSecret), "must preserve existing cookie secret")
 }
 
+// TestGetAuthProxySecretValuesRejectsNilOIDCConfig verifies that calling
+// getAuthProxySecretValues with OIDC auth mode but nil oidcConfig returns
+// an error instead of panicking with a nil pointer dereference.
+func TestGetAuthProxySecretValuesRejectsNilOIDCConfig(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	cli := setupTestClient().Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	_, _, _, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeOIDC, nil)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("OIDC auth mode requires oidcConfig with ClientSecretRef"))
+}
+
 // TestGetAuthProxySecretValuesPreservesCurrentClientID verifies that when the
 // secret already contains the correct client ID, it is returned unchanged.
 func TestGetAuthProxySecretValuesPreservesCurrentClientID(t *testing.T) {
