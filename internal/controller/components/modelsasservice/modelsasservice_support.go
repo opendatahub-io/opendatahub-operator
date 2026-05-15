@@ -135,6 +135,15 @@ func buildMaasOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconci
 		return nil, fmt.Errorf("namespace transform for maas-controller bundle: %w", err)
 	}
 
+	// The blanket namespace transform above moves ALL resources to appNs, but
+	// payload-processing resources must remain in the gateway namespace because
+	// the EnvoyFilter must run in the same namespace as the Gateway for Envoy
+	// to attach ext_proc filters. Restore their namespace to the gateway ns.
+	// See RHOAIENG-59726.
+	if err := restoreGatewayNamespaceResources(resMap); err != nil {
+		return nil, fmt.Errorf("restore gateway namespace for payload-processing: %w", err)
+	}
+
 	componentLabels := map[string]string{
 		labels.ODH.Component(componentApi.ModelsAsServiceComponentName): labels.True,
 		labels.K8SCommon.PartOf: componentApi.ModelsAsServiceComponentName,
@@ -253,6 +262,32 @@ func normalizeUnstructuredObject(obj map[string]any) (map[string]any, error) {
 		return nil, err
 	}
 	return out, nil
+}
+
+// gatewayNamespaceResourceNames lists resources that must remain in the gateway
+// namespace after the blanket NamespaceApplierPlugin transform. These resources
+// are deployed to openshift-ingress in the base manifests because the EnvoyFilter
+// must run in the same namespace as the Gateway.
+var gatewayNamespaceResourceNames = map[string]bool{
+	"payload-processing":         true, // Deployment, Service, ServiceAccount
+	"payload-processing-plugins": true, // ConfigMap
+	"payload-processing-reader":  true, // ClusterRoleBinding (subjects namespace)
+}
+
+// restoreGatewayNamespaceResources moves resources that belong in the gateway
+// namespace back from the application namespace. The blanket NamespaceApplierPlugin
+// moves everything to appNs, but payload-processing resources must stay in the
+// gateway namespace for the EnvoyFilter to attach to the Gateway.
+func restoreGatewayNamespaceResources(resMap resmap.ResMap) error {
+	for _, res := range resMap.Resources() {
+		if !gatewayNamespaceResourceNames[res.GetName()] {
+			continue
+		}
+		if err := res.SetNamespace(DefaultGatewayNamespace); err != nil {
+			return fmt.Errorf("set namespace on %s %s: %w", res.GetKind(), res.GetName(), err)
+		}
+	}
+	return nil
 }
 
 // deployImageParams maps the kustomize image name (as rendered by the images
