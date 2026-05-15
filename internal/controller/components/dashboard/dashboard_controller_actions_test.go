@@ -149,7 +149,7 @@ func TestCreateInfraHardwareProfile(t *testing.T) {
 	g.Expect(receivedHardwareProfile.GetAnnotations()["opendatahub.io/disabled"]).Should(Equal("false"))
 }
 
-func setupObservabilityManifestsTest(t *testing.T, platform common.Platform, crdGVK schema.GroupVersionKind) (*types.ReconciliationRequest, client.Client) {
+func setupObservabilityManifestsTest(t *testing.T, platform common.Platform, crdGVK schema.GroupVersionKind) *types.ReconciliationRequest {
 	t.Helper()
 	g := NewWithT(t)
 
@@ -178,7 +178,7 @@ func setupObservabilityManifestsTest(t *testing.T, platform common.Platform, crd
 		Manifests: []types.ManifestInfo{},
 	}
 
-	return rr, cli
+	return rr
 }
 
 func TestDeployObservabilityManifests_WithPersesCRD(t *testing.T) {
@@ -201,7 +201,7 @@ func TestDeployObservabilityManifests_WithPersesCRD(t *testing.T) {
 			ctx := t.Context()
 			g := NewWithT(t)
 
-			rr, _ := setupObservabilityManifestsTest(t, tt.platform, gvk.PersesDashboard)
+			rr := setupObservabilityManifestsTest(t, tt.platform, gvk.PersesDashboard)
 
 			err := deployObservabilityManifests(ctx, rr)
 			g.Expect(err).Should(HaveOccurred())
@@ -282,7 +282,7 @@ func TestDeployObservabilityManifests_V1AlphaOnly(t *testing.T) {
 	ctx := t.Context()
 	g := NewWithT(t)
 
-	rr, _ := setupObservabilityManifestsTest(t, cluster.SelfManagedRhoai, gvk.PersesDashboardV1Alpha1)
+	rr := setupObservabilityManifestsTest(t, cluster.SelfManagedRhoai, gvk.PersesDashboardV1Alpha1)
 
 	err := deployObservabilityManifests(ctx, rr)
 	g.Expect(err).Should(HaveOccurred())
