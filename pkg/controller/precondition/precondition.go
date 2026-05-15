@@ -28,6 +28,12 @@ type CheckFunc func(ctx context.Context, rr *types.ReconciliationRequest) (Check
 
 type Option func(*PreCondition)
 
+// SkipFunc is a runtime predicate evaluated on every reconciliation after
+// WithClusterTypes filtering. Return true to skip the precondition (no
+// condition is written and an Info-level log is emitted). Return an error
+// to record ConditionUnknown and continue (same semantics as CheckFunc errors).
+type SkipFunc func(ctx context.Context, rr *types.ReconciliationRequest) (bool, error)
+
 // PreCondition composes a Check with framework configuration that controls
 // how RunAll aggregates and writes Kubernetes status conditions.
 type PreCondition struct {
@@ -37,6 +43,7 @@ type PreCondition struct {
 	stopReconciliation bool
 	clusterTypes       []string
 	message            string
+	skipFunc           SkipFunc // runtime predicate to conditionally skip this precondition
 }
 
 // WithConditionType sets the condition type that will be written.
@@ -74,6 +81,14 @@ func WithClusterTypes(types ...string) Option {
 func WithMessage(msg string) Option {
 	return func(pc *PreCondition) {
 		pc.message = msg
+	}
+}
+
+// WithSkipFunc sets a runtime predicate evaluated on every reconciliation
+// after WithClusterTypes filtering. See [SkipFunc] for return value semantics.
+func WithSkipFunc(fn SkipFunc) Option {
+	return func(pc *PreCondition) {
+		pc.skipFunc = fn
 	}
 }
 
@@ -135,6 +150,30 @@ func RunAll(ctx context.Context, rr *types.ReconciliationRequest, preConditions 
 		// Skip preconditions that don't apply to this cluster type.
 		if len(pc.clusterTypes) > 0 && !slices.Contains(pc.clusterTypes, clusterType) {
 			continue
+		}
+
+		if pc.skipFunc != nil {
+			skip, skipErr := pc.skipFunc(ctx, rr)
+			if skipErr != nil {
+				l.Info("Pre-condition skip function error", "conditionType", pc.conditionType, "error", skipErr.Error())
+
+				if results[pc.conditionType] == nil {
+					results[pc.conditionType] = &conditionAggregate{
+						status:   metav1.ConditionTrue,
+						severity: common.ConditionSeverityInfo,
+					}
+				}
+
+				results[pc.conditionType].record(metav1.ConditionUnknown, skipErr.Error(), pc)
+
+				continue
+			}
+
+			if skip {
+				l.Info("Pre-condition skipped by runtime predicate", "conditionType", pc.conditionType)
+
+				continue
+			}
 		}
 
 		// Initialize the condition aggregate for this condition type.

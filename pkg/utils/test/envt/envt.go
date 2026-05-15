@@ -29,6 +29,7 @@ import (
 
 	opmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 )
 
@@ -326,9 +327,45 @@ func (et *EnvT) ReadFile(elem ...string) ([]byte, error) {
 }
 
 // Manager returns the controller-runtime manager for the test environment, if one was created.
-
 func (et *EnvT) Manager() manager.Manager {
 	return et.mgr
+}
+
+// StartManager starts the manager in a background goroutine and waits for
+// leader election. Fails the test if the manager stops unexpectedly or
+// leader election does not complete within the timeout period.
+func (et *EnvT) StartManager(t *testing.T, ctx context.Context) {
+	t.Helper()
+
+	mgrCtx, mgrCancel := context.WithCancel(ctx)
+	t.Cleanup(mgrCancel)
+
+	mgr := et.Manager()
+	errCh := make(chan error, 1)
+
+	go func() { errCh <- mgr.Start(mgrCtx) }()
+
+	select {
+	case err := <-errCh:
+		t.Fatalf("manager stopped unexpectedly: %v", err)
+	case <-mgr.Elected():
+	case <-time.After(15 * time.Second):
+		t.Fatal("timed out waiting for manager leader election")
+	}
+}
+
+// NewTestContext creates a testf.TestContext configured with this environment's
+// REST config, scheme, and standard test timeouts.
+func (et *EnvT) NewTestContext(ctx context.Context) (*testf.TestContext, error) {
+	return testf.NewTestContext(
+		testf.WithRestConfig(et.Config()),
+		testf.WithScheme(et.Scheme()),
+		testf.WithContext(ctx),
+		testf.WithTOptions(
+			testf.WithEventuallyTimeout(30*time.Second),
+			testf.WithEventuallyPollingInterval(250*time.Millisecond),
+		),
+	)
 }
 
 // WaitForWebhookServer waits until the webhook server managed by this EnvT is ready by dialing the port using TLS.

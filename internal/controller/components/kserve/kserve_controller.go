@@ -142,9 +142,9 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			),
 			reconciler.WithPredicates(
 				predicate.Or(
-					resources.CreatedOrUpdatedOrDeletedNamed(rhclOperatorSubscription),
-					resources.CreatedOrUpdatedOrDeletedNamed(lwsOperatorSubscription),
-					resources.CreatedOrUpdatedOrDeletedNamed(certManagerOperatorSubscription),
+					resources.CreatedOrUpdatedOrDeletedNamed(RHCLOperatorSubscription),
+					resources.CreatedOrUpdatedOrDeletedNamed(LWSOperatorSubscription),
+					resources.CreatedOrUpdatedOrDeletedNamed(CertManagerOperatorSubscription),
 				),
 			),
 			reconciler.Dynamic(reconciler.CrdExists(gvk.Subscription))).
@@ -166,10 +166,28 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		}, precondition.WithSeverity(common.ConditionSeverityInfo))).
 		WithPreCondition(precondition.MonitorCRDs(xksDependencyCRDs,
 			precondition.WithClusterTypes(cluster.ClusterTypeKubernetes))).
+		WithPreCondition(precondition.MonitorSubscriptions(
+			[]precondition.SubscriptionDependency{
+				{Name: RHCLOperatorSubscription, DisplayName: "Red Hat Connectivity Link"},
+				{Name: CertManagerOperatorSubscription, DisplayName: "cert-manager operator"},
+			},
+			precondition.WithConditionType(LLMInferenceServiceDependencies),
+			precondition.WithClusterTypes(cluster.ClusterTypeOpenShift),
+			precondition.WithSeverity(common.ConditionSeverityInfo),
+		)).
+		WithPreCondition(precondition.MonitorSubscriptions(
+			[]precondition.SubscriptionDependency{
+				{Name: RHCLOperatorSubscription, DisplayName: "Red Hat Connectivity Link"},
+				{Name: LWSOperatorSubscription, DisplayName: "LeaderWorkerSet"},
+				{Name: CertManagerOperatorSubscription, DisplayName: "cert-manager operator"},
+			},
+			precondition.WithConditionType(LLMInferenceServiceWideEPDependencies),
+			precondition.WithClusterTypes(cluster.ClusterTypeOpenShift),
+			precondition.WithSeverity(common.ConditionSeverityInfo),
+		)).
 
 		// actions
 		WithAction(initialize).
-		WithAction(checkSubscriptionDependencies()).
 		WithAction(releases.NewAction()).
 		WithAction(removeOwnershipFromUnmanagedResources).
 		WithAction(cleanUpTemplatedResources).

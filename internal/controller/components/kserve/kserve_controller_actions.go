@@ -21,12 +21,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -232,34 +229,6 @@ var xksDependencyCRDs = []schema.GroupVersionKind{
 	gvk.CertManagerIssuer, gvk.CertManagerClusterIssuer,
 	// leaderworkerset.x-k8s.io
 	gvk.LeaderWorkerSetV1,
-}
-
-func checkSubscriptionDependencies() actions.Fn {
-	return dependency.NewSubscriptionAction(
-		dependency.CheckSubscriptionGroup(dependency.SubscriptionGroupConfig{
-			ConditionType: LLMInferenceServiceDependencies,
-			Subscriptions: []dependency.SubscriptionDependency{
-				{Name: rhclOperatorSubscription, DisplayName: "Red Hat Connectivity Link"},
-				{Name: certManagerOperatorSubscription, DisplayName: "cert-manager operator"},
-			},
-			ClusterTypes: []string{cluster.ClusterTypeOpenShift},
-			Reason:       subNotFound,
-			Message:      "Warning: %s not installed, LLMInferenceService cannot be used",
-			Severity:     common.ConditionSeverityInfo,
-		}),
-		dependency.CheckSubscriptionGroup(dependency.SubscriptionGroupConfig{
-			ConditionType: LLMInferenceServiceWideEPDependencies,
-			Subscriptions: []dependency.SubscriptionDependency{
-				{Name: rhclOperatorSubscription, DisplayName: "Red Hat Connectivity Link"},
-				{Name: lwsOperatorSubscription, DisplayName: "LeaderWorkerSet"},
-				{Name: certManagerOperatorSubscription, DisplayName: "cert-manager operator"},
-			},
-			ClusterTypes: []string{cluster.ClusterTypeOpenShift},
-			Reason:       subNotFound,
-			Message:      "Warning: %s not installed, Wide Expert Parallelism with LLMInferenceService cannot be used",
-			Severity:     common.ConditionSeverityInfo,
-		}),
-	)
 }
 
 func createModelCachePVAndPVC(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
