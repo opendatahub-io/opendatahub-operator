@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/cloudmanager/app"
+	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/cloudmanager/aws"
 	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/cloudmanager/azure"
 	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/cloudmanager/coreweave"
 )
@@ -9,5 +10,6 @@ import (
 func main() {
 	app.AddCommand(azure.NewCmd())
 	app.AddCommand(coreweave.NewCmd())
+	app.AddCommand(aws.NewCmd())
 	app.Execute()
 }

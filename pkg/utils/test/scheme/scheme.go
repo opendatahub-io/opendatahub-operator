@@ -18,6 +18,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	ccmAwsV1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/aws/v1alpha1"
 	ccmAzureV1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/azure/v1alpha1"
 	ccmCoreweaveV1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/coreweave/v1alpha1"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -56,6 +57,7 @@ var (
 		gwapiv1.Install,
 		ccmAzureV1alpha1.AddToScheme,
 		ccmCoreweaveV1alpha1.AddToScheme,
+		ccmAwsV1alpha1.AddToScheme,
 		imagev1.Install,
 		addTestTypesToScheme,
 	}
