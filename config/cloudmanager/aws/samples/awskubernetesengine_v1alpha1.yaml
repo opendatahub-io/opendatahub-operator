@@ -1,0 +1,18 @@
+apiVersion: infrastructure.opendatahub.io/v1alpha1
+kind: AWSKubernetesEngine
+metadata:
+  name: default-awskubernetesengine
+spec:
+  dependencies:
+    gatewayAPI:
+      managementPolicy: Managed
+    certManager:
+      managementPolicy: Managed
+    lws:
+      managementPolicy: Managed
+      configuration:
+        namespace: openshift-lws-operator
+    sailOperator:
+      managementPolicy: Managed
+      configuration:
+        namespace: istio-system
