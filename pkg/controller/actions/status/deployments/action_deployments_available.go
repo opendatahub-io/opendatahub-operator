@@ -19,9 +19,10 @@ import (
 )
 
 type Action struct {
-	partOfLabelKey string
-	labels         map[string]string
-	namespaceFn    actions.Getter[string]
+	partOfLabelKey                string
+	labels                        map[string]string
+	namespaceFn                   actions.Getter[string]
+	disableAutomaticPartOfDefault bool
 }
 
 type ActionOpts func(*Action)
@@ -63,11 +64,22 @@ func InNamespaceFn(fn actions.Getter[string]) ActionOpts {
 	}
 }
 
+// WithoutAutomaticPartOfDefault skips setting the selector value for
+// labels.PlatformPartOf from the reconciled instance kind when that key is
+// absent. Use with WithSelectorLabel(s) when deployments are identified by a
+// stable component label (for example app.opendatahub.io/modelsasservice=true)
+// rather than platform.opendatahub.io/part-of matching lower(kind).
+func WithoutAutomaticPartOfDefault() ActionOpts {
+	return func(action *Action) {
+		action.disableAutomaticPartOfDefault = true
+	}
+}
+
 func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error {
 	l := make(map[string]string, len(a.labels))
 	maps.Copy(l, a.labels)
 
-	if l[a.partOfLabelKey] == "" {
+	if !a.disableAutomaticPartOfDefault && l[a.partOfLabelKey] == "" {
 		kind, err := resources.KindForObject(rr.Client.Scheme(), rr.Instance)
 		if err != nil {
 			return err
