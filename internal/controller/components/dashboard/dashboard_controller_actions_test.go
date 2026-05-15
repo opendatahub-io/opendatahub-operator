@@ -271,3 +271,211 @@ func TestDeployObservabilityManifests_SkippedForEmptyMonitoringNamespace(t *test
 	err = deployObservabilityManifests(ctx, rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
 }
+
+func TestDeployObservabilityManifests_V1AlphaOnly(t *testing.T) {
+	ctx := t.Context()
+	g := NewWithT(t)
+
+	fakeSchema, err := scheme.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Register only v1alpha1 (not v1alpha2)
+	fakeSchema.AddKnownTypeWithName(gvk.PersesDashboardV1Alpha1, &unstructured.Unstructured{})
+	fakeSchema.AddKnownTypeWithName(gvk.PersesDashboardV1Alpha1.GroupVersion().WithKind("PersesDashboardList"), &unstructured.UnstructuredList{})
+
+	persesDashboardCRD := &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: v1.ObjectMeta{
+			Name: "persesdashboards.perses.dev",
+		},
+	}
+
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(persesDashboardCRD),
+		fakeclient.WithScheme(fakeSchema),
+	)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := &types.ReconciliationRequest{
+		Client:    cli,
+		Instance:  &componentApi.Dashboard{},
+		Release:   common.Release{Name: cluster.SelfManagedRhoai},
+		Manifests: []types.ManifestInfo{},
+	}
+
+	// When only v1alpha1 CRD exists, function should reach the v1alpha1 deploy path.
+	// DeployManifestsFromPath will fail because manifest files don't exist on disk.
+	err = deployObservabilityManifests(ctx, rr)
+	g.Expect(err).Should(HaveOccurred())
+	g.Expect(err.Error()).Should(ContainSubstring("failed to deploy observability manifests"))
+}
+
+func TestUpgradePersesToV1Alpha2_PersesDashboard(t *testing.T) {
+	g := NewWithT(t)
+
+	obj := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "perses.dev/v1alpha1",
+			"kind":       "PersesDashboard",
+			"metadata": map[string]interface{}{
+				"name":      "test-dashboard",
+				"namespace": "monitoring",
+			},
+			"spec": map[string]interface{}{
+				"display": map[string]interface{}{
+					"name": "Test Dashboard",
+				},
+				"duration": "1h",
+				"layouts": []interface{}{
+					map[string]interface{}{
+						"kind": "Grid",
+						"spec": map[string]interface{}{
+							"items": []interface{}{
+								map[string]interface{}{
+									"x":      int64(0),
+									"y":      int64(0),
+									"width":  int64(24),
+									"height": int64(12),
+									"content": map[string]interface{}{
+										"$ref": "#/spec/panels/traces",
+									},
+								},
+							},
+						},
+					},
+				},
+				"panels": map[string]interface{}{
+					"traces": map[string]interface{}{
+						"kind": "Panel",
+					},
+				},
+			},
+		},
+	}
+
+	upgradePersesToV1Alpha2(obj)
+
+	g.Expect(obj.GetAPIVersion()).Should(Equal("perses.dev/v1alpha2"))
+
+	// Spec content should be nested under spec.config
+	config, found, err := unstructured.NestedMap(obj.Object, "spec", "config")
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(found).Should(BeTrue())
+
+	display, found, err := unstructured.NestedMap(config, "display")
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(found).Should(BeTrue())
+	g.Expect(display["name"]).Should(Equal("Test Dashboard"))
+
+	duration, found, err := unstructured.NestedString(config, "duration")
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(found).Should(BeTrue())
+	g.Expect(duration).Should(Equal("1h"))
+
+	// $ref should be updated from #/spec/... to #/spec/config/...
+	layouts, found, err := unstructured.NestedSlice(obj.Object, "spec", "config", "layouts")
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(found).Should(BeTrue())
+	g.Expect(layouts).Should(HaveLen(1))
+
+	layout := layouts[0].(map[string]interface{})
+	items := layout["spec"].(map[string]interface{})["items"].([]interface{})
+	item := items[0].(map[string]interface{})
+	content := item["content"].(map[string]interface{})
+	g.Expect(content["$ref"]).Should(Equal("#/spec/config/panels/traces"))
+
+	// Old top-level spec fields should NOT exist (only config)
+	specMap := obj.Object["spec"].(map[string]interface{})
+	g.Expect(specMap).Should(HaveLen(1))
+	g.Expect(specMap).Should(HaveKey("config"))
+}
+
+func TestUpgradePersesToV1Alpha2_NonDashboard(t *testing.T) {
+	g := NewWithT(t)
+
+	obj := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "perses.dev/v1alpha1",
+			"kind":       "PersesDatasource",
+			"metadata": map[string]interface{}{
+				"name":      "test-datasource",
+				"namespace": "monitoring",
+			},
+			"spec": map[string]interface{}{
+				"config": map[string]interface{}{
+					"default": false,
+				},
+			},
+		},
+	}
+
+	upgradePersesToV1Alpha2(obj)
+
+	g.Expect(obj.GetAPIVersion()).Should(Equal("perses.dev/v1alpha2"))
+
+	// Spec should NOT be restructured for non-PersesDashboard types
+	config, found, err := unstructured.NestedMap(obj.Object, "spec", "config")
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(found).Should(BeTrue())
+	g.Expect(config["default"]).Should(Equal(false))
+}
+
+func TestUpgradePersesToV1Alpha2_AlreadyV1Alpha2(t *testing.T) {
+	g := NewWithT(t)
+
+	obj := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "perses.dev/v1alpha2",
+			"kind":       "PersesDashboard",
+			"metadata": map[string]interface{}{
+				"name":      "test-dashboard",
+				"namespace": "monitoring",
+			},
+			"spec": map[string]interface{}{
+				"config": map[string]interface{}{
+					"display": map[string]interface{}{
+						"name": "Test Dashboard",
+					},
+				},
+			},
+		},
+	}
+
+	upgradePersesToV1Alpha2(obj)
+
+	// Should be unchanged
+	g.Expect(obj.GetAPIVersion()).Should(Equal("perses.dev/v1alpha2"))
+
+	// Spec structure should be preserved
+	config, found, err := unstructured.NestedMap(obj.Object, "spec", "config")
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(found).Should(BeTrue())
+
+	display, found, err := unstructured.NestedMap(config, "display")
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(found).Should(BeTrue())
+	g.Expect(display["name"]).Should(Equal("Test Dashboard"))
+}
+
+func TestUpgradePersesToV1Alpha2_NonPersesResource(t *testing.T) {
+	g := NewWithT(t)
+
+	obj := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "ConfigMap",
+			"metadata": map[string]interface{}{
+				"name":      "test-config",
+				"namespace": "monitoring",
+			},
+			"data": map[string]interface{}{
+				"key": "value",
+			},
+		},
+	}
+
+	upgradePersesToV1Alpha2(obj)
+
+	// Non-perses resources should be unchanged
+	g.Expect(obj.GetAPIVersion()).Should(Equal("v1"))
+	g.Expect(obj.GetKind()).Should(Equal("ConfigMap"))
+}

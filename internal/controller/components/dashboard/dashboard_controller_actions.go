@@ -3,9 +3,12 @@ package dashboard
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -16,17 +19,23 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	k8stypes "k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/kustomize/api/krusty"
+	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/conversion"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
@@ -60,7 +69,7 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { /
 }
 
 func deployObservabilityManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	// Check if PersesDashboard CRD exists in either v1alpha2 or v1alpha1 (COO installed)
+	// Check if PersesDashboard CRD exists, preferring v1alpha2 over v1alpha1 (COO installed)
 	v2Exists, err := cluster.HasCRD(ctx, rr.Client, gvk.PersesDashboardV1Alpha2)
 	if err != nil {
 		return odherrors.NewStopError("failed to check if %s CRD exists: %w", gvk.PersesDashboardV1Alpha2, err)
@@ -92,6 +101,15 @@ func deployObservabilityManifests(ctx context.Context, rr *odhtypes.Reconciliati
 
 	manifestPath := observabilityManifestInfo(rr.ManifestsBasePath, rr.Release.Name).String()
 
+	// When v1alpha2 is available, transform manifests to use the preferred API version
+	// to avoid deprecation warnings and SSA conversion conflicts that cause infinite reconciliation
+	if v2Exists {
+		if err := deployManifestsWithPersesVersionUpgrade(ctx, rr.Client, rr.Instance, manifestPath, monitoringNamespace); err != nil {
+			return fmt.Errorf("failed to deploy observability manifests: %w", err)
+		}
+		return nil
+	}
+
 	err = odhdeploy.DeployManifestsFromPath(
 		ctx,
 		rr.Client,
@@ -106,6 +124,117 @@ func deployObservabilityManifests(ctx context.Context, rr *odhtypes.Reconciliati
 	}
 
 	return nil
+}
+
+// deployManifestsWithPersesVersionUpgrade renders kustomize manifests and upgrades
+// any perses.dev/v1alpha1 resources to v1alpha2 before applying them.
+func deployManifestsWithPersesVersionUpgrade(
+	ctx context.Context,
+	cli client.Client,
+	owner metav1.Object,
+	manifestPath string,
+	namespace string,
+) error {
+	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
+	fs := filesys.MakeFsOnDisk()
+
+	if _, err := os.Stat(filepath.Join(manifestPath, "kustomization.yaml")); err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+		manifestPath = filepath.Join(manifestPath, "default")
+	}
+
+	resMap, err := k.Run(fs, manifestPath)
+	if err != nil {
+		return err
+	}
+
+	nsPlugin := plugins.CreateNamespaceApplierPlugin(namespace)
+	if err := nsPlugin.Transform(resMap); err != nil {
+		return fmt.Errorf("failed applying namespace plugin: %w", err)
+	}
+
+	resourceLabels := map[string]string{
+		labels.ODH.Component(ComponentName): "true",
+		labels.K8SCommon.PartOf:             ComponentName,
+	}
+	labelsPlugin := plugins.CreateSetLabelsPlugin(resourceLabels)
+	if err := labelsPlugin.Transform(resMap); err != nil {
+		return fmt.Errorf("failed applying labels plugin: %w", err)
+	}
+
+	for _, res := range resMap.Resources() {
+		obj, err := conversion.ResourceToUnstructured(res)
+		if err != nil {
+			return fmt.Errorf("failed to convert resource to unstructured: %w", err)
+		}
+
+		upgradePersesToV1Alpha2(obj)
+
+		if err := ctrl.SetControllerReference(owner, obj, cli.Scheme()); err != nil {
+			return fmt.Errorf("failed to set controller reference for %s/%s: %w", obj.GetKind(), obj.GetName(), err)
+		}
+
+		data, err := json.Marshal(obj)
+		if err != nil {
+			return fmt.Errorf("failed to marshal resource: %w", err)
+		}
+
+		target := obj.DeepCopy()
+		if err := cli.Patch(ctx, target, client.RawPatch(k8stypes.ApplyPatchType, data),
+			client.ForceOwnership, client.FieldOwner(owner.GetName())); err != nil {
+			return fmt.Errorf("failed to apply resource %s/%s: %w", obj.GetKind(), obj.GetName(), err)
+		}
+	}
+
+	return nil
+}
+
+// upgradePersesToV1Alpha2 transforms a perses.dev/v1alpha1 resource to v1alpha2.
+// For PersesDashboard, this also restructures the spec to nest content under spec.config.
+func upgradePersesToV1Alpha2(obj *unstructured.Unstructured) {
+	if obj.GetAPIVersion() != "perses.dev/v1alpha1" {
+		return
+	}
+
+	obj.SetAPIVersion("perses.dev/v1alpha2")
+
+	if obj.GetKind() != "PersesDashboard" {
+		return
+	}
+
+	spec, found, err := unstructured.NestedMap(obj.Object, "spec")
+	if err != nil || !found || len(spec) == 0 {
+		return
+	}
+
+	updatePersesRefs(spec)
+
+	obj.Object["spec"] = map[string]interface{}{
+		"config": spec,
+	}
+}
+
+// updatePersesRefs rewrites $ref paths from #/spec/... to #/spec/config/... to match
+// the v1alpha2 PersesDashboard spec structure.
+func updatePersesRefs(obj interface{}) {
+	switch v := obj.(type) {
+	case map[string]interface{}:
+		for key, val := range v {
+			if key == "$ref" {
+				if s, ok := val.(string); ok && strings.HasPrefix(s, "#/spec/") {
+					v[key] = "#/spec/config/" + strings.TrimPrefix(s, "#/spec/")
+				}
+			} else {
+				updatePersesRefs(val)
+			}
+		}
+	case []interface{}:
+		for _, item := range v {
+			updatePersesRefs(item)
+		}
+	}
 }
 
 func setKustomizedParams(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
