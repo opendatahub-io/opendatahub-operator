@@ -53,6 +53,10 @@ Read existing files in same area. File locations follow pattern `<component>` = 
 - Reconciler builder: `pkg/controller/reconciler/`
 - Component handler interface: `internal/controller/components/registry/registry.go`
 
+## Cluster Diagnostics
+
+Use the `/diagnose` skill (Claude Code) to investigate cluster health, troubleshoot ODH failures, or diagnose component issues. Other agents MUST follow the diagnostic methodology in `cmd/mcp-server/prompts/diagnostic.md` using the `opendatahub-health` MCP server tools — do not improvise a diagnostic workflow.
+
 ## Documentation Index
 
 Read as needed: `docs/api-overview.md`, `docs/troubleshooting.md`, `docs/integration-testing.md`, `docs/release-workflow-guide.md`, `docs/OLMDeployment.md`, `docs/upgrade-testing.md`. Run `make help` for all commands.

@@ -5,17 +5,12 @@ import (
 	"fmt"
 	"reflect"
 
-	appsv1 "k8s.io/api/apps/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
-	modelsasservicectrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelsasservice"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -127,59 +122,6 @@ func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest)
 		return err
 	}
 
-	if cr.DefaultRegistry().IsComponentEnabled(componentApi.ModelsAsServiceComponentName, instance) {
-		// maas-controller resources (CRDs, RBAC, Deployment); Tenant/platform reconcile stays in maas-controller.
-		if err := modelsasservicectrl.AppendOperatorInstallManifests(ctx, rr); err != nil {
-			return err
-		}
-	}
-
-	if err := deleteMaaSDeploymentIfDisabled(ctx, rr, instance, cr.DefaultRegistry()); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// deleteMaaSDeploymentIfDisabled deletes the maas-controller Deployment when
-// MaaS is disabled. The CleanupFinalizer on the Deployment causes
-// LifecycleReconciler to drain Tenant CRs, RBAC, and CRDs before the
-// Deployment object is removed.
-func deleteMaaSDeploymentIfDisabled(
-	ctx context.Context,
-	rr *odhtype.ReconciliationRequest,
-	dsc *dscv2.DataScienceCluster,
-	reg *cr.Registry,
-) error {
-	log := ctrl.LoggerFrom(ctx)
-
-	if reg.IsComponentEnabled(componentApi.ModelsAsServiceComponentName, dsc) {
-		return nil
-	}
-
-	appNs, err := cluster.ApplicationNamespace(ctx, rr.Client)
-	if err != nil {
-		return fmt.Errorf("get application namespace for maas-controller cleanup: %w", err)
-	}
-
-	dep := &appsv1.Deployment{}
-	err = rr.Client.Get(ctx, types.NamespacedName{Name: "maas-controller", Namespace: appNs}, dep)
-	switch {
-	case k8serr.IsNotFound(err):
-		return nil
-	case err != nil:
-		return fmt.Errorf("get maas-controller Deployment: %w", err)
-	}
-
-	// Deployment still exists — ensure deletion is requested.
-	// LifecycleReconciler's CleanupFinalizer will drain Tenants, RBAC, and CRDs
-	// before the Deployment object is removed.
-	if dep.DeletionTimestamp.IsZero() {
-		if err := rr.Client.Delete(ctx, dep); err != nil && !k8serr.IsNotFound(err) {
-			return fmt.Errorf("delete maas-controller Deployment: %w", err)
-		}
-	}
-	log.Info("maas-controller Deployment is terminating; waiting for CleanupFinalizer to complete")
 	return nil
 }
 
