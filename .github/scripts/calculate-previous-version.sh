@@ -45,7 +45,9 @@ fi
 # NOTE: We exclude the current version because release-staging.yaml has already
 # created this tag before this script runs. Without exclusion, we'd incorrectly
 # return the current version as the "previous" version.
-prev_tag=$(git tag --list 'v*' --sort=-creatordate 2>/dev/null | \
+# Filter to only ODH release version tags (vX.Y.Z or vX.Y.Z-ea.N) to exclude Go module tags
+prev_tag=$(git tag --list --sort=-creatordate 2>/dev/null | \
+           grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-ea\.[0-9]+)?$' | \
            grep -Fxv "v${VERSION}" | head -n1)
 
 if [[ -z "$prev_tag" ]]; then

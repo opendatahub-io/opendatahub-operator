@@ -334,6 +334,12 @@ package datasciencecluster
 // +kubebuilder:rbac:groups=maas.opendatahub.io,resources=tenants,verbs=get;list;watch;delete
 // +kubebuilder:rbac:groups=maas.opendatahub.io,resources=tenants/status,verbs=get
 
+// MaaS Config (cluster anchor CR in install bundle; ModelsAsService deploy sets controller owner;
+// dynamic ownership registers a cache watch — operator SA must list/watch and mutate like other owned CRs)
+// +kubebuilder:rbac:groups=maas.opendatahub.io,resources=configs,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=maas.opendatahub.io,resources=configs/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=maas.opendatahub.io,resources=configs/finalizers,verbs=update
+
 // Models-as-a-Service
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=modelsasservices,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=modelsasservices/status,verbs=get;update;patch

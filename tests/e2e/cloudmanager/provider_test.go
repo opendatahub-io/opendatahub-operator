@@ -3,6 +3,7 @@ package cloudmanager_test
 import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	awsv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/aws/v1alpha1"
 	azurev1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/azure/v1alpha1"
 	coreweavev1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/coreweave/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -24,5 +25,10 @@ var providers = map[string]ProviderConfig{
 		Name:         "coreweave",
 		GVK:          gvk.CoreWeaveKubernetesEngine,
 		InstanceName: coreweavev1alpha1.CoreWeaveKubernetesEngineInstanceName,
+	},
+	"aws": {
+		Name:         "aws",
+		GVK:          gvk.AWSKubernetesEngine,
+		InstanceName: awsv1alpha1.AWSKubernetesEngineInstanceName,
 	},
 }
