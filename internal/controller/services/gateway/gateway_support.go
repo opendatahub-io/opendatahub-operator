@@ -646,7 +646,7 @@ func getAuthProxySecretValues(
 
 	switch authMode {
 	case cluster.AuthModeOIDC:
-		if oidcConfig == nil || oidcConfig.ClientSecretRef == nil {
+		if oidcConfig == nil || oidcConfig.ClientSecretRef.Name == "" {
 			return "", "", "", fmt.Errorf("OIDC auth mode requires oidcConfig with ClientSecretRef")
 		}
 
