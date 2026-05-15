@@ -185,8 +185,8 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		}
 		l.V(1).Info("OAuth client created successfully")
 
-		if err := deleteLegacyOAuthClient(ctx, rr); err != nil {
-			return fmt.Errorf("failed to clean up legacy OAuth client: %w", err)
+		if err := deleteLegacyOAuthClient(ctx, rr, gatewayConfig); err != nil {
+			l.Error(err, "failed to clean up legacy OAuth client, will retry next reconciliation", "name", LegacyAuthClientID)
 		}
 	}
 	rr.Templates = append(rr.Templates, kubeAuthProxyDeploymentTemplates)

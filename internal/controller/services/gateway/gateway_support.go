@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 
@@ -400,10 +401,10 @@ func createOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationRequest, 
 }
 
 // deleteLegacyOAuthClient removes the legacy "odh" OAuthClient left over from
-// RHOAI 3.3 upgrades. It only deletes the client if its redirect URI contains
-// the oauth2/callback path, confirming it was created by the gateway controller
-// and not by an unrelated user workload.
-func deleteLegacyOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+// RHOAI 3.3 upgrades. It only deletes the client if a redirect URI matches one
+// of the gateway's expected hostnames with the /oauth2/callback path, confirming
+// it was created by the gateway controller and not by an unrelated user workload.
+func deleteLegacyOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig) error {
 	l := logf.FromContext(ctx).WithName("deleteLegacyOAuthClient")
 
 	if AuthClientID == LegacyAuthClientID {
@@ -419,9 +420,24 @@ func deleteLegacyOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationReq
 		return fmt.Errorf("failed to check for legacy OAuthClient %q: %w", LegacyAuthClientID, err)
 	}
 
+	hostname, err := GetFQDN(ctx, rr.Client, gatewayConfig)
+	if err != nil {
+		return fmt.Errorf("failed to resolve gateway domain for legacy cleanup: %w", err)
+	}
+
+	expectedHosts := map[string]bool{hostname: true}
+	legacyInfo := computeLegacyRedirectInfo(gatewayConfig, hostname)
+	if legacyInfo.LegacyHostname != "" {
+		expectedHosts[legacyInfo.LegacyHostname] = true
+	}
+
 	isLegacyGatewayClient := false
 	for _, uri := range legacyClient.RedirectURIs {
-		if strings.Contains(uri, "/oauth2/callback") {
+		parsed, parseErr := url.Parse(uri)
+		if parseErr != nil {
+			continue
+		}
+		if expectedHosts[parsed.Hostname()] && parsed.Path == "/oauth2/callback" {
 			isLegacyGatewayClient = true
 			break
 		}
@@ -637,11 +653,13 @@ func getAuthProxySecretValues(
 		return "", "", "", fmt.Errorf("auth mode: %s is not supported", authMode)
 	}
 
-	// If secret exists, reuse client secret and cookie secret to avoid
-	// invalidating existing sessions, but always use the desired client ID.
-	if secretErr == nil {
-		clientSecretBytes, hasClientSecret := existingSecret.Data["OAUTH2_PROXY_CLIENT_SECRET"]
-		cookieSecretBytes, hasCookieSecret := existingSecret.Data["OAUTH2_PROXY_COOKIE_SECRET"]
+	// For integrated OAuth, reuse both client secret and cookie secret from
+	// the existing secret to avoid invalidating sessions or changing the
+	// OAuth client secret. For OIDC mode, always reload client secret from
+	// ClientSecretRef to pick up rotations; only cookie secret is preserved.
+	if secretErr == nil && authMode == cluster.AuthModeIntegratedOAuth {
+		clientSecretBytes, hasClientSecret := existingSecret.Data[EnvClientSecret]
+		cookieSecretBytes, hasCookieSecret := existingSecret.Data[EnvCookieSecret]
 
 		if hasClientSecret && hasCookieSecret {
 			return desiredClientID, string(clientSecretBytes), string(cookieSecretBytes), nil
@@ -652,7 +670,6 @@ func getAuthProxySecretValues(
 
 	switch authMode {
 	case cluster.AuthModeOIDC:
-		// OIDC mode: get client secret from external secret
 		secretNamespace := oidcConfig.SecretNamespace
 		if secretNamespace == "" {
 			secretNamespace = GatewayNamespace
@@ -684,6 +701,13 @@ func getAuthProxySecretValues(
 			return "", "", "", fmt.Errorf("failed to generate client secret: %w", err)
 		}
 		clientSecretValue = clientSecretGen.Value
+	}
+
+	// Reuse existing cookie secret if available to preserve user sessions.
+	if secretErr == nil {
+		if cookieSecretBytes, hasCookieSecret := existingSecret.Data[EnvCookieSecret]; hasCookieSecret {
+			return desiredClientID, clientSecretValue, string(cookieSecretBytes), nil
+		}
 	}
 
 	cookieSecretGen, err := cluster.NewSecret("cookie-secret", "random", 32)
