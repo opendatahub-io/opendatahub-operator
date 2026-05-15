@@ -149,6 +149,38 @@ func TestCreateInfraHardwareProfile(t *testing.T) {
 	g.Expect(receivedHardwareProfile.GetAnnotations()["opendatahub.io/disabled"]).Should(Equal("false"))
 }
 
+func setupObservabilityManifestsTest(t *testing.T, platform common.Platform, crdGVK schema.GroupVersionKind) (*types.ReconciliationRequest, client.Client) {
+	t.Helper()
+	g := NewWithT(t)
+
+	fakeSchema, err := scheme.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	fakeSchema.AddKnownTypeWithName(crdGVK, &unstructured.Unstructured{})
+	fakeSchema.AddKnownTypeWithName(crdGVK.GroupVersion().WithKind("PersesDashboardList"), &unstructured.UnstructuredList{})
+
+	persesDashboardCRD := &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: v1.ObjectMeta{
+			Name: "persesdashboards.perses.dev",
+		},
+	}
+
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(persesDashboardCRD),
+		fakeclient.WithScheme(fakeSchema),
+	)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := &types.ReconciliationRequest{
+		Client:    cli,
+		Instance:  &componentApi.Dashboard{},
+		Release:   common.Release{Name: platform},
+		Manifests: []types.ManifestInfo{},
+	}
+
+	return rr, cli
+}
+
 func TestDeployObservabilityManifests_WithPersesCRD(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -169,35 +201,9 @@ func TestDeployObservabilityManifests_WithPersesCRD(t *testing.T) {
 			ctx := t.Context()
 			g := NewWithT(t)
 
-			fakeSchema, err := scheme.New()
-			g.Expect(err).ShouldNot(HaveOccurred())
+			rr, _ := setupObservabilityManifestsTest(t, tt.platform, gvk.PersesDashboard)
 
-			fakeSchema.AddKnownTypeWithName(gvk.PersesDashboard, &unstructured.Unstructured{})
-			fakeSchema.AddKnownTypeWithName(gvk.PersesDashboard.GroupVersion().WithKind("PersesDashboardList"), &unstructured.UnstructuredList{})
-
-			persesDashboardCRD := &apiextensionsv1.CustomResourceDefinition{
-				ObjectMeta: v1.ObjectMeta{
-					Name: "persesdashboards.perses.dev",
-				},
-			}
-
-			cli, err := fakeclient.New(
-				fakeclient.WithObjects(persesDashboardCRD),
-				fakeclient.WithScheme(fakeSchema),
-			)
-			g.Expect(err).ShouldNot(HaveOccurred())
-
-			rr := &types.ReconciliationRequest{
-				Client:    cli,
-				Instance:  &componentApi.Dashboard{},
-				Release:   common.Release{Name: tt.platform},
-				Manifests: []types.ManifestInfo{},
-			}
-
-			// This test verifies the function attempts to deploy when CRD exists.
-			// In test environment, DeployManifestsFromPath will fail because manifest files don't exist.
-			// This is expected - the important thing is that the function reaches the deploy call.
-			err = deployObservabilityManifests(ctx, rr)
+			err := deployObservabilityManifests(ctx, rr)
 			g.Expect(err).Should(HaveOccurred())
 			g.Expect(err.Error()).Should(ContainSubstring("failed to deploy observability manifests"))
 		})
@@ -276,35 +282,9 @@ func TestDeployObservabilityManifests_V1AlphaOnly(t *testing.T) {
 	ctx := t.Context()
 	g := NewWithT(t)
 
-	fakeSchema, err := scheme.New()
-	g.Expect(err).ShouldNot(HaveOccurred())
+	rr, _ := setupObservabilityManifestsTest(t, cluster.SelfManagedRhoai, gvk.PersesDashboardV1Alpha1)
 
-	// Register only v1alpha1 (not v1alpha2)
-	fakeSchema.AddKnownTypeWithName(gvk.PersesDashboardV1Alpha1, &unstructured.Unstructured{})
-	fakeSchema.AddKnownTypeWithName(gvk.PersesDashboardV1Alpha1.GroupVersion().WithKind("PersesDashboardList"), &unstructured.UnstructuredList{})
-
-	persesDashboardCRD := &apiextensionsv1.CustomResourceDefinition{
-		ObjectMeta: v1.ObjectMeta{
-			Name: "persesdashboards.perses.dev",
-		},
-	}
-
-	cli, err := fakeclient.New(
-		fakeclient.WithObjects(persesDashboardCRD),
-		fakeclient.WithScheme(fakeSchema),
-	)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	rr := &types.ReconciliationRequest{
-		Client:    cli,
-		Instance:  &componentApi.Dashboard{},
-		Release:   common.Release{Name: cluster.SelfManagedRhoai},
-		Manifests: []types.ManifestInfo{},
-	}
-
-	// When only v1alpha1 CRD exists, function should reach the v1alpha1 deploy path.
-	// DeployManifestsFromPath will fail because manifest files don't exist on disk.
-	err = deployObservabilityManifests(ctx, rr)
+	err := deployObservabilityManifests(ctx, rr)
 	g.Expect(err).Should(HaveOccurred())
 	g.Expect(err.Error()).Should(ContainSubstring("failed to deploy observability manifests"))
 }
@@ -377,14 +357,21 @@ func TestUpgradePersesToV1Alpha2_PersesDashboard(t *testing.T) {
 	g.Expect(found).Should(BeTrue())
 	g.Expect(layouts).Should(HaveLen(1))
 
-	layout := layouts[0].(map[string]interface{})
-	items := layout["spec"].(map[string]interface{})["items"].([]interface{})
-	item := items[0].(map[string]interface{})
-	content := item["content"].(map[string]interface{})
+	layout, ok := layouts[0].(map[string]interface{})
+	g.Expect(ok).Should(BeTrue(), "layout should be map[string]interface{}")
+	layoutSpec, ok := layout["spec"].(map[string]interface{})
+	g.Expect(ok).Should(BeTrue(), "layout.spec should be map[string]interface{}")
+	items, ok := layoutSpec["items"].([]interface{})
+	g.Expect(ok).Should(BeTrue(), "layout.spec.items should be []interface{}")
+	item, ok := items[0].(map[string]interface{})
+	g.Expect(ok).Should(BeTrue(), "item should be map[string]interface{}")
+	content, ok := item["content"].(map[string]interface{})
+	g.Expect(ok).Should(BeTrue(), "content should be map[string]interface{}")
 	g.Expect(content["$ref"]).Should(Equal("#/spec/config/panels/traces"))
 
 	// Old top-level spec fields should NOT exist (only config)
-	specMap := obj.Object["spec"].(map[string]interface{})
+	specMap, ok := obj.Object["spec"].(map[string]interface{})
+	g.Expect(ok).Should(BeTrue(), "spec should be map[string]interface{}")
 	g.Expect(specMap).Should(HaveLen(1))
 	g.Expect(specMap).Should(HaveKey("config"))
 }
@@ -416,7 +403,7 @@ func TestUpgradePersesToV1Alpha2_NonDashboard(t *testing.T) {
 	config, found, err := unstructured.NestedMap(obj.Object, "spec", "config")
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(found).Should(BeTrue())
-	g.Expect(config["default"]).Should(Equal(false))
+	g.Expect(config["default"]).Should(BeFalse())
 }
 
 func TestUpgradePersesToV1Alpha2_AlreadyV1Alpha2(t *testing.T) {
