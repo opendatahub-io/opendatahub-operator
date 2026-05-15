@@ -8,6 +8,8 @@ kind: Gateway
 metadata:
   labels:
     platform.opendatahub.io/dependency: serverless
+  annotations:
+    opendatahub.io/managed: "false"
   name: kserve-local-gateway
   namespace: {{ .ControlPlane.Namespace }}
 spec:
