@@ -162,8 +162,7 @@ func (tc *DashboardTestCtx) ValidateObservabilityPersesAPIVersion(t *testing.T) 
 	v2Exists, err := cluster.HasCRD(tc.Context(), tc.Client(), gvk.PersesDashboardV1Alpha2)
 	require.NoError(t, err)
 	if !v2Exists {
-		t.Log("PersesDashboard v1alpha2 CRD not installed; skipping API version assertion")
-		return
+		t.Skip("PersesDashboard v1alpha2 CRD not installed; skipping API version assertion")
 	}
 
 	tc.EnsureResourcesExist(
@@ -177,7 +176,11 @@ func (tc *DashboardTestCtx) ValidateObservabilityPersesAPIVersion(t *testing.T) 
 		WithCondition(And(
 			Not(BeEmpty()),
 			HaveEach(
-				jq.Match(`.apiVersion == "perses.dev/v1alpha2"`),
+				And(
+					jq.Match(`.apiVersion == "perses.dev/v1alpha2"`),
+					jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.Dashboard.Kind),
+					jq.Match(`.metadata.ownerReferences[0].name == "%s"`, tc.NamespacedName.Name),
+				),
 			),
 		)),
 		WithCustomErrorMsg("PersesDashboard resources should use perses.dev/v1alpha2 API version"),
