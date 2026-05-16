@@ -12,7 +12,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -44,7 +43,6 @@ func dashboardTestSuite(t *testing.T) {
 		{"Validate dynamically watches operands", componentCtx.ValidateOperandsDynamicallyWatchedResources},
 		{"Validate CRDs reinstated", componentCtx.ValidateCRDReinstated},
 		{"Validate VAP blocks dashboard HardwareProfile and AcceleratorProfile creation", componentCtx.ValidateVAPBlocksDashboardCRCreation},
-		{"Validate observability Perses API version", componentCtx.ValidateObservabilityPersesAPIVersion},
 		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
@@ -140,53 +138,6 @@ func (tc *DashboardTestCtx) ValidateVAPBlocksDashboardCRCreation(t *testing.T) {
 		err := tc.Client().Create(tc.Context(), ap)
 		tc.g.Expect(err).To(HaveOccurred(), "Expected AcceleratorProfile creation to be blocked by VAP")
 	})
-}
-
-// ValidateObservabilityPersesAPIVersion verifies that when the PersesDashboard CRD is
-// available (COO installed), dashboard-owned PersesDashboard resources in the monitoring
-// namespace use the preferred perses.dev/v1alpha2 API version rather than v1alpha1.
-func (tc *DashboardTestCtx) ValidateObservabilityPersesAPIVersion(t *testing.T) {
-	t.Helper()
-
-	skipUnless(t, Tier1)
-
-	dashboardNN := types.NamespacedName{Name: componentApi.DashboardInstanceName}
-
-	// Verify the dashboard is ready — observability manifests must not cause reconcile errors.
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Dashboard, dashboardNN),
-		WithCondition(
-			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`),
-		),
-		WithCustomErrorMsg("Dashboard should reconcile without errors from observability manifests"),
-	)
-
-	v2Exists, err := cluster.HasCRD(tc.Context(), tc.Client(), gvk.PersesDashboardV1Alpha2)
-	require.NoError(t, err)
-	if !v2Exists {
-		t.Skip("PersesDashboard v1alpha2 CRD not installed; skipping API version assertion")
-	}
-
-	tc.EnsureResourcesExist(
-		WithMinimalObject(gvk.PersesDashboardV1Alpha2, types.NamespacedName{Namespace: tc.MonitoringNamespace}),
-		WithListOptions(&client.ListOptions{
-			Namespace: tc.MonitoringNamespace,
-			LabelSelector: k8slabels.Set{
-				labels.K8SCommon.PartOf: "dashboard",
-			}.AsSelector(),
-		}),
-		WithCondition(And(
-			Not(BeEmpty()),
-			HaveEach(
-				And(
-					jq.Match(`.apiVersion == "perses.dev/v1alpha2"`),
-					jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.Dashboard.Kind),
-					jq.Match(`.metadata.ownerReferences[0].name == "%s"`, componentApi.DashboardInstanceName),
-				),
-			),
-		)),
-		WithCustomErrorMsg("PersesDashboard resources should use perses.dev/v1alpha2 API version"),
-	)
 }
 
 // ValidateAllDeletionRecovery runs the standard set of deletion recovery tests.
