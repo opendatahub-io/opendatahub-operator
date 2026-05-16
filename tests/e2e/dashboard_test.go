@@ -150,9 +150,11 @@ func (tc *DashboardTestCtx) ValidateObservabilityPersesAPIVersion(t *testing.T) 
 
 	skipUnless(t, Tier1)
 
+	dashboardNN := types.NamespacedName{Name: componentApi.DashboardInstanceName}
+
 	// Verify the dashboard is ready — observability manifests must not cause reconcile errors.
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Dashboard, tc.NamespacedName),
+		WithMinimalObject(gvk.Dashboard, dashboardNN),
 		WithCondition(
 			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`),
 		),
@@ -179,7 +181,7 @@ func (tc *DashboardTestCtx) ValidateObservabilityPersesAPIVersion(t *testing.T) 
 				And(
 					jq.Match(`.apiVersion == "perses.dev/v1alpha2"`),
 					jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.Dashboard.Kind),
-					jq.Match(`.metadata.ownerReferences[0].name == "%s"`, tc.NamespacedName.Name),
+					jq.Match(`.metadata.ownerReferences[0].name == "%s"`, componentApi.DashboardInstanceName),
 				),
 			),
 		)),
