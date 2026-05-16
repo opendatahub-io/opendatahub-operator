@@ -6,7 +6,6 @@ package gateway
 import (
 	"testing"
 
-	. "github.com/onsi/gomega"
 	oauthv1 "github.com/openshift/api/oauth/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -18,6 +17,8 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+
+	. "github.com/onsi/gomega"
 )
 
 // Test constants for domain, hostname, and auth values used across multiple tests.
