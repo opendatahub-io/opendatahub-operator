@@ -676,8 +676,8 @@ func TestGetAuthProxySecretValuesOIDCOverridesStaleClientID(t *testing.T) {
 	g := NewWithT(t)
 
 	oidcClientID := "my-oidc-client"
-	oidcSecretName := "oidc-client-secret"
-	oidcSecretValue := "oidc-secret-value"
+	oidcSecretName := "oidc-client-secret"  //nolint:gosec // test fixture, not a real credential
+	oidcSecretValue := "oidc-secret-value" //nolint:gosec // test fixture, not a real credential
 
 	existingSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
