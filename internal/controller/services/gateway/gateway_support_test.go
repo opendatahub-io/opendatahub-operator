@@ -619,7 +619,105 @@ func TestGetAuthProxySecretValuesRejectsNilOIDCConfig(t *testing.T) {
 	//nolint:dogsled // only the error matters in this test
 	_, _, _, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeOIDC, nil)
 	g.Expect(err).To(HaveOccurred())
-	g.Expect(err.Error()).To(ContainSubstring("OIDC auth mode requires oidcConfig with ClientSecretRef"))
+	g.Expect(err.Error()).To(ContainSubstring("OIDC auth mode requires oidcConfig with non-empty ClientID and ClientSecretRef"))
+}
+
+// TestGetAuthProxySecretValuesRejectsEmptyOIDCClientID verifies that calling
+// getAuthProxySecretValues with OIDC auth mode but an empty ClientID returns
+// an error instead of writing an empty OAUTH2_PROXY_CLIENT_ID to the secret.
+func TestGetAuthProxySecretValuesRejectsEmptyOIDCClientID(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	cli := setupTestClient().Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	oidcConfig := &serviceApi.OIDCConfig{
+		ClientID: "",
+		ClientSecretRef: corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"},
+			Key:                  "clientSecret",
+		},
+	}
+
+	//nolint:dogsled // only the error matters in this test
+	_, _, _, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeOIDC, oidcConfig)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("OIDC auth mode requires oidcConfig with non-empty ClientID and ClientSecretRef"))
+}
+
+// TestGetAuthProxySecretValuesRejectsEmptyOIDCClientSecretRef verifies that calling
+// getAuthProxySecretValues with OIDC auth mode but an empty ClientSecretRef.Name
+// returns an error.
+func TestGetAuthProxySecretValuesRejectsEmptyOIDCClientSecretRef(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	cli := setupTestClient().Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	oidcConfig := &serviceApi.OIDCConfig{
+		ClientID: "my-oidc-client",
+	}
+
+	//nolint:dogsled // only the error matters in this test
+	_, _, _, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeOIDC, oidcConfig)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("OIDC auth mode requires oidcConfig with non-empty ClientID and ClientSecretRef"))
+}
+
+// TestGetAuthProxySecretValuesOIDCOverridesStaleClientID verifies that when a
+// kube-auth-proxy-creds secret exists with a stale client ID, OIDC mode returns
+// the desired client ID from oidcConfig instead of the stale value.
+func TestGetAuthProxySecretValuesOIDCOverridesStaleClientID(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	oidcClientID := "my-oidc-client"
+	oidcSecretName := "oidc-client-secret"
+	oidcSecretValue := "oidc-secret-value"
+
+	existingSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      KubeAuthProxySecretsName,
+			Namespace: GatewayNamespace,
+		},
+		Data: map[string][]byte{
+			EnvClientID:     []byte("stale-oidc-client"),
+			EnvClientSecret: []byte(testAuthClientSecret),
+			EnvCookieSecret: []byte(testAuthCookieSecret),
+		},
+	}
+
+	externalSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      oidcSecretName,
+			Namespace: GatewayNamespace,
+		},
+		Data: map[string][]byte{
+			"clientSecret": []byte(oidcSecretValue),
+		},
+	}
+
+	cli := setupTestClient().WithObjects(existingSecret, externalSecret).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	oidcConfig := &serviceApi.OIDCConfig{
+		ClientID: oidcClientID,
+		ClientSecretRef: corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: oidcSecretName},
+			Key:                  "clientSecret",
+		},
+	}
+
+	clientID, clientSecret, cookieSecret, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeOIDC, oidcConfig)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(clientID).To(Equal(oidcClientID), "must return OIDC client ID, not the stale value from the secret")
+	g.Expect(clientSecret).To(Equal(oidcSecretValue), "must reload client secret from ClientSecretRef")
+	g.Expect(cookieSecret).To(Equal(testAuthCookieSecret), "must preserve existing cookie secret")
 }
 
 // TestGetAuthProxySecretValuesPreservesCurrentClientID verifies that when the
