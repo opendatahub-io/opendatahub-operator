@@ -616,6 +616,7 @@ func TestGetAuthProxySecretValuesRejectsNilOIDCConfig(t *testing.T) {
 	rr := &odhtypes.ReconciliationRequest{Client: cli}
 	ctx := t.Context()
 
+	//nolint:dogsled // only the error matters in this test
 	_, _, _, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeOIDC, nil)
 	g.Expect(err).To(HaveOccurred())
 	g.Expect(err.Error()).To(ContainSubstring("OIDC auth mode requires oidcConfig with ClientSecretRef"))
