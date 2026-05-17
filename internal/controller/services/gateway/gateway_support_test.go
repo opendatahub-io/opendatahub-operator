@@ -1131,3 +1131,108 @@ func TestDeleteLegacyOAuthClientMalformedURI(t *testing.T) {
 	err = cli.Get(ctx, types.NamespacedName{Name: LegacyAuthClientID}, preserved)
 	g.Expect(err).NotTo(HaveOccurred(), "client with only malformed URIs must not be deleted")
 }
+
+// TestDeleteLegacyOAuthClientGetFQDNError verifies that deleteLegacyOAuthClient
+// returns an error when GetFQDN fails (e.g. no domain in config and no cluster domain).
+func TestDeleteLegacyOAuthClientGetFQDNError(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{},
+	}
+
+	legacyClient := &oauthv1.OAuthClient{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: LegacyAuthClientID,
+		},
+		RedirectURIs: []string{
+			"https://rh-ai.example.com/oauth2/callback",
+		},
+	}
+
+	cli := setupTestClient().WithObjects(legacyClient).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	err := deleteLegacyOAuthClient(ctx, rr, gatewayConfig)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("failed to resolve gateway domain for legacy cleanup"))
+}
+
+// TestGetAuthProxySecretValuesOIDCDefaultKey verifies that when the OIDC
+// ClientSecretRef.Key is empty, it defaults to "clientSecret".
+func TestGetAuthProxySecretValuesOIDCDefaultKey(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	oidcSecretName := testOIDCSecretName
+	oidcSecretValue := "oidc-default-key-value" //nolint:gosec // test fixture
+
+	externalSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      oidcSecretName,
+			Namespace: GatewayNamespace,
+		},
+		Data: map[string][]byte{
+			"clientSecret": []byte(oidcSecretValue),
+		},
+	}
+
+	cli := setupTestClient().WithObjects(externalSecret).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	oidcConfig := &serviceApi.OIDCConfig{
+		ClientID: "oidc-client-default-key",
+		ClientSecretRef: corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: oidcSecretName},
+		},
+	}
+
+	clientID, clientSecret, cookieSecret, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeOIDC, oidcConfig)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(clientID).To(Equal("oidc-client-default-key"))
+	g.Expect(clientSecret).To(Equal(oidcSecretValue), "should read from default 'clientSecret' key")
+	g.Expect(cookieSecret).NotTo(BeEmpty(), "should generate a cookie secret")
+}
+
+// TestGetAuthProxySecretValuesOIDCCustomNamespace verifies that when OIDC
+// SecretNamespace is set, the external secret is fetched from that namespace.
+func TestGetAuthProxySecretValuesOIDCCustomNamespace(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	customNamespace := "custom-ns"
+	oidcSecretName := testOIDCSecretName
+	oidcSecretValue := "oidc-custom-ns-value" //nolint:gosec // test fixture
+
+	externalSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      oidcSecretName,
+			Namespace: customNamespace,
+		},
+		Data: map[string][]byte{
+			"my-key": []byte(oidcSecretValue),
+		},
+	}
+
+	cli := setupTestClient().WithObjects(externalSecret).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	oidcConfig := &serviceApi.OIDCConfig{
+		ClientID:        "oidc-custom-ns-client",
+		SecretNamespace: customNamespace,
+		ClientSecretRef: corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: oidcSecretName},
+			Key:                  "my-key",
+		},
+	}
+
+	clientID, clientSecret, cookieSecret, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeOIDC, oidcConfig)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(clientID).To(Equal("oidc-custom-ns-client"))
+	g.Expect(clientSecret).To(Equal(oidcSecretValue), "should read from custom namespace")
+	g.Expect(cookieSecret).NotTo(BeEmpty(), "should generate a cookie secret")
+}
