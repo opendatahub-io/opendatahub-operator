@@ -932,7 +932,7 @@ func TestGetAuthProxySecretValuesOIDCPreservesCookieSecret(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	oidcSecretName := "oidc-secret"            //nolint:gosec // test fixture
+	oidcSecretName := "oidc-secret"
 	oidcSecretValue := "new-oidc-secret-value" //nolint:gosec // test fixture
 	existingCookieSecret := "preserved-cookie-value"
 
