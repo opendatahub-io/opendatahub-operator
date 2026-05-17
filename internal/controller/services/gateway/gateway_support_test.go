@@ -1236,3 +1236,84 @@ func TestGetAuthProxySecretValuesOIDCCustomNamespace(t *testing.T) {
 	g.Expect(clientSecret).To(Equal(oidcSecretValue), "should read from custom namespace")
 	g.Expect(cookieSecret).NotTo(BeEmpty(), "should generate a cookie secret")
 }
+
+// TestGetAuthProxySecretValuesOIDCExistingSecretMissingCookie verifies that in
+// OIDC mode, when the existing secret has a client secret but no cookie secret,
+// a new cookie secret is generated while the client secret comes from the
+// external OIDC secret.
+func TestGetAuthProxySecretValuesOIDCExistingSecretMissingCookie(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	oidcSecretName := testOIDCSecretName
+	oidcSecretValue := "oidc-secret-no-cookie" //nolint:gosec // test fixture
+
+	existingSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      KubeAuthProxySecretsName,
+			Namespace: GatewayNamespace,
+		},
+		Data: map[string][]byte{
+			EnvClientID:     []byte("old-oidc-client"),
+			EnvClientSecret: []byte("old-secret"),
+		},
+	}
+
+	externalSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      oidcSecretName,
+			Namespace: GatewayNamespace,
+		},
+		Data: map[string][]byte{
+			"clientSecret": []byte(oidcSecretValue),
+		},
+	}
+
+	cli := setupTestClient().WithObjects(existingSecret, externalSecret).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	oidcConfig := &serviceApi.OIDCConfig{
+		ClientID: "oidc-no-cookie-client",
+		ClientSecretRef: corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: oidcSecretName},
+			Key:                  "clientSecret",
+		},
+	}
+
+	clientID, clientSecret, cookieSecret, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeOIDC, oidcConfig)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(clientID).To(Equal("oidc-no-cookie-client"))
+	g.Expect(clientSecret).To(Equal(oidcSecretValue), "should reload from OIDC secret")
+	g.Expect(cookieSecret).NotTo(BeEmpty(), "should generate a new cookie secret when missing from existing secret")
+}
+
+// TestGetAuthProxySecretValuesIntegratedOAuthMissingClientSecret verifies that
+// when the existing secret has a cookie secret but no client secret, new secrets
+// are generated while the correct client ID is returned.
+func TestGetAuthProxySecretValuesIntegratedOAuthMissingClientSecret(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	existingSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      KubeAuthProxySecretsName,
+			Namespace: GatewayNamespace,
+		},
+		Data: map[string][]byte{
+			EnvClientID:     []byte(AuthClientID),
+			EnvCookieSecret: []byte(testAuthCookieSecret),
+		},
+	}
+
+	cli := setupTestClient().WithObjects(existingSecret).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	clientID, clientSecret, cookieSecret, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeIntegratedOAuth, nil)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(clientID).To(Equal(AuthClientID))
+	g.Expect(clientSecret).NotTo(BeEmpty(), "should generate a new client secret")
+	g.Expect(clientSecret).NotTo(Equal(testAuthClientSecret), "should not reuse missing client secret")
+	g.Expect(cookieSecret).To(Equal(testAuthCookieSecret), "should preserve existing cookie secret")
+}
