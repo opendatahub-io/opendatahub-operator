@@ -705,6 +705,9 @@ func getAuthProxySecretValues(
 			return "", "", "", fmt.Errorf("failed to generate client secret: %w", err)
 		}
 		clientSecretValue = clientSecretGen.Value
+
+	case cluster.AuthModeNone:
+		return "", "", "", fmt.Errorf("auth mode: %s is not supported", authMode)
 	}
 
 	// Reuse existing cookie secret if available to preserve user sessions.
