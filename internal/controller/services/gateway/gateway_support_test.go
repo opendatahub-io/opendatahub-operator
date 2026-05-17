@@ -40,6 +40,7 @@ const (
 	testCookieExpireDefault       = "24h0m0s"
 	testCookieRefreshDefault      = "1h0m0s"
 	testAuthTimeoutDefault        = "5s"
+	testOIDCSecretName            = "oidc-secret"
 )
 
 // TestGetCertificateType tests the getCertificateType helper function.
@@ -932,7 +933,7 @@ func TestGetAuthProxySecretValuesOIDCPreservesCookieSecret(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	oidcSecretName := "oidc-secret"
+	oidcSecretName := testOIDCSecretName
 	oidcSecretValue := "new-oidc-secret-value" //nolint:gosec // test fixture
 	existingCookieSecret := "preserved-cookie-value"
 
@@ -1029,7 +1030,7 @@ func TestGetAuthProxySecretValuesOIDCNoExistingSecret(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	oidcSecretName := "oidc-secret"
+	oidcSecretName := testOIDCSecretName
 	oidcSecretValue := "oidc-secret-value" //nolint:gosec // test fixture
 
 	externalSecret := &corev1.Secret{
@@ -1067,7 +1068,7 @@ func TestGetAuthProxySecretValuesOIDCMissingKey(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	oidcSecretName := "oidc-secret"
+	oidcSecretName := testOIDCSecretName
 
 	externalSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
