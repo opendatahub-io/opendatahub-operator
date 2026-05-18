@@ -603,20 +603,69 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 
 			waitForReady(wt)
 
-			// Verify the cert-manager deployment exists before the transition.
+			// Verify the cert-manager operator deployment exists before the transition.
 			certManagerDep := getManagedDependencyDeploymentByName(t, wt, cr, "cert-manager")
 			nn := types.NamespacedName{Name: certManagerDep.GetName(), Namespace: certManagerDep.GetNamespace()}
 			wt.Get(gvk.Deployment, nn).Eventually().Should(Not(BeNil()))
 
-			// Switch cert-manager to Unmanaged. Helm no longer renders cert-manager
-			// resources, so they retain stale generation annotations. GC deletes them.
+			// Switch cert-manager to Unmanaged. The cleanup pre-phase deletes
+			// CertManager/cluster and waits for cert-manager-operator to process
+			// its finalizers (removing operand deployments). GC then deletes the
+			// cert-manager-operator resources themselves.
 			wt.Patch(provider.GVK, k8sEngineCrNn(), func(obj *unstructured.Unstructured) error {
 				return unstructured.SetNestedField(obj.Object, string(ccmapi.Unmanaged),
 					"spec", "dependencies", "certManager", "managementPolicy")
 			}).Eventually().Should(Not(BeNil()))
 
-			// GC should automatically delete the cert-manager deployment.
+			// cert-manager operator deployment should be removed by GC.
 			wt.Get(gvk.Deployment, nn).Eventually().Should(BeNil())
+
+			// CertManager/cluster CR should be removed by the cleanup pre-phase.
+			wt.Get(gvk.CertManagerV1Alpha1, types.NamespacedName{Name: "cluster"}).
+				Eventually().Should(BeNil())
+
+			// cert-manager operand deployments should be removed by cert-manager-operator
+			// finalizer processing (transitively via CertManager/cluster deletion).
+			for _, dep := range certManagerOperandDeployments {
+				wt.Get(gvk.Deployment, types.NamespacedName{
+					Name: dep.Name, Namespace: dep.Namespace,
+				}).Eventually().Should(BeNil())
+			}
+		})
+
+		t.Run("DeletesSailOperatorOperandsOnUnmanagedTransition", func(t *testing.T) {
+			wt := tc.NewWithT(t)
+
+			// Restore all to Managed first.
+			wt.Patch(provider.GVK, k8sEngineCrNn(), func(obj *unstructured.Unstructured) error {
+				return unstructured.SetNestedField(obj.Object, allManagedWithCustomNamespaces(), "spec", "dependencies")
+			}).Eventually().Should(Not(BeNil()))
+
+			waitForReady(wt)
+
+			// Verify istiod exists before the transition.
+			wt.Get(gvk.Deployment, types.NamespacedName{
+				Name: "istiod", Namespace: sailOperatorNS,
+			}).Eventually().Should(Not(BeNil()))
+
+			// Switch sailOperator to Unmanaged.
+			wt.Patch(provider.GVK, k8sEngineCrNn(), func(obj *unstructured.Unstructured) error {
+				return unstructured.SetNestedField(obj.Object, string(ccmapi.Unmanaged),
+					"spec", "dependencies", "sailOperator", "managementPolicy")
+			}).Eventually().Should(Not(BeNil()))
+
+			waitForReady(wt)
+
+			// Istio CR should be removed.
+			wt.Get(gvk.Istio, types.NamespacedName{
+				Name: "default", Namespace: sailOperatorNS,
+			}).Eventually().Should(BeNil())
+
+			// istiod deployment should be removed (transitively via Istio/IstioRevision
+			// finalizer processing).
+			wt.Get(gvk.Deployment, types.NamespacedName{
+				Name: "istiod", Namespace: sailOperatorNS,
+			}).Eventually().Should(BeNil())
 		})
 	})
 

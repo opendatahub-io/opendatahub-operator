@@ -365,8 +365,7 @@ func TestAzureKubernetesEngineCleanupAction(t *testing.T) {
 		)
 		wt.Expect(err).NotTo(HaveOccurred())
 
-		// Create the AKE CR. The Bootstrap function registers NewCleanupAction as a
-		// finalizer, so the controller adds the platform finalizer after the first reconcile.
+		// Create the AKE CR. The controller adds the platform finalizer after the first reconcile.
 		ccmtest.CreateCR(t, wt, azureCfg, ccmcommon.Dependencies{
 			CertManager: ccmcommon.CertManagerDependency{ManagementPolicy: ccmcommon.Managed},
 		})

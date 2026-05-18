@@ -8,6 +8,8 @@ import (
 
 	ccmv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/azure/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/cleanup"
 	certmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/cloudmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
@@ -36,8 +38,15 @@ func NewReconciler(ctx context.Context, mgr ctrl.Manager, cfg *operatorconfig.Cl
 		)).
 		WithActionE(cloudmanager.NewReconcileAction(resourceID)).
 		// GC must be last: evaluates every CCM resource and removes stale or orphaned ones.
+		// cleanupStaleCR runs as a pre-phase inside GC, ensuring dependency CRs are deleted
+		// and their finalizers processed before GC removes the operators themselves.
 		WithActionE(cloudmanager.NewGCAction(resourceID, cfg.RhaiOperatorNamespace,
 			cloudmanager.BootstrapProtectedObjects(bootstrapConfig),
+			cloudmanager.DefaultCleanupTargets(),
+		)).
+		// Bootstrap registers the cert-manager finalizer; this registers the Istio finalizer.
+		WithFinalizer(cleanup.NewFinalizer(
+			cleanup.Target{GVK: gvk.Istio, Name: "default", FinalizerPrefix: "sailoperator.io/"},
 		)).
 		WithConditions(cloudmanager.ConditionsTypes...).
 		Build(ctx)
