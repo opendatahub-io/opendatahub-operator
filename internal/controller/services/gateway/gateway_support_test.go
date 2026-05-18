@@ -1199,6 +1199,39 @@ func TestDeleteLegacyOAuthClientHTTPSchemeSkipped(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred(), "OAuthClient with http scheme must not be deleted")
 }
 
+// TestDeleteLegacyOAuthClientExplicitPort443 verifies that deleteLegacyOAuthClient
+// deletes the legacy OAuthClient when its redirect URI uses explicit port 443.
+func TestDeleteLegacyOAuthClientExplicitPort443(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{
+			Domain: testDomain,
+		},
+	}
+
+	legacyClient := &oauthv1.OAuthClient{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: LegacyAuthClientID,
+		},
+		RedirectURIs: []string{
+			"https://" + testHostnameDefault + ":443/oauth2/callback",
+		},
+	}
+
+	cli := setupTestClient().WithObjects(legacyClient).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	err := deleteLegacyOAuthClient(ctx, rr, gatewayConfig)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	deleted := &oauthv1.OAuthClient{}
+	err = cli.Get(ctx, types.NamespacedName{Name: LegacyAuthClientID}, deleted)
+	g.Expect(k8serr.IsNotFound(err)).To(BeTrue(), "legacy OAuthClient with explicit port 443 should be deleted")
+}
+
 // TestDeleteLegacyOAuthClientGetFQDNError verifies that deleteLegacyOAuthClient
 // returns an error when GetFQDN fails (e.g. no domain in config and no cluster domain).
 func TestDeleteLegacyOAuthClientGetFQDNError(t *testing.T) {
@@ -1225,6 +1258,31 @@ func TestDeleteLegacyOAuthClientGetFQDNError(t *testing.T) {
 	err := deleteLegacyOAuthClient(ctx, rr, gatewayConfig)
 	g.Expect(err).To(HaveOccurred())
 	g.Expect(err.Error()).To(ContainSubstring("failed to resolve gateway domain for legacy cleanup"))
+}
+
+// TestGetAuthProxySecretValuesOIDCMissingExternalSecret verifies that when the
+// external OIDC secret referenced by ClientSecretRef does not exist, an error
+// is returned.
+func TestGetAuthProxySecretValuesOIDCMissingExternalSecret(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	cli := setupTestClient().Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	oidcConfig := &serviceApi.OIDCConfig{
+		ClientID: "my-oidc-client",
+		ClientSecretRef: corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: "nonexistent-secret"},
+			Key:                  "clientSecret",
+		},
+	}
+
+	//nolint:dogsled // only the error matters in this test
+	_, _, _, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeOIDC, oidcConfig)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("failed to get OIDC client secret"))
 }
 
 // TestGetAuthProxySecretValuesOIDCDefaultKey verifies that when the OIDC
