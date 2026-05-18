@@ -11,7 +11,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -27,26 +26,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
-)
-
-var (
-	subscriptionGVK = schema.GroupVersionKind{
-		Group:   v1alpha1.SchemeGroupVersion.Group,
-		Version: v1alpha1.SchemeGroupVersion.Version,
-		Kind:    "Subscription",
-	}
-
-	templateGVK = schema.GroupVersionKind{
-		Group:   "template.openshift.io",
-		Version: "v1",
-		Kind:    "Template",
-	}
-
-	serviceMonitorGVK = schema.GroupVersionKind{
-		Group:   "monitoring.coreos.com",
-		Version: "v1",
-		Kind:    "ServiceMonitor",
-	}
 )
 
 func startModelControllerController(t *testing.T, ctx context.Context) (*envt.EnvT, *testf.WithT) {
@@ -72,9 +51,9 @@ func startModelControllerController(t *testing.T, ctx context.Context) (*envt.En
 	t.Cleanup(func() { _ = et.Stop() })
 
 	// Register CRDs for non-built-in types used by Owns() so informers start.
-	_, err = et.RegisterCRD(ctx, templateGVK, "templates", "template", apiextensionsv1.NamespaceScoped)
+	_, err = et.RegisterCRD(ctx, gvk.OpenshiftTemplate, "templates", "template", apiextensionsv1.NamespaceScoped)
 	g.Expect(err).NotTo(HaveOccurred())
-	_, err = et.RegisterCRD(ctx, serviceMonitorGVK, "servicemonitors", "servicemonitor", apiextensionsv1.NamespaceScoped)
+	_, err = et.RegisterCRD(ctx, gvk.CoreosServiceMonitor, "servicemonitors", "servicemonitor", apiextensionsv1.NamespaceScoped)
 	g.Expect(err).NotTo(HaveOccurred())
 
 	// The reconciler reads OPERATOR_NAMESPACE; create it so apply-status succeeds.
@@ -116,7 +95,7 @@ func TestModelControllerSubscriptionDependencyMonitoring(t *testing.T) {
 		et, wt := startModelControllerController(t, ctx)
 		t.Cleanup(cancel)
 
-		crd, err := et.RegisterCRD(wt.Context(), subscriptionGVK,
+		crd, err := et.RegisterCRD(wt.Context(), gvk.Subscription,
 			"subscriptions", "subscription", apiextensionsv1.NamespaceScoped)
 		wt.Expect(err).NotTo(HaveOccurred())
 		envt.CleanupDelete(t, NewWithT(t), wt.Context(), wt.Client(), crd)
@@ -143,7 +122,7 @@ func TestModelControllerSubscriptionDependencyMonitoring(t *testing.T) {
 		et, wt := startModelControllerController(t, ctx)
 		t.Cleanup(cancel)
 
-		crd, err := et.RegisterCRD(wt.Context(), subscriptionGVK,
+		crd, err := et.RegisterCRD(wt.Context(), gvk.Subscription,
 			"subscriptions", "subscription", apiextensionsv1.NamespaceScoped)
 		wt.Expect(err).NotTo(HaveOccurred())
 		envt.CleanupDelete(t, NewWithT(t), wt.Context(), wt.Client(), crd)
@@ -179,7 +158,7 @@ func TestModelControllerSubscriptionDependencyMonitoring(t *testing.T) {
 			et, wt := startModelControllerController(t, ctx)
 			t.Cleanup(cancel)
 
-			crd, err := et.RegisterCRD(wt.Context(), subscriptionGVK,
+			crd, err := et.RegisterCRD(wt.Context(), gvk.Subscription,
 				"subscriptions", "subscription", apiextensionsv1.NamespaceScoped)
 			wt.Expect(err).NotTo(HaveOccurred())
 			envt.CleanupDelete(t, NewWithT(t), wt.Context(), wt.Client(), crd)
@@ -189,7 +168,7 @@ func TestModelControllerSubscriptionDependencyMonitoring(t *testing.T) {
 			nn := types.NamespacedName{Name: componentApi.ModelControllerInstanceName}
 
 			wt.Get(gvk.ModelController, nn).Eventually().Should(
-				jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == .status`),
+				jq.Match(`[.status.conditions[] | select(.type == "Ready")] | length > 0`),
 			)
 
 			wt.Get(gvk.ModelController, nn).Consistently().WithTimeout(5 * time.Second).Should(
@@ -212,7 +191,7 @@ func TestModelControllerSubscriptionDependencyMonitoring(t *testing.T) {
 		nn := types.NamespacedName{Name: componentApi.ModelControllerInstanceName}
 
 		wt.Get(gvk.ModelController, nn).Eventually().Should(
-			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == .status`),
+			jq.Match(`[.status.conditions[] | select(.type == "Ready")] | length > 0`),
 		)
 
 		wt.Get(gvk.ModelController, nn).Consistently().WithTimeout(5 * time.Second).Should(

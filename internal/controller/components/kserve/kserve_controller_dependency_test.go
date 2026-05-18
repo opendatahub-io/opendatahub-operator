@@ -29,12 +29,6 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var subscriptionGVK = schema.GroupVersionKind{
-	Group:   v1alpha1.SchemeGroupVersion.Group,
-	Version: v1alpha1.SchemeGroupVersion.Version,
-	Kind:    "Subscription",
-}
-
 func startKserveController(t *testing.T, ctx context.Context) (*envt.EnvT, *testf.WithT) {
 	t.Helper()
 	g := NewWithT(t)
@@ -145,9 +139,8 @@ func TestCRDDependencyMonitoring(t *testing.T) {
 		nn := types.NamespacedName{Name: componentApi.KserveInstanceName}
 
 		// Wait for reconciliation by checking that subscription conditions exist.
-		// `.status == .status` verifies the condition exists without asserting a specific value.
 		wt.Get(gvk.Kserve, nn).Eventually().Should(
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == .status`,
+			jq.Match(`[.status.conditions[] | select(.type == "%s")] | length > 0`,
 				LLMInferenceServiceDependencies),
 		)
 
@@ -170,7 +163,7 @@ func TestSubscriptionDependencyMonitoring(t *testing.T) {
 		et, wt := startKserveController(t, ctx)
 		t.Cleanup(cancel)
 
-		crd, err := et.RegisterCRD(wt.Context(), subscriptionGVK,
+		crd, err := et.RegisterCRD(wt.Context(), gvk.Subscription,
 			"subscriptions", "subscription", apiextensionsv1.NamespaceScoped)
 		wt.Expect(err).NotTo(HaveOccurred())
 		envt.CleanupDelete(t, NewWithT(t), wt.Context(), wt.Client(), crd)
@@ -204,7 +197,7 @@ func TestSubscriptionDependencyMonitoring(t *testing.T) {
 		et, wt := startKserveController(t, ctx)
 		t.Cleanup(cancel)
 
-		crd, err := et.RegisterCRD(wt.Context(), subscriptionGVK,
+		crd, err := et.RegisterCRD(wt.Context(), gvk.Subscription,
 			"subscriptions", "subscription", apiextensionsv1.NamespaceScoped)
 		wt.Expect(err).NotTo(HaveOccurred())
 		envt.CleanupDelete(t, NewWithT(t), wt.Context(), wt.Client(), crd)
@@ -237,7 +230,7 @@ func TestSubscriptionDependencyMonitoring(t *testing.T) {
 		et, wt := startKserveController(t, ctx)
 		t.Cleanup(cancel)
 
-		crd, err := et.RegisterCRD(wt.Context(), subscriptionGVK,
+		crd, err := et.RegisterCRD(wt.Context(), gvk.Subscription,
 			"subscriptions", "subscription", apiextensionsv1.NamespaceScoped)
 		wt.Expect(err).NotTo(HaveOccurred())
 		envt.CleanupDelete(t, NewWithT(t), wt.Context(), wt.Client(), crd)
@@ -280,7 +273,7 @@ func TestSubscriptionDependencyMonitoring(t *testing.T) {
 
 		// Wait for reconciliation to happen by checking DependenciesAvailable exists
 		wt.Get(gvk.Kserve, nn).Eventually().Should(
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == .status`,
+			jq.Match(`[.status.conditions[] | select(.type == "%s")] | length > 0`,
 				status.ConditionDependenciesAvailable),
 		)
 

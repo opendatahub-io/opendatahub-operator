@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -23,6 +24,8 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -39,6 +42,8 @@ const (
 	// DefaultMaxWait is the maximum time envt helpers wait for resource readiness.
 	DefaultMaxWait = 30 * time.Second
 )
+
+var initLogger sync.Once
 
 type OptionFn func(in *EnvT)
 
@@ -223,6 +228,10 @@ func New(opts ...OptionFn) (*EnvT, error) {
 			},
 		}
 	}
+
+	initLogger.Do(func() {
+		logf.SetLogger(zap.New(zap.UseDevMode(true)))
+	})
 
 	// Start the envtest environment.
 	cfg, err := result.Env.Start()

@@ -106,6 +106,16 @@ func newPreCondition(check CheckFunc, opts ...Option) PreCondition {
 	return pc
 }
 
+func initAggregate(results map[string]*conditionAggregate, conditionType string) *conditionAggregate {
+	if results[conditionType] == nil {
+		results[conditionType] = &conditionAggregate{
+			status:   metav1.ConditionTrue,
+			severity: common.ConditionSeverityInfo,
+		}
+	}
+	return results[conditionType]
+}
+
 // conditionAggregate aggregates the check results for a given condition type.
 type conditionAggregate struct {
 	status     metav1.ConditionStatus
@@ -157,14 +167,7 @@ func RunAll(ctx context.Context, rr *types.ReconciliationRequest, preConditions 
 			if skipErr != nil {
 				l.Info("Pre-condition skip function error", "conditionType", pc.conditionType, "error", skipErr.Error())
 
-				if results[pc.conditionType] == nil {
-					results[pc.conditionType] = &conditionAggregate{
-						status:   metav1.ConditionTrue,
-						severity: common.ConditionSeverityInfo,
-					}
-				}
-
-				results[pc.conditionType].record(metav1.ConditionUnknown, skipErr.Error(), pc)
+				initAggregate(results, pc.conditionType).record(metav1.ConditionUnknown, skipErr.Error(), pc)
 
 				continue
 			}
@@ -176,14 +179,7 @@ func RunAll(ctx context.Context, rr *types.ReconciliationRequest, preConditions 
 			}
 		}
 
-		// Initialize the condition aggregate for this condition type.
-		if results[pc.conditionType] == nil {
-			results[pc.conditionType] = &conditionAggregate{
-				status:   metav1.ConditionTrue,
-				severity: common.ConditionSeverityInfo,
-			}
-		}
-		agg := results[pc.conditionType]
+		agg := initAggregate(results, pc.conditionType)
 
 		if pc.check == nil {
 			l.Info("Pre-condition check function is nil", "conditionType", pc.conditionType)
