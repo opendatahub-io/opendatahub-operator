@@ -44,7 +44,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				component.ForLabel(labels.ODH.Component(ComponentName), labels.True)),
 		).
 		// Add LlamaStackOperator-specific actions
-		WithPreCondition(precondition.Custom(checkPreConditions, precondition.WithStopReconciliation())).
+		WithReconcilerOpts(reconciler.WithPreConditions([]precondition.PreCondition{precondition.Custom(checkPreConditions, precondition.WithStopReconciliation())})).
 		WithAction(precondition.RunlevelGateAction()).
 		WithAction(initialize).
 		WithAction(releases.NewAction()).

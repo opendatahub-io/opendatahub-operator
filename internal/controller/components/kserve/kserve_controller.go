@@ -160,54 +160,39 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// so the controller re-reconciles when they appear or disappear.
 
 		// preconditions
-		WithPreCondition(precondition.MonitorOperator(precondition.OperatorConfig{
-			OperatorGVK: gvk.LeaderWorkerSetOperatorV1,
-			Filter:      lwsConditionFilter,
-		}, precondition.WithSeverity(common.ConditionSeverityInfo))).
-		WithPreCondition(precondition.MonitorCRDs(xksDependencyCRDs,
-			precondition.WithClusterTypes(cluster.ClusterTypeKubernetes))).
-		WithPreCondition(precondition.MonitorCRDs(
-			[]schema.GroupVersionKind{gvk.LeaderWorkerSetV1},
-			precondition.WithConditionType(LLMInferenceServiceWideEPDependencies),
-			precondition.WithClusterTypes(cluster.ClusterTypeKubernetes),
-			precondition.WithSeverity(common.ConditionSeverityInfo),
-		)).
-		WithPreCondition(precondition.MonitorSubscriptions(
-			[]precondition.SubscriptionDependency{
-				{
-					Name:        RHCLOperatorSubscription,
-					DisplayName: "Red Hat Connectivity Link",
-					Message:     rhclMissingMessage,
+		WithReconcilerOpts(reconciler.WithPreConditions([]precondition.PreCondition{
+			precondition.MonitorOperator(precondition.OperatorConfig{
+				OperatorGVK: gvk.LeaderWorkerSetOperatorV1,
+				Filter:      lwsConditionFilter,
+			}, precondition.WithSeverity(common.ConditionSeverityInfo)),
+			precondition.MonitorCRDs(xksDependencyCRDs,
+				precondition.WithClusterTypes(cluster.ClusterTypeKubernetes)),
+			precondition.MonitorCRDs(
+				[]schema.GroupVersionKind{gvk.LeaderWorkerSetV1},
+				precondition.WithConditionType(LLMInferenceServiceWideEPDependencies),
+				precondition.WithClusterTypes(cluster.ClusterTypeKubernetes),
+				precondition.WithSeverity(common.ConditionSeverityInfo),
+			),
+			precondition.MonitorSubscriptions(
+				[]precondition.SubscriptionDependency{
+					{Name: RHCLOperatorSubscription, DisplayName: "Red Hat Connectivity Link", Message: rhclMissingMessage},
+					{Name: CertManagerOperatorSubscription, DisplayName: "cert-manager operator"},
 				},
-				{
-					Name:        CertManagerOperatorSubscription,
-					DisplayName: "cert-manager operator",
+				precondition.WithConditionType(LLMInferenceServiceDependencies),
+				precondition.WithClusterTypes(cluster.ClusterTypeOpenShift),
+				precondition.WithSeverity(common.ConditionSeverityInfo),
+			),
+			precondition.MonitorSubscriptions(
+				[]precondition.SubscriptionDependency{
+					{Name: RHCLOperatorSubscription, DisplayName: "Red Hat Connectivity Link", Message: rhclMissingMessage},
+					{Name: LWSOperatorSubscription, DisplayName: "LeaderWorkerSet"},
+					{Name: CertManagerOperatorSubscription, DisplayName: "cert-manager operator"},
 				},
-			},
-			precondition.WithConditionType(LLMInferenceServiceDependencies),
-			precondition.WithClusterTypes(cluster.ClusterTypeOpenShift),
-			precondition.WithSeverity(common.ConditionSeverityInfo),
-		)).
-		WithPreCondition(precondition.MonitorSubscriptions(
-			[]precondition.SubscriptionDependency{
-				{
-					Name:        RHCLOperatorSubscription,
-					DisplayName: "Red Hat Connectivity Link",
-					Message:     rhclMissingMessage,
-				},
-				{
-					Name:        LWSOperatorSubscription,
-					DisplayName: "LeaderWorkerSet",
-				},
-				{
-					Name:        CertManagerOperatorSubscription,
-					DisplayName: "cert-manager operator",
-				},
-			},
-			precondition.WithConditionType(LLMInferenceServiceWideEPDependencies),
-			precondition.WithClusterTypes(cluster.ClusterTypeOpenShift),
-			precondition.WithSeverity(common.ConditionSeverityInfo),
-		)).
+				precondition.WithConditionType(LLMInferenceServiceWideEPDependencies),
+				precondition.WithClusterTypes(cluster.ClusterTypeOpenShift),
+				precondition.WithSeverity(common.ConditionSeverityInfo),
+			),
+		})).
 
 		// actions
 		WithAction(precondition.RunlevelGateAction()).

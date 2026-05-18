@@ -225,7 +225,7 @@ func TestFinalizer_Remove(t *testing.T) {
 	mockDashboard := &componentApi.Dashboard{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       mockDashboardName,
-			Finalizers: []string{platformFinalizer},
+			Finalizers: []string{finalizerName},
 			DeletionTimestamp: &metav1.Time{
 				Time: time.Now(),
 			},

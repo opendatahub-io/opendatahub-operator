@@ -26,23 +26,8 @@ func ownedTypeIsNot(ownerType *schema.GroupVersionKind) func(or metav1.OwnerRefe
 			return false
 		}
 	}
-
 	gv := ownerType.GroupVersion().String()
 	return func(or metav1.OwnerReference) bool {
 		return ownerType.Kind != or.Kind || gv != or.APIVersion
-	}
-}
-
-func ownedTypeIs(ownerType *schema.GroupVersionKind) func(or metav1.OwnerReference) bool {
-	if ownerType == nil {
-		return func(or metav1.OwnerReference) bool {
-			return false
-		}
-	}
-
-	gv := ownerType.GroupVersion().String()
-
-	return func(or metav1.OwnerReference) bool {
-		return ownerType.Kind == or.Kind && gv == or.APIVersion
 	}
 }

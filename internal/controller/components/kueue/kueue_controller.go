@@ -152,12 +152,14 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				handlers.ToNamed(componentApi.KueueInstanceName),
 			),
 		).
-		WithPreCondition(precondition.MonitorOperator(precondition.OperatorConfig{
-			OperatorGVK: gvk.KueueConfigV1,
-			CRName:      KueueCRName,
-			Filter:      kueueDegradedConditionFilter,
+		WithReconcilerOpts(reconciler.WithPreConditions([]precondition.PreCondition{
+			precondition.MonitorOperator(precondition.OperatorConfig{
+				OperatorGVK: gvk.KueueConfigV1,
+				CRName:      KueueCRName,
+				Filter:      kueueDegradedConditionFilter,
+			}),
 		})).
-		WithPreCondition(precondition.Custom(checkPreConditions, precondition.WithStopReconciliation())).
+		WithReconcilerOpts(reconciler.WithPreConditions([]precondition.PreCondition{precondition.Custom(checkPreConditions, precondition.WithStopReconciliation())})).
 		WithAction(precondition.RunlevelGateAction()).
 		WithAction(initialize).
 		WithAction(releases.NewAction()).

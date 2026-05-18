@@ -57,13 +57,13 @@ func initializeModules(ctx context.Context, rr *odhtype.ReconciliationRequest) e
 	dsci, err := cluster.GetDSCI(ctx, rr.Client)
 	if err != nil {
 		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
-			rr.DSCI = nil
+			odhtype.SetDSCI(rr, nil)
 			return nil
 		}
 		return fmt.Errorf("failed to get DSCI for module reconciler: %w", err)
 	}
 
-	rr.DSCI = dsci
+	odhtype.SetDSCI(rr, dsci)
 
 	return nil
 }
@@ -88,7 +88,7 @@ func platformFromInstance(rr *odhtype.ReconciliationRequest) *configv1alpha1.Pla
 
 // dsciOrNil returns the DSCI from the reconcile request, or nil if absent.
 func dsciOrNil(rr *odhtype.ReconciliationRequest) *dsciv2.DSCInitialization {
-	return rr.DSCI
+	return odhtype.GetDSCI(rr)
 }
 
 // enableModulesFromPlatform reads spec.modules from the Platform CR and
@@ -118,10 +118,10 @@ func buildPlatformContext(ctx context.Context, rr *odhtype.ReconciliationRequest
 		return nil, fmt.Errorf("failed to resolve application namespace: %w", err)
 	}
 
-	// Monitoring namespace  read directly from DSCI or set to empty when no DSCI (xKS).
+	// Monitoring namespace read directly from DSCI or set to empty when no DSCI (xKS).
 	var monitoringNS string
-	if rr.DSCI != nil {
-		monitoringNS = rr.DSCI.Spec.Monitoring.Namespace
+	if dsci := odhtype.GetDSCI(rr); dsci != nil {
+		monitoringNS = dsci.Spec.Monitoring.Namespace
 	}
 
 	return &PlatformContext{
@@ -394,23 +394,25 @@ func appendModuleEnvInjection(
 	platformType common.Platform,
 	moduleImages odhtype.ModuleImages,
 ) {
-	if rr.ModuleEnvInjection == nil {
-		rr.ModuleEnvInjection = &odhtype.ModuleEnvInjection{
+	mei := odhtype.GetModuleEnvInjection(rr)
+	if mei == nil {
+		mei = &odhtype.ModuleEnvInjection{
 			ApplicationsNamespace: applicationsNamespace,
 			MonitoringNamespace:   monitoringNamespace,
 			PlatformType:          platformType,
 		}
-	} else if rr.ModuleEnvInjection.ApplicationsNamespace == "" {
-		rr.ModuleEnvInjection.ApplicationsNamespace = applicationsNamespace
+	} else if mei.ApplicationsNamespace == "" {
+		mei.ApplicationsNamespace = applicationsNamespace
 	}
-	if rr.ModuleEnvInjection.MonitoringNamespace == "" {
-		rr.ModuleEnvInjection.MonitoringNamespace = monitoringNamespace
+	if mei.MonitoringNamespace == "" {
+		mei.MonitoringNamespace = monitoringNamespace
 	}
-	if rr.ModuleEnvInjection.PlatformType == "" {
-		rr.ModuleEnvInjection.PlatformType = platformType
+	if mei.PlatformType == "" {
+		mei.PlatformType = platformType
 	}
 
-	rr.ModuleEnvInjection.PerModuleImages = append(rr.ModuleEnvInjection.PerModuleImages, moduleImages)
+	mei.PerModuleImages = append(mei.PerModuleImages, moduleImages)
+	odhtype.SetModuleEnvInjection(rr, mei)
 }
 
 // deploymentNameFor returns the expected Deployment name for a module.
