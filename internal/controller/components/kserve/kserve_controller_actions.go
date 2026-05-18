@@ -234,6 +234,80 @@ var xksDependencyCRDs = []schema.GroupVersionKind{
 	gvk.LeaderWorkerSetV1,
 }
 
+// deleteLLMInferenceServiceConfigs is a finalizer action that explicitly deletes
+// LLMInferenceServiceConfig resources owned by this instance before the platform
+// finalizer is removed and Kubernetes GC deletes the webhook service. This
+// prevents a deadlock where GC tries to delete LLMInferenceServiceConfigs
+// (which require a conversion webhook) after the webhook service is gone.
+func deleteLLMInferenceServiceConfigs(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	l := logf.FromContext(ctx)
+
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(gvk.LLMInferenceServiceConfigV1Alpha2)
+
+	if err := rr.Client.List(ctx, list); err != nil {
+		if !meta.IsNoMatchError(err) {
+			return fmt.Errorf("failed to list LLMInferenceServiceConfig: %w", err)
+		}
+
+		list = &unstructured.UnstructuredList{}
+		list.SetGroupVersionKind(gvk.LLMInferenceServiceConfigV1Alpha1)
+
+		if err := rr.Client.List(ctx, list); err != nil {
+			if meta.IsNoMatchError(err) {
+				return nil
+			}
+
+			return fmt.Errorf("failed to list LLMInferenceServiceConfig: %w", err)
+		}
+	}
+
+	remaining := 0
+
+	for i := range list.Items {
+		item := &list.Items[i]
+
+		owned := false
+		for _, ref := range item.GetOwnerReferences() {
+			if ref.UID == rr.Instance.GetUID() {
+				owned = true
+				break
+			}
+		}
+
+		if !owned {
+			continue
+		}
+
+		remaining++
+
+		if !item.GetDeletionTimestamp().IsZero() {
+			continue
+		}
+
+		l.Info("deleting LLMInferenceServiceConfig before webhook cleanup",
+			"name", item.GetName(),
+			"namespace", item.GetNamespace(),
+		)
+
+		if err := rr.Client.Delete(ctx, item); err != nil {
+			if k8serr.IsNotFound(err) {
+				remaining--
+				continue
+			}
+
+			return fmt.Errorf("failed to delete LLMInferenceServiceConfig %s/%s: %w",
+				item.GetNamespace(), item.GetName(), err)
+		}
+	}
+
+	if remaining > 0 {
+		return fmt.Errorf("waiting for %d LLMInferenceServiceConfig resources to be deleted", remaining)
+	}
+
+	return nil
+}
+
 func checkSubscriptionDependencies() actions.Fn {
 	return dependency.NewSubscriptionAction(
 		dependency.CheckSubscriptionGroup(dependency.SubscriptionGroupConfig{
