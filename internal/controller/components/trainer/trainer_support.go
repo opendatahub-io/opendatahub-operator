@@ -13,6 +13,8 @@ const (
 
 	ReadyConditionType = componentApi.TrainerKind + status.ReadySuffix
 
+	jobSetOperatorCRName = "cluster"
+
 	jobSetConditionDegraded                       = "Degraded"
 	jobSetConditionTargetConfigControllerDegraded = "TargetConfigControllerDegraded"
 	jobSetConditionStaticResourcesDegraded        = "JobSetOperatorStaticResourcesDegraded"
