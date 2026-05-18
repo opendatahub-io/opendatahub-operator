@@ -31,7 +31,7 @@ func (in *Components) DeepCopyInto(out *Components) {
 	out.Dashboard = in.Dashboard
 	out.Workbenches = in.Workbenches
 	in.AIPipelines.DeepCopyInto(&out.AIPipelines)
-	out.Kserve = in.Kserve
+	in.Kserve.DeepCopyInto(&out.Kserve)
 	out.Kueue = in.Kueue
 	out.Ray = in.Ray
 	out.TrustyAI = in.TrustyAI
@@ -39,6 +39,7 @@ func (in *Components) DeepCopyInto(out *Components) {
 	out.TrainingOperator = in.TrainingOperator
 	out.FeastOperator = in.FeastOperator
 	out.LlamaStackOperator = in.LlamaStackOperator
+	out.OGX = in.OGX
 	out.MLflowOperator = in.MLflowOperator
 	out.Trainer = in.Trainer
 	out.SparkOperator = in.SparkOperator
@@ -68,6 +69,7 @@ func (in *ComponentsStatus) DeepCopyInto(out *ComponentsStatus) {
 	in.TrainingOperator.DeepCopyInto(&out.TrainingOperator)
 	in.FeastOperator.DeepCopyInto(&out.FeastOperator)
 	in.LlamaStackOperator.DeepCopyInto(&out.LlamaStackOperator)
+	in.OGX.DeepCopyInto(&out.OGX)
 	in.MLflowOperator.DeepCopyInto(&out.MLflowOperator)
 	in.Trainer.DeepCopyInto(&out.Trainer)
 	in.SparkOperator.DeepCopyInto(&out.SparkOperator)

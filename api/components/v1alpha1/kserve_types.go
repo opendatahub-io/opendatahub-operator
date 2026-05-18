@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -55,6 +56,8 @@ type KserveCommonSpec struct {
 	ModelsAsService DSCModelsAsServiceSpec `json:"modelsAsService,omitempty"`
 	// Configures and enables workload-variant-autoscaler (WVA) integration
 	WVA WVASpec `json:"wva,omitempty"`
+	// Configures and enables Model Cache integration
+	ModelCache *ModelCacheSpec `json:"modelCache,omitempty"`
 }
 
 // nimSpec enables NVIDIA NIM integration
@@ -75,6 +78,31 @@ type WVASpec struct {
 	// +kubebuilder:validation:Enum=Managed;Removed
 	// +kubebuilder:default=Removed
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
+}
+
+// ModelCacheSpec enables Model Cache integration
+// +kubebuilder:validation:XValidation:rule="self.managementState != 'Managed' || has(self.cacheSize)",message="cacheSize is required when managementState is Managed"
+// +kubebuilder:validation:XValidation:rule="self.managementState != 'Managed' || (has(self.nodeNames) && size(self.nodeNames) > 0) || (has(self.nodeSelector) && ((has(self.nodeSelector.matchLabels) && size(self.nodeSelector.matchLabels) > 0) || (has(self.nodeSelector.matchExpressions) && size(self.nodeSelector.matchExpressions) > 0)))",message="one non-empty nodeNames or nodeSelector is required when managementState is Managed"
+// +kubebuilder:validation:XValidation:rule="!(has(self.nodeNames) && has(self.nodeSelector))",message="nodeNames and nodeSelector are mutually exclusive"
+type ModelCacheSpec struct {
+	// +kubebuilder:validation:Enum=Managed;Removed
+	// +kubebuilder:default=Removed
+	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
+	// CacheSize specifies the storage capacity for the model cache PersistentVolume
+	// and PersistentVolumeClaim (e.g., "100Gi", "500Gi", "1Ti").
+	CacheSize *resource.Quantity `json:"cacheSize,omitempty"`
+	// NodeNames is a list of specific node names to enable model caching on.
+	// The operator will label these nodes with kserve/localmodel=worker.
+	// Mutually exclusive with NodeSelector.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MinItems=1
+	NodeNames []string `json:"nodeNames,omitempty"`
+	// NodeSelector is a label selector that identifies nodes for model caching
+	// using pre-existing node labels (e.g., nvidia.com/gpu).
+	// The operator will label matching nodes with kserve/localmodel=worker.
+	// Mutually exclusive with NodeNames.
+	// +kubebuilder:validation:Optional
+	NodeSelector *metav1.LabelSelector `json:"nodeSelector,omitempty"`
 }
 
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.

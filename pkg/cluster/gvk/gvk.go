@@ -299,10 +299,10 @@ var (
 		Kind:    componentApi.KserveKind,
 	}
 
-	LlamaStackOperator = schema.GroupVersionKind{
+	OGX = schema.GroupVersionKind{
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,
-		Kind:    componentApi.LlamaStackOperatorKind,
+		Kind:    componentApi.OGXKind,
 	}
 
 	Kueue = schema.GroupVersionKind{
@@ -381,6 +381,14 @@ var (
 		Group:   "maas.opendatahub.io",
 		Version: "v1alpha1",
 		Kind:    "Tenant",
+	}
+
+	// MaasConfig is the cluster-scoped MaaS anchor CR (maas.opendatahub.io/v1alpha1, Kind=Config).
+	// Singleton name is "default" (created by maas-controller Lifecycle, not from the operator bundle).
+	MaasConfig = schema.GroupVersionKind{
+		Group:   "maas.opendatahub.io",
+		Version: "v1alpha1",
+		Kind:    "Config",
 	}
 
 	CustomResourceDefinition = schema.GroupVersionKind{
@@ -541,21 +549,39 @@ var (
 
 	// kueue.x-k8s.io.
 
-	LocalQueue = schema.GroupVersionKind{
+	LocalQueueV1Beta1 = schema.GroupVersionKind{
 		Group:   "kueue.x-k8s.io",
 		Version: "v1beta1",
 		Kind:    "LocalQueue",
 	}
 
-	ClusterQueue = schema.GroupVersionKind{
+	LocalQueue = schema.GroupVersionKind{
+		Group:   "kueue.x-k8s.io",
+		Version: "v1beta2",
+		Kind:    "LocalQueue",
+	}
+
+	ClusterQueueV1Beta1 = schema.GroupVersionKind{
 		Group:   "kueue.x-k8s.io",
 		Version: "v1beta1",
 		Kind:    "ClusterQueue",
 	}
 
-	ResourceFlavor = schema.GroupVersionKind{
+	ClusterQueue = schema.GroupVersionKind{
+		Group:   "kueue.x-k8s.io",
+		Version: "v1beta2",
+		Kind:    "ClusterQueue",
+	}
+
+	ResourceFlavorV1Beta1 = schema.GroupVersionKind{
 		Group:   "kueue.x-k8s.io",
 		Version: "v1beta1",
+		Kind:    "ResourceFlavor",
+	}
+
+	ResourceFlavor = schema.GroupVersionKind{
+		Group:   "kueue.x-k8s.io",
+		Version: "v1beta2",
 		Kind:    "ResourceFlavor",
 	}
 
@@ -625,6 +651,12 @@ var (
 		Group:   "serving.kserve.io",
 		Version: "v1alpha2",
 		Kind:    "LLMInferenceService",
+	}
+
+	LocalModelNodeGroup = schema.GroupVersionKind{
+		Group:   "serving.kserve.io",
+		Version: "v1alpha1",
+		Kind:    "LocalModelNodeGroup",
 	}
 
 	InferencePoolV1alpha2 = schema.GroupVersionKind{
@@ -891,6 +923,12 @@ var (
 		Kind:    "MLflow",
 	}
 
+	PersistentVolume = schema.GroupVersionKind{
+		Group:   corev1.SchemeGroupVersion.Group,
+		Version: corev1.SchemeGroupVersion.Version,
+		Kind:    "PersistentVolume",
+	}
+
 	PersistentVolumeClaim = schema.GroupVersionKind{
 		Group:   corev1.SchemeGroupVersion.Group,
 		Version: corev1.SchemeGroupVersion.Version,
@@ -933,6 +971,12 @@ var (
 		Group:   "infrastructure.opendatahub.io",
 		Version: "v1alpha1",
 		Kind:    "CoreWeaveKubernetesEngine",
+	}
+
+	AWSKubernetesEngine = schema.GroupVersionKind{
+		Group:   "infrastructure.opendatahub.io",
+		Version: "v1alpha1",
+		Kind:    "AWSKubernetesEngine",
 	}
 
 	SparkApplication = schema.GroupVersionKind{

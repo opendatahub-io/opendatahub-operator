@@ -28,6 +28,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -43,6 +44,17 @@ type manifestsBasePathProvider interface {
 func getManifestsBasePath(mgr manager.Manager) string {
 	if p, ok := mgr.(manifestsBasePathProvider); ok {
 		return p.GetManifestsBasePath()
+	}
+	return ""
+}
+
+type chartsBasePathProvider interface {
+	GetChartsBasePath() string
+}
+
+func getChartsBasePath(mgr manager.Manager) string {
+	if p, ok := mgr.(chartsBasePathProvider); ok {
+		return p.GetChartsBasePath()
 	}
 	return ""
 }
@@ -90,8 +102,10 @@ type Reconciler struct {
 	Recorder          events.EventRecorder
 	Release           common.Release
 	ManifestsBasePath string
+	ChartsBasePath    string
 
 	name                        string
+	preConditions               []precondition.PreCondition
 	instanceFactory             func() (common.PlatformObject, error)
 	conditionsManagerFactory    func(common.ConditionsAccessor) *conditions.Manager
 	gvks                        map[schema.GroupVersionKind]gvkInfo
@@ -118,6 +132,7 @@ func NewReconciler[T common.PlatformObject](mgr manager.Manager, name string, ob
 		Recorder:          mgr.GetEventRecorder(name),
 		Release:           cluster.GetRelease(),
 		ManifestsBasePath: getManifestsBasePath(mgr),
+		ChartsBasePath:    getChartsBasePath(mgr),
 
 		name: name,
 		instanceFactory: func() (common.PlatformObject, error) {
@@ -297,6 +312,7 @@ func (r *Reconciler) delete(ctx context.Context, res common.PlatformObject) erro
 		Conditions:        r.conditionsManagerFactory(res),
 		Release:           r.Release,
 		ManifestsBasePath: r.ManifestsBasePath,
+		ChartsBasePath:    r.ChartsBasePath,
 
 		Manifests: make([]types.ManifestInfo, 0),
 	}
@@ -336,6 +352,7 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error
 		Conditions:        r.conditionsManagerFactory(res),
 		Release:           r.Release,
 		ManifestsBasePath: r.ManifestsBasePath,
+		ChartsBasePath:    r.ChartsBasePath,
 
 		Manifests: make([]types.ManifestInfo, 0),
 	}
@@ -346,35 +363,48 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error
 
 	rr.Conditions.Reset()
 
+	// Check if all the preconditions are met. If not, flag to stop the reconciliation.
+	shouldStop := precondition.RunAll(ctx, &rr, r.preConditions)
+
 	var provisionErr error
 
-	// Execute actions sequentially. Stop on first error and mark conditions accordingly.
-	for _, action := range r.Actions {
-		l.Info("Executing action", "action", action)
+	if shouldStop {
+		l.Info("Preconditions not met, stopping reconciliation")
 
-		actx := log.IntoContext(
-			ctx,
-			l.WithName(actions.ActionGroup).WithName(action.String()),
-		)
-
-		provisionErr = action(actx, &rr)
-		if provisionErr != nil {
-			break
-		}
-	}
-
-	// Set provisioning condition based on action execution result
-	if provisionErr != nil {
 		rr.Conditions.MarkFalse(
 			status.ConditionTypeProvisioningSucceeded,
-			conditions.WithError(provisionErr),
+			conditions.WithReason(precondition.PreConditionFailedReason),
+			conditions.WithMessage("pre-conditions not met, see status conditions for details"),
 			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
 		)
 	} else {
-		rr.Conditions.MarkTrue(
-			status.ConditionTypeProvisioningSucceeded,
-			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
-		)
+		// Execute actions sequentially. Stop on first error and mark conditions accordingly.
+		for _, action := range r.Actions {
+			l.Info("Executing action", "action", action)
+
+			actx := log.IntoContext(
+				ctx,
+				l.WithName(actions.ActionGroup).WithName(action.String()),
+			)
+
+			provisionErr = action(actx, &rr)
+			if provisionErr != nil {
+				break
+			}
+		}
+
+		if provisionErr != nil {
+			rr.Conditions.MarkFalse(
+				status.ConditionTypeProvisioningSucceeded,
+				conditions.WithError(provisionErr),
+				conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
+			)
+		} else {
+			rr.Conditions.MarkTrue(
+				status.ConditionTypeProvisioningSucceeded,
+				conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
+			)
+		}
 	}
 
 	is := rr.Instance.GetStatus()

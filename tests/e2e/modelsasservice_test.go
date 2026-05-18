@@ -165,64 +165,75 @@ func (tc *ModelsAsServiceTestCtx) createMaaSPostgres(t *testing.T) {
 	t.Logf("MaaS PostgreSQL instance and maas-db-config secret created in namespace %s", ns)
 }
 
-// createMaaSGateway creates the maas-default-gateway Gateway resource required by ModelsAsService.
-// The Gateway is based on the MaaS Gateway definition from:
-// https://github.com/opendatahub-io/models-as-a-service/blob/main/deployment/base/networking/maas/maas-gateway-api.yaml
+// createMaaSGateway creates the openshift-default GatewayClass and the
+// maas-default-gateway Gateway resource required by ModelsAsService.
+// The Gateway includes both HTTP and HTTPS listeners — maas-api requires
+// a gateway-owned Service with port 443 for internal host resolution.
 func (tc *ModelsAsServiceTestCtx) createMaaSGateway(t *testing.T) {
 	t.Helper()
-	t.Logf("Creating MaaS Gateway: %s/%s", maasGatewayNamespace, maasGatewayName)
+	t.Logf("Creating MaaS GatewayClass and Gateway: %s/%s", maasGatewayNamespace, maasGatewayName)
 
-	// First, ensure the namespace exists
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: maasGatewayNamespace}),
 		WithCustomErrorMsg("Failed to create/ensure namespace %s for MaaS Gateway", maasGatewayNamespace),
 	)
 
-	// Get the cluster domain for the Gateway hostname
+	// GatewayClass must exist for the Gateway API controller to reconcile the Gateway.
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.GatewayClass, types.NamespacedName{Name: maasGatewayClassName}),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.controllerName = "openshift.io/gateway-controller/v1"`),
+		)),
+		WithCustomErrorMsg("Failed to create GatewayClass %s", maasGatewayClassName),
+	)
+
 	clusterDomain, err := cluster.GetDomain(tc.Context(), tc.Client())
 	require.NoError(t, err, "Failed to get cluster domain")
 
 	hostname := fmt.Sprintf("maas.%s", clusterDomain)
-	t.Logf("Using hostname for MaaS Gateway: %s", hostname)
+	ingressCtrl, err := cluster.FindAvailableIngressController(tc.Context(), tc.Client())
+	require.NoError(t, err, "Failed to find default IngressController")
+	certSecretName := cluster.GetDefaultIngressCertSecretName(ingressCtrl)
+	t.Logf("Using hostname=%s, certSecret=%s", hostname, certSecretName)
 
-	// Create the Gateway resource
-	// Using testf.Transform to build the Gateway spec dynamically
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.KubernetesGateway, types.NamespacedName{
 			Name:      maasGatewayName,
 			Namespace: maasGatewayNamespace,
 		}),
 		WithMutateFunc(testf.TransformPipeline(
-			// Set labels
 			testf.Transform(`.metadata.labels = {
 				"app.kubernetes.io/name": "maas",
 				"app.kubernetes.io/instance": "%s",
 				"app.kubernetes.io/component": "gateway",
 				"opendatahub.io/managed": "false"
 			}`, maasGatewayName),
-			// Set annotations
 			testf.Transform(`.metadata.annotations = {"opendatahub.io/managed": "false"}`),
-			// Set the GatewayClass
 			testf.Transform(`.spec.gatewayClassName = "%s"`, maasGatewayClassName),
-			// Set the HTTP listener
 			testf.Transform(`.spec.listeners = [
 				{
 					"name": "http",
 					"hostname": "%s",
 					"port": 80,
 					"protocol": "HTTP",
-					"allowedRoutes": {
-						"namespaces": {
-							"from": "All"
-						}
+					"allowedRoutes": {"namespaces": {"from": "All"}}
+				},
+				{
+					"name": "https",
+					"hostname": "%s",
+					"port": 443,
+					"protocol": "HTTPS",
+					"allowedRoutes": {"namespaces": {"from": "All"}},
+					"tls": {
+						"mode": "Terminate",
+						"certificateRefs": [{"name": "%s"}]
 					}
 				}
-			]`, hostname),
+			]`, hostname, hostname, certSecretName),
 		)),
 		WithCustomErrorMsg("Failed to create MaaS Gateway %s/%s", maasGatewayNamespace, maasGatewayName),
 	)
 
-	// Wait for the Gateway to exist
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.KubernetesGateway, types.NamespacedName{
 			Name:      maasGatewayName,
@@ -231,7 +242,7 @@ func (tc *ModelsAsServiceTestCtx) createMaaSGateway(t *testing.T) {
 		WithCustomErrorMsg("MaaS Gateway %s/%s should exist", maasGatewayNamespace, maasGatewayName),
 	)
 
-	t.Logf("MaaS Gateway %s/%s created successfully", maasGatewayNamespace, maasGatewayName)
+	t.Logf("MaaS Gateway %s/%s created with HTTP+HTTPS listeners", maasGatewayNamespace, maasGatewayName)
 }
 
 const (
@@ -302,9 +313,12 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantSingletonEnforcement(t *testing.
 	})
 }
 
-// ValidateTenantDeletedOnDisable verifies that the Tenant CR is cleaned up when MaaS is
-// set to Removed. This must run before ValidateSubComponentDisabled to observe the Tenant
-// being deleted while maas-controller is still running.
+// ValidateTenantDeletedOnDisable verifies that the Tenant CR is deleted when MaaS is set to
+// Removed and that the maas-controller Deployment is eventually removed from the application
+// namespace. Teardown is driven by the ModelsAsService component reconciler (GC of owned objects)
+// and maas-controller LifecycleReconciler (CleanupFinalizer on the Deployment).
+// This test is the last case in the suite; cleanup_test.go handles DSC deletion and does not
+// require MaaS to be re-enabled first.
 func (tc *ModelsAsServiceTestCtx) ValidateTenantDeletedOnDisable(t *testing.T) {
 	t.Helper()
 	skipUnless(t, Smoke, Tier1)
@@ -332,18 +346,14 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantDeletedOnDisable(t *testing.T) {
 		WithCustomErrorMsg("Tenant should be deleted when MaaS is disabled"),
 	)
 
-	t.Log("Re-enabling MaaS subcomponent (setting to Managed)")
-	tc.UpdateSubComponentStateInDataScienceCluster(t, operatorv1.Managed)
-
-	t.Logf("Waiting for Tenant %s/%s to be re-created", tenantSubscriptionNS, tenantName)
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Tenant, types.NamespacedName{
-			Name:      tenantName,
-			Namespace: tenantSubscriptionNS,
+	t.Logf("Waiting until maas-controller Deployment is removed from %s", tc.AppsNamespace)
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      modelsasservice.MaasControllerDeploymentName,
+			Namespace: tc.AppsNamespace,
 		}),
-		WithCondition(
-			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue),
-		),
-		WithCustomErrorMsg("Tenant should be re-created with Ready=True after re-enabling MaaS"),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+		WithCustomErrorMsg("maas-controller Deployment should be removed when MaaS is disabled."),
 	)
 }

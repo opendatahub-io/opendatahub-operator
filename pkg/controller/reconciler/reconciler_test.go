@@ -42,6 +42,7 @@ import (
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -221,6 +222,62 @@ func TestConditions(t *testing.T) {
 			}).WithTimeout(10 * time.Second).Should(BeEmpty())
 		})
 	}
+}
+
+func TestPreConditions_StopReconciliation(t *testing.T) {
+	ctx := t.Context()
+
+	g := NewWithT(t)
+
+	et, err := envt.New()
+	g.Expect(err).NotTo(HaveOccurred())
+	t.Cleanup(func() { _ = et.Stop() })
+
+	cli := et.Client()
+
+	dash := resources.GvkToUnstructured(gvk.Dashboard)
+	dash.SetName(componentApi.DashboardInstanceName)
+	dash.SetGeneration(1)
+
+	err = cli.Create(ctx, dash)
+	g.Expect(err).NotTo(HaveOccurred())
+	t.Cleanup(func() {
+		_ = cli.Delete(ctx, dash, client.PropagationPolicy(metav1.DeletePropagationBackground))
+	})
+
+	actionExecuted := false
+
+	cc := createReconciler(cli)
+	cc.preConditions = []precondition.PreCondition{
+		precondition.MonitorCRD(
+			schema.GroupVersionKind{Group: "fake.opendatahub.io", Version: "v1", Kind: "FakeResource"},
+			precondition.WithStopReconciliation(),
+		),
+	}
+	cc.AddAction(func(_ context.Context, _ *odhtype.ReconciliationRequest) error {
+		actionExecuted = true
+		return nil
+	})
+
+	result, err := cc.Reconcile(ctx, ctrl.Request{
+		NamespacedName: types.NamespacedName{Name: componentApi.DashboardInstanceName},
+	})
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(result.RequeueAfter).Should(BeZero())
+	g.Expect(actionExecuted).To(BeFalse())
+
+	di := resources.GvkToUnstructured(gvk.Dashboard)
+	di.SetName(componentApi.DashboardInstanceName)
+
+	err = cli.Get(ctx, client.ObjectKeyFromObject(di), di)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(di).Should(And(
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionFalse),
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionFalse),
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, status.ConditionTypeProvisioningSucceeded, "PreConditionFailed"),
+	))
 }
 
 // TestReconcilerBuilder_WatchMethods_UseUnstructured verifies that all watch

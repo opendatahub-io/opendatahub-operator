@@ -109,7 +109,7 @@ func NewTestContext(t *testing.T) (*TestContext, error) { //nolint:thelper
 	}
 
 	// Initialize the cluster config for detecting the platform
-	err = cluster.Init(t.Context(), tcf.Client(), operatorconfig.OperatorSettings{
+	err = cluster.Init(tcf.Context(), tcf.Client(), operatorconfig.OperatorSettings{
 		OperatorNamespace: testOpts.operatorNamespace,
 	})
 	if err != nil {
@@ -1198,6 +1198,7 @@ func (tc *TestContext) DeleteResource(opts ...ResourceOpts) {
 // the Namespace field in WithMinimalObject(). The Namespace in NamespacedName is ignored for bulk operations.
 //
 // Behavior is controlled by the following optional flags:
+//   - WithAcceptableErrMatcher: If set, errors matching the provided matcher are treated as acceptable.
 //   - WithNamespaceFilter: Filters deletion to resources in a specific namespace.
 //   - WithDeleteAllOfOptions: Configures the bulk deletion criteria (e.g., label selectors, field selectors).
 //   - WithWaitForDeletion: If true, waits until all matching resources are fully deleted from the cluster.
@@ -1209,11 +1210,18 @@ func (tc *TestContext) DeleteResources(opts ...ResourceOpts) {
 	ro := tc.NewResourceOptions(opts...)
 
 	// Perform the bulk delete using the configured DeleteAllOfOptions
-	tc.g.DeleteAll(
+	err := tc.g.DeleteAll(
 		ro.GVK,
 		ro.DeleteAllOfOptions...,
-	).Eventually().Should(Succeed(),
-		"Failed to delete %s resources", ro.GVK.Kind)
+	).Get()
+
+	if err != nil && ro.AcceptableErrMatcher != nil {
+		tc.g.Expect(err).To(ro.AcceptableErrMatcher, unexpectedErrorMismatchMsg, ro.AcceptableErrMatcher, err, ro.GVK.Kind)
+
+		return
+	}
+
+	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to delete %s resources", ro.GVK.Kind)
 
 	if ro.WaitForDeletion {
 		// Wait for all matching resources to be gone

@@ -11,6 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelsasservice"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
@@ -33,6 +34,12 @@ func CleanupPreviousTestResources(t *testing.T) {
 
 	// Cleanup existing DataScienceCluster and DSCInitialization (single instances)
 	cleanupCoreOperatorResources(t, tc)
+
+	// The maas-controller Deployment carries a CleanupFinalizer (maas.opendatahub.io/cleanup)
+	// that requires the LifecycleReconciler (running inside the maas-controller pod) to release.
+	// If we delete the namespace directly, Kubernetes terminates the pod before the finalizer
+	// can be processed, leaving the namespace stuck in Terminating. Strip the finalizer first.
+	cleanupMaaSControllerFinalizer(t, tc)
 
 	// Delete the entire applications namespace - this removes all component resources at once
 	// (AuthConfig, ResourceQuotas, Kueue resources, etc.) and the operator will recreate as needed
@@ -156,6 +163,25 @@ func cleanupKueueClusterScopedResources(t *testing.T, tc *TestContext) {
 		)
 		t.Logf("Successfully processed deletion of %s %s/%s", resource.gvk.Kind, resource.namespacedName.Namespace, resource.namespacedName.Name)
 	}
+}
+
+// cleanupMaaSControllerFinalizer strips the maas.opendatahub.io/cleanup finalizer
+// from the maas-controller Deployment so it doesn't block namespace deletion.
+// The LifecycleReconciler inside the maas-controller pod manages this finalizer,
+// but when the namespace is deleted the pod is terminated before it can release it.
+func cleanupMaaSControllerFinalizer(t *testing.T, tc *TestContext) {
+	t.Helper()
+
+	t.Log("Removing maas-controller cleanup finalizer (if present)")
+	tc.DeleteResource(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      modelsasservice.MaasControllerDeploymentName,
+			Namespace: tc.AppsNamespace,
+		}),
+		WithIgnoreNotFound(true),
+		WithRemoveFinalizersOnDelete(true),
+		WithWaitForDeletion(false),
+	)
 }
 
 func cleanupCodeFlareTestResources(t *testing.T, tc *TestContext) {

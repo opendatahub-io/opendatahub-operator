@@ -107,124 +107,163 @@ func monitoringTestSuite(t *testing.T) {
 	}
 
 	// ========================================================================
-	// Pre-requisite: Ensure required monitoring operators are installed
+	// Pre-requisite: Ensure required monitoring operators are installed (only if the dependant operators tests are enabled)
 	// ========================================================================
-	if !t.Run("Ensure required monitoring operators are installed", monitoringServiceCtx.ValidateMonitoringOperatorsInstallation) {
-		t.Fatalf("Required monitoring operators are not installed. Cannot proceed with monitoring tests on this cluster.")
+	if testOpts.dependantOperatorsManagementTest {
+		t.Run("Ensure required monitoring operators are installed", monitoringServiceCtx.ValidateMonitoringOperatorsInstallation)
 	}
 
+	monitoringServiceCtx.runBaseConfigurationTests(t)
+	monitoringServiceCtx.runMetricsAndMonitoringStackTests(t)
+	monitoringServiceCtx.runOpenTelemetryCollectorTests(t)
+	monitoringServiceCtx.runTargetAllocatorTests(t)
+	monitoringServiceCtx.runThanosQuerierTests(t)
+	monitoringServiceCtx.runTracesWithPVBackendTests(t)
+	monitoringServiceCtx.runTracesWithCloudStorageTests(t)
+	monitoringServiceCtx.runPersesTests(t)
+	monitoringServiceCtx.runAdvancedNetworkingRBACTests(t)
+
+	monitoringServiceCtx.runWebhookTests(t)
+	monitoringServiceCtx.runNegativeConditionsTests(t)
+
+	// ========================================================================
+	// Final Test: Complete Cleanup
+	// Validates that monitoring can be fully disabled and resources removed
+	// ========================================================================
+	t.Run("Validate monitoring service disabled", monitoringServiceCtx.ValidateMonitoringServiceDisabled)
+	t.Run("Validate MonitoringReady condition reflects disabled state on DSCI", monitoringServiceCtx.ValidateMonitoringReadyConditionDisabledOnDSCI)
+}
+
+func (tc *MonitoringTestCtx) runBaseConfigurationTests(t *testing.T) {
+	t.Helper()
 	// ========================================================================
 	// Group 1: Base Configuration
 	// Tests that validate basic Monitoring CR creation and default values
 	// ========================================================================
 	t.Run("Group 1: Base Configuration", func(t *testing.T) {
 		// Ensure clean slate at the start of this group
-		monitoringServiceCtx.ensureMonitoringCleanSlate(t, "")
+		tc.ensureMonitoringCleanSlate(t, "")
 
 		// Setup: Create basic Monitoring CR with managementState=Managed
-		monitoringServiceCtx.setupBaseMonitoring(t)
+		tc.setupBaseMonitoring(t)
 
 		// Cleanup: Reset to Managed state (no metrics, no traces) at group end
 		t.Cleanup(func() {
-			monitoringServiceCtx.cleanupGroup(t, "")
+			tc.cleanupGroup(t, "")
 		})
 
-		t.Run("Auto creation of Monitoring CR", monitoringServiceCtx.ValidateMonitoringCRCreation)
-		t.Run("Test Monitoring CR content default value", monitoringServiceCtx.ValidateMonitoringCRDefaultContent)
-		t.Run("Test Traces default content", monitoringServiceCtx.ValidateMonitoringCRDefaultTracesContent)
+		t.Run("Auto creation of Monitoring CR", tc.ValidateMonitoringCRCreation)
+		t.Run("Test MonitoringReady condition propagated to DSCI", tc.ValidateMonitoringReadyConditionOnDSCI)
+		t.Run("Test Traces default content", tc.ValidateMonitoringCRDefaultTracesContent)
 	})
+}
 
+func (tc *MonitoringTestCtx) runMetricsAndMonitoringStackTests(t *testing.T) {
+	t.Helper()
 	// ========================================================================
 	// Group 2: Metrics & MonitoringStack
 	// Tests related to metrics configuration and MonitoringStack CR
 	// ========================================================================
 	t.Run("Group 2: Metrics & MonitoringStack", func(t *testing.T) {
 		// Setup: Enable metrics configuration once for all tests in this group
-		monitoringServiceCtx.setupMetrics(t)
+		tc.setupMetrics(t)
 
 		// Cleanup: Reset to Managed state at group end
 		t.Cleanup(func() {
-			monitoringServiceCtx.cleanupGroup(t, "")
+			tc.cleanupGroup(t, "")
 		})
 
-		t.Run("Test Metrics MonitoringStack CR Creation", monitoringServiceCtx.ValidateMonitoringStackCRMetricsWhenSet)
-		t.Run("Test Metrics MonitoringStack CR Configuration", monitoringServiceCtx.ValidateMonitoringStackCRMetricsConfiguration)
-		t.Run("Test Metrics Replicas Configuration", monitoringServiceCtx.ValidateMonitoringStackCRMetricsReplicasUpdate)
-		t.Run("Test Prometheus rules lifecycle", monitoringServiceCtx.ValidatePrometheusRulesLifecycle)
-		t.Run("Test Prometheus Self ServiceMonitor TLS Fix", monitoringServiceCtx.ValidatePrometheusSelfServiceMonitorTLSFix)
-		t.Run("Test ownerReference consistency over time", monitoringServiceCtx.ValidateOwnerReferenceConsistency)
-		t.Run("Test resourceVersion stability after reconciliation", monitoringServiceCtx.ValidateResourceVersionStability)
+		t.Run("Test Metrics MonitoringStack CR Creation", tc.ValidateMonitoringStackCRMetricsWhenSet)
+		t.Run("Test Metrics MonitoringStack CR Configuration", tc.ValidateMonitoringStackCRMetricsConfiguration)
+		t.Run("Test Metrics Replicas Configuration", tc.ValidateMonitoringStackCRMetricsReplicasUpdate)
+		t.Run("Test Prometheus rules lifecycle", tc.ValidatePrometheusRulesLifecycle)
+		t.Run("Test Prometheus Self ServiceMonitor TLS Fix", tc.ValidatePrometheusSelfServiceMonitorTLSFix)
+		t.Run("Test ownerReference and resourceVersion stability", tc.ValidateReconciliationStability)
 	})
+}
 
+func (tc *MonitoringTestCtx) runOpenTelemetryCollectorTests(t *testing.T) {
+	t.Helper()
 	// ========================================================================
 	// Group 3: OpenTelemetry Collector
 	// Tests related to OpenTelemetry Collector configuration and deployment
 	// ========================================================================
 	t.Run("Group 3: OpenTelemetry Collector", func(t *testing.T) {
 		// Setup: Enable metrics configuration for collector tests
-		monitoringServiceCtx.setupMetrics(t)
+		tc.setupMetrics(t)
 
 		// Cleanup: Reset to Managed state at group end
 		t.Cleanup(func() {
-			monitoringServiceCtx.cleanupGroup(t, "")
+			tc.cleanupGroup(t, "")
 		})
 
-		t.Run("Test OpenTelemetry Collector Configurations", monitoringServiceCtx.ValidateOpenTelemetryCollectorConfigurations)
-		t.Run("Test OpenTelemetry Collector replicas", monitoringServiceCtx.ValidateMonitoringCRCollectorReplicas)
-		t.Run("Test Metrics TLS is always enabled for Prometheus exporter", monitoringServiceCtx.ValidateMetricsTLSAlwaysEnabled)
+		t.Run("Test OpenTelemetry Collector Configurations", tc.ValidateOpenTelemetryCollectorConfigurations)
+		t.Run("Test OpenTelemetry Collector replicas", tc.ValidateMonitoringCRCollectorReplicas)
+		t.Run("Test Metrics TLS is always enabled for Prometheus exporter", tc.ValidateMetricsTLSAlwaysEnabled)
 	})
+}
 
+func (tc *MonitoringTestCtx) runTargetAllocatorTests(t *testing.T) {
+	t.Helper()
 	// ========================================================================
 	// Group 4: Target Allocator
 	// Tests related to Target Allocator deployment and configuration
 	// ========================================================================
 	t.Run("Group 4: Target Allocator", func(t *testing.T) {
-		// Ensure clean slate for this group
-		monitoringServiceCtx.ensureMonitoringCleanSlate(t, "")
+		// Ensure clean state from previous group without destroying the Monitoring CR.
+		// cleanupGroup resets to Managed+noFeatures and removes Tempos, which is
+		// sufficient isolation.
+		tc.cleanupGroup(t, "")
 
 		// Cleanup: Reset to Managed state at group end
 		t.Cleanup(func() {
-			monitoringServiceCtx.cleanupGroup(t, "")
+			tc.cleanupGroup(t, "")
 		})
 
 		// Subtest 1: Target Allocator without metrics
-		t.Run("Test Target Allocator not deployed without metrics", monitoringServiceCtx.ValidateTargetAllocatorNotDeployedWithoutMetrics)
+		t.Run("Test Target Allocator not deployed without metrics", tc.ValidateTargetAllocatorNotDeployedWithoutMetrics)
 
 		// Subtest 2-5: Target Allocator with metrics
 		t.Run("With Metrics", func(t *testing.T) {
 			// Setup metrics for these tests
-			monitoringServiceCtx.setupMetrics(t)
+			tc.setupMetrics(t)
 
-			t.Run("Test Target Allocator deployment with metrics", monitoringServiceCtx.ValidateTargetAllocatorDeploymentWithMetrics)
-			t.Run("Test Target Allocator Service and ConfigMap", monitoringServiceCtx.ValidateTargetAllocatorServiceAndConfigMap)
-			t.Run("Test Target Allocator lifecycle", monitoringServiceCtx.ValidateTargetAllocatorLifecycle)
-			t.Run("Test Target Allocator RBAC configuration", monitoringServiceCtx.ValidateTargetAllocatorRBACConfiguration)
+			t.Run("Test Target Allocator deployment with metrics", tc.ValidateTargetAllocatorDeploymentWithMetrics)
+			t.Run("Test Target Allocator Service and ConfigMap", tc.ValidateTargetAllocatorServiceAndConfigMap)
+			t.Run("Test Target Allocator lifecycle", tc.ValidateTargetAllocatorLifecycle)
+			t.Run("Test Target Allocator RBAC configuration", tc.ValidateTargetAllocatorRBACConfiguration)
 		})
 	})
+}
 
+func (tc *MonitoringTestCtx) runThanosQuerierTests(t *testing.T) {
+	t.Helper()
 	// ========================================================================
 	// Group 5: Thanos Querier
 	// Tests related to Thanos Querier deployment
 	// ========================================================================
 	t.Run("Group 5: Thanos Querier", func(t *testing.T) {
-		// Ensure clean slate for this group
-		monitoringServiceCtx.ensureMonitoringCleanSlate(t, "")
+		// Ensure clean state from previous group without destroying the Monitoring CR.
+		tc.cleanupGroup(t, "")
 
 		// Cleanup: Reset to Managed state at group end
 		t.Cleanup(func() {
-			monitoringServiceCtx.cleanupGroup(t, "")
+			tc.cleanupGroup(t, "")
 		})
 
 		// Subtest 1: Without metrics
-		t.Run("Test ThanosQuerier not deployed without metrics", monitoringServiceCtx.ValidateThanosQuerierNotDeployedWithoutMetrics)
+		t.Run("Test ThanosQuerier not deployed without metrics", tc.ValidateThanosQuerierNotDeployedWithoutMetrics)
 
 		// Subtest 2: With metrics
-		t.Run("Test ThanosQuerier deployment with metrics", monitoringServiceCtx.ValidateThanosQuerierDeployment)
+		t.Run("Test ThanosQuerier deployment with metrics", tc.ValidateThanosQuerierDeployment)
 
 		// Subtest 3: NetworkPolicy allows Thanos Querier on gRPC port
-		t.Run("Test Prometheus NetworkPolicy allows Thanos Querier on gRPC port", monitoringServiceCtx.ValidatePrometheusNetworkPolicyAllowsThanosQuerier)
+		t.Run("Test Prometheus NetworkPolicy allows Thanos Querier on gRPC port", tc.ValidatePrometheusNetworkPolicyAllowsThanosQuerier)
 	})
+}
 
+func (tc *MonitoringTestCtx) runTracesWithPVBackendTests(t *testing.T) {
+	t.Helper()
 	// ========================================================================
 	// Group 6: Traces with PV Backend
 	// Tests for TempoMonolithic CR creation with PV backend
@@ -232,12 +271,15 @@ func monitoringTestSuite(t *testing.T) {
 	t.Run("Group 6: Traces with PV Backend", func(t *testing.T) {
 		// Cleanup: Reset and remove tempo resources at group end
 		t.Cleanup(func() {
-			monitoringServiceCtx.cleanupGroup(t, "")
+			tc.cleanupGroup(t, "")
 		})
 
-		t.Run("Test TempoMonolithic CR Creation with PV backend", monitoringServiceCtx.ValidateTempoMonolithicCRCreation)
+		t.Run("Test TempoMonolithic CR Creation with PV backend", tc.ValidateTempoMonolithicCRCreation)
 	})
+}
 
+func (tc *MonitoringTestCtx) runTracesWithCloudStorageTests(t *testing.T) {
+	t.Helper()
 	// ========================================================================
 	// Group 7: Traces with Cloud Storage (S3 & GCS)
 	// Tests for TempoStack CR creation with cloud storage backends
@@ -245,15 +287,18 @@ func monitoringTestSuite(t *testing.T) {
 	t.Run("Group 7: Traces with Cloud Storage", func(t *testing.T) {
 		// Cleanup: Reset and remove tempo resources at group end
 		t.Cleanup(func() {
-			monitoringServiceCtx.cleanupGroup(t, "s3-secret")
-			monitoringServiceCtx.cleanupGroup(t, "gcs-secret")
+			tc.cleanupGroup(t, "s3-secret")
+			tc.cleanupGroup(t, "gcs-secret")
 		})
 
-		t.Run("Test TempoStack CR Creation with Cloud Storage", monitoringServiceCtx.ValidateTempoStackCRCreationWithCloudStorage)
-		t.Run("Test Instrumentation CR Traces lifecycle", monitoringServiceCtx.ValidateInstrumentationCRTracesLifecycle)
-		t.Run("Test Traces Exporters Reserved Name Validation", monitoringServiceCtx.ValidateTracesExportersReservedNameValidation)
+		t.Run("Test TempoStack CR Creation with Cloud Storage", tc.ValidateTempoStackCRCreationWithCloudStorage)
+		t.Run("Test Instrumentation CR Traces lifecycle", tc.ValidateInstrumentationCRTracesLifecycle)
+		t.Run("Test Traces Exporters Reserved Name Validation", tc.ValidateTracesExportersReservedNameValidation)
 	})
+}
 
+func (tc *MonitoringTestCtx) runPersesTests(t *testing.T) {
+	t.Helper()
 	// ========================================================================
 	// Group 8: Perses
 	// Tests related to Perses deployment, configuration, and datasources
@@ -261,41 +306,44 @@ func monitoringTestSuite(t *testing.T) {
 	t.Run("Group 8: Perses", func(t *testing.T) {
 		// Cleanup: Reset at group end
 		t.Cleanup(func() {
-			monitoringServiceCtx.cleanupGroup(t, "")
+			tc.cleanupGroup(t, "")
 		})
 
 		// Subgroup 1: Perses Lifecycle
 		t.Run("Perses Lifecycle", func(t *testing.T) {
 			// Setup metrics for perses tests
-			monitoringServiceCtx.setupMetrics(t)
+			tc.setupMetrics(t)
 
-			t.Run("Test Perses deployment when monitoring is managed", monitoringServiceCtx.ValidatePersesCRCreation)
-			t.Run("Test Perses CR configuration", monitoringServiceCtx.ValidatePersesCRConfiguration)
-			t.Run("Test Perses lifecycle", monitoringServiceCtx.ValidatePersesLifecycle)
-			t.Run("Test Perses not deployed without metrics or traces", monitoringServiceCtx.ValidatePersesNotDeployedWithoutMetricsOrTraces)
-			t.Run("Test Perses NetworkPolicy creation", monitoringServiceCtx.ValidatePersesNetworkPolicy)
+			t.Run("Test Perses deployment when monitoring is managed", tc.ValidatePersesCRCreation)
+			t.Run("Test Perses CR configuration", tc.ValidatePersesCRConfiguration)
+			t.Run("Test Perses lifecycle", tc.ValidatePersesLifecycle)
+			t.Run("Test Perses not deployed without metrics or traces", tc.ValidatePersesNotDeployedWithoutMetricsOrTraces)
+			t.Run("Test Perses NetworkPolicy creation", tc.ValidatePersesNetworkPolicy)
 		})
 
 		// Subgroup 2: Perses Datasource with Traces
 		t.Run("Perses Datasource with Traces", func(t *testing.T) {
-			t.Run("Test Perses Datasource Creation with Traces", monitoringServiceCtx.ValidatePersesDatasourceCreationWithTraces)
-			t.Run("Test Perses Datasource Configuration", monitoringServiceCtx.ValidatePersesDatasourceConfiguration)
-			t.Run("Test PersesDatasource deployment with Prometheus", monitoringServiceCtx.ValidatePersesDatasourceWithPrometheus)
-			t.Run("Test PersesDatasource lifecycle", monitoringServiceCtx.ValidatePersesDatasourceLifecycle)
+			t.Run("Test Perses Datasource Creation with Traces", tc.ValidatePersesDatasourceCreationWithTraces)
+			t.Run("Test Perses Datasource Configuration", tc.ValidatePersesDatasourceConfiguration)
+			t.Run("Test PersesDatasource deployment with Prometheus", tc.ValidatePersesDatasourceWithPrometheus)
+			t.Run("Test PersesDatasource lifecycle", tc.ValidatePersesDatasourceLifecycle)
 		})
 
 		// Subgroup 3: Perses Datasource TLS with Cloud Backends
 		t.Run("Perses Datasource TLS with Cloud Backends", func(t *testing.T) {
 			t.Cleanup(func() {
-				monitoringServiceCtx.cleanupGroup(t, "s3-secret")
-				monitoringServiceCtx.cleanupGroup(t, "gcs-secret")
+				tc.cleanupGroup(t, "s3-secret")
+				tc.cleanupGroup(t, "gcs-secret")
 			})
 
-			t.Run("Test Perses Datasource TLS with S3 backend", monitoringServiceCtx.ValidatePersesDatasourceTLSWithS3Backend)
-			t.Run("Test Perses Datasource TLS with GCS backend", monitoringServiceCtx.ValidatePersesDatasourceTLSWithGCSBackend)
+			t.Run("Test Perses Datasource TLS with S3 backend", tc.ValidatePersesDatasourceTLSWithS3Backend)
+			t.Run("Test Perses Datasource TLS with GCS backend", tc.ValidatePersesDatasourceTLSWithGCSBackend)
 		})
 	})
+}
 
+func (tc *MonitoringTestCtx) runAdvancedNetworkingRBACTests(t *testing.T) {
+	t.Helper()
 	// ========================================================================
 	// Group 9: Advanced Networking/RBAC
 	// Tests related to namespace restrictions, proxy authentication, and node metrics
@@ -303,40 +351,58 @@ func monitoringTestSuite(t *testing.T) {
 	t.Run("Group 9: Advanced Networking/RBAC", func(t *testing.T) {
 		// Cleanup: Reset at group end
 		t.Cleanup(func() {
-			monitoringServiceCtx.cleanupGroup(t, "")
+			tc.cleanupGroup(t, "")
 		})
 
-		t.Run("Test Namespace Restricted Metrics Access", monitoringServiceCtx.ValidatePrometheusRestrictedResourceConfiguration)
-		t.Run("Test Prometheus Secure Proxy Authentication", monitoringServiceCtx.ValidatePrometheusSecureProxyAuthentication)
-		t.Run("Test Node Metrics Endpoint Deployment", monitoringServiceCtx.ValidateNodeMetricsEndpointDeployment)
-		t.Run("Test Node Metrics Endpoint RBAC Configuration", monitoringServiceCtx.ValidateNodeMetricsEndpointRBACConfiguration)
+		t.Run("Test Namespace Restricted Metrics Access", tc.ValidatePrometheusRestrictedResourceConfiguration)
+		t.Run("Test Prometheus Secure Proxy Authentication", tc.ValidatePrometheusSecureProxyAuthentication)
+		t.Run("Test Node Metrics Endpoint Deployment", tc.ValidateNodeMetricsEndpointDeployment)
+		t.Run("Test Node Metrics Endpoint RBAC Configuration", tc.ValidateNodeMetricsEndpointRBACConfiguration)
 	})
+}
 
-	// ========================================================================
-	// Final Test: Complete Cleanup
-	// Validates that monitoring can be fully disabled and resources removed
-	// ========================================================================
-	t.Run("Validate monitoring service disabled", monitoringServiceCtx.ValidateMonitoringServiceDisabled)
-
+func (tc *MonitoringTestCtx) runWebhookTests(t *testing.T) {
+	t.Helper()
 	// ========================================================================
 	// Webhook Tests (if enabled)
 	// ========================================================================
 	if testOpts.webhookTest {
 		t.Run("Webhook Tests", func(t *testing.T) {
-			t.Run("Setup monitoring admission components tests", monitoringServiceCtx.ValidateMonitoringWebhookTestsSetup)
-			t.Run("Validate monitoring label value enforcement on namespace", monitoringServiceCtx.ValidateMonitoringLabelValueEnforcementOnNamespace)
-			t.Run("Validate monitoring label value enforcement on monitors", monitoringServiceCtx.ValidateMonitoringLabelValueEnforcementOnMonitors)
-			t.Run("Validate monitors creation with custom labels", monitoringServiceCtx.ValidateMonitorsCreationWithCustomLabels)
-			t.Run("Validate monitors monitoring label injection", monitoringServiceCtx.ValidateMonitorLabelInjection)
-			t.Run("Validate monitor label injection on UPDATE", monitoringServiceCtx.ValidateMonitorLabelInjectionOnUpdate)
-			t.Run("Validate monitor label injection on UPDATE with custom labels", monitoringServiceCtx.ValidateMonitorLabelInjectionOnUpdateWithCustomLabels)
-			t.Run("Validate webhook skips non-monitored namespace", monitoringServiceCtx.ValidateWebhookSkipsNonMonitoredNamespace)
-			t.Run("Validate webhook skips explicitly opted-out namespace", monitoringServiceCtx.ValidateWebhookSkipsExplicitlyOptedOutNamespace)
-			t.Run("Validate webhook respects user opt-out", monitoringServiceCtx.ValidateWebhookRespectsUserOptOut)
-			t.Run("Validate webhook idempotency", monitoringServiceCtx.ValidateWebhookIdempotency)
-			t.Run("Validate webhook does not inject when monitoring disabled", monitoringServiceCtx.ValidateWebhookSkipsWhenMonitoringDisabled)
+			t.Run("Setup monitoring admission components tests", tc.ValidateMonitoringWebhookTestsSetup)
+			t.Run("Validate monitoring label value enforcement on namespace", tc.ValidateMonitoringLabelValueEnforcementOnNamespace)
+			t.Run("Validate monitoring label value enforcement on monitors", tc.ValidateMonitoringLabelValueEnforcementOnMonitors)
+			t.Run("Validate monitors creation with custom labels", tc.ValidateMonitorsCreationWithCustomLabels)
+			t.Run("Validate monitors monitoring label injection", tc.ValidateMonitorLabelInjection)
+			t.Run("Validate monitor label injection on UPDATE", tc.ValidateMonitorLabelInjectionOnUpdate)
+			t.Run("Validate monitor label injection on UPDATE with custom labels", tc.ValidateMonitorLabelInjectionOnUpdateWithCustomLabels)
+			t.Run("Validate webhook skips non-monitored namespace", tc.ValidateWebhookSkipsNonMonitoredNamespace)
+			t.Run("Validate webhook skips explicitly opted-out namespace", tc.ValidateWebhookSkipsExplicitlyOptedOutNamespace)
+			t.Run("Validate webhook respects user opt-out", tc.ValidateWebhookRespectsUserOptOut)
+			t.Run("Validate webhook idempotency", tc.ValidateWebhookIdempotency)
+			t.Run("Validate webhook does not inject when monitoring disabled", tc.ValidateWebhookSkipsWhenMonitoringDisabled)
 		})
 	}
+}
+
+func (tc *MonitoringTestCtx) runNegativeConditionsTests(t *testing.T) {
+	t.Helper()
+	// ========================================================================
+	// Group 12: Negative Conditions
+	// Tests the propagation of negative conditions when configurations are missing.
+	// ========================================================================
+	t.Run("Group 12: Negative Conditions", func(t *testing.T) {
+		// Cleanup: Reset at group end
+		t.Cleanup(func() {
+			tc.cleanupGroup(t, "")
+		})
+
+		t.Run("Test monitoring metrics negative conditions", tc.ValidateMonitoringMetricsNegativeConditions)
+		t.Run("Test monitoring traces negative conditions", tc.ValidateMonitoringTracesNegativeConditions)
+		t.Run("Test monitoring alerting negative conditions", tc.ValidateMonitoringAlertingNegativeConditions)
+		t.Run("Test monitoring perses negative conditions", tc.ValidateMonitoringPersesNegativeConditions)
+		t.Run("Test monitoring node metrics negative conditions", tc.ValidateMonitoringNodeMetricsNegativeConditions)
+		t.Run("Test monitoring opentelemetry negative conditions", tc.ValidateMonitoringOpenTelemetryNegativeConditions)
+	})
 }
 
 // ValidateMonitoringOperatorsInstallation ensures the required monitoring operators are installed.
@@ -353,10 +419,11 @@ func (tc *MonitoringTestCtx) ValidateMonitoringOperatorsInstallation(t *testing.
 	tc.ensureOperatorsAreInstalled(t, operators)
 }
 
-// ValidateMonitoringCRCreation ensures that exactly one Monitoring CR exists and status to Ready.
+// ValidateMonitoringCRCreation ensures that exactly one Monitoring CR exists and is eventually Ready.
 func (tc *MonitoringTestCtx) ValidateMonitoringCRCreation(t *testing.T) {
 	t.Helper()
 
+	// Initial check: Monitoring CR should exist but might be Not Ready if no features are enabled
 	tc.updateMonitoringConfig(withManagementState(operatorv1.Managed))
 
 	tc.EnsureResourcesExist(
@@ -366,25 +433,10 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCRCreation(t *testing.T) {
 				HaveLen(1),
 				HaveEach(And(
 					jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DSCInitialization.Kind),
-					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
 					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
+					jq.Match(`.spec.namespace == "%s"`, tc.MonitoringNamespace),
+					jq.Match(`.spec.metrics == null`),
 				)),
-			),
-		),
-	)
-}
-
-// ValidateMonitoringCRDefaultContent validates when no "metrics" is set in DSCI.
-func (tc *MonitoringTestCtx) ValidateMonitoringCRDefaultContent(t *testing.T) {
-	t.Helper()
-
-	// Ensure that the Monitoring resource exists.
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
-		WithCondition(
-			And(
-				jq.Match(`.spec.namespace == "%s"`, tc.MonitoringNamespace),
-				jq.Match(`.spec.metrics == null`),
 			),
 		),
 		WithCustomErrorMsg("Monitoring CR should have expected namespace and null metrics"),
@@ -393,6 +445,58 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCRDefaultContent(t *testing.T) {
 	// Validate MontoringStack CR is not created
 	tc.EnsureResourceDoesNotExist(
 		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: MonitoringStackName, Namespace: tc.MonitoringNamespace}),
+	)
+
+	// To reach Ready=True, we must enable at least one feature (e.g. metrics)
+	tc.setupMetrics(t)
+
+	tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(
+			And(
+				HaveLen(1),
+				HaveEach(And(
+					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
+				)),
+			),
+		),
+	)
+}
+
+// ValidateMonitoringReadyConditionOnDSCI verifies that mirrored conditions
+// are propagated to DSCI status when monitoring is Managed and the Monitoring CR is ready.
+func (tc *MonitoringTestCtx) ValidateMonitoringReadyConditionOnDSCI(t *testing.T) {
+	t.Helper()
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithCondition(And(
+			jq.Match(`.status.phase == "%s"`, status.PhaseReady),
+			// Mirrored conditions from Monitoring CR
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
+			// Base condition
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionMonitoringReady, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, status.ConditionMonitoringReady, status.ReadyReason),
+		)),
+		WithCustomErrorMsg("DSCI should have mirrored Ready=True and ProvisioningSucceeded=True PLUS MonitoringReady=True when monitoring is Managed and Monitoring CR is ready"),
+	)
+}
+
+// ValidateMonitoringReadyConditionDisabledOnDSCI verifies that the MonitoringReady condition
+// is set to False on DSCI when monitoring is disabled (Removed).
+func (tc *MonitoringTestCtx) ValidateMonitoringReadyConditionDisabledOnDSCI(t *testing.T) {
+	t.Helper()
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithCondition(And(
+			jq.Match(`.status.phase == "%s"`, status.PhaseReady),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionMonitoringReady, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, status.ConditionMonitoringReady, status.RemovedReason),
+		)),
+		WithCustomErrorMsg("DSCI should have MonitoringReady=False with reason Removed when monitoring is disabled"),
 	)
 }
 
@@ -532,6 +636,7 @@ func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorConfigurations(t *tes
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Helper()
+			t.Cleanup(tc.resetMonitoringConfigToManaged)
 
 			// Setup configuration first
 			tc.updateMonitoringConfig(testCase.transforms...)
@@ -564,7 +669,6 @@ func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorConfigurations(t *tes
 			)
 
 			// Universal cleanup to prevent state contamination between tests
-			tc.resetMonitoringConfigToManaged()
 		})
 	}
 }
@@ -986,6 +1090,7 @@ func (tc *MonitoringTestCtx) ValidatePersesLifecycle(t *testing.T) {
 
 func (tc *MonitoringTestCtx) ValidatePersesNotDeployedWithoutMetricsOrTraces(t *testing.T) {
 	t.Helper()
+	t.Cleanup(tc.resetMonitoringConfigToManaged)
 
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
@@ -1016,8 +1121,6 @@ func (tc *MonitoringTestCtx) ValidatePersesNotDeployedWithoutMetricsOrTraces(t *
 	tc.EnsureResourceGone(
 		WithMinimalObject(gvk.Perses, types.NamespacedName{Name: PersesName, Namespace: tc.MonitoringNamespace}),
 	)
-
-	tc.resetMonitoringConfigToManaged()
 }
 
 func (tc *MonitoringTestCtx) ValidatePersesNetworkPolicy(t *testing.T) {
@@ -1184,30 +1287,42 @@ func (tc *MonitoringTestCtx) ValidateMonitoringServiceDisabled(t *testing.T) {
 	tc.resetMonitoringConfigToRemoved()
 
 	// Verify all monitoring-related resources are cleaned up.
-	// Use EnsureResourceGone (singular/Get-by-name) instead of EnsureResourcesGone
-	// (plural/namespace-wide List) because other controllers (e.g. MaaS) may create
-	// their own PersesDatasource resources in the same namespace. A List would pick
-	// those up and fail even though monitoring cleanup succeeded.
+	// Use DeleteResource with WithRemoveFinalizersOnDelete(true) for resources that
+	// are known to hang during deletion (e.g. MonitoringStack, TempoStack, TempoMonolithic).
+	// This ensures the test doesn't fail due to external operator finalization delays.
 	for _, resource := range []struct {
-		gvk  schema.GroupVersionKind
-		name string
+		gvk                schema.GroupVersionKind
+		name               string
+		forceWithFinalizer bool
 	}{
-		{gvk.Monitoring, MonitoringCRName},
-		{gvk.MonitoringStack, MonitoringStackName},
-		{gvk.TempoStack, TempoStackName},
-		{gvk.TempoMonolithic, TempoMonolithicName},
-		{gvk.OpenTelemetryCollector, OpenTelemetryCollectorName},
-		{gvk.Instrumentation, InstrumentationName},
-		{gvk.Perses, PersesName},
-		{gvk.PersesDatasource, PersesDatasourceName},
-		{gvk.PersesDatasource, ClusterPrometheusDatasourceName},
+		{gvk: gvk.Monitoring, name: MonitoringCRName},
+		{gvk: gvk.MonitoringStack, name: MonitoringStackName, forceWithFinalizer: true},
+		{gvk: gvk.TempoStack, name: TempoStackName, forceWithFinalizer: true},
+		{gvk: gvk.TempoMonolithic, name: TempoMonolithicName, forceWithFinalizer: true},
+		{gvk: gvk.OpenTelemetryCollector, name: OpenTelemetryCollectorName},
+		{gvk: gvk.Instrumentation, name: InstrumentationName},
+		{gvk: gvk.Perses, name: PersesName},
+		{gvk: gvk.PersesDatasource, name: PersesDatasourceName},
+		{gvk: gvk.PersesDatasource, name: ClusterPrometheusDatasourceName},
 	} {
-		tc.EnsureResourceGone(
-			WithMinimalObject(resource.gvk, types.NamespacedName{
-				Name:      resource.name,
-				Namespace: tc.MonitoringNamespace,
-			}),
-		)
+		if resource.forceWithFinalizer {
+			tc.DeleteResource(
+				WithMinimalObject(resource.gvk, types.NamespacedName{
+					Name:      resource.name,
+					Namespace: tc.MonitoringNamespace,
+				}),
+				WithWaitForDeletion(true),
+				WithRemoveFinalizersOnDelete(true),
+				WithIgnoreNotFound(true),
+			)
+		} else {
+			tc.EnsureResourceGone(
+				WithMinimalObject(resource.gvk, types.NamespacedName{
+					Name:      resource.name,
+					Namespace: tc.MonitoringNamespace,
+				}),
+			)
+		}
 	}
 }
 
@@ -1216,8 +1331,6 @@ func (tc *MonitoringTestCtx) ValidateMonitoringServiceDisabled(t *testing.T) {
 //
 // Parameters:
 //   - secretName: Optional secret name to clean up. If empty, only cleans default monitoring resources.
-//
-//nolint:unparam // secretName may be used in future test scenarios
 func (tc *MonitoringTestCtx) ensureMonitoringCleanSlate(t *testing.T, secretName string) {
 	t.Helper()
 
@@ -1230,16 +1343,21 @@ func (tc *MonitoringTestCtx) ensureMonitoringCleanSlate(t *testing.T, secretName
 		WithWaitForDeletion(true),
 	)
 
-	// Forcefully delete TempoMonolithic (PV backend) by removing finalizers
-	tc.DeleteResource(
-		WithMinimalObject(gvk.TempoMonolithic, types.NamespacedName{
-			Name:      TempoMonolithicName,
-			Namespace: tc.MonitoringNamespace,
-		}),
-		WithWaitForDeletion(true),
-		WithRemoveFinalizersOnDelete(true),
-		WithIgnoreNotFound(true),
-	)
+	// Forcefully delete MonitoringStack and TempoMonolithic (PV backend) by removing finalizers
+	for _, gvk := range []schema.GroupVersionKind{
+		gvk.MonitoringStack,
+		gvk.TempoMonolithic,
+	} {
+		tc.DeleteResource(
+			WithMinimalObject(gvk, types.NamespacedName{
+				Name:      tc.GetInstanceName(gvk),
+				Namespace: tc.MonitoringNamespace,
+			}),
+			WithWaitForDeletion(true),
+			WithRemoveFinalizersOnDelete(true),
+			WithIgnoreNotFound(true),
+		)
+	}
 
 	// Clean up TempoStack and associated secret (if provided)
 	tc.cleanupTempoStackAndSecret(secretName)
@@ -1691,6 +1809,7 @@ func withMonitoringTraces(backend, secret, size, retention string) testf.Transfo
 // ValidateThanosQuerierDeployment tests that ThanosQuerier CR and Route are created when metrics are configured and ThanosQuerier CRD is available.
 func (tc *MonitoringTestCtx) ValidateThanosQuerierDeployment(t *testing.T) {
 	t.Helper()
+	t.Cleanup(tc.resetMonitoringConfigToManaged)
 
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
@@ -1737,11 +1856,11 @@ func (tc *MonitoringTestCtx) ValidateThanosQuerierDeployment(t *testing.T) {
 	)
 
 	// Cleanup: Reset monitoring configuration
-	tc.resetMonitoringConfigToManaged()
 }
 
 func (tc *MonitoringTestCtx) ValidateThanosQuerierNotDeployedWithoutMetrics(t *testing.T) {
 	t.Helper()
+	t.Cleanup(tc.resetMonitoringConfigToManaged)
 
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
@@ -1777,13 +1896,13 @@ func (tc *MonitoringTestCtx) ValidateThanosQuerierNotDeployedWithoutMetrics(t *t
 	)
 
 	// Cleanup: Reset monitoring configuration
-	tc.resetMonitoringConfigToManaged()
 }
 
 // ValidatePrometheusNetworkPolicyAllowsThanosQuerier tests that the Prometheus instance NetworkPolicy
 // includes an ingress rule allowing the Thanos Querier to reach the Thanos Sidecar on gRPC port 10901.
 func (tc *MonitoringTestCtx) ValidatePrometheusNetworkPolicyAllowsThanosQuerier(t *testing.T) {
 	t.Helper()
+	t.Cleanup(tc.resetMonitoringConfigToManaged)
 
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
@@ -1830,6 +1949,7 @@ func (tc *MonitoringTestCtx) ValidatePrometheusNetworkPolicyAllowsThanosQuerier(
 // and properly configured with the correct serverName to fix TLS SANs mismatch issues.
 func (tc *MonitoringTestCtx) ValidatePrometheusSelfServiceMonitorTLSFix(t *testing.T) {
 	t.Helper()
+	t.Cleanup(tc.resetMonitoringConfigToManaged)
 
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
@@ -1893,26 +2013,22 @@ func (tc *MonitoringTestCtx) ValidatePrometheusSelfServiceMonitorTLSFix(t *testi
 		)),
 		WithCustomErrorMsg("Prometheus StatefulSet should have at least one ready replica, indicating healthy operation"),
 	)
-
-	tc.resetMonitoringConfigToManaged()
 }
 
-// ValidateOwnerReferenceConsistency verifies that ownerReferences on monitoring resources
-// remain stable over time — exactly 1 reference, pointing to the Monitoring CR, with controller=true.
-// This is a regression guard for RHOAIENG-37563 where conflicting ownerReferences between
-// templates and SetControllerReference() caused SSA diffs, triggering infinite reconciliation loops.
-func (tc *MonitoringTestCtx) ValidateOwnerReferenceConsistency(t *testing.T) {
+// ValidateReconciliationStability verifies that ownerReferences and resourceVersions on
+// monitoring resources remain stable over time. This is a regression guard for RHOAIENG-37563
+// where conflicting ownerReferences between templates and SetControllerReference() caused SSA
+// diffs, triggering infinite reconciliation loops.
+func (tc *MonitoringTestCtx) ValidateReconciliationStability(t *testing.T) {
 	t.Helper()
 
 	g := NewWithT(t)
 
-	// Ensure metrics are configured so that monitoring resources are deployed.
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
 		tc.withMetricsConfig(),
 	)
 
-	// Wait for the Monitoring CR to be ready with MonitoringStack available.
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
 		WithCondition(And(
@@ -1920,110 +2036,52 @@ func (tc *MonitoringTestCtx) ValidateOwnerReferenceConsistency(t *testing.T) {
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionMonitoringStackAvailable, metav1.ConditionTrue),
 		)),
-		WithCustomErrorMsg("Monitoring resource should be ready before checking ownerReference consistency"),
+		WithCustomErrorMsg("Monitoring resource should be ready before checking reconciliation stability"),
 	)
 
-	// ownerRefStableCondition extends the existing monitoringOwnerReferencesCondition
-	// with a controller=true check — the field set by SetControllerReference().
 	ownerRefStableCondition := And(
 		monitoringOwnerReferencesCondition,
 		jq.Match(`.metadata.ownerReferences[0].controller == true`),
 	)
 
-	// Verify ownerReferences remain consistent over a sustained observation window
-	// across multiple resource types that were affected by the RHOAIENG-37563 bug.
 	type resource struct {
-		gvk  schema.GroupVersionKind
-		name string
-		ns   string
-		desc string
+		gvk             schema.GroupVersionKind
+		name            string
+		ns              string
+		desc            string
+		ownerRef        bool // whether to check ownerReference stability
+		resourceVersion bool // whether to check resourceVersion stability
 	}
 
 	resources := []resource{
-		{gvk.MonitoringStack, MonitoringStackName, tc.MonitoringNamespace, "MonitoringStack"},
-		{gvk.ClusterRoleBinding, "data-science-monitoringstack-alertmanager-prometheus-metrics-reader", "", "alertmanager ClusterRoleBinding"},
-		{gvk.Service, "data-science-collector-prometheus", tc.MonitoringNamespace, "collector prometheus Service"},
-		{gvk.ConfigMap, "prometheus-web-tls-ca", tc.MonitoringNamespace, "prometheus TLS CA ConfigMap"},
+		// MonitoringStack: ownerRef only — the external observability-operator reconciles
+		// this resource independently, so its resourceVersion changes are expected.
+		{gvk.MonitoringStack, MonitoringStackName, tc.MonitoringNamespace, "MonitoringStack", true, false},
+		{gvk.ClusterRoleBinding, "data-science-monitoringstack-alertmanager-prometheus-metrics-reader", "", "alertmanager ClusterRoleBinding", true, true},
+		{gvk.ClusterRoleBinding, "generate-processors-collector-rolebinding", "", "collector ClusterRoleBinding", false, true},
+		{gvk.Service, "data-science-collector-prometheus", tc.MonitoringNamespace, "collector prometheus Service", true, true},
+		{gvk.ConfigMap, "prometheus-web-tls-ca", tc.MonitoringNamespace, "prometheus TLS CA ConfigMap", true, true},
 	}
 
-	// Ensure all target resources exist before starting the stability window.
-	for _, r := range resources {
-		tc.EnsureResourceExists(
-			WithMinimalObject(r.gvk, types.NamespacedName{Name: r.name, Namespace: r.ns}),
-			WithCondition(ownerRefStableCondition),
-			WithCustomErrorMsg("%s should exist with correct ownerReferences before stability check", r.desc),
-		)
-	}
-
-	// Observe all resources in the same stability window so a flap on any
-	// resource is detected regardless of when it occurs.
-	g.Consistently(func(g Gomega) {
-		for _, r := range resources {
-			u := tc.FetchResource(
-				WithMinimalObject(r.gvk, types.NamespacedName{Name: r.name, Namespace: r.ns}),
-			)
-			g.Expect(u).NotTo(BeNil(), "%s should still exist", r.desc)
-			g.Expect(u).To(ownerRefStableCondition,
-				"%s ownerReferences should remain stable (exactly 1, controller=true, owned by Monitoring CR)", r.desc,
-			)
-		}
-	}).WithTimeout(1 * time.Minute).WithPolling(5 * time.Second).Should(Succeed())
-}
-
-// ValidateResourceVersionStability verifies that resourceVersion on monitoring resources
-// does not increment after the initial deployment settles. A changing resourceVersion
-// indicates the controller is re-applying unchanged resources — the exact symptom of
-// the infinite reconciliation loop fixed in RHOAIENG-37563.
-func (tc *MonitoringTestCtx) ValidateResourceVersionStability(t *testing.T) {
-	t.Helper()
-
-	g := NewWithT(t)
-
-	// Ensure metrics are configured so that monitoring resources are deployed.
-	tc.updateMonitoringConfig(
-		withManagementState(operatorv1.Managed),
-		tc.withMetricsConfig(),
-	)
-
-	// Wait for the Monitoring CR to be ready with MonitoringStack available.
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
-		WithCondition(And(
-			jq.Match(`.spec.metrics != null`),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionMonitoringStackAvailable, metav1.ConditionTrue),
-		)),
-		WithCustomErrorMsg("Monitoring resource should be ready before checking resourceVersion stability"),
-	)
-
-	type resource struct {
-		gvk  schema.GroupVersionKind
-		name string
-		ns   string
-		desc string
-	}
-
-	resources := []resource{
-		{gvk.ClusterRoleBinding, "data-science-monitoringstack-alertmanager-prometheus-metrics-reader", "", "alertmanager ClusterRoleBinding"},
-		{gvk.ClusterRoleBinding, "generate-processors-collector-rolebinding", "", "collector ClusterRoleBinding"},
-		{gvk.Service, "data-science-collector-prometheus", tc.MonitoringNamespace, "collector prometheus Service"},
-		{gvk.ConfigMap, "prometheus-web-tls-ca", tc.MonitoringNamespace, "prometheus TLS CA ConfigMap"},
-	}
-
-	// Wait for each resource to exist and settle before capturing its resourceVersion.
-	// This prevents a race where collector-backed resources (e.g. data-science-collector-prometheus,
-	// prometheus-web-tls-ca) are still receiving initial writes when the baseline is captured.
+	// Ensure all target resources exist and capture resourceVersion baselines.
 	initialVersions := make(map[string]string, len(resources))
 	for _, r := range resources {
-		u := tc.EnsureResourceExists(
+		opts := []ResourceOpts{
 			WithMinimalObject(r.gvk, types.NamespacedName{Name: r.name, Namespace: r.ns}),
-			WithCustomErrorMsg("%s should exist before capturing resourceVersion baseline", r.desc),
-		)
-		initialVersions[r.name] = u.GetResourceVersion()
+			WithCustomErrorMsg("%s should exist before stability check", r.desc),
+		}
+		if r.ownerRef {
+			opts = append(opts, WithCondition(ownerRefStableCondition))
+		}
+
+		u := tc.EnsureResourceExists(opts...)
+		if r.resourceVersion {
+			initialVersions[r.name] = u.GetResourceVersion()
+		}
 	}
 
-	// Assert that resourceVersion does not change over the observation window.
-	// Any increment means the controller is re-applying unchanged resources.
+	// Single observation window checking both ownerReference consistency and
+	// resourceVersion stability. A flap on either indicates a reconciliation loop.
 	g.Consistently(func(g Gomega) {
 		for _, r := range resources {
 			u := tc.FetchResource(
@@ -2032,11 +2090,20 @@ func (tc *MonitoringTestCtx) ValidateResourceVersionStability(t *testing.T) {
 			if !g.Expect(u).NotTo(BeNil(), "%s should still exist", r.desc) {
 				continue
 			}
-			g.Expect(u.GetResourceVersion()).To(
-				Equal(initialVersions[r.name]),
-				"%s resourceVersion changed from %s — controller is re-applying unchanged resources (possible reconciliation loop)",
-				r.desc, initialVersions[r.name],
-			)
+
+			if r.ownerRef {
+				g.Expect(u).To(ownerRefStableCondition,
+					"%s ownerReferences should remain stable (exactly 1, controller=true, owned by Monitoring CR)", r.desc,
+				)
+			}
+
+			if r.resourceVersion {
+				g.Expect(u.GetResourceVersion()).To(
+					Equal(initialVersions[r.name]),
+					"%s resourceVersion changed from %s — controller is re-applying unchanged resources (possible reconciliation loop)",
+					r.desc, initialVersions[r.name],
+				)
+			}
 		}
 	}).WithTimeout(1 * time.Minute).WithPolling(5 * time.Second).Should(Succeed())
 }
@@ -2630,6 +2697,7 @@ func (tc *MonitoringTestCtx) ValidatePersesDatasourceTLSWithGCSBackend(t *testin
 // ValidateTargetAllocatorNotDeployedWithoutMetrics tests that the Target Allocator is not deployed when metrics are not configured.
 func (tc *MonitoringTestCtx) ValidateTargetAllocatorNotDeployedWithoutMetrics(t *testing.T) {
 	t.Helper()
+	t.Cleanup(tc.resetMonitoringConfigToManaged)
 
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
@@ -2671,13 +2739,12 @@ func (tc *MonitoringTestCtx) ValidateTargetAllocatorNotDeployedWithoutMetrics(t 
 			Namespace: tc.MonitoringNamespace,
 		}),
 	)
-
-	tc.resetMonitoringConfigToManaged()
 }
 
 // ValidateTargetAllocatorDeploymentWithMetrics tests that the Target Allocator is deployed and ready when metrics are configured.
 func (tc *MonitoringTestCtx) ValidateTargetAllocatorDeploymentWithMetrics(t *testing.T) {
 	t.Helper()
+	t.Cleanup(tc.resetMonitoringConfigToManaged)
 
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
@@ -2721,13 +2788,12 @@ func (tc *MonitoringTestCtx) ValidateTargetAllocatorDeploymentWithMetrics(t *tes
 		)),
 		WithCustomErrorMsg("Target Allocator Deployment should be created and available"),
 	)
-
-	tc.resetMonitoringConfigToManaged()
 }
 
 // ValidateTargetAllocatorServiceAndConfigMap tests that the Target Allocator Service and ConfigMap are created correctly.
 func (tc *MonitoringTestCtx) ValidateTargetAllocatorServiceAndConfigMap(t *testing.T) {
 	t.Helper()
+	t.Cleanup(tc.resetMonitoringConfigToManaged)
 
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
@@ -2754,13 +2820,12 @@ func (tc *MonitoringTestCtx) ValidateTargetAllocatorServiceAndConfigMap(t *testi
 		}),
 		WithCustomErrorMsg("Target Allocator ConfigMap should be created by OpenTelemetry Operator"),
 	)
-
-	tc.resetMonitoringConfigToManaged()
 }
 
 // ValidateTargetAllocatorLifecycle tests the complete lifecycle of Target Allocator deployment and cleanup.
 func (tc *MonitoringTestCtx) ValidateTargetAllocatorLifecycle(t *testing.T) {
 	t.Helper()
+	t.Cleanup(tc.resetMonitoringConfigToManaged)
 
 	// Step 1: Enable metrics to deploy Target Allocator
 	tc.updateMonitoringConfig(
@@ -2805,13 +2870,12 @@ func (tc *MonitoringTestCtx) ValidateTargetAllocatorLifecycle(t *testing.T) {
 		WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
 		WithCustomErrorMsg("Target Allocator should be recreated when metrics are re-enabled"),
 	)
-
-	tc.resetMonitoringConfigToManaged()
 }
 
 // ValidateTargetAllocatorRBACConfiguration tests that Target Allocator has correct RBAC permissions.
 func (tc *MonitoringTestCtx) ValidateTargetAllocatorRBACConfiguration(t *testing.T) {
 	t.Helper()
+	t.Cleanup(tc.resetMonitoringConfigToManaged)
 
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
@@ -2858,6 +2922,199 @@ func (tc *MonitoringTestCtx) ValidateTargetAllocatorRBACConfiguration(t *testing
 		)),
 		WithCustomErrorMsg("ClusterRoleBinding should bind Target Allocator ClusterRole to ServiceAccount"),
 	)
+}
 
-	tc.resetMonitoringConfigToManaged()
+// ValidateMonitoringMetricsNegativeConditions tests the propagation of negative conditions for Metrics.
+func (tc *MonitoringTestCtx) ValidateMonitoringMetricsNegativeConditions(t *testing.T) {
+	t.Helper()
+	t.Cleanup(tc.resetMonitoringConfigToManaged)
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		withNoMetrics(),
+	)
+
+	// Verify MetricsNotConfigured reason is present in Monitoring CR
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(And(
+			jq.Match(`[.status.conditions[] | select(.type=="%s" and .reason=="%s")] | length==1`,
+				status.ConditionMonitoringStackAvailable, status.MetricsNotConfiguredReason),
+			jq.Match(`[.status.conditions[] | select(.type=="%s" and .reason=="%s")] | length==1`,
+				status.ConditionThanosQuerierAvailable, status.MetricsNotConfiguredReason),
+		)),
+	)
+
+	// Verify these conditions are mirrored to DSCI
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithCondition(And(
+			jq.Match(`[.status.conditions[] | select(.type=="%s" and .reason=="%s")] | length==1`,
+				status.ConditionMonitoringStackAvailable, status.MetricsNotConfiguredReason),
+		)),
+	)
+
+	// Cleanup: Reset monitoring configuration
+}
+
+// ValidateMonitoringTracesNegativeConditions tests the propagation of negative conditions for Traces.
+func (tc *MonitoringTestCtx) ValidateMonitoringTracesNegativeConditions(t *testing.T) {
+	t.Helper()
+	t.Cleanup(tc.resetMonitoringConfigToManaged)
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		withNoTraces(),
+	)
+
+	// Verify TracesNotConfigured reason is present in Monitoring CR
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(And(
+			jq.Match(`[.status.conditions[] | select(.type=="%s" and .reason=="%s")] | length==1`,
+				status.ConditionTempoAvailable, status.TracesNotConfiguredReason),
+			jq.Match(`[.status.conditions[] | select(.type=="%s" and .reason=="%s")] | length==1`,
+				status.ConditionInstrumentationAvailable, status.TracesNotConfiguredReason),
+		)),
+	)
+
+	// Verify these conditions are mirrored to DSCI
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithCondition(And(
+			jq.Match(`[.status.conditions[] | select(.type=="%s" and .reason=="%s")] | length==1`,
+				status.ConditionTempoAvailable, status.TracesNotConfiguredReason),
+		)),
+	)
+
+	// Cleanup: Reset monitoring configuration
+}
+
+// ValidateMonitoringAlertingNegativeConditions tests the propagation of negative conditions for Alerting.
+func (tc *MonitoringTestCtx) ValidateMonitoringAlertingNegativeConditions(t *testing.T) {
+	t.Helper()
+	t.Cleanup(tc.resetMonitoringConfigToManaged)
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		withNoAlerting(),
+	)
+
+	// Verify AlertingNotConfigured reason is present in Monitoring CR
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(jq.Match(`[.status.conditions[] | select(.type=="%s" and .reason=="%s")] | length==1`,
+			status.ConditionAlertingAvailable, status.AlertingNotConfiguredReason)),
+	)
+
+	// Verify mirrored to DSCI
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithCondition(And(
+			jq.Match(`[.status.conditions[] | select(.type=="%s" and .reason=="%s")] | length==1`,
+				status.ConditionAlertingAvailable, status.AlertingNotConfiguredReason),
+		)),
+	)
+}
+
+// ValidateMonitoringPersesNegativeConditions tests the propagation of negative conditions for Perses.
+func (tc *MonitoringTestCtx) ValidateMonitoringPersesNegativeConditions(t *testing.T) {
+	t.Helper()
+	t.Cleanup(tc.resetMonitoringConfigToManaged)
+
+	// Perses requires at least Metrics or Traces
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		withNoMetrics(),
+		withNoTraces(),
+	)
+
+	// Verify Perses conditions with negative reasons
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(And(
+			// Ready: True
+			jq.Match(`[.status.conditions[] | select(.type=="%s" and .status=="%s")] | length==1`,
+				status.ConditionTypeReady, metav1.ConditionTrue),
+			// PersesAvailable: MetricsNotConfiguredAndTracesNotConfigured
+			jq.Match(`[.status.conditions[] | select(.type=="%s" and .reason=="%s")] | length==1`,
+				status.ConditionPersesAvailable, status.MetricsNotConfiguredReason+"And"+status.TracesNotConfiguredReason),
+			// PersesTempoDataSourceAvailable: TracesNotConfigured
+			jq.Match(`[.status.conditions[] | select(.type=="%s" and .reason=="%s")] | length==1`,
+				status.ConditionPersesTempoDataSourceAvailable, status.TracesNotConfiguredReason),
+			// PersesPrometheusDataSourceAvailable: MetricsNotConfigured
+			jq.Match(`[.status.conditions[] | select(.type=="%s" and .reason=="%s")] | length==1`,
+				status.ConditionPersesPrometheusDataSourceAvailable, status.MetricsNotConfiguredReason),
+		)),
+	)
+
+	// Verify mirrored to DSCI
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithCondition(And(
+			jq.Match(`[.status.conditions[] | select(.type=="%s" and .reason=="%s")] | length==1`,
+				status.ConditionPersesAvailable, status.MetricsNotConfiguredReason+"And"+status.TracesNotConfiguredReason),
+		)),
+	)
+}
+
+// ValidateMonitoringNodeMetricsNegativeConditions tests negative conditions for NodeMetricsEndpoint.
+func (tc *MonitoringTestCtx) ValidateMonitoringNodeMetricsNegativeConditions(t *testing.T) {
+	t.Helper()
+	t.Cleanup(tc.resetMonitoringConfigToManaged)
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		withNoMetrics(),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(And(
+			jq.Match(`[.status.conditions[] | select(.type=="%s" and .status=="%s")] | length==1`,
+				status.ConditionTypeReady, metav1.ConditionTrue),
+			jq.Match(`[.status.conditions[] | select(.type=="%s" and .reason=="%s")] | length==1`,
+				status.ConditionNodeMetricsEndpointAvailable, status.MetricsNotConfiguredReason),
+		)),
+	)
+
+	// Verify mirrored to DSCI
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithCondition(And(
+			jq.Match(`[.status.conditions[] | select(.type=="%s" and .reason=="%s")] | length==1`,
+				status.ConditionNodeMetricsEndpointAvailable, status.MetricsNotConfiguredReason),
+		)),
+	)
+}
+
+// ValidateMonitoringOpenTelemetryNegativeConditions tests negative conditions for OpenTelemetryCollector.
+func (tc *MonitoringTestCtx) ValidateMonitoringOpenTelemetryNegativeConditions(t *testing.T) {
+	t.Helper()
+	t.Cleanup(tc.resetMonitoringConfigToManaged)
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		withNoMetrics(),
+		withNoTraces(),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(And(
+			jq.Match(`[.status.conditions[] | select(.type=="%s" and .status=="%s")] | length==1`,
+				status.ConditionTypeReady, metav1.ConditionTrue),
+			jq.Match(`[.status.conditions[] | select(.type=="%s" and .reason=="%s")] | length==1`,
+				status.ConditionOpenTelemetryCollectorAvailable, status.MetricsNotConfiguredReason+"And"+status.TracesNotConfiguredReason),
+		)),
+	)
+
+	// Verify mirrored to DSCI
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithCondition(And(
+			jq.Match(`[.status.conditions[] | select(.type=="%s" and .reason=="%s")] | length==1`,
+				status.ConditionOpenTelemetryCollectorAvailable, status.MetricsNotConfiguredReason+"And"+status.TracesNotConfiguredReason),
+		)),
+	)
 }

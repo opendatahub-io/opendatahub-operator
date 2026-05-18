@@ -17,6 +17,13 @@ func WithManifestsBasePath(p string) Option {
 	}
 }
 
+// WithChartsBasePath sets the base path for Helm charts.
+func WithChartsBasePath(p string) Option {
+	return func(m *Manager) {
+		m.chartsBasePath = p
+	}
+}
+
 // Manager wraps a controller-runtime manager to return a custom client
 // from GetClient(). This allows replacing the default client with a
 // wrapped client (e.g., UnstructuredClient) while preserving all other
@@ -26,6 +33,7 @@ type Manager struct {
 
 	wrappedClient     *opclient.Client
 	manifestsBasePath string
+	chartsBasePath    string
 }
 
 // New creates a new Manager that wraps the given manager and
@@ -53,4 +61,9 @@ func (m *Manager) GetClient() client.Client {
 // GetManifestsBasePath returns the base path for component manifests.
 func (m *Manager) GetManifestsBasePath() string {
 	return m.manifestsBasePath
+}
+
+// GetChartsBasePath returns the base path for Helm charts.
+func (m *Manager) GetChartsBasePath() string {
+	return m.chartsBasePath
 }
