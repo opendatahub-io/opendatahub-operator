@@ -46,6 +46,7 @@ func modelControllerTestSuite(t *testing.T) {
 		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
 		{"Validate WVA deployment when enabled", componentCtx.ValidateWVADeployment},
 		{"Validate WVA ConfigMap is configurable and recovers from deletion", componentCtx.ValidateWVAConfigMapUserConfigurable},
+		{"Validate subscription dependency conditions", componentCtx.ValidateSubscriptionDependencyConditions},
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
@@ -177,6 +178,34 @@ func (tc *ModelControllerTestCtx) ValidateWVAConfigMapUserConfigurable(t *testin
 		}),
 		WithCondition(
 			jq.Match(`.data.default | contains("queueSpareTrigger: %s")`, queueSpareTriggerOriginal),
+		),
+	)
+}
+
+// ValidateSubscriptionDependencyConditions verifies that the CMA subscription
+// dependency condition is True when KServe and WVA are both Managed.
+func (tc *ModelControllerTestCtx) ValidateSubscriptionDependencyConditions(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+
+	mcNN := types.NamespacedName{Name: componentApi.ModelControllerInstanceName}
+
+	t.Log("Verifying CMA subscription dependency condition is True on ModelController CR.")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ModelController, mcNN),
+		WithCondition(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				modelcontroller.LLMDWVADependencies, metav1.ConditionTrue),
+		),
+	)
+
+	t.Log("Verifying CMA subscription dependency condition is propagated to DSC status.")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				modelcontroller.LLMDWVADependencies, metav1.ConditionTrue),
 		),
 	)
 }
