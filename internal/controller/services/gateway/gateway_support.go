@@ -13,6 +13,7 @@ import (
 	oauthv1 "github.com/openshift/api/oauth/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -413,7 +414,7 @@ func deleteLegacyOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationReq
 
 	legacyClient := &oauthv1.OAuthClient{}
 	err := rr.Client.Get(ctx, types.NamespacedName{Name: LegacyAuthClientID}, legacyClient)
-	if k8serr.IsNotFound(err) {
+	if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
 		return nil
 	}
 	if err != nil {
@@ -454,7 +455,7 @@ func deleteLegacyOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationReq
 	}
 
 	l.Info("Deleting legacy OAuthClient from previous version", "name", LegacyAuthClientID)
-	if err := rr.Client.Delete(ctx, legacyClient); err != nil && !k8serr.IsNotFound(err) {
+	if err := rr.Client.Delete(ctx, legacyClient); err != nil && !k8serr.IsNotFound(err) && !meta.IsNoMatchError(err) {
 		return fmt.Errorf("failed to delete legacy OAuthClient %q: %w", LegacyAuthClientID, err)
 	}
 
@@ -710,7 +711,7 @@ func getAuthProxySecretValues(
 		}
 		clientSecretValue = clientSecretGen.Value
 
-	case cluster.AuthModeNone:
+	default:
 		return "", "", "", fmt.Errorf("auth mode: %s is not supported", authMode)
 	}
 
