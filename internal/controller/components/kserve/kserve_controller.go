@@ -21,7 +21,6 @@ import (
 	"slices"
 	"strings"
 
-	securityv1 "github.com/openshift/api/security/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -75,9 +74,9 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&admissionregistrationv1.ValidatingAdmissionPolicyBinding{}).
 		Owns(&appsv1.DaemonSet{}).
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(predicates.DefaultDeploymentPredicate)).
-		Owns(&securityv1.SecurityContextConstraints{}).
 		Owns(&corev1.PersistentVolume{}).
 		Owns(&corev1.PersistentVolumeClaim{}).
+		OwnsGVK(gvk.SecurityContextConstraints, reconciler.Dynamic(reconciler.CrdExists(gvk.SecurityContextConstraints))).
 		OwnsGVK(gvk.LocalModelNodeGroup, reconciler.Dynamic(reconciler.CrdExists(gvk.LocalModelNodeGroup))).
 
 		// Watch Nodes so that newly added or relabeled nodes trigger
