@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -194,6 +195,51 @@ func (tc *KserveTestCtx) ValidateLLMInferenceServiceConfigVersioned(t *testing.T
 			)
 		})
 	}
+}
+
+// ValidateComponentDisabled validates that KServe component is properly removed and all
+// LLMInferenceServiceConfig resources are cleaned up. It expands the base
+// ValidateComponentDisabled flow so that LLMInferenceServiceConfig checks run while the
+// webhook service is still alive (before the component CR is deleted). Checking after the
+// CR is gone would hit webhook connection errors because the conversion webhook service
+// is owned by the component CR and gets garbage-collected with it.
+func (tc *KserveTestCtx) ValidateComponentDisabled(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke, Tier1)
+
+	tc.EnsureResourcesExist(WithMinimalObject(tc.GVK, tc.NamespacedName))
+
+	tc.UpdateComponentState(operatorv1.Removed)
+
+	for _, configGVK := range []schema.GroupVersionKind{
+		gvk.LLMInferenceServiceConfigV1Alpha1,
+		gvk.LLMInferenceServiceConfigV1Alpha2,
+	} {
+		tc.EnsureResourcesGone(
+			WithMinimalObject(configGVK, types.NamespacedName{Namespace: tc.AppsNamespace}),
+			WithListOptions(&client.ListOptions{
+				Namespace: tc.AppsNamespace,
+			}),
+			WithEventuallyTimeout(tc.TestTimeouts.componentReadinessTimeout),
+			WithCustomErrorMsg("LLMInferenceServiceConfig %s resources should not remain after component removal", configGVK.Version),
+		)
+	}
+
+	tc.EnsureResourcesGone(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(
+			&client.ListOptions{
+				Namespace: tc.AppsNamespace,
+				LabelSelector: k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+				}.AsSelector(),
+			},
+		),
+		WithEventuallyTimeout(tc.TestTimeouts.componentReadinessTimeout),
+	)
+
+	tc.EnsureResourcesGone(WithMinimalObject(tc.GVK, tc.NamespacedName))
 }
 
 // ensureLWSBaseline clears LWS conditions, asserts Kserve component and DSC health.
