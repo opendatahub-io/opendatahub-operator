@@ -107,7 +107,7 @@ func cleanUpTemplatedResources(ctx context.Context, rr *odhtypes.ReconciliationR
 	return nil
 }
 
-func customizeKserveConfigMap(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+func customizeKserveConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	k, ok := rr.Instance.(*componentApi.Kserve)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.Kserve", rr.Instance)
@@ -129,7 +129,7 @@ func customizeKserveConfigMap(_ context.Context, rr *odhtypes.ReconciliationRequ
 
 	modelCacheEnabled := k.Spec.ModelCache != nil && k.Spec.ModelCache.ManagementState == operatorv1.Managed
 
-	if err := updateInferenceCM(&kserveConfigMap, serviceClusterIPNone, modelCacheEnabled); err != nil {
+	if err := updateInferenceCM(ctx, &kserveConfigMap, serviceClusterIPNone, modelCacheEnabled, k.Spec.OAuthProxy); err != nil {
 		return err
 	}
 

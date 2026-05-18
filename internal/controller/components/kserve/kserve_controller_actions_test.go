@@ -423,6 +423,13 @@ func createTestConfigMap() *corev1.ConfigMap {
 				"jobNamespace": "wrong-namespace",
 				"enabled": true
 			}`,
+			OAuthProxyConfigKeyName: `{
+				"image": "registry.example.com/oauth-proxy:latest",
+				"memoryRequest": "64Mi",
+				"memoryLimit": "128Mi",
+				"cpuRequest": "100m",
+				"cpuLimit": "200m"
+			}`,
 		},
 	}
 }
