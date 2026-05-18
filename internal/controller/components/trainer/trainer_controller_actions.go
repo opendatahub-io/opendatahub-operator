@@ -47,7 +47,7 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 	// Check that JobSetOperator CR exists with name "cluster"
 	jobSetOperatorCR := &unstructured.Unstructured{}
 	jobSetOperatorCR.SetGroupVersionKind(gvk.JobSetOperatorV1)
-	if err := rr.Client.Get(ctx, types.NamespacedName{Name: "cluster"}, jobSetOperatorCR); err != nil {
+	if err := rr.Client.Get(ctx, types.NamespacedName{Name: jobSetOperatorCRName}, jobSetOperatorCR); err != nil {
 		if k8serr.IsNotFound(err) {
 			return ErrJobSetOperatorCRNotFound
 		}
