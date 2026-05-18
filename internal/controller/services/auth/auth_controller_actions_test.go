@@ -595,6 +595,143 @@ func TestManagePermissionsRoleBindingNamespaces(t *testing.T) {
 	g.Expect(namespaceByRole).To(HaveKeyWithValue("data-science-admingroup-kuadrant-role", "kuadrant-system"))
 }
 
+// TestBindClusterRoleValidation mirrors TestBindRoleValidation for the bindClusterRole
+// function, verifying that the system:authenticated filtering and empty-string filtering
+// behave correctly for both admin and non-admin cluster role bindings.
+func TestBindClusterRoleValidation(t *testing.T) {
+	ctx := t.Context()
+	g := NewWithT(t)
+
+	fakeClient := setupTestClient(g, false)
+
+	tests := []struct {
+		name          string
+		groups        []string
+		roleName      string
+		expectSkipped []string
+		description   string
+	}{
+		{
+			name:          "admin cluster role skips system:authenticated",
+			groups:        []string{"admin1", "system:authenticated", "admin2"},
+			roleName:      "data-science-admingroupcluster-role",
+			expectSkipped: []string{"system:authenticated"},
+			description:   "Should skip system:authenticated for admin cluster roles",
+		},
+		{
+			name:          "admin cluster role skips empty strings",
+			groups:        []string{"admin1", "", "admin2"},
+			roleName:      "data-science-admingroupcluster-role",
+			expectSkipped: []string{""},
+			description:   "Should skip empty strings for admin cluster roles",
+		},
+		{
+			name:          "non-admin cluster role allows system:authenticated",
+			groups:        []string{"user1", "system:authenticated", "user2"},
+			roleName:      "data-science-allowedgroupcluster-role",
+			expectSkipped: []string{},
+			description:   "Should allow system:authenticated for non-admin cluster roles",
+		},
+		{
+			name:          "non-admin cluster role skips empty strings",
+			groups:        []string{"user1", "", "user2"},
+			roleName:      "data-science-allowedgroupcluster-role",
+			expectSkipped: []string{""},
+			description:   "Should skip empty strings for non-admin cluster roles",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			rr := &odhtypes.ReconciliationRequest{
+				Client:    fakeClient,
+				Resources: []unstructured.Unstructured{},
+			}
+
+			err := bindClusterRole(ctx, rr, tt.groups, "test-cluster-binding", tt.roleName)
+			g.Expect(err).ToNot(HaveOccurred(), tt.description)
+
+			g.Expect(rr.Resources).ToNot(BeEmpty(), "Should add ClusterRoleBinding resource")
+
+			validGroupCount := len(tt.groups)
+			for _, group := range tt.groups {
+				if slices.Contains(tt.expectSkipped, group) {
+					validGroupCount--
+				}
+			}
+
+			resource := rr.Resources[0]
+			g.Expect(resource.GetKind()).To(Equal("ClusterRoleBinding"))
+			g.Expect(resource.GetName()).To(Equal("test-cluster-binding"))
+
+			subjects, _, _ := unstructured.NestedSlice(resource.Object, "subjects")
+			names := extractGroupNamesFromSubjects(subjects)
+
+			for _, skipped := range tt.expectSkipped {
+				if skipped != "" {
+					g.Expect(names).ToNot(ContainElement(skipped), tt.description)
+				}
+			}
+			g.Expect(names).To(HaveLen(validGroupCount), tt.description)
+		})
+	}
+}
+
+// Regression test: verifies that the system:authenticated principal cannot be
+// bound to any admin-level role, including the MaaS and Kuadrant admin roles.
+// bindRole and bindClusterRole must filter system:authenticated for all admin
+// role names; this test ensures that guard is never inadvertently removed.
+func TestManagePermissionsBlocksSystemAuthenticatedInAllAdminBindings(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	fakeClient := setupTestClient(g, false)
+
+	auth := &serviceApi.Auth{
+		ObjectMeta: metav1.ObjectMeta{Name: "auth"},
+		Spec: serviceApi.AuthSpec{
+			AdminGroups:   []string{"real-admin-group", "system:authenticated"},
+			AllowedGroups: []string{"user1"},
+		},
+	}
+
+	rr := &odhtypes.ReconciliationRequest{
+		Client:    fakeClient,
+		Instance:  auth,
+		Resources: []unstructured.Unstructured{},
+	}
+
+	err := managePermissions(ctx, rr)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	adminRoleNames := map[string]bool{
+		"data-science-admingroup-role":          true,
+		"data-science-admingroup-maas-role":     true,
+		"data-science-admingroup-kuadrant-role": true,
+		"data-science-admingroupcluster-role":   true,
+	}
+
+	for _, resource := range rr.Resources {
+		var roleName string
+		if roleRef, found, err := unstructured.NestedMap(resource.Object, "roleRef"); found && err == nil {
+			roleName, _ = roleRef["name"].(string)
+		}
+		if !adminRoleNames[roleName] {
+			continue
+		}
+
+		subjects, _, _ := unstructured.NestedSlice(resource.Object, "subjects")
+		names := extractGroupNamesFromSubjects(subjects)
+		g.Expect(names).ToNot(
+			ContainElement("system:authenticated"),
+			"system:authenticated must not be bound to admin role %q (binding %q)",
+			roleName, resource.GetName(),
+		)
+	}
+}
+
 func extractGroupNamesFromSubjects(subjects []any) []string {
 	names := []string{}
 	for _, subject := range subjects {

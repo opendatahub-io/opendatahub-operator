@@ -34,7 +34,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        provider: [azure, coreweave]
+        provider: [azure, coreweave, aws]
     steps:
       - name: Checkout PR code
         if: ${{ !env.ACT }}
@@ -87,8 +87,10 @@ jobs:
 
       - name: Collect operator logs on failure
         if: failure()
+        env:
+          PROVIDER: ${{ matrix.provider }}
         run: |
-          kubectl get azurekubernetesengine -o yaml || true
+          kubectl get "${PROVIDER}kubernetesengine" -o yaml || true
           kubectl logs -n opendatahub-cloudmanager-system \
             -l control-plane=controller-manager \
             --tail=500 || true

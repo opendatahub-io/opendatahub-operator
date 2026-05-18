@@ -21,7 +21,6 @@ import (
 	"slices"
 	"strings"
 
-	securityv1 "github.com/openshift/api/security/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -32,6 +31,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -41,6 +41,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
@@ -73,9 +74,9 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&admissionregistrationv1.ValidatingAdmissionPolicyBinding{}).
 		Owns(&appsv1.DaemonSet{}).
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(predicates.DefaultDeploymentPredicate)).
-		Owns(&securityv1.SecurityContextConstraints{}).
 		Owns(&corev1.PersistentVolume{}).
 		Owns(&corev1.PersistentVolumeClaim{}).
+		OwnsGVK(gvk.SecurityContextConstraints, reconciler.Dynamic(reconciler.CrdExists(gvk.SecurityContextConstraints))).
 		OwnsGVK(gvk.LocalModelNodeGroup, reconciler.Dynamic(reconciler.CrdExists(gvk.LocalModelNodeGroup))).
 
 		// Watch Nodes so that newly added or relabeled nodes trigger
@@ -157,9 +158,16 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// Watch for dependency CRDs (istio, cert-manager, leaderworkerset)
 		// so the controller re-reconciles when they appear or disappear.
 
+		// preconditions
+		WithPreCondition(precondition.MonitorOperator(precondition.OperatorConfig{
+			OperatorGVK: gvk.LeaderWorkerSetOperatorV1,
+			Filter:      lwsConditionFilter,
+		}, precondition.WithSeverity(common.ConditionSeverityInfo))).
+		WithPreCondition(precondition.MonitorCRDs(xksDependencyCRDs,
+			precondition.WithClusterTypes(cluster.ClusterTypeKubernetes))).
+
 		// actions
 		WithAction(initialize).
-		WithAction(checkOperatorAndCRDDependencies()).
 		WithAction(checkSubscriptionDependencies()).
 		WithAction(releases.NewAction()).
 		WithAction(removeOwnershipFromUnmanagedResources).
@@ -188,6 +196,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(deployments.NewAction()).
 		// must be the final action
 		WithAction(gc.NewAction(gc.WithUnremovables(gvk.LLMInferenceServiceConfigV1Alpha1, gvk.LLMInferenceServiceConfigV1Alpha2))).
+		WithFinalizer(deleteLLMInferenceServiceConfigs).
 		// declares the list of additional, controller specific conditions that are
 		// contributing to the controller readiness status
 		WithConditions(conditionTypes...).

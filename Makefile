@@ -811,7 +811,7 @@ unit-test-cli:
 ##@ Cloud Controller Manager (ccm)
 
 # List of supported CCM providers
-CCM_PROVIDERS := azure coreweave
+CCM_PROVIDERS := azure coreweave aws
 
 # Helper functions
 ccm-config-dir = config/cloudmanager/$(1)

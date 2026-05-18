@@ -15,6 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -109,7 +110,7 @@ func cleanUpTemplatedResources(ctx context.Context, rr *odhtypes.ReconciliationR
 	return nil
 }
 
-func customizeKserveConfigMap(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+func customizeKserveConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	k, ok := rr.Instance.(*componentApi.Kserve)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.Kserve", rr.Instance)
@@ -131,7 +132,7 @@ func customizeKserveConfigMap(_ context.Context, rr *odhtypes.ReconciliationRequ
 
 	modelCacheEnabled := k.Spec.ModelCache != nil && k.Spec.ModelCache.ManagementState == operatorv1.Managed
 
-	if err := updateInferenceCM(&kserveConfigMap, serviceClusterIPNone, modelCacheEnabled); err != nil {
+	if err := updateInferenceCM(ctx, &kserveConfigMap, serviceClusterIPNone, modelCacheEnabled, k.Spec.OAuthProxy); err != nil {
 		return err
 	}
 
@@ -216,92 +217,95 @@ func versionedWellKnownLLMInferenceServiceConfigs(_ context.Context, version str
 	return nil
 }
 
-func checkOperatorAndCRDDependencies() actions.Fn {
-	return dependency.NewAction(
-		dependency.MonitorOperator(dependency.OperatorConfig{
-			OperatorGVK: gvk.LeaderWorkerSetOperatorV1,
-			Severity:    common.ConditionSeverityInfo,
-			Filter:      lwsConditionFilter,
-		}),
-		// networking.istio.io.
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.DestinationRule,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.EnvoyFilter,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.IstioGateway,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.ProxyConfig,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.ServiceEntry,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.Sidecar,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.WorkloadEntry,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.WorkloadGroup,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		// security.istio.io.
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.AuthorizationPolicy,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.PeerAuthentication,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.RequestAuthentication,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		// telemetry.istio.io.
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.Telemetry,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		// extensions.istio.io.
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.WasmPlugin,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		// cert-manager.io.
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.CertManagerCertificate,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.CertManagerCertificateRequest,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.CertManagerIssuer,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.CertManagerClusterIssuer,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-		// leaderworkerset.x-k8s.io.
-		dependency.MonitorCRD(dependency.CRDConfig{
-			GVK:          gvk.LeaderWorkerSetV1,
-			ClusterTypes: []string{cluster.ClusterTypeKubernetes},
-		}),
-	)
+var xksDependencyCRDs = []schema.GroupVersionKind{
+	// networking.istio.io
+	gvk.DestinationRule, gvk.EnvoyFilter, gvk.IstioGateway, gvk.ProxyConfig,
+	gvk.ServiceEntry, gvk.Sidecar, gvk.WorkloadEntry, gvk.WorkloadGroup,
+	// security.istio.io
+	gvk.AuthorizationPolicy, gvk.PeerAuthentication, gvk.RequestAuthentication,
+	// telemetry.istio.io
+	gvk.Telemetry,
+	// extensions.istio.io
+	gvk.WasmPlugin,
+	// cert-manager.io
+	gvk.CertManagerCertificate, gvk.CertManagerCertificateRequest,
+	gvk.CertManagerIssuer, gvk.CertManagerClusterIssuer,
+	// leaderworkerset.x-k8s.io
+	gvk.LeaderWorkerSetV1,
+}
+
+// deleteLLMInferenceServiceConfigs is a finalizer action that explicitly deletes
+// LLMInferenceServiceConfig resources owned by this instance before the platform
+// finalizer is removed and Kubernetes GC deletes the webhook service. This
+// prevents a deadlock where GC tries to delete LLMInferenceServiceConfigs
+// (which require a conversion webhook) after the webhook service is gone.
+func deleteLLMInferenceServiceConfigs(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	l := logf.FromContext(ctx)
+
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(gvk.LLMInferenceServiceConfigV1Alpha2)
+
+	if err := rr.Client.List(ctx, list); err != nil {
+		if !meta.IsNoMatchError(err) {
+			return fmt.Errorf("failed to list LLMInferenceServiceConfig: %w", err)
+		}
+
+		list = &unstructured.UnstructuredList{}
+		list.SetGroupVersionKind(gvk.LLMInferenceServiceConfigV1Alpha1)
+
+		if err := rr.Client.List(ctx, list); err != nil {
+			if meta.IsNoMatchError(err) {
+				return nil
+			}
+
+			return fmt.Errorf("failed to list LLMInferenceServiceConfig: %w", err)
+		}
+	}
+
+	remaining := 0
+
+	for i := range list.Items {
+		item := &list.Items[i]
+
+		owned := false
+		for _, ref := range item.GetOwnerReferences() {
+			if ref.UID == rr.Instance.GetUID() {
+				owned = true
+				break
+			}
+		}
+
+		if !owned {
+			continue
+		}
+
+		remaining++
+
+		if !item.GetDeletionTimestamp().IsZero() {
+			continue
+		}
+
+		l.Info("deleting LLMInferenceServiceConfig before webhook cleanup",
+			"name", item.GetName(),
+			"namespace", item.GetNamespace(),
+		)
+
+		if err := rr.Client.Delete(ctx, item); err != nil {
+			if k8serr.IsNotFound(err) {
+				remaining--
+				continue
+			}
+
+			return fmt.Errorf("failed to delete LLMInferenceServiceConfig %s/%s: %w",
+				item.GetNamespace(), item.GetName(), err)
+		}
+	}
+
+	if remaining > 0 {
+		return fmt.Errorf("waiting for %d LLMInferenceServiceConfig resources to be deleted", remaining)
+	}
+
+	return nil
 }
 
 func checkSubscriptionDependencies() actions.Fn {

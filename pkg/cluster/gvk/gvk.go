@@ -4,6 +4,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	oauthv1 "github.com/openshift/api/oauth/v1"
 	routev1 "github.com/openshift/api/route/v1"
+	securityv1 "github.com/openshift/api/security/v1"
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -225,6 +226,12 @@ var (
 		Group:   "config.openshift.io",
 		Version: "v1",
 		Kind:    "Ingress",
+	}
+
+	SecurityContextConstraints = schema.GroupVersionKind{
+		Group:   securityv1.SchemeGroupVersion.Group,
+		Version: securityv1.SchemeGroupVersion.Version,
+		Kind:    "SecurityContextConstraints",
 	}
 
 	OdhApplication = schema.GroupVersionKind{
@@ -971,6 +978,12 @@ var (
 		Group:   "infrastructure.opendatahub.io",
 		Version: "v1alpha1",
 		Kind:    "CoreWeaveKubernetesEngine",
+	}
+
+	AWSKubernetesEngine = schema.GroupVersionKind{
+		Group:   "infrastructure.opendatahub.io",
+		Version: "v1alpha1",
+		Kind:    "AWSKubernetesEngine",
 	}
 
 	SparkApplication = schema.GroupVersionKind{
