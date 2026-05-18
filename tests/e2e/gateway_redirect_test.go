@@ -6,14 +6,13 @@ import (
 	"testing"
 	"time"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
 )
@@ -44,20 +43,22 @@ func (tc *GatewayTestCtx) DashboardRedirectTestSuite(t *testing.T) {
 	RunTestCases(t, testCases)
 }
 
-// ensureDashboardCRExists sets Dashboard to Managed in the DSC so the operator creates
-// the Dashboard CR through normal reconciliation. The gateway reconciler only creates
-// dashboard redirect resources when the Dashboard CR is present.
-// On cleanup, Dashboard is set back to Removed.
+// ensureDashboardCRExists sets Dashboard to Managed in the DSC and waits for the
+// Dashboard CR to be created. Unlike UpdateComponentStateInDataScienceClusterWithKind,
+// this does NOT wait for DashboardReady=True (full deployment), only for the CR to exist.
 func (tc *GatewayTestCtx) ensureDashboardCRExists(t *testing.T) {
 	t.Helper()
 
-	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.DashboardKind)
-	t.Logf("Set Dashboard to Managed in DSC for redirect tests")
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.dashboard.managementState = "Managed"`)),
+		WithCondition(jq.Match(`.spec.components.dashboard.managementState == "Managed"`)),
+	)
 
-	t.Cleanup(func() {
-		tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.DashboardKind)
-		t.Log("Restored Dashboard to Removed in DSC after redirect tests")
-	})
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Dashboard, types.NamespacedName{Name: "default-dashboard"}),
+	)
+	t.Logf("Dashboard CR exists; redirect resources can now be created by gateway reconciler")
 }
 
 // ValidateDashboardRedirectConfigMap validates the nginx configuration for redirects.
