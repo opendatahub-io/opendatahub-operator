@@ -425,10 +425,10 @@ func deleteLegacyOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationReq
 		return fmt.Errorf("failed to resolve gateway domain for legacy cleanup: %w", err)
 	}
 
-	expectedHosts := map[string]bool{hostname: true}
+	expectedHosts := map[string]bool{strings.ToLower(hostname): true}
 	legacyInfo := computeLegacyRedirectInfo(gatewayConfig, hostname)
 	if legacyInfo.LegacyHostname != "" {
-		expectedHosts[legacyInfo.LegacyHostname] = true
+		expectedHosts[strings.ToLower(legacyInfo.LegacyHostname)] = true
 	}
 
 	isLegacyGatewayClient := false
@@ -437,7 +437,11 @@ func deleteLegacyOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationReq
 		if parseErr != nil {
 			continue
 		}
-		if expectedHosts[parsed.Hostname()] && parsed.Path == "/oauth2/callback" {
+		if parsed.Scheme != "https" || parsed.Path != "/oauth2/callback" {
+			continue
+		}
+		port := parsed.Port()
+		if expectedHosts[strings.ToLower(parsed.Hostname())] && (port == "" || port == "443") {
 			isLegacyGatewayClient = true
 			break
 		}

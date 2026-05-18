@@ -1132,6 +1132,73 @@ func TestDeleteLegacyOAuthClientMalformedURI(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred(), "client with only malformed URIs must not be deleted")
 }
 
+// TestDeleteLegacyOAuthClientNonStandardPort verifies that deleteLegacyOAuthClient
+// does NOT delete an OAuthClient whose redirect URI uses a non-standard port,
+// even if the hostname and path match.
+func TestDeleteLegacyOAuthClientNonStandardPort(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{
+			Domain: testDomain,
+		},
+	}
+
+	legacyClient := &oauthv1.OAuthClient{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: LegacyAuthClientID,
+		},
+		RedirectURIs: []string{
+			"https://" + testHostnameDefault + ":8443/oauth2/callback",
+		},
+	}
+
+	cli := setupTestClient().WithObjects(legacyClient).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	err := deleteLegacyOAuthClient(ctx, rr, gatewayConfig)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	preserved := &oauthv1.OAuthClient{}
+	err = cli.Get(ctx, types.NamespacedName{Name: LegacyAuthClientID}, preserved)
+	g.Expect(err).NotTo(HaveOccurred(), "OAuthClient with non-standard port must not be deleted")
+}
+
+// TestDeleteLegacyOAuthClientHTTPSchemeSkipped verifies that deleteLegacyOAuthClient
+// does NOT delete an OAuthClient whose redirect URI uses http instead of https.
+func TestDeleteLegacyOAuthClientHTTPSchemeSkipped(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{
+			Domain: testDomain,
+		},
+	}
+
+	legacyClient := &oauthv1.OAuthClient{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: LegacyAuthClientID,
+		},
+		RedirectURIs: []string{
+			"http://" + testHostnameDefault + "/oauth2/callback",
+		},
+	}
+
+	cli := setupTestClient().WithObjects(legacyClient).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	err := deleteLegacyOAuthClient(ctx, rr, gatewayConfig)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	preserved := &oauthv1.OAuthClient{}
+	err = cli.Get(ctx, types.NamespacedName{Name: LegacyAuthClientID}, preserved)
+	g.Expect(err).NotTo(HaveOccurred(), "OAuthClient with http scheme must not be deleted")
+}
+
 // TestDeleteLegacyOAuthClientGetFQDNError verifies that deleteLegacyOAuthClient
 // returns an error when GetFQDN fails (e.g. no domain in config and no cluster domain).
 func TestDeleteLegacyOAuthClientGetFQDNError(t *testing.T) {
