@@ -6,4 +6,5 @@ const (
 	ServiceConfigKeyName    = "service"
 	LocalModelConfigKeyName = "localModel"
 	OpenshiftConfigKeyName  = "openshiftConfig"
+	OAuthProxyConfigKeyName = "oauthProxy"
 )
