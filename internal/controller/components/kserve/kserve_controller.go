@@ -197,6 +197,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(deployments.NewAction()).
 		// must be the final action
 		WithAction(gc.NewAction(gc.WithUnremovables(gvk.LLMInferenceServiceConfigV1Alpha1, gvk.LLMInferenceServiceConfigV1Alpha2))).
+		WithFinalizer(deleteLLMInferenceServiceConfigs).
 		// declares the list of additional, controller specific conditions that are
 		// contributing to the controller readiness status
 		WithConditions(conditionTypes...).
