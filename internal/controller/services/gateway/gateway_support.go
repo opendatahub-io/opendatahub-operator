@@ -45,7 +45,7 @@ const (
 	LegacyGatewaySubdomain  = "data-science-gateway"               // Legacy subdomain to redirect from
 
 	// Authentication constants.
-	LegacyAuthClientID       = "odh"          // Legacy OauthClient name from RHOAI 3.3.
+	LegacyAuthClientID       = "odh"          // Legacy OauthClient name from RHOAI 3.0 and before.
 	AuthClientID             = "data-science" // OauthClient name.
 	KubeAuthProxyName        = "kube-auth-proxy"
 	KubeAuthProxySecretsName = "kube-auth-proxy-creds" //nolint:gosec // This is a resource name, not actual credentials
@@ -402,7 +402,7 @@ func createOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationRequest, 
 }
 
 // deleteLegacyOAuthClient removes the legacy "odh" OAuthClient left over from
-// RHOAI 3.3 upgrades. It only deletes the client if a redirect URI matches one
+// RHOAI 3.0 and before. It only deletes the client if a redirect URI matches one
 // of the gateway's expected hostnames with the /oauth2/callback path, confirming
 // it was created by the gateway controller and not by an unrelated user workload.
 func deleteLegacyOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig) error {
