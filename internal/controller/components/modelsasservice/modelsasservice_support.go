@@ -264,14 +264,13 @@ func normalizeUnstructuredObject(obj map[string]any) (map[string]any, error) {
 	return out, nil
 }
 
-// gatewayNamespaceResourceNames lists resources that must remain in the gateway
-// namespace after the blanket NamespaceApplierPlugin transform. These resources
-// are deployed to openshift-ingress in the base manifests because the EnvoyFilter
-// must run in the same namespace as the Gateway.
+// gatewayNamespaceResourceNames lists namespaced resources that must remain in the
+// gateway namespace after the blanket NamespaceApplierPlugin transform.
+// Only namespaced resources are listed here; cluster-scoped resources like
+// ClusterRoleBinding are not affected by SetNamespace and are not included.
 var gatewayNamespaceResourceNames = map[string]bool{
 	"payload-processing":         true, // Deployment, Service, ServiceAccount
 	"payload-processing-plugins": true, // ConfigMap
-	"payload-processing-reader":  true, // ClusterRoleBinding (subjects namespace)
 }
 
 // restoreGatewayNamespaceResources moves resources that belong in the gateway
