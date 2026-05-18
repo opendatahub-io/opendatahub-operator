@@ -5,7 +5,7 @@ package gateway
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	oauthv1 "github.com/openshift/api/oauth/v1"
@@ -1464,7 +1464,7 @@ func TestDeleteLegacyOAuthClientGetError(t *testing.T) {
 		WithInterceptorFuncs(interceptor.Funcs{
 			Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 				if key.Name == LegacyAuthClientID {
-					return fmt.Errorf("simulated API server error")
+					return errors.New("simulated API server error")
 				}
 				return c.Get(ctx, key, obj, opts...)
 			},
@@ -1504,7 +1504,7 @@ func TestDeleteLegacyOAuthClientDeleteError(t *testing.T) {
 		WithInterceptorFuncs(interceptor.Funcs{
 			Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
 				if obj.GetName() == LegacyAuthClientID {
-					return fmt.Errorf("simulated delete error")
+					return errors.New("simulated delete error")
 				}
 				return c.Delete(ctx, obj, opts...)
 			},
