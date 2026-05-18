@@ -4,6 +4,8 @@
 package gateway
 
 import (
+	"context"
+	"fmt"
 	"testing"
 
 	oauthv1 "github.com/openshift/api/oauth/v1"
@@ -11,6 +13,8 @@ import (
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
@@ -1441,4 +1445,75 @@ func TestGetAuthProxySecretValuesIntegratedOAuthMissingClientSecret(t *testing.T
 	g.Expect(clientSecret).NotTo(BeEmpty(), "should generate a new client secret")
 	g.Expect(clientSecret).NotTo(Equal(testAuthClientSecret), "should not reuse missing client secret")
 	g.Expect(cookieSecret).To(Equal(testAuthCookieSecret), "should preserve existing cookie secret")
+}
+
+// TestDeleteLegacyOAuthClientGetError verifies that when the API server returns
+// a non-NotFound error while checking for the legacy OAuthClient, the error is
+// propagated to the caller.
+func TestDeleteLegacyOAuthClientGetError(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{
+			Domain: testDomain,
+		},
+	}
+
+	cli := setupTestClient().
+		WithInterceptorFuncs(interceptor.Funcs{
+			Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+				if key.Name == LegacyAuthClientID {
+					return fmt.Errorf("simulated API server error")
+				}
+				return c.Get(ctx, key, obj, opts...)
+			},
+		}).
+		Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	err := deleteLegacyOAuthClient(ctx, rr, gatewayConfig)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("failed to check for legacy OAuthClient"))
+}
+
+// TestDeleteLegacyOAuthClientDeleteError verifies that when deletion of the
+// legacy OAuthClient fails with a non-transient error, the error is propagated.
+func TestDeleteLegacyOAuthClientDeleteError(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{
+			Domain: testDomain,
+		},
+	}
+
+	legacyClient := &oauthv1.OAuthClient{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: LegacyAuthClientID,
+		},
+		RedirectURIs: []string{
+			"https://" + testHostnameDefault + "/oauth2/callback",
+		},
+	}
+
+	cli := setupTestClient().
+		WithObjects(legacyClient).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+				if obj.GetName() == LegacyAuthClientID {
+					return fmt.Errorf("simulated delete error")
+				}
+				return c.Delete(ctx, obj, opts...)
+			},
+		}).
+		Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	err := deleteLegacyOAuthClient(ctx, rr, gatewayConfig)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("failed to delete legacy OAuthClient"))
 }
