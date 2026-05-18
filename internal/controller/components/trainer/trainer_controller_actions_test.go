@@ -152,7 +152,7 @@ func TestCheckPreConditions_Success(t *testing.T) {
 
 	jobSetOperatorCR := &unstructured.Unstructured{}
 	jobSetOperatorCR.SetGroupVersionKind(gvk.JobSetOperatorV1)
-	jobSetOperatorCR.SetName("cluster")
+	jobSetOperatorCR.SetName(jobSetOperatorCRName)
 	err = testf.SetTypedConditions(jobSetOperatorCR, []metav1.Condition{
 		{
 			Type:   "Available",
