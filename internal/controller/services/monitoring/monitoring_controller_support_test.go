@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	fwapi "github.com/opendatahub-io/operator-actions-framework/api"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1618,7 +1619,7 @@ func TestGetTemplateDataImageURLs(t *testing.T) {
 			rr := &odhtypes.ReconciliationRequest{
 				Client:   fakeClient,
 				Instance: monitoring,
-				Release: common.Release{
+				Release: fwapi.Release{
 					Name: tt.platform,
 				},
 			}

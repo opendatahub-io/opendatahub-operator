@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/blang/semver/v4"
-	"github.com/operator-framework/api/pkg/lib/version"
+	fwapi "github.com/opendatahub-io/operator-actions-framework/api"
 	"github.com/rs/xid"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -41,7 +41,7 @@ func newRunlevelRRWithVersion(ver string, kind string) *types.ReconciliationRequ
 
 	return &types.ReconciliationRequest{
 		Instance:   instance,
-		Release:    common.Release{Version: version.OperatorVersion{Version: sv}},
+		Release:    fwapi.Release{Version: sv},
 		Conditions: cond.NewManager(instance, "Ready", PlatformReadyConditionType),
 	}
 }

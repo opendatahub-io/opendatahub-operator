@@ -6,26 +6,55 @@ import (
 	"testing"
 
 	gTypes "github.com/onsi/gomega/types"
+	"github.com/opendatahub-io/operator-actions-framework/api"
+	"github.com/opendatahub-io/operator-actions-framework/controller/types"
+	"github.com/opendatahub-io/operator-actions-framework/resources"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/xid"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
-
 	. "github.com/onsi/gomega"
 )
+
+var (
+	testGVKConfigMap = schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ConfigMap"}
+	testGVKSecret    = schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Secret"}
+	testGVKDashboard = schema.GroupVersionKind{Group: "components.opendatahub.io", Version: "v1alpha1", Kind: "Dashboard"}
+)
+
+type testPlatformObject struct {
+	unstructured.Unstructured
+
+	status api.Status
+}
+
+func (t *testPlatformObject) GetStatus() *api.Status {
+	return &t.status
+}
+
+func (t *testPlatformObject) GetConditions() []api.Condition {
+	return nil
+}
+
+func (t *testPlatformObject) SetConditions(_ []api.Condition) {}
+
+func newTestPlatformObject(gvk schema.GroupVersionKind, opts ...func(*unstructured.Unstructured)) *testPlatformObject {
+	obj := &testPlatformObject{}
+	obj.SetGroupVersionKind(gvk)
+	for _, o := range opts {
+		o(&obj.Unstructured)
+	}
+	return obj
+}
 
 func TestDynamicWatchAction_Run(t *testing.T) {
 	tests := []struct {
 		name       string
-		object     common.PlatformObject
+		object     *testPlatformObject
 		preds      []DynamicPredicate
 		errMatcher gTypes.GomegaMatcher
 		cntMatcher gTypes.GomegaMatcher
@@ -33,16 +62,16 @@ func TestDynamicWatchAction_Run(t *testing.T) {
 	}{
 		{
 			name:       "should register a watcher if no predicates",
-			object:     &componentApi.Dashboard{TypeMeta: metav1.TypeMeta{Kind: gvk.Dashboard.Kind}},
+			object:     newTestPlatformObject(testGVKDashboard),
 			preds:      []DynamicPredicate{},
 			errMatcher: Not(HaveOccurred()),
 			cntMatcher: BeNumerically("==", 1),
-			keyMatcher: HaveKey(gvk.ConfigMap),
+			keyMatcher: HaveKey(testGVKConfigMap),
 		},
 
 		{
 			name:   "should register a watcher when the predicate evaluate to true",
-			object: &componentApi.Dashboard{TypeMeta: metav1.TypeMeta{Kind: gvk.Dashboard.Kind}},
+			object: newTestPlatformObject(testGVKDashboard),
 			preds: []DynamicPredicate{
 				func(_ context.Context, rr *types.ReconciliationRequest) bool {
 					return true
@@ -50,20 +79,15 @@ func TestDynamicWatchAction_Run(t *testing.T) {
 			},
 			errMatcher: Not(HaveOccurred()),
 			cntMatcher: BeNumerically("==", 1),
-			keyMatcher: HaveKey(gvk.ConfigMap),
+			keyMatcher: HaveKey(testGVKConfigMap),
 		},
 
 		{
 			name: "should register a watcher when all predicates evaluate to true",
-			object: &componentApi.Dashboard{
-				TypeMeta: metav1.TypeMeta{
-					Kind: gvk.Dashboard.Kind,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Generation:      1,
-					ResourceVersion: xid.New().String(),
-				},
-			},
+			object: newTestPlatformObject(testGVKDashboard, func(u *unstructured.Unstructured) {
+				u.SetGeneration(1)
+				u.SetResourceVersion(xid.New().String())
+			}),
 			preds: []DynamicPredicate{
 				func(_ context.Context, rr *types.ReconciliationRequest) bool {
 					return rr.Instance.GetGeneration() > 0
@@ -74,12 +98,12 @@ func TestDynamicWatchAction_Run(t *testing.T) {
 			},
 			errMatcher: Not(HaveOccurred()),
 			cntMatcher: BeNumerically("==", 1),
-			keyMatcher: HaveKey(gvk.ConfigMap),
+			keyMatcher: HaveKey(testGVKConfigMap),
 		},
 
 		{
 			name:   "should not register a watcher the predicate returns false",
-			object: &componentApi.Dashboard{TypeMeta: metav1.TypeMeta{Kind: gvk.Dashboard.Kind}},
+			object: newTestPlatformObject(testGVKDashboard),
 			preds: []DynamicPredicate{
 				func(_ context.Context, rr *types.ReconciliationRequest) bool {
 					return false
@@ -92,15 +116,9 @@ func TestDynamicWatchAction_Run(t *testing.T) {
 
 		{
 			name: "should not register a watcher when a predicate returns false",
-			object: &componentApi.Dashboard{
-				TypeMeta: metav1.TypeMeta{
-					Kind: gvk.Dashboard.Kind,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Generation:      1,
-					ResourceVersion: "",
-				},
-			},
+			object: newTestPlatformObject(testGVKDashboard, func(u *unstructured.Unstructured) {
+				u.SetGeneration(1)
+			}),
 			preds: []DynamicPredicate{
 				func(_ context.Context, rr *types.ReconciliationRequest) bool {
 					return rr.Instance.GetGeneration() > 0
@@ -121,7 +139,7 @@ func TestDynamicWatchAction_Run(t *testing.T) {
 			ctx := t.Context()
 
 			watches := []watchInput{{
-				object:      resources.GvkToUnstructured(gvk.ConfigMap),
+				object:      resources.GvkToUnstructured(testGVKConfigMap),
 				dynamic:     true,
 				dynamicPred: test.preds,
 			}}
@@ -162,14 +180,14 @@ func TestDynamicWatchAction_Inputs(t *testing.T) {
 
 	watches := []watchInput{
 		{
-			object:  resources.GvkToUnstructured(gvk.Secret),
+			object:  resources.GvkToUnstructured(testGVKSecret),
 			dynamic: true,
 			dynamicPred: []DynamicPredicate{func(_ context.Context, rr *types.ReconciliationRequest) bool {
 				return rr.Instance.GetGeneration() == 0
 			}},
 		},
 		{
-			object:  resources.GvkToUnstructured(gvk.ConfigMap),
+			object:  resources.GvkToUnstructured(testGVKConfigMap),
 			dynamic: true,
 			dynamicPred: []DynamicPredicate{func(_ context.Context, rr *types.ReconciliationRequest) bool {
 				return rr.Instance.GetGeneration() > 0
@@ -177,15 +195,12 @@ func TestDynamicWatchAction_Inputs(t *testing.T) {
 		},
 	}
 
+	instance := newTestPlatformObject(testGVKDashboard, func(u *unstructured.Unstructured) {
+		u.SetGeneration(1)
+	})
+
 	action := newDynamicWatch(mockFn, watches)
-	err := action.run(ctx, &types.ReconciliationRequest{Instance: &componentApi.Dashboard{
-		TypeMeta: metav1.TypeMeta{
-			Kind: gvk.Dashboard.Kind,
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Generation: 1,
-		},
-	}})
+	err := action.run(ctx, &types.ReconciliationRequest{Instance: instance})
 
 	g.Expect(err).
 		ShouldNot(HaveOccurred())
@@ -194,7 +209,7 @@ func TestDynamicWatchAction_Inputs(t *testing.T) {
 	g.Expect(action.watched).
 		Should(And(
 			HaveLen(1),
-			HaveKey(gvk.ConfigMap)),
+			HaveKey(testGVKConfigMap)),
 		)
 }
 
@@ -211,7 +226,7 @@ func TestDynamicWatchAction_NotTwice(t *testing.T) {
 
 	watches := []watchInput{
 		{
-			object:  resources.GvkToUnstructured(gvk.ConfigMap),
+			object:  resources.GvkToUnstructured(testGVKConfigMap),
 			dynamic: true,
 			dynamicPred: []DynamicPredicate{func(_ context.Context, rr *types.ReconciliationRequest) bool {
 				return rr.Instance.GetGeneration() > 0
@@ -219,28 +234,18 @@ func TestDynamicWatchAction_NotTwice(t *testing.T) {
 		},
 	}
 
+	instance := newTestPlatformObject(testGVKDashboard, func(u *unstructured.Unstructured) {
+		u.SetGeneration(1)
+	})
+
 	action := newDynamicWatch(mockFn, watches)
 
-	err1 := action.run(ctx, &types.ReconciliationRequest{Instance: &componentApi.Dashboard{
-		TypeMeta: metav1.TypeMeta{
-			Kind: gvk.Dashboard.Kind,
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Generation: 1,
-		},
-	}})
+	err1 := action.run(ctx, &types.ReconciliationRequest{Instance: instance})
 
 	g.Expect(err1).
 		ShouldNot(HaveOccurred())
 
-	err2 := action.run(ctx, &types.ReconciliationRequest{Instance: &componentApi.Dashboard{
-		TypeMeta: metav1.TypeMeta{
-			Kind: gvk.Dashboard.Kind,
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Generation: 1,
-		},
-	}})
+	err2 := action.run(ctx, &types.ReconciliationRequest{Instance: instance})
 
 	g.Expect(err2).
 		ShouldNot(HaveOccurred())
@@ -250,6 +255,6 @@ func TestDynamicWatchAction_NotTwice(t *testing.T) {
 	g.Expect(action.watched).
 		Should(And(
 			HaveLen(1),
-			HaveKey(gvk.ConfigMap)),
+			HaveKey(testGVKConfigMap)),
 		)
 }

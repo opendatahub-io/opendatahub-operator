@@ -4,6 +4,7 @@ package dashboard
 import (
 	"testing"
 
+	fwapi "github.com/opendatahub-io/operator-actions-framework/api"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -190,7 +191,7 @@ func TestDeployObservabilityManifests_WithPersesCRD(t *testing.T) {
 			rr := &types.ReconciliationRequest{
 				Client:    cli,
 				Instance:  &componentApi.Dashboard{},
-				Release:   common.Release{Name: tt.platform},
+				Release:   fwapi.Release{Name: tt.platform},
 				Manifests: []types.ManifestInfo{},
 			}
 
@@ -218,7 +219,7 @@ func TestDeployObservabilityManifests_WithoutPersesCRD(t *testing.T) {
 
 	rr := &types.ReconciliationRequest{
 		Client:  cli,
-		Release: common.Release{Name: cluster.SelfManagedRhoai},
+		Release: fwapi.Release{Name: cluster.SelfManagedRhoai},
 	}
 
 	// When PersesDashboard CRD doesn't exist, function should return early without error
@@ -264,7 +265,7 @@ func TestDeployObservabilityManifests_SkippedForEmptyMonitoringNamespace(t *test
 
 	rr := &types.ReconciliationRequest{
 		Client:  cli,
-		Release: common.Release{Name: cluster.SelfManagedRhoai},
+		Release: fwapi.Release{Name: cluster.SelfManagedRhoai},
 	}
 
 	// When monitoring namespace is empty, function should return early without error

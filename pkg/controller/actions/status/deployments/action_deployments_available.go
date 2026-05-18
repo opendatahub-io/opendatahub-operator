@@ -2,160 +2,36 @@ package deployments
 
 import (
 	"context"
-	"fmt"
-	"maps"
-	"strings"
 
-	appsv1 "k8s.io/api/apps/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	fwsd "github.com/opendatahub-io/operator-actions-framework/controller/actions/status/deployments"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
-type Action struct {
-	partOfLabelKey                string
-	labels                        map[string]string
-	namespaceFn                   actions.Getter[string]
-	disableAutomaticPartOfDefault bool
-	conditionType                 string
-}
+type Action = fwsd.Action
 
-type ActionOpts func(*Action)
+type ActionOpts = fwsd.ActionOpts
 
-func WithSelectorLabel(k string, v string) ActionOpts {
-	return func(action *Action) {
-		action.labels[k] = v
-	}
-}
+var (
+	WithSelectorLabel             = fwsd.WithSelectorLabel
+	WithSelectorLabels            = fwsd.WithSelectorLabels
+	WithPartOfLabel               = fwsd.WithPartOfLabel
+	WithConditionType             = fwsd.WithConditionType
+	WithNotAvailableReason        = fwsd.WithNotAvailableReason
+	WithoutAutomaticPartOfDefault = fwsd.WithoutAutomaticPartOfDefault
+	InNamespace                   = fwsd.InNamespace
+	InNamespaceFn                 = fwsd.InNamespaceFn
+)
 
-func WithSelectorLabels(values map[string]string) ActionOpts {
-	return func(action *Action) {
-		maps.Copy(action.labels, values)
-	}
-}
-
-// WithPartOfLabel overrides the label key used to discover Deployments belonging
-// to this controller for availability checks.
-func WithPartOfLabel(key string) ActionOpts {
-	return func(action *Action) {
-		action.partOfLabelKey = key
-	}
-}
-
-func WithConditionType(ct string) ActionOpts {
-	return func(action *Action) {
-		if ct = strings.TrimSpace(ct); ct != "" {
-			action.conditionType = ct
-		}
-	}
-}
-
-func InNamespace(ns string) ActionOpts {
-	return func(action *Action) {
-		action.namespaceFn = func(_ context.Context, _ *types.ReconciliationRequest) (string, error) {
-			return ns, nil
-		}
-	}
-}
-
-func InNamespaceFn(fn actions.Getter[string]) ActionOpts {
-	return func(action *Action) {
-		if fn == nil {
-			return
-		}
-		action.namespaceFn = fn
-	}
-}
-
-// WithoutAutomaticPartOfDefault skips setting the selector value for
-// labels.PlatformPartOf from the reconciled instance kind when that key is
-// absent. Use with WithSelectorLabel(s) when deployments are identified by a
-// stable component label (for example app.opendatahub.io/modelsasservice=true)
-// rather than platform.opendatahub.io/part-of matching lower(kind).
-func WithoutAutomaticPartOfDefault() ActionOpts {
-	return func(action *Action) {
-		action.disableAutomaticPartOfDefault = true
-	}
-}
-
-func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error {
-	l := make(map[string]string, len(a.labels))
-	maps.Copy(l, a.labels)
-
-	if !a.disableAutomaticPartOfDefault && l[a.partOfLabelKey] == "" {
-		kind, err := resources.KindForObject(rr.Client.Scheme(), rr.Instance)
-		if err != nil {
-			return err
-		}
-
-		l[a.partOfLabelKey] = strings.ToLower(kind)
-	}
-
-	obj, ok := rr.Instance.(types.ResourceObject)
-	if !ok {
-		return fmt.Errorf("resource instance %v is not a ResourceObject", rr.Instance)
-	}
-
-	deployments := &appsv1.DeploymentList{}
-
-	ns, err := a.namespaceFn(ctx, rr)
-	if err != nil {
-		return fmt.Errorf("unable to compute namespace: %w", err)
-	}
-
-	err = rr.Client.List(
-		ctx,
-		deployments,
-		client.InNamespace(ns),
-		client.MatchingLabels(l),
-	)
-
-	if err != nil {
-		return fmt.Errorf("error fetching list of deployments: %w", err)
-	}
-
-	ready := 0
-	for _, deployment := range deployments.Items {
-		if deployment.Status.ReadyReplicas == deployment.Status.Replicas && deployment.Status.Replicas != 0 {
-			ready++
-		}
-	}
-
-	s := obj.GetStatus()
-
-	rr.Conditions.MarkTrue(a.conditionType, conditions.WithObservedGeneration(s.ObservedGeneration))
-
-	if len(deployments.Items) == 0 || (len(deployments.Items) > 0 && ready != len(deployments.Items)) {
-		rr.Conditions.MarkFalse(
-			a.conditionType,
-			conditions.WithObservedGeneration(s.ObservedGeneration),
-			conditions.WithReason(status.ConditionDeploymentsNotAvailableReason),
-			conditions.WithMessage("%d/%d deployments ready", ready, len(deployments.Items)),
-		)
-	}
-
-	return nil
-}
-
+// NewAction creates a deployment availability check action with ODH defaults
+// (ApplicationNamespace for namespace resolution).
 func NewAction(opts ...ActionOpts) actions.Fn {
-	action := Action{
-		partOfLabelKey: labels.PlatformPartOf,
-		labels:         map[string]string{},
-		conditionType:  status.ConditionDeploymentsAvailable,
-		namespaceFn: func(ctx context.Context, rr *types.ReconciliationRequest) (string, error) {
+	defaults := []ActionOpts{
+		fwsd.InNamespaceFn(func(ctx context.Context, rr *types.ReconciliationRequest) (string, error) {
 			return cluster.ApplicationNamespace(ctx, rr.Client)
-		},
+		}),
 	}
-
-	for _, opt := range opts {
-		opt(&action)
-	}
-
-	return action.run
+	return fwsd.NewAction(append(defaults, opts...)...)
 }

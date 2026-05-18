@@ -6,12 +6,12 @@ import (
 	"errors"
 	"testing"
 
+	fwapi "github.com/opendatahub-io/operator-actions-framework/api"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/xid"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apytypes "k8s.io/apimachinery/pkg/types"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -65,7 +65,7 @@ func TestRenderTemplate(t *testing.T) {
 					Name: ns,
 				},
 			},
-			Release:   common.Release{Name: cluster.OpenDataHub},
+			Release:   fwapi.Release{Name: cluster.OpenDataHub},
 			Templates: []types.TemplateInfo{{FS: testFS, Path: "resources/smm.tmpl.yaml"}},
 		}
 
@@ -135,7 +135,7 @@ func TestRenderTemplateWithData(t *testing.T) {
 				UID:  apytypes.UID(xid.New().String()),
 			},
 		},
-		Release:   common.Release{Name: cluster.OpenDataHub},
+		Release:   fwapi.Release{Name: cluster.OpenDataHub},
 		Templates: []types.TemplateInfo{{FS: testFS, Path: "resources/smm-data.tmpl.yaml"}},
 	}
 
@@ -178,7 +178,7 @@ func TestRenderTemplateWithDataErr(t *testing.T) {
 				Name: ns,
 			},
 		},
-		Release:   common.Release{Name: cluster.OpenDataHub},
+		Release:   fwapi.Release{Name: cluster.OpenDataHub},
 		Templates: []types.TemplateInfo{{FS: testFS, Path: "resources/smm-data.tmpl.yaml"}},
 	}
 
@@ -228,7 +228,7 @@ func TestRenderTemplateWithCache(t *testing.T) {
 		rr := types.ReconciliationRequest{
 			Client:    cl,
 			Instance:  &d,
-			Release:   common.Release{Name: cluster.OpenDataHub},
+			Release:   fwapi.Release{Name: cluster.OpenDataHub},
 			Templates: []types.TemplateInfo{{FS: testFS, Path: "resources/smm.tmpl.yaml"}},
 		}
 
@@ -293,7 +293,7 @@ func TestRenderTemplateWithGlob(t *testing.T) {
 				Name: id,
 			},
 		},
-		Release: common.Release{Name: cluster.OpenDataHub},
+		Release: fwapi.Release{Name: cluster.OpenDataHub},
 	}
 
 	t.Run("wildcard", func(t *testing.T) {
@@ -375,7 +375,7 @@ func TestRenderTemplateWithCustomInfo(t *testing.T) {
 				Name: id,
 			},
 		},
-		Release: common.Release{Name: cluster.OpenDataHub},
+		Release: fwapi.Release{Name: cluster.OpenDataHub},
 		Templates: []types.TemplateInfo{
 			{
 				FS:   testFS,

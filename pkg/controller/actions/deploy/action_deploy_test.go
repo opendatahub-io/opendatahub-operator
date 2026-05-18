@@ -10,7 +10,7 @@ import (
 
 	"github.com/blang/semver/v4"
 	"github.com/onsi/gomega/gstruct"
-	"github.com/operator-framework/api/pkg/lib/version"
+	fwapi "github.com/opendatahub-io/operator-actions-framework/api"
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/mock"
 	appsv1 "k8s.io/api/apps/v1"
@@ -29,7 +29,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -84,11 +83,11 @@ func TestDeployAction(t *testing.T) {
 				Generation: 1,
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{Version: semver.Version{
+			Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
-			}}},
+			}},
 		Resources: []unstructured.Unstructured{*obj1},
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
 			m.On("Owns", mock.Anything).Return(false)
@@ -172,11 +171,11 @@ func TestDeployNotOwnedSkip(t *testing.T) {
 				Generation: 1,
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{Version: semver.Version{
+			Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
-			}}},
+			}},
 		Resources: []unstructured.Unstructured{*newObj},
 	}
 
@@ -237,11 +236,11 @@ func TestDeployNotOwnedCreate(t *testing.T) {
 				Generation: 1,
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{Version: semver.Version{
+			Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
-			}}},
+			}},
 		Resources: []unstructured.Unstructured{*newObj},
 	}
 
@@ -292,11 +291,11 @@ func TestDeployErrorFormat(t *testing.T) {
 				Generation: 1,
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{Version: semver.Version{
+			Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
-			}}},
+			}},
 		Resources: []unstructured.Unstructured{*obj},
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
 			m.On("Owns", mock.Anything).Return(false)
@@ -349,11 +348,11 @@ func TestDeployDeOwn(t *testing.T) {
 				Generation: 1,
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{Version: semver.Version{
+			Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
-			}}},
+			}},
 	}
 
 	err = rr.AddResources(&ref)
@@ -416,7 +415,7 @@ func setupManagedAnnotationTest(t *testing.T, cl client.Client, managed string, 
 				Generation: 1,
 			},
 		},
-		Release: common.Release{Name: cluster.OpenDataHub, Version: version.OperatorVersion{Version: semver.Version{Major: 1, Minor: 2, Patch: 3}}},
+		Release: fwapi.Release{Name: cluster.OpenDataHub, Version: semver.Version{Major: 1, Minor: 2, Patch: 3}},
 	}
 
 	g.Expect(rr.AddResources(&appsv1.Deployment{
@@ -628,11 +627,11 @@ func deployClusterRoles(t *testing.T, ctx context.Context, cli client.Client, ro
 				UID:        apimachinery.UID(xid.New().String()),
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{Version: semver.Version{
+			Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
-			}}},
+			}},
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
 			m.On("Owns", mock.Anything).Return(false)
 		}),
@@ -692,11 +691,11 @@ func TestDeployCRD(t *testing.T) {
 				UID:        apimachinery.UID(id),
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{Version: semver.Version{
+			Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
-			}}},
+			}},
 	}
 
 	err = rr.AddResources(&apiextensionsv1.CustomResourceDefinition{
@@ -858,11 +857,11 @@ func TestDeployOwnerRef(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cli,
 		Instance: instance,
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{Version: semver.Version{
+			Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
-			}}},
+			}},
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
 			m.On("Owns", gvk.ConfigMap).Return(true)
 		}),
@@ -946,11 +945,11 @@ func TestDeployDynamicOwnership_SetsOwnerReferences(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: instance,
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{Version: semver.Version{
+			Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
-			}},
+			},
 		},
 		Resources: []unstructured.Unstructured{*configMap, *secret},
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
@@ -1030,11 +1029,11 @@ func TestDeployDynamicOwnership_ExcludesGVKs(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: instance,
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{Version: semver.Version{
+			Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
-			}},
+			},
 		},
 		Resources: []unstructured.Unstructured{*configMap, *secret},
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
@@ -1111,11 +1110,11 @@ func TestDeployDynamicOwnership_FallsBackToStaticOwnership(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: instance,
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{Version: semver.Version{
+			Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
-			}},
+			},
 		},
 		Resources: []unstructured.Unstructured{*configMap, *secret},
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
@@ -1161,11 +1160,11 @@ func newOwnerRefReconciliationRequest(cl client.Client, instance *componentApi.D
 	return types.ReconciliationRequest{
 		Client:   cl,
 		Instance: instance,
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{Version: semver.Version{
+			Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
-			}},
+			},
 		},
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
 			m.On("Owns", gvk.ConfigMap).Return(true)
@@ -1451,11 +1450,11 @@ func TestDeployDynamicOwnership_CRDsExcludedByDefault(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: instance,
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{Version: semver.Version{
+			Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
-			}},
+			},
 		},
 		Resources: []unstructured.Unstructured{*crd, *configMap},
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
@@ -1540,11 +1539,11 @@ func TestWithSortFn(t *testing.T) {
 				Generation: 1,
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{Version: semver.Version{
+			Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
-			}},
+			},
 		},
 		Resources: []unstructured.Unstructured{*obj1, *obj2},
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
@@ -1626,11 +1625,11 @@ func TestWithApplyOrder(t *testing.T) {
 				Generation: 1,
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{Version: semver.Version{
+			Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
-			}},
+			},
 		},
 		Resources: []unstructured.Unstructured{*obj1, *obj2, *obj3, *obj4},
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
@@ -1699,11 +1698,11 @@ func TestDeployWithPartOfLabel(t *testing.T) {
 				Generation: 1,
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{Version: semver.Version{
+			Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
-			}}},
+			}},
 		Resources: []unstructured.Unstructured{*obj1},
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
 			m.On("Owns", mock.Anything).Return(false)
@@ -1755,11 +1754,11 @@ func TestDeployWithAnnotationPrefix(t *testing.T) {
 				Generation: 1,
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{Version: semver.Version{
+			Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
-			}}},
+			}},
 		Resources: []unstructured.Unstructured{*obj1},
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
 			m.On("Owns", mock.Anything).Return(false)
@@ -1848,11 +1847,11 @@ func TestDeployCRDWithPartOfLabel(t *testing.T) {
 				Generation: 1,
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{Version: semver.Version{
+			Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
-			}},
+			},
 		},
 		Resources: []unstructured.Unstructured{*crd},
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
@@ -1941,11 +1940,11 @@ func TestDeployContinueOnError(t *testing.T) {
 					Generation: 1,
 				},
 			},
-			Release: common.Release{
+			Release: fwapi.Release{
 				Name: cluster.OpenDataHub,
-				Version: version.OperatorVersion{Version: semver.Version{
+				Version: semver.Version{
 					Major: 1, Minor: 2, Patch: 3,
-				}},
+				},
 			},
 			Resources: []unstructured.Unstructured{*failObj, *okObj},
 			Controller: mocks.NewMockController(func(m *mocks.MockController) {
@@ -1987,11 +1986,11 @@ func TestDeployContinueOnError(t *testing.T) {
 					Generation: 1,
 				},
 			},
-			Release: common.Release{
+			Release: fwapi.Release{
 				Name: cluster.OpenDataHub,
-				Version: version.OperatorVersion{Version: semver.Version{
+				Version: semver.Version{
 					Major: 1, Minor: 2, Patch: 3,
-				}},
+				},
 			},
 			Resources: []unstructured.Unstructured{*failObj, *okObj2},
 			Controller: mocks.NewMockController(func(m *mocks.MockController) {

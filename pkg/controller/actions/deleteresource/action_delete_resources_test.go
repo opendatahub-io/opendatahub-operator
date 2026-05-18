@@ -4,11 +4,11 @@ import (
 	"testing"
 
 	"github.com/onsi/gomega/gstruct"
+	fwapi "github.com/opendatahub-io/operator-actions-framework/api"
 	"github.com/rs/xid"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deleteresource"
@@ -66,7 +66,7 @@ func TestDeleteResourcesAction(t *testing.T) {
 	err = action(ctx, &types.ReconciliationRequest{
 		Client:   cl,
 		Instance: nil,
-		Release:  common.Release{Name: cluster.OpenDataHub},
+		Release:  fwapi.Release{Name: cluster.OpenDataHub},
 	})
 
 	g.Expect(err).ShouldNot(HaveOccurred())

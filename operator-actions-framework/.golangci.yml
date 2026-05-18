@@ -1,0 +1,126 @@
+version: "2"
+linters:
+  default: all
+  disable:
+    - cyclop
+    - depguard
+    - err113
+    - exhaustruct
+    - forbidigo
+    - funlen
+    - gochecknoglobals
+    - gocognit
+    - godox
+    - gomoddirectives
+    - mnd
+    - nestif
+    - nilnil
+    - nlreturn
+    - paralleltest
+    - tagliatelle
+    - varnamelen
+    - wrapcheck
+    - wsl
+    - wsl_v5
+    - funcorder
+    - godoclint
+    - noinlineerr
+  settings:
+    errcheck:
+      check-type-assertions: true
+    exhaustive:
+      check:
+        - switch
+      default-signifies-exhaustive: true
+    funlen:
+      lines: 100
+      statements: 100
+      ignore-comments: true
+    goconst:
+      ignore-string-values:
+        - "true"
+        - "false"
+    gocritic:
+      enabled-checks:
+        - deferInLoop
+        - unnecessaryDefer
+    gocyclo:
+      min-complexity: 30
+    importas:
+      alias:
+        - pkg: k8s.io/apimachinery/pkg/api/errors
+          alias: k8serr
+        - pkg: k8s.io/api/(\w+)/(v[\w\d]+)
+          alias: $1$2
+    ireturn:
+      allow:
+        - anon
+        - error
+        - empty
+        - stdlib
+        - generic
+        - EventHandler
+        - discovery.DiscoveryInterface
+        - dynamic.Interface
+        - predicate.Predicate
+        - client.Object
+        - client.Client
+        - client.SubResourceClient
+        - client.SubResourceWriter
+        - meta.RESTMapper
+        - api.PlatformObject
+        - types.AsyncAssertion
+        - kubernetes.Interface
+        - gomega.AsyncAssertion
+        - labels.Selector
+        - manager.Manager
+        - types.GomegaMatcher
+    lll:
+      line-length: 180
+    nolintlint:
+      require-specific: true
+      allow-no-explanation:
+        - funlen
+        - lll
+    perfsprint:
+      sprintf1: false
+      strconcat: false
+    revive:
+      rules:
+        - name: dot-imports
+          arguments:
+            - allowedPackages:
+                - github.com/onsi/ginkgo/v2
+                - github.com/onsi/gomega
+                - github.com/onsi/gomega/gstruct
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - goimports
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/opendatahub-io/operator-actions-framework)
+        - blank
+        - dot
+      custom-order: true
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

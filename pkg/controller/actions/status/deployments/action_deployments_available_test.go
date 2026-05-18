@@ -5,11 +5,11 @@ import (
 	"testing"
 
 	"github.com/onsi/gomega/gstruct"
+	fwapi "github.com/opendatahub-io/operator-actions-framework/api"
 	"github.com/rs/xid"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -80,7 +80,7 @@ func TestDeploymentsAvailableActionNotReady(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: &componentApi.Dashboard{},
-		Release:  common.Release{Name: cluster.OpenDataHub},
+		Release:  fwapi.Release{Name: cluster.OpenDataHub},
 	}
 
 	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
@@ -165,7 +165,7 @@ func TestDeploymentsAvailableActionReady(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: &componentApi.Dashboard{},
-		Release:  common.Release{Name: cluster.OpenDataHub},
+		Release:  fwapi.Release{Name: cluster.OpenDataHub},
 	}
 
 	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
@@ -247,7 +247,7 @@ func TestDeploymentsAvailableReadyAutoSelector(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: &componentApi.Dashboard{},
-		Release:  common.Release{Name: cluster.OpenDataHub},
+		Release:  fwapi.Release{Name: cluster.OpenDataHub},
 	}
 
 	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
@@ -308,7 +308,7 @@ func TestDeploymentsAvailableActionWithPartOfLabel(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: &componentApi.Dashboard{},
-		Release:  common.Release{Name: cluster.OpenDataHub},
+		Release:  fwapi.Release{Name: cluster.OpenDataHub},
 	}
 
 	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
@@ -379,7 +379,7 @@ func TestDeploymentsAvailableActionWithCustomConditionType(t *testing.T) {
 			rr := types.ReconciliationRequest{
 				Client:   cl,
 				Instance: &componentApi.Dashboard{},
-				Release:  common.Release{Name: cluster.OpenDataHub},
+				Release:  fwapi.Release{Name: cluster.OpenDataHub},
 			}
 			rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady, customCondition)
 
@@ -456,7 +456,7 @@ func TestDeploymentsAvailableActionNotReadyNotFound(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: &componentApi.Dashboard{},
-		Release:  common.Release{Name: cluster.OpenDataHub},
+		Release:  fwapi.Release{Name: cluster.OpenDataHub},
 	}
 
 	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
@@ -526,7 +526,7 @@ func TestDeploymentsAvailableActionReadyWithoutAutomaticPartOfUsesComponentLabel
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: &componentApi.ModelsAsService{},
-		Release:  common.Release{Name: cluster.OpenDataHub},
+		Release:  fwapi.Release{Name: cluster.OpenDataHub},
 	}
 
 	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)

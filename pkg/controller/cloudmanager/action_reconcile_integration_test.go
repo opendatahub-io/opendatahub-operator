@@ -9,7 +9,7 @@ import (
 
 	"github.com/blang/semver/v4"
 	helmRenderer "github.com/k8s-manifest-kit/renderer-helm/pkg"
-	"github.com/operator-framework/api/pkg/lib/version"
+	fwapi "github.com/opendatahub-io/operator-actions-framework/api"
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
@@ -18,7 +18,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	ccmv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/azure/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/helm"
@@ -61,12 +60,11 @@ func newTestReconciliationRequest(cl client.Client, charts []types.HelmChartInfo
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
 			m.On("Owns", mock.Anything).Return(false)
 		}),
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{Version: semver.Version{
+			Version: semver.Version{
 				Major: 1, Minor: 0, Patch: 0,
 			}},
-		},
 		HelmCharts: charts,
 	}
 

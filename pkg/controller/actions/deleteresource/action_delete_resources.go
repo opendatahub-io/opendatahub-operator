@@ -2,80 +2,32 @@ package deleteresource
 
 import (
 	"context"
-	"maps"
 
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	fwdr "github.com/opendatahub-io/operator-actions-framework/controller/actions/deleteresource"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
-type Action struct {
-	types  []client.Object
-	labels map[string]string
-}
+type Action = fwdr.Action
 
-type ActionOpts func(*Action)
+type ActionOpts = fwdr.ActionOpts
 
-func WithDeleteResourcesTypes(values ...client.Object) ActionOpts {
-	return func(action *Action) {
-		action.types = append(action.types, values...)
-	}
-}
+var (
+	WithDeleteResourcesTypes  = fwdr.WithDeleteResourcesTypes
+	WithDeleteResourcesLabel  = fwdr.WithDeleteResourcesLabel
+	WithDeleteResourcesLabels = fwdr.WithDeleteResourcesLabels
+	WithNamespaceFn           = fwdr.WithNamespaceFn
+)
 
-func WithDeleteResourcesLabel(k string, v string) ActionOpts {
-	return func(action *Action) {
-		action.labels[k] = v
-	}
-}
-
-func WithDeleteResourcesLabels(values map[string]string) ActionOpts {
-	return func(action *Action) {
-		maps.Copy(action.labels, values)
-	}
-}
-
-func (r *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error {
-	for i := range r.types {
-		opts := make([]client.DeleteAllOfOption, 0)
-
-		if len(r.labels) > 0 {
-			opts = append(opts, client.MatchingLabels(r.labels))
-		}
-
-		namespaced, err := rr.Client.IsObjectNamespaced(r.types[i])
-		if err != nil {
-			return err
-		}
-
-		if namespaced {
-			// Fetch application namespace from DSCI.
-			appNamespace, nsErr := cluster.ApplicationNamespace(ctx, rr.Client)
-			if nsErr != nil {
-				return nsErr
-			}
-			opts = append(opts, client.InNamespace(appNamespace))
-		}
-
-		err = rr.Client.DeleteAllOf(ctx, r.types[i], opts...)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
+// NewAction creates a delete resource action with ODH defaults
+// (ApplicationNamespace for namespaced resources).
 func NewAction(opts ...ActionOpts) actions.Fn {
-	action := Action{
-		types:  make([]client.Object, 0),
-		labels: map[string]string{},
+	defaults := []ActionOpts{
+		fwdr.WithNamespaceFn(func(ctx context.Context, rr *types.ReconciliationRequest) (string, error) {
+			return cluster.ApplicationNamespace(ctx, rr.Client)
+		}),
 	}
-
-	for _, opt := range opts {
-		opt(&action)
-	}
-
-	return action.run
+	return fwdr.NewAction(append(defaults, opts...)...)
 }

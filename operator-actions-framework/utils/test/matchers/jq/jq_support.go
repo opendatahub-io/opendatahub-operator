@@ -1,0 +1,187 @@
+package jq
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"reflect"
+	"strings"
+
+	"github.com/onsi/gomega/format"
+	"github.com/onsi/gomega/gbytes"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+)
+
+func formattedMessage(comparisonMessage string, failurePath []any) string {
+	diffMessage := ""
+
+	if len(failurePath) != 0 {
+		diffMessage = "\n\nfirst mismatched key: " + formattedFailurePath(failurePath)
+	}
+
+	return comparisonMessage + diffMessage
+}
+
+func formattedFailurePath(failurePath []any) string {
+	formattedPaths := make([]string, 0)
+
+	for i := len(failurePath) - 1; i >= 0; i-- {
+		switch p := failurePath[i].(type) {
+		case int:
+			val := fmt.Sprintf(`[%d]`, p)
+			formattedPaths = append(formattedPaths, val)
+		default:
+			if i != len(failurePath)-1 {
+				formattedPaths = append(formattedPaths, ".")
+			}
+
+			val := fmt.Sprintf(`"%s"`, p)
+			formattedPaths = append(formattedPaths, val)
+		}
+	}
+
+	return strings.Join(formattedPaths, "")
+}
+
+//nolint:cyclop
+func toType(in any) (any, error) {
+	valof := reflect.ValueOf(in)
+	if !valof.IsValid() {
+		return nil, nil
+	}
+	if valof.Kind() == reflect.Ptr && valof.IsNil() {
+		return nil, nil
+	}
+
+	switch v := in.(type) {
+	case string:
+		d, err := byteToType([]byte(v))
+		if err != nil {
+			return nil, err
+		}
+
+		return d, nil
+	case []byte:
+		d, err := byteToType(v)
+		if err != nil {
+			return nil, err
+		}
+
+		return d, nil
+	case json.RawMessage:
+		d, err := byteToType(v)
+		if err != nil {
+			return nil, err
+		}
+
+		return d, nil
+	case *gbytes.Buffer:
+		d, err := byteToType(v.Contents())
+		if err != nil {
+			return nil, err
+		}
+
+		return d, nil
+	case io.Reader:
+		data, err := io.ReadAll(v)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read from reader: %w", err)
+		}
+
+		d, err := byteToType(data)
+		if err != nil {
+			return nil, err
+		}
+
+		return d, nil
+	case unstructured.UnstructuredList:
+		res := make([]any, 0, len(v.Items))
+		for i := range v.Items {
+			d, err := normalizeObject(v.Items[i].Object)
+			if err != nil {
+				return nil, err
+			}
+			res = append(res, d)
+		}
+		return res, nil
+	case []unstructured.Unstructured:
+		res := make([]any, 0, len(v))
+		for i := range v {
+			d, err := normalizeObject(v[i].Object)
+			if err != nil {
+				return nil, err
+			}
+			res = append(res, d)
+		}
+		return res, nil
+	case unstructured.Unstructured:
+		return normalizeObject(v.Object)
+	case []*unstructured.Unstructured:
+		res := make([]any, 0, len(v))
+		for i := range v {
+			if v[i] == nil {
+				return nil, fmt.Errorf("nil pointer at index %d in []*unstructured.Unstructured", i)
+			}
+			d, err := normalizeObject(v[i].Object)
+			if err != nil {
+				return nil, err
+			}
+			res = append(res, d)
+		}
+		return res, nil
+	case *unstructured.Unstructured:
+		return normalizeObject(v.Object)
+	}
+
+	switch reflect.TypeOf(in).Kind() {
+	case reflect.Map, reflect.Slice:
+		data, err := json.Marshal(in)
+		if err != nil {
+			return nil, fmt.Errorf("unable to marshal object: %w", err)
+		}
+
+		return byteToType(data)
+	default:
+		return nil, fmt.Errorf("unsuported type:\n%s", format.Object(in, 1))
+	}
+}
+
+// normalizeObject round-trips a map through JSON to normalize numeric types
+// (e.g. int64 → float64/int) so they match gojq literal types.
+func normalizeObject(obj map[string]any) (any, error) {
+	if obj == nil {
+		return obj, nil
+	}
+	data, err := json.Marshal(obj)
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal object: %w", err)
+	}
+
+	return byteToType(data)
+}
+
+func byteToType(in []byte) (any, error) {
+	if len(in) == 0 {
+		return nil, errors.New("a valid Json document is expected")
+	}
+
+	switch in[0] {
+	case '{':
+		data := make(map[string]any)
+		if err := json.Unmarshal(in, &data); err != nil {
+			return nil, fmt.Errorf("unable to unmarshal result, %w", err)
+		}
+
+		return data, nil
+	case '[':
+		var data []any
+		if err := json.Unmarshal(in, &data); err != nil {
+			return nil, fmt.Errorf("unable to unmarshal result, %w", err)
+		}
+
+		return data, nil
+	default:
+		return nil, errors.New("a Json Array or Object is required")
+	}
+}

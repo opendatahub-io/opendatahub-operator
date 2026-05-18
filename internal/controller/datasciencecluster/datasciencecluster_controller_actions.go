@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/operator-framework/api/pkg/lib/version"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -90,7 +91,10 @@ func checkUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest) e
 		return nil
 	}
 
-	return provision.CheckUpgradeGates(ctx, rr.Client, rr.Release, rr.Conditions, nil)
+	return provision.CheckUpgradeGates(ctx, rr.Client, common.Release{
+		Name:    rr.Release.Name,
+		Version: version.OperatorVersion{Version: rr.Release.Version},
+	}, rr.Conditions, nil)
 }
 
 func watchDataScienceClusters(ctx context.Context, cli client.Client) []reconcile.Request {
@@ -201,7 +205,10 @@ func updateStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error 
 		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
 	}
 
-	instance.Status.Release = rr.Release
+	instance.Status.Release = common.Release{
+		Name:    rr.Release.Name,
+		Version: version.OperatorVersion{Version: rr.Release.Version},
+	}
 
 	if err := computeComponentsStatus(ctx, rr, cr.DefaultRegistry()); err != nil {
 		return err

@@ -441,7 +441,9 @@ func Bootstrap[T common.PlatformObject](instanceName string, config BootstrapCon
 				reconciler.WithPredicates(resourcespredicates.CreatedOrUpdatedOrDeletedNamed("cluster")),
 				reconciler.Dynamic(reconciler.CrdExists(gvk.CertManagerV1Alpha1)),
 			).
-			WithPreCondition(precondition.MonitorCRDs(monitoredCRDs())).
+			WithReconcilerOpts(reconciler.WithPreConditions([]precondition.PreCondition{
+				precondition.MonitorCRDs(monitoredCRDs()),
+			})).
 			WithActionE(NewBootstrapAction(config)).
 			WithConditions(status.ConditionDependenciesAvailable).
 			WithFinalizer(NewCleanupAction())

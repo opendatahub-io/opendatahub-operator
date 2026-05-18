@@ -1,7 +1,7 @@
 package render
 
 import (
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	fwrender "github.com/opendatahub-io/operator-actions-framework/controller/actions/render"
 )
 
-type CachingKeyFn func(rr *types.ReconciliationRequest) ([]byte, error)
+type CachingKeyFn = fwrender.CachingKeyFn

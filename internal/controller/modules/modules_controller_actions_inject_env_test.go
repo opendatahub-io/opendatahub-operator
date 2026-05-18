@@ -196,18 +196,18 @@ func TestInjectModuleEnvRelatedImages(t *testing.T) {
 
 	rr := &odhtype.ReconciliationRequest{
 		Resources: []unstructured.Unstructured{dep, cm},
-		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
-			PerModuleImages: []odhtype.ModuleImages{{
-				DeploymentName: "trainer-operator",
-				Images: []string{
-					"RELATED_IMAGE_TRAINER",
-					"RELATED_IMAGE_PROXY",
-					"RELATED_IMAGE_MISSING",
-				},
-			}},
-			ApplicationsNamespace: "opendatahub",
-		},
 	}
+	odhtype.SetModuleEnvInjection(rr, &odhtype.ModuleEnvInjection{
+		PerModuleImages: []odhtype.ModuleImages{{
+			DeploymentName: "trainer-operator",
+			Images: []string{
+				"RELATED_IMAGE_TRAINER",
+				"RELATED_IMAGE_PROXY",
+				"RELATED_IMAGE_MISSING",
+			},
+		}},
+		ApplicationsNamespace: "opendatahub",
+	})
 
 	err := injectModuleEnv(context.Background(), rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -238,14 +238,14 @@ func TestInjectModuleEnvOverridesExistingVars(t *testing.T) {
 
 	rr := &odhtype.ReconciliationRequest{
 		Resources: []unstructured.Unstructured{dep},
-		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
-			PerModuleImages: []odhtype.ModuleImages{{
-				DeploymentName: "trainer-operator",
-				Images:         []string{"RELATED_IMAGE_TRAINER"},
-			}},
-			ApplicationsNamespace: "opendatahub",
-		},
 	}
+	odhtype.SetModuleEnvInjection(rr, &odhtype.ModuleEnvInjection{
+		PerModuleImages: []odhtype.ModuleImages{{
+			DeploymentName: "trainer-operator",
+			Images:         []string{"RELATED_IMAGE_TRAINER"},
+		}},
+		ApplicationsNamespace: "opendatahub",
+	})
 
 	err := injectModuleEnv(context.Background(), rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -266,13 +266,13 @@ func TestInjectModuleEnvScopesPerModule(t *testing.T) {
 
 	rr := &odhtype.ReconciliationRequest{
 		Resources: []unstructured.Unstructured{depA, depB},
-		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
-			PerModuleImages: []odhtype.ModuleImages{
-				{DeploymentName: "module-a", Images: []string{"RELATED_IMAGE_A"}},
-				{DeploymentName: "module-b", Images: []string{"RELATED_IMAGE_B"}},
-			},
-		},
 	}
+	odhtype.SetModuleEnvInjection(rr, &odhtype.ModuleEnvInjection{
+		PerModuleImages: []odhtype.ModuleImages{
+			{DeploymentName: "module-a", Images: []string{"RELATED_IMAGE_A"}},
+			{DeploymentName: "module-b", Images: []string{"RELATED_IMAGE_B"}},
+		},
+	})
 
 	err := injectModuleEnv(context.Background(), rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -322,14 +322,14 @@ func TestInjectModuleEnvTargetsManagerContainer(t *testing.T) {
 
 	rr := &odhtype.ReconciliationRequest{
 		Resources: []unstructured.Unstructured{dep},
-		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
-			PerModuleImages: []odhtype.ModuleImages{{
-				DeploymentName: "trainer-operator",
-				Images:         []string{"RELATED_IMAGE_TRAINER"},
-			}},
-			ApplicationsNamespace: "opendatahub",
-		},
 	}
+	odhtype.SetModuleEnvInjection(rr, &odhtype.ModuleEnvInjection{
+		PerModuleImages: []odhtype.ModuleImages{{
+			DeploymentName: "trainer-operator",
+			Images:         []string{"RELATED_IMAGE_TRAINER"},
+		}},
+		ApplicationsNamespace: "opendatahub",
+	})
 
 	err := injectModuleEnv(context.Background(), rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -354,10 +354,10 @@ func TestInjectModuleEnvEmptyNamespace(t *testing.T) {
 
 	rr := &odhtype.ReconciliationRequest{
 		Resources: []unstructured.Unstructured{dep},
-		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
-			ApplicationsNamespace: "",
-		},
 	}
+	odhtype.SetModuleEnvInjection(rr, &odhtype.ModuleEnvInjection{
+		ApplicationsNamespace: "",
+	})
 
 	err := injectModuleEnv(context.Background(), rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -375,13 +375,13 @@ func TestInjectControllerImage(t *testing.T) {
 
 	rr := &odhtype.ReconciliationRequest{
 		Resources: []unstructured.Unstructured{dep},
-		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
-			PerModuleImages: []odhtype.ModuleImages{{
-				DeploymentName:  "module-operator",
-				ControllerImage: "RELATED_IMAGE_MODULE_CONTROLLER",
-			}},
-		},
 	}
+	odhtype.SetModuleEnvInjection(rr, &odhtype.ModuleEnvInjection{
+		PerModuleImages: []odhtype.ModuleImages{{
+			DeploymentName:  "module-operator",
+			ControllerImage: "RELATED_IMAGE_MODULE_CONTROLLER",
+		}},
+	})
 
 	err := injectModuleEnv(context.Background(), rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -397,13 +397,13 @@ func TestInjectControllerImageNotSet(t *testing.T) {
 
 	rr := &odhtype.ReconciliationRequest{
 		Resources: []unstructured.Unstructured{dep},
-		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
-			PerModuleImages: []odhtype.ModuleImages{{
-				DeploymentName:  "module-operator",
-				ControllerImage: "RELATED_IMAGE_NOT_SET",
-			}},
-		},
 	}
+	odhtype.SetModuleEnvInjection(rr, &odhtype.ModuleEnvInjection{
+		PerModuleImages: []odhtype.ModuleImages{{
+			DeploymentName:  "module-operator",
+			ControllerImage: "RELATED_IMAGE_NOT_SET",
+		}},
+	})
 
 	err := injectModuleEnv(context.Background(), rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -422,14 +422,14 @@ func TestInjectControllerImageWithRelatedImages(t *testing.T) {
 
 	rr := &odhtype.ReconciliationRequest{
 		Resources: []unstructured.Unstructured{dep},
-		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
-			PerModuleImages: []odhtype.ModuleImages{{
-				DeploymentName:  "module-operator",
-				ControllerImage: "RELATED_IMAGE_MODULE_CONTROLLER",
-				Images:          []string{"RELATED_IMAGE_SIDECAR"},
-			}},
-		},
 	}
+	odhtype.SetModuleEnvInjection(rr, &odhtype.ModuleEnvInjection{
+		PerModuleImages: []odhtype.ModuleImages{{
+			DeploymentName:  "module-operator",
+			ControllerImage: "RELATED_IMAGE_MODULE_CONTROLLER",
+			Images:          []string{"RELATED_IMAGE_SIDECAR"},
+		}},
+	})
 
 	err := injectModuleEnv(context.Background(), rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -450,14 +450,14 @@ func TestInjectInitContainerImage(t *testing.T) {
 
 	rr := &odhtype.ReconciliationRequest{
 		Resources: []unstructured.Unstructured{dep},
-		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
-			PerModuleImages: []odhtype.ModuleImages{{
-				DeploymentName:    "ai-gateway-operator",
-				ControllerImage:   "RELATED_IMAGE_MODULE_CONTROLLER",
-				InitContainerName: "setup",
-			}},
-		},
 	}
+	odhtype.SetModuleEnvInjection(rr, &odhtype.ModuleEnvInjection{
+		PerModuleImages: []odhtype.ModuleImages{{
+			DeploymentName:    "ai-gateway-operator",
+			ControllerImage:   "RELATED_IMAGE_MODULE_CONTROLLER",
+			InitContainerName: "setup",
+		}},
+	})
 
 	err := injectModuleEnv(context.Background(), rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -475,14 +475,14 @@ func TestInjectInitContainerImageNotSet(t *testing.T) {
 
 	rr := &odhtype.ReconciliationRequest{
 		Resources: []unstructured.Unstructured{dep},
-		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
-			PerModuleImages: []odhtype.ModuleImages{{
-				DeploymentName:    "module-operator",
-				ControllerImage:   "RELATED_IMAGE_NOT_SET",
-				InitContainerName: "copy-manifests",
-			}},
-		},
 	}
+	odhtype.SetModuleEnvInjection(rr, &odhtype.ModuleEnvInjection{
+		PerModuleImages: []odhtype.ModuleImages{{
+			DeploymentName:    "module-operator",
+			ControllerImage:   "RELATED_IMAGE_NOT_SET",
+			InitContainerName: "copy-manifests",
+		}},
+	})
 
 	err := injectModuleEnv(context.Background(), rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -502,14 +502,14 @@ func TestInjectInitContainerNotFound(t *testing.T) {
 
 	rr := &odhtype.ReconciliationRequest{
 		Resources: []unstructured.Unstructured{dep},
-		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
-			PerModuleImages: []odhtype.ModuleImages{{
-				DeploymentName:    "module-operator",
-				ControllerImage:   "RELATED_IMAGE_MODULE_CONTROLLER",
-				InitContainerName: "nonexistent",
-			}},
-		},
 	}
+	odhtype.SetModuleEnvInjection(rr, &odhtype.ModuleEnvInjection{
+		PerModuleImages: []odhtype.ModuleImages{{
+			DeploymentName:    "module-operator",
+			ControllerImage:   "RELATED_IMAGE_MODULE_CONTROLLER",
+			InitContainerName: "nonexistent",
+		}},
+	})
 
 	err := injectModuleEnv(context.Background(), rr)
 	g.Expect(err).Should(HaveOccurred())
@@ -525,13 +525,13 @@ func TestInjectEmptyInitContainerName(t *testing.T) {
 
 	rr := &odhtype.ReconciliationRequest{
 		Resources: []unstructured.Unstructured{dep},
-		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
-			PerModuleImages: []odhtype.ModuleImages{{
-				DeploymentName:  "module-operator",
-				ControllerImage: "RELATED_IMAGE_MODULE_CONTROLLER",
-			}},
-		},
 	}
+	odhtype.SetModuleEnvInjection(rr, &odhtype.ModuleEnvInjection{
+		PerModuleImages: []odhtype.ModuleImages{{
+			DeploymentName:  "module-operator",
+			ControllerImage: "RELATED_IMAGE_MODULE_CONTROLLER",
+		}},
+	})
 
 	err := injectModuleEnv(context.Background(), rr)
 	g.Expect(err).ShouldNot(HaveOccurred())

@@ -1,5 +1,4 @@
-//nolint:testpackage
-package reconciler
+package reconciler_test
 
 import (
 	"context"
@@ -11,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	gomegaTypes "github.com/onsi/gomega/types"
 	"github.com/rs/xid"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -20,10 +18,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/events"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -33,16 +29,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
-	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -57,32 +50,7 @@ func init() {
 	log.SetLogger(zap.New(zap.WriteTo(io.Discard)))
 }
 
-func createReconciler(cli client.Client) *Reconciler {
-	return &Reconciler{
-		Client:   cli,
-		Scheme:   cli.Scheme(),
-		Log:      ctrl.Log.WithName("controllers").WithName("test"),
-		Release:  cluster.GetRelease(),
-		Recorder: events.NewFakeRecorder(100),
-		name:     "test",
-		instanceFactory: func() (common.PlatformObject, error) {
-			i := &componentApi.Dashboard{
-				TypeMeta: ctrl.TypeMeta{
-					APIVersion: gvk.Dashboard.GroupVersion().String(),
-					Kind:       gvk.Dashboard.Kind,
-				},
-			}
-
-			return i, nil
-		},
-		conditionsManagerFactory: func(accessor common.ConditionsAccessor) *conditions.Manager {
-			return conditions.NewManager(accessor, status.ConditionTypeReady)
-		},
-	}
-}
-
 // startManager starts the manager in the background and waits for the cache to sync.
-// It registers a cleanup function to stop the manager when the test completes.
 func startManager(t *testing.T, g *WithT, mgr ctrl.Manager) {
 	t.Helper()
 
@@ -94,206 +62,22 @@ func startManager(t *testing.T, g *WithT, mgr ctrl.Manager) {
 	}()
 	t.Cleanup(mgrCancel)
 
-	// Wait for cache to sync
 	g.Eventually(func() bool {
 		return mgr.GetCache().WaitForCacheSync(ctx)
 	}).Should(BeTrue())
 }
 
-func TestConditions(t *testing.T) {
-	ctx := t.Context()
-
-	g := NewWithT(t)
-
-	et, err := envt.New()
-	g.Expect(err).NotTo(HaveOccurred())
-	t.Cleanup(func() { _ = et.Stop() })
-
-	cli := et.Client()
-
-	dsci := resources.GvkToUnstructured(gvk.DSCInitialization)
-	dsci.SetName(xid.New().String())
-	dsci.SetGeneration(1)
-
-	err = cli.Create(ctx, dsci)
-	g.Expect(err).NotTo(HaveOccurred())
-
-	tests := []struct {
-		name    string
-		err     error
-		matcher gomegaTypes.GomegaMatcher
-	}{
-		{
-			name: "ready",
-			err:  nil,
-
-			matcher: And(
-				jq.Match(`all(.status.conditions[]?.type; . != "foo")`),
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
-			),
-		},
-		{
-			name: "stop",
-			err:  odherrors.NewStopError("stop"),
-			matcher: And(
-				jq.Match(`all(.status.conditions[]?.type; . != "foo")`),
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionFalse),
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionFalse),
-			),
-		},
-		{
-			name: "failure",
-			err:  errors.New("failure"),
-			matcher: And(
-				jq.Match(`all(.status.conditions[]?.type; . != "foo")`),
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionFalse),
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionFalse),
-			),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			dash := resources.GvkToUnstructured(gvk.Dashboard)
-			dash.SetName(componentApi.DashboardInstanceName)
-			dash.SetGeneration(1)
-
-			err = cli.Create(ctx, dash)
-			g.Expect(err).NotTo(HaveOccurred())
-
-			st, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&common.Status{
-				Conditions: []common.Condition{{
-					Type:               "foo",
-					Status:             metav1.ConditionFalse,
-					LastTransitionTime: metav1.NewTime(time.Now()),
-				}},
-			})
-
-			g.Expect(err).NotTo(HaveOccurred())
-
-			err = unstructured.SetNestedField(dash.Object, st, "status")
-			g.Expect(err).NotTo(HaveOccurred())
-
-			err = cli.Status().Update(ctx, dash)
-			g.Expect(err).NotTo(HaveOccurred())
-
-			g.Expect(dash).Should(
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, "foo", metav1.ConditionFalse),
-			)
-
-			req := ctrl.Request{
-				NamespacedName: types.NamespacedName{
-					Name: componentApi.DashboardInstanceName,
-				},
-			}
-
-			cc := createReconciler(cli)
-			cc.AddAction(func(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-				return tt.err
-			})
-
-			result, err := cc.Reconcile(ctx, req)
-			se := odherrors.StopError{}
-			if tt.err == nil || errors.As(tt.err, &se) {
-				g.Expect(err).ShouldNot(HaveOccurred())
-			} else {
-				g.Expect(err).Should(MatchError(tt.err))
-			}
-
-			g.Expect(result.RequeueAfter).Should(BeZero())
-
-			di := resources.GvkToUnstructured(gvk.Dashboard)
-			di.SetName(dash.GetName())
-
-			err = cli.Get(ctx, client.ObjectKeyFromObject(di), di)
-			g.Expect(err).ShouldNot(HaveOccurred())
-			g.Expect(di).Should(tt.matcher)
-
-			err = cli.Delete(ctx, di, client.PropagationPolicy(metav1.DeletePropagationBackground))
-			g.Expect(err).ShouldNot(HaveOccurred())
-
-			g.Eventually(func() ([]componentApi.Dashboard, error) {
-				l := componentApi.DashboardList{}
-				if err := cli.List(ctx, &l, client.InNamespace("")); err != nil {
-					return nil, err
-				}
-
-				return l.Items, nil
-			}).WithTimeout(10 * time.Second).Should(BeEmpty())
-		})
-	}
-}
-
-func TestRequeueAfterError_CausesRequeue(t *testing.T) {
-	ctx := t.Context()
-
-	g := NewWithT(t)
-
-	et, err := envt.New()
-	g.Expect(err).NotTo(HaveOccurred())
-	t.Cleanup(func() { _ = et.Stop() })
-
-	cli := et.Client()
-
-	dsci := resources.GvkToUnstructured(gvk.DSCInitialization)
-	dsci.SetName(xid.New().String())
-	dsci.SetGeneration(1)
-
-	err = cli.Create(ctx, dsci)
-	g.Expect(err).NotTo(HaveOccurred())
-
-	dash := resources.GvkToUnstructured(gvk.Dashboard)
-	dash.SetName(componentApi.DashboardInstanceName)
-	dash.SetGeneration(1)
-
-	err = cli.Create(ctx, dash)
-	g.Expect(err).NotTo(HaveOccurred())
-	t.Cleanup(func() {
-		_ = cli.Delete(ctx, dash, client.PropagationPolicy(metav1.DeletePropagationBackground))
-	})
-
-	requeueDuration := 7 * time.Minute
-	secondActionExecuted := false
-
-	cc := createReconciler(cli)
-	cc.AddAction(func(_ context.Context, _ *odhtype.ReconciliationRequest) error {
-		return odherrors.NewRequeueAfterError(requeueDuration)
-	})
-	cc.AddAction(func(_ context.Context, _ *odhtype.ReconciliationRequest) error {
-		secondActionExecuted = true
-		return nil
-	})
-
-	result, err := cc.Reconcile(ctx, ctrl.Request{
-		NamespacedName: types.NamespacedName{Name: componentApi.DashboardInstanceName},
-	})
-
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(result.RequeueAfter).Should(Equal(requeueDuration))
-	g.Expect(secondActionExecuted).To(BeTrue(), "actions after RequeueAfterError should still execute")
-
-	di := resources.GvkToUnstructured(gvk.Dashboard)
-	di.SetName(componentApi.DashboardInstanceName)
-
-	err = cli.Get(ctx, client.ObjectKeyFromObject(di), di)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	g.Expect(di).Should(And(
-		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
-			status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
-	))
-}
-
 func TestPreConditions_StopReconciliation(t *testing.T) {
 	ctx := t.Context()
-
 	g := NewWithT(t)
 
-	et, err := envt.New()
+	et, err := envt.New(envt.WithManager(ctrl.Options{
+		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
+	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
 
+	mgr := et.Manager()
 	cli := et.Client()
 
 	dash := resources.GvkToUnstructured(gvk.Dashboard)
@@ -308,17 +92,22 @@ func TestPreConditions_StopReconciliation(t *testing.T) {
 
 	actionExecuted := false
 
-	cc := createReconciler(cli)
-	cc.preConditions = []precondition.PreCondition{
-		precondition.MonitorCRD(
-			schema.GroupVersionKind{Group: "fake.opendatahub.io", Version: "v1", Kind: "FakeResource"},
-			precondition.WithStopReconciliation(),
-		),
-	}
+	cc, err := reconciler.NewReconciler(mgr, "test", &componentApi.Dashboard{},
+		reconciler.WithPreConditions([]precondition.PreCondition{
+			precondition.MonitorCRD(
+				schema.GroupVersionKind{Group: "fake.opendatahub.io", Version: "v1", Kind: "FakeResource"},
+				precondition.WithStopReconciliation(),
+			),
+		}),
+	)
+	g.Expect(err).NotTo(HaveOccurred())
+
 	cc.AddAction(func(_ context.Context, _ *odhtype.ReconciliationRequest) error {
 		actionExecuted = true
 		return nil
 	})
+
+	startManager(t, g, mgr)
 
 	result, err := cc.Reconcile(ctx, ctrl.Request{
 		NamespacedName: types.NamespacedName{Name: componentApi.DashboardInstanceName},
@@ -341,167 +130,6 @@ func TestPreConditions_StopReconciliation(t *testing.T) {
 	))
 }
 
-// TestReconcilerBuilder_WatchMethods_UseUnstructured verifies that all watch
-// registration methods (Owns, Watches, OwnsGVK, WatchesGVK) convert objects
-// to unstructured. This prevents the stale cache bug where typed and
-// unstructured informers can become out of sync.
-func TestReconcilerBuilder_WatchMethods_UseUnstructured(t *testing.T) {
-	g := NewWithT(t)
-
-	et, err := envt.New(envt.WithManager(ctrl.Options{
-		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
-	}))
-	g.Expect(err).NotTo(HaveOccurred())
-	t.Cleanup(func() { _ = et.Stop() })
-
-	mgr := et.Manager()
-
-	tests := []struct {
-		name       string
-		setupWatch func(*ReconcilerBuilder[*componentApi.Dashboard])
-	}{
-		{
-			name: "Owns with typed object",
-			setupWatch: func(b *ReconcilerBuilder[*componentApi.Dashboard]) {
-				b.Owns(&corev1.ConfigMap{})
-			},
-		},
-		{
-			name: "Watches with typed object",
-			setupWatch: func(b *ReconcilerBuilder[*componentApi.Dashboard]) {
-				b.Watches(&corev1.Secret{})
-			},
-		},
-		{
-			name: "OwnsGVK",
-			setupWatch: func(b *ReconcilerBuilder[*componentApi.Dashboard]) {
-				b.OwnsGVK(gvk.Deployment)
-			},
-		},
-		{
-			name: "WatchesGVK",
-			setupWatch: func(b *ReconcilerBuilder[*componentApi.Dashboard]) {
-				b.WatchesGVK(gvk.Secret)
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			builder := ReconcilerFor(mgr, &componentApi.Dashboard{})
-			tt.setupWatch(builder)
-
-			g.Expect(builder.watches).To(HaveLen(1),
-				"expected exactly one watch to be registered")
-
-			_, isUnstructured := builder.watches[0].object.(*unstructured.Unstructured)
-			g.Expect(isUnstructured).To(BeTrue(),
-				"%s must use unstructured objects to prevent stale cache bugs", tt.name)
-		})
-	}
-}
-
-func TestReconcilerBuilder_ComposeWith(t *testing.T) {
-	g := NewWithT(t)
-
-	et, err := envt.New(envt.WithManager(ctrl.Options{
-		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
-	}))
-	g.Expect(err).NotTo(HaveOccurred())
-	t.Cleanup(func() { _ = et.Stop() })
-
-	mgr := et.Manager()
-
-	t.Run("fn is called with the builder", func(t *testing.T) {
-		g := NewWithT(t)
-		called := false
-		b := ReconcilerFor(mgr, &componentApi.Dashboard{})
-		b.ComposeWith(func(b *ReconcilerBuilder[*componentApi.Dashboard]) {
-			called = true
-		})
-		g.Expect(called).To(BeTrue())
-	})
-
-	t.Run("returns the same builder", func(t *testing.T) {
-		g := NewWithT(t)
-		b := ReconcilerFor(mgr, &componentApi.Dashboard{})
-		result := b.ComposeWith(func(*ReconcilerBuilder[*componentApi.Dashboard]) {})
-		g.Expect(result).To(BeIdenticalTo(b))
-	})
-
-	t.Run("actions registered inside fn land at call position", func(t *testing.T) {
-		g := NewWithT(t)
-		noop := func(_ context.Context, _ *odhtype.ReconciliationRequest) error { return nil }
-		b := ReconcilerFor(mgr, &componentApi.Dashboard{})
-		b.WithAction(noop)
-		b.ComposeWith(func(b *ReconcilerBuilder[*componentApi.Dashboard]) {
-			b.WithAction(noop)
-			b.WithAction(noop)
-		})
-		b.WithAction(noop)
-		g.Expect(b.actions).To(HaveLen(4))
-	})
-
-	t.Run("multiple ComposeWith calls compose correctly", func(t *testing.T) {
-		g := NewWithT(t)
-		noop := func(_ context.Context, _ *odhtype.ReconciliationRequest) error { return nil }
-		b := ReconcilerFor(mgr, &componentApi.Dashboard{})
-		b.ComposeWith(func(b *ReconcilerBuilder[*componentApi.Dashboard]) {
-			b.WithAction(noop)
-		}).ComposeWith(func(b *ReconcilerBuilder[*componentApi.Dashboard]) {
-			b.WithAction(noop)
-			b.WithAction(noop)
-		})
-		g.Expect(b.actions).To(HaveLen(3))
-	})
-
-	t.Run("nil fn panics immediately", func(t *testing.T) {
-		g := NewWithT(t)
-		b := ReconcilerFor(mgr, &componentApi.Dashboard{})
-		g.Expect(func() {
-			b.ComposeWith(nil)
-		}).To(Panic())
-	})
-
-	t.Run("errors from fn surface in b.errors and are returned by Build()", func(t *testing.T) {
-		g := NewWithT(t)
-		injected := errors.New("injected error")
-		b := ReconcilerFor(mgr, &componentApi.Dashboard{})
-		b.ComposeWith(func(b *ReconcilerBuilder[*componentApi.Dashboard]) {
-			b.errors = injected
-		})
-		_, buildErr := b.Build(context.Background())
-		g.Expect(buildErr).To(MatchError(ContainSubstring(injected.Error())))
-	})
-}
-
-func TestReconcilerBuilder_WithActionE(t *testing.T) {
-	t.Run("adds action when no error", func(t *testing.T) {
-		g := NewWithT(t)
-		noop := func(_ context.Context, _ *odhtype.ReconciliationRequest) error { return nil }
-		b := &ReconcilerBuilder[*componentApi.Dashboard]{}
-		b.WithActionE(noop, nil)
-		g.Expect(b.actions).To(HaveLen(1))
-		g.Expect(b.errors).ToNot(HaveOccurred())
-	})
-
-	t.Run("accumulates error and skips action", func(t *testing.T) {
-		g := NewWithT(t)
-		b := &ReconcilerBuilder[*componentApi.Dashboard]{}
-		b.WithActionE(nil, errors.New("action init failed"))
-		g.Expect(b.actions).To(BeEmpty())
-		g.Expect(b.errors).To(HaveOccurred())
-	})
-
-	t.Run("error surfaces in Build()", func(t *testing.T) {
-		g := NewWithT(t)
-		b := &ReconcilerBuilder[*componentApi.Dashboard]{}
-		b.WithActionE(nil, errors.New("action init failed"))
-		_, buildErr := b.Build(context.Background())
-		g.Expect(buildErr).To(MatchError(ContainSubstring("action init failed")))
-	})
-}
-
 func TestNewReconciler_WithDynamicOwnership(t *testing.T) {
 	g := NewWithT(t)
 
@@ -514,22 +142,22 @@ func TestNewReconciler_WithDynamicOwnership(t *testing.T) {
 	mgr := et.Manager()
 
 	t.Run("dynamic ownership disabled by default", func(t *testing.T) {
-		r, err := NewReconciler(mgr, "test", &componentApi.Dashboard{})
+		r, err := reconciler.NewReconciler(mgr, "test", &componentApi.Dashboard{})
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(r.IsDynamicOwnershipEnabled()).To(BeFalse())
 	})
 
 	t.Run("dynamic ownership enabled with option", func(t *testing.T) {
-		r, err := NewReconciler(mgr, "test", &componentApi.Dashboard{},
-			withDynamicOwnership(),
+		r, err := reconciler.NewReconciler(mgr, "test", &componentApi.Dashboard{},
+			reconciler.WithDynamicOwnership(),
 		)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(r.IsDynamicOwnershipEnabled()).To(BeTrue())
 	})
 
 	t.Run("dynamic ownership with excluded GVKs", func(t *testing.T) {
-		r, err := NewReconciler(mgr, "test", &componentApi.Dashboard{},
-			withDynamicOwnership(ExcludeGVKs(gvk.ConfigMap, gvk.Secret)),
+		r, err := reconciler.NewReconciler(mgr, "test", &componentApi.Dashboard{},
+			reconciler.WithDynamicOwnership(reconciler.ExcludeGVKs(gvk.ConfigMap, gvk.Secret)),
 		)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(r.IsDynamicOwnershipEnabled()).To(BeTrue())
@@ -540,39 +168,75 @@ func TestNewReconciler_WithDynamicOwnership(t *testing.T) {
 
 	t.Run("Owns returns true after AddDynamicOwnedType", func(t *testing.T) {
 		g := NewWithT(t)
-		r, err := NewReconciler(mgr, "test", &componentApi.Dashboard{},
-			withDynamicOwnership(),
+		r, err := reconciler.NewReconciler(mgr, "test", &componentApi.Dashboard{},
+			reconciler.WithDynamicOwnership(),
 		)
 		g.Expect(err).NotTo(HaveOccurred())
 
-		// Not owned initially
 		g.Expect(r.Owns(gvk.ConfigMap)).To(BeFalse())
-
-		// Add dynamic ownership
 		r.AddDynamicOwnedType(gvk.ConfigMap)
-
 		g.Expect(r.Owns(gvk.ConfigMap)).To(BeTrue())
-		// Other GVKs remain unowned
 		g.Expect(r.Owns(gvk.Secret)).To(BeFalse())
 	})
 
 	t.Run("Owns returns true for both static and dynamic ownership", func(t *testing.T) {
 		g := NewWithT(t)
-		r, err := NewReconciler(mgr, "test", &componentApi.Dashboard{},
-			withDynamicOwnership(),
+		r, err := reconciler.NewReconciler(mgr, "test", &componentApi.Dashboard{},
+			reconciler.WithDynamicOwnership(),
 		)
 		g.Expect(err).NotTo(HaveOccurred())
 
-		// Add static ownership
 		r.AddOwnedType(gvk.ConfigMap)
-
-		// Add dynamic ownership for a different GVK
 		r.AddDynamicOwnedType(gvk.Secret)
 
 		g.Expect(r.Owns(gvk.ConfigMap)).To(BeTrue(), "Static ownership should be recognized")
 		g.Expect(r.Owns(gvk.Secret)).To(BeTrue(), "Dynamic ownership should be recognized")
 		g.Expect(r.Owns(gvk.Deployment)).To(BeFalse(), "Unregistered GVK should not be owned")
 	})
+}
+
+func TestBuild_SetsControllerField(t *testing.T) {
+	ctx := t.Context()
+	g := NewWithT(t)
+
+	et, err := envt.New(envt.WithManager(ctrl.Options{
+		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
+	}))
+	g.Expect(err).NotTo(HaveOccurred())
+	t.Cleanup(func() { _ = et.Stop() })
+
+	mgr := et.Manager()
+
+	rec, err := reconciler.ReconcilerFor(mgr, &componentApi.Dashboard{}).
+		WithInstanceName("build-controller-test").
+		Build(ctx)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(rec.Controller).NotTo(BeNil(),
+		"Build() must assign the built controller to Reconciler.Controller")
+}
+
+func TestBuild_NamedAllowsMultipleControllersForSameGVK(t *testing.T) {
+	ctx := t.Context()
+	g := NewWithT(t)
+
+	et, err := envt.New(envt.WithManager(ctrl.Options{}))
+	g.Expect(err).NotTo(HaveOccurred())
+	t.Cleanup(func() { _ = et.Stop() })
+
+	mgr := et.Manager()
+
+	rec1, err := reconciler.ReconcilerFor(mgr, &componentApi.Dashboard{}).
+		WithInstanceName("controller-alpha").
+		Build(ctx)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(rec1.Controller).NotTo(BeNil())
+
+	rec2, err := reconciler.ReconcilerFor(mgr, &componentApi.Dashboard{}).
+		WithInstanceName("controller-beta").
+		Build(ctx)
+	g.Expect(err).NotTo(HaveOccurred(),
+		"Build() with Named() must allow two controllers for the same GVK with different names")
+	g.Expect(rec2.Controller).NotTo(BeNil())
 }
 
 func TestDynamicOwnership_DeployAction(t *testing.T) {
@@ -589,11 +253,9 @@ func TestDynamicOwnership_DeployAction(t *testing.T) {
 	mgr := et.Manager()
 	cli := et.Client()
 
-	// Create test namespace
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: nsName}}
 	g.Expect(cli.Create(ctx, ns)).To(Succeed())
 
-	// Create Dashboard instance (owner)
 	dashboard := &componentApi.Dashboard{
 		ObjectMeta: metav1.ObjectMeta{Name: componentApi.DashboardInstanceName, Generation: 1},
 	}
@@ -605,26 +267,22 @@ func TestDynamicOwnership_DeployAction(t *testing.T) {
 	secretName := xid.New().String()
 	notManagedCMName := xid.New().String()
 
-	// Create reconciler using builder pattern with dynamic ownership enabled
-	rec, err := ReconcilerFor(mgr, &componentApi.Dashboard{}).
+	rec, err := reconciler.ReconcilerFor(mgr, &componentApi.Dashboard{}).
 		WithInstanceName(xid.New().String()).
-		WithDynamicOwnership(ExcludeGVKs(gvk.Secret)).
+		WithDynamicOwnership(reconciler.ExcludeGVKs(gvk.Secret)).
 		WithAction(func(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-			// Prepare a ConfigMap to deploy
 			cm := &corev1.ConfigMap{
 				TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
 				ObjectMeta: metav1.ObjectMeta{Name: cmName, Namespace: nsName},
 				Data:       map[string]string{"key": "value"},
 			}
 
-			// Prepare a Secret to deploy (excluded from ownership)
 			secret := &corev1.Secret{
 				TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "Secret"},
 				ObjectMeta: metav1.ObjectMeta{Name: secretName, Namespace: nsName},
 				StringData: map[string]string{"key": "secret-value"},
 			}
 
-			// Prepare a ConfigMap with ManagedByODHOperator annotation set to "false"
 			notManagedCM := &corev1.ConfigMap{
 				TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
 				ObjectMeta: metav1.ObjectMeta{
@@ -644,14 +302,12 @@ func TestDynamicOwnership_DeployAction(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(rec.IsDynamicOwnershipEnabled()).To(BeTrue())
 
-	// Start manager after reconciler is built (watches are registered)
 	startManager(t, g, mgr)
 
 	res, err := rec.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: dashboard.GetName()}})
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(res.RequeueAfter).To(BeZero())
 
-	// Verify ConfigMap was deployed with owner reference
 	deployedConfigMap := &corev1.ConfigMap{}
 	g.Expect(cli.Get(ctx, client.ObjectKey{Name: cmName, Namespace: nsName}, deployedConfigMap)).To(Succeed())
 
@@ -666,39 +322,31 @@ func TestDynamicOwnership_DeployAction(t *testing.T) {
 		BlockOwnerDeletion: ptr.To(true),
 	}))
 
-	// Verify Secret was deployed WITHOUT owner reference
 	deployedSecret := &corev1.Secret{}
 	g.Expect(cli.Get(ctx, client.ObjectKey{Name: secretName, Namespace: nsName}, deployedSecret)).To(Succeed())
 	g.Expect(deployedSecret.GetOwnerReferences()).To(BeEmpty(), "Excluded resource should not have owner references")
 
-	// Verify ConfigMap with ManagedByODHOperator=false was deployed without owner reference
 	deployedNotManagedCM := &corev1.ConfigMap{}
 	g.Expect(cli.Get(ctx, client.ObjectKey{Name: notManagedCMName, Namespace: nsName}, deployedNotManagedCM)).To(Succeed())
 	g.Expect(deployedNotManagedCM.GetOwnerReferences()).To(BeEmpty())
 
 	t.Run("owned resource is restored after external modification", func(t *testing.T) {
-		// Save the original state for patch base
 		g.Expect(cli.Get(ctx, client.ObjectKey{Name: cmName, Namespace: nsName}, deployedConfigMap)).To(Succeed())
 		original := deployedConfigMap.DeepCopy()
 
-		// Modify the ConfigMap externally (simulating drift)
 		deployedConfigMap.Data["key"] = "modified-externally"
 		err := cli.Patch(ctx, deployedConfigMap, client.MergeFrom(original))
 		g.Expect(err).NotTo(HaveOccurred())
 
-		// Wait for watch-triggered reconciliation to restore the value
 		g.Eventually(func(gg Gomega) {
 			configMap := &corev1.ConfigMap{}
 			gg.Expect(cli.Get(ctx, client.ObjectKey{Name: cmName, Namespace: nsName}, configMap)).To(Succeed())
 			gg.Expect(configMap.Data).To(Equal(map[string]string{"key": "value"}))
-			// ResourceVersion changes on any update, Generation only changes on spec changes
 			gg.Expect(configMap.GetResourceVersion()).NotTo(Equal(original.GetResourceVersion()))
 		}).WithTimeout(5 * time.Second).Should(Succeed())
 	})
 
 	t.Run("excluded resource are not restored after external modification", func(t *testing.T) {
-		// Wait for any pending reconciliations from previous subtest to complete
-		// by verifying the Secret remains stable (ResourceVersion doesn't change)
 		var stableResourceVersion string
 		g.Eventually(func(gg Gomega) {
 			secret := &corev1.Secret{}
@@ -712,25 +360,19 @@ func TestDynamicOwnership_DeployAction(t *testing.T) {
 			gg.Expect(secret.GetResourceVersion()).To(Equal(stableResourceVersion))
 		}).WithTimeout(2*time.Second).Should(Succeed(), "Secret should be stable before modification")
 
-		// Re-fetch the Secret to get current state
 		g.Expect(cli.Get(ctx, client.ObjectKey{Name: secretName, Namespace: nsName}, deployedSecret)).To(Succeed())
-
-		// Save the original state for patch base
 		original := deployedSecret.DeepCopy()
 
-		// Modify the Secret externally (simulating drift)
 		deployedSecret.StringData = map[string]string{"key": "modified-externally"}
 		err := cli.Patch(ctx, deployedSecret, client.MergeFrom(original))
 		g.Expect(err).NotTo(HaveOccurred())
 
-		// First, wait for the modification to be visible (handles any pending reconciliation)
 		g.Eventually(func(gg Gomega) {
 			secret := &corev1.Secret{}
 			gg.Expect(cli.Get(ctx, client.ObjectKey{Name: secretName, Namespace: nsName}, secret)).To(Succeed())
 			gg.Expect(string(secret.Data["key"])).To(Equal("modified-externally"))
 		}).WithTimeout(5*time.Second).Should(Succeed(), "Modification should be visible")
 
-		// Then verify the modification persists (excluded resources should NOT be restored)
 		g.Consistently(func(gg Gomega) {
 			secret := &corev1.Secret{}
 			gg.Expect(cli.Get(ctx, client.ObjectKey{Name: secretName, Namespace: nsName}, secret)).To(Succeed())
@@ -739,11 +381,9 @@ func TestDynamicOwnership_DeployAction(t *testing.T) {
 	})
 
 	t.Run("not managed resource are not restored after external modification", func(t *testing.T) {
-		// Save the original state for patch base
 		g.Expect(cli.Get(ctx, client.ObjectKey{Name: notManagedCMName, Namespace: nsName}, deployedNotManagedCM)).To(Succeed())
 		original := deployedNotManagedCM.DeepCopy()
 
-		// Modify the ConfigMap externally (simulating drift)
 		deployedNotManagedCM.Data = map[string]string{"key": "modified-externally"}
 		err := cli.Patch(ctx, deployedNotManagedCM, client.MergeFrom(original))
 		g.Expect(err).NotTo(HaveOccurred())
@@ -759,13 +399,11 @@ func TestDynamicOwnership_DeployAction(t *testing.T) {
 			managedCM := &corev1.ConfigMap{}
 			gg.Expect(cli.Get(ctx, client.ObjectKey{Name: notManagedCMName, Namespace: nsName}, managedCM)).To(Succeed())
 			gg.Expect(managedCM.Data).To(Equal(map[string]string{"key": "modified-externally"}))
-			// ResourceVersion changes on any update, Generation only changes on spec changes
 			gg.Expect(managedCM.GetResourceVersion()).NotTo(Equal(original.GetResourceVersion()))
 		}).WithTimeout(3 * time.Second).Should(Succeed())
 	})
 
 	t.Run("not managed resource are restored if deleted", func(t *testing.T) {
-		// Re-fetch to get current state after previous test modifications
 		g.Expect(cli.Get(ctx, client.ObjectKey{Name: notManagedCMName, Namespace: nsName}, deployedNotManagedCM)).To(Succeed())
 
 		err := cli.Delete(ctx, deployedNotManagedCM)
@@ -805,11 +443,9 @@ func TestDynamicOwnership_DisabledByDefault(t *testing.T) {
 	g.Expect(cli.Create(ctx, dashboard)).To(Succeed())
 	g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(dashboard), dashboard)).To(Succeed())
 
-	// Create reconciler WITHOUT dynamic ownership (default)
-	rec, err := ReconcilerFor(mgr, &componentApi.Dashboard{}).
+	rec, err := reconciler.ReconcilerFor(mgr, &componentApi.Dashboard{}).
 		WithInstanceName(xid.New().String()).
 		WithAction(func(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-			// Prepare a ConfigMap to deploy
 			cm := &corev1.ConfigMap{
 				TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
 				ObjectMeta: metav1.ObjectMeta{Name: configMapName, Namespace: nsName},
@@ -829,7 +465,6 @@ func TestDynamicOwnership_DisabledByDefault(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(res.RequeueAfter).To(BeZero())
 
-	// Verify ConfigMap was deployed WITHOUT owner reference
 	deployed := &corev1.ConfigMap{}
 	g.Expect(cli.Get(ctx, client.ObjectKey{Name: configMapName, Namespace: nsName}, deployed)).To(Succeed())
 	g.Expect(deployed.GetOwnerReferences()).To(BeEmpty(), "Resource should not have owner references when dynamic ownership is disabled")
@@ -849,11 +484,9 @@ func TestDynamicOwnership_DeployAction_CRDAndCR(t *testing.T) {
 	mgr := et.Manager()
 	cli := et.Client()
 
-	// Create test namespace
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: nsName}}
 	g.Expect(cli.Create(ctx, ns)).To(Succeed())
 
-	// Create Dashboard instance (owner)
 	dashboard := &componentApi.Dashboard{
 		ObjectMeta: metav1.ObjectMeta{Name: componentApi.DashboardInstanceName, Generation: 1},
 	}
@@ -861,24 +494,17 @@ func TestDynamicOwnership_DeployAction_CRDAndCR(t *testing.T) {
 	g.Expect(cli.Create(ctx, dashboard)).To(Succeed())
 	g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(dashboard), dashboard)).To(Succeed())
 
-	// Define the CRD kind
 	crdKind := "TestWidget"
 	crd := createCRD(t, g, crdKind)
 
-	// Define a CR instance of the CRD
 	crName := xid.New().String()
 
-	// To test the recreation of the CRD once deleted, we need to create a CRD without a CR.
-	// This is because if we delete a CRD with a CR, also the CR will be deleted and this
-	// will trigger a new reconciliation which will restore the CRD.
 	crdKindWithoutCR := "WithoutCreatedCR"
 	crdWithoutCreatedCR := createCRD(t, g, crdKindWithoutCR)
 
-	// Also deploy a ConfigMap to verify mixed resource handling
 	cmName := xid.New().String()
 
-	// Create reconciler with dynamic ownership, excluding CRDs from ownership
-	rec, err := ReconcilerFor(mgr, &componentApi.Dashboard{}).
+	rec, err := reconciler.ReconcilerFor(mgr, &componentApi.Dashboard{}).
 		WithInstanceName(xid.New().String()).
 		WithDynamicOwnership().
 		WithAction(func(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
@@ -900,10 +526,8 @@ func TestDynamicOwnership_DeployAction_CRDAndCR(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(rec.IsDynamicOwnershipEnabled()).To(BeTrue())
 
-	// Start manager
 	startManager(t, g, mgr)
 
-	// Run first reconciliation (may fail with NoKindMatchError for CR if RESTMapper hasn't refreshed)
 	_, err = rec.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: dashboard.GetName()}})
 	if err != nil {
 		var noKindMatchErr *meta.NoKindMatchError
@@ -911,15 +535,10 @@ func TestDynamicOwnership_DeployAction_CRDAndCR(t *testing.T) {
 			"unexpected reconcile error: %v", err)
 	}
 
-	// Verify CRD was deployed WITHOUT owner reference (cluster-scoped, excluded)
 	deployedCRD := &apiextensionsv1.CustomResourceDefinition{}
 	g.Expect(cli.Get(ctx, client.ObjectKey{Name: crd.GetName()}, deployedCRD)).To(Succeed())
 	g.Expect(deployedCRD.GetOwnerReferences()).To(BeEmpty(), "CRD should not have owner references")
 
-	// Verify CR was deployed WITH owner reference
-	// The first reconciliation may fail with NoKindMatchError if the RESTMapper cache
-	// hasn't refreshed yet. The CRD watch (registered by dynamic ownership action) should
-	// trigger a new reconciliation once the CRD is established, which will deploy the CR.
 	deployedCR := &unstructured.Unstructured{}
 	deployedCR.SetAPIVersion("test.opendatahub.io/v1")
 	deployedCR.SetKind("TestWidget")
@@ -929,7 +548,6 @@ func TestDynamicOwnership_DeployAction_CRDAndCR(t *testing.T) {
 		gg.Expect(deployedCR.GetOwnerReferences()[0].Kind).To(Equal("Dashboard"))
 	}).WithTimeout(30*time.Second).WithPolling(1*time.Second).Should(Succeed(), "CR should be deployed with owner reference")
 
-	// Verify ConfigMap was deployed WITH owner reference
 	deployedCM := &corev1.ConfigMap{}
 	g.Eventually(func() error {
 		return cli.Get(ctx, client.ObjectKey{Name: cmName, Namespace: nsName}, deployedCM)
@@ -937,17 +555,14 @@ func TestDynamicOwnership_DeployAction_CRDAndCR(t *testing.T) {
 	g.Expect(deployedCM.GetOwnerReferences()).To(HaveLen(1), "ConfigMap should have owner reference")
 
 	t.Run("CR is restored after external deletion", func(t *testing.T) {
-		// Delete the CR externally
 		err := cli.Delete(ctx, deployedCR)
 		g.Expect(err).NotTo(HaveOccurred())
 
-		// Verify CR is deleted
 		g.Eventually(func() bool {
 			err := cli.Get(ctx, client.ObjectKey{Name: crName, Namespace: nsName}, deployedCR)
 			return err != nil && k8serr.IsNotFound(err)
 		}).WithTimeout(5*time.Second).Should(BeTrue(), "CR should be deleted")
 
-		// Wait for watch-triggered reconciliation to restore the CR
 		g.Eventually(func(gg Gomega) {
 			restored := &unstructured.Unstructured{}
 			restored.SetAPIVersion("test.opendatahub.io/v1")
@@ -958,22 +573,16 @@ func TestDynamicOwnership_DeployAction_CRDAndCR(t *testing.T) {
 	})
 
 	t.Run("CRD deletion triggers reconciliation", func(t *testing.T) {
-		// Get the current CRD resourceVersion before deletion
 		currentCRD := &apiextensionsv1.CustomResourceDefinition{}
 		g.Expect(cli.Get(ctx, client.ObjectKey{Name: crdWithoutCreatedCR.GetName()}, currentCRD)).To(Succeed())
 		oldUID := currentCRD.GetUID()
 
-		// Delete the CRD externally
 		err := cli.Delete(ctx, currentCRD)
 		g.Expect(err).NotTo(HaveOccurred())
 
-		// The dynamic ownership action watches CRDs by name, so deletion should trigger reconciliation
-		// which will restore the CRD. The reconciliation may restore it before we can observe the
-		// deletion, so we verify the CRD exists with a different resourceVersion (indicating recreation)
 		g.Eventually(func(gg Gomega) {
 			restored := &apiextensionsv1.CustomResourceDefinition{}
 			gg.Expect(cli.Get(ctx, client.ObjectKey{Name: crdWithoutCreatedCR.GetName()}, restored)).To(Succeed())
-			// The CRD should have been recreated (new uid)
 			gg.Expect(restored.GetUID()).NotTo(Equal(oldUID), "CRD should have been recreated with new uid")
 		}).WithTimeout(10*time.Second).Should(Succeed(), "CRD should be restored after deletion")
 	})
@@ -993,11 +602,9 @@ func TestDynamicOwnership_DeployAction_WithGVKPredicates(t *testing.T) {
 	mgr := et.Manager()
 	cli := et.Client()
 
-	// Create test namespace
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: nsName}}
 	g.Expect(cli.Create(ctx, ns)).To(Succeed())
 
-	// Create Dashboard instance (owner)
 	dashboard := &componentApi.Dashboard{
 		ObjectMeta: metav1.ObjectMeta{Name: componentApi.DashboardInstanceName, Generation: 1},
 	}
@@ -1008,23 +615,20 @@ func TestDynamicOwnership_DeployAction_WithGVKPredicates(t *testing.T) {
 	deploymentName := xid.New().String()
 	cmName := xid.New().String()
 
-	// Custom predicate that reacts only to delete events
 	deploymentPredicate := predicate.Funcs{
 		CreateFunc: func(_ event.TypedCreateEvent[client.Object]) bool { return false },
 		UpdateFunc: func(_ event.TypedUpdateEvent[client.Object]) bool { return false },
 		DeleteFunc: func(_ event.TypedDeleteEvent[client.Object]) bool { return true },
 	}
 
-	// Create reconciler with dynamic ownership and custom GVK predicates
-	rec, err := ReconcilerFor(mgr, &componentApi.Dashboard{}).
+	rec, err := reconciler.ReconcilerFor(mgr, &componentApi.Dashboard{}).
 		WithInstanceName(xid.New().String()).
 		WithDynamicOwnership(
-			WithGVKPredicates(map[schema.GroupVersionKind][]predicate.Predicate{
+			reconciler.WithGVKPredicates(map[schema.GroupVersionKind][]predicate.Predicate{
 				gvk.Deployment: {deploymentPredicate},
 			}),
 		).
 		WithAction(func(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-			// Prepare a Deployment to deploy
 			deployment := &appsv1.Deployment{
 				TypeMeta: metav1.TypeMeta{APIVersion: "apps/v1", Kind: "Deployment"},
 				ObjectMeta: metav1.ObjectMeta{
@@ -1050,7 +654,6 @@ func TestDynamicOwnership_DeployAction_WithGVKPredicates(t *testing.T) {
 				},
 			}
 
-			// Also deploy a ConfigMap (uses default predicate)
 			cm := &corev1.ConfigMap{
 				TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
 				ObjectMeta: metav1.ObjectMeta{Name: cmName, Namespace: nsName},
@@ -1064,36 +667,30 @@ func TestDynamicOwnership_DeployAction_WithGVKPredicates(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(rec.IsDynamicOwnershipEnabled()).To(BeTrue())
 
-	// Start manager after reconciler is built
 	startManager(t, g, mgr)
 
 	res, err := rec.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: dashboard.GetName()}})
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(res.RequeueAfter).To(BeZero())
 
-	// Verify Deployment was deployed with owner reference
 	deployedDeployment := &appsv1.Deployment{}
 	g.Expect(cli.Get(ctx, client.ObjectKey{Name: deploymentName, Namespace: nsName}, deployedDeployment)).To(Succeed())
 	g.Expect(deployedDeployment.GetOwnerReferences()).To(HaveLen(1))
 	g.Expect(deployedDeployment.GetOwnerReferences()[0].Kind).To(Equal(gvk.Dashboard.Kind))
 
-	// Verify ConfigMap was deployed with owner reference
 	deployedCM := &corev1.ConfigMap{}
 	g.Expect(cli.Get(ctx, client.ObjectKey{Name: cmName, Namespace: nsName}, deployedCM)).To(Succeed())
 	g.Expect(deployedCM.GetOwnerReferences()).To(HaveLen(1))
 
 	t.Run("deployment is restored after external deletion", func(t *testing.T) {
-		// Delete the Deployment externally
 		err := cli.Delete(ctx, deployedDeployment)
 		g.Expect(err).NotTo(HaveOccurred())
 
-		// Verify Deployment is deleted
 		g.Eventually(func() bool {
 			err := cli.Get(ctx, client.ObjectKey{Name: deploymentName, Namespace: nsName}, deployedDeployment)
 			return err != nil && k8serr.IsNotFound(err)
 		}).WithTimeout(5*time.Second).Should(BeTrue(), "Deployment should be deleted")
 
-		// Wait for watch-triggered reconciliation to restore the Deployment
 		g.Eventually(func(gg Gomega) {
 			restored := &appsv1.Deployment{}
 			gg.Expect(cli.Get(ctx, client.ObjectKey{Name: deploymentName, Namespace: nsName}, restored)).To(Succeed())
@@ -1102,16 +699,12 @@ func TestDynamicOwnership_DeployAction_WithGVKPredicates(t *testing.T) {
 	})
 
 	t.Run("deployment spec fields are not restored after external modification", func(t *testing.T) {
-		// Wait for any pending reconciliations from the previous subtest to drain
-		// before modifying replicas. The delete/restore cycle can trigger cascading
-		// events (owner ref updates, status changes) that queue additional reconciliations.
 		g.Consistently(func(gg Gomega) {
 			deployment := &appsv1.Deployment{}
 			gg.Expect(cli.Get(ctx, client.ObjectKey{Name: deploymentName, Namespace: nsName}, deployment)).To(Succeed())
 			gg.Expect(*deployment.Spec.Replicas).To(Equal(int32(1)))
 		}).WithTimeout(3*time.Second).WithPolling(200*time.Millisecond).Should(Succeed(), "Deployment should be stable before modification")
 
-		// Re-fetch to get current state
 		g.Expect(cli.Get(ctx, client.ObjectKey{Name: deploymentName, Namespace: nsName}, deployedDeployment)).To(Succeed())
 		original := deployedDeployment.DeepCopy()
 
@@ -1133,16 +726,13 @@ func TestDynamicOwnership_DeployAction_WithGVKPredicates(t *testing.T) {
 	})
 
 	t.Run("configmap is restored after external modification", func(t *testing.T) {
-		// Re-fetch to get current state
 		g.Expect(cli.Get(ctx, client.ObjectKey{Name: cmName, Namespace: nsName}, deployedCM)).To(Succeed())
 		original := deployedCM.DeepCopy()
 
-		// Modify the ConfigMap externally
 		deployedCM.Data["key"] = "modified-externally"
 		err := cli.Patch(ctx, deployedCM, client.MergeFrom(original))
 		g.Expect(err).NotTo(HaveOccurred())
 
-		// Wait for watch-triggered reconciliation to restore the data
 		g.Eventually(func(gg Gomega) {
 			restored := &corev1.ConfigMap{}
 			gg.Expect(cli.Get(ctx, client.ObjectKey{Name: cmName, Namespace: nsName}, restored)).To(Succeed())
@@ -1212,11 +802,9 @@ func TestDynamicOwnership_GCWithDynamicAction(t *testing.T) {
 	mgr := et.Manager()
 	cli := et.Client()
 
-	// Create test namespace
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: nsName}}
 	g.Expect(cli.Create(ctx, ns)).To(Succeed())
 
-	// Create Dashboard instance (owner)
 	dashboard := &componentApi.Dashboard{
 		ObjectMeta: metav1.ObjectMeta{Name: componentApi.DashboardInstanceName, Generation: 1},
 	}
@@ -1227,19 +815,13 @@ func TestDynamicOwnership_GCWithDynamicAction(t *testing.T) {
 	cmName := xid.New().String()
 	orphanCMName := xid.New().String()
 
-	// Thread-safe flag: when true, the orphan ConfigMap is included in the manifest.
-	// Set to false before the second reconcile to simulate removing a resource from
-	// the component's manifests.
 	var deployOrphan atomic.Bool
 	deployOrphan.Store(true)
 
-	// Build reconciler with deploy + GC (using Owns-based TypePredicate, like DSC) + dynamic ownership.
-	// Action order: addResources → deploy → GC → [internal: dynamicWatch, dynamicOwnership]
-	rec, err := ReconcilerFor(mgr, &componentApi.Dashboard{}).
+	rec, err := reconciler.ReconcilerFor(mgr, &componentApi.Dashboard{}).
 		WithInstanceName(xid.New().String()).
 		WithDynamicOwnership().
 		WithAction(func(_ context.Context, rr *odhtype.ReconciliationRequest) error {
-			// Mark as generated so GC runs (normally set by resource cacher action)
 			rr.Generated = true
 
 			cm := &corev1.ConfigMap{
@@ -1263,22 +845,17 @@ func TestDynamicOwnership_GCWithDynamicAction(t *testing.T) {
 		WithAction(deploy.NewAction()).
 		WithAction(gc.NewAction(
 			gc.WithTypePredicate(func(rr *odhtype.ReconciliationRequest, objGVK schema.GroupVersionKind) (bool, error) {
-				// This is the same predicate used by the DSC controller:
-				// GC only runs on types the controller owns.
 				return rr.Controller.Owns(objGVK), nil
 			}),
 			gc.WithObjectPredicate(func(rr *odhtype.ReconciliationRequest, obj unstructured.Unstructured) (bool, error) {
-				// Manifest-based predicate: delete resources not present in
-				// the current reconcile's rr.Resources (instead of relying on
-				// annotation/generation mismatch via DefaultObjectPredicate).
 				for i := range rr.Resources {
 					if rr.Resources[i].GroupVersionKind() == obj.GroupVersionKind() &&
 						rr.Resources[i].GetNamespace() == obj.GetNamespace() &&
 						rr.Resources[i].GetName() == obj.GetName() {
-						return false, nil // resource is in the manifest, don't delete
+						return false, nil
 					}
 				}
-				return true, nil // resource not in manifest, should be deleted
+				return true, nil
 			}),
 			gc.InNamespace(nsName),
 			gc.WithDeletePropagationPolicy(metav1.DeletePropagationBackground),
@@ -1286,18 +863,12 @@ func TestDynamicOwnership_GCWithDynamicAction(t *testing.T) {
 		Build(ctx)
 	g.Expect(err).NotTo(HaveOccurred())
 
-	// Start manager
 	startManager(t, g, mgr)
 
-	// First reconcile: deploy both ConfigMaps (deployOrphan is true).
-	// The deploy action's shouldOwn() calls AddDynamicOwnedType(ConfigMap), making
-	// Owns(ConfigMap) return true before GC runs in the same cycle.
-	// GC does not delete either CM because both are present in rr.Resources.
 	res, err := rec.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: dashboard.GetName()}})
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(res.RequeueAfter).To(BeZero())
 
-	// Verify both ConfigMaps were deployed with owner references
 	deployedCM := &corev1.ConfigMap{}
 	g.Expect(cli.Get(ctx, client.ObjectKey{Name: cmName, Namespace: nsName}, deployedCM)).To(Succeed())
 	g.Expect(deployedCM.GetOwnerReferences()).To(HaveLen(1))
@@ -1306,28 +877,17 @@ func TestDynamicOwnership_GCWithDynamicAction(t *testing.T) {
 	g.Expect(cli.Get(ctx, client.ObjectKey{Name: orphanCMName, Namespace: nsName}, deployedOrphanCM)).To(Succeed())
 	g.Expect(deployedOrphanCM.GetOwnerReferences()).To(HaveLen(1))
 
-	// Verify Owns returns true for ConfigMap after first reconcile
-	// (deploy's shouldOwn called AddDynamicOwnedType)
 	g.Expect(rec.Owns(gvk.ConfigMap)).To(BeTrue(),
 		"Owns(ConfigMap) should return true after dynamic ownership action registers the type")
 
-	// --- Prepare for second reconcile ---
-	// Stop including the orphan ConfigMap in the manifest.
-	// The custom ObjectPredicate will detect the orphan is absent from rr.Resources and mark it for deletion.
 	deployOrphan.Store(false)
 
-	// Second reconcile: deploy only the primary ConfigMap.
-	// GC runs with Owns(ConfigMap) = true (via AddDynamicOwnedType from deploy's shouldOwn)
-	// and deletes the orphan ConfigMap because it is no longer in rr.Resources.
-	// Use Eventually to handle auto-reconcile timing from the manager's event loop.
 	g.Eventually(func(innerG Gomega) {
 		_, err := rec.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: dashboard.GetName()}})
 		innerG.Expect(err).NotTo(HaveOccurred())
 
-		// Primary CM should still exist (re-deployed in this cycle)
 		innerG.Expect(cli.Get(ctx, client.ObjectKey{Name: cmName, Namespace: nsName}, &corev1.ConfigMap{})).To(Succeed())
 
-		// Orphan CM should be deleted by GC (not in rr.Resources)
 		orphanErr := cli.Get(ctx, client.ObjectKey{Name: orphanCMName, Namespace: nsName}, &corev1.ConfigMap{})
 		innerG.Expect(k8serr.IsNotFound(orphanErr)).To(BeTrue(),
 			"Orphaned ConfigMap should be deleted by GC because Owns(ConfigMap) returns true for dynamically owned types")
@@ -1348,11 +908,9 @@ func TestDynamicOwnership_StaticOwnershipPrecedence(t *testing.T) {
 	mgr := et.Manager()
 	cli := et.Client()
 
-	// Create test namespace
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: nsName}}
 	g.Expect(cli.Create(ctx, ns)).To(Succeed())
 
-	// Create Dashboard instance (owner)
 	dashboard := &componentApi.Dashboard{
 		ObjectMeta: metav1.ObjectMeta{Name: componentApi.DashboardInstanceName, Generation: 1},
 	}
@@ -1362,14 +920,10 @@ func TestDynamicOwnership_StaticOwnershipPrecedence(t *testing.T) {
 
 	cmName := xid.New().String()
 
-	// Build reconciler with:
-	// - Static ownership of ConfigMap via .OwnsGVK()
-	// - Dynamic ownership enabled with ConfigMap EXCLUDED
-	// Static ownership should take precedence: ConfigMap gets owner references despite exclusion.
-	rec, err := ReconcilerFor(mgr, &componentApi.Dashboard{}).
+	rec, err := reconciler.ReconcilerFor(mgr, &componentApi.Dashboard{}).
 		WithInstanceName(xid.New().String()).
 		OwnsGVK(gvk.ConfigMap).
-		WithDynamicOwnership(ExcludeGVKs(gvk.ConfigMap)).
+		WithDynamicOwnership(reconciler.ExcludeGVKs(gvk.ConfigMap)).
 		WithAction(func(_ context.Context, rr *odhtype.ReconciliationRequest) error {
 			cm := &corev1.ConfigMap{
 				TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
@@ -1382,21 +936,17 @@ func TestDynamicOwnership_StaticOwnershipPrecedence(t *testing.T) {
 		Build(ctx)
 	g.Expect(err).NotTo(HaveOccurred())
 
-	// Static ownership makes Owns() true and exclusion is only for dynamic
 	g.Expect(rec.Owns(gvk.ConfigMap)).To(BeTrue(),
 		"Owns should return true for statically owned GVK")
 	g.Expect(rec.IsExcludedFromDynamicOwnership(gvk.ConfigMap)).To(BeTrue(),
 		"ConfigMap should be excluded from dynamic ownership")
 
-	// Start manager
 	startManager(t, g, mgr)
 
-	// Reconcile
 	res, err := rec.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: dashboard.GetName()}})
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(res.RequeueAfter).To(BeZero())
 
-	// Verify ConfigMap was deployed WITH owner reference (static ownership wins over exclusion)
 	deployedCM := &corev1.ConfigMap{}
 	g.Expect(cli.Get(ctx, client.ObjectKey{Name: cmName, Namespace: nsName}, deployedCM)).To(Succeed())
 

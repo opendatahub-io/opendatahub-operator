@@ -664,7 +664,7 @@ unit-test-operator: envtest ginkgo # directly use ginkgo since the framework is 
         		--cover \
         		--coverprofile=cover.out \
         		--succinct \
-        		--skip-package=pkg/clusterhealth,cmd/health-check \
+        		--skip-package=pkg/clusterhealth,cmd/health-check,operator-actions-framework \
         		$(TEST_SRC)
 CLEANFILES += cover.out
 
