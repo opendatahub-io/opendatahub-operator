@@ -5,17 +5,18 @@ import (
 	"errors"
 	"fmt"
 
+	ccmcommon "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
+	ccmcharts "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/helm"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 var ConditionsTypes = []string{
-	status.ConditionDeploymentsAvailable,
+	status.ConditionDependenciesReady,
 }
 
 // reconcileAction holds the configuration for the combined reconcile action.
@@ -47,7 +48,10 @@ func WithDeployOptions(opts ...deploy.ActionOpts) ReconcileActionOpts {
 // - Runs PreApply hooks from HelmCharts
 // - Deploys resources via SSA
 // - Runs PostApply hooks from HelmCharts
-// - Checks deployment status.
+// - Checks per-dependency health (deployment readiness + operator CR health).
+//
+// Per-dependency monitoring is enabled automatically when rr.Instance implements
+// ccmcommon.KubernetesEngineInstance.
 func NewReconcileAction(resourceID string, opts ...ReconcileActionOpts) (actions.Fn, error) {
 	resourceID = labels.NormalizePartOfValue(resourceID)
 	if resourceID == "" {
@@ -68,13 +72,6 @@ func NewReconcileAction(resourceID string, opts ...ReconcileActionOpts) (actions
 		deploy.WithPartOfLabel(labels.InfrastructurePartOf),
 		deploy.WithAnnotationPrefix(labels.ODHInfrastructurePrefix),
 	)...)
-	deploymentsAction := deployments.NewAction(
-		deployments.InNamespaceFn(func(_ context.Context, _ *types.ReconciliationRequest) (string, error) {
-			return "", nil
-		}),
-		deployments.WithPartOfLabel(labels.InfrastructurePartOf),
-		deployments.WithSelectorLabel(labels.InfrastructurePartOf, action.resourceID),
-	)
 
 	return func(ctx context.Context, rr *types.ReconciliationRequest) error {
 		// Render Helm charts (populates rr.Resources)
@@ -103,10 +100,14 @@ func NewReconcileAction(resourceID string, opts ...ReconcileActionOpts) (actions
 			return err
 		}
 
-		// Check deployments
-		// TODO: the monitoring should be set per dependency to improve user experience
-		if err := deploymentsAction(ctx, rr); err != nil {
-			return fmt.Errorf("deployments check failed: %w", err)
+		// Per-dependency health monitoring
+		if dp, ok := rr.Instance.(ccmcommon.KubernetesEngineInstance); ok {
+			configs := ccmcharts.AllDependencyMonitorConfigs(dp.GetDependencies(), rr.ChartsBasePath)
+			if err := monitorDependencies(ctx, rr, action.resourceID, configs); err != nil {
+				return err
+			}
+
+			summarizeDependencyStatus(rr, configs)
 		}
 
 		return nil

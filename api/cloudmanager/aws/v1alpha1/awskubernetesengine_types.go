@@ -27,8 +27,8 @@ const (
 	AWSKubernetesEngineInstanceName = "default-awskubernetesengine"
 )
 
-// Check that the component implements common.PlatformObject.
-var _ apicommon.PlatformObject = (*AWSKubernetesEngine)(nil)
+// Check that the component implements common.KubernetesEngineInstance.
+var _ common.KubernetesEngineInstance = (*AWSKubernetesEngine)(nil)
 
 // AWSKubernetesEngineSpec defines the desired state of AWSKubernetesEngine.
 type AWSKubernetesEngineSpec struct {
@@ -58,6 +58,10 @@ type AWSKubernetesEngine struct {
 
 	Spec   AWSKubernetesEngineSpec   `json:"spec,omitempty"`
 	Status AWSKubernetesEngineStatus `json:"status,omitempty"`
+}
+
+func (e *AWSKubernetesEngine) GetDependencies() common.Dependencies {
+	return e.Spec.Dependencies
 }
 
 // +kubebuilder:object:root=true
