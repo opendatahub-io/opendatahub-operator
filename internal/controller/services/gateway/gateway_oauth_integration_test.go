@@ -185,6 +185,11 @@ func TestOAuthNetworkPolicyCreation(t *testing.T) {
 	RunNetworkPolicyCreationTest(t, GetOAuthTestSetup())
 }
 
+// TestOAuthNginxDashboardRedirectSkippedWithoutDashboard validates redirects are skipped when Dashboard is not deployed in OAuth mode.
+func TestOAuthNginxDashboardRedirectSkippedWithoutDashboard(t *testing.T) {
+	RunNginxDashboardRedirectSkippedWithoutDashboardTest(t, GetOAuthTestSetup())
+}
+
 // TestOAuthNginxDashboardRedirectCreation validates nginx-based dashboard redirect resources (ConfigMap, Deployment, Service, Routes) in OAuth mode.
 func TestOAuthNginxDashboardRedirectCreation(t *testing.T) {
 	RunNginxDashboardRedirectCreationTest(t, GetOAuthTestSetup())
