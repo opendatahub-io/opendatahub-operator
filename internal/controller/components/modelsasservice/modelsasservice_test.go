@@ -15,9 +15,11 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 	"sigs.k8s.io/kustomize/api/krusty"
 	"sigs.k8s.io/kustomize/api/resmap"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
@@ -329,6 +331,221 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g.Expect(err).Should(HaveOccurred())
 		g.Expect(err.Error()).Should(ContainSubstring("failed to get Tenant"))
 	})
+}
+
+func TestCheckMaaSPrerequisites(t *testing.T) {
+	handler := &componentHandler{}
+
+	t.Run("should set MaaSPrerequisitesAvailable=True when gateway and Authorino TLS are configured", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
+		gw := createMaaSGatewayWithAnnotations(map[string]string{
+			"opendatahub.io/managed":                          "false",
+			"security.opendatahub.io/authorino-tls-bootstrap": "true",
+		})
+		authorino := createAuthorinoWithTLS(true)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(testDSCI(), dsc, createTenantCR(true), gw, authorino))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cs, err := handler.UpdateDSCStatus(ctx, &pkgtypes.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType, status.ConditionMaaSPrerequisitesAvailable),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(cs).Should(Equal(metav1.ConditionTrue))
+
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				status.ConditionMaaSPrerequisitesAvailable, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`,
+				status.ConditionMaaSPrerequisitesAvailable, status.MaaSPrerequisitesMetReason),
+		)))
+	})
+
+	for _, tc := range []struct {
+		name             string
+		gwAnnotations    map[string]string
+		missingSubstring string
+	}{
+		{
+			name:             "missing managed annotation",
+			gwAnnotations:    map[string]string{"security.opendatahub.io/authorino-tls-bootstrap": "true"},
+			missingSubstring: "opendatahub.io/managed",
+		},
+		{
+			name:             "missing tls-bootstrap annotation",
+			gwAnnotations:    map[string]string{"opendatahub.io/managed": "false"},
+			missingSubstring: "authorino-tls-bootstrap",
+		},
+	} {
+		t.Run("should report issue when gateway is "+tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			ctx := t.Context()
+
+			dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
+			gw := createMaaSGatewayWithAnnotations(tc.gwAnnotations)
+			authorino := createAuthorinoWithTLS(true)
+
+			cli, err := fakeclient.New(fakeclient.WithObjects(testDSCI(), dsc, createTenantCR(true), gw, authorino))
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			_, err = handler.UpdateDSCStatus(ctx, &pkgtypes.ReconciliationRequest{
+				Client:     cli,
+				Instance:   dsc,
+				Conditions: conditions.NewManager(dsc, ReadyConditionType, status.ConditionMaaSPrerequisitesAvailable),
+			})
+
+			g.Expect(err).ShouldNot(HaveOccurred())
+			g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+					status.ConditionMaaSPrerequisitesAvailable, metav1.ConditionFalse),
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`,
+					status.ConditionMaaSPrerequisitesAvailable, status.MaaSPrerequisitesNotMetReason),
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("%s")`,
+					status.ConditionMaaSPrerequisitesAvailable, tc.missingSubstring),
+			)))
+		})
+	}
+
+	t.Run("should report issue when Authorino TLS is not enabled", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
+		gw := createMaaSGatewayWithAnnotations(map[string]string{
+			"opendatahub.io/managed":                          "false",
+			"security.opendatahub.io/authorino-tls-bootstrap": "true",
+		})
+		authorino := createAuthorinoWithTLS(false)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(testDSCI(), dsc, createTenantCR(true), gw, authorino))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		_, err = handler.UpdateDSCStatus(ctx, &pkgtypes.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType, status.ConditionMaaSPrerequisitesAvailable),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				status.ConditionMaaSPrerequisitesAvailable, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("Authorino TLS is not enabled")`,
+				status.ConditionMaaSPrerequisitesAvailable),
+		)))
+	})
+
+	t.Run("should report issue when gateway does not exist", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
+		authorino := createAuthorinoWithTLS(true)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(testDSCI(), dsc, createTenantCR(true), authorino))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		_, err = handler.UpdateDSCStatus(ctx, &pkgtypes.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType, status.ConditionMaaSPrerequisitesAvailable),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				status.ConditionMaaSPrerequisitesAvailable, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("maas-default-gateway not found")`,
+				status.ConditionMaaSPrerequisitesAvailable),
+		)))
+	})
+
+	t.Run("should not set MaaSPrerequisitesAvailable when MaaS is disabled", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Removed)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(testDSCI(), dsc))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		_, err = handler.UpdateDSCStatus(ctx, &pkgtypes.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType, status.ConditionMaaSPrerequisitesAvailable),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// MaaSPrerequisitesAvailable should NOT be set when MaaS is disabled
+		g.Expect(dsc).ShouldNot(WithTransform(json.Marshal,
+			jq.Match(`.status.conditions[] | select(.type == "%s")`, status.ConditionMaaSPrerequisitesAvailable),
+		))
+	})
+
+	t.Run("should not affect ModelsAsServiceReady when prerequisites are not met", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
+		gw := createMaaSGatewayWithAnnotations(nil)
+		authorino := createAuthorinoWithTLS(false)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(testDSCI(), dsc, createTenantCR(true), gw, authorino))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cs, err := handler.UpdateDSCStatus(ctx, &pkgtypes.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType, status.ConditionMaaSPrerequisitesAvailable),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(cs).Should(Equal(metav1.ConditionTrue))
+		g.Expect(dsc).Should(WithTransform(json.Marshal,
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				ReadyConditionType, metav1.ConditionTrue),
+		))
+		g.Expect(dsc).Should(WithTransform(json.Marshal,
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				status.ConditionMaaSPrerequisitesAvailable, metav1.ConditionFalse),
+		))
+	})
+}
+
+func createMaaSGatewayWithAnnotations(ann map[string]string) *gwapiv1.Gateway {
+	gw := &gwapiv1.Gateway{}
+	gw.SetName(DefaultGatewayName)
+	gw.SetNamespace(DefaultGatewayNamespace)
+	gw.SetAnnotations(ann)
+	gw.Spec.GatewayClassName = "openshift-default"
+	return gw
+}
+
+func createAuthorinoWithTLS(tlsEnabled bool) *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "operator.authorino.kuadrant.io/v1beta1",
+			"kind":       "Authorino",
+			"metadata": map[string]any{
+				"name":      "authorino",
+				"namespace": "kuadrant-system",
+			},
+			"spec": map[string]any{
+				"listener": map[string]any{
+					"tls": map[string]any{
+						"enabled": tlsEnabled,
+					},
+				},
+			},
+		},
+	}
 }
 
 func createDSCWithKServeAndMaaS(kserveState, maasState operatorv1.ManagementState) *dscv2.DataScienceCluster {
