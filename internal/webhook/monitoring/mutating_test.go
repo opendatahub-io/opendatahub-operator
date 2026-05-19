@@ -100,14 +100,14 @@ func createWebhookInjector(cli client.Client, sch *runtime.Scheme) *monitoring.I
 // hasLabelPatch checks if any patch adds the monitoring label.
 func hasLabelPatch(patches []jsonpatch.JsonPatchOperation) bool {
 	for _, patch := range patches {
-		if patch.Path == "/metadata/labels" || patch.Path == "/metadata/labels/opendatahub.io~1monitoring" {
+		if patch.Path == "/metadata/labels" || patch.Path == "/metadata/labels/monitoring.opendatahub.io~1scrape" {
 			if labelMap, ok := patch.Value.(map[string]any); ok {
 				if val, exists := labelMap[labels.ODHLabelMonitoring]; exists && val == monitoringLabelValue {
 					return true
 				}
 			}
 			// Check if it's a single label addition
-			if patch.Path == "/metadata/labels/opendatahub.io~1monitoring" && patch.Value == monitoringLabelValue {
+			if patch.Path == "/metadata/labels/monitoring.opendatahub.io~1scrape" && patch.Value == monitoringLabelValue {
 				return true
 			}
 		}

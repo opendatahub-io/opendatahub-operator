@@ -275,7 +275,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringLabelValueEnforcementOnMonitors(t
 	tc.g.Expect(err).To(MatchError(ContainSubstring("must be set to 'true' or 'false'")), "Error message should indicate valid values for ServiceMonitor")
 }
 
-// ValidateMonitorLabelInjection tests that the mutating webhook injects opendatahub.io/monitoring=true label into Monitors.
+// ValidateMonitorLabelInjection tests that the mutating webhook injects monitoring.opendatahub.io/scrape=true label into Monitors.
 func (tc *MonitoringTestCtx) ValidateMonitorLabelInjection(t *testing.T) {
 	t.Helper()
 
@@ -292,8 +292,8 @@ func (tc *MonitoringTestCtx) ValidateMonitorLabelInjection(t *testing.T) {
 			Name:      TestPodMonitorName,
 			Namespace: TestNamespaceName,
 		}),
-		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "true"`)),
-		WithCustomErrorMsg("Mutating webhook should inject opendatahub.io/monitoring=true label into PodMonitor"),
+		WithCondition(jq.Match(`.metadata.labels."monitoring.opendatahub.io/scrape" == "true"`)),
+		WithCustomErrorMsg("Mutating webhook should inject monitoring.opendatahub.io/scrape=true label into PodMonitor"),
 	)
 
 	// Verify webhook injected the monitoring label into ServiceMonitor
@@ -302,8 +302,8 @@ func (tc *MonitoringTestCtx) ValidateMonitorLabelInjection(t *testing.T) {
 			Name:      TestServiceMonitorName,
 			Namespace: TestNamespaceName,
 		}),
-		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "true"`)),
-		WithCustomErrorMsg("Mutating webhook should inject opendatahub.io/monitoring=true label into ServiceMonitor"),
+		WithCondition(jq.Match(`.metadata.labels."monitoring.opendatahub.io/scrape" == "true"`)),
+		WithCustomErrorMsg("Mutating webhook should inject monitoring.opendatahub.io/scrape=true label into ServiceMonitor"),
 	)
 }
 
@@ -332,7 +332,7 @@ func (tc *MonitoringTestCtx) ValidateMonitorsCreationWithCustomLabels(t *testing
 		}),
 		WithCondition(jq.Match(`.metadata.labels."app" == "my-app"`)),
 		WithCondition(jq.Match(`.metadata.labels."team" == "platform"`)),
-		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "true"`)),
+		WithCondition(jq.Match(`.metadata.labels."monitoring.opendatahub.io/scrape" == "true"`)),
 		WithCustomErrorMsg("Webhook should inject monitoring=true AND preserve custom labels (PodMonitor)"),
 	)
 
@@ -344,7 +344,7 @@ func (tc *MonitoringTestCtx) ValidateMonitorsCreationWithCustomLabels(t *testing
 		}),
 		WithCondition(jq.Match(`.metadata.labels."app" == "my-app"`)),
 		WithCondition(jq.Match(`.metadata.labels."team" == "platform"`)),
-		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "true"`)),
+		WithCondition(jq.Match(`.metadata.labels."monitoring.opendatahub.io/scrape" == "true"`)),
 		WithCustomErrorMsg("Webhook should inject monitoring=true AND preserve custom labels (ServiceMonitor)"),
 	)
 }
@@ -366,14 +366,14 @@ func (tc *MonitoringTestCtx) ValidateMonitorLabelInjectionOnUpdate(t *testing.T)
 			Name:      TestPodMonitorName,
 			Namespace: TestNamespaceName,
 		}),
-		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == null`)),
+		WithCondition(jq.Match(`.metadata.labels."monitoring.opendatahub.io/scrape" == null`)),
 		WithCustomErrorMsg("PodMonitor should not have monitoring label when created in non-monitored namespace"),
 	)
 
 	// Step 2: Update namespace to opt-in for monitoring
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: TestNamespaceName}),
-		WithMutateFunc(testf.Transform(`.metadata.labels."opendatahub.io/monitoring" = "true"`)),
+		WithMutateFunc(testf.Transform(`.metadata.labels."monitoring.opendatahub.io/scrape" = "true"`)),
 	)
 
 	// Step 3: UPDATE the PodMonitor (trigger webhook on UPDATE operation)
@@ -391,7 +391,7 @@ func (tc *MonitoringTestCtx) ValidateMonitorLabelInjectionOnUpdate(t *testing.T)
 			Name:      TestPodMonitorName,
 			Namespace: TestNamespaceName,
 		}),
-		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "true"`)),
+		WithCondition(jq.Match(`.metadata.labels."monitoring.opendatahub.io/scrape" == "true"`)),
 		WithCustomErrorMsg("Webhook should inject monitoring label on UPDATE operation (PodMonitor)"),
 	)
 
@@ -410,7 +410,7 @@ func (tc *MonitoringTestCtx) ValidateMonitorLabelInjectionOnUpdate(t *testing.T)
 			Name:      TestServiceMonitorName,
 			Namespace: TestNamespaceName,
 		}),
-		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "true"`)),
+		WithCondition(jq.Match(`.metadata.labels."monitoring.opendatahub.io/scrape" == "true"`)),
 		WithCustomErrorMsg("Webhook should inject monitoring label on UPDATE operation (ServiceMonitor)"),
 	)
 }
@@ -440,14 +440,14 @@ func (tc *MonitoringTestCtx) ValidateMonitorLabelInjectionOnUpdateWithCustomLabe
 		}),
 		WithCondition(jq.Match(`.metadata.labels."app" == "my-app"`)),
 		WithCondition(jq.Match(`.metadata.labels."team" == "platform"`)),
-		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == null`)),
+		WithCondition(jq.Match(`.metadata.labels."monitoring.opendatahub.io/scrape" == null`)),
 		WithCustomErrorMsg("PodMonitor should have custom labels but no monitoring label initially"),
 	)
 
 	// Step 2: Update namespace to opt-in for monitoring
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: TestNamespaceName}),
-		WithMutateFunc(testf.Transform(`.metadata.labels."opendatahub.io/monitoring" = "true"`)),
+		WithMutateFunc(testf.Transform(`.metadata.labels."monitoring.opendatahub.io/scrape" = "true"`)),
 	)
 
 	// Step 3: UPDATE the PodMonitor
@@ -467,7 +467,7 @@ func (tc *MonitoringTestCtx) ValidateMonitorLabelInjectionOnUpdateWithCustomLabe
 		}),
 		WithCondition(jq.Match(`.metadata.labels."app" == "my-app"`)),
 		WithCondition(jq.Match(`.metadata.labels."team" == "platform"`)),
-		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "true"`)),
+		WithCondition(jq.Match(`.metadata.labels."monitoring.opendatahub.io/scrape" == "true"`)),
 		WithCustomErrorMsg("Webhook should inject monitoring label AND preserve custom labels on UPDATE (PodMonitor)"),
 	)
 
@@ -488,7 +488,7 @@ func (tc *MonitoringTestCtx) ValidateMonitorLabelInjectionOnUpdateWithCustomLabe
 		}),
 		WithCondition(jq.Match(`.metadata.labels."app" == "my-app"`)),
 		WithCondition(jq.Match(`.metadata.labels."team" == "platform"`)),
-		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "true"`)),
+		WithCondition(jq.Match(`.metadata.labels."monitoring.opendatahub.io/scrape" == "true"`)),
 		WithCustomErrorMsg("Webhook should inject monitoring label AND preserve custom labels on UPDATE (ServiceMonitor)"),
 	)
 }
@@ -510,7 +510,7 @@ func (tc *MonitoringTestCtx) ValidateWebhookSkipsNonMonitoredNamespace(t *testin
 			Name:      TestPodMonitorName,
 			Namespace: TestNamespaceName,
 		}),
-		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == null`)),
+		WithCondition(jq.Match(`.metadata.labels."monitoring.opendatahub.io/scrape" == null`)),
 		WithCustomErrorMsg("Webhook should NOT inject monitoring label when namespace is not opted-in (PodMonitor)"),
 	)
 
@@ -520,7 +520,7 @@ func (tc *MonitoringTestCtx) ValidateWebhookSkipsNonMonitoredNamespace(t *testin
 			Name:      TestServiceMonitorName,
 			Namespace: TestNamespaceName,
 		}),
-		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == null`)),
+		WithCondition(jq.Match(`.metadata.labels."monitoring.opendatahub.io/scrape" == null`)),
 		WithCustomErrorMsg("Webhook should NOT inject monitoring label when namespace is not opted-in (ServiceMonitor)"),
 	)
 }
@@ -542,7 +542,7 @@ func (tc *MonitoringTestCtx) ValidateWebhookSkipsExplicitlyOptedOutNamespace(t *
 			Name:      TestPodMonitorName,
 			Namespace: TestNamespaceName,
 		}),
-		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == null`)),
+		WithCondition(jq.Match(`.metadata.labels."monitoring.opendatahub.io/scrape" == null`)),
 		WithCustomErrorMsg("Webhook should NOT inject monitoring label when namespace explicitly has monitoring=false (PodMonitor)"),
 	)
 
@@ -552,7 +552,7 @@ func (tc *MonitoringTestCtx) ValidateWebhookSkipsExplicitlyOptedOutNamespace(t *
 			Name:      TestServiceMonitorName,
 			Namespace: TestNamespaceName,
 		}),
-		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == null`)),
+		WithCondition(jq.Match(`.metadata.labels."monitoring.opendatahub.io/scrape" == null`)),
 		WithCustomErrorMsg("Webhook should NOT inject monitoring label when namespace explicitly has monitoring=false (ServiceMonitor)"),
 	)
 }
@@ -579,7 +579,7 @@ func (tc *MonitoringTestCtx) ValidateWebhookRespectsUserOptOut(t *testing.T) {
 			Name:      TestPodMonitorName,
 			Namespace: TestNamespaceName,
 		}),
-		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "false"`)),
+		WithCondition(jq.Match(`.metadata.labels."monitoring.opendatahub.io/scrape" == "false"`)),
 		WithCustomErrorMsg("Webhook should respect user's explicit monitoring=false on PodMonitor"),
 	)
 
@@ -589,7 +589,7 @@ func (tc *MonitoringTestCtx) ValidateWebhookRespectsUserOptOut(t *testing.T) {
 			Name:      TestServiceMonitorName,
 			Namespace: TestNamespaceName,
 		}),
-		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "false"`)),
+		WithCondition(jq.Match(`.metadata.labels."monitoring.opendatahub.io/scrape" == "false"`)),
 		WithCustomErrorMsg("Webhook should respect user's explicit monitoring=false on ServiceMonitor"),
 	)
 }
@@ -616,7 +616,7 @@ func (tc *MonitoringTestCtx) ValidateWebhookIdempotency(t *testing.T) {
 			Name:      TestPodMonitorName,
 			Namespace: TestNamespaceName,
 		}),
-		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "true"`)),
+		WithCondition(jq.Match(`.metadata.labels."monitoring.opendatahub.io/scrape" == "true"`)),
 		WithCustomErrorMsg("Webhook should be idempotent - PodMonitor already has monitoring=true"),
 	)
 
@@ -626,7 +626,7 @@ func (tc *MonitoringTestCtx) ValidateWebhookIdempotency(t *testing.T) {
 			Name:      TestServiceMonitorName,
 			Namespace: TestNamespaceName,
 		}),
-		WithCondition(jq.Match(`.metadata.labels."opendatahub.io/monitoring" == "true"`)),
+		WithCondition(jq.Match(`.metadata.labels."monitoring.opendatahub.io/scrape" == "true"`)),
 		WithCustomErrorMsg("Webhook should be idempotent - ServiceMonitor already has monitoring=true"),
 	)
 }
@@ -634,7 +634,7 @@ func (tc *MonitoringTestCtx) ValidateWebhookIdempotency(t *testing.T) {
 // ValidateWebhookSkipsWhenMonitoringDisabled tests that webhook does not inject labels when monitoring is disabled.
 // This test verifies that the webhook checks whether the Monitoring CR exists and monitoring is enabled
 // before performing label injection. When monitoring is disabled (managementState: Removed),
-// the webhook should not inject labels even if the namespace has opendatahub.io/monitoring=true.
+// the webhook should not inject labels even if the namespace has monitoring.opendatahub.io/scrape=true.
 func (tc *MonitoringTestCtx) ValidateWebhookSkipsWhenMonitoringDisabled(t *testing.T) {
 	t.Helper()
 
@@ -669,7 +669,7 @@ func (tc *MonitoringTestCtx) ValidateWebhookSkipsWhenMonitoringDisabled(t *testi
 		labels.ODHLabelMonitoring: "true",
 	}
 
-	// Step 4: Create monitors WITHOUT the opendatahub.io/monitoring label
+	// Step 4: Create monitors WITHOUT the monitoring.opendatahub.io/scrape label
 	// The webhook should NOT inject the label because monitoring is disabled
 	noLabels := map[string]string{} // No monitoring label on the monitor itself
 
@@ -683,7 +683,7 @@ func (tc *MonitoringTestCtx) ValidateWebhookSkipsWhenMonitoringDisabled(t *testi
 			Namespace: TestNamespaceName,
 		}),
 	)
-	tc.g.Expect(podMonitor.GetLabels()).NotTo(HaveKey("opendatahub.io/monitoring"),
+	tc.g.Expect(podMonitor.GetLabels()).NotTo(HaveKey("monitoring.opendatahub.io/scrape"),
 		"Webhook should NOT inject monitoring=true when monitoring is disabled (PodMonitor)")
 
 	// Step 6: Verify ServiceMonitor does NOT have monitoring=true label injected
@@ -694,7 +694,7 @@ func (tc *MonitoringTestCtx) ValidateWebhookSkipsWhenMonitoringDisabled(t *testi
 			Namespace: TestNamespaceName,
 		}),
 	)
-	tc.g.Expect(serviceMonitor.GetLabels()).NotTo(HaveKey("opendatahub.io/monitoring"),
+	tc.g.Expect(serviceMonitor.GetLabels()).NotTo(HaveKey("monitoring.opendatahub.io/scrape"),
 		"Webhook should NOT inject monitoring=true when monitoring is disabled (ServiceMonitor)")
 
 	t.Logf("Webhook correctly skipped injection when monitoring was disabled")
