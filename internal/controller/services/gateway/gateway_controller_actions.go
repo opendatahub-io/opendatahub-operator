@@ -184,6 +184,10 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 			return fmt.Errorf("failed to create OAuth client: %w", err)
 		}
 		l.V(1).Info("OAuth client created successfully")
+
+		if err := deleteLegacyOAuthClient(ctx, rr, gatewayConfig); err != nil {
+			l.Error(err, "failed to clean up legacy OAuth client, will retry next reconciliation", "name", LegacyAuthClientID)
+		}
 	}
 	rr.Templates = append(rr.Templates, kubeAuthProxyDeploymentTemplates)
 	// Add other KubeAuthProxy templates to the reconciliation request

@@ -95,6 +95,7 @@ func gatewayTestSuite(t *testing.T) {
 		{"Validate Gateway infrastructure", gatewayCtx.ValidateGatewayInfrastructure},
 		// IntegratedOAuth-specific tests (skipped on BYOIDC)
 		{"Validate OAuth client and secret creation", gatewayCtx.ValidateOAuthClientAndSecret},
+		{"Validate legacy OAuth client cleanup", gatewayCtx.ValidateLegacyOAuthClientCleanup},
 		{"Validate authentication proxy deployment", gatewayCtx.ValidateAuthProxyDeployment},
 		{"Validate unauthenticated access redirects to login", gatewayCtx.ValidateUnauthenticatedRedirect},
 		// BYOIDC-specific tests (skipped on IntegratedOAuth)
@@ -232,6 +233,7 @@ func (tc *GatewayTestCtx) ValidateOAuthClientAndSecret(t *testing.T) {
 			jq.Match(`.data | has("OAUTH2_PROXY_CLIENT_ID")`),
 			jq.Match(`.data | has("OAUTH2_PROXY_CLIENT_SECRET")`),
 			jq.Match(`.data | has("OAUTH2_PROXY_COOKIE_SECRET")`),
+			jq.Match(`.data.OAUTH2_PROXY_CLIENT_ID | @base64d == "%s"`, oauthClientName),
 			jq.Match(`.data.OAUTH2_PROXY_CLIENT_SECRET | length > 0`),
 			jq.Match(`.data.OAUTH2_PROXY_COOKIE_SECRET | length > 0`),
 		)),
@@ -240,6 +242,25 @@ func (tc *GatewayTestCtx) ValidateOAuthClientAndSecret(t *testing.T) {
 	)
 
 	t.Log("OAuth client and secret validation completed")
+}
+
+// ValidateLegacyOAuthClientCleanup validates that no legacy "odh" OAuthClient remains
+// after reconciliation. During upgrade from RHOAI 3.3 to 3.4, the OAuth client was renamed
+// from "odh" to "data-science". The controller must delete the stale "odh" client to prevent
+// authentication failures caused by mismatched client IDs and redirect URIs.
+func (tc *GatewayTestCtx) ValidateLegacyOAuthClientCleanup(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+	tc.SkipIfBYOIDC(t)
+	t.Log("Validating legacy OAuthClient cleanup")
+
+	tc.EnsureResourceDoesNotExist(
+		WithMinimalObject(gvk.OAuthClient, types.NamespacedName{Name: gateway.LegacyAuthClientID}),
+		WithCustomErrorMsg("Legacy OAuthClient %q should not exist after reconciliation", gateway.LegacyAuthClientID),
+	)
+
+	t.Log("Legacy OAuthClient cleanup validation completed")
 }
 
 // ValidateAuthProxyDeployment validates the kube-auth-proxy deployment and service.

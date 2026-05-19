@@ -4,6 +4,7 @@
 package gateway
 
 import (
+	oauthv1 "github.com/openshift/api/oauth/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -18,6 +19,7 @@ func setupTestClient() *fake.ClientBuilder {
 	scheme := runtime.NewScheme()
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(gwapiv1.Install(scheme))
+	utilruntime.Must(oauthv1.Install(scheme))
 	utilruntime.Must(serviceApi.AddToScheme(scheme))
 	return fake.NewClientBuilder().WithScheme(scheme)
 }
