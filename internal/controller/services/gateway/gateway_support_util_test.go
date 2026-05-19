@@ -10,6 +10,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 )
 
@@ -19,5 +20,6 @@ func setupTestClient() *fake.ClientBuilder {
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(gwapiv1.Install(scheme))
 	utilruntime.Must(serviceApi.AddToScheme(scheme))
+	utilruntime.Must(dscv2.AddToScheme(scheme))
 	return fake.NewClientBuilder().WithScheme(scheme)
 }

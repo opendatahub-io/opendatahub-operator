@@ -79,6 +79,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed(componentApi.DashboardInstanceName)),
 		).
 		WithAction(createGatewayInfrastructure).
+		WithAction(createMaaSGateway).
 		WithAction(createKubeAuthProxyInfrastructure). //  include destinationrule
 		WithAction(createEnvoyFilter).
 		WithAction(createNetworkPolicy).
