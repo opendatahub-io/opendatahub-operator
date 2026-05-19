@@ -10,6 +10,7 @@ The current ODH operator design adheres to the following general goals:
 - Create an opinionated deployment of ODH components.
 - Provide the ability to enable/disable individual components.
 - Provide users and cluster administrators with the ability to customize components.
+- Provide information about missing dependencies. The ODH operator doesn't deploy other operators by design. See https://github.com/opendatahub-io/odh-gitops for deploying and managing ODH and its dependencies with GitOps.
 - Provide the ability to reconcile individual ODH components using dedicated component controllers, instead of relying on a single controller/reconcile loop for everything.
   - improve scalability, separation of concerns/modularity, and error handling/failure isolation.
 - Improve operator performance.
@@ -51,6 +52,7 @@ Together, these CRs are responsible for configuration of ODH at the platform lev
 - Some examples of initial setup include creating namespaces, network policies, common configmaps and secrets.
 - DSCI instance is a singleton in the cluster, i.e., only one instance of this CR can be present in the cluster.
 - DSCI controller implementation can be found in `internal/controller/dscinitialization` directory.
+- In its status, the DSCI CR indicates missing dependencies that are not specific to a single component.
 
 #### DataScienceCluster (DSC)
 
@@ -59,6 +61,7 @@ Together, these CRs are responsible for configuration of ODH at the platform lev
 - Like with DSCI, DSC instance is also a singleton in the cluster. A user can update the CR to enable/disable components.
 - DSC controller implementation can be found in `internal/controller/datasciencecluster` directory.
 - Detailed API fields are described in the CRD. Example DSC configurations are provided in the [Examples section](#examples).
+- In its status, the DSC CR indicates missing dependencies for a specific component, or component-specific features that are affected by missing dependencies.
 
 #### Auth
 
