@@ -35,7 +35,7 @@ const (
 	Delete string = "delete"
 )
 
-//+kubebuilder:webhook:path=/platform-connection-notebook,mutating=true,failurePolicy=fail,groups=kubeflow.org,resources=notebooks,verbs=create;update,versions=v1,name=connection-notebook.opendatahub.io,sideEffects=None,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/platform-connection-notebook,mutating=true,failurePolicy=fail,groups=kubeflow.org,resources=notebooks,verbs=create;update,versions=v1,name=connection-notebook.opendatahub.io,sideEffects=None,admissionReviewVersions=v1,timeoutSeconds=10
 //nolint:lll
 
 // Validator implements webhook.AdmissionHandler for Notebook connection validation webhooks.
