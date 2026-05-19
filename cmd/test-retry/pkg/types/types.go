@@ -60,9 +60,11 @@ type E2ETestOptions struct {
 	// test prefixes that should never be skipped (always run)
 	NeverSkipPrefixes []string
 	// prefixes where tests should be extracted at prefix + 1 level
-	SkipAtPrefixes  []string
-	PROptions       PROptions
-	JUnitOutputPath string // Path to JUnit XML output file (optional)
+	SkipAtPrefixes   []string
+	PROptions        PROptions
+	JUnitOutputPath  string // Path to JUnit XML output file (optional)
+	QuarantineConfig string // Path to quarantine config JSON file (optional)
+	CommitSHA        string // Git commit SHA embedded into JUnit XML (optional)
 }
 
 // TestCase represents a single test case (passed or failed)

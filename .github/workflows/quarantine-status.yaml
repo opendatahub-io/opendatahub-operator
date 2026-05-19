@@ -1,0 +1,69 @@
+name: Quarantine Status
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  pull-requests: write
+
+env:
+  QUARANTINE_PATH: tests/e2e/quarantine.json
+
+jobs:
+  quarantine-status:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build quarantine comment
+        id: build
+        run: |
+          QCFG="${{ env.QUARANTINE_PATH }}"
+
+          if [ ! -f "$QCFG" ]; then
+            echo "has_entries=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          COUNT=$(jq '.tests | length' "$QCFG")
+          if [ "$COUNT" -eq 0 ]; then
+            echo "has_entries=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "has_entries=true" >> "$GITHUB_OUTPUT"
+
+          MD=$(mktemp)
+          echo "## 🔇 Quarantined E2E Tests" > "$MD"
+          echo "" >> "$MD"
+          printf "**%d** test(s) are currently quarantined and will be **skipped** in CI.\n" "$COUNT" >> "$MD"
+          echo "" >> "$MD"
+          echo "| Test | Jira | Flake Rate | Re-enable After |" >> "$MD"
+          echo "|------|------|-----------|-----------------|" >> "$MD"
+          jq -r '.tests[] | "| `\(.name)` | \(if .jira then "[\(.jira)](https://redhat.atlassian.net/browse/\(.jira))" else "—" end) | \(if .flake_rate then "\(.flake_rate * 100 | floor)%" else "—" end) | \(.re_enable_after // "—") |"' "$QCFG" >> "$MD"
+          echo "" >> "$MD"
+          echo "---" >> "$MD"
+          echo "<sub>Posted by <a href=\"https://github.com/${{ github.repository }}/blob/main/.github/workflows/quarantine-status.yaml\">Quarantine Status</a> · <a href=\"https://github.com/${{ github.repository }}/blob/main/tests/e2e/quarantine.json\">quarantine.json</a></sub>" >> "$MD"
+
+          # Store for the next step (use delimiter for multiline)
+          {
+            echo "comment<<COMMENT_EOF"
+            cat "$MD"
+            echo "COMMENT_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Post quarantine comment
+        if: steps.build.outputs.has_entries == 'true'
+        uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
+        with:
+          message: ${{ steps.build.outputs.comment }}
+          comment-tag: quarantine-status
+          mode: upsert
+
+      - name: Remove quarantine comment
+        if: steps.build.outputs.has_entries == 'false'
+        uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
+        with:
+          comment-tag: quarantine-status
+          mode: delete

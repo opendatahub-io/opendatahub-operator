@@ -6,7 +6,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/test-retry/pkg/config"
 )
 
-// NewRootCommand creates the root command for test-retry CLI
+// NewRootCommand creates the root command for test-retry CLI.
 func NewRootCommand() *cobra.Command {
 	cfg := &config.Config{}
 
@@ -24,6 +24,7 @@ execution more efficient and reliable.`,
 
 	// Add subcommands
 	rootCmd.AddCommand(NewE2ECommand(cfg))
+	rootCmd.AddCommand(NewFlakeReportCommand(cfg))
 
 	return rootCmd
 }
