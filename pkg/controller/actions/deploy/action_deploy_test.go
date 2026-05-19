@@ -2,6 +2,7 @@ package deploy_test
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -23,6 +25,7 @@ import (
 	apimachinery "k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
@@ -1868,4 +1871,140 @@ func TestDeployCRDWithPartOfLabel(t *testing.T) {
 		jq.Match(`.metadata.labels."%s" == "%s"`, customLabelKey, "dashboard"),
 		Not(jq.Match(`.metadata.labels | has("%s")`, labels.PlatformPartOf)),
 	))
+}
+
+func TestDeployContinueOnError(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := t.Context()
+	ns := xid.New().String()
+	failName := xid.New().String()
+	okName := xid.New().String()
+
+	cl, err := fakeclient.New(
+		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+			Create: func(ctx context.Context, client client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
+				if obj.GetName() == failName {
+					return errors.New("simulated webhook error: connection refused")
+				}
+				return client.Create(ctx, obj, opts...)
+			},
+			Apply: func(ctx context.Context, cl client.WithWatch, apply runtime.ApplyConfiguration, opts ...client.ApplyOption) error {
+				// ApplyConfigurationFromUnstructured wraps *unstructured.Unstructured
+				type nameGetter interface {
+					GetName() string
+				}
+				if ng, ok := apply.(nameGetter); ok && ng.GetName() == failName {
+					return errors.New("simulated webhook error: connection refused")
+				}
+				return cl.Apply(ctx, apply, opts...)
+			},
+		}),
+	)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	failObj, err := resources.ToUnstructured(&corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "ConfigMap",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      failName,
+			Namespace: ns,
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	okObj, err := resources.ToUnstructured(&corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "ConfigMap",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      okName,
+			Namespace: ns,
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	t.Run("WithContinueOnError deploys remaining resources after failure", func(t *testing.T) {
+		g := NewWithT(t)
+
+		action := deploy.NewAction(
+			deploy.WithContinueOnError(),
+		)
+
+		rr := types.ReconciliationRequest{
+			Client: cl,
+			Instance: &componentApi.Dashboard{
+				ObjectMeta: metav1.ObjectMeta{
+					Generation: 1,
+				},
+			},
+			Release: common.Release{
+				Name: cluster.OpenDataHub,
+				Version: version.OperatorVersion{Version: semver.Version{
+					Major: 1, Minor: 2, Patch: 3,
+				}},
+			},
+			Resources: []unstructured.Unstructured{*failObj, *okObj},
+			Controller: mocks.NewMockController(func(m *mocks.MockController) {
+				m.On("Owns", mock.Anything).Return(false)
+			}),
+		}
+
+		err := action(ctx, &rr)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(err.Error()).Should(ContainSubstring(failName))
+		g.Expect(err.Error()).ShouldNot(ContainSubstring(okName))
+
+		out := &corev1.ConfigMap{}
+		g.Expect(cl.Get(ctx, client.ObjectKey{Namespace: ns, Name: okName}, out)).Should(Succeed())
+	})
+
+	t.Run("without ContinueOnError stops at first failure", func(t *testing.T) {
+		g := NewWithT(t)
+
+		okName2 := xid.New().String()
+		okObj2, err := resources.ToUnstructured(&corev1.ConfigMap{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: corev1.SchemeGroupVersion.String(),
+				Kind:       "ConfigMap",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      okName2,
+				Namespace: ns,
+			},
+		})
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		action := deploy.NewAction()
+
+		rr := types.ReconciliationRequest{
+			Client: cl,
+			Instance: &componentApi.Dashboard{
+				ObjectMeta: metav1.ObjectMeta{
+					Generation: 1,
+				},
+			},
+			Release: common.Release{
+				Name: cluster.OpenDataHub,
+				Version: version.OperatorVersion{Version: semver.Version{
+					Major: 1, Minor: 2, Patch: 3,
+				}},
+			},
+			Resources: []unstructured.Unstructured{*failObj, *okObj2},
+			Controller: mocks.NewMockController(func(m *mocks.MockController) {
+				m.On("Owns", mock.Anything).Return(false)
+			}),
+		}
+
+		err = action(ctx, &rr)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(err.Error()).Should(ContainSubstring(failName))
+
+		out := &corev1.ConfigMap{}
+		err = cl.Get(ctx, client.ObjectKey{Namespace: ns, Name: okName2}, out)
+		g.Expect(k8serr.IsNotFound(err)).Should(BeTrue())
+	})
 }

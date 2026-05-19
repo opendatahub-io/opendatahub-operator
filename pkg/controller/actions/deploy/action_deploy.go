@@ -55,6 +55,7 @@ type Action struct {
 	annotations      map[string]string
 	cache            *Cache
 	sortFn           SortFn
+	continueOnError  bool
 }
 
 type ActionOpts func(*Action)
@@ -142,6 +143,16 @@ func WithApplyOrder() ActionOpts {
 	return WithSortFn(resources.SortByApplyOrder)
 }
 
+// WithContinueOnError makes the deploy action continue applying remaining
+// resources when an individual resource fails instead of stopping at the
+// first error. All errors are collected and returned as a joined error.
+// Failed resources will be retried on the next reconcile cycle.
+func WithContinueOnError() ActionOpts {
+	return func(action *Action) {
+		action.continueOnError = true
+	}
+}
+
 // resolveFieldOwner returns the effective field owner for the reconciled
 // instance.  When a.fieldOwner is explicitly configured it is returned
 // as-is; otherwise the owner is derived from the instance's Kind.
@@ -179,6 +190,9 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 
 	igvk := rr.Instance.GetObjectKind().GroupVersionKind()
 
+	var firstErr error
+	var failedResources []string
+
 	for i := range rr.Resources {
 		res := rr.Resources[i]
 		current := resources.GvkToUnstructured(res.GroupVersionKind())
@@ -190,7 +204,21 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 			// that there's no previous known state of the resource
 			current = nil
 		case lookupErr != nil:
-			return fmt.Errorf("failed to lookup object %s/%s: %w", res.GetNamespace(), res.GetName(), lookupErr)
+			if !a.continueOnError {
+				return fmt.Errorf("failed to lookup object %s/%s: %w", res.GetNamespace(), res.GetName(), lookupErr)
+			}
+
+			resErr := fmt.Errorf("failed to lookup object %s/%s: %w", res.GetNamespace(), res.GetName(), lookupErr)
+			logf.FromContext(ctx).Error(lookupErr, "resource lookup failed, continuing",
+				"namespace", res.GetNamespace(), "name", res.GetName())
+
+			if firstErr == nil {
+				firstErr = resErr
+			}
+
+			failedResources = append(failedResources, res.GetNamespace()+"/"+res.GetName())
+
+			continue
 		default:
 			// Remove the previous owner reference if set, This is required during the
 			// transition from the old to the new operator.
@@ -221,12 +249,35 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 		}
 
 		if err != nil {
-			return fmt.Errorf("failure deploying resource %s/%s: %w", res.GetNamespace(), res.GetName(), err)
+			if !a.continueOnError {
+				return fmt.Errorf("failure deploying resource %s/%s: %w", res.GetNamespace(), res.GetName(), err)
+			}
+
+			resErr := fmt.Errorf("failure deploying resource %s/%s: %w", res.GetNamespace(), res.GetName(), err)
+			logf.FromContext(ctx).Error(err, "resource deploy failed, continuing",
+				"namespace", res.GetNamespace(), "name", res.GetName())
+
+			if firstErr == nil {
+				firstErr = resErr
+			}
+
+			failedResources = append(failedResources, res.GetNamespace()+"/"+res.GetName())
+
+			continue
 		}
 
 		if ok {
 			DeployedResourcesTotal.WithLabelValues(controllerName).Inc()
 		}
+	}
+
+	if len(failedResources) > 0 {
+		if len(failedResources) == 1 {
+			return firstErr
+		}
+
+		return fmt.Errorf("%w; %d more resources failed: %s (see logs for details)",
+			firstErr, len(failedResources)-1, strings.Join(failedResources[1:], ", "))
 	}
 
 	return nil
