@@ -33,12 +33,6 @@ func NewHandler() *handler {
 				ReleaseName:       "odh-observability",
 				ChartDir:          "odh-observability",
 				NamespaceValueKey: "operatorNamespace",
-				Values: map[string]any{
-					"image": map[string]any{
-						"repository": "quay.io/stobin/odh-observability",
-						"tag":        "v0.0.2",
-					},
-				},
 				GVK: schema.GroupVersionKind{
 					Group:   "services.platform.opendatahub.io",
 					Version: "v1alpha1",
