@@ -203,7 +203,7 @@ func (i *Injector) performMonitoringInjection(ctx context.Context, req *admissio
 				"resource", obj.GetName(),
 				"namespace", resourceNamespace)
 
-			// Inject opendatahub.io/monitoring=true label only if not already set
+			// Inject monitoring.opendatahub.io/scrape=true label only if not already set
 			lbls := obj.GetLabels()
 			if lbls == nil {
 				lbls = make(map[string]string)
