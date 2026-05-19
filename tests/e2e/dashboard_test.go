@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -43,6 +45,7 @@ func dashboardTestSuite(t *testing.T) {
 		{"Validate dynamically watches operands", componentCtx.ValidateOperandsDynamicallyWatchedResources},
 		{"Validate CRDs reinstated", componentCtx.ValidateCRDReinstated},
 		{"Validate VAP blocks dashboard HardwareProfile and AcceleratorProfile creation", componentCtx.ValidateVAPBlocksDashboardCRCreation},
+		{"Validate Perses observability uses v1alpha2 API", componentCtx.ValidatePersesObservabilityAPIVersion},
 		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
@@ -86,6 +89,38 @@ func (tc *DashboardTestCtx) ValidateOperandsDynamicallyWatchedResources(t *testi
 		WithCondition(
 			HaveEach(
 				jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformType, oldPt),
+			),
+		),
+	)
+}
+
+// ValidatePersesObservabilityAPIVersion ensures that when the PersesDashboard CRD is present,
+// the dashboard controller deploys PersesDashboard resources using the v1alpha2 API version.
+func (tc *DashboardTestCtx) ValidatePersesObservabilityAPIVersion(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+
+	ctx := context.Background()
+	exists, err := cluster.HasCRD(ctx, tc.Client(), gvk.PersesDashboardV1Alpha2)
+	require.NoError(t, err)
+	if !exists {
+		t.Skip("Skipping Perses API version test: PersesDashboard v1alpha2 CRD not installed")
+	}
+
+	tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.PersesDashboardV1Alpha2, types.NamespacedName{Namespace: tc.MonitoringNamespace}),
+		WithListOptions(
+			&client.ListOptions{
+				Namespace: tc.MonitoringNamespace,
+				LabelSelector: k8slabels.Set{
+					labels.K8SCommon.PartOf: "dashboard",
+				}.AsSelector(),
+			},
+		),
+		WithCondition(
+			HaveEach(
+				jq.Match(`.apiVersion == "perses.dev/v1alpha2"`),
 			),
 		),
 	)
