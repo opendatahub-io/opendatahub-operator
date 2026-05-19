@@ -31,7 +31,7 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["trainer"]="opendatahub-io:trainer:stable@51baadf644cd5d2c1672f1c658be46ad82f01b44:manifests"
     ["maas"]="opendatahub-io:models-as-a-service:stable@322a2753643fefe47920d22a41fadeb4587993da:deployment"
     ["mlflowoperator"]="opendatahub-io:mlflow-operator:main@8ab07a89d6d2d6bc2ffa0c8601f4a856a4cb1b18:config"
-    ["sparkoperator"]="opendatahub-io:spark-operator:main@bc7885e2d34a9a0293672c1e8155e5446dcc0722:config"
+    ["sparkoperator"]="Vedant-Deshpande:spark-operator:spark-connect-rhoai-docs@83111ae85fc66e567f8e1b4f656b4cc59c6540e5:config"
     ["wva"]="opendatahub-io:workload-variant-autoscaler:main@fb7f5c6afd8a71201656c1ef69c5385487032501:config"
 )
 
@@ -53,7 +53,7 @@ declare -A RHOAI_COMPONENT_MANIFESTS=(
     ["trainer"]="red-hat-data-services:trainer:rhoai-3.5-ea.1@138f5c9d590be0e7aa548798b20ae1b2fa5ac6b9:manifests"
     ["maas"]="red-hat-data-services:maas-billing:rhoai-3.5-ea.1@043ad962a27b3d56d37ef78236f77ec0a5cd1017:deployment"
     ["mlflowoperator"]="red-hat-data-services:mlflow-operator:rhoai-3.5-ea.1@088df968ce34398dd20243a7360994c9f2038388:config"
-    ["sparkoperator"]="red-hat-data-services:spark-operator:rhoai-3.5-ea.1@9c6b0fcb1be2ab22a3ddd7cabd83cb5c3b087e8d:config"
+    ["sparkoperator"]="Vedant-Deshpande:spark-operator:spark-connect-rhoai-docs@83111ae85fc66e567f8e1b4f656b4cc59c6540e5:config"
     ["wva"]="red-hat-data-services:workload-variant-autoscaler:rhoai-3.5-ea.1@73588492bb5c9d777fe586ee540dda857ff90747:config"
 )
 
