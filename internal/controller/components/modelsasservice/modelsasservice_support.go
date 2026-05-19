@@ -275,10 +275,10 @@ type resourceKey struct {
 // gateway namespace after the blanket NamespaceApplierPlugin transform. Keyed by
 // kind+name to avoid accidentally matching unrelated resources.
 var gatewayNamespaceResources = map[resourceKey]bool{
-	{kind: "Deployment", name: "payload-processing"}:            true,
-	{kind: "Service", name: "payload-processing"}:               true,
-	{kind: "ServiceAccount", name: "payload-processing"}:        true,
-	{kind: "ConfigMap", name: "payload-processing-plugins"}:     true,
+	{kind: "Deployment", name: "payload-processing"}:                true,
+	{kind: "Service", name: "payload-processing"}:                   true,
+	{kind: "ServiceAccount", name: "payload-processing"}:            true,
+	{kind: "ConfigMap", name: "payload-processing-plugins"}:         true,
 	{kind: "ClusterRoleBinding", name: "payload-processing-reader"}: true,
 }
 
