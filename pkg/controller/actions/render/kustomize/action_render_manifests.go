@@ -84,9 +84,14 @@ func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) (r
 	}
 
 	for i := range rr.Manifests {
+		ns := appNamespace
+		if rr.Manifests[i].Namespace != "" {
+			ns = rr.Manifests[i].Namespace
+		}
+
 		renderedResources, err := a.ke.Render(
 			rr.Manifests[i].String(),
-			kustomize.WithNamespace(appNamespace),
+			kustomize.WithNamespace(ns),
 		)
 
 		if err != nil {
