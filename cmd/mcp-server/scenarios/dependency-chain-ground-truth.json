@@ -1,0 +1,28 @@
+{
+  "scenario_id": "dependency-chain",
+  "scenario_name": "Dependency Chain",
+  "description": "JobSetOperator CR patched to Available=False (with jobset-operator scaled to 0 to prevent reconciliation), causing Trainer to report DependencyDegraded. Tests that the agent traces the dependency chain from Trainer back to jobset as the root cause.",
+  "root_cause": "JobSetOperator CR Available=False (jobset-operator scaled to 0)",
+  "expected_classification": {
+    "category": "infrastructure",
+    "subcategory": "dsci-unhealthy",
+    "error_code": 1009,
+    "confidence": "medium"
+  },
+  "expected_tool_outputs": {
+    "platform_health": {
+      "healthy": false
+    }
+  },
+  "expected_symptoms": [
+    "TrainerReady=False (DependencyDegraded): Dependencies degraded: JobSetOperator cluster: Available=False (DeploymentUnavailable)",
+    "operator_dependencies shows jobset-operator with replicas=0"
+  ],
+  "tools_that_detect": [
+    "platform_health",
+    "classify_failure",
+    "component_status",
+    "operator_dependencies"
+  ],
+  "expected_remediation": "Scale jobset-operator deployment back to 1 replica in jobset-system namespace (it will auto-fix the JobSetOperator CR conditions and Trainer will recover)"
+}
