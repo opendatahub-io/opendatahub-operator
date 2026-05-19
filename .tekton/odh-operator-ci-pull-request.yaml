@@ -37,6 +37,8 @@ spec:
     - 'odh-pr-{{revision}}'
   - name: pipeline-type
     value: pull-request
+  - name: enable-early-gate-testing
+    value: "true"
   - name: build-args
     value:
     - BUILD_TYPE=CI
@@ -46,7 +48,7 @@ spec:
     - name: url
       value: https://github.com/opendatahub-io/odh-konflux-central.git
     - name: revision
-      value: 'main'
+      value: 'earlygate'
     - name: pathInRepo
       value: pipeline/multi-arch-operator-build.yaml
   taskRunTemplate:

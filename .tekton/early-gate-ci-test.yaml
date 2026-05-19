@@ -6,12 +6,12 @@ metadata:
     build.appstudio.redhat.com/target_branch: '{{target_branch}}'
     pipelinesascode.tekton.dev/max-keep-runs: "3"
     pipelinesascode.tekton.dev/on-event: "[issue_comment]"
-    pipelinesascode.tekton.dev/on-comment: "^/early-gate(-build)?$"
+    pipelinesascode.tekton.dev/on-comment: "^/early-gate-test$"
   labels:
     appstudio.openshift.io/application: early-gate
     appstudio.openshift.io/component: early-gate-ci
-    pipelines.appstudio.openshift.io/type: build
-  name: early-gate-ci-build
+    pipelines.appstudio.openshift.io/type: test
+  name: early-gate-ci-test
   namespace: open-data-hub-tenant
 spec:
   params:
@@ -27,7 +27,7 @@ spec:
     - name: revision
       value: 'earlygate'
     - name: pathInRepo
-      value: e2e-early-gate/early-gate-component-pipeline.yaml
+      value: e2e-early-gate/early-gate-test-pipeline.yaml
   taskRunTemplate:
     serviceAccountName: build-pipeline-early-gate-ci
   workspaces:
