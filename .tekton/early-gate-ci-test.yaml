@@ -1,0 +1,37 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  annotations:
+    build.appstudio.redhat.com/commit_sha: '{{revision}}'
+    build.appstudio.redhat.com/target_branch: '{{target_branch}}'
+    pipelinesascode.tekton.dev/max-keep-runs: "3"
+    pipelinesascode.tekton.dev/on-event: "[issue_comment]"
+    pipelinesascode.tekton.dev/on-comment: "^/early-gate-test$"
+  labels:
+    appstudio.openshift.io/application: early-gate
+    appstudio.openshift.io/component: early-gate-ci
+    pipelines.appstudio.openshift.io/type: test
+  name: early-gate-ci-test
+  namespace: open-data-hub-tenant
+spec:
+  params:
+  - name: git-url
+    value: '{{source_url}}'
+  - name: revision
+    value: '{{revision}}'
+  pipelineRef:
+    resolver: git
+    params:
+    - name: url
+      value: https://github.com/opendatahub-io/odh-konflux-central.git
+    - name: revision
+      value: 'earlygate'
+    - name: pathInRepo
+      value: e2e-early-gate/early-gate-test-pipeline.yaml
+  taskRunTemplate:
+    serviceAccountName: build-pipeline-early-gate-ci
+  workspaces:
+  - name: git-auth
+    secret:
+      secretName: '{{ git_auth_secret }}'
+status: {}
