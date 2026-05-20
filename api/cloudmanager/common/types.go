@@ -1,5 +1,9 @@
 package common
 
+import (
+	apicommon "github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+)
+
 // ManagementPolicy defines the policy for managing a cloud manager dependency.
 // +kubebuilder:validation:Enum=Managed;Unmanaged
 type ManagementPolicy string
@@ -14,8 +18,10 @@ const (
 
 // Default namespaces for cloud manager dependencies.
 const (
-	DefaultNamespaceLWSOperator  = "openshift-lws-operator"
-	DefaultNamespaceSailOperator = "istio-system"
+	DefaultNamespaceCertManagerOperator = "cert-manager-operator"
+	DefaultNamespaceCertManagerOperand  = "cert-manager"
+	DefaultNamespaceLWSOperator         = "openshift-lws-operator"
+	DefaultNamespaceSailOperator        = "istio-system"
 )
 
 // Namespace represents a Kubernetes namespace name (RFC 1123 DNS label).
@@ -124,6 +130,12 @@ type GatewayAPIDependency struct {
 	// Configuration for the Gateway API.
 	// +optional
 	Configuration GatewayAPIConfiguration `json:"configuration,omitempty"`
+}
+
+// KubernetesEngineInstance is implemented by CCM CR types that expose their Dependencies.
+type KubernetesEngineInstance interface {
+	apicommon.PlatformObject
+	GetDependencies() Dependencies
 }
 
 // Dependencies defines the dependency configurations for cloud manager operators.

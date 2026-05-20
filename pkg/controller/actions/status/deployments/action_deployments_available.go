@@ -23,6 +23,7 @@ type Action struct {
 	labels                        map[string]string
 	namespaceFn                   actions.Getter[string]
 	disableAutomaticPartOfDefault bool
+	conditionType                 string
 }
 
 type ActionOpts func(*Action)
@@ -44,6 +45,14 @@ func WithSelectorLabels(values map[string]string) ActionOpts {
 func WithPartOfLabel(key string) ActionOpts {
 	return func(action *Action) {
 		action.partOfLabelKey = key
+	}
+}
+
+func WithConditionType(ct string) ActionOpts {
+	return func(action *Action) {
+		if ct = strings.TrimSpace(ct); ct != "" {
+			action.conditionType = ct
+		}
 	}
 }
 
@@ -120,11 +129,11 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 
 	s := obj.GetStatus()
 
-	rr.Conditions.MarkTrue(status.ConditionDeploymentsAvailable, conditions.WithObservedGeneration(s.ObservedGeneration))
+	rr.Conditions.MarkTrue(a.conditionType, conditions.WithObservedGeneration(s.ObservedGeneration))
 
 	if len(deployments.Items) == 0 || (len(deployments.Items) > 0 && ready != len(deployments.Items)) {
 		rr.Conditions.MarkFalse(
-			status.ConditionDeploymentsAvailable,
+			a.conditionType,
 			conditions.WithObservedGeneration(s.ObservedGeneration),
 			conditions.WithReason(status.ConditionDeploymentsNotAvailableReason),
 			conditions.WithMessage("%d/%d deployments ready", ready, len(deployments.Items)),
@@ -138,6 +147,7 @@ func NewAction(opts ...ActionOpts) actions.Fn {
 	action := Action{
 		partOfLabelKey: labels.PlatformPartOf,
 		labels:         map[string]string{},
+		conditionType:  status.ConditionDeploymentsAvailable,
 		namespaceFn: func(ctx context.Context, rr *types.ReconciliationRequest) (string, error) {
 			return cluster.ApplicationNamespace(ctx, rr.Client)
 		},

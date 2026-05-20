@@ -111,6 +111,32 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 				))
 			})
 
+			t.Run("Dependency deployments running", func(t *testing.T) {
+				wt := tc.NewWithT(t)
+
+				for _, ns := range []string{certManagerOperatorNS, customLWSOperatorNS, customSailOperatorNS} {
+					wt.List(gvk.Deployment,
+						client.InNamespace(ns),
+						client.MatchingLabels{labels.InfrastructurePartOf: getPartOfLabelValue()},
+					).Eventually().Should(
+						jq.Match(`(. | length) > 0 and all(.status.readyReplicas == .status.replicas)`),
+						"all deployments in %s should have ready replicas", ns,
+					)
+				}
+			})
+
+			t.Run("Per-dependency conditions", func(t *testing.T) {
+				wt := tc.NewWithT(t)
+
+				wt.Get(provider.GVK, k8sEngineCrNn()).Eventually().Should(And(
+					jq.Match(`.status.conditions[] | select(.type == "DependenciesReady") | .status == "True"`),
+					jq.Match(`.status.conditions[] | select(.type == "GatewayAPIReady") | .status == "True"`),
+					jq.Match(`.status.conditions[] | select(.type == "CertManagerReady") | .status == "True"`),
+					jq.Match(`.status.conditions[] | select(.type == "LWSReady") | .status == "True"`),
+					jq.Match(`.status.conditions[] | select(.type == "SailOperatorReady") | .status == "True"`),
+				))
+			})
+
 			t.Run("ProvisioningSucceeded condition", func(t *testing.T) {
 				wt := tc.NewWithT(t)
 				wt.Get(provider.GVK, k8sEngineCrNn()).Eventually().Should(And(
@@ -362,6 +388,7 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 			jq.Match(`.metadata.generation > %d`, gen1),
 			jq.Match(`.status.observedGeneration == .metadata.generation`),
 			jq.Match(`.status.phase == "Ready"`),
+			jq.Match(`.status.conditions[] | select(.type == "SailOperatorReady") | .reason == "Unmanaged"`),
 		))
 
 		// Second mutation: switch it back to Managed.
@@ -379,6 +406,8 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 			jq.Match(`.metadata.generation > %d`, gen2),
 			jq.Match(`.status.observedGeneration == .metadata.generation`),
 			jq.Match(`.status.phase == "Ready"`),
+			jq.Match(`.status.conditions[] | select(.type == "SailOperatorReady") | .status == "True"`),
+			jq.Match(`.status.conditions[] | select(.type == "SailOperatorReady") | .reason != "Unmanaged"`),
 		))
 	})
 
@@ -402,6 +431,8 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 			jq.Match(`.metadata.generation > %d`, gen),
 			jq.Match(`.status.observedGeneration == .metadata.generation`),
 			jq.Match(`.status.phase == "Ready"`),
+			jq.Match(`.status.conditions[] | select(.type == "CertManagerReady") | .status == "True"`),
+			jq.Match(`.status.conditions[] | select(.type == "CertManagerReady") | .reason == "Unmanaged"`),
 		))
 
 		// Delete the cert-manager deployment.
