@@ -14,10 +14,10 @@ spec:
       enabled: true
       podMonitorSelector:
         matchLabels:
-          opendatahub.io/monitoring: "true"
+          monitoring.opendatahub.io/scrape: "true"
       serviceMonitorSelector:
         matchLabels:
-          opendatahub.io/monitoring: "true"
+          monitoring.opendatahub.io/scrape: "true"
   {{- end }}
   resources:
     limits:
