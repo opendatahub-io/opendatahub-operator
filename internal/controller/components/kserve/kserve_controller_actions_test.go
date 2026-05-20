@@ -2,18 +2,22 @@
 package kserve
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -401,6 +405,216 @@ func TestSortLLMInferenceServiceConfigLast(t *testing.T) {
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(result).To(BeEmpty())
 	})
+}
+
+func TestDeleteLLMInferenceServiceConfigs(t *testing.T) {
+	t.Run("should delete owned LLMInferenceServiceConfig resources and requeue", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		instance := &componentApi.Kserve{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.KserveInstanceName,
+				UID:  "test-kserve-uid",
+			},
+		}
+
+		llmConfig1 := newLLMInferenceServiceConfig("config-1", "test-kserve-uid")
+		llmConfig2 := newLLMInferenceServiceConfig("config-2", "test-kserve-uid")
+
+		cli := buildClientWithLLMConfigs(g, llmConfig1, llmConfig2)
+
+		rr := &odhtypes.ReconciliationRequest{
+			Client:   cli,
+			Instance: instance,
+		}
+
+		err := deleteLLMInferenceServiceConfigs(ctx, rr)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(err.Error()).Should(ContainSubstring("waiting for 2 LLMInferenceServiceConfig"))
+
+		err = deleteLLMInferenceServiceConfigs(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+	})
+
+	t.Run("should not delete resources not owned by this instance", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		instance := &componentApi.Kserve{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.KserveInstanceName,
+				UID:  "test-kserve-uid",
+			},
+		}
+
+		llmConfig := newLLMInferenceServiceConfig("config-1", "different-uid")
+
+		cli := buildClientWithLLMConfigs(g, llmConfig)
+
+		rr := &odhtypes.ReconciliationRequest{
+			Client:   cli,
+			Instance: instance,
+		}
+
+		err := deleteLLMInferenceServiceConfigs(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		list := &unstructured.UnstructuredList{}
+		list.SetGroupVersionKind(gvk.LLMInferenceServiceConfigV1Alpha2)
+		g.Expect(cli.List(ctx, list)).Should(Succeed())
+		g.Expect(list.Items).Should(HaveLen(1))
+	})
+
+	t.Run("should succeed when no resources exist", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		instance := &componentApi.Kserve{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.KserveInstanceName,
+				UID:  "test-kserve-uid",
+			},
+		}
+
+		cli := buildClientWithLLMConfigs(g)
+
+		rr := &odhtypes.ReconciliationRequest{
+			Client:   cli,
+			Instance: instance,
+		}
+
+		err := deleteLLMInferenceServiceConfigs(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+	})
+
+	t.Run("should succeed when CRD does not exist", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		instance := &componentApi.Kserve{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.KserveInstanceName,
+				UID:  "test-kserve-uid",
+			},
+		}
+
+		cli, err := fakeclient.New()
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &odhtypes.ReconciliationRequest{
+			Client:   cli,
+			Instance: instance,
+		}
+
+		err = deleteLLMInferenceServiceConfigs(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+	})
+
+	t.Run("should only delete owned resources among mixed ownership", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		instance := &componentApi.Kserve{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.KserveInstanceName,
+				UID:  "my-uid",
+			},
+		}
+
+		ownedConfig := newLLMInferenceServiceConfig("owned-config", "my-uid")
+		unownedConfig := newLLMInferenceServiceConfig("unowned-config", "other-uid")
+
+		cli := buildClientWithLLMConfigs(g, ownedConfig, unownedConfig)
+
+		rr := &odhtypes.ReconciliationRequest{
+			Client:   cli,
+			Instance: instance,
+		}
+
+		err := deleteLLMInferenceServiceConfigs(ctx, rr)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(err.Error()).Should(ContainSubstring("waiting for 1 LLMInferenceServiceConfig"))
+
+		list := &unstructured.UnstructuredList{}
+		list.SetGroupVersionKind(gvk.LLMInferenceServiceConfigV1Alpha2)
+		g.Expect(cli.List(ctx, list)).Should(Succeed())
+		g.Expect(list.Items).Should(HaveLen(1))
+		g.Expect(list.Items[0].GetName()).Should(Equal("unowned-config"))
+	})
+
+	t.Run("should succeed when resource is deleted between List and Delete", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		instance := &componentApi.Kserve{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.KserveInstanceName,
+				UID:  "test-kserve-uid",
+			},
+		}
+
+		llmConfig := newLLMInferenceServiceConfig("config-1", "test-kserve-uid")
+
+		cli, err := fakeclient.New(
+			fakeclient.WithObjects(llmConfig),
+			fakeclient.WithGVKs(
+				fakeclient.GVKMapping{GVK: gvk.LLMInferenceServiceConfigV1Alpha1, Scope: apimeta.RESTScopeNamespace},
+				fakeclient.GVKMapping{GVK: gvk.LLMInferenceServiceConfigV1Alpha2, Scope: apimeta.RESTScopeNamespace},
+			),
+			fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+				Delete: func(_ context.Context, _ client.WithWatch, _ client.Object, _ ...client.DeleteOption) error {
+					return k8serr.NewNotFound(schema.GroupResource{
+						Group:    gvk.LLMInferenceServiceConfigV1Alpha2.Group,
+						Resource: "llminferenceserviceconfigs",
+					}, "config-1")
+				},
+			}),
+		)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &odhtypes.ReconciliationRequest{
+			Client:   cli,
+			Instance: instance,
+		}
+
+		err = deleteLLMInferenceServiceConfigs(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+	})
+}
+
+func newLLMInferenceServiceConfig(name, ownerUID string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": gvk.LLMInferenceServiceConfigV1Alpha2.Group + "/" + gvk.LLMInferenceServiceConfigV1Alpha2.Version,
+			"kind":       gvk.LLMInferenceServiceConfigV1Alpha2.Kind,
+			"metadata": map[string]any{
+				"name":      name,
+				"namespace": "test-ns",
+				"ownerReferences": []any{
+					map[string]any{
+						"apiVersion": componentApi.GroupVersion.String(),
+						"kind":       componentApi.KserveKind,
+						"name":       componentApi.KserveInstanceName,
+						"uid":        ownerUID,
+					},
+				},
+			},
+		},
+	}
+}
+
+func buildClientWithLLMConfigs(g Gomega, objs ...client.Object) client.Client {
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(objs...),
+		fakeclient.WithGVKs(
+			fakeclient.GVKMapping{GVK: gvk.LLMInferenceServiceConfigV1Alpha1, Scope: apimeta.RESTScopeNamespace},
+			fakeclient.GVKMapping{GVK: gvk.LLMInferenceServiceConfigV1Alpha2, Scope: apimeta.RESTScopeNamespace},
+		),
+	)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	return cli
 }
 
 func createTestConfigMap() *corev1.ConfigMap {

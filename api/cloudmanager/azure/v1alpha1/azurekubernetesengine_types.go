@@ -27,8 +27,8 @@ const (
 	AzureKubernetesEngineInstanceName = "default-azurekubernetesengine"
 )
 
-// Check that the component implements common.PlatformObject.
-var _ apicommon.PlatformObject = (*AzureKubernetesEngine)(nil)
+// Check that the component implements common.KubernetesEngineInstance.
+var _ common.KubernetesEngineInstance = (*AzureKubernetesEngine)(nil)
 
 // AzureKubernetesEngineSpec defines the desired state of AzureKubernetesEngine.
 type AzureKubernetesEngineSpec struct {
@@ -58,6 +58,10 @@ type AzureKubernetesEngine struct {
 
 	Spec   AzureKubernetesEngineSpec   `json:"spec,omitempty"`
 	Status AzureKubernetesEngineStatus `json:"status,omitempty"`
+}
+
+func (e *AzureKubernetesEngine) GetDependencies() common.Dependencies {
+	return e.Spec.Dependencies
 }
 
 // +kubebuilder:object:root=true

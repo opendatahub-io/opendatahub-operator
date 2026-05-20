@@ -329,16 +329,8 @@ func (tc *MonitoringTestCtx) runPersesTests(t *testing.T) {
 			t.Run("Test PersesDatasource lifecycle", tc.ValidatePersesDatasourceLifecycle)
 		})
 
-		// Subgroup 3: Perses Datasource TLS with Cloud Backends
-		t.Run("Perses Datasource TLS with Cloud Backends", func(t *testing.T) {
-			t.Cleanup(func() {
-				tc.cleanupGroup(t, "s3-secret")
-				tc.cleanupGroup(t, "gcs-secret")
-			})
-
-			t.Run("Test Perses Datasource TLS with S3 backend", tc.ValidatePersesDatasourceTLSWithS3Backend)
-			t.Run("Test Perses Datasource TLS with GCS backend", tc.ValidatePersesDatasourceTLSWithGCSBackend)
-		})
+		// NOTE: Perses Datasource TLS with Cloud Backends is now validated within
+		// Group 7's ValidateTempoStackCRCreationWithCloudStorage to share the TempoStack lifecycle.
 	})
 }
 
@@ -853,7 +845,7 @@ func (tc *MonitoringTestCtx) ValidateTempoStackCRCreationWithCloudStorage(t *tes
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			tc.validateTempoStackCreationWithBackend(
+			tc.validateTempoStackCreationAndPersesTLS(
 				t,
 				testCase.backend,
 				testCase.monitoringCondition,
@@ -1413,26 +1405,43 @@ func (tc *MonitoringTestCtx) cleanupTempoStackAndSecret(secretName string) {
 //   - backend: The storage backend type (e.g., "s3", "gcs")
 //   - monitoringCondition: Gomega matcher to validate the Monitoring resource state
 //   - monitoringErrorMsg: Error message to display if Monitoring resource validation fails
-func (tc *MonitoringTestCtx) validateTempoStackCreationWithBackend(t *testing.T, backend string, monitoringCondition gTypes.GomegaMatcher, monitoringErrorMsg string) {
+//
+// validateTempoStackCreationAndPersesTLS validates both TempoStack creation with a cloud backend
+// AND PersesDatasource TLS configuration in a single TempoStack lifecycle.
+// This eliminates the need to create/delete TempoStack twice for the same backend.
+func (tc *MonitoringTestCtx) validateTempoStackCreationAndPersesTLS(t *testing.T, backend string, monitoringCondition gTypes.GomegaMatcher, monitoringErrorMsg string) {
 	t.Helper()
 
-	// Derive secret name from backend (e.g., "s3" -> "s3-secret")
 	secretName := fmt.Sprintf("%s-secret", backend)
 
-	t.Logf("Starting validateTempoStackCreationWithBackend for backend=%s, secretName=%s", backend, secretName)
+	t.Logf("Starting combined TempoStack+TLS validation for backend=%s, secretName=%s", backend, secretName)
 
-	// Create the secret before enabling monitoring
+	tc.validateTempoStackCreation(t, backend, secretName, monitoringCondition, monitoringErrorMsg)
+	tc.validatePersesDatasourceTLS(t, backend, secretName)
+
+	t.Logf("Cleanup traces configuration and TempoStack")
+	tc.cleanupTracesConfiguration()
+	tc.cleanupTempoStackAndSecret(secretName)
+
+	t.Logf("Combined TempoStack+TLS validation completed for backend=%s", backend)
+}
+
+// validateTempoStackCreation creates a secret, enables traces for the given backend,
+// and waits until the TempoStack is ready with the correct configuration.
+func (tc *MonitoringTestCtx) validateTempoStackCreation(t *testing.T, backend, secretName string, monitoringCondition gTypes.GomegaMatcher, monitoringErrorMsg string) {
+	t.Helper()
+
+	tc.ensureMonitoringCleanSlate(t, secretName)
+
 	t.Logf("Creating secret %s in namespace %s", secretName, tc.MonitoringNamespace)
 	tc.createDummySecret(backend, secretName, tc.MonitoringNamespace)
 
-	// Now update DSCI to set traces with specified backend
 	t.Logf("Updating DSCI with backend=%s, secretName=%s", backend, secretName)
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
 		withMonitoringTraces(backend, secretName, "", DefaultRetention),
 	)
 
-	// Wait for the Monitoring resource to be updated by DSCInitialization controller
 	t.Logf("Waiting for Monitoring resource to be updated")
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
@@ -1440,8 +1449,6 @@ func (tc *MonitoringTestCtx) validateTempoStackCreationWithBackend(t *testing.T,
 		WithCustomErrorMsg(monitoringErrorMsg),
 	)
 
-	// Ensure the TempoStack CR is created by the controller with specified backend
-	// (status conditions are set by external tempo operator)
 	t.Logf("Validating TempoStack creation with backend=%s, secretName=%s", backend, secretName)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.TempoStack, types.NamespacedName{
@@ -1450,28 +1457,59 @@ func (tc *MonitoringTestCtx) validateTempoStackCreationWithBackend(t *testing.T,
 		}),
 		WithCondition(
 			And(
-				// Validate the backend is set correctly
 				jq.Match(`.spec.storage.secret.type == "%s"`, backend),
 				jq.Match(`.spec.storage.secret.name == "%s"`, secretName),
-				// Validate retention is set correctly
-				jq.Match(`.spec.retention.global.traces == "%s"`, FormattedRetention), // to match 100m
-				// Validate that the Tempo operator has accepted and reconciled the resource
+				jq.Match(`.spec.retention.global.traces == "%s"`, FormattedRetention),
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
 			),
 		),
 		WithEventuallyTimeout(tc.TestTimeouts.monitoringStackTimeout),
 		WithCustomErrorMsg("TempoStack should be created by controller with %s backend, but was not found or has incorrect backend type", backend),
 	)
+}
 
-	// Cleanup: Reset DSCInitialization traces configuration, delete TempoStack and secret
-	// This ensures proper test isolation and prevents state contamination between tests
-	t.Logf("Cleanup traces configuration and TempoStack")
-	tc.cleanupTracesConfiguration()
+// validatePersesDatasourceTLS enables TLS on the existing traces configuration and validates
+// that the PersesDatasource is updated with the correct TLS settings.
+// Assumes TempoStack is already running for the given backend.
+func (tc *MonitoringTestCtx) validatePersesDatasourceTLS(t *testing.T, backend, secretName string) {
+	t.Helper()
 
-	t.Logf("Cleaning up TempoStack and secret for backend=%s", backend)
-	tc.cleanupTempoStackAndSecret(secretName)
+	ctx := context.Background()
+	hasCRD, err := cluster.HasCRD(ctx, tc.Client(), gvk.PersesDatasource)
+	require.NoError(t, err)
 
-	t.Logf("Cleanup completed for backend=%s", backend)
+	if !hasCRD {
+		t.Log("Skipping PersesDatasource TLS validation: PersesDatasource CRD not installed")
+		return
+	}
+
+	t.Logf("Enabling TLS on existing %s traces configuration", backend)
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		withMonitoringTraces(backend, secretName, "", DefaultRetention),
+		testf.Transform(`.spec.monitoring.traces.tls.enabled = true`),
+	)
+
+	t.Logf("Validating PersesDatasource has TLS configuration for %s backend", backend)
+	expectedTempoEndpoint := fmt.Sprintf("https://tempo-data-science-tempostack-gateway.%s.svc.cluster.local:8080/api/traces/v1/%s/tempo",
+		tc.MonitoringNamespace, tc.MonitoringNamespace)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: "tempo-datasource", Namespace: tc.MonitoringNamespace}),
+		WithCondition(
+			And(
+				jq.Match(`.spec.config.plugin.spec.proxy.spec.url == "%s"`, expectedTempoEndpoint),
+				jq.Match(`.spec.client.tls.enable == true`),
+				jq.Match(`.spec.client.tls.caCert.type == "configmap"`),
+				jq.Match(`.spec.client.tls.caCert.name == "tempo-service-ca"`),
+				jq.Match(`.spec.client.tls.caCert.certPath == "service-ca.crt"`),
+				jq.Match(`.spec.config.plugin.spec.proxy.spec.secret == "tempo-datasource-secret"`),
+			),
+		),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+		WithCustomErrorMsg("PersesDatasource should have TLS enabled for %s backend", backend),
+	)
+	t.Logf("PersesDatasource TLS validation passed for %s backend", backend)
 }
 
 // createDummySecret creates a dummy secret for TempoStack testing (S3 or GCS).
@@ -1516,7 +1554,7 @@ func (tc *MonitoringTestCtx) createDummySecret(backendType, secretName, namespac
 		return
 	}
 
-	tc.EventuallyResourceCreated(WithObjectToCreate(secret))
+	tc.EventuallyResourceCreatedOrUpdated(WithObjectToCreate(secret))
 }
 
 // cleanupTracesConfiguration resets DSCInitialization traces configuration to prevent state contamination.
@@ -2593,107 +2631,6 @@ func (tc *MonitoringTestCtx) ValidateNodeMetricsEndpointRBACConfiguration(t *tes
 	)
 }
 
-// validatePersesDatasourceTLSWithCloudBackend is a helper function that validates TLS configuration
-// for PersesDatasource with cloud storage backends (S3 or GCS).
-func (tc *MonitoringTestCtx) validatePersesDatasourceTLSWithCloudBackend(t *testing.T, backend string) {
-	t.Helper()
-
-	// Skip if PersesDatasource CRD is not installed
-	ctx := context.Background()
-	exists, err := cluster.HasCRD(ctx, tc.Client(), gvk.PersesDatasource)
-	require.NoError(t, err)
-	if !exists {
-		t.Skip("Skipping Perses datasource tests: PersesDatasource CRD not installed in cluster")
-	}
-
-	secretName := fmt.Sprintf("%s-tls-test-secret", backend)
-	t.Logf("Starting %s backend TLS validation test with secret=%s", backend, secretName)
-
-	// Create backend secret
-	t.Logf("Creating %s secret %s in namespace %s", backend, secretName, tc.MonitoringNamespace)
-	tc.createDummySecret(backend, secretName, tc.MonitoringNamespace)
-
-	// Set traces configuration with backend and enable TLS
-	t.Logf("Updating DSCI with %s traces configuration and TLS enabled", backend)
-	tc.updateMonitoringConfig(
-		withManagementState(operatorv1.Managed),
-		withMonitoringTraces(backend, secretName, "", DefaultRetention),
-		testf.Transform(`.spec.monitoring.traces.tls.enabled = true`),
-	)
-
-	// Wait for Monitoring CR to be updated with traces configuration
-	t.Logf("Waiting for Monitoring resource to be updated with %s traces", backend)
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
-		WithCondition(
-			And(
-				jq.Match(`.spec.traces != null`),
-				jq.Match(`.spec.traces.storage.backend == "%s"`, backend),
-			),
-		),
-		WithCustomErrorMsg("Monitoring resource should be updated with %s traces configuration", backend),
-	)
-
-	// Wait for TempoStack to be created and ready (cloud backends use TempoStack)
-	t.Logf("Waiting for TempoStack to be ready with %s backend", backend)
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.TempoStack, types.NamespacedName{Name: TempoStackName, Namespace: tc.MonitoringNamespace}),
-		WithCondition(
-			And(
-				jq.Match(`.spec.storage.secret.type == "%s"`, backend),
-				jq.Match(`.spec.storage.secret.name == "%s"`, secretName),
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
-			),
-		),
-		WithEventuallyTimeout(tc.TestTimeouts.monitoringStackTimeout),
-		WithCustomErrorMsg("TempoStack should be ready with %s backend before checking PersesDatasource", backend),
-	)
-
-	// This is the critical assertion - proves cloud backend now has TLS
-	t.Logf("Validating PersesDatasource has TLS configuration for %s backend", backend)
-	expectedTempoEndpoint := fmt.Sprintf("https://tempo-data-science-tempostack-gateway.%s.svc.cluster.local:8080/api/traces/v1/%s/tempo",
-		tc.MonitoringNamespace, tc.MonitoringNamespace)
-
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: "tempo-datasource", Namespace: tc.MonitoringNamespace}),
-		WithCondition(
-			And(
-				// Validate HTTPS endpoint
-				jq.Match(`.spec.config.plugin.spec.proxy.spec.url == "%s"`, expectedTempoEndpoint),
-				// Validate TLS client configuration exists at top-level spec.client.tls
-				jq.Match(`.spec.client.tls.enable == true`),
-				jq.Match(`.spec.client.tls.caCert.type == "configmap"`),
-				jq.Match(`.spec.client.tls.caCert.name == "tempo-service-ca"`),
-				jq.Match(`.spec.client.tls.caCert.certPath == "service-ca.crt"`),
-				// Validate secret reference links the CA cert to the proxy
-				jq.Match(`.spec.config.plugin.spec.proxy.spec.secret == "tempo-datasource-secret"`),
-			),
-		),
-		WithEventuallyTimeout(tc.TestTimeouts.monitoringStackTimeout),
-		WithCustomErrorMsg("PersesDatasource should have TLS enabled for %s backend", backend),
-	)
-
-	// Cleanup
-	t.Logf("Cleaning up %s traces configuration and resources", backend)
-	tc.cleanupTracesConfiguration()
-	tc.cleanupTempoStackAndSecret(secretName)
-	t.Logf("%s backend TLS validation test completed", backend)
-}
-
-// ValidatePersesDatasourceTLSWithS3Backend tests that TLS is enabled for S3 backend.
-func (tc *MonitoringTestCtx) ValidatePersesDatasourceTLSWithS3Backend(t *testing.T) {
-	t.Helper()
-
-	tc.validatePersesDatasourceTLSWithCloudBackend(t, "s3")
-}
-
-// ValidatePersesDatasourceTLSWithGCSBackend tests that TLS is enabled for GCS backend.
-func (tc *MonitoringTestCtx) ValidatePersesDatasourceTLSWithGCSBackend(t *testing.T) {
-	t.Helper()
-
-	tc.validatePersesDatasourceTLSWithCloudBackend(t, "gcs")
-}
-
 // ValidateTargetAllocatorNotDeployedWithoutMetrics tests that the Target Allocator is not deployed when metrics are not configured.
 func (tc *MonitoringTestCtx) ValidateTargetAllocatorNotDeployedWithoutMetrics(t *testing.T) {
 	t.Helper()
@@ -2770,8 +2707,8 @@ func (tc *MonitoringTestCtx) ValidateTargetAllocatorDeploymentWithMetrics(t *tes
 			jq.Match(`.spec.targetAllocator.enabled == true`),
 			jq.Match(`.spec.targetAllocator.serviceAccount == "%s"`, TargetAllocatorServiceAccount),
 			jq.Match(`.spec.targetAllocator.prometheusCR.enabled == true`),
-			jq.Match(`.spec.targetAllocator.prometheusCR.podMonitorSelector.matchLabels."opendatahub.io/monitoring" == "true"`),
-			jq.Match(`.spec.targetAllocator.prometheusCR.serviceMonitorSelector.matchLabels."opendatahub.io/monitoring" == "true"`),
+			jq.Match(`.spec.targetAllocator.prometheusCR.podMonitorSelector.matchLabels."monitoring.opendatahub.io/scrape" == "true"`),
+			jq.Match(`.spec.targetAllocator.prometheusCR.serviceMonitorSelector.matchLabels."monitoring.opendatahub.io/scrape" == "true"`),
 		)),
 		WithCustomErrorMsg("OpenTelemetryCollector should have targetAllocator enabled with correct configuration"),
 	)

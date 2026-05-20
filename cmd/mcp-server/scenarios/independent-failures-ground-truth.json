@@ -1,0 +1,28 @@
+{
+  "scenario_id": "independent-failures",
+  "scenario_name": "Independent Failures",
+  "description": "Two independent component operator deployments scaled to 0 replicas. No shared dependency, no cascading relationship. Tests that the agent reports both as independent root causes without falsely linking them.",
+  "root_cause": "model-registry-operator-controller-manager and data-science-pipelines-operator-controller-manager both scaled to 0 replicas independently",
+  "expected_classification": {
+    "category": "infrastructure",
+    "subcategory": "cluster-distress",
+    "error_code": 1099,
+    "confidence": "low"
+  },
+  "expected_tool_outputs": {
+    "platform_health": {
+      "healthy": false
+    }
+  },
+  "expected_symptoms": [
+    "ModelRegistryReady=False (DeploymentsNotReady): 0/1 deployments ready",
+    "AIPipelinesReady=False (DeploymentsNotReady): 0/1 deployments ready",
+    "DSC reports both components as not ready"
+  ],
+  "tools_that_detect": [
+    "platform_health",
+    "classify_failure",
+    "component_status"
+  ],
+  "expected_remediation": "Scale model-registry-operator-controller-manager and data-science-pipelines-operator-controller-manager deployments back to 1 replica in the applications namespace"
+}

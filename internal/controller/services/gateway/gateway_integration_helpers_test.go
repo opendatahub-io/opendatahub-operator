@@ -71,6 +71,7 @@ import (
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
@@ -1360,6 +1361,19 @@ func RunLegacyRedirectRouteCreationTest(t *testing.T, setup TestSetup, expectedL
 	g := NewWithT(t)
 	defer setup.Setup(t)()
 
+	// Dashboard CR must exist for redirect resources (including the legacy route) to be created
+	dashboard := &componentApi.Dashboard{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: componentApi.DashboardInstanceName,
+		},
+	}
+	if err := setup.TC.K8sClient.Create(setup.TC.Ctx, dashboard); err != nil && !k8serr.IsAlreadyExists(err) {
+		t.Fatalf("Failed to create Dashboard CR: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = setup.TC.K8sClient.Delete(setup.TC.Ctx, dashboard)
+	})
+
 	legacyRouteName := gateway.LegacyGatewaySubdomain
 	legacyRouteNamespace := cluster.GetApplicationNamespace()
 	g.Eventually(func() error {
@@ -1483,11 +1497,48 @@ func RunLoadBalancerIngressModeTest(t *testing.T, tc *TestEnvContext, spec servi
 	}, TestTimeout, TestInterval).Should(BeTrue(), "OCP Route should not exist in LoadBalancer mode (GC removes stale Routes)")
 }
 
+// RunNginxDashboardRedirectSkippedWithoutDashboardTest validates that no redirect resources are created
+// when the Dashboard component CR does not exist.
+func RunNginxDashboardRedirectSkippedWithoutDashboardTest(t *testing.T, setup TestSetup) {
+	g := NewWithT(t)
+	defer setup.Setup(t)()
+
+	appNs := cluster.GetApplicationNamespace()
+
+	// Ensure Dashboard CR does not exist
+	dashboard := &componentApi.Dashboard{}
+	err := setup.TC.K8sClient.Get(setup.TC.Ctx, client.ObjectKey{Name: componentApi.DashboardInstanceName}, dashboard)
+	g.Expect(k8serr.IsNotFound(err)).To(BeTrue(), "Dashboard CR should not exist for this test")
+
+	// Verify redirect resources are not created
+	g.Consistently(func() bool {
+		cm := &corev1.ConfigMap{}
+		err := setup.TC.K8sClient.Get(setup.TC.Ctx, types.NamespacedName{
+			Name: gateway.DashboardRedirectConfigName, Namespace: appNs,
+		}, cm)
+		return k8serr.IsNotFound(err)
+	}, 5*time.Second, TestInterval).Should(BeTrue(),
+		"dashboard-redirect ConfigMap should not be created when Dashboard CR is absent")
+}
+
 // RunNginxDashboardRedirectCreationTest validates that nginx-based dashboard redirect resources exist in the application namespace:
 // ConfigMap (redirect.conf with 301 to gateway host), Deployment, Service, and dashboard Route (odh-dashboard or rhods-dashboard).
 func RunNginxDashboardRedirectCreationTest(t *testing.T, setup TestSetup) {
 	g := NewWithT(t)
 	defer setup.Setup(t)()
+
+	// Dashboard CR must exist for redirects to be created
+	dashboard := &componentApi.Dashboard{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: componentApi.DashboardInstanceName,
+		},
+	}
+	if err := setup.TC.K8sClient.Create(setup.TC.Ctx, dashboard); err != nil && !k8serr.IsAlreadyExists(err) {
+		t.Fatalf("Failed to create Dashboard CR: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = setup.TC.K8sClient.Delete(setup.TC.Ctx, dashboard)
+	})
 
 	appNs := cluster.GetApplicationNamespace()
 	nnCM := types.NamespacedName{Name: gateway.DashboardRedirectConfigName, Namespace: appNs}
