@@ -39,7 +39,7 @@ Based on what Step 1 revealed, drill deeper. **Parallelize tool calls wherever p
 
 1. Call these in parallel:
    - `classify_failure` — deterministic error classification (category, subcategory, error code, evidence, confidence).
-   - `operator_dependencies` — check external prerequisites (cert-manager, tempo, opentelemetry, cluster-observability, kueue, jobset, leader-worker-set, kuadrant). **Always inspect the deployment replica counts in the response** — a dependency with `installed: true` but `replicas: 0, ready: 0` has been scaled down and is NOT healthy.
+   - `operator_dependencies` — check external prerequisites (cert-manager, tempo, opentelemetry, cluster-observability, kueue, jobset, leader-worker-set, kuadrant). **Always inspect the deployment replica counts in the response** — a dependency with `installed: true` but `replicas: 0, ready: 0` has been scaled down and is NOT healthy. Conversely, `installed: false` does not always mean truly absent — cross-check with the component's CR conditions. If they report a specific failure like `Available=False (DeploymentUnavailable)`, the operator is **installed but unhealthy**, not missing.
    - `recent_events` with `since=15m` — warning/error events around the failure timeframe.
    - `component_status` only for components with pods not in Running/Succeeded phase — do not call for components whose only issue is historical restart counts.
    - Valid component names: `dashboard`, `kserve`, `workbenches`, `ray`, `trustyai`, `modelregistry`, `datasciencepipelines`, `trainingoperator`, `feastoperator`, `trainer`, `kueue`, `mlflowoperator`, `sparkoperator`, `modelcontroller`, `modelsasservice`, `ogx`, `modelmeshserving`.
@@ -60,9 +60,15 @@ Use the dependency graph below to trace failures upstream. A component failure m
 - Did the dependency failure appear first in the timeline? → Confirms causation direction.
 - Is the operator itself healthy? → If not, all components may be affected.
 - Is DSCI/DSC in a Ready state? → If not, no components can reconcile properly.
+- Are multiple components failing with NO shared dependency? → Report them as **independent** root causes. Do not fabricate a shared cause.
 
 **Example correlation:**
 - KServe pods are CrashLooping → check cert-manager dependency → cert-manager is not installed → root cause is missing cert-manager, not KServe itself.
+
+**Multi-Failure Correlation Rules:**
+
+1. **Transitive dependencies** — When an external operator's pod is unhealthy, investigate *why* using pod events/logs. If the evidence references another operator check that operator's health via `operator_dependencies`. The furthest-upstream unhealthy operator is the root cause.
+2. **Reporting** — For cascading failures: report the upstream root cause. For independent failures: report all root causes separately.
 
 ### Step 4: Diagnose (Produce Structured Output)
 
@@ -230,3 +236,4 @@ high — all health checks passed, no warning events detected
 7. **Report healthy clusters as healthy**. Do not investigate further or speculate about potential issues when all checks pass.
 8. **Use the error code reference**. When classify_failure returns a code, use the reference table to guide your investigation and remediation.
 9. **Cross-reference events with current state**. Events persist after resources are deleted. Before reporting an event as an active issue, verify the referenced pod/deployment still exists and the component is not set to `Removed` in the DSC.
+10. **Surface the classifier output**. When `classify_failure` returns an error code, always include it in the Evidence section with its category/subcategory. Use the error code reference table to inform your investigation.
