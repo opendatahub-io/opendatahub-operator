@@ -4,14 +4,23 @@
 package gateway
 
 import (
+	"context"
+	"errors"
 	"testing"
 
+	oauthv1 "github.com/openshift/api/oauth/v1"
 	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 
 	. "github.com/onsi/gomega"
 )
@@ -35,6 +44,7 @@ const (
 	testCookieExpireDefault       = "24h0m0s"
 	testCookieRefreshDefault      = "1h0m0s"
 	testAuthTimeoutDefault        = "5s"
+	testOIDCSecretName            = "oidc-secret"
 )
 
 // TestGetCertificateType tests the getCertificateType helper function.
@@ -569,4 +579,941 @@ func TestHPATemplateConstant(t *testing.T) {
 	g := NewWithT(t)
 
 	g.Expect(kubeAuthProxyHPATemplate).To(Equal("resources/kube-auth-proxy-hpa.tmpl.yaml"), "HPA template path should be correct")
+}
+
+// TestGetAuthProxySecretValuesOverridesStaleClientID verifies that when a
+// kube-auth-proxy-creds secret already exists with a stale client ID (e.g.
+// "odh" from a prior version), getAuthProxySecretValues returns the desired
+// client ID for the current auth mode instead of the stale value.
+func TestGetAuthProxySecretValuesOverridesStaleClientID(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	staleClientID := "odh"
+	existingSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      KubeAuthProxySecretsName,
+			Namespace: GatewayNamespace,
+		},
+		Data: map[string][]byte{
+			EnvClientID:     []byte(staleClientID),
+			EnvClientSecret: []byte(testAuthClientSecret),
+			EnvCookieSecret: []byte(testAuthCookieSecret),
+		},
+	}
+
+	cli := setupTestClient().WithObjects(existingSecret).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	clientID, clientSecret, cookieSecret, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeIntegratedOAuth, nil)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(clientID).To(Equal(AuthClientID), "must return the current AuthClientID, not the stale value from the secret")
+	g.Expect(clientSecret).To(Equal(testAuthClientSecret), "must preserve existing client secret")
+	g.Expect(cookieSecret).To(Equal(testAuthCookieSecret), "must preserve existing cookie secret")
+}
+
+// TestGetAuthProxySecretValuesRejectsNilOIDCConfig verifies that calling
+// getAuthProxySecretValues with OIDC auth mode but nil oidcConfig returns
+// an error instead of panicking with a nil pointer dereference.
+func TestGetAuthProxySecretValuesRejectsNilOIDCConfig(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	cli := setupTestClient().Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	//nolint:dogsled // only the error matters in this test
+	_, _, _, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeOIDC, nil)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("OIDC auth mode requires oidcConfig with non-empty ClientID and ClientSecretRef"))
+}
+
+// TestGetAuthProxySecretValuesRejectsEmptyOIDCClientID verifies that calling
+// getAuthProxySecretValues with OIDC auth mode but an empty ClientID returns
+// an error instead of writing an empty OAUTH2_PROXY_CLIENT_ID to the secret.
+func TestGetAuthProxySecretValuesRejectsEmptyOIDCClientID(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	cli := setupTestClient().Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	oidcConfig := &serviceApi.OIDCConfig{
+		ClientID: "",
+		ClientSecretRef: corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"},
+			Key:                  "clientSecret",
+		},
+	}
+
+	//nolint:dogsled // only the error matters in this test
+	_, _, _, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeOIDC, oidcConfig)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("OIDC auth mode requires oidcConfig with non-empty ClientID and ClientSecretRef"))
+}
+
+// TestGetAuthProxySecretValuesRejectsEmptyOIDCClientSecretRef verifies that calling
+// getAuthProxySecretValues with OIDC auth mode but an empty ClientSecretRef.Name
+// returns an error.
+func TestGetAuthProxySecretValuesRejectsEmptyOIDCClientSecretRef(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	cli := setupTestClient().Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	oidcConfig := &serviceApi.OIDCConfig{
+		ClientID: "my-oidc-client",
+	}
+
+	//nolint:dogsled // only the error matters in this test
+	_, _, _, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeOIDC, oidcConfig)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("OIDC auth mode requires oidcConfig with non-empty ClientID and ClientSecretRef"))
+}
+
+// TestGetAuthProxySecretValuesOIDCOverridesStaleClientID verifies that when a
+// kube-auth-proxy-creds secret exists with a stale client ID, OIDC mode returns
+// the desired client ID from oidcConfig instead of the stale value.
+func TestGetAuthProxySecretValuesOIDCOverridesStaleClientID(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	oidcClientID := "my-oidc-client"
+	oidcSecretName := "oidc-client-secret" //nolint:gosec // test fixture, not a real credential
+	oidcSecretValue := "oidc-secret-value" //nolint:gosec // test fixture, not a real credential
+
+	existingSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      KubeAuthProxySecretsName,
+			Namespace: GatewayNamespace,
+		},
+		Data: map[string][]byte{
+			EnvClientID:     []byte("stale-oidc-client"),
+			EnvClientSecret: []byte(testAuthClientSecret),
+			EnvCookieSecret: []byte(testAuthCookieSecret),
+		},
+	}
+
+	externalSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      oidcSecretName,
+			Namespace: GatewayNamespace,
+		},
+		Data: map[string][]byte{
+			"clientSecret": []byte(oidcSecretValue),
+		},
+	}
+
+	cli := setupTestClient().WithObjects(existingSecret, externalSecret).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	oidcConfig := &serviceApi.OIDCConfig{
+		ClientID: oidcClientID,
+		ClientSecretRef: corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: oidcSecretName},
+			Key:                  "clientSecret",
+		},
+	}
+
+	clientID, clientSecret, cookieSecret, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeOIDC, oidcConfig)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(clientID).To(Equal(oidcClientID), "must return OIDC client ID, not the stale value from the secret")
+	g.Expect(clientSecret).To(Equal(oidcSecretValue), "must reload client secret from ClientSecretRef")
+	g.Expect(cookieSecret).To(Equal(testAuthCookieSecret), "must preserve existing cookie secret")
+}
+
+// TestGetAuthProxySecretValuesPreservesCurrentClientID verifies that when the
+// secret already contains the correct client ID, it is returned unchanged.
+func TestGetAuthProxySecretValuesPreservesCurrentClientID(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	existingSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      KubeAuthProxySecretsName,
+			Namespace: GatewayNamespace,
+		},
+		Data: map[string][]byte{
+			EnvClientID:     []byte(AuthClientID),
+			EnvClientSecret: []byte(testAuthClientSecret),
+			EnvCookieSecret: []byte(testAuthCookieSecret),
+		},
+	}
+
+	cli := setupTestClient().WithObjects(existingSecret).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	clientID, clientSecret, cookieSecret, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeIntegratedOAuth, nil)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(clientID).To(Equal(AuthClientID))
+	g.Expect(clientSecret).To(Equal(testAuthClientSecret))
+	g.Expect(cookieSecret).To(Equal(testAuthCookieSecret))
+}
+
+// TestDeleteLegacyOAuthClientNotFound verifies that deleteLegacyOAuthClient
+// returns nil when no legacy OAuthClient exists (the common steady-state case).
+func TestDeleteLegacyOAuthClientNotFound(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{
+			Domain: testDomain,
+		},
+	}
+
+	cli := setupTestClient().Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	err := deleteLegacyOAuthClient(ctx, rr, gatewayConfig)
+	g.Expect(err).NotTo(HaveOccurred())
+}
+
+// TestDeleteLegacyOAuthClientMatchingRedirectURI verifies that deleteLegacyOAuthClient
+// deletes the legacy "odh" OAuthClient when its redirect URI matches the expected
+// gateway hostname, confirming it was created by the gateway controller.
+func TestDeleteLegacyOAuthClientMatchingRedirectURI(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{
+			Domain: testDomain,
+		},
+	}
+
+	legacyClient := &oauthv1.OAuthClient{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: LegacyAuthClientID,
+		},
+		RedirectURIs: []string{
+			"https://" + testHostnameDefault + "/oauth2/callback",
+		},
+	}
+
+	cli := setupTestClient().WithObjects(legacyClient).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	err := deleteLegacyOAuthClient(ctx, rr, gatewayConfig)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	// Verify the legacy client was deleted
+	deleted := &oauthv1.OAuthClient{}
+	err = cli.Get(ctx, types.NamespacedName{Name: LegacyAuthClientID}, deleted)
+	g.Expect(k8serr.IsNotFound(err)).To(BeTrue(), "legacy OAuthClient should be deleted")
+}
+
+// TestDeleteLegacyOAuthClientLegacyHostname verifies that deleteLegacyOAuthClient
+// also matches against the legacy hostname (data-science-gateway.*) redirect URI.
+func TestDeleteLegacyOAuthClientLegacyHostname(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{
+			Domain: testDomain,
+		},
+	}
+
+	legacyClient := &oauthv1.OAuthClient{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: LegacyAuthClientID,
+		},
+		RedirectURIs: []string{
+			"https://" + testHostnameLegacy + "/oauth2/callback",
+		},
+	}
+
+	cli := setupTestClient().WithObjects(legacyClient).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	err := deleteLegacyOAuthClient(ctx, rr, gatewayConfig)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	deleted := &oauthv1.OAuthClient{}
+	err = cli.Get(ctx, types.NamespacedName{Name: LegacyAuthClientID}, deleted)
+	g.Expect(k8serr.IsNotFound(err)).To(BeTrue(), "legacy OAuthClient with legacy hostname redirect should be deleted")
+}
+
+// TestDeleteLegacyOAuthClientNonGatewaySkipped verifies that deleteLegacyOAuthClient
+// does NOT delete an OAuthClient named "odh" when its redirect URI does not match
+// any expected gateway hostname. This protects user-created OAuthClients.
+func TestDeleteLegacyOAuthClientNonGatewaySkipped(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{
+			Domain: testDomain,
+		},
+	}
+
+	unrelatedClient := &oauthv1.OAuthClient{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: LegacyAuthClientID,
+		},
+		RedirectURIs: []string{
+			"https://unrelated-app.example.com/callback",
+		},
+	}
+
+	cli := setupTestClient().WithObjects(unrelatedClient).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	err := deleteLegacyOAuthClient(ctx, rr, gatewayConfig)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	// Verify the client was NOT deleted
+	preserved := &oauthv1.OAuthClient{}
+	err = cli.Get(ctx, types.NamespacedName{Name: LegacyAuthClientID}, preserved)
+	g.Expect(err).NotTo(HaveOccurred(), "unrelated OAuthClient named %q must not be deleted", LegacyAuthClientID)
+}
+
+// TestDeleteLegacyOAuthClientNoRedirectURIs verifies that deleteLegacyOAuthClient
+// does not delete a legacy OAuthClient with no redirect URIs.
+func TestDeleteLegacyOAuthClientNoRedirectURIs(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{
+			Domain: testDomain,
+		},
+	}
+
+	legacyClient := &oauthv1.OAuthClient{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: LegacyAuthClientID,
+		},
+		RedirectURIs: []string{},
+	}
+
+	cli := setupTestClient().WithObjects(legacyClient).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	err := deleteLegacyOAuthClient(ctx, rr, gatewayConfig)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	preserved := &oauthv1.OAuthClient{}
+	err = cli.Get(ctx, types.NamespacedName{Name: LegacyAuthClientID}, preserved)
+	g.Expect(err).NotTo(HaveOccurred(), "OAuthClient with no redirect URIs must not be deleted")
+}
+
+// TestGetAuthProxySecretValuesGeneratesNewSecrets verifies that when no
+// existing kube-auth-proxy-creds secret exists, getAuthProxySecretValues
+// generates new client secret and cookie secret values.
+func TestGetAuthProxySecretValuesGeneratesNewSecrets(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	cli := setupTestClient().Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	clientID, clientSecret, cookieSecret, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeIntegratedOAuth, nil)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(clientID).To(Equal(AuthClientID))
+	g.Expect(clientSecret).NotTo(BeEmpty(), "should generate a client secret")
+	g.Expect(cookieSecret).NotTo(BeEmpty(), "should generate a cookie secret")
+}
+
+// TestGetAuthProxySecretValuesOIDCPreservesCookieSecret verifies that in OIDC
+// mode, when an existing secret has a cookie secret, that cookie secret is
+// preserved (to avoid invalidating user sessions) while the client secret is
+// reloaded from the external OIDC secret.
+func TestGetAuthProxySecretValuesOIDCPreservesCookieSecret(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	oidcSecretName := testOIDCSecretName
+	oidcSecretValue := "new-oidc-secret-value" //nolint:gosec // test fixture
+	existingCookieSecret := "preserved-cookie-value"
+
+	existingSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      KubeAuthProxySecretsName,
+			Namespace: GatewayNamespace,
+		},
+		Data: map[string][]byte{
+			EnvClientID:     []byte("old-client"),
+			EnvClientSecret: []byte("old-secret"),
+			EnvCookieSecret: []byte(existingCookieSecret),
+		},
+	}
+
+	externalSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      oidcSecretName,
+			Namespace: GatewayNamespace,
+		},
+		Data: map[string][]byte{
+			"clientSecret": []byte(oidcSecretValue),
+		},
+	}
+
+	cli := setupTestClient().WithObjects(existingSecret, externalSecret).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	oidcConfig := &serviceApi.OIDCConfig{
+		ClientID: "my-oidc-client",
+		ClientSecretRef: corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: oidcSecretName},
+			Key:                  "clientSecret",
+		},
+	}
+
+	clientID, clientSecret, cookieSecret, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeOIDC, oidcConfig)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(clientID).To(Equal("my-oidc-client"))
+	g.Expect(clientSecret).To(Equal(oidcSecretValue), "should reload client secret from OIDC secret")
+	g.Expect(cookieSecret).To(Equal(existingCookieSecret), "should preserve existing cookie secret")
+}
+
+// TestGetAuthProxySecretValuesUnsupportedAuthMode verifies that an unsupported
+// auth mode (e.g. AuthModeNone) returns an error.
+func TestGetAuthProxySecretValuesUnsupportedAuthMode(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	cli := setupTestClient().Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	//nolint:dogsled // only the error matters in this test
+	_, _, _, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeNone, nil)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("is not supported"))
+}
+
+// TestGetAuthProxySecretValuesIntegratedOAuthPartialSecret verifies that when
+// the existing secret is missing the cookie secret key, getAuthProxySecretValues
+// falls through to generate a new cookie secret instead of returning incomplete data.
+func TestGetAuthProxySecretValuesIntegratedOAuthPartialSecret(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	existingSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      KubeAuthProxySecretsName,
+			Namespace: GatewayNamespace,
+		},
+		Data: map[string][]byte{
+			EnvClientID:     []byte(AuthClientID),
+			EnvClientSecret: []byte(testAuthClientSecret),
+		},
+	}
+
+	cli := setupTestClient().WithObjects(existingSecret).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	clientID, clientSecret, cookieSecret, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeIntegratedOAuth, nil)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(clientID).To(Equal(AuthClientID))
+	g.Expect(clientSecret).NotTo(BeEmpty(), "should generate a new client secret when cookie secret is missing")
+	g.Expect(cookieSecret).NotTo(BeEmpty(), "should generate a new cookie secret")
+}
+
+// TestGetAuthProxySecretValuesOIDCNoExistingSecret verifies that in OIDC mode
+// without an existing kube-auth-proxy-creds secret, a new cookie secret is
+// generated while the client secret comes from the external OIDC secret.
+func TestGetAuthProxySecretValuesOIDCNoExistingSecret(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	oidcSecretName := testOIDCSecretName
+	oidcSecretValue := "oidc-secret-value" //nolint:gosec // test fixture
+
+	externalSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      oidcSecretName,
+			Namespace: GatewayNamespace,
+		},
+		Data: map[string][]byte{
+			"clientSecret": []byte(oidcSecretValue),
+		},
+	}
+
+	cli := setupTestClient().WithObjects(externalSecret).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	oidcConfig := &serviceApi.OIDCConfig{
+		ClientID: "fresh-oidc-client",
+		ClientSecretRef: corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: oidcSecretName},
+			Key:                  "clientSecret",
+		},
+	}
+
+	clientID, clientSecret, cookieSecret, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeOIDC, oidcConfig)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(clientID).To(Equal("fresh-oidc-client"))
+	g.Expect(clientSecret).To(Equal(oidcSecretValue))
+	g.Expect(cookieSecret).NotTo(BeEmpty(), "should generate a new cookie secret when no existing secret")
+}
+
+// TestGetAuthProxySecretValuesOIDCMissingKey verifies that when the external
+// OIDC secret exists but is missing the expected key, an error is returned.
+func TestGetAuthProxySecretValuesOIDCMissingKey(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	oidcSecretName := testOIDCSecretName
+
+	externalSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      oidcSecretName,
+			Namespace: GatewayNamespace,
+		},
+		Data: map[string][]byte{
+			"wrong-key": []byte("some-value"),
+		},
+	}
+
+	cli := setupTestClient().WithObjects(externalSecret).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	oidcConfig := &serviceApi.OIDCConfig{
+		ClientID: "my-client",
+		ClientSecretRef: corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: oidcSecretName},
+			Key:                  "clientSecret",
+		},
+	}
+
+	//nolint:dogsled // only the error matters in this test
+	_, _, _, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeOIDC, oidcConfig)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("key 'clientSecret' not found"))
+}
+
+// TestDeleteLegacyOAuthClientMalformedURI verifies that deleteLegacyOAuthClient
+// skips malformed redirect URIs without erroring, and does not delete the client
+// when no valid URIs match.
+func TestDeleteLegacyOAuthClientMalformedURI(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{
+			Domain: testDomain,
+		},
+	}
+
+	legacyClient := &oauthv1.OAuthClient{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: LegacyAuthClientID,
+		},
+		RedirectURIs: []string{
+			"https://host/%zz",
+		},
+	}
+
+	cli := setupTestClient().WithObjects(legacyClient).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	err := deleteLegacyOAuthClient(ctx, rr, gatewayConfig)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	preserved := &oauthv1.OAuthClient{}
+	err = cli.Get(ctx, types.NamespacedName{Name: LegacyAuthClientID}, preserved)
+	g.Expect(err).NotTo(HaveOccurred(), "client with only malformed URIs must not be deleted")
+}
+
+// TestDeleteLegacyOAuthClientNonStandardPort verifies that deleteLegacyOAuthClient
+// does NOT delete an OAuthClient whose redirect URI uses a non-standard port,
+// even if the hostname and path match.
+func TestDeleteLegacyOAuthClientNonStandardPort(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{
+			Domain: testDomain,
+		},
+	}
+
+	legacyClient := &oauthv1.OAuthClient{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: LegacyAuthClientID,
+		},
+		RedirectURIs: []string{
+			"https://" + testHostnameDefault + ":8443/oauth2/callback",
+		},
+	}
+
+	cli := setupTestClient().WithObjects(legacyClient).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	err := deleteLegacyOAuthClient(ctx, rr, gatewayConfig)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	preserved := &oauthv1.OAuthClient{}
+	err = cli.Get(ctx, types.NamespacedName{Name: LegacyAuthClientID}, preserved)
+	g.Expect(err).NotTo(HaveOccurred(), "OAuthClient with non-standard port must not be deleted")
+}
+
+// TestDeleteLegacyOAuthClientHTTPSchemeSkipped verifies that deleteLegacyOAuthClient
+// does NOT delete an OAuthClient whose redirect URI uses http instead of https.
+func TestDeleteLegacyOAuthClientHTTPSchemeSkipped(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{
+			Domain: testDomain,
+		},
+	}
+
+	legacyClient := &oauthv1.OAuthClient{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: LegacyAuthClientID,
+		},
+		RedirectURIs: []string{
+			"http://" + testHostnameDefault + "/oauth2/callback",
+		},
+	}
+
+	cli := setupTestClient().WithObjects(legacyClient).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	err := deleteLegacyOAuthClient(ctx, rr, gatewayConfig)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	preserved := &oauthv1.OAuthClient{}
+	err = cli.Get(ctx, types.NamespacedName{Name: LegacyAuthClientID}, preserved)
+	g.Expect(err).NotTo(HaveOccurred(), "OAuthClient with http scheme must not be deleted")
+}
+
+// TestDeleteLegacyOAuthClientExplicitPort443 verifies that deleteLegacyOAuthClient
+// deletes the legacy OAuthClient when its redirect URI uses explicit port 443.
+func TestDeleteLegacyOAuthClientExplicitPort443(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{
+			Domain: testDomain,
+		},
+	}
+
+	legacyClient := &oauthv1.OAuthClient{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: LegacyAuthClientID,
+		},
+		RedirectURIs: []string{
+			"https://" + testHostnameDefault + ":443/oauth2/callback",
+		},
+	}
+
+	cli := setupTestClient().WithObjects(legacyClient).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	err := deleteLegacyOAuthClient(ctx, rr, gatewayConfig)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	deleted := &oauthv1.OAuthClient{}
+	err = cli.Get(ctx, types.NamespacedName{Name: LegacyAuthClientID}, deleted)
+	g.Expect(k8serr.IsNotFound(err)).To(BeTrue(), "legacy OAuthClient with explicit port 443 should be deleted")
+}
+
+// TestDeleteLegacyOAuthClientGetFQDNError verifies that deleteLegacyOAuthClient
+// returns an error when GetFQDN fails (e.g. no domain in config and no cluster domain).
+func TestDeleteLegacyOAuthClientGetFQDNError(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{},
+	}
+
+	legacyClient := &oauthv1.OAuthClient{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: LegacyAuthClientID,
+		},
+		RedirectURIs: []string{
+			"https://rh-ai.example.com/oauth2/callback",
+		},
+	}
+
+	cli := setupTestClient().WithObjects(legacyClient).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	err := deleteLegacyOAuthClient(ctx, rr, gatewayConfig)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("failed to resolve gateway domain for legacy cleanup"))
+}
+
+// TestGetAuthProxySecretValuesOIDCMissingExternalSecret verifies that when the
+// external OIDC secret referenced by ClientSecretRef does not exist, an error
+// is returned.
+func TestGetAuthProxySecretValuesOIDCMissingExternalSecret(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	cli := setupTestClient().Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	oidcConfig := &serviceApi.OIDCConfig{
+		ClientID: "my-oidc-client",
+		ClientSecretRef: corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: "nonexistent-secret"},
+			Key:                  "clientSecret",
+		},
+	}
+
+	//nolint:dogsled // only the error matters in this test
+	_, _, _, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeOIDC, oidcConfig)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("failed to get OIDC client secret"))
+}
+
+// TestGetAuthProxySecretValuesOIDCDefaultKey verifies that when the OIDC
+// ClientSecretRef.Key is empty, it defaults to "clientSecret".
+func TestGetAuthProxySecretValuesOIDCDefaultKey(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	oidcSecretName := testOIDCSecretName
+	oidcSecretValue := "oidc-default-key-value" //nolint:gosec // test fixture
+
+	externalSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      oidcSecretName,
+			Namespace: GatewayNamespace,
+		},
+		Data: map[string][]byte{
+			"clientSecret": []byte(oidcSecretValue),
+		},
+	}
+
+	cli := setupTestClient().WithObjects(externalSecret).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	oidcConfig := &serviceApi.OIDCConfig{
+		ClientID: "oidc-client-default-key",
+		ClientSecretRef: corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: oidcSecretName},
+		},
+	}
+
+	clientID, clientSecret, cookieSecret, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeOIDC, oidcConfig)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(clientID).To(Equal("oidc-client-default-key"))
+	g.Expect(clientSecret).To(Equal(oidcSecretValue), "should read from default 'clientSecret' key")
+	g.Expect(cookieSecret).NotTo(BeEmpty(), "should generate a cookie secret")
+}
+
+// TestGetAuthProxySecretValuesOIDCCustomNamespace verifies that when OIDC
+// SecretNamespace is set, the external secret is fetched from that namespace.
+func TestGetAuthProxySecretValuesOIDCCustomNamespace(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	customNamespace := "custom-ns"
+	oidcSecretName := testOIDCSecretName
+	oidcSecretValue := "oidc-custom-ns-value" //nolint:gosec // test fixture
+
+	externalSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      oidcSecretName,
+			Namespace: customNamespace,
+		},
+		Data: map[string][]byte{
+			"my-key": []byte(oidcSecretValue),
+		},
+	}
+
+	cli := setupTestClient().WithObjects(externalSecret).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	oidcConfig := &serviceApi.OIDCConfig{
+		ClientID:        "oidc-custom-ns-client",
+		SecretNamespace: customNamespace,
+		ClientSecretRef: corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: oidcSecretName},
+			Key:                  "my-key",
+		},
+	}
+
+	clientID, clientSecret, cookieSecret, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeOIDC, oidcConfig)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(clientID).To(Equal("oidc-custom-ns-client"))
+	g.Expect(clientSecret).To(Equal(oidcSecretValue), "should read from custom namespace")
+	g.Expect(cookieSecret).NotTo(BeEmpty(), "should generate a cookie secret")
+}
+
+// TestGetAuthProxySecretValuesOIDCExistingSecretMissingCookie verifies that in
+// OIDC mode, when the existing secret has a client secret but no cookie secret,
+// a new cookie secret is generated while the client secret comes from the
+// external OIDC secret.
+func TestGetAuthProxySecretValuesOIDCExistingSecretMissingCookie(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	oidcSecretName := testOIDCSecretName
+	oidcSecretValue := "oidc-secret-no-cookie" //nolint:gosec // test fixture
+
+	existingSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      KubeAuthProxySecretsName,
+			Namespace: GatewayNamespace,
+		},
+		Data: map[string][]byte{
+			EnvClientID:     []byte("old-oidc-client"),
+			EnvClientSecret: []byte("old-secret"),
+		},
+	}
+
+	externalSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      oidcSecretName,
+			Namespace: GatewayNamespace,
+		},
+		Data: map[string][]byte{
+			"clientSecret": []byte(oidcSecretValue),
+		},
+	}
+
+	cli := setupTestClient().WithObjects(existingSecret, externalSecret).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	oidcConfig := &serviceApi.OIDCConfig{
+		ClientID: "oidc-no-cookie-client",
+		ClientSecretRef: corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: oidcSecretName},
+			Key:                  "clientSecret",
+		},
+	}
+
+	clientID, clientSecret, cookieSecret, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeOIDC, oidcConfig)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(clientID).To(Equal("oidc-no-cookie-client"))
+	g.Expect(clientSecret).To(Equal(oidcSecretValue), "should reload from OIDC secret")
+	g.Expect(cookieSecret).NotTo(BeEmpty(), "should generate a new cookie secret when missing from existing secret")
+}
+
+// TestGetAuthProxySecretValuesIntegratedOAuthMissingClientSecret verifies that
+// when the existing secret has a cookie secret but no client secret, new secrets
+// are generated while the correct client ID is returned.
+func TestGetAuthProxySecretValuesIntegratedOAuthMissingClientSecret(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	existingSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      KubeAuthProxySecretsName,
+			Namespace: GatewayNamespace,
+		},
+		Data: map[string][]byte{
+			EnvClientID:     []byte(AuthClientID),
+			EnvCookieSecret: []byte(testAuthCookieSecret),
+		},
+	}
+
+	cli := setupTestClient().WithObjects(existingSecret).Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	clientID, clientSecret, cookieSecret, err := getAuthProxySecretValues(ctx, rr, cluster.AuthModeIntegratedOAuth, nil)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(clientID).To(Equal(AuthClientID))
+	g.Expect(clientSecret).NotTo(BeEmpty(), "should generate a new client secret")
+	g.Expect(clientSecret).NotTo(Equal(testAuthClientSecret), "should not reuse missing client secret")
+	g.Expect(cookieSecret).To(Equal(testAuthCookieSecret), "should preserve existing cookie secret")
+}
+
+// TestDeleteLegacyOAuthClientGetError verifies that when the API server returns
+// a non-NotFound error while checking for the legacy OAuthClient, the error is
+// propagated to the caller.
+func TestDeleteLegacyOAuthClientGetError(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{
+			Domain: testDomain,
+		},
+	}
+
+	cli := setupTestClient().
+		WithInterceptorFuncs(interceptor.Funcs{
+			Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+				if key.Name == LegacyAuthClientID {
+					return errors.New("simulated API server error")
+				}
+				return c.Get(ctx, key, obj, opts...)
+			},
+		}).
+		Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	err := deleteLegacyOAuthClient(ctx, rr, gatewayConfig)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("failed to check for legacy OAuthClient"))
+}
+
+// TestDeleteLegacyOAuthClientDeleteError verifies that when deletion of the
+// legacy OAuthClient fails with a non-transient error, the error is propagated.
+func TestDeleteLegacyOAuthClientDeleteError(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		Spec: serviceApi.GatewayConfigSpec{
+			Domain: testDomain,
+		},
+	}
+
+	legacyClient := &oauthv1.OAuthClient{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: LegacyAuthClientID,
+		},
+		RedirectURIs: []string{
+			"https://" + testHostnameDefault + "/oauth2/callback",
+		},
+	}
+
+	cli := setupTestClient().
+		WithObjects(legacyClient).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+				if obj.GetName() == LegacyAuthClientID {
+					return errors.New("simulated delete error")
+				}
+				return c.Delete(ctx, obj, opts...)
+			},
+		}).
+		Build()
+	rr := &odhtypes.ReconciliationRequest{Client: cli}
+	ctx := t.Context()
+
+	err := deleteLegacyOAuthClient(ctx, rr, gatewayConfig)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("failed to delete legacy OAuthClient"))
 }

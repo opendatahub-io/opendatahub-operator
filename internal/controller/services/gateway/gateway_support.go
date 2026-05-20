@@ -6,12 +6,14 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 
 	oauthv1 "github.com/openshift/api/oauth/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -43,6 +45,7 @@ const (
 	LegacyGatewaySubdomain  = "data-science-gateway"               // Legacy subdomain to redirect from
 
 	// Authentication constants.
+	LegacyAuthClientID       = "odh"          // Legacy OauthClient name from RHOAI 3.0 and before.
 	AuthClientID             = "data-science" // OauthClient name.
 	KubeAuthProxyName        = "kube-auth-proxy"
 	KubeAuthProxySecretsName = "kube-auth-proxy-creds" //nolint:gosec // This is a resource name, not actual credentials
@@ -398,6 +401,67 @@ func createOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationRequest, 
 	return rr.AddResources(oauthClient)
 }
 
+// deleteLegacyOAuthClient removes the legacy "odh" OAuthClient left over from
+// RHOAI 3.0 and before. It only deletes the client if a redirect URI matches one
+// of the gateway's expected hostnames with the /oauth2/callback path, confirming
+// it was created by the gateway controller and not by an unrelated user workload.
+func deleteLegacyOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig) error {
+	l := logf.FromContext(ctx).WithName("deleteLegacyOAuthClient")
+
+	if AuthClientID == LegacyAuthClientID {
+		return nil
+	}
+
+	legacyClient := &oauthv1.OAuthClient{}
+	err := rr.Client.Get(ctx, types.NamespacedName{Name: LegacyAuthClientID}, legacyClient)
+	if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to check for legacy OAuthClient %q: %w", LegacyAuthClientID, err)
+	}
+
+	hostname, err := GetFQDN(ctx, rr.Client, gatewayConfig)
+	if err != nil {
+		return fmt.Errorf("failed to resolve gateway domain for legacy cleanup: %w", err)
+	}
+
+	expectedHosts := map[string]bool{strings.ToLower(hostname): true}
+	legacyInfo := computeLegacyRedirectInfo(gatewayConfig, hostname)
+	if legacyInfo.LegacyHostname != "" {
+		expectedHosts[strings.ToLower(legacyInfo.LegacyHostname)] = true
+	}
+
+	isLegacyGatewayClient := false
+	for _, uri := range legacyClient.RedirectURIs {
+		parsed, parseErr := url.Parse(uri)
+		if parseErr != nil {
+			continue
+		}
+		if parsed.Scheme != "https" || parsed.Path != "/oauth2/callback" {
+			continue
+		}
+		port := parsed.Port()
+		if expectedHosts[strings.ToLower(parsed.Hostname())] && (port == "" || port == "443") {
+			isLegacyGatewayClient = true
+			break
+		}
+	}
+
+	if !isLegacyGatewayClient {
+		l.V(1).Info("Legacy OAuthClient exists but does not appear to be a gateway client, skipping deletion",
+			"name", LegacyAuthClientID)
+		return nil
+	}
+
+	l.Info("Deleting legacy OAuthClient from previous version", "name", LegacyAuthClientID)
+	if err := rr.Client.Delete(ctx, legacyClient); err != nil && !k8serr.IsNotFound(err) && !meta.IsNoMatchError(err) {
+		return fmt.Errorf("failed to delete legacy OAuthClient %q: %w", LegacyAuthClientID, err)
+	}
+
+	return nil
+}
+
 // createSecret dynamically creates the kube-auth-proxy-creds secret immediately on the cluster.
 func createSecret(ctx context.Context, rr *odhtypes.ReconciliationRequest, clientID, clientSecret, cookieSecret string) error {
 	gatewayConfig, ok := rr.Instance.(*serviceApi.GatewayConfig)
@@ -580,28 +644,44 @@ func getAuthProxySecretValues(
 		return "", "", "", fmt.Errorf("failed to check existing secret %s/%s: %w", GatewayNamespace, KubeAuthProxySecretsName, secretErr)
 	}
 
-	// If secret exists, validate and reuse its values
-	if secretErr == nil {
-		clientSecretBytes, hasClientSecret := existingSecret.Data["OAUTH2_PROXY_CLIENT_SECRET"]
-		cookieSecretBytes, hasCookieSecret := existingSecret.Data["OAUTH2_PROXY_COOKIE_SECRET"]
-		clientIDBytes, hasClientID := existingSecret.Data["OAUTH2_PROXY_CLIENT_ID"]
-
-		if hasClientSecret && hasCookieSecret && hasClientID {
-			return string(clientIDBytes), string(clientSecretBytes), string(cookieSecretBytes), nil
-		}
-	}
-
-	var clientSecretValue, clientID string
+	// Determine the desired client ID for the current auth mode.
+	// This must always reflect the current configuration, not a stale value
+	// from an existing secret (e.g. after an upgrade that renames the OAuth client).
+	var desiredClientID string
 
 	switch authMode {
 	case cluster.AuthModeOIDC:
-		// OIDC mode: get client secret from external secret
-		clientID = oidcConfig.ClientID
+		if oidcConfig == nil || oidcConfig.ClientID == "" || oidcConfig.ClientSecretRef.Name == "" {
+			return "", "", "", errors.New("OIDC auth mode requires oidcConfig with non-empty ClientID and ClientSecretRef")
+		}
 
-		// Determine which namespace to use for the secret
+		desiredClientID = oidcConfig.ClientID
+	case cluster.AuthModeIntegratedOAuth:
+		desiredClientID = AuthClientID
+	default:
+		return "", "", "", fmt.Errorf("auth mode: %s is not supported", authMode)
+	}
+
+	// For integrated OAuth, reuse both client secret and cookie secret from
+	// the existing secret to avoid invalidating sessions or changing the
+	// OAuth client secret. For OIDC mode, always reload client secret from
+	// ClientSecretRef to pick up rotations; only cookie secret is preserved.
+	if secretErr == nil && authMode == cluster.AuthModeIntegratedOAuth {
+		clientSecretBytes, hasClientSecret := existingSecret.Data[EnvClientSecret]
+		cookieSecretBytes, hasCookieSecret := existingSecret.Data[EnvCookieSecret]
+
+		if hasClientSecret && hasCookieSecret {
+			return desiredClientID, string(clientSecretBytes), string(cookieSecretBytes), nil
+		}
+	}
+
+	var clientSecretValue string
+
+	switch authMode {
+	case cluster.AuthModeOIDC:
 		secretNamespace := oidcConfig.SecretNamespace
 		if secretNamespace == "" {
-			secretNamespace = GatewayNamespace // Default to openshift-ingress if not specified
+			secretNamespace = GatewayNamespace
 		}
 
 		externalSecret := &corev1.Secret{}
@@ -625,9 +705,6 @@ func getAuthProxySecretValues(
 		}
 
 	case cluster.AuthModeIntegratedOAuth:
-		// OAuth mode: generate new client secret
-		clientID = AuthClientID
-
 		clientSecretGen, err := cluster.NewSecret("client-secret", "random", 24)
 		if err != nil {
 			return "", "", "", fmt.Errorf("failed to generate client secret: %w", err)
@@ -638,13 +715,19 @@ func getAuthProxySecretValues(
 		return "", "", "", fmt.Errorf("auth mode: %s is not supported", authMode)
 	}
 
-	// Always generate new cookie secret on oauth or oidc mode.
+	// Reuse existing cookie secret if available to preserve user sessions.
+	if secretErr == nil {
+		if cookieSecretBytes, hasCookieSecret := existingSecret.Data[EnvCookieSecret]; hasCookieSecret {
+			return desiredClientID, clientSecretValue, string(cookieSecretBytes), nil
+		}
+	}
+
 	cookieSecretGen, err := cluster.NewSecret("cookie-secret", "random", 32)
 	if err != nil {
 		return "", "", "", fmt.Errorf("failed to generate cookie secret: %w", err)
 	}
 
-	return clientID, clientSecretValue, cookieSecretGen.Value, nil
+	return desiredClientID, clientSecretValue, cookieSecretGen.Value, nil
 }
 
 // detectAndSetIngressMode detects the ingress mode from an existing Gateway Service and updates
