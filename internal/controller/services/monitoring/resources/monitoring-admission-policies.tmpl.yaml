@@ -19,9 +19,9 @@ spec:
   validations:
     - expression: >
         !has(object.metadata.labels) ||
-        !('opendatahub.io/monitoring' in object.metadata.labels) ||
-        object.metadata.labels['opendatahub.io/monitoring'] in ['true', 'false']
-      message: "The label 'opendatahub.io/monitoring' must be set to 'true' or 'false'."
+        !('monitoring.opendatahub.io/scrape' in object.metadata.labels) ||
+        object.metadata.labels['monitoring.opendatahub.io/scrape'] in ['true', 'false']
+      message: "The label 'monitoring.opendatahub.io/scrape' must be set to 'true' or 'false'."
 
 ---
 apiVersion: admissionregistration.k8s.io/v1
