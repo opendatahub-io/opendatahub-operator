@@ -63,3 +63,6 @@ map:
   odh-kserve-module-operator:
     src: kserve-module/config
     dest: kserve-module
+  odh-agents-operator:
+    src: config/manifests
+    dest: kagenti-operator
