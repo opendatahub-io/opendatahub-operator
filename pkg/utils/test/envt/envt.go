@@ -361,6 +361,12 @@ func (et *EnvT) StartManager(t *testing.T, ctx context.Context) {
 	case <-time.After(15 * time.Second):
 		t.Fatal("timed out waiting for manager leader election")
 	}
+
+	go func() {
+		if err := <-errCh; err != nil && mgrCtx.Err() == nil {
+			t.Errorf("manager stopped unexpectedly after leader election: %v", err)
+		}
+	}()
 }
 
 // NewTestContext creates a testf.TestContext configured with this environment's
