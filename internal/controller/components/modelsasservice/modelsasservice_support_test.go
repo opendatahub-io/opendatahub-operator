@@ -4,14 +4,15 @@ package modelsasservice
 import (
 	"testing"
 
-	. "github.com/onsi/gomega"
 	"sigs.k8s.io/kustomize/api/provider"
 	"sigs.k8s.io/kustomize/api/resmap"
+
+	. "github.com/onsi/gomega"
 )
 
 var rf = provider.NewDefaultDepProvider().GetResourceFactory()
 
-func buildTestResMap(t *testing.T, yamls ...string) resmap.ResMap {
+func buildTestResMap(t *testing.T, yamls ...string) resmap.ResMap { //nolint:ireturn
 	t.Helper()
 	g := NewWithT(t)
 	rm := resmap.New()
