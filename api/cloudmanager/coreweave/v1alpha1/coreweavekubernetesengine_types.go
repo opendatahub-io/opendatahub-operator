@@ -27,8 +27,8 @@ const (
 	CoreWeaveKubernetesEngineInstanceName = "default-coreweavekubernetesengine"
 )
 
-// Check that the component implements common.PlatformObject.
-var _ apicommon.PlatformObject = (*CoreWeaveKubernetesEngine)(nil)
+// Check that the component implements common.KubernetesEngineInstance.
+var _ common.KubernetesEngineInstance = (*CoreWeaveKubernetesEngine)(nil)
 
 // CoreWeaveKubernetesEngineSpec defines the desired state of CoreWeaveKubernetesEngine.
 type CoreWeaveKubernetesEngineSpec struct {
@@ -58,6 +58,10 @@ type CoreWeaveKubernetesEngine struct {
 
 	Spec   CoreWeaveKubernetesEngineSpec   `json:"spec,omitempty"`
 	Status CoreWeaveKubernetesEngineStatus `json:"status,omitempty"`
+}
+
+func (e *CoreWeaveKubernetesEngine) GetDependencies() common.Dependencies {
+	return e.Spec.Dependencies
 }
 
 // +kubebuilder:object:root=true

@@ -326,6 +326,81 @@ func TestDeploymentsAvailableActionWithPartOfLabel(t *testing.T) {
 	)
 }
 
+func TestDeploymentsAvailableActionWithCustomConditionType(t *testing.T) {
+	tests := []struct {
+		name           string
+		readyReplicas  int32
+		expectedStatus metav1.ConditionStatus
+		expectedReason string
+	}{
+		{
+			name:           "ready",
+			readyReplicas:  1,
+			expectedStatus: metav1.ConditionTrue,
+		},
+		{
+			name:           "not ready",
+			readyReplicas:  0,
+			expectedStatus: metav1.ConditionFalse,
+			expectedReason: status.ConditionDeploymentsNotAvailableReason,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			ctx := t.Context()
+			ns := xid.New().String()
+			customCondition := "CustomAvailable"
+
+			cl, err := fakeclient.New(
+				fakeclient.WithObjects(
+					&appsv1.Deployment{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "test-operator",
+							Namespace: ns,
+							Labels:    map[string]string{labels.PlatformPartOf: ns},
+						},
+						Status: appsv1.DeploymentStatus{
+							Replicas:      1,
+							ReadyReplicas: tt.readyReplicas,
+						},
+					},
+				),
+			)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			action := deployments.NewAction(
+				deployments.WithConditionType(customCondition),
+				deployments.WithSelectorLabel(labels.PlatformPartOf, ns),
+				deployments.InNamespace(ns),
+			)
+
+			rr := types.ReconciliationRequest{
+				Client:   cl,
+				Instance: &componentApi.Dashboard{},
+				Release:  common.Release{Name: cluster.OpenDataHub},
+			}
+			rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady, customCondition)
+
+			err = action(ctx, &rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			fields := gstruct.Fields{"Status": Equal(tt.expectedStatus)}
+			if tt.expectedReason != "" {
+				fields["Reason"] = Equal(tt.expectedReason)
+			}
+
+			g.Expect(rr.Instance).Should(
+				WithTransform(
+					matchers.ExtractStatusCondition(customCondition),
+					gstruct.MatchFields(gstruct.IgnoreExtras, fields),
+				),
+			)
+		})
+	}
+}
+
 func TestDeploymentsAvailableActionNotReadyNotFound(t *testing.T) {
 	g := NewWithT(t)
 
