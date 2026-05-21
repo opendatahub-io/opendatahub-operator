@@ -8,11 +8,11 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
 const (
@@ -33,11 +33,7 @@ func NewHandler() *handler {
 				ReleaseName:       "odh-observability",
 				ChartDir:          "odh-observability",
 				NamespaceValueKey: "operatorNamespace",
-				GVK: schema.GroupVersionKind{
-					Group:   "services.platform.opendatahub.io",
-					Version: "v1alpha1",
-					Kind:    serviceApi.MonitoringKind,
-				},
+				GVK:               gvk.Monitoring,
 				RelatedImages: []string{
 					"RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
 					"RELATED_IMAGE_OSE_PROM_LABEL_PROXY_IMAGE",

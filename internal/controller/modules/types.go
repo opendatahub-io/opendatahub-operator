@@ -135,10 +135,12 @@ type PlatformContext struct {
 
 	// DSC is the DataScienceCluster instance. Handlers read their
 	// module-specific component stanza from it (e.g., DSC.Spec.Components.MyModule).
+	// Nil in standalone mode (xKS) where no DSC CRD is installed.
 	DSC *dscv2.DataScienceCluster
 
 	// DSCI is the DSCInitialization instance. Service-type modules read
 	// their configuration from it (e.g., DSCI.Spec.Monitoring).
+	// Nil in standalone mode (xKS) where no DSCI CRD is installed.
 	DSCI *dsciv2.DSCInitialization
 
 	// ChartsBasePath is the base directory for locally-bundled Helm charts.

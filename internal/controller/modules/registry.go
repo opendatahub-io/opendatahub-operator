@@ -1,6 +1,8 @@
 package modules
 
 import (
+	"sort"
+
 	"github.com/hashicorp/go-multierror"
 )
 
@@ -14,6 +16,8 @@ type registryEntry struct {
 // Registry maintains the set of registered ModuleHandlers.
 type Registry struct {
 	entries map[string]registryEntry
+	// order preserves insertion order for deterministic iteration.
+	order []string
 }
 
 var r = &Registry{}
@@ -25,12 +29,17 @@ func (r *Registry) Add(handler ModuleHandler, opts ...RegistrationOption) {
 		r.entries = make(map[string]registryEntry)
 	}
 
+	name := handler.GetName()
+
 	e := registryEntry{handler: handler, enabled: true}
 	for _, opt := range opts {
 		opt(&e)
 	}
 
-	r.entries[handler.GetName()] = e
+	if _, exists := r.entries[name]; !exists {
+		r.order = append(r.order, name)
+	}
+	r.entries[name] = e
 }
 
 // Enable sets the enabled state for the named module to true.
@@ -56,12 +65,36 @@ func (r *Registry) IsEnabled(name string) bool {
 	return ok && e.enabled
 }
 
-// ForEach iterates over all registered modules and applies the given function.
-// Entries whose enabled flag is false are skipped.
+// EnableFromList enables only the named modules, disabling all others.
+// Names that don't match any registered module are silently ignored.
+func (r *Registry) EnableFromList(names []string) {
+	want := make(map[string]bool, len(names))
+	for _, n := range names {
+		want[n] = true
+	}
+	for name, e := range r.entries {
+		e.enabled = want[name]
+		r.entries[name] = e
+	}
+}
+
+// sortedNames returns module names in sorted order for deterministic iteration.
+func (r *Registry) sortedNames() []string {
+	names := make([]string, 0, len(r.entries))
+	for name := range r.entries {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// ForEach iterates over all registered modules in sorted order and applies
+// the given function. Entries whose enabled flag is false are skipped.
 // Errors are collected and returned at the end.
 func (r *Registry) ForEach(f func(ModuleHandler) error) error {
 	var errs *multierror.Error
-	for _, e := range r.entries {
+	for _, name := range r.sortedNames() {
+		e := r.entries[name]
 		if !e.enabled {
 			continue
 		}
@@ -71,11 +104,13 @@ func (r *Registry) ForEach(f func(ModuleHandler) error) error {
 	return errs.ErrorOrNil()
 }
 
-// ForAll iterates over every registered module regardless of enabled state.
-// Use this for cleanup paths that must run even for suppressed modules.
+// ForAll iterates over every registered module in sorted order regardless of
+// enabled state. Use this for cleanup paths that must run even for suppressed
+// modules.
 func (r *Registry) ForAll(f func(handler ModuleHandler, registryEnabled bool) error) error {
 	var errs *multierror.Error
-	for _, e := range r.entries {
+	for _, name := range r.sortedNames() {
+		e := r.entries[name]
 		errs = multierror.Append(errs, f(e.handler, e.enabled))
 	}
 
@@ -110,6 +145,10 @@ func Disable(name string) {
 
 func IsEnabled(name string) bool {
 	return r.IsEnabled(name)
+}
+
+func EnableFromList(names []string) {
+	r.EnableFromList(names)
 }
 
 func ForEach(f func(ModuleHandler) error) error {

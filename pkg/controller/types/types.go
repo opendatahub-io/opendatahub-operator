@@ -28,11 +28,22 @@ import (
 // injectModuleEnv action to inject RELATED_IMAGE_* and APPLICATIONS_NAMESPACE
 // env vars into module operator Deployments.
 type ModuleEnvInjection struct {
-	// RelatedImages is the deduplicated union of RELATED_IMAGE_* env var
-	// names from all enabled modules.
-	RelatedImages []string
+	// PerModuleImages maps each module's related images to its chart/manifest
+	// resources. Each entry's images are only injected into Deployments
+	// rendered from that module's operator manifests.
+	PerModuleImages []ModuleImages
 	// ApplicationsNamespace is the platform's shared application namespace.
 	ApplicationsNamespace string
+}
+
+// ModuleImages associates a module's related images with a deployment name
+// pattern so injection can be scoped to that module's operator Deployment.
+type ModuleImages struct {
+	// DeploymentName is the expected name of the module's operator Deployment.
+	// Typically the Helm release name.
+	DeploymentName string
+	// Images is the list of RELATED_IMAGE_* env var names for this module.
+	Images []string
 }
 
 // Controller defines the core interface for a controller in the OpenDataHub Operator.

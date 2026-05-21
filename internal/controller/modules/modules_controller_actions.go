@@ -5,11 +5,15 @@ import (
 	"fmt"
 	"strings"
 
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -19,15 +23,81 @@ import (
 // initializeModules fetches DSCI and GatewayDomain once per reconcile and
 // stores the DSCI on the ReconciliationRequest so downstream actions can
 // build PlatformContext without redundant API calls.
+//
+// In standalone mode (xKS), DSCI may not exist; a not-found or no-match
+// error is treated as non-fatal and rr.DSCI is left nil.
 func initializeModules(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	dsci, err := cluster.GetDSCI(ctx, rr.Client)
 	if err != nil {
+		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
+			rr.DSCI = nil
+			return nil
+		}
 		return fmt.Errorf("failed to get DSCI for module reconciler: %w", err)
 	}
 
 	rr.DSCI = dsci
 
 	return nil
+}
+
+// dscFromInstance safely extracts the DataScienceCluster from the reconcile
+// instance. Returns nil when the primary resource is not a DSC (standalone mode).
+func dscFromInstance(rr *odhtype.ReconciliationRequest) *dscv2.DataScienceCluster {
+	if dsc, ok := rr.Instance.(*dscv2.DataScienceCluster); ok {
+		return dsc
+	}
+	return nil
+}
+
+// platformFromInstance safely extracts the Platform CR from the reconcile
+// instance. Returns nil when the primary resource is not a Platform (DSC mode).
+func platformFromInstance(rr *odhtype.ReconciliationRequest) *configv1alpha1.Platform {
+	if p, ok := rr.Instance.(*configv1alpha1.Platform); ok {
+		return p
+	}
+	return nil
+}
+
+// dsciOrNil returns the DSCI from the reconcile request, or nil if absent.
+func dsciOrNil(rr *odhtype.ReconciliationRequest) *dsciv2.DSCInitialization {
+	return rr.DSCI
+}
+
+// enableModulesFromPlatform reads spec.modules from the Platform CR and
+// enables only those modules in the registry. This action is only used in
+// platform mode (xKS); DSC mode derives enablement from the DSC spec.
+//
+// Safety: this mutates the package-level registry. It is safe because the
+// controller uses the default MaxConcurrentReconciles=1, so only one
+// reconcile is in-flight at a time. Do not increase concurrency without
+// adding synchronization to the registry.
+func enableModulesFromPlatform(_ context.Context, rr *odhtype.ReconciliationRequest) error {
+	p := platformFromInstance(rr)
+	if p == nil {
+		return nil
+	}
+
+	EnableFromList(p.Spec.Modules)
+
+	return nil
+}
+
+// buildPlatformContext constructs a PlatformContext for the current reconcile
+// cycle. Works in both DSC and standalone modes.
+func buildPlatformContext(ctx context.Context, rr *odhtype.ReconciliationRequest) (*PlatformContext, error) {
+	appNS, err := cluster.ApplicationNamespace(ctx, rr.Client)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve application namespace: %w", err)
+	}
+
+	return &PlatformContext{
+		ApplicationsNamespace: appNS,
+		Release:               rr.Release,
+		DSC:                   dscFromInstance(rr),
+		DSCI:                  dsciOrNil(rr),
+		ChartsBasePath:        rr.ChartsBasePath,
+	}, nil
 }
 
 // cleanupDisabledModules implements a two-phase cleanup for modules that have
@@ -48,21 +118,13 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 
 	log := logf.FromContext(ctx)
 
-	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
-	if !ok {
-		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster", rr.Instance)
-	}
-
-	platformCtx := PlatformContext{
-		ApplicationsNamespace: rr.DSCI.Spec.ApplicationsNamespace,
-		Release:               rr.Release,
-		DSC:                   instance,
-		DSCI:                  rr.DSCI,
-		ChartsBasePath:        rr.ChartsBasePath,
+	platformCtx, err := buildPlatformContext(ctx, rr)
+	if err != nil {
+		return err
 	}
 
 	return reg.ForAll(func(handler ModuleHandler, registryEnabled bool) error {
-		if registryEnabled && handler.IsEnabled(&platformCtx) {
+		if registryEnabled && handler.IsEnabled(platformCtx) {
 			return nil
 		}
 
@@ -74,7 +136,7 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 		switch crState {
 		case CRStateAbsent:
 			log.Info("module CR gone, cleaning up operator resources", "module", handler.GetName())
-			return handler.DeleteOperatorResources(ctx, rr.Client, &platformCtx)
+			return handler.DeleteOperatorResources(ctx, rr.Client, platformCtx)
 
 		case CRStateAlive:
 			log.Info("module disabled, deleting module CR", "module", handler.GetName())
@@ -87,7 +149,7 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 			log.Info("module CR deletion in progress, keeping operator alive",
 				"module", handler.GetName())
 
-			operatorManifests := handler.GetOperatorManifests(&platformCtx)
+			operatorManifests := handler.GetOperatorManifests(platformCtx)
 			if len(operatorManifests.HelmCharts) > 0 {
 				rr.HelmCharts = append(rr.HelmCharts, operatorManifests.HelmCharts...)
 			}
@@ -114,11 +176,6 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	log := logf.FromContext(ctx)
 
-	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
-	if !ok {
-		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster", rr.Instance)
-	}
-
 	reg := DefaultRegistry()
 	if !reg.HasEntries() {
 		return nil
@@ -126,40 +183,37 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 
 	rr.Generated = true
 
+	platformCtx, err := buildPlatformContext(ctx, rr)
+	if err != nil {
+		return err
+	}
+
 	gatewayDomain, err := resources.GetGatewayDomain(ctx, rr.Client)
 	if err != nil {
 		log.V(1).Info("gateway domain not available, modules needing it should handle empty value", "error", err)
 	}
+	platformCtx.GatewayDomain = gatewayDomain
 
-	platformCtx := PlatformContext{
-		ApplicationsNamespace: rr.DSCI.Spec.ApplicationsNamespace,
-		GatewayDomain:         gatewayDomain,
-		Release:               rr.Release,
-		DSC:                   instance,
-		DSCI:                  rr.DSCI,
-		ChartsBasePath:        rr.ChartsBasePath,
-	}
-
-	seen := make(map[string]bool)
-	var allRelatedImages []string
+	var perModuleImages []odhtype.ModuleImages
 
 	err = reg.ForEach(func(handler ModuleHandler) error {
 		name := handler.GetName()
 
-		if !handler.IsEnabled(&platformCtx) {
+		if !handler.IsEnabled(platformCtx) {
 			return nil
 		}
 
 		log.Info("provisioning module", "module", name)
 
-		for _, img := range handler.GetRelatedImages() {
-			if !seen[img] {
-				seen[img] = true
-				allRelatedImages = append(allRelatedImages, img)
-			}
-		}
+		operatorManifests := handler.GetOperatorManifests(platformCtx)
 
-		operatorManifests := handler.GetOperatorManifests(&platformCtx)
+		imgs := handler.GetRelatedImages()
+		if len(imgs) > 0 {
+			perModuleImages = append(perModuleImages, odhtype.ModuleImages{
+				DeploymentName: deploymentNameFromManifests(operatorManifests, handler.GetName()),
+				Images:         imgs,
+			})
+		}
 		if len(operatorManifests.HelmCharts) > 0 {
 			rr.HelmCharts = append(rr.HelmCharts, operatorManifests.HelmCharts...)
 		}
@@ -167,7 +221,7 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 			rr.Manifests = append(rr.Manifests, operatorManifests.Manifests...)
 		}
 
-		moduleCR, err := handler.BuildModuleCR(ctx, rr.Client, &platformCtx)
+		moduleCR, err := handler.BuildModuleCR(ctx, rr.Client, platformCtx)
 		if err != nil {
 			return fmt.Errorf("failed to build module CR for %s: %w", name, err)
 		}
@@ -188,14 +242,26 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 		return fmt.Errorf("provisioning failed: %w", err)
 	}
 
-	if len(allRelatedImages) > 0 || rr.DSCI.Spec.ApplicationsNamespace != "" {
+	if len(perModuleImages) > 0 || platformCtx.ApplicationsNamespace != "" {
 		rr.ModuleEnvInjection = &odhtype.ModuleEnvInjection{
-			RelatedImages:         allRelatedImages,
-			ApplicationsNamespace: rr.DSCI.Spec.ApplicationsNamespace,
+			PerModuleImages:       perModuleImages,
+			ApplicationsNamespace: platformCtx.ApplicationsNamespace,
 		}
 	}
 
 	return nil
+}
+
+// deploymentNameFromManifests returns the expected Deployment name for a module
+// based on its manifests. For Helm-based modules this is the release name; for
+// Kustomize modules it falls back to the provided fallbackName.
+func deploymentNameFromManifests(manifests OperatorManifests, fallbackName string) string {
+	for _, chart := range manifests.HelmCharts {
+		if chart.ReleaseName != "" {
+			return chart.ReleaseName
+		}
+	}
+	return fallbackName
 }
 
 // updateModuleStatus reads status conditions from each enabled module's CR
@@ -203,11 +269,6 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 // aggregate ModulesReady condition.
 func updateModuleStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	log := logf.FromContext(ctx)
-
-	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
-	if !ok {
-		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster", rr.Instance)
-	}
 
 	reg := DefaultRegistry()
 	if !reg.HasEntries() {
@@ -222,21 +283,23 @@ func updateModuleStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 		return nil
 	}
 
-	platformCtx := PlatformContext{
-		Release: rr.Release,
-		DSC:     instance,
-		DSCI:    rr.DSCI,
+	platformCtx, err := buildPlatformContext(ctx, rr)
+	if err != nil {
+		return err
 	}
 
 	var notReadyModules []string
 	var degradedModules []string
+	var enabledCount int
 
-	err := reg.ForEach(func(handler ModuleHandler) error {
+	err = reg.ForEach(func(handler ModuleHandler) error {
 		name := handler.GetName()
 
-		if !handler.IsEnabled(&platformCtx) {
+		if !handler.IsEnabled(platformCtx) {
 			return nil
 		}
+
+		enabledCount++
 
 		moduleStatus, err := handler.GetModuleStatus(ctx, rr.Client)
 		if err != nil {
@@ -298,6 +361,14 @@ func updateModuleStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 			Status:  metav1.ConditionFalse,
 			Reason:  status.ConditionTypeDegraded,
 			Message: fmt.Sprintf("Some modules are degraded: %s", strings.Join(degradedModules, ", ")),
+		})
+	case enabledCount == 0:
+		rr.Conditions.SetCondition(common.Condition{
+			Type:     status.ConditionTypeModulesReady,
+			Status:   metav1.ConditionTrue,
+			Severity: common.ConditionSeverityInfo,
+			Reason:   status.NoManagedModulesReason,
+			Message:  status.NoManagedModulesReason,
 		})
 	default:
 		rr.Conditions.MarkTrue(status.ConditionTypeModulesReady)

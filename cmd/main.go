@@ -67,6 +67,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
@@ -180,6 +181,7 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(templatev1.Install(scheme))
 	utilruntime.Must(gwapiv1.Install(scheme))
 	utilruntime.Must(maasv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(configv1alpha1.AddToScheme(scheme))
 }
 
 func initComponents(_ context.Context, p common.Platform, cfg operatorconfig.OperatorSettings) error {

@@ -116,6 +116,7 @@ const (
 	ArgoWorkflowExist         string = "ArgoWorkflowExist"
 	NoManagedComponentsReason        = "NoManagedComponents"
 	NoRegisteredModulesReason        = "NoRegisteredModules"
+	NoManagedModulesReason           = "NoManagedModules"
 
 	AvailableReason          = "Available"
 	NotReadyReason           = "NotReady"

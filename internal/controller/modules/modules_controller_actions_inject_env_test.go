@@ -135,11 +135,14 @@ func TestInjectModuleEnvRelatedImages(t *testing.T) {
 	rr := &odhtype.ReconciliationRequest{
 		Resources: []unstructured.Unstructured{dep, cm},
 		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
-			RelatedImages: []string{
-				"RELATED_IMAGE_TRAINER",
-				"RELATED_IMAGE_PROXY",
-				"RELATED_IMAGE_MISSING",
-			},
+			PerModuleImages: []odhtype.ModuleImages{{
+				DeploymentName: "trainer-operator",
+				Images: []string{
+					"RELATED_IMAGE_TRAINER",
+					"RELATED_IMAGE_PROXY",
+					"RELATED_IMAGE_MISSING",
+				},
+			}},
 			ApplicationsNamespace: "opendatahub",
 		},
 	}
@@ -161,7 +164,7 @@ func TestInjectModuleEnvRelatedImages(t *testing.T) {
 	g.Expect(cmObj.GetKind()).Should(Equal("ConfigMap"))
 }
 
-func TestInjectModuleEnvSkipsExistingVars(t *testing.T) {
+func TestInjectModuleEnvOverridesExistingVars(t *testing.T) {
 	g := NewWithT(t)
 
 	t.Setenv("RELATED_IMAGE_TRAINER", "registry.example.com/trainer@sha256:new")
@@ -174,7 +177,10 @@ func TestInjectModuleEnvSkipsExistingVars(t *testing.T) {
 	rr := &odhtype.ReconciliationRequest{
 		Resources: []unstructured.Unstructured{dep},
 		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
-			RelatedImages:         []string{"RELATED_IMAGE_TRAINER"},
+			PerModuleImages: []odhtype.ModuleImages{{
+				DeploymentName: "trainer-operator",
+				Images:         []string{"RELATED_IMAGE_TRAINER"},
+			}},
 			ApplicationsNamespace: "opendatahub",
 		},
 	}
@@ -183,8 +189,37 @@ func TestInjectModuleEnvSkipsExistingVars(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	env := getContainerEnv(&rr.Resources[0])
-	g.Expect(envValue(env, "RELATED_IMAGE_TRAINER")).Should(Equal("registry.example.com/trainer@sha256:original"))
+	g.Expect(envValue(env, "RELATED_IMAGE_TRAINER")).Should(Equal("registry.example.com/trainer@sha256:new"))
 	g.Expect(envNames(env)).Should(ContainElement("APPLICATIONS_NAMESPACE"))
+}
+
+func TestInjectModuleEnvScopesPerModule(t *testing.T) {
+	g := NewWithT(t)
+
+	t.Setenv("RELATED_IMAGE_A", "registry.example.com/a@sha256:111")
+	t.Setenv("RELATED_IMAGE_B", "registry.example.com/b@sha256:222")
+
+	depA := makeDeployment("module-a")
+	depB := makeDeployment("module-b")
+
+	rr := &odhtype.ReconciliationRequest{
+		Resources: []unstructured.Unstructured{depA, depB},
+		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
+			PerModuleImages: []odhtype.ModuleImages{
+				{DeploymentName: "module-a", Images: []string{"RELATED_IMAGE_A"}},
+				{DeploymentName: "module-b", Images: []string{"RELATED_IMAGE_B"}},
+			},
+		},
+	}
+
+	err := injectModuleEnv(context.Background(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	envA := getContainerEnv(&rr.Resources[0])
+	g.Expect(envNames(envA)).Should(ConsistOf("RELATED_IMAGE_A"))
+
+	envB := getContainerEnv(&rr.Resources[1])
+	g.Expect(envNames(envB)).Should(ConsistOf("RELATED_IMAGE_B"))
 }
 
 func makeMultiContainerDeployment(name string) unstructured.Unstructured {
@@ -226,7 +261,10 @@ func TestInjectModuleEnvTargetsManagerContainer(t *testing.T) {
 	rr := &odhtype.ReconciliationRequest{
 		Resources: []unstructured.Unstructured{dep},
 		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
-			RelatedImages:         []string{"RELATED_IMAGE_TRAINER"},
+			PerModuleImages: []odhtype.ModuleImages{{
+				DeploymentName: "trainer-operator",
+				Images:         []string{"RELATED_IMAGE_TRAINER"},
+			}},
 			ApplicationsNamespace: "opendatahub",
 		},
 	}

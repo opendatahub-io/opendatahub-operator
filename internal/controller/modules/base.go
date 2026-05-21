@@ -67,11 +67,11 @@ type ModuleConfig struct {
 	// SourcePath is an optional overlay path within ContextDir.
 	SourcePath string
 
-	// Namespace overrides the default ApplicationsNamespace for rendering.
-	// When empty, both Helm and Kustomize use ApplicationsNamespace. Set
-	// this for modules that deploy into a dedicated namespace. For Helm
-	// modules this is also available via Values; for Kustomize modules this
-	// is the only way to override the namespace.
+	// Namespace overrides the default ApplicationsNamespace for Kustomize
+	// rendering. When empty, Kustomize uses ApplicationsNamespace. Set this
+	// for modules that deploy into a dedicated namespace. For Helm modules,
+	// use NamespaceValueKey or Values instead; this field is not wired into
+	// Helm rendering.
 	Namespace string
 
 	// RelatedImages lists RELATED_IMAGE_* environment variable names that the

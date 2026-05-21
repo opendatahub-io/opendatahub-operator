@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
@@ -109,6 +110,25 @@ func GetDSC(ctx context.Context, cli client.Reader) (*dscv2.DataScienceCluster, 
 	default:
 		return nil, fmt.Errorf("failed to get a valid %s instance, expected to find 1 instance, found %d", gvk.DataScienceCluster, len(instances.Items))
 	}
+}
+
+// WatchDataScienceClusters lists all DSC instances and returns reconcile
+// requests for each. Use this as an event mapper to re-queue the DSC
+// controller when related resources (DSCI, GatewayConfig, module CRs) change.
+func WatchDataScienceClusters(ctx context.Context, cli client.Client) []reconcile.Request {
+	instanceList := &dscv2.DataScienceClusterList{}
+	if err := cli.List(ctx, instanceList); err != nil {
+		return nil
+	}
+
+	requests := make([]reconcile.Request, len(instanceList.Items))
+	for i := range instanceList.Items {
+		requests[i] = reconcile.Request{
+			NamespacedName: types.NamespacedName{Name: instanceList.Items[i].Name},
+		}
+	}
+
+	return requests
 }
 
 // GetDSCI retrieves the DSCInitialization (DSCI) instance from the Kubernetes cluster.

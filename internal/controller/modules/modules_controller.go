@@ -4,14 +4,17 @@ import (
 	"context"
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	helmrender "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/helm"
@@ -22,21 +25,38 @@ import (
 )
 
 // NewModuleReconciler creates a dedicated controller for the module lifecycle.
-// It reconciles DataScienceCluster as its primary resource (same as the DSC
-// component controller) but uses a distinct controller name ("modules") and a
-// completely separate action pipeline.
+// It probes for the DataScienceCluster CRD at startup and selects the
+// appropriate reconciler mode:
 //
-// The module reconciler watches both DSC and DSCI so it can react to changes
-// in either. This is the foundation for a future disconnect from DSC/DSCI --
-// when those CRDs are deprecated, only this controller's primary resource and
-// event sources need to change; all module handler logic stays untouched.
+//   - DSC mode (OpenShift/ODH): reconciles DataScienceCluster as its primary
+//     resource, watches DSCI, full PlatformContext available.
+//   - Platform mode (xKS): reconciles a Platform CR as its primary resource.
+//     PlatformContext.DSC and .DSCI are nil; only modules listed in
+//     spec.modules are enabled.
 func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
+	_, err := mgr.GetRESTMapper().RESTMapping(
+		schema.GroupKind{Group: dscv2.GroupVersion.Group, Kind: "DataScienceCluster"},
+	)
+	if err != nil {
+		if meta.IsNoMatchError(err) {
+			return newPlatformModuleReconciler(ctx, mgr)
+		}
+		return fmt.Errorf("failed to probe for DSC CRD: %w", err)
+	}
+
+	return newDSCModuleReconciler(ctx, mgr)
+}
+
+// newDSCModuleReconciler creates the module controller in DSC mode.
+// It reconciles DataScienceCluster and watches DSCI, matching the original
+// behavior.
+func newDSCModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	rec, err := reconciler.ReconcilerFor(mgr, &dscv2.DataScienceCluster{}).
 		WithInstanceName("modules").
 		Watches(
 			&dsciv2.DSCInitialization{},
 			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
-				return watchDataScienceClusters(ctx, mgr.GetClient())
+				return cluster.WatchDataScienceClusters(ctx, mgr.GetClient())
 			}),
 			reconciler.WithPredicates(predicates.DefaultPredicate)).
 		WithAction(initializeModules).
@@ -61,10 +81,49 @@ func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		Build(ctx)
 
 	if err != nil {
-		return fmt.Errorf("failed to create module reconciler: %w", err)
+		return fmt.Errorf("failed to create module reconciler (DSC mode): %w", err)
 	}
 
-	if err := SetupModuleWatches(ctx, mgr, rec.Controller, rec); err != nil {
+	if err := SetupModuleWatches(mgr, rec.Controller, rec, DSCMapper(mgr.GetClient())); err != nil {
+		return fmt.Errorf("failed to set up module watches: %w", err)
+	}
+
+	return nil
+}
+
+// newPlatformModuleReconciler creates the module controller in platform mode
+// (xKS). It reconciles the Platform CR as its primary resource. No DSC or DSCI
+// is available; only modules listed in the Platform's spec.modules are enabled.
+func newPlatformModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
+	rec, err := reconciler.ReconcilerFor(mgr, &configv1alpha1.Platform{}).
+		WithInstanceName("modules").
+		WithAction(initializeModules).
+		WithAction(enableModulesFromPlatform).
+		WithAction(cleanupDisabledModules).
+		WithAction(provisionModules).
+		WithAction(helmrender.NewAction()).
+		WithAction(kustomizerender.NewAction()).
+		WithAction(injectModuleEnv).
+		WithAction(deploy.NewAction(
+			deploy.WithCache(),
+			deploy.WithApplyOrder()),
+		).
+		WithAction(updateModuleStatus).
+		WithAction(gc.NewAction(
+			gc.WithTypePredicate(
+				func(rr *types.ReconciliationRequest, objGVK schema.GroupVersionKind) (bool, error) {
+					return rr.Controller.Owns(objGVK), nil
+				},
+			),
+		)).
+		WithConditions(status.ConditionTypeModulesReady).
+		Build(ctx)
+
+	if err != nil {
+		return fmt.Errorf("failed to create module reconciler (platform mode): %w", err)
+	}
+
+	if err := SetupModuleWatches(mgr, rec.Controller, rec, PlatformMapper()); err != nil {
 		return fmt.Errorf("failed to set up module watches: %w", err)
 	}
 
