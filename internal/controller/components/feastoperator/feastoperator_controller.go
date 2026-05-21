@@ -48,6 +48,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			kustomize.WithLabel(labels.ODH.Component(ComponentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, ComponentName),
 		)).
+		WithAction(migrateDeploymentSelector).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
