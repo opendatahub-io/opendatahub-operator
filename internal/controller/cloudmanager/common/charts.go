@@ -4,8 +4,11 @@ import (
 	"path/filepath"
 
 	helm "github.com/k8s-manifest-kit/renderer-helm/pkg"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	ccmcommon "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
@@ -14,6 +17,17 @@ import (
 type chartDef struct {
 	policyFn func(ccmcommon.Dependencies) ccmcommon.ManagementPolicy
 	chart    types.HelmChartInfo
+	monitor  monitorConfig
+}
+
+// monitorConfig holds per-dependency monitoring metadata embedded in chartDef.
+type monitorConfig struct {
+	ConditionType  string
+	HasDeployments bool
+	Namespace      string
+	OperatorGVK    schema.GroupVersionKind
+	CRName         string
+	CRNamespace    string
 }
 
 // allChartDefs is the single source of truth for all charts and their target
@@ -31,6 +45,10 @@ func allChartDefs(deps ccmcommon.Dependencies, chartsPath string) []chartDef {
 					Values:      helm.Values(map[string]any{}),
 				},
 			},
+			monitor: monitorConfig{
+				ConditionType:  status.ConditionGatewayAPIReady,
+				HasDeployments: false,
+			},
 		},
 		{
 			policyFn: func(d ccmcommon.Dependencies) ccmcommon.ManagementPolicy {
@@ -41,11 +59,18 @@ func allChartDefs(deps ccmcommon.Dependencies, chartsPath string) []chartDef {
 					Chart:       filepath.Join(chartsPath, "cert-manager-operator"),
 					ReleaseName: "cert-manager-operator",
 					Values: helm.Values(map[string]any{
-						"operatorNamespace": "cert-manager-operator",
-						"operandNamespace":  "cert-manager",
+						"operatorNamespace": ccmcommon.DefaultNamespaceCertManagerOperator,
+						"operandNamespace":  ccmcommon.DefaultNamespaceCertManagerOperand,
 					}),
 				},
 				PreApply: []types.HookFn{},
+			},
+			monitor: monitorConfig{
+				ConditionType:  status.ConditionCertManagerReady,
+				HasDeployments: true,
+				Namespace:      ccmcommon.DefaultNamespaceCertManagerOperator,
+				OperatorGVK:    gvk.CertManagerV1Alpha1,
+				CRName:         "cluster",
 			},
 		},
 		{
@@ -61,6 +86,14 @@ func allChartDefs(deps ccmcommon.Dependencies, chartsPath string) []chartDef {
 					}),
 				},
 				PreApply: []types.HookFn{SkipCRDIfPresent(ServiceMonitorCRDName)},
+			},
+			monitor: monitorConfig{
+				ConditionType:  status.ConditionLWSReady,
+				HasDeployments: true,
+				Namespace:      deps.LWS.GetNamespace(),
+				OperatorGVK:    gvk.LeaderWorkerSetOperatorV1,
+				CRName:         "cluster",
+				CRNamespace:    deps.LWS.GetNamespace(),
 			},
 		},
 		{
@@ -79,8 +112,50 @@ func allChartDefs(deps ccmcommon.Dependencies, chartsPath string) []chartDef {
 				// TODO(OSSM-12397): Remove PostApply hook once the sail-operator ships a fix.
 				PostApply: []types.HookFn{AnnotateIstioWebhooksHook()},
 			},
+			monitor: monitorConfig{
+				ConditionType:  status.ConditionSailOperatorReady,
+				HasDeployments: true,
+				Namespace:      deps.SailOperator.GetNamespace(),
+				OperatorGVK:    gvk.Istio,
+				CRName:         "default",
+				CRNamespace:    deps.SailOperator.GetNamespace(),
+			},
 		},
 	}
+}
+
+// DependencyMonitorConfig holds per-dependency monitoring metadata.
+type DependencyMonitorConfig struct {
+	ReleaseName    string
+	ConditionType  string
+	HasDeployments bool
+	Policy         ccmcommon.ManagementPolicy
+	Namespace      string
+	OperatorGVK    schema.GroupVersionKind
+	CRName         string
+	CRNamespace    string
+}
+
+// AllDependencyMonitorConfigs returns monitoring configs for all 4 dependencies,
+// derived from the same chartDef source of truth used by BuildHelmCharts.
+func AllDependencyMonitorConfigs(deps ccmcommon.Dependencies, chartsPath string) []DependencyMonitorConfig {
+	defs := allChartDefs(deps, chartsPath)
+	configs := make([]DependencyMonitorConfig, 0, len(defs))
+
+	for _, def := range defs {
+		configs = append(configs, DependencyMonitorConfig{
+			ReleaseName:    def.chart.ReleaseName,
+			ConditionType:  def.monitor.ConditionType,
+			HasDeployments: def.monitor.HasDeployments,
+			Policy:         def.policyFn(deps),
+			Namespace:      def.monitor.Namespace,
+			OperatorGVK:    def.monitor.OperatorGVK,
+			CRName:         def.monitor.CRName,
+			CRNamespace:    def.monitor.CRNamespace,
+		})
+	}
+
+	return configs
 }
 
 // BuildHelmCharts returns the charts filtered by management policy,

@@ -60,10 +60,14 @@ func (f *MockManager) GetConfig() *rest.Config        { return &rest.Config{} }
 func (f *MockManager) GetFieldIndexer() client.FieldIndexer { return nil }
 
 //nolint:ireturn // Returns stdlib interface required by manager.Manager
-func (f *MockManager) GetEventRecorderFor(name string) record.EventRecorder { return nil }
+func (f *MockManager) GetEventRecorderFor(name string) record.EventRecorder {
+	return record.NewFakeRecorder(100)
+}
 
 //nolint:ireturn // Returns stdlib interface required by manager.Manager
-func (f *MockManager) GetEventRecorder(name string) events.EventRecorder { return nil }
+func (f *MockManager) GetEventRecorder(name string) events.EventRecorder {
+	return events.NewFakeRecorder(100)
+}
 
 //nolint:ireturn // Returns stdlib interface required by manager.Manager
 func (f *MockManager) GetCache() cache.Cache                                    { return nil }

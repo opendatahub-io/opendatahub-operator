@@ -5,13 +5,73 @@ import (
 	"errors"
 	"fmt"
 
+	appsv1 "k8s.io/api/apps/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
+const (
+	deploymentName     = "feast-operator-controller-manager"
+	selectorLabelKey   = "app.kubernetes.io/name"
+	selectorLabelValue = "feast-operator"
+)
+
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { //nolint:unparam
 	rr.Manifests = append(rr.Manifests, manifestPath(rr.ManifestsBasePath, rr.Release.Name))
+	return nil
+}
+
+// migrateDeploymentSelector deletes the feast-operator-controller-manager Deployment if its
+// spec.selector.matchLabels is missing the app.kubernetes.io/name label. This handles upgrades
+// where the selector changed between releases — since spec.selector is immutable on Deployments,
+// the only way to update it is to delete and let the operator recreate it.
+func migrateDeploymentSelector(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	log := logf.FromContext(ctx)
+
+	ns, err := cluster.ApplicationNamespace(ctx, rr.Client)
+	if err != nil {
+		return fmt.Errorf("failed to determine application namespace: %w", err)
+	}
+
+	deploy := &appsv1.Deployment{}
+	err = rr.Client.Get(ctx, client.ObjectKey{Name: deploymentName, Namespace: ns}, deploy)
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to get Deployment %s/%s: %w", ns, deploymentName, err)
+	}
+
+	if deploy.Spec.Selector == nil {
+		return nil
+	}
+
+	if deploy.Spec.Selector.MatchLabels[selectorLabelKey] == selectorLabelValue {
+		return nil
+	}
+
+	log.Info("Feast operator Deployment has stale selector, deleting for recreation",
+		"deployment", deploymentName,
+		"namespace", ns,
+		"currentSelector", deploy.Spec.Selector.MatchLabels,
+	)
+
+	if err := rr.Client.Delete(ctx, deploy); err != nil {
+		if k8serr.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to delete Deployment %s/%s with stale selector: %w", ns, deploymentName, err)
+	}
+
+	log.Info("Deleted Feast operator Deployment, it will be recreated with the correct selector",
+		"deployment", deploymentName, "namespace", ns)
+
 	return nil
 }
 
