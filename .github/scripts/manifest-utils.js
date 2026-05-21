@@ -2,7 +2,7 @@ const fs = require('fs');
 
 /**
  * Shared utilities for manifest file operations
- * Used by both update-manifests-tags.js and update-manifests-commit-sha.js
+ * Used by update-manifests-commit-sha.js and process-gitops-component-data.js
  */
 
 /**

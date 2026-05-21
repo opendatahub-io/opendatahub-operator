@@ -1,18 +1,21 @@
 name: "ODH Release - Staging Pipeline"
 on:
+  repository_dispatch:
+    types: [release-staging-trigger]
   workflow_dispatch:
     inputs:
       version:
         type: string
         description: The version to update(https://semver.org/).
         required: true
-      tracker-url:
+      component_data:
         type: string
-        description: The URL to tracker issue(https://github.com/opendatahub-io/opendatahub-community/issues/<issue-number>).
+        description: |
+          Component data from GitOps registry.
+          Format: {"component-name": {"ref": "ref-value", "display_name": "Display Name"}}
         required: true
 env:
-  VERSION: ${{ github.event.inputs.version }}
-  TRACKER_URL: ${{ github.event.inputs.tracker-url }}
+  VERSION: ${{ github.event.inputs.version || github.event.client_payload.version }}
 jobs:
   stage-release:
     runs-on: ubuntu-latest
@@ -20,130 +23,120 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
-    - name: Validate tracker URL
-      run: |
-        if ! echo "${{ env.TRACKER_URL }}" | grep -qE '^https://github\.com/opendatahub-io/opendatahub-community/issues/'; then
-          echo "Error: Invalid tracker URL format. Expected format: https://github.com/opendatahub-io/opendatahub-community/issues/<issue-number>"
-          exit 1
-        fi
+      - name: Validate component data
+        id: validate-component-data
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const script = require('./.github/scripts/validate-input-data.js');
+            await script({github, core, context});
 
-    - name: Extract issue number
-      run: |
-        ISSUE_NUMBER=$(echo "${{ env.TRACKER_URL }}" | grep -oE '[0-9]+$')
-        echo "ISSUE_NUMBER=$ISSUE_NUMBER" >> $GITHUB_ENV
+      - name: Validate semver
+        run: ./.github/scripts/validate-semver.sh v${{ env.VERSION }}
 
-    - name: Validate semver
-      run: ./.github/scripts/validate-semver.sh v${{ env.VERSION }}
+      - name: Release summary
+        run: |
+          echo "Release Version: ${{ env.VERSION }}"
+          echo "Components to update: ${{ steps.validate-component-data.outputs.component_count }}"
 
-    - name: Create release branch
-      uses: peterjgrainger/action-create-branch@10c7d268152480ae859347db45dc69086cef1d9c # v3.0.0
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        branch: odh-${{ env.VERSION }}
-        sha: ${{ github.sha }}
+      - name: Create release branch
+        uses: peterjgrainger/action-create-branch@10c7d268152480ae859347db45dc69086cef1d9c # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          branch: odh-${{ env.VERSION }}
+          sha: ${{ github.sha }}
 
-    - name: Update versions in relevant files
-      run: ./.github/scripts/update-versions.sh ${{ env.VERSION }}
+      - name: Update versions in relevant files
+        run: ./.github/scripts/update-versions.sh ${{ env.VERSION }}
 
-    - name: Parse tracker for components and operator images
-      uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
-      with:
-        script: |
-          const script = require('./.github/scripts/get-release-branches.js')
-          await script({github, core})
+      - name: Process GitOps component data
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          COMPONENT_DATA: ${{ steps.validate-component-data.outputs.component_data }}
+        with:
+          script: |
+            const script = require('./.github/scripts/process-gitops-component-data.js')
 
-    - name: Update versions
-      uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
-      with:
-        script: |
-          const script = require('./.github/scripts/update-manifests-tags.js')
-          script()
+            // Get component data from environment variable (safe from script injection)
+            const componentData = process.env.COMPONENT_DATA;
+            await script({github, core, componentData})
 
-    - name: Apply operator images to manager.yaml
-      run: ./.github/scripts/apply-operator-images.sh
+      - name: Setup Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+          cache: false
 
-    - name: Setup Go
-      uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
-      with:
-        go-version-file: go.mod
-        cache: false
+      - name: Run make manifests
+        run: make manifests
 
-    - name: Run make manifests
-      run: make manifests
+      - name: Show changes summary
+        shell: bash
+        run: |
+          echo "Summary of changes to get_all_manifests.sh:"
+          echo ""
+          git diff get_all_manifests.sh || echo "No changes detected"
 
-    - name: Show changes summary
-      shell: bash
-      run: |
-        echo "Summary of changes to get_all_manifests.sh:"
-        echo ""
-        git diff get_all_manifests.sh || echo "No changes detected"
+      - name: Push changes to release branch
+        uses: actions-js/push@5a7cbd780d82c0c937b5977586e641b2fd94acc5 # v1.5
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: odh-${{ env.VERSION }}
+          message: "ODH Release ${{ env.VERSION }}: Update release branch"
 
-    - name: Push changes to release branch
-      uses: actions-js/push@5a7cbd780d82c0c937b5977586e641b2fd94acc5 # v1.5
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        branch: odh-${{ env.VERSION }}
-        message: "ODH Release ${{ env.VERSION }}: Update release branch"
+      - name: Create and push tag
+        run: |
+          git tag -a v${{ env.VERSION }} -m "ODH Release ${{ env.VERSION }}"
+          git push origin v${{ env.VERSION }}
 
-    - name: Create and push tag
-      run: |
-        git tag -a v${{ env.VERSION }} -m "ODH Release ${{ env.VERSION }}"
-        git push origin v${{ env.VERSION }}
+      - name: Generate GitHub App Token
+        id: generate-token
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        with:
+          app-id: ${{ secrets.ODH_RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.ODH_RELEASE_BOT_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: |
+            odh-konflux-central
 
+      - name: Log release information
+        run: |
+          echo "ODH Release ${{ env.VERSION }} completed successfully"
+          echo "Release branch: https://github.com/opendatahub-io/opendatahub-operator/tree/odh-${{ env.VERSION }}"
+          echo "Release tag: https://github.com/opendatahub-io/opendatahub-operator/releases/tag/v${{ env.VERSION }}"
 
-    - name: Generate GitHub App Token
-      id: generate-token
-      uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
-      with:
-        app-id: ${{ secrets.ODH_RELEASE_BOT_APP_ID }}
-        private-key: ${{ secrets.ODH_RELEASE_BOT_PRIVATE_KEY }}
-        owner: ${{ github.repository_owner }}
-        repositories: |
-          opendatahub-community
-          odh-konflux-central
+      - name: Get component release notes
+        id: release-notes
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const script = require('./.github/scripts/get-component-release-notes.js')
+            await script({github, core, context})
 
-    - name: Comment on Tracker Issue
-      uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5.0.0
-      with:
-        token: ${{ steps.generate-token.outputs.token }}
-        repository: opendatahub-io/opendatahub-community
-        issue-number: ${{ env.ISSUE_NUMBER }}
-        body: |
-          #Release#
-          opendatahub-operator | https://github.com/opendatahub-io/opendatahub-operator/tree/odh-${{ env.VERSION }} | https://github.com/opendatahub-io/opendatahub-operator/releases/tag/v${{ env.VERSION }}
+      - name: Create GH release
+        uses: softprops/action-gh-release@5be0e66d93ac7ed76da52eca8bb058f665c3a5fe # v2.4.2
+        with:
+          body: ${{ steps.release-notes.outputs.release-notes-body }}
+          tag_name: v${{ env.VERSION }}
+          prerelease: true
 
-    - name: Get component release notes
-      id: release-notes
-      uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
-      with:
-        script: |
-          const script = require('./.github/scripts/get-component-release-notes.js')
-          await script({github, core, context})
-
-    - name: Create GH release
-      uses: softprops/action-gh-release@5be0e66d93ac7ed76da52eca8bb058f665c3a5fe # v2.4.2
-      with:
-        body: ${{ steps.release-notes.outputs.release-notes-body }}
-        tag_name: v${{ env.VERSION }}
-        prerelease: true
-
-    - name: Trigger ODH Konflux Release Onboarder
-      uses: lasith-kg/dispatch-workflow@91345a2a3b705e950978a584446ab59f7e815ae3 # v2.0.0
-      with:
-        dispatch-method: workflow_dispatch
-        workflow: odh-konflux-onboarder.yml
-        repo: odh-konflux-central
-        owner: opendatahub-io
-        ref: main
-        token: ${{ steps.generate-token.outputs.token }}
-        workflow-inputs: |
-          {
-            "component": "opendatahub-operator",
-            "pr_target_branch": "odh-${{ env.VERSION }}",
-            "build_branch": "odh-${{ env.VERSION }}",
-            "version": "v${{ env.VERSION }}",
-            "build_type": "Release"
-          }
+      - name: Trigger ODH Konflux Release Onboarder
+        uses: lasith-kg/dispatch-workflow@91345a2a3b705e950978a584446ab59f7e815ae3 # v2.0.0
+        with:
+          dispatch-method: workflow_dispatch
+          workflow: odh-konflux-onboarder.yml
+          repo: odh-konflux-central
+          owner: opendatahub-io
+          ref: main
+          token: ${{ steps.generate-token.outputs.token }}
+          workflow-inputs: |
+            {
+              "component": "opendatahub-operator",
+              "pr_target_branch": "odh-${{ env.VERSION }}",
+              "build_branch": "odh-${{ env.VERSION }}",
+              "version": "v${{ env.VERSION }}",
+              "build_type": "Release"
+            }
