@@ -9,13 +9,16 @@ import (
 	gt "github.com/onsi/gomega/types"
 	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -375,6 +378,98 @@ func createDSCWithFeastOperator(managementState operatorv1.ManagementState) *dsc
 	dsc.Spec.Components.FeastOperator.ManagementState = managementState
 
 	return &dsc
+}
+
+func createDSCI(namespace string) *dsciv2.DSCInitialization {
+	dsci := &dsciv2.DSCInitialization{}
+	dsci.SetGroupVersionKind(gvk.DSCInitialization)
+	dsci.SetName("default-dsci")
+	dsci.Spec.ApplicationsNamespace = namespace
+	return dsci
+}
+
+func createFeastDeployment(namespace string, selectorLabels map[string]string) *appsv1.Deployment {
+	return &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      deploymentName,
+			Namespace: namespace,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: selectorLabels,
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{Labels: selectorLabels},
+				Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "mgr", Image: "test"}}},
+			},
+		},
+	}
+}
+
+func TestMigrateDeploymentSelector(t *testing.T) {
+	const testNS = "redhat-ods-applications"
+
+	t.Run("should delete Deployment with stale selector", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		staleSelector := map[string]string{"control-plane": "controller-manager"}
+		deploy := createFeastDeployment(testNS, staleSelector)
+		dsci := createDSCI(testNS)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(deploy, dsci))
+		g.Expect(err).To(Succeed())
+
+		rr := &types.ReconciliationRequest{Client: cli}
+
+		err = migrateDeploymentSelector(ctx, rr)
+		g.Expect(err).To(Succeed())
+
+		result := &appsv1.Deployment{}
+		err = cli.Get(ctx, client.ObjectKey{Name: deploymentName, Namespace: testNS}, result)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(client.IgnoreNotFound(err)).To(Succeed())
+	})
+
+	t.Run("should not delete Deployment with correct selector", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		correctSelector := map[string]string{
+			"control-plane":          "controller-manager",
+			"app.kubernetes.io/name": "feast-operator",
+		}
+		deploy := createFeastDeployment(testNS, correctSelector)
+		dsci := createDSCI(testNS)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(deploy, dsci))
+		g.Expect(err).To(Succeed())
+
+		rr := &types.ReconciliationRequest{Client: cli}
+
+		err = migrateDeploymentSelector(ctx, rr)
+		g.Expect(err).To(Succeed())
+
+		result := &appsv1.Deployment{}
+		err = cli.Get(ctx, client.ObjectKey{Name: deploymentName, Namespace: testNS}, result)
+		g.Expect(err).To(Succeed())
+		g.Expect(result.Spec.Selector.MatchLabels).Should(HaveKeyWithValue("app.kubernetes.io/name", "feast-operator"))
+	})
+
+	t.Run("should be no-op when Deployment does not exist", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsci := createDSCI(testNS)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsci))
+		g.Expect(err).To(Succeed())
+
+		rr := &types.ReconciliationRequest{Client: cli}
+
+		err = migrateDeploymentSelector(ctx, rr)
+		g.Expect(err).To(Succeed())
+	})
 }
 
 func createFeastOperatorCR(ready bool) *componentApi.FeastOperator {
