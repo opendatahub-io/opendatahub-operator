@@ -69,6 +69,7 @@ func NewReconcileAction(resourceID string, opts ...ReconcileActionOpts) (actions
 	helmRender := helm.NewAction(action.helmOpts...)
 	deployAction := deploy.NewAction(append(action.deployOpts,
 		deploy.WithApplyOrder(),
+		deploy.WithContinueOnError(),
 		deploy.WithPartOfLabel(labels.InfrastructurePartOf),
 		deploy.WithAnnotationPrefix(labels.ODHInfrastructurePrefix),
 	)...)
