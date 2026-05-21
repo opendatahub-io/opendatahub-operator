@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -240,8 +241,8 @@ func checkGatewayAnnotations(ctx context.Context, l logr.Logger, rr *types.Recon
 
 	if err != nil {
 		if apimeta.IsNoMatchError(err) {
-			l.V(1).Info("Gateway API CRD not installed, skipping gateway annotation check")
-			return nil
+			l.Info("Gateway API CRD not installed")
+			return []string{"Gateway API CRD is not installed; maas-default-gateway cannot be verified"}
 		}
 		if k8serr.IsNotFound(err) {
 			l.Info("maas-default-gateway not found", "gateway", DefaultGatewayName, "namespace", DefaultGatewayNamespace)
@@ -261,6 +262,7 @@ func checkGatewayAnnotations(ctx context.Context, l logr.Logger, rr *types.Recon
 	}
 
 	if len(missing) > 0 {
+		sort.Strings(missing)
 		l.Info("MaaS gateway missing required annotations", "gateway", DefaultGatewayName, "missing", missing)
 		return []string{fmt.Sprintf(
 			"maas-default-gateway is missing required annotations: %s",
@@ -278,8 +280,8 @@ func checkAuthorinoTLS(ctx context.Context, l logr.Logger, rr *types.Reconciliat
 
 	if err := rr.Client.List(ctx, authorinoList); err != nil {
 		if apimeta.IsNoMatchError(err) {
-			l.V(1).Info("Authorino CRD not installed, skipping Authorino TLS check")
-			return nil
+			l.Info("Authorino CRD not installed")
+			return []string{"Authorino CRD is not installed; Authorino TLS configuration cannot be verified"}
 		}
 		l.Error(err, "Failed to list Authorino CRs")
 		return []string{fmt.Sprintf("failed to check Authorino TLS configuration: %v", err)}

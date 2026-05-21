@@ -466,6 +466,87 @@ func TestCheckMaaSPrerequisites(t *testing.T) {
 		)))
 	})
 
+	t.Run("should report issue when Gateway API CRD is not installed", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
+		authorino := createAuthorinoWithTLS(true)
+
+		noMatchErr := &apimeta.NoResourceMatchError{PartialResource: schema.GroupVersionResource{
+			Group: "gateway.networking.k8s.io", Version: "v1", Resource: "gateways",
+		}}
+
+		cli, err := fakeclient.New(
+			fakeclient.WithObjects(testDSCI(), dsc, createTenantCR(true), authorino),
+			fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+				Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+					if _, ok := obj.(*gwapiv1.Gateway); ok {
+						return noMatchErr
+					}
+					return c.Get(ctx, key, obj, opts...)
+				},
+			}),
+		)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		_, err = handler.UpdateDSCStatus(ctx, &pkgtypes.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType, status.ConditionMaaSPrerequisitesAvailable),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				status.ConditionMaaSPrerequisitesAvailable, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("Gateway API CRD is not installed")`,
+				status.ConditionMaaSPrerequisitesAvailable),
+		)))
+	})
+
+	t.Run("should report issue when Authorino CRD is not installed", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
+		gw := createMaaSGatewayWithAnnotations(map[string]string{
+			"opendatahub.io/managed":                          "false",
+			"security.opendatahub.io/authorino-tls-bootstrap": "true",
+		})
+
+		noMatchErr := &apimeta.NoResourceMatchError{PartialResource: schema.GroupVersionResource{
+			Group: "operator.authorino.kuadrant.io", Version: "v1beta1", Resource: "authorinos",
+		}}
+
+		cli, err := fakeclient.New(
+			fakeclient.WithObjects(testDSCI(), dsc, createTenantCR(true), gw),
+			fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+				List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+					if u, ok := list.(*unstructured.UnstructuredList); ok && u.GetKind() == "Authorino" {
+						return noMatchErr
+					}
+					return c.List(ctx, list, opts...)
+				},
+			}),
+		)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		_, err = handler.UpdateDSCStatus(ctx, &pkgtypes.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType, status.ConditionMaaSPrerequisitesAvailable),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				status.ConditionMaaSPrerequisitesAvailable, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("Authorino CRD is not installed")`,
+				status.ConditionMaaSPrerequisitesAvailable),
+		)))
+	})
+
 	t.Run("should not set MaaSPrerequisitesAvailable when MaaS is disabled", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
