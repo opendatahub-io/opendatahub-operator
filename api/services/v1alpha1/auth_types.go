@@ -36,8 +36,8 @@ type AuthSpec struct {
 	// +kubebuilder:validation:XValidation:rule="size(self) > 0",message="AdminGroups cannot be empty"
 	// +kubebuilder:validation:XValidation:rule="self.all(group, group != 'system:authenticated' && group != '')",message="AdminGroups cannot contain 'system:authenticated' or empty strings"
 	AdminGroups []string `json:"adminGroups"`
-	// AllowedGroups cannot contain empty strings, but 'system:authenticated' is allowed for general access
-	// +kubebuilder:validation:XValidation:rule="self.all(group, group != '')",message="AllowedGroups cannot contain empty strings"
+	// AllowedGroups cannot contain 'system:authenticated' (security risk) or empty strings
+	// +kubebuilder:validation:XValidation:rule="self.all(group, group != 'system:authenticated' && group != '')",message="AllowedGroups cannot contain 'system:authenticated' or empty strings. Use explicit groups like 'odh-users', 'rhods-users', or namespace-specific groups"
 	AllowedGroups []string `json:"allowedGroups"`
 }
 

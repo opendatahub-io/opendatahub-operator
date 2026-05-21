@@ -23,7 +23,11 @@ const (
 	odhAdminsName       = "odh-admins"
 	dedicatedAdminsName = "dedicated-admins"
 
-	// Default allowed group name.
+	// Default allowed group names for different platforms.
+	rhodsUsersGroupName = "rhods-users"
+	odhUsersGroupName   = "odh-users"
+
+	// Deprecated group name (no longer used in defaults, filtered by controller).
 	systemAuthenticatedGroup = "system:authenticated"
 
 	// Role names used for RBAC configuration.
@@ -66,6 +70,7 @@ func authControllerTestSuite(t *testing.T) {
 		{"Validate removal of bindings when a group is removed", authCtx.ValidateRemovingGroups},
 		{"Validate CEL blocks Auth update with invalid groups", authCtx.ValidateCELBlocksInvalidGroupsViaUpdate},
 		{"Validate CEL allows Auth with valid groups", authCtx.ValidateCELAllowsValidGroups},
+		{"Validate controller security filtering", authCtx.ValidateControllerSecurityFiltering},
 	}
 
 	// Run the test suite.
@@ -79,6 +84,7 @@ func (tc *AuthControllerTestCtx) ValidateAuthSystemInitialization(t *testing.T) 
 	skipUnless(t, Smoke)
 
 	expectedAdminGroup := tc.getExpectedAdminGroupForPlatform()
+	expectedAllowedGroup := tc.getExpectedAllowedGroupForPlatform()
 
 	// 1. Validate that exactly one Auth CR exists with correct default content
 	tc.EnsureResourcesExist(
@@ -88,13 +94,13 @@ func (tc *AuthControllerTestCtx) ValidateAuthSystemInitialization(t *testing.T) 
 			// Validate the content of that single Auth CR
 			HaveEach(And(
 				jq.Match(`.spec.adminGroups | index("%s") != null`, expectedAdminGroup),
-				jq.Match(`.spec.allowedGroups | index("%s") != null`, systemAuthenticatedGroup),
+				jq.Match(`.spec.allowedGroups | index("%s") != null`, expectedAllowedGroup),
 			)),
 		)),
 		WithCustomErrorMsg(
 			"Expected exactly one Auth CR with adminGroups=['%s'] and allowedGroups=['%s'], but validation failed",
 			expectedAdminGroup,
-			systemAuthenticatedGroup,
+			expectedAllowedGroup,
 		),
 	)
 
@@ -177,6 +183,69 @@ func (tc *AuthControllerTestCtx) ValidateRemovingGroups(t *testing.T) {
 		WithCustomErrorMsg("Expected %s '%s' to have exactly one subject with name '%s'", gvk.ClusterRoleBinding.Kind, adminGroupClusterRoleBindingName, expectedGroup))
 }
 
+// ValidateControllerSecurityFiltering validates that the controller properly filters
+// system:authenticated from role bindings even if it were present in the Auth CR.
+// This tests the defense-in-depth security filtering implemented in the controller.
+func (tc *AuthControllerTestCtx) ValidateControllerSecurityFiltering(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+
+	expectedAdminGroup := tc.getExpectedAdminGroupForPlatform()
+	expectedAllowedGroup := tc.getExpectedAllowedGroupForPlatform()
+
+	// Reset to defaults first to ensure clean state
+	tc.resetAuthToDefaults(t)
+
+	// Verify that the controller has properly filtered system:authenticated and that
+	// only platform-appropriate groups are bound to cluster roles.
+
+	// Validate AdminGroup ClusterRoleBinding subjects
+	tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{Name: adminGroupClusterRoleBindingName}),
+		WithCondition(And(
+			// Ensure no system:authenticated is present in admin role binding subjects
+			jq.Match(`.subjects | map(select(.name == "%s")) | length == 0`, systemAuthenticatedGroup),
+			// Ensure the expected admin group is present
+			jq.Match(`.subjects | map(select(.name == "%s")) | length == 1`, expectedAdminGroup),
+		)),
+		WithCustomErrorMsg(
+			"Admin ClusterRoleBinding should not contain system:authenticated and should contain expected admin group '%s'",
+			expectedAdminGroup,
+		),
+	)
+
+	// Validate AllowedGroup ClusterRoleBinding subjects
+	tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{Name: allowedGroupClusterRoleBindingName}),
+		WithCondition(And(
+			// Ensure no system:authenticated is present in allowed group role binding subjects
+			jq.Match(`.subjects | map(select(.name == "%s")) | length == 0`, systemAuthenticatedGroup),
+			// Ensure the expected allowed group is present
+			jq.Match(`.subjects | map(select(.name == "%s")) | length == 1`, expectedAllowedGroup),
+		)),
+		WithCustomErrorMsg(
+			"Allowed ClusterRoleBinding should not contain system:authenticated and should contain expected allowed group '%s'",
+			expectedAllowedGroup,
+		),
+	)
+
+	// Validate namespace-scoped RoleBinding subjects
+	tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.RoleBinding, types.NamespacedName{Name: adminGroupRoleBindingName, Namespace: tc.AppsNamespace}),
+		WithCondition(And(
+			// Ensure no system:authenticated is present in role binding subjects
+			jq.Match(`.subjects | map(select(.name == "%s")) | length == 0`, systemAuthenticatedGroup),
+			// Ensure the expected admin group is present
+			jq.Match(`.subjects | map(select(.name == "%s")) | length == 1`, expectedAdminGroup),
+		)),
+		WithCustomErrorMsg(
+			"Admin RoleBinding should not contain system:authenticated and should contain expected admin group '%s'",
+			expectedAdminGroup,
+		),
+	)
+}
+
 // ValidateCELBlocksInvalidGroupsViaUpdate tests that CEL validation blocks Auth resources
 // with invalid groups. Since Auth is a singleton resource managed by the operator, we test
 // CEL validation by attempting to update the existing Auth resource with invalid values.
@@ -205,6 +274,11 @@ func (tc *AuthControllerTestCtx) ValidateCELBlocksInvalidGroupsViaUpdate(t *test
 			name:        "empty_string_in_admin_groups",
 			transforms:  testf.Transform(`.spec.adminGroups = ["valid-admin-group", ""] | .spec.allowedGroups = ["valid-allowed-group"]`),
 			description: "Empty string in AdminGroups should be blocked by CEL validation",
+		},
+		{
+			name:        "system_authenticated_in_allowed_groups",
+			transforms:  testf.Transform(`.spec.adminGroups = ["valid-admin-group"] | .spec.allowedGroups = ["valid-allowed-group", "%s"]`, systemAuthenticatedGroup),
+			description: "system:authenticated in AllowedGroups should be blocked by CEL validation",
 		},
 		{
 			name:        "empty_string_in_allowed_groups",
@@ -242,9 +316,9 @@ func (tc *AuthControllerTestCtx) ValidateCELAllowsValidGroups(t *testing.T) {
 			description: "Valid groups should be allowed by CEL validation",
 		},
 		{
-			name:        "system_authenticated_in_allowed_groups",
-			transforms:  testf.Transform(`.spec.adminGroups = ["valid-admin-group"] | .spec.allowedGroups = ["valid-allowed-group", "%s"]`, systemAuthenticatedGroup),
-			description: "system:authenticated in AllowedGroups should be allowed by CEL validation",
+			name:        "multiple_allowed_groups",
+			transforms:  testf.Transform(`.spec.adminGroups = ["valid-admin-group"] | .spec.allowedGroups = ["valid-allowed-group", "another-valid-group"]`),
+			description: "Multiple allowed groups should be allowed by CEL validation",
 		},
 		{
 			name:        "empty_allowed_groups_array",
@@ -252,9 +326,9 @@ func (tc *AuthControllerTestCtx) ValidateCELAllowsValidGroups(t *testing.T) {
 			description: "Empty AllowedGroups array should be allowed by CEL validation",
 		},
 		{
-			name:        "only_system_authenticated_in_allowed_groups",
-			transforms:  testf.Transform(`.spec.adminGroups = ["valid-admin-group"] | .spec.allowedGroups = ["%s"]`, systemAuthenticatedGroup),
-			description: "Only system:authenticated in AllowedGroups should be allowed by CEL validation",
+			name:        "single_allowed_group",
+			transforms:  testf.Transform(`.spec.adminGroups = ["valid-admin-group"] | .spec.allowedGroups = ["single-valid-group"]`),
+			description: "Single allowed group should be allowed by CEL validation",
 		},
 	}
 
@@ -278,11 +352,12 @@ func (tc *AuthControllerTestCtx) resetAuthToDefaults(t *testing.T) {
 	t.Helper()
 
 	expectedAdminGroup := tc.getExpectedAdminGroupForPlatform()
+	expectedAllowedGroup := tc.getExpectedAllowedGroupForPlatform()
 
 	// Reset Auth to default values (within-suite cleanup)
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.Auth, tc.AuthNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.adminGroups = ["%s"] | .spec.allowedGroups = ["%s"]`, expectedAdminGroup, systemAuthenticatedGroup)),
+		WithMutateFunc(testf.Transform(`.spec.adminGroups = ["%s"] | .spec.allowedGroups = ["%s"]`, expectedAdminGroup, expectedAllowedGroup)),
 		WithCustomErrorMsg("Failed to reset Auth CR to default state after CEL tests"),
 	)
 }
@@ -299,6 +374,21 @@ func (tc *AuthControllerTestCtx) getExpectedAdminGroupForPlatform() string {
 		return odhAdminsName
 	default:
 		return odhAdminsName // Default fallback
+	}
+}
+
+// getExpectedAllowedGroupForPlatform returns the expected allowed group name based on the current platform.
+func (tc *AuthControllerTestCtx) getExpectedAllowedGroupForPlatform() string {
+	platform := tc.FetchPlatformRelease()
+	switch platform {
+	case cluster.SelfManagedRhoai:
+		return rhodsUsersGroupName
+	case cluster.ManagedRhoai:
+		return rhodsUsersGroupName
+	case cluster.OpenDataHub:
+		return odhUsersGroupName
+	default:
+		return odhUsersGroupName // Default fallback
 	}
 }
 

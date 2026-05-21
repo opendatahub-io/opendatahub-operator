@@ -20,6 +20,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"slices"
 
 	userv1 "github.com/openshift/api/user/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -27,11 +29,19 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+)
+
+const (
+	// systemAuthenticated represents the deprecated system:authenticated group.
+	systemAuthenticated = "system:authenticated"
+	// deprecatedGroupUsageCondition represents the condition type for deprecated group usage.
+	deprecatedGroupUsageCondition = "DeprecatedGroupUsage"
 )
 
 func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -76,6 +86,12 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 }
 
 func bindRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, groups []string, roleBindingName string, roleName string, namespace string) error {
+	// Perform security validation on groups
+	strictMode := isStrictModeEnabled()
+	if err := validateGroupsSecurity(ctx, groups, roleName, strictMode); err != nil {
+		return fmt.Errorf("role binding security validation failed for %s: %w", roleBindingName, err)
+	}
+
 	if namespace == "" {
 		appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
 		if err != nil {
@@ -95,15 +111,14 @@ func bindRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, groups []
 
 	groupsToBind := []rbacv1.Subject{}
 	for _, e := range groups {
-		isAdminRole := roleName == "data-science-admingroup-role" ||
-			roleName == "data-science-admingroup-maas-role" ||
-			roleName == "data-science-admingroup-kuadrant-role"
-		// we want to disallow adding system:authenticated to the adminGroups
-		if e == "" || (isAdminRole && e == "system:authenticated") {
+		// Enhanced security filtering: skip empty groups and system:authenticated for all roles
+		// Note: API validation should prevent system:authenticated, but this provides defense in depth
+		if e == "" || e == systemAuthenticated {
 			log := logf.FromContext(ctx)
-			log.Info("skipping adding invalid group to RoleBinding")
+			log.Info("skipping adding invalid group to RoleBinding", "group", e, "role", roleName, "reason", "empty or security-restricted group")
 			continue
 		}
+
 		rs := rbacv1.Subject{
 			Kind:     gvk.Group.Kind,
 			APIGroup: gvk.Group.Group,
@@ -133,15 +148,22 @@ func bindRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, groups []
 }
 
 func bindClusterRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, groups []string, roleBindingName string, roleName string) error {
+	// Perform security validation on groups
+	strictMode := isStrictModeEnabled()
+	if err := validateGroupsSecurity(ctx, groups, roleName, strictMode); err != nil {
+		return fmt.Errorf("cluster role binding security validation failed for %s: %w", roleBindingName, err)
+	}
+
 	groupsToBind := []rbacv1.Subject{}
 	for _, e := range groups {
-		// we want to disallow adding system:authenticated to the adminGroups
-		isAdminRole := roleName == "data-science-admingroupcluster-role"
-		if e == "" || (isAdminRole && e == "system:authenticated") {
+		// Enhanced security filtering: skip empty groups and system:authenticated for all roles
+		// Note: API validation should prevent system:authenticated, but this provides defense in depth
+		if e == "" || e == systemAuthenticated {
 			log := logf.FromContext(ctx)
-			log.Info("skipping adding invalid group to ClusterRoleBinding")
+			log.Info("skipping adding invalid group to ClusterRoleBinding", "group", e, "role", roleName, "reason", "empty or security-restricted group")
 			continue
 		}
+
 		rs := rbacv1.Subject{
 			Kind:     gvk.Group.Kind,
 			APIGroup: gvk.Group.Group,
@@ -170,11 +192,144 @@ func bindClusterRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, gr
 	return nil
 }
 
+// validateGroupsSecurity performs security validation of groups and can reject system:authenticated
+// based on configuration. This provides a migration path for existing deployments.
+func validateGroupsSecurity(ctx context.Context, groups []string, roleName string, strictMode bool) error {
+	log := logf.FromContext(ctx)
+
+	for _, group := range groups {
+		if group == systemAuthenticated {
+			if strictMode {
+				return fmt.Errorf("security violation: group 'system:authenticated' is not allowed for role '%s'. "+
+					"This violates Kubernetes security best practices. "+
+					"Please use explicit groups like 'odh-users', 'rhods-users', or namespace-specific groups. "+
+					"See https://kubernetes.io/docs/concepts/security/rbac-good-practices/ for guidance",
+					roleName)
+			} else {
+				// Warn but allow for backward compatibility during migration period
+				log.Info("SECURITY WARNING: system:authenticated detected in role binding - this will be rejected in strict mode",
+					"role", roleName,
+					"group", group,
+					"recommendation", "Migrate to explicit groups before enabling strict security mode",
+					"enableStrictMode", "Set STRICT_SECURITY_MODE=true environment variable to test rejection")
+			}
+		}
+	}
+	return nil
+}
+
+// isStrictModeEnabled checks if strict security mode is enabled via environment variable.
+func isStrictModeEnabled() bool {
+	strictMode := os.Getenv("STRICT_SECURITY_MODE")
+	return strictMode == "true" || strictMode == "1"
+}
+
+// logDeprecationWarnings logs deprecation warnings for system:authenticated usage.
+func logDeprecationWarnings(ctx context.Context, auth *serviceApi.Auth) {
+	log := logf.FromContext(ctx)
+
+	// Check AdminGroups for system:authenticated (should already be blocked by API validation, but defensive logging)
+	for _, group := range auth.Spec.AdminGroups {
+		if group == systemAuthenticated {
+			log.Info("SECURITY WARNING: system:authenticated detected in AdminGroups - this should have been blocked by API validation",
+				"authCR", auth.Name,
+				"field", "adminGroups",
+				"recommendation", "Use platform-specific admin groups like 'odh-admins' or 'rhods-admins'",
+				"securityIssue", "system:authenticated grants admin access to any authenticated user",
+				"deprecationPhase", "immediate-rejection")
+		}
+	}
+
+	// Check AllowedGroups for system:authenticated
+	for _, group := range auth.Spec.AllowedGroups {
+		if group == systemAuthenticated {
+			log.Info("SECURITY WARNING: system:authenticated detected in AllowedGroups - this violates Kubernetes security best practices",
+				"authCR", auth.Name,
+				"field", "allowedGroups",
+				"recommendation", "Use explicit groups like 'odh-users', 'rhods-users', or namespace-specific groups",
+				"securityIssue", "system:authenticated grants access to any authenticated user",
+				"deprecationPhase", "migration-required",
+				"migrationGuide", "https://kubernetes.io/docs/concepts/security/rbac-good-practices/")
+		}
+	}
+}
+
+// updateDeprecationStatusConditions updates the Auth CR status with deprecation warnings.
+func updateDeprecationStatusConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest, auth *serviceApi.Auth) {
+	hasDeprecatedUsage := false
+	var deprecationMessages []string
+
+	// Check for deprecated usage in AdminGroups
+	if slices.Contains(auth.Spec.AdminGroups, systemAuthenticated) {
+		hasDeprecatedUsage = true
+		deprecationMessages = append(deprecationMessages, "AdminGroups contains deprecated 'system:authenticated' group")
+	}
+
+	// Check for deprecated usage in AllowedGroups
+	if slices.Contains(auth.Spec.AllowedGroups, systemAuthenticated) {
+		hasDeprecatedUsage = true
+		deprecationMessages = append(deprecationMessages, "AllowedGroups contains deprecated 'system:authenticated' group")
+	}
+
+	if hasDeprecatedUsage {
+		// Add deprecation warning condition
+		deprecationCondition := common.Condition{
+			Type:   deprecatedGroupUsageCondition,
+			Status: metav1.ConditionTrue,
+			Reason: "SystemAuthenticatedDeprecated",
+			Message: fmt.Sprintf("Deprecated usage detected: %s. Please migrate to explicit groups for security compliance. "+
+				"See https://kubernetes.io/docs/concepts/security/rbac-good-practices/", deprecationMessages[0]),
+			LastTransitionTime: metav1.Now(),
+		}
+
+		// Update the status condition
+		conditions := auth.GetConditions()
+		conditionExists := false
+		for i, cond := range conditions {
+			if cond.Type == deprecatedGroupUsageCondition {
+				conditions[i] = deprecationCondition
+				conditionExists = true
+				break
+			}
+		}
+		if !conditionExists {
+			conditions = append(conditions, deprecationCondition)
+		}
+		auth.SetConditions(conditions)
+
+		// Schedule status update
+		if err := rr.Client.Status().Update(ctx, auth); err != nil {
+			log := logf.FromContext(ctx)
+			log.Info("Failed to update Auth status with deprecation warning", "error", err)
+		}
+	} else {
+		// Remove deprecation condition if it exists and no deprecated usage is found
+		conditions := auth.GetConditions()
+		for i, cond := range conditions {
+			if cond.Type == deprecatedGroupUsageCondition {
+				conditions = append(conditions[:i], conditions[i+1:]...)
+				auth.SetConditions(conditions)
+				if err := rr.Client.Status().Update(ctx, auth); err != nil {
+					log := logf.FromContext(ctx)
+					log.Info("Failed to remove deprecation warning from Auth status", "error", err)
+				}
+				break
+			}
+		}
+	}
+}
+
 func managePermissions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	ai, ok := rr.Instance.(*serviceApi.Auth)
 	if !ok {
 		return errors.New("instance is not of type *services.Auth")
 	}
+
+	// Log deprecation warnings for system:authenticated usage
+	logDeprecationWarnings(ctx, ai)
+
+	// Update status conditions for deprecation warnings
+	updateDeprecationStatusConditions(ctx, rr, ai)
 
 	err := bindRole(ctx, rr, ai.Spec.AdminGroups, "data-science-admingroup-rolebinding", "data-science-admingroup-role", "")
 	if err != nil {

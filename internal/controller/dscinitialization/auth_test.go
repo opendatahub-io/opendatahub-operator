@@ -27,6 +27,18 @@ func expectedAdminGroupForPlatform(platform common.Platform) string {
 	}
 }
 
+// expectedAllowedGroupsForPlatform returns the expected allowed groups for a given platform.
+func expectedAllowedGroupsForPlatform(platform common.Platform) []string {
+	switch platform {
+	case cluster.SelfManagedRhoai:
+		return []string{"rhods-users"}
+	case cluster.ManagedRhoai:
+		return []string{"rhods-users"}
+	default:
+		return []string{"odh-users"} // fallback for OpenDataHub and unknown platforms
+	}
+}
+
 func TestBuildDefaultAuth(t *testing.T) {
 	tests := []struct {
 		name               string
@@ -80,9 +92,16 @@ func TestBuildDefaultAuth(t *testing.T) {
 			g.Expect(auth.Spec.AdminGroups[0]).Should(Equal(tt.expectedAdminGroup))
 			g.Expect(auth.Spec.AdminGroups[0]).ShouldNot(BeEmpty(), "AdminGroups should not contain empty strings")
 
-			// Verify AllowedGroups
-			g.Expect(auth.Spec.AllowedGroups).Should(HaveLen(1))
-			g.Expect(auth.Spec.AllowedGroups[0]).Should(Equal("system:authenticated"))
+			// Verify AllowedGroups (should now use platform-specific groups)
+			expectedAllowedGroups := expectedAllowedGroupsForPlatform(tt.platform)
+			g.Expect(auth.Spec.AllowedGroups).Should(Equal(expectedAllowedGroups))
+			g.Expect(auth.Spec.AllowedGroups).ShouldNot(ContainElement("system:authenticated"),
+				"AllowedGroups should not contain deprecated system:authenticated")
+
+			// Verify migration annotation is present
+			g.Expect(auth.Annotations).Should(HaveKey("auth.opendatahub.io/migration-note"))
+			g.Expect(auth.Annotations["auth.opendatahub.io/migration-note"]).Should(
+				ContainSubstring("system:authenticated"))
 		})
 	}
 }
@@ -171,12 +190,18 @@ func TestCreateAuth(t *testing.T) {
 				g.Expect(auth.Spec.AdminGroups).Should(Equal(tt.existingAuth.Spec.AdminGroups))
 				g.Expect(auth.Spec.AllowedGroups).Should(Equal(tt.existingAuth.Spec.AllowedGroups))
 			} else {
-				// Should create new Auth with correct admin group
+				// Should create new Auth with correct admin group and platform-specific allowed groups
 				expectedAdminGroup := expectedAdminGroupForPlatform(tt.platform)
+				expectedAllowedGroups := expectedAllowedGroupsForPlatform(tt.platform)
 
 				g.Expect(auth.Spec.AdminGroups).Should(HaveLen(1))
 				g.Expect(auth.Spec.AdminGroups[0]).Should(Equal(expectedAdminGroup))
-				g.Expect(auth.Spec.AllowedGroups).Should(Equal([]string{"system:authenticated"}))
+				g.Expect(auth.Spec.AllowedGroups).Should(Equal(expectedAllowedGroups))
+				g.Expect(auth.Spec.AllowedGroups).ShouldNot(ContainElement("system:authenticated"),
+					"New Auth should not contain deprecated system:authenticated")
+
+				// Verify migration annotation is present
+				g.Expect(auth.Annotations).Should(HaveKey("auth.opendatahub.io/migration-note"))
 			}
 		})
 	}
