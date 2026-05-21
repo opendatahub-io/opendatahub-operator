@@ -333,39 +333,40 @@ func TestUpdateDSCStatus(t *testing.T) {
 	})
 }
 
-func TestCheckMaaSPrerequisites(t *testing.T) {
+func TestCheckMaaSPrerequisites_AllMet(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
 	handler := &componentHandler{}
 
-	t.Run("should set MaaSPrerequisitesAvailable=True when gateway and Authorino TLS are configured", func(t *testing.T) {
-		g := NewWithT(t)
-		ctx := t.Context()
-
-		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
-		gw := createMaaSGatewayWithAnnotations(map[string]string{
-			"opendatahub.io/managed":                          "false",
-			"security.opendatahub.io/authorino-tls-bootstrap": "true",
-		})
-		authorino := createAuthorinoWithTLS(true)
-
-		cli, err := fakeclient.New(fakeclient.WithObjects(testDSCI(), dsc, createTenantCR(true), gw, authorino))
-		g.Expect(err).ShouldNot(HaveOccurred())
-
-		cs, err := handler.UpdateDSCStatus(ctx, &pkgtypes.ReconciliationRequest{
-			Client:     cli,
-			Instance:   dsc,
-			Conditions: conditions.NewManager(dsc, ReadyConditionType, status.ConditionMaaSPrerequisitesAvailable),
-		})
-
-		g.Expect(err).ShouldNot(HaveOccurred())
-		g.Expect(cs).Should(Equal(metav1.ConditionTrue))
-
-		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
-				status.ConditionMaaSPrerequisitesAvailable, metav1.ConditionTrue),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`,
-				status.ConditionMaaSPrerequisitesAvailable, status.MaaSPrerequisitesMetReason),
-		)))
+	dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
+	gw := createMaaSGatewayWithAnnotations(map[string]string{
+		"opendatahub.io/managed":                          "false",
+		"security.opendatahub.io/authorino-tls-bootstrap": "true",
 	})
+	authorino := createAuthorinoWithTLS(true)
+
+	cli, err := fakeclient.New(fakeclient.WithObjects(testDSCI(), dsc, createTenantCR(true), gw, authorino))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	cs, err := handler.UpdateDSCStatus(ctx, &pkgtypes.ReconciliationRequest{
+		Client:     cli,
+		Instance:   dsc,
+		Conditions: conditions.NewManager(dsc, ReadyConditionType, status.ConditionMaaSPrerequisitesAvailable),
+	})
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(cs).Should(Equal(metav1.ConditionTrue))
+
+	g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+			status.ConditionMaaSPrerequisitesAvailable, metav1.ConditionTrue),
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`,
+			status.ConditionMaaSPrerequisitesAvailable, status.MaaSPrerequisitesMetReason),
+	)))
+}
+
+func TestCheckMaaSPrerequisites_MissingAnnotations(t *testing.T) {
+	handler := &componentHandler{}
 
 	for _, tc := range []struct {
 		name             string
@@ -383,7 +384,7 @@ func TestCheckMaaSPrerequisites(t *testing.T) {
 			missingSubstring: "authorino-tls-bootstrap",
 		},
 	} {
-		t.Run("should report issue when gateway is "+tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			g := NewWithT(t)
 			ctx := t.Context()
 
@@ -411,62 +412,68 @@ func TestCheckMaaSPrerequisites(t *testing.T) {
 			)))
 		})
 	}
+}
 
-	t.Run("should report issue when Authorino TLS is not enabled", func(t *testing.T) {
-		g := NewWithT(t)
-		ctx := t.Context()
+func TestCheckMaaSPrerequisites_AuthorinoTLSNotEnabled(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+	handler := &componentHandler{}
 
-		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
-		gw := createMaaSGatewayWithAnnotations(map[string]string{
-			"opendatahub.io/managed":                          "false",
-			"security.opendatahub.io/authorino-tls-bootstrap": "true",
-		})
-		authorino := createAuthorinoWithTLS(false)
+	dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
+	gw := createMaaSGatewayWithAnnotations(map[string]string{
+		"opendatahub.io/managed":                          "false",
+		"security.opendatahub.io/authorino-tls-bootstrap": "true",
+	})
+	authorino := createAuthorinoWithTLS(false)
 
-		cli, err := fakeclient.New(fakeclient.WithObjects(testDSCI(), dsc, createTenantCR(true), gw, authorino))
-		g.Expect(err).ShouldNot(HaveOccurred())
+	cli, err := fakeclient.New(fakeclient.WithObjects(testDSCI(), dsc, createTenantCR(true), gw, authorino))
+	g.Expect(err).ShouldNot(HaveOccurred())
 
-		_, err = handler.UpdateDSCStatus(ctx, &pkgtypes.ReconciliationRequest{
-			Client:     cli,
-			Instance:   dsc,
-			Conditions: conditions.NewManager(dsc, ReadyConditionType, status.ConditionMaaSPrerequisitesAvailable),
-		})
-
-		g.Expect(err).ShouldNot(HaveOccurred())
-		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
-				status.ConditionMaaSPrerequisitesAvailable, metav1.ConditionFalse),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("Authorino TLS is not enabled")`,
-				status.ConditionMaaSPrerequisitesAvailable),
-		)))
+	_, err = handler.UpdateDSCStatus(ctx, &pkgtypes.ReconciliationRequest{
+		Client:     cli,
+		Instance:   dsc,
+		Conditions: conditions.NewManager(dsc, ReadyConditionType, status.ConditionMaaSPrerequisitesAvailable),
 	})
 
-	t.Run("should report issue when gateway does not exist", func(t *testing.T) {
-		g := NewWithT(t)
-		ctx := t.Context()
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+			status.ConditionMaaSPrerequisitesAvailable, metav1.ConditionFalse),
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("Authorino TLS is not enabled")`,
+			status.ConditionMaaSPrerequisitesAvailable),
+	)))
+}
 
-		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
-		authorino := createAuthorinoWithTLS(true)
+func TestCheckMaaSPrerequisites_GatewayNotFound(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+	handler := &componentHandler{}
 
-		cli, err := fakeclient.New(fakeclient.WithObjects(testDSCI(), dsc, createTenantCR(true), authorino))
-		g.Expect(err).ShouldNot(HaveOccurred())
+	dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
+	authorino := createAuthorinoWithTLS(true)
 
-		_, err = handler.UpdateDSCStatus(ctx, &pkgtypes.ReconciliationRequest{
-			Client:     cli,
-			Instance:   dsc,
-			Conditions: conditions.NewManager(dsc, ReadyConditionType, status.ConditionMaaSPrerequisitesAvailable),
-		})
+	cli, err := fakeclient.New(fakeclient.WithObjects(testDSCI(), dsc, createTenantCR(true), authorino))
+	g.Expect(err).ShouldNot(HaveOccurred())
 
-		g.Expect(err).ShouldNot(HaveOccurred())
-		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
-				status.ConditionMaaSPrerequisitesAvailable, metav1.ConditionFalse),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("maas-default-gateway not found")`,
-				status.ConditionMaaSPrerequisitesAvailable),
-		)))
+	_, err = handler.UpdateDSCStatus(ctx, &pkgtypes.ReconciliationRequest{
+		Client:     cli,
+		Instance:   dsc,
+		Conditions: conditions.NewManager(dsc, ReadyConditionType, status.ConditionMaaSPrerequisitesAvailable),
 	})
 
-	t.Run("should report issue when Gateway API CRD is not installed", func(t *testing.T) {
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+			status.ConditionMaaSPrerequisitesAvailable, metav1.ConditionFalse),
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("maas-default-gateway not found")`,
+			status.ConditionMaaSPrerequisitesAvailable),
+	)))
+}
+
+func TestCheckMaaSPrerequisites_CRDNotInstalled(t *testing.T) {
+	handler := &componentHandler{}
+
+	t.Run("Gateway API CRD", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
@@ -505,7 +512,7 @@ func TestCheckMaaSPrerequisites(t *testing.T) {
 		)))
 	})
 
-	t.Run("should report issue when Authorino CRD is not installed", func(t *testing.T) {
+	t.Run("Authorino CRD", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
@@ -546,6 +553,10 @@ func TestCheckMaaSPrerequisites(t *testing.T) {
 				status.ConditionMaaSPrerequisitesAvailable),
 		)))
 	})
+}
+
+func TestCheckMaaSPrerequisites_DisabledAndNonBlocking(t *testing.T) {
+	handler := &componentHandler{}
 
 	t.Run("should not set MaaSPrerequisitesAvailable when MaaS is disabled", func(t *testing.T) {
 		g := NewWithT(t)
@@ -564,7 +575,6 @@ func TestCheckMaaSPrerequisites(t *testing.T) {
 
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		// MaaSPrerequisitesAvailable should NOT be set when MaaS is disabled
 		g.Expect(dsc).ShouldNot(WithTransform(json.Marshal,
 			jq.Match(`.status.conditions[] | select(.type == "%s")`, status.ConditionMaaSPrerequisitesAvailable),
 		))
