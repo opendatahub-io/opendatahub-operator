@@ -58,29 +58,26 @@ func newCloudManagerCR(deps map[string]any) *unstructured.Unstructured {
 	return obj
 }
 
-// allManagedWithCustomNamespaces returns a dependencies map with custom namespace
-// configurations, ensuring the tests verify non-default namespace handling.
-// Note: cert-manager uses hardcoded namespaces and cannot be customized.
-func allManagedWithCustomNamespaces() map[string]any {
-	managed := string(ccmapi.Managed)
+func depsWithCustomNamespaces(policy ccmapi.ManagementPolicy) map[string]any {
+	p := string(policy)
 	return map[string]any{
 		"certManager": map[string]any{
-			"managementPolicy": managed,
+			"managementPolicy": p,
 		},
 		"lws": map[string]any{
-			"managementPolicy": managed,
+			"managementPolicy": p,
 			"configuration": map[string]any{
 				"namespace": customLWSOperatorNS,
 			},
 		},
 		"sailOperator": map[string]any{
-			"managementPolicy": managed,
+			"managementPolicy": p,
 			"configuration": map[string]any{
 				"namespace": customSailOperatorNS,
 			},
 		},
 		"gatewayAPI": map[string]any{
-			"managementPolicy": managed,
+			"managementPolicy": p,
 		},
 	}
 }
