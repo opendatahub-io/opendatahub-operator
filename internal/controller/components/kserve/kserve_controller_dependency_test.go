@@ -278,9 +278,11 @@ func TestSubscriptionDependencyMonitoring(t *testing.T) {
 		)
 
 		// Subscription conditions should not be written on Kubernetes
-		wt.Get(gvk.Kserve, nn).Consistently().WithTimeout(5 * time.Second).Should(
+		wt.Get(gvk.Kserve, nn).Consistently().WithTimeout(5 * time.Second).Should(And(
 			jq.Match(`all(.status.conditions[]?.type; . != "%s")`,
 				LLMInferenceServiceDependencies),
-		)
+			jq.Match(`all(.status.conditions[]?.type; . != "%s")`,
+				LLMInferenceServiceWideEPDependencies),
+		))
 	})
 }
