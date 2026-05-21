@@ -64,5 +64,5 @@ map:
     src: kserve-module/config
     dest: kserve-module
   odh-agents-operator:
-    src: config
+    src: kagenti-operator/config
     dest: kagenti-operator
