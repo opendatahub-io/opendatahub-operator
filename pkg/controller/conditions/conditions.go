@@ -54,9 +54,10 @@ func WithError(err error) Option {
 }
 
 type Manager struct {
-	happy      string
-	dependents []string
-	accessor   common.ConditionsAccessor
+	happy       string
+	dependents  []string
+	accessor    common.ConditionsAccessor
+	activeTypes map[string]struct{}
 }
 
 func NewManager(accessor common.ConditionsAccessor, happy string, dependents ...string) *Manager {
@@ -141,6 +142,10 @@ func (r *Manager) GetCondition(t string) *common.Condition {
 func (r *Manager) SetCondition(cond common.Condition) {
 	if r.accessor == nil {
 		return
+	}
+
+	if r.activeTypes != nil {
+		r.activeTypes[cond.Type] = struct{}{}
 	}
 
 	if !SetStatusCondition(r.accessor, cond) {
@@ -312,12 +317,49 @@ func (r *Manager) findUnhappyDependent() *common.Condition {
 	return nil
 }
 
-// Reset clears all conditions managed by the Manager.
+// Reset prepares the Manager for a new reconciliation cycle by initializing
+// the active types tracker. Unlike the previous implementation that cleared
+// all conditions, this preserves them so that SetStatusCondition can detect
+// unchanged conditions and skip unnecessary updates (avoiding fresh
+// LastTransitionTime timestamps on every reconcile).
 //
-// It achieves this by setting an empty slice of common.Condition
-// in the underlying accessor.
+// Call CleanupStaleConditions after all actions have run to remove
+// conditions that were not re-set during this cycle.
 func (r *Manager) Reset() {
-	r.accessor.SetConditions([]common.Condition{})
+	r.activeTypes = make(map[string]struct{})
+}
+
+// CleanupStaleConditions removes conditions present in the accessor that
+// were not re-set during this reconciliation cycle. This preserves the
+// garbage-collection behavior of the old Reset (removing conditions for
+// components that have been disabled) without clearing conditions that
+// are still active.
+//
+// If any stale conditions are removed, happiness is recomputed.
+func (r *Manager) CleanupStaleConditions() {
+	if r.accessor == nil || r.activeTypes == nil {
+		return
+	}
+
+	var toRemove []string
+
+	for _, c := range r.accessor.GetConditions() {
+		if c.Type == r.happy {
+			continue
+		}
+
+		if _, active := r.activeTypes[c.Type]; !active {
+			toRemove = append(toRemove, c.Type)
+		}
+	}
+
+	for _, t := range toRemove {
+		RemoveStatusCondition(r.accessor, t)
+	}
+
+	if len(toRemove) > 0 {
+		r.RecomputeHappiness("")
+	}
 }
 
 // Sort arranges the conditions retrieved from the accessor based on the following rules:

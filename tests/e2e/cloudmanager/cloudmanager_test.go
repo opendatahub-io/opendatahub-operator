@@ -27,7 +27,7 @@ func TestCloudManager_InvalidNameRejected(t *testing.T) {
 	cr.SetGroupVersionKind(provider.GVK)
 	cr.SetName("wrong-name")
 	cr.Object["spec"] = map[string]any{
-		"dependencies": allManagedWithCustomNamespaces(),
+		"dependencies": depsWithCustomNamespaces(ccmapi.Managed),
 	}
 
 	err := wt.Client().Create(wt.Context(), cr)
@@ -42,24 +42,25 @@ func TestCloudManager_InvalidNameRejected(t *testing.T) {
 //  2. ReadOnlyValidation  — status, labels, workload checks, self-healing
 //  3. NamespaceImmutability — verify namespace fields cannot be changed after creation
 //  4. StatusAfterSpecChange — mutates spec but restores to all-Managed
-//  5. UnmanagedNotReconciled — switches cert-manager to Unmanaged
-//  6. GarbageCollection — GC action: stale deletion, protected PKI, unmanaged transition
-//  7. CascadeDeletionOnCRDelete — Kubernetes cascade via ownerReferences (must be last)
+//  5. ManagedRecovery — all Managed→Unmanaged→Managed (RHOAIENG-62288)
+//  6. UnmanagedNotReconciled — switches cert-manager to Unmanaged
+//  7. GarbageCollection — GC action: stale deletion, protected PKI, unmanaged transition
+//  8. CascadeDeletionOnCRDelete — Kubernetes cascade via ownerReferences (must be last)
 func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests sharing one CR lifecycle are clearer inline
 	wt := tc.NewWithT(t)
 
-	cr := newCloudManagerCR(allManagedWithCustomNamespaces())
+	cr := newCloudManagerCR(depsWithCustomNamespaces(ccmapi.Managed))
 	wt.Create(cr, k8sEngineCrNn()).Eventually().Should(Not(BeNil()))
 
 	// Safety net: if any test fails before GarbageCollectionOnDelete runs,
 	// clean up the CR so the next local run starts fresh.
 	t.Cleanup(func() {
-		_ = wt.Client().Delete(wt.Context(), newCloudManagerCR(allManagedWithCustomNamespaces()))
+		_ = wt.Client().Delete(wt.Context(), newCloudManagerCR(depsWithCustomNamespaces(ccmapi.Managed)))
 	})
 
 	waitForReady(wt)
 
-	// Read namespace values from the CR spec (custom namespaces configured in allManagedWithCustomNamespaces).
+	// Read namespace values from the CR spec (custom namespaces configured in depsWithCustomNamespaces).
 	crObj := wt.Get(provider.GVK, k8sEngineCrNn()).Eventually().Should(Not(BeNil()))
 	deployments := getManagedDependencyDeployments(wt, crObj)
 	certManagerOperandNS := getCertManagerOperandNamespace()
@@ -108,6 +109,32 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 				wt.Get(provider.GVK, k8sEngineCrNn()).Eventually().Should(And(
 					jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`),
 					jq.Match(`.status.conditions[] | select(.type == "Ready") | has("lastTransitionTime")`),
+				))
+			})
+
+			t.Run("Dependency deployments running", func(t *testing.T) {
+				wt := tc.NewWithT(t)
+
+				for _, ns := range []string{certManagerOperatorNS, customLWSOperatorNS, customSailOperatorNS} {
+					wt.List(gvk.Deployment,
+						client.InNamespace(ns),
+						client.MatchingLabels{labels.InfrastructurePartOf: getPartOfLabelValue()},
+					).Eventually().Should(
+						jq.Match(`(. | length) > 0 and all(.status.readyReplicas == .status.replicas)`),
+						"all deployments in %s should have ready replicas", ns,
+					)
+				}
+			})
+
+			t.Run("Per-dependency conditions", func(t *testing.T) {
+				wt := tc.NewWithT(t)
+
+				wt.Get(provider.GVK, k8sEngineCrNn()).Eventually().Should(And(
+					jq.Match(`.status.conditions[] | select(.type == "DependenciesReady") | .status == "True"`),
+					jq.Match(`.status.conditions[] | select(.type == "GatewayAPIReady") | .status == "True"`),
+					jq.Match(`.status.conditions[] | select(.type == "CertManagerReady") | .status == "True"`),
+					jq.Match(`.status.conditions[] | select(.type == "LWSReady") | .status == "True"`),
+					jq.Match(`.status.conditions[] | select(.type == "SailOperatorReady") | .status == "True"`),
 				))
 			})
 
@@ -181,7 +208,7 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 			t.Run("selfsigned ClusterIssuer is ready", func(t *testing.T) {
 				wt := tc.NewWithT(t)
 				wt.Get(gvk.CertManagerClusterIssuer, types.NamespacedName{
-					Name: "opendatahub-selfsigned-issuer",
+					Name: pki.IssuerName,
 				}).Eventually().Should(
 					jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`),
 				)
@@ -190,7 +217,7 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 			t.Run("root CA Certificate is issued", func(t *testing.T) {
 				wt := tc.NewWithT(t)
 				wt.Get(gvk.CertManagerCertificate, types.NamespacedName{
-					Name: "opendatahub-ca", Namespace: certManagerOperandNS,
+					Name: pki.CertName, Namespace: pki.CertManagerNamespace,
 				}).Eventually().Should(
 					jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`),
 				)
@@ -199,7 +226,7 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 			t.Run("CA-backed ClusterIssuer is ready", func(t *testing.T) {
 				wt := tc.NewWithT(t)
 				wt.Get(gvk.CertManagerClusterIssuer, types.NamespacedName{
-					Name: "opendatahub-ca-issuer",
+					Name: pki.CAIssuerName,
 				}).Eventually().Should(
 					jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`),
 				)
@@ -208,7 +235,7 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 			t.Run("CA Secret is created", func(t *testing.T) {
 				wt := tc.NewWithT(t)
 				wt.Get(gvk.Secret, types.NamespacedName{
-					Name: "opendatahub-ca", Namespace: certManagerOperandNS,
+					Name: pki.CertName, Namespace: pki.CertManagerNamespace,
 				}).Eventually().Should(Not(BeNil()))
 			})
 		})
@@ -362,6 +389,7 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 			jq.Match(`.metadata.generation > %d`, gen1),
 			jq.Match(`.status.observedGeneration == .metadata.generation`),
 			jq.Match(`.status.phase == "Ready"`),
+			jq.Match(`.status.conditions[] | select(.type == "SailOperatorReady") | .reason == "Unmanaged"`),
 		))
 
 		// Second mutation: switch it back to Managed.
@@ -379,10 +407,50 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 			jq.Match(`.metadata.generation > %d`, gen2),
 			jq.Match(`.status.observedGeneration == .metadata.generation`),
 			jq.Match(`.status.phase == "Ready"`),
+			jq.Match(`.status.conditions[] | select(.type == "SailOperatorReady") | .status == "True"`),
+			jq.Match(`.status.conditions[] | select(.type == "SailOperatorReady") | .reason != "Unmanaged"`),
 		))
 	})
 
-	// --- 5. UnmanagedNotReconciled ---
+	// --- 5. ManagedRecovery ---
+	// Switches all dependencies to Unmanaged (tearing down operators and operands),
+	// then back to Managed. Verifies the controller recovers without error loops
+	// (e.g. RHOAIENG-62288: cert-manager CRDs present but webhook not yet ready).
+	t.Run("ManagedRecovery", func(t *testing.T) {
+		wt := tc.NewWithT(t)
+
+		// Switch all dependencies to Unmanaged. GC will delete all managed resources,
+		// including the cert-manager operator and its operand pods (webhook, controller,
+		// cainjector). CRDs may still remain on the cluster.
+		wt.Patch(provider.GVK, k8sEngineCrNn(), func(obj *unstructured.Unstructured) error {
+			return unstructured.SetNestedField(obj.Object, depsWithCustomNamespaces(ccmapi.Unmanaged), "spec", "dependencies")
+		}).Eventually().Should(Not(BeNil()))
+
+		// Verify all managed deployments are removed before switching back.
+		// We cannot use the KubernetesEngine CR because if cert-manager is not installed in the cluster,
+		// but the CRD are, it will never be in the Ready state.
+		wt.List(gvk.Deployment,
+			client.MatchingLabels{labels.InfrastructurePartOf: getPartOfLabelValue()},
+		).Eventually().Should(BeEmpty())
+
+		// CM-1019: cert-manager-operator may die before processing CertManager/cluster
+		// finalizers, leaving operand deployments orphaned. Force-delete them so the
+		// Unmanaged→Managed cycle is not flaky.
+		wt.DeleteAll(gvk.Deployment, client.InNamespace(certManagerOperandNS)).Eventually().Should(Succeed())
+		wt.List(gvk.Deployment,
+			client.InNamespace(certManagerOperandNS),
+		).Eventually().Should(BeEmpty())
+
+		// Switch all dependencies back to Managed. The operator must redeploy
+		// cert-manager and wait for webhook readiness before creating PKI resources.
+		wt.Patch(provider.GVK, k8sEngineCrNn(), func(obj *unstructured.Unstructured) error {
+			return unstructured.SetNestedField(obj.Object, depsWithCustomNamespaces(ccmapi.Managed), "spec", "dependencies")
+		}).Eventually().Should(Not(BeNil()))
+
+		waitForReady(wt)
+	})
+
+	// --- 6. UnmanagedNotReconciled ---
 	// Switches cert-manager to Unmanaged, then deletes its deployment and
 	// verifies the controller does NOT recreate it. Leaves the CR modified.
 	t.Run("UnmanagedNotReconciled", func(t *testing.T) {
@@ -402,6 +470,8 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 			jq.Match(`.metadata.generation > %d`, gen),
 			jq.Match(`.status.observedGeneration == .metadata.generation`),
 			jq.Match(`.status.phase == "Ready"`),
+			jq.Match(`.status.conditions[] | select(.type == "CertManagerReady") | .status == "True"`),
+			jq.Match(`.status.conditions[] | select(.type == "CertManagerReady") | .reason == "Unmanaged"`),
 		))
 
 		// Delete the cert-manager deployment.
@@ -432,16 +502,17 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 		}
 	})
 
-	// --- 5. GarbageCollection ---
+	// --- 7. GarbageCollection ---
 	// Tests the GC action that runs as the last step in the reconciliation pipeline.
 	// GC identifies stale or orphaned resources by comparing InstanceGeneration
 	// annotations and deletes them, while preserving protected PKI resources.
 	t.Run("GarbageCollection", func(t *testing.T) {
 		wt := tc.NewWithT(t)
 
-		// Restore all dependencies to Managed (step 4 left cert-manager Unmanaged).
+		// Restore all dependencies to Managed (step 6 already restored all to Managed,
+		// but this ensures a clean state regardless of earlier test mutations).
 		wt.Patch(provider.GVK, k8sEngineCrNn(), func(obj *unstructured.Unstructured) error {
-			return unstructured.SetNestedField(obj.Object, allManagedWithCustomNamespaces(), "spec", "dependencies")
+			return unstructured.SetNestedField(obj.Object, depsWithCustomNamespaces(ccmapi.Managed), "spec", "dependencies")
 		}).Eventually().Should(Not(BeNil()))
 
 		waitForReady(wt)
@@ -462,13 +533,13 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 
 			// PKI resources must survive the GC run.
 			wt.Get(gvk.CertManagerClusterIssuer, types.NamespacedName{
-				Name: "opendatahub-selfsigned-issuer",
+				Name: pki.IssuerName,
 			}).Eventually().Should(Not(BeNil()))
 			wt.Get(gvk.CertManagerCertificate, types.NamespacedName{
-				Name: "opendatahub-ca", Namespace: "cert-manager",
+				Name: pki.CertName, Namespace: pki.CertManagerNamespace,
 			}).Eventually().Should(Not(BeNil()))
 			wt.Get(gvk.CertManagerClusterIssuer, types.NamespacedName{
-				Name: "opendatahub-ca-issuer",
+				Name: pki.CAIssuerName,
 			}).Eventually().Should(Not(BeNil()))
 
 			// Restore sailOperator.
@@ -549,7 +620,7 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 		})
 	})
 
-	// --- 6. CascadeDeletionOnCRDelete ---
+	// --- 8. CascadeDeletionOnCRDelete ---
 	// Deletes the CR and verifies Kubernetes cascade-deletes all owned resources
 	// (those with ownerReferences). Namespaces are excluded from ownership and
 	// survive deletion. Must be the last test since it destroys the CR.
@@ -559,7 +630,7 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 		// Restore all dependencies to Managed (previous tests may have changed
 		// some to Unmanaged) and wait for all deployments to come back.
 		wt.Patch(provider.GVK, k8sEngineCrNn(), func(obj *unstructured.Unstructured) error {
-			return unstructured.SetNestedField(obj.Object, allManagedWithCustomNamespaces(), "spec", "dependencies")
+			return unstructured.SetNestedField(obj.Object, depsWithCustomNamespaces(ccmapi.Managed), "spec", "dependencies")
 		}).Eventually().Should(Not(BeNil()))
 
 		waitForReady(wt)

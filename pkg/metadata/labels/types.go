@@ -15,7 +15,7 @@ const (
 	Platform                = "platform"
 	True                    = "true"
 	CustomizedAppNamespace  = "opendatahub.io/application-namespace"
-	ODHLabelMonitoring      = "opendatahub.io/monitoring"
+	ODHLabelMonitoring      = "monitoring.opendatahub.io/scrape"
 )
 
 // K8SCommon keeps common kubernetes labels [1]

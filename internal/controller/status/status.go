@@ -97,6 +97,13 @@ const (
 	ConditionNodeMetricsEndpointAvailable        = "NodeMetricsEndpointAvailable"
 	ConditionImageStreamsAvailable               = "ImageStreamsAvailable"
 	ConditionImageStreamsNotAvailableReason      = "ImageStreamsNotReady"
+
+	// Cloud controller manager conditions.
+	ConditionDependenciesReady = "DependenciesReady"
+	ConditionGatewayAPIReady   = "GatewayAPIReady"
+	ConditionCertManagerReady  = "CertManagerReady"
+	ConditionLWSReady          = "LWSReady"
+	ConditionSailOperatorReady = "SailOperatorReady"
 )
 
 const (
