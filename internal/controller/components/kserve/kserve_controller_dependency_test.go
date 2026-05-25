@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	v1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -52,26 +53,9 @@ func startKserveController(t *testing.T, ctx context.Context) (*envt.EnvT, *test
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "test-operator-ns"}}
 	g.Expect(et.Client().Create(ctx, ns)).To(Succeed())
 
-	mgr := et.Manager()
-	errCh := make(chan error, 1)
-	go func() { errCh <- mgr.Start(ctx) }()
-	select {
-	case err := <-errCh:
-		t.Fatalf("manager stopped unexpectedly: %v", err)
-	case <-mgr.Elected():
-	case <-time.After(15 * time.Second):
-		t.Fatal("timed out waiting for manager leader election")
-	}
+	et.StartManager(t, ctx)
 
-	tc, err := testf.NewTestContext(
-		testf.WithRestConfig(et.Config()),
-		testf.WithScheme(et.Scheme()),
-		testf.WithContext(ctx),
-		testf.WithTOptions(
-			testf.WithEventuallyTimeout(30*time.Second),
-			testf.WithEventuallyPollingInterval(250*time.Millisecond),
-		),
-	)
+	tc, err := et.NewTestContext(ctx)
 	g.Expect(err).NotTo(HaveOccurred())
 
 	return et, tc.NewWithT(t)
@@ -155,9 +139,8 @@ func TestCRDDependencyMonitoring(t *testing.T) {
 		nn := types.NamespacedName{Name: componentApi.KserveInstanceName}
 
 		// Wait for reconciliation by checking that subscription conditions exist.
-		// `.status == .status` verifies the condition exists without asserting a specific value.
 		wt.Get(gvk.Kserve, nn).Eventually().Should(
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == .status`,
+			jq.Match(`[.status.conditions[] | select(.type == "%s")] | length > 0`,
 				LLMInferenceServiceDependencies),
 		)
 
@@ -168,5 +151,138 @@ func TestCRDDependencyMonitoring(t *testing.T) {
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`,
 				status.ConditionDependenciesAvailable, precondition.PreConditionFailedReason),
 		)))
+	})
+}
+
+func TestSubscriptionDependencyMonitoring(t *testing.T) {
+	t.Run("OpenShift cluster with missing subscriptions sets conditions to False", func(t *testing.T) {
+		cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+		t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+		ctx, cancel := context.WithCancel(context.Background())
+		et, wt := startKserveController(t, ctx)
+		t.Cleanup(cancel)
+
+		crd, err := et.RegisterCRD(wt.Context(), gvk.Subscription,
+			"subscriptions", "subscription", apiextensionsv1.NamespaceScoped)
+		wt.Expect(err).NotTo(HaveOccurred())
+		envt.CleanupDelete(t, NewWithT(t), wt.Context(), wt.Client(), crd)
+
+		createKserveDependencyCR(t, wt)
+
+		nn := types.NamespacedName{Name: componentApi.KserveInstanceName}
+
+		wt.Get(gvk.Kserve, nn).Eventually().Should(And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				LLMInferenceServiceDependencies, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				LLMInferenceServiceWideEPDependencies, metav1.ConditionFalse),
+		))
+
+		wt.Get(gvk.Kserve, nn).Eventually().Should(And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("Red Hat Connectivity Link")`,
+				LLMInferenceServiceDependencies),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("cert-manager operator")`,
+				LLMInferenceServiceDependencies),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("; ")`,
+				LLMInferenceServiceDependencies),
+		))
+	})
+
+	t.Run("OpenShift cluster with all subscriptions present sets conditions to True", func(t *testing.T) {
+		cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+		t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+		ctx, cancel := context.WithCancel(context.Background())
+		et, wt := startKserveController(t, ctx)
+		t.Cleanup(cancel)
+
+		crd, err := et.RegisterCRD(wt.Context(), gvk.Subscription,
+			"subscriptions", "subscription", apiextensionsv1.NamespaceScoped)
+		wt.Expect(err).NotTo(HaveOccurred())
+		envt.CleanupDelete(t, NewWithT(t), wt.Context(), wt.Client(), crd)
+
+		for _, name := range []string{RHCLOperatorSubscription, LWSOperatorSubscription, CertManagerOperatorSubscription} {
+			sub := &v1alpha1.Subscription{
+				ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
+			}
+			wt.Expect(wt.Client().Create(wt.Context(), sub)).To(Succeed())
+			envt.CleanupDelete(t, NewWithT(t), wt.Context(), wt.Client(), sub)
+		}
+
+		createKserveDependencyCR(t, wt)
+
+		nn := types.NamespacedName{Name: componentApi.KserveInstanceName}
+
+		wt.Get(gvk.Kserve, nn).Eventually().Should(And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				LLMInferenceServiceDependencies, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				LLMInferenceServiceWideEPDependencies, metav1.ConditionTrue),
+		))
+	})
+
+	t.Run("OpenShift cluster with partial subscriptions sets mixed conditions", func(t *testing.T) {
+		cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+		t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+		ctx, cancel := context.WithCancel(context.Background())
+		et, wt := startKserveController(t, ctx)
+		t.Cleanup(cancel)
+
+		crd, err := et.RegisterCRD(wt.Context(), gvk.Subscription,
+			"subscriptions", "subscription", apiextensionsv1.NamespaceScoped)
+		wt.Expect(err).NotTo(HaveOccurred())
+		envt.CleanupDelete(t, NewWithT(t), wt.Context(), wt.Client(), crd)
+
+		// Only RHCL and cert-manager present — LLMInferenceServiceDependencies should pass,
+		// but LLMInferenceServiceWideEPDependencies should fail (missing LWS)
+		for _, name := range []string{RHCLOperatorSubscription, CertManagerOperatorSubscription} {
+			sub := &v1alpha1.Subscription{
+				ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
+			}
+			wt.Expect(wt.Client().Create(wt.Context(), sub)).To(Succeed())
+			envt.CleanupDelete(t, NewWithT(t), wt.Context(), wt.Client(), sub)
+		}
+
+		createKserveDependencyCR(t, wt)
+
+		nn := types.NamespacedName{Name: componentApi.KserveInstanceName}
+
+		wt.Get(gvk.Kserve, nn).Eventually().Should(And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				LLMInferenceServiceDependencies, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				LLMInferenceServiceWideEPDependencies, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("LeaderWorkerSet")`,
+				LLMInferenceServiceWideEPDependencies),
+		))
+	})
+
+	t.Run("Kubernetes cluster skips subscription checks", func(t *testing.T) {
+		cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
+		t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+		ctx, cancel := context.WithCancel(context.Background())
+		_, wt := startKserveController(t, ctx)
+		t.Cleanup(cancel)
+
+		createKserveDependencyCR(t, wt)
+
+		nn := types.NamespacedName{Name: componentApi.KserveInstanceName}
+
+		// Wait for reconciliation to happen by checking DependenciesAvailable exists
+		wt.Get(gvk.Kserve, nn).Eventually().Should(
+			jq.Match(`[.status.conditions[] | select(.type == "%s")] | length > 0`,
+				status.ConditionDependenciesAvailable),
+		)
+
+		// Subscription conditions should not be written on Kubernetes
+		wt.Get(gvk.Kserve, nn).Consistently().WithTimeout(5 * time.Second).Should(And(
+			jq.Match(`all(.status.conditions[]?.type; . != "%s")`,
+				LLMInferenceServiceDependencies),
+			jq.Match(`all(.status.conditions[]?.type; . != "%s")`,
+				LLMInferenceServiceWideEPDependencies),
+		))
 	})
 }
