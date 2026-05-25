@@ -78,7 +78,7 @@ func getPersesImage() string {
 		return image
 	}
 
-	return "registry.redhat.io/cluster-observability-operator/perses-rhel9:1.3.1-1765876130"
+	return "registry.redhat.io/cluster-observability-operator/perses-rhel9@sha256:e797cdb47beef40b04da7b6d645bca3dc32e6247003c45b56b38efd9e13bf01c" // 1.3.1-1765876130
 }
 
 // isLocalServiceEndpoint checks if an endpoint URL is for a local/in-cluster service.
@@ -290,20 +290,20 @@ func addTracesTemplateData(templateData map[string]any, traces *serviceApi.Trace
 func addImageURLs(rr *odhtypes.ReconciliationRequest, templateData map[string]any) {
 	templateData["KubeRBACProxyImage"] = getImageURL(
 		"RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
-		"quay.io/brancz/kube-rbac-proxy:v0.20.0",
-		"registry.redhat.io/openshift4/ose-kube-rbac-proxy-rhel9:v4.17",
+		"quay.io/brancz/kube-rbac-proxy@sha256:147cb28fea35473b2cf8697892d375bbe0aec237c5740b0368719b4c0d71b290",                       // v0.20.0
+		"registry.redhat.io/openshift4/ose-kube-rbac-proxy-rhel9@sha256:c9a8306c8de7881c673412a618732b1107aad2d21bcebb9bf2ea82ae3861b4f5", // v4.17
 		rr.Release.Name,
 	)
 	templateData["PromLabelProxyImage"] = getImageURL(
 		"RELATED_IMAGE_OSE_PROM_LABEL_PROXY_IMAGE",
-		"quay.io/prometheuscommunity/prom-label-proxy:v0.12.1",
-		"registry.redhat.io/openshift4/ose-prom-label-proxy-rhel9:v4.17",
+		"quay.io/prometheuscommunity/prom-label-proxy@sha256:28f81efb6574556011e7914851faaccce4a64b1b72a338aaaf3cc9d45e66fd96",            // v0.12.1
+		"registry.redhat.io/openshift4/ose-prom-label-proxy-rhel9@sha256:7ad2a3854b74c447da3ed71b8dc7edc896ad91ef2c1b7ac00980b4bd9336aaa2", // v4.17
 		rr.Release.Name,
 	)
 	templateData["CLIImage"] = getImageURL(
 		"RELATED_IMAGE_CLI_IMAGE",
-		"quay.io/openshift/origin-cli:4.17",
-		"registry.redhat.io/openshift4/ose-cli:v4.17",
+		"quay.io/openshift/origin-cli@sha256:3ce0b6a00982c2a5c48d3e444ada9aacdb66563595dcbab2ac9d3ace7137528c",                            // 4.17
+		"registry.redhat.io/openshift4/ose-cli@sha256:3d1e54e98013cae8e89df9f6945275b566f1718a922c904aff831bcf82d0deef",                    // v4.17
 		rr.Release.Name,
 	)
 }
