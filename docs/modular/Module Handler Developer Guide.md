@@ -3,7 +3,7 @@
 This guide walks through the implementation steps required to integrate a new
 modular component into the ODH Operator using the `modules` package. It
 complements the
-[Onboarding Guide](https://docs.google.com/document/d/1FgN_U-6XH8M-Mu6XNeldUlTPsnw7UyPCWg5NVJJdYnw),
+[Onboarding Guide](https://docs.google.com/document/d/1FgN_U-6XH8M-Mu6XNeldUlTPsnw7UyPCWg5NVJJdYnw/edit?tab=t.0#heading=h.7so95lr87x2),
 which covers the broader architectural contract between the platform and module
 operators.
 
@@ -63,7 +63,7 @@ spec:
   auth:
     enabled: true
     audiences:
-      - https://api.openshift.com
+      - https://kubernetes.default.svc
 ```
 
 The platform continuously reconciles these fields via Server-Side Apply and
@@ -84,9 +84,9 @@ platform can parse it generically.
 
 | Field                | Type                 | Description                                                                                                                                     |
 | -------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `observedGeneration` | `int64`              | Last `.metadata.generation` the module controller reconciled. The platform treats status as stale when this falls behind `metadata.generation`. |
-| `conditions`         | `[]metav1.Condition` | Standard Kubernetes conditions (see below).                                                                                                     |
-| `releases`           | `[]Release`          | Installed component versions (`name`, `repoUrl`, `version`).                                                                                    |
+| `observedGeneration` | `int64`                | Last `.metadata.generation` the module controller reconciled. The platform treats status as stale when this falls behind `metadata.generation`. |
+| `conditions`         | `[]metav1.Condition`   | Standard Kubernetes conditions (see below).                                                                                                     |
+| `releases`           | `[]ComponentRelease`   | Installed component versions (`name`, `repoUrl`, `version`).                                                                                    |
 
 
 **Mandatory conditions:**
@@ -135,7 +135,7 @@ spec:
   auth:
     enabled: true
     audiences:
-      - https://api.openshift.com
+      - https://kubernetes.default.svc
   # Module-specific fields below
   grpcPort: 9090
   restPort: 8080
@@ -217,11 +217,11 @@ or for deploying workloads that interact with other modules.
 **How namespaces flow through the system:**
 
 
-| Manifest format | How the namespace is set                                                                                                                                                                                  |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Helm**        | The chart templates use `{{ .Values.namespace }}` or similar. The handler sets this via `ModuleConfig.Values` and/or `ModuleConfig.Namespace`.                                                            |
-| **Kustomize**   | The Kustomize render action calls `kustomize.WithNamespace(ns)` where `ns` is `ManifestInfo.Namespace` if set, otherwise `ApplicationsNamespace`. The handler controls this via `ModuleConfig.Namespace`. |
-| **Module CR**   | Module CRs are cluster-scoped -- `BuildModuleCR` does not set a namespace.                                                                                                                               |
+| Manifest format | How the namespace is set                                                                                                                                                                                                                                  |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Helm**        | `ModuleConfig.NamespaceValueKey` names the Helm value key (e.g., `"operatorNamespace"`). `BaseHandler.GetOperatorManifests` injects `platform.ApplicationsNamespace` under this key. The chart templates use `{{ .Values.operatorNamespace }}` or similar. |
+| **Kustomize**   | The Kustomize render action calls `kustomize.WithNamespace(ns)` where `ns` is `ManifestInfo.Namespace` if set, otherwise `ApplicationsNamespace`. The handler controls this via `ModuleConfig.Namespace`.                                                 |
+| **Module CR**   | Module CRs are cluster-scoped -- `BuildModuleCR` does not set a namespace.                                                                                                                                                                               |
 
 
 **Choosing a strategy:**
@@ -637,12 +637,17 @@ spec:
 ```
 
 The platform injects `RELATED_IMAGE_*` and `APPLICATIONS_NAMESPACE`
-environment variables into the Deployment's `manager` container (or the
-first container if no `manager` is found) after rendering and before
-deploy (see
-[Operand Image Injection](#operand-image-injection-related_image)). You
-do not need to declare these env vars in the manifest; the platform adds
-them automatically based on the handler's `ModuleConfig.RelatedImages`.
+environment variables into the Deployment's target container after rendering
+and before deploy. The target container name defaults to `manager` (the
+kubebuilder convention) and can be overridden per module by implementing the
+`ContainerNamer` interface. Both `RELATED_IMAGE_*` and
+`APPLICATIONS_NAMESPACE` are injected into the same target container. If
+the target container is not found, injection is skipped and an error is
+logged. If `SetNestedSlice` fails when writing back the mutated containers,
+the reconcile fails with an error. See
+[Operand Image Injection](#operand-image-injection-related_image). You do
+not need to declare these env vars in the manifest; the platform adds them
+automatically based on the handler's `ModuleConfig.RelatedImages`.
 
 #### ConfigMap (controller configuration)
 
@@ -810,17 +815,24 @@ The `IsEnabled` and `BuildModuleCR` methods are identical regardless of
 manifest format.
 
 **Dedicated namespace variant** -- if the module deploys into its own
-namespace instead of `ApplicationsNamespace`, set `ModuleConfig.Namespace`.
-The module CR is cluster-scoped so it does not get a namespace, but the
-module operator's Deployment and operands will render into the declared
-namespace. The platform still injects `APPLICATIONS_NAMESPACE` as an env
-var on the rendered Deployment so the module operator knows where the
+namespace instead of `ApplicationsNamespace`, the mechanism depends on the
+manifest format. For **Kustomize** modules, set `ModuleConfig.Namespace`
+(the Kustomize render action uses it instead of `ApplicationsNamespace`).
+For **Helm** modules, set the namespace via `ModuleConfig.Values` (or
+`NamespaceValueKey`); `ModuleConfig.Namespace` is not wired into Helm
+rendering. The module CR is cluster-scoped so it does not get a namespace,
+but the module operator's Deployment and operands will render into the
+declared namespace. The platform still injects `APPLICATIONS_NAMESPACE` as
+an env var on the rendered Deployment so the module operator knows where the
 shared platform namespace is.
 
 **Helm dedicated namespace:**
 
-For Helm modules, `Namespace` is also passed through `Values` so the
-chart templates can reference it (e.g., `{{ .Values.namespace }}`):
+For Helm modules, set `NamespaceValueKey` to name the chart value key
+that controls the namespace. For a dedicated namespace, override the
+value explicitly via `Values` since `NamespaceValueKey` auto-injects
+`ApplicationsNamespace` (which is not what you want for a dedicated
+namespace). Alternatively, set the namespace directly in `Values`:
 
 ```go
 const moduleNamespace = "mymodule-system"
@@ -833,14 +845,13 @@ func NewHandler() *handler {
                 CRName:      "default",
                 ChartDir:    "mymodule",
                 ReleaseName: "mymodule-operator",
-                Namespace:   moduleNamespace,
                 GVK: schema.GroupVersionKind{
                     Group:   "components.platform.opendatahub.io",
                     Version: "v1alpha1",
                     Kind:    "MyModule",
                 },
                 Values: map[string]any{
-                    "namespace": moduleNamespace,
+                    "operatorNamespace": moduleNamespace,
                 },
                 RelatedImages: []string{
                     "RELATED_IMAGE_ODH_MYMODULE_CONTROLLER_IMAGE",
@@ -922,13 +933,15 @@ that is built once per reconcile and contains all platform-level fields a
 handler may need:
 
 
-| Field                   | Type                        | Source                            | Description                                                                                                                                                                                                                                                                                                                        |
-| ----------------------- | --------------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ApplicationsNamespace` | `string`                    | `cluster.ApplicationNamespace()` | The shared platform namespace. Resolved from DSCI or from the `RHAI_APPLICATIONS_NAMESPACE` env var (standalone mode). Used as the default for module operators and operands. Also injected as an `APPLICATIONS_NAMESPACE` env var on the module operator Deployment. |
-| `GatewayDomain`         | `string`                    | `GatewayConfig.Status.Domain`     | Cluster ingress domain. Empty if the gateway is not yet provisioned; handlers needing it should check for empty and handle gracefully.                                                                                                                                                                                             |
-| `Release`               | `common.Release`            | `rr.Release`                      | Platform identity (ODH vs RHOAI) and version. Useful for conditional behaviour.                                                                                                                                                                                                                                                    |
-| `DSC`                   | `*dscv2.DataScienceCluster` | reconcile instance                | The DSC instance. Component module handlers read their component stanza (e.g., `platform.DSC.Spec.Components.MyModule`). **Nil in standalone mode (xKS)** -- handlers must nil-check before use.                                                                                                                                   |
-| `DSCI`                  | `*dsciv2.DSCInitialization` | `cluster.GetDSCI()`               | The DSCInitialization instance. Service module handlers read their service configuration (e.g., `platform.DSCI.Spec.Monitoring`). **Nil in standalone mode (xKS)** -- handlers must nil-check before use.                                                                                                                          |
+| Field                   | Type                           | Source                            | Description                                                                                                                                                                                                                                                                                                                        |
+| ----------------------- | ------------------------------ | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ApplicationsNamespace` | `string`                       | `cluster.ApplicationNamespace()` | The shared platform namespace. Resolved from DSCI or from the `RHAI_APPLICATIONS_NAMESPACE` env var (standalone mode). Used as the default for module operators and operands. Also injected as an `APPLICATIONS_NAMESPACE` env var on the module operator Deployment. |
+| `GatewayDomain`         | `string`                       | `GatewayConfig.Status.Domain`     | Cluster ingress domain. Empty if the gateway is not yet provisioned; handlers needing it should check for empty and handle gracefully.                                                                                                                                                                                             |
+| `Release`               | `common.Release`               | `rr.Release`                      | Platform identity (ODH vs RHOAI) and version. Useful for conditional behaviour.                                                                                                                                                                                                                                                    |
+| `DSC`                   | `*dscv2.DataScienceCluster`    | reconcile instance                | The DSC instance. Component module handlers read their component stanza (e.g., `platform.DSC.Spec.Components.MyModule`). **Nil in Platform mode (xKS)** -- handlers must nil-check before use.                                                                                                                                     |
+| `DSCI`                  | `*dsciv2.DSCInitialization`    | `cluster.GetDSCI()`               | The DSCInitialization instance. Service module handlers read their service configuration (e.g., `platform.DSCI.Spec.Monitoring`). **Nil in Platform mode (xKS)** -- handlers must nil-check before use.                                                                                                                            |
+| `Platform`              | `*configv1alpha1.Platform`     | reconcile instance                | The Platform CR instance. **Non-nil only in Platform mode (xKS).** Handlers use it to read per-module `ManagementSpec` from `Platform.Spec.Modules` when DSC/DSCI are not available.                                                                                                                                               |
+| `ChartsBasePath`        | `string`                       | `rr.ChartsBasePath`               | The base directory for locally-bundled Helm charts. Used by `BaseHandler.GetOperatorManifests` to resolve chart paths. Handlers do not need to reference this directly.                                                                                                                                                             |
 
 
 #### How PlatformContext replaces in-tree component patterns
@@ -1038,15 +1051,16 @@ By embedding `BaseHandler` with a populated `ModuleConfig`, you inherit working
 implementations of seven interface methods:
 
 
-| Method                      | What it does                                                                                                              |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `GetName()`                 | Returns `Config.Name`                                                                                                     |
-| `GetGVK()`                  | Returns `Config.GVK` (used for watch and ownership registration)                                                          |
-| `GetRelatedImages()`        | Returns `Config.RelatedImages` (used by `injectModuleEnv` to inject `RELATED_IMAGE_*` env vars)                           |
-| `GetOperatorManifests()`    | Returns `OperatorManifests` with `HelmCharts` (if `ChartDir` set) and/or `Manifests` (if `ManifestDir` set)               |
-| `GetModuleStatus()`         | GETs the module CR by GVK + CRName, parses `.status.conditions` and `.status.observedGeneration`, returns `*ModuleStatus` |
-| `ModuleCRExists()`          | GETs the module CR by GVK + CRName, returns `true` if found, `false` if not found or CRD absent                           |
-| `DeleteOperatorResources()` | Renders the Helm chart and deletes each resource from the cluster (used by two-phase cleanup)                             |
+| Method                      | What it does                                                                                                                                               |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GetName()`                 | Returns `Config.Name`                                                                                                                                      |
+| `GetGVK()`                  | Returns `Config.GVK` (used for watch and ownership registration)                                                                                           |
+| `GetRelatedImages()`        | Returns `Config.RelatedImages` (used by `injectModuleEnv` to inject `RELATED_IMAGE_*` env vars)                                                            |
+| `GetOperatorManifests()`    | Returns `OperatorManifests` with `HelmCharts` (if `ChartDir` set) and/or `Manifests` (if `ManifestDir` set). Receives `*PlatformContext` for runtime values |
+| `GetModuleStatus()`         | GETs the module CR by GVK + CRName, parses `.status.conditions` and `.status.observedGeneration`, returns `*ModuleStatus`                                  |
+| `GetModuleCRState()`        | GETs the module CR by GVK + CRName, returns `CRState` (`CRStateAbsent`, `CRStateAlive`, or `CRStateDeleting`)                                             |
+| `DeleteModuleCR()`          | Deletes the module CR from the cluster. Returns nil if already absent (idempotent). Used by Phase 1 cleanup                                                |
+| `DeleteOperatorResources()` | Renders Helm charts and/or Kustomize manifests and deletes each resource from the cluster (used by Phase 2 cleanup). Receives `*PlatformContext`            |
 
 
 You only need to implement:
@@ -1082,12 +1096,13 @@ ownership model described in the onboarding guide.
 
 ### Module CR ownership and cleanup contract
 
-The platform registers each module's CR GVK as an **owned type** on the DSC
-controller (via `SetupModuleWatches` + `AddOwnedType`). This means:
+The platform registers each module's CR GVK as an **owned type** on the
+module controller (via `SetupModuleWatches` + `AddOwnedType`). This means:
 
-- `deploy.NewAction` sets the DSC as controller owner of the module CR
-- `gc.NewAction` deletes the module CR when the module is disabled (it is
-missing from `rr.Resources`)
+- `deploy.NewAction` sets the primary resource (DSC or Platform) as
+controller owner of the module CR
+- When a module is disabled, `cleanupDisabledModules` explicitly calls
+`DeleteModuleCR()` in Phase 1, then `DeleteOperatorResources()` in Phase 2
 
 When the module CR is deleted, Kubernetes cascade-deletes all operand
 resources that have ownerReferences pointing to the CR. For this reason:
@@ -1101,11 +1116,14 @@ resources needing graceful shutdown). The platform's two-phase cleanup
 ensures the module operator Deployment is still running when the CR is
 deleted, giving finalizers time to execute.
 
-Module operator resources (Deployment, RBAC, CRD) are cleaned up by the
-`cleanupDisabledModules` pipeline action after the module CR is confirmed
-deleted. See the
+Module operator resources (Deployment, RBAC, ConfigMap) are cleaned up by
+the `cleanupDisabledModules` pipeline action after the module CR is confirmed
+deleted. `DeleteOperatorResources()` renders both Helm charts and Kustomize
+manifests (depending on the handler's `ModuleConfig`) and deletes each
+discovered resource. CRD deletion is intentionally skipped during this phase
+to avoid data loss if custom resources still exist on the cluster. See the
 [Component to Module Migration Guide](Component%20to%20Module%20Migration%20Guide.md)
-for the full cleanup lifecycle.
+for the full two-phase cleanup lifecycle.
 
 ### Component-to-module migration (same-GVK handoff)
 
@@ -1131,7 +1149,7 @@ receive these labels without any extra code in the handler. Module teams do
 ### Module CR status contract
 
 The platform reads module CR status per the
-[onboarding guide's PlatformObject contract](Onboarding%20Guide%20for%20ODH%20Operator%20Modules.md#23-status-specification-platformobject).
+[onboarding guide's PlatformObject contract](https://docs.google.com/document/d/1FgN_U-6XH8M-Mu6XNeldUlTPsnw7UyPCWg5NVJJdYnw/edit?tab=t.0#heading=h.7so95lr87x2).
 Module teams must ensure their CRD status includes:
 
 - `observedGeneration` (int64): the last `.metadata.generation` the module
@@ -1143,7 +1161,7 @@ falls behind `metadata.generation`.
   `Ready`).
   - `Degraded`: `True` when functional but degraded. The platform propagates
   this into the DSC `ModulesReady` condition message even when `Ready=True`.
-- `releases` (array of {name, repoUrl, version}): installed component info.
+- `releases` (array of `ComponentRelease` with `name`, `repoUrl`, `version`): installed component info.
 
 ### ConfigMap enforcement
 
@@ -1157,8 +1175,12 @@ guide (section 2.4).
 
 ## Step 3: Add the DSC API Stanza
 
-Users enable modules through the `DataScienceCluster` CR. Add a field to the
-`Components` struct in `api/datasciencecluster/v2/datasciencecluster_types.go`:
+Users enable **component modules** through the `DataScienceCluster` CR.
+**Service modules** (like monitoring) are configured through the DSCI
+(`api/dscinitialization/v2/`), not the DSC `Components` struct.
+
+For component modules, add a field to the `Components` struct in
+`api/datasciencecluster/v2/datasciencecluster_types.go`:
 
 ```go
 // MyModule component configuration.
@@ -1200,11 +1222,20 @@ existingModules = map[string]mr.ModuleHandler{
 }
 ```
 
+The `registerModules()` function (called at startup) iterates
+`existingModules` and adds each handler to the module registry. It also
+checks CLI suppression flags (`--disable-<name>-module`) and marks
+suppressed modules as disabled in the registry.
+
 This registration:
 
 1. Adds the handler to the module registry.
 2. Creates a `--disable-mymodule-module` CLI flag for suppression.
 3. Enables dynamic watch setup for the module CR's GVK.
+
+Note: The `ChartDir` in `ModuleConfig` must match the key used in the
+`get_all_manifests.sh` maps (e.g., `["mymodule"]="..."`), as this
+determines where the chart is extracted in the operator image.
 
 ---
 
@@ -1212,56 +1243,68 @@ This registration:
 
 ### Reconciliation flow
 
-When the DSC controller reconciles:
+Modules run in a **dedicated module controller** (`NewModuleReconciler`),
+separate from the DSC controller. In DSC mode the module controller watches
+the `DataScienceCluster` as its primary resource; in Platform mode (xKS) it
+watches the `Platform` CR. The DSC controller continues to manage components
+and services; the module controller manages only modules.
 
-1. `**provisionModules**` builds a `PlatformContext` once (fetching
-  `ApplicationsNamespace`, `GatewayDomain`, `Release`, the DSC instance,
-   and the DSCI instance), stores the DSCI on `rr.DSCI` for reuse, then
-   iterates handlers, calling `IsEnabled(&platformCtx)` on each to determine
-   which are active:
+When the module controller reconciles:
+
+1. `**cleanupDisabledModules**` runs first and performs two-phase cleanup
+  for any modules that have been disabled (see
+   [Module disable and cleanup lifecycle](#module-cr-ownership-and-cleanup-contract)).
+2. `**provisionModules**` builds a `PlatformContext` once (resolving
+  `ApplicationsNamespace`, `GatewayDomain`, `Release`, DSC, DSCI, and
+   Platform CR), then iterates handlers, calling `IsEnabled(&platformCtx)`
+   on each to determine which are active:
   - Calls `GetRelatedImages()` on each handler and collects per-module
   image lists (scoped by Deployment name).
   - Appends the module's manifest descriptors to `rr.HelmCharts` and/or
   `rr.Manifests` (depending on the handler's `ModuleConfig`).
-  - Calls `BuildModuleCR(&platformCtx)` and appends the result to `rr.Resources`.
+  - Calls `BuildModuleCR(&platformCtx)` and appends the result to
+  `rr.Resources`. If any `BuildModuleCR` fails, the pipeline stops
+  with an error before deploy/GC run on incomplete state.
   - Stores the per-module images and `ApplicationsNamespace` on
   `rr.ModuleEnvInjection` for downstream consumption.
-2. `**helm.NewAction**` renders Helm charts into Kubernetes resources and
+3. `**helm.NewAction**` renders Helm charts into Kubernetes resources and
   appends them to `rr.Resources`.
-3. `**kustomize.NewAction**` renders Kustomize manifests into Kubernetes
+4. `**kustomize.NewAction**` renders Kustomize manifests into Kubernetes
   resources and appends them to `rr.Resources`.
-4. `**injectModuleEnv**` iterates `rr.Resources` for `apps/v1 Deployment`
+5. `**injectModuleEnv**` iterates `rr.Resources` for `apps/v1 Deployment`
   objects. For each Deployment, it matches the Deployment name to the
-   module that declared images for it, finds the `manager` container
-   (falling back to the first container if none is named `manager`),
-   reads `RELATED_IMAGE_*` values from the platform operator's process
+   module that declared images for it, finds the target container (by
+   `ContainerNamer` interface, defaulting to `manager`), reads
+   `RELATED_IMAGE_*` values from the platform operator's process
    environment (via `os.Getenv`), and injects them plus
-   `APPLICATIONS_NAMESPACE`. Existing env vars are overridden with the
-   platform value. Variables with empty values are skipped. Each
-   module's images are only injected into that module's Deployment. This
-   is a no-op if `rr.ModuleEnvInjection` is nil (no modules enabled).
-5. `**deploy.NewAction**` applies everything in `rr.Resources` via
+   `APPLICATIONS_NAMESPACE` into the same target container. If the
+   target container is not found, injection is skipped with an error log.
+   Existing env vars are overridden with the platform value. Variables
+   with empty values are skipped. Each module's images are only injected
+   into that module's Deployment. This is a no-op if
+   `rr.ModuleEnvInjection` is nil (no modules enabled).
+6. `**deploy.NewAction**` applies everything in `rr.Resources` via
   Server-Side Apply. It automatically sets `platform.opendatahub.io/part-of`
    labels and platform annotations on all resources, including module CRs.
-6. `**updateModuleStatus**` builds a `PlatformContext` from `rr` fields
-  (reusing `rr.DSCI` to avoid a duplicate fetch), calls
-   `IsEnabled(&platformCtx)` to filter to active modules, then reads each
-   module CR's status and aggregates it into the DSC's `ModulesReady`
-   condition. It performs:
+7. `**updateModuleStatus**` reads each enabled module CR's status and
+  aggregates it into the primary resource's `ModulesReady` condition
+   (on the DSC in DSC mode, on the Platform CR in Platform mode). It
+   performs:
   - **Staleness detection**: if `status.observedGeneration` is behind
   `metadata.generation`, the module is treated as not-ready.
   - **Ready check**: the `Ready` condition must be `True`.
   - **Degraded propagation**: if `Ready=True` but `Degraded=True`, the
   module is reported as degraded (`ModulesReady` is set to `False`).
-7. `**gc.NewAction`** deletes resources that were previously managed but are no
+8. `**gc.NewAction`** deletes resources that were previously managed but are no
   longer in `rr.Resources` (handles disablement and removal).
 
 ### Watch infrastructure
 
-`SetupModuleWatches` (called after the DSC controller is built) registers a
+`SetupModuleWatches` (called after the module controller is built) registers a
 watch for each module handler's GVK. When a module operator updates its CR
-status, the watch maps the event to a DSC reconcile request so the platform can
-pick up the updated status.
+status, the watch maps the event to a reconcile request for the module
+controller's primary resource (DSC or Platform) so the platform can pick up
+the updated status.
 
 ### Suppression flags
 
@@ -1313,7 +1356,7 @@ which variables its module operator needs. After rendering, the
 `injectModuleEnv` pipeline action injects those variables into the module
 operator's Deployment containers before Server-Side Apply.
 
-```
+```text
 Platform operator pod
   env:
     RELATED_IMAGE_ODH_TRAINER_IMAGE=quay.io/...@sha256:abc
@@ -1329,9 +1372,9 @@ Platform operator pod
         │
         │  injectModuleEnv
         │  ├── find Deployments in rr.Resources
-        │  ├── locate "manager" container (fallback: first container)
+        │  ├── locate target container (default: "manager")
         │  ├── os.Getenv() for each RelatedImages name → resolve values
-        │  └── append env vars to manager container
+        │  └── append env vars to target container
         │
         │  deploy (SSA apply)
         ▼
@@ -1385,7 +1428,7 @@ platform's `injectModuleEnv` pipeline action handles the rest.
 
 ### Injection mechanics
 
-When the DSC reconciler processes modules:
+When the module controller processes modules:
 
 1. `**provisionModules**` iterates enabled handlers, calling
   `GetRelatedImages()` on each. It stores per-module image lists
@@ -1399,10 +1442,12 @@ When the DSC reconciler processes modules:
 4. The `**injectModuleEnv` action** runs after rendering. It iterates
   `rr.Resources` looking for `apps/v1 Deployment` objects. For each
    Deployment, it finds the matching module by Deployment name, locates
-   the `manager` container (falling back to the first container), and
-   injects `env` entries for that module's `RelatedImages` (via
-   `os.Getenv()`), plus `APPLICATIONS_NAMESPACE`. Existing env vars with
-   the same name are overridden with the platform value.
+   the target container (via `ContainerNamer` interface, defaulting to
+   `manager`), and injects `env` entries for that module's `RelatedImages`
+   (via `os.Getenv()`) plus `APPLICATIONS_NAMESPACE` into the same
+   container. If the target container is not found, injection is skipped
+   with an error log. Existing env vars with the same name are overridden
+   with the platform value.
 5. `**deploy.NewAction`** SSA-applies the Deployment with the injected
   env vars. On subsequent reconciles the values are kept current -- if
    a platform upgrade changes an image reference, the module operator
@@ -1449,7 +1494,7 @@ When a module adds a new operand image:
 
 All related image environment variables must follow the naming convention:
 
-```
+```text
 RELATED_IMAGE_<PRODUCT>_<COMPONENT>_IMAGE
 ```
 
@@ -1520,8 +1565,8 @@ DAG-based ordering:
 mr.Add(handler, mr.WithRunlevel(2), mr.WithDependencies("other-module"))
 ```
 
-These options are not enforced by the current implementation but will support
-ordered provisioning in the future.
+These options are stored but not yet enforced. DAG-aware ordering is planned
+for a follow-up and will use these fields to sequence module provisioning.
 
 ---
 
@@ -1656,7 +1701,7 @@ platform namespace.
 
 These are outside the scope of this repository but are critical for the
 end-to-end contract to work. The
-[onboarding guide](Onboarding%20Guide%20for%20ODH%20Operator%20Modules.md)
+[onboarding guide](https://docs.google.com/document/d/1FgN_U-6XH8M-Mu6XNeldUlTPsnw7UyPCWg5NVJJdYnw/edit?tab=t.0#heading=h.7so95lr87x2)
 defines the status and API requirements the module operator must satisfy.
 
 ---
@@ -1671,17 +1716,18 @@ as its primary resource. The full `PlatformContext` is available with
 `DSC`, `DSCI`, `ApplicationsNamespace` from DSCI, gateway domain, and
 release information.
 
-**Platform mode (xKS / vanilla Kubernetes):** When the DSC CRD is not
-installed, the reconciler watches a `Platform` CR
+**Platform mode (xKS / vanilla Kubernetes):** When the DSC/DSCI flags
+are suppressed, the reconciler watches a `Platform` CR
 (`config.opendatahub.io/v1alpha1`, singleton name `default`) as its primary
-resource. The Platform CR's `spec.modules` field lists the module names to
-enable. In this mode:
+resource. Each module in `spec.modules` has a `managementState` field
+following the same `Managed`/`Removed`/empty convention as DSC components.
+In this mode:
 
 - `PlatformContext.DSC` is `nil`
 - `PlatformContext.DSCI` is `nil`
 - `PlatformContext.ApplicationsNamespace` comes from the
 `RHAI_APPLICATIONS_NAMESPACE` environment variable
-- Only modules listed in `spec.modules` are enabled
+- Only modules with `managementState: Managed` are enabled
 
 Example Platform CR:
 
@@ -1692,16 +1738,16 @@ metadata:
   name: default
 spec:
   modules:
-    - kserve
-    - monitoring
+    monitoring:
+      managementState: Managed
 ```
 
 ### Handler requirements for platform mode
 
 Handlers must nil-check `platform.DSC` and `platform.DSCI` before use.
-In platform mode the registry enables only the modules listed in the
-Platform CR's `spec.modules`, so `IsEnabled` is called only for modules
-that are already selected:
+In platform mode the registry enables only the modules with
+`managementState: Managed` in `spec.modules`, so `IsEnabled` is called
+only for modules that are already selected:
 
 ```go
 func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
@@ -1735,9 +1781,14 @@ func (h *handler) BuildModuleCR(
 }
 ```
 
-Service-type modules (like monitoring) that require DSCI configuration
-should return `false` from `IsEnabled` when `platform.DSCI` is `nil`,
-since they cannot operate without DSCI-sourced settings.
+Service-type modules (like monitoring) should check both `platform.DSCI`
+and `platform.Platform` for enablement. In DSC mode, read
+`DSCI.Spec.Monitoring.ManagementState`. In Platform mode, read
+`Platform.Spec.Modules.Monitoring.ManagementState`. Return `false` only
+when neither is available.
+
+In Platform mode, the `ModulesReady` condition is aggregated onto the
+**Platform CR** status (not the DSC, which does not exist in xKS mode).
 
 ---
 

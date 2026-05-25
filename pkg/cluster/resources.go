@@ -118,7 +118,8 @@ func GetDSC(ctx context.Context, cli client.Reader) (*dscv2.DataScienceCluster, 
 func WatchDataScienceClusters(ctx context.Context, cli client.Client) []reconcile.Request {
 	instanceList := &dscv2.DataScienceClusterList{}
 	if err := cli.List(ctx, instanceList); err != nil {
-		return nil
+		logf.FromContext(ctx).Error(err, "failed to list DataScienceCluster instances for watch mapping")
+		return []reconcile.Request{}
 	}
 
 	requests := make([]reconcile.Request, len(instanceList.Items))

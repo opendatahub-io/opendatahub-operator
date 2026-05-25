@@ -175,7 +175,7 @@ The `DataScienceCluster` (DSC) CR is the user-facing entry point.
 
 Below is an example of what the `ModelRegistry` module CRD might look like.
 
-```
+```yaml
 apiVersion: components.platform.opendatahub.io/v1alpha1 
 kind: ModelRegistry 
 metadata: 
@@ -190,7 +190,7 @@ spec:
   auth: 
     enabled: true 
     audiences:
-- https://api.openshift.com
+    - https://kubernetes.default.svc
   
   # Module specific configuration 
   grpcPort: 9090 
@@ -237,20 +237,25 @@ status:
 
 The ODH operator creates a ConfigMap (e.g., `model-registry-config`) that the module controller mounts or reads.
 
-```
-apiVersion: v1 
-kind: ConfigMap 
-metadata: 
-  name: odh-model-registry-config 
-  namespace: opendatahub 
-data: 
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: odh-model-registry-config
+  namespace: opendatahub
+data:
   # controller (user configurable)
-  controller.yaml:|
-    zap:      level: info
-    pprof:      enable: true    # platform (injected)
-  platform.yaml:|
+  controller.yaml: |
+    zap:
+      level: info
+    pprof:
+      enable: true
+  # platform (injected)
+  platform.yaml: |
     platform:
-      distribution: openshift      flavor: managed      version: 3.0.0     
+      distribution: openshift
+      flavor: managed
+      version: 3.0.0
 ```
 
 ## **6\. Development Flexibility & Shared Utilities**

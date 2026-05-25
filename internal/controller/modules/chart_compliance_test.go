@@ -66,12 +66,15 @@ func TestModuleChartCompliance(t *testing.T) {
 		}
 
 		for _, chartInfo := range manifests.HelmCharts {
+			if _, err := os.Stat(chartInfo.Chart); os.IsNotExist(err) {
+				t.Fatalf("chart directory %s not found for module %s (run get_all_manifests.sh first)",
+					chartInfo.Chart, handler.GetName())
+			}
+
+			testedCount++
+
 			t.Run(handler.GetName(), func(t *testing.T) {
 				g := NewWithT(t)
-
-				if _, err := os.Stat(chartInfo.Chart); os.IsNotExist(err) {
-					t.Skipf("chart directory %s not found (run get_all_manifests.sh first)", chartInfo.Chart)
-				}
 
 				renderer, err := helmRenderer.New([]helmRenderer.Source{{
 					Chart:       chartInfo.Chart,
@@ -100,8 +103,6 @@ func TestModuleChartCompliance(t *testing.T) {
 					"chart %s should contain exactly 1 Deployment, found %d",
 					handler.GetName(), deploymentCount)
 			})
-
-			testedCount++
 		}
 	}
 

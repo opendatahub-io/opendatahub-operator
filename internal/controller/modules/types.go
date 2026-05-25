@@ -9,6 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -90,6 +91,13 @@ type ModuleHandler interface {
 	DeleteOperatorResources(ctx context.Context, cli client.Client, platform *PlatformContext) error
 }
 
+// ContainerNamer is an optional interface a ModuleHandler can implement to
+// override the default container name ("manager") used for RELATED_IMAGE_*
+// environment variable injection. See BaseHandler.GetContainerName.
+type ContainerNamer interface {
+	GetContainerName() string
+}
+
 // OwnedTypeRegistrar allows registering GVKs as statically owned types
 // on a controller. The DSC controller's *reconciler.Reconciler satisfies
 // this interface.
@@ -143,6 +151,11 @@ type PlatformContext struct {
 	// Nil in standalone mode (xKS) where no DSCI CRD is installed.
 	DSCI *dsciv2.DSCInitialization
 
+	// Platform is the Platform CR instance. Non-nil only in standalone
+	// mode (xKS) where DSC/DSCI are suppressed. Handlers use it to read
+	// per-module ManagementSpec from Platform.Spec.Modules.
+	Platform *configv1alpha1.Platform
+
 	// ChartsBasePath is the base directory for locally-bundled Helm charts.
 	ChartsBasePath string
 }
@@ -151,16 +164,19 @@ type PlatformContext struct {
 // a module to the registry.
 type RegistrationOption func(*registryEntry)
 
-// WithRunlevel sets the runlevel for DAG-based ordering (Step 2 Track A).
-// Not enforced by the current implementation.
+// WithRunlevel sets the runlevel for DAG-based ordering. Lower runlevels
+// are processed first. Planned -- will be enforced by DAG-aware ordering
+// in a follow-up; currently stored but not used for iteration order.
 func WithRunlevel(level int) RegistrationOption {
 	return func(e *registryEntry) {
 		e.runlevel = level
 	}
 }
 
-// WithDependencies declares module names this module depends on.
-// Not enforced by the current implementation.
+// WithDependencies declares module names this module depends on. The
+// registry ensures dependencies are processed before dependents.
+// Planned -- will be enforced by DAG-aware ordering in a follow-up;
+// currently stored but not used for iteration order.
 func WithDependencies(deps ...string) RegistrationOption {
 	return func(e *registryEntry) {
 		e.dependencies = deps

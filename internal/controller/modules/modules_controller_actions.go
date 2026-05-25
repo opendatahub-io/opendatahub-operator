@@ -18,15 +18,20 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
-// initializeModules fetches DSCI and GatewayDomain once per reconcile and
-// stores the DSCI on the ReconciliationRequest so downstream actions can
-// build PlatformContext without redundant API calls.
+// initializeModules fetches DSCI once per reconcile and stores it on the
+// ReconciliationRequest so downstream actions can build PlatformContext
+// without redundant API calls.
 //
-// In standalone mode (xKS), DSCI may not exist; a not-found or no-match
-// error is treated as non-fatal and rr.DSCI is left nil.
+// In platform mode (xKS), DSCI is suppressed via flags; the fetch is
+// skipped entirely and rr.DSCI remains nil.
 func initializeModules(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	if !flags.IsDSCIEnabled() {
+		return nil
+	}
+
 	dsci, err := cluster.GetDSCI(ctx, rr.Client)
 	if err != nil {
 		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
@@ -78,7 +83,7 @@ func enableModulesFromPlatform(_ context.Context, rr *odhtype.ReconciliationRequ
 		return nil
 	}
 
-	EnableFromList(p.Spec.Modules)
+	EnableFromList(p.Spec.Modules.EnabledModules())
 
 	return nil
 }
@@ -96,6 +101,7 @@ func buildPlatformContext(ctx context.Context, rr *odhtype.ReconciliationRequest
 		Release:               rr.Release,
 		DSC:                   dscFromInstance(rr),
 		DSCI:                  dsciOrNil(rr),
+		Platform:              platformFromInstance(rr),
 		ChartsBasePath:        rr.ChartsBasePath,
 	}, nil
 }
@@ -170,9 +176,10 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 //   - Builds the module CR and adds it to rr.Resources (applied by
 //     deploy.NewAction alongside operator resources).
 //
-// Disabled modules are simply skipped. Since their resources were present in a
-// previous reconcile, gc.NewAction detects they are missing from rr.Resources
-// and removes them from the cluster. This matches provisionComponents.
+// BuildModuleCR is a pure projection of platform data into the module CR.
+// It must never fail in production. If any module fails, the pipeline is
+// stopped before deploy/GC to prevent partial desired state from causing
+// GC to delete healthy resources.
 func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	log := logf.FromContext(ctx)
 
@@ -180,8 +187,6 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 	if !reg.HasEntries() {
 		return nil
 	}
-
-	rr.Generated = true
 
 	platformCtx, err := buildPlatformContext(ctx, rr)
 	if err != nil {
@@ -195,25 +200,31 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 	platformCtx.GatewayDomain = gatewayDomain
 
 	var perModuleImages []odhtype.ModuleImages
+	var failedModules []string
 
-	err = reg.ForEach(func(handler ModuleHandler) error {
+	reg.ForEachEnabled(func(handler ModuleHandler) {
 		name := handler.GetName()
 
 		if !handler.IsEnabled(platformCtx) {
-			return nil
+			return
 		}
 
 		log.Info("provisioning module", "module", name)
 
 		operatorManifests := handler.GetOperatorManifests(platformCtx)
 
-		imgs := handler.GetRelatedImages()
-		if len(imgs) > 0 {
-			perModuleImages = append(perModuleImages, odhtype.ModuleImages{
-				DeploymentName: deploymentNameFromManifests(operatorManifests, handler.GetName()),
-				Images:         imgs,
-			})
+		moduleCR, err := handler.BuildModuleCR(ctx, rr.Client, platformCtx)
+		if err != nil {
+			log.Error(err, "BuildModuleCR failed (programming error)", "module", name)
+			failedModules = append(failedModules, name)
+			return
 		}
+
+		perModuleImages = append(perModuleImages, odhtype.ModuleImages{
+			DeploymentName: deploymentNameFromManifests(operatorManifests, handler.GetName()),
+			ContainerName:  containerNameFor(handler),
+			Images:         handler.GetRelatedImages(),
+		})
 		if len(operatorManifests.HelmCharts) > 0 {
 			rr.HelmCharts = append(rr.HelmCharts, operatorManifests.HelmCharts...)
 		}
@@ -221,25 +232,18 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 			rr.Manifests = append(rr.Manifests, operatorManifests.Manifests...)
 		}
 
-		moduleCR, err := handler.BuildModuleCR(ctx, rr.Client, platformCtx)
-		if err != nil {
-			return fmt.Errorf("failed to build module CR for %s: %w", name, err)
-		}
-
 		rr.Resources = append(rr.Resources, *moduleCR)
-
-		return nil
 	})
 
-	if err != nil {
+	if len(failedModules) > 0 {
 		rr.Conditions.SetCondition(common.Condition{
 			Type:    status.ConditionTypeModulesReady,
 			Status:  metav1.ConditionFalse,
 			Reason:  status.ProvisioningFailedReason,
-			Message: fmt.Sprintf("Module provisioning failed: %v", err),
+			Message: fmt.Sprintf("Provisioning failed for: %s", strings.Join(failedModules, ", ")),
 		})
 
-		return fmt.Errorf("provisioning failed: %w", err)
+		return fmt.Errorf("BuildModuleCR failed for modules: %s", strings.Join(failedModules, ", "))
 	}
 
 	if len(perModuleImages) > 0 || platformCtx.ApplicationsNamespace != "" {
@@ -250,6 +254,15 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 	}
 
 	return nil
+}
+
+const defaultContainerName = "manager"
+
+func containerNameFor(h ModuleHandler) string {
+	if cn, ok := h.(ContainerNamer); ok {
+		return cn.GetContainerName()
+	}
+	return defaultContainerName
 }
 
 // deploymentNameFromManifests returns the expected Deployment name for a module
@@ -368,7 +381,7 @@ func updateModuleStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 			Status:   metav1.ConditionTrue,
 			Severity: common.ConditionSeverityInfo,
 			Reason:   status.NoManagedModulesReason,
-			Message:  status.NoManagedModulesReason,
+			Message:  "All registered modules have ManagementState Removed or are not configured",
 		})
 	default:
 		rr.Conditions.MarkTrue(status.ConditionTypeModulesReady)

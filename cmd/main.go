@@ -469,13 +469,13 @@ func main() { //nolint:funlen,maintidx,gocyclo
 			setupLog.Error(err, "unable to create controller", "controller", "DataScienceCluster")
 			os.Exit(1)
 		}
-
-		if err = mr.NewModuleReconciler(ctx, mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "modules")
-			os.Exit(1)
-		}
 	} else {
 		setupLog.Info("DSC controller is suppressed")
+	}
+
+	if err = mr.NewModuleReconciler(ctx, mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "modules")
+		os.Exit(1)
 	}
 
 	// Initialize service reconcilers

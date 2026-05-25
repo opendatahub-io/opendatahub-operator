@@ -110,7 +110,8 @@ func TestRegistryForEachCollectsErrors(t *testing.T) {
 	})
 
 	g.Expect(err).Should(HaveOccurred())
-	g.Expect(err.Error()).Should(ContainSubstring("fail-"))
+	g.Expect(err.Error()).Should(ContainSubstring("fail-a"))
+	g.Expect(err.Error()).Should(ContainSubstring("fail-b"))
 }
 
 func TestRegistryEmptyForEachIsNoop(t *testing.T) {

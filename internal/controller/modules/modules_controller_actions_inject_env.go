@@ -15,8 +15,9 @@ import (
 // injectModuleEnv is a pipeline action that runs after Helm/Kustomize rendering
 // and before deploy. It mutates Deployment resources in rr.Resources to inject
 // RELATED_IMAGE_* and APPLICATIONS_NAMESPACE environment variables into the
-// "manager" container (or the first container if none is named "manager") of
-// each module operator Deployment.
+// target container of each module operator Deployment. The target container name
+// defaults to "manager" and can be overridden per module via ContainerNamer. If
+// the target container is not found, injection is skipped with an error log.
 //
 // Related images are scoped per module: each module's images are only injected
 // into the Deployment matching that module's release name.
@@ -58,15 +59,6 @@ func injectEnvVarsIntoDeployment(log logr.Logger, obj *unstructured.Unstructured
 		return err
 	}
 
-	idx := findManagerContainer(containers)
-
-	container, ok := containers[idx].(map[string]any)
-	if !ok {
-		return nil
-	}
-
-	existingEnv, _ := container["env"].([]any)
-
 	var injected int
 	deployName := obj.GetName()
 
@@ -74,6 +66,25 @@ func injectEnvVarsIntoDeployment(log logr.Logger, obj *unstructured.Unstructured
 		if mi.DeploymentName != deployName {
 			continue
 		}
+
+		targetName := mi.ContainerName
+		if targetName == "" {
+			targetName = defaultContainerName
+		}
+
+		idx := findManagerContainer(containers, targetName)
+		if idx < 0 {
+			log.Error(nil, "target container not found in Deployment, skipping env injection",
+				"deployment", deployName, "container", targetName)
+			continue
+		}
+
+		container, ok := containers[idx].(map[string]any)
+		if !ok {
+			continue
+		}
+
+		existingEnv, _ := container["env"].([]any)
 
 		for _, relImg := range mi.Images {
 			val := os.Getenv(relImg)
@@ -85,20 +96,20 @@ func injectEnvVarsIntoDeployment(log logr.Logger, obj *unstructured.Unstructured
 				injected++
 			}
 		}
-	}
 
-	if injection.ApplicationsNamespace != "" {
-		if setOrOverrideEnv(&existingEnv, "APPLICATIONS_NAMESPACE", injection.ApplicationsNamespace) {
-			injected++
+		if injection.ApplicationsNamespace != "" {
+			if setOrOverrideEnv(&existingEnv, "APPLICATIONS_NAMESPACE", injection.ApplicationsNamespace) {
+				injected++
+			}
 		}
+
+		container["env"] = existingEnv
+		containers[idx] = container
 	}
 
 	if injected == 0 {
 		return nil
 	}
-
-	container["env"] = existingEnv
-	containers[idx] = container
 
 	if err := unstructured.SetNestedSlice(obj.Object, containers, "spec", "template", "spec", "containers"); err != nil {
 		return err
@@ -106,7 +117,6 @@ func injectEnvVarsIntoDeployment(log logr.Logger, obj *unstructured.Unstructured
 
 	log.V(3).Info("injected env vars into module Deployment",
 		"name", obj.GetName(),
-		"container", container["name"],
 		"count", injected,
 	)
 
@@ -136,17 +146,16 @@ func setOrOverrideEnv(envSlice *[]any, name, value string) bool {
 	return true
 }
 
-// findManagerContainer returns the index of the container named "manager"
-// in the list, or 0 if none is found. The "manager" name is the
-// controller-runtime convention for the primary operator container.
-func findManagerContainer(containers []any) int {
+// findManagerContainer returns the index of the container with the given
+// name, or -1 if none is found.
+func findManagerContainer(containers []any, targetName string) int {
 	for i, c := range containers {
 		if cm, ok := c.(map[string]any); ok {
-			if name, ok := cm["name"].(string); ok && name == "manager" {
+			if name, ok := cm["name"].(string); ok && name == targetName {
 				return i
 			}
 		}
 	}
 
-	return 0
+	return -1
 }

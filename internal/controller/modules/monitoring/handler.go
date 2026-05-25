@@ -45,37 +45,42 @@ func NewHandler() *handler {
 	}
 }
 
-// IsEnabled reads the DSCI monitoring management state. Monitoring is a
-// service-type module: enablement lives on the DSCI, not the DSC.
+// IsEnabled checks whether the monitoring module should be deployed.
+// In DSC mode (DSCI present), reads DSCI.Spec.Monitoring.ManagementState.
+// In Platform mode (xKS), reads Platform.Spec.Modules.Monitoring.ManagementState.
 func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
-	if platform.DSCI == nil {
-		return false
+	if platform.DSCI != nil {
+		return platform.DSCI.Spec.Monitoring.ManagementState == operatorv1.Managed
 	}
-	return platform.DSCI.Spec.Monitoring.ManagementState == operatorv1.Managed
+	if platform.Platform != nil {
+		return platform.Platform.Spec.Modules.Monitoring.ManagementState == operatorv1.Managed
+	}
+	return false
 }
 
-// BuildModuleCR projects DSCI monitoring configuration onto the module CR.
-// Since DSCIMonitoring and the module's MonitoringSpec share the same JSON
-// schema (ManagementSpec + MonitoringCommonSpec), we convert the DSCI struct
-// directly rather than mapping fields one-by-one.
+// BuildModuleCR projects platform monitoring configuration onto the module CR.
+// In DSC mode, the full DSCIMonitoring struct is converted directly.
+// In Platform mode, a minimal spec with ManagementState is projected.
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
 	platform *modules.PlatformContext,
 ) (*unstructured.Unstructured, error) {
-	if platform.DSCI == nil {
-		return nil, errors.New("DSCI is nil, cannot build monitoring CR")
-	}
+	var spec map[string]any
 
-	dsciMon := platform.DSCI.Spec.Monitoring
-
-	if dsciMon.ManagementState == "" {
-		dsciMon.ManagementState = operatorv1.Managed
-	}
-
-	spec, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&dsciMon)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert DSCIMonitoring to unstructured: %w", err)
+	switch {
+	case platform.DSCI != nil:
+		var err error
+		spec, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&platform.DSCI.Spec.Monitoring)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert DSCIMonitoring to unstructured: %w", err)
+		}
+	case platform.Platform != nil:
+		spec = map[string]any{
+			"managementState": string(platform.Platform.Spec.Modules.Monitoring.ManagementState),
+		}
+	default:
+		return nil, errors.New("neither DSCI nor Platform is available, cannot build monitoring CR")
 	}
 
 	u := &unstructured.Unstructured{}

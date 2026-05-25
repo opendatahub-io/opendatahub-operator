@@ -42,6 +42,9 @@ type ModuleImages struct {
 	// DeploymentName is the expected name of the module's operator Deployment.
 	// Typically the Helm release name.
 	DeploymentName string
+	// ContainerName is the target container within the Deployment.
+	// Defaults to "manager" (the kubebuilder convention).
+	ContainerName string
 	// Images is the list of RELATED_IMAGE_* env var names for this module.
 	Images []string
 }

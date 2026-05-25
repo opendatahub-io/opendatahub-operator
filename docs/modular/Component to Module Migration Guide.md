@@ -7,7 +7,7 @@ Operator as a platform orchestrator.
 For the module contract and handler implementation details, see the
 [Module Handler Developer Guide](Module%20Handler%20Developer%20Guide.md) and
 the
-[Onboarding Guide](https://docs.google.com/document/d/1FgN_U-6XH8M-Mu6XNeldUlTPsnw7UyPCWg5NVJJdYnw).
+[Onboarding Guide](https://docs.google.com/document/d/1FgN_U-6XH8M-Mu6XNeldUlTPsnw7UyPCWg5NVJJdYnw/edit?tab=t.0#heading=h.7so95lr87x2).
 
 ---
 
@@ -80,31 +80,48 @@ and the module operator resources.
 ### Phase 1 -- Delete the module CR (operator still running)
 
 When a module is first detected as disabled, the `cleanupDisabledModules`
-pipeline action detects the CR still exists and does nothing. The GC action
-(later in the pipeline) deletes the CR because it is an owned type that is
-missing from `rr.Resources`. The module operator Deployment is left running
-so it can:
+pipeline action detects the CR still exists and explicitly calls
+`DeleteModuleCR()` to delete it. The module operator Deployment and its
+chart resources are kept running so the module operator can:
 
 - Process any finalizer on the CR (cleaning up operands that cannot use
   ownerReferences)
 - Kubernetes cascade-deletes operands that DO have ownerReferences from
   the CR
 
+A requeue is requested so Phase 2 runs after the operator has finished
+cleanup.
+
 ### Phase 2 -- Delete module operator resources (CR confirmed gone)
 
 On a subsequent reconcile, `cleanupDisabledModules` confirms the module CR
-no longer exists. It then renders the module's Helm chart and deletes each
-discovered resource (Deployment, ServiceAccount, RBAC, CRD, ConfigMap).
+no longer exists. It then calls `DeleteOperatorResources()`, which renders
+the module's Helm chart and/or Kustomize manifests and deletes each
+discovered resource (Deployment, ServiceAccount, RBAC, ConfigMap). Note
+that CRD deletion is intentionally skipped -- the platform does not remove
+CRDs during module cleanup to avoid data loss if custom resources still
+exist on the cluster.
 
 ### Pipeline order
 
+The DSC controller and the module controller run as **separate controllers**
+with their own action pipelines:
+
+```text
+DSC controller pipeline:
+  initialize -> checkPreConditions -> updateStatus
+    -> provisionComponents -> provisionServices
+    -> helm/kustomize render -> deploy -> gc
+
+Module controller pipeline:
+  initialize -> cleanupDisabledModules
+    -> provisionModules
+    -> helm/kustomize render -> injectModuleEnv
+    -> deploy -> updateModuleStatus -> gc
 ```
-initialize -> checkPreConditions -> updateStatus
-  -> cleanupDisabledModules    (phase-gated operator resource cleanup)
-  -> provisionComponents
-  -> provisionModules
-  -> helm/kustomize render -> deploy -> updateModuleStatus -> gc
-```
+
+In Platform mode (xKS), only the module controller runs. The DSC controller
+is suppressed.
 
 ---
 

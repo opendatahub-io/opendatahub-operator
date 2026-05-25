@@ -2,6 +2,7 @@ package modules
 
 import (
 	"sort"
+	"sync"
 
 	"github.com/hashicorp/go-multierror"
 )
@@ -14,7 +15,9 @@ type registryEntry struct {
 }
 
 // Registry maintains the set of registered ModuleHandlers.
+// All public methods are safe for concurrent use.
 type Registry struct {
+	mu      sync.RWMutex
 	entries map[string]registryEntry
 	// order preserves insertion order for deterministic iteration.
 	order []string
@@ -23,8 +26,10 @@ type Registry struct {
 var r = &Registry{}
 
 // Add registers a new ModuleHandler to the registry.
-// Not thread safe; call during program initialization only.
 func (r *Registry) Add(handler ModuleHandler, opts ...RegistrationOption) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	if r.entries == nil {
 		r.entries = make(map[string]registryEntry)
 	}
@@ -44,15 +49,22 @@ func (r *Registry) Add(handler ModuleHandler, opts ...RegistrationOption) {
 
 // Enable sets the enabled state for the named module to true.
 func (r *Registry) Enable(name string) {
-	r.setEnabled(name, true)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.setEnabledLocked(name, true)
 }
 
 // Disable sets the enabled state for the named module to false.
 func (r *Registry) Disable(name string) {
-	r.setEnabled(name, false)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.setEnabledLocked(name, false)
 }
 
-func (r *Registry) setEnabled(name string, enabled bool) {
+// setEnabledLocked sets the enabled state. Caller must hold r.mu.
+func (r *Registry) setEnabledLocked(name string, enabled bool) {
 	if e, ok := r.entries[name]; ok {
 		e.enabled = enabled
 		r.entries[name] = e
@@ -61,6 +73,9 @@ func (r *Registry) setEnabled(name string, enabled bool) {
 
 // IsEnabled returns the internal enabled state for the named module.
 func (r *Registry) IsEnabled(name string) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	e, ok := r.entries[name]
 	return ok && e.enabled
 }
@@ -68,6 +83,9 @@ func (r *Registry) IsEnabled(name string) bool {
 // EnableFromList enables only the named modules, disabling all others.
 // Names that don't match any registered module are silently ignored.
 func (r *Registry) EnableFromList(names []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	want := make(map[string]bool, len(names))
 	for _, n := range names {
 		want[n] = true
@@ -79,6 +97,7 @@ func (r *Registry) EnableFromList(names []string) {
 }
 
 // sortedNames returns module names in sorted order for deterministic iteration.
+// Caller must hold at least r.mu.RLock().
 func (r *Registry) sortedNames() []string {
 	names := make([]string, 0, len(r.entries))
 	for name := range r.entries {
@@ -92,6 +111,9 @@ func (r *Registry) sortedNames() []string {
 // the given function. Entries whose enabled flag is false are skipped.
 // Errors are collected and returned at the end.
 func (r *Registry) ForEach(f func(ModuleHandler) error) error {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	var errs *multierror.Error
 	for _, name := range r.sortedNames() {
 		e := r.entries[name]
@@ -104,10 +126,30 @@ func (r *Registry) ForEach(f func(ModuleHandler) error) error {
 	return errs.ErrorOrNil()
 }
 
+// ForEachEnabled iterates over enabled modules in sorted order and invokes
+// the given function. Unlike ForEach, the callback has no return value,
+// making it suitable when callers collect errors through an external
+// mechanism (e.g. a failedModules slice).
+func (r *Registry) ForEachEnabled(f func(ModuleHandler)) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for _, name := range r.sortedNames() {
+		e := r.entries[name]
+		if !e.enabled {
+			continue
+		}
+		f(e.handler)
+	}
+}
+
 // ForAll iterates over every registered module in sorted order regardless of
 // enabled state. Use this for cleanup paths that must run even for suppressed
 // modules.
 func (r *Registry) ForAll(f func(handler ModuleHandler, registryEnabled bool) error) error {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	var errs *multierror.Error
 	for _, name := range r.sortedNames() {
 		e := r.entries[name]
@@ -120,12 +162,18 @@ func (r *Registry) ForAll(f func(handler ModuleHandler, registryEnabled bool) er
 // IsModuleEnabled checks if a module with the given name is enabled in the
 // registry and also enabled based on platform configuration.
 func (r *Registry) IsModuleEnabled(moduleName string, platform *PlatformContext) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	e, ok := r.entries[moduleName]
 	return ok && e.enabled && e.handler.IsEnabled(platform)
 }
 
 // HasEntries returns true if there are any registered modules.
 func (r *Registry) HasEntries() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	return len(r.entries) > 0
 }
 
@@ -153,6 +201,10 @@ func EnableFromList(names []string) {
 
 func ForEach(f func(ModuleHandler) error) error {
 	return r.ForEach(f)
+}
+
+func ForEachEnabled(f func(ModuleHandler)) {
+	r.ForEachEnabled(f)
 }
 
 func ForAll(f func(handler ModuleHandler, registryEnabled bool) error) error {

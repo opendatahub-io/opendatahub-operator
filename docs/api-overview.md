@@ -2315,6 +2315,24 @@ DataScienceCluster is not installed (xKS / vanilla Kubernetes).
 | `status` _[PlatformStatus](#platformstatus)_ |  |  |  |
 
 
+#### PlatformModules
+
+
+
+PlatformModules declares per-module management state for Platform mode.
+Each field maps to a registered module handler by name. Add new module
+fields here when onboarding additional modules.
+
+
+
+_Appears in:_
+- [PlatformSpec](#platformspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `monitoring` _[ManagementSpec](#managementspec)_ | Monitoring controls the monitoring module operator lifecycle. |  |  |
+
+
 #### PlatformSpec
 
 
@@ -2328,7 +2346,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `modules` _string array_ | Modules is the list of module names to enable.<br />Only modules listed here will be reconciled.<br />An empty list means no modules are enabled. |  |  |
+| `modules` _[PlatformModules](#platformmodules)_ | Modules declares the set of modules managed by this Platform instance.<br />Each field corresponds to a registered module handler. Modules follow<br />the same Managed/Removed/empty convention as DSC components: Managed<br />deploys the module, Removed tears it down, empty means not managed. |  |  |
 
 
 #### PlatformStatus

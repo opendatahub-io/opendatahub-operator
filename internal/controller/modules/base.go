@@ -74,6 +74,11 @@ type ModuleConfig struct {
 	// Helm rendering.
 	Namespace string
 
+	// ContainerName is the name of the primary operator container in the
+	// module's Deployment. Defaults to "manager" (the kubebuilder convention).
+	// Override only if the module chart uses a different container name.
+	ContainerName string
+
 	// RelatedImages lists RELATED_IMAGE_* environment variable names that the
 	// module operator needs. The platform reads each name from its own process
 	// environment (where the release pipeline sets digest-pinned references)
@@ -95,6 +100,13 @@ func (b *BaseHandler) GetName() string {
 
 func (b *BaseHandler) GetGVK() schema.GroupVersionKind {
 	return b.Config.GVK
+}
+
+func (b *BaseHandler) GetContainerName() string {
+	if b.Config.ContainerName != "" {
+		return b.Config.ContainerName
+	}
+	return "manager"
 }
 
 func (b *BaseHandler) GetRelatedImages() []string {
@@ -137,6 +149,10 @@ func (b *BaseHandler) GetOperatorManifests(platform *PlatformContext) OperatorMa
 
 // GetModuleStatus reads the module CR by GVK+CRName and extracts status
 // conditions and generation metadata for staleness detection.
+//
+// This default implementation performs a cluster-scoped Get (no namespace),
+// which is correct for the required cluster-scoped module CRDs. Modules
+// with namespace-scoped CRs would need to override this method.
 func (b *BaseHandler) GetModuleStatus(ctx context.Context, cli client.Client) (*ModuleStatus, error) {
 	u := &unstructured.Unstructured{}
 	u.SetGroupVersionKind(b.Config.GVK)
@@ -278,7 +294,7 @@ func (b *BaseHandler) deleteRenderedResources(
 			"namespace", res.GetNamespace())
 
 		if err := cli.Delete(ctx, res); err != nil {
-			if !k8serr.IsNotFound(err) {
+			if !k8serr.IsNotFound(err) && !meta.IsNoMatchError(err) {
 				return fmt.Errorf("deleting %s %s/%s for module %s: %w",
 					res.GetKind(), res.GetNamespace(), res.GetName(), b.Config.Name, err)
 			}
