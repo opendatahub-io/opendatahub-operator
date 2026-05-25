@@ -219,6 +219,11 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 			failedModules = append(failedModules, name)
 			return
 		}
+		if moduleCR == nil {
+			log.Error(nil, "BuildModuleCR returned nil without error (programming error)", "module", name)
+			failedModules = append(failedModules, name)
+			return
+		}
 
 		perModuleImages = append(perModuleImages, odhtype.ModuleImages{
 			DeploymentName: deploymentNameFromManifests(operatorManifests, handler.GetName()),

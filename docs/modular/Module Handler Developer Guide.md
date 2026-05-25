@@ -645,7 +645,7 @@ kubebuilder convention) and can be overridden per module by implementing the
 the target container is not found, injection is skipped and an error is
 logged. If `SetNestedSlice` fails when writing back the mutated containers,
 the reconcile fails with an error. See
-[Operand Image Injection](#operand-image-injection-related_image). You do
+[Operand Image Injection](#operand-image-injection-related_image_). You do
 not need to declare these env vars in the manifest; the platform adds them
 automatically based on the handler's `ModuleConfig.RelatedImages`.
 
