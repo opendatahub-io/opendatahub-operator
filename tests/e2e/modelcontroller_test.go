@@ -196,6 +196,13 @@ func (tc *ModelControllerTestCtx) ValidateSubscriptionDependencyConditions(t *te
 		Namespace: openshiftOperatorsNamespace,
 	}
 
+	// Step 0: Ensure CMA subscription is absent (may linger on reused clusters).
+	tc.DeleteResource(
+		WithMinimalObject(gvk.Subscription, cmaSubNN),
+		WithIgnoreNotFound(true),
+		WithWaitForDeletion(true),
+	)
+
 	// Step 1: CMA subscription does not exist — condition should be False.
 	t.Log("Verifying CMA subscription dependency condition is False (subscription absent).")
 	tc.EnsureResourceExists(
@@ -243,6 +250,15 @@ func (tc *ModelControllerTestCtx) ValidateSubscriptionDependencyConditions(t *te
 	t.Log("Verifying CMA subscription dependency condition is False after deletion.")
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.ModelController, mcNN),
+		WithCondition(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				modelcontroller.LLMDWVADependencies, metav1.ConditionFalse),
+		),
+	)
+
+	t.Log("Verifying CMA subscription dependency condition False is propagated to DSC status.")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithCondition(
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
 				modelcontroller.LLMDWVADependencies, metav1.ConditionFalse),
