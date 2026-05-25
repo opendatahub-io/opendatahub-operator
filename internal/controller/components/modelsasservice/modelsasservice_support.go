@@ -31,8 +31,10 @@ import (
 	"sigs.k8s.io/kustomize/api/builtins" //nolint:staticcheck // Remove after package update
 	"sigs.k8s.io/kustomize/api/krusty"
 	"sigs.k8s.io/kustomize/api/resmap"
+	"sigs.k8s.io/kustomize/api/resource"
 	"sigs.k8s.io/kustomize/api/types"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
+	kyaml "sigs.k8s.io/kustomize/kyaml/yaml"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -133,6 +135,15 @@ func buildMaasOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconci
 
 	if err := plugins.CreateNamespaceApplierPlugin(appNs).Transform(resMap); err != nil {
 		return nil, fmt.Errorf("namespace transform for maas-controller bundle: %w", err)
+	}
+
+	// The blanket namespace transform above moves ALL resources to appNs, but
+	// payload-processing resources must remain in the gateway namespace because
+	// the EnvoyFilter must run in the same namespace as the Gateway for Envoy
+	// to attach ext_proc filters. Restore their namespace to the gateway ns.
+	// See RHOAIENG-59726.
+	if err := restoreGatewayNamespaceResources(resMap); err != nil {
+		return nil, fmt.Errorf("restore gateway namespace for payload-processing: %w", err)
 	}
 
 	componentLabels := map[string]string{
@@ -253,6 +264,74 @@ func normalizeUnstructuredObject(obj map[string]any) (map[string]any, error) {
 		return nil, err
 	}
 	return out, nil
+}
+
+type resourceKey struct {
+	kind string
+	name string
+}
+
+// gatewayNamespaceResources lists the specific resources that must remain in the
+// gateway namespace after the blanket NamespaceApplierPlugin transform. Keyed by
+// kind+name to avoid accidentally matching unrelated resources.
+var gatewayNamespaceResources = map[resourceKey]bool{
+	{kind: "Deployment", name: "payload-processing"}:                true,
+	{kind: "Service", name: "payload-processing"}:                   true,
+	{kind: "ServiceAccount", name: "payload-processing"}:            true,
+	{kind: "ConfigMap", name: "payload-processing-plugins"}:         true,
+	{kind: "ClusterRoleBinding", name: "payload-processing-reader"}: true,
+}
+
+// restoreGatewayNamespaceResources moves resources that belong in the gateway
+// namespace back from the application namespace. The blanket NamespaceApplierPlugin
+// moves everything to appNs, but payload-processing resources must stay in the
+// gateway namespace for the EnvoyFilter to attach to the Gateway.
+//
+// For ClusterRoleBindings, the NamespaceApplierPlugin also rewrites
+// subjects[].namespace; this function restores it to the gateway namespace
+// so the RBAC binding matches the actual ServiceAccount location.
+func restoreGatewayNamespaceResources(resMap resmap.ResMap) error {
+	for _, res := range resMap.Resources() {
+		k := resourceKey{kind: res.GetKind(), name: res.GetName()}
+		if !gatewayNamespaceResources[k] {
+			continue
+		}
+		if res.GetKind() == "ClusterRoleBinding" {
+			if err := restoreCRBSubjectsNamespace(res, DefaultGatewayNamespace); err != nil {
+				return fmt.Errorf("restore subjects namespace on ClusterRoleBinding %s: %w", res.GetName(), err)
+			}
+			continue
+		}
+		if err := res.SetNamespace(DefaultGatewayNamespace); err != nil {
+			return fmt.Errorf("set namespace on %s %s: %w", res.GetKind(), res.GetName(), err)
+		}
+	}
+	return nil
+}
+
+// restoreCRBSubjectsNamespace updates subjects[].namespace on a ClusterRoleBinding
+// resource. SetNamespace only changes metadata.namespace which is meaningless for
+// cluster-scoped resources; the NamespaceApplierPlugin rewrites subjects separately.
+func restoreCRBSubjectsNamespace(res *resource.Resource, namespace string) error {
+	m, err := res.Map()
+	if err != nil {
+		return err
+	}
+	subjects, ok := m["subjects"].([]any)
+	if !ok {
+		return nil
+	}
+	for _, s := range subjects {
+		if subject, ok := s.(map[string]any); ok {
+			subject["namespace"] = namespace
+		}
+	}
+	node, err := kyaml.FromMap(m)
+	if err != nil {
+		return err
+	}
+	res.RNode = *node
+	return nil
 }
 
 // deployImageParams maps the kustomize image name (as rendered by the images
