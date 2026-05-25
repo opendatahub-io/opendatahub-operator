@@ -145,11 +145,11 @@ Run cluster health checks and classify the failure deterministically. Returns a 
 
 // Example output
 {
-  "category": "component",
-  "subcategory": "degraded",
-  "error_code": "COMP_DEGRADED",
-  "evidence": "Dashboard deployment has 0/1 ready replicas",
-  "confidence": 0.9
+  "category": "infrastructure",
+  "subcategory": "image-pull",
+  "error_code": 1001,
+  "evidence": ["container xyz waiting: ImagePullBackOff"],
+  "confidence": "medium"
 }
 ```
 
@@ -214,15 +214,20 @@ Output is capped at 50KB. If exceeded, a `[truncated: output exceeded 50KB limit
 
 ## Client Configuration
 
-**Claude Code:** This repo includes a `.mcp.json` at the project root — no setup needed.
+### Claude Code
 
-**Cursor / Claude Desktop:** Add to your MCP config (`.cursor/mcp.json` for Cursor, `claude_desktop_config.json` for Claude Desktop):
+This repo includes a `.mcp.json` at the project root — no setup needed. The `/diagnose` skill is also pre-configured.
+
+### Claude Desktop
+
+Add the following to your `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
-    "odh-diagnostics": {
-      "command": "/absolute/path/to/opendatahub-operator/bin/mcp-server",
+    "opendatahub-health": {
+      "command": "bash",
+      "args": ["-c", "cd /absolute/path/to/opendatahub-operator/cmd/mcp-server && go run ."],
       "env": {
         "KUBECONFIG": "/absolute/path/to/.kube/config"
       }
@@ -231,8 +236,56 @@ Output is capped at 50KB. If exceeded, a `[truncated: output exceeded 50KB limit
 }
 ```
 
-Build the binary first with `make mcp-server`. The `env` block can be omitted if `KUBECONFIG` is already in your shell environment.
+Restart Claude Desktop after saving.
+
+### Cursor
+
+Create or edit `.cursor/mcp.json` in your project root:
+
+```json
+{
+  "mcpServers": {
+    "opendatahub-health": {
+      "command": "bash",
+      "args": ["-c", "cd /absolute/path/to/opendatahub-operator/cmd/mcp-server && go run ."],
+      "env": {
+        "KUBECONFIG": "/absolute/path/to/.kube/config"
+      }
+    }
+  }
+}
+```
+
+## Troubleshooting
+
+### Server won't start
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `kubeconfig: unable to load` | `KUBECONFIG` not set or file missing | Export `KUBECONFIG=/path/to/.kube/config` or add it to the MCP config `env` block |
+| `binary not found` | Binary not built | Run `make mcp-server` from the repo root |
+| `go: command not found` | Using `.mcp.json` with `go run` but Go not installed | Build the binary with `make mcp-server` and use the binary path instead |
+
+### Tools return errors
+
+| Error message | Cause | Fix |
+|---------------|-------|-----|
+| `RBAC insufficient` | Kubeconfig user lacks permissions | Ensure the user has a ClusterRole with read access to pods, events, deployments, nodes, and ODH CRDs |
+| `CRD not installed` | ODH operator not deployed | Install the ODH operator and create DSCI/DSC CRs |
+| `namespace discovery failed` | No DSCI CR on the cluster | Create a `default-dsci` DSCInitialization CR, or set `E2E_TEST_APPLICATIONS_NAMESPACE` env var |
+
+### Agent gives wrong diagnosis
+
+1. **Verify with `oc` commands.** Cross-check the agent's claims manually:
+   - `oc get pods -n opendatahub` — are pods actually in the reported state?
+   - `oc get dsci default-dsci -o jsonpath='{.status.conditions}'` — is DSCI actually unhealthy?
+   - `oc get events -n opendatahub --sort-by=.lastTimestamp` — do events match the agent's evidence?
+2. **Check if the component is set to Removed.** If the agent reports a component as failing but it has `managementState: Removed` in the DSC spec, that's expected — not a failure.
+3. **Low classifier confidence.** If `classify_failure` returns confidence `low` or category `unknown`, the failure may not match any known pattern. Check the [failure scenarios](scenarios/README.md) for similar patterns, or investigate manually with `pod_logs` and `recent_events`.
+4. **Stale events.** Kubernetes events persist after resources are deleted. The agent may report an event-based issue for a pod that no longer exists. Verify the referenced resource still exists before acting on the diagnosis.
 
 ## Integration Testing
 
 For manual testing against a live cluster, see [INTEGRATION_TEST.md](INTEGRATION_TEST.md).
+
+For failure scenario validation, see the [scenarios documentation](scenarios/README.md).
