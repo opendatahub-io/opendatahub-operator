@@ -41,9 +41,10 @@ func TestCheckPreConditions_Managed_JobSetOperatorNotInstalled(t *testing.T) {
 		Conditions: conditions.NewManager(&trainer, status.ConditionTypeReady),
 	}
 
-	err = checkPreConditions(ctx, &rr)
-	g.Expect(err).Should(HaveOccurred())
-	g.Expect(err).To(MatchError(ContainSubstring(status.JobSetOperatorNotInstalledMessage)))
+	result, err := checkPreConditions(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(result.Pass).To(BeFalse())
+	g.Expect(result.Message).To(ContainSubstring(status.JobSetOperatorNotInstalledMessage))
 }
 
 func TestCheckJobSetCRD_NotInstalled(t *testing.T) {
@@ -132,9 +133,10 @@ func TestCheckPreConditions_JobSetOperatorCRNotFound(t *testing.T) {
 		Conditions: conditions.NewManager(&trainer, status.ConditionTypeReady),
 	}
 
-	err = checkPreConditions(ctx, &rr)
-	g.Expect(err).Should(HaveOccurred())
-	g.Expect(err).To(MatchError(ContainSubstring(status.JobSetOperatorCRNotFoundMessage)))
+	result, err := checkPreConditions(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(result.Pass).To(BeFalse())
+	g.Expect(result.Message).To(ContainSubstring(status.JobSetOperatorCRNotFoundMessage))
 }
 
 func TestCheckPreConditions_Success(t *testing.T) {
@@ -178,8 +180,10 @@ func TestCheckPreConditions_Success(t *testing.T) {
 		Conditions: conditions.NewManager(&trainer, status.ConditionTypeReady),
 	}
 
-	err = checkPreConditions(ctx, &rr)
+	result, err := checkPreConditions(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(result.Pass).To(BeTrue())
+	g.Expect(result.Message).To(BeEmpty())
 }
 
 func TestJobSetConditionFilter(t *testing.T) {
