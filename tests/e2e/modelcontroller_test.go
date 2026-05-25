@@ -183,14 +183,38 @@ func (tc *ModelControllerTestCtx) ValidateWVAConfigMapUserConfigurable(t *testin
 }
 
 // ValidateSubscriptionDependencyConditions verifies that the CMA subscription
-// dependency condition is True when KServe and WVA are both Managed.
+// dependency condition reflects actual subscription presence: False when CMA is
+// not installed, True after creating the subscription, and False again after deletion.
 func (tc *ModelControllerTestCtx) ValidateSubscriptionDependencyConditions(t *testing.T) {
 	t.Helper()
 
 	skipUnless(t, Tier1)
 
 	mcNN := types.NamespacedName{Name: componentApi.ModelControllerInstanceName}
+	cmaSubNN := types.NamespacedName{
+		Name:      modelcontroller.CMAOperatorSubscription,
+		Namespace: openshiftOperatorsNamespace,
+	}
 
+	// Step 1: CMA subscription does not exist — condition should be False.
+	t.Log("Verifying CMA subscription dependency condition is False (subscription absent).")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ModelController, mcNN),
+		WithCondition(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				modelcontroller.LLMDWVADependencies, metav1.ConditionFalse),
+		),
+	)
+
+	// Step 2: Create a bare CMA subscription so the precondition can find it.
+	t.Log("Creating CMA subscription to verify condition flips to True.")
+	sub := tc.createSubscription(cmaSubNN, "stable")
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(sub),
+		WithMutateFunc(testf.TransformSpecToUnstructured(sub.Spec)),
+	)
+
+	// Step 3: Condition should flip to True on both ModelController and DSC.
 	t.Log("Verifying CMA subscription dependency condition is True on ModelController CR.")
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.ModelController, mcNN),
@@ -206,6 +230,22 @@ func (tc *ModelControllerTestCtx) ValidateSubscriptionDependencyConditions(t *te
 		WithCondition(
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
 				modelcontroller.LLMDWVADependencies, metav1.ConditionTrue),
+		),
+	)
+
+	// Step 4: Delete subscription — condition should revert to False.
+	t.Log("Deleting CMA subscription to verify condition reverts to False.")
+	tc.DeleteResource(
+		WithMinimalObject(gvk.Subscription, cmaSubNN),
+		WithWaitForDeletion(true),
+	)
+
+	t.Log("Verifying CMA subscription dependency condition is False after deletion.")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ModelController, mcNN),
+		WithCondition(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				modelcontroller.LLMDWVADependencies, metav1.ConditionFalse),
 		),
 	)
 }
