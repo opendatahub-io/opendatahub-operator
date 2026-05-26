@@ -9,7 +9,6 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -269,12 +268,14 @@ func TestCreateMaaSGateway_Enabled(t *testing.T) {
 			listeners, _, _ := unstructured.NestedSlice(res.Object, "spec", "listeners")
 			g.Expect(listeners).To(HaveLen(2), "should have HTTP and HTTPS listeners")
 
-			httpListener := listeners[0].(map[string]interface{})
+			httpListener, ok := listeners[0].(map[string]interface{})
+			g.Expect(ok).To(BeTrue(), "listener[0] should be a map")
 			g.Expect(httpListener["name"]).To(Equal("http"))
 			g.Expect(httpListener["protocol"]).To(Equal("HTTP"))
 			g.Expect(httpListener["port"]).To(BeNumerically("==", 80))
 
-			httpsListener := listeners[1].(map[string]interface{})
+			httpsListener, ok := listeners[1].(map[string]interface{})
+			g.Expect(ok).To(BeTrue(), "listener[1] should be a map")
 			g.Expect(httpsListener["name"]).To(Equal("https"))
 			g.Expect(httpsListener["protocol"]).To(Equal("HTTPS"))
 			g.Expect(httpsListener["port"]).To(BeNumerically("==", StandardHTTPSPort))
@@ -282,7 +283,8 @@ func TestCreateMaaSGateway_Enabled(t *testing.T) {
 			// Verify TLS config references MaaS-specific secret
 			certRefs, _, _ := unstructured.NestedSlice(httpsListener, "tls", "certificateRefs")
 			g.Expect(certRefs).To(HaveLen(1))
-			certRef := certRefs[0].(map[string]interface{})
+			certRef, ok := certRefs[0].(map[string]interface{})
+			g.Expect(ok).To(BeTrue(), "certRef should be a map")
 			g.Expect(certRef["name"]).To(Equal(MaaSGatewayTLSSecretName))
 
 			// Verify hostname
@@ -404,7 +406,7 @@ func newTestReconciliationRequest(cli client.Client) *odhtypes.ReconciliationReq
 
 func newOpenshiftIngress(domain string) *unstructured.Unstructured {
 	ingress := &unstructured.Unstructured{}
-	ingress.SetGroupVersionKind(schema.GroupVersionKind(gvk.OpenshiftIngress))
+	ingress.SetGroupVersionKind(gvk.OpenshiftIngress)
 	ingress.SetName("cluster")
 	_ = unstructured.SetNestedField(ingress.Object, domain, "spec", "domain")
 	return ingress

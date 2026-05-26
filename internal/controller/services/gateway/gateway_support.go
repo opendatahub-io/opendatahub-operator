@@ -92,10 +92,10 @@ const (
 
 	// MaaS gateway constants. Uses the same OpenShift Gateway API controller
 	// as data-science-gateway but with different routing and auth model.
-	MaaSGatewayClassName    = "maas-gateway-class"
-	MaaSGatewayName         = "maas-default-gateway"
-	MaaSGatewaySubdomain    = "maas"
-	MaaSGatewayTLSSecretName = "maas-gateway-tls"
+	MaaSGatewayClassName     = "maas-gateway-class"
+	MaaSGatewayName          = "maas-default-gateway"
+	MaaSGatewaySubdomain     = "maas"
+	MaaSGatewayTLSSecretName = "maas-gateway-tls" //nolint:gosec // This is a resource name, not actual credentials
 )
 
 const (
