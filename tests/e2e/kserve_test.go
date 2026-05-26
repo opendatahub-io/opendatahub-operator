@@ -67,6 +67,12 @@ func kserveTestSuite(t *testing.T) {
 	)
 
 	// Always run deletion recovery and component disable tests last
+	if !componentCtx.IsXKS() {
+		testCases = append(testCases,
+			TestCase{"Validate subscription dependency conditions", componentCtx.ValidateSubscriptionDependencyConditions},
+		)
+	}
+
 	testCases = append(testCases,
 		TestCase{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		TestCase{"Validate component disabled", componentCtx.ValidateComponentDisabled},
@@ -119,6 +125,39 @@ func (tc *KserveTestCtx) ValidateSpec(t *testing.T) {
 			jq.Match(`.spec.nim.managementState == "%s"`, dsc.Spec.Components.Kserve.NIM.ManagementState),
 		),
 		),
+	)
+}
+
+// ValidateSubscriptionDependencyConditions verifies that subscription dependency
+// conditions are present and True on the KServe component CR when the required
+// OLM subscriptions (RHCL, cert-manager, LWS) are installed. OpenShift only.
+func (tc *KserveTestCtx) ValidateSubscriptionDependencyConditions(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+
+	kserveNN := types.NamespacedName{Name: componentApi.KserveInstanceName}
+
+	t.Log("Verifying subscription dependency conditions are True on KServe component CR.")
+	tc.EnsureResourceExists(
+		WithMinimalObject(tc.GVK, kserveNN),
+		WithCondition(And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				kserve.LLMInferenceServiceDependencies, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				kserve.LLMInferenceServiceWideEPDependencies, metav1.ConditionTrue),
+		)),
+	)
+
+	t.Log("Verifying subscription dependency conditions are propagated to DSC status.")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				kserve.LLMInferenceServiceDependencies, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				kserve.LLMInferenceServiceWideEPDependencies, metav1.ConditionTrue),
+		)),
 	)
 }
 
