@@ -88,7 +88,7 @@ func TestMaaSGatewayConstants(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	g.Expect(MaaSGatewayClassName).To(Equal("maas-gateway-class"))
+	g.Expect(MaaSGatewayClassName).To(Equal("openshift-default"))
 	g.Expect(MaaSGatewayName).To(Equal("maas-default-gateway"))
 	g.Expect(MaaSGatewaySubdomain).To(Equal("maas"))
 	g.Expect(MaaSGatewayTLSSecretName).To(Equal("maas-gateway-tls"))
@@ -97,7 +97,7 @@ func TestMaaSGatewayConstants(t *testing.T) {
 func TestCleanupMaaSGatewayResources(t *testing.T) {
 	t.Parallel()
 
-	t.Run("deletes existing Gateway and GatewayClass", func(t *testing.T) {
+	t.Run("deletes Gateway but preserves shared GatewayClass", func(t *testing.T) {
 		t.Parallel()
 		g := NewWithT(t)
 		ctx := t.Context()
@@ -132,11 +132,10 @@ func TestCleanupMaaSGatewayResources(t *testing.T) {
 
 		gc := &gwapiv1.GatewayClass{}
 		err = cli.Get(ctx, client.ObjectKey{Name: MaaSGatewayClassName}, gc)
-		g.Expect(client.IgnoreNotFound(err)).NotTo(HaveOccurred())
-		g.Expect(err).To(HaveOccurred(), "GatewayClass should be deleted")
+		g.Expect(err).NotTo(HaveOccurred(), "shared GatewayClass should be preserved")
 	})
 
-	t.Run("succeeds when resources do not exist", func(t *testing.T) {
+	t.Run("succeeds when Gateway does not exist", func(t *testing.T) {
 		t.Parallel()
 		g := NewWithT(t)
 		ctx := t.Context()
@@ -145,31 +144,6 @@ func TestCleanupMaaSGatewayResources(t *testing.T) {
 
 		err := cleanupMaaSGatewayResources(ctx, cli)
 		g.Expect(err).NotTo(HaveOccurred())
-	})
-
-	t.Run("deletes Gateway even when GatewayClass is absent", func(t *testing.T) {
-		t.Parallel()
-		g := NewWithT(t)
-		ctx := t.Context()
-
-		existingGateway := &gwapiv1.Gateway{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      MaaSGatewayName,
-				Namespace: GatewayNamespace,
-			},
-			Spec: gwapiv1.GatewaySpec{
-				GatewayClassName: MaaSGatewayClassName,
-			},
-		}
-
-		cli := setupTestClient().WithObjects(existingGateway).Build()
-
-		err := cleanupMaaSGatewayResources(ctx, cli)
-		g.Expect(err).NotTo(HaveOccurred())
-
-		gw := &gwapiv1.Gateway{}
-		err = cli.Get(ctx, client.ObjectKey{Name: MaaSGatewayName, Namespace: GatewayNamespace}, gw)
-		g.Expect(err).To(HaveOccurred(), "Gateway should be deleted")
 	})
 }
 
@@ -215,7 +189,7 @@ func TestCreateMaaSGateway_Disabled(t *testing.T) {
 
 	gc := &gwapiv1.GatewayClass{}
 	err = cli.Get(ctx, client.ObjectKey{Name: MaaSGatewayClassName}, gc)
-	g.Expect(err).To(HaveOccurred(), "GatewayClass should be cleaned up")
+	g.Expect(err).NotTo(HaveOccurred(), "shared GatewayClass should be preserved")
 }
 
 func TestCreateMaaSGateway_Enabled(t *testing.T) {
@@ -249,16 +223,18 @@ func TestCreateMaaSGateway_Enabled(t *testing.T) {
 			g.Expect(res.GetName()).To(Equal(MaaSGatewayName))
 			g.Expect(res.GetNamespace()).To(Equal(GatewayNamespace))
 
-			// Verify labels
+			// Verify labels match upstream MaaS manifest (maas-gateway-api.yaml)
 			labels := res.GetLabels()
 			g.Expect(labels).To(HaveKeyWithValue(IstioRevisionLabel, IstioRevisionValue))
 			g.Expect(labels).To(HaveKeyWithValue("app.kubernetes.io/name", "maas"))
 			g.Expect(labels).To(HaveKeyWithValue("app.kubernetes.io/instance", MaaSGatewayName))
 			g.Expect(labels).To(HaveKeyWithValue("app.kubernetes.io/component", "gateway"))
+			g.Expect(labels).To(HaveKeyWithValue("opendatahub.io/managed", "false"))
 
-			// Verify authorino TLS bootstrap annotation
+			// Verify annotations match upstream MaaS manifest
 			annotations := res.GetAnnotations()
 			g.Expect(annotations).To(HaveKeyWithValue("security.opendatahub.io/authorino-tls-bootstrap", "true"))
+			g.Expect(annotations).To(HaveKeyWithValue("opendatahub.io/managed", "false"))
 
 			// Verify GatewayClassName
 			className, _, _ := unstructured.NestedString(res.Object, "spec", "gatewayClassName")

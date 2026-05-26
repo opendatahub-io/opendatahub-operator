@@ -156,9 +156,11 @@ func createMaaSGateway(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 				"app.kubernetes.io/name":      "maas",
 				"app.kubernetes.io/instance":  MaaSGatewayName,
 				"app.kubernetes.io/component": "gateway",
+				"opendatahub.io/managed":      "false",
 			},
 			Annotations: map[string]string{
 				"security.opendatahub.io/authorino-tls-bootstrap": "true",
+				"opendatahub.io/managed":                          "false",
 			},
 		},
 		Spec: gwapiv1.GatewaySpec{
@@ -203,9 +205,10 @@ func createMaaSGateway(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 	return nil
 }
 
-// cleanupMaaSGatewayResources deletes the MaaS Gateway and GatewayClass when
-// MaaS is disabled. Gateway is deleted first (namespaced), then GatewayClass
-// (cluster-scoped). NotFound errors are ignored since the resources may not exist.
+// cleanupMaaSGatewayResources deletes the MaaS Gateway when MaaS is disabled.
+// The GatewayClass (openshift-default) is intentionally not deleted because it
+// is a shared, well-known OpenShift convention that may be used by other consumers.
+// NotFound errors are ignored since the resource may not exist.
 func cleanupMaaSGatewayResources(ctx context.Context, cli client.Client) error {
 	l := logf.FromContext(ctx).WithName("cleanupMaaSGateway")
 
@@ -216,14 +219,6 @@ func cleanupMaaSGatewayResources(ctx context.Context, cli client.Client) error {
 		return fmt.Errorf("failed to delete MaaS Gateway %s/%s: %w", GatewayNamespace, MaaSGatewayName, err)
 	} else if err == nil {
 		l.V(1).Info("Deleted MaaS Gateway", "name", MaaSGatewayName)
-	}
-
-	gatewayClass := &gwapiv1.GatewayClass{}
-	gatewayClass.Name = MaaSGatewayClassName
-	if err := cli.Delete(ctx, gatewayClass); err != nil && !k8serr.IsNotFound(err) {
-		return fmt.Errorf("failed to delete MaaS GatewayClass %s: %w", MaaSGatewayClassName, err)
-	} else if err == nil {
-		l.V(1).Info("Deleted MaaS GatewayClass", "name", MaaSGatewayClassName)
 	}
 
 	return nil
