@@ -38,10 +38,10 @@ const (
 	ReadyConditionType                    = componentApi.KserveKind + status.ReadySuffix
 	LLMInferenceServiceDependencies       = componentApi.KserveKind + "LLMInferenceServiceDependencies"
 	LLMInferenceServiceWideEPDependencies = componentApi.KserveKind + "LLMInferenceServiceWideEPDependencies"
-	rhclOperatorSubscription              = "rhcl-operator"
-	lwsOperatorSubscription               = "leader-worker-set"
-	certManagerOperatorSubscription       = "openshift-cert-manager-operator"
-	subNotFound                           = "Subscription not found"
+	// OLM subscription names for KServe dependency operators.
+	RHCLOperatorSubscription        = "rhcl-operator"
+	LWSOperatorSubscription         = "leader-worker-set"
+	CertManagerOperatorSubscription = "openshift-cert-manager-operator"
 )
 
 var conditionTypes = []string{

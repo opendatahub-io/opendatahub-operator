@@ -27,34 +27,30 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
-var (
-	ErrJobSetOperatorNotInstalled = odherrors.NewStopError(status.JobSetOperatorNotInstalledMessage)
-	ErrJobSetOperatorCRNotFound   = odherrors.NewStopError(status.JobSetOperatorCRNotFoundMessage)
-)
-
-func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	if jobSetInfo, err := cluster.OperatorExists(ctx, rr.Client, jobSetOperator); err != nil || jobSetInfo == nil {
-		if err != nil {
-			return odherrors.NewStopErrorW(err)
-		}
-
-		return ErrJobSetOperatorNotInstalled
+func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) (precondition.CheckResult, error) {
+	jobSetInfo, err := cluster.OperatorExists(ctx, rr.Client, jobSetOperator)
+	if err != nil {
+		return precondition.CheckResult{}, err
 	}
 
-	// Check that JobSetOperator CR exists with name "cluster"
+	if jobSetInfo == nil {
+		return precondition.CheckResult{Pass: false, Message: status.JobSetOperatorNotInstalledMessage}, nil
+	}
+
 	jobSetOperatorCR := &unstructured.Unstructured{}
 	jobSetOperatorCR.SetGroupVersionKind(gvk.JobSetOperatorV1)
 	if err := rr.Client.Get(ctx, types.NamespacedName{Name: jobSetOperatorCRName}, jobSetOperatorCR); err != nil {
 		if k8serr.IsNotFound(err) {
-			return ErrJobSetOperatorCRNotFound
+			return precondition.CheckResult{Pass: false, Message: status.JobSetOperatorCRNotFoundMessage}, nil
 		}
-		return odherrors.NewStopErrorW(err)
+		return precondition.CheckResult{}, err
 	}
 
-	return nil
+	return precondition.CheckResult{Pass: true}, nil
 }
 
 // checkJobSetCRD verifies that the JobSet CRD exists.

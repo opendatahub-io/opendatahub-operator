@@ -146,6 +146,7 @@ high — all health checks passed, no warning events detected
 <the specific root cause identified — be precise, not vague>
 
 ### Evidence
+- **Classifier**: <category>/<subcategory> (code <error_code>, confidence: <classifier_confidence>)
 - <evidence point 1> (source: <tool name>)
 - <evidence point 2> (source: <tool name>)
 
@@ -165,7 +166,7 @@ high — all health checks passed, no warning events detected
 **Confidence level guidelines:**
 - **high**: Direct evidence from logs/events pointing to a specific cause. Error code match with high classifier confidence.
 - **medium**: Correlated evidence across multiple signals, but no single definitive proof. Classifier returned medium confidence.
-- **low**: Symptoms observed but root cause is ambiguous. Multiple possible causes. Manual investigation recommended.
+- **low**: Root cause is ambiguous, multiple equally plausible causes exist, or evidence is indirect. Fall back to the deterministic `classify_failure` output as the starting point. Acknowledge the uncertainty in the Summary and recommend specific manual investigation steps in Remediation.
 
 ---
 
