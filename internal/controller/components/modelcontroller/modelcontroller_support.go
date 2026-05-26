@@ -16,10 +16,9 @@ const (
 	// deployment to the new component name, so keep it around till we figure out a solution.
 	LegacyComponentName = "odh-model-controller"
 
-	// For WVA.
-	LLMDWVADependencies     = "LLM-D-WVADependencies"
-	cmaOperatorSubscription = "openshift-custom-metrics-autoscaler-operator"
-	subNotFound             = "Subscription not found"
+	LLMDWVADependencies = "LLM-D-WVADependencies"
+	// OLM subscription name for the Custom Metrics Autoscaler operator (WVA dependency).
+	CMAOperatorSubscription = "openshift-custom-metrics-autoscaler-operator"
 )
 
 var (

@@ -105,6 +105,13 @@ func Test_newPreCondition_Options(t *testing.T) {
 				g.Expect(pc.message).To(Equal("custom message"))
 			},
 		},
+		{
+			name: "WithSkipFunc",
+			opt:  WithSkipFunc(func(_ context.Context, _ *types.ReconciliationRequest) (bool, error) { return true, nil }),
+			assert: func(g Gomega, pc PreCondition) {
+				g.Expect(pc.skipFunc).NotTo(BeNil())
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -306,6 +313,146 @@ func TestRunAll_ClusterTypeFiltering(t *testing.T) {
 	got := rr.Conditions.GetCondition(status.ConditionDependenciesAvailable)
 	g.Expect(got).NotTo(BeNil())
 	g.Expect(got.Status).NotTo(Equal(metav1.ConditionFalse))
+}
+
+func TestRunAll_SkipFunc(t *testing.T) {
+	tests := []struct {
+		name           string
+		skipFunc       SkipFunc
+		expectedStatus metav1.ConditionStatus
+		expectedMsg    string
+	}{
+		{
+			name:     "returns true skips precondition",
+			skipFunc: func(_ context.Context, _ *types.ReconciliationRequest) (bool, error) { return true, nil },
+			// When skipped, no aggregate is created and no condition is written by RunAll.
+			// CleanupStaleConditions removes any stale condition from a previous reconcile.
+			// The condition manager default for an unset dependent is Unknown.
+			expectedStatus: metav1.ConditionUnknown,
+		},
+		{
+			name:           "returns false runs precondition",
+			skipFunc:       func(_ context.Context, _ *types.ReconciliationRequest) (bool, error) { return false, nil },
+			expectedStatus: metav1.ConditionFalse,
+			expectedMsg:    "skip func test",
+		},
+		{
+			name:           "nil runs precondition",
+			skipFunc:       nil,
+			expectedStatus: metav1.ConditionFalse,
+			expectedMsg:    "skip func test",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			rr := newRR(status.ConditionDependenciesAvailable)
+
+			opts := []Option{}
+			if tt.skipFunc != nil {
+				opts = append(opts, WithSkipFunc(tt.skipFunc))
+			}
+
+			pcs := []PreCondition{
+				newPreCondition(failingCheck("skip func test"), opts...),
+			}
+
+			RunAll(t.Context(), rr, pcs)
+
+			got := rr.Conditions.GetCondition(status.ConditionDependenciesAvailable)
+			g.Expect(got).NotTo(BeNil())
+			g.Expect(got.Status).To(Equal(tt.expectedStatus))
+
+			if tt.expectedMsg != "" {
+				g.Expect(got.Message).To(ContainSubstring(tt.expectedMsg))
+			}
+		})
+	}
+}
+
+func TestRunAll_SkipFuncError(t *testing.T) {
+	g := NewWithT(t)
+
+	rr := newRR(status.ConditionDependenciesAvailable)
+	pcs := []PreCondition{
+		newPreCondition(
+			failingCheck("should not run"),
+			WithSkipFunc(func(_ context.Context, _ *types.ReconciliationRequest) (bool, error) {
+				return false, errTest
+			}),
+		),
+	}
+
+	shouldStop := RunAll(t.Context(), rr, pcs)
+	g.Expect(shouldStop).To(BeFalse())
+
+	got := rr.Conditions.GetCondition(status.ConditionDependenciesAvailable)
+	g.Expect(got).NotTo(BeNil())
+	g.Expect(got.Status).To(Equal(metav1.ConditionUnknown))
+	g.Expect(got.Message).To(ContainSubstring("test error"))
+}
+
+func TestRunAll_SkipFuncCleansStaleCondition(t *testing.T) {
+	g := NewWithT(t)
+
+	rr := newRR(status.ConditionDependenciesAvailable)
+
+	// Reconcile #1: skipFunc=false, check fails → condition written as False.
+	pcs := []PreCondition{
+		newPreCondition(failingCheck("dependency degraded")),
+	}
+
+	RunAll(t.Context(), rr, pcs)
+
+	got := rr.Conditions.GetCondition(status.ConditionDependenciesAvailable)
+	g.Expect(got).NotTo(BeNil())
+	g.Expect(got.Status).To(Equal(metav1.ConditionFalse))
+
+	// Reconcile #2: skipFunc=true → condition not re-set → CleanupStaleConditions removes it.
+	rr.Conditions.Reset()
+
+	pcs = []PreCondition{
+		newPreCondition(
+			failingCheck("should not run"),
+			WithSkipFunc(func(_ context.Context, _ *types.ReconciliationRequest) (bool, error) {
+				return true, nil
+			}),
+		),
+	}
+
+	RunAll(t.Context(), rr, pcs)
+	rr.Conditions.CleanupStaleConditions()
+
+	got = rr.Conditions.GetCondition(status.ConditionDependenciesAvailable)
+	g.Expect(got).To(BeNil(), "stale condition should be removed after skip")
+}
+
+func TestRunAll_ClusterTypeFilterRunsBeforeSkipFunc(t *testing.T) {
+	g := NewWithT(t)
+
+	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+	t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+	skipFuncCalled := false
+
+	rr := newRR(status.ConditionDependenciesAvailable)
+	pcs := []PreCondition{
+		newPreCondition(
+			failingCheck("should not run"),
+			WithClusterTypes(cluster.ClusterTypeKubernetes),
+			WithSkipFunc(func(_ context.Context, _ *types.ReconciliationRequest) (bool, error) {
+				skipFuncCalled = true
+				return false, nil
+			}),
+			WithStopReconciliation(),
+		),
+	}
+
+	shouldStop := RunAll(t.Context(), rr, pcs)
+	g.Expect(shouldStop).To(BeFalse())
+	g.Expect(skipFuncCalled).To(BeFalse(), "SkipFunc should not be called when cluster type filter already skipped")
 }
 
 func TestRunAll_MultipleConditionTypes(t *testing.T) {
