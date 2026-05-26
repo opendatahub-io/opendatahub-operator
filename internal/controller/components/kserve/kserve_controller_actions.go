@@ -129,7 +129,7 @@ func customizeKserveConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRe
 
 	modelCacheEnabled := k.Spec.ModelCache != nil && k.Spec.ModelCache.ManagementState == operatorv1.Managed
 
-	if err := updateInferenceCM(ctx, &kserveConfigMap, serviceClusterIPNone, modelCacheEnabled, k.Spec.OAuthProxy); err != nil {
+	if err := updateInferenceCM(ctx, &kserveConfigMap, serviceClusterIPNone, modelCacheEnabled, k.Spec.OAuthProxy, k.Spec.EnableLLMInferenceServiceTLS); err != nil {
 		return err
 	}
 

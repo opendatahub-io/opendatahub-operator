@@ -194,6 +194,7 @@ _Appears in:_
 | `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Configures and enables Models as a Service integration |  |  |
 | `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration |  |  |
 | `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
+| `enableLLMInferenceServiceTLS` _boolean_ | Controls whether TLS is enabled for LLMInferenceService deployments.<br />When nil, the operator does not modify the default established by the KServe overlay.<br />When set to true or false, the operator patches the 'inferenceservice-config' ConfigMap accordingly. |  |  |
 
 
 #### DSCKserveStatus
@@ -945,6 +946,7 @@ _Appears in:_
 | `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Configures and enables Models as a Service integration |  |  |
 | `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration |  |  |
 | `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
+| `enableLLMInferenceServiceTLS` _boolean_ | Controls whether TLS is enabled for LLMInferenceService deployments.<br />When nil, the operator does not modify the default established by the KServe overlay.<br />When set to true or false, the operator patches the 'inferenceservice-config' ConfigMap accordingly. |  |  |
 
 
 #### KserveCommonStatus
@@ -983,6 +985,7 @@ _Appears in:_
 | `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Configures and enables Models as a Service integration |  |  |
 | `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration |  |  |
 | `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
+| `enableLLMInferenceServiceTLS` _boolean_ | Controls whether TLS is enabled for LLMInferenceService deployments.<br />When nil, the operator does not modify the default established by the KServe overlay.<br />When set to true or false, the operator patches the 'inferenceservice-config' ConfigMap accordingly. |  |  |
 
 
 #### KserveStatus

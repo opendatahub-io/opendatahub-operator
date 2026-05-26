@@ -84,6 +84,11 @@ type KserveCommonSpec struct {
 	WVA WVASpec `json:"wva,omitempty"`
 	// Configures and enables Model Cache integration
 	ModelCache *ModelCacheSpec `json:"modelCache,omitempty"`
+	// Controls whether TLS is enabled for LLMInferenceService deployments.
+	// When nil, the operator does not modify the default established by the KServe overlay.
+	// When set to true or false, the operator patches the 'inferenceservice-config' ConfigMap accordingly.
+	// +optional
+	EnableLLMInferenceServiceTLS *bool `json:"enableLLMInferenceServiceTLS,omitempty"`
 }
 
 // nimSpec enables NVIDIA NIM integration

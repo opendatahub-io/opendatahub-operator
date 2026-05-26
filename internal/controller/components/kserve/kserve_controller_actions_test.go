@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
@@ -132,6 +133,139 @@ func TestCustomizeKserveConfigMap(t *testing.T) { //nolint:maintidx
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(localModelData["jobNamespace"]).Should(Equal(cluster.GetApplicationNamespace()))
 		g.Expect(localModelData["enabled"]).Should(BeFalse())
+	})
+
+	for _, tc := range []struct {
+		name      string
+		tlsField  *bool
+		expectKey bool
+		expectVal bool
+	}{
+		{name: "EnableLLMInferenceServiceTLS explicitly false", tlsField: ptr.To(false), expectKey: true, expectVal: false},
+		{name: "EnableLLMInferenceServiceTLS explicitly true", tlsField: ptr.To(true), expectKey: true, expectVal: true},
+		{name: "EnableLLMInferenceServiceTLS nil does not modify ConfigMap", tlsField: nil, expectKey: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			kserve := &componentApi.Kserve{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: componentApi.KserveInstanceName,
+				},
+				Spec: componentApi.KserveSpec{
+					KserveCommonSpec: componentApi.KserveCommonSpec{
+						EnableLLMInferenceServiceTLS: tc.tlsField,
+					},
+				},
+			}
+
+			initialConfigMap := createTestConfigMap()
+			initialDeployment := createTestDeployment()
+			resources := []unstructured.Unstructured{
+				*convertToUnstructured(t, initialConfigMap),
+				*convertToUnstructured(t, initialDeployment),
+			}
+
+			rr := &odhtypes.ReconciliationRequest{
+				Instance:  kserve,
+				Resources: resources,
+			}
+
+			err := customizeKserveConfigMap(ctx, rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			updatedConfigMap := &corev1.ConfigMap{}
+			err = runtime.DefaultUnstructuredConverter.FromUnstructured(rr.Resources[0].Object, updatedConfigMap)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			var ingressData map[string]any
+			err = json.Unmarshal([]byte(updatedConfigMap.Data[IngressConfigKeyName]), &ingressData)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			if tc.expectKey {
+				g.Expect(ingressData["enableLLMInferenceServiceTLS"]).Should(Equal(tc.expectVal))
+			} else {
+				g.Expect(ingressData).ShouldNot(HaveKey("enableLLMInferenceServiceTLS"))
+			}
+		})
+	}
+
+	t.Run("EnableLLMInferenceServiceTLS nil preserves pre-seeded overlay value", func(t *testing.T) {
+		kserve := &componentApi.Kserve{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.KserveInstanceName,
+			},
+			Spec: componentApi.KserveSpec{
+				KserveCommonSpec: componentApi.KserveCommonSpec{},
+			},
+		}
+
+		cm := createTestConfigMap()
+		cm.Data[IngressConfigKeyName] = `{
+			"disableIngressCreation": false,
+			"enableLLMInferenceServiceTLS": true
+		}`
+		initialDeployment := createTestDeployment()
+		resources := []unstructured.Unstructured{
+			*convertToUnstructured(t, cm),
+			*convertToUnstructured(t, initialDeployment),
+		}
+
+		rr := &odhtypes.ReconciliationRequest{
+			Instance:  kserve,
+			Resources: resources,
+		}
+
+		err := customizeKserveConfigMap(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		updatedConfigMap := &corev1.ConfigMap{}
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(rr.Resources[0].Object, updatedConfigMap)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		var ingressData map[string]any
+		err = json.Unmarshal([]byte(updatedConfigMap.Data[IngressConfigKeyName]), &ingressData)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(ingressData["enableLLMInferenceServiceTLS"]).Should(BeTrue())
+	})
+
+	t.Run("EnableLLMInferenceServiceTLS false overrides pre-seeded overlay true", func(t *testing.T) {
+		kserve := &componentApi.Kserve{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.KserveInstanceName,
+			},
+			Spec: componentApi.KserveSpec{
+				KserveCommonSpec: componentApi.KserveCommonSpec{
+					EnableLLMInferenceServiceTLS: ptr.To(false),
+				},
+			},
+		}
+
+		cm := createTestConfigMap()
+		cm.Data[IngressConfigKeyName] = `{
+			"disableIngressCreation": false,
+			"enableLLMInferenceServiceTLS": true
+		}`
+		initialDeployment := createTestDeployment()
+		resources := []unstructured.Unstructured{
+			*convertToUnstructured(t, cm),
+			*convertToUnstructured(t, initialDeployment),
+		}
+
+		rr := &odhtypes.ReconciliationRequest{
+			Instance:  kserve,
+			Resources: resources,
+		}
+
+		err := customizeKserveConfigMap(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		updatedConfigMap := &corev1.ConfigMap{}
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(rr.Resources[0].Object, updatedConfigMap)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		var ingressData map[string]any
+		err = json.Unmarshal([]byte(updatedConfigMap.Data[IngressConfigKeyName]), &ingressData)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(ingressData["enableLLMInferenceServiceTLS"]).Should(BeFalse())
 	})
 
 	t.Run("Test localModel enabled when ModelCache is Managed", func(t *testing.T) {

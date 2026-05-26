@@ -89,7 +89,14 @@ func kserveManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInf
 	}
 }
 
-func updateInferenceCM(ctx context.Context, inferenceServiceConfigMap *corev1.ConfigMap, isHeadless bool, modelCacheEnabled bool, oauthProxy *componentApi.OAuthProxyConfig) error {
+func updateInferenceCM(
+	ctx context.Context,
+	inferenceServiceConfigMap *corev1.ConfigMap,
+	isHeadless bool,
+	modelCacheEnabled bool,
+	oauthProxy *componentApi.OAuthProxyConfig,
+	enableTLS *bool,
+) error {
 	// ingress
 	// RawDeployment mode is the only supported mode, so always disable ingress creation
 	var ingressData map[string]any
@@ -97,6 +104,9 @@ func updateInferenceCM(ctx context.Context, inferenceServiceConfigMap *corev1.Co
 		return fmt.Errorf("error retrieving value for key '%s' from configmap %s. %w", IngressConfigKeyName, kserveConfigMapName, err)
 	}
 	ingressData["disableIngressCreation"] = true
+	if enableTLS != nil {
+		ingressData["enableLLMInferenceServiceTLS"] = *enableTLS
+	}
 	ingressDataBytes, err := json.MarshalIndent(ingressData, "", " ")
 	if err != nil {
 		return fmt.Errorf("could not set values in configmap %s. %w", kserveConfigMapName, err)
