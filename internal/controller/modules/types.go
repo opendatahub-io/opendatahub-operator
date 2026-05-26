@@ -98,13 +98,6 @@ type ContainerNamer interface {
 	GetContainerName() string
 }
 
-// OwnedTypeRegistrar allows registering GVKs as statically owned types
-// on a controller. The DSC controller's *reconciler.Reconciler satisfies
-// this interface.
-type OwnedTypeRegistrar interface {
-	AddOwnedType(gvk schema.GroupVersionKind)
-}
-
 // ModuleStatus holds the parsed status from a module CR. It includes the
 // standard conditions and generation metadata needed for staleness detection
 // per the onboarding guide's PlatformObject contract.

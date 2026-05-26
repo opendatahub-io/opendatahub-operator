@@ -40,20 +40,34 @@ CRs and module operator resources.
 
 ### Module CR ownership and cleanup
 
-`SetupModuleWatches` registers each module's CR GVK as an **owned type** on
-the DSC controller via `AddOwnedType`. This ensures:
+The module reconciler uses `WithDynamicOwnership()` which enables automatic
+owner reference injection on **all** deployed resources. The deploy action
+sets the primary resource (DSC or Platform) as controller owner of every
+resource it applies — module CRs, operator Deployments, RBAC, etc. This
+provides:
 
-- `deploy.NewAction` sets the DSC as controller owner of module CRs
-- `gc.NewAction` deletes module CRs when they are missing from `rr.Resources`
-  (i.e., when the module is disabled)
+- Cascade deletion: deleting DSC/Platform garbage-collects all module
+  resources via Kubernetes owner reference GC
+- Automatic watch registration: the `dynamicownership` action registers
+  `EnqueueRequestForOwner` watches for each deployed resource type, so
+  changes to module CRs trigger reconciliation of the owning DSC/Platform
+- GC integration: `gc.NewAction` uses `rr.Controller.Owns(objGVK)` to
+  determine which resource types to clean up
 
-Module **operator** resources (Deployment, RBAC, etc.) are generic Kubernetes
-types that are NOT registered as owned types. They are cleaned up by
-`cleanupDisabledModules`, which implements a two-phase approach:
+`registerModuleCROwnedTypes` additionally registers module CR GVKs as
+statically owned types so the GC predicate returns true from the first
+reconcile, before dynamic ownership has discovered them.
 
-1. **Phase 1**: Module is disabled, CR still exists. GC deletes the CR. The
-   module operator Deployment is left running so it can process finalizers
-   and Kubernetes can cascade-delete ownerRef'd operands.
+CRDs are an exception — the deploy action routes CRDs to a dedicated
+`deployCRD()` path that never sets owner references (CRDs are cluster-scoped
+singletons that may be shared).
+
+`cleanupDisabledModules` implements two-phase cleanup for explicitly
+disabled modules:
+
+1. **Phase 1**: Module is disabled, CR still exists. The action deletes the
+   CR. The module operator Deployment is left running so it can process
+   finalizers and clean up operands.
 2. **Phase 2**: On the next reconcile, the CR is confirmed gone. The action
    renders the module's Helm chart and deletes each operator resource.
 
@@ -215,8 +229,8 @@ The 8-method contract between the platform and each module handler:
   chart and deletes each resource from the cluster (for two-phase cleanup)
 
 `OwnedTypeRegistrar` is a single-method interface (`AddOwnedType(gvk)`) used
-by `SetupModuleWatches` to register module CR GVKs as owned types on the DSC
-controller without importing the reconciler package directly.
+by `registerModuleCROwnedTypes` to register module CR GVKs as statically
+owned types on the reconciler.
 
 `PlatformContext` is built once per reconcile in `provisionModules` and passed
 to every handler's `BuildModuleCR`. It exposes:
@@ -262,14 +276,15 @@ registered at program startup in `cmd/main.go`. The registry supports:
 - `RegistrationOption` -- `WithRunlevel(int)` and `WithDependencies(...string)`
   for future DAG-based ordering
 
-### `watch.go` -- Dynamic watch and ownership registration
+### `watch.go` -- Static ownership registration
 
-`SetupModuleWatches(ctx, mgr, controller, owner)` registers a watch for each
-module's CR GVK after the DSC controller is built, and calls
-`owner.AddOwnedType(gvk)` to register the GVK as an owned type. This ensures
-`deploy.NewAction` sets DSC as controller owner and `gc.NewAction` can delete
-module CRs when disabled. All registered modules (including CLI-disabled ones)
-are processed so cleanup paths work correctly.
+`registerModuleCROwnedTypes(rec)` registers each module's CR GVK as a
+statically owned type on the reconciler via `AddOwnedType`. This ensures
+`gc.NewAction`'s type predicate returns true for module CRs from the first
+reconcile. Watch registration is handled automatically by the
+`dynamicownership` action (enabled via `WithDynamicOwnership` on the
+builder), which uses `EnqueueRequestForOwner` so module CR status changes
+trigger reconciliation of the owning DSC/Platform.
 
 ## Suppression Flags
 

@@ -84,9 +84,10 @@ platform can parse it generically.
 
 | Field                | Type                 | Description                                                                                                                                     |
 | -------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `phase`              | `Phase`                | Top-level lifecycle phase (`Ready`, `Not Ready`). The platform reads this for quick status summary.                                             |
 | `observedGeneration` | `int64`                | Last `.metadata.generation` the module controller reconciled. The platform treats status as stale when this falls behind `metadata.generation`. |
 | `conditions`         | `[]metav1.Condition`   | Standard Kubernetes conditions (see below).                                                                                                     |
-| `releases`           | `[]ComponentRelease`   | Installed component versions (`name`, `repoUrl`, `version`).                                                                                    |
+| `releases`           | `[]ComponentRelease`   | _(Recommended)_ Installed component versions (`name`, `repoUrl`, `version`).                                                                   |
 
 
 **Mandatory conditions:**
@@ -379,19 +380,23 @@ The operator pulls module manifests at image build time via
 `get_all_manifests.sh`. Add entries to the `ODH_COMPONENT_CHARTS` (community)
 and `RHOAI_COMPONENT_CHARTS` (product) maps:
 
+Module teams can package their operator manifests as either **Helm charts** or
+**Kustomize overlays**. Add entries to the corresponding maps:
+
+- **Helm modules** add entries to `ODH_COMPONENT_CHARTS` (community) and
+  `RHOAI_COMPONENT_CHARTS` (product). Charts are extracted to
+  `opt/charts/mymodule/`. Set `ModuleConfig.ChartDir` in the handler.
+- **Kustomize modules** add entries to `ODH_COMPONENT_MANIFESTS` (community)
+  and `RHOAI_COMPONENT_MANIFESTS` (product). Overlays are extracted to
+  `opt/manifests/mymodule/`. Set `ModuleConfig.ManifestDir` in the handler.
+
 ```bash
-# In ODH_COMPONENT_CHARTS
+# Helm — in ODH_COMPONENT_CHARTS / RHOAI_COMPONENT_CHARTS
 ["mymodule"]="opendatahub-io:mymodule-operator:main@<commit-sha>:charts/operator"
 
-# In RHOAI_COMPONENT_CHARTS
-["mymodule"]="red-hat-data-services:mymodule-operator:rhoai-X.Y@<commit-sha>:charts/operator"
+# Kustomize — in ODH_COMPONENT_MANIFESTS / RHOAI_COMPONENT_MANIFESTS
+["mymodule"]="opendatahub-io:mymodule-operator:main@<commit-sha>:config/manifests"
 ```
-
-Module teams can package their operator manifests as either **Helm charts** or
-**Kustomize overlays**. Helm charts are extracted to `opt/charts/mymodule/`
-and Kustomize overlays to `opt/manifests/mymodule/` inside the operator image.
-Set `ModuleConfig.ChartDir` for Helm or `ModuleConfig.ManifestDir` for
-Kustomize in the handler.
 
 ### What the manifests should contain
 
@@ -1096,11 +1101,14 @@ ownership model described in the onboarding guide.
 
 ### Module CR ownership and cleanup contract
 
-The platform registers each module's CR GVK as an **owned type** on the
-module controller (via `SetupModuleWatches` + `AddOwnedType`). This means:
+The module controller uses `WithDynamicOwnership()` which makes the deploy
+action set the primary resource (DSC or Platform) as controller owner of
+**all** deployed resources — module CRs, operator Deployments, RBAC, etc.
+Module CR GVKs are also registered statically via `registerModuleCROwnedTypes`
+so the GC predicate works from the first reconcile. This means:
 
-- `deploy.NewAction` sets the primary resource (DSC or Platform) as
-controller owner of the module CR
+- Deleting DSC/Platform cascade-deletes all module resources via Kubernetes
+owner reference GC
 - When a module is disabled, `cleanupDisabledModules` explicitly calls
 `DeleteModuleCR()` in Phase 1, then `DeleteOperatorResources()` in Phase 2
 
@@ -1300,11 +1308,11 @@ When the module controller reconciles:
 
 ### Watch infrastructure
 
-`SetupModuleWatches` (called after the module controller is built) registers a
-watch for each module handler's GVK. When a module operator updates its CR
-status, the watch maps the event to a reconcile request for the module
-controller's primary resource (DSC or Platform) so the platform can pick up
-the updated status.
+The `dynamicownership` action (enabled by `WithDynamicOwnership` on the
+reconciler builder) automatically registers `EnqueueRequestForOwner` watches
+for each deployed resource type. When a module operator updates its CR
+status, the watch maps the event to a reconcile request for the owning
+DSC/Platform so the platform can pick up the updated status.
 
 ### Suppression flags
 
@@ -1433,7 +1441,8 @@ When the module controller processes modules:
 1. `**provisionModules**` iterates enabled handlers, calling
   `GetRelatedImages()` on each. It stores per-module image lists
    (scoped by the module's Deployment name, typically the Helm release
-   name) along with `ApplicationsNamespace` on `rr.ModuleEnvInjection`.
+   name or the module handler name in case of Kustomize) along with
+   `ApplicationsNamespace` on `rr.ModuleEnvInjection`.
 2. `**GetOperatorManifests()**` returns the Helm chart or Kustomize
   manifests for the module operator.
 3. The **Helm and Kustomize render actions** produce the module

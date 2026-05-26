@@ -40,7 +40,7 @@ type ModuleEnvInjection struct {
 // pattern so injection can be scoped to that module's operator Deployment.
 type ModuleImages struct {
 	// DeploymentName is the expected name of the module's operator Deployment.
-	// Typically the Helm release name.
+	// Typically the Helm release name, or the module handler name for Kustomize modules.
 	DeploymentName string
 	// ContainerName is the target container within the Deployment.
 	// Defaults to "manager" (the kubebuilder convention).

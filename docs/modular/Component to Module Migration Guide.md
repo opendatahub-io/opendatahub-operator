@@ -60,9 +60,9 @@ When a component migrates to a module:
 2. A `ModuleHandler` is added to `existingModules`. The handler's
    `BuildModuleCR` replaces the old `NewCRObject`.
 3. The hardcoded `Owns()` line for the component CR is **removed** from
-   the DSC controller. `SetupModuleWatches` + `AddOwnedType` replaces it
-   uniformly for all modules, providing both watch registration and
-   ownership/GC semantics.
+   the DSC controller. Dynamic ownership (`WithDynamicOwnership`) and
+   `registerModuleCROwnedTypes` replace it uniformly for all modules,
+   providing both watch registration and ownership/GC semantics.
 4. The module operator (deployed via Helm chart) takes over reconciliation
    of the same CR and adopts existing operand resources.
 
@@ -146,8 +146,8 @@ For each component being migrated, the platform team must:
 - [ ] Remove the component from `existingComponents` in `cmd/main.go`
 - [ ] Add the module handler to `existingModules` in `cmd/main.go`
 - [ ] **Remove** the `Owns()` line for the component CR from the DSC
-      controller builder (`SetupModuleWatches` + `AddOwnedType` replaces
-      it uniformly for all modules)
+      controller builder (dynamic ownership + `registerModuleCROwnedTypes`
+      replaces it uniformly for all modules)
 - [ ] Remove the component's `NewComponentReconciler` registration
 - [ ] Add the module operator's Helm chart to `get_all_manifests.sh`
 - [ ] Verify that the old component's DSC API stanza is preserved (users

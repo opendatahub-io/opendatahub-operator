@@ -68,10 +68,15 @@ func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 
 // newDSCModuleReconciler creates the module controller in DSC mode.
 // It reconciles DataScienceCluster and watches DSCI, matching the original
-// behavior.
+// behavior. Dynamic ownership is enabled so all deployed resources
+// (module CRs, operator Deployments, RBAC) get owner references pointing
+// to the DSC. This provides cascade deletion and enables
+// EnqueueRequestForOwner watches registered automatically by the
+// dynamic ownership action.
 func newDSCModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	b := reconciler.ReconcilerFor(mgr, &dscv2.DataScienceCluster{}).
 		WithInstanceName("modules").
+		WithDynamicOwnership().
 		Watches(
 			&dsciv2.DSCInitialization{},
 			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
@@ -88,9 +93,7 @@ func newDSCModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		return fmt.Errorf("failed to create module reconciler (DSC mode): %w", err)
 	}
 
-	if err := SetupModuleWatches(mgr, rec.Controller, rec, DSCMapper(mgr.GetClient())); err != nil {
-		return fmt.Errorf("failed to set up module watches: %w", err)
-	}
+	registerModuleCROwnedTypes(rec)
 
 	return nil
 }
@@ -98,9 +101,11 @@ func newDSCModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 // newPlatformModuleReconciler creates the module controller in platform mode
 // (xKS). It reconciles the Platform CR as its primary resource. No DSC or DSCI
 // is available; only modules with ManagementState Managed are enabled.
+// Dynamic ownership is enabled for the same reasons as DSC mode.
 func newPlatformModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	b := reconciler.ReconcilerFor(mgr, &configv1alpha1.Platform{}).
 		WithInstanceName("modules").
+		WithDynamicOwnership().
 		WithAction(enableModulesFromPlatform)
 
 	for _, a := range commonActions() {
@@ -112,9 +117,7 @@ func newPlatformModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		return fmt.Errorf("failed to create module reconciler (platform mode): %w", err)
 	}
 
-	if err := SetupModuleWatches(mgr, rec.Controller, rec, PlatformMapper()); err != nil {
-		return fmt.Errorf("failed to set up module watches: %w", err)
-	}
+	registerModuleCROwnedTypes(rec)
 
 	return nil
 }
