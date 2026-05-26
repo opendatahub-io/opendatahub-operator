@@ -42,3 +42,5 @@ spec:
       managementState: "Removed"
     sparkoperator:
       managementState: "Removed"
+    batchgateway:
+      managementState: "Removed"

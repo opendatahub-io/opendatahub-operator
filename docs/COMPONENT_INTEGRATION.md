@@ -383,5 +383,6 @@ Currently integrated components are:
 - [Feast Operator](https://github.com/opendatahub-io/feast)
 - [MLflow Operator](https://github.com/opendatahub-io/mlflow-operator)
 - [Spark Operator](https://github.com/opendatahub-io/spark-operator)
+- [LLM-D Batch Gateway Operator](https://github.com/opendatahub-io/llm-d-batch-gateway-operator)
 
 The particular controller implementations for the listed components are located in the `internal/controller/components` directory and the corresponding internal component APIs are located in `api/component/v1alpha1`.

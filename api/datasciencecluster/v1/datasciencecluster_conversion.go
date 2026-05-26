@@ -138,6 +138,11 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 					ManagementState: operatorv1.Removed,
 				},
 			},
+			BatchGateway: componentApi.DSCBatchGateway{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Removed,
+				},
+			},
 		},
 	}
 
@@ -179,6 +184,11 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 				},
 			},
 			SparkOperator: componentApi.DSCSparkOperatorStatus{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Removed,
+				},
+			},
+			BatchGateway: componentApi.DSCBatchGatewayStatus{
 				ManagementSpec: common.ManagementSpec{
 					ManagementState: operatorv1.Removed,
 				},

@@ -76,6 +76,9 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 				SparkOperator: componentApi.DSCSparkOperator{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
 				},
+				BatchGateway: componentApi.DSCBatchGateway{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
+				},
 			},
 		},
 	}

@@ -93,6 +93,7 @@ func (tc *OperatorTestCtx) ValidateOwnedCRDs(t *testing.T) {
 		{"Auth CRD", "auths.services.platform.opendatahub.io"},
 		{"SparkOperator CRD", "sparkoperators.components.platform.opendatahub.io"},
 		{"MLflowOperator CRD", "mlflowoperators.components.platform.opendatahub.io"},
+		{"BatchGateway CRD", "batchgateways.components.platform.opendatahub.io"},
 	}
 
 	crdsTestCases = tc.filterCRDTestCases(crdsTestCases)

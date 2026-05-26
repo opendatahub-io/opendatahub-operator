@@ -378,6 +378,12 @@ var (
 		Kind:    componentApi.SparkOperatorKind,
 	}
 
+	BatchGateway = schema.GroupVersionKind{
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.BatchGatewayKind,
+	}
+
 	ModelsAsService = schema.GroupVersionKind{
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,

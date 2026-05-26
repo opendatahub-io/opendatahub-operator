@@ -17,7 +17,7 @@ metadata:
       "modelcontrollers.components.platform.opendatahub.io", "feastoperators.components.platform.opendatahub.io",
       "ogxs.components.platform.opendatahub.io", "trainers.components.platform.opendatahub.io",
       "mlflowoperators.components.platform.opendatahub.io", "modelsasservices.components.platform.opendatahub.io",
-      "sparkoperators.components.platform.opendatahub.io"]'
+      "sparkoperators.components.platform.opendatahub.io", "batchgateways.components.platform.opendatahub.io"]'
     repository: https://github.com/opendatahub-io/opendatahub-operator
   name: opendatahub-operator.v3.5.0-ea.1
   namespace: placeholder
@@ -34,6 +34,11 @@ spec:
       displayName: Auth
       kind: Auth
       name: auths.services.platform.opendatahub.io
+      version: v1alpha1
+    - description: BatchGateway is the Schema for the batchgateways API
+      displayName: Batch Gateway
+      kind: BatchGateway
+      name: batchgateways.components.platform.opendatahub.io
       version: v1alpha1
     - description: Dashboard is the Schema for the dashboards API
       displayName: Dashboard

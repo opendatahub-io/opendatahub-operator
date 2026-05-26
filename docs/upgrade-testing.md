@@ -149,6 +149,8 @@ spec:
       managementState: Managed
     sparkoperator:
       managementState: Managed
+    batchgateway:
+      managementState: Managed
       
 EOF
 ```

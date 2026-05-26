@@ -32,6 +32,7 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["maas"]="opendatahub-io:models-as-a-service:stable@b409c456aeaf1437760a9d74a9594a453252f1f2:deployment"
     ["mlflowoperator"]="opendatahub-io:mlflow-operator:main@4cccfcc2dd8576cabbf255f66894d801a68eb844:config"
     ["sparkoperator"]="opendatahub-io:spark-operator:main@f91ff22af0b264e0cef090c2d0f1c94cae6b580e:config"
+    ["batchgateway"]="opendatahub-io:llm-d-batch-gateway-operator:main@42fc1a7f9d4efc00606e97c1f0ca7a40c2704dea:config"
     ["wva"]="opendatahub-io:workload-variant-autoscaler:main@0641ee03e8430cce5821797137b1b53bf70b98a2:config"
 )
 
@@ -54,6 +55,7 @@ declare -A RHOAI_COMPONENT_MANIFESTS=(
     ["maas"]="red-hat-data-services:maas-billing:rhoai-3.5-ea.1@2c9aa2195322d43721f45f624d161d634ff559c4:deployment"
     ["mlflowoperator"]="red-hat-data-services:mlflow-operator:rhoai-3.5-ea.1@3a6fc5522749b99afa95cce689efc5b0f759bb8e:config"
     ["sparkoperator"]="red-hat-data-services:spark-operator:rhoai-3.5-ea.1@9aae1325d1f2ef925013eefb80f3ec2606436038:config"
+    ["batchgateway"]="red-hat-data-services:llm-d-batch-gateway-operator:rhoai-3.5-ea.1@94e416f438bb3f54a50e78cb64763fad2bc65338:config"
     ["wva"]="red-hat-data-services:workload-variant-autoscaler:rhoai-3.5-ea.1@416efb40625e0af0f76e570fd1e8be864a890fc2:config"
 )
 
