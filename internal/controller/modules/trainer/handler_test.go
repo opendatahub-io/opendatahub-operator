@@ -153,6 +153,47 @@ func TestGetRelatedImages(t *testing.T) {
 	}
 }
 
+// TestDSCToModuleCRFlow verifies the complete handler flow: DSC -> handler -> Module CR
+func TestDSCToModuleCRFlow(t *testing.T) {
+	t.Run("DSC with trainer=Managed creates correct Module CR", func(t *testing.T) {
+		platform := newPlatformCtx(operatorv1.Managed)
+		h := trainer.NewHandler()
+
+		// Handler should be enabled
+		if !h.IsEnabled(platform) {
+			t.Fatal("IsEnabled should return true when managementState=Managed")
+		}
+
+		// Build Module CR
+		moduleCR, err := h.BuildModuleCR(context.TODO(), nil, platform)
+		if err != nil {
+			t.Fatalf("BuildModuleCR failed: %v", err)
+		}
+
+		// Verify CR name
+		if moduleCR.GetName() != componentApi.TrainerInstanceName {
+			t.Errorf("Expected CR name %q, got %q", componentApi.TrainerInstanceName, moduleCR.GetName())
+		}
+
+		// Verify GVK
+		gvk := moduleCR.GroupVersionKind()
+		if gvk.Group != "components.platform.opendatahub.io" || gvk.Version != "v1alpha1" || gvk.Kind != "Trainer" {
+			t.Errorf("Unexpected GVK: %s", gvk.String())
+		}
+
+		// Verify managementState was projected
+		spec, ok := moduleCR.Object["spec"].(map[string]interface{})
+		if !ok {
+			t.Fatal("Module CR missing spec")
+		}
+
+		mgmtState, ok := spec["managementState"].(string)
+		if !ok || mgmtState != string(operatorv1.Managed) {
+			t.Errorf("Expected managementState=Managed in Module CR spec, got %v", mgmtState)
+		}
+	})
+}
+
 func TestGetName(t *testing.T) {
 	h := trainer.NewHandler()
 	if got := h.GetName(); got != componentApi.TrainerComponentName {
