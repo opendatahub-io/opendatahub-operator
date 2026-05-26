@@ -30,6 +30,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -103,12 +104,15 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 // detection, and domain logic as the data-science-gateway but with MaaS-specific
 // configuration: allowedRoutes from All namespaces, maas.* subdomain, and both
 // HTTP+HTTPS listeners (auth is handled by Kuadrant AuthPolicy, not kube-auth-proxy).
+//
+// When MaaS is disabled, it explicitly deletes the Gateway and GatewayClass to
+// prevent resource leaks (GC won't catch omitted-but-not-stale resources).
 func createMaaSGateway(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	l := logf.FromContext(ctx).WithName("createMaaSGateway")
 
 	if !isMaaSEnabled(ctx, rr.Client) {
-		l.V(1).Info("ModelsAsService not enabled, skipping MaaS gateway")
-		return nil
+		l.V(1).Info("ModelsAsService not enabled, cleaning up MaaS gateway resources")
+		return cleanupMaaSGatewayResources(ctx, rr.Client)
 	}
 
 	gatewayConfig, err := validateGatewayConfig(rr)
@@ -122,7 +126,7 @@ func createMaaSGateway(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 	}
 	hostname := MaaSGatewaySubdomain + "." + clusterDomain
 
-	certSecretName, err := handleCertificates(ctx, rr, gatewayConfig, hostname)
+	certSecretName, err := handleMaaSCertificates(ctx, rr, gatewayConfig, hostname)
 	if err != nil {
 		return fmt.Errorf("failed to handle MaaS gateway certificates: %w", err)
 	}
@@ -148,7 +152,13 @@ func createMaaSGateway(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 			Name:      MaaSGatewayName,
 			Namespace: GatewayNamespace,
 			Labels: map[string]string{
-				IstioRevisionLabel: IstioRevisionValue,
+				IstioRevisionLabel:            IstioRevisionValue,
+				"app.kubernetes.io/name":      "maas",
+				"app.kubernetes.io/instance":  MaaSGatewayName,
+				"app.kubernetes.io/component": "gateway",
+			},
+			Annotations: map[string]string{
+				"security.opendatahub.io/authorino-tls-bootstrap": "true",
 			},
 		},
 		Spec: gwapiv1.GatewaySpec{
@@ -191,6 +201,46 @@ func createMaaSGateway(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 		"certSecret", certSecretName)
 
 	return nil
+}
+
+// cleanupMaaSGatewayResources deletes the MaaS Gateway and GatewayClass when
+// MaaS is disabled. Gateway is deleted first (namespaced), then GatewayClass
+// (cluster-scoped). NotFound errors are ignored since the resources may not exist.
+func cleanupMaaSGatewayResources(ctx context.Context, cli client.Client) error {
+	l := logf.FromContext(ctx).WithName("cleanupMaaSGateway")
+
+	gateway := &gwapiv1.Gateway{}
+	gateway.Name = MaaSGatewayName
+	gateway.Namespace = GatewayNamespace
+	if err := cli.Delete(ctx, gateway); err != nil && !k8serr.IsNotFound(err) {
+		return fmt.Errorf("failed to delete MaaS Gateway %s/%s: %w", GatewayNamespace, MaaSGatewayName, err)
+	} else if err == nil {
+		l.V(1).Info("Deleted MaaS Gateway", "name", MaaSGatewayName)
+	}
+
+	gatewayClass := &gwapiv1.GatewayClass{}
+	gatewayClass.Name = MaaSGatewayClassName
+	if err := cli.Delete(ctx, gatewayClass); err != nil && !k8serr.IsNotFound(err) {
+		return fmt.Errorf("failed to delete MaaS GatewayClass %s: %w", MaaSGatewayClassName, err)
+	} else if err == nil {
+		l.V(1).Info("Deleted MaaS GatewayClass", "name", MaaSGatewayClassName)
+	}
+
+	return nil
+}
+
+// handleMaaSCertificates wraps handleCertificates with a MaaS-specific secret
+// name so the MaaS gateway's TLS cert lifecycle is isolated from data-science-gateway.
+func handleMaaSCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig, hostname string) (string, error) {
+	origCert := gatewayConfig.Spec.Certificate
+	override := infrav1.CertificateSpec{SecretName: MaaSGatewayTLSSecretName}
+	if origCert != nil {
+		override.Type = origCert.Type
+	}
+	gatewayConfig.Spec.Certificate = &override
+	defer func() { gatewayConfig.Spec.Certificate = origCert }()
+
+	return handleCertificates(ctx, rr, gatewayConfig, hostname)
 }
 
 func isMaaSEnabled(ctx context.Context, cli client.Client) bool {

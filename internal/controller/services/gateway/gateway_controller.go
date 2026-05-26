@@ -26,6 +26,7 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -77,6 +78,13 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			&componentApi.Dashboard{},
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
 			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed(componentApi.DashboardInstanceName)),
+		).
+		// Reconcile when DSC changes so MaaS gateway is provisioned/cleaned up
+		// promptly when ModelsAsService is enabled/disabled.
+		Watches(
+			&dscv2.DataScienceCluster{},
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(resources.DSCComponentUpdatePredicate),
 		).
 		WithAction(createGatewayInfrastructure).
 		WithAction(createMaaSGateway).
