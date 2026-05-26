@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -23,12 +24,15 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	opmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 )
 
@@ -38,6 +42,8 @@ const (
 	// DefaultMaxWait is the maximum time envt helpers wait for resource readiness.
 	DefaultMaxWait = 30 * time.Second
 )
+
+var initLogger sync.Once
 
 type OptionFn func(in *EnvT)
 
@@ -223,6 +229,10 @@ func New(opts ...OptionFn) (*EnvT, error) {
 		}
 	}
 
+	initLogger.Do(func() {
+		logf.SetLogger(zap.New(zap.UseDevMode(true)))
+	})
+
 	// Start the envtest environment.
 	cfg, err := result.Env.Start()
 	if err != nil {
@@ -326,9 +336,51 @@ func (et *EnvT) ReadFile(elem ...string) ([]byte, error) {
 }
 
 // Manager returns the controller-runtime manager for the test environment, if one was created.
-
 func (et *EnvT) Manager() manager.Manager {
 	return et.mgr
+}
+
+// StartManager starts the manager in a background goroutine and waits for
+// leader election. Fails the test if the manager stops unexpectedly or
+// leader election does not complete within the timeout period.
+func (et *EnvT) StartManager(t *testing.T, ctx context.Context) {
+	t.Helper()
+
+	mgrCtx, mgrCancel := context.WithCancel(ctx)
+	t.Cleanup(mgrCancel)
+
+	mgr := et.Manager()
+	errCh := make(chan error, 1)
+
+	go func() { errCh <- mgr.Start(mgrCtx) }()
+
+	select {
+	case err := <-errCh:
+		t.Fatalf("manager stopped unexpectedly: %v", err)
+	case <-mgr.Elected():
+	case <-time.After(15 * time.Second):
+		t.Fatal("timed out waiting for manager leader election")
+	}
+
+	go func() {
+		if err := <-errCh; err != nil && mgrCtx.Err() == nil {
+			t.Errorf("manager stopped unexpectedly after leader election: %v", err)
+		}
+	}()
+}
+
+// NewTestContext creates a testf.TestContext configured with this environment's
+// REST config, scheme, and standard test timeouts.
+func (et *EnvT) NewTestContext(ctx context.Context) (*testf.TestContext, error) {
+	return testf.NewTestContext(
+		testf.WithRestConfig(et.Config()),
+		testf.WithScheme(et.Scheme()),
+		testf.WithContext(ctx),
+		testf.WithTOptions(
+			testf.WithEventuallyTimeout(30*time.Second),
+			testf.WithEventuallyPollingInterval(250*time.Millisecond),
+		),
+	)
 }
 
 // WaitForWebhookServer waits until the webhook server managed by this EnvT is ready by dialing the port using TLS.
