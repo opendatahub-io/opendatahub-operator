@@ -12,6 +12,8 @@ import (
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
+const applicationsNamespaceEnv = "APPLICATIONS_NAMESPACE"
+
 // injectModuleEnv is a pipeline action that runs after Helm/Kustomize rendering
 // and before deploy. It mutates Deployment resources in rr.Resources to inject
 // RELATED_IMAGE_* and APPLICATIONS_NAMESPACE environment variables into the
@@ -89,6 +91,8 @@ func injectEnvVarsIntoDeployment(log logr.Logger, obj *unstructured.Unstructured
 		for _, relImg := range mi.Images {
 			val := os.Getenv(relImg)
 			if val == "" {
+				log.V(1).Info("RELATED_IMAGE env var not set, skipping",
+					"envVar", relImg, "deployment", deployName)
 				continue
 			}
 
@@ -98,7 +102,7 @@ func injectEnvVarsIntoDeployment(log logr.Logger, obj *unstructured.Unstructured
 		}
 
 		if injection.ApplicationsNamespace != "" {
-			if setOrOverrideEnv(&existingEnv, "APPLICATIONS_NAMESPACE", injection.ApplicationsNamespace) {
+			if setOrOverrideEnv(&existingEnv, applicationsNamespaceEnv, injection.ApplicationsNamespace) {
 				injected++
 			}
 		}

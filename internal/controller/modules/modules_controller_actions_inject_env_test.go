@@ -154,11 +154,11 @@ func TestInjectModuleEnvRelatedImages(t *testing.T) {
 	g.Expect(envNames(env)).Should(ConsistOf(
 		"RELATED_IMAGE_TRAINER",
 		"RELATED_IMAGE_PROXY",
-		"APPLICATIONS_NAMESPACE",
+		applicationsNamespaceEnv,
 	))
 	g.Expect(envValue(env, "RELATED_IMAGE_TRAINER")).Should(Equal("registry.example.com/trainer@sha256:abc"))
 	g.Expect(envValue(env, "RELATED_IMAGE_PROXY")).Should(Equal("registry.example.com/proxy@sha256:def"))
-	g.Expect(envValue(env, "APPLICATIONS_NAMESPACE")).Should(Equal("opendatahub"))
+	g.Expect(envValue(env, applicationsNamespaceEnv)).Should(Equal("opendatahub"))
 
 	cmObj := rr.Resources[1]
 	g.Expect(cmObj.GetKind()).Should(Equal("ConfigMap"))
@@ -190,7 +190,7 @@ func TestInjectModuleEnvOverridesExistingVars(t *testing.T) {
 
 	env := getContainerEnv(&rr.Resources[0])
 	g.Expect(envValue(env, "RELATED_IMAGE_TRAINER")).Should(Equal("registry.example.com/trainer@sha256:new"))
-	g.Expect(envNames(env)).Should(ContainElement("APPLICATIONS_NAMESPACE"))
+	g.Expect(envNames(env)).Should(ContainElement(applicationsNamespaceEnv))
 }
 
 func TestInjectModuleEnvScopesPerModule(t *testing.T) {
@@ -275,7 +275,7 @@ func TestInjectModuleEnvTargetsManagerContainer(t *testing.T) {
 	managerEnv := getContainerEnvByName(&rr.Resources[0], "manager")
 	g.Expect(envNames(managerEnv)).Should(ConsistOf(
 		"RELATED_IMAGE_TRAINER",
-		"APPLICATIONS_NAMESPACE",
+		applicationsNamespaceEnv,
 	))
 
 	sidecarEnv := getContainerEnvByName(&rr.Resources[0], "sidecar")
