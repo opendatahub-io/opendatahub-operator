@@ -10,4 +10,4 @@ sed -i -e "/^ifeq.*ODH_PLATFORM_TYPE.*OpenDataHub/,/^else$/{s/[[:space:]]*VERSIO
 sed -i -e "s|containerImage.*|containerImage: quay.io/opendatahub/opendatahub-operator:v$NEW_VERSION|g" $CSV_FILE
 sed -i -e "s|createdAt.*|createdAt: \"$(date +"%Y-%-m-%dT00:00:00Z")\"|g" $CSV_FILE
 sed -i -e "s|name: opendatahub-operator.v.*|name: opendatahub-operator.v$NEW_VERSION|g" $CSV_FILE
-sed -i -e "s|version: [0-9][0-9.]*|version: $NEW_VERSION|g" $CSV_FILE
+sed -i -e "s|version: [0-9][0-9a-zA-Z._-]*|version: $NEW_VERSION|g" $CSV_FILE
