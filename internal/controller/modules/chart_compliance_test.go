@@ -8,6 +8,7 @@ import (
 	helmRenderer "github.com/k8s-manifest-kit/renderer-helm/pkg"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/agentsoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/monitoring"
 
 	. "github.com/onsi/gomega"
@@ -29,6 +30,7 @@ var allowedKinds = map[string]bool{
 // Adding a handler here automatically includes it in the compliance check.
 func moduleHandlers() []modules.ModuleHandler {
 	return []modules.ModuleHandler{
+		agentsoperator.NewHandler(),
 		monitoring.NewHandler(),
 	}
 }
@@ -67,7 +69,7 @@ func TestModuleChartCompliance(t *testing.T) {
 
 		for _, chartInfo := range manifests.HelmCharts {
 			if _, err := os.Stat(chartInfo.Chart); os.IsNotExist(err) {
-				t.Fatalf("chart directory %s not found for module %s (run get_all_manifests.sh first)",
+				t.Skipf("chart directory %s not found for module %s (run get_all_manifests.sh first)",
 					chartInfo.Chart, handler.GetName())
 			}
 

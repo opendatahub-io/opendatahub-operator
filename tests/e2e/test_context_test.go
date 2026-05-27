@@ -2249,5 +2249,11 @@ func getComponentNameFromKind(kind string) (string, string) {
 		conditionKind = "AIPipelines"
 	}
 
+	const agentsOperatorKind = "AgentsOperator"
+	const agentsOperatorFieldName = "agentsOperator"
+	if kind == agentsOperatorKind {
+		componentFieldName = agentsOperatorFieldName
+	}
+
 	return componentFieldName, conditionKind
 }

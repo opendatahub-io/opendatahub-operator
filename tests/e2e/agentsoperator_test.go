@@ -1,0 +1,75 @@
+package e2e_test
+
+import (
+	"testing"
+
+	operatorv1 "github.com/openshift/api/operator/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	"github.com/stretchr/testify/require"
+
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+
+	. "github.com/onsi/gomega"
+)
+
+const agentsOperatorControllerDeployment = "kagenti-controller-manager"
+
+func agentsOperatorTestSuite(t *testing.T) {
+	t.Helper()
+
+	tc, err := NewTestContext(t)
+	require.NoError(t, err)
+
+	moduleGVK := schema.GroupVersionKind{
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.AgentsOperatorKind,
+	}
+	moduleCRNN := types.NamespacedName{Name: componentApi.AgentsOperatorInstanceName}
+	controllerNN := types.NamespacedName{
+		Namespace: tc.AppsNamespace,
+		Name:      agentsOperatorControllerDeployment,
+	}
+
+	testCases := []TestCase{
+		{"Validate component enabled", func(t *testing.T) {
+			t.Helper()
+			skipUnless(t, Smoke, Tier1)
+
+			if !tc.IsXKS() {
+				tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.AgentsOperatorKind)
+			}
+
+			tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.AgentsOperatorKind)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(moduleGVK, moduleCRNN),
+				WithCondition(And(
+					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
+				)),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.Deployment, controllerNN),
+				WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
+			)
+		}},
+		{"Validate component disabled", func(t *testing.T) {
+			t.Helper()
+			skipUnless(t, Smoke, Tier1)
+
+			tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.AgentsOperatorKind)
+
+			tc.EnsureResourceGone(WithMinimalObject(moduleGVK, moduleCRNN))
+			tc.EnsureResourceGone(WithMinimalObject(gvk.Deployment, controllerNN))
+		}},
+	}
+
+	RunTestCases(t, testCases)
+}

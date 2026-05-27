@@ -96,6 +96,7 @@ import (
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	agentsoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/agentsoperator"
 	monitoringModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/monitoring"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
@@ -145,6 +146,7 @@ var (
 
 	existingModules = map[string]mr.ModuleHandler{
 		serviceApi.MonitoringServiceName: monitoringModule.NewHandler(),
+		componentApi.AgentsOperatorComponentName: agentsoperatorModule.NewHandler(),
 	}
 )
 
