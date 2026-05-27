@@ -168,6 +168,13 @@ const (
 	GatewayNotReadyMessage = "Gateway is not ready"
 	GatewayReadyMessage    = "Gateway is ready"
 
+	// MaaS prerequisites messages.
+	MaaSPrerequisitesNotMetReason = "MaaSPrerequisitesNotMet"
+	MaaSPrerequisitesMetReason    = "MaaSPrerequisitesMet"
+
+	MaaSGatewayNotFoundMessage  = "maas-default-gateway not found in openshift-ingress namespace; it must be created for MaaS to work correctly"
+	MaaSPrerequisitesMetMessage = "MaaS gateway annotations and Authorino TLS are correctly configured"
+
 	// Gateway Authentication messages.
 	AuthProxyDeployedMessage                 = "Auth proxy deployed successfully"
 	AuthProxyFailedDeployMessage             = "Failed to deploy auth proxy"
