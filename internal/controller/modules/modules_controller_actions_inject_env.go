@@ -2,6 +2,7 @@ package modules
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/go-logr/logr"
@@ -57,8 +58,11 @@ func isDeployment(obj *unstructured.Unstructured) bool {
 
 func injectEnvVarsIntoDeployment(log logr.Logger, obj *unstructured.Unstructured, injection *odhtype.ModuleEnvInjection) error {
 	containers, found, err := unstructured.NestedSlice(obj.Object, "spec", "template", "spec", "containers")
-	if err != nil || !found || len(containers) == 0 {
+	if err != nil {
 		return err
+	}
+	if !found || len(containers) == 0 {
+		return fmt.Errorf("deployment %s has no containers", obj.GetName())
 	}
 
 	var injected int

@@ -49,6 +49,9 @@ func NewHandler() *handler {
 // In DSC mode (DSCI present), reads DSCI.Spec.Monitoring.ManagementState.
 // In Platform mode (xKS), reads Platform.Spec.Modules.Monitoring.ManagementState.
 func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
+	if platform == nil {
+		return false
+	}
 	if platform.DSCI != nil {
 		return platform.DSCI.Spec.Monitoring.ManagementState == operatorv1.Managed
 	}
@@ -66,6 +69,10 @@ func (h *handler) BuildModuleCR(
 	_ client.Client,
 	platform *modules.PlatformContext,
 ) (*unstructured.Unstructured, error) {
+	if platform == nil {
+		return nil, errors.New("platform context is nil, cannot build monitoring CR")
+	}
+
 	var spec map[string]any
 
 	switch {
@@ -83,10 +90,13 @@ func (h *handler) BuildModuleCR(
 		return nil, errors.New("neither DSCI nor Platform is available, cannot build monitoring CR")
 	}
 
-	u := &unstructured.Unstructured{}
+	u := &unstructured.Unstructured{
+		Object: map[string]any{
+			"spec": spec,
+		},
+	}
 	u.SetGroupVersionKind(h.Config.GVK)
 	u.SetName(h.Config.CRName)
-	u.Object["spec"] = spec
 
 	return u, nil
 }

@@ -28,7 +28,7 @@ func registerModuleCROwnedTypes(rec *reconciler.Reconciler) {
 		return
 	}
 
-	reg.ForAll(func(h ModuleHandler, _ bool) error { //nolint:errcheck
+	_ = reg.ForAll(func(h ModuleHandler, _ bool) error {
 		rec.AddOwnedType(h.GetGVK())
 		return nil
 	})

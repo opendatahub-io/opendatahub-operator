@@ -13,7 +13,7 @@ For the full architectural context, see
 The modular orchestrator manages **out-of-tree module operators** alongside the
 existing in-tree components. The DSC controller's action pipeline handles both:
 
-```
+```text
 DSC Reconcile
   -> provisionComponents       (component CRs -> rr.Resources)
   -> cleanupDisabledModules    (two-phase cleanup of disabled module resources)

@@ -354,6 +354,10 @@ func ParseConditions(u *unstructured.Unstructured) ([]metav1.Condition, error) {
 			}
 		}
 
+		if c.Type == "" || c.Status == "" {
+			continue
+		}
+
 		conditions = append(conditions, c)
 	}
 

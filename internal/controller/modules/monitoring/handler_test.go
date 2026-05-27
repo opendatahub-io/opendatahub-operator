@@ -79,6 +79,19 @@ func TestIsEnabled_NilDSCI_NilPlatform(t *testing.T) {
 	g.Expect(h.IsEnabled(ctx)).Should(BeFalse())
 }
 
+func TestIsEnabled_NilPlatformContext(t *testing.T) {
+	g := NewWithT(t)
+	h := monitoring.NewHandler()
+	g.Expect(h.IsEnabled(nil)).Should(BeFalse())
+}
+
+func TestBuildModuleCR_NilPlatformContextReturnsError(t *testing.T) {
+	g := NewWithT(t)
+	h := monitoring.NewHandler()
+	_, err := h.BuildModuleCR(context.Background(), nil, nil)
+	g.Expect(err).Should(HaveOccurred())
+}
+
 func TestIsEnabled_PlatformMode_Managed(t *testing.T) {
 	g := NewWithT(t)
 	h := monitoring.NewHandler()
