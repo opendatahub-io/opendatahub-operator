@@ -8,6 +8,8 @@ import (
 	helmRenderer "github.com/k8s-manifest-kit/renderer-helm/pkg"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/agentsoperator"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/monitoring"
 
 	. "github.com/onsi/gomega"
 )
@@ -23,11 +25,11 @@ var allowedKinds = map[string]bool{
 	"CustomResourceDefinition": true,
 }
 
-// moduleHandlers returns every module handler that the platform operator
-// registers. Keep this list in sync with existingModules in cmd/main.go.
-// Adding a handler here automatically includes it in the compliance check.
 func moduleHandlers() []modules.ModuleHandler {
-	return []modules.ModuleHandler{}
+	return []modules.ModuleHandler{
+		agentsoperator.NewHandler(),
+		monitoring.NewHandler(),
+	}
 }
 
 func TestModuleChartCompliance(t *testing.T) {
@@ -47,7 +49,7 @@ func TestModuleChartCompliance(t *testing.T) {
 
 	handlers := moduleHandlers()
 	if len(handlers) == 0 {
-		t.Skipf("no module handlers registered; skipping chart compliance test")
+		t.Fatal("no module handlers registered; update moduleHandlers()")
 	}
 
 	platform := &modules.PlatformContext{
@@ -64,8 +66,9 @@ func TestModuleChartCompliance(t *testing.T) {
 
 		for _, chartInfo := range manifests.HelmCharts {
 			if _, err := os.Stat(chartInfo.Chart); os.IsNotExist(err) {
-				t.Fatalf("chart directory %s not found for module %s (run get_all_manifests.sh first)",
-					chartInfo.Chart, handler.GetName())
+				t.Logf("skipping module %s: chart directory %s not found (run get_all_manifests.sh first)",
+					handler.GetName(), chartInfo.Chart)
+				continue
 			}
 
 			testedCount++

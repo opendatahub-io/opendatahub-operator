@@ -52,6 +52,40 @@ _Appears in:_
 | `maxExpirationDays` _integer_ | MaxExpirationDays is the maximum allowed expiration in days for API keys.<br />When set, users cannot create API keys with expiration longer than this value.<br />Examples: 30 (one month), 90 (three months), 365 (one year).<br />If not set, no expiration limit is enforced. |  | Minimum: 1 <br />Optional: \{\} <br /> |
 
 
+#### AgentsOperatorAuth
+
+
+
+AgentsOperatorAuth holds platform-projected authentication settings.
+
+
+
+_Appears in:_
+- [AgentsOperatorCommonSpec](#agentsoperatorcommonspec)
+- [DSCAgentsOperator](#dscagentsoperator)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `enabled` _boolean_ |  |  |  |
+| `audiences` _string array_ |  |  | MaxItems: 32 <br />items:MaxLength: 256 <br />items:MinLength: 1 <br /> |
+
+
+#### AgentsOperatorCommonSpec
+
+
+
+AgentsOperatorCommonSpec defines configuration shared between DSC and module CR.
+
+
+
+_Appears in:_
+- [DSCAgentsOperator](#dscagentsoperator)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `auth` _[AgentsOperatorAuth](#agentsoperatorauth)_ | Auth is projected by the platform operator when authentication is enabled. |  |  |
+
+
 #### ArgoWorkflowsControllersSpec
 
 
@@ -68,6 +102,39 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the bundled Argo Workflows controllers.<br />              It will only upgrade the Argo Workflows controllers if it is safe to do so. This is the default<br />              behavior.<br />- "Removed" : the operator is not managing the bundled Argo Workflows controllers and will not install it.<br />              If it is installed, the operator will remove it but will not remove other Argo Workflows<br />              installations. | Managed | Enum: [Managed Removed] <br /> |
+
+
+#### DSCAgentsOperator
+
+
+
+DSCAgentsOperator defines the configuration exposed in the DSC for Agents Operator.
+
+
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `auth` _[AgentsOperatorAuth](#agentsoperatorauth)_ | Auth is projected by the platform operator when authentication is enabled. |  |  |
+
+
+#### DSCAgentsOperatorStatus
+
+
+
+DSCAgentsOperatorStatus holds the observed state of Agents Operator exposed in the DSC.
+
+
+
+_Appears in:_
+- [ComponentsStatus](#componentsstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
 #### DSCDashboard
@@ -2569,6 +2636,7 @@ _Appears in:_
 | `mlflowoperator` _[DSCMLflowOperator](#dscmlflowoperator)_ | MLflow Operator component configuration. |  |  |
 | `trainer` _[DSCTrainer](#dsctrainer)_ | Trainer component configuration. |  |  |
 | `sparkoperator` _[DSCSparkOperator](#dscsparkoperator)_ | SparkOperator component configuration. |  |  |
+| `agentsOperator` _[DSCAgentsOperator](#dscagentsoperator)_ | AgentsOperator component configuration. |  |  |
 
 
 #### ComponentsStatus
@@ -2599,6 +2667,7 @@ _Appears in:_
 | `mlflowoperator` _[DSCMLflowOperatorStatus](#dscmlflowoperatorstatus)_ | MLflow Operator component status. |  |  |
 | `trainer` _[DSCTrainerStatus](#dsctrainerstatus)_ | Trainer component status. |  |  |
 | `sparkoperator` _[DSCSparkOperatorStatus](#dscsparkoperatorstatus)_ | SparkOperator component status. |  |  |
+| `agentsOperator` _[DSCAgentsOperatorStatus](#dscagentsoperatorstatus)_ | AgentsOperator component status. |  |  |
 
 
 #### DataScienceCluster

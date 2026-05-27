@@ -150,6 +150,7 @@ var (
 				componentApi.FeastOperatorComponentName:        feastOperatorTestSuite,
 				componentApi.OGXComponentName:                  ogxTestSuite,
 				componentApi.SparkOperatorComponentName:        sparkOperatorTestSuite,
+				componentApi.AgentsOperatorComponentName:       agentsOperatorTestSuite,
 			},
 			{
 				// Kueue tests depends on Workbenches, so must not run with Workbenches tests in parallel
