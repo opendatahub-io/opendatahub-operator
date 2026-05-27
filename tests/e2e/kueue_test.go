@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"maps"
+	"slices"
 	"strings"
 	"testing"
 
@@ -9,6 +10,7 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/mod/semver"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -268,15 +270,12 @@ func (tc *KueueTestCtx) ValidateKueueRemovedToUnmanagedTransition(t *testing.T) 
 	)
 
 	t.Logf("Verifying Kueue configuration (%s) is created with all expected frameworks.", kueue.KueueCRName)
-	// Validate that Kueue configuration is created with all expected frameworks
+	// Build the expected frameworks list based on the installed Kueue version.
+	expectedFrameworks := tc.expectedKueueFrameworks(t)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.KueueConfigV1, types.NamespacedName{Name: kueue.KueueCRName}),
 		WithCondition(And(
-			jq.Match(`([
-				"BatchJob", "Deployment", "JobSet", "LeaderWorkerSet", "MPIJob",
-				"PaddleJob", "Pod", "PyTorchJob", "RayCluster", "RayJob", "StatefulSet", "TFJob",
-				"TrainJob", "XGBoostJob"
-			] - .spec.config.integrations.frameworks) | length == 0`),
+			jq.Match(`([%s] - .spec.config.integrations.frameworks) | length == 0`, expectedFrameworks),
 		)),
 		WithEventuallyTimeout(tc.TestTimeouts.shortEventuallyTimeout),
 	)
@@ -447,6 +446,34 @@ func (tc *KueueTestCtx) ValidateKueueComponentDisabled(t *testing.T) {
 	tc.EnsureResourcesGone(WithMinimalObject(tc.GVK, tc.NamespacedName))
 }
 
+// expectedKueueFrameworks returns a comma-separated, quoted list of framework
+// names that should be present in the Kueue CR for the installed kueue-operator
+// version. Version-gated frameworks (TrainJob, SparkApplication) are included
+// only when the detected version meets the minimum requirement.
+func (tc *KueueTestCtx) expectedKueueFrameworks(t *testing.T) string {
+	t.Helper()
+
+	baseFrameworks := []string{
+		`"BatchJob"`, `"Deployment"`, `"JobSet"`, `"LeaderWorkerSet"`, `"MPIJob"`,
+		`"PaddleJob"`, `"Pod"`, `"PyTorchJob"`, `"RayCluster"`, `"RayJob"`,
+		`"StatefulSet"`, `"TFJob"`, `"XGBoostJob"`,
+	}
+
+	kueueInfo, err := cluster.OperatorExists(t.Context(), tc.Client(), kueueOpName)
+	require.NoError(t, err)
+	require.NotNil(t, kueueInfo, "kueue operator should be installed")
+
+	for framework, minVersion := range kueue.FrameworkMinVersion() {
+		if semver.Compare(kueueInfo.Version, minVersion) >= 0 {
+			baseFrameworks = append(baseFrameworks, `"`+framework+`"`)
+		}
+	}
+
+	slices.Sort(baseFrameworks)
+
+	return strings.Join(baseFrameworks, ", ")
+}
+
 func (tc *KueueTestCtx) createKueueConfigMap(t *testing.T) {
 	t.Helper()
 
@@ -471,6 +498,7 @@ integrations:
   - "deployment"
   - "statefulset"
   - "leaderworkerset.x-k8s.io/leaderworkerset"
+  - "sparkoperator.k8s.io/sparkapplication"
 `
 
 	kueueConfigMap := &corev1.ConfigMap{
