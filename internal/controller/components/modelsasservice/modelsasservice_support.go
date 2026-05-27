@@ -150,7 +150,11 @@ func buildMaasOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconci
 		labels.ODH.Component(componentApi.ModelsAsServiceComponentName): labels.True,
 		labels.K8SCommon.PartOf: componentApi.ModelsAsServiceComponentName,
 	}
-	if err := plugins.CreateSetLabelsPlugin(componentLabels).Transform(resMap); err != nil {
+	// MaaS uses a metadata-only label transformer because maas-controller owns
+	// maas-api Deployment selectors (spec.selector is immutable). The standard
+	// CreateSetLabelsPlugin adds labels to spec/selector/matchLabels which
+	// conflicts with maas-controller's tenant reconciler.
+	if err := plugins.CreateMetadataOnlyLabelsPlugin(componentLabels).Transform(resMap); err != nil {
 		return nil, fmt.Errorf("labels transform for maas-controller bundle: %w", err)
 	}
 

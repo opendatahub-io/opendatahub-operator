@@ -695,10 +695,11 @@ func TestApplyImageOverridesFromParams(t *testing.T) {
 	resMap, err := k.Run(fs, kPath)
 	g.Expect(err).ShouldNot(HaveOccurred(), "kustomize build should succeed")
 
-	// Before override: the images transformer renders quay.io/opendatahub/maas-controller:latest
+	// Before override: the images transformer renders the default maas-controller image
+	// (tag may be :latest locally or :odh-stable in CI depending on manifest state).
 	depBefore := findDeploymentImage(g, resMap)
-	g.Expect(depBefore).To(Equal("quay.io/opendatahub/maas-controller:latest"),
-		"kustomize images transformer should produce the default :latest image")
+	g.Expect(depBefore).To(HavePrefix("quay.io/opendatahub/maas-controller:"),
+		"kustomize images transformer should produce the default maas-controller image")
 
 	// Write a temporary params.env with a pinned digest to simulate what
 	// ApplyParams does when RELATED_IMAGE_* env vars are set in CI.
@@ -711,10 +712,12 @@ func TestApplyImageOverridesFromParams(t *testing.T) {
 	err = applyImageOverridesFromParams(resMap, filepath.Join(tmpDir, "params.env"))
 	g.Expect(err).ShouldNot(HaveOccurred(), "applyImageOverridesFromParams should succeed")
 
-	// After override: the image must be the pinned digest, not :latest.
+	// After override: the image must be the pinned digest, not the default.
 	depAfter := findDeploymentImage(g, resMap)
 	g.Expect(depAfter).To(Equal(pinnedImage),
-		"ImageTagTransformerPlugin must replace the :latest image with the pinned digest from params.env")
+		"ImageTagTransformerPlugin must replace the default image with the pinned digest from params.env")
+	g.Expect(depAfter).NotTo(Equal(depBefore),
+		"override must actually change the image")
 }
 
 // TestApplyImageOverridesFromParams_TagFormat verifies tag-style overrides (repo:tag).
@@ -762,7 +765,7 @@ func TestApplyImageOverridesFromParams_NoOverride(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	depAfter := findDeploymentImage(g, resMap)
-	g.Expect(depAfter).To(Equal("quay.io/opendatahub/maas-controller:latest"),
+	g.Expect(depAfter).To(HavePrefix("quay.io/opendatahub/maas-controller:"),
 		"image should remain unchanged when params.env has no controller image key")
 }
 

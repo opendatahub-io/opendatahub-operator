@@ -44,3 +44,25 @@ func CreateSetLabelsPlugin(labels map[string]string) *builtins.LabelTransformerP
 		},
 	}
 }
+
+// CreateMetadataOnlyLabelsPlugin adds labels to metadata/labels for all resources
+// and spec/template/metadata/labels for Deployments, but does NOT touch
+// spec/selector/matchLabels. Use this for bundles where Deployment selectors
+// are managed externally (e.g. maas-controller owns maas-api selectors).
+func CreateMetadataOnlyLabelsPlugin(labels map[string]string) *builtins.LabelTransformerPlugin {
+	return &builtins.LabelTransformerPlugin{
+		Labels: labels,
+		FieldSpecs: []types.FieldSpec{
+			{
+				Gvk:                resid.Gvk{Kind: "Deployment"},
+				Path:               "spec/template/metadata/labels",
+				CreateIfNotPresent: true,
+			},
+			{
+				Gvk:                resid.Gvk{},
+				Path:               "metadata/labels",
+				CreateIfNotPresent: true,
+			},
+		},
+	}
+}
