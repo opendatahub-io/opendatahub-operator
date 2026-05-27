@@ -15,21 +15,21 @@ DST_CHARTS_DIR="./opt/charts"
 
 # ODH Component Manifests
 declare -A ODH_COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:main@48eb77fed0d3aa4f49c19fbdc24ba670acdc459f:manifests"
+    ["dashboard"]="opendatahub-io:odh-dashboard:main@5f55947f3038e15cc84635cbfaf10874ce4e15bf:manifests"
     ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@f09b56e860ff88bcc05668b3f517791cdccd5b4d:components/notebook-controller/config"
     ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@f09b56e860ff88bcc05668b3f517791cdccd5b4d:components/odh-notebook-controller/config"
-    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@139807fdae45d5186c3d978e05a90d975093dcf6:manifests"
+    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@c538137124079135efb542d30e4c90766f7b51b0:manifests"
     ["kserve"]="opendatahub-io:kserve:release-v0.17@5807eceb6db0de0e865fcedbb84ffe06ff9224e1:config"
-    ["ray"]="opendatahub-io:kuberay:dev@b30c9c1a8c95cf22c2b6fe051193b429f92c69ed:ray-operator/config"
+    ["ray"]="opendatahub-io:kuberay:dev@a1a6964dd7313768a24a602debac3d84fba3b476:ray-operator/config"
     ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@de96668b0690db47574bab3ff737e5748be235ee:config"
-    ["modelregistry"]="opendatahub-io:model-registry-operator:main@a982cf87b95fb3054aa4333a6bedb6df1bff1616:config"
+    ["modelregistry"]="opendatahub-io:model-registry-operator:main@ed88fe115966c96edc574a6f5bc2afd20baa736a:config"
     ["trainingoperator"]="opendatahub-io:training-operator:stable@28a60bd79b9dbbb39cd674d3660fa27ab1b42bdb:manifests"
-    ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@582a40651525aaae8f6a5f3b7bbcae4e75956453:config"
+    ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@53b14d8d1b155aebe2894375eafb68f1a4aa164f:config"
     ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@3632f68dc8c0b2be5b473d50f6e87a8f9268e344:config"
     ["feastoperator"]="opendatahub-io:feast:stable@fc14c10d9ef18d94f311036840eefb4ed265575d:infra/feast-operator/config"
     ["ogx"]="opendatahub-io:ogx-k8s-operator:odh@54ce7ea2e3501040c33c1d1b5ab9a69ef51ceadf:config"
     ["trainer"]="opendatahub-io:trainer:stable@51baadf644cd5d2c1672f1c658be46ad82f01b44:manifests"
-    ["maas"]="opendatahub-io:models-as-a-service:stable@322a2753643fefe47920d22a41fadeb4587993da:deployment"
+    ["maas"]="opendatahub-io:models-as-a-service:stable@b409c456aeaf1437760a9d74a9594a453252f1f2:deployment"
     ["mlflowoperator"]="opendatahub-io:mlflow-operator:main@4cccfcc2dd8576cabbf255f66894d801a68eb844:config"
     ["sparkoperator"]="opendatahub-io:spark-operator:main@f91ff22af0b264e0cef090c2d0f1c94cae6b580e:config"
     ["wva"]="opendatahub-io:workload-variant-autoscaler:main@0641ee03e8430cce5821797137b1b53bf70b98a2:config"
@@ -37,24 +37,24 @@ declare -A ODH_COMPONENT_MANIFESTS=(
 
 # RHOAI Component Manifests
 declare -A RHOAI_COMPONENT_MANIFESTS=(
-    ["dashboard"]="red-hat-data-services:odh-dashboard:rhoai-3.5-ea.1@c2df7ba7af6efa42041d929f27ebe9cbc154e4a3:manifests"
-    ["workbenches/kf-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.5-ea.1@576ed1b4beceb2bae931b64210842912edc8aa26:components/notebook-controller/config"
-    ["workbenches/odh-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.5-ea.1@576ed1b4beceb2bae931b64210842912edc8aa26:components/odh-notebook-controller/config"
-    ["workbenches/notebooks"]="red-hat-data-services:notebooks:rhoai-3.5-ea.1@2fd3c903d22110d8199c1d4683209c4e092f0b57:manifests"
-    ["kserve"]="red-hat-data-services:kserve:rhoai-3.5-ea.1@610006b8241d2aa088681fd3c731ed0c9365374b:config"
-    ["ray"]="red-hat-data-services:kuberay:rhoai-3.5-ea.1@3e576f58face1b5a14ae77c8e3270b95b2dbc423:ray-operator/config"
-    ["trustyai"]="red-hat-data-services:trustyai-service-operator:rhoai-3.5-ea.1@99914bc3c081532d0741a471826143b8adb67c6a:config"
-    ["modelregistry"]="red-hat-data-services:model-registry-operator:rhoai-3.5-ea.1@dcafe22814dba5500760d6a9a2c6ad546cfc17e7:config"
-    ["trainingoperator"]="red-hat-data-services:training-operator:rhoai-3.5-ea.1@9777151879b830bb44bbab5fab312e0c05e6072f:manifests"
-    ["datasciencepipelines"]="red-hat-data-services:data-science-pipelines-operator:rhoai-3.5-ea.1@341933fce0b7fe1965479265a503df9014d48b84:config"
-    ["modelcontroller"]="red-hat-data-services:odh-model-controller:rhoai-3.5-ea.1@018bfc2b74220064b3c47675515d0a4157583ffa:config"
+    ["dashboard"]="red-hat-data-services:odh-dashboard:rhoai-3.5-ea.1@7709958931b443ba674ad33cb3c5687b5cb43c0a:manifests"
+    ["workbenches/kf-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.5-ea.1@f7fc4ebb6f51528538d7ab0249d397468898b40e:components/notebook-controller/config"
+    ["workbenches/odh-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.5-ea.1@f7fc4ebb6f51528538d7ab0249d397468898b40e:components/odh-notebook-controller/config"
+    ["workbenches/notebooks"]="red-hat-data-services:notebooks:rhoai-3.5-ea.1@102817888de3afd5a73e814aedd70e9dccd7104f:manifests"
+    ["kserve"]="red-hat-data-services:kserve:rhoai-3.5-ea.1@2d0382f8cbd2658a5347eb637e712ee6d39fca0b:config"
+    ["ray"]="red-hat-data-services:kuberay:rhoai-3.5-ea.1@f7dcda73c08a5c6251f260eddb671cede53d3d4f:ray-operator/config"
+    ["trustyai"]="red-hat-data-services:trustyai-service-operator:rhoai-3.5-ea.1@e97a69528d4b8464d9fdf268cdb17a9bd6a1efc2:config"
+    ["modelregistry"]="red-hat-data-services:model-registry-operator:rhoai-3.5-ea.1@ffedc15a28b8fe62c295c8d46688736049571d4a:config"
+    ["trainingoperator"]="red-hat-data-services:training-operator:rhoai-3.5-ea.1@8fd704c81afc90520a056fb08ba0acd4db004d2f:manifests"
+    ["datasciencepipelines"]="red-hat-data-services:data-science-pipelines-operator:rhoai-3.5-ea.1@2af9f5eef4c6923c91d685ed5251778bbfac2c73:config"
+    ["modelcontroller"]="red-hat-data-services:odh-model-controller:rhoai-3.5-ea.1@23b09733dac0e709fa64eec3e8c7869a759e51c9:config"
     ["feastoperator"]="red-hat-data-services:feast:rhoai-3.5-ea.1@13314edeb99dba402c6b6bc4e1ff54c458da2d27:infra/feast-operator/config"
-    ["ogx"]="red-hat-data-services:ogx-k8s-operator:rhoai-3.5-ea.1@b86a2f4db30306aad25ce539ff16fb5a14e1fb6e:config"
+    ["ogx"]="red-hat-data-services:ogx-k8s-operator:rhoai-3.5-ea.1@063ad273458e78075b2c90b7a390230ba59d2958:config"
     ["trainer"]="red-hat-data-services:trainer:rhoai-3.5-ea.1@138f5c9d590be0e7aa548798b20ae1b2fa5ac6b9:manifests"
-    ["maas"]="red-hat-data-services:maas-billing:rhoai-3.5-ea.1@b67810e8e4cb27d6c74a019ae2da8d974f0c1303:deployment"
-    ["mlflowoperator"]="red-hat-data-services:mlflow-operator:rhoai-3.5-ea.1@ce3625ccb267d349d9ba08b98dec089c499a08b2:config"
-    ["sparkoperator"]="red-hat-data-services:spark-operator:rhoai-3.5-ea.1@026a9dc2b89cac5999a317e0611083050d47d013:config"
-    ["wva"]="red-hat-data-services:workload-variant-autoscaler:rhoai-3.5-ea.1@aa433e5966454d3db67f19b10e814a8496ca5846:config"
+    ["maas"]="red-hat-data-services:maas-billing:rhoai-3.5-ea.1@dee3b13bf64cebddab18d2df1daff37678e836fc:deployment"
+    ["mlflowoperator"]="red-hat-data-services:mlflow-operator:rhoai-3.5-ea.1@cd01c6bea711f054af0cc85a8a84cc295a784bbe:config"
+    ["sparkoperator"]="red-hat-data-services:spark-operator:rhoai-3.5-ea.1@9aae1325d1f2ef925013eefb80f3ec2606436038:config"
+    ["wva"]="red-hat-data-services:workload-variant-autoscaler:rhoai-3.5-ea.1@0c6acd8193a407b96606e6231027c958becac4bf:config"
 )
 
 # {ODH,RHOAI}_COMPONENT_CHARTS are lists of chart repositories info to fetch helm charts
@@ -63,10 +63,10 @@ declare -A RHOAI_COMPONENT_MANIFESTS=(
 
 # ODH Component Charts
 declare -A ODH_COMPONENT_CHARTS=(
-    ["cert-manager-operator"]="opendatahub-io:odh-gitops:main@5beea1535c84b36730587de3d2551c431d62d1bd:charts/dependencies/cert-manager-operator"
-    ["lws-operator"]="opendatahub-io:odh-gitops:main@5beea1535c84b36730587de3d2551c431d62d1bd:charts/dependencies/lws-operator"
-    ["sail-operator"]="opendatahub-io:odh-gitops:main@5beea1535c84b36730587de3d2551c431d62d1bd:charts/dependencies/sail-operator"
-    ["gateway-api"]="opendatahub-io:odh-gitops:main@5beea1535c84b36730587de3d2551c431d62d1bd:charts/dependencies/gateway-api"
+    ["cert-manager-operator"]="opendatahub-io:odh-gitops:main@60dd6c6caa469386ea83c87c5927e486687a067c:charts/dependencies/cert-manager-operator"
+    ["lws-operator"]="opendatahub-io:odh-gitops:main@60dd6c6caa469386ea83c87c5927e486687a067c:charts/dependencies/lws-operator"
+    ["sail-operator"]="opendatahub-io:odh-gitops:main@60dd6c6caa469386ea83c87c5927e486687a067c:charts/dependencies/sail-operator"
+    ["gateway-api"]="opendatahub-io:odh-gitops:main@60dd6c6caa469386ea83c87c5927e486687a067c:charts/dependencies/gateway-api"
 )
 
 # RHOAI Component Charts
