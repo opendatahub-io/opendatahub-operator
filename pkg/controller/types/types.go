@@ -133,6 +133,16 @@ type TemplateInfo struct {
 // HookFn is the signature for pre/post apply hooks.
 type HookFn func(ctx context.Context, rr *ReconciliationRequest) error
 
+// OperatorCR identifies the custom resource created by the operator that
+// this chart deploys. Used by the two-phase cleanup: when a dependency is
+// set to Unmanaged, the CR is filtered from deploy so GC can delete it
+// while operator resources are kept alive.
+type OperatorCR struct {
+	GVK       schema.GroupVersionKind
+	Name      string
+	Namespace string
+}
+
 // HelmChartInfo describes a Helm chart to render.
 type HelmChartInfo struct {
 	helm.Source

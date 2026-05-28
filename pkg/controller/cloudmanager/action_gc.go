@@ -1,7 +1,6 @@
 package cloudmanager
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -12,7 +11,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	certmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/cleanup"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	odhTypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhAnnotations "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -129,15 +127,14 @@ func BootstrapProtectedObjects(config certmanager.BootstrapConfig) []ProtectedOb
 // by the InfrastructurePartOf label, and evaluates each with newGCPredicate.
 // Only owned resources are processed.
 //
-// When cleanupTargets are provided, the GC first ensures that dependency CRs with
-// stale generation annotations are deleted and their finalizers processed before
-// proceeding with the normal GC scan. This prevents GC from killing an operator
-// before its managed CR's finalizers are processed.
+// Dependency CR cleanup is handled by the two-phase mechanism in
+// NewReconcileAction (chart kept during Phase 1, CR filtered from deploy,
+// GC deletes it via generation mismatch). No cleanup pre-phase needed here.
 //
 // NewGCAction must be the last action in the reconciliation pipeline. GC only runs
 // when rr.Generated is true (i.e., on cache miss — when something actually changed).
 // In steady state with no spec changes, GC is skipped entirely.
-func NewGCAction(resourceID string, operatorNamespace string, protectedObjects []ProtectedObject, cleanupTargets []cleanup.Target) (actions.Fn, error) {
+func NewGCAction(resourceID string, operatorNamespace string, protectedObjects []ProtectedObject) (actions.Fn, error) {
 	resourceID = labels.NormalizePartOfValue(resourceID)
 	if resourceID == "" {
 		return nil, errors.New("NewGCAction: resourceID is required")
@@ -153,21 +150,11 @@ func NewGCAction(resourceID string, operatorNamespace string, protectedObjects [
 		}
 	}
 
-	gcAction := gc.NewAction(
+	return gc.NewAction(
 		gc.InNamespace(operatorNamespace),
 		gc.WithLabel(labels.InfrastructurePartOf, resourceID),
 		gc.WithObjectPredicate(newGCPredicate(protectedObjects)),
 		gc.WithUnremovables(gvk.Namespace),
 		gc.WithOnlyCollectOwned(true),
-	)
-
-	return func(ctx context.Context, rr *odhTypes.ReconciliationRequest) error {
-		for i := range cleanupTargets {
-			if err := cleanupStaleCR(ctx, rr, cleanupTargets[i]); err != nil {
-				return err
-			}
-		}
-
-		return gcAction(ctx, rr)
-	}, nil
+	), nil
 }

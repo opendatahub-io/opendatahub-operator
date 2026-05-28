@@ -25,13 +25,10 @@ var testGVK = schema.GroupVersionKind{
 }
 
 var testTarget = cleanup.Target{
-	GVK:             testGVK,
-	Name:            "cluster",
-	FinalizerPrefix: "test-operator.",
+	GVK:  testGVK,
+	Name: "cluster",
 }
 
-// invoke runs NewFinalizer as a one-shot call, mirroring the behavior of the
-// internal do function without exposing it.
 func invoke(ctx context.Context, rr *ctypes.ReconciliationRequest) error {
 	return cleanup.NewFinalizer(testTarget)(ctx, rr)
 }
@@ -112,23 +109,12 @@ func TestNewFinalizer(t *testing.T) {
 		g.Expect(invoke(ctx, rr)).NotTo(HaveOccurred())
 	})
 
-	t.Run("no-op when terminating with non-matching finalizers only", func(t *testing.T) {
-		g := NewWithT(t)
-		cr := makeCR(instance.GetUID(), []string{"foregroundDeletion"})
-		g.Expect(cli.Create(ctx, cr)).To(Succeed())
-		t.Cleanup(func() { cleanupCR(t) })
-		g.Expect(cli.Delete(ctx, cr)).To(Succeed())
-
-		g.Expect(invoke(ctx, rr)).NotTo(HaveOccurred())
-	})
-
 	t.Run("owned CR lifecycle: delete → wait → gone", func(t *testing.T) {
 		g := NewWithT(t)
 		cr := makeCR(instance.GetUID(), []string{"test-operator.opendatahub.io/hold"})
 		g.Expect(cli.Create(ctx, cr)).To(Succeed())
 		t.Cleanup(func() { cleanupCR(t) })
 
-		// Phase 1: CR present → delete triggered, error returned.
 		err := invoke(ctx, rr)
 		g.Expect(err).To(HaveOccurred())
 		g.Expect(err.Error()).To(ContainSubstring("waiting for"))
@@ -138,12 +124,33 @@ func TestNewFinalizer(t *testing.T) {
 		g.Expect(cli.Get(ctx, types.NamespacedName{Name: "cluster"}, got)).To(Succeed())
 		g.Expect(got.GetDeletionTimestamp()).NotTo(BeNil())
 
-		// Phase 2: still terminating → error.
 		g.Expect(invoke(ctx, rr)).To(HaveOccurred())
 
-		// Phase 3: finalizers removed → CR gone → no-op.
 		got.SetFinalizers(nil)
 		g.Expect(cli.Update(ctx, got)).To(Succeed())
+		g.Eventually(func() error {
+			return cli.Get(ctx, types.NamespacedName{Name: "cluster"}, got)
+		}).Should(MatchError(ContainSubstring("not found")))
+
+		g.Expect(invoke(ctx, rr)).NotTo(HaveOccurred())
+	})
+
+	t.Run("requeues while owned CR exists regardless of finalizers", func(t *testing.T) {
+		g := NewWithT(t)
+		cr := makeCR(instance.GetUID(), []string{"other.io/unrelated"})
+		g.Expect(cli.Create(ctx, cr)).To(Succeed())
+		t.Cleanup(func() { cleanupCR(t) })
+
+		err := invoke(ctx, rr)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("waiting for"))
+
+		got := &unstructured.Unstructured{}
+		got.SetGroupVersionKind(testGVK)
+		g.Expect(cli.Get(ctx, types.NamespacedName{Name: "cluster"}, got)).To(Succeed())
+		got.SetFinalizers(nil)
+		g.Expect(cli.Update(ctx, got)).To(Succeed())
+		g.Expect(cli.Delete(ctx, got)).To(Succeed())
 		g.Eventually(func() error {
 			return cli.Get(ctx, types.NamespacedName{Name: "cluster"}, got)
 		}).Should(MatchError(ContainSubstring("not found")))

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -183,6 +182,12 @@ func getSailOperatorNamespace(wt *testf.WithT, cr *unstructured.Unstructured) st
 	return deps.SailOperator.GetNamespace()
 }
 
+// getLWSNamespace reads the LWS operator namespace from the CR spec using typed methods.
+func getLWSNamespace(wt *testf.WithT, cr *unstructured.Unstructured) string {
+	deps := getDependencies(wt, cr)
+	return deps.LWS.GetNamespace()
+}
+
 // waitForDeploymentsAvailable waits until all managed dependency deployments
 // have the Available=True condition, meaning they're actually running.
 func waitForDeploymentsAvailable(wt *testf.WithT, deployments []unstructured.Unstructured) {
@@ -195,14 +200,19 @@ func waitForDeploymentsAvailable(wt *testf.WithT, deployments []unstructured.Uns
 	}
 }
 
-// consistentlyGone asserts that a deployment stays absent for a reasonable duration,
-// confirming the controller is not recreating it.
-func consistentlyGone(wt *testf.WithT, nn types.NamespacedName) {
-	wt.Get(gvk.Deployment, nn).
-		Consistently().
-		WithTimeout(30 * time.Second).
-		WithPolling(5 * time.Second).
-		Should(BeNil())
+// forceDeleteCertManagerCR removes finalizers from CertManager/cluster and deletes it.
+// The cert-manager-operator may recreate this CR during graceful shutdown (CM-1019),
+// and without the operator running the finalizers can never be processed.
+func forceDeleteCertManagerCR(wt *testf.WithT) {
+	wt.THelper()
+
+	nn := types.NamespacedName{Name: "cluster"}
+	cr := wt.Get(gvk.CertManagerV1Alpha1, nn).Eventually().Should(Not(BeNil()))
+
+	cr.SetFinalizers(nil)
+	wt.Expect(wt.Client().Update(wt.Context(), cr)).To(Succeed())
+	wt.Delete(gvk.CertManagerV1Alpha1, nn).Eventually().Should(Succeed())
+	wt.Get(gvk.CertManagerV1Alpha1, nn).Eventually().Should(BeNil())
 }
 
 // getPartOfLabelValue returns the value used for the InfrastructurePartOf label

@@ -29,8 +29,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/cleanup"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/cleanup"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	resourcespredicates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
@@ -293,7 +293,6 @@ func createCABackedIssuer(config BootstrapConfig) (*unstructured.Unstructured, e
 	return u, nil
 }
 
-
 func monitoredCRDs() []schema.GroupVersionKind {
 	gvks := make([]schema.GroupVersionKind, len(monitoredCRDList))
 	for i := range monitoredCRDList {
@@ -376,12 +375,11 @@ func Bootstrap[T common.PlatformObject](instanceName string, config BootstrapCon
 }
 
 // BootstrapCleanupTarget returns the cleanup.Target for the CertManager/cluster
-// CR. Used by Bootstrap to register the finalizer, and by DefaultCleanupTargets
-// to include cert-manager in the GC pre-phase.
+// CR. Used by Bootstrap to register the finalizer, and by the finalizer
+// cleanup targets to ensure the CR is deleted before cascade.
 func BootstrapCleanupTarget() cleanup.Target {
 	return cleanup.Target{
-		GVK:             gvk.CertManagerV1Alpha1,
-		Name:            "cluster",
-		FinalizerPrefix: "cert-manager-operator.",
+		GVK:  gvk.CertManagerV1Alpha1,
+		Name: "cluster",
 	}
 }

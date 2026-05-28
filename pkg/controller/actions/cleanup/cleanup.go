@@ -5,10 +5,10 @@ package cleanup
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -21,10 +21,10 @@ import (
 // Target identifies a dependency CR whose finalizers must be processed before
 // the operator itself is removed by GC or cascade deletion.
 type Target struct {
-	GVK             schema.GroupVersionKind
-	Name            string
-	Namespace       string // empty for cluster-scoped
-	FinalizerPrefix string // only wait for finalizers with this prefix
+	GVK               schema.GroupVersionKind
+	Name              string
+	Namespace         string                     // empty for cluster-scoped
+	DeletePropagation metav1.DeletionPropagation // defaults to Foreground when zero
 }
 
 // NewFinalizer returns a finalizer action that ensures dependency CRs are
@@ -41,9 +41,9 @@ func NewFinalizer(targets ...Target) actions.Fn {
 	}
 }
 
-// DeleteAndWait deletes the already-fetched dependency CR and waits for the
-// operator to process its finalizers. Returns an error to trigger reconciler
-// requeue while finalizers matching target.FinalizerPrefix are still pending.
+// DeleteAndWait deletes the already-fetched dependency CR and returns an error
+// to trigger reconciler requeue until the CR is fully gone. The caller
+// (do / getCR) handles "CR disappeared" by returning nil.
 //
 // The caller is responsible for fetching obj and verifying it is non-nil.
 func DeleteAndWait(ctx context.Context, rr *odhTypes.ReconciliationRequest, target Target, obj *unstructured.Unstructured) error {
@@ -65,35 +65,27 @@ func DeleteAndWait(ctx context.Context, rr *odhTypes.ReconciliationRequest, targ
 		return nil
 	}
 
+	propagation := target.DeletePropagation
+	if propagation == "" {
+		propagation = metav1.DeletePropagationForeground
+	}
+
 	if obj.GetDeletionTimestamp().IsZero() {
 		l.Info("deleting dependency CR to allow operator to clean up before GC",
 			"gvk", target.GVK, "name", target.Name, "instance", rr.Instance.GetName())
 
-		if err := rr.Client.Delete(ctx, obj); err != nil && !k8serr.IsNotFound(err) {
+		if err := rr.Client.Delete(ctx, obj,
+			client.PropagationPolicy(propagation),
+		); err != nil && !k8serr.IsNotFound(err) {
 			return err
 		}
 	}
 
-	var pending []string
-	for _, f := range obj.GetFinalizers() {
-		if strings.HasPrefix(f, target.FinalizerPrefix) {
-			pending = append(pending, f)
-		}
-	}
-
-	if len(pending) == 0 {
-		l.V(1).Info("dependency CR has no remaining operator finalizers, cleanup complete",
-			"gvk", target.GVK, "name", target.Name)
-
-		return nil
-	}
-
 	l.Info("waiting for dependency CR to be fully deleted",
-		"gvk", target.GVK, "name", target.Name,
-		"remainingFinalizers", pending)
+		"gvk", target.GVK, "name", target.Name)
 
-	return fmt.Errorf("waiting for %s/%s to be fully deleted (remaining finalizers: %v)",
-		target.GVK.Kind, target.Name, pending)
+	return fmt.Errorf("waiting for %s/%s to be fully deleted",
+		target.GVK.Kind, target.Name)
 }
 
 func do(ctx context.Context, rr *odhTypes.ReconciliationRequest, target Target) error {

@@ -25,6 +25,14 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/rules"
 )
 
+// DefaultUnremovables lists GVKs that GC never deletes by default.
+// Consumers outside the gc package (e.g. cleanup actions) can reference
+// this slice to apply the same rules.
+var DefaultUnremovables = []schema.GroupVersionKind{
+	gvk.CustomResourceDefinition,
+	gvk.Lease,
+}
+
 type ObjectPredicateFn func(*odhTypes.ReconciliationRequest, unstructured.Unstructured) (bool, error)
 type TypePredicateFn func(*odhTypes.ReconciliationRequest, schema.GroupVersionKind) (bool, error)
 type ActionOpts func(*Action)
@@ -355,8 +363,9 @@ func NewAction(opts ...ActionOpts) actions.Fn {
 
 	// default unremovables
 	action.unremovables = make(map[schema.GroupVersionKind]struct{})
-	action.unremovables[gvk.CustomResourceDefinition] = struct{}{}
-	action.unremovables[gvk.Lease] = struct{}{}
+	for _, u := range DefaultUnremovables {
+		action.unremovables[u] = struct{}{}
+	}
 
 	for _, opt := range opts {
 		opt(&action)

@@ -257,9 +257,11 @@ func TestMonitorDependencies_OperatorCR(t *testing.T) {
 					Policy:         ccmcommon.Managed,
 					HasDeployments: true,
 					Namespace:      nsn,
-					OperatorGVK:    testOperatorGVK,
-					CRName:         "default",
-					CRNamespace:    nsn,
+					OperatorCR: &types.OperatorCR{
+						GVK:       testOperatorGVK,
+						Name:      "default",
+						Namespace: nsn,
+					},
 				},
 			}
 

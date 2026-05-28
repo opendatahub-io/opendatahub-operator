@@ -8,7 +8,6 @@ import (
 
 	ccmv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/coreweave/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/cleanup"
 	certmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/cloudmanager"
@@ -25,28 +24,23 @@ func NewReconciler(ctx context.Context, mgr ctrl.Manager, cfg *operatorconfig.Cl
 	bootstrapConfig := certmanager.DefaultBootstrapConfig(certmanager.WithOperatorCert(cfg.RhaiOperatorNamespace))
 
 	_, err := reconciler.ReconcilerFor(mgr, &ccmv1alpha1.CoreWeaveKubernetesEngine{}).
-		WithDynamicOwnership().
+		WithDynamicOwnership(common.OperatorCRGVKPredicates()).
 		Watches(
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(handlers.ToNamed(ccmv1alpha1.CoreWeaveKubernetesEngineInstanceName)),
 			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed(common.ServiceMonitorCRDName)),
 		).
-		WithAction(initialize).
 		ComposeWith(certmanager.Bootstrap[*ccmv1alpha1.CoreWeaveKubernetesEngine](
 			ccmv1alpha1.CoreWeaveKubernetesEngineInstanceName,
 			bootstrapConfig,
 		)).
 		WithActionE(cloudmanager.NewReconcileAction(resourceID)).
 		// GC must be last: evaluates every CCM resource and removes stale or orphaned ones.
-		// cleanupStaleCR runs as a pre-phase inside GC, ensuring dependency CRs are deleted
-		// and their finalizers processed before GC removes the operators themselves.
 		WithActionE(cloudmanager.NewGCAction(resourceID, cfg.RhaiOperatorNamespace,
 			cloudmanager.BootstrapProtectedObjects(bootstrapConfig),
-			cloudmanager.DefaultCleanupTargets(),
 		)).
-		// Bootstrap registers the cert-manager finalizer; this registers the Istio finalizer.
 		WithFinalizer(cleanup.NewFinalizer(
-			cleanup.Target{GVK: gvk.Istio, Name: "default", FinalizerPrefix: "sailoperator.io/"},
+			cloudmanager.FinalizerCleanupTargets()...,
 		)).
 		WithConditions(cloudmanager.ConditionsTypes...).
 		Build(ctx)
