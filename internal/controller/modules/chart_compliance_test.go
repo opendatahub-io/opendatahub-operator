@@ -8,6 +8,7 @@ import (
 	helmRenderer "github.com/k8s-manifest-kit/renderer-helm/pkg"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
 
 	. "github.com/onsi/gomega"
 )
@@ -20,6 +21,7 @@ var allowedKinds = map[string]bool{
 	"Role":                     true,
 	"RoleBinding":              true,
 	"ConfigMap":                true,
+	"Service":                  true,
 	"CustomResourceDefinition": true,
 }
 
@@ -27,7 +29,9 @@ var allowedKinds = map[string]bool{
 // registers. Keep this list in sync with existingModules in cmd/main.go.
 // Adding a handler here automatically includes it in the compliance check.
 func moduleHandlers() []modules.ModuleHandler {
-	return []modules.ModuleHandler{}
+	return []modules.ModuleHandler{
+		aigateway.NewHandler(),
+	}
 }
 
 func TestModuleChartCompliance(t *testing.T) {
