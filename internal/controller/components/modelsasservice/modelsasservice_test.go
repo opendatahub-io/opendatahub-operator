@@ -695,10 +695,10 @@ func TestApplyImageOverridesFromParams(t *testing.T) {
 	resMap, err := k.Run(fs, kPath)
 	g.Expect(err).ShouldNot(HaveOccurred(), "kustomize build should succeed")
 
-	// Before override: the images transformer renders quay.io/opendatahub/maas-controller:latest
+	// Before override: the images transformer renders the default tag from the kustomization
 	depBefore := findDeploymentImage(g, resMap)
-	g.Expect(depBefore).To(Equal("quay.io/opendatahub/maas-controller:latest"),
-		"kustomize images transformer should produce the default :latest image")
+	g.Expect(depBefore).To(Equal("quay.io/opendatahub/maas-controller:odh-stable"),
+		"kustomize images transformer should produce the default :odh-stable image")
 
 	// Write a temporary params.env with a pinned digest to simulate what
 	// ApplyParams does when RELATED_IMAGE_* env vars are set in CI.
@@ -762,7 +762,7 @@ func TestApplyImageOverridesFromParams_NoOverride(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	depAfter := findDeploymentImage(g, resMap)
-	g.Expect(depAfter).To(Equal("quay.io/opendatahub/maas-controller:latest"),
+	g.Expect(depAfter).To(Equal("quay.io/opendatahub/maas-controller:odh-stable"),
 		"image should remain unchanged when params.env has no controller image key")
 }
 
