@@ -165,6 +165,22 @@ record_known_issue_match() {
     done
 }
 
+# ODH exceptions: images intentionally absent from ODH-Build-Config (e.g. arch-specific)
+ODH_EXCEPTIONS_FILE="$WORKDIR/odh-exceptions.txt"
+ODH_EXCEPTIONS_MATCHED="$WORKDIR/odh-exceptions-matched.txt"
+touch "$ODH_EXCEPTIONS_FILE" "$ODH_EXCEPTIONS_MATCHED"
+$YQ -r '(.odh_exceptions // [])[] | .image + "|" + .reason' "$CONFIG_FILE" \
+    > "$ODH_EXCEPTIONS_FILE"
+
+is_odh_exception() {
+    grep -q "^$1|" "$ODH_EXCEPTIONS_FILE"
+}
+
+record_odh_exception_match() {
+    local image="$1"
+    grep "^${image}|" "$ODH_EXCEPTIONS_FILE" | head -1 >> "$ODH_EXCEPTIONS_MATCHED"
+}
+
 # --- Step 3: Extract map entries per component ---
 # For each component dir, extract Go map entries: "key": "RELATED_IMAGE_*"
 # Output: component/key/RELATED_IMAGE_VALUE lines
@@ -334,6 +350,12 @@ while IFS= read -r related_image; do
         done < "$RHAI_HELM_COMPONENTS"
     fi
 
+    # ODH exceptions: treat image as present in ODH if intentionally excluded
+    if is_odh_exception "$related_image"; then
+        record_odh_exception_match "$related_image"
+        in_odh=true
+    fi
+
     # Skip if everything is OK
     if $in_params_env && $in_odh && $in_rhoai; then
         if $needs_rhai_helm && [ -s "$RHAI_HELM_CONFIG" ]; then
@@ -457,6 +479,10 @@ if [ -s "$KNOWN_ISSUES_MATCHED" ]; then
     local_ki_count=$(sort -u "$KNOWN_ISSUES_MATCHED" | wc -l | tr -d ' ')
     printf ", ${CYAN}%d known issue(s)${RESET}" "$local_ki_count"
 fi
+if [ -s "$ODH_EXCEPTIONS_MATCHED" ]; then
+    local_oe_count=$(sort -u "$ODH_EXCEPTIONS_MATCHED" | wc -l | tr -d ' ')
+    printf ", ${CYAN}%d ODH exception(s)${RESET}" "$local_oe_count"
+fi
 echo ""
 
 # Known issues detail
@@ -465,6 +491,15 @@ if [ -s "$KNOWN_ISSUES_MATCHED" ]; then
     printf "  ${CYAN}${BOLD}Known issues (downgraded to warnings):${RESET}\n"
     sort -u "$KNOWN_ISSUES_MATCHED" | while IFS='|' read -r _ ki_image ki_jira ki_reason; do
         printf "    ${CYAN}%s${RESET} - %s (%s)\n" "$ki_image" "$ki_reason" "$ki_jira"
+    done
+fi
+
+# ODH exceptions detail
+if [ -s "$ODH_EXCEPTIONS_MATCHED" ]; then
+    echo ""
+    printf "  ${CYAN}${BOLD}ODH exceptions (not applicable to ODH, skipped):${RESET}\n"
+    sort -u "$ODH_EXCEPTIONS_MATCHED" | while IFS='|' read -r oe_image oe_reason; do
+        printf "    ${CYAN}%s${RESET} - %s\n" "$oe_image" "$oe_reason"
     done
 fi
 
@@ -488,6 +523,29 @@ if [ -s "$KNOWN_ISSUES_FILE" ]; then
 
     if [ "$stale_count" -gt 0 ]; then
         WARNINGS=$((WARNINGS + stale_count))
+    fi
+fi
+
+# Detect stale ODH exceptions (configured but no longer triggered)
+if [ -s "$ODH_EXCEPTIONS_FILE" ]; then
+    matched_oe_images="$WORKDIR/matched-oe-images.txt"
+    sort -u "$ODH_EXCEPTIONS_MATCHED" | cut -d'|' -f1 | sort -u > "$matched_oe_images" 2>/dev/null || true
+
+    stale_oe_count=0
+    while IFS='|' read -r oe_image oe_reason; do
+        if ! grep -qxF "$oe_image" "$matched_oe_images" 2>/dev/null; then
+            if [ "$stale_oe_count" -eq 0 ]; then
+                echo ""
+                printf "  ${YELLOW}${BOLD}Stale ODH exceptions (no longer triggered, please remove from ${CONFIG_FILE}):${RESET}\n"
+            fi
+            printf "    ${YELLOW}%s${RESET} - %s\n" "$oe_image" "$oe_reason"
+            stale_oe_count=$((stale_oe_count + 1))
+        fi
+    done < "$ODH_EXCEPTIONS_FILE"
+    rm -f "$matched_oe_images"
+
+    if [ "$stale_oe_count" -gt 0 ]; then
+        WARNINGS=$((WARNINGS + stale_oe_count))
     fi
 fi
 

@@ -42,6 +42,8 @@ jobs:
         run: |
           if git diff "origin/${BASE_REF}...HEAD" -- internal/ | grep -qE '^\+.*RELATED_IMAGE_'; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "origin/${BASE_REF}...HEAD" | grep -q 'component-params-env.yaml'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "No RELATED_IMAGE_* changes detected, skipping validation."
             echo "changed=false" >> "$GITHUB_OUTPUT"

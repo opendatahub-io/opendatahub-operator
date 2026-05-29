@@ -2,6 +2,8 @@
 #
 # rhai_helm_components: components whose RELATED_IMAGE_* must also be present
 #   in RHOAI-Build-Config helm/rhai-on-xks-chart/values.yaml (rhaiOperator.relatedImages).
+# odh_exceptions: RELATED_IMAGE entries intentionally absent from ODH-Build-Config.
+#   These are permanently excluded from ODH validation (e.g. architecture-specific images).
 # known_issues: RELATED_IMAGE errors to downgrade to warnings.
 #   Each entry MUST include a Jira link and reason.
 
@@ -28,18 +30,13 @@ known_issues:
 - image: RELATED_IMAGE_ODH_CAIKIT_NLP_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-60523
   reason: caikit-nlp support is removed since RHOAI 3.0
-- image: RELATED_IMAGE_ODH_LLM_D_KV_CACHE_IMAGE
-  jira: https://redhat.atlassian.net/browse/RHOAIENG-60572
-  reason: need to be added the image to ODH-Build-Config
-- image: RELATED_IMAGE_ODH_MODEL_PERFORMANCE_DATA_IMAGE
-  jira: https://redhat.atlassian.net/browse/RHOAIENG-60572
-  reason: need to be added the image to ODH-Build-Config, or set an exception for the image
-- image: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
-  jira: https://redhat.atlassian.net/browse/RHOAIENG-60572
-  reason: need to be added the image to ODH-Build-Config, or set an exception for the image
 - image: RELATED_IMAGE_ODH_TH06_CPU_TORCH210_PY312_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-60758
   reason: need to be onboarded to RHOAI 3.5-ea.1
 - image: RELATED_IMAGE_ODH_TH06_CUDA130_TORCH210_PY312_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-60756
   reason: need to be onboarded to RHOAI 3.5-ea.1
+
+odh_exceptions:
+- image: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
+  reason: ppc64le/s390x only, not applicable to ODH
