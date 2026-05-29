@@ -492,7 +492,7 @@ integrations:
   - "kubeflow.org/pytorchjob"
   - "kubeflow.org/tfjob"
   - "kubeflow.org/xgboostjob"
-  - "kubeflow.org/trainjob"
+  - "trainer.kubeflow.org/trainjob"
   - "workload.codeflare.dev/appwrapper"
   - "pod"
   - "deployment"
