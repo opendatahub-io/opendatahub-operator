@@ -66,3 +66,6 @@ map:
   odh-agents-operator:
     src: kagenti-operator/config
     dest: kagenti-operator
+  odh-batch-gateway-operator:
+    src: config/
+    dest: batch-gateway-operator
