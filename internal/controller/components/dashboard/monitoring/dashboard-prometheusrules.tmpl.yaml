@@ -166,37 +166,37 @@ spec:
           record: haproxy_backend_http_responses_total:burnrate6h
 
         - expr: |
-            1 - avg_over_time(probe_success{instance=~"data-science-gateway.*"}[1d])
+            1 - avg_over_time(probe_success{instance=~"data-science-gateway.*", job="user_facing_endpoints_status_data_science_gateway"}[1d])
           labels:
             instance: data-science-gateway
           record: probe_success:burnrate1d
         - expr: |
-            1 - avg_over_time(probe_success{instance=~"data-science-gateway.*"}[1h])
+            1 - avg_over_time(probe_success{instance=~"data-science-gateway.*", job="user_facing_endpoints_status_data_science_gateway"}[1h])
           labels:
             instance: data-science-gateway
           record: probe_success:burnrate1h
         - expr: |
-            1 - avg_over_time(probe_success{instance=~"data-science-gateway.*"}[2h])
+            1 - avg_over_time(probe_success{instance=~"data-science-gateway.*", job="user_facing_endpoints_status_data_science_gateway"}[2h])
           labels:
             instance: data-science-gateway
           record: probe_success:burnrate2h
         - expr: |
-            1 - avg_over_time(probe_success{instance=~"data-science-gateway.*"}[30m])
+            1 - avg_over_time(probe_success{instance=~"data-science-gateway.*", job="user_facing_endpoints_status_data_science_gateway"}[30m])
           labels:
             instance: data-science-gateway
           record: probe_success:burnrate30m
         - expr: |
-            1 - avg_over_time(probe_success{instance=~"data-science-gateway.*"}[3d])
+            1 - avg_over_time(probe_success{instance=~"data-science-gateway.*", job="user_facing_endpoints_status_data_science_gateway"}[3d])
           labels:
             instance: data-science-gateway
           record: probe_success:burnrate3d
         - expr: |
-            1 - avg_over_time(probe_success{instance=~"data-science-gateway.*"}[5m])
+            1 - avg_over_time(probe_success{instance=~"data-science-gateway.*", job="user_facing_endpoints_status_data_science_gateway"}[5m])
           labels:
             instance: data-science-gateway
           record: probe_success:burnrate5m
         - expr: |
-            1 - avg_over_time(probe_success{instance=~"data-science-gateway.*"}[6h])
+            1 - avg_over_time(probe_success{instance=~"data-science-gateway.*", job="user_facing_endpoints_status_data_science_gateway"}[6h])
           labels:
             instance: data-science-gateway
           record: probe_success:burnrate6h
