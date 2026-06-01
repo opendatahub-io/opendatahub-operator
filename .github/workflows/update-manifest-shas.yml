@@ -38,6 +38,16 @@ jobs:
             const script = require('./.github/scripts/update-manifests-commit-sha.js')
             await script({github, core})
 
+      - name: Set up Go
+        if: steps.update-shas.outputs.updates-needed == 'true'
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Update cloud manager RBAC
+        if: steps.update-shas.outputs.updates-needed == 'true'
+        run: make update-cloudmanager-rbac
+
       - name: Create Pull Request
         if: steps.update-shas.outputs.updates-needed == 'true'
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
