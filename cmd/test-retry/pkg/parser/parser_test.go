@@ -81,13 +81,13 @@ func TestParseGoTestJSON(t *testing.T) {
 
 func TestParseGoTestJSON_StderrDoesNotCauseError(t *testing.T) {
 	tests := []struct {
-		name          string
-		stdout        string
-		stderr        string
-		wantErr       bool
-		wantPassed    int
-		wantFailed    int
-		failedName    string
+		name       string
+		stdout     string
+		stderr     string
+		wantErr    bool
+		wantPassed int
+		wantFailed int
+		failedName string
 	}{
 		{
 			name: "stderr with failing test",
@@ -110,7 +110,7 @@ func TestParseGoTestJSON_StderrDoesNotCauseError(t *testing.T) {
 			wantPassed: 1,
 		},
 		{
-			name:   "large stderr payload",
+			name: "large stderr payload",
 			stdout: `{"Time":"2023-01-01T00:00:00Z","Action":"run","Package":"example.com/pkg","Test":"TestOk"}
 {"Time":"2023-01-01T00:00:01Z","Action":"output","Package":"example.com/pkg","Test":"TestOk","Output":"=== RUN   TestOk\n"}
 {"Time":"2023-01-01T00:00:02Z","Action":"output","Package":"example.com/pkg","Test":"TestOk","Output":"--- PASS: TestOk (1.00s)\n"}
