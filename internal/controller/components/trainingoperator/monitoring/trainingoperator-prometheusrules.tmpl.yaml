@@ -9,7 +9,7 @@ spec:
       interval: 1m
       rules:
         - alert: KubeFlow Training Operator is not running
-          expr: absent(up{job=~'KubeFlow Training Operator'}) or up{job=~'KubeFlow Training Operator'} != 1
+          expr: up{job=~'KubeFlow Training Operator'} < 1
           labels:
             severity: warning
           annotations:

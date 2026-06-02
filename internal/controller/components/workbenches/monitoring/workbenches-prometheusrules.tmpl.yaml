@@ -32,7 +32,7 @@ spec:
           annotations:
             message: 'Kubeflow Notebook controller is down!'
             summary: Kubeflow notebook controller pod is not running
-          expr: absent(up{job=~'Kubeflow Notebook Controller Service Metrics'})
+          expr: up{job=~'Kubeflow Notebook Controller Service Metrics'} == 0
           for: 5m
           labels:
             severity: warning
@@ -41,7 +41,7 @@ spec:
           annotations:
             message: 'ODH notebook controller is down!'
             summary: ODH notebook controller pod is not running
-          expr: absent(up{job=~'ODH Notebook Controller Service Metrics'})
+          expr: up{job=~'ODH Notebook Controller Service Metrics'} == 0
           for: 5m
           labels:
             severity: warning

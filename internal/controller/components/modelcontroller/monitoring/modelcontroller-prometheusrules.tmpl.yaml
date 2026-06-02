@@ -48,7 +48,7 @@ spec:
       - name: SLOs - ODH Model Controller
         rules:
         - expr: |
-            absent(up{job=~'ODH Model Controller'}) * 0 or vector(1)
+            min(up{job=~'ODH Model Controller'}) or vector(1)
           labels:
             instance: odh-model-controller
           record: probe_success

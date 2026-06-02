@@ -45,7 +45,7 @@ spec:
       - name: SLOs - Kserve Controller Manager
         rules:
         - expr: |
-            absent(up{job=~'Kserve Controller Manager'}) * 0 or vector(1)
+            min(up{job=~'Kserve Controller Manager'}) or vector(1)
           labels:
             instance: kserve-controller-manager
           record: probe_success
