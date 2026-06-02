@@ -19,6 +19,7 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	configApi "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
@@ -358,6 +359,12 @@ var (
 		Group:   serviceApi.GroupVersion.Group,
 		Version: serviceApi.GroupVersion.Version,
 		Kind:    serviceApi.MonitoringKind,
+	}
+
+	Platform = schema.GroupVersionKind{
+		Group:   configApi.GroupVersion.Group,
+		Version: configApi.GroupVersion.Version,
+		Kind:    configApi.PlatformKind,
 	}
 
 	FeastOperator = schema.GroupVersionKind{

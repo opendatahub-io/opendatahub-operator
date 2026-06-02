@@ -252,6 +252,48 @@ func TestManager_CleanupStaleConditionsNoopWithoutReset(t *testing.T) {
 	g.Expect(accessor.GetConditions()).To(HaveLen(3))
 }
 
+func TestManager_PreserveTypeProtectsFromCleanup(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	externalCondition := "ModulesReady"
+
+	accessor := &fakeAccessor{}
+	manager := conditions.NewManager(accessor, readyCondition, dependency1Condition)
+
+	manager.MarkTrue(dependency1Condition)
+	manager.SetCondition(common.Condition{
+		Type:   externalCondition,
+		Status: metav1.ConditionTrue,
+		Reason: "NoRegisteredModules",
+	})
+	g.Expect(manager.IsHappy()).To(BeTrue())
+
+	manager.Reset()
+	manager.MarkTrue(dependency1Condition)
+
+	manager.PreserveType(externalCondition)
+	manager.CleanupStaleConditions()
+
+	g.Expect(manager.GetCondition(dependency1Condition)).NotTo(BeNil())
+	g.Expect(manager.GetCondition(externalCondition)).NotTo(BeNil(), "preserved external condition should survive cleanup")
+	g.Expect(manager.GetCondition(externalCondition).Reason).To(Equal("NoRegisteredModules"))
+	g.Expect(manager.GetCondition(readyCondition)).NotTo(BeNil())
+	g.Expect(manager.IsHappy()).To(BeTrue())
+}
+
+func TestManager_PreserveTypeNoopBeforeReset(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	accessor := &fakeAccessor{}
+	manager := conditions.NewManager(accessor, readyCondition, dependency1Condition)
+
+	manager.PreserveType("SomeCondition")
+
+	g.Expect(manager.GetCondition("SomeCondition")).To(BeNil(), "PreserveType before Reset should be a no-op")
+}
+
 // TestManager_UnsetDependentsDoNotBlockHappiness reproduces the ModelController
 // e2e scenario: 3 dependent conditions are registered (DeploymentsAvailable,
 // DependenciesAvailable, LLMDWVADependencies), but only DeploymentsAvailable
