@@ -29,9 +29,9 @@ var (
 		"odh-th06-cuda130-torch210-py312-image":           "RELATED_IMAGE_ODH_TH06_CUDA130_TORCH210_PY312_IMAGE",
 		"odh-th06-rocm64-torch291-py312-image":            "RELATED_IMAGE_ODH_TH06_ROCM64_TORCH291_PY312_IMAGE",
 		"odh-th06-cpu-torch210-py312-image":               "RELATED_IMAGE_ODH_TH06_CPU_TORCH210_PY312_IMAGE",
-		"odh-training-universal-workbench-image-cuda-3-4": "RELATED_IMAGE_ODH_TH06_CUDA130_TORCH210_PY312_IMAGE",
-		"odh-training-universal-workbench-image-rocm-3-4": "RELATED_IMAGE_ODH_TH06_ROCM64_TORCH291_PY312_IMAGE",
-		"odh-training-universal-workbench-image-cpu-3-4":  "RELATED_IMAGE_ODH_TH06_CPU_TORCH210_PY312_IMAGE",
+		"odh-training-universal-workbench-image-cuda-3-5": "RELATED_IMAGE_ODH_TH06_CUDA130_TORCH210_PY312_IMAGE",
+		"odh-training-universal-workbench-image-rocm-3-5": "RELATED_IMAGE_ODH_TH06_ROCM64_TORCH291_PY312_IMAGE",
+		"odh-training-universal-workbench-image-cpu-3-5":  "RELATED_IMAGE_ODH_TH06_CPU_TORCH210_PY312_IMAGE",
 	}
 
 	conditionTypes = []string{
