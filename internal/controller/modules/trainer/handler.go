@@ -51,7 +51,8 @@ func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 	if platform.DSC == nil {
 		return false
 	}
-	return platform.DSC.Spec.Components.Trainer.ManagementState == operatorv1.Managed
+	state := platform.DSC.Spec.Components.Trainer.ManagementState
+	return state == "" || state == operatorv1.Managed
 }
 
 // BuildModuleCR projects DSC trainer configuration onto the module CR.
