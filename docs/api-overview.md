@@ -21,6 +21,7 @@ Package v1 contains API Schema definitions for the components v1 API group
 - [FeastOperator](#feastoperator)
 - [Kserve](#kserve)
 - [Kueue](#kueue)
+- [MCPLifecycleOperator](#mcplifecycleoperator)
 - [MLflowOperator](#mlflowoperator)
 - [ModelController](#modelcontroller)
 - [ModelRegistry](#modelregistry)
@@ -274,6 +275,38 @@ DSCLlamaStackOperatorStatus struct holds the status for the LlamaStackOperator c
 
 _Appears in:_
 - [ComponentsStatus](#componentsstatus)
+- [ComponentsStatus](#componentsstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
+#### DSCMCPLifecycleOperator
+
+
+
+
+
+
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
+#### DSCMCPLifecycleOperatorStatus
+
+
+
+
+
+
+
+_Appears in:_
 - [ComponentsStatus](#componentsstatus)
 
 | Field | Description | Default | Validation |
@@ -1160,6 +1193,90 @@ _Appears in:_
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
+
+
+#### MCPLifecycleOperator
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
+| `kind` _string_ | `MCPLifecycleOperator` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[MCPLifecycleOperatorSpec](#mcplifecycleoperatorspec)_ |  |  |  |
+| `status` _[MCPLifecycleOperatorStatus](#mcplifecycleoperatorstatus)_ |  |  |  |
+
+
+#### MCPLifecycleOperatorCommonSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [DSCMCPLifecycleOperator](#dscmcplifecycleoperator)
+- [MCPLifecycleOperatorSpec](#mcplifecycleoperatorspec)
+
+
+
+#### MCPLifecycleOperatorCommonStatus
+
+
+
+
+
+
+
+_Appears in:_
+- [DSCMCPLifecycleOperatorStatus](#dscmcplifecycleoperatorstatus)
+- [MCPLifecycleOperatorStatus](#mcplifecycleoperatorstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
+
+
+#### MCPLifecycleOperatorSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [MCPLifecycleOperator](#mcplifecycleoperator)
+
+
+
+#### MCPLifecycleOperatorStatus
+
+
+
+
+
+
+
+_Appears in:_
+- [MCPLifecycleOperator](#mcplifecycleoperator)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `conditions` _[Condition](#condition) array_ |  |  |  |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### MLflowOperator
@@ -2483,6 +2600,7 @@ _Appears in:_
 | `mlflowoperator` _[DSCMLflowOperator](#dscmlflowoperator)_ | MLflow Operator component configuration. |  |  |
 | `trainer` _[DSCTrainer](#dsctrainer)_ | Trainer component configuration. |  |  |
 | `sparkoperator` _[DSCSparkOperator](#dscsparkoperator)_ | SparkOperator component configuration. |  |  |
+| `mcplifecycleoperator` _[DSCMCPLifecycleOperator](#dscmcplifecycleoperator)_ | MCPLifecycleOperator component configuration. |  |  |
 
 
 #### ComponentsStatus
@@ -2513,6 +2631,7 @@ _Appears in:_
 | `mlflowoperator` _[DSCMLflowOperatorStatus](#dscmlflowoperatorstatus)_ | MLflow Operator component status. |  |  |
 | `trainer` _[DSCTrainerStatus](#dsctrainerstatus)_ | Trainer component status. |  |  |
 | `sparkoperator` _[DSCSparkOperatorStatus](#dscsparkoperatorstatus)_ | SparkOperator component status. |  |  |
+| `mcplifecycleoperator` _[DSCMCPLifecycleOperatorStatus](#dscmcplifecycleoperatorstatus)_ | MCPLifecycleOperator component status. |  |  |
 
 
 #### DataScienceCluster

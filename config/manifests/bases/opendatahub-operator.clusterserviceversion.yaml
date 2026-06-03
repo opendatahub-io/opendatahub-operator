@@ -17,7 +17,7 @@ metadata:
       "modelcontrollers.components.platform.opendatahub.io", "feastoperators.components.platform.opendatahub.io",
       "ogxs.components.platform.opendatahub.io", "trainers.components.platform.opendatahub.io",
       "mlflowoperators.components.platform.opendatahub.io", "modelsasservices.components.platform.opendatahub.io",
-      "sparkoperators.components.platform.opendatahub.io"]'
+      "sparkoperators.components.platform.opendatahub.io", "mcplifecycleoperators.components.platform.opendatahub.io"]'
     repository: https://github.com/opendatahub-io/opendatahub-operator
   name: opendatahub-operator.v3.5.0-ea.2
   namespace: placeholder
@@ -29,6 +29,12 @@ spec:
       displayName: Hardware Profile
       kind: HardwareProfile
       name: hardwareprofiles.infrastructure.opendatahub.io
+      version: v1alpha1
+    - description: mcplifecycleoperator is the Schema for the mcplifecycleoperators
+        API
+      displayName: Mcplifecycleoperator
+      kind: mcplifecycleoperator
+      name: mcplifecycleoperators.components.platform.opendatahub.io
       version: v1alpha1
     - description: Auth is the Schema for the auths API
       displayName: Auth

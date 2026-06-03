@@ -76,6 +76,9 @@ type Components struct {
 
 	// SparkOperator component configuration.
 	SparkOperator componentApi.DSCSparkOperator `json:"sparkoperator,omitempty"`
+
+	// MCPLifecycleOperator component configuration.
+	MCPLifecycleOperator componentApi.DSCMCPLifecycleOperator `json:"mcplifecycleoperator,omitempty"`
 }
 
 // ComponentsStatus defines the custom status of DataScienceCluster components.
@@ -125,6 +128,9 @@ type ComponentsStatus struct {
 
 	// SparkOperator component status.
 	SparkOperator componentApi.DSCSparkOperatorStatus `json:"sparkoperator,omitempty"`
+
+	// MCPLifecycleOperator component status.
+	MCPLifecycleOperator componentApi.DSCMCPLifecycleOperatorStatus `json:"mcplifecycleoperator,omitempty"`
 }
 
 // DataScienceClusterStatus defines the observed state of DataScienceCluster.

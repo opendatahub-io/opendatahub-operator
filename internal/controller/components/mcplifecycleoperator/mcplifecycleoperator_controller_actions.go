@@ -1,0 +1,12 @@
+package mcplifecycleoperator
+
+import (
+	"context"
+
+	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+)
+
+// TODO: Populate logic for function below.
+func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+	return nil
+}

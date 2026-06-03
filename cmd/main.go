@@ -109,6 +109,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
+
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/mcplifecycleoperator"
 )
 
 var (
