@@ -63,6 +63,9 @@ map:
   odh-kserve-module-operator:
     src: kserve-module/config
     dest: kserve-module
-  odh-agents-operator:
-    src: kagenti-operator/config
-    dest: kagenti-operator
+  # odh-agents-operator: disabled until odh-mod-arch-agent-ops image has
+  # a stable tag on quay.io (currently only has PR/build tags, which causes
+  # Konflux CI to fail with "no tags found" for all PRs targeting main).
+  # odh-agents-operator:
+  #   src: kagenti-operator/config
+  #   dest: kagenti-operator
