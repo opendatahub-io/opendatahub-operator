@@ -52,8 +52,8 @@ func TestIsEnabled_Removed(t *testing.T) {
 
 func TestIsEnabled_Empty(t *testing.T) {
 	h := trainer.NewHandler()
-	if h.IsEnabled(newPlatformCtx("")) {
-		t.Error("expected trainer to be disabled when ManagementState is empty")
+	if !h.IsEnabled(newPlatformCtx("")) {
+		t.Error("expected trainer to be enabled when ManagementState is empty (defaults to Managed)")
 	}
 }
 
