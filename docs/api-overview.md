@@ -2,6 +2,7 @@
 
 ## Packages
 - [components.platform.opendatahub.io/v1alpha1](#componentsplatformopendatahubiov1alpha1)
+- [config.opendatahub.io/v1alpha1](#configopendatahubiov1alpha1)
 - [datasciencecluster.opendatahub.io/v1](#datascienceclusteropendatahubiov1)
 - [datasciencecluster.opendatahub.io/v2](#datascienceclusteropendatahubiov2)
 - [dscinitialization.opendatahub.io/v1](#dscinitializationopendatahubiov1)
@@ -2279,6 +2280,91 @@ _Appears in:_
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 | `workbenchNamespace` _string_ |  |  |  |
+
+
+
+## config.opendatahub.io/v1alpha1
+
+Package v1alpha1 contains API Schema definitions for the config v1alpha1 API group
+
+### Resource Types
+- [Platform](#platform)
+
+
+
+#### Platform
+
+
+
+Platform is the Schema for the platforms API. It serves as the primary
+reconcile trigger for the module reconciler on clusters where
+DataScienceCluster is not installed (xKS / vanilla Kubernetes).
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `config.opendatahub.io/v1alpha1` | | |
+| `kind` _string_ | `Platform` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[PlatformSpec](#platformspec)_ |  |  |  |
+| `status` _[PlatformStatus](#platformstatus)_ |  |  |  |
+
+
+#### PlatformModules
+
+
+
+PlatformModules declares per-module management state for Platform mode.
+Each field maps to a registered module handler by name. Add new module
+fields here when onboarding additional modules.
+
+
+
+_Appears in:_
+- [PlatformSpec](#platformspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `monitoring` _[ManagementSpec](#managementspec)_ | Monitoring controls the monitoring module operator lifecycle. |  |  |
+
+
+#### PlatformSpec
+
+
+
+PlatformSpec defines the desired state of Platform.
+
+
+
+_Appears in:_
+- [Platform](#platform)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `modules` _[PlatformModules](#platformmodules)_ | Modules declares the set of modules managed by this Platform instance.<br />Each field corresponds to a registered module handler. Modules follow<br />the same Managed/Removed/empty convention as DSC components: Managed<br />deploys the module, Removed tears it down, empty means not managed. |  |  |
+
+
+#### PlatformStatus
+
+
+
+PlatformStatus defines the observed state of Platform.
+
+
+
+_Appears in:_
+- [Platform](#platform)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `conditions` _[Condition](#condition) array_ |  |  |  |
 
 
 

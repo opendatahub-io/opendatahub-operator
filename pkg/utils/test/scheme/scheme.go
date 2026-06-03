@@ -23,6 +23,7 @@ import (
 	ccmAzureV1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/azure/v1alpha1"
 	ccmCoreweaveV1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/coreweave/v1alpha1"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
@@ -54,6 +55,7 @@ var (
 		ofapiv2.AddToScheme,
 		coordinationv1.AddToScheme,
 		serviceApi.AddToScheme,
+		configv1alpha1.AddToScheme,
 		admissionv1.AddToScheme,
 		infrav1.AddToScheme,
 		gwapiv1.Install,
