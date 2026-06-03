@@ -67,6 +67,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
@@ -94,6 +95,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/workbenches"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
+	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
@@ -141,6 +143,10 @@ var (
 		serviceApi.MonitoringServiceName:   monitoring.NewHandler(),
 		setup.ServiceName:                  setup.NewHandler(),
 	}
+
+	existingModules = map[string]mr.ModuleHandler{
+		// serviceApi.MonitoringServiceName: monitoringModule.NewHandler(),
+	}
 )
 
 func init() { //nolint:gochecknoinits
@@ -176,6 +182,7 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(templatev1.Install(scheme))
 	utilruntime.Must(gwapiv1.Install(scheme))
 	utilruntime.Must(maasv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(configv1alpha1.AddToScheme(scheme))
 }
 
 func initComponents(_ context.Context, p common.Platform, cfg operatorconfig.OperatorSettings) error {
@@ -208,6 +215,15 @@ func registerServices() {
 	}
 }
 
+func registerModules() {
+	for name, handler := range existingModules {
+		mr.Add(handler)
+		if !flags.IsModuleEnabled(name) {
+			mr.Disable(name)
+		}
+	}
+}
+
 func main() { //nolint:funlen,maintidx,gocyclo
 	// Setup Viper
 	viper.SetEnvPrefix("ODH_MANAGER")
@@ -223,6 +239,10 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		fmt.Printf("Error registering service suppression flags: %s", err.Error())
 		os.Exit(1)
 	}
+	if err := flags.RegisterModuleSuppressionFlags(slices.Collect(maps.Keys(existingModules))); err != nil {
+		fmt.Printf("Error registering module suppression flags: %s", err.Error())
+		os.Exit(1)
+	}
 
 	oconfig, err := operatorconfig.LoadConfig()
 	if err != nil {
@@ -230,9 +250,10 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	// Register handlers and apply suppression flags disabling the corresponding component/service
+	// Register handlers and apply suppression flags disabling the corresponding component/service/module
 	registerComponents()
 	registerServices()
+	registerModules()
 
 	ctrl.SetLogger(logger.NewLogger(oconfig.LogMode, oconfig.ZapOptions))
 
@@ -422,7 +443,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 
 	// Wrap the manager to return the wrapped client from GetClient()
-	mgr := manager.New(ctrlMgr, manager.WithManifestsBasePath(oconfig.ManifestsBasePath))
+	mgr := manager.New(ctrlMgr, manager.WithManifestsBasePath(oconfig.ManifestsBasePath), manager.WithChartsBasePath(oconfig.ChartsBasePath))
 
 	// Register all webhooks using the helper
 	if err := webhook.RegisterAllWebhooks(mgr); err != nil {
@@ -451,6 +472,11 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		}
 	} else {
 		setupLog.Info("DSC controller is suppressed")
+	}
+
+	if err = mr.NewModuleReconciler(ctx, mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "modules")
+		os.Exit(1)
 	}
 
 	// Initialize service reconcilers
