@@ -317,15 +317,6 @@ func (r *Manager) findUnhappyDependent() *common.Condition {
 	return nil
 }
 
-// PreserveType marks a condition type as active without setting or modifying
-// the condition itself. This prevents CleanupStaleConditions from removing
-// conditions managed by other controllers that share the same status object.
-func (r *Manager) PreserveType(t string) {
-	if r.activeTypes != nil {
-		r.activeTypes[t] = struct{}{}
-	}
-}
-
 // Reset prepares the Manager for a new reconciliation cycle by initializing
 // the active types tracker. Unlike the previous implementation that cleared
 // all conditions, this preserves them so that SetStatusCondition can detect

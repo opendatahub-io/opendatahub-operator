@@ -293,8 +293,7 @@ func deploymentNameFromManifests(manifests OperatorManifests, fallbackName strin
 // writer's conditions overwrite the other's. Once all components have
 // migrated to modules and the DSC controller is removed, the modules
 // controller becomes the sole status writer and ModulesReady can be
-// enabled. At that point, also wire WithPreservedConditions on any
-// remaining controllers that share the status object.
+// enabled.
 func updateModuleStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	log := logf.FromContext(ctx)
 

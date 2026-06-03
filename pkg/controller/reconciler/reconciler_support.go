@@ -124,7 +124,6 @@ type ReconcilerBuilder[T common.PlatformObject] struct {
 	excludeFromOwnership     []schema.GroupVersionKind
 	dynamicOwnershipGVKPreds map[schema.GroupVersionKind][]predicate.Predicate
 	skipConditionCleanup     bool
-	preservedConditions      []string
 }
 
 func ReconcilerFor[T common.PlatformObject](mgr ctrl.Manager, object T, opts ...builder.ForOption) *ReconcilerBuilder[T] {
@@ -173,14 +172,6 @@ func (b *ReconcilerBuilder[T]) WithInstanceName(instanceName string) *Reconciler
 
 func (b *ReconcilerBuilder[T]) WithoutConditionCleanup() *ReconcilerBuilder[T] {
 	b.skipConditionCleanup = true
-	return b
-}
-
-// WithPreservedConditions registers condition types managed by other
-// controllers that share the same status object. These types are marked
-// as active before CleanupStaleConditions runs so they are not removed.
-func (b *ReconcilerBuilder[T]) WithPreservedConditions(types ...string) *ReconcilerBuilder[T] {
-	b.preservedConditions = append(b.preservedConditions, types...)
 	return b
 }
 
@@ -426,9 +417,6 @@ func (b *ReconcilerBuilder[T]) Build(_ context.Context) (*Reconciler, error) {
 	}
 	if b.skipConditionCleanup {
 		opts = append(opts, withSkipConditionCleanup())
-	}
-	if len(b.preservedConditions) > 0 {
-		opts = append(opts, withPreservedConditions(b.preservedConditions))
 	}
 
 	r, err := NewReconciler(b.mgr, name, obj, opts...)

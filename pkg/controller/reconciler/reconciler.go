@@ -75,12 +75,6 @@ func withSkipConditionCleanup() ReconcilerOpt {
 	}
 }
 
-func withPreservedConditions(types []string) ReconcilerOpt {
-	return func(reconciler *Reconciler) {
-		reconciler.preservedConditions = append(reconciler.preservedConditions, types...)
-	}
-}
-
 // withDynamicOwnership enables dynamic ownership mode for the reconciler.
 // When enabled, the controller will automatically track ownership of resources
 // that are deployed, without requiring explicit .Owns() declarations.
@@ -125,7 +119,6 @@ type Reconciler struct {
 	dynamicOwnershipEnabled     bool
 	excludeFromDynamicOwnership map[schema.GroupVersionKind]struct{}
 	skipConditionCleanup        bool
-	preservedConditions         []string
 }
 
 // NewReconciler creates a new reconciler for the given type.
@@ -419,12 +412,6 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error
 				conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
 			)
 		}
-	}
-
-	// Mark externally-managed condition types as active so
-	// CleanupStaleConditions does not remove them.
-	for _, ct := range r.preservedConditions {
-		rr.Conditions.PreserveType(ct)
 	}
 
 	// Remove conditions that were present before Reset but were
