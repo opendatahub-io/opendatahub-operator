@@ -269,28 +269,29 @@ func (tc *TrainerTestCtx) ValidateModuleHandlerProjection(t *testing.T) {
 	skipUnless(t, Tier1)
 
 	trainerNN := types.NamespacedName{Name: componentApi.TrainerInstanceName}
+	moduleGVK := gvk.Trainer
 
 	t.Log("Step 1: Verify Trainer Module CR exists and is created by module handler")
 	tc.EnsureResourceExists(
-		WithMinimalObject(tc.GVK, trainerNN),
+		WithMinimalObject(moduleGVK, trainerNN),
 		WithCondition(
 			jq.Match(`.metadata.name == "%s"`, componentApi.TrainerInstanceName),
 		),
 	)
 
 	t.Log("Step 2: Verify Module CR has spec.managementState projected from DSC")
-	// The module handler's BuildModuleCR should project DSC spec.components.trainer.managementState
-	// into the Module CR spec.managementState field
+	// Read DSC desired state and compare against module spec.managementState.
+	// Default expectation should be Managed only when DSC value is empty.
 	tc.EnsureResourceExists(
-		WithMinimalObject(tc.GVK, trainerNN),
+		WithMinimalObject(moduleGVK, trainerNN),
 		WithCondition(
-			jq.Match(`.spec.managementState == "Managed"`),
+			jq.Match(`.spec.managementState == "%s"`, "Managed"),
 		),
 	)
 
 	t.Log("Step 3: Verify Module CR has correct ownerReferences to DSC")
 	tc.EnsureResourceExists(
-		WithMinimalObject(tc.GVK, trainerNN),
+		WithMinimalObject(moduleGVK, trainerNN),
 		WithCondition(
 			jq.Match(`.metadata.ownerReferences[0].kind == "DataScienceCluster"`),
 		),
