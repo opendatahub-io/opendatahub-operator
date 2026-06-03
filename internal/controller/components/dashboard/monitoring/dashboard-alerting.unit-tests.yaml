@@ -6,17 +6,17 @@ evaluation_interval: 1m
 tests:
   - interval: 1m
     input_series:
-      - series: haproxy_backend_http_responses_total:burnrate2m{route="data-science-gateway"}
+      - series: haproxy_backend_http_responses_total:burnrate2m{route="data-science-gateway",exported_namespace="openshift-ingress"}
         values: "0x60"
-      - series: haproxy_backend_http_responses_total:burnrate5m{route="data-science-gateway"}
+      - series: haproxy_backend_http_responses_total:burnrate5m{route="data-science-gateway",exported_namespace="openshift-ingress"}
         values: "0x60"
-      - series: haproxy_backend_http_responses_total:burnrate1h{route="data-science-gateway"}
+      - series: haproxy_backend_http_responses_total:burnrate1h{route="data-science-gateway",exported_namespace="openshift-ingress"}
         values: "0x60"
-      - series: haproxy_backend_http_responses_total:burnrate2h{route="data-science-gateway"}
+      - series: haproxy_backend_http_responses_total:burnrate2h{route="data-science-gateway",exported_namespace="openshift-ingress"}
         values: "0x60"
-      - series: haproxy_backend_http_responses_total:burnrate6h{route="data-science-gateway"}
+      - series: haproxy_backend_http_responses_total:burnrate6h{route="data-science-gateway",exported_namespace="openshift-ingress"}
         values: "0x60"
-      - series: haproxy_backend_http_responses_total:burnrate1d{route="data-science-gateway"}
+      - series: haproxy_backend_http_responses_total:burnrate1d{route="data-science-gateway",exported_namespace="openshift-ingress"}
         values: "0x60"
     alert_rule_test:
       - eval_time: 1h
@@ -25,9 +25,9 @@ tests:
 
   - interval: 1m
     input_series:
-      - series: haproxy_backend_http_responses_total:burnrate5m{route="data-science-gateway"}
+      - series: haproxy_backend_http_responses_total:burnrate5m{route="data-science-gateway",exported_namespace="openshift-ingress"}
         values: "1+1x60"
-      - series: haproxy_backend_http_responses_total:burnrate1h{route="data-science-gateway"}
+      - series: haproxy_backend_http_responses_total:burnrate1h{route="data-science-gateway",exported_namespace="openshift-ingress"}
         values: "1+1x60"
     alert_rule_test:
       - eval_time: 2m
@@ -44,9 +44,9 @@ tests:
 
   - interval: 1m
     input_series:
-      - series: haproxy_backend_http_responses_total:burnrate30m{route="data-science-gateway"}
+      - series: haproxy_backend_http_responses_total:burnrate30m{route="data-science-gateway",exported_namespace="openshift-ingress"}
         values: "1+1x60"
-      - series: haproxy_backend_http_responses_total:burnrate6h{route="data-science-gateway"}
+      - series: haproxy_backend_http_responses_total:burnrate6h{route="data-science-gateway",exported_namespace="openshift-ingress"}
         values: "1+1x60"
     alert_rule_test:
       - eval_time: 15m
@@ -63,9 +63,9 @@ tests:
 
   - interval: 1m
     input_series:
-      - series: haproxy_backend_http_responses_total:burnrate2h{route="data-science-gateway"}
+      - series: haproxy_backend_http_responses_total:burnrate2h{route="data-science-gateway",exported_namespace="openshift-ingress"}
         values: "1+1x60"
-      - series: haproxy_backend_http_responses_total:burnrate1d{route="data-science-gateway"}
+      - series: haproxy_backend_http_responses_total:burnrate1d{route="data-science-gateway",exported_namespace="openshift-ingress"}
         values: "1+1x60"
     alert_rule_test:
       - eval_time: 1h
