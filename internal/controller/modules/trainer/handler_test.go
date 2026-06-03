@@ -153,7 +153,7 @@ func TestGetRelatedImages(t *testing.T) {
 	}
 }
 
-// TestDSCToModuleCRFlow verifies the complete handler flow: DSC -> handler -> Module CR
+// TestDSCToModuleCRFlow verifies the complete handler flow: DSC -> handler -> Module CR.
 func TestDSCToModuleCRFlow(t *testing.T) {
 	t.Run("DSC with trainer=Managed creates correct Module CR", func(t *testing.T) {
 		platform := newPlatformCtx(operatorv1.Managed)

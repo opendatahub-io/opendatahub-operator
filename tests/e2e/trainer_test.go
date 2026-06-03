@@ -33,6 +33,7 @@ func trainerTestSuite(t *testing.T) {
 	// Define test cases.
 	testCases := []TestCase{
 		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
+		{"Validate module handler projects DSC config to Module CR", componentCtx.ValidateModuleHandlerProjection},
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
@@ -258,4 +259,42 @@ func (tc *TrainerTestCtx) runDegradedConditionTest(t *testing.T, testCase degrad
 	)
 
 	t.Logf("Test case passed: %s", testCase.name)
+}
+
+// ValidateModuleHandlerProjection verifies module handler projects DSC config
+// (spec.components.trainer.managementState) into Trainer Module CR spec.
+func (tc *TrainerTestCtx) ValidateModuleHandlerProjection(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+
+	trainerNN := types.NamespacedName{Name: componentApi.TrainerInstanceName}
+
+	t.Log("Step 1: Verify Trainer Module CR exists and is created by module handler")
+	tc.EnsureResourceExists(
+		WithMinimalObject(tc.GVK, trainerNN),
+		WithCondition(
+			jq.Match(`.metadata.name == "%s"`, componentApi.TrainerInstanceName),
+		),
+	)
+
+	t.Log("Step 2: Verify Module CR has spec.managementState projected from DSC")
+	// The module handler's BuildModuleCR should project DSC spec.components.trainer.managementState
+	// into the Module CR spec.managementState field
+	tc.EnsureResourceExists(
+		WithMinimalObject(tc.GVK, trainerNN),
+		WithCondition(
+			jq.Match(`.spec.managementState == "Managed"`),
+		),
+	)
+
+	t.Log("Step 3: Verify Module CR has correct ownerReferences to DSC")
+	tc.EnsureResourceExists(
+		WithMinimalObject(tc.GVK, trainerNN),
+		WithCondition(
+			jq.Match(`.metadata.ownerReferences[0].kind == "DataScienceCluster"`),
+		),
+	)
+
+	t.Log("Module handler projection validation passed - DSC config correctly projected to Module CR spec")
 }

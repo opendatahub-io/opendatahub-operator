@@ -145,7 +145,7 @@ var (
 	}
 
 	existingModules = map[string]mr.ModuleHandler{
-		serviceApi.MonitoringServiceName:  monitoringModule.NewHandler(),
+		// serviceApi.MonitoringServiceName: monitoringModule.NewHandler(),
 		componentApi.TrainerComponentName: trainerModule.NewHandler(),
 	}
 )
