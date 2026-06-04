@@ -117,15 +117,10 @@ func (tc *KserveTestCtx) ValidateSpec(t *testing.T) {
 
 	dsc := tc.FetchDataScienceCluster()
 
-	nimState := dsc.Spec.Components.Kserve.NIM.ManagementState
-	if nimState == "" {
-		nimState = operatorv1.Managed
-	}
-
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: componentApi.KserveInstanceName}),
 		WithCondition(And(
-			jq.Match(`.spec.nim.managementState == "%s"`, nimState),
+			jq.Match(`.spec.nim.managementState == "%s"`, dsc.Spec.Components.Kserve.NIM.ManagementState),
 		)),
 	)
 }
