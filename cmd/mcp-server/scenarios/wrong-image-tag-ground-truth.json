@@ -1,0 +1,29 @@
+{
+  "scenario_id": "wrong-image-tag",
+  "scenario_name": "Wrong Image Tag",
+  "description": "Dashboard deployment patched to use a valid registry but nonexistent tag, causing ImagePullBackOff. Differs from image-pull-failure scenario which uses a completely nonexistent registry.",
+  "root_cause": "Deployment odh-dashboard using a valid registry (quay.io/opendatahub/odh-dashboard) but nonexistent tag (:v999-does-not-exist)",
+  "expected_classification": {
+    "category": "infrastructure",
+    "subcategory": "image-pull",
+    "error_code": 1001,
+    "confidence": "medium"
+  },
+  "expected_tool_outputs": {
+    "platform_health": {
+      "healthy": false
+    }
+  },
+  "expected_symptoms": [
+    "Pod in ImagePullBackOff or ErrImagePull state",
+    "Warning events with 'manifest unknown' or 'not found' error from registry",
+    "Deployment shows reduced ready replicas"
+  ],
+  "tools_that_detect": [
+    "classify_failure",
+    "platform_health",
+    "recent_events",
+    "component_status"
+  ],
+  "expected_remediation": "Correct the image tag on the odh-dashboard deployment to a valid tag that exists in the registry"
+}
