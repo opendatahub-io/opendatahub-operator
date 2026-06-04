@@ -129,48 +129,6 @@ func TestBuildModuleCR_NilDSCReturnsError(t *testing.T) {
 	}
 }
 
-func TestBuildModuleCR_ProjectsPlatformRelease(t *testing.T) {
-	h := trainer.NewHandler()
-	platform := newPlatformCtx(operatorv1.Managed)
-	platform.Release = common.Release{
-		Name: cluster.SelfManagedRhoai,
-		Version: version.OperatorVersion{
-			Version: semver.Version{Major: 3, Minor: 5, Patch: 0},
-		},
-	}
-
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
-	if err != nil {
-		t.Fatalf("BuildModuleCR returned error: %v", err)
-	}
-
-	spec, ok := u.Object["spec"].(map[string]any)
-	if !ok {
-		t.Fatal("spec is not a map")
-	}
-
-	platformRelease, ok := spec["platformRelease"].(map[string]any)
-	if !ok {
-		t.Fatal("platformRelease is not a map")
-	}
-
-	gotName, ok := platformRelease["name"].(string)
-	if !ok {
-		t.Fatalf("platformRelease.name is not a string, got %T", platformRelease["name"])
-	}
-	if gotName != string(cluster.SelfManagedRhoai) {
-		t.Errorf("platformRelease.name: want %q, got %q", cluster.SelfManagedRhoai, gotName)
-	}
-
-	gotVersion, ok := platformRelease["version"].(string)
-	if !ok {
-		t.Fatalf("platformRelease.version is not a string, got %T", platformRelease["version"])
-	}
-	if gotVersion != "3.5.0" {
-		t.Errorf("platformRelease.version: want %q, got %q", "3.5.0", gotVersion)
-	}
-}
-
 func TestGetRelatedImages(t *testing.T) {
 	h := trainer.NewHandler()
 	images := h.GetRelatedImages()

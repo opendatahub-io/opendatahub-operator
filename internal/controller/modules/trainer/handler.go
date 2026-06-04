@@ -79,12 +79,6 @@ func (h *handler) BuildModuleCR(
 		return nil, fmt.Errorf("failed to convert DSCTrainer to unstructured: %w", err)
 	}
 
-	// Project platform release information for version-aware upgrade logic
-	spec["platformRelease"] = map[string]any{
-		"name":    string(platform.Release.Name),
-		"version": platform.Release.Version.String(),
-	}
-
 	u := &unstructured.Unstructured{}
 	u.SetGroupVersionKind(h.Config.GVK)
 	u.SetName(h.Config.CRName)
