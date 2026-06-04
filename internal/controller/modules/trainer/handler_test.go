@@ -61,8 +61,8 @@ func TestIsEnabled_Removed(t *testing.T) {
 
 func TestIsEnabled_Empty(t *testing.T) {
 	h := trainer.NewHandler()
-	if !h.IsEnabled(newPlatformCtx("")) {
-		t.Error("expected trainer to be enabled when ManagementState is empty (defaults to Managed)")
+	if h.IsEnabled(newPlatformCtx("")) {
+		t.Error("expected trainer to be disabled when ManagementState is empty")
 	}
 }
 
@@ -100,7 +100,7 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	}
 }
 
-func TestBuildModuleCR_EmptyManagementStateDefaultsToManaged(t *testing.T) {
+func TestBuildModuleCR_EmptyManagementStateRemainsEmpty(t *testing.T) {
 	h := trainer.NewHandler()
 	platform := newPlatformCtx("")
 
@@ -114,8 +114,8 @@ func TestBuildModuleCR_EmptyManagementStateDefaultsToManaged(t *testing.T) {
 		t.Fatal("spec is not a map")
 	}
 
-	if got := spec["managementState"]; got != "Managed" {
-		t.Errorf("managementState: want %q, got %v", "Managed", got)
+	if got := spec["managementState"]; got != "" && got != nil {
+		t.Errorf("managementState: want empty, got %v", got)
 	}
 }
 
