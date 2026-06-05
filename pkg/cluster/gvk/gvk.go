@@ -307,6 +307,12 @@ var (
 		Kind:    componentApi.KserveKind,
 	}
 
+	BatchGateway = schema.GroupVersionKind{
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.BatchGatewayKind,
+	}
+
 	OGX = schema.GroupVersionKind{
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,

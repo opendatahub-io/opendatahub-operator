@@ -17,6 +17,7 @@
 Package v1 contains API Schema definitions for the components v1 API group
 
 ### Resource Types
+- [BatchGateway](#batchgateway)
 - [Dashboard](#dashboard)
 - [DataSciencePipelines](#datasciencepipelines)
 - [FeastOperator](#feastoperator)
@@ -68,6 +69,122 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the bundled Argo Workflows controllers.<br />              It will only upgrade the Argo Workflows controllers if it is safe to do so. This is the default<br />              behavior.<br />- "Removed" : the operator is not managing the bundled Argo Workflows controllers and will not install it.<br />              If it is installed, the operator will remove it but will not remove other Argo Workflows<br />              installations. | Managed | Enum: [Managed Removed] <br /> |
+
+
+#### BatchGateway
+
+
+
+BatchGateway is the Schema for the batchgateways API
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
+| `kind` _string_ | `BatchGateway` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[BatchGatewaySpec](#batchgatewayspec)_ |  |  |  |
+| `status` _[BatchGatewayStatus](#batchgatewaystatus)_ |  |  |  |
+
+
+#### BatchGatewayCommonSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [BatchGatewaySpec](#batchgatewayspec)
+- [DSCBatchGateway](#dscbatchgateway)
+
+
+
+#### BatchGatewayCommonStatus
+
+
+
+BatchGatewayCommonStatus defines the shared observed state
+
+
+
+_Appears in:_
+- [BatchGatewayStatus](#batchgatewaystatus)
+- [DSCBatchGatewayStatus](#dscbatchgatewaystatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
+
+
+#### BatchGatewaySpec
+
+
+
+BatchGatewaySpec defines the desired state of BatchGateway
+
+
+
+_Appears in:_
+- [BatchGateway](#batchgateway)
+
+
+
+#### BatchGatewayStatus
+
+
+
+BatchGatewayStatus defines the observed state
+
+
+
+_Appears in:_
+- [BatchGateway](#batchgateway)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `conditions` _[Condition](#condition) array_ |  |  |  |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
+
+
+#### DSCBatchGateway
+
+
+
+DSCBatchGateway contains all the configuration exposed in DSC instance
+
+
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
+#### DSCBatchGatewayStatus
+
+
+
+DSCBatchGatewayStatus contains the observed state exposed in the DSC
+
+
+
+_Appears in:_
+- [ComponentsStatus](#componentsstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
 #### DSCDashboard
@@ -2569,6 +2686,7 @@ _Appears in:_
 | `mlflowoperator` _[DSCMLflowOperator](#dscmlflowoperator)_ | MLflow Operator component configuration. |  |  |
 | `trainer` _[DSCTrainer](#dsctrainer)_ | Trainer component configuration. |  |  |
 | `sparkoperator` _[DSCSparkOperator](#dscsparkoperator)_ | SparkOperator component configuration. |  |  |
+| `batchgateway` _[DSCBatchGateway](#dscbatchgateway)_ | BatchGateway modular component configuration. |  |  |
 
 
 #### ComponentsStatus
@@ -2599,6 +2717,7 @@ _Appears in:_
 | `mlflowoperator` _[DSCMLflowOperatorStatus](#dscmlflowoperatorstatus)_ | MLflow Operator component status. |  |  |
 | `trainer` _[DSCTrainerStatus](#dsctrainerstatus)_ | Trainer component status. |  |  |
 | `sparkoperator` _[DSCSparkOperatorStatus](#dscsparkoperatorstatus)_ | SparkOperator component status. |  |  |
+| `batchgateway` _[DSCBatchGatewayStatus](#dscbatchgatewaystatus)_ | BatchGateway modular component status. |  |  |
 
 
 #### DataScienceCluster

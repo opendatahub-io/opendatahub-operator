@@ -103,6 +103,7 @@ func buildPlatformContext(ctx context.Context, rr *odhtype.ReconciliationRequest
 		DSCI:                  dsciOrNil(rr),
 		Platform:              platformFromInstance(rr),
 		ChartsBasePath:        rr.ChartsBasePath,
+		ManifestsBasePath:     rr.ManifestsBasePath,
 	}, nil
 }
 

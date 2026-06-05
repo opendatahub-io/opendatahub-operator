@@ -16,10 +16,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manifests/kustomize"
 )
+
+// paramsEnvFile is the Kustomize params file used for image substitutions.
+const paramsEnvFile = "params.env"
 
 // ModuleConfig holds the static, declarative metadata for a module.
 // Module teams populate this struct; BaseHandler provides default
@@ -34,7 +39,7 @@ type ModuleConfig struct {
 	// GVK is the GroupVersionKind of the module CR managed by this handler.
 	GVK schema.GroupVersionKind
 
-	// CRName is the singleton name of the module CR instance (e.g. "default").
+	// CRName is the singleton name of the module CR instance (e.g. "default-xxxx").
 	CRName string
 
 	// Helm fields -- used when ChartDir is set.
@@ -66,6 +71,15 @@ type ModuleConfig struct {
 
 	// SourcePath is an optional overlay path within ContextDir.
 	SourcePath string
+
+	// relative path from /opt/manifests/modules to point where overlay manifests are
+	SourcePathByPlatform map[common.Platform]string
+
+	// build up a map for the swap of params.env files values with production images
+	ImageParamMap map[string]string
+
+	// relative path from /opt/manifests to point where params.env exists
+	ParamsPath string
 
 	// Namespace overrides the default ApplicationsNamespace for Kustomize
 	// rendering. When empty, Kustomize uses ApplicationsNamespace. Set this
@@ -136,10 +150,29 @@ func (b *BaseHandler) GetOperatorManifests(platform *PlatformContext) OperatorMa
 	}
 
 	if b.Config.ManifestDir != "" {
+		path := b.Config.ManifestDir
+		if platform != nil && platform.ManifestsBasePath != "" {
+			path = filepath.Join(platform.ManifestsBasePath, b.Config.ManifestDir)
+		}
+
+		sourcePath := b.Config.SourcePath
+		if platform != nil && len(b.Config.SourcePathByPlatform) > 0 {
+			if sp, ok := b.Config.SourcePathByPlatform[platform.Release.Name]; ok {
+				sourcePath = sp
+			}
+		}
+
+		if len(b.Config.ImageParamMap) > 0 && platform != nil && platform.ManifestsBasePath != "" {
+			paramsDir := filepath.Join(path, b.Config.ParamsPath)
+			if err := odhdeploy.ApplyParams(paramsDir, paramsEnvFile, b.Config.ImageParamMap); err != nil {
+				logf.Log.WithName(b.Config.Name).Error(err, "failed to apply image params", "path", paramsDir)
+			}
+		}
+
 		result.Manifests = []types.ManifestInfo{{
-			Path:       b.Config.ManifestDir,
+			Path:       path,
 			ContextDir: b.Config.ContextDir,
-			SourcePath: b.Config.SourcePath,
+			SourcePath: sourcePath,
 			Namespace:  b.Config.Namespace,
 		}}
 	}

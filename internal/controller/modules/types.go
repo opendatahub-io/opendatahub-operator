@@ -151,6 +151,9 @@ type PlatformContext struct {
 
 	// ChartsBasePath is the base directory for locally-bundled Helm charts.
 	ChartsBasePath string
+
+	// ManifestsBasePath is the base directory for locally-bundled Kustomize manifests (e.g. /opt/manifests).
+	ManifestsBasePath string
 }
 
 // RegistrationOption configures optional orchestration metadata when adding

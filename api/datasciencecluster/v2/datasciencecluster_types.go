@@ -76,6 +76,9 @@ type Components struct {
 
 	// SparkOperator component configuration.
 	SparkOperator componentApi.DSCSparkOperator `json:"sparkoperator,omitempty"`
+
+	// BatchGateway modular component configuration.
+	BatchGateway componentApi.DSCBatchGateway `json:"batchgateway,omitempty"`
 }
 
 // ComponentsStatus defines the custom status of DataScienceCluster components.
@@ -125,6 +128,9 @@ type ComponentsStatus struct {
 
 	// SparkOperator component status.
 	SparkOperator componentApi.DSCSparkOperatorStatus `json:"sparkoperator,omitempty"`
+
+	// BatchGateway modular component status.
+	BatchGateway componentApi.DSCBatchGatewayStatus `json:"batchgateway,omitempty"`
 }
 
 // DataScienceClusterStatus defines the observed state of DataScienceCluster.
