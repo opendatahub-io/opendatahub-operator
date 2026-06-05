@@ -50,6 +50,7 @@ type KserveCommonSpec struct {
 	// +kubebuilder:default=Headless
 	RawDeploymentServiceConfig RawServiceConfig `json:"rawDeploymentServiceConfig,omitempty"`
 	// Configures and enables NVIDIA NIM integration
+	// +kubebuilder:default={}
 	NIM NimSpec `json:"nim,omitempty"`
 	// Configures and enables Models as a Service integration
 	ModelsAsService DSCModelsAsServiceSpec `json:"modelsAsService,omitempty"`

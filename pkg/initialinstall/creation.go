@@ -42,6 +42,11 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 				},
 				Kserve: componentApi.DSCKserve{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+					KserveCommonSpec: componentApi.KserveCommonSpec{
+						NIM: componentApi.NimSpec{
+							ManagementState: operatorv1.Managed,
+						},
+					},
 				},
 				Ray: componentApi.DSCRay{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},

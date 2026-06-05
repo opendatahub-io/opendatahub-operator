@@ -81,3 +81,60 @@ func TestDefaulterV2_DefaultingLogic(t *testing.T) {
 		})
 	}
 }
+
+// TestDefaulterV2_NIMDefaultingLogic exercises the NIM defaulting webhook logic for DataScienceCluster v2 resources.
+func TestDefaulterV2_NIMDefaultingLogic(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	testCases := []struct {
+		name                  string
+		kserveManagementState *operatorv1.ManagementState
+		nimManagementState    *operatorv1.ManagementState
+		expectedNIMState      operatorv1.ManagementState
+	}{
+		{
+			name:                  "Sets default NIM ManagementState if empty and Kserve is Managed",
+			kserveManagementState: ptrManagementState(operatorv1.Managed),
+			nimManagementState:    ptrManagementState(""),
+			expectedNIMState:      operatorv1.Managed,
+		},
+		{
+			name:                  "Does not overwrite NIM ManagementState if already set",
+			kserveManagementState: ptrManagementState(operatorv1.Managed),
+			nimManagementState:    ptrManagementState(operatorv1.Removed),
+			expectedNIMState:      operatorv1.Removed,
+		},
+		{
+			name:                  "Does nothing if Kserve is not Managed",
+			kserveManagementState: ptrManagementState(operatorv1.Removed),
+			nimManagementState:    ptrManagementState(""),
+			expectedNIMState:      "",
+		},
+		{
+			name:                  "Does nothing if Kserve is not set at all (upgrade case)",
+			kserveManagementState: nil,
+			nimManagementState:    nil,
+			expectedNIMState:      "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dsc := &dscv2.DataScienceCluster{}
+			if tc.kserveManagementState != nil {
+				dsc.Spec.Components.Kserve.ManagementState = *tc.kserveManagementState
+			}
+			if tc.nimManagementState != nil {
+				dsc.Spec.Components.Kserve.NIM.ManagementState = *tc.nimManagementState
+			}
+
+			defaulter := &v2webhook.Defaulter{Name: "test-v2"}
+			err := defaulter.Default(ctx, dsc)
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(dsc.Spec.Components.Kserve.NIM.ManagementState).To(Equal(tc.expectedNIMState))
+		})
+	}
+}
