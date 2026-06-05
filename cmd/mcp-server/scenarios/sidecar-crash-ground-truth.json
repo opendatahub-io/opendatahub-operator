@@ -1,0 +1,32 @@
+{
+  "scenario_id": "sidecar-crash",
+  "scenario_name": "Sidecar Container Crash",
+  "description": "Sidecar container (kube-rbac-proxy) in a multi-container pod crashes due to wrong binary/flags while the main container runs fine, causing partial readiness.",
+  "root_cause": "Sidecar container kube-rbac-proxy crashes with invalid flag error while main container continues running, pod shows partial readiness",
+  "expected_classification": {
+    "category": "infrastructure",
+    "subcategory": "pod-startup",
+    "error_code": 1002,
+    "confidence": "medium"
+  },
+  "expected_tool_outputs": {
+    "platform_health": {
+      "healthy": false
+    }
+  },
+  "expected_symptoms": [
+    "Pod shows partial readiness (8/9 Ready instead of 9/9)",
+    "Sidecar container kube-rbac-proxy in CrashLoopBackOff",
+    "Main container odh-dashboard is Running and healthy",
+    "Pod logs for kube-rbac-proxy show 'unknown flag' error",
+    "Events show BackOff for the sidecar container only"
+  ],
+  "tools_that_detect": [
+    "classify_failure",
+    "platform_health",
+    "pod_logs",
+    "recent_events",
+    "describe_resource"
+  ],
+  "expected_remediation": "Fix the kube-rbac-proxy container image or command flags to match the correct binary version"
+}
