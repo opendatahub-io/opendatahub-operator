@@ -227,8 +227,6 @@ var xksDependencyCRDs = []schema.GroupVersionKind{
 	// cert-manager.io
 	gvk.CertManagerCertificate, gvk.CertManagerCertificateRequest,
 	gvk.CertManagerIssuer, gvk.CertManagerClusterIssuer,
-	// leaderworkerset.x-k8s.io
-	gvk.LeaderWorkerSetV1,
 }
 
 // deleteLLMInferenceServiceConfigs is a finalizer action that explicitly deletes
