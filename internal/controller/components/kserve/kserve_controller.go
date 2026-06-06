@@ -73,7 +73,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&admissionregistrationv1.ValidatingWebhookConfiguration{}).
 		Owns(&admissionregistrationv1.ValidatingAdmissionPolicy{}).
 		Owns(&admissionregistrationv1.ValidatingAdmissionPolicyBinding{}).
-		Owns(&appsv1.DaemonSet{}).
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(predicates.DefaultDeploymentPredicate)).
 		Owns(&corev1.PersistentVolume{}).
 		Owns(&corev1.PersistentVolumeClaim{}).
