@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -262,6 +263,15 @@ func isForDependency(s string) func(u *unstructured.Unstructured) bool {
 func isKserveOwnerRef(or metav1.OwnerReference) bool {
 	return or.APIVersion == componentApi.GroupVersion.String() &&
 		or.Kind == componentApi.KserveKind
+}
+
+func nimNotManaged(_ context.Context, rr *odhtypes.ReconciliationRequest) (bool, error) {
+	k, ok := rr.Instance.(*componentApi.Kserve)
+	if !ok {
+		return false, errors.New("instance is not a Kserve CR")
+	}
+
+	return k.Spec.NIM.ManagementState != operatorv1.Managed, nil
 }
 
 // lwsConditionFilter monitors LeaderWorkerSet operator conditions for degraded state.

@@ -38,10 +38,12 @@ const (
 	ReadyConditionType                    = componentApi.KserveKind + status.ReadySuffix
 	LLMInferenceServiceDependencies       = componentApi.KserveKind + "LLMInferenceServiceDependencies"
 	LLMInferenceServiceWideEPDependencies = componentApi.KserveKind + "LLMInferenceServiceWideEPDependencies"
+	NIMOperatorDependencies               = componentApi.KserveKind + "NIMOperatorDependencies"
 	// OLM subscription names for KServe dependency operators.
 	RHCLOperatorSubscription        = "rhcl-operator"
 	LWSOperatorSubscription         = "leader-worker-set"
 	CertManagerOperatorSubscription = "openshift-cert-manager-operator"
+	NIMOperatorSubscription         = "nim-operator-certified"
 
 	// RHCL operator is not installed, message to users to deploy LLMInferenceService without auth.
 	rhclMissingMessage = "Red Hat Connectivity Link is not installed. To deploy LLMInferenceService " +
@@ -155,6 +157,9 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		}
 		if lwsCondition := conditions.FindStatusCondition(c.GetStatus(), LLMInferenceServiceWideEPDependencies); lwsCondition != nil {
 			rr.Conditions.MarkFrom(LLMInferenceServiceWideEPDependencies, *lwsCondition)
+		}
+		if nimCondition := conditions.FindStatusCondition(c.GetStatus(), NIMOperatorDependencies); nimCondition != nil {
+			rr.Conditions.MarkFrom(NIMOperatorDependencies, *nimCondition)
 		}
 	} else {
 		rr.Conditions.MarkFalse(

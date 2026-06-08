@@ -145,6 +145,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 					resources.CreatedOrUpdatedOrDeletedNamed(RHCLOperatorSubscription),
 					resources.CreatedOrUpdatedOrDeletedNamed(LWSOperatorSubscription),
 					resources.CreatedOrUpdatedOrDeletedNamed(CertManagerOperatorSubscription),
+					resources.CreatedOrUpdatedOrDeletedNamed(NIMOperatorSubscription),
 				),
 			),
 			reconciler.Dynamic(reconciler.CrdExists(gvk.Subscription))).
@@ -207,6 +208,15 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			precondition.WithConditionType(LLMInferenceServiceWideEPDependencies),
 			precondition.WithClusterTypes(cluster.ClusterTypeOpenShift),
 			precondition.WithSeverity(common.ConditionSeverityInfo),
+		)).
+		WithPreCondition(precondition.MonitorSubscriptions(
+			[]precondition.SubscriptionDependency{
+				{Name: NIMOperatorSubscription, DisplayName: "NVIDIA NIM"},
+			},
+			precondition.WithConditionType(NIMOperatorDependencies),
+			precondition.WithClusterTypes(cluster.ClusterTypeOpenShift),
+			precondition.WithSeverity(common.ConditionSeverityInfo),
+			precondition.WithSkipFunc(nimNotManaged),
 		)).
 
 		// actions

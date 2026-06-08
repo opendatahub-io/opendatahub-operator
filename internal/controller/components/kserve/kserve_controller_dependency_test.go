@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	v1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -67,6 +68,23 @@ func createKserveDependencyCR(t *testing.T, wt *testf.WithT) {
 
 	cr := &componentApi.Kserve{
 		ObjectMeta: metav1.ObjectMeta{Name: componentApi.KserveInstanceName},
+	}
+	wt.Expect(wt.Client().Create(wt.Context(), cr)).Should(Succeed())
+	envt.CleanupDelete(t, NewWithT(t), wt.Context(), wt.Client(), cr)
+}
+
+func createKserveCRWithNIM(t *testing.T, wt *testf.WithT, nimState operatorv1.ManagementState) {
+	t.Helper()
+
+	cr := &componentApi.Kserve{
+		ObjectMeta: metav1.ObjectMeta{Name: componentApi.KserveInstanceName},
+		Spec: componentApi.KserveSpec{
+			KserveCommonSpec: componentApi.KserveCommonSpec{
+				NIM: componentApi.NimSpec{
+					ManagementState: nimState,
+				},
+			},
+		},
 	}
 	wt.Expect(wt.Client().Create(wt.Context(), cr)).Should(Succeed())
 	envt.CleanupDelete(t, NewWithT(t), wt.Context(), wt.Client(), cr)
@@ -332,6 +350,155 @@ func TestSubscriptionDependencyMonitoring(t *testing.T) {
 		wt.Get(gvk.Kserve, nn).Eventually().Should(
 			jq.Match(`[.status.conditions[] | select(.type == "%s")] | length > 0`,
 				LLMInferenceServiceWideEPDependencies),
+		)
+	})
+}
+
+func TestNIMSubscriptionDependencyMonitoring(t *testing.T) {
+	t.Run("OpenShift cluster with NIM Managed and missing subscription sets condition to False", func(t *testing.T) {
+		cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+		t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+		ctx, cancel := context.WithCancel(context.Background())
+		et, wt := startKserveController(t, ctx)
+		t.Cleanup(cancel)
+
+		crd, err := et.RegisterCRD(wt.Context(), gvk.Subscription,
+			"subscriptions", "subscription", apiextensionsv1.NamespaceScoped)
+		wt.Expect(err).NotTo(HaveOccurred())
+		envt.CleanupDelete(t, NewWithT(t), wt.Context(), wt.Client(), crd)
+
+		createKserveCRWithNIM(t, wt, operatorv1.Managed)
+
+		nn := types.NamespacedName{Name: componentApi.KserveInstanceName}
+
+		wt.Get(gvk.Kserve, nn).Eventually().Should(And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				NIMOperatorDependencies, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .severity == "%s"`,
+				NIMOperatorDependencies, common.ConditionSeverityInfo),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("NVIDIA NIM")`,
+				NIMOperatorDependencies),
+		))
+	})
+
+	t.Run("OpenShift cluster with NIM Managed and subscription present sets condition to True", func(t *testing.T) {
+		cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+		t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+		ctx, cancel := context.WithCancel(context.Background())
+		et, wt := startKserveController(t, ctx)
+		t.Cleanup(cancel)
+
+		crd, err := et.RegisterCRD(wt.Context(), gvk.Subscription,
+			"subscriptions", "subscription", apiextensionsv1.NamespaceScoped)
+		wt.Expect(err).NotTo(HaveOccurred())
+		envt.CleanupDelete(t, NewWithT(t), wt.Context(), wt.Client(), crd)
+
+		sub := &v1alpha1.Subscription{
+			ObjectMeta: metav1.ObjectMeta{Name: NIMOperatorSubscription, Namespace: "default"},
+		}
+		wt.Expect(wt.Client().Create(wt.Context(), sub)).To(Succeed())
+		envt.CleanupDelete(t, NewWithT(t), wt.Context(), wt.Client(), sub)
+
+		createKserveCRWithNIM(t, wt, operatorv1.Managed)
+
+		nn := types.NamespacedName{Name: componentApi.KserveInstanceName}
+
+		wt.Get(gvk.Kserve, nn).Eventually().Should(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				NIMOperatorDependencies, metav1.ConditionTrue),
+		)
+	})
+
+	t.Run("OpenShift cluster with NIM Removed skips condition", func(t *testing.T) {
+		cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+		t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+		ctx, cancel := context.WithCancel(context.Background())
+		et, wt := startKserveController(t, ctx)
+		t.Cleanup(cancel)
+
+		crd, err := et.RegisterCRD(wt.Context(), gvk.Subscription,
+			"subscriptions", "subscription", apiextensionsv1.NamespaceScoped)
+		wt.Expect(err).NotTo(HaveOccurred())
+		envt.CleanupDelete(t, NewWithT(t), wt.Context(), wt.Client(), crd)
+
+		createKserveCRWithNIM(t, wt, operatorv1.Removed)
+
+		nn := types.NamespacedName{Name: componentApi.KserveInstanceName}
+
+		// Wait for reconciliation by checking that other subscription conditions exist.
+		wt.Get(gvk.Kserve, nn).Eventually().Should(
+			jq.Match(`[.status.conditions[] | select(.type == "%s")] | length > 0`,
+				LLMInferenceServiceDependencies),
+		)
+
+		// NIM condition should not be written when NIM is Removed
+		wt.Get(gvk.Kserve, nn).Consistently().WithTimeout(5 * time.Second).Should(
+			jq.Match(`all(.status.conditions[]?.type; . != "%s")`,
+				NIMOperatorDependencies),
+		)
+	})
+
+	t.Run("OpenShift cluster cleans up condition when NIM transitions from Managed to Removed", func(t *testing.T) {
+		cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+		t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+		ctx, cancel := context.WithCancel(context.Background())
+		et, wt := startKserveController(t, ctx)
+		t.Cleanup(cancel)
+
+		crd, err := et.RegisterCRD(wt.Context(), gvk.Subscription,
+			"subscriptions", "subscription", apiextensionsv1.NamespaceScoped)
+		wt.Expect(err).NotTo(HaveOccurred())
+		envt.CleanupDelete(t, NewWithT(t), wt.Context(), wt.Client(), crd)
+
+		createKserveCRWithNIM(t, wt, operatorv1.Managed)
+
+		nn := types.NamespacedName{Name: componentApi.KserveInstanceName}
+
+		// Wait for the NIM condition to appear, expected to be False due to missing NIM Subscription
+		wt.Get(gvk.Kserve, nn).Eventually().Should(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				NIMOperatorDependencies, metav1.ConditionFalse),
+		)
+
+		// Patch NIM to Removed
+		cr := &componentApi.Kserve{}
+		wt.Expect(wt.Client().Get(wt.Context(), nn, cr)).To(Succeed())
+		cr.Spec.NIM.ManagementState = operatorv1.Removed
+		wt.Expect(wt.Client().Update(wt.Context(), cr)).To(Succeed())
+
+		// Wait for NIM condition to be cleaned up
+		wt.Get(gvk.Kserve, nn).Eventually().Should(
+			jq.Match(`all(.status.conditions[]?.type; . != "%s")`,
+				NIMOperatorDependencies),
+		)
+	})
+
+	t.Run("Kubernetes cluster skips NIM subscription check", func(t *testing.T) {
+		cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
+		t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+		ctx, cancel := context.WithCancel(context.Background())
+		_, wt := startKserveController(t, ctx)
+		t.Cleanup(cancel)
+
+		createKserveCRWithNIM(t, wt, operatorv1.Managed)
+
+		nn := types.NamespacedName{Name: componentApi.KserveInstanceName}
+
+		// Wait for reconciliation by checking DependenciesAvailable exists
+		wt.Get(gvk.Kserve, nn).Eventually().Should(
+			jq.Match(`[.status.conditions[] | select(.type == "%s")] | length > 0`,
+				status.ConditionDependenciesAvailable),
+		)
+
+		// NIM subscription condition should not be written on Kubernetes
+		wt.Get(gvk.Kserve, nn).Consistently().WithTimeout(5 * time.Second).Should(
+			jq.Match(`all(.status.conditions[]?.type; . != "%s")`,
+				NIMOperatorDependencies),
 		)
 	})
 }
