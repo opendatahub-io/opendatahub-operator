@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"testing"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -12,7 +13,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
 )
@@ -41,21 +41,11 @@ func aiGatewayTestSuite(t *testing.T) {
 			t.Helper()
 			skipUnless(t, Smoke, Tier1)
 
-			// DSC has no "AIGatewayReady" condition, the test is only to check if the AIGateway CR and its deployment exist
 			if !tc.IsXKS() {
-				tc.EventuallyResourcePatched(
-					WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-					WithMutateFunc(testf.Transform(`.spec.components.aigateway.managementState = "Removed"`)),
-					WithCondition(jq.Match(`.spec.components.aigateway.managementState == "Removed"`)),
-				)
-				tc.EnsureResourceGone(WithMinimalObject(moduleGVK, moduleCRNN))
+				tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.AIGatewayKind)
 			}
 
-			tc.EventuallyResourcePatched(
-				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-				WithMutateFunc(testf.Transform(`.spec.components.aigateway.managementState = "Managed"`)),
-				WithCondition(jq.Match(`.spec.components.aigateway.managementState == "Managed"`)),
-			)
+			tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.AIGatewayKind)
 
 			tc.EnsureResourceExists(
 				WithMinimalObject(moduleGVK, moduleCRNN),
@@ -74,11 +64,7 @@ func aiGatewayTestSuite(t *testing.T) {
 			t.Helper()
 			skipUnless(t, Smoke, Tier1)
 
-			tc.EventuallyResourcePatched(
-				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-				WithMutateFunc(testf.Transform(`.spec.components.aigateway.managementState = "Removed"`)),
-				WithCondition(jq.Match(`.spec.components.aigateway.managementState == "Removed"`)),
-			)
+			tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.AIGatewayKind)
 
 			tc.EnsureResourceGone(WithMinimalObject(moduleGVK, moduleCRNN))
 			tc.EnsureResourceGone(WithMinimalObject(gvk.Deployment, controllerNN))

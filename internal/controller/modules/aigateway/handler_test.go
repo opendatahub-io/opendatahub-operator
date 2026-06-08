@@ -124,7 +124,7 @@ func TestImageHandling(t *testing.T) {
 	g.Expect(h.GetControllerImage()).Should(Equal("RELATED_IMAGE_ODH_AI_GATEWAY_OPERATOR_IMAGE"))
 
 	g.Expect(h.GetRelatedImages()).Should(ConsistOf(
-		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_OPERATOR_IMAGE",
+		"RELATED_IMAGE_ODH_BATCH_GATEWAY_OPERATOR_IMAGE",
 		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_APISERVER_IMAGE",
 		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_PROCESSOR_IMAGE",
 		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_GC_IMAGE",
@@ -147,8 +147,8 @@ func TestGetOperatorManifests_PlatformOverlay(t *testing.T) {
 	}{
 		{"odh", cluster.OpenDataHub, "/base/aigateway/manifests/ai-gateway-operator/overlays/odh"},
 		{"self-managed-rhoai", cluster.SelfManagedRhoai, "/base/aigateway/manifests/ai-gateway-operator/overlays/rhoai"},
-		{"managed-rhoai-not-supported", cluster.ManagedRhoai, "/base/aigateway/manifests/ai-gateway-operator"},
-		{"unknown-has-no-overlay", cluster.XKS, "/base/aigateway/manifests/ai-gateway-operator"},
+		{"managed-rhoai-not-supported", cluster.ManagedRhoai, "/base/aigateway"},
+		{"unknown-has-no-overlay", cluster.XKS, "/base/aigateway"},
 	}
 
 	for _, tcase := range cases {
