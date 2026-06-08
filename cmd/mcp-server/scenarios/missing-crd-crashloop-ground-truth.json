@@ -1,0 +1,32 @@
+{
+  "scenario_id": "missing-crd-crashloop",
+  "scenario_name": "Missing CRD Cascade",
+  "description": "ODH operator scaled to 0, then InferenceService CRD deleted and odh-model-controller restarted. Controller logs show 'no matches for kind InferenceService' and 'failed to wait for inferenceservice caches to sync' errors. Pod appears Running but is functionally broken. Classifier detects operator-down (1008) as primary — the agent must use pod_logs to discover the missing CRD as the hidden second failure. Inspired by RHOAIENG-42017 and RHOAIENG-39206.",
+  "root_cause": "Two failures: (1) ODH operator scaled to 0, (2) InferenceService CRD deleted — odh-model-controller cannot sync its informer caches",
+  "expected_classification": {
+    "category": "infrastructure",
+    "subcategory": "operator",
+    "error_code": 1008,
+    "confidence": "high"
+  },
+  "expected_tool_outputs": {
+    "platform_health": {
+      "healthy": false
+    }
+  },
+  "expected_symptoms": [
+    "ODH operator deployment scaled to 0 replicas",
+    "odh-model-controller pod Running but functionally broken (restart count >= 1)",
+    "Pod logs show: no matches for kind InferenceService in version serving.kserve.io/v1beta1",
+    "Pod logs show: failed to wait for inferenceservice caches to sync",
+    "DSC phase NotReady"
+  ],
+  "tools_that_detect": [
+    "classify_failure",
+    "platform_health",
+    "pod_logs",
+    "component_status",
+    "describe_resource"
+  ],
+  "expected_remediation": "Restore the InferenceService CRD (inferenceservices.serving.kserve.io) and restart odh-model-controller. The CRD is part of the KServe installation — reinstall KServe component or apply the CRD manifest directly."
+}

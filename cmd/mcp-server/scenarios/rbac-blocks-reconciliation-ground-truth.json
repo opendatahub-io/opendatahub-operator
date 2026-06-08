@@ -1,0 +1,31 @@
+{
+  "scenario_id": "rbac-blocks-reconciliation",
+  "scenario_name": "RBAC Blocks Reconciliation Cascade",
+  "description": "ODH operator scaled to 0, then model-registry operator's ClusterRoleBinding deleted and controller restarted. Classifier detects operator-down (1008) as primary. The agent must use pod_logs on model-registry-operator to discover repeated 403 Forbidden errors on informer watches — a hidden cascading failure where the operator appears Running but cannot reconcile.",
+  "root_cause": "Two failures: (1) ODH operator scaled to 0, (2) ClusterRoleBinding model-registry-operator-manager-rolebinding deleted — model-registry controller cannot list/watch roles and configmaps",
+  "expected_classification": {
+    "category": "infrastructure",
+    "subcategory": "operator",
+    "error_code": 1008,
+    "confidence": "high"
+  },
+  "expected_tool_outputs": {
+    "platform_health": {
+      "healthy": false
+    }
+  },
+  "expected_symptoms": [
+    "ODH operator deployment scaled to 0 replicas",
+    "Model-registry operator pod Running (1/1) but functionally broken",
+    "Repeated 403 Forbidden errors in model-registry-operator logs: cannot list roles or configmaps",
+    "DSC phase NotReady"
+  ],
+  "tools_that_detect": [
+    "classify_failure",
+    "platform_health",
+    "pod_logs",
+    "component_status",
+    "describe_resource"
+  ],
+  "expected_remediation": "Scale ODH operator back to 3 replicas and recreate ClusterRoleBinding model-registry-operator-manager-rolebinding binding model-registry-operator-manager-role ClusterRole to model-registry-operator-controller-manager ServiceAccount in opendatahub namespace"
+}
