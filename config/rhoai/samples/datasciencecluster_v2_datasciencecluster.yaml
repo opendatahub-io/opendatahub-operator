@@ -40,6 +40,6 @@ spec:
     ogx:
       managementState: "Removed"
     mlflowoperator:
-      managementState: "Removed"
+      managementState: "Managed"
     sparkoperator:
       managementState: "Removed"
