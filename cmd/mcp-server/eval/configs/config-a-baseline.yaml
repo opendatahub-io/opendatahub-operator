@@ -1,0 +1,71 @@
+# Config A: Raw LLM + MCP tools, zero system prompt (baseline)
+# Tests what Claude can do with MCP diagnostic tools but no guidance.
+# run-eval.sh must cd into cmd/mcp-server/eval/ before invoking the
+# harness so that judges.* modules resolve via importlib.
+
+name: config-a-baseline
+description: "Raw LLM with MCP tools, no system prompt — baseline for comparison"
+skill: diagnose
+
+execution:
+  mode: case
+  arguments: "{prompt}"
+  timeout: 300
+  max_budget_usd: 5.0
+
+runner:
+  type: claude-code
+
+models:
+  skill: claude-opus-4-6
+  judge: claude-opus-4-6
+
+dataset:
+  path: dataset
+  schema: |
+    Each case directory contains:
+    - input.yaml: scenario_id, scenario_name, description, prompt, setup_script, teardown_script
+    - annotations.yaml: Ground truth with root_cause, expected_classification (category, subcategory, error_code, confidence), expected_symptoms, tools_that_detect, expected_remediation
+    - ground-truth.json: Same data in JSON format
+
+outputs:
+  - path: output
+    schema: "Diagnostic output — free-form text with root cause analysis and remediation"
+
+traces:
+  stdout: true
+  stderr: true
+  events: true
+  metrics: true
+
+judges:
+  - name: root_cause_correct
+    description: "Does the diagnosis correctly identify the root cause from ground truth?"
+    module: judges.root_cause_match
+    function: judge
+
+  - name: remediation_actionable
+    description: "Is the remediation specific and actionable (not generic advice)?"
+    module: judges.remediation_actionable
+    function: judge
+
+  - name: false_positive
+    description: "Did the agent diagnose problems that don't actually exist?"
+    module: judges.false_positive
+    function: judge
+
+  - name: evidence_citation
+    description: "Does the output cite specific MCP tool names as evidence sources?"
+    module: judges.quality_scoring
+    function: judge_evidence_citation
+
+  - name: completeness
+    description: "How many expected symptoms from ground truth are mentioned?"
+    module: judges.quality_scoring
+    function: judge_completeness
+
+thresholds:
+  root_cause_correct:
+    min_pass_rate: 0.6
+  remediation_actionable:
+    min_pass_rate: 0.4
