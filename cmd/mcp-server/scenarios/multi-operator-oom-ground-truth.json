@@ -1,0 +1,32 @@
+{
+  "scenario_id": "multi-operator-oom",
+  "scenario_name": "Multi-Operator OOM",
+  "description": "Three component operators (feast, spark, trustyai) OOMKilled simultaneously by setting memory limits to 5Mi. The agent must identify OOM as the common failure pattern but report each as an independent root cause since they are different operators with different memory requirements.",
+  "root_cause": "Memory limits set to 5Mi on feast-operator, spark-operator-controller, and trustyai-operator — all three OOMKilled on startup",
+  "expected_classification": {
+    "category": "infrastructure",
+    "subcategory": "pod-startup",
+    "error_code": 1002,
+    "confidence": "high"
+  },
+  "expected_tool_outputs": {
+    "platform_health": {
+      "healthy": false
+    }
+  },
+  "expected_symptoms": [
+    "feast-operator-controller-manager in CrashLoopBackOff with OOMKilled",
+    "spark-operator-controller in CrashLoopBackOff with OOMKilled",
+    "trustyai-service-operator-controller-manager in CrashLoopBackOff with OOMKilled",
+    "Multiple pods restarting simultaneously",
+    "DSC component conditions degraded for affected components"
+  ],
+  "tools_that_detect": [
+    "classify_failure",
+    "platform_health",
+    "pod_logs",
+    "recent_events",
+    "component_status"
+  ],
+  "expected_remediation": "Increase memory limits on feast-operator-controller-manager, spark-operator-controller, and trustyai-service-operator-controller-manager deployments to their original values (256Mi, 512Mi, 700Mi respectively)"
+}

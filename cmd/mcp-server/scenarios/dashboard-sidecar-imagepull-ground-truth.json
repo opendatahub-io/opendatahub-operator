@@ -1,0 +1,30 @@
+{
+  "scenario_id": "dashboard-sidecar-imagepull",
+  "scenario_name": "Dashboard Sidecar ImagePull",
+  "description": "Multiple sidecar containers in the dashboard pod patched to use nonexistent image tags, causing ImagePullBackOff on multiple containers simultaneously. Based on RHOAIENG-62189 where 4 sidecar images were missing the v3.4.3-odh tag on quay.io.",
+  "root_cause": "Multiple sidecar container images in the dashboard deployment reference nonexistent tags on a valid registry",
+  "expected_classification": {
+    "category": "infrastructure",
+    "subcategory": "image-pull",
+    "error_code": 1001,
+    "confidence": "medium"
+  },
+  "expected_tool_outputs": {
+    "platform_health": {
+      "healthy": false
+    }
+  },
+  "expected_symptoms": [
+    "Multiple sidecar containers in ImagePullBackOff state",
+    "Main odh-dashboard container may be Running while sidecars fail",
+    "Warning events with ErrImagePull for multiple images",
+    "Deployment shows reduced ready replicas"
+  ],
+  "tools_that_detect": [
+    "classify_failure",
+    "platform_health",
+    "recent_events",
+    "component_status"
+  ],
+  "expected_remediation": "Correct the sidecar image tags to valid versions that exist on the registry"
+}

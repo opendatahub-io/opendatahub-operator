@@ -1,0 +1,32 @@
+{
+  "scenario_id": "readiness-probe-misconfigured",
+  "scenario_name": "Readiness Probe Misconfigured",
+  "description": "Component operator's readiness probe patched to wrong port. Pod stays Running but never becomes Ready (0/1). No crashes, no restarts — the container is alive but kubelet marks it not Ready and removes it from Service endpoints. Deployment shows 0 available replicas. From troubleshooting.md probe failure patterns and CI infrastructure failure logs.",
+  "root_cause": "Readiness probe on feast-operator-controller-manager patched to port 9999 which is not listening — pod permanently not Ready",
+  "expected_classification": {
+    "category": "infrastructure",
+    "subcategory": "operator",
+    "error_code": 1008,
+    "confidence": "high"
+  },
+  "expected_tool_outputs": {
+    "platform_health": {
+      "healthy": false
+    }
+  },
+  "expected_symptoms": [
+    "feast-operator-controller-manager pod Running but 0/1 Ready",
+    "Deployment shows 0 available replicas",
+    "Warning events: Unhealthy — Readiness probe failed: connection refused",
+    "No container restarts — pod is alive but not serving",
+    "FeastOperatorReady condition may degrade"
+  ],
+  "tools_that_detect": [
+    "classify_failure",
+    "platform_health",
+    "recent_events",
+    "component_status",
+    "describe_resource"
+  ],
+  "expected_remediation": "Fix the readiness probe port on feast-operator-controller-manager deployment to point to the correct health endpoint (port 8081, path /readyz)"
+}
