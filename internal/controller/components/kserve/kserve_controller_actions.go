@@ -320,7 +320,25 @@ func createModelCachePVAndPVC(ctx context.Context, rr *odhtypes.ReconciliationRe
 			Name: "kserve-localmodelnode-pv",
 		},
 	}
+	expectedPVCName := "kserve-localmodelnode-pvc"
+	expectedPVCNamespace := cluster.GetApplicationNamespace()
+
 	_, err := controllerutil.CreateOrUpdate(ctx, rr.Client, pv, func() error {
+		existingClaimRef := pv.Spec.ClaimRef
+		preserveClaimRef := false
+		if existingClaimRef != nil &&
+			existingClaimRef.Name == expectedPVCName &&
+			existingClaimRef.Namespace == expectedPVCNamespace {
+			currentPVC := &corev1.PersistentVolumeClaim{}
+			if pvcErr := rr.Client.Get(ctx, client.ObjectKey{Name: expectedPVCName, Namespace: expectedPVCNamespace}, currentPVC); pvcErr != nil {
+				if !k8serr.IsNotFound(pvcErr) {
+					return pvcErr
+				}
+			} else if existingClaimRef.UID == "" || existingClaimRef.UID == currentPVC.UID {
+				preserveClaimRef = true
+			}
+		}
+
 		pv.Spec = corev1.PersistentVolumeSpec{
 			Capacity:                      corev1.ResourceList{corev1.ResourceStorage: cacheSize},
 			VolumeMode:                    ptr.To(corev1.PersistentVolumeFilesystem),
@@ -345,6 +363,11 @@ func createModelCachePVAndPVC(ctx context.Context, rr *odhtypes.ReconciliationRe
 				},
 			},
 		}
+
+		if preserveClaimRef {
+			pv.Spec.ClaimRef = existingClaimRef
+		}
+
 		return controllerutil.SetControllerReference(k, pv, rr.Client.Scheme())
 	})
 	if err != nil {

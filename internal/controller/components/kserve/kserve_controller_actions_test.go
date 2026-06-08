@@ -858,6 +858,67 @@ func TestCreateModelCachePVAndPVC(t *testing.T) {
 		}, pvc)).Should(Succeed())
 		g.Expect(pvc.Spec.Resources.Requests[corev1.ResourceStorage]).Should(Equal(updatedSize))
 	})
+
+	t.Run("preserves PV claimRef across reconcile cycles", func(t *testing.T) {
+		g := NewWithT(t)
+		cacheSize := resource.MustParse("100Gi")
+
+		kserve := &componentApi.Kserve{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.KserveInstanceName,
+			},
+			Spec: componentApi.KserveSpec{
+				KserveCommonSpec: componentApi.KserveCommonSpec{
+					ModelCache: &componentApi.ModelCacheSpec{
+						ManagementState: operatorv1.Managed,
+						CacheSize:       &cacheSize,
+						NodeNames:       []string{"node1"},
+					},
+				},
+			},
+		}
+		kserve.SetGroupVersionKind(componentApi.GroupVersion.WithKind(componentApi.KserveKind))
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(kserve))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &odhtypes.ReconciliationRequest{
+			Instance: kserve,
+			Client:   cli,
+		}
+
+		err = createModelCachePVAndPVC(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Read the PVC UID that was assigned by the fake client
+		pvc := &corev1.PersistentVolumeClaim{}
+		g.Expect(cli.Get(ctx, client.ObjectKey{
+			Name:      "kserve-localmodelnode-pvc",
+			Namespace: cluster.GetApplicationNamespace(),
+		}, pvc)).Should(Succeed())
+
+		// Simulate Kubernetes PV controller setting claimRef after binding
+		pv := &corev1.PersistentVolume{}
+		g.Expect(cli.Get(ctx, client.ObjectKey{Name: "kserve-localmodelnode-pv"}, pv)).Should(Succeed())
+		pv.Spec.ClaimRef = &corev1.ObjectReference{
+			APIVersion: "v1",
+			Kind:       "PersistentVolumeClaim",
+			Name:       "kserve-localmodelnode-pvc",
+			Namespace:  cluster.GetApplicationNamespace(),
+			UID:        pvc.UID,
+		}
+		g.Expect(cli.Update(ctx, pv)).Should(Succeed())
+
+		// Run reconcile again — claimRef must survive
+		err = createModelCachePVAndPVC(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		pv = &corev1.PersistentVolume{}
+		g.Expect(cli.Get(ctx, client.ObjectKey{Name: "kserve-localmodelnode-pv"}, pv)).Should(Succeed())
+		g.Expect(pv.Spec.ClaimRef).ShouldNot(BeNil(), "claimRef must not be wiped by reconcile")
+		g.Expect(pv.Spec.ClaimRef.Name).Should(Equal("kserve-localmodelnode-pvc"))
+		g.Expect(pv.Spec.ClaimRef.UID).Should(Equal(pvc.UID))
+	})
 }
 
 func TestLabelModelCacheNodes(t *testing.T) {
