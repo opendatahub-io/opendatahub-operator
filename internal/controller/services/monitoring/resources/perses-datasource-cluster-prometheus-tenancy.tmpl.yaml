@@ -57,4 +57,4 @@ spec:
             secret: cluster-prometheus-tenancy-datasource-secret
             url: https://thanos-querier.openshift-monitoring.svc:9092
         queryParams:
-          namespace: "${namespace:raw}"
+          namespace: "${namespace:queryparam}"

@@ -1212,7 +1212,7 @@ func (tc *MonitoringTestCtx) ValidatePersesDatasourceWithPrometheus(t *testing.T
 			jq.Match(`.spec.config.plugin.spec.proxy.spec.url | endswith(":9092")`),
 			jq.Match(`.spec.client.tls.enable == true`),
 			jq.Match(`.spec.config.plugin.spec.proxy.spec.secret == "%s"`, ClusterPrometheusTenancyDatasourceSecret),
-			jq.Match(`.spec.config.plugin.spec.queryParams.namespace == "${namespace:raw}"`),
+			jq.Match(`.spec.config.plugin.spec.queryParams.namespace == "${namespace:queryparam}"`),
 		)),
 		WithCustomErrorMsg("Cluster Prometheus Tenancy PersesDatasource CR should be created with namespace-scoped configuration on port 9092"),
 	)
