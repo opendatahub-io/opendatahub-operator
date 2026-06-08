@@ -7,6 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
@@ -14,6 +15,7 @@ import (
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
@@ -104,6 +106,18 @@ func newDSCModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 // is available; only modules with ManagementState Managed are enabled.
 // Dynamic ownership is enabled for the same reasons as DSC mode.
 func newPlatformModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
+	available, err := cluster.IsAPIAvailable(mgr.GetClient(), gvk.Platform)
+	if err != nil {
+		return fmt.Errorf("failed to check Platform CRD availability: %w", err)
+	}
+
+	if !available {
+		logf.FromContext(ctx).Info(
+			"Platform CRD not found, skipping module reconciler in platform mode. " +
+				"Install the Platform CRD to enable module reconciliation.")
+		return nil
+	}
+
 	b := reconciler.ReconcilerFor(mgr, &configv1alpha1.Platform{}).
 		WithInstanceName("modules").
 		WithDynamicOwnership().
