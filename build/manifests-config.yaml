@@ -69,3 +69,6 @@ map:
   odh-ai-gateway-operator:
     src: config/manifests
     dest: ai-gateway-operator
+  odh-batch-gateway-operator:
+    src: config/
+    dest: batch-gateway-operator

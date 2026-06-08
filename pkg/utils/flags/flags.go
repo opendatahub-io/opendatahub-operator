@@ -95,6 +95,11 @@ func AddOperatorFlagsAndEnvvars(envvarPrefix string) error {
 		return err
 	}
 
+	pflag.String("default-charts-path", "", "Base path for locally-bundled Helm charts.")
+	if err := viper.BindEnv("default-charts-path", "DEFAULT_CHARTS_PATH"); err != nil {
+		return err
+	}
+
 	pflag.String("platform-type", "", "Platform type override (OpenDataHub, ManagedRHOAI, SelfManagedRHOAI, XKS). "+
 		"If empty, auto-detects from the cluster.")
 	if err := viper.BindEnv("platform-type", "ODH_PLATFORM_TYPE"); err != nil {

@@ -69,6 +69,7 @@ integrations:
   - "trainer.kubeflow.org/trainjob"
   - "workload.codeflare.dev/appwrapper"
   - "leaderworkerset.x-k8s.io/leaderworkerset"
+  - "sparkoperator.k8s.io/sparkapplication"
 manageJobsWithoutQueueName: true
 fairSharing:
   enable: true
@@ -95,6 +96,7 @@ spec:
         - PyTorchJob
         - RayCluster
         - RayJob
+        - SparkApplication
         - StatefulSet
         - TFJob
         - TrainJob
@@ -141,6 +143,7 @@ spec:
         - PyTorchJob
         - RayCluster
         - RayJob
+        - SparkApplication
         - StatefulSet
         - TrainJob
 `
@@ -168,6 +171,7 @@ spec:
         - PyTorchJob
         - RayCluster
         - RayJob
+        - SparkApplication
         - StatefulSet
         - TrainJob
 `
@@ -195,6 +199,7 @@ spec:
         - PyTorchJob
         - RayCluster
         - RayJob
+        - SparkApplication
         - StatefulSet
         - TrainJob
 `
@@ -226,6 +231,7 @@ spec:
         - PyTorchJob
         - RayCluster
         - RayJob
+        - SparkApplication
         - StatefulSet
         - TrainJob
 `
@@ -265,6 +271,7 @@ spec:
         - PyTorchJob
         - RayCluster
         - RayJob
+        - SparkApplication
         - StatefulSet
         - TrainJob
       externalFrameworks:
@@ -296,6 +303,7 @@ spec:
         - PyTorchJob
         - RayCluster
         - RayJob
+        - SparkApplication
         - StatefulSet
         - TrainJob
 `
@@ -326,6 +334,7 @@ spec:
         - PyTorchJob
         - RayCluster
         - RayJob
+        - SparkApplication
         - StatefulSet
         - TrainJob
     workloadManagement:
@@ -359,6 +368,7 @@ spec:
         - PyTorchJob
         - RayCluster
         - RayJob
+        - SparkApplication
         - StatefulSet
         - TrainJob
     gangScheduling:
@@ -394,6 +404,7 @@ spec:
         - PyTorchJob
         - RayCluster
         - RayJob
+        - SparkApplication
         - StatefulSet
         - TrainJob
     preemption:
@@ -431,6 +442,7 @@ spec:
         - PyTorchJob
         - RayCluster
         - RayJob
+        - SparkApplication
         - StatefulSet
         - TrainJob
     gangScheduling:
@@ -471,6 +483,7 @@ spec:
         - PyTorchJob
         - RayCluster
         - RayJob
+        - SparkApplication
         - StatefulSet
         - TrainJob
 `
@@ -504,6 +517,7 @@ spec:
         - PyTorchJob
         - RayCluster
         - RayJob
+        - SparkApplication
         - StatefulSet
         - TrainJob
       externalFrameworks:
@@ -540,6 +554,7 @@ spec:
         - PyTorchJob
         - RayCluster
         - RayJob
+        - SparkApplication
         - StatefulSet
         - TrainJob
       labelKeys:
@@ -569,10 +584,10 @@ func runKueueCRTest(t *testing.T, configMapYAML string, expectedCRYAML string) {
 	}
 	g.Expect(fakeClient.Create(ctx, dsci)).Should(Succeed())
 
-	// Set an OperatorCondition for kueue-operator with the 1.2.0 version
+	// Set an OperatorCondition for kueue-operator with the 1.4.0 version
 	operatorCondition := &ofapiv2.OperatorCondition{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "kueue-operator.v1.2.0",
+			Name:      "kueue-operator.v1.4.0",
 			Namespace: "openshift-kueue-operator",
 		},
 	}
@@ -661,19 +676,37 @@ invalid: yaml: content: [
 	g.Expect(err.Error()).Should(ContainSubstring("failed to lookup kueue manager config"))
 }
 
-// --- Test: TrainJob framework generic test, with RHBoKv110 and RHBoKv120 ---.
-func TestCreateKueueConfigurationCR_TrainJobFramework(t *testing.T) {
+// --- Test: Version-gated framework integration ---.
+func TestCreateKueueConfigurationCR_VersionGatedFrameworks(t *testing.T) {
 	tests := []struct {
 		name         string
 		kueueVersion string
+		framework    string
+		shouldExist  bool
 	}{
 		{
-			name:         "TestCreateKueueConfigurationCR_TrainJob_Framework_WithRHBoKv110",
+			name:         "TrainJob_absent_before_v1.2.0",
 			kueueVersion: "v1.1.0",
+			framework:    "TrainJob",
+			shouldExist:  false,
 		},
 		{
-			name:         "TestCreateKueueConfigurationCR_TrainJob_Framework_WithRHBoKv120",
+			name:         "TrainJob_present_at_v1.2.0",
 			kueueVersion: "v1.2.0",
+			framework:    "TrainJob",
+			shouldExist:  true,
+		},
+		{
+			name:         "SparkApplication_absent_before_v1.4.0",
+			kueueVersion: "v1.3.0",
+			framework:    "SparkApplication",
+			shouldExist:  false,
+		},
+		{
+			name:         "SparkApplication_present_at_v1.4.0",
+			kueueVersion: "v1.4.0",
+			framework:    "SparkApplication",
+			shouldExist:  true,
 		},
 	}
 
@@ -682,43 +715,35 @@ func TestCreateKueueConfigurationCR_TrainJobFramework(t *testing.T) {
 			g := NewWithT(t)
 			ctx := t.Context()
 
-			// Setup fake client
 			fakeClient, err := fakeclient.New()
 			g.Expect(err).ShouldNot(HaveOccurred())
 
-			// DSCI with applications namespace
 			dsci := &dsciv2.DSCInitialization{
 				ObjectMeta: metav1.ObjectMeta{Name: "test-dsci"},
 				Spec:       dsciv2.DSCInitializationSpec{ApplicationsNamespace: "test-namespace"},
 			}
 			g.Expect(fakeClient.Create(ctx, dsci)).Should(Succeed())
 
-			// Set an OperatorCondition for kueue-operator with the desired version
 			operatorCondition := &ofapiv2.OperatorCondition{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      fmt.Sprintf("kueue-operator.%s", tt.kueueVersion),
 					Namespace: "openshift-kueue-operator",
 				},
 			}
-
 			g.Expect(fakeClient.Create(ctx, operatorCondition)).Should(Succeed())
 
 			rr := &odhtypes.ReconciliationRequest{Client: fakeClient, Instance: &componentApi.Kueue{}}
 
-			// No ConfigMap needed; defaults will be used
 			result, err := createKueueCR(ctx, rr)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
-			// Extract frameworks from the resulting CR and check if the expected values are there
 			frameworks, _, err := unstructured.NestedStringSlice(result.Object, "spec", "config", "integrations", "frameworks")
 			g.Expect(err).ShouldNot(HaveOccurred())
-			switch tt.kueueVersion {
-			case "v1.1.0":
-				g.Expect(frameworks).ShouldNot(ContainElement("TrainJob"))
-			case "v1.2.0":
-				g.Expect(frameworks).Should(ContainElement("TrainJob"))
-			default:
-				t.Skipf("Unexpected kueue version: %s", tt.kueueVersion)
+
+			if tt.shouldExist {
+				g.Expect(frameworks).Should(ContainElement(tt.framework))
+			} else {
+				g.Expect(frameworks).ShouldNot(ContainElement(tt.framework))
 			}
 		})
 	}

@@ -17,9 +17,7 @@ package datasciencecluster
 
 // +kubebuilder:rbac:groups="snapshot.storage.k8s.io",resources=volumesnapshots,verbs=create;delete;patch;get
 
-// +kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=get;list;watch
-// +kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=get;list;watch;use
-// +kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=create;update;patch;delete;use
+// +kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=create;delete;get;list;patch;update;use;watch
 
 // +kubebuilder:rbac:groups="route.openshift.io",resources=routes,verbs=get;list;watch;create;delete;update;patch
 

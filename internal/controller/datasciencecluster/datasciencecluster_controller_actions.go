@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"reflect"
 
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -65,18 +64,7 @@ func checkPreConditions(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 }
 
 func watchDataScienceClusters(ctx context.Context, cli client.Client) []reconcile.Request {
-	instanceList := &dscv2.DataScienceClusterList{}
-	err := cli.List(ctx, instanceList)
-	if err != nil {
-		return nil
-	}
-
-	requests := make([]reconcile.Request, len(instanceList.Items))
-	for i := range instanceList.Items {
-		requests[i] = reconcile.Request{NamespacedName: types.NamespacedName{Name: instanceList.Items[i].Name}}
-	}
-
-	return requests
+	return cluster.WatchDataScienceClusters(ctx, cli)
 }
 
 func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest) error {

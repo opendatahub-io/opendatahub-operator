@@ -16,6 +16,7 @@ cd "$REPO_ROOT"
 CONFIG_FILE="component-params-env.yaml"
 MANIFESTS_DIR="opt/manifests"
 COMPONENTS_DIR="internal/controller/components"
+MODULES_DIR="internal/controller/modules"
 
 YQ="${YQ:-yq}"
 
@@ -215,6 +216,36 @@ for comp_dir in "$COMPONENTS_DIR"/*/; do
     # Remove empty files (components without RELATED_IMAGE_* references)
     [ ! -s "$WORKDIR/components/${comp_name}.txt" ] && rm -f "$WORKDIR/components/${comp_name}.txt"
 done
+
+# --- Step 3b: Extract RELATED_IMAGE entries from module handlers ---
+# Module handlers declare images in RelatedImages string slices (not params.env maps).
+# Format matches components: module_name/RELATED_IMAGE/RELATED_IMAGE/source_file:line
+extract_module_images() {
+    local mod_dir="$1"
+    local mod_name
+    mod_name=$(basename "$mod_dir")
+
+    grep -rn '"RELATED_IMAGE_[A-Z0-9_]*"' "$mod_dir" \
+        --include='*.go' --exclude='*_test.go' 2>/dev/null | while IFS= read -r match; do
+        local source value
+        source=$(echo "$match" | cut -d: -f1,2)
+        value=$(echo "$match" | cut -d: -f3- | grep -o 'RELATED_IMAGE_[A-Z0-9_]\+')
+        [ -z "$value" ] && continue
+        echo "${mod_name}/${value}/${value}/${source}"
+    done
+}
+
+if [ -d "$MODULES_DIR" ]; then
+    for mod_dir in "$MODULES_DIR"/*/; do
+        mod_name=$(basename "$mod_dir")
+        [ ! -d "$mod_dir" ] && continue
+        # Skip non-handler directories
+        [ ! -f "$mod_dir/handler.go" ] && continue
+
+        extract_module_images "$mod_dir" | sort -u > "$WORKDIR/components/${mod_name}.txt" || true
+        [ ! -s "$WORKDIR/components/${mod_name}.txt" ] && rm -f "$WORKDIR/components/${mod_name}.txt"
+    done
+fi
 
 # --- Step 4: Discover all params.env files and collect keys ---
 # Use the union of ALL params.env keys (not per-platform) because some components

@@ -85,4 +85,13 @@ func (d *Defaulter) applyDefaults(ctx context.Context, dsc *dscv2.DataScienceClu
 			modelRegistry.RegistriesNamespace = modelregistryctrl.DefaultModelRegistriesNamespace
 		}
 	}
+
+	// If Kserve is enabled and NIM ManagementState is empty, set it to the default value (Managed).
+	kserve := &dsc.Spec.Components.Kserve
+	if kserve.ManagementState == operatorv1.Managed {
+		if kserve.NIM.ManagementState == "" {
+			log.V(1).Info("Setting default ManagementState for Kserve NIM", "default", operatorv1.Managed)
+			kserve.NIM.ManagementState = operatorv1.Managed
+		}
+	}
 }

@@ -18,9 +18,36 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
+
+// ModuleEnvInjection holds aggregated environment variable injection data
+// for all enabled modules. Set by provisionModules and consumed by the
+// injectModuleEnv action to inject RELATED_IMAGE_* and APPLICATIONS_NAMESPACE
+// env vars into module operator Deployments.
+type ModuleEnvInjection struct {
+	// PerModuleImages maps each module's related images to its chart/manifest
+	// resources. Each entry's images are only injected into Deployments
+	// rendered from that module's operator manifests.
+	PerModuleImages []ModuleImages
+	// ApplicationsNamespace is the platform's shared application namespace.
+	ApplicationsNamespace string
+}
+
+// ModuleImages associates a module's related images with a deployment name
+// pattern so injection can be scoped to that module's operator Deployment.
+type ModuleImages struct {
+	// DeploymentName is the expected name of the module's operator Deployment.
+	// Typically the Helm release name, or the module handler name for Kustomize modules.
+	DeploymentName string
+	// ContainerName is the target container within the Deployment.
+	// Defaults to "manager" (the kubebuilder convention).
+	ContainerName string
+	// Images is the list of RELATED_IMAGE_* env var names for this module.
+	Images []string
+}
 
 // Controller defines the core interface for a controller in the OpenDataHub Operator.
 type Controller interface {
@@ -64,6 +91,11 @@ type ManifestInfo struct {
 	Path       string
 	ContextDir string
 	SourcePath string
+
+	// Namespace overrides the default ApplicationsNamespace for Kustomize
+	// rendering. When empty, the render action uses ApplicationsNamespace.
+	// Set this for modules that deploy into a dedicated namespace.
+	Namespace string
 }
 
 func (mi ManifestInfo) String() string {
@@ -75,6 +107,10 @@ func (mi ManifestInfo) String() string {
 
 	if mi.SourcePath != "" {
 		result = path.Join(result, mi.SourcePath)
+	}
+
+	if mi.Namespace != "" {
+		result += "@ns=" + mi.Namespace
 	}
 
 	return result
@@ -142,6 +178,16 @@ type ReconciliationRequest struct {
 	//       replaced with a better way of describing resources and
 	//       their origin
 	Generated bool
+
+	// ModuleEnvInjection holds aggregated env var injection data for module
+	// operator Deployments. Set by provisionModules, consumed by
+	// injectModuleEnv. Nil when no modules are enabled.
+	ModuleEnvInjection *ModuleEnvInjection
+
+	// DSCI is the DSCInitialization instance fetched by provisionModules.
+	// Stored here so updateModuleStatus can build a PlatformContext without
+	// a duplicate API call.
+	DSCI *dsciv2.DSCInitialization
 }
 
 // AddResources adds one or more resources to the ReconciliationRequest's Resources slice.

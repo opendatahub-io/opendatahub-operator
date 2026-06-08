@@ -69,6 +69,12 @@ func WithConditionsManagerFactory(happy string, dependents ...string) Reconciler
 	}
 }
 
+func withSkipConditionCleanup() ReconcilerOpt {
+	return func(reconciler *Reconciler) {
+		reconciler.skipConditionCleanup = true
+	}
+}
+
 // withDynamicOwnership enables dynamic ownership mode for the reconciler.
 // When enabled, the controller will automatically track ownership of resources
 // that are deployed, without requiring explicit .Owns() declarations.
@@ -112,6 +118,7 @@ type Reconciler struct {
 	dynamicGvks                 sync.Map
 	dynamicOwnershipEnabled     bool
 	excludeFromDynamicOwnership map[schema.GroupVersionKind]struct{}
+	skipConditionCleanup        bool
 }
 
 // NewReconciler creates a new reconciler for the given type.
@@ -409,7 +416,9 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error
 
 	// Remove conditions that were present before Reset but were
 	// not re-set during this cycle (e.g. disabled components).
-	rr.Conditions.CleanupStaleConditions()
+	if !r.skipConditionCleanup {
+		rr.Conditions.CleanupStaleConditions()
+	}
 
 	is := rr.Instance.GetStatus()
 	is.Phase = status.PhaseNotReady

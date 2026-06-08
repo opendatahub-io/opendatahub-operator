@@ -68,6 +68,7 @@ func cleanupCoreOperatorResources(t *testing.T, tc *TestContext) {
 			WithMinimalObject(gvk, types.NamespacedName{}),
 			WithWaitForDeletion(true),
 			WithIgnoreNotFound(true),
+			WithAcceptableErr(meta.IsNoMatchError, "IsNoMatchError"),
 		)
 	}
 

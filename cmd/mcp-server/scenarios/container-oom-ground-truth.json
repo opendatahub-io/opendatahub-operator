@@ -1,0 +1,29 @@
+{
+  "scenario_id": "container-oom",
+  "scenario_name": "Container OOMKilled",
+  "description": "Dashboard container killed by kernel OOM killer after exceeding its memory limit, causing pod restarts",
+  "root_cause": "Container odh-dashboard exceeded its memory limit and was OOMKilled by the kernel",
+  "expected_classification": {
+    "category": "infrastructure",
+    "subcategory": "pod-startup",
+    "error_code": 1002,
+    "confidence": "medium"
+  },
+  "expected_tool_outputs": {
+    "platform_health": {
+      "healthy": false
+    }
+  },
+  "expected_symptoms": [
+    "Container terminated with OOMKilled reason",
+    "Pod restart count increasing",
+    "Deployment shows reduced ready replicas"
+  ],
+  "tools_that_detect": [
+    "classify_failure",
+    "platform_health",
+    "pod_logs",
+    "recent_events"
+  ],
+  "expected_remediation": "Increase memory limits on the odh-dashboard container or investigate the memory leak causing excessive consumption"
+}

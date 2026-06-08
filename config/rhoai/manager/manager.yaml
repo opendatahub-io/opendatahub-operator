@@ -85,6 +85,8 @@ spec:
                 fieldPath: metadata.namespace
           - name: DEFAULT_MANIFESTS_PATH
             value: /opt/manifests
+          - name: DEFAULT_CHARTS_PATH
+            value: /opt/charts
           # - name: ODH_PLATFORM_TYPE
           #   value: SelfManagedRHOAI
         # NOTE: image is provided in CI by pullspec substitution, and by make/kustomize for local builds

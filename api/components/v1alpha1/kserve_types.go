@@ -76,6 +76,7 @@ type KserveCommonSpec struct {
 	// +optional
 	OAuthProxy *OAuthProxyConfig `json:"oauthProxy,omitempty"`
 	// Configures and enables NVIDIA NIM integration
+	// +kubebuilder:default={}
 	NIM NimSpec `json:"nim,omitempty"`
 	// Configures and enables Models as a Service integration
 	ModelsAsService DSCModelsAsServiceSpec `json:"modelsAsService,omitempty"`

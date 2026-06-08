@@ -1,0 +1,31 @@
+{
+  "scenario_id": "invalid-cli-flag",
+  "scenario_name": "Invalid CLI Flag",
+  "description": "Component container args patched with an undefined CLI flag, causing immediate exit on startup with CrashLoopBackOff.",
+  "root_cause": "Container starts but exits immediately because of an undefined CLI flag in the container args",
+  "expected_classification": {
+    "category": "infrastructure",
+    "subcategory": "pod-startup",
+    "error_code": 1002,
+    "confidence": "medium"
+  },
+  "expected_tool_outputs": {
+    "platform_health": {
+      "healthy": false
+    }
+  },
+  "expected_symptoms": [
+    "Container terminated with non-zero exit code",
+    "Pod in CrashLoopBackOff state",
+    "Pod logs show 'flag provided but not defined' error",
+    "Deployment shows reduced ready replicas"
+  ],
+  "tools_that_detect": [
+    "classify_failure",
+    "platform_health",
+    "pod_logs",
+    "recent_events",
+    "describe_resource"
+  ],
+  "expected_remediation": "Remove the invalid CLI flag from the container args in the deployment spec"
+}
