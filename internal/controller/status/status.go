@@ -79,7 +79,7 @@ const (
 	ConditionTypeProvisioningSucceeded           = "ProvisioningSucceeded"
 	ConditionDeploymentsNotAvailableReason       = "DeploymentsNotReady"
 	ConditionMaaSPrerequisitesAvailable          = "MaaSPrerequisitesAvailable"
-	ConditionDeploymentsAvailable                = "DeploymentsAvailable"
+	ConditionDeploymentsAvailable                = common.ConditionTypeDeploymentsAvailable
 	ConditionDependenciesAvailable               = "DependenciesAvailable"
 	ConditionArgoWorkflowAvailable               = "ArgoWorkflowAvailable"
 	ConditionTypeComponentsReady                 = "ComponentsReady"

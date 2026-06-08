@@ -55,6 +55,9 @@ const (
 	ConditionSeverityInfo  ConditionSeverity = "Info"
 
 	ConditionReasonError = "Error"
+
+	// module need import to check deployment status
+	ConditionTypeDeploymentsAvailable = "DeploymentsAvailable"
 )
 
 // +kubebuilder:object:generate=true
