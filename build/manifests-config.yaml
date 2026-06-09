@@ -48,6 +48,9 @@ map:
   odh-trainer:
     src: manifests
     dest: trainer
+  odh-trainer-operator:
+    src: config/manifests
+    dest: trainer-operator
   odh-mlflow-operator:
     src: config
     dest: mlflowoperator
