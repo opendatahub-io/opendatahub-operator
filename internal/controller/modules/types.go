@@ -98,6 +98,13 @@ type ContainerNamer interface {
 	GetContainerName() string
 }
 
+// ControllerImager is an optional interface a ModuleHandler can implement to
+// declare a RELATED_IMAGE_* env var whose value replaces the operator
+// container's image in the rendered Deployment. See BaseHandler.GetControllerImage.
+type ControllerImager interface {
+	GetControllerImage() string
+}
+
 // ModuleStatus holds the parsed status from a module CR. It includes the
 // standard conditions and generation metadata needed for staleness detection
 // per the onboarding guide's PlatformObject contract.
