@@ -280,6 +280,7 @@ endif
 	@# Copy KServe CRD to shared rhaii overlay and generate kustomization
 	@mkdir -p config/rhaii/crd/bases
 	@cp $(CONFIG_DIR)/crd/bases/components.platform.opendatahub.io_kserves.yaml config/rhaii/crd/bases/
+	@cp $(CONFIG_DIR)/crd/bases/config.opendatahub.io_platforms.yaml config/rhaii/crd/bases/
 	@$(call add-crd-to-kustomization,config/rhaii/crd/bases)
 	@# Generate shared rhaii webhook manifests with only KServe connection webhooks
 	@$(YQ) eval 'select(.kind == "MutatingWebhookConfiguration") | .webhooks = [.webhooks[] | select(.name == "connection-isvc.opendatahub.io" or .name == "connection-llmisvc.opendatahub.io")]' $(CONFIG_DIR)/webhook/manifests.yaml > config/rhaii/webhook/manifests.yaml
