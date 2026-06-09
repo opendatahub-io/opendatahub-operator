@@ -9,7 +9,7 @@ fi
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CHARTS_DIR="${REPO_ROOT}/opt/charts"
 TARGET_FILE="${REPO_ROOT}/internal/controller/cloudmanager/common/kubebuilder_rbac.go"
-CHARTS_SOURCE="${REPO_ROOT}/internal/controller/cloudmanager/common/charts.go"
+CHARTS_SOURCE="${REPO_ROOT}/get_all_manifests.sh"
 
 YQ="${1:?yq binary path is required as first argument}"
 HELM="${2:?helm binary path is required as second argument}"
@@ -33,7 +33,7 @@ if [[ ! -d "$CHARTS_DIR" ]]; then
   exit 1
 fi
 
-# Extract cloudmanager chart names from the Go source of truth (charts.go).
+# Extract cloudmanager chart names from ODH_CCM_CHARTS keys in get_all_manifests.sh.
 extract_cloudmanager_charts() {
   if [[ ! -f "$CHARTS_SOURCE" ]]; then
     echo "ERROR: Charts source file '$CHARTS_SOURCE' not found" >&2
@@ -41,13 +41,13 @@ extract_cloudmanager_charts() {
   fi
 
   local charts
-  charts=$(grep 'Chart:' "$CHARTS_SOURCE" \
-    | grep -oE '"[^"]+"' \
-    | tr -d '"' \
+  charts=$(sed -n '/^declare -A ODH_CCM_CHARTS=(/,/^)/p' "$CHARTS_SOURCE" \
+    | grep -oE '\["[^"]+"\]' \
+    | tr -d '[]"' \
     | LC_ALL=C sort || true)
 
   if [[ -z "$charts" ]]; then
-    echo "ERROR: No chart references found in '$CHARTS_SOURCE'" >&2
+    echo "ERROR: No chart keys found in ODH_CCM_CHARTS in '$CHARTS_SOURCE'" >&2
     return 1
   fi
 

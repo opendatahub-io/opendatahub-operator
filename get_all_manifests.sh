@@ -57,25 +57,51 @@ declare -A RHOAI_COMPONENT_MANIFESTS=(
     ["wva"]="red-hat-data-services:workload-variant-autoscaler:rhoai-3.5-ea.2@93c9e78bd1671f577e5efe6ec9248b32d25f8124:config"
 )
 
-# {ODH,RHOAI}_COMPONENT_CHARTS are lists of chart repositories info to fetch helm charts
+# {ODH,RHOAI}_{CCM,COMPONENT}_CHARTS are lists of chart repositories info to fetch helm charts
 # in the same format as manifests: "repo-org:repo-name:ref-name:source-folder"
 # key is the target folder under charts/
+# CCM_CHARTS: charts deployed by the CloudManager controller (dependencies)
+# COMPONENT_CHARTS: charts deployed by individual component controllers
 
-# ODH Component Charts
-declare -A ODH_COMPONENT_CHARTS=(
+# ODH CloudManager Charts
+declare -A ODH_CCM_CHARTS=(
     ["cert-manager-operator"]="opendatahub-io:odh-gitops:main@98a52397445a5a42f6799be48c7fb960e11383db:charts/dependencies/cert-manager-operator"
     ["lws-operator"]="opendatahub-io:odh-gitops:main@98a52397445a5a42f6799be48c7fb960e11383db:charts/dependencies/lws-operator"
     ["sail-operator"]="opendatahub-io:odh-gitops:main@98a52397445a5a42f6799be48c7fb960e11383db:charts/dependencies/sail-operator"
     ["gateway-api"]="opendatahub-io:odh-gitops:main@98a52397445a5a42f6799be48c7fb960e11383db:charts/dependencies/gateway-api"
 )
 
-# RHOAI Component Charts
-declare -A RHOAI_COMPONENT_CHARTS=(
+# ODH Component Charts
+declare -A ODH_COMPONENT_CHARTS=(
+)
+
+# RHOAI CloudManager Charts
+declare -A RHOAI_CCM_CHARTS=(
     ["cert-manager-operator"]="red-hat-data-services:odh-gitops:rhoai-3.5-ea.2@030f05060d9a5f7f9b3d5873af3f3fcaa15dc96b:charts/dependencies/cert-manager-operator"
     ["lws-operator"]="red-hat-data-services:odh-gitops:rhoai-3.5-ea.2@030f05060d9a5f7f9b3d5873af3f3fcaa15dc96b:charts/dependencies/lws-operator"
     ["sail-operator"]="red-hat-data-services:odh-gitops:rhoai-3.5-ea.2@030f05060d9a5f7f9b3d5873af3f3fcaa15dc96b:charts/dependencies/sail-operator"
     ["gateway-api"]="red-hat-data-services:odh-gitops:rhoai-3.5-ea.2@030f05060d9a5f7f9b3d5873af3f3fcaa15dc96b:charts/dependencies/gateway-api"
 )
+
+# RHOAI Component Charts
+declare -A RHOAI_COMPONENT_CHARTS=(
+)
+
+# merge_charts merges CCM and component charts into COMPONENT_CHARTS, failing on duplicate keys.
+merge_charts() {
+    local -n _ccm=$1
+    local -n _comp=$2
+    for k in "${!_ccm[@]}"; do
+        if [[ -n "${_comp[$k]+x}" ]]; then
+            echo "ERROR: duplicate chart key '$k' in CCM and component charts" >&2
+            exit 1
+        fi
+        COMPONENT_CHARTS["$k"]="${_ccm[$k]}"
+    done
+    for k in "${!_comp[@]}"; do
+        COMPONENT_CHARTS["$k"]="${_comp[$k]}"
+    done
+}
 
 # Select the appropriate manifest based on platform type
 if [ "${ODH_PLATFORM_TYPE:-OpenDataHub}" = "OpenDataHub" ]; then
@@ -85,9 +111,7 @@ if [ "${ODH_PLATFORM_TYPE:-OpenDataHub}" = "OpenDataHub" ]; then
         COMPONENT_MANIFESTS["$key"]="${ODH_COMPONENT_MANIFESTS[$key]}"
     done
     declare -A COMPONENT_CHARTS=()
-    for key in "${!ODH_COMPONENT_CHARTS[@]}"; do
-        COMPONENT_CHARTS["$key"]="${ODH_COMPONENT_CHARTS[$key]}"
-    done
+    merge_charts ODH_CCM_CHARTS ODH_COMPONENT_CHARTS
 else
     echo "Cloning manifests and charts for RHOAI"
     declare -A COMPONENT_MANIFESTS=()
@@ -95,9 +119,7 @@ else
         COMPONENT_MANIFESTS["$key"]="${RHOAI_COMPONENT_MANIFESTS[$key]}"
     done
     declare -A COMPONENT_CHARTS=()
-    for key in "${!RHOAI_COMPONENT_CHARTS[@]}"; do
-        COMPONENT_CHARTS["$key"]="${RHOAI_COMPONENT_CHARTS[$key]}"
-    done
+    merge_charts RHOAI_CCM_CHARTS RHOAI_COMPONENT_CHARTS
 fi
 
 # PLATFORM_MANIFESTS is a list of manifests that are contained in the operator repository. Please also add them to the
