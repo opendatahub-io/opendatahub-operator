@@ -37,6 +37,9 @@ const (
 
 	modelCacheLabelKey   = "kserve/localmodel"
 	modelCacheLabelValue = "worker"
+
+	modelCachePVName  = "kserve-localmodelnode-pv"
+	modelCachePVCName = "kserve-localmodelnode-pvc"
 )
 
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -317,75 +320,48 @@ func createModelCachePVAndPVC(ctx context.Context, rr *odhtypes.ReconciliationRe
 
 	pv := &corev1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "kserve-localmodelnode-pv",
+			Name: modelCachePVName,
 		},
 	}
-	expectedPVCName := "kserve-localmodelnode-pvc"
-	expectedPVCNamespace := cluster.GetApplicationNamespace()
 
 	_, err := controllerutil.CreateOrUpdate(ctx, rr.Client, pv, func() error {
-		existingClaimRef := pv.Spec.ClaimRef
-		preserveClaimRef := false
-		if existingClaimRef != nil &&
-			existingClaimRef.Name == expectedPVCName &&
-			existingClaimRef.Namespace == expectedPVCNamespace {
-			currentPVC := &corev1.PersistentVolumeClaim{}
-			if pvcErr := rr.Client.Get(ctx, client.ObjectKey{Name: expectedPVCName, Namespace: expectedPVCNamespace}, currentPVC); pvcErr != nil {
-				if !k8serr.IsNotFound(pvcErr) {
-					return pvcErr
-				}
-			} else if existingClaimRef.UID == "" || existingClaimRef.UID == currentPVC.UID {
-				preserveClaimRef = true
-			}
-		}
-
-		pv.Spec = corev1.PersistentVolumeSpec{
-			Capacity:                      corev1.ResourceList{corev1.ResourceStorage: cacheSize},
-			VolumeMode:                    ptr.To(corev1.PersistentVolumeFilesystem),
-			AccessModes:                   []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-			PersistentVolumeReclaimPolicy: corev1.PersistentVolumeReclaimRetain,
-			StorageClassName:              "local-storage",
-			PersistentVolumeSource: corev1.PersistentVolumeSource{
-				HostPath: &corev1.HostPathVolumeSource{
-					Path: "/var/lib/kserve/models",
-					Type: ptr.To(corev1.HostPathDirectoryOrCreate),
-				},
+		pv.Spec.Capacity = corev1.ResourceList{corev1.ResourceStorage: cacheSize}
+		pv.Spec.VolumeMode = ptr.To(corev1.PersistentVolumeFilesystem)
+		pv.Spec.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
+		pv.Spec.PersistentVolumeReclaimPolicy = corev1.PersistentVolumeReclaimRetain
+		pv.Spec.StorageClassName = "local-storage"
+		pv.Spec.PersistentVolumeSource = corev1.PersistentVolumeSource{
+			HostPath: &corev1.HostPathVolumeSource{
+				Path: "/var/lib/kserve/models",
+				Type: ptr.To(corev1.HostPathDirectoryOrCreate),
 			},
-			NodeAffinity: &corev1.VolumeNodeAffinity{
-				Required: &corev1.NodeSelector{
-					NodeSelectorTerms: []corev1.NodeSelectorTerm{{
-						MatchExpressions: []corev1.NodeSelectorRequirement{{
-							Key:      modelCacheLabelKey,
-							Operator: corev1.NodeSelectorOpIn,
-							Values:   []string{modelCacheLabelValue},
-						}},
+		}
+		pv.Spec.NodeAffinity = &corev1.VolumeNodeAffinity{
+			Required: &corev1.NodeSelector{
+				NodeSelectorTerms: []corev1.NodeSelectorTerm{{
+					MatchExpressions: []corev1.NodeSelectorRequirement{{
+						Key:      modelCacheLabelKey,
+						Operator: corev1.NodeSelectorOpIn,
+						Values:   []string{modelCacheLabelValue},
 					}},
-				},
+				}},
 			},
 		}
-
-		if preserveClaimRef {
-			pv.Spec.ClaimRef = existingClaimRef
-		}
-
 		return controllerutil.SetControllerReference(k, pv, rr.Client.Scheme())
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create/update model cache PV: %w", err)
 	}
 
-	// Create/update PVC
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "kserve-localmodelnode-pvc",
+			Name:      modelCachePVCName,
 			Namespace: cluster.GetApplicationNamespace(),
 		},
 	}
 	_, err = controllerutil.CreateOrUpdate(ctx, rr.Client, pvc, func() error {
-		// Only set immutable fields on create (when VolumeName is empty).
-		// On update, these fields are rejected by the API server.
 		if pvc.Spec.VolumeName == "" {
-			pvc.Spec.VolumeName = "kserve-localmodelnode-pv"
+			pvc.Spec.VolumeName = modelCachePVName
 			pvc.Spec.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
 			pvc.Spec.VolumeMode = ptr.To(corev1.PersistentVolumeFilesystem)
 			pvc.Spec.StorageClassName = ptr.To("local-storage")
@@ -589,7 +565,7 @@ func cleanupModelCache(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "kserve-localmodelnode-pvc",
+			Name:      modelCachePVCName,
 			Namespace: cluster.GetApplicationNamespace(),
 		},
 	}
@@ -598,7 +574,7 @@ func cleanupModelCache(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 	}
 
 	pv := &corev1.PersistentVolume{
-		ObjectMeta: metav1.ObjectMeta{Name: "kserve-localmodelnode-pv"},
+		ObjectMeta: metav1.ObjectMeta{Name: modelCachePVName},
 	}
 	if err := deleteIfExists(ctx, rr.Client, pv, "model cache PV"); err != nil {
 		return err
