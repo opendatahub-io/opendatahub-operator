@@ -323,12 +323,9 @@ func TestRunAll_SkipFunc(t *testing.T) {
 		expectedMsg    string
 	}{
 		{
-			name:     "returns true skips precondition",
-			skipFunc: func(_ context.Context, _ *types.ReconciliationRequest) (bool, error) { return true, nil },
-			// When skipped, no aggregate is created and no condition is written by RunAll.
-			// CleanupStaleConditions removes any stale condition from a previous reconcile.
-			// The condition manager default for an unset dependent is Unknown.
-			expectedStatus: metav1.ConditionUnknown,
+			name:           "returns true skips precondition",
+			skipFunc:       func(_ context.Context, _ *types.ReconciliationRequest) (bool, error) { return true, nil },
+			expectedStatus: metav1.ConditionTrue,
 		},
 		{
 			name:           "returns false runs precondition",
@@ -410,7 +407,7 @@ func TestRunAll_SkipFuncCleansStaleCondition(t *testing.T) {
 	g.Expect(got).NotTo(BeNil())
 	g.Expect(got.Status).To(Equal(metav1.ConditionFalse))
 
-	// Reconcile #2: skipFunc=true → condition not re-set → CleanupStaleConditions removes it.
+	// Reconcile #2: skipFunc=true → precondition writes True (not-applicable = satisfied).
 	rr.Conditions.Reset()
 
 	pcs = []PreCondition{
@@ -426,7 +423,8 @@ func TestRunAll_SkipFuncCleansStaleCondition(t *testing.T) {
 	rr.Conditions.CleanupStaleConditions()
 
 	got = rr.Conditions.GetCondition(status.ConditionDependenciesAvailable)
-	g.Expect(got).To(BeNil(), "stale condition should be removed after skip")
+	g.Expect(got).NotTo(BeNil(), "skipped precondition should still write the condition")
+	g.Expect(got.Status).To(Equal(metav1.ConditionTrue))
 }
 
 func TestRunAll_ClusterTypeFilterRunsBeforeSkipFunc(t *testing.T) {
