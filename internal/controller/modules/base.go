@@ -3,6 +3,7 @@ package modules
 import (
 	"context"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"time"
 
@@ -115,6 +116,11 @@ type ModuleConfig struct {
 	// and injects them into the module operator's Deployment before apply.
 	// Variables whose values are empty on the platform operator are skipped.
 	RelatedImages []string
+
+	// ExtraEnv is a small set of fixed env vars to inject into the module
+	// operator Deployment after rendering. This is intended for temporary
+	// handoff toggles and other explicit module-owned env flags.
+	ExtraEnv map[string]string
 }
 
 // BaseHandler provides default implementations for ModuleHandler methods
@@ -157,14 +163,22 @@ func (b *BaseHandler) GetRelatedImages() []string {
 	return b.Config.RelatedImages
 }
 
+func (b *BaseHandler) GetExtraEnv() map[string]string {
+	if len(b.Config.ExtraEnv) == 0 {
+		return nil
+	}
+
+	result := make(map[string]string, len(b.Config.ExtraEnv))
+	maps.Copy(result, b.Config.ExtraEnv)
+	return result
+}
+
 func (b *BaseHandler) GetOperatorManifests(platform *PlatformContext) OperatorManifests {
 	var result OperatorManifests
 
 	if b.Config.ChartDir != "" && platform != nil {
 		vals := make(map[string]any, len(b.Config.Values))
-		for k, v := range b.Config.Values {
-			vals[k] = v
-		}
+		maps.Copy(vals, b.Config.Values)
 
 		if b.Config.NamespaceValueKey != "" && platform.ApplicationsNamespace != "" {
 			vals[b.Config.NamespaceValueKey] = platform.ApplicationsNamespace

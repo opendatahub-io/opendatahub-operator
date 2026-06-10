@@ -30,6 +30,7 @@ import (
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	modules "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
@@ -44,7 +45,7 @@ import (
 func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	componentsPredicate := dependent.New(dependent.WithWatchStatus(true))
 
-	_, err := reconciler.ReconcilerFor(mgr, &dscv2.DataScienceCluster{}).
+	b := reconciler.ReconcilerFor(mgr, &dscv2.DataScienceCluster{}).
 		Owns(&componentApi.Dashboard{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.Workbenches{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.Ray{}, reconciler.WithPredicates(componentsPredicate)).
@@ -59,7 +60,6 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 		Owns(&componentApi.ModelsAsService{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.FeastOperator{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.OGX{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.MLflowOperator{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.SparkOperator{}, reconciler.WithPredicates(componentsPredicate)).
 		WatchesGVK(gvk.Tenant,
 			reconciler.Dynamic(reconciler.CrdExists(gvk.Tenant)),
@@ -86,7 +86,14 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 			}),
 			reconciler.WithPredicates(
 				resources.CreatedOrUpdatedOrDeletedNamed(gates.AcksConfigMap),
-			)).
+			))
+
+	// Module-backed components now project their DSC-facing compatibility status
+	// through the datasciencecluster controller, so their CR status changes must
+	// requeue this controller just like in-tree component CR status changes do.
+	b = modules.AddDSCCompatibilityProjectorWatches(b)
+
+	_, err := b.
 		WithAction(initialize).
 		WithAction(checkPreConditions).
 		WithAction(updateStatus).

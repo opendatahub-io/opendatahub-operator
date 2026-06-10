@@ -541,3 +541,27 @@ func TestInjectEmptyInitContainerName(t *testing.T) {
 	g.Expect(getInitContainerImage(&rr.Resources[0], "copy-manifests")).
 		Should(Equal("registry.example.com/module:latest"))
 }
+
+func TestInjectExtraEnv(t *testing.T) {
+	g := NewWithT(t)
+
+	dep := makeDeployment("module-operator")
+
+	rr := &odhtype.ReconciliationRequest{
+		Resources: []unstructured.Unstructured{dep},
+		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
+			PerModuleImages: []odhtype.ModuleImages{{
+				DeploymentName: "module-operator",
+				ExtraEnv: map[string]string{
+					"ENABLE_MLFLOW_OPERATOR_MODULE_CONTROLLER": "true",
+				},
+			}},
+		},
+	}
+
+	err := injectModuleEnv(context.Background(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	env := getContainerEnv(&rr.Resources[0])
+	g.Expect(envValue(env, "ENABLE_MLFLOW_OPERATOR_MODULE_CONTROLLER")).Should(Equal("true"))
+}
