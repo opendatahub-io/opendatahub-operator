@@ -78,7 +78,7 @@ func injectEnvVarsIntoDeployment(log logr.Logger, obj *unstructured.Unstructured
 			targetName = defaultContainerName
 		}
 
-		idx := findManagerContainer(containers, targetName)
+		idx := findNamedContainer(containers, targetName)
 		if idx < 0 {
 			log.Error(nil, "target container not found in Deployment, skipping env injection",
 				"deployment", deployName, "container", targetName)
@@ -173,9 +173,9 @@ func setOrOverrideEnv(envSlice *[]any, name, value string) bool {
 	return true
 }
 
-// findManagerContainer returns the index of the container with the given
+// findNamedContainer returns the index of the container with the given
 // name, or -1 if none is found.
-func findManagerContainer(containers []any, targetName string) int {
+func findNamedContainer(containers []any, targetName string) int {
 	for i, c := range containers {
 		if cm, ok := c.(map[string]any); ok {
 			if name, ok := cm["name"].(string); ok && name == targetName {
@@ -211,11 +211,9 @@ func injectInitContainerImage(
 		return 0, nil
 	}
 
-	idx := findManagerContainer(initContainers, initContainerName)
+	idx := findNamedContainer(initContainers, initContainerName)
 	if idx < 0 {
-		log.Error(nil, "target init container not found in Deployment, skipping",
-			"deployment", deployName, "initContainer", initContainerName)
-		return 0, nil
+		return 0, fmt.Errorf("init container %q not found in Deployment %s", initContainerName, deployName)
 	}
 
 	ic, ok := initContainers[idx].(map[string]any)

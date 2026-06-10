@@ -512,12 +512,8 @@ func TestInjectInitContainerNotFound(t *testing.T) {
 	}
 
 	err := injectModuleEnv(context.Background(), rr)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	g.Expect(getContainerImage(&rr.Resources[0], "manager")).
-		Should(Equal("registry.example.com/module-ctrl@sha256:abc123"))
-	g.Expect(getInitContainerImage(&rr.Resources[0], "copy-manifests")).
-		Should(Equal("registry.example.com/module:latest"))
+	g.Expect(err).Should(HaveOccurred())
+	g.Expect(err.Error()).Should(ContainSubstring(`init container "nonexistent" not found`))
 }
 
 func TestInjectEmptyInitContainerName(t *testing.T) {
