@@ -56,8 +56,6 @@ spec:
                 secretKeyRef:
                   name: {{.KubeAuthProxySecretsName}}
                   key: OAUTH2_PROXY_COOKIE_SECRET
-            - name: PROXY_MODE
-              value: auth
           ports:
             - name: http
               containerPort: {{.AuthProxyHTTPPort}}
