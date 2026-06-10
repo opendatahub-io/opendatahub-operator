@@ -512,6 +512,7 @@ func (tc *KueueTestCtx) ValidateKueueManagedToRemovedToUnmanagedTransition(migra
 // ValidateKueueWebhookValidation validates the Kueue validating webhook behavior using table-driven tests.
 func (tc *KueueTestCtx) ValidateKueueWebhookValidation(t *testing.T) {
 	t.Helper()
+	t.Skip("kueue validating webhook is disabled")
 
 	// Ensure Kueue is in Managed state
 	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Managed)

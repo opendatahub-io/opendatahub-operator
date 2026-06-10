@@ -9,7 +9,6 @@ import (
 	dsciwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization"
 	hardwareprofilewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/hardwareprofile"
 	isvc "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/inferenceservice"
-	kueuewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/kueue"
 	notebookwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/notebook"
 )
 
@@ -20,7 +19,8 @@ func RegisterAllWebhooks(mgr ctrl.Manager) error {
 		dscwebhook.RegisterWebhooks,
 		dsciwebhook.RegisterWebhooks,
 		hardwareprofilewebhook.RegisterWebhooks,
-		kueuewebhook.RegisterWebhooks,
+		// NOTE: kueue validating webhook is disabled. To re-enable, uncomment the entry below.
+		// kueuewebhook.RegisterWebhooks,
 		isvc.RegisterWebhooks,
 		notebookwebhook.RegisterWebhooks,
 	}
