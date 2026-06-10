@@ -87,6 +87,7 @@ func (in *PlatformList) DeepCopyObject() runtime.Object {
 func (in *PlatformModules) DeepCopyInto(out *PlatformModules) {
 	*out = *in
 	out.AIGateway = in.AIGateway
+	out.MLflowOperator = in.MLflowOperator
 	out.Monitoring = in.Monitoring
 	out.MCPLifecycleOperator = in.MCPLifecycleOperator
 }
