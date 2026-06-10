@@ -90,6 +90,19 @@ func injectEnvVarsIntoDeployment(log logr.Logger, obj *unstructured.Unstructured
 			continue
 		}
 
+		if mi.ControllerImage != "" {
+			if img := os.Getenv(mi.ControllerImage); img != "" {
+				container["image"] = img
+				injected++
+				log.V(3).Info("overriding controller image",
+					"deployment", deployName, "container", targetName,
+					"envVar", mi.ControllerImage)
+			} else {
+				log.V(1).Info("controller image env var not set, keeping chart default",
+					"envVar", mi.ControllerImage, "deployment", deployName)
+			}
+		}
+
 		existingEnv, _ := container["env"].([]any)
 
 		for _, relImg := range mi.Images {
