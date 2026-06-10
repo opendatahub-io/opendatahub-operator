@@ -92,6 +92,54 @@ func getContainerImage(obj *unstructured.Unstructured, containerName string) str
 	return ""
 }
 
+func getInitContainerImage(obj *unstructured.Unstructured, containerName string) string {
+	initContainers, _, _ := unstructured.NestedSlice(obj.Object, "spec", "template", "spec", "initContainers")
+	for _, c := range initContainers {
+		if cm, ok := c.(map[string]any); ok {
+			if name, _ := cm["name"].(string); name == containerName {
+				img, _ := cm["image"].(string)
+				return img
+			}
+		}
+	}
+
+	return ""
+}
+
+func makeDeploymentWithInitContainers(name string, initContainerNames ...string) unstructured.Unstructured {
+	initContainers := make([]any, 0, len(initContainerNames))
+	for _, n := range initContainerNames {
+		initContainers = append(initContainers, map[string]any{
+			"name":  n,
+			"image": "registry.example.com/module:latest",
+		})
+	}
+
+	return unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "apps/v1",
+			"kind":       "Deployment",
+			"metadata": map[string]any{
+				"name":      name,
+				"namespace": "opendatahub",
+			},
+			"spec": map[string]any{
+				"template": map[string]any{
+					"spec": map[string]any{
+						"initContainers": initContainers,
+						"containers": []any{
+							map[string]any{
+								"name":  "manager",
+								"image": "registry.example.com/module:latest",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 func getContainerEnv(obj *unstructured.Unstructured) []any {
 	return getContainerEnvByName(obj, "manager")
 }
@@ -294,6 +342,9 @@ func TestInjectModuleEnvTargetsManagerContainer(t *testing.T) {
 
 	sidecarEnv := getContainerEnvByName(&rr.Resources[0], "sidecar")
 	g.Expect(sidecarEnv).Should(BeNil())
+
+	g.Expect(getContainerImage(&rr.Resources[0], "sidecar")).
+		Should(Equal("registry.example.com/sidecar:latest"))
 }
 
 func TestInjectModuleEnvEmptyNamespace(t *testing.T) {
@@ -388,4 +439,109 @@ func TestInjectControllerImageWithRelatedImages(t *testing.T) {
 
 	env := getContainerEnv(&rr.Resources[0])
 	g.Expect(envValue(env, "RELATED_IMAGE_SIDECAR")).Should(Equal("registry.example.com/sidecar@sha256:def456"))
+}
+
+func TestInjectInitContainerImage(t *testing.T) {
+	g := NewWithT(t)
+
+	t.Setenv("RELATED_IMAGE_MODULE_CONTROLLER", "registry.example.com/module-ctrl@sha256:abc123")
+
+	dep := makeDeploymentWithInitContainers("ai-gateway-operator", "setup")
+
+	rr := &odhtype.ReconciliationRequest{
+		Resources: []unstructured.Unstructured{dep},
+		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
+			PerModuleImages: []odhtype.ModuleImages{{
+				DeploymentName:    "ai-gateway-operator",
+				ControllerImage:   "RELATED_IMAGE_MODULE_CONTROLLER",
+				InitContainerName: "setup",
+			}},
+		},
+	}
+
+	err := injectModuleEnv(context.Background(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(getContainerImage(&rr.Resources[0], "manager")).
+		Should(Equal("registry.example.com/module-ctrl@sha256:abc123"))
+	g.Expect(getInitContainerImage(&rr.Resources[0], "setup")).
+		Should(Equal("registry.example.com/module-ctrl@sha256:abc123"))
+}
+
+func TestInjectInitContainerImageNotSet(t *testing.T) {
+	g := NewWithT(t)
+
+	dep := makeDeploymentWithInitContainers("module-operator", "copy-manifests")
+
+	rr := &odhtype.ReconciliationRequest{
+		Resources: []unstructured.Unstructured{dep},
+		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
+			PerModuleImages: []odhtype.ModuleImages{{
+				DeploymentName:    "module-operator",
+				ControllerImage:   "RELATED_IMAGE_NOT_SET",
+				InitContainerName: "copy-manifests",
+			}},
+		},
+	}
+
+	err := injectModuleEnv(context.Background(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(getContainerImage(&rr.Resources[0], "manager")).
+		Should(Equal("registry.example.com/module:latest"))
+	g.Expect(getInitContainerImage(&rr.Resources[0], "copy-manifests")).
+		Should(Equal("registry.example.com/module:latest"))
+}
+
+func TestInjectInitContainerNotFound(t *testing.T) {
+	g := NewWithT(t)
+
+	t.Setenv("RELATED_IMAGE_MODULE_CONTROLLER", "registry.example.com/module-ctrl@sha256:abc123")
+
+	dep := makeDeploymentWithInitContainers("module-operator", "copy-manifests")
+
+	rr := &odhtype.ReconciliationRequest{
+		Resources: []unstructured.Unstructured{dep},
+		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
+			PerModuleImages: []odhtype.ModuleImages{{
+				DeploymentName:    "module-operator",
+				ControllerImage:   "RELATED_IMAGE_MODULE_CONTROLLER",
+				InitContainerName: "nonexistent",
+			}},
+		},
+	}
+
+	err := injectModuleEnv(context.Background(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(getContainerImage(&rr.Resources[0], "manager")).
+		Should(Equal("registry.example.com/module-ctrl@sha256:abc123"))
+	g.Expect(getInitContainerImage(&rr.Resources[0], "copy-manifests")).
+		Should(Equal("registry.example.com/module:latest"))
+}
+
+func TestInjectEmptyInitContainerName(t *testing.T) {
+	g := NewWithT(t)
+
+	t.Setenv("RELATED_IMAGE_MODULE_CONTROLLER", "registry.example.com/module-ctrl@sha256:abc123")
+
+	dep := makeDeploymentWithInitContainers("module-operator", "copy-manifests")
+
+	rr := &odhtype.ReconciliationRequest{
+		Resources: []unstructured.Unstructured{dep},
+		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
+			PerModuleImages: []odhtype.ModuleImages{{
+				DeploymentName:  "module-operator",
+				ControllerImage: "RELATED_IMAGE_MODULE_CONTROLLER",
+			}},
+		},
+	}
+
+	err := injectModuleEnv(context.Background(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(getContainerImage(&rr.Resources[0], "manager")).
+		Should(Equal("registry.example.com/module-ctrl@sha256:abc123"))
+	g.Expect(getInitContainerImage(&rr.Resources[0], "copy-manifests")).
+		Should(Equal("registry.example.com/module:latest"))
 }

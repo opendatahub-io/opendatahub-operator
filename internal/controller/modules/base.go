@@ -87,6 +87,13 @@ type ModuleConfig struct {
 	// correct image and no override is needed.
 	ControllerImage string
 
+	// InitContainerName is the name of an init container whose image field
+	// should be overridden with the same ControllerImage value. This is for
+	// modules whose Deployment includes an init container that shares the
+	// operator image (e.g. "copy-manifests"). Leave empty if no init
+	// container needs the override.
+	InitContainerName string
+
 	// RelatedImages lists RELATED_IMAGE_* environment variable names that the
 	// module operator needs. The platform reads each name from its own process
 	// environment (where the release pipeline sets digest-pinned references)
@@ -119,6 +126,10 @@ func (b *BaseHandler) GetContainerName() string {
 
 func (b *BaseHandler) GetControllerImage() string {
 	return b.Config.ControllerImage
+}
+
+func (b *BaseHandler) GetInitContainerName() string {
+	return b.Config.InitContainerName
 }
 
 func (b *BaseHandler) GetRelatedImages() []string {
