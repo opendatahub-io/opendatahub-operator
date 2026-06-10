@@ -91,11 +91,11 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/sparkoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainer"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainingoperator"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/workbenches"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	trustyaiModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
@@ -132,7 +132,6 @@ var (
 		componentApi.SparkOperatorComponentName:        sparkoperator.NewHandler(),
 		componentApi.TrainerComponentName:              trainer.NewHandler(),
 		componentApi.TrainingOperatorComponentName:     trainingoperator.NewHandler(),
-		componentApi.TrustyAIComponentName:             trustyai.NewHandler(),
 		componentApi.WorkbenchesComponentName:          workbenches.NewHandler(),
 	}
 
@@ -145,7 +144,7 @@ var (
 	}
 
 	existingModules = map[string]mr.ModuleHandler{
-		// serviceApi.MonitoringServiceName: monitoringModule.NewHandler(),
+		componentApi.TrustyAIComponentName: trustyaiModule.NewHandler(),
 	}
 )
 
