@@ -91,11 +91,21 @@ type ModuleHandler interface {
 	DeleteOperatorResources(ctx context.Context, cli client.Client, platform *PlatformContext) error
 }
 
-// ContainerNamer is an optional interface a ModuleHandler can implement to
-// override the default container name ("manager") used for RELATED_IMAGE_*
-// environment variable injection. See BaseHandler.GetContainerName.
+// ContainerNamer allows a module handler to override the default container
+// name ("manager") used for RELATED_IMAGE_* and controller image injection.
+// All handlers embedding BaseHandler satisfy this interface automatically;
+// the override is only active when ModuleConfig.ContainerName is set.
 type ContainerNamer interface {
 	GetContainerName() string
+}
+
+// ControllerImager allows a module handler to declare a RELATED_IMAGE_* env
+// var whose value replaces the operator container's image in the rendered
+// Deployment. All handlers embedding BaseHandler satisfy this interface
+// automatically; the override is only active when ModuleConfig.ControllerImage
+// is set.
+type ControllerImager interface {
+	GetControllerImage() string
 }
 
 // ModuleStatus holds the parsed status from a module CR. It includes the

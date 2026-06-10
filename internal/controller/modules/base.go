@@ -79,6 +79,14 @@ type ModuleConfig struct {
 	// Override only if the module chart uses a different container name.
 	ContainerName string
 
+	// ControllerImage is the RELATED_IMAGE_* env var name whose value is the
+	// fully-qualified image reference for this module's operator container.
+	// When set and the env var is present on the platform operator process,
+	// the inject action overwrites the target container's image field in the
+	// rendered Deployment. Leave empty if the chart already bakes in the
+	// correct image and no override is needed.
+	ControllerImage string
+
 	// RelatedImages lists RELATED_IMAGE_* environment variable names that the
 	// module operator needs. The platform reads each name from its own process
 	// environment (where the release pipeline sets digest-pinned references)
@@ -107,6 +115,10 @@ func (b *BaseHandler) GetContainerName() string {
 		return b.Config.ContainerName
 	}
 	return "manager"
+}
+
+func (b *BaseHandler) GetControllerImage() string {
+	return b.Config.ControllerImage
 }
 
 func (b *BaseHandler) GetRelatedImages() []string {
