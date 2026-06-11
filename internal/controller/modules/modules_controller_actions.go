@@ -226,10 +226,11 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 		}
 
 		perModuleImages = append(perModuleImages, odhtype.ModuleImages{
-			DeploymentName:  deploymentNameFromManifests(operatorManifests, handler.GetName()),
-			ContainerName:   containerNameFor(handler),
-			ControllerImage: controllerImageFor(handler),
-			Images:          handler.GetRelatedImages(),
+			DeploymentName:    deploymentNameFromManifests(operatorManifests, handler.GetName()),
+			ContainerName:     containerNameFor(handler),
+			ControllerImage:   controllerImageFor(handler),
+			InitContainerName: initContainerNameFor(handler),
+			Images:            handler.GetRelatedImages(),
 		})
 		if len(operatorManifests.HelmCharts) > 0 {
 			rr.HelmCharts = append(rr.HelmCharts, operatorManifests.HelmCharts...)
@@ -274,6 +275,13 @@ func containerNameFor(h ModuleHandler) string {
 func controllerImageFor(h ModuleHandler) string {
 	if ci, ok := h.(ControllerImager); ok {
 		return ci.GetControllerImage()
+	}
+	return ""
+}
+
+func initContainerNameFor(h ModuleHandler) string {
+	if icn, ok := h.(InitContainerNamer); ok {
+		return icn.GetInitContainerName()
 	}
 	return ""
 }

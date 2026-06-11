@@ -118,7 +118,7 @@ func gatewayTestSuite(t *testing.T) {
 // makeRedirectURL constructs the OAuth redirect URL for the authentication proxy.
 // Format: https://<gateway-hostname>/oauth2/callback
 func makeRedirectURL(hostname string) string {
-	return fmt.Sprintf("--redirect-url=https://%s%s/callback", hostname, authProxyOAuth2Path)
+	return fmt.Sprintf("--redirect-url=https://%s%s", hostname, gateway.OAuthCallbackPath)
 }
 
 // makeCookieDomain constructs the cookie domain argument for the authentication proxy.
@@ -203,7 +203,7 @@ func (tc *GatewayTestCtx) ValidateOAuthClientAndSecret(t *testing.T) {
 	t.Log("Validating OAuth client and secret creation")
 
 	expectedGatewayHostname := tc.getExpectedGatewayHostname(t)
-	expectedRedirectURI := "https://" + expectedGatewayHostname + authProxyOAuth2Path + "/callback"
+	expectedRedirectURI := "https://" + expectedGatewayHostname + gateway.OAuthCallbackPath
 
 	// OAuthClient
 	t.Log("Validating OAuthClient resource")
