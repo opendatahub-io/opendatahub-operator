@@ -32,7 +32,7 @@ func (in *Components) DeepCopyInto(out *Components) {
 	out.Workbenches = in.Workbenches
 	in.AIPipelines.DeepCopyInto(&out.AIPipelines)
 	in.Kserve.DeepCopyInto(&out.Kserve)
-	out.Kueue = in.Kueue
+	in.Kueue.DeepCopyInto(&out.Kueue)
 	out.Ray = in.Ray
 	out.TrustyAI = in.TrustyAI
 	out.ModelRegistry = in.ModelRegistry
