@@ -51,7 +51,7 @@ func TestNewHandler(t *testing.T) {
 	g := NewWithT(t)
 	h := trustyai.NewHandler()
 
-	g.Expect(h.GetName()).Should(Equal(componentApi.TrustyAIKind))
+	g.Expect(h.GetName()).Should(Equal(componentApi.TrustyAIComponentName))
 	g.Expect(h.GetGVK()).Should(Equal(gvk.TrustyAI))
 }
 
@@ -146,9 +146,19 @@ func TestGetRelatedImages(t *testing.T) {
 	h := trustyai.NewHandler()
 
 	images := h.GetRelatedImages()
-	g.Expect(images).Should(HaveLen(2))
-	g.Expect(images).Should(ContainElement("RELATED_IMAGE_TRUSTYAI_SERVICE"))
-	g.Expect(images).Should(ContainElement("RELATED_IMAGE_TRUSTYAI_SERVICE_OPERATOR"))
+	g.Expect(images).Should(HaveLen(12))
+	g.Expect(images).Should(ContainElement("RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE"))
+	g.Expect(images).Should(ContainElement("RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE"))
+	g.Expect(images).Should(ContainElement("RELATED_IMAGE_ODH_TA_LMES_DRIVER_IMAGE"))
+	g.Expect(images).Should(ContainElement("RELATED_IMAGE_ODH_TA_LMES_JOB_IMAGE"))
+	g.Expect(images).Should(ContainElement("RELATED_IMAGE_ODH_FMS_GUARDRAILS_ORCHESTRATOR_IMAGE"))
+	g.Expect(images).Should(ContainElement("RELATED_IMAGE_ODH_TRUSTYAI_VLLM_ORCHESTRATOR_GATEWAY_IMAGE"))
+	g.Expect(images).Should(ContainElement("RELATED_IMAGE_ODH_BUILT_IN_DETECTOR_IMAGE"))
+	g.Expect(images).Should(ContainElement("RELATED_IMAGE_ODH_PYTHON_312_IMAGE"))
+	g.Expect(images).Should(ContainElement("RELATED_IMAGE_ODH_TRUSTYAI_GARAK_LLS_PROVIDER_DSP_IMAGE"))
+	g.Expect(images).Should(ContainElement("RELATED_IMAGE_ODH_TRUSTYAI_NEMO_GUARDRAILS_SERVER_IMAGE"))
+	g.Expect(images).Should(ContainElement("RELATED_IMAGE_ODH_EVAL_HUB_IMAGE"))
+	g.Expect(images).Should(ContainElement("RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE"))
 }
 
 func TestBuildModuleCR_NilDSCAndPlatformReturnsError(t *testing.T) {
