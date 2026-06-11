@@ -33,7 +33,7 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["mlflowoperator"]="opendatahub-io:mlflow-operator:main@4cccfcc2dd8576cabbf255f66894d801a68eb844:config"
     ["sparkoperator"]="opendatahub-io:spark-operator:main@f91ff22af0b264e0cef090c2d0f1c94cae6b580e:config"
     ["wva"]="opendatahub-io:workload-variant-autoscaler:main@0641ee03e8430cce5821797137b1b53bf70b98a2:config"
-    ["aigateway"]="opendatahub-io:ai-gateway-operator:main:config"
+    ["aigateway"]="opendatahub-io:ai-gateway-operator:main@a2dc04e0351bc6a8c162fbfe4d848c3ae5dbda62:config"
 )
 
 # RHOAI Component Manifests
