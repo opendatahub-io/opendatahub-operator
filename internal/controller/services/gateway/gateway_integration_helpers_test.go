@@ -145,7 +145,7 @@ func HostForSubdomain(subdomain, domain string) string {
 
 // OAuthRedirectURI returns the OAuth redirect URI for the given hostname (used to assert OAuthClient.RedirectURIs).
 func OAuthRedirectURI(hostname string) string {
-	return "https://" + hostname + gateway.AuthProxyOAuth2Path + "/callback"
+	return "https://" + hostname + gateway.OAuthCallbackPath
 }
 
 // SpecMutationCookieConfig returns the cookie config used in spec-mutation tests (48h expire, 2h refresh).
