@@ -84,7 +84,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/mlflowoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelcontroller"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelsasservice"
+	modelsasserviceModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/modelsasservice"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ogx"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ray"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
@@ -128,7 +128,6 @@ var (
 		componentApi.MLflowOperatorComponentName:       mlflowoperator.NewHandler(),
 		componentApi.ModelControllerComponentName:      modelcontroller.NewHandler(),
 		componentApi.ModelRegistryComponentName:        modelregistry.NewHandler(),
-		componentApi.ModelsAsServiceComponentName:      modelsasservice.NewHandler(),
 		componentApi.RayComponentName:                  ray.NewHandler(),
 		componentApi.SparkOperatorComponentName:        sparkoperator.NewHandler(),
 		componentApi.TrainerComponentName:              trainer.NewHandler(),
@@ -147,7 +146,8 @@ var (
 
 	existingModules = map[string]mr.ModuleHandler{
 		// serviceApi.MonitoringServiceName: monitoringModule.NewHandler(),
-		componentApi.AIGatewayComponentName: aigatewayModule.NewHandler(),
+		componentApi.AIGatewayComponentName:       aigatewayModule.NewHandler(),
+		componentApi.ModelsAsServiceComponentName: modelsasserviceModule.NewHandler(),
 	}
 )
 
