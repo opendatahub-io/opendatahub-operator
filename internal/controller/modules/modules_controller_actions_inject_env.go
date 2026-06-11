@@ -78,7 +78,7 @@ func injectEnvVarsIntoDeployment(log logr.Logger, obj *unstructured.Unstructured
 			targetName = defaultContainerName
 		}
 
-		idx := findManagerContainer(containers, targetName)
+		idx := findNamedContainer(containers, targetName)
 		if idx < 0 {
 			log.Error(nil, "target container not found in Deployment, skipping env injection",
 				"deployment", deployName, "container", targetName)
@@ -97,6 +97,12 @@ func injectEnvVarsIntoDeployment(log logr.Logger, obj *unstructured.Unstructured
 				log.V(3).Info("overriding controller image",
 					"deployment", deployName, "container", targetName,
 					"envVar", mi.ControllerImage)
+
+				initInjected, err := injectInitContainerImage(log, obj, mi.InitContainerName, img, deployName, mi.ControllerImage)
+				if err != nil {
+					return err
+				}
+				injected += initInjected
 			} else {
 				log.V(1).Info("controller image env var not set, keeping chart default",
 					"envVar", mi.ControllerImage, "deployment", deployName)
@@ -167,9 +173,9 @@ func setOrOverrideEnv(envSlice *[]any, name, value string) bool {
 	return true
 }
 
-// findManagerContainer returns the index of the container with the given
+// findNamedContainer returns the index of the container with the given
 // name, or -1 if none is found.
-func findManagerContainer(containers []any, targetName string) int {
+func findNamedContainer(containers []any, targetName string) int {
 	for i, c := range containers {
 		if cm, ok := c.(map[string]any); ok {
 			if name, ok := cm["name"].(string); ok && name == targetName {
@@ -179,4 +185,52 @@ func findManagerContainer(containers []any, targetName string) int {
 	}
 
 	return -1
+}
+
+// injectInitContainerImage overrides the image field on a named init container
+// with the resolved controller image. Returns 1 if patched, 0 otherwise.
+func injectInitContainerImage(
+	log logr.Logger,
+	obj *unstructured.Unstructured,
+	initContainerName string,
+	img string,
+	deployName string,
+	envVar string,
+) (int, error) {
+	if initContainerName == "" {
+		return 0, nil
+	}
+
+	initContainers, found, err := unstructured.NestedSlice(obj.Object, "spec", "template", "spec", "initContainers")
+	if err != nil {
+		return 0, err
+	}
+	if !found || len(initContainers) == 0 {
+		log.V(1).Info("no initContainers in Deployment, skipping init container image injection",
+			"deployment", deployName)
+		return 0, nil
+	}
+
+	idx := findNamedContainer(initContainers, initContainerName)
+	if idx < 0 {
+		return 0, fmt.Errorf("init container %q not found in Deployment %s", initContainerName, deployName)
+	}
+
+	ic, ok := initContainers[idx].(map[string]any)
+	if !ok {
+		return 0, nil
+	}
+
+	ic["image"] = img
+	initContainers[idx] = ic
+
+	if err := unstructured.SetNestedSlice(obj.Object, initContainers, "spec", "template", "spec", "initContainers"); err != nil {
+		return 0, err
+	}
+
+	log.V(3).Info("overriding init container image",
+		"deployment", deployName, "initContainer", initContainerName,
+		"envVar", envVar)
+
+	return 1, nil
 }
