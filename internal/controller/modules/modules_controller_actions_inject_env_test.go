@@ -78,6 +78,20 @@ func getContainerEnvByName(obj *unstructured.Unstructured, containerName string)
 	return nil
 }
 
+func getContainerImage(obj *unstructured.Unstructured, containerName string) string {
+	containers, _, _ := unstructured.NestedSlice(obj.Object, "spec", "template", "spec", "containers")
+	for _, c := range containers {
+		if cm, ok := c.(map[string]any); ok {
+			if name, _ := cm["name"].(string); name == containerName {
+				img, _ := cm["image"].(string)
+				return img
+			}
+		}
+	}
+
+	return ""
+}
+
 func getContainerEnv(obj *unstructured.Unstructured) []any {
 	return getContainerEnvByName(obj, "manager")
 }
@@ -299,4 +313,79 @@ func TestInjectModuleEnvEmptyNamespace(t *testing.T) {
 
 	env := getContainerEnv(&rr.Resources[0])
 	g.Expect(env).Should(BeNil())
+}
+
+func TestInjectControllerImage(t *testing.T) {
+	g := NewWithT(t)
+
+	t.Setenv("RELATED_IMAGE_MODULE_CONTROLLER", "registry.example.com/module-ctrl@sha256:abc123")
+
+	dep := makeDeployment("module-operator")
+
+	rr := &odhtype.ReconciliationRequest{
+		Resources: []unstructured.Unstructured{dep},
+		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
+			PerModuleImages: []odhtype.ModuleImages{{
+				DeploymentName:  "module-operator",
+				ControllerImage: "RELATED_IMAGE_MODULE_CONTROLLER",
+			}},
+		},
+	}
+
+	err := injectModuleEnv(context.Background(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	img := getContainerImage(&rr.Resources[0], "manager")
+	g.Expect(img).Should(Equal("registry.example.com/module-ctrl@sha256:abc123"))
+}
+
+func TestInjectControllerImageNotSet(t *testing.T) {
+	g := NewWithT(t)
+
+	dep := makeDeployment("module-operator")
+
+	rr := &odhtype.ReconciliationRequest{
+		Resources: []unstructured.Unstructured{dep},
+		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
+			PerModuleImages: []odhtype.ModuleImages{{
+				DeploymentName:  "module-operator",
+				ControllerImage: "RELATED_IMAGE_NOT_SET",
+			}},
+		},
+	}
+
+	err := injectModuleEnv(context.Background(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	img := getContainerImage(&rr.Resources[0], "manager")
+	g.Expect(img).Should(Equal("registry.example.com/module:latest"))
+}
+
+func TestInjectControllerImageWithRelatedImages(t *testing.T) {
+	g := NewWithT(t)
+
+	t.Setenv("RELATED_IMAGE_MODULE_CONTROLLER", "registry.example.com/module-ctrl@sha256:abc123")
+	t.Setenv("RELATED_IMAGE_SIDECAR", "registry.example.com/sidecar@sha256:def456")
+
+	dep := makeDeployment("module-operator")
+
+	rr := &odhtype.ReconciliationRequest{
+		Resources: []unstructured.Unstructured{dep},
+		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
+			PerModuleImages: []odhtype.ModuleImages{{
+				DeploymentName:  "module-operator",
+				ControllerImage: "RELATED_IMAGE_MODULE_CONTROLLER",
+				Images:          []string{"RELATED_IMAGE_SIDECAR"},
+			}},
+		},
+	}
+
+	err := injectModuleEnv(context.Background(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	img := getContainerImage(&rr.Resources[0], "manager")
+	g.Expect(img).Should(Equal("registry.example.com/module-ctrl@sha256:abc123"))
+
+	env := getContainerEnv(&rr.Resources[0])
+	g.Expect(envValue(env, "RELATED_IMAGE_SIDECAR")).Should(Equal("registry.example.com/sidecar@sha256:def456"))
 }

@@ -13,9 +13,11 @@ import (
 )
 
 const (
-	readyCondition       = "Ready"
-	dependency1Condition = "Dependency1"
-	dependency2Condition = "Dependency2"
+	readyCondition        = "Ready"
+	dependency1Condition  = "Dependency1"
+	dependency2Condition  = "Dependency2"
+	deploymentsAvailable  = "DeploymentsAvailable"
+	dependenciesAvailable = "DependenciesAvailable"
 )
 
 type fakeAccessor struct {
@@ -257,44 +259,119 @@ func TestManager_CleanupStaleConditionsNoopWithoutReset(t *testing.T) {
 // DependenciesAvailable, LLMDWVADependencies), but only DeploymentsAvailable
 // is ever set by an action. The other two are initialized as Unknown by
 // NewManager and never touched. They must not block Ready=True.
-func TestManager_UnsetDependentsDoNotBlockHappiness(t *testing.T) {
+func TestManager_UnsetDependentsBlockHappiness(t *testing.T) {
 	g := NewWithT(t)
 
-	deploymentsAvailable := "DeploymentsAvailable"
-	dependenciesAvailable := "DependenciesAvailable"
-	llmdWVA := "LLM-D-WVADependencies"
-
-	// First reconcile cycle: fresh object, no pre-existing conditions.
 	accessor := &fakeAccessor{}
-	manager := conditions.NewManager(accessor, readyCondition, deploymentsAvailable, dependenciesAvailable, llmdWVA)
+	manager := conditions.NewManager(accessor, readyCondition, deploymentsAvailable, dependenciesAvailable)
 
 	manager.Reset()
 
-	// Only the deployments action sets its condition.
-	// No precondition or action sets DependenciesAvailable or LLM-D-WVADependencies.
+	// Only DeploymentsAvailable is set. DependenciesAvailable is not.
 	manager.MarkTrue(deploymentsAvailable)
 
 	manager.CleanupStaleConditions()
 	manager.RecomputeHappiness("")
 
-	g.Expect(manager.IsHappy()).To(BeTrue(), "Ready should be True when only unset dependents remain")
-	g.Expect(manager.GetCondition(dependenciesAvailable)).To(BeNil(), "unset dependent should be cleaned up")
-	g.Expect(manager.GetCondition(llmdWVA)).To(BeNil(), "unset dependent should be cleaned up")
+	// Unset dependent should be marked False (not removed), blocking happiness.
+	g.Expect(manager.IsHappy()).To(BeFalse(), "Ready must be False when a declared dependent was not set")
 
-	// Second reconcile cycle: simulate re-creating the Manager with persisted status.
-	// The object now has Ready=True, DeploymentsAvailable=True from last apply.
-	manager2 := conditions.NewManager(accessor, readyCondition, deploymentsAvailable, dependenciesAvailable, llmdWVA)
+	cond := manager.GetCondition(dependenciesAvailable)
+	g.Expect(cond).NotTo(BeNil(), "unset dependent must not be removed")
+	g.Expect(cond.Status).To(Equal(metav1.ConditionFalse))
+	g.Expect(cond.Reason).To(Equal(conditions.ConditionReasonNotSet))
+}
 
+func TestManager_AllDependentsSetAllowsHappiness(t *testing.T) {
+	g := NewWithT(t)
+
+	accessor := &fakeAccessor{}
+	manager := conditions.NewManager(accessor, readyCondition, deploymentsAvailable, dependenciesAvailable)
+
+	manager.Reset()
+
+	manager.MarkTrue(deploymentsAvailable)
+	manager.MarkTrue(dependenciesAvailable)
+
+	manager.CleanupStaleConditions()
+	manager.RecomputeHappiness("")
+
+	g.Expect(manager.IsHappy()).To(BeTrue(), "Ready should be True when all dependents are set")
+}
+
+func TestManager_NonDependentStaleConditionRemoved(t *testing.T) {
+	g := NewWithT(t)
+
+	accessor := &fakeAccessor{}
+	accessor.SetConditions([]common.Condition{
+		{Type: dependency1Condition, Status: metav1.ConditionTrue},
+		{Type: "OrphanedCondition", Status: metav1.ConditionTrue},
+	})
+
+	manager := conditions.NewManager(accessor, readyCondition, dependency1Condition)
+
+	manager.Reset()
+	manager.MarkTrue(dependency1Condition)
+
+	manager.CleanupStaleConditions()
+
+	g.Expect(manager.GetCondition(dependency1Condition)).NotTo(BeNil())
+	g.Expect(manager.GetCondition("OrphanedCondition")).To(BeNil(), "non-dependent stale condition should be removed")
+	g.Expect(manager.IsHappy()).To(BeTrue())
+}
+
+func TestManager_UnsetDependentRecoversOnNextCycle(t *testing.T) {
+	g := NewWithT(t)
+
+	accessor := &fakeAccessor{}
+	manager := conditions.NewManager(accessor, readyCondition, deploymentsAvailable)
+
+	// First cycle: dependent not set
+	manager.Reset()
+	manager.CleanupStaleConditions()
+	manager.RecomputeHappiness("")
+
+	g.Expect(manager.IsHappy()).To(BeFalse())
+	cond := manager.GetCondition(deploymentsAvailable)
+	g.Expect(cond).NotTo(BeNil())
+	g.Expect(cond.Reason).To(Equal(conditions.ConditionReasonNotSet))
+
+	// Second cycle: dependent is set, should recover
+	manager2 := conditions.NewManager(accessor, readyCondition, deploymentsAvailable)
 	manager2.Reset()
-
 	manager2.MarkTrue(deploymentsAvailable)
 
 	manager2.CleanupStaleConditions()
 	manager2.RecomputeHappiness("")
 
-	g.Expect(manager2.IsHappy()).To(BeTrue(), "Ready should remain True on subsequent cycles")
-	g.Expect(manager2.GetCondition(dependenciesAvailable)).To(BeNil())
-	g.Expect(manager2.GetCondition(llmdWVA)).To(BeNil())
+	g.Expect(manager2.IsHappy()).To(BeTrue(), "should recover when dependent is set on next cycle")
+}
+
+func TestManager_MultipleDependentsPartiallySet(t *testing.T) {
+	g := NewWithT(t)
+
+	condA := "CondA"
+	condB := "CondB"
+	condC := "CondC"
+
+	accessor := &fakeAccessor{}
+	manager := conditions.NewManager(accessor, readyCondition, condA, condB, condC)
+
+	manager.Reset()
+
+	manager.MarkTrue(condA)
+	// condB not set
+	manager.MarkTrue(condC)
+
+	manager.CleanupStaleConditions()
+	manager.RecomputeHappiness("")
+
+	g.Expect(manager.IsHappy()).To(BeFalse(), "should be unhappy when any dependent is missing")
+
+	g.Expect(manager.GetCondition(condA).Status).To(Equal(metav1.ConditionTrue))
+	g.Expect(manager.GetCondition(condB).Status).To(Equal(metav1.ConditionFalse))
+	g.Expect(manager.GetCondition(condB).Reason).To(Equal(conditions.ConditionReasonNotSet))
+	g.Expect(manager.GetCondition(condC).Status).To(Equal(metav1.ConditionTrue))
 }
 
 func TestManager_Sort(t *testing.T) {

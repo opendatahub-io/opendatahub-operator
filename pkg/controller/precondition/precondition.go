@@ -158,7 +158,10 @@ func RunAll(ctx context.Context, rr *types.ReconciliationRequest, preConditions 
 		pc := &preConditions[i]
 
 		// Skip preconditions that don't apply to this cluster type.
+		// Initialize the aggregate so the condition is written as True
+		// (not-applicable = satisfied) rather than left unset.
 		if len(pc.clusterTypes) > 0 && !slices.Contains(pc.clusterTypes, clusterType) {
+			initAggregate(results, pc.conditionType)
 			continue
 		}
 
@@ -174,6 +177,7 @@ func RunAll(ctx context.Context, rr *types.ReconciliationRequest, preConditions 
 
 			if skip {
 				l.Info("Pre-condition skipped by runtime predicate", "conditionType", pc.conditionType)
+				initAggregate(results, pc.conditionType)
 
 				continue
 			}

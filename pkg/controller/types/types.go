@@ -45,6 +45,9 @@ type ModuleImages struct {
 	// ContainerName is the target container within the Deployment.
 	// Defaults to "manager" (the kubebuilder convention).
 	ContainerName string
+	// ControllerImage is the RELATED_IMAGE_* env var name whose value
+	// replaces the target container's image field. Empty means no override.
+	ControllerImage string
 	// Images is the list of RELATED_IMAGE_* env var names for this module.
 	Images []string
 }
