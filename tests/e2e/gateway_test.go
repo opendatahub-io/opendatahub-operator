@@ -103,6 +103,7 @@ func gatewayTestSuite(t *testing.T) {
 		{"Validate OIDC token forwarding to dashboard", gatewayCtx.ValidateOIDCTokenForwarding},
 		{"Validate OIDC unauthenticated access redirects to login", gatewayCtx.ValidateOIDCUnauthenticatedRedirect},
 		// Common tests (run on both)
+		{"Validate kube-auth-proxy TLS args match cluster APIServer", gatewayCtx.ValidateKubeAuthProxyTLSArgsMatchAPIServer},
 		{"Validate HorizontalPodAutoscaler creation", gatewayCtx.ValidateHPA},
 		{"Validate NetworkPolicy creation", gatewayCtx.ValidateNetworkPolicy},
 		{"Validate OAuth callback HTTPRoute", gatewayCtx.ValidateOAuthCallbackRoute},
@@ -265,6 +266,7 @@ func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 	expectedGatewayHostname := tc.getExpectedGatewayHostname(t)
 	expectedRedirectURL := makeRedirectURL(expectedGatewayHostname)
 	expectedCookieDomain := makeCookieDomain(expectedGatewayHostname)
+	tlsMinVersionArg, tlsCipherSuitesArg := tc.expectedKubeAuthProxyTLSDeploymentArgs(t)
 
 	// kube-auth-proxy deployment checks (many conditions grouped into a single EnsureResourceExists call)
 	tc.EnsureResourceExists(
@@ -323,6 +325,8 @@ func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--http-address=0.0.0.0:%d")`, kubeAuthProxyHTTPPort),
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--tls-cert-file=/etc/tls/private/tls.crt")`),
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--tls-key-file=/etc/tls/private/tls.key")`),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "%s")`, tlsMinVersionArg),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "%s")`, tlsCipherSuitesArg),
 
 			// cookie config and related flags
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--cookie-secure=true")`),
@@ -852,6 +856,7 @@ func (tc *GatewayTestCtx) ValidateOIDCAuthProxyDeployment(t *testing.T) {
 	expectedRedirectURL := makeRedirectURL(expectedGatewayHostname)
 	expectedCookieDomain := makeCookieDomain(expectedGatewayHostname)
 	oidcConfig := tc.getOIDCConfig(t)
+	tlsMinVersionArg, tlsCipherSuitesArg := tc.expectedKubeAuthProxyTLSDeploymentArgs(t)
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{
@@ -911,6 +916,8 @@ func (tc *GatewayTestCtx) ValidateOIDCAuthProxyDeployment(t *testing.T) {
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--http-address=0.0.0.0:%d")`, kubeAuthProxyHTTPPort),
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--tls-cert-file=/etc/tls/private/tls.crt")`),
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--tls-key-file=/etc/tls/private/tls.key")`),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "%s")`, tlsMinVersionArg),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "%s")`, tlsCipherSuitesArg),
 
 			// cookie config
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--cookie-secure=true")`),
