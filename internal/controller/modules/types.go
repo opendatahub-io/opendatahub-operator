@@ -108,6 +108,14 @@ type ControllerImager interface {
 	GetControllerImage() string
 }
 
+// InitContainerNamer allows a module handler to declare an init container
+// whose image should be overridden with the same ControllerImage value.
+// All handlers embedding BaseHandler satisfy this interface automatically;
+// the override is only active when ModuleConfig.InitContainerName is set.
+type InitContainerNamer interface {
+	GetInitContainerName() string
+}
+
 // ModuleStatus holds the parsed status from a module CR. It includes the
 // standard conditions and generation metadata needed for staleness detection
 // per the onboarding guide's PlatformObject contract.
