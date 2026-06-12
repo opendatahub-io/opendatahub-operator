@@ -1,4 +1,4 @@
-package modelsasservice
+package modelsasservice_test
 
 import (
 	"context"
@@ -11,19 +11,20 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/modelsasservice"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
 func TestNewHandler(t *testing.T) {
-	h := NewHandler()
+	h := modelsasservice.NewHandler()
 	if h == nil {
-		t.Fatal("NewHandler() returned nil")
+		t.Fatal("modelsasservice.NewHandler() returned nil")
 	}
-	if h.Config.Name != moduleName {
-		t.Errorf("expected name %q, got %q", moduleName, h.Config.Name)
+	if h.Config.Name != modelsasservice.ModuleName {
+		t.Errorf("expected name %q, got %q", modelsasservice.ModuleName, h.Config.Name)
 	}
-	if h.Config.CRName != crName {
-		t.Errorf("expected CRName %q, got %q", crName, h.Config.CRName)
+	if h.Config.CRName != modelsasservice.CRName {
+		t.Errorf("expected CRName %q, got %q", modelsasservice.CRName, h.Config.CRName)
 	}
 	if h.Config.GVK != gvk.ModelsAsService {
 		t.Errorf("expected GVK %v, got %v", gvk.ModelsAsService, h.Config.GVK)
@@ -35,7 +36,7 @@ func TestNewHandler(t *testing.T) {
 }
 
 func TestIsEnabled(t *testing.T) {
-	h := NewHandler()
+	h := modelsasservice.NewHandler()
 
 	tests := []struct {
 		name     string
@@ -121,7 +122,7 @@ func TestIsEnabled(t *testing.T) {
 }
 
 func TestBuildModuleCR(t *testing.T) {
-	h := NewHandler()
+	h := modelsasservice.NewHandler()
 	ctx := context.Background()
 
 	tests := []struct {
@@ -172,8 +173,8 @@ func TestBuildModuleCR(t *testing.T) {
 				if u == nil {
 					t.Fatal("BuildModuleCR() returned nil unstructured")
 				}
-				if u.GetName() != crName {
-					t.Errorf("CR name = %q, want %q", u.GetName(), crName)
+				if u.GetName() != modelsasservice.CRName {
+					t.Errorf("CR name = %q, want %q", u.GetName(), modelsasservice.CRName)
 				}
 				if u.GroupVersionKind() != gvk.ModelsAsService {
 					t.Errorf("GVK = %v, want %v", u.GroupVersionKind(), gvk.ModelsAsService)

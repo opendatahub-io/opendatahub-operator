@@ -88,7 +88,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/mlflowoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelcontroller"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
-	modelsasserviceModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/modelsasservice"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ogx"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ray"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
