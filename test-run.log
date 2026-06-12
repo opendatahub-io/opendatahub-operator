@@ -1,0 +1,118 @@
+===================================
+MaaS ModuleHandler E2E Test Script
+===================================
+
+📋 Test Configuration:
+  ODH Operator Image: quay.io/rh-ee-sbhatnag/opendatahub-operator:dev
+  MaaS Controller Image: quay.io/rh-ee-sbhatnag/maas-controller:dev-29106c0d
+
+✅ Step 1: Verifying cluster access...
+cluster-admin
+   Cluster: https://api.m68qd-6kp2c-vh3.fgyi.p3.openshiftapps.com:443
+   User: cluster-admin
+
+🚀 Step 2: Deploying ODH operator...
+mkdir -p /Users/somya/Documents/Projects/redhat/opendatahub-operator/bin
+Downloading sigs.k8s.io/kustomize/kustomize/v5@v5.8.1
+go: downloading sigs.k8s.io/kustomize/kustomize/v5 v5.8.1
+go: downloading sigs.k8s.io/kustomize/cmd/config v0.21.1
+go: downloading github.com/spf13/cobra v1.9.1
+go: downloading sigs.k8s.io/yaml v1.5.0
+go: downloading golang.org/x/text v0.28.0
+go: downloading go.yaml.in/yaml/v2 v2.4.2
+go: downloading go.yaml.in/yaml/v3 v3.0.3
+go: downloading github.com/davecgh/go-spew v1.1.1
+go: downloading k8s.io/kube-openapi v0.0.0-20241212222426-2c72e554b1e7
+go: downloading github.com/sergi/go-diff v1.4.0
+go: downloading google.golang.org/protobuf v1.36.5
+go: downloading github.com/go-openapi/jsonreference v0.20.2
+go: downloading github.com/go-openapi/swag v0.23.0
+go: downloading github.com/go-openapi/jsonpointer v0.21.0
+go: downloading github.com/mailru/easyjson v0.7.7
+Downloading sigs.k8s.io/controller-tools/cmd/controller-gen@v0.17.3
+go: downloading sigs.k8s.io/controller-tools v0.17.3
+go: downloading k8s.io/apiextensions-apiserver v0.32.2
+go: downloading k8s.io/apimachinery v0.32.2
+go: downloading golang.org/x/tools v0.30.0
+go: downloading k8s.io/api v0.32.2
+go: downloading github.com/fatih/color v1.18.0
+go: downloading github.com/gobuffalo/flect v1.0.3
+go: downloading k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738
+go: downloading github.com/mattn/go-colorable v0.1.13
+go: downloading github.com/mattn/go-isatty v0.0.20
+go: downloading sigs.k8s.io/structured-merge-diff/v4 v4.4.2
+go: downloading sigs.k8s.io/json v0.0.0-20241010143419-9aa6b5e7a4b3
+go: downloading github.com/fxamacker/cbor/v2 v2.7.0
+go: downloading github.com/go-logr/logr v1.4.2
+go: downloading golang.org/x/net v0.35.0
+go: downloading golang.org/x/sys v0.30.0
+go: downloading golang.org/x/mod v0.23.0
+go: downloading golang.org/x/sync v0.11.0
+go: downloading golang.org/x/text v0.22.0
+Downloading github.com/mikefarah/yq/v4@v4.53.2
+go: downloading github.com/mikefarah/yq/v4 v4.53.2
+go: downloading github.com/alecthomas/participle/v2 v2.1.4
+go: downloading github.com/dimchansky/utfbom v1.1.1
+go: downloading github.com/a8m/envsubst v1.4.3
+go: downloading github.com/elliotchance/orderedmap v1.8.0
+go: downloading github.com/fatih/color v1.19.0
+go: downloading github.com/go-ini/ini v1.67.0
+go: downloading github.com/goccy/go-json v0.10.6
+go: downloading github.com/goccy/go-yaml v1.19.2
+go: downloading github.com/hashicorp/hcl/v2 v2.24.0
+go: downloading github.com/jinzhu/copier v0.4.0
+go: downloading github.com/magiconair/properties v1.8.10
+go: downloading github.com/pelletier/go-toml/v2 v2.3.0
+go: downloading github.com/yuin/gopher-lua v1.1.2
+go: downloading github.com/zclconf/go-cty v1.18.0
+go: downloading go.yaml.in/yaml/v4 v4.0.0-rc.4
+go: downloading golang.org/x/net v0.52.0
+go: downloading golang.org/x/text v0.35.0
+go: downloading github.com/mattn/go-colorable v0.1.14
+go: downloading github.com/agext/levenshtein v1.2.1
+go: downloading github.com/apparentlymart/go-textseg/v15 v15.0.0
+go: downloading github.com/mitchellh/go-wordwrap v1.0.1
+go: downloading github.com/google/go-cmp v0.6.0
+/Users/somya/Documents/Projects/redhat/opendatahub-operator
+/Users/somya/Documents/Projects/redhat/opendatahub-operator
+cd config/manager \
+		&& cp -f kustomization.yaml.in kustomization.yaml \
+		&& /Users/somya/Documents/Projects/redhat/opendatahub-operator/bin/kustomize edit set image REPLACE_IMAGE=quay.io/rh-ee-sbhatnag/opendatahub-operator:dev
+/Users/somya/Documents/Projects/redhat/opendatahub-operator/bin/kustomize build config/default | kubectl apply --namespace opendatahub-operator-system -f -
+namespace/opendatahub-operator-system created
+customresourcedefinition.apiextensions.k8s.io/auths.services.platform.opendatahub.io created
+customresourcedefinition.apiextensions.k8s.io/dashboards.components.platform.opendatahub.io created
+customresourcedefinition.apiextensions.k8s.io/datascienceclusters.datasciencecluster.opendatahub.io created
+customresourcedefinition.apiextensions.k8s.io/datasciencepipelines.components.platform.opendatahub.io created
+customresourcedefinition.apiextensions.k8s.io/dscinitializations.dscinitialization.opendatahub.io created
+customresourcedefinition.apiextensions.k8s.io/feastoperators.components.platform.opendatahub.io created
+customresourcedefinition.apiextensions.k8s.io/featuretrackers.features.opendatahub.io created
+customresourcedefinition.apiextensions.k8s.io/gatewayconfigs.services.platform.opendatahub.io created
+customresourcedefinition.apiextensions.k8s.io/hardwareprofiles.infrastructure.opendatahub.io created
+customresourcedefinition.apiextensions.k8s.io/kserves.components.platform.opendatahub.io created
+customresourcedefinition.apiextensions.k8s.io/kueues.components.platform.opendatahub.io created
+customresourcedefinition.apiextensions.k8s.io/mlflowoperators.components.platform.opendatahub.io created
+customresourcedefinition.apiextensions.k8s.io/modelcontrollers.components.platform.opendatahub.io created
+customresourcedefinition.apiextensions.k8s.io/modelregistries.components.platform.opendatahub.io created
+customresourcedefinition.apiextensions.k8s.io/modelsasservices.components.platform.opendatahub.io created
+customresourcedefinition.apiextensions.k8s.io/monitorings.services.platform.opendatahub.io created
+customresourcedefinition.apiextensions.k8s.io/ogxs.components.platform.opendatahub.io created
+customresourcedefinition.apiextensions.k8s.io/platforms.config.opendatahub.io created
+customresourcedefinition.apiextensions.k8s.io/rays.components.platform.opendatahub.io created
+customresourcedefinition.apiextensions.k8s.io/sparkoperators.components.platform.opendatahub.io created
+customresourcedefinition.apiextensions.k8s.io/trainers.components.platform.opendatahub.io created
+customresourcedefinition.apiextensions.k8s.io/trainingoperators.components.platform.opendatahub.io created
+customresourcedefinition.apiextensions.k8s.io/trustyais.components.platform.opendatahub.io created
+customresourcedefinition.apiextensions.k8s.io/workbenches.components.platform.opendatahub.io created
+serviceaccount/opendatahub-operator-controller-manager created
+clusterrole.rbac.authorization.k8s.io/opendatahub-operator-controller-manager-role created
+clusterrole.rbac.authorization.k8s.io/opendatahub-operator-metrics-reader created
+clusterrolebinding.rbac.authorization.k8s.io/opendatahub-operator-controller-manager-rolebinding created
+service/opendatahub-operator-controller-manager-metrics-service created
+service/opendatahub-operator-webhook-service created
+deployment.apps/opendatahub-operator-controller-manager created
+mutatingwebhookconfiguration.admissionregistration.k8s.io/opendatahub-operator-mutating-webhook-configuration created
+validatingwebhookconfiguration.admissionregistration.k8s.io/opendatahub-operator-validating-webhook-configuration created
+
+⏳ Step 3: Waiting for operator to be ready...
+error: timed out waiting for the condition on deployments/opendatahub-operator-controller-manager
