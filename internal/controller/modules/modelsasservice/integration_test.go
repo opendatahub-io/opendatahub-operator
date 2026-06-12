@@ -1,4 +1,4 @@
-package modelsasservice
+package modelsasservice_test
 
 import (
 	"context"
@@ -12,12 +12,13 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/modelsasservice"
 )
 
 // TestDSCProjection verifies that DSC Kserve.ModelsAsService config
 // is correctly projected onto the ModelsAsService CR.
 func TestDSCProjection(t *testing.T) {
-	h := NewHandler()
+	h := modelsasservice.NewHandler()
 	ctx := context.Background()
 
 	dsc := &dscv2.DataScienceCluster{
@@ -91,13 +92,13 @@ func TestDSCProjection(t *testing.T) {
 // TestDisabledScenarios verifies that MaaS is correctly disabled
 // when KServe or MaaS management states are not Managed.
 func TestDisabledScenarios(t *testing.T) {
-	h := NewHandler()
+	h := modelsasservice.NewHandler()
 
 	tests := []struct {
-		name              string
-		kserveState       operatorv1.ManagementState
-		maasState         operatorv1.ManagementState
-		expectEnabled     bool
+		name          string
+		kserveState   operatorv1.ManagementState
+		maasState     operatorv1.ManagementState
+		expectEnabled bool
 	}{
 		{
 			name:          "KServe Removed",

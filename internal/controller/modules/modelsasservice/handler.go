@@ -16,8 +16,12 @@ import (
 )
 
 const (
-	moduleName = componentApi.ModelsAsServiceComponentName
-	crName     = componentApi.ModelsAsServiceInstanceName
+	// ModuleName is the name of the ModelsAsService module.
+	ModuleName = componentApi.ModelsAsServiceComponentName
+	moduleName = ModuleName
+	// CRName is the default name of the ModelsAsService CR.
+	CRName = componentApi.ModelsAsServiceInstanceName
+	crName = CRName
 )
 
 type handler struct {
@@ -79,7 +83,7 @@ func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 // - Includes ManagementState from DSC.Spec.Components.Kserve.ModelsAsService
 //
 // In Platform mode:
-// - Projects minimal spec with ManagementState: Managed
+// - Projects minimal spec with ManagementState: Managed.
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
