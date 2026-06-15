@@ -26,7 +26,8 @@
 
 ### 1. Deploy ODH Operator
 ```bash
-cd /Users/somya/Documents/Projects/redhat/opendatahub-operator
+# Change to the opendatahub-operator repository root
+cd <path-to-opendatahub-operator-repo>
 
 # Deploy operator
 IMG=quay.io/rh-ee-sbhatnag/opendatahub-operator:dev make deploy
