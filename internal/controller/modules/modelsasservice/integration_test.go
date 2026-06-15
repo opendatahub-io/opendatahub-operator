@@ -65,7 +65,7 @@ func TestDSCProjection(t *testing.T) {
 		t.Errorf("CR name = %q, want %q", cr.GetName(), componentApi.ModelsAsServiceInstanceName)
 	}
 
-	// Step 4: Verify spec contains managementState
+	// Step 4: Verify spec is empty (matches component NewCRObject behavior)
 	spec, found, err := unstructured.NestedFieldNoCopy(cr.Object, "spec")
 	if err != nil || !found {
 		t.Fatalf("spec not found in CR: found=%v, err=%v", found, err)
@@ -76,17 +76,13 @@ func TestDSCProjection(t *testing.T) {
 		t.Fatalf("spec is not a map: %T", spec)
 	}
 
-	mgmtState, found := specMap["managementState"]
-	if !found {
-		t.Error("managementState not found in spec")
+	// Spec should be empty to match component handler's NewCRObject
+	if len(specMap) != 0 {
+		t.Errorf("spec should be empty, got %d fields: %+v", len(specMap), specMap)
 	}
 
-	if mgmtState != string(operatorv1.Managed) {
-		t.Errorf("managementState = %v, want %v", mgmtState, string(operatorv1.Managed))
-	}
-
-	t.Logf("✅ DSC projection test passed: %s CR created with managementState=%s",
-		cr.GetName(), mgmtState)
+	t.Logf("✅ DSC projection test passed: %s CR created with empty spec (matches component behavior)",
+		cr.GetName())
 }
 
 // TestDisabledScenarios verifies that MaaS is correctly disabled
