@@ -62,6 +62,7 @@ func TestModuleChartCompliance(t *testing.T) {
 	for _, handler := range handlers {
 		manifests := handler.GetOperatorManifests(platform)
 		if len(manifests.HelmCharts) == 0 {
+			t.Logf("skipping %s: uses Kustomize manifests, not Helm charts", handler.GetName())
 			continue
 		}
 
@@ -107,6 +108,6 @@ func TestModuleChartCompliance(t *testing.T) {
 	}
 
 	if testedCount == 0 {
-		t.Fatal("no module handlers have Helm charts to test")
+		t.Skipf("no Helm-based modules to test; Kustomize modules are tested separately")
 	}
 }
