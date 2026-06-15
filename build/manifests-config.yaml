@@ -75,3 +75,6 @@ map:
   odh-workbenches-controller:
     src: workspaces/controller/manifests/kustomize
     dest: workbenches/odh-workbenches-controller
+  odh-mcp-lifecycle-module-operator:
+    src: config
+    dest: mcplifecycleoperator

@@ -33,6 +33,7 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["mlflowoperator"]="opendatahub-io:mlflow-operator:main@b55bcb6aa528ccecf8904745bb0218350b1ff453:config"
     ["sparkoperator"]="opendatahub-io:spark-operator:main@1f4c2a848c928c24d914139222d24858aae6cf32:config"
     ["wva"]="opendatahub-io:workload-variant-autoscaler:main@c5b2a5f2d6ecbd0a37b0798db0858c64b03e7675:config"
+    ["mcplifecycleoperator"]="opendatahub-io:mcp-lifecycle-module-operator:main@a7f3e1491545b86181c1a7f0d5c81a212fed3c09:config"
 )
 
 # RHOAI Component Manifests
