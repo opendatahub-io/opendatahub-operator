@@ -7,6 +7,10 @@ echo "==================================="
 echo ""
 
 # Configuration
+# NOTE: These are temporary test images from a fork for this PR.
+# Using mutable tags here is intentional for development/testing convenience.
+# These references will be removed once PR #980 merges upstream.
+# For production deployments, use immutable digests from official repos.
 export IMG=quay.io/rh-ee-sbhatnag/opendatahub-operator:dev
 export MAAS_IMG=quay.io/rh-ee-sbhatnag/maas-controller:dev-29106c0d
 
