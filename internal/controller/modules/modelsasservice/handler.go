@@ -41,10 +41,11 @@ func NewHandler() *handler {
 	return &handler{
 		BaseHandler: modules.BaseHandler{
 			Config: modules.ModuleConfig{
-				Name:        moduleName,
-				CRName:      crName,
-				ReleaseName: "maas-controller",
-				ChartDir:    "maas",
+				Name:   moduleName,
+				CRName: crName,
+				// MaaS uses Kustomize for manifests (not Helm charts)
+				ManifestDir: "maas",
+				SourcePath:  "overlays/odh",
 				GVK:         gvk.ModelsAsService,
 				RelatedImages: []string{
 					"RELATED_IMAGE_ODH_MAAS_CONTROLLER_IMAGE",
