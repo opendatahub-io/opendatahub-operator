@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 echo "==================================="
 echo "MaaS ModuleHandler E2E Test Script"
@@ -52,7 +52,7 @@ echo ""
 
 # Run MaaS E2E tests
 echo "🧪 Step 6: Running MaaS E2E tests..."
-make e2e-test \
+if make e2e-test \
   -e E2E_TEST_COMPONENT="modelsasservice" \
   -e E2E_TEST_SERVICES=false \
   -e E2E_TEST_WEBHOOK=false \
@@ -63,9 +63,11 @@ make e2e-test \
   -e E2E_TEST_DSC_MANAGEMENT=false \
   -e E2E_TEST_DSC_VALIDATION=false \
   -e E2E_TEST_DELETION_POLICY=never \
-  -e E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=false
-
-TEST_RESULT=$?
+  -e E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=false; then
+  TEST_RESULT=0
+else
+  TEST_RESULT=$?
+fi
 echo ""
 
 if [ $TEST_RESULT -eq 0 ]; then
@@ -86,28 +88,35 @@ oc get modelsasservice -A
 echo ""
 
 echo "2. Find applications namespace:"
-APPS_NS=$(oc get deployment -A | grep maas-controller | awk '{print $1}' || echo "NOT_FOUND")
-if [ "$APPS_NS" != "NOT_FOUND" ]; then
+APPS_NS=$(oc get deployment --all-namespaces --field-selector metadata.name=maas-controller -o jsonpath='{.items[*].metadata.namespace}' 2>/dev/null || echo "")
+# Validate we got exactly one namespace
+if [ -z "${APPS_NS}" ]; then
+  echo "   ⚠️  maas-controller deployment not found"
+  APPS_NS="NOT_FOUND"
+elif [ "$(echo "${APPS_NS}" | wc -w)" -ne 1 ]; then
+  echo "   ❌ Multiple maas-controller deployments found: ${APPS_NS}"
+  APPS_NS="NOT_FOUND"
+fi
+
+if [ "${APPS_NS}" != "NOT_FOUND" ]; then
   echo "   Applications namespace: ${APPS_NS}"
   echo ""
 
   echo "3. Check maas-controller Deployment:"
-  oc get deployment maas-controller -n ${APPS_NS}
+  oc get deployment maas-controller -n "${APPS_NS}"
   echo ""
 
   echo "4. Verify APPLICATIONS_NAMESPACE env var:"
-  oc get deployment maas-controller -n ${APPS_NS} -o yaml \
+  oc get deployment maas-controller -n "${APPS_NS}" -o yaml \
     | grep -A 5 APPLICATIONS_NAMESPACE | head -10
   echo ""
 
   echo "5. Check maas-api Deployment:"
-  oc get deployment maas-api -n ${APPS_NS}
+  oc get deployment maas-api -n "${APPS_NS}"
   echo ""
 
   echo "6. Check Tenant CR status:"
   oc get tenant -n models-as-a-service default-tenant -o yaml | grep -A 3 "phase:"
-else
-  echo "   ⚠️  maas-controller deployment not found"
 fi
 echo ""
 
