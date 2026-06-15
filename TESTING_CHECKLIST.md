@@ -1,11 +1,17 @@
 # MaaS ModuleHandler Integration Testing Checklist
 
 ## Test Environment
+
+> **Note on Image References**: This checklist uses mutable tags from fork repositories
+> for development/testing convenience. These are temporary and will be removed after
+> PR #980 merges to upstream. Production deployments should use immutable image
+> digests from official repositories.
+
 - **ROSA Cluster**: ✅ Ready
-- **maas-controller image**: `quay.io/rh-ee-sbhatnag/maas-controller:dev-29106c0d`
-- **ODH operator image**: `quay.io/rh-ee-sbhatnag/opendatahub-operator:dev`
-- **Branch (MaaS)**: `somya-migrate-maas-to-ModuleHandler` (commit `5b75a637`)
-- **Branch (ODH)**: `somya-maas-modulehandler-migration` (commit `dc9928a5`)
+- **maas-controller image**: `quay.io/rh-ee-sbhatnag/maas-controller:dev-29106c0d` (temporary fork)
+- **ODH operator image**: `quay.io/rh-ee-sbhatnag/opendatahub-operator:dev` (temporary fork)
+- **Branch (MaaS)**: `somya-migrate-maas-to-ModuleHandler` (commit `9ab14107`)
+- **Branch (ODH)**: `somya-maas-modulehandler-migration` (latest)
 
 ---
 
