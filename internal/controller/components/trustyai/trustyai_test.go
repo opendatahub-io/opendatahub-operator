@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	. "github.com/onsi/gomega"
 	gt "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -27,6 +26,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+
+	. "github.com/onsi/gomega"
 )
 
 func TestGetName(t *testing.T) {
