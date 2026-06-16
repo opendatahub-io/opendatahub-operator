@@ -38,9 +38,9 @@ For OpenShift tests additionally:
 The E2E test suite is organized into test groups that run sequentially. Within each group,
 component tests run in parallel. The suite supports two main targets:
 
-- **`make e2e-test-xks`** — KServe-only tests on KinD / vanilla Kubernetes.
-  This is the CI-equivalent E2E for KinD and covers component enable, update, delete,
-  recovery, and versioning.
+- **`make e2e-test-xks`** — KServe-focused platform orchestration tests on KinD / vanilla Kubernetes.
+  This is the CI-equivalent E2E for KinD and covers component CR lifecycle, spec projection,
+  status propagation, and resilience.
 
 - **`make e2e-test`** — Full suite across all components, DSC/DSCI lifecycle,
   services, webhooks, and operator resilience. Requires an OpenShift cluster.
@@ -384,6 +384,8 @@ done
 | `KIND_CONFIG_PATH` | `config/kind/kind-config.yaml` | KinD cluster config |
 | `PULL_SECRET` | *(required)* | Path to container registry auth config |
 | `E2E_TEST_COMPONENT` | *(all)* | Single component to test (e.g., `kserve`) |
+| `E2E_TEST_PLATFORM_ORCHESTRATION` | `true` | Enable/disable platform orchestration contract tests |
+| `E2E_TEST_PLATFORM_COMPONENT` | *(all)* | Filter platform orchestration tests to specific components (e.g., `dashboard,kserve`) |
 | `E2E_TEST_SERVICES` | `true` | Enable/disable service tests |
 | `E2E_TEST_WEBHOOK` | `true` | Enable/disable webhook tests |
 | `E2E_TEST_DSC_MANAGEMENT` | `true` | Enable/disable DSC lifecycle tests |
@@ -393,5 +395,5 @@ done
 | `E2E_TEST_DEPENDANT_OPERATORS_MANAGEMENT` | `true` | Enable/disable dependent operator management |
 | `E2E_TEST_OPERATOR_CONTROLLER` | `true` | Enable/disable operator controller tests |
 | `E2E_TEST_OPERATOR_V2TOV3UPGRADE` | `true` | Enable/disable v2-to-v3 upgrade tests |
-| `E2E_TEST_COMPONENTS` | `true` | Enable/disable component tests |
+| `E2E_TEST_COMPONENTS` | `false` | *(Deprecated)* Enable per-component tests (superseded by platform orchestration) |
 | `E2E_TEST_DELETION_POLICY` | `always` | Deletion policy for test resources (`never`, `always`, `on-failure`) |
