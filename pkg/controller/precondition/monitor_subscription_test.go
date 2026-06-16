@@ -63,6 +63,24 @@ func TestMonitorSubscriptions_CheckResult(t *testing.T) {
 			pass:         false,
 			exactMessage: "Operator A: subscription not found; Operator B: subscription not found",
 		},
+		{
+			name: "missing subscription with custom Message overrides subscription not found",
+			requiredSubscriptions: []SubscriptionDependency{
+				{Name: "operator-a", DisplayName: "Operator A", Message: "ABCDE"},
+			},
+			pass:           false,
+			exactMessage:   "ABCDE",
+			notContainsMsg: []string{"subscription not found"},
+		},
+		{
+			name: "custom Message and default Message are joined",
+			requiredSubscriptions: []SubscriptionDependency{
+				{Name: "operator-a", DisplayName: "Operator A", Message: "OPQRST"},
+				{Name: "operator-b", DisplayName: "Operator B"},
+			},
+			pass:         false,
+			exactMessage: "OPQRST; Operator B: subscription not found",
+		},
 	}
 
 	for _, tt := range tests {
