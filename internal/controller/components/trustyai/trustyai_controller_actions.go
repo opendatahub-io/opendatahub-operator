@@ -21,8 +21,12 @@ import (
 	"fmt"
 	"strconv"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -30,6 +34,14 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+)
+
+const (
+	trustyaiDeploymentName       = "trustyai-service-operator-controller-manager"
+	controlPlaneLabelKey         = "control-plane"
+	controlPlaneLabelValue       = "trustyai-service-operator"
+	partOfLabelKey               = "app.kubernetes.io/part-of"
+	partOfLabelValue             = "trustyai"
 )
 
 func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -95,4 +107,56 @@ func createConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 	configMap.Data["eval.lmeval.permitOnline"] = strconv.FormatBool(permitOnline)
 
 	return rr.AddResources(configMap)
+}
+
+// migrateDeploymentSelector deletes the TrustyAI operator Deployment if its
+// spec.selector.matchLabels has stale values. The selector changed in two ways:
+//   - "control-plane" value changed from "controller-manager" to "trustyai-service-operator"
+//   - "app.kubernetes.io/part-of: trustyai" was added via kustomize includeSelectors
+//
+// Since spec.selector is immutable on Deployments, the only way to update it is
+// to delete and let the operator recreate it with the correct selector.
+func migrateDeploymentSelector(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	log := logf.FromContext(ctx)
+
+	ns, err := cluster.ApplicationNamespace(ctx, rr.Client)
+	if err != nil {
+		return fmt.Errorf("failed to determine application namespace: %w", err)
+	}
+
+	deploy := &appsv1.Deployment{}
+	err = rr.Client.Get(ctx, client.ObjectKey{Name: trustyaiDeploymentName, Namespace: ns}, deploy)
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to get Deployment %s/%s: %w", ns, trustyaiDeploymentName, err)
+	}
+
+	if deploy.Spec.Selector == nil {
+		return nil
+	}
+
+	if deploy.Spec.Selector.MatchLabels[controlPlaneLabelKey] == controlPlaneLabelValue &&
+		deploy.Spec.Selector.MatchLabels[partOfLabelKey] == partOfLabelValue {
+		return nil
+	}
+
+	log.Info("TrustyAI operator Deployment has stale selector, deleting for recreation",
+		"deployment", trustyaiDeploymentName,
+		"namespace", ns,
+		"currentSelector", deploy.Spec.Selector.MatchLabels,
+	)
+
+	if err := rr.Client.Delete(ctx, deploy); err != nil {
+		if k8serr.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to delete Deployment %s/%s with stale selector: %w", ns, trustyaiDeploymentName, err)
+	}
+
+	log.Info("Deleted TrustyAI operator Deployment, it will be recreated with the correct selector",
+		"deployment", trustyaiDeploymentName, "namespace", ns)
+
+	return nil
 }
