@@ -75,7 +75,8 @@ func TestNewCRObject_ReturnsModelsAsServiceWhenEnabled(t *testing.T) {
 func TestNewCRObject_ReturnsNilWhenDisabled(t *testing.T) {
 	g := NewWithT(t)
 	handler := &componentHandler{}
-	dsc := createDSCWithKServeAndMaaS(operatorv1.Removed, operatorv1.Managed)
+	// MaaS must be Removed to be disabled (Kserve state doesn't matter in 3.5+)
+	dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Removed)
 
 	cr, err := handler.NewCRObject(context.Background(), nil, dsc)
 	g.Expect(err).To(Succeed())
@@ -92,10 +93,11 @@ func TestIsEnabled(t *testing.T) {
 		maasState       operatorv1.ManagementState
 		expectedEnabled func() types.GomegaMatcher
 	}{
+		// 3.5+ behavior: MaaS is standalone, doesn't require Kserve
 		{"should be enabled when both KServe and MaaS are managed", operatorv1.Managed, operatorv1.Managed, BeTrue},
-		{"should be disabled when KServe not managed", operatorv1.Removed, operatorv1.Managed, BeFalse},
-		{"should be disabled when KServe managed but MaaS is not enabled", operatorv1.Managed, operatorv1.Removed, BeFalse},
-		{"should be disabled when KServe is unmanaged", operatorv1.Unmanaged, operatorv1.Managed, BeFalse},
+		{"should be enabled when MaaS managed even if KServe not managed (3.5+ standalone)", operatorv1.Removed, operatorv1.Managed, BeTrue},
+		{"should be disabled when MaaS is not enabled", operatorv1.Managed, operatorv1.Removed, BeFalse},
+		{"should be enabled when MaaS managed even if KServe is unmanaged (3.5+ standalone)", operatorv1.Unmanaged, operatorv1.Managed, BeTrue},
 		{"should be disabled when both KServe and MaaS are unmanaged", operatorv1.Unmanaged, operatorv1.Unmanaged, BeFalse},
 	}
 
@@ -206,7 +208,8 @@ func TestUpdateDSCStatus(t *testing.T) {
 		expectedReason string
 	}{
 		{"disabled via MaaS Removed", operatorv1.Managed, operatorv1.Removed, string(operatorv1.Removed)},
-		{"disabled via KServe not managed", operatorv1.Removed, operatorv1.Managed, string(operatorv1.Managed)},
+		// In 3.5+, Kserve state doesn't matter - removed the old "disabled via KServe not managed" test
+		// as MaaS is now standalone
 	} {
 		t.Run("should show MaaS management state when "+tc.name, func(t *testing.T) {
 			g := NewWithT(t)
@@ -644,6 +647,11 @@ func createDSCWithKServeAndMaaS(kserveState, maasState operatorv1.ManagementStat
 	dsc.SetGroupVersionKind(gvk.DataScienceCluster)
 	dsc.SetName("test-dsc")
 
+	// Use new 3.5+ location: top-level ModelsAsService (standalone)
+	dsc.Spec.Components.ModelsAsService.ManagementState = maasState
+
+	// Keep old 3.4 location for backward compat verification
+	// The handler should read from new location first, fallback to old
 	dsc.Spec.Components.Kserve.ManagementState = kserveState
 	dsc.Spec.Components.Kserve.ModelsAsService.ManagementState = maasState
 

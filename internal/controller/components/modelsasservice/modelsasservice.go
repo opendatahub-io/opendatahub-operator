@@ -90,17 +90,28 @@ func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *
 }
 
 // IsEnabled checks if the ModelsAsService component should be deployed.
+// In 3.5+, MaaS is a standalone component (peer to Kserve):
+//   - NEW: DSC.Spec.Components.ModelsAsService.ManagementState == Managed (3.5+)
+//   - OLD: KServe.ManagementState == Managed AND KServe.ModelsAsService.ManagementState == Managed (3.4 backward compat)
+//
+// The new location takes precedence. If explicitly set (non-empty), only the new location is used.
 func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
-	// ModelsAsService is enabled when:
-	// 1. KServe component is enabled in the DSC
-	// 2. ModelsAsService sub-component is configured with ManagementState = Managed
-	if dsc.Spec.Components.Kserve.ManagementState != operatorv1.Managed {
-		return false
+	// NEW 3.5+ location: top-level component (standalone MaaS)
+	// If the new location is explicitly set (non-empty), use ONLY that value.
+	// Empty string ("") means not set, fallback to old location for backward compat.
+	if dsc.Spec.Components.ModelsAsService.ManagementState != "" {
+		return dsc.Spec.Components.ModelsAsService.ManagementState == operatorv1.Managed
 	}
 
-	// Check ModelsAsService specific management state
-	// For Technical preview release, default to Disabled if not explicitly set to Managed
-	return dsc.Spec.Components.Kserve.ModelsAsService.ManagementState == operatorv1.Managed
+	// OLD 3.4 location: nested under Kserve (backward compatibility)
+	// Only checked if new location is empty (not set).
+	// MaaS required Kserve to be enabled in 3.4.
+	if dsc.Spec.Components.Kserve.ManagementState == operatorv1.Managed &&
+		dsc.Spec.Components.Kserve.ModelsAsService.ManagementState == operatorv1.Managed {
+		return true
+	}
+
+	return false
 }
 
 // UpdateDSCStatus updates the ModelsAsService component status in the DataScienceCluster from Tenant.
