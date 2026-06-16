@@ -104,7 +104,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),
 		)).
-		WithAction(migrateDeploymentSelector).
+		WithAction(migrateDeploymentSelector). // must run after kustomize (needs rendered manifests) and before deploy (stale Deployment must be gone first)
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).

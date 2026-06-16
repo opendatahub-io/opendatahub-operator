@@ -562,6 +562,32 @@ func TestMigrateDeploymentSelector(t *testing.T) {
 		g.Expect(err).To(Succeed())
 	})
 
+	t.Run("should delete Deployment with correct labels plus extra stale label", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		selectorWithExtra := map[string]string{
+			"control-plane":             "trustyai-service-operator",
+			"app.kubernetes.io/part-of": "trustyai",
+			"stale-label":               "leftover",
+		}
+		deploy := createTrustyAIDeployment(testNS, selectorWithExtra)
+		dsci := createDSCI(testNS)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(deploy, dsci))
+		g.Expect(err).To(Succeed())
+
+		rr := &odhtypes.ReconciliationRequest{Client: cli}
+
+		err = migrateDeploymentSelector(ctx, rr)
+		g.Expect(err).To(Succeed())
+
+		result := &appsv1.Deployment{}
+		err = cli.Get(ctx, client.ObjectKey{Name: trustyaiDeploymentName, Namespace: testNS}, result)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(client.IgnoreNotFound(err)).To(Succeed())
+	})
+
 	t.Run("should be no-op when Deployment does not exist", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()

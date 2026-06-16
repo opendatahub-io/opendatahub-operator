@@ -19,6 +19,7 @@ package trustyai
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strconv"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -137,8 +138,11 @@ func migrateDeploymentSelector(ctx context.Context, rr *odhtypes.ReconciliationR
 		return nil
 	}
 
-	if deploy.Spec.Selector.MatchLabels[controlPlaneLabelKey] == controlPlaneLabelValue &&
-		deploy.Spec.Selector.MatchLabels[partOfLabelKey] == partOfLabelValue {
+	expectedSelector := map[string]string{
+		controlPlaneLabelKey: controlPlaneLabelValue,
+		partOfLabelKey:       partOfLabelValue,
+	}
+	if maps.Equal(deploy.Spec.Selector.MatchLabels, expectedSelector) {
 		return nil
 	}
 
