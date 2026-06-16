@@ -67,8 +67,15 @@ validate_bool E2E_TEST_OPERATOR_V2TOV3UPGRADE
 : "${E2E_TEST_WEBHOOK:=true}"
 validate_bool E2E_TEST_WEBHOOK
 
-: "${E2E_TEST_COMPONENTS:=true}"
+# Deprecated: per-component tests are superseded by platform orchestration tests.
+# Remove once modularisation is complete.
+: "${E2E_TEST_COMPONENTS:=false}"
 validate_bool E2E_TEST_COMPONENTS
+
+: "${E2E_TEST_PLATFORM_ORCHESTRATION:=true}"
+validate_bool E2E_TEST_PLATFORM_ORCHESTRATION
+
+: "${E2E_TEST_PLATFORM_COMPONENT:=}"
 
 : "${E2E_TEST_SERVICES:=true}"
 validate_bool E2E_TEST_SERVICES
@@ -130,6 +137,8 @@ if [ "$USE_TEST_RETRY" = "true" ] || [ "$USE_TEST_RETRY" = "1" ]; then
     --test-operator-v2tov3upgrade="$E2E_TEST_OPERATOR_V2TOV3UPGRADE" \
     --test-webhook="$E2E_TEST_WEBHOOK" \
     --test-components="$E2E_TEST_COMPONENTS" \
+    --test-platform-orchestration="$E2E_TEST_PLATFORM_ORCHESTRATION" \
+    ${E2E_TEST_PLATFORM_COMPONENT:+--test-platform-component="$E2E_TEST_PLATFORM_COMPONENT"} \
     --test-services="$E2E_TEST_SERVICES" \
     --operator-namespace="$E2E_TEST_OPERATOR_NAMESPACE" \
     --applications-namespace="$E2E_TEST_APPLICATIONS_NAMESPACE" \
@@ -154,6 +163,8 @@ else
     --test-operator-v2tov3upgrade="$E2E_TEST_OPERATOR_V2TOV3UPGRADE" \
     --test-webhook="$E2E_TEST_WEBHOOK" \
     --test-components="$E2E_TEST_COMPONENTS" \
+    --test-platform-orchestration="$E2E_TEST_PLATFORM_ORCHESTRATION" \
+    ${E2E_TEST_PLATFORM_COMPONENT:+--test-platform-component="$E2E_TEST_PLATFORM_COMPONENT"} \
     --test-services="$E2E_TEST_SERVICES" \
     --operator-namespace="$E2E_TEST_OPERATOR_NAMESPACE" \
     --applications-namespace="$E2E_TEST_APPLICATIONS_NAMESPACE" \

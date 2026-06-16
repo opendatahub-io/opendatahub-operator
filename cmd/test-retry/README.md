@@ -38,6 +38,7 @@ go build -o test-retry .
 
 # Filter tests using wildcards (glob patterns)
 ./test-retry e2e --filter "TestOdhOperator/components/*"
+./test-retry e2e --filter "TestOdhOperator/Platform_Orchestration*"
 ./test-retry e2e --filter "TestOdhOperator/*/basic_test"
 
 # Run with custom test runner options
@@ -55,8 +56,8 @@ go build -o test-retry .
   - Supports wildcards: `"TestOdhOperator/components/*"`, `"TestOdhOperator/*/basic_test"`
 - `--path`: Path to e2e tests (default: "./tests/e2e/")
 - `--working-dir`: Working directory for running go test (default: current directory)
-- `--never-skip`: Test prefixes that should never be skipped (default: ["TestOdhOperator/DSCInitialization_and_DataScienceCluster_management_E2E_Tests/"])
-- `--skip-at-prefix`: Test prefixes where tests should be extracted at prefix + 1 level (default: ["TestOdhOperator/services/", "TestOdhOperator/components/", "TestOdhOperator/"])
+- `--never-skip`: Test prefixes that should never be skipped (default: ["TestOdhOperator/DSCInitialization\_and\_DataScienceCluster\_management\_E2E\_Tests", "TestOdhOperator/DataScienceCluster"])
+- `--skip-at-prefix`: Test prefixes where tests should be extracted at prefix + 1 level (default: ["TestOdhOperator/services/", "TestOdhOperator/components/", "TestOdhOperator/Platform\_Orchestration\_E2E\_Tests/\*/", "TestOdhOperator/"])
 - `--junit-output`: Path to JUnit XML output file (optional)
 - `--github-token`: GitHub token for authentication (can also use GITHUB_TOKEN env var)
 - `--github-owner`: GitHub repository owner
