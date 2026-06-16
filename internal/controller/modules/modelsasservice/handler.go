@@ -63,11 +63,11 @@ func NewHandler() *handler {
 }
 
 // IsEnabled checks whether the ModelsAsService module should be deployed.
-// In 3.5+, MaaS is a standalone component (peer to Kserve):
-//   - NEW: DSC.Spec.Components.ModelsAsService.ManagementState == Managed (3.5+)
+// In 3.6+, MaaS is nested under AIGateway:
+//   - NEW: DSC.Spec.Components.AIGateway.ModelsAsService.ManagementState == Managed (3.6+)
 //   - OLD: KServe.ManagementState == Managed AND KServe.ModelsAsService.ManagementState == Managed (3.4 backward compat)
 //
-// The new location takes precedence. If both are set, the top-level location is used.
+// The new location takes precedence. If both are set, the aigateway location is used.
 // In Platform mode (xKS), returns true (platform-managed).
 func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 	if platform == nil {
@@ -81,11 +81,11 @@ func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 
 	// DSC mode: check ModelsAsService management state in two locations
 	if platform.DSC != nil {
-		// NEW 3.5+ location: top-level component (standalone MaaS)
+		// NEW 3.6+ location: nested under AIGateway
 		// If the new location is explicitly set (non-empty), use ONLY that value.
 		// Empty string ("") means not set, fallback to old location for backward compat.
-		if platform.DSC.Spec.Components.ModelsAsService.ManagementState != "" {
-			return platform.DSC.Spec.Components.ModelsAsService.ManagementState == operatorv1.Managed
+		if platform.DSC.Spec.Components.AIGateway.ModelsAsService.ManagementState != "" {
+			return platform.DSC.Spec.Components.AIGateway.ModelsAsService.ManagementState == operatorv1.Managed
 		}
 
 		// OLD 3.4 location: nested under Kserve (backward compatibility)

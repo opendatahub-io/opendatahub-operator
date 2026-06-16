@@ -15,8 +15,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/modelsasservice"
 )
 
-// TestDSCProjection verifies that DSC Components.ModelsAsService config
-// is correctly projected onto the ModelsAsService CR (3.5+ standalone location).
+// TestDSCProjection verifies that DSC Components.AIGateway.ModelsAsService config
+// is correctly projected onto the ModelsAsService CR (3.6+ aigateway location).
 func TestDSCProjection(t *testing.T) {
 	h := modelsasservice.NewHandler()
 	ctx := context.Background()
@@ -27,9 +27,13 @@ func TestDSCProjection(t *testing.T) {
 		},
 		Spec: dscv2.DataScienceClusterSpec{
 			Components: dscv2.Components{
-				// 3.5+ location: top-level ModelsAsService (standalone)
-				ModelsAsService: componentApi.DSCModelsAsServiceSpec{
-					ManagementState: operatorv1.Managed,
+				// 3.6+ location: nested under AIGateway
+				AIGateway: componentApi.DSCAIGateway{
+					AIGatewayCommonSpec: componentApi.AIGatewayCommonSpec{
+						ModelsAsService: componentApi.DSCModelsAsServiceSpec{
+							ManagementState: operatorv1.Managed,
+						},
+					},
 				},
 			},
 		},
@@ -80,7 +84,7 @@ func TestDSCProjection(t *testing.T) {
 }
 
 // TestDisabledScenarios verifies that MaaS is correctly disabled
-// when the MaaS management state is not Managed (3.5+ standalone behavior).
+// when the MaaS management state is not Managed (3.6+ aigateway behavior).
 func TestDisabledScenarios(t *testing.T) {
 	h := modelsasservice.NewHandler()
 
@@ -111,10 +115,14 @@ func TestDisabledScenarios(t *testing.T) {
 			dsc := &dscv2.DataScienceCluster{
 				Spec: dscv2.DataScienceClusterSpec{
 					Components: dscv2.Components{
-						// 3.5+ location: top-level ModelsAsService (standalone)
+						// 3.6+ location: nested under AIGateway
 						// Kserve state is irrelevant
-						ModelsAsService: componentApi.DSCModelsAsServiceSpec{
-							ManagementState: tt.maasState,
+						AIGateway: componentApi.DSCAIGateway{
+							AIGatewayCommonSpec: componentApi.AIGatewayCommonSpec{
+								ModelsAsService: componentApi.DSCModelsAsServiceSpec{
+									ManagementState: tt.maasState,
+								},
+							},
 						},
 					},
 				},
@@ -201,7 +209,7 @@ func TestBackwardCompatScenarios(t *testing.T) {
 }
 
 // TestNewLocationPrecedence verifies that when both locations are set,
-// the new 3.5+ top-level location takes precedence.
+// the new 3.6+ aigateway location takes precedence.
 func TestNewLocationPrecedence(t *testing.T) {
 	h := modelsasservice.NewHandler()
 
@@ -244,9 +252,13 @@ func TestNewLocationPrecedence(t *testing.T) {
 			dsc := &dscv2.DataScienceCluster{
 				Spec: dscv2.DataScienceClusterSpec{
 					Components: dscv2.Components{
-						// NEW 3.5+ location
-						ModelsAsService: componentApi.DSCModelsAsServiceSpec{
-							ManagementState: tt.newLocationState,
+						// NEW 3.6+ location: nested under AIGateway
+						AIGateway: componentApi.DSCAIGateway{
+							AIGatewayCommonSpec: componentApi.AIGatewayCommonSpec{
+								ModelsAsService: componentApi.DSCModelsAsServiceSpec{
+									ManagementState: tt.newLocationState,
+								},
+							},
 						},
 						// OLD 3.4 location
 						Kserve: componentApi.DSCKserve{
