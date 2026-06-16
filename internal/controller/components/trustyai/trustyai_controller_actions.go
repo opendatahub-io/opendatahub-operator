@@ -37,11 +37,11 @@ import (
 )
 
 const (
-	trustyaiDeploymentName       = "trustyai-service-operator-controller-manager"
-	controlPlaneLabelKey         = "control-plane"
-	controlPlaneLabelValue       = "trustyai-service-operator"
-	partOfLabelKey               = "app.kubernetes.io/part-of"
-	partOfLabelValue             = "trustyai"
+	trustyaiDeploymentName = "trustyai-service-operator-controller-manager"
+	controlPlaneLabelKey   = "control-plane"
+	controlPlaneLabelValue = "trustyai-service-operator"
+	partOfLabelKey         = "app.kubernetes.io/part-of"
+	partOfLabelValue       = "trustyai"
 )
 
 func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
