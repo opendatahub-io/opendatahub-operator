@@ -43,6 +43,11 @@ type Components struct {
 	// Only RawDeployment mode is supported.
 	Kserve componentApi.DSCKserve `json:"kserve,omitempty"`
 
+	// ModelsAsService component configuration.
+	// Enables standalone AI Gateway for model serving without requiring Kserve.
+	// Can be used independently or alongside Kserve for enhanced model serving capabilities.
+	ModelsAsService componentApi.DSCModelsAsServiceSpec `json:"modelsasservice,omitempty"`
+
 	// Kueue component configuration.
 	Kueue componentApi.DSCKueue `json:"kueue,omitempty"`
 
@@ -94,6 +99,9 @@ type ComponentsStatus struct {
 
 	// Kserve component status.
 	Kserve componentApi.DSCKserveStatus `json:"kserve,omitempty"`
+
+	// ModelsAsService component status.
+	ModelsAsService componentApi.DSCModelsAsServiceStatus `json:"modelsasservice,omitempty"`
 
 	// Kueue component status.
 	Kueue componentApi.DSCKueueStatus `json:"kueue,omitempty"`

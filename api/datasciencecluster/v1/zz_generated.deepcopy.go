@@ -33,6 +33,7 @@ func (in *Components) DeepCopyInto(out *Components) {
 	out.ModelMeshServing = in.ModelMeshServing
 	in.DataSciencePipelines.DeepCopyInto(&out.DataSciencePipelines)
 	in.Kserve.DeepCopyInto(&out.Kserve)
+	out.ModelsAsService = in.ModelsAsService
 	in.Kueue.DeepCopyInto(&out.Kueue)
 	out.CodeFlare = in.CodeFlare
 	out.Ray = in.Ray
@@ -61,6 +62,7 @@ func (in *ComponentsStatus) DeepCopyInto(out *ComponentsStatus) {
 	in.ModelMeshServing.DeepCopyInto(&out.ModelMeshServing)
 	in.DataSciencePipelines.DeepCopyInto(&out.DataSciencePipelines)
 	in.Kserve.DeepCopyInto(&out.Kserve)
+	out.ModelsAsService = in.ModelsAsService
 	in.Kueue.DeepCopyInto(&out.Kueue)
 	in.CodeFlare.DeepCopyInto(&out.CodeFlare)
 	in.Ray.DeepCopyInto(&out.Ray)

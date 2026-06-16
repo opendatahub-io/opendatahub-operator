@@ -63,11 +63,11 @@ func NewHandler() *handler {
 }
 
 // IsEnabled checks whether the ModelsAsService module should be deployed.
-// MaaS is a KServe sub-component, so it requires:
-// 1. KServe.ManagementState == Managed
-// 2. KServe.ModelsAsService.ManagementState == Managed
+// In 3.5+, MaaS is a standalone component (peer to Kserve):
+//   - NEW: DSC.Spec.Components.ModelsAsService.ManagementState == Managed (3.5+)
+//   - OLD: KServe.ManagementState == Managed AND KServe.ModelsAsService.ManagementState == Managed (3.4 backward compat)
 //
-// In DSC mode (DSCI present), reads DSC.Spec.Components.Kserve.
+// The new location takes precedence. If both are set, the top-level location is used.
 // In Platform mode (xKS), returns true (platform-managed).
 func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 	if platform == nil {
@@ -79,12 +79,22 @@ func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 		return true
 	}
 
-	// DSC mode: check KServe and ModelsAsService management states
+	// DSC mode: check ModelsAsService management state in two locations
 	if platform.DSC != nil {
-		if platform.DSC.Spec.Components.Kserve.ManagementState != operatorv1.Managed {
-			return false
+		// NEW 3.5+ location: top-level component (standalone MaaS)
+		// If the new location is explicitly set (non-empty), use ONLY that value.
+		// Empty string ("") means not set, fallback to old location for backward compat.
+		if platform.DSC.Spec.Components.ModelsAsService.ManagementState != "" {
+			return platform.DSC.Spec.Components.ModelsAsService.ManagementState == operatorv1.Managed
 		}
-		return platform.DSC.Spec.Components.Kserve.ModelsAsService.ManagementState == operatorv1.Managed
+
+		// OLD 3.4 location: nested under Kserve (backward compatibility)
+		// Only checked if new location is empty (not set).
+		// MaaS required Kserve to be enabled in 3.4.
+		if platform.DSC.Spec.Components.Kserve.ManagementState == operatorv1.Managed &&
+			platform.DSC.Spec.Components.Kserve.ModelsAsService.ManagementState == operatorv1.Managed {
+			return true
+		}
 	}
 
 	return false
