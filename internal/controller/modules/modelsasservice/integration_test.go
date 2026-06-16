@@ -206,12 +206,12 @@ func TestNewLocationPrecedence(t *testing.T) {
 	h := modelsasservice.NewHandler()
 
 	tests := []struct {
-		name              string
-		newLocationState  operatorv1.ManagementState
-		kserveState       operatorv1.ManagementState
-		oldLocationState  operatorv1.ManagementState
-		expectEnabled     bool
-		description       string
+		name             string
+		newLocationState operatorv1.ManagementState
+		kserveState      operatorv1.ManagementState
+		oldLocationState operatorv1.ManagementState
+		expectEnabled    bool
+		description      string
 	}{
 		{
 			name:             "New Managed, Old Removed (new wins)",
