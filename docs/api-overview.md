@@ -438,6 +438,8 @@ DSCModelsAsServiceSpec enables ModelsAsService integration
 
 
 _Appears in:_
+- [Components](#components)
+- [Components](#components)
 - [DSCKserve](#dsckserve)
 - [KserveCommonSpec](#kservecommonspec)
 - [KserveSpec](#kservespec)
@@ -447,6 +449,21 @@ _Appears in:_
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  | Removed | Enum: [Managed Removed] <br /> |
 
 
+#### DSCModelsAsServiceStatus
+
+
+
+DSCModelsAsServiceStatus contains the observed state of the ModelsAsService exposed in the DSC instance
+
+
+
+_Appears in:_
+- [ComponentsStatus](#componentsstatus)
+- [ComponentsStatus](#componentsstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
 #### DSCOGX
@@ -2482,6 +2499,7 @@ _Appears in:_
 | `workbenches` _[DSCWorkbenches](#dscworkbenches)_ | Workbenches component configuration. |  |  |
 | `datasciencepipelines` _[DSCDataSciencePipelines](#dscdatasciencepipelines)_ | DataSciencePipeline component configuration. |  |  |
 | `kserve` _[DSCKserve](#dsckserve)_ | Kserve component configuration.<br />Only RawDeployment mode is supported. |  |  |
+| `modelsasservice` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | ModelsAsService component configuration.<br />Enables standalone AI Gateway for model serving without requiring Kserve.<br />Can be used independently or alongside Kserve for enhanced model serving capabilities. |  |  |
 | `kueue` _[DSCKueueV1](#dsckueuev1)_ | Kueue component configuration. |  |  |
 | `ray` _[DSCRay](#dscray)_ | Ray component configuration. |  |  |
 | `trustyai` _[DSCTrustyAI](#dsctrustyai)_ | TrustyAI component configuration. |  |  |
@@ -2508,6 +2526,7 @@ _Appears in:_
 | `workbenches` _[DSCWorkbenchesStatus](#dscworkbenchesstatus)_ | Workbenches component status. |  |  |
 | `datasciencepipelines` _[DSCDataSciencePipelinesStatus](#dscdatasciencepipelinesstatus)_ | DataSciencePipeline component status. |  |  |
 | `kserve` _[DSCKserveStatus](#dsckservestatus)_ | Kserve component status. |  |  |
+| `modelsasservice` _[DSCModelsAsServiceStatus](#dscmodelsasservicestatus)_ | ModelsAsService component status. |  |  |
 | `kueue` _[DSCKueueStatus](#dsckueuestatus)_ | Kueue component status. |  |  |
 | `ray` _[DSCRayStatus](#dscraystatus)_ | Ray component status. |  |  |
 | `trustyai` _[DSCTrustyAIStatus](#dsctrustyaistatus)_ | TrustyAI component status. |  |  |
@@ -2638,6 +2657,7 @@ _Appears in:_
 | `workbenches` _[DSCWorkbenches](#dscworkbenches)_ | Workbenches component configuration. |  |  |
 | `aipipelines` _[DSCDataSciencePipelines](#dscdatasciencepipelines)_ | AIPipelines component configuration. |  |  |
 | `kserve` _[DSCKserve](#dsckserve)_ | Kserve component configuration.<br />Only RawDeployment mode is supported. |  |  |
+| `modelsasservice` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | ModelsAsService component configuration.<br />Enables standalone AI Gateway for model serving without requiring Kserve.<br />Can be used independently or alongside Kserve for enhanced model serving capabilities. |  |  |
 | `kueue` _[DSCKueue](#dsckueue)_ | Kueue component configuration. |  |  |
 | `ray` _[DSCRay](#dscray)_ | Ray component configuration. |  |  |
 | `trustyai` _[DSCTrustyAI](#dsctrustyai)_ | TrustyAI component configuration. |  |  |
@@ -2669,6 +2689,7 @@ _Appears in:_
 | `workbenches` _[DSCWorkbenchesStatus](#dscworkbenchesstatus)_ | Workbenches component status. |  |  |
 | `aipipelines` _[DSCDataSciencePipelinesStatus](#dscdatasciencepipelinesstatus)_ | AIPipelines component status. |  |  |
 | `kserve` _[DSCKserveStatus](#dsckservestatus)_ | Kserve component status. |  |  |
+| `modelsasservice` _[DSCModelsAsServiceStatus](#dscmodelsasservicestatus)_ | ModelsAsService component status. |  |  |
 | `kueue` _[DSCKueueStatus](#dsckueuestatus)_ | Kueue component status. |  |  |
 | `ray` _[DSCRayStatus](#dscraystatus)_ | Ray component status. |  |  |
 | `trustyai` _[DSCTrustyAIStatus](#dsctrustyaistatus)_ | TrustyAI component status. |  |  |
