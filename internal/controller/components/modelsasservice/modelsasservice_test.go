@@ -647,8 +647,8 @@ func createDSCWithKServeAndMaaS(kserveState, maasState operatorv1.ManagementStat
 	dsc.SetGroupVersionKind(gvk.DataScienceCluster)
 	dsc.SetName("test-dsc")
 
-	// Use new 3.5+ location: top-level ModelsAsService (standalone)
-	dsc.Spec.Components.ModelsAsService.ManagementState = maasState
+	// Use new 3.5+ location: nested under AIGateway
+	dsc.Spec.Components.AIGateway.ModelsAsService.ManagementState = maasState
 
 	// Keep old 3.4 location for backward compat verification
 	// The handler should read from new location first, fallback to old
