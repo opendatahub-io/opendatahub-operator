@@ -473,11 +473,11 @@ func createTrustyAICRWithMCPGuardrailsMode(mcpGuardrailsMode bool) *componentApi
 	return c
 }
 
-func createTrustyAIDeployment(namespace string, selectorLabels map[string]string) *appsv1.Deployment {
+func createTrustyAIDeployment(selectorLabels map[string]string) *appsv1.Deployment {
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      trustyaiDeploymentName,
-			Namespace: namespace,
+			Namespace: testNS,
 		},
 		Spec: appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
@@ -491,15 +491,16 @@ func createTrustyAIDeployment(namespace string, selectorLabels map[string]string
 	}
 }
 
+const testNS = "redhat-ods-applications"
+
 func TestMigrateDeploymentSelector(t *testing.T) {
-	const testNS = "redhat-ods-applications"
 
 	t.Run("should delete Deployment with old control-plane selector value", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
 		staleSelector := map[string]string{"control-plane": "controller-manager"}
-		deploy := createTrustyAIDeployment(testNS, staleSelector)
+		deploy := createTrustyAIDeployment(staleSelector)
 		dsci := createDSCI(testNS)
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(deploy, dsci))
@@ -521,7 +522,7 @@ func TestMigrateDeploymentSelector(t *testing.T) {
 		ctx := t.Context()
 
 		selectorMissingPartOf := map[string]string{"control-plane": "trustyai-service-operator"}
-		deploy := createTrustyAIDeployment(testNS, selectorMissingPartOf)
+		deploy := createTrustyAIDeployment(selectorMissingPartOf)
 		dsci := createDSCI(testNS)
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(deploy, dsci))
@@ -546,7 +547,7 @@ func TestMigrateDeploymentSelector(t *testing.T) {
 			"control-plane":             "trustyai-service-operator",
 			"app.kubernetes.io/part-of": "trustyai",
 		}
-		deploy := createTrustyAIDeployment(testNS, correctSelector)
+		deploy := createTrustyAIDeployment(correctSelector)
 		dsci := createDSCI(testNS)
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(deploy, dsci))
@@ -571,7 +572,7 @@ func TestMigrateDeploymentSelector(t *testing.T) {
 			"app.kubernetes.io/part-of": "trustyai",
 			"stale-label":               "leftover",
 		}
-		deploy := createTrustyAIDeployment(testNS, selectorWithExtra)
+		deploy := createTrustyAIDeployment(selectorWithExtra)
 		dsci := createDSCI(testNS)
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(deploy, dsci))
