@@ -15,12 +15,12 @@ namePrefix: opendatahub-operator-
 #labels:
 #  someName: someValue
 
+# [WEBHOOK] To enable webhook, uncomment all the sections with [WEBHOOK] prefix including the one in
+# crd/kustomization.yaml
 resources:
 - ../crd
 - ../rbac
 - ../manager
-# [WEBHOOK] To enable webhook, uncomment all the sections with [WEBHOOK] prefix including the one in
-# crd/kustomization.yaml
 - ../webhook
 # [CERTMANAGER] To enable cert-manager, uncomment all sections with 'CERTMANAGER'. 'WEBHOOK' components are required.
 #- ../certmanager
@@ -75,7 +75,11 @@ resources:
 #    version: v1
 #    name: webhook-service
 
+# [WEBHOOK]
 patches:
 - path: manager_auth_proxy_patch.yaml
-# [WEBHOOK]
 - path: manager_webhook_patch.yaml
+images:
+- name: controller
+  newName: quay.io/sbhatnag/opendatahub-operator
+  newTag: aigateway-maas-747e84fe

@@ -90,17 +90,17 @@ func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *
 }
 
 // IsEnabled checks if the ModelsAsService component should be deployed.
-// In 3.5+, MaaS is a standalone component (peer to Kserve):
-//   - NEW: DSC.Spec.Components.ModelsAsService.ManagementState == Managed (3.5+)
+// In 3.6+, MaaS is nested under AIGateway:
+//   - NEW: DSC.Spec.Components.AIGateway.ModelsAsService.ManagementState == Managed (3.6+)
 //   - OLD: KServe.ManagementState == Managed AND KServe.ModelsAsService.ManagementState == Managed (3.4 backward compat)
 //
 // The new location takes precedence. If explicitly set (non-empty), only the new location is used.
 func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
-	// NEW 3.5+ location: top-level component (standalone MaaS)
+	// NEW 3.6+ location: nested under AIGateway
 	// If the new location is explicitly set (non-empty), use ONLY that value.
 	// Empty string ("") means not set, fallback to old location for backward compat.
-	if dsc.Spec.Components.ModelsAsService.ManagementState != "" {
-		return dsc.Spec.Components.ModelsAsService.ManagementState == operatorv1.Managed
+	if dsc.Spec.Components.AIGateway.ModelsAsService.ManagementState != "" {
+		return dsc.Spec.Components.AIGateway.ModelsAsService.ManagementState == operatorv1.Managed
 	}
 
 	// OLD 3.4 location: nested under Kserve (backward compatibility)
