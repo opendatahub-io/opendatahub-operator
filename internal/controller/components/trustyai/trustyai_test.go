@@ -494,12 +494,11 @@ func createTrustyAIDeployment(selectorLabels map[string]string) *appsv1.Deployme
 const testNS = "redhat-ods-applications"
 
 func TestMigrateDeploymentSelector(t *testing.T) {
-
 	t.Run("should delete Deployment with old control-plane selector value", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
-		staleSelector := map[string]string{"control-plane": "controller-manager"}
+		staleSelector := map[string]string{controlPlaneLabelKey: "controller-manager"}
 		deploy := createTrustyAIDeployment(staleSelector)
 		dsci := createDSCI(testNS)
 
@@ -521,7 +520,7 @@ func TestMigrateDeploymentSelector(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
-		selectorMissingPartOf := map[string]string{"control-plane": "trustyai-service-operator"}
+		selectorMissingPartOf := map[string]string{controlPlaneLabelKey: controlPlaneLabelValue}
 		deploy := createTrustyAIDeployment(selectorMissingPartOf)
 		dsci := createDSCI(testNS)
 
@@ -544,8 +543,8 @@ func TestMigrateDeploymentSelector(t *testing.T) {
 		ctx := t.Context()
 
 		correctSelector := map[string]string{
-			"control-plane":             "trustyai-service-operator",
-			"app.kubernetes.io/part-of": "trustyai",
+			controlPlaneLabelKey: controlPlaneLabelValue,
+			partOfLabelKey:       partOfLabelValue,
 		}
 		deploy := createTrustyAIDeployment(correctSelector)
 		dsci := createDSCI(testNS)
@@ -568,9 +567,9 @@ func TestMigrateDeploymentSelector(t *testing.T) {
 		ctx := t.Context()
 
 		selectorWithExtra := map[string]string{
-			"control-plane":             "trustyai-service-operator",
-			"app.kubernetes.io/part-of": "trustyai",
-			"stale-label":               "leftover",
+			controlPlaneLabelKey: controlPlaneLabelValue,
+			partOfLabelKey:       partOfLabelValue,
+			"stale-label":        "leftover",
 		}
 		deploy := createTrustyAIDeployment(selectorWithExtra)
 		dsci := createDSCI(testNS)
