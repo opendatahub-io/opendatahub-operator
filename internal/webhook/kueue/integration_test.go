@@ -29,6 +29,7 @@ var (
 )
 
 func TestKueueWebhook_Integration(t *testing.T) {
+	t.Skip("kueue validating webhook is disabled")
 	t.Parallel()
 
 	testCases := []struct {

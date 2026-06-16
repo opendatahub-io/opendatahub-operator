@@ -18,23 +18,25 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
-	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
 // Webhooks for Kueue label validation:
 // - kubeflow.org/v1: pytorchjobs, notebooks
 // - ray.io/v1 and v1alpha1: rayjobs, rayclusters
 // - serving.kserve.io/v1beta1: inferenceservices
+//
+// NOTE: The kueue validating webhook is currently disabled. To re-enable it,
+// restore the +kubebuilder:webhook: prefix on the marker lines below and
+// uncomment the SetupWithManager body and RegisterWebhooks body.
 
-//+kubebuilder:webhook:path=/validate-kueue,mutating=false,failurePolicy=fail,sideEffects=None,groups=kubeflow.org,resources=pytorchjobs;notebooks,verbs=create;update,versions=v1,name=kubeflow-kueuelabels-validator.opendatahub.io,admissionReviewVersions=v1
-//+kubebuilder:webhook:path=/validate-kueue,mutating=false,failurePolicy=fail,sideEffects=None,groups=ray.io,resources=rayjobs;rayclusters,verbs=create;update,versions=v1;v1alpha1,name=ray-kueuelabels-validator.opendatahub.io,admissionReviewVersions=v1
-//+kubebuilder:webhook:path=/validate-kueue,mutating=false,failurePolicy=fail,sideEffects=None,groups=serving.kserve.io,resources=inferenceservices,verbs=create;update,versions=v1beta1,name=kserve-kueuelabels-validator.opendatahub.io,admissionReviewVersions=v1
+// webhook:path=/validate-kueue,mutating=false,failurePolicy=fail,sideEffects=None,groups=kubeflow.org,resources=pytorchjobs;notebooks,verbs=create;update,versions=v1,name=kubeflow-kueuelabels-validator.opendatahub.io,admissionReviewVersions=v1
+// webhook:path=/validate-kueue,mutating=false,failurePolicy=fail,sideEffects=None,groups=ray.io,resources=rayjobs;rayclusters,verbs=create;update,versions=v1;v1alpha1,name=ray-kueuelabels-validator.opendatahub.io,admissionReviewVersions=v1
+// webhook:path=/validate-kueue,mutating=false,failurePolicy=fail,sideEffects=None,groups=serving.kserve.io,resources=inferenceservices,verbs=create;update,versions=v1beta1,name=kserve-kueuelabels-validator.opendatahub.io,admissionReviewVersions=v1
 //nolint:lll
 
 var (
@@ -60,12 +62,15 @@ var _ admission.Handler = &Validator{}
 //
 // Returns:
 //   - error: Always nil (for future extensibility).
-func (v *Validator) SetupWithManager(mgr ctrl.Manager) error {
-	hookServer := mgr.GetWebhookServer()
-	hookServer.Register("/validate-kueue", &webhook.Admission{
-		Handler:        v,
-		LogConstructor: webhookutils.NewWebhookLogConstructor(v.Name),
-	})
+func (v *Validator) SetupWithManager(_ ctrl.Manager) error {
+	// NOTE: kueue validating webhook is disabled. To re-enable, uncomment the
+	// lines below and restore the +kubebuilder:webhook: markers above.
+	//
+	// hookServer := mgr.GetWebhookServer()
+	// hookServer.Register("/validate-kueue", &webhook.Admission{
+	// 	Handler:        v,
+	// 	LogConstructor: webhookutils.NewWebhookLogConstructor(v.Name),
+	// })
 	return nil
 }
 
