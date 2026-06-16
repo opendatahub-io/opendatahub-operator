@@ -36,6 +36,12 @@ known_issues:
 - image: RELATED_IMAGE_ODH_TH06_CUDA130_TORCH210_PY312_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-60756
   reason: need to be onboarded to RHOAI 3.5-ea.1
+- image: RELATED_IMAGE_ODH_LLM_D_ROUTER_DISAGG_SIDECAR_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-65205
+  reason: need to be onbarded to RHDS 3.5-ea2 devops on it
+- image: RELATED_IMAGE_ODH_LLM_D_ROUTER_ENDPOINT_PICKER_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-65205
+  reason: need to be onbarded to RHDS 3.5-ea2 devops on it
 
 odh_exceptions:
 - image: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
