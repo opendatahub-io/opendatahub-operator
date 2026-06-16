@@ -77,10 +77,11 @@ Example: test-retry e2e -- -run TestFoo -v`,
 	cmd.Flags().IntVar(&maxRetries, "max-retries", 3, "Maximum number of retries for failed tests")
 	cmd.Flags().StringSliceVar(&neverSkip, "never-skip", []string{"TestOdhOperator/DSCInitialization_and_DataScienceCluster_management_E2E_Tests", "TestOdhOperator/DataScienceCluster"}, "Test prefixes that should never be skipped (always run, repeatable)")
 	cmd.Flags().StringSliceVar(&skipAtPrefix, "skip-at-prefix", []string{
-		"TestOdhOperator/monitoring/",   // Extract monitoring tests at group level for efficient retry
-		"TestOdhOperator/services/*/",   // Extract services at service level
-		"TestOdhOperator/components/*/", // Extract components at component level
-		"TestOdhOperator/",              // Fallback: extract at root level
+		"TestOdhOperator/monitoring/",                         // Extract monitoring tests at group level for efficient retry
+		"TestOdhOperator/services/*/",                         // Extract services at service level
+		"TestOdhOperator/components/*/",                       // Extract components at component level
+		"TestOdhOperator/Platform_Orchestration_E2E_Tests/*/", // Extract platform orchestration at component level
+		"TestOdhOperator/",                                    // Fallback: extract at root level
 	}, "Test prefixes where tests should be extracted at prefix + 1 level (repeatable)")
 	cmd.Flags().StringVar(&junitOutput, "junit-output", "", "Path to JUnit XML output file (optional)")
 
