@@ -38,3 +38,13 @@ spec:
     timeoutSeconds: 5
     successThreshold: 1
     failureThreshold: 5
+{{- if eq .PersesAPIVersion "v1alpha2" }}
+  storage:
+    pvcTemplate:
+      resources:
+        requests:
+          storage: {{.StorageSize}}
+{{- else }}
+  storage:
+    size: {{.StorageSize}}
+{{- end }}
