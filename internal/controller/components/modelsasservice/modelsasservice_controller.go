@@ -83,6 +83,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			deployments.WithSelectorLabel(labels.ODH.Component(componentApi.ModelsAsServiceComponentName), labels.True),
 		)).
 		WithAction(gc.NewAction()).
+		WithFinalizer(stripTenantFinalizer).
 		WithConditions(conditionTypes...).
 		Build(ctx)
 

@@ -20,9 +20,19 @@ import (
 	"context"
 	"fmt"
 
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
+
+const tenantCleanupFinalizer = "maas.opendatahub.io/tenant-cleanup"
 
 func renderMaasOperatorInstall(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	if _, ok := rr.Instance.(*componentApi.ModelsAsService); !ok {
@@ -38,6 +48,51 @@ func renderMaasOperatorInstall(ctx context.Context, rr *odhtypes.ReconciliationR
 	rr.Resources = nil
 	if err := rr.AddResources(out...); err != nil {
 		return fmt.Errorf("add maas-controller install manifest: %w", err)
+	}
+
+	return nil
+}
+
+// stripTenantFinalizer is a finalizer action that removes the
+// maas.opendatahub.io/tenant-cleanup finalizer from Tenant CRs before the
+// ModelsAsService CR is deleted. Without this, Kubernetes owner-reference GC
+// deletes the maas-controller Deployment (terminating the pod) before the
+// Tenant finalizer can be processed, leaving the Tenant stuck in
+// ConfigTerminating indefinitely.
+func stripTenantFinalizer(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	l := logf.FromContext(ctx)
+
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(gvk.Tenant)
+
+	if err := rr.Client.List(ctx, list, client.InNamespace(MaaSSubscriptionNamespace)); err != nil {
+		if meta.IsNoMatchError(err) {
+			return nil
+		}
+
+		return fmt.Errorf("failed to list Tenant CRs: %w", err)
+	}
+
+	for i := range list.Items {
+		item := &list.Items[i]
+
+		if !controllerutil.RemoveFinalizer(item, tenantCleanupFinalizer) {
+			continue
+		}
+
+		l.Info("stripping tenant-cleanup finalizer to unblock deletion",
+			"name", item.GetName(),
+			"namespace", item.GetNamespace(),
+		)
+
+		if err := rr.Client.Update(ctx, item); err != nil {
+			if k8serr.IsNotFound(err) {
+				continue
+			}
+
+			return fmt.Errorf("failed to strip finalizer from Tenant %s/%s: %w",
+				item.GetNamespace(), item.GetName(), err)
+		}
 	}
 
 	return nil
