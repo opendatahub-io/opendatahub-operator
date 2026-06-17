@@ -81,6 +81,7 @@ func (tc *TrustyAITestCtx) ValidateComponentDisabled(t *testing.T) {
 // checks that the TrustyAI CR spec and Ready condition stay consistent with the DSC.
 func (tc *TrustyAITestCtx) ValidateMCPGuardrailsMode(t *testing.T) {
 	t.Helper()
+	t.Skip("RHOAIENG-69287: Skip MCP Guardrails mode test to avoid upstream manifest issue")
 
 	skipUnless(t, Tier1)
 
