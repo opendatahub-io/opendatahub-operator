@@ -392,9 +392,11 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"PersesAPIVersion":     persesAPIVersion,
 	}
 
-	// always add resource defaults
+	// always add resource and storage defaults
 	addResourceData(templateData)
 	addImageURLs(rr, templateData)
+	templateData["StorageSize"] = defaultStorageSize
+	templateData["StorageRetention"] = defaultRetention
 
 	// Add metrics-related data if metrics are configured
 	if metrics := monitoring.Spec.Metrics; metrics != nil {
