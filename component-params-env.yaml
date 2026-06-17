@@ -41,7 +41,7 @@ known_issues:
   reason: need to be onboarded to RHDS 3.5-ea2 devops on it
 - image: RELATED_IMAGE_ODH_LLM_D_ROUTER_ENDPOINT_PICKER_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-65205
-  reason: need to be onbarded to RHDS 3.5-ea2 devops on it
+  reason: need to be onboarded to RHDS 3.5-ea2 devops on it
 
 odh_exceptions:
 - image: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
