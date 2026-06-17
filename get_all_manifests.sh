@@ -32,7 +32,7 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["maas"]="opendatahub-io:models-as-a-service:stable@b409c456aeaf1437760a9d74a9594a453252f1f2:deployment"
     ["mlflowoperator"]="opendatahub-io:mlflow-operator:main@4cccfcc2dd8576cabbf255f66894d801a68eb844:config"
     ["sparkoperator"]="opendatahub-io:spark-operator:main@f91ff22af0b264e0cef090c2d0f1c94cae6b580e:config"
-    ["wva"]="opendatahub-io:workload-variant-autoscaler:main@cd80b54f7f00748059d1c2e9a59bff4163d9833b:config"
+    ["wva"]="opendatahub-io:workload-variant-autoscaler:main@09c01a926a8ea31c55bb662e2e640deeacc6e43b:config"
 )
 
 # RHOAI Component Manifests
@@ -54,7 +54,7 @@ declare -A RHOAI_COMPONENT_MANIFESTS=(
     ["maas"]="red-hat-data-services:maas-billing:rhoai-3.5-ea.2@df0370fb124e0ca0522d3bb966a407266719ab44:deployment"
     ["mlflowoperator"]="red-hat-data-services:mlflow-operator:rhoai-3.5-ea.2@79d5739bf93d5b4776c018400f710477c42ecd29:config"
     ["sparkoperator"]="red-hat-data-services:spark-operator:rhoai-3.5-ea.2@afe2757c506decfdfcbb6f98d3b988a199fd4cec:config"
-    ["wva"]="red-hat-data-services:workload-variant-autoscaler:rhoai-3.5-ea.2@a3a58e17d82ae982f8f7c145394782bacb6c410c:config"
+    ["wva"]="red-hat-data-services:workload-variant-autoscaler:rhoai-3.5-ea.2@aa8165acf0345c9ff5cf9dadedf3af92ade13745:config"
 )
 
 # {ODH,RHOAI}_COMPONENT_CHARTS are lists of chart repositories info to fetch helm charts

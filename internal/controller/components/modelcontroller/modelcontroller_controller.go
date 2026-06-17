@@ -74,11 +74,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithEventHandler(
 				handlers.ToNamed(componentApi.ModelControllerInstanceName)),
 			reconciler.WithPredicates(
-				predicate.Or(
-					component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True),
-					resources.CreatedOrUpdatedOrDeletedNamed(gvk.VariantAutoscalingCRDname),
-				),
-			),
+				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
 		).
 		WatchesGVK(gvk.Subscription,
 			reconciler.WithEventHandler(
