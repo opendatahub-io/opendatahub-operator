@@ -102,18 +102,23 @@ with open(sys.argv[2], 'w') as f:
 
 FILTER_SCENARIOS=""
 FILTER_CONFIGS="a,b,c"
+REPEATS=1
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --scenarios) FILTER_SCENARIOS="$2"; shift 2 ;;
     --configs)   FILTER_CONFIGS="$2"; shift 2 ;;
+    --repeats)   REPEATS="$2"; shift 2 ;;
     --help)
-      echo "Usage: $0 [--scenarios s1,s2] [--configs a,b,c]"
+      echo "Usage: $0 [--scenarios s1,s2] [--configs a,b,c] [--repeats N]"
+      echo "  --repeats N  Run Config B N times for consistency measurement (default 1)"
       echo "Env: INJECT_WAIT (default 30), TEARDOWN_WAIT (default 60)"
       exit 0 ;;
     *) die "Unknown argument: $1" ;;
   esac
 done
+
+[[ "$REPEATS" =~ ^[0-9]+$ ]] && [ "$REPEATS" -ge 1 ] || die "--repeats must be a positive integer"
 
 # --- Preflight ---
 
@@ -153,7 +158,7 @@ IFS=',' read -ra config_letters <<< "$FILTER_CONFIGS"
 RUN_ID="$(date +%Y-%m-%d-%H%M%S)"
 echo ""
 echo "=== Eval Run: $RUN_ID ==="
-echo "Scenarios: ${scenarios[*]} | Configs: ${config_letters[*]}"
+echo "Scenarios: ${scenarios[*]} | Configs: ${config_letters[*]} | Repeats (B): $REPEATS"
 echo ""
 
 failed=0
@@ -202,7 +207,23 @@ for i in "${!scenarios[@]}"; do
         ;;
       b)
         model=$(yaml_field "$SCRIPT_DIR/configs/config-b-agent.yaml" "models.skill" "claude-opus-4-6")
-        run_config_b "$prompt" "$output_dir" "$model" || exit_code=$?
+        if [ "$REPEATS" -gt 1 ]; then
+          for r in $(seq 1 "$REPEATS"); do
+            repeat_dir="$RESULTS_DIR/config-b-run${r}/$scenario"
+            mkdir -p "$repeat_dir"
+            echo "    run $r/$REPEATS..."
+            r_start=$(date +%s)
+            run_config_b "$prompt" "$repeat_dir" "$model" || exit_code=$?
+            r_dur=$(( $(date +%s) - r_start ))
+            python3 -c "
+import json, sys
+with open(sys.argv[1], 'w') as f:
+    json.dump({'exit_code': int(sys.argv[2]), 'duration_s': float(sys.argv[3])}, f, indent=2)
+" "$repeat_dir/run_result.json" "$exit_code" "$r_dur"
+          done
+        else
+          run_config_b "$prompt" "$output_dir" "$model" || exit_code=$?
+        fi
         ;;
       c)
         run_config_c "$output_dir" "$scenario" || exit_code=$?

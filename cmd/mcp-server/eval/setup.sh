@@ -33,6 +33,9 @@ if ! pip install -e ".[anthropic]" --quiet; then
   exit 1
 fi
 
+echo "Installing eval analysis dependencies..."
+pip install scipy --quiet || echo "WARNING: scipy install failed — statistical tests will be skipped" >&2
+
 echo ""
 echo "Verifying prerequisites..."
 exit_code=0
