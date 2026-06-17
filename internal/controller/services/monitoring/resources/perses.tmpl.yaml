@@ -43,8 +43,8 @@ spec:
     pvcTemplate:
       resources:
         requests:
-          storage: {{.StorageSize}}
+          storage: "{{.StorageSize}}"
 {{- else }}
   storage:
-    size: {{.StorageSize}}
+    size: "{{.StorageSize}}"
 {{- end }}
