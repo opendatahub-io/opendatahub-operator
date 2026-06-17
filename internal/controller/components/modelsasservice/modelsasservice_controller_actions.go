@@ -62,56 +62,36 @@ func renderMaasOperatorInstall(ctx context.Context, rr *odhtypes.ReconciliationR
 func stripTenantFinalizer(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	l := logf.FromContext(ctx)
 
-	const pageSize = 200
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(gvk.Tenant)
 
-	listOpts := []client.ListOption{
-		client.InNamespace(MaaSSubscriptionNamespace),
-		client.Limit(pageSize),
-	}
-
-	for {
-		list := &unstructured.UnstructuredList{}
-		list.SetGroupVersionKind(gvk.Tenant)
-
-		if err := rr.Client.List(ctx, list, listOpts...); err != nil {
-			if meta.IsNoMatchError(err) {
-				return nil
-			}
-
-			return fmt.Errorf("failed to list Tenant CRs: %w", err)
+	if err := rr.Client.List(ctx, list, client.InNamespace(MaaSSubscriptionNamespace)); err != nil {
+		if meta.IsNoMatchError(err) {
+			return nil
 		}
 
-		for i := range list.Items {
-			item := &list.Items[i]
+		return fmt.Errorf("failed to list Tenant CRs: %w", err)
+	}
 
-			if !controllerutil.RemoveFinalizer(item, tenantCleanupFinalizer) {
+	for i := range list.Items {
+		item := &list.Items[i]
+
+		if !controllerutil.RemoveFinalizer(item, tenantCleanupFinalizer) {
+			continue
+		}
+
+		l.Info("stripping tenant-cleanup finalizer to unblock deletion",
+			"name", item.GetName(),
+			"namespace", item.GetNamespace(),
+		)
+
+		if err := rr.Client.Update(ctx, item); err != nil {
+			if k8serr.IsNotFound(err) {
 				continue
 			}
 
-			l.Info("stripping tenant-cleanup finalizer to unblock deletion",
-				"name", item.GetName(),
-				"namespace", item.GetNamespace(),
-			)
-
-			if err := rr.Client.Update(ctx, item); err != nil {
-				if k8serr.IsNotFound(err) {
-					continue
-				}
-
-				return fmt.Errorf("failed to strip finalizer from Tenant %s/%s: %w",
-					item.GetNamespace(), item.GetName(), err)
-			}
-		}
-
-		cont := list.GetContinue()
-		if cont == "" {
-			break
-		}
-
-		listOpts = []client.ListOption{
-			client.InNamespace(MaaSSubscriptionNamespace),
-			client.Limit(pageSize),
-			client.Continue(cont),
+			return fmt.Errorf("failed to strip finalizer from Tenant %s/%s: %w",
+				item.GetNamespace(), item.GetName(), err)
 		}
 	}
 
