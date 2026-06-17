@@ -41,6 +41,21 @@ func TestGetName(t *testing.T) {
 	g.Expect(h.GetName()).Should(Equal(componentApi.DashboardComponentName))
 }
 
+func TestGetGVK_UsesPlatformAPIGroup(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	gvk := h.GetGVK()
+	g.Expect(gvk.Group).Should(Equal("components.platform.opendatahub.io"))
+	g.Expect(gvk.Version).Should(Equal("v1alpha1"))
+	g.Expect(gvk.Kind).Should(Equal(componentApi.DashboardKind))
+}
+
+func TestDashboardInstanceName_MatchesOperatorCEL(t *testing.T) {
+	g := NewWithT(t)
+	// dashboard-operator CRD enforces metadata.name == default-dashboard (odh-dashboard#8093).
+	g.Expect(componentApi.DashboardInstanceName).Should(Equal("default-dashboard"))
+}
+
 func TestIsEnabled_Managed(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
@@ -81,6 +96,8 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(u.GetName()).Should(Equal(componentApi.DashboardInstanceName))
 	g.Expect(u.GetKind()).Should(Equal(componentApi.DashboardKind))
+	g.Expect(u.GroupVersionKind().Group).Should(Equal("components.platform.opendatahub.io"))
+	g.Expect(u.GroupVersionKind().Version).Should(Equal("v1alpha1"))
 
 	spec, ok := u.Object["spec"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec is not a map")

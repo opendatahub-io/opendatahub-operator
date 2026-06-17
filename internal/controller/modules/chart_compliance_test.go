@@ -33,6 +33,16 @@ func moduleHandlers() []modules.ModuleHandler {
 	}
 }
 
+// failOrSkipChartMissingf fails in CI (where get-manifests runs before unit tests) and
+// skips locally when charts have not been fetched yet.
+func failOrSkipChartMissingf(t *testing.T, format string, args ...any) {
+	t.Helper()
+	if os.Getenv("CI") != "" {
+		t.Fatalf(format, args...)
+	}
+	t.Skipf(format, args...)
+}
+
 func TestModuleChartCompliance(t *testing.T) {
 	chartsRoot := os.Getenv("DEFAULT_CHARTS_PATH")
 	if chartsRoot == "" {
@@ -45,12 +55,12 @@ func TestModuleChartCompliance(t *testing.T) {
 	}
 
 	if _, err := os.Stat(absChartsRoot); os.IsNotExist(err) {
-		t.Skipf("charts root %s not found (run get_all_manifests.sh first)", absChartsRoot)
+		failOrSkipChartMissingf(t, "charts root %s not found (run get_all_manifests.sh first)", absChartsRoot)
 	}
 
 	handlers := moduleHandlers()
 	if len(handlers) == 0 {
-		t.Skipf("no module handlers registered; skipping chart compliance test")
+		failOrSkipChartMissingf(t, "no module handlers registered; skipping chart compliance test")
 	}
 
 	platform := &modules.PlatformContext{
@@ -67,7 +77,7 @@ func TestModuleChartCompliance(t *testing.T) {
 
 		for _, chartInfo := range manifests.HelmCharts {
 			if _, err := os.Stat(chartInfo.Chart); os.IsNotExist(err) {
-				t.Skipf("chart directory %s not found for module %s (run get_all_manifests.sh first)",
+				failOrSkipChartMissingf(t, "chart directory %s not found for module %s (run get_all_manifests.sh first)",
 					chartInfo.Chart, handler.GetName())
 			}
 
@@ -107,6 +117,6 @@ func TestModuleChartCompliance(t *testing.T) {
 	}
 
 	if testedCount == 0 {
-		t.Skip("no module helm charts available (run get_all_manifests.sh first)")
+		failOrSkipChartMissingf(t, "no module handlers have Helm charts to test")
 	}
 }

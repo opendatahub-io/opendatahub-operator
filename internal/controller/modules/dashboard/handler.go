@@ -17,7 +17,8 @@ import (
 
 const (
 	moduleName = componentApi.DashboardComponentName
-	crName     = componentApi.DashboardInstanceName
+	// crName must match dashboard-operator CRD CEL (default-dashboard); see odh-dashboard#8093.
+	crName = componentApi.DashboardInstanceName
 )
 
 type handler struct {
@@ -39,8 +40,8 @@ func NewHandler() *handler {
 					// ReleaseName for module env injection (deploymentNameFromManifests).
 					"namePrefix": "",
 				},
-				GVK:               gvk.Dashboard,
-				RelatedImages:     relatedImages(),
+				GVK:           gvk.Dashboard, // components.platform.opendatahub.io/v1alpha1/Dashboard
+				RelatedImages: relatedImages(),
 			},
 		},
 	}
