@@ -62,36 +62,56 @@ func renderMaasOperatorInstall(ctx context.Context, rr *odhtypes.ReconciliationR
 func stripTenantFinalizer(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	l := logf.FromContext(ctx)
 
-	list := &unstructured.UnstructuredList{}
-	list.SetGroupVersionKind(gvk.Tenant)
+	const pageSize = 200
 
-	if err := rr.Client.List(ctx, list, client.InNamespace(MaaSSubscriptionNamespace)); err != nil {
-		if meta.IsNoMatchError(err) {
-			return nil
-		}
-
-		return fmt.Errorf("failed to list Tenant CRs: %w", err)
+	listOpts := []client.ListOption{
+		client.InNamespace(MaaSSubscriptionNamespace),
+		client.Limit(pageSize),
 	}
 
-	for i := range list.Items {
-		item := &list.Items[i]
+	for {
+		list := &unstructured.UnstructuredList{}
+		list.SetGroupVersionKind(gvk.Tenant)
 
-		if !controllerutil.RemoveFinalizer(item, tenantCleanupFinalizer) {
-			continue
+		if err := rr.Client.List(ctx, list, listOpts...); err != nil {
+			if meta.IsNoMatchError(err) {
+				return nil
+			}
+
+			return fmt.Errorf("failed to list Tenant CRs: %w", err)
 		}
 
-		l.Info("stripping tenant-cleanup finalizer to unblock deletion",
-			"name", item.GetName(),
-			"namespace", item.GetNamespace(),
-		)
+		for i := range list.Items {
+			item := &list.Items[i]
 
-		if err := rr.Client.Update(ctx, item); err != nil {
-			if k8serr.IsNotFound(err) {
+			if !controllerutil.RemoveFinalizer(item, tenantCleanupFinalizer) {
 				continue
 			}
 
-			return fmt.Errorf("failed to strip finalizer from Tenant %s/%s: %w",
-				item.GetNamespace(), item.GetName(), err)
+			l.Info("stripping tenant-cleanup finalizer to unblock deletion",
+				"name", item.GetName(),
+				"namespace", item.GetNamespace(),
+			)
+
+			if err := rr.Client.Update(ctx, item); err != nil {
+				if k8serr.IsNotFound(err) {
+					continue
+				}
+
+				return fmt.Errorf("failed to strip finalizer from Tenant %s/%s: %w",
+					item.GetNamespace(), item.GetName(), err)
+			}
+		}
+
+		cont := list.GetContinue()
+		if cont == "" {
+			break
+		}
+
+		listOpts = []client.ListOption{
+			client.InNamespace(MaaSSubscriptionNamespace),
+			client.Limit(pageSize),
+			client.Continue(cont),
 		}
 	}
 
