@@ -78,7 +78,7 @@ spec:
             - /manager
           env:
             - name: DISABLE_DSC_CONFIG
-              value: 'true'
+              value: "true"
             - name: OPERATOR_NAMESPACE
               valueFrom:
                 fieldRef:
@@ -92,7 +92,7 @@ spec:
             - name: RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
               value: quay.io/opendatahub/odh-kube-auth-proxy:v3.5.0-ea.2
             - name: RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE
-              value: quay.io/opendatahub/odh-kube-rbac-proxy:v3.5.0-ea.2
+              value: quay.io/opendatahub/odh-kube-rbac-proxy:3.5.0-ea.2
           args:
             - --leader-elect
             - --operator-name=opendatahub
