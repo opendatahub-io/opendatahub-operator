@@ -40,14 +40,8 @@ const (
 	HardwareProfileNamespaceAnnotation = "opendatahub.io/hardware-profile-namespace"
 )
 
-// Container name constants.
-const (
-	LLMInferenceServiceMainContainerName = "main"
-)
-
 // NoMatchingContainerError is returned when no container matching the expected name is found.
-// For Notebooks, the container name must match the Notebook name.
-// For LLMInferenceServices, the container name must be "main".
+// For Notebooks with multiple containers, one must match the Notebook CR name.
 type NoMatchingContainerError struct {
 	WorkloadKind      string
 	WorkloadName      string
@@ -68,27 +62,17 @@ type WorkloadConfig struct {
 }
 
 // WorkloadConfigs maps Kubernetes resource kinds to their configuration paths.
+// InferenceService and LLMInferenceService are intentionally excluded: HardwareProfile
+// injection for those resource types was migrated to the kserve controller reconcile loop.
 var WorkloadConfigs = map[string]WorkloadConfig{
 	gvk.Notebook.Kind: {
 		ContainersPath:   []string{"spec", "template", "spec", "containers"}, // slice []interface{}
 		NodeSelectorPath: []string{"spec", "template", "spec", "nodeSelector"},
 		TolerationsPath:  []string{"spec", "template", "spec", "tolerations"},
 	},
-	gvk.InferenceServices.Kind: {
-		ContainersPath:   []string{"spec", "predictor", "model"}, // map map[string]interface{}
-		NodeSelectorPath: []string{"spec", "predictor", "nodeSelector"},
-		TolerationsPath:  []string{"spec", "predictor", "tolerations"},
-	},
-	gvk.LLMInferenceServiceV1Alpha1.Kind: {
-		ContainersPath:   []string{"spec", "template", "containers"}, // slice []interface{}
-		NodeSelectorPath: []string{"spec", "template", "nodeSelector"},
-		TolerationsPath:  []string{"spec", "template", "tolerations"},
-	},
 }
 
 //+kubebuilder:webhook:path=/mutate-hardware-profile,mutating=true,failurePolicy=fail,groups=kubeflow.org,resources=notebooks,verbs=create;update,versions=v1,name=hardwareprofile-notebook-injector.opendatahub.io,sideEffects=None,admissionReviewVersions=v1
-//+kubebuilder:webhook:path=/mutate-hardware-profile,mutating=true,failurePolicy=fail,groups=serving.kserve.io,resources=inferenceservices,verbs=create;update,versions=v1beta1,name=hardwareprofile-isvc-injector.opendatahub.io,sideEffects=None,admissionReviewVersions=v1
-//+kubebuilder:webhook:path=/mutate-hardware-profile,mutating=true,failurePolicy=fail,groups=serving.kserve.io,resources=llminferenceservices,verbs=create;update,versions=v1alpha1;v1alpha2,name=hardwareprofile-llmisvc-injector.opendatahub.io,sideEffects=None,admissionReviewVersions=v1
 //nolint:lll
 
 // Injector implements a mutating admission webhook for hardware profile injection.
@@ -111,7 +95,7 @@ var _ admission.Handler = &Injector{}
 func (i *Injector) SetupWithManager(mgr ctrl.Manager) error {
 	hookServer := mgr.GetWebhookServer()
 
-	// Register single webhook path for Notebooks, InferenceServices, and LLMInferenceServices
+	// Register single webhook path for Notebooks
 	hookServer.Register("/mutate-hardware-profile", &webhook.Admission{
 		Handler:        i,
 		LogConstructor: webhookutils.NewWebhookLogConstructor(i.Name),
@@ -185,11 +169,10 @@ func (i *Injector) Handle(ctx context.Context, req admission.Request) admission.
 //   - bool: true if the kind is supported by the webhook, false otherwise
 func isExpectedKind(kind metav1.GroupVersionKind) bool {
 	// expectedGVKs contains the list of resource types that the hardware profile webhook should handle.
+	// InferenceService and LLMInferenceService are excluded: their HWP injection was migrated to
+	// the kserve controller reconcile loop.
 	expectedGVKs := []schema.GroupVersionKind{
-		gvk.Notebook,                    // kubeflow.org/v1/Notebook
-		gvk.InferenceServices,           // serving.kserve.io/v1beta1/InferenceService
-		gvk.LLMInferenceServiceV1Alpha1, // serving.kserve.io/v1alpha1/LLMInferenceService
-		gvk.LLMInferenceServiceV1Alpha2, // serving.kserve.io/v1alpha2/LLMInferenceService
+		gvk.Notebook, // kubeflow.org/v1/Notebook
 	}
 
 	requestGVK := schema.GroupVersionKind{
@@ -430,8 +413,6 @@ func (i *Injector) detectProfileChange(req *admission.Request, newProfileName, n
 // Container name requirements:
 //   - Notebooks (single container): Always valid (no validation needed)
 //   - Notebooks (multiple containers): One must match the Notebook CR name
-//   - LLMInferenceServices: Must have a container named "main"
-//   - InferenceServices: Not validated (uses predictor model path, not containers)
 //
 // CRITICAL: This function should return NoMatchingContainerError for name mismatches,
 // but must be defensive about structural errors. The caller handles NoMatchingContainerError
@@ -446,11 +427,6 @@ func (i *Injector) validateContainerNames(obj *unstructured.Unstructured) error 
 		return err
 	}
 
-	// InferenceServices use predictor.model path, not containers - skip validation
-	if obj.GetKind() == gvk.InferenceServices.Kind {
-		return nil
-	}
-
 	// Get containers from the workload
 	// If this fails, return error but caller should log and continue (defensive)
 	containers, found, err := unstructured.NestedSlice(obj.Object, config.ContainersPath...)
@@ -461,57 +437,29 @@ func (i *Injector) validateContainerNames(obj *unstructured.Unstructured) error 
 		return nil // No containers to validate (will be created by controller)
 	}
 
-	// Determine expected container name based on workload type
-	var expectedName string
-	switch obj.GetKind() {
-	case gvk.Notebook.Kind:
-		// For Notebooks with a single container, always valid
-		if len(containers) == 1 {
-			return nil
+	// For Notebooks with a single container, always valid
+	if len(containers) == 1 {
+		return nil
+	}
+	// For multiple containers, one must match the Notebook name
+	expectedName := obj.GetName()
+	for _, c := range containers {
+		m, ok := c.(map[string]any)
+		if !ok {
+			continue
 		}
-		// For multiple containers, one must match the Notebook name
-		expectedName = obj.GetName()
-		for _, c := range containers {
-			m, ok := c.(map[string]any)
-			if !ok {
-				continue
-			}
-			name, _ := m["name"].(string)
-			if name == expectedName {
-				return nil // Found matching container
-			}
-		}
-		// No matching container found
-		return &NoMatchingContainerError{
-			WorkloadKind:      obj.GetKind(),
-			WorkloadName:      obj.GetName(),
-			WorkloadNamespace: obj.GetNamespace(),
-			ExpectedName:      expectedName,
-		}
-
-	case gvk.LLMInferenceServiceV1Alpha1.Kind:
-		// For LLMInferenceServices, must have a container named "main"
-		expectedName = LLMInferenceServiceMainContainerName
-		for _, c := range containers {
-			m, ok := c.(map[string]any)
-			if !ok {
-				continue
-			}
-			name, _ := m["name"].(string)
-			if name == expectedName {
-				return nil // Found "main" container
-			}
-		}
-		// No "main" container found
-		return &NoMatchingContainerError{
-			WorkloadKind:      obj.GetKind(),
-			WorkloadName:      obj.GetName(),
-			WorkloadNamespace: obj.GetNamespace(),
-			ExpectedName:      expectedName,
+		name, _ := m["name"].(string)
+		if name == expectedName {
+			return nil // Found matching container
 		}
 	}
-
-	return nil
+	// No matching container found
+	return &NoMatchingContainerError{
+		WorkloadKind:      obj.GetKind(),
+		WorkloadName:      obj.GetName(),
+		WorkloadNamespace: obj.GetNamespace(),
+		ExpectedName:      expectedName,
+	}
 }
 
 // emitContainerNameWarningEvent creates a Warning event on the workload to indicate
@@ -863,7 +811,7 @@ func (i *Injector) fetchHardwareProfile(ctx context.Context, namespace, name str
 //
 // Parameters:
 //   - ctx: Request context containing logger for operation tracking
-//   - obj: The unstructured workload object to modify (Notebook, InferenceService, etc.)
+//   - obj: The unstructured workload object to modify (Notebook)
 //   - hwp: The HardwareProfile resource containing specifications to apply
 //   - profileChanged: Whether the hardware profile annotation changed (triggers clearing)
 //
@@ -943,7 +891,7 @@ func (i *Injector) applyHardwareProfileToWorkload(ctx context.Context, obj *unst
 // within different Kubernetes resource types.
 //
 // Parameters:
-//   - kind: The Kubernetes resource kind (e.g., "Notebook", "InferenceService")
+//   - kind: The Kubernetes resource kind (e.g., "Notebook")
 //
 // Returns:
 //   - WorkloadConfig: Configuration containing JSON paths for the workload type
@@ -972,46 +920,13 @@ func (i *Injector) applyResourceRequirementsToWorkload(ctx context.Context, obj 
 	if err != nil {
 		return err
 	}
-	// Handle different workload types explicitly
-	switch obj.GetKind() {
-	case gvk.InferenceServices.Kind:
-		// For InferenceServices, apply resources to the model object
-		return i.applyResourceRequirementsToInferenceServiceModel(obj, hwp, config.ContainersPath)
-	case gvk.Notebook.Kind:
-		// For Notebooks, apply resources only to the main container (not sidecars like oauth-proxy)
-		return i.applyResourceRequirementsToContainers(ctx, obj, hwp, config.ContainersPath, notebookMainContainerIndices(obj, config.ContainersPath))
-	case gvk.LLMInferenceServiceV1Alpha1.Kind:
-		// For LLMInferenceServices, apply resources only to the main container
-		return i.applyResourceRequirementsToContainers(ctx, obj, hwp, config.ContainersPath, llmInferenceServiceMainContainerIndices(obj, config.ContainersPath))
-	default:
-		// This should never happen since isExpectedKind() should catch unsupported kinds earlier
-		return fmt.Errorf("unsupported workload kind: %s", obj.GetKind())
-	}
-}
-
-// for isvc.
-func (i *Injector) applyResourceRequirementsToInferenceServiceModel(obj *unstructured.Unstructured, hwp *infrav1.HardwareProfile, modelPath []string) error {
-	// Get the model object from the InferenceService
-	model, found, err := unstructured.NestedMap(obj.Object, modelPath...)
-	if err != nil {
-		return fmt.Errorf("failed to get model: %w", err)
-	}
-	if !found {
-		return nil // No model found
-	}
-
-	// Apply resource requirements to the model object
-	if err := i.applyIdentifiersToContainer(model, hwp.Spec.Identifiers); err != nil {
-		return fmt.Errorf("failed to apply resources to model: %w", err)
-	}
-
-	// Update the object with modified model
-	return unstructured.SetNestedMap(obj.Object, model, modelPath...)
+	// Apply resources only to the Notebook main container (not sidecars like oauth-proxy)
+	return i.applyResourceRequirementsToContainers(ctx, obj, hwp, config.ContainersPath, notebookMainContainerIndices(obj, config.ContainersPath))
 }
 
 // notebookMainContainerIndices returns the indices of the "main" container(s) for a Notebook
 // that should receive HWP resource injection. Sidecars (e.g. oauth-proxy, istio-proxy) must not
-// receive HWP resources. Returns nil to mean "all containers" (caller uses this for non-Notebook).
+// receive HWP resources.
 // Strategy: if 1 container -> [0]; if >1 containers -> container whose name == Notebook name, else none.
 func notebookMainContainerIndices(obj *unstructured.Unstructured, containersPath []string) []int {
 	containers, found, err := unstructured.NestedSlice(obj.Object, containersPath...)
@@ -1035,28 +950,8 @@ func notebookMainContainerIndices(obj *unstructured.Unstructured, containersPath
 	return []int{} // no main container found; apply to none
 }
 
-// llmInferenceServiceMainContainerIndices returns the indices of the main container for an LLMInferenceService.
-// For LLMInferenceService, we always use the container named LLMInferenceServiceMainContainerName.
-func llmInferenceServiceMainContainerIndices(obj *unstructured.Unstructured, containersPath []string) []int {
-	containers, found, err := unstructured.NestedSlice(obj.Object, containersPath...)
-	if err != nil || !found || len(containers) == 0 {
-		return nil
-	}
-	for idx, c := range containers {
-		m, ok := c.(map[string]any)
-		if !ok {
-			continue
-		}
-		name, _ := m["name"].(string)
-		if name == LLMInferenceServiceMainContainerName {
-			return []int{idx}
-		}
-	}
-	return []int{} // no main container found; apply to none
-}
-
 // applyResourceRequirementsToContainers applies resource requirements to workload containers.
-// When mainContainerIndices is non-nil (Notebook), only those indices are modified; otherwise all containers are.
+// When mainContainerIndices is non-nil, only those indices are modified; otherwise all containers are.
 func (i *Injector) applyResourceRequirementsToContainers(ctx context.Context, obj *unstructured.Unstructured,
 	hwp *infrav1.HardwareProfile, containersPath []string, mainContainerIndices []int) error {
 	log := logf.FromContext(ctx)
@@ -1067,16 +962,8 @@ func (i *Injector) applyResourceRequirementsToContainers(ctx context.Context, ob
 		return fmt.Errorf("failed to get containers: %w", err)
 	}
 
-	// If no containers found, create the minimal structure needed for resource injection
 	if !found || len(containers) == 0 {
-		if obj.GetKind() == gvk.LLMInferenceServiceV1Alpha1.Kind {
-			// Create minimal container with name "main"
-			containers = []any{map[string]any{
-				"name": "main",
-			}}
-		} else { // notebook kind
-			return nil
-		}
+		return nil
 	}
 
 	// When mainContainerIndices is empty (not nil), no matching main container was found
