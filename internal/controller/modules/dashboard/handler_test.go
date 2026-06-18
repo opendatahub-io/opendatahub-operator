@@ -173,6 +173,12 @@ func TestGetOperatorManifests(t *testing.T) {
 	g.Expect(vals["namePrefix"]).Should(Equal(""))
 }
 
+func TestGetControllerImage(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	g.Expect(h.GetControllerImage()).Should(Equal("RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE"))
+}
+
 func TestGetRelatedImages(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()

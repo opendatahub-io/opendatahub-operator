@@ -40,8 +40,9 @@ func NewHandler() *handler {
 					// ReleaseName for module env injection (deploymentNameFromManifests).
 					"namePrefix": "",
 				},
-				GVK:           gvk.Dashboard, // components.platform.opendatahub.io/v1alpha1/Dashboard
-				RelatedImages: relatedImages(),
+				GVK:             gvk.Dashboard, // components.platform.opendatahub.io/v1alpha1/Dashboard
+				ControllerImage: "RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE",
+				RelatedImages:   relatedImages(),
 			},
 		},
 	}
