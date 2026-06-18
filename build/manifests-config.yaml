@@ -73,5 +73,5 @@ map:
     src: config/
     dest: batch-gateway-operator
   odh-workbenches-controller:
-    src: ./workspaces/controller/manifests/kustomize
+    src: workspaces/controller/manifests/kustomize
     dest: workbenches/odh-workbenches-controller
