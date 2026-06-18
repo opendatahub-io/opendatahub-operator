@@ -189,6 +189,20 @@ def main():
         sorted(all_scenarios),
     )
 
+    # Add per-run consistency data for config-b-run* directories
+    if repeat_names:
+        consistency = {}
+        for sid in sorted(all_scenarios):
+            runs = []
+            for rc in repeat_names:
+                scores = all_scores.get(rc, {}).get(sid, {})
+                rc_val = scores.get("root_cause_correct", {}).get("value")
+                if rc_val is not None:
+                    runs.append(rc_val)
+            if runs:
+                consistency[sid] = runs
+        scored_results["consistency"] = consistency
+
     # Write scored JSON
     scored_file = results_dir / "scored-results.json"
     with open(scored_file, "w") as f:
@@ -476,7 +490,7 @@ def _write_report(report_file, scored_results, config_names, results_dir, datase
     append_statistical(lines, scored_results, config_names)
     append_categories(lines, scored_results, dataset_dir)
     append_agent_vs_classifier(lines, scored_results, dataset_dir)
-    append_consistency(lines, results_dir)
+    append_consistency(lines, scored_results, results_dir)
     append_verdict(lines, scored_results)
 
     with open(report_file, "w") as f:

@@ -221,58 +221,27 @@ def append_agent_vs_classifier(lines, scored_results, dataset_dir):
                  (b_wins, c_wins, ties, b_wins + c_wins + ties))
 
 
-def _load_diagnosis_summary(scenario_dir):
-    """Extract a normalised root-cause fingerprint from a diagnosis."""
-    diag_file = scenario_dir / "diagnosis.txt"
-    if not diag_file.exists():
-        return None
-    try:
-        text = diag_file.read_text().strip().lower()
-    except (OSError, UnicodeDecodeError):
-        return None
-    if len(text) < 10:
-        return None
-    try:
-        data = json.loads(text)
-        if isinstance(data, dict):
-            return data.get("category", "") + "|" + str(data.get("error_code", ""))
-    except (json.JSONDecodeError, ValueError):
-        pass
-    words = sorted(set(text.split()))[:30]
-    return " ".join(words)
-
-
-def append_consistency(lines, results_dir):
-    run_dirs = sorted(Path(results_dir).glob("config-b-run*"))
-    if len(run_dirs) < 2:
+def append_consistency(lines, scored_results, results_dir):
+    consistency = scored_results.get("consistency", {})
+    if not consistency:
         return
 
-    scenario_runs = {}
-    for rd in run_dirs:
-        for sd in sorted(rd.iterdir()):
-            if not sd.is_dir():
-                continue
-            summary = _load_diagnosis_summary(sd)
-            if summary is not None:
-                scenario_runs.setdefault(sd.name, []).append(summary)
+    run_count = len(sorted(Path(results_dir).glob("config-b-run*")))
 
-    if not scenario_runs:
-        return
-
-    lines.append("## Consistency Analysis (Config B — %d runs)\n" % len(run_dirs))
-    lines.append("| Scenario | Root cause agreement | Distinct diagnoses |")
-    lines.append("|----------|---------------------|-------------------|")
+    lines.append("## Consistency Analysis (Config B — %d runs)\n" % run_count)
+    lines.append("| Scenario | Root cause agreement | Results |")
+    lines.append("|----------|---------------------|---------|")
 
     total_agree = 0
-    for sid, summaries in sorted(scenario_runs.items()):
-        distinct = len(set(summaries))
-        agree = distinct == 1
+    for sid, results in sorted(consistency.items()):
+        agree = len(set(results)) == 1
         total_agree += agree
-        lines.append("| %s | %s | %d |" % (sid, "Yes" if agree else "No", distinct))
+        labels = "/".join("PASS" if v else "FAIL" for v in results)
+        lines.append("| %s | %s | %s |" % (sid, "Yes" if agree else "No", labels))
 
-    total = len(scenario_runs)
+    total = len(consistency)
     lines.append("")
-    lines.append("**Overall agreement**: %.0f%% (%d/%d scenarios produced identical root cause)\n" %
+    lines.append("**Overall agreement**: %.0f%% (%d/%d scenarios)\n" %
                  (total_agree / total * 100 if total else 0, total_agree, total))
 
 

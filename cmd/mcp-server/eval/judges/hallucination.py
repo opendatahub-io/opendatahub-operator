@@ -85,7 +85,35 @@ def _extract(text):
     return found
 
 
+_MIN_SUBSTR_LEN = 5
+_OVERLAP_RATIO = 0.65
+
+
+def _segments_match(a_segs, b_segs):
+    """True if a's segments are a contiguous subsequence of b's."""
+    if len(a_segs) > len(b_segs):
+        return False
+    for i in range(len(b_segs) - len(a_segs) + 1):
+        if b_segs[i:i + len(a_segs)] == a_segs:
+            return True
+    return False
+
+
 def _is_grounded(entity, truth):
     if entity in truth:
         return True
-    return any(entity in t or t in entity for t in truth)
+    if len(entity) < _MIN_SUBSTR_LEN:
+        return False
+    e_segs = entity.split("-")
+    for t in truth:
+        if len(t) < _MIN_SUBSTR_LEN:
+            continue
+        t_segs = t.split("-")
+        if len(e_segs) > 1 or len(t_segs) > 1:
+            if _segments_match(e_segs, t_segs) or _segments_match(t_segs, e_segs):
+                return True
+        else:
+            shorter, longer = sorted([entity, t], key=len)
+            if shorter in longer and len(shorter) >= len(longer) * _OVERLAP_RATIO:
+                return True
+    return False

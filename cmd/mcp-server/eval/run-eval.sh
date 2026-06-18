@@ -213,13 +213,15 @@ for i in "${!scenarios[@]}"; do
             mkdir -p "$repeat_dir"
             echo "    run $r/$REPEATS..."
             r_start=$(date +%s)
-            run_config_b "$prompt" "$repeat_dir" "$model" || exit_code=$?
+            r_exit=0
+            run_config_b "$prompt" "$repeat_dir" "$model" || r_exit=$?
             r_dur=$(( $(date +%s) - r_start ))
             python3 -c "
 import json, sys
 with open(sys.argv[1], 'w') as f:
     json.dump({'exit_code': int(sys.argv[2]), 'duration_s': float(sys.argv[3])}, f, indent=2)
-" "$repeat_dir/run_result.json" "$exit_code" "$r_dur"
+" "$repeat_dir/run_result.json" "$r_exit" "$r_dur"
+            [ "$r_exit" -ne 0 ] && exit_code="$r_exit"
           done
         else
           run_config_b "$prompt" "$output_dir" "$model" || exit_code=$?
