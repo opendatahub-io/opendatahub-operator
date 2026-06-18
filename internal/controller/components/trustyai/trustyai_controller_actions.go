@@ -134,22 +134,22 @@ func migrateDeploymentSelector(ctx context.Context, rr *odhtypes.ReconciliationR
 		return fmt.Errorf("failed to get Deployment %s/%s: %w", ns, trustyaiDeploymentName, err)
 	}
 
-	if deploy.Spec.Selector == nil {
-		return nil
-	}
-
 	expectedSelector := map[string]string{
 		controlPlaneLabelKey: controlPlaneLabelValue,
 		partOfLabelKey:       partOfLabelValue,
 	}
-	if maps.Equal(deploy.Spec.Selector.MatchLabels, expectedSelector) {
+	if deploy.Spec.Selector != nil && maps.Equal(deploy.Spec.Selector.MatchLabels, expectedSelector) {
 		return nil
 	}
 
+	var currentSelector map[string]string
+	if deploy.Spec.Selector != nil {
+		currentSelector = deploy.Spec.Selector.MatchLabels
+	}
 	log.Info("TrustyAI operator Deployment has stale selector, deleting for recreation",
 		"deployment", trustyaiDeploymentName,
 		"namespace", ns,
-		"currentSelector", deploy.Spec.Selector.MatchLabels,
+		"currentSelector", currentSelector,
 	)
 
 	if err := rr.Client.Delete(ctx, deploy); err != nil {
