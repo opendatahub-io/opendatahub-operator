@@ -330,7 +330,6 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantSingletonEnforcement(t *testing.
 // require MaaS to be re-enabled first.
 func (tc *ModelsAsServiceTestCtx) ValidateTenantDeletedOnDisable(t *testing.T) {
 	t.Helper()
-	t.Skip("RHOAIENG-69570: Skipping Tenant deletion check")
 	skipUnless(t, Smoke, Tier1)
 
 	t.Logf("Verifying Tenant %s/%s is present before disable", tenantSubscriptionNS, tenantName)
