@@ -477,7 +477,7 @@ func TestNIMSubscriptionDependencyMonitoring(t *testing.T) {
 		)
 	})
 
-	t.Run("Kubernetes cluster skips NIM subscription check", func(t *testing.T) {
+	t.Run("Kubernetes cluster sets NIM condition to True (not applicable)", func(t *testing.T) {
 		cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
 		t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
 
@@ -495,10 +495,10 @@ func TestNIMSubscriptionDependencyMonitoring(t *testing.T) {
 				status.ConditionDependenciesAvailable),
 		)
 
-		// NIM subscription condition should not be written on Kubernetes
-		wt.Get(gvk.Kserve, nn).Consistently().WithTimeout(5 * time.Second).Should(
-			jq.Match(`all(.status.conditions[]?.type; . != "%s")`,
-				NIMOperatorDependencies),
+		// NIM subscription condition should be True on Kubernetes (cluster-type skip = not applicable)
+		wt.Get(gvk.Kserve, nn).Eventually().Should(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				NIMOperatorDependencies, metav1.ConditionTrue),
 		)
 	})
 }

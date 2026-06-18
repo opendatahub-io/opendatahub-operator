@@ -316,57 +316,78 @@ func TestRunAll_ClusterTypeFiltering(t *testing.T) {
 }
 
 func TestRunAll_SkipFunc(t *testing.T) {
-	tests := []struct {
-		name           string
-		skipFunc       SkipFunc
-		expectedStatus metav1.ConditionStatus
-		expectedMsg    string
-	}{
-		{
-			name:           "returns true skips precondition",
-			skipFunc:       func(_ context.Context, _ *types.ReconciliationRequest) (bool, error) { return true, nil },
-			expectedStatus: metav1.ConditionTrue,
-		},
-		{
-			name:           "returns false runs precondition",
-			skipFunc:       func(_ context.Context, _ *types.ReconciliationRequest) (bool, error) { return false, nil },
-			expectedStatus: metav1.ConditionFalse,
-			expectedMsg:    "skip func test",
-		},
-		{
-			name:           "nil runs precondition",
-			skipFunc:       nil,
-			expectedStatus: metav1.ConditionFalse,
-			expectedMsg:    "skip func test",
-		},
-	}
+	t.Run("returns true skips non-dependent precondition without writing condition", func(t *testing.T) {
+		g := NewWithT(t)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			g := NewWithT(t)
+		const optionalDep = "OptionalDependency"
 
-			rr := newRR(status.ConditionDependenciesAvailable)
+		rr := newRR()
+		pcs := []PreCondition{
+			newPreCondition(
+				failingCheck("skip func test"),
+				WithConditionType(optionalDep),
+				WithSkipFunc(func(_ context.Context, _ *types.ReconciliationRequest) (bool, error) { return true, nil }),
+			),
+		}
 
-			opts := []Option{}
-			if tt.skipFunc != nil {
-				opts = append(opts, WithSkipFunc(tt.skipFunc))
-			}
+		RunAll(t.Context(), rr, pcs)
 
-			pcs := []PreCondition{
-				newPreCondition(failingCheck("skip func test"), opts...),
-			}
+		got := rr.Conditions.GetCondition(optionalDep)
+		g.Expect(got).To(BeNil(), "skipped non-dependent precondition should not write any condition")
+	})
 
-			RunAll(t.Context(), rr, pcs)
+	t.Run("returns true skips dependent precondition with True condition", func(t *testing.T) {
+		g := NewWithT(t)
 
-			got := rr.Conditions.GetCondition(status.ConditionDependenciesAvailable)
-			g.Expect(got).NotTo(BeNil())
-			g.Expect(got.Status).To(Equal(tt.expectedStatus))
+		rr := newRR(status.ConditionDependenciesAvailable)
+		pcs := []PreCondition{
+			newPreCondition(
+				failingCheck("skip func test"),
+				WithSkipFunc(func(_ context.Context, _ *types.ReconciliationRequest) (bool, error) { return true, nil }),
+			),
+		}
 
-			if tt.expectedMsg != "" {
-				g.Expect(got.Message).To(ContainSubstring(tt.expectedMsg))
-			}
-		})
-	}
+		RunAll(t.Context(), rr, pcs)
+
+		got := rr.Conditions.GetCondition(status.ConditionDependenciesAvailable)
+		g.Expect(got).NotTo(BeNil(), "skipped dependent precondition should still write the condition")
+		g.Expect(got.Status).To(Equal(metav1.ConditionTrue))
+	})
+
+	t.Run("returns false runs precondition", func(t *testing.T) {
+		g := NewWithT(t)
+
+		rr := newRR(status.ConditionDependenciesAvailable)
+		pcs := []PreCondition{
+			newPreCondition(
+				failingCheck("skip func test"),
+				WithSkipFunc(func(_ context.Context, _ *types.ReconciliationRequest) (bool, error) { return false, nil }),
+			),
+		}
+
+		RunAll(t.Context(), rr, pcs)
+
+		got := rr.Conditions.GetCondition(status.ConditionDependenciesAvailable)
+		g.Expect(got).NotTo(BeNil())
+		g.Expect(got.Status).To(Equal(metav1.ConditionFalse))
+		g.Expect(got.Message).To(ContainSubstring("skip func test"))
+	})
+
+	t.Run("nil runs precondition", func(t *testing.T) {
+		g := NewWithT(t)
+
+		rr := newRR(status.ConditionDependenciesAvailable)
+		pcs := []PreCondition{
+			newPreCondition(failingCheck("skip func test")),
+		}
+
+		RunAll(t.Context(), rr, pcs)
+
+		got := rr.Conditions.GetCondition(status.ConditionDependenciesAvailable)
+		g.Expect(got).NotTo(BeNil())
+		g.Expect(got.Status).To(Equal(metav1.ConditionFalse))
+		g.Expect(got.Message).To(ContainSubstring("skip func test"))
+	})
 }
 
 func TestRunAll_SkipFuncError(t *testing.T) {
@@ -394,25 +415,31 @@ func TestRunAll_SkipFuncError(t *testing.T) {
 func TestRunAll_SkipFuncCleansStaleCondition(t *testing.T) {
 	g := NewWithT(t)
 
-	rr := newRR(status.ConditionDependenciesAvailable)
+	const optionalDep = "OptionalDependency"
+
+	// Conditions guarded by WithSkipFunc (e.g. NIMOperatorDependencies) are
+	// not registered as dependents, so CleanupStaleConditions removes them
+	// as orphans when they are no longer written.
+	rr := newRR()
 
 	// Reconcile #1: skipFunc=false, check fails → condition written as False.
 	pcs := []PreCondition{
-		newPreCondition(failingCheck("dependency degraded")),
+		newPreCondition(failingCheck("dependency degraded"), WithConditionType(optionalDep)),
 	}
 
 	RunAll(t.Context(), rr, pcs)
 
-	got := rr.Conditions.GetCondition(status.ConditionDependenciesAvailable)
+	got := rr.Conditions.GetCondition(optionalDep)
 	g.Expect(got).NotTo(BeNil())
 	g.Expect(got.Status).To(Equal(metav1.ConditionFalse))
 
-	// Reconcile #2: skipFunc=true → precondition writes True (not-applicable = satisfied).
+	// Reconcile #2: skipFunc=true → no condition written, cleanup removes the stale one.
 	rr.Conditions.Reset()
 
 	pcs = []PreCondition{
 		newPreCondition(
 			failingCheck("should not run"),
+			WithConditionType(optionalDep),
 			WithSkipFunc(func(_ context.Context, _ *types.ReconciliationRequest) (bool, error) {
 				return true, nil
 			}),
@@ -422,9 +449,8 @@ func TestRunAll_SkipFuncCleansStaleCondition(t *testing.T) {
 	RunAll(t.Context(), rr, pcs)
 	rr.Conditions.CleanupStaleConditions()
 
-	got = rr.Conditions.GetCondition(status.ConditionDependenciesAvailable)
-	g.Expect(got).NotTo(BeNil(), "skipped precondition should still write the condition")
-	g.Expect(got.Status).To(Equal(metav1.ConditionTrue))
+	got = rr.Conditions.GetCondition(optionalDep)
+	g.Expect(got).To(BeNil(), "skipped precondition condition should be removed by cleanup")
 }
 
 func TestRunAll_ClusterTypeFilterRunsBeforeSkipFunc(t *testing.T) {

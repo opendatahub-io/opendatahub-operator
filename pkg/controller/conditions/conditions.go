@@ -119,6 +119,10 @@ func (r *Manager) initializeConditions() {
 	}
 }
 
+func (r *Manager) IsDependent(conditionType string) bool {
+	return slices.Contains(r.dependents, conditionType)
+}
+
 func (r *Manager) IsHappy() bool {
 	if r.accessor == nil {
 		return false

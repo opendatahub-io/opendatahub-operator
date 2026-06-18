@@ -177,7 +177,14 @@ func RunAll(ctx context.Context, rr *types.ReconciliationRequest, preConditions 
 
 			if skip {
 				l.Info("Pre-condition skipped by runtime predicate", "conditionType", pc.conditionType)
-				initAggregate(results, pc.conditionType)
+
+				// Only write a True condition for dependents (which would
+				// otherwise be marked as ConditionNotSet errors by
+				// CleanupStaleConditions). Non-dependent conditions are
+				// left unwritten so cleanup removes them as orphans.
+				if rr.Conditions.IsDependent(pc.conditionType) {
+					initAggregate(results, pc.conditionType)
+				}
 
 				continue
 			}
