@@ -42,6 +42,10 @@ const (
 	RHCLOperatorSubscription        = "rhcl-operator"
 	LWSOperatorSubscription         = "leader-worker-set"
 	CertManagerOperatorSubscription = "openshift-cert-manager-operator"
+
+	// RHCL operator is not installed, message to users to deploy LLMInferenceService without auth.
+	rhclMissingMessage = "Red Hat Connectivity Link is not installed. To deploy LLMInferenceService " +
+		"without authentication, set the annotation security.opendatahub.io/enable-auth: 'false' on the LLMInferenceService"
 )
 
 var conditionTypes = []string{
