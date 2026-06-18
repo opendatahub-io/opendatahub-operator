@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../instance
+  - ../pre-processing
+  - envoy-filter.yaml
+  - plugins-configmap.yaml
+
+images:
+  - name: payload-processing
+    newName: quay.io/opendatahub/odh-ai-gateway-payload-processing
+    newTag: ed049f48739fc4c52f30080c4337073595fd95b6

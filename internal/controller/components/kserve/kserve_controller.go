@@ -227,6 +227,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),
 		)).
 		WithAction(customizeKserveConfigMap).
+		WithAction(customizeIPPResources).
 		WithAction(func(ctx context.Context, rr *types.ReconciliationRequest) error {
 			return versionedWellKnownLLMInferenceServiceConfigs(ctx, versionPrefix, rr)
 		}).

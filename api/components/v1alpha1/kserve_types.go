@@ -80,6 +80,8 @@ type KserveCommonSpec struct {
 	NIM NimSpec `json:"nim,omitempty"`
 	// Configures and enables Models as a Service integration
 	ModelsAsService DSCModelsAsServiceSpec `json:"modelsAsService,omitempty"`
+	// Configures and enables Inference Payload Processing (IPP) for AI Gateway
+	InferencePayloadProcessing InferencePayloadProcessingSpec `json:"inferencePayloadProcessing,omitempty"`
 	// Configures and enables workload-variant-autoscaler (WVA) integration
 	WVA WVASpec `json:"wva,omitempty"`
 	// Configures and enables Model Cache integration
@@ -101,6 +103,15 @@ type NimSpec struct {
 
 // WVASpec enables workload-variant-autoscaler integration
 type WVASpec struct {
+	// +kubebuilder:validation:Enum=Managed;Removed
+	// +kubebuilder:default=Removed
+	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
+}
+
+// InferencePayloadProcessingSpec enables Inference Payload Processing (IPP) for AI Gateway.
+// IPP runs as ext_proc filters in the gateway, handling model routing, API translation,
+// and API key injection for inference requests.
+type InferencePayloadProcessingSpec struct {
 	// +kubebuilder:validation:Enum=Managed;Removed
 	// +kubebuilder:default=Removed
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`

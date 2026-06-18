@@ -17,6 +17,8 @@ spec:
       rawDeploymentServiceConfig: "Headed"
       modelsAsService:
         managementState: "Removed"
+      inferencePayloadProcessing:
+        managementState: "Removed"
       wva:
         managementState: "Removed"
     kueue:

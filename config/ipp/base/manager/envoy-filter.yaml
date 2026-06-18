@@ -1,0 +1,97 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: payload-processing
+  namespace: openshift-ingress
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: maas-default-gateway
+  configPatches:
+    # Stage 1: must run BEFORE the WasmPlugin so auth sees X-Gateway-Model-Name.
+    - applyTo: HTTP_FILTER
+      match:
+        context: GATEWAY
+        listener:
+          filterChain:
+            filter:
+              name: "envoy.filters.network.http_connection_manager"
+              subFilter:
+                name: extensions.istio.io/wasmplugin/openshift-ingress.kuadrant-maas-default-gateway
+      patch:
+        operation: INSERT_BEFORE
+        value:
+          name: envoy.filters.http.ext_proc.bbr-pre
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor
+            failure_mode_allow: true
+            allow_mode_override: true
+            processing_mode:
+              request_header_mode: "SEND"
+              response_header_mode: "SKIP"
+              request_body_mode: "FULL_DUPLEX_STREAMED"
+              response_body_mode: "NONE"
+              request_trailer_mode: "SEND"
+            grpc_service:
+              envoy_grpc:
+                cluster_name: outbound|9004||payload-pre-processing.openshift-ingress.svc.cluster.local
+    # Stage 2: must run AFTER the WasmPlugin (needs auth to have completed).
+    - applyTo: HTTP_FILTER
+      match:
+        context: GATEWAY
+        listener:
+          filterChain:
+            filter:
+              name: "envoy.filters.network.http_connection_manager"
+              subFilter:
+                name: extensions.istio.io/wasmplugin/openshift-ingress.kuadrant-maas-default-gateway
+      patch:
+        operation: INSERT_AFTER
+        value:
+          name: envoy.filters.http.ext_proc.bbr
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor
+            failure_mode_allow: false
+            allow_mode_override: true
+            processing_mode:
+              request_header_mode: "SEND"
+              response_header_mode: "SEND"
+              request_body_mode: "FULL_DUPLEX_STREAMED"
+              response_body_mode: "FULL_DUPLEX_STREAMED"
+              request_trailer_mode: "SEND"
+              response_trailer_mode: "SEND"
+            grpc_service:
+              envoy_grpc:
+                cluster_name: outbound|9004||payload-processing.openshift-ingress.svc.cluster.local
+    # Disable ext_proc on non-inference routes (maas-api /v1/models).
+    # Route name follows Istio's Gateway API naming: <namespace>.<httproute-name>.<rule-index>
+    - applyTo: HTTP_ROUTE
+      match:
+        context: GATEWAY
+        routeConfiguration:
+          vhost:
+            route:
+              name: "PLACEHOLDER.maas-api-route.0"
+      patch:
+        operation: MERGE
+        value:
+          typed_per_filter_config:
+            envoy.filters.http.ext_proc.bbr-pre:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.ext_proc.v3.ExtProcPerRoute
+              disabled: true
+    # Disable ext_proc on non-inference routes (maas-api /maas-api/*).
+    - applyTo: HTTP_ROUTE
+      match:
+        context: GATEWAY
+        routeConfiguration:
+          vhost:
+            route:
+              name: "PLACEHOLDER.maas-api-route.1"
+      patch:
+        operation: MERGE
+        value:
+          typed_per_filter_config:
+            envoy.filters.http.ext_proc.bbr-pre:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.ext_proc.v3.ExtProcPerRoute
+              disabled: true

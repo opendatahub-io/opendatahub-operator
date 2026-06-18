@@ -62,6 +62,10 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 		rr.Manifests = append(rr.Manifests, kserveManifestInfo(rr.ManifestsBasePath, kserveManifestSourcePathModelCache))
 	}
 
+	if k.Spec.InferencePayloadProcessing.ManagementState == operatorv1.Managed {
+		rr.Manifests = append(rr.Manifests, ippManifestInfo(rr.ManifestsBasePath, ippManifestSourcePath))
+	}
+
 	return nil
 }
 

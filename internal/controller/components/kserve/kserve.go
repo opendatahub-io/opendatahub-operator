@@ -29,6 +29,8 @@ const (
 	kserveManifestSourcePath           = "overlays/odh"
 	kserveManifestSourcePathXKS        = "overlays/odh-xks"
 	kserveManifestSourcePathModelCache = "overlays/odh-modelcache"
+	ippComponentName                   = "ipp"
+	ippManifestSourcePath              = "overlays/odh"
 
 	// LegacyComponentName is the name of the component that is assigned to deployments
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
@@ -71,6 +73,12 @@ func (s *componentHandler) Init(_ common.Platform, cfg operatorconfig.OperatorSe
 	mcMP := kserveManifestInfo(manifestsBasePath, kserveManifestSourcePathModelCache)
 	if err := odhdeploy.ApplyParams(mcMP.String(), "params.env", imageParamMap); err != nil {
 		return fmt.Errorf("failed to update images on path %s: %w", mcMP, err)
+	}
+
+	// Apply image params to the IPP overlay.
+	ippMP := ippManifestInfo(manifestsBasePath, ippManifestSourcePath)
+	if err := odhdeploy.ApplyParams(ippMP.String(), "params.env", ippImageParamMap); err != nil {
+		return fmt.Errorf("failed to update IPP images on path %s: %w", ippMP, err)
 	}
 
 	// Apply cert-manager issuer params to the xKS overlay.

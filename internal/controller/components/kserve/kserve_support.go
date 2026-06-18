@@ -31,6 +31,10 @@ import (
 var (
 	ErrResourceNotFound = errors.New("resource not found")
 
+	ippImageParamMap = map[string]string{
+		"payload-processing": "RELATED_IMAGE_ODH_AI_GATEWAY_PAYLOAD_PROCESSING_IMAGE",
+	}
+
 	imageParamMap = map[string]string{
 		"kserve-agent":                     "RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE",
 		"kserve-controller":                "RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE",
@@ -85,6 +89,14 @@ func kserveManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInf
 	return odhtypes.ManifestInfo{
 		Path:       basePath,
 		ContextDir: componentName,
+		SourcePath: sourcePath,
+	}
+}
+
+func ippManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInfo {
+	return odhtypes.ManifestInfo{
+		Path:       basePath,
+		ContextDir: ippComponentName,
 		SourcePath: sourcePath,
 	}
 }

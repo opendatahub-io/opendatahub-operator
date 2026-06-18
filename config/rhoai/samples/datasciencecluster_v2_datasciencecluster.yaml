@@ -16,6 +16,8 @@ spec:
         managementState: "Managed"
       modelsAsService:
         managementState: "Removed"
+      inferencePayloadProcessing:
+        managementState: "Removed"
       wva:
         managementState: "Removed"
     kueue:
