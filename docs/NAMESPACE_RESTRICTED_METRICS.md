@@ -33,7 +33,7 @@ Prometheus (prometheus-operated service on port 9090)
 
 1. Extracts the `namespace` query parameter from incoming requests
 2. Validates the bearer token via TokenReview API call to Kubernetes API server
-3. Performs SubjectAccessReview to verify the user has `get pods` permission in the `metrics.k8s.io` API group for the specified namespace
+3. Performs SubjectAccessReview for `metrics.k8s.io/pods` in the specified namespace, with the verb derived from the HTTP method (`GET`→`get`, `POST`→`create`)
 4. Allows (proxies to prom-label-proxy) or denies (403 Forbidden) based on the result
 
 **Configuration**: `data-science-prometheus-restricted-config` ConfigMap
@@ -111,17 +111,24 @@ curl "https://.../api/v1/query?query=up&namespace=my-namespace"
 
 **Error Message:**
 
-```
+```text
 Forbidden (user=<username>, verb=get, resource=pods, subresource=)
 ```
 
-**Cause**: User lacks permissions for `metrics.k8s.io/pods` resource in the requested namespace
+or (for POST requests, e.g. from Perses):
+
+```text
+Forbidden (user=<username>, verb=create, resource=pods, subresource=)
+```
+
+**Cause**: User lacks permissions for `metrics.k8s.io/pods` resource in the requested namespace. The verb in the error corresponds to the HTTP method used (GET→`get`, POST→`create`).
 
 **Diagnostic**:
 
 ```bash
-# Check who has metrics permissions
+# Check who has metrics permissions (use the verb from the error message)
 oc adm policy who-can get pods.metrics.k8s.io -n my-namespace
+oc adm policy who-can create pods.metrics.k8s.io -n my-namespace
 ```
 
 **Fix**: Grant appropriate role
@@ -137,7 +144,7 @@ oc adm policy add-role-to-user view alice -n my-namespace
 oc adm policy add-role-to-user edit alice -n my-namespace
 ```
 
-**Note**: OpenShift's built-in roles (view, edit, admin) already include `metrics.k8s.io` permissions.
+**Note**: OpenShift's built-in roles (view, edit, admin) include `get` permissions for `metrics.k8s.io`. The operator's `data-science-metrics-view` ClusterRole aggregates the `create` verb into these roles to support POST-based clients like Perses.
 
 ---
 
@@ -199,14 +206,19 @@ oc get namespaces | grep my-namespace
 
 ### SubjectAccessReview Details
 
-The kube-rbac-proxy performs authorization checks with these attributes:
+The kube-rbac-proxy config omits `verb` from `resourceAttributes`, so it derives the verb from the HTTP method of each incoming request:
+
+| HTTP Method | SAR Verb | Used By |
+|-------------|----------|---------|
+| GET         | `get`    | curl, browser, Grafana |
+| POST        | `create` | Perses, large PromQL queries |
 
 ```yaml
 resourceAttributes:
   apiGroup: metrics.k8s.io
   resource: pods
   namespace: "<value from query parameter>"
-  verb: get
+  # verb is omitted — derived from HTTP method (GET→get, POST→create)
 ```
 
 This is **different** from checking pod visibility (core API):
@@ -223,10 +235,12 @@ resourceAttributes:
 
 OpenShift built-in roles that include `metrics.k8s.io/pods` permission:
 
-- ✅ `view` - Read-only access to namespace resources including metrics
-- ✅ `edit` - Modify namespace resources including metrics access
-- ✅ `admin` - Full namespace control including metrics access
+- ✅ `view` - Read-only access including metrics (`get`, `list`, `watch`)
+- ✅ `edit` - Modify namespace resources including metrics access (`get`, `list`, `watch`)
+- ✅ `admin` - Full namespace control including metrics access (`get`, `list`, `watch`)
 - ✅ `cluster-monitoring-view` - Metrics-specific read access
+
+These built-in roles cover **GET** requests. For **POST** requests (used by Perses), the operator deploys an aggregated `data-science-metrics-view` ClusterRole that adds the `create` verb to `view`, `edit`, and `admin`. The `metrics.k8s.io` API is read-only, so granting `create` has no side-effects — it only satisfies the SAR authorization check.
 
 Custom roles need explicit grants:
 
@@ -234,7 +248,7 @@ Custom roles need explicit grants:
 rules:
   - apiGroups: ["metrics.k8s.io"]
     resources: ["pods"]
-    verbs: ["get"]
+    verbs: ["get", "create"]
 ```
 
 ## Security Features
@@ -322,6 +336,7 @@ Look for:
 ### Test SubjectAccessReview Directly
 
 ```bash
+# Test GET access (verb: get)
 cat <<EOF | oc create -f -
 apiVersion: authorization.k8s.io/v1
 kind: SubjectAccessReview
@@ -329,6 +344,19 @@ spec:
   resourceAttributes:
     namespace: my-namespace
     verb: get
+    group: metrics.k8s.io
+    resource: pods
+  user: alice
+EOF
+
+# Test POST access (verb: create) — needed for Perses
+cat <<EOF | oc create -f -
+apiVersion: authorization.k8s.io/v1
+kind: SubjectAccessReview
+spec:
+  resourceAttributes:
+    namespace: my-namespace
+    verb: create
     group: metrics.k8s.io
     resource: pods
   user: alice
