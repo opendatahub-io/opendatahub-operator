@@ -1,0 +1,17 @@
+apiVersion: monitoring.rhobs/v1
+kind: PrometheusRule
+metadata:
+  name: mcplifecycleoperator-alerts
+  namespace: {{.Namespace}}
+spec:
+  groups:
+    - name: MCP Lifecycle Operator
+      interval: 1m
+      rules:
+        - alert: MCP Lifecycle Operator is not running
+          expr: absent(up{job=~'MCP Lifecycle Operator'}) or up{job=~'MCP Lifecycle Operator'} != 1
+          labels:
+            severity: warning
+          annotations:
+            description: This alert fires when the MCP Lifecycle Operator is not running.
+            summary: Alerting for MCP Lifecycle Operator
