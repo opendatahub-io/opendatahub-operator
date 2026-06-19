@@ -229,6 +229,12 @@ var (
 		Kind:    "Ingress",
 	}
 
+	OpenshiftAPIServer = schema.GroupVersionKind{
+		Group:   configv1.GroupVersion.Group,
+		Version: configv1.GroupVersion.Version,
+		Kind:    "APIServer",
+	}
+
 	SecurityContextConstraints = schema.GroupVersionKind{
 		Group:   securityv1.SchemeGroupVersion.Group,
 		Version: securityv1.SchemeGroupVersion.Version,

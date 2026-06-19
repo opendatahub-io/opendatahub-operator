@@ -264,11 +264,11 @@ endif
 	@$(call add-crd-to-kustomization,$(CONFIG_DIR)/crd/bases)
 	@$(call fetch-external-crds,github.com/openshift/api,route/v1)
 	@$(call fetch-external-crds,github.com/openshift/api,user/v1)
-	@$(call fetch-external-crds,github.com/openshift/api,config/v1,authentications ingresses)
+	@$(call fetch-external-crds,github.com/openshift/api,config/v1,authentications ingresses apiservers)
 	@$(call fetch-external-crds,github.com/openshift/api,oauth/v1)
 	@# Copy IngressController CRD for gateway LoadBalancer mode (envtest integration tests)
 	@rm -f $(CONFIG_DIR)/crd/external/0000_50_ingress-operator_00-ingresscontroller.crd.yaml
-	@cp $(shell go env GOPATH)/pkg/mod/github.com/openshift/api@$(call go-mod-version,github.com/openshift/api)/operator/v1/0000_50_ingress-operator_00-ingresscontroller.crd.yaml $(CONFIG_DIR)/crd/external/
+	@cp $(shell go env GOPATH)/pkg/mod/github.com/openshift/api@$(call go-mod-version,github.com/openshift/api)/operator/v1/zz_generated.crd-manifests/0000_50_ingress_00_ingresscontrollers-Default.crd.yaml $(CONFIG_DIR)/crd/external/0000_50_ingress-operator_00-ingresscontroller.crd.yaml
 	@# Copy Gateway API CRDs from Go module cache
 	@# rm -f first to handle CI environments where cached files may have restrictive permissions
 	@rm -f $(CONFIG_DIR)/crd/external/gateway.networking.k8s.io_*.yaml
@@ -276,6 +276,7 @@ endif
 	@# Fix OpenShift CRD scopes (OpenShift API incorrectly marks them as Namespaced, but they're Cluster-scoped)
 	@$(SED_COMMAND) -i'' -e 's/scope: Namespaced/scope: Cluster/' $(CONFIG_DIR)/crd/external/config.openshift.io_ingresses.yaml
 	@$(SED_COMMAND) -i'' -e 's/scope: Namespaced/scope: Cluster/' $(CONFIG_DIR)/crd/external/config.openshift.io_authentications.yaml
+	@$(SED_COMMAND) -i'' -e 's/scope: Namespaced/scope: Cluster/' $(CONFIG_DIR)/crd/external/config.openshift.io_apiservers.yaml
 	@$(SED_COMMAND) -i'' -e 's/scope: Namespaced/scope: Cluster/' $(CONFIG_DIR)/crd/external/oauth.openshift.io_oauthclients.yaml
 	@# Copy KServe CRD to shared rhaii overlay and generate kustomization
 	@mkdir -p config/rhaii/crd/bases

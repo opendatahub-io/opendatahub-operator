@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 
+	configv1 "github.com/openshift/api/config/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -18,6 +19,7 @@ import (
 
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -447,4 +449,56 @@ func GatewayConfigDomainChanged() predicate.Predicate {
 			return false
 		},
 	}
+}
+
+// APIServerTLSSecurityProfileChanged returns a predicate that triggers reconciliation when the
+// cluster APIServer spec.tlsSecurityProfile changes.
+func APIServerTLSSecurityProfileChanged() predicate.Predicate {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return isClusterAPIServer(e.Object)
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return isClusterAPIServer(e.Object)
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			if !isClusterAPIServer(e.ObjectNew) {
+				return false
+			}
+			oldAPI, oldErr := toAPIServer(e.ObjectOld)
+			newAPI, newErr := toAPIServer(e.ObjectNew)
+			if oldErr != nil || newErr != nil {
+				// Reconcile when either object cannot be converted so TLS args stay in sync.
+				return true
+			}
+			return !reflect.DeepEqual(oldAPI.Spec.TLSSecurityProfile, newAPI.Spec.TLSSecurityProfile)
+		},
+		GenericFunc: func(e event.GenericEvent) bool {
+			return false
+		},
+	}
+}
+
+func isClusterAPIServer(obj client.Object) bool {
+	if obj == nil {
+		return false
+	}
+	return obj.GetName() == cluster.ClusterAPIServerObj
+}
+
+func toAPIServer(obj client.Object) (*configv1.APIServer, error) {
+	if apiServer, ok := obj.(*configv1.APIServer); ok {
+		return apiServer, nil
+	}
+	if unstr, ok := obj.(*unstructured.Unstructured); ok {
+		if !hasGVK(unstr, gvk.OpenshiftAPIServer) {
+			return nil, fmt.Errorf("unexpected GVK: %v", unstr.GetObjectKind().GroupVersionKind())
+		}
+		var apiServer configv1.APIServer
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstr.Object, &apiServer); err != nil {
+			return nil, fmt.Errorf("failed to convert unstructured to APIServer: %w", err)
+		}
+		return &apiServer, nil
+	}
+	return nil, fmt.Errorf("object is neither typed APIServer nor unstructured: %T", obj)
 }
