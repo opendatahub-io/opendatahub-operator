@@ -56,7 +56,7 @@ extract_cloudmanager_charts() {
 }
 
 # Collect role and clusterrole names from rendered chart templates.
-# Only processes charts referenced by cloudmanager (extracted from charts.go).
+# Only processes charts referenced by cloudmanager (extracted from get_all_manifests.sh).
 # Output format: <chart_name> <kind> <name>
 collect_names() {
   local chart_names
