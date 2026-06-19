@@ -306,7 +306,6 @@ func (tc *MonitoringTestCtx) runPersesTests(t *testing.T) {
 	// Tests related to Perses deployment, configuration, and datasources
 	// ========================================================================
 	t.Run("Group 8: Perses", func(t *testing.T) {
-		t.Skip("RHOAIENG-69429: Skipping Perses tests")
 		// Cleanup: Reset at group end
 		t.Cleanup(func() {
 			tc.cleanupGroup(t, "")
