@@ -9,6 +9,9 @@ package gateway
 // Dashboard CR (read-only, to check if Dashboard is deployed before creating redirects)
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=dashboards,verbs=get;list;watch
 
+// OpenShift APIServer config (TLS security profile for kube-auth-proxy)
+// +kubebuilder:rbac:groups="config.openshift.io",resources=apiservers,verbs=get;list;watch
+
 // Gateway API resources (what the controller actually creates)
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways;gatewayclasses;httproutes,verbs=get;list;watch;create;update;patch;delete
 // Gateway controller creates and manages the following Istio resources
