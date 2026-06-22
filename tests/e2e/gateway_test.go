@@ -1162,7 +1162,7 @@ func (tc *GatewayTestCtx) ValidateNetworkPolicy(t *testing.T) {
 			jq.Match(`.spec.ingress[1].from[0].namespaceSelector.matchLabels."kubernetes.io/metadata.name" == "openshift-monitoring"`),
 			jq.Match(`.spec.ingress[2].from[0].namespaceSelector.matchLabels."kubernetes.io/metadata.name" == "openshift-user-workload-monitoring"`),
 		)),
-		WithCustomErrorMsg("NetworkPolicy should exist with correct ingress rules for kube-auth-proxy"),
+		WithCustomErrorMsg("NetworkPolicy should exist with correct ingress and egress rules for kube-auth-proxy"),
 	)
 
 	t.Log("NetworkPolicy validation completed")
