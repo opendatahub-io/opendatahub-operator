@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/kustomize/api/builtins" //nolint:staticcheck // Remove after package update
 	"sigs.k8s.io/kustomize/api/krusty"
@@ -126,6 +127,17 @@ func buildMaasOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconci
 		return nil, fmt.Errorf("application namespace for maas-controller install: %w", err)
 	}
 
+	monitoringNs, err := cluster.MonitoringNamespace(ctx, rr.Client)
+	if err != nil {
+		return nil, fmt.Errorf("monitoring namespace for maas-controller install: %w", err)
+	}
+	if monitoringNs == "" {
+		return nil, errors.New("monitoring namespace cannot be empty")
+	}
+	if errs := validation.IsDNS1123Label(monitoringNs); len(errs) > 0 {
+		return nil, fmt.Errorf("monitoring namespace %q is not a valid DNS-1123 label: %v", monitoringNs, errs)
+	}
+
 	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
 	fs := filesys.MakeFsOnDisk()
 	resMap, err := k.Run(fs, kPath)
@@ -173,7 +185,7 @@ func buildMaasOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconci
 		extra = append(extra, unstructured.Unstructured{Object: m})
 	}
 
-	paramsCM, err := maasParametersConfigMapFromParamsEnv(root, appNs, componentLabels)
+	paramsCM, err := maasParametersConfigMapFromParamsEnv(root, appNs, monitoringNs, componentLabels)
 	if err != nil {
 		return nil, fmt.Errorf("build maas-parameters ConfigMap from params.env: %w", err)
 	}
@@ -192,7 +204,7 @@ func buildMaasOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconci
 // and builds the maas-parameters ConfigMap that is deployed alongside
 // maas-controller. This is the authoritative source of maas-parameters;
 // the Tenant reconciler consumes it rather than regenerating it.
-func maasParametersConfigMapFromParamsEnv(manifestsBasePath string, appNs string, componentLabels map[string]string) (*unstructured.Unstructured, error) {
+func maasParametersConfigMapFromParamsEnv(manifestsBasePath string, appNs string, monitoringNs string, componentLabels map[string]string) (*unstructured.Unstructured, error) {
 	paramsFile := filepath.Join(manifestsBasePath, MaasManifestContextDir, BaseManifestsSourcePath, "params.env")
 	paramsMap, err := parseParamsEnv(paramsFile)
 	if err != nil {
@@ -203,6 +215,11 @@ func maasParametersConfigMapFromParamsEnv(manifestsBasePath string, appNs string
 	// RHOAI deployments (redhat-ods-applications) don't use the ODH default
 	// hardcoded in params.env (opendatahub).
 	paramsMap["app-namespace"] = appNs
+
+	// Override monitoring-namespace with the resolved monitoring namespace so that
+	// RHOAI deployments (redhat-ods-monitoring) don't use the ODH default
+	// hardcoded in params.env (opendatahub).
+	paramsMap["monitoring-namespace"] = monitoringNs
 
 	data := make(map[string]any, len(paramsMap))
 	for k, v := range paramsMap {
