@@ -227,8 +227,9 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed"   : present for backwards compatibility with OLM upgrades, but not supported at runtime.<br />                The operator will reject this value. Use "Unmanaged" or "Removed" instead.<br />- "Unmanaged" : the operator will not deploy or manage the component's lifecycle, but may create supporting configuration resources.<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
-| `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name. | default |  |
-| `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name. | default |  |
+| `autoCreateQueues` _boolean_ | AutoCreateQueues controls whether the operator automatically creates default<br />ClusterQueue and LocalQueue resources in managed namespaces. When false (the default),<br />the operator skips queue creation entirely, allowing administrators to manage queues<br />via GitOps or other external tooling. HardwareProfiles of type "Queue" continue to<br />reference externally-managed LocalQueues without change. | false |  |
+| `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name.<br />Only used when autoCreateQueues is true. | default |  |
+| `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name.<br />Only used when autoCreateQueues is true. | default |  |
 
 
 #### DSCKueueStatus
@@ -1072,8 +1073,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name. | default |  |
-| `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name. | default |  |
+| `autoCreateQueues` _boolean_ | AutoCreateQueues controls whether the operator automatically creates default<br />ClusterQueue and LocalQueue resources in managed namespaces. When false (the default),<br />the operator skips queue creation entirely, allowing administrators to manage queues<br />via GitOps or other external tooling. HardwareProfiles of type "Queue" continue to<br />reference externally-managed LocalQueues without change. | false |  |
+| `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name.<br />Only used when autoCreateQueues is true. | default |  |
+| `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name.<br />Only used when autoCreateQueues is true. | default |  |
 
 
 #### KueueManagementSpec
@@ -1108,8 +1110,9 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed"   : present for backwards compatibility with OLM upgrades, but not supported at runtime.<br />                The operator will reject this value. Use "Unmanaged" or "Removed" instead.<br />- "Unmanaged" : the operator will not deploy or manage the component's lifecycle, but may create supporting configuration resources.<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
-| `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name. | default |  |
-| `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name. | default |  |
+| `autoCreateQueues` _boolean_ | AutoCreateQueues controls whether the operator automatically creates default<br />ClusterQueue and LocalQueue resources in managed namespaces. When false (the default),<br />the operator skips queue creation entirely, allowing administrators to manage queues<br />via GitOps or other external tooling. HardwareProfiles of type "Queue" continue to<br />reference externally-managed LocalQueues without change. | false |  |
+| `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name.<br />Only used when autoCreateQueues is true. | default |  |
+| `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name.<br />Only used when autoCreateQueues is true. | default |  |
 
 
 #### KueueStatus
@@ -2451,8 +2454,9 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed"   : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Unmanaged" : the operator will not deploy or manage the component's lifecycle, but may create supporting configuration resources.<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
-| `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name. | default |  |
-| `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name. | default |  |
+| `autoCreateQueues` _boolean_ | AutoCreateQueues controls whether the operator automatically creates default<br />ClusterQueue and LocalQueue resources in managed namespaces. When false (the default),<br />the operator skips queue creation entirely, allowing administrators to manage queues<br />via GitOps or other external tooling. HardwareProfiles of type "Queue" continue to<br />reference externally-managed LocalQueues without change. | false |  |
+| `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name.<br />Only used when autoCreateQueues is true. | default |  |
+| `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name.<br />Only used when autoCreateQueues is true. | default |  |
 
 
 #### DataScienceCluster

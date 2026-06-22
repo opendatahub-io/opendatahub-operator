@@ -532,16 +532,24 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 		},
 	}
 
+	autoCreateTrue := true
+	autoCreateFalse := false
+
 	var tests = []struct {
 		name                      string
 		managedState              operatorv1.ManagementState
+		autoCreateQueues          *bool
 		totalResourceCount        int
 		expectKueueConfigResource bool
+		expectQueues              bool
 		withGPU                   bool
 	}{
-		{"managed", operatorv1.Managed, 5, false, false},
-		{"unmanaged", operatorv1.Unmanaged, 6, true, false},
-		{"managedWithGPU", operatorv1.Managed, 7, false, true},
+		{"managed", operatorv1.Managed, &autoCreateTrue, 5, false, true, false},
+		{"unmanaged", operatorv1.Unmanaged, &autoCreateTrue, 6, true, true, false},
+		{"managedWithGPU", operatorv1.Managed, &autoCreateTrue, 7, false, true, true},
+		{"managedAutoCreateFalse", operatorv1.Managed, &autoCreateFalse, 0, false, false, false},
+		{"managedAutoCreateNil", operatorv1.Managed, nil, 0, false, false, false},
+		{"unmanagedAutoCreateFalse", operatorv1.Unmanaged, &autoCreateFalse, 1, true, false, false},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -552,6 +560,7 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 						ManagementState: test.managedState,
 					},
 					KueueDefaultQueueSpec: componentApi.KueueDefaultQueueSpec{
+						AutoCreateQueues:        test.autoCreateQueues,
 						DefaultLocalQueueName:   defaultLocalQueueName,
 						DefaultClusterQueueName: defaultClusterQueueName,
 					},
@@ -641,33 +650,39 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 				g.Expect(kueueConfig.GetName()).To(Equal(kueueConfigName))
 			}
 
-			flavorNames := []string{DefaultFlavorName}
-			if test.withGPU {
-				flavorNames = append(flavorNames, NvidiaFlavorName, AMDFlavorName)
-			}
-			g.Expect(resourceFlavors).To(HaveLen(len(flavorNames)))
-			for _, rf := range resourceFlavors {
-				g.Expect(rf.GetName()).To(BeElementOf(flavorNames))
-				g.Expect(rf.GetNamespace()).To(BeEmpty()) // ResourceFlavor is cluster-scoped
-				g.Expect(rf.GetAnnotations()).To(Equal(map[string]string{
-					annotations.ManagedByODHOperator: "false",
-				}))
-			}
+			if test.expectQueues {
+				flavorNames := []string{DefaultFlavorName}
+				if test.withGPU {
+					flavorNames = append(flavorNames, NvidiaFlavorName, AMDFlavorName)
+				}
+				g.Expect(resourceFlavors).To(HaveLen(len(flavorNames)))
+				for _, rf := range resourceFlavors {
+					g.Expect(rf.GetName()).To(BeElementOf(flavorNames))
+					g.Expect(rf.GetNamespace()).To(BeEmpty()) // ResourceFlavor is cluster-scoped
+					g.Expect(rf.GetAnnotations()).To(Equal(map[string]string{
+						annotations.ManagedByODHOperator: "false",
+					}))
+				}
 
-			assertClusterQueueCorrectness(g, clusterQueue, test.withGPU, defaultClusterQueueName, flavorNames)
+				assertClusterQueueCorrectness(g, clusterQueue, test.withGPU, defaultClusterQueueName, flavorNames)
 
-			g.Expect(localQueues).To(HaveLen(3))
-			namespacesNames := make([]string, 0, len(localQueues))
-			for _, lc := range localQueues {
-				g.Expect(lc).ToNot(BeNil())
-				g.Expect(lc.GetName()).To(Equal(defaultLocalQueueName))
-				namespacesNames = append(namespacesNames, lc.GetNamespace())
+				g.Expect(localQueues).To(HaveLen(3))
+				namespacesNames := make([]string, 0, len(localQueues))
+				for _, lc := range localQueues {
+					g.Expect(lc).ToNot(BeNil())
+					g.Expect(lc.GetName()).To(Equal(defaultLocalQueueName))
+					namespacesNames = append(namespacesNames, lc.GetNamespace())
+				}
+				g.Expect(namespacesNames).To(HaveLen(3))
+				g.Expect(slices.Contains(namespacesNames, "test-managed-ns")).Should(BeTrue())
+				g.Expect(slices.Contains(namespacesNames, "test-legacy-managed-ns")).Should(BeTrue())
+				g.Expect(slices.Contains(namespacesNames, "test-both-managed-ns")).Should(BeTrue())
+				g.Expect(slices.Contains(namespacesNames, "test-terminating-ns")).Should(BeFalse())
+			} else {
+				g.Expect(clusterQueue).To(BeNil())
+				g.Expect(localQueues).To(BeEmpty())
+				g.Expect(resourceFlavors).To(BeEmpty())
 			}
-			g.Expect(namespacesNames).To(HaveLen(3))
-			g.Expect(slices.Contains(namespacesNames, "test-managed-ns")).Should(BeTrue())
-			g.Expect(slices.Contains(namespacesNames, "test-legacy-managed-ns")).Should(BeTrue())
-			g.Expect(slices.Contains(namespacesNames, "test-both-managed-ns")).Should(BeTrue())
-			g.Expect(slices.Contains(namespacesNames, "test-terminating-ns")).Should(BeFalse())
 		})
 	}
 }
