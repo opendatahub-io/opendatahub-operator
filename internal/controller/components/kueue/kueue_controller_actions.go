@@ -148,6 +148,10 @@ func manageDefaultKueueResourcesAction(ctx context.Context, rr *odhtypes.Reconci
 		rr.Resources = append(rr.Resources, *defaultKueueConfig)
 	}
 
+	if kueueCRInstance.Spec.AutoCreateQueues == nil || !*kueueCRInstance.Spec.AutoCreateQueues {
+		return nil
+	}
+
 	resolvedGVKs, err := resolveKueueResourceGVKs(ctx, rr.Client)
 	if err != nil {
 		return fmt.Errorf("failed to resolve kueue resource GVKs: %w", err)

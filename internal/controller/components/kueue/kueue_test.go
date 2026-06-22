@@ -51,6 +51,27 @@ func TestNewCRObject(t *testing.T) {
 	)))
 }
 
+func TestNewCRObject_AutoCreateQueues(t *testing.T) {
+	handler := &componentHandler{}
+	autoCreateTrue := true
+
+	g := NewWithT(t)
+	dsc := createDSCWithKueue(operatorv1.Unmanaged)
+	dsc.Spec.Components.Kueue.AutoCreateQueues = &autoCreateTrue
+	dsc.Spec.Components.Kueue.DefaultClusterQueueName = "my-cq"
+	dsc.Spec.Components.Kueue.DefaultLocalQueueName = "my-lq"
+
+	cr, err := handler.NewCRObject(context.Background(), nil, dsc)
+	g.Expect(err).To(Succeed())
+
+	kueueCR, ok := cr.(*componentApi.Kueue)
+	g.Expect(ok).To(BeTrue())
+	g.Expect(kueueCR.Spec.AutoCreateQueues).ToNot(BeNil())
+	g.Expect(*kueueCR.Spec.AutoCreateQueues).To(BeTrue())
+	g.Expect(kueueCR.Spec.DefaultClusterQueueName).To(Equal("my-cq"))
+	g.Expect(kueueCR.Spec.DefaultLocalQueueName).To(Equal("my-lq"))
+}
+
 func TestIsEnabled(t *testing.T) {
 	handler := &componentHandler{}
 
