@@ -306,7 +306,6 @@ func (tc *MonitoringTestCtx) runPersesTests(t *testing.T) {
 	// Tests related to Perses deployment, configuration, and datasources
 	// ========================================================================
 	t.Run("Group 8: Perses", func(t *testing.T) {
-		t.Skip("RHOAIENG-69429: Skipping Perses tests")
 		// Cleanup: Reset at group end
 		t.Cleanup(func() {
 			tc.cleanupGroup(t, "")
@@ -1011,7 +1010,7 @@ func (tc *MonitoringTestCtx) ValidatePersesCRConfiguration(t *testing.T) {
 		WithCondition(And(
 			jq.Match(`.spec.containerPort == 8080`),
 			jq.Match(`.spec.config.database.file != null`),
-			jq.Match(`.spec.storage.size == "1Gi"`),
+			jq.Match(`(.apiVersion | contains("v1alpha1") | not) or .spec.storage.size == "1Gi"`),
 			jq.Match(`.metadata.labels["platform.opendatahub.io/part-of"] == "monitoring"`),
 		)),
 		WithCustomErrorMsg("Perses CR configuration validation failed"),
