@@ -293,26 +293,51 @@ func TestRunAll_EmptyList(t *testing.T) {
 }
 
 func TestRunAll_ClusterTypeFiltering(t *testing.T) {
-	g := NewWithT(t)
+	t.Run("skipped dependent precondition writes True condition", func(t *testing.T) {
+		g := NewWithT(t)
 
-	cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
-	t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+		cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+		t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
 
-	rr := newRR(status.ConditionDependenciesAvailable)
-	pcs := []PreCondition{
-		newPreCondition(
-			failingCheck("k8s only check"),
-			WithClusterTypes(cluster.ClusterTypeKubernetes),
-			WithStopReconciliation(),
-		),
-	}
+		rr := newRR(status.ConditionDependenciesAvailable)
+		pcs := []PreCondition{
+			newPreCondition(
+				failingCheck("k8s only check"),
+				WithClusterTypes(cluster.ClusterTypeKubernetes),
+				WithStopReconciliation(),
+			),
+		}
 
-	shouldStop := RunAll(t.Context(), rr, pcs)
+		shouldStop := RunAll(t.Context(), rr, pcs)
 
-	g.Expect(shouldStop).To(BeFalse())
-	got := rr.Conditions.GetCondition(status.ConditionDependenciesAvailable)
-	g.Expect(got).NotTo(BeNil())
-	g.Expect(got.Status).NotTo(Equal(metav1.ConditionFalse))
+		g.Expect(shouldStop).To(BeFalse())
+		got := rr.Conditions.GetCondition(status.ConditionDependenciesAvailable)
+		g.Expect(got).NotTo(BeNil())
+		g.Expect(got.Status).To(Equal(metav1.ConditionTrue))
+	})
+
+	t.Run("skipped non-dependent precondition does not write condition", func(t *testing.T) {
+		g := NewWithT(t)
+
+		const optionalDep = "OptionalDependency"
+
+		cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeOpenShift})
+		t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+		rr := newRR()
+		pcs := []PreCondition{
+			newPreCondition(
+				failingCheck("k8s only check"),
+				WithConditionType(optionalDep),
+				WithClusterTypes(cluster.ClusterTypeKubernetes),
+			),
+		}
+
+		RunAll(t.Context(), rr, pcs)
+
+		got := rr.Conditions.GetCondition(optionalDep)
+		g.Expect(got).To(BeNil(), "skipped non-dependent precondition should not write any condition")
+	})
 }
 
 func TestRunAll_SkipFunc(t *testing.T) {

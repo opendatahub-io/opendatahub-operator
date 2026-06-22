@@ -158,10 +158,15 @@ func RunAll(ctx context.Context, rr *types.ReconciliationRequest, preConditions 
 		pc := &preConditions[i]
 
 		// Skip preconditions that don't apply to this cluster type.
-		// Initialize the aggregate so the condition is written as True
-		// (not-applicable = satisfied) rather than left unset.
+		// Only write a True condition for dependents (which would
+		// otherwise be marked as ConditionNotSet errors by
+		// CleanupStaleConditions). Non-dependent conditions are
+		// left unwritten so cleanup removes them as orphans.
 		if len(pc.clusterTypes) > 0 && !slices.Contains(pc.clusterTypes, clusterType) {
-			initAggregate(results, pc.conditionType)
+			if rr.Conditions.IsDependent(pc.conditionType) {
+				initAggregate(results, pc.conditionType)
+			}
+
 			continue
 		}
 
