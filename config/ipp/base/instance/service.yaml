@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: payload-processing
+  namespace: openshift-ingress
+spec:
+  selector:
+    app: payload-processing
+  ports:
+    - protocol: TCP
+      port: 9004
+      targetPort: 9004
+      appProtocol: HTTP2
+  type: ClusterIP

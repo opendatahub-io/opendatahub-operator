@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payload-processing
+  namespace: openshift-ingress
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payload-processing
+  template:
+    metadata:
+      labels:
+        app: payload-processing
+    spec:
+      serviceAccountName: payload-processing
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: payload-processing
+          image: payload-processing
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          args:
+            - "--streaming"
+            - --v
+            - "3"
+            - --plugin
+            - "$(MODEL_TO_HEADER)"
+            - --plugin
+            - "$(MODEL_PROVIDER_RESOLVER)"
+            - --plugin
+            - "$(API_TRANSLATION)"
+            - --plugin
+            - "$(APIKEY_INJECTION)"
+            - --tracing=false
+          env:
+            - name: MODEL_TO_HEADER
+              valueFrom:
+                configMapKeyRef:
+                  name: payload-processing-plugins
+                  key: model-to-header-plugin
+            - name: MODEL_PROVIDER_RESOLVER
+              valueFrom:
+                configMapKeyRef:
+                  name: payload-processing-plugins
+                  key: model-provider-resolver-plugin
+            - name: API_TRANSLATION
+              valueFrom:
+                configMapKeyRef:
+                  name: payload-processing-plugins
+                  key: api-translation-plugin
+            - name: APIKEY_INJECTION
+              valueFrom:
+                configMapKeyRef:
+                  name: payload-processing-plugins
+                  key: apikey-injection-plugin
+          ports:
+            - containerPort: 9004
+              name: grpc
+              protocol: TCP
+            - containerPort: 9005
+              name: metrics
+              protocol: TCP
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            tcpSocket:
+              port: grpc
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+            initialDelaySeconds: 5
+            periodSeconds: 10

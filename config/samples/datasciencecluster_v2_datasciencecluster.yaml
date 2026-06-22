@@ -44,3 +44,7 @@ spec:
       managementState: "Removed"
     sparkoperator:
       managementState: "Removed"
+    aigateway:
+      managementState: "Managed"
+      inferencePayloadProcessing:
+        managementState: "Removed"

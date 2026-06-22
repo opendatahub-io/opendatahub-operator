@@ -1,0 +1,41 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: payload-processing-reader
+rules:
+  # bbr-configmap-reader: upstream BBR framework needs configmap access
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+  # apikey-injection plugin: controller-runtime informer cache requires list+watch
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch"]
+  # legacy-migration + model-provider-resolver: watches legacy maas ExternalModels
+  - apiGroups: ["maas.opendatahub.io"]
+    resources: ["externalmodels"]
+    verbs: ["get", "list", "watch"]
+  # legacy-migration: ownerReferences on migrated inference CRs require finalizer permission
+  - apiGroups: ["maas.opendatahub.io"]
+    resources: ["externalmodels/finalizers"]
+    verbs: ["update"]
+  # model-provider-resolver + reconcilers: inference ExternalModel/ExternalProvider CRDs
+  - apiGroups: ["inference.opendatahub.io"]
+    resources: ["externalproviders", "externalmodels"]
+    verbs: ["get", "list", "watch", "create", "update"]
+  - apiGroups: ["inference.opendatahub.io"]
+    resources: ["externalproviders/status", "externalmodels/status"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: ["inference.opendatahub.io"]
+    resources: ["externalproviders/finalizers", "externalmodels/finalizers"]
+    verbs: ["update"]
+  # controller reconcilers: create networking resources for external models/providers
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "watch", "create", "update", "delete"]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["httproutes"]
+    verbs: ["get", "list", "watch", "create", "update", "delete"]
+  - apiGroups: ["networking.istio.io"]
+    resources: ["serviceentries", "destinationrules"]
+    verbs: ["get", "list", "watch", "create", "update", "delete"]

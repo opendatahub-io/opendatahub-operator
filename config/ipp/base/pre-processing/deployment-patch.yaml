@@ -1,0 +1,44 @@
+- op: replace
+  path: /metadata/name
+  value: payload-pre-processing
+- op: replace
+  path: /spec/selector/matchLabels/app
+  value: payload-pre-processing
+- op: replace
+  path: /spec/template/metadata/labels/app
+  value: payload-pre-processing
+- op: replace
+  path: /spec/template/spec/containers/0/name
+  value: payload-pre-processing
+- op: replace
+  path: /spec/template/spec/containers/0/args
+  value:
+    - "--streaming"
+    - --v
+    - "3"
+    - --plugin
+    - "$(MODEL_TO_HEADER)"
+    - --tracing=false
+- op: replace
+  path: /spec/template/spec/containers/0/env
+  value:
+    - name: MODEL_TO_HEADER
+      valueFrom:
+        configMapKeyRef:
+          name: payload-processing-plugins
+          key: model-to-header-plugin
+- op: replace
+  path: /spec/template/spec/containers/0/ports
+  value:
+    - containerPort: 9004
+      name: grpc
+      protocol: TCP
+- op: replace
+  path: /spec/template/spec/containers/0/resources
+  value:
+    requests:
+      memory: "32Mi"
+      cpu: "25m"
+    limits:
+      memory: "128Mi"
+      cpu: "200m"
