@@ -726,7 +726,8 @@ func (tc *GatewayTestCtx) ValidateNetworkPolicy(t *testing.T) {
 			jq.Match(`.spec.policyTypes | any(. == "Egress")`),
 
 			// Verify egress allows all outbound traffic (API server, OAuth, OIDC, DNS)
-			jq.Match(`.spec.egress | length >= 1`),
+			jq.Match(`.spec.egress | length == 1`),
+			jq.Match(`.spec.egress[0] == {}`),
 
 			// Verify ingress rules exist
 			jq.Match(`.spec.ingress | length >= 1`),
