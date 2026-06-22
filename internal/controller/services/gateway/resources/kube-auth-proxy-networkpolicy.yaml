@@ -44,5 +44,7 @@ spec:
       ports:
         - protocol: TCP
           port: {{.AuthProxyMetricsPort}}
+  # Allow all egress: kube-auth-proxy needs to reach the Kubernetes API server
+  # for OAuth discovery, external OIDC providers at dynamic IPs, and DNS.
   egress:
     - {}
