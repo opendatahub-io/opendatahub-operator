@@ -15,7 +15,7 @@ module.exports = async function ({ github, core }) {
   const updates = [];
   const missingBranches = [];
 
-  for (const components of [parsedManifests.rhoai, parsedManifests.rhoaiCharts]) {
+  for (const components of [parsedManifests.rhoai, parsedManifests.rhoaiCcmCharts, parsedManifests.rhoaiCharts]) {
     const componentsWithSha = filterComponentsWithBranchSha(components);
 
     console.log(`Found ${componentsWithSha.length} RHOAI components with branch@sha format`);
