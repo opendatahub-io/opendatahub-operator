@@ -13,6 +13,7 @@ spec:
       app: {{.KubeAuthProxyServiceName}}
   policyTypes:
     - Ingress
+    - Egress
   ingress:
     # Allow traffic from gateway/envoy pods for authentication
     - from:
@@ -43,3 +44,5 @@ spec:
       ports:
         - protocol: TCP
           port: {{.AuthProxyMetricsPort}}
+  egress:
+    - {}

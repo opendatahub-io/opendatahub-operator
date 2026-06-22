@@ -1138,8 +1138,12 @@ func (tc *GatewayTestCtx) ValidateNetworkPolicy(t *testing.T) {
 			// Verify pod selector matches kube-auth-proxy with specific labels
 			jq.Match(`.spec.podSelector.matchLabels.app == "%s"`, kubeAuthProxyName),
 
-			// Verify ingress policy is enabled
+			// Verify ingress and egress policy types are enabled
 			jq.Match(`.spec.policyTypes | any(. == "Ingress")`),
+			jq.Match(`.spec.policyTypes | any(. == "Egress")`),
+
+			// Verify egress allows all outbound traffic (API server, OAuth, OIDC, DNS)
+			jq.Match(`.spec.egress | length >= 1`),
 
 			// Verify ingress rules exist
 			jq.Match(`.spec.ingress | length >= 1`),
