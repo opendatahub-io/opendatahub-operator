@@ -23,12 +23,14 @@ var allowedKinds = map[string]bool{
 	"CustomResourceDefinition": true,
 }
 
-// moduleHandlers returns every module handler that the platform operator
-// registers. Keep this list in sync with existingModules in cmd/main.go.
-// Adding a handler here automatically includes it in the compliance check.
+// moduleHandlers returns module handlers that use Helm charts for operator deployment.
+// Only module handlers using HelmCharts need to be registered here for compliance testing.
+// Kustomize-based modules (like AIGateway) do not require chart compliance checks.
+// Keep this in sync with Helm-based entries in existingModules (cmd/main.go).
 func moduleHandlers() []modules.ModuleHandler {
 	return []modules.ModuleHandler{
-		// ModelsAsService is managed by ai-gateway-operator, not directly by platform operator
+		// AIGateway uses Kustomize, not Helm - no entry needed
+		// Add future Helm-based module handlers here
 	}
 }
 
