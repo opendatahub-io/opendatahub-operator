@@ -90,20 +90,29 @@ func TestIsEnabled(t *testing.T) {
 	testCases := []struct {
 		name            string
 		kserveState     operatorv1.ManagementState
-		maasState       operatorv1.ManagementState
+		newMaaSState    *operatorv1.ManagementState // nil = unset (test fallback)
+		legacyMaaSState operatorv1.ManagementState
 		expectedEnabled func() types.GomegaMatcher
 	}{
 		// 3.5+ behavior: MaaS is standalone, doesn't require Kserve
-		{"should be enabled when both KServe and MaaS are managed", operatorv1.Managed, operatorv1.Managed, BeTrue},
-		{"should be enabled when MaaS managed even if KServe not managed (3.5+ standalone)", operatorv1.Removed, operatorv1.Managed, BeTrue},
-		{"should be disabled when MaaS is not enabled", operatorv1.Managed, operatorv1.Removed, BeFalse},
-		{"should be enabled when MaaS managed even if KServe is unmanaged (3.5+ standalone)", operatorv1.Unmanaged, operatorv1.Managed, BeTrue},
-		{"should be disabled when both KServe and MaaS are unmanaged", operatorv1.Unmanaged, operatorv1.Unmanaged, BeFalse},
+		{"should be enabled when both KServe and MaaS are managed", operatorv1.Managed, ptr(operatorv1.Managed), operatorv1.Managed, BeTrue},
+		{"should be enabled when MaaS managed even if KServe not managed (3.5+ standalone)", operatorv1.Removed, ptr(operatorv1.Managed), operatorv1.Removed, BeTrue},
+		{"should be disabled when MaaS is not enabled", operatorv1.Managed, ptr(operatorv1.Removed), operatorv1.Managed, BeFalse},
+		{"should be enabled when MaaS managed even if KServe is unmanaged (3.5+ standalone)", operatorv1.Unmanaged, ptr(operatorv1.Managed), operatorv1.Unmanaged, BeTrue},
+		{"should be disabled when both KServe and MaaS are unmanaged", operatorv1.Unmanaged, ptr(operatorv1.Unmanaged), operatorv1.Unmanaged, BeFalse},
+
+		// Critical fallback path: new location unset, legacy path used
+		{"fallback to legacy when new location unset", operatorv1.Managed, nil, operatorv1.Managed, BeTrue},
+		{"fallback to legacy when new unset and legacy disabled", operatorv1.Managed, nil, operatorv1.Removed, BeFalse},
+
+		// Critical precedence path: new wins when conflicting
+		{"new location Removed overrides legacy Managed (new takes precedence)", operatorv1.Managed, ptr(operatorv1.Removed), operatorv1.Managed, BeFalse},
+		{"new location Managed overrides legacy Removed (new takes precedence)", operatorv1.Managed, ptr(operatorv1.Managed), operatorv1.Removed, BeTrue},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			dsc := createDSCWithKServeAndMaaS(tc.kserveState, tc.maasState)
+			dsc := createDSCWithKServeAndMaaSLocations(tc.kserveState, tc.newMaaSState, tc.legacyMaaSState)
 			g.Expect(handler.IsEnabled(dsc)).Should(tc.expectedEnabled())
 		})
 	}
@@ -643,17 +652,33 @@ func createAuthorinoWithTLS(tlsEnabled bool) *unstructured.Unstructured {
 }
 
 func createDSCWithKServeAndMaaS(kserveState, maasState operatorv1.ManagementState) *dscv2.DataScienceCluster {
+	return createDSCWithKServeAndMaaSLocations(kserveState, &maasState, maasState)
+}
+
+// createDSCWithKServeAndMaaSLocations creates a DSC with independent control over new and old MaaS locations.
+// This enables testing critical code paths: fallback (new unset, old set) and precedence (both set with conflicts).
+// Parameters:
+//   - kserveState: KServe management state
+//   - newMaaSState: AIGateway.ModelsAsService state (nil means unset, allowing fallback to old location)
+//   - legacyMaaSState: Kserve.ModelsAsService state (for backward compatibility testing)
+func createDSCWithKServeAndMaaSLocations(
+	kserveState operatorv1.ManagementState,
+	newMaaSState *operatorv1.ManagementState,
+	legacyMaaSState operatorv1.ManagementState,
+) *dscv2.DataScienceCluster {
 	dsc := dscv2.DataScienceCluster{}
 	dsc.SetGroupVersionKind(gvk.DataScienceCluster)
 	dsc.SetName("test-dsc")
 
-	// Use new 3.5+ location: nested under AIGateway
-	dsc.Spec.Components.AIGateway.ModelsAsService.ManagementState = maasState
+	// Set new 3.5+ location (nested under AIGateway) if provided
+	if newMaaSState != nil {
+		dsc.Spec.Components.AIGateway.ModelsAsService.ManagementState = *newMaaSState
+	}
+	// else: leave unset to test fallback behavior
 
-	// Keep old 3.4 location for backward compat verification
-	// The handler should read from new location first, fallback to old
+	// Set old 3.4 location for backward compat verification
 	dsc.Spec.Components.Kserve.ManagementState = kserveState
-	dsc.Spec.Components.Kserve.ModelsAsService.ManagementState = maasState
+	dsc.Spec.Components.Kserve.ModelsAsService.ManagementState = legacyMaaSState
 
 	return &dsc
 }
