@@ -78,7 +78,6 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/datasciencepipelines"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/feastoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/mlflowoperator"
@@ -96,6 +95,7 @@ import (
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	feastModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/feastoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
@@ -120,7 +120,6 @@ var (
 	existingComponents = map[string]cr.ComponentHandler{
 		componentApi.DashboardComponentName:            dashboard.NewHandler(),
 		componentApi.DataSciencePipelinesComponentName: datasciencepipelines.NewHandler(),
-		componentApi.FeastOperatorComponentName:        feastoperator.NewHandler(),
 		componentApi.KserveComponentName:               kserve.NewHandler(),
 		componentApi.KueueComponentName:                kueue.NewHandler(),
 		componentApi.OGXComponentName:                  ogx.NewHandler(),
@@ -146,6 +145,7 @@ var (
 
 	existingModules = map[string]mr.ModuleHandler{
 		// serviceApi.MonitoringServiceName: monitoringModule.NewHandler(),
+		componentApi.FeastOperatorComponentName: feastModule.NewHandler(),
 	}
 )
 

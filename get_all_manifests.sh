@@ -26,7 +26,6 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["trainingoperator"]="opendatahub-io:training-operator:stable@28a60bd79b9dbbb39cd674d3660fa27ab1b42bdb:manifests"
     ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@53b14d8d1b155aebe2894375eafb68f1a4aa164f:config"
     ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@3632f68dc8c0b2be5b473d50f6e87a8f9268e344:config"
-    ["feastoperator"]="opendatahub-io:feast:stable@fc14c10d9ef18d94f311036840eefb4ed265575d:infra/feast-operator/config"
     ["ogx"]="opendatahub-io:ogx-k8s-operator:odh@54ce7ea2e3501040c33c1d1b5ab9a69ef51ceadf:config"
     ["trainer"]="opendatahub-io:trainer:stable@51baadf644cd5d2c1672f1c658be46ad82f01b44:manifests"
     ["maas"]="opendatahub-io:models-as-a-service:stable@b409c456aeaf1437760a9d74a9594a453252f1f2:deployment"
@@ -48,7 +47,6 @@ declare -A RHOAI_COMPONENT_MANIFESTS=(
     ["trainingoperator"]="red-hat-data-services:training-operator:rhoai-3.5-ea.2@16a06f50513114e94d76149ac32c8e7b4591f291:manifests"
     ["datasciencepipelines"]="red-hat-data-services:data-science-pipelines-operator:rhoai-3.5-ea.2@24f6be6537529174affb17c99b5c712eefd266a7:config"
     ["modelcontroller"]="red-hat-data-services:odh-model-controller:rhoai-3.5-ea.2@8af23e6db9b3ec1b7ab705d91a6189c19a1b0660:config"
-    ["feastoperator"]="red-hat-data-services:feast:rhoai-3.5-ea.2@c87449cf1d82ae122589dbb937c989482f084cbe:infra/feast-operator/config"
     ["ogx"]="red-hat-data-services:ogx-k8s-operator:rhoai-3.5-ea.2@bff797dacf1c3e9ad48ddff026730b1a0344134c:config"
     ["trainer"]="red-hat-data-services:trainer:rhoai-3.5-ea.2@77010a220eb3be377a7b192f17724959fa1dfaeb:manifests"
     ["maas"]="red-hat-data-services:maas-billing:rhoai-3.5-ea.2@df0370fb124e0ca0522d3bb966a407266719ab44:deployment"
@@ -67,6 +65,8 @@ declare -A ODH_COMPONENT_CHARTS=(
     ["lws-operator"]="opendatahub-io:odh-gitops:main@60dd6c6caa469386ea83c87c5927e486687a067c:charts/dependencies/lws-operator"
     ["sail-operator"]="opendatahub-io:odh-gitops:main@60dd6c6caa469386ea83c87c5927e486687a067c:charts/dependencies/sail-operator"
     ["gateway-api"]="opendatahub-io:odh-gitops:main@60dd6c6caa469386ea83c87c5927e486687a067c:charts/dependencies/gateway-api"
+    # TODO: Pin to a release tag SHA once first release is cut
+    ["opendatahub-feast-operator"]="opendatahub-io:feast-module-operator:main:config/chart"
 )
 
 # RHOAI Component Charts
@@ -75,6 +75,8 @@ declare -A RHOAI_COMPONENT_CHARTS=(
     ["lws-operator"]="red-hat-data-services:odh-gitops:rhoai-3.5-ea.2@7060bdacd99ff4fb03e0247e346350069439e9a4:charts/dependencies/lws-operator"
     ["sail-operator"]="red-hat-data-services:odh-gitops:rhoai-3.5-ea.2@7060bdacd99ff4fb03e0247e346350069439e9a4:charts/dependencies/sail-operator"
     ["gateway-api"]="red-hat-data-services:odh-gitops:rhoai-3.5-ea.2@7060bdacd99ff4fb03e0247e346350069439e9a4:charts/dependencies/gateway-api"
+    # TODO: Update to downstream feast-module-operator repo once established
+    ["opendatahub-feast-operator"]="red-hat-data-services:feast-module-operator:rhoai-3.5:config/chart"
 )
 
 # Select the appropriate manifest based on platform type
