@@ -11,6 +11,7 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -626,6 +627,30 @@ func TestMigrateDeploymentSelector(t *testing.T) {
 		err = migrateDeploymentSelector(ctx, rr)
 		g.Expect(err).Should(HaveOccurred())
 		g.Expect(err.Error()).Should(ContainSubstring("failed to get Deployment"))
+	})
+
+	t.Run("should succeed when Delete returns NotFound (race condition)", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		staleSelector := map[string]string{"control-plane": "trustyai-service-operator"}
+		deploy := createTrustyAIDeployment(testNS, staleSelector)
+		dsci := createDSCI(testNS)
+
+		cli, err := fakeclient.New(
+			fakeclient.WithObjects(deploy, dsci),
+			fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+				Delete: func(_ context.Context, _ client.WithWatch, _ client.Object, _ ...client.DeleteOption) error {
+					return k8serr.NewNotFound(appsv1.Resource("deployments"), deploymentName)
+				},
+			}),
+		)
+		g.Expect(err).To(Succeed())
+
+		rr := &odhtypes.ReconciliationRequest{Client: cli}
+
+		err = migrateDeploymentSelector(ctx, rr)
+		g.Expect(err).To(Succeed())
 	})
 
 	t.Run("should return error when Delete fails with non-NotFound error", func(t *testing.T) {
