@@ -556,6 +556,20 @@ func TestMigrateDeploymentSelector(t *testing.T) {
 		g.Expect(err).To(Succeed())
 	})
 
+	t.Run("should return error when DSCI is missing", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		cli, err := fakeclient.New()
+		g.Expect(err).To(Succeed())
+
+		rr := &odhtypes.ReconciliationRequest{Client: cli}
+
+		err = migrateDeploymentSelector(ctx, rr)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(err.Error()).Should(ContainSubstring("failed to determine application namespace"))
+	})
+
 	t.Run("should be no-op when Deployment has nil selector", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()

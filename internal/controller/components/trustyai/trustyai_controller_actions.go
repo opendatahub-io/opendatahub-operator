@@ -139,7 +139,7 @@ func migrateDeploymentSelector(ctx context.Context, rr *odhtypes.ReconciliationR
 	log.Info("TrustyAI Deployment has stale selector, deleting for recreation",
 		"deployment", deploymentName,
 		"namespace", ns,
-		"currentSelector", deploy.Spec.Selector.MatchLabels,
+		"hasExpectedLabel", deploy.Spec.Selector.MatchLabels[selectorLabelKey] != "",
 	)
 
 	if err := rr.Client.Delete(ctx, deploy); err != nil {
