@@ -4,6 +4,7 @@ package trustyai
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	gt "github.com/onsi/gomega/types"
@@ -13,6 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -598,5 +600,56 @@ func TestMigrateDeploymentSelector(t *testing.T) {
 		result := &appsv1.Deployment{}
 		err = cli.Get(ctx, client.ObjectKey{Name: deploymentName, Namespace: testNS}, result)
 		g.Expect(err).To(Succeed())
+	})
+
+	t.Run("should return error when Get fails with non-NotFound error", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsci := createDSCI(testNS)
+
+		cli, err := fakeclient.New(
+			fakeclient.WithObjects(dsci),
+			fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+				Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+					if _, ok := obj.(*appsv1.Deployment); ok {
+						return fmt.Errorf("simulated API server error")
+					}
+					return c.Get(ctx, key, obj, opts...)
+				},
+			}),
+		)
+		g.Expect(err).To(Succeed())
+
+		rr := &odhtypes.ReconciliationRequest{Client: cli}
+
+		err = migrateDeploymentSelector(ctx, rr)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(err.Error()).Should(ContainSubstring("failed to get Deployment"))
+	})
+
+	t.Run("should return error when Delete fails with non-NotFound error", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		staleSelector := map[string]string{"control-plane": "trustyai-service-operator"}
+		deploy := createTrustyAIDeployment(testNS, staleSelector)
+		dsci := createDSCI(testNS)
+
+		cli, err := fakeclient.New(
+			fakeclient.WithObjects(deploy, dsci),
+			fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+				Delete: func(_ context.Context, _ client.WithWatch, _ client.Object, _ ...client.DeleteOption) error {
+					return fmt.Errorf("simulated delete error")
+				},
+			}),
+		)
+		g.Expect(err).To(Succeed())
+
+		rr := &odhtypes.ReconciliationRequest{Client: cli}
+
+		err = migrateDeploymentSelector(ctx, rr)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(err.Error()).Should(ContainSubstring("failed to delete Deployment"))
 	})
 }
