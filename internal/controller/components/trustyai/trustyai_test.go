@@ -521,7 +521,7 @@ func TestMigrateDeploymentSelector(t *testing.T) {
 		ctx := t.Context()
 
 		correctSelector := map[string]string{
-			"control-plane":          "trustyai-service-operator",
+			"control-plane":             "trustyai-service-operator",
 			"app.kubernetes.io/part-of": "trustyai",
 		}
 		deploy := createTrustyAIDeployment(testNS, correctSelector)
@@ -553,6 +553,36 @@ func TestMigrateDeploymentSelector(t *testing.T) {
 		rr := &odhtypes.ReconciliationRequest{Client: cli}
 
 		err = migrateDeploymentSelector(ctx, rr)
+		g.Expect(err).To(Succeed())
+	})
+
+	t.Run("should be no-op when Deployment has nil selector", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		deploy := &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      deploymentName,
+				Namespace: testNS,
+			},
+			Spec: appsv1.DeploymentSpec{
+				Template: corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "manager", Image: "test"}}},
+				},
+			},
+		}
+		dsci := createDSCI(testNS)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(deploy, dsci))
+		g.Expect(err).To(Succeed())
+
+		rr := &odhtypes.ReconciliationRequest{Client: cli}
+
+		err = migrateDeploymentSelector(ctx, rr)
+		g.Expect(err).To(Succeed())
+
+		result := &appsv1.Deployment{}
+		err = cli.Get(ctx, client.ObjectKey{Name: deploymentName, Namespace: testNS}, result)
 		g.Expect(err).To(Succeed())
 	})
 }
