@@ -26,7 +26,6 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["trainingoperator"]="opendatahub-io:training-operator:stable@fc6f0f150c5728fcca8601a654d0a09324a8c121:manifests"
     ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@19c827062e91b16a0b2f1641b9cc53f1bff48b54:config"
     ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@3ad9e0bd01f9c44c41222d46866ca4492b84b4d4:config"
-    ["feastoperator"]="opendatahub-io:feast:stable@2a4bb8241189343337e16a508b6a4baf92cb17db:infra/feast-operator/config"
     ["ogx"]="opendatahub-io:ogx-k8s-operator:odh@0ba12ea60949e1b551cebe63c3dc8be2dd4c0bd1:config"
     ["trainer"]="opendatahub-io:trainer:stable@fc9f4315b4ba88cfa03fabf29a730532411bab4c:manifests"
     ["maas"]="opendatahub-io:models-as-a-service:stable@e01c094491b8806bd6cdd75ddab7cc0e24188d3b:deployment"
@@ -48,7 +47,6 @@ declare -A RHOAI_COMPONENT_MANIFESTS=(
     ["trainingoperator"]="red-hat-data-services:training-operator:rhoai-3.5-ea.2@1eb40de7caa052dfd95c8319cb5c969fff16c246:manifests"
     ["datasciencepipelines"]="red-hat-data-services:data-science-pipelines-operator:rhoai-3.5-ea.2@e8775f3028a6a8573a07f8dbd63f37bb59445996:config"
     ["modelcontroller"]="red-hat-data-services:odh-model-controller:rhoai-3.5-ea.2@abf8460a75171c47a11d329570cf6521c493dbf9:config"
-    ["feastoperator"]="red-hat-data-services:feast:rhoai-3.5-ea.2@c6acffd77c392bdd4f99588a302071cfdee0f711:infra/feast-operator/config"
     ["ogx"]="red-hat-data-services:ogx-k8s-operator:rhoai-3.5-ea.2@3b1b27851bf989f2729d55842ffe015e0519b740:config"
     ["trainer"]="red-hat-data-services:trainer:rhoai-3.5-ea.2@99344b31facebf8050200b832df868a358863210:manifests"
     ["maas"]="red-hat-data-services:maas-billing:rhoai-3.5-ea.2@1312edee9de6730e315e710aad32d79eebdfe38d:deployment"
@@ -73,6 +71,8 @@ declare -A ODH_CCM_CHARTS=(
 
 # ODH Component Charts
 declare -A ODH_COMPONENT_CHARTS=(
+    # TODO: Pin to a release tag SHA once first release is cut
+    ["opendatahub-feast-operator"]="opendatahub-io:feast-module-operator:main:config/chart"
 )
 
 # RHOAI CloudManager Charts
@@ -85,6 +85,8 @@ declare -A RHOAI_CCM_CHARTS=(
 
 # RHOAI Component Charts
 declare -A RHOAI_COMPONENT_CHARTS=(
+    # TODO: Update to downstream feast-module-operator repo once established
+    ["opendatahub-feast-operator"]="red-hat-data-services:feast-module-operator:rhoai-3.5:config/chart"
 )
 
 # merge_charts merges CCM and component charts into COMPONENT_CHARTS, failing on duplicate keys.

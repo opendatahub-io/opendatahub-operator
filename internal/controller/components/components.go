@@ -14,7 +14,6 @@ import (
 //go:embed workbenches/monitoring
 //go:embed dashboard/monitoring
 //go:embed datasciencepipelines/monitoring
-//go:embed feastoperator/monitoring
 //go:embed kserve/monitoring
 //go:embed ogx/monitoring
 //go:embed modelcontroller/monitoring

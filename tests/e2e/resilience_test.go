@@ -143,7 +143,6 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	componentToControllerMap := map[string]string{
 		componentApi.DashboardComponentName:            "dashboard",
 		componentApi.DataSciencePipelinesComponentName: "data-science-pipelines-operator-controller-manager",
-		componentApi.FeastOperatorComponentName:        "feast-operator-controller-manager",
 		componentApi.KserveComponentName:               "kserve-controller-manager",
 		componentApi.OGXComponentName:                  "ogx-k8s-operator-controller-manager",
 		componentApi.MLflowOperatorComponentName:       "mlflow-operator-controller-manager",

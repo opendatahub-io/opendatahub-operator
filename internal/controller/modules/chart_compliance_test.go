@@ -8,6 +8,7 @@ import (
 	helmRenderer "github.com/k8s-manifest-kit/renderer-helm/pkg"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	feastModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/feastoperator"
 
 	. "github.com/onsi/gomega"
 )
@@ -21,13 +22,16 @@ var allowedKinds = map[string]bool{
 	"RoleBinding":              true,
 	"ConfigMap":                true,
 	"CustomResourceDefinition": true,
+	"Service":                  true,
 }
 
 // moduleHandlers returns every module handler that the platform operator
 // registers. Keep this list in sync with existingModules in cmd/main.go.
 // Adding a handler here automatically includes it in the compliance check.
 func moduleHandlers() []modules.ModuleHandler {
-	return []modules.ModuleHandler{}
+	return []modules.ModuleHandler{
+		feastModule.NewHandler(),
+	}
 }
 
 func TestModuleChartCompliance(t *testing.T) {
