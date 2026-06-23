@@ -171,6 +171,14 @@ func TestGetOperatorManifests(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(vals["namespace"]).Should(Equal("opendatahub"))
 	g.Expect(vals["namePrefix"]).Should(Equal(""))
+
+	webhook, ok := vals["webhook"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "webhook values missing")
+	g.Expect(webhook["enabled"]).Should(BeTrue())
+
+	certManager, ok := webhook["certManager"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "webhook.certManager values missing")
+	g.Expect(certManager["enabled"]).Should(BeTrue())
 }
 
 func TestGetControllerImage(t *testing.T) {
@@ -196,6 +204,7 @@ func TestGetRelatedImages(t *testing.T) {
 		"RELATED_IMAGE_ODH_MOD_ARCH_AUTOML_IMAGE",
 		"RELATED_IMAGE_ODH_AUTOML_IMAGE",
 		"RELATED_IMAGE_ODH_MOD_ARCH_AUTORAG_IMAGE",
+		"RELATED_IMAGE_ODH_MOD_ARCH_AGENT_OPS_IMAGE",
 		"RELATED_IMAGE_ODH_AUTORAG_IMAGE",
 	))
 }

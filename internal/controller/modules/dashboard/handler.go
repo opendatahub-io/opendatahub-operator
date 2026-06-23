@@ -39,6 +39,14 @@ func NewHandler() *handler {
 					// "odh-dashboard-operator". Clear it so the Deployment name matches
 					// ReleaseName for module env injection (deploymentNameFromManifests).
 					"namePrefix": "",
+					// Webhook TLS via cert-manager (odh-dashboard#8241). Requires cert-manager
+					// CRDs on the cluster (e.g. openshift-cert-manager-operator on OpenShift).
+					"webhook": map[string]any{
+						"enabled": true,
+						"certManager": map[string]any{
+							"enabled": true,
+						},
+					},
 				},
 				GVK:             gvk.Dashboard, // components.platform.opendatahub.io/v1alpha1/Dashboard
 				ControllerImage: "RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE",
