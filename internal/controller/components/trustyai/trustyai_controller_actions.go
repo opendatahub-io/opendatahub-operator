@@ -29,10 +29,8 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
@@ -43,19 +41,6 @@ const (
 	partOfLabelKey         = "app.kubernetes.io/part-of"
 	partOfLabelValue       = "trustyai"
 )
-
-func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	isvc, err := cluster.HasCRD(ctx, rr.Client, gvk.InferenceServices)
-	if err != nil {
-		return odherrors.NewStopError("failed to check %s CRDs version: %w", gvk.InferenceServices, err)
-	}
-
-	if !isvc {
-		return odherrors.NewStopError(status.ISVCMissingCRDMessage)
-	}
-
-	return nil
-}
 
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	trustyai, ok := rr.Instance.(*componentApi.TrustyAI)

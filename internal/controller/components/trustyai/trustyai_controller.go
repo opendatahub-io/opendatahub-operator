@@ -29,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
@@ -81,13 +82,13 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 						return isInferenceServicesCRD(e.Object)
 					},
 					UpdateFunc: func(e event.UpdateEvent) bool {
-						// Don't react to updates - checkPreConditions only checks if CRD exists, not its version/spec
+						// Don't react to updates - MonitorCRD precondition only checks if CRD exists, not its version/spec
 						// This also prevents continuous reconciliation on CRD status updates
 						return false
 					},
 					DeleteFunc: func(e event.DeleteEvent) bool {
 						// React when InferenceServices CRD is deleted (dependency becomes unavailable)
-						// This triggers checkPreConditions which will detect the missing CRD and set conditions to False
+						// MonitorCRD precondition will detect the missing CRD and set conditions to False
 						return isInferenceServicesCRD(e.Object)
 					},
 					GenericFunc: func(e event.GenericEvent) bool {
@@ -97,8 +98,8 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				},
 			)),
 		).
+		WithPreCondition(precondition.MonitorCRD(gvk.InferenceServices, precondition.WithStopReconciliation())).
 		WithAction(precondition.RunlevelGateAction()).
-		WithAction(checkPreConditions).
 		WithAction(initialize).
 		WithAction(createConfigMap).
 		WithAction(releases.NewAction()).
