@@ -15,8 +15,18 @@ spec:
     - Ingress
     - Egress
   egress:
-    # Allow all egress so the proxy can reach the Kubernetes API server and OIDC providers
-    - {}
+    # Allow DNS resolution (cluster DNS and external OIDC hostnames)
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow HTTPS to Kubernetes API server (443, 6443) and external OIDC providers (443)
+    - ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 6443
   ingress:
     # Allow traffic from gateway/envoy pods for authentication
     - from:

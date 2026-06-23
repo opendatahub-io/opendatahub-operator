@@ -1699,7 +1699,7 @@ func RunNetworkPolicyCreationTest(t *testing.T, setup TestSetup) {
 	g.Expect(np.Spec.PolicyTypes).To(ContainElement(networkingv1.PolicyTypeIngress))
 	g.Expect(np.Spec.PolicyTypes).To(ContainElement(networkingv1.PolicyTypeEgress))
 	g.Expect(np.Spec.Ingress).To(HaveLen(3))
-	g.Expect(np.Spec.Egress).To(HaveLen(1))
+	g.Expect(np.Spec.Egress).To(HaveLen(2))
 }
 
 // RunGatewayConfigStatusConditionsTest validates that GatewayConfig status gets conditions set (e.g. Ready).
