@@ -4,7 +4,7 @@ package trustyai
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"testing"
 
 	gt "github.com/onsi/gomega/types"
@@ -476,11 +476,13 @@ func createTrustyAICRWithMCPGuardrailsMode(mcpGuardrailsMode bool) *componentApi
 	return c
 }
 
-func createTrustyAIDeployment(namespace string, selectorLabels map[string]string) *appsv1.Deployment {
+const testNS = "redhat-ods-applications"
+
+func createTrustyAIDeployment(selectorLabels map[string]string) *appsv1.Deployment {
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      deploymentName,
-			Namespace: namespace,
+			Namespace: testNS,
 		},
 		Spec: appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
@@ -495,14 +497,12 @@ func createTrustyAIDeployment(namespace string, selectorLabels map[string]string
 }
 
 func TestMigrateDeploymentSelector(t *testing.T) {
-	const testNS = "redhat-ods-applications"
-
 	t.Run("should delete Deployment with stale selector", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
 		staleSelector := map[string]string{"control-plane": "trustyai-service-operator"}
-		deploy := createTrustyAIDeployment(testNS, staleSelector)
+		deploy := createTrustyAIDeployment(staleSelector)
 		dsci := createDSCI(testNS)
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(deploy, dsci))
@@ -527,7 +527,7 @@ func TestMigrateDeploymentSelector(t *testing.T) {
 			"control-plane":             "trustyai-service-operator",
 			"app.kubernetes.io/part-of": "trustyai",
 		}
-		deploy := createTrustyAIDeployment(testNS, correctSelector)
+		deploy := createTrustyAIDeployment(correctSelector)
 		dsci := createDSCI(testNS)
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(deploy, dsci))
@@ -614,7 +614,7 @@ func TestMigrateDeploymentSelector(t *testing.T) {
 			fakeclient.WithInterceptorFuncs(interceptor.Funcs{
 				Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 					if _, ok := obj.(*appsv1.Deployment); ok {
-						return fmt.Errorf("simulated API server error")
+						return errors.New("simulated API server error")
 					}
 					return c.Get(ctx, key, obj, opts...)
 				},
@@ -634,7 +634,7 @@ func TestMigrateDeploymentSelector(t *testing.T) {
 		ctx := t.Context()
 
 		staleSelector := map[string]string{"control-plane": "trustyai-service-operator"}
-		deploy := createTrustyAIDeployment(testNS, staleSelector)
+		deploy := createTrustyAIDeployment(staleSelector)
 		dsci := createDSCI(testNS)
 
 		cli, err := fakeclient.New(
@@ -658,14 +658,14 @@ func TestMigrateDeploymentSelector(t *testing.T) {
 		ctx := t.Context()
 
 		staleSelector := map[string]string{"control-plane": "trustyai-service-operator"}
-		deploy := createTrustyAIDeployment(testNS, staleSelector)
+		deploy := createTrustyAIDeployment(staleSelector)
 		dsci := createDSCI(testNS)
 
 		cli, err := fakeclient.New(
 			fakeclient.WithObjects(deploy, dsci),
 			fakeclient.WithInterceptorFuncs(interceptor.Funcs{
 				Delete: func(_ context.Context, _ client.WithWatch, _ client.Object, _ ...client.DeleteOption) error {
-					return fmt.Errorf("simulated delete error")
+					return errors.New("simulated delete error")
 				},
 			}),
 		)
