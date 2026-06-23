@@ -13,6 +13,10 @@ spec:
       app: {{.KubeAuthProxyServiceName}}
   policyTypes:
     - Ingress
+    - Egress
+  egress:
+    # Allow all egress so the proxy can reach the Kubernetes API server and OIDC providers
+    - {}
   ingress:
     # Allow traffic from gateway/envoy pods for authentication
     - from:
