@@ -1145,11 +1145,15 @@ func (tc *GatewayTestCtx) ValidateNetworkPolicy(t *testing.T) {
 			// Verify pod selector matches kube-auth-proxy with specific labels
 			jq.Match(`.spec.podSelector.matchLabels.app == "%s"`, kubeAuthProxyName),
 
-			// Verify ingress policy is enabled
+			// Verify ingress and egress policies are enabled
 			jq.Match(`.spec.policyTypes | any(. == "Ingress")`),
+			jq.Match(`.spec.policyTypes | any(. == "Egress")`),
 
 			// Verify ingress rules exist
 			jq.Match(`.spec.ingress | length >= 1`),
+
+			// Verify egress rules exist (allow-all egress)
+			jq.Match(`.spec.egress | length == 1`),
 
 			// Verify ingress rule allows traffic from Gateway pods
 			jq.Match(`.spec.ingress[0].from[0].podSelector.matchLabels."%s" == "%s"`, labels.GatewayAPI.GatewayName, gatewayName),
@@ -1165,7 +1169,7 @@ func (tc *GatewayTestCtx) ValidateNetworkPolicy(t *testing.T) {
 			jq.Match(`.spec.ingress[1].from[0].namespaceSelector.matchLabels."kubernetes.io/metadata.name" == "openshift-monitoring"`),
 			jq.Match(`.spec.ingress[2].from[0].namespaceSelector.matchLabels."kubernetes.io/metadata.name" == "openshift-user-workload-monitoring"`),
 		)),
-		WithCustomErrorMsg("NetworkPolicy should exist with correct ingress rules for kube-auth-proxy"),
+		WithCustomErrorMsg("NetworkPolicy should exist with correct ingress and egress rules for kube-auth-proxy"),
 	)
 
 	t.Log("NetworkPolicy validation completed")
