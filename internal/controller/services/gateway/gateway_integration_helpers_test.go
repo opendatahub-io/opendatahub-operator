@@ -1676,7 +1676,7 @@ func RunNginxDashboardRedirectCreationTest(t *testing.T, setup TestSetup) {
 	g.Expect(route.Spec.To.Name).To(Equal(gateway.DashboardRedirectName))
 }
 
-// RunNetworkPolicyCreationTest validates that the NetworkPolicy is created with pod selector and ingress rules.
+// RunNetworkPolicyCreationTest validates that the NetworkPolicy is created with pod selector, ingress and egress rules.
 func RunNetworkPolicyCreationTest(t *testing.T, setup TestSetup) {
 	g := NewWithT(t)
 	defer setup.Setup(t)()
@@ -1697,7 +1697,9 @@ func RunNetworkPolicyCreationTest(t *testing.T, setup TestSetup) {
 
 	g.Expect(np.Spec.PodSelector.MatchLabels).To(HaveKeyWithValue("app", gateway.KubeAuthProxyName))
 	g.Expect(np.Spec.PolicyTypes).To(ContainElement(networkingv1.PolicyTypeIngress))
+	g.Expect(np.Spec.PolicyTypes).To(ContainElement(networkingv1.PolicyTypeEgress))
 	g.Expect(np.Spec.Ingress).To(HaveLen(3))
+	g.Expect(np.Spec.Egress).To(HaveLen(1))
 }
 
 // RunGatewayConfigStatusConditionsTest validates that GatewayConfig status gets conditions set (e.g. Ready).
