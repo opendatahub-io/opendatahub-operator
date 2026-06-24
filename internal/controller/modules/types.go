@@ -135,9 +135,9 @@ type ModuleStatus struct {
 	ObservedGeneration int64
 	// Generation from .metadata.generation on the module CR.
 	Generation int64
-	// ReleaseVersion from .status.release.version on the module CR.
-	// Used for the platform version handshake — the module is not
-	// considered ready for DAG progression unless this matches the
+	// ReleaseVersion from .status.releases[name="platform"].version on
+	// the module CR. Used for the platform version handshake — the module
+	// is not considered ready for DAG progression unless this matches the
 	// current platform version.
 	ReleaseVersion string
 }

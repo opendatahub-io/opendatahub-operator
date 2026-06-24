@@ -224,7 +224,7 @@ func (b *BaseHandler) GetModuleStatus(ctx context.Context, cli client.Client) (*
 	}
 
 	observedGen, _, _ := unstructured.NestedInt64(u.Object, "status", "observedGeneration")
-	releaseVersion, _, _ := unstructured.NestedString(u.Object, "status", "release", "version")
+	releaseVersion := extractPlatformReleaseVersion(u)
 
 	return &ModuleStatus{
 		Conditions:         conditions,
@@ -232,6 +232,29 @@ func (b *BaseHandler) GetModuleStatus(ctx context.Context, cli client.Client) (*
 		Generation:         u.GetGeneration(),
 		ReleaseVersion:     releaseVersion,
 	}, nil
+}
+
+const platformReleaseName = "platform"
+
+func extractPlatformReleaseVersion(u *unstructured.Unstructured) string {
+	releases, found, _ := unstructured.NestedSlice(u.Object, "status", "releases")
+	if !found {
+		return ""
+	}
+
+	for _, item := range releases {
+		entry, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		name, _, _ := unstructured.NestedString(entry, "name")
+		if name == platformReleaseName {
+			ver, _, _ := unstructured.NestedString(entry, "version")
+			return ver
+		}
+	}
+
+	return ""
 }
 
 // GetModuleCRState returns the lifecycle state of the module CR. It
