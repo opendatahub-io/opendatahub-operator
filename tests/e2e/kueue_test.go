@@ -471,10 +471,13 @@ func (tc *KueueTestCtx) ValidateKueueAutoCreateQueuesDisabled(t *testing.T) {
 		WithEventuallyTimeout(tc.TestTimeouts.shortEventuallyTimeout),
 	)
 
-	// Only asserting the absence of LocalQueue (namespace-scoped) because ClusterQueue and ResourceFlavor are
-	// cluster-scoped and may persist from prior test runs. All three share the same autoCreateQueues
-	// gate in the controller; unit tests cover the full set.
-	t.Logf("Verifying no LocalQueue is created in namespace %s (autoCreateQueues=false).", managedNS)
+	t.Logf("Verifying no ClusterQueue, ResourceFlavor or LocalQueue is created (autoCreateQueues=false).")
+	tc.EnsureResourcesGone(
+		WithMinimalObject(gvk.ClusterQueue, types.NamespacedName{Name: kueueDefaultClusterQueueName}),
+	)
+	tc.EnsureResourcesGone(
+		WithMinimalObject(gvk.ResourceFlavor, types.NamespacedName{Name: kueue.DefaultFlavorName}),
+	)
 	tc.EnsureResourcesDoNotExist(
 		WithMinimalObject(gvk.LocalQueue, types.NamespacedName{Name: kueueDefaultLocalQueueName, Namespace: managedNS}),
 		WithListOptions(&client.ListOptions{Namespace: managedNS}),
