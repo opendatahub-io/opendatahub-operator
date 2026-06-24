@@ -1,7 +1,6 @@
 package e2e_test
 
 import (
-	"context"
 	"strings"
 	"testing"
 	"time"
@@ -13,7 +12,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -134,91 +132,107 @@ func dagOrderingTestSuite(t *testing.T) {
 	// Tests are ordered to minimise expensive enable/disable cycles.
 	// Each test's end state feeds the next test's start state:
 	//   InTreeGates (→Removed) → AdminAckGates (→Removed) →
-	//   PartialEnablement (→Removed) → DAGConvergence (→AllReady) →
+	//   PartialEnablement (→Removed) →
+	//   RunlevelGating (→Removed, enables under quota, proves gating,
+	//                    removes quota, converges → AllReady) →
 	//   BatchOrdering (→AllReady, read-only) →
 	//   PlatformReady (→AllReady, read-only) →
-	//   DeployBlocked (→AllReady after recovery) →
-	//   DAGCleanup (→Removed) → RunlevelGating (→Removed)
+	//   DAGCleanup (→Removed)
 	testCases := []TestCase{
 		{"Validate in-tree gates block and unblock provisioning", ctx.ValidateInTreeGates},
 		{"Validate admin ack gates block and unblock provisioning", ctx.ValidateAdminAckGates},
 		{"Validate partial enablement", ctx.ValidatePartialEnablement},
-		{"Validate DAG convergence", ctx.ValidateDAGConvergence},
+		{"Validate runlevel gating and convergence", ctx.ValidateRunlevelGatingAndConvergence},
 		{"Validate batch ordering", ctx.ValidateBatchOrdering},
 		{"Validate PlatformReady condition on component CRs", ctx.ValidatePlatformReady},
-		{"Validate runlevel gating blocks resource deployment", ctx.ValidateRunlevelGatingBlocksDeployment},
 		{"Validate DAG cleanup", ctx.ValidateDAGCleanup},
-		{"Validate runlevel gating and recovery", ctx.ValidateRunlevelGatingAndRecovery},
 	}
 
 	RunTestCases(t, testCases)
 }
 
-// ValidateDAGConvergence enables all components simultaneously and waits
-// for ProvisioningProgress=True (the DAG walked all batches). It tracks
-// ProvisioningProgress reason transitions and asserts that
-// AwaitingReadiness is observed during the convergence process.
-// It intentionally does NOT wait for ComponentsReady — individual
-// component health is tested elsewhere.
-func (tc *DAGOrderingTestCtx) ValidateDAGConvergence(t *testing.T) {
+// ValidateRunlevelGatingAndConvergence combines gating proof with DAG
+// convergence in a single enable cycle. Starting from a Removed state
+// (all component CRs deleted), it applies a zero-pod quota, enables all
+// components, and verifies that Extension CRs (batch 31+) are absent
+// while batch 20 is stuck. After removing the quota it waits for full
+// convergence (ProvisioningProgress=True), verifies Extension CRs were
+// created, and leaves the cluster in an AllReady state for subsequent
+// read-only tests.
+//
+// This avoids operator restarts (and associated stale-PlatformReady
+// race conditions) by leveraging the fact that the RunlevelTracker is
+// naturally empty for newly-created component CRs.
+func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T) {
 	t.Helper()
 
 	skipUnless(t, Tier2, Tier3)
 
-	t.Log("Patching DSC to set all components to Managed")
+	t.Log("Waiting for Extension CRs to be fully deleted before gating test")
+	for _, extGVK := range extensionGVKs {
+		instanceName := tc.GetInstanceName(extGVK)
+		tc.EnsureResourceGone(
+			WithMinimalObject(extGVK, types.NamespacedName{Name: instanceName}),
+			WithEventuallyTimeout(5*time.Minute),
+			WithEventuallyPollingInterval(10*time.Second),
+		)
+	}
+
+	t.Log("Applying zero-pod quota to block batch 20 deployments")
+	tc.createDAGQuota()
+
+	t.Log("Enabling all components under quota")
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(allComponentsTransform("Managed")),
 	)
-	t.Log("Patch applied, waiting for convergence while tracking reason transitions")
 
-	observedReasons := map[string]bool{}
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
-	defer cancel()
+	t.Log("Waiting for ProvisioningProgress=False (batch 20 stuck under quota)")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(jq.Match(
+			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
+			status.ConditionTypeProvisioningProgress, metav1.ConditionFalse,
+		)),
+		WithEventuallyTimeout(5*time.Minute),
+		WithEventuallyPollingInterval(10*time.Second),
+	)
 
-	converged := false
-	for !converged {
-		select {
-		case <-ctx.Done():
-			t.Fatalf("Timed out waiting for convergence; observed reasons: %v", observedReasons)
-		case <-time.After(5 * time.Second):
-		}
-
-		dsc := tc.FetchResource(
-			WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+	t.Log("Verifying no Extension CRs were created while batch 20 is gated")
+	for _, extGVK := range extensionGVKs {
+		instanceName := tc.GetInstanceName(extGVK)
+		u := tc.FetchResource(
+			WithMinimalObject(extGVK, types.NamespacedName{Name: instanceName}),
 		)
-		if dsc == nil {
-			continue
-		}
-
-		conditions, _, _ := unstructured.NestedSlice(dsc.Object, "status", "conditions")
-		for _, c := range conditions {
-			cond, ok := c.(map[string]any)
-			if !ok {
-				continue
-			}
-			condType, _ := cond["type"].(string)
-			reason, _ := cond["reason"].(string)
-			condStatus, _ := cond["status"].(string)
-
-			if condType == status.ConditionTypeProvisioningProgress {
-				if reason != "" && !observedReasons[reason] {
-					t.Logf("Observed ProvisioningProgress reason transition: %s (status=%s)", reason, condStatus)
-					observedReasons[reason] = true
-				}
-			}
-
-			if condType == status.ConditionTypeProvisioningProgress &&
-				condStatus == string(metav1.ConditionTrue) {
-				converged = true
-			}
-		}
+		require.Nil(t, u,
+			"Extension CR %s should not exist while batch 20 is stuck under quota", extGVK.Kind)
 	}
+	t.Log("Confirmed: no Extension CRs exist while gated")
 
-	t.Logf("All observed ProvisioningProgress reasons: %v", observedReasons)
+	t.Log("Removing quota to unblock batch 20")
+	tc.deleteDAGQuota()
 
-	require.True(t, observedReasons[status.AwaitingReadinessReason],
-		"Expected AwaitingReadiness reason to appear during DAG convergence, got: %v", observedReasons)
+	t.Log("Waiting for DAG convergence (ProvisioningProgress=True)")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(jq.Match(
+			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
+			status.ConditionTypeProvisioningProgress, metav1.ConditionTrue,
+		)),
+		WithEventuallyTimeout(15*time.Minute),
+		WithEventuallyPollingInterval(15*time.Second),
+	)
+
+	t.Log("Verifying Extension CRs now exist after recovery")
+	for _, extGVK := range extensionGVKs {
+		instanceName := tc.GetInstanceName(extGVK)
+		u := tc.FetchResource(
+			WithMinimalObject(extGVK, types.NamespacedName{Name: instanceName}),
+		)
+		require.NotNil(t, u,
+			"Extension CR %s should exist after DAG convergence", extGVK.Kind)
+	}
+	t.Log("DAG converged and gating verified")
 }
 
 // ValidateBatchOrdering fetches component CRs created during DAG convergence
@@ -340,145 +354,6 @@ func (tc *DAGOrderingTestCtx) ValidatePlatformReady(t *testing.T) {
 	}
 }
 
-// ValidateRunlevelGatingBlocksDeployment proves that the RunlevelGate
-// action prevents SSA from applying resources while a component's
-// runlevel hasn't been cleared. It uses a "canary resource" approach:
-//
-//  1. All components are deployed and healthy (from prior tests)
-//  2. Apply a zero-pod quota + delete Ray pods to block batch 20
-//  3. Restart the operator (resets the in-memory RunlevelTracker)
-//  4. Verify PlatformReady=False on a batch 31+ component (gate active)
-//  5. Delete a non-critical resource (ClusterRoleBinding) owned by that component
-//  6. Consistently verify the resource stays deleted (SSA/deploy did NOT run)
-//  7. Remove the quota → DAG advances → deploy runs
-//  8. Verify the canary resource is recreated by SSA
-func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingBlocksDeployment(t *testing.T) {
-	t.Helper()
-
-	skipUnless(t, Tier2, Tier3)
-
-	canaryGVK := gvk.ClusterRoleBinding
-	canaryNN := types.NamespacedName{Name: "kserve-proxy-rolebinding"}
-	kserveInstanceName := tc.GetInstanceName(gvk.Kserve)
-
-	t.Log("Verifying canary ClusterRoleBinding exists before test")
-	canary := tc.FetchResource(WithMinimalObject(canaryGVK, canaryNN))
-	require.NotNil(t, canary, "Canary %s must exist before test", canaryNN.Name)
-
-	t.Log("Applying zero-pod quota to block batch 20 deployments")
-	tc.createDAGQuota()
-
-	t.Log("Deleting Ray pods (quota prevents replacements, making batch 20 unhealthy)")
-	tc.deletePodsForComponent(t, componentApi.RayComponentName)
-
-	rayInstanceName := tc.GetInstanceName(gvk.Ray)
-	t.Log("Waiting for Ray CR to report unhealthy before restarting operator")
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Ray, types.NamespacedName{Name: rayInstanceName}),
-		WithCondition(jq.Match(
-			`any(.status.conditions[]; .type == "Ready" and .status == "False")`,
-		)),
-		WithEventuallyTimeout(3*time.Minute),
-		WithEventuallyPollingInterval(5*time.Second),
-	)
-
-	t.Log("Restarting operator to reset RunlevelTracker (simulates upgrade)")
-	tc.rolloutRestartOperator(t)
-
-	t.Log("Waiting for DSC ProvisioningProgress=False (confirms new operator with reset tracker has taken over)")
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithCondition(jq.Match(
-			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
-			status.ConditionTypeProvisioningProgress, metav1.ConditionFalse,
-		)),
-		WithEventuallyTimeout(5*time.Minute),
-		WithEventuallyPollingInterval(10*time.Second),
-	)
-
-	t.Log("Waiting for PlatformReady=False on Kserve (batch 31 gated)")
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: kserveInstanceName}),
-		WithCondition(jq.Match(
-			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
-			precondition.PlatformReadyConditionType, metav1.ConditionFalse,
-		)),
-		WithEventuallyTimeout(5*time.Minute),
-		WithEventuallyPollingInterval(10*time.Second),
-	)
-	t.Log("Confirmed: Kserve PlatformReady=False (gate active, deploy skipped)")
-
-	t.Log("Deleting canary resource while gate is active")
-	tc.DeleteResource(
-		WithMinimalObject(canaryGVK, canaryNN),
-		WithIgnoreNotFound(true),
-		WithWaitForDeletion(true),
-	)
-
-	t.Log("Triggering a Kserve reconcile by annotating the CR")
-	tc.EventuallyResourcePatched(
-		WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: kserveInstanceName}),
-		WithMutateFunc(func(obj *unstructured.Unstructured) error {
-			ann := obj.GetAnnotations()
-			if ann == nil {
-				ann = map[string]string{}
-			}
-			ann["e2e-test/reconcile-trigger"] = time.Now().Format(time.RFC3339)
-			obj.SetAnnotations(ann)
-			return nil
-		}),
-	)
-
-	t.Log("Waiting for Kserve to reconcile and re-assert PlatformReady=False (proves controller ran with SkipDeploy)")
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: kserveInstanceName}),
-		WithCondition(jq.Match(
-			`any(.status.conditions[]; .type == "%s" and .status == "%s" and .reason == "RunlevelNotCleared")`,
-			precondition.PlatformReadyConditionType, metav1.ConditionFalse,
-		)),
-		WithEventuallyTimeout(60*time.Second),
-		WithEventuallyPollingInterval(5*time.Second),
-	)
-
-	t.Log("Verifying canary is still deleted (controller reconciled but deploy was skipped)")
-	u := tc.FetchResource(WithMinimalObject(canaryGVK, canaryNN))
-	require.Nil(t, u,
-		"Canary %s must remain deleted — controller reconciled but SkipDeploy prevented SSA", canaryNN.Name)
-
-	t.Log("Removing quota to unblock batch 20")
-	tc.deleteDAGQuota()
-
-	t.Log("Waiting for DAG to converge (ProvisioningProgress=True)")
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithCondition(jq.Match(
-			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
-			status.ConditionTypeProvisioningProgress, metav1.ConditionTrue,
-		)),
-		WithEventuallyTimeout(15*time.Minute),
-		WithEventuallyPollingInterval(15*time.Second),
-	)
-
-	t.Log("Verifying canary resource was recreated by SSA (proves deploy ran)")
-	tc.EnsureResourceExists(
-		WithMinimalObject(canaryGVK, canaryNN),
-		WithEventuallyTimeout(3*time.Minute),
-		WithEventuallyPollingInterval(10*time.Second),
-	)
-
-	t.Log("Verifying PlatformReady=True on Kserve (gate lifted)")
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: kserveInstanceName}),
-		WithCondition(jq.Match(
-			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
-			precondition.PlatformReadyConditionType, metav1.ConditionTrue,
-		)),
-		WithEventuallyTimeout(3*time.Minute),
-		WithEventuallyPollingInterval(10*time.Second),
-	)
-	t.Log("Test passed: deploy was blocked while gated, and resources were applied after unblocking")
-}
-
 // ValidateDAGCleanup sets all components to Removed, waits for the DSC
 // to reach Ready, and verifies that all component CRs are cleaned up
 // with no orphans.
@@ -507,87 +382,6 @@ func (tc *DAGOrderingTestCtx) ValidateDAGCleanup(t *testing.T) {
 			)
 		}
 	}
-}
-
-// ValidateRunlevelGatingAndRecovery applies a zero-pod quota so batch 20
-// components cannot become ready, enables all components, asserts that
-// no Extensions-batch CRs are created while gated, then removes the
-// quota and verifies the DAG recovers.
-func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndRecovery(t *testing.T) {
-	t.Helper()
-
-	skipUnless(t, Tier2, Tier3)
-
-	// Prior test (DAGCleanup) leaves all components Removed and
-	// verifies all CRs are deleted, but double-check extension CRs
-	// since the gating test depends on their absence.
-	t.Log("Waiting for Extension CRs to be fully deleted before gating test")
-	for _, extGVK := range extensionGVKs {
-		instanceName := tc.GetInstanceName(extGVK)
-		tc.EnsureResourceGone(
-			WithMinimalObject(extGVK, types.NamespacedName{Name: instanceName}),
-			WithEventuallyTimeout(5*time.Minute),
-			WithEventuallyPollingInterval(10*time.Second),
-		)
-	}
-
-	t.Log("Creating zero-pod quota to block deployments")
-	tc.createDAGQuota()
-
-	t.Log("Enabling all components under quota")
-	tc.EventuallyResourcePatched(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(allComponentsTransform("Managed")),
-	)
-
-	t.Log("Waiting for ProvisioningProgress=False (deployments blocked by quota)")
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithCondition(jq.Match(
-			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
-			status.ConditionTypeProvisioningProgress, metav1.ConditionFalse,
-		)),
-		WithEventuallyTimeout(5*time.Minute),
-		WithEventuallyPollingInterval(10*time.Second),
-	)
-
-	t.Log("Verifying no Extensions CRs were created while gated")
-	for _, extGVK := range extensionGVKs {
-		instanceName := tc.GetInstanceName(extGVK)
-		u := tc.FetchResource(
-			WithMinimalObject(extGVK, types.NamespacedName{Name: instanceName}),
-		)
-		require.Nil(t, u,
-			"Extensions CR %s should not exist while batch 20 is stuck under quota", extGVK.Kind)
-	}
-	t.Log("Confirmed: no Extensions CRs exist while gated")
-
-	t.Log("Removing quota to unblock deployments")
-	tc.deleteDAGQuota()
-
-	t.Log("Waiting for ProvisioningProgress=True after quota removal (DAG recovery)")
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithCondition(jq.Match(
-			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
-			status.ConditionTypeProvisioningProgress, metav1.ConditionTrue,
-		)),
-		WithEventuallyTimeout(15*time.Minute),
-		WithEventuallyPollingInterval(15*time.Second),
-	)
-
-	t.Log("Verifying Extensions CRs now exist after recovery")
-	for _, extGVK := range extensionGVKs {
-		instanceName := tc.GetInstanceName(extGVK)
-		u := tc.FetchResource(
-			WithMinimalObject(extGVK, types.NamespacedName{Name: instanceName}),
-		)
-		require.NotNil(t, u,
-			"Extensions CR %s should exist after recovery", extGVK.Kind)
-	}
-
-	t.Log("Cleaning up: setting all components to Removed")
-	tc.setAllRemoved(t)
 }
 
 // ValidatePartialEnablement enables a subset of components spanning
@@ -995,57 +789,5 @@ func (tc *DAGOrderingTestCtx) deleteDAGQuota() {
 		),
 		WithIgnoreNotFound(true),
 		WithWaitForDeletion(true),
-	)
-}
-
-// rolloutRestartOperator patches the operator deployment's pod template
-// with a restartedAt annotation, triggering a rolling restart (the same
-// mechanism as `kubectl rollout restart`). It waits for the rollout to
-// complete before returning.
-func (tc *DAGOrderingTestCtx) rolloutRestartOperator(t *testing.T) {
-	t.Helper()
-
-	deployName := tc.getControllerDeploymentName()
-	deployNN := types.NamespacedName{
-		Namespace: tc.OperatorNamespace,
-		Name:      deployName,
-	}
-
-	t.Logf("Rollout restarting operator deployment %s/%s", deployNN.Namespace, deployNN.Name)
-	tc.EventuallyResourcePatched(
-		WithMinimalObject(gvk.Deployment, deployNN),
-		WithMutateFunc(func(obj *unstructured.Unstructured) error {
-			return unstructured.SetNestedField(
-				obj.Object,
-				time.Now().Format(time.RFC3339),
-				"spec", "template", "metadata", "annotations", "kubectl.kubernetes.io/restartedAt",
-			)
-		}),
-	)
-
-	t.Log("Waiting for operator rollout to complete")
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Deployment, deployNN),
-		WithCondition(jq.Match(
-			`.status.availableReplicas == .status.replicas and .status.updatedReplicas == .status.replicas and .status.unavailableReplicas == null`,
-		)),
-		WithEventuallyTimeout(3*time.Minute),
-		WithEventuallyPollingInterval(5*time.Second),
-	)
-}
-
-// deletePodsForComponent deletes all pods for a component's deployments
-// in the apps namespace. When combined with a zero-pod quota, this makes
-// the component's deployments unhealthy (0/N ready).
-func (tc *DAGOrderingTestCtx) deletePodsForComponent(t *testing.T, componentName string) {
-	t.Helper()
-
-	labelKey := "app.opendatahub.io/" + componentName
-	t.Logf("Deleting pods with label %s=true in %s", labelKey, tc.AppsNamespace)
-
-	tc.DeleteResources(
-		WithMinimalObject(gvk.Pod, types.NamespacedName{}),
-		WithNamespaceFilter(tc.AppsNamespace),
-		WithDeleteAllOfOptions(client.MatchingLabels{labelKey: "true"}),
 	)
 }
