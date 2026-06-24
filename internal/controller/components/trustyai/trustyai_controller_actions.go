@@ -19,7 +19,6 @@ package trustyai
 import (
 	"context"
 	"fmt"
-	"maps"
 	"strconv"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -134,11 +133,9 @@ func migrateDeploymentSelector(ctx context.Context, rr *odhtypes.ReconciliationR
 		return fmt.Errorf("failed to get Deployment %s/%s: %w", ns, trustyaiDeploymentName, err)
 	}
 
-	expectedSelector := map[string]string{
-		controlPlaneLabelKey: controlPlaneLabelValue,
-		partOfLabelKey:       partOfLabelValue,
-	}
-	if deploy.Spec.Selector != nil && maps.Equal(deploy.Spec.Selector.MatchLabels, expectedSelector) {
+	if deploy.Spec.Selector != nil &&
+		deploy.Spec.Selector.MatchLabels[controlPlaneLabelKey] == controlPlaneLabelValue &&
+		deploy.Spec.Selector.MatchLabels[partOfLabelKey] == partOfLabelValue {
 		return nil
 	}
 

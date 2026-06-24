@@ -562,14 +562,14 @@ func TestMigrateDeploymentSelector(t *testing.T) {
 		g.Expect(err).To(Succeed())
 	})
 
-	t.Run("should delete Deployment with correct labels plus extra stale label", func(t *testing.T) {
+	t.Run("should not delete Deployment with correct labels plus extra labels", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
 		selectorWithExtra := map[string]string{
-			controlPlaneLabelKey: controlPlaneLabelValue,
-			partOfLabelKey:       partOfLabelValue,
-			"stale-label":        "leftover",
+			controlPlaneLabelKey:          controlPlaneLabelValue,
+			partOfLabelKey:                partOfLabelValue,
+			"app.opendatahub.io/trustyai": "true",
 		}
 		deploy := createTrustyAIDeployment(selectorWithExtra)
 		dsci := createDSCI(testNS)
@@ -584,8 +584,7 @@ func TestMigrateDeploymentSelector(t *testing.T) {
 
 		result := &appsv1.Deployment{}
 		err = cli.Get(ctx, client.ObjectKey{Name: trustyaiDeploymentName, Namespace: testNS}, result)
-		g.Expect(err).Should(HaveOccurred())
-		g.Expect(client.IgnoreNotFound(err)).To(Succeed())
+		g.Expect(err).To(Succeed())
 	})
 
 	t.Run("should delete Deployment with nil selector", func(t *testing.T) {
