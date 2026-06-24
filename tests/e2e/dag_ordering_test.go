@@ -385,6 +385,17 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingBlocksDeployment(t *testing.
 	t.Log("Restarting operator to reset RunlevelTracker (simulates upgrade)")
 	tc.rolloutRestartOperator(t)
 
+	t.Log("Waiting for DSC ProvisioningProgress=False (confirms new operator with reset tracker has taken over)")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(jq.Match(
+			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
+			status.ConditionTypeProvisioningProgress, metav1.ConditionFalse,
+		)),
+		WithEventuallyTimeout(5*time.Minute),
+		WithEventuallyPollingInterval(10*time.Second),
+	)
+
 	t.Log("Waiting for PlatformReady=False on Kserve (batch 31 gated)")
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: kserveInstanceName}),
