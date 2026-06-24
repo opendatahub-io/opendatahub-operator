@@ -335,7 +335,7 @@ get-manifests: ## Fetch components manifests from remote git repo
 	ODH_PLATFORM_TYPE=$(ODH_PLATFORM_TYPE) VERSION=$(VERSION) ./get_all_manifests.sh
 	@echo "Validating manifest image tags..."
 	@./.github/scripts/validate-manifest-images.sh
-CLEANFILES += opt/manifests/*
+CLEANFILES += opt/manifests/* opt/charts/*
 
 .PHONY: update-rhai-images
 update-rhai-images: yq ## Fetch RHAI component manifests and update images from RHOAI-Build-Config CSV

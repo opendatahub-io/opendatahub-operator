@@ -54,7 +54,7 @@ metadata:
               "managementState": "Removed"
             },
             "mlflowoperator": {
-              "managementState": "Removed"
+              "managementState": "Managed"
             },
             "sparkoperator": {
               "managementState": "Removed"
