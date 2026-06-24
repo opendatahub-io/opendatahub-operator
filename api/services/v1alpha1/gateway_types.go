@@ -147,6 +147,9 @@ type IngressPolicyConfig struct {
 type OIDCConfig struct {
 	// OIDC issuer URL
 	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=2048
+	// +kubebuilder:validation:Pattern="^https://[a-zA-Z0-9][a-zA-Z0-9.-]+(:[0-9]+)?(/.*)?$"
 	IssuerURL string `json:"issuerURL"`
 
 	// OIDC client ID
