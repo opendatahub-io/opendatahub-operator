@@ -4,12 +4,18 @@ package trustyai
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	gt "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -468,4 +474,207 @@ func createTrustyAICRWithMCPGuardrailsMode(mcpGuardrailsMode bool) *componentApi
 	c := createTrustyAICR(true)
 	c.Spec.MCPGuardrailsMode = mcpGuardrailsMode
 	return c
+}
+
+const testNS = "redhat-ods-applications"
+
+func createTrustyAIDeployment(selectorLabels map[string]string) *appsv1.Deployment {
+	return &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      deploymentName,
+			Namespace: testNS,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: selectorLabels,
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{Labels: selectorLabels},
+				Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "manager", Image: "test"}}},
+			},
+		},
+	}
+}
+
+func TestMigrateDeploymentSelector(t *testing.T) {
+	t.Run("should delete Deployment with stale selector", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		staleSelector := map[string]string{"control-plane": "trustyai-service-operator"}
+		deploy := createTrustyAIDeployment(staleSelector)
+		dsci := createDSCI(testNS)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(deploy, dsci))
+		g.Expect(err).To(Succeed())
+
+		rr := &odhtypes.ReconciliationRequest{Client: cli}
+
+		err = migrateDeploymentSelector(ctx, rr)
+		g.Expect(err).To(Succeed())
+
+		result := &appsv1.Deployment{}
+		err = cli.Get(ctx, client.ObjectKey{Name: deploymentName, Namespace: testNS}, result)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(client.IgnoreNotFound(err)).To(Succeed())
+	})
+
+	t.Run("should not delete Deployment with correct selector", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		correctSelector := map[string]string{
+			"control-plane":             "trustyai-service-operator",
+			"app.kubernetes.io/part-of": "trustyai",
+		}
+		deploy := createTrustyAIDeployment(correctSelector)
+		dsci := createDSCI(testNS)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(deploy, dsci))
+		g.Expect(err).To(Succeed())
+
+		rr := &odhtypes.ReconciliationRequest{Client: cli}
+
+		err = migrateDeploymentSelector(ctx, rr)
+		g.Expect(err).To(Succeed())
+
+		result := &appsv1.Deployment{}
+		err = cli.Get(ctx, client.ObjectKey{Name: deploymentName, Namespace: testNS}, result)
+		g.Expect(err).To(Succeed())
+		g.Expect(result.Spec.Selector.MatchLabels).Should(HaveKeyWithValue("app.kubernetes.io/part-of", "trustyai"))
+	})
+
+	t.Run("should be no-op when Deployment does not exist", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsci := createDSCI(testNS)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsci))
+		g.Expect(err).To(Succeed())
+
+		rr := &odhtypes.ReconciliationRequest{Client: cli}
+
+		err = migrateDeploymentSelector(ctx, rr)
+		g.Expect(err).To(Succeed())
+	})
+
+	t.Run("should return error when DSCI is missing", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		cli, err := fakeclient.New()
+		g.Expect(err).To(Succeed())
+
+		rr := &odhtypes.ReconciliationRequest{Client: cli}
+
+		err = migrateDeploymentSelector(ctx, rr)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(err.Error()).Should(ContainSubstring("failed to determine application namespace"))
+	})
+
+	t.Run("should be no-op when Deployment has nil selector", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		deploy := &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      deploymentName,
+				Namespace: testNS,
+			},
+			Spec: appsv1.DeploymentSpec{
+				Template: corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "manager", Image: "test"}}},
+				},
+			},
+		}
+		dsci := createDSCI(testNS)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(deploy, dsci))
+		g.Expect(err).To(Succeed())
+
+		rr := &odhtypes.ReconciliationRequest{Client: cli}
+
+		err = migrateDeploymentSelector(ctx, rr)
+		g.Expect(err).To(Succeed())
+
+		result := &appsv1.Deployment{}
+		err = cli.Get(ctx, client.ObjectKey{Name: deploymentName, Namespace: testNS}, result)
+		g.Expect(err).To(Succeed())
+	})
+
+	t.Run("should return error when Get fails with non-NotFound error", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsci := createDSCI(testNS)
+
+		cli, err := fakeclient.New(
+			fakeclient.WithObjects(dsci),
+			fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+				Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+					if _, ok := obj.(*appsv1.Deployment); ok {
+						return errors.New("simulated API server error")
+					}
+					return c.Get(ctx, key, obj, opts...)
+				},
+			}),
+		)
+		g.Expect(err).To(Succeed())
+
+		rr := &odhtypes.ReconciliationRequest{Client: cli}
+
+		err = migrateDeploymentSelector(ctx, rr)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(err.Error()).Should(ContainSubstring("failed to get Deployment"))
+	})
+
+	t.Run("should succeed when Delete returns NotFound (race condition)", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		staleSelector := map[string]string{"control-plane": "trustyai-service-operator"}
+		deploy := createTrustyAIDeployment(staleSelector)
+		dsci := createDSCI(testNS)
+
+		cli, err := fakeclient.New(
+			fakeclient.WithObjects(deploy, dsci),
+			fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+				Delete: func(_ context.Context, _ client.WithWatch, _ client.Object, _ ...client.DeleteOption) error {
+					return k8serr.NewNotFound(appsv1.Resource("deployments"), deploymentName)
+				},
+			}),
+		)
+		g.Expect(err).To(Succeed())
+
+		rr := &odhtypes.ReconciliationRequest{Client: cli}
+
+		err = migrateDeploymentSelector(ctx, rr)
+		g.Expect(err).To(Succeed())
+	})
+
+	t.Run("should return error when Delete fails with non-NotFound error", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		staleSelector := map[string]string{"control-plane": "trustyai-service-operator"}
+		deploy := createTrustyAIDeployment(staleSelector)
+		dsci := createDSCI(testNS)
+
+		cli, err := fakeclient.New(
+			fakeclient.WithObjects(deploy, dsci),
+			fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+				Delete: func(_ context.Context, _ client.WithWatch, _ client.Object, _ ...client.DeleteOption) error {
+					return errors.New("simulated delete error")
+				},
+			}),
+		)
+		g.Expect(err).To(Succeed())
+
+		rr := &odhtypes.ReconciliationRequest{Client: cli}
+
+		err = migrateDeploymentSelector(ctx, rr)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(err.Error()).Should(ContainSubstring("failed to delete Deployment"))
+	})
 }
