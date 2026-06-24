@@ -587,6 +587,49 @@ func TestMigrateDeploymentSelector(t *testing.T) {
 		g.Expect(err).To(Succeed())
 	})
 
+	t.Run("should delete Deployment with nil MatchLabels", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		deploy := createTrustyAIDeployment(nil)
+		deploy.Spec.Selector = &metav1.LabelSelector{MatchLabels: nil}
+		dsci := createDSCI(testNS)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(deploy, dsci))
+		g.Expect(err).To(Succeed())
+
+		rr := &odhtypes.ReconciliationRequest{Client: cli}
+
+		err = migrateDeploymentSelector(ctx, rr)
+		g.Expect(err).To(Succeed())
+
+		result := &appsv1.Deployment{}
+		err = cli.Get(ctx, client.ObjectKey{Name: trustyaiDeploymentName, Namespace: testNS}, result)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(client.IgnoreNotFound(err)).To(Succeed())
+	})
+
+	t.Run("should delete Deployment with empty MatchLabels", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		deploy := createTrustyAIDeployment(map[string]string{})
+		dsci := createDSCI(testNS)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(deploy, dsci))
+		g.Expect(err).To(Succeed())
+
+		rr := &odhtypes.ReconciliationRequest{Client: cli}
+
+		err = migrateDeploymentSelector(ctx, rr)
+		g.Expect(err).To(Succeed())
+
+		result := &appsv1.Deployment{}
+		err = cli.Get(ctx, client.ObjectKey{Name: trustyaiDeploymentName, Namespace: testNS}, result)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(client.IgnoreNotFound(err)).To(Succeed())
+	})
+
 	t.Run("should delete Deployment with nil selector", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
