@@ -127,6 +127,6 @@ func (v *Validator) warnDeprecatedModelsAsService(ctx context.Context, _ client.
 	}
 
 	resp := admission.Allowed("")
-	resp.Warnings = dscwebhook.ModelsAsServiceDeprecationWarnings(dsc.Spec.Components.Kserve.ModelsAsService.ManagementState) //nolint:staticcheck
+	resp.Warnings = dscwebhook.ModelsAsServiceDeprecationWarnings(dsc.Spec.Components.Kserve.ModelsAsService.ManagementState) //nolint:staticcheck // deprecation warning
 	return resp
 }

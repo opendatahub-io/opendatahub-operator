@@ -1029,9 +1029,9 @@ func TestDeprecatedConnectionTypeRefAnnotation(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Use the special helper to create secret with ConnectionTypeRef annotation
-			//nolint:staticcheck // SA1019: ConnectionTypeRef is deprecated but still tested for backward compatibility
+
 			runTestCaseWithCustomSecret(t, tc, func(name, namespace, connectionType string, data map[string][]byte) *corev1.Secret {
-				return createTestSecretWithAnnotationType(name, namespace, connectionType, annotations.ConnectionTypeRef, data)
+				return createTestSecretWithAnnotationType(name, namespace, connectionType, annotations.ConnectionTypeRef, data) //nolint:staticcheck // deprecated fallback
 			})
 		})
 	}
@@ -1073,14 +1073,14 @@ func TestValidateInferenceServiceConnectionType(t *testing.T) {
 	g := NewWithT(t)
 
 	// Test data setup
-	//nolint:staticcheck // SA1019: ConnectionTypeRef is deprecated but still tested for backward compatibility
+
 	allowedTypes := map[string][]string{
 		annotations.ConnectionTypeProtocol: {
 			webhookutils.ConnectionTypeProtocolURI.String(),
 			webhookutils.ConnectionTypeProtocolS3.String(),
 			webhookutils.ConnectionTypeProtocolOCI.String(),
 		},
-		annotations.ConnectionTypeRef: {
+		annotations.ConnectionTypeRef: { //nolint:staticcheck // deprecated fallback
 			webhookutils.ConnectionTypeRefURI.String(),
 			webhookutils.ConnectionTypeRefS3.String(),
 			webhookutils.ConnectionTypeRefOCI.String(),
@@ -1146,8 +1146,7 @@ func TestValidateInferenceServiceConnectionType(t *testing.T) {
 				secretMeta.Annotations[annotations.ConnectionTypeProtocol] = tc.protocolAnnotation
 			}
 			if tc.refAnnotation != "" {
-				//nolint:staticcheck // SA1019: ConnectionTypeRef is deprecated but still tested for backward compatibility
-				secretMeta.Annotations[annotations.ConnectionTypeRef] = tc.refAnnotation
+				secretMeta.Annotations[annotations.ConnectionTypeRef] = tc.refAnnotation //nolint:staticcheck // deprecated fallback
 			}
 
 			// Call the function under test
