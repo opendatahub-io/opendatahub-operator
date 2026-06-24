@@ -1,7 +1,7 @@
 apiVersion: monitoring.rhobs/v1
 kind: PrometheusRule
 metadata:
-  name: mcplifecycleoperator-alerts
+  name: mcplifecycleoperator-prometheusrules
   namespace: {{.Namespace}}
 spec:
   groups:

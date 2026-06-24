@@ -16,6 +16,10 @@ import (
 const (
 	moduleName = componentApi.MCPLifecycleOperatorComponentName
 	crName     = componentApi.MCPLifecycleOperatorInstanceName
+
+	// deploymentName is the rendered Deployment name after kustomize applies
+	// namePrefix "mcp-lifecycle-module-operator-" to "controller-manager".
+	deploymentName = "mcp-lifecycle-module-operator-controller-manager"
 )
 
 type handler struct {
@@ -30,8 +34,12 @@ func NewHandler() *handler {
 				CRName:          crName,
 				ManifestDir:     "mcplifecycleoperator",
 				ContextDir:      "default",
+				DeploymentName:  deploymentName,
 				GVK:             gvk.MCPLifecycleOperator,
-				ControllerImage: "RELATED_IMAGE_ODH_MCP_LIFECYCLE_MODULE_OPERATOR_CONTROLLER_IMAGE",
+				ControllerImage: "RELATED_IMAGE_ODH_MCP_LIFECYCLE_MODULE_OPERATOR_IMAGE",
+				RelatedImages: []string{
+					"RELATED_IMAGE_ODH_MCP_LIFECYCLE_OPERATOR_IMAGE",
+				},
 			},
 		},
 	}
