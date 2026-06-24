@@ -5,14 +5,19 @@ import (
 	"sync"
 
 	"github.com/hashicorp/go-multierror"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 )
 
 type registryEntry struct {
-	handler      ModuleHandler
-	enabled      bool
-	runlevel     int
-	dependencies []string
+	handler  ModuleHandler
+	enabled  bool
+	runlevel dag.Runlevel
 }
+
+func (e registryEntry) GetName() string           { return e.handler.GetName() }
+func (e registryEntry) GetRunlevel() dag.Runlevel { return e.runlevel }
 
 // Registry maintains the set of registered ModuleHandlers.
 // All public methods are safe for concurrent use.
@@ -21,6 +26,8 @@ type Registry struct {
 	entries map[string]registryEntry
 	// order preserves insertion order for deterministic iteration.
 	order []string
+	// resolvedCache caches the DAG-resolved batches; invalidated on mutation.
+	resolvedCache [][]registryEntry
 }
 
 var r = &Registry{}
@@ -36,7 +43,7 @@ func (r *Registry) Add(handler ModuleHandler, opts ...RegistrationOption) {
 
 	name := handler.GetName()
 
-	e := registryEntry{handler: handler, enabled: true}
+	e := registryEntry{handler: handler, enabled: true, runlevel: dag.RL(99)}
 	for _, opt := range opts {
 		opt(&e)
 	}
@@ -45,6 +52,8 @@ func (r *Registry) Add(handler ModuleHandler, opts ...RegistrationOption) {
 		r.order = append(r.order, name)
 	}
 	r.entries[name] = e
+	r.resolvedCache = nil
+	provision.InvalidateCache()
 }
 
 // Enable sets the enabled state for the named module to true.
@@ -68,6 +77,8 @@ func (r *Registry) setEnabledLocked(name string, enabled bool) {
 	if e, ok := r.entries[name]; ok {
 		e.enabled = enabled
 		r.entries[name] = e
+		r.resolvedCache = nil
+		provision.InvalidateCache()
 	}
 }
 
@@ -94,6 +105,8 @@ func (r *Registry) EnableFromList(names []string) {
 		e.enabled = want[name]
 		r.entries[name] = e
 	}
+	r.resolvedCache = nil
+	provision.InvalidateCache()
 }
 
 // sortedNames returns module names in sorted order for deterministic iteration.
@@ -169,12 +182,90 @@ func (r *Registry) IsModuleEnabled(moduleName string, platform *PlatformContext)
 	return ok && e.enabled && e.handler.IsEnabled(platform)
 }
 
+// ResolvedBatches returns modules grouped by runlevel and topologically
+// sorted within each batch. Only enabled modules are included.
+// Results are cached until the registry is mutated.
+func (r *Registry) ResolvedBatches() ([][]registryEntry, error) {
+	r.mu.RLock()
+	if r.resolvedCache != nil {
+		defer r.mu.RUnlock()
+		return r.resolvedCache, nil
+	}
+	r.mu.RUnlock()
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.resolvedCache != nil {
+		return r.resolvedCache, nil
+	}
+
+	g := dag.NewGraph[registryEntry]()
+	for _, name := range r.order {
+		e := r.entries[name]
+		if !e.enabled {
+			continue
+		}
+		g.Add(e)
+	}
+
+	batches, err := g.Resolve()
+	if err != nil {
+		return nil, err
+	}
+	r.resolvedCache = batches
+	return batches, nil
+}
+
+// ReverseBatches returns batches in reverse order for cleanup.
+func (r *Registry) ReverseBatches() ([][]registryEntry, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	g := dag.NewGraph[registryEntry]()
+	for _, name := range r.order {
+		e := r.entries[name]
+		if !e.enabled {
+			continue
+		}
+		g.Add(e)
+	}
+
+	return g.ReverseBatches()
+}
+
+// Lookup returns the handler for a named module, or nil if not found.
+func (r *Registry) Lookup(name string) ModuleHandler { //nolint:ireturn
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	if e, ok := r.entries[name]; ok {
+		return e.handler
+	}
+	return nil
+}
+
 // HasEntries returns true if there are any registered modules.
 func (r *Registry) HasEntries() bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	return len(r.entries) > 0
+}
+
+// AnyEnabled returns true if at least one registered module is enabled
+// in the given PlatformContext. Returns false when all modules are
+// Removed or no modules are registered.
+func (r *Registry) AnyEnabled(platform *PlatformContext) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for _, e := range r.entries {
+		if e.handler.IsEnabled(platform) {
+			return true
+		}
+	}
+	return false
 }
 
 // Package-level functions that delegate to the default registry.

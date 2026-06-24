@@ -157,6 +157,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			CRName:      KueueCRName,
 			Filter:      kueueDegradedConditionFilter,
 		})).
+		WithAction(precondition.RunlevelGateAction()).
 		WithAction(checkPreConditions).
 		WithAction(initialize).
 		WithAction(releases.NewAction()).

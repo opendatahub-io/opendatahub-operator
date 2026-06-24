@@ -111,6 +111,10 @@ func cleanUpTemplatedResources(ctx context.Context, rr *odhtypes.ReconciliationR
 }
 
 func customizeKserveConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	if rr.SkipDeploy {
+		return nil
+	}
+
 	k, ok := rr.Instance.(*componentApi.Kserve)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.Kserve", rr.Instance)

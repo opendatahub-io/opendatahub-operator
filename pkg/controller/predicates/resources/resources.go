@@ -269,6 +269,18 @@ func CreatedOrUpdatedOrDeletedNamed(name string) predicate.Predicate {
 	}
 }
 
+func CreatedOrUpdatedOrDeletedLabeled(key, value string) predicate.Predicate {
+	hasLabel := func(obj client.Object) bool {
+		return obj.GetLabels()[key] == value
+	}
+	return predicate.Funcs{
+		CreateFunc:  func(e event.TypedCreateEvent[client.Object]) bool { return hasLabel(e.Object) },
+		UpdateFunc:  func(e event.TypedUpdateEvent[client.Object]) bool { return hasLabel(e.ObjectNew) },
+		DeleteFunc:  func(e event.TypedDeleteEvent[client.Object]) bool { return hasLabel(e.Object) },
+		GenericFunc: func(e event.TypedGenericEvent[client.Object]) bool { return false },
+	}
+}
+
 func CreatedOrUpdatedOrDeletedNamedInNamespace(name, namespace string) predicate.Predicate {
 	return predicate.And(
 		CreatedOrUpdatedOrDeletedNamed(name),

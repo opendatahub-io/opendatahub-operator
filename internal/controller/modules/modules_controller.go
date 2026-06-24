@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
@@ -19,13 +21,23 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	helmrender "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/helm"
 	kustomizerender "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
 // commonActions returns the shared action chain for both DSC and Platform modes.
+//
+// Ordering: provisionModules and render run before the gate check so
+// that gate ConfigMaps embedded in module Helm charts are discovered
+// before the check runs. ExtractUpgradeGates pulls gate CMs out of
+// rr.Resources and stashes them on rr.GateEntries. checkUpgradeGates
+// then merges all gate sources and writes descriptions to
+// odh-upgrade-acks. If unacked gates exist, deploy never runs.
 func commonActions() []actions.Fn {
 	return []actions.Fn{
 		initializeModules,
@@ -33,7 +45,10 @@ func commonActions() []actions.Fn {
 		provisionModules,
 		helmrender.NewAction(),
 		kustomizerender.NewAction(),
+		provision.ExtractUpgradeGates,
+		checkUpgradeGates,
 		injectModuleEnv,
+		injectPlatformConfig,
 		deploy.NewAction(
 			deploy.WithCache(),
 			deploy.WithApplyOrder(),
@@ -78,12 +93,22 @@ func newDSCModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		WithInstanceName("modules").
 		WithDynamicOwnership().
 		WithoutConditionCleanup().
+		WithoutStatusConditions().
 		Watches(
 			&dsciv2.DSCInitialization{},
 			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
 				return cluster.WatchDataScienceClusters(ctx, mgr.GetClient())
 			}),
-			reconciler.WithPredicates(predicates.DefaultPredicate))
+			reconciler.WithPredicates(predicates.DefaultPredicate)).
+		Watches(
+			&corev1.ConfigMap{},
+			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
+				return cluster.WatchDataScienceClusters(ctx, mgr.GetClient())
+			}),
+			reconciler.WithPredicates(predicate.Or(
+				resources.CreatedOrUpdatedOrDeletedNamed(gates.AcksConfigMap),
+				resources.CreatedOrUpdatedOrDeletedLabeled(gates.UpgradeGateLabel, "true"),
+			)))
 
 	for _, a := range commonActions() {
 		b = b.WithAction(a)
@@ -108,6 +133,7 @@ func newPlatformModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		WithInstanceName("modules").
 		WithDynamicOwnership().
 		WithoutConditionCleanup().
+		WithoutStatusConditions().
 		WithAction(enableModulesFromPlatform)
 
 	for _, a := range commonActions() {

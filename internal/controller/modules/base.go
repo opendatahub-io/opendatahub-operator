@@ -224,11 +224,13 @@ func (b *BaseHandler) GetModuleStatus(ctx context.Context, cli client.Client) (*
 	}
 
 	observedGen, _, _ := unstructured.NestedInt64(u.Object, "status", "observedGeneration")
+	releaseVersion, _, _ := unstructured.NestedString(u.Object, "status", "release", "version")
 
 	return &ModuleStatus{
 		Conditions:         conditions,
 		ObservedGeneration: observedGen,
 		Generation:         u.GetGeneration(),
+		ReleaseVersion:     releaseVersion,
 	}, nil
 }
 

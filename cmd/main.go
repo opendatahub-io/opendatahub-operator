@@ -111,6 +111,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/bootstrap"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
@@ -152,6 +154,35 @@ var (
 		componentApi.WorkbenchesComponentName:          workbenches.NewHandler(),
 	}
 
+	// Component runlevel assignments.
+	//
+	// 20 — core AI/ML, all independent; gateway deps are on GatewayConfig
+	//      service (separate lifecycle), not on other components.
+	// 31 — extension foundations (kserve, kueue), independent of each other.
+	// 32 — independent extensions, no KServe dependency.
+	// 33 — components that require KServe to be Ready.
+	componentRunlevels = map[string]dag.Runlevel{
+		componentApi.DashboardComponentName:            dag.RL(20),
+		componentApi.DataSciencePipelinesComponentName: dag.RL(20),
+		componentApi.ModelRegistryComponentName:        dag.RL(20),
+		componentApi.RayComponentName:                  dag.RL(20),
+		componentApi.TrainerComponentName:              dag.RL(20),
+		componentApi.TrainingOperatorComponentName:     dag.RL(20),
+		componentApi.WorkbenchesComponentName:          dag.RL(20),
+
+		componentApi.KserveComponentName: dag.RL(31),
+		componentApi.KueueComponentName:  dag.RL(31),
+
+		componentApi.FeastOperatorComponentName:  dag.RL(32),
+		componentApi.MLflowOperatorComponentName: dag.RL(32),
+		componentApi.OGXComponentName:            dag.RL(32),
+		componentApi.SparkOperatorComponentName:  dag.RL(32),
+
+		componentApi.ModelControllerComponentName: dag.RL(33),
+		componentApi.ModelsAsServiceComponentName: dag.RL(33),
+		componentApi.TrustyAIComponentName:        dag.RL(33),
+	}
+
 	existingServices = map[string]sr.ServiceHandler{
 		serviceApi.AuthServiceName:         auth.NewHandler(),
 		certconfigmapgenerator.ServiceName: certconfigmapgenerator.NewHandler(),
@@ -164,6 +195,8 @@ var (
 		// serviceApi.MonitoringServiceName: monitoringModule.NewHandler(),
 		componentApi.AIGatewayComponentName: aigatewayModule.NewHandler(),
 	}
+
+	moduleRunlevels = map[string]dag.Runlevel{}
 )
 
 func init() { //nolint:gochecknoinits
@@ -216,9 +249,17 @@ func initServices(_ context.Context, p common.Platform) error {
 
 func registerComponents() {
 	for name, handler := range existingComponents {
-		cr.Add(handler)
+		rl := dag.RL(99)
+		if r, ok := componentRunlevels[name]; ok {
+			rl = r
+		}
+
+		cr.Add(handler, cr.WithRunlevel(rl))
+		provision.Add(name, provision.KindComponent, rl)
+
 		if !flags.IsComponentEnabled(name) {
 			cr.Disable(name)
+			provision.Disable(name)
 		}
 	}
 }
@@ -234,9 +275,17 @@ func registerServices() {
 
 func registerModules() {
 	for name, handler := range existingModules {
-		mr.Add(handler)
+		rl := dag.RL(99)
+		if r, ok := moduleRunlevels[name]; ok {
+			rl = r
+		}
+
+		mr.Add(handler, mr.WithRunlevel(rl))
+		provision.Add(name, provision.KindModule, rl)
+
 		if !flags.IsModuleEnabled(name) {
 			mr.Disable(name)
+			provision.Disable(name)
 		}
 	}
 }
