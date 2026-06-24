@@ -118,7 +118,7 @@ func TestGetRelatedImages(t *testing.T) {
 	h := mcplifecycleoperator.NewHandler()
 	images := h.GetRelatedImages()
 
-	g.Expect(images).Should(BeEmpty())
+	g.Expect(images).Should(ConsistOf("RELATED_IMAGE_ODH_MCP_LIFECYCLE_OPERATOR_IMAGE"))
 }
 
 func TestGetName(t *testing.T) {
