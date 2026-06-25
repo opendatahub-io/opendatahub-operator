@@ -42,6 +42,11 @@ func NewHandler() *handler {
 					// "odh-dashboard-operator". Clear it so the Deployment name matches
 					// ReleaseName for module env injection (deploymentNameFromManifests).
 					"namePrefix": "",
+					// Preserve chart-aligned webhook defaults; cert-manager gating overrides
+					// enabled/certManager.enabled in GetOperatorManifests.
+					"webhook": map[string]any{
+						"port": 9443,
+					},
 				},
 				GVK:             gvk.Dashboard, // components.platform.opendatahub.io/v1alpha1/Dashboard
 				ControllerImage: "RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE",
@@ -71,15 +76,47 @@ func (h *handler) GetOperatorManifests(platform *modules.PlatformContext) module
 	origValues := manifests.HelmCharts[0].Values
 	certManagerAvailable := platform.CertManagerCRDsAvailable
 	manifests.HelmCharts[0].Values = func(ctx context.Context) (helmtypes.Values, error) {
-		vals, err := origValues(ctx)
-		if err != nil {
-			return nil, err
+		vals := make(helmtypes.Values)
+		if origValues != nil {
+			v, err := origValues(ctx)
+			if err != nil {
+				return nil, err
+			}
+			if v != nil {
+				vals = v
+			}
 		}
-		vals["webhook"] = webhookHelmValues(certManagerAvailable)
+
+		var existingWebhook map[string]any
+		if w, ok := vals["webhook"].(map[string]any); ok {
+			existingWebhook = w
+		}
+		vals["webhook"] = mergeWebhookHelmValues(existingWebhook, certManagerAvailable)
 		return vals, nil
 	}
 
 	return manifests
+}
+
+func mergeWebhookHelmValues(existing map[string]any, certManagerAvailable bool) map[string]any {
+	merged := webhookHelmValues(certManagerAvailable)
+	for k, v := range existing {
+		if _, set := merged[k]; !set {
+			merged[k] = v
+		}
+	}
+
+	existingCM, existingOk := existing["certManager"].(map[string]any)
+	mergedCM, mergedOk := merged["certManager"].(map[string]any)
+	if existingOk && mergedOk {
+		for k, v := range existingCM {
+			if _, set := mergedCM[k]; !set {
+				mergedCM[k] = v
+			}
+		}
+	}
+
+	return merged
 }
 
 func webhookHelmValues(certManagerAvailable bool) map[string]any {

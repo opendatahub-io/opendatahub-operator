@@ -176,6 +176,7 @@ func TestGetOperatorManifests_WithCertManager(t *testing.T) {
 	webhook, ok := vals["webhook"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "webhook values missing")
 	g.Expect(webhook["enabled"]).Should(BeTrue())
+	g.Expect(webhook["port"]).Should(Equal(9443))
 
 	certManager, ok := webhook["certManager"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "webhook.certManager values missing")

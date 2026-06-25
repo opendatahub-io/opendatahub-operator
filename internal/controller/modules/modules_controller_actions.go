@@ -120,7 +120,8 @@ func buildPlatformContext(ctx context.Context, rr *odhtype.ReconciliationRequest
 
 	certManagerAvailable, err := certManagerCRDsAvailable(ctx, rr.Client)
 	if err != nil {
-		return nil, err
+		logf.FromContext(ctx).Error(err, "failed to detect cert-manager CRDs, defaulting to unavailable")
+		certManagerAvailable = false
 	}
 
 	return &PlatformContext{
