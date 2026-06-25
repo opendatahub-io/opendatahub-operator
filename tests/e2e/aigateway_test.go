@@ -41,7 +41,7 @@ func aiGatewayTestSuite(t *testing.T) {
 			t.Helper()
 			skipUnless(t, Smoke, Tier1)
 
-			// DSC has no "AIGatewayReady" condition, the test is only to check if the AIGateway CR and its deployment
+			// DSC has no "AIGatewayReady" condition, the test is only to check if the AIGateway CR and its deployment exist
 			if !tc.IsXKS() {
 				tc.EventuallyResourcePatched(
 					WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
