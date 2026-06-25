@@ -38,7 +38,7 @@ import (
 func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) (precondition.CheckResult, error) {
 	dsp, ok := rr.Instance.(*componentApi.DataSciencePipelines)
 	if !ok {
-		return precondition.CheckResult{}, fmt.Errorf("resource instance %v is not a componentApi.DataSciencePipelines)", rr.Instance)
+		return precondition.CheckResult{}, fmt.Errorf("resource instance %T is not a componentApi.DataSciencePipelines", rr.Instance)
 	}
 
 	awfSpec := dsp.Spec.ArgoWorkflowsControllers
