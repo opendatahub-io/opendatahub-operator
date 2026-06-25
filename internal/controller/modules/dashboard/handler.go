@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	helmtypes "github.com/k8s-manifest-kit/engine/pkg/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -19,6 +20,8 @@ const (
 	moduleName = componentApi.DashboardComponentName
 	// crName must match dashboard-operator CRD CEL (default-dashboard); see odh-dashboard#8093.
 	crName = componentApi.DashboardInstanceName
+
+	errCertManagerCRDsRequired = "cert-manager CRDs (Certificate, CertificateRequest, Issuer) are required for dashboard webhook TLS"
 )
 
 type handler struct {
@@ -39,19 +42,51 @@ func NewHandler() *handler {
 					// "odh-dashboard-operator". Clear it so the Deployment name matches
 					// ReleaseName for module env injection (deploymentNameFromManifests).
 					"namePrefix": "",
-					// Webhook TLS via cert-manager (odh-dashboard#8241). Requires cert-manager
-					// CRDs on the cluster (e.g. openshift-cert-manager-operator on OpenShift).
-					"webhook": map[string]any{
-						"enabled": true,
-						"certManager": map[string]any{
-							"enabled": true,
-						},
-					},
 				},
 				GVK:             gvk.Dashboard, // components.platform.opendatahub.io/v1alpha1/Dashboard
 				ControllerImage: "RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE",
 				RelatedImages:   relatedImages(),
 			},
+		},
+	}
+}
+
+// ValidatePrerequisites ensures cert-manager CRDs are present before provisioning
+// dashboard-operator with webhook TLS via cert-manager.
+func (h *handler) ValidatePrerequisites(platform *modules.PlatformContext) error {
+	if platform == nil || !platform.CertManagerCRDsAvailable {
+		return errors.New(errCertManagerCRDsRequired)
+	}
+	return nil
+}
+
+// GetOperatorManifests renders the dashboard-operator chart and gates webhook TLS
+// on cert-manager CRD availability.
+func (h *handler) GetOperatorManifests(platform *modules.PlatformContext) modules.OperatorManifests {
+	manifests := h.BaseHandler.GetOperatorManifests(platform)
+	if platform == nil || len(manifests.HelmCharts) != 1 {
+		return manifests
+	}
+
+	origValues := manifests.HelmCharts[0].Values
+	certManagerAvailable := platform.CertManagerCRDsAvailable
+	manifests.HelmCharts[0].Values = func(ctx context.Context) (helmtypes.Values, error) {
+		vals, err := origValues(ctx)
+		if err != nil {
+			return nil, err
+		}
+		vals["webhook"] = webhookHelmValues(certManagerAvailable)
+		return vals, nil
+	}
+
+	return manifests
+}
+
+func webhookHelmValues(certManagerAvailable bool) map[string]any {
+	return map[string]any{
+		"enabled": certManagerAvailable,
+		"certManager": map[string]any{
+			"enabled": certManagerAvailable,
 		},
 	}
 }

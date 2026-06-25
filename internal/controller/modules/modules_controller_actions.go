@@ -118,14 +118,20 @@ func buildPlatformContext(ctx context.Context, rr *odhtype.ReconciliationRequest
 		return nil, fmt.Errorf("failed to resolve application namespace: %w", err)
 	}
 
+	certManagerAvailable, err := certManagerCRDsAvailable(ctx, rr.Client)
+	if err != nil {
+		return nil, err
+	}
+
 	return &PlatformContext{
-		ApplicationsNamespace: appNS,
-		Release:               rr.Release,
-		DSC:                   dscFromInstance(rr),
-		DSCI:                  dsciOrNil(rr),
-		Platform:              platformFromInstance(rr),
-		ChartsBasePath:        rr.ChartsBasePath,
-		ManifestsBasePath:     rr.ManifestsBasePath,
+		ApplicationsNamespace:    appNS,
+		Release:                  rr.Release,
+		DSC:                      dscFromInstance(rr),
+		DSCI:                     dsciOrNil(rr),
+		Platform:                 platformFromInstance(rr),
+		ChartsBasePath:           rr.ChartsBasePath,
+		ManifestsBasePath:        rr.ManifestsBasePath,
+		CertManagerCRDsAvailable: certManagerAvailable,
 	}, nil
 }
 
@@ -250,6 +256,7 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 
 	var perModuleImages []odhtype.ModuleImages
 	var failedModules []string
+	var prerequisiteErrors []string
 
 	// The DSC controller is the sole owner of the ProvisioningProgress
 	// condition. Pass a no-op writer so the modules controller still
@@ -266,6 +273,14 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 
 				if !handler.IsEnabled(platformCtx) {
 					continue
+				}
+
+				if v, ok := handler.(PrerequisiteValidator); ok {
+					if err := v.ValidatePrerequisites(platformCtx); err != nil {
+						log.Error(err, "module prerequisites not met", "module", name)
+						prerequisiteErrors = append(prerequisiteErrors, fmt.Sprintf("%s: %s", name, err.Error()))
+						continue
+					}
 				}
 
 				log.Info("provisioning module", "module", name,
@@ -313,17 +328,18 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 		return odherrors.NewRequeueAfterError(requeueAfter)
 	}
 
-	if len(failedModules) > 0 {
+	if len(failedModules) > 0 || len(prerequisiteErrors) > 0 {
+		parts := append(append([]string{}, failedModules...), prerequisiteErrors...)
 		if !cr.HasEntries() {
 			rr.Conditions.SetCondition(common.Condition{
 				Type:    status.ConditionTypeModulesReady,
 				Status:  metav1.ConditionFalse,
 				Reason:  status.ProvisioningFailedReason,
-				Message: fmt.Sprintf("Provisioning failed for: %s", strings.Join(failedModules, ", ")),
+				Message: fmt.Sprintf("Provisioning failed for: %s", strings.Join(parts, "; ")),
 			})
 		}
 
-		return fmt.Errorf("BuildModuleCR failed for modules: %s", strings.Join(failedModules, ", "))
+		return fmt.Errorf("module provisioning failed: %s", strings.Join(parts, "; "))
 	}
 
 	if len(perModuleImages) > 0 || platformCtx.ApplicationsNamespace != "" {

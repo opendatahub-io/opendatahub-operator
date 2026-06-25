@@ -154,10 +154,11 @@ func TestBuildModuleCR_NilDSCReturnsError(t *testing.T) {
 	g.Expect(err).Should(HaveOccurred())
 }
 
-func TestGetOperatorManifests(t *testing.T) {
+func TestGetOperatorManifests_WithCertManager(t *testing.T) {
 	g := NewWithT(t)
 	h := dashboard.NewHandler()
 	platform := newPlatformCtx(operatorv1.Managed)
+	platform.CertManagerCRDsAvailable = true
 
 	manifests := h.GetOperatorManifests(platform)
 	g.Expect(manifests.HelmCharts).Should(HaveLen(1))
@@ -179,6 +180,34 @@ func TestGetOperatorManifests(t *testing.T) {
 	certManager, ok := webhook["certManager"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "webhook.certManager values missing")
 	g.Expect(certManager["enabled"]).Should(BeTrue())
+}
+
+func TestGetOperatorManifests_WithoutCertManager(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+	platform := newPlatformCtx(operatorv1.Managed)
+	platform.CertManagerCRDsAvailable = false
+
+	manifests := h.GetOperatorManifests(platform)
+	vals, err := manifests.HelmCharts[0].Values(context.Background())
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	webhook, ok := vals["webhook"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(webhook["enabled"]).Should(BeFalse())
+
+	certManager, ok := webhook["certManager"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(certManager["enabled"]).Should(BeFalse())
+}
+
+func TestValidatePrerequisites_RequiresCertManagerCRDs(t *testing.T) {
+	g := NewWithT(t)
+	h := dashboard.NewHandler()
+
+	g.Expect(h.ValidatePrerequisites(&modules.PlatformContext{CertManagerCRDsAvailable: true})).Should(Succeed())
+	g.Expect(h.ValidatePrerequisites(&modules.PlatformContext{CertManagerCRDsAvailable: false})).Should(MatchError(ContainSubstring("cert-manager CRDs")))
+	g.Expect(h.ValidatePrerequisites(nil)).Should(MatchError(ContainSubstring("cert-manager CRDs")))
 }
 
 func TestGetControllerImage(t *testing.T) {
