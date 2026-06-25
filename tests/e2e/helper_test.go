@@ -322,6 +322,11 @@ func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceClust
 						ManagementState: operatorv1.Removed,
 					},
 				},
+				RhoaiMcp: componentApi.DSCRhoaiMcp{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
 			},
 		},
 	}

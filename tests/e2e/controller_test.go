@@ -152,6 +152,7 @@ var (
 				componentApi.OGXComponentName:                  ogxTestSuite,
 				componentApi.SparkOperatorComponentName:        sparkOperatorTestSuite,
 				componentApi.AIGatewayComponentName:            aiGatewayTestSuite,
+				componentApi.RhoaiMcpComponentName:             rhoaiMcpTestSuite,
 			},
 			{
 				// Kueue tests depends on Workbenches, so must not run with Workbenches tests in parallel
