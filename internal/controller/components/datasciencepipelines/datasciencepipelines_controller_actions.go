@@ -28,22 +28,23 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	odherr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
-func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) (precondition.CheckResult, error) {
 	dsp, ok := rr.Instance.(*componentApi.DataSciencePipelines)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentApi.DataSciencePipelines)", rr.Instance)
+		return precondition.CheckResult{}, fmt.Errorf("resource instance %v is not a componentApi.DataSciencePipelines)", rr.Instance)
 	}
 
 	awfSpec := dsp.Spec.ArgoWorkflowsControllers
 	awfRemoved := awfSpec != nil && awfSpec.ManagementState == operatorv1.Removed
 
+	// Initialize to True; path-specific logic below will override if needed.
 	rr.Conditions.MarkTrue(status.ConditionArgoWorkflowAvailable)
 
 	crd, err := cluster.GetCRD(ctx, rr.Client, ArgoWorkflowCRD)
@@ -57,20 +58,18 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 				conditions.WithMessage(status.DataSciencePipelinesArgoWorkflowsCRDMissingMessage),
 			)
 
-			return ErrArgoWorkflowCRDMissing
+			return precondition.CheckResult{Pass: false, Message: ErrArgoWorkflowCRDMissing.Error()}, nil
 		}
 
-		return nil
+		return precondition.CheckResult{Pass: true}, nil
 	case err != nil:
-		err = odherr.NewStopError("failed to check for existing %s CRD: %w", ArgoWorkflowCRD, err)
-
 		rr.Conditions.MarkFalse(
 			status.ConditionArgoWorkflowAvailable,
 			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
 			conditions.WithError(err),
 		)
 
-		return err
+		return precondition.CheckResult{}, fmt.Errorf("failed to check for existing %s CRD: %w", ArgoWorkflowCRD, err)
 	}
 
 	if awfRemoved {
@@ -80,11 +79,9 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 			conditions.WithMessage(status.DataSciencePipelinesArgoWorkflowsNotManagedMessage),
 		)
 
-		return nil
+		return precondition.CheckResult{Pass: true}, nil
 	}
 
-	// Verify if existing workflow is deployed by ODH with label
-	// if not then set Argo capability status condition to false
 	odhLabelValue, odhLabelExists := crd.Labels[labels.ODH.Component(LegacyComponentName)]
 	if !odhLabelExists || odhLabelValue != "true" {
 		rr.Conditions.MarkFalse(
@@ -94,10 +91,10 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 			conditions.WithMessage(status.DataSciencePipelinesDoesntOwnArgoCRDMessage),
 		)
 
-		return ErrArgoWorkflowAPINotOwned
+		return precondition.CheckResult{Pass: false, Message: ErrArgoWorkflowAPINotOwned.Error()}, nil
 	}
 
-	return nil
+	return precondition.CheckResult{Pass: true}, nil
 }
 
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error { //nolint:unparam
