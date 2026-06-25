@@ -17,11 +17,23 @@ const (
 type AIGatewayCommonSpec struct {
 	// BatchGateway controls the batch-gateway operator sub-component.
 	BatchGateway AIGatewayBatchGatewaySpec `json:"batchGateway,omitempty"`
+
+	// InferencePayloadProcessing controls the IPP (payload-processing) sub-component.
+	// IPP runs as ext_proc filters in the gateway, handling model routing,
+	// API translation, and API key injection for inference requests.
+	InferencePayloadProcessing AIGatewayInferencePayloadProcessingSpec `json:"inferencePayloadProcessing,omitempty"`
 }
 
 // AIGatewayBatchGatewaySpec configures the batch-gateway operator lifecycle.
 type AIGatewayBatchGatewaySpec struct {
 	// +kubebuilder:validation:Enum=Managed;Removed
+	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
+}
+
+// AIGatewayInferencePayloadProcessingSpec configures the IPP lifecycle.
+type AIGatewayInferencePayloadProcessingSpec struct {
+	// +kubebuilder:validation:Enum=Managed;Removed
+	// +kubebuilder:default=Managed
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 }
 
