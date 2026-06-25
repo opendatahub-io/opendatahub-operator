@@ -366,10 +366,7 @@ func controllerImageFor(h ModuleHandler) string {
 }
 
 func initContainerNameFor(h ModuleHandler) string {
-	type initContainerNamer interface {
-		GetInitContainerName() string
-	}
-	if icn, ok := h.(initContainerNamer); ok {
+	if icn, ok := h.(InitContainerNamer); ok {
 		return icn.GetInitContainerName()
 	}
 	return ""
