@@ -26,9 +26,6 @@ const (
 	// ai-gateway-operator repo's get the full config which has its own manifests + sub-modulars'.
 	manifestDir = "aigateway"
 
-	// folder for where the module's entry is when mixed with sub-modulars.
-	moduleSubdir = "manifests/ai-gateway-operator"
-
 	// when module name does not match its deployment name, need explicitly set it for env injection work.
 	deploymentName = "ai-gateway-operator"
 
@@ -47,8 +44,8 @@ var (
 	// sourcePathByPlatform selects the Kustomize overlay shipped in the
 	// ai-gateway-operator config per platform flavor.
 	sourcePathByPlatform = map[common.Platform]string{
-		cluster.OpenDataHub:      moduleSubdir + "/overlays/odh",
-		cluster.SelfManagedRhoai: moduleSubdir + "/overlays/rhoai",
+		cluster.OpenDataHub:      "overlays/odh",
+		cluster.SelfManagedRhoai: "overlays/rhoai",
 	}
 
 	// relatedImages are the operand images the ai-gateway-operator passes to
@@ -56,7 +53,7 @@ var (
 	// RELATED_IMAGE_* env vars on the ai-g ateway-operator container.
 	// TODO: append more for maas images.
 	relatedImages = []string{
-		"RELATED_IMAGE_ODH_BATCH_GATEWAY_OPERATOR_IMAGE",
+		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_OPERATOR_IMAGE",
 		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_APISERVER_IMAGE",
 		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_PROCESSOR_IMAGE",
 		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_GC_IMAGE",
@@ -74,6 +71,7 @@ func NewHandler() *handler {
 				Name:                 moduleName,
 				CRName:               crName,
 				ManifestDir:          manifestDir,
+				ContextDir:           "manifests/ai-gateway-operator",
 				SourcePathByPlatform: sourcePathByPlatform,
 				ControllerImage:      controllerImage,
 				InitContainerName:    initContainerName, // use same controller image for initContainer
