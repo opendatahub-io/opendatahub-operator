@@ -79,6 +79,7 @@ const (
 	ConditionTypeProvisioningSucceeded           = "ProvisioningSucceeded"
 	ConditionDeploymentsNotAvailableReason       = "DeploymentsNotReady"
 	ConditionMaaSPrerequisitesAvailable          = "MaaSPrerequisitesAvailable"
+	ConditionMaaSIPPDependency                   = "MaaSIPPDependency"
 	ConditionDeploymentsAvailable                = "DeploymentsAvailable"
 	ConditionDependenciesAvailable               = "DependenciesAvailable"
 	ConditionArgoWorkflowAvailable               = "ArgoWorkflowAvailable"
@@ -178,6 +179,13 @@ const (
 
 	MaaSGatewayNotFoundMessage  = "maas-default-gateway not found in openshift-ingress namespace; it must be created for MaaS to work correctly"
 	MaaSPrerequisitesMetMessage = "MaaS gateway annotations and Authorino TLS are correctly configured"
+
+	// MaaS IPP dependency messages.
+	MaaSIPPNotManagedReason  = "IPPNotManaged"
+	MaaSIPPAvailableReason   = "IPPAvailable"
+	MaaSIPPNotManagedMessage = "modelsAsService is Managed but aigateway.inferencePayloadProcessing is not Managed. " +
+		"Inference routing through the gateway requires IPP for model routing, API translation, and API key injection."
+	MaaSIPPAvailableMessage = "Inference Payload Processing is available"
 
 	// Gateway Authentication messages.
 	AuthProxyDeployedMessage                 = "Auth proxy deployed successfully"
