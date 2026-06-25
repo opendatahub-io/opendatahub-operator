@@ -22,7 +22,7 @@ import (
 func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) (precondition.CheckResult, error) {
 	kueueCRInstance, ok := rr.Instance.(*componentApi.Kueue)
 	if !ok {
-		return precondition.CheckResult{}, fmt.Errorf("resource instance %v is not a componentApi.Kueue)", rr.Instance)
+		return precondition.CheckResult{}, fmt.Errorf("resource instance %T is not a componentApi.Kueue", rr.Instance)
 	}
 
 	switch kueueCRInstance.Spec.ManagementState {
