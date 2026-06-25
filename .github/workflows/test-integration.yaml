@@ -36,7 +36,7 @@ jobs:
       IMAGE_BUILDER: podman
     steps:
       - name: Checkout PR head
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         if: needs.get-merge-commit.outputs.mergedSha
         with:
           ref: ${{ needs.get-merge-commit.outputs.mergedSha }}
@@ -53,7 +53,7 @@ jobs:
           password: ${{ env.QUAY_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         if: needs.get-merge-commit.outputs.mergedSha
         with:
           go-version-file: go.mod
@@ -110,7 +110,7 @@ jobs:
 
       - name: Upload the PR data as GitHub artifact
         id: artifact-upload-pr-info
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: pr_info
           path: ./pr_info.txt
