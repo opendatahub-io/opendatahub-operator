@@ -57,6 +57,7 @@ var (
 		"autorag-ui-image":               "RELATED_IMAGE_ODH_MOD_ARCH_AUTORAG_IMAGE",
 		"autorag-pipeline-runtime-image": "RELATED_IMAGE_ODH_AUTORAG_IMAGE",
 		"pgvector-image":                 "RELATED_IMAGE_PGVECTOR",
+		"agent-ops-ui-image":             "RELATED_IMAGE_ODH_MOD_ARCH_AGENT_OPS_IMAGE",
 	}
 
 	conditionTypes = []string{

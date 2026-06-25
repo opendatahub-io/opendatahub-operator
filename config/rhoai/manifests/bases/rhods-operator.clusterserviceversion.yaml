@@ -15,7 +15,7 @@ metadata:
     features.operators.openshift.io/disconnected: "true"
     features.operators.openshift.io/fips-compliant: "false"
     features.operators.openshift.io/proxy-aware: "false"
-    features.operators.openshift.io/tls-profiles: "false"
+    features.operators.openshift.io/tls-profiles: "true"
     features.operators.openshift.io/token-auth-aws: "false"
     features.operators.openshift.io/token-auth-azure: "false"
     features.operators.openshift.io/token-auth-gcp: "false"
@@ -54,7 +54,7 @@ metadata:
               "managementState": "Removed"
             },
             "mlflowoperator": {
-              "managementState": "Removed"
+              "managementState": "Managed"
             },
             "sparkoperator": {
               "managementState": "Removed"
