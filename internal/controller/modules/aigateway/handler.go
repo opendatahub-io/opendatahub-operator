@@ -49,9 +49,12 @@ var (
 	}
 
 	// relatedImages are the operand images the ai-gateway-operator passes to
-	// the sub-module (batch-gateway-operator) deployments it creates; injected as
-	// RELATED_IMAGE_* env vars on the ai-g ateway-operator container.
-	// TODO: append more for maas images.
+	// the sub-module (batch-gateway-operator, maas-controller) deployments it creates; injected as
+	// RELATED_IMAGE_* env vars on the ai-gateway-operator container.
+	// TODO: add MaaS images after build-config repos are updated:
+	//   RELATED_IMAGE_ODH_MAAS_CONTROLLER_IMAGE
+	//   RELATED_IMAGE_ODH_MAAS_API_IMAGE
+	//   RELATED_IMAGE_ODH_MAAS_API_KEY_CLEANUP_IMAGE
 	relatedImages = []string{
 		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_OPERATOR_IMAGE",
 		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_APISERVER_IMAGE",

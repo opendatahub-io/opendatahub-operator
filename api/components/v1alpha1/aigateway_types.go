@@ -16,7 +16,7 @@ const (
 // shared between DSC and the AIGateway CR.
 type AIGatewayCommonSpec struct {
 	// ModelsAsService controls the Models as a Service sub-component.
-	ModelsAsService DSCModelsAsServiceSpec `json:"modelsasservice,omitempty"`
+	ModelsAsService DSCModelsAsServiceSpec `json:"modelsAsService,omitempty"`
 	// BatchGateway controls the batch-gateway operator sub-component.
 	BatchGateway AIGatewayBatchGatewaySpec `json:"batchGateway,omitempty"`
 }
