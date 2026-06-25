@@ -92,6 +92,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ogx"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ray"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/rhoaimcp"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/sparkoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainer"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainingoperator"
@@ -152,6 +153,7 @@ var (
 		componentApi.TrainingOperatorComponentName:     trainingoperator.NewHandler(),
 		componentApi.TrustyAIComponentName:             trustyai.NewHandler(),
 		componentApi.WorkbenchesComponentName:          workbenches.NewHandler(),
+		componentApi.RhoaiMcpComponentName:             rhoaimcp.NewHandler(),
 	}
 
 	// Component runlevel assignments.

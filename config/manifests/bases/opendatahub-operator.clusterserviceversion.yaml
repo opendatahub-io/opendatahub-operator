@@ -17,7 +17,8 @@ metadata:
       "modelcontrollers.components.platform.opendatahub.io", "feastoperators.components.platform.opendatahub.io",
       "ogxs.components.platform.opendatahub.io", "trainers.components.platform.opendatahub.io",
       "mlflowoperators.components.platform.opendatahub.io", "modelsasservices.components.platform.opendatahub.io",
-      "sparkoperators.components.platform.opendatahub.io"]'
+      "sparkoperators.components.platform.opendatahub.io",
+      "rhoaimcps.components.platform.opendatahub.io"]'
     repository: https://github.com/opendatahub-io/opendatahub-operator
   name: opendatahub-operator.v3.5.0
   namespace: placeholder
@@ -120,6 +121,11 @@ spec:
       displayName: Ray
       kind: Ray
       name: rays.components.platform.opendatahub.io
+      version: v1alpha1
+    - description: RhoaiMcp is the Schema for the RhoaiMcps API
+      displayName: Rhoai Mcp
+      kind: RhoaiMcp
+      name: rhoaimcps.components.platform.opendatahub.io
       version: v1alpha1
     - description: SparkOperator is the Schema for the sparkoperators API
       displayName: Spark Operator

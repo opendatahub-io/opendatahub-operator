@@ -403,6 +403,12 @@ var (
 		Kind:    componentApi.AIGatewayKind,
 	}
 
+	RhoaiMcp = schema.GroupVersionKind{
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.RhoaiMcpKind,
+	}
+
 	Tenant = schema.GroupVersionKind{
 		Group:   "maas.opendatahub.io",
 		Version: "v1alpha1",

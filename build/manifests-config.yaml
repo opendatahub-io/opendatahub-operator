@@ -78,3 +78,6 @@ map:
   odh-mcp-lifecycle-module-operator:
     src: config
     dest: mcplifecycleoperator
+  rhoai-mcp:
+    src: deploy/kustomize
+    dest: rhoaimcp

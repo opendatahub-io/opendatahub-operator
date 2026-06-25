@@ -79,6 +79,9 @@ type Components struct {
 
 	// AIGateway component configuration.
 	AIGateway componentApi.DSCAIGateway `json:"aigateway,omitempty"`
+
+	// RhoaiMcp component configuration.
+	RhoaiMcp componentApi.DSCRhoaiMcp `json:"rhoaimcp,omitempty"`
 }
 
 // ComponentsStatus defines the custom status of DataScienceCluster components.
@@ -131,6 +134,9 @@ type ComponentsStatus struct {
 
 	// AIGateway component status.
 	AIGateway componentApi.DSCAIGatewayStatus `json:"aigateway,omitempty"`
+
+	// RhoaiMcp component status.
+	RhoaiMcp componentApi.DSCRhoaiMcpStatus `json:"rhoaimcp,omitempty"`
 }
 
 // DataScienceClusterStatus defines the observed state of DataScienceCluster.

@@ -61,6 +61,7 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 		Owns(&componentApi.OGX{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.MLflowOperator{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.SparkOperator{}, reconciler.WithPredicates(componentsPredicate)).
+		Owns(&componentApi.RhoaiMcp{}, reconciler.WithPredicates(componentsPredicate)).
 		WatchesGVK(gvk.Tenant,
 			reconciler.Dynamic(reconciler.CrdExists(gvk.Tenant)),
 			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
