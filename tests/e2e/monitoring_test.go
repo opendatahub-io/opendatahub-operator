@@ -28,6 +28,7 @@ const (
 	MonitoringCRName                         = "default-monitoring"
 	MonitoringStackName                      = "data-science-monitoringstack"
 	OpenTelemetryCollectorName               = "data-science-collector"
+	OpenTelemetryLogsCollectorName           = "data-science-logs-collector"
 	TargetAllocatorDeploymentName            = "data-science-collector-targetallocator"
 	TargetAllocatorServiceAccount            = "data-science-collector-collector"
 	TempoMonolithicName                      = "data-science-tempomonolithic"
@@ -122,6 +123,7 @@ func monitoringTestSuite(t *testing.T) {
 	monitoringServiceCtx.runThanosQuerierTests(t)
 	monitoringServiceCtx.runTracesWithPVBackendTests(t)
 	monitoringServiceCtx.runTracesWithCloudStorageTests(t)
+	monitoringServiceCtx.runLogsCollectorTests(t)
 	monitoringServiceCtx.runPersesTests(t)
 	monitoringServiceCtx.runAdvancedNetworkingRBACTests(t)
 
@@ -3090,6 +3092,171 @@ func (tc *MonitoringTestCtx) ValidateMonitoringOpenTelemetryNegativeConditions(t
 		WithCondition(And(
 			jq.Match(`[.status.conditions[] | select(.type=="%s" and .reason=="%s")] | length==1`,
 				status.ConditionOpenTelemetryCollectorAvailable, status.MetricsNotConfiguredReason+"And"+status.TracesNotConfiguredReason),
+		)),
+	)
+}
+
+func (tc *MonitoringTestCtx) runLogsCollectorTests(t *testing.T) {
+	t.Helper()
+	// ========================================================================
+	// Group: Logs Collector
+	// Tests related to OpenTelemetry logs collector configuration and deployment
+	// ========================================================================
+	t.Run("Group: Logs Collector", func(t *testing.T) {
+		// Setup: Enable logs configuration
+		tc.setupLogsCollector(t)
+
+		// Cleanup: Reset to Managed state at group end
+		t.Cleanup(func() {
+			tc.cleanupGroup(t, "")
+		})
+
+		t.Run("Test Logs OpenTelemetryCollector CR Creation", tc.ValidateLogsCollectorCRCreation)
+		t.Run("Test Logs OpenTelemetryCollector Configuration", tc.ValidateLogsCollectorConfiguration)
+		t.Run("Test Logs Collector RBAC Resources", tc.ValidateLogsCollectorRBAC)
+		t.Run("Test Logs Collector Disabled", tc.ValidateLogsCollectorDisabled)
+	})
+}
+
+// setupLogsCollector enables logs collection configuration.
+func (tc *MonitoringTestCtx) setupLogsCollector(t *testing.T) {
+	t.Helper()
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		withLogsConfig("http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push"),
+	)
+}
+
+// withLogsConfig returns a monitoring config modifier that sets logs endpoint.
+func withLogsConfig(endpoint string) testf.TransformFn {
+	return testf.Transform(`.spec.monitoring.logs = {"endpoint": "%s"}`, endpoint)
+}
+
+func (tc *MonitoringTestCtx) ValidateLogsCollectorCRCreation(t *testing.T) {
+	t.Helper()
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{
+			Name:      OpenTelemetryLogsCollectorName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCondition(monitoringOwnerReferencesCondition),
+	)
+}
+
+func (tc *MonitoringTestCtx) ValidateLogsCollectorConfiguration(t *testing.T) {
+	t.Helper()
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{
+			Name:      OpenTelemetryLogsCollectorName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCondition(And(
+			// Verify OTLP receivers are configured
+			jq.Match(`.spec.config | contains("receivers:")`),
+			jq.Match(`.spec.config | contains("otlp:")`),
+			jq.Match(`.spec.config | contains("protocols:")`),
+			jq.Match(`.spec.config | contains("grpc:")`),
+			jq.Match(`.spec.config | contains("http:")`),
+			// Verify processors
+			jq.Match(`.spec.config | contains("processors:")`),
+			jq.Match(`.spec.config | contains("batch:")`),
+			jq.Match(`.spec.config | contains("k8sattributes:")`),
+			// Verify Loki exporter
+			jq.Match(`.spec.config | contains("exporters:")`),
+			jq.Match(`.spec.config | contains("loki:")`),
+			jq.Match(`.spec.config | contains("http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push")`),
+			// Verify service pipeline
+			jq.Match(`.spec.config | contains("service:")`),
+			jq.Match(`.spec.config | contains("pipelines:")`),
+			jq.Match(`.spec.config | contains("logs:")`),
+			// Verify replicas
+			jq.Match(`.spec.replicas == 2`),
+		)),
+	)
+}
+
+func (tc *MonitoringTestCtx) ValidateLogsCollectorRBAC(t *testing.T) {
+	t.Helper()
+
+	// Verify ServiceAccount exists
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ServiceAccount, types.NamespacedName{
+			Name:      OpenTelemetryLogsCollectorName + "-collector",
+			Namespace: tc.MonitoringNamespace,
+		}),
+	)
+
+	// Verify ClusterRole for k8sattributes processor exists
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRole, types.NamespacedName{
+			Name: OpenTelemetryLogsCollectorName + "-processor",
+		}),
+		WithCondition(And(
+			// Verify rules for pods
+			jq.Match(`[.rules[] | select(.resources | contains(["pods"]))] | length > 0`),
+			// Verify rules for namespaces
+			jq.Match(`[.rules[] | select(.resources | contains(["namespaces"]))] | length > 0`),
+			// Verify rules for replicasets
+			jq.Match(`[.rules[] | select(.resources | contains(["replicasets"]))] | length > 0`),
+			// Verify verbs include get, watch, list
+			jq.Match(`[.rules[] | select(.verbs | contains(["get", "watch", "list"]))] | length > 0`),
+		)),
+	)
+
+	// Verify ClusterRoleBinding exists
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
+			Name: OpenTelemetryLogsCollectorName + "-processor",
+		}),
+		WithCondition(And(
+			jq.Match(`.roleRef.kind == "ClusterRole"`),
+			jq.Match(`.roleRef.name == "%s"`, OpenTelemetryLogsCollectorName+"-processor"),
+			jq.Match(`[.subjects[] | select(.kind=="ServiceAccount" and .name=="%s" and .namespace=="%s")] | length == 1`,
+				OpenTelemetryLogsCollectorName+"-collector", tc.MonitoringNamespace),
+		)),
+	)
+
+	// Verify Loki writer ClusterRoleBinding exists
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
+			Name: OpenTelemetryLogsCollectorName + "-loki-writer",
+		}),
+		WithCondition(And(
+			jq.Match(`.roleRef.kind == "ClusterRole"`),
+			jq.Match(`.roleRef.name == "loki-writer"`),
+			jq.Match(`[.subjects[] | select(.kind=="ServiceAccount" and .name=="%s" and .namespace=="%s")] | length == 1`,
+				OpenTelemetryLogsCollectorName+"-collector", tc.MonitoringNamespace),
+		)),
+	)
+}
+
+func (tc *MonitoringTestCtx) ValidateLogsCollectorDisabled(t *testing.T) {
+	t.Helper()
+
+	// Disable logs collection by removing the logs config
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		testf.Transform(`.spec.monitoring.logs = null`),
+	)
+
+	// Verify OpenTelemetryCollector CR is deleted
+	tc.EnsureResourceDoesNotExist(
+		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{
+			Name:      OpenTelemetryLogsCollectorName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+	)
+
+	// Verify condition reflects disabled state
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{
+			Name: MonitoringCRName,
+		}),
+		WithCondition(And(
+			jq.Match(`[.status.conditions[] | select(.type=="%s" and .status=="False" and .reason=="%s")] | length==1`,
+				status.ConditionLogsCollectorAvailable, status.LogsNotConfiguredReason),
 		)),
 	)
 }
