@@ -100,6 +100,7 @@ import (
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	aigatewayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
@@ -161,6 +162,7 @@ var (
 
 	existingModules = map[string]mr.ModuleHandler{
 		// serviceApi.MonitoringServiceName: monitoringModule.NewHandler(),
+		componentApi.AIGatewayComponentName: aigatewayModule.NewHandler(),
 	}
 )
 
