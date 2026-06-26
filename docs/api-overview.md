@@ -67,7 +67,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `modelsasservice` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | ModelsAsService controls the Models as a Service sub-component. |  |  |
+| `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | ModelsAsService controls the Models as a Service sub-component. |  |  |
 | `batchGateway` _[AIGatewayBatchGatewaySpec](#aigatewaybatchgatewayspec)_ | BatchGateway controls the batch-gateway operator sub-component. |  |  |
 
 
@@ -132,7 +132,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-| `modelsasservice` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | ModelsAsService controls the Models as a Service sub-component. |  |  |
+| `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | ModelsAsService controls the Models as a Service sub-component. |  |  |
 | `batchGateway` _[AIGatewayBatchGatewaySpec](#aigatewaybatchgatewayspec)_ | BatchGateway controls the batch-gateway operator sub-component. |  |  |
 
 
