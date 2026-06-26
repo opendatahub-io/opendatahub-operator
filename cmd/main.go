@@ -120,6 +120,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
+const defaultTLSMinVersion = "VersionTLS12"
+
 // intermediateCiphers is the Mozilla Intermediate cipher set for non-OpenShift fallback.
 // This restricts TLS 1.2 to strong AEAD ciphers when no cluster TLS profile is available.
 var intermediateCiphers = []uint16{
@@ -748,9 +750,9 @@ func setKubeRBACProxyTLSEnv(profile configv1.TLSProfileSpec, hasOpenShiftConfig 
 	if hasOpenShiftConfig {
 		minVersion = string(profile.MinTLSVersion)
 		switch minVersion {
-		case "VersionTLS10", "VersionTLS11", "VersionTLS12", "VersionTLS13":
+		case "VersionTLS10", "VersionTLS11", defaultTLSMinVersion, "VersionTLS13":
 		default:
-			minVersion = "VersionTLS12"
+			minVersion = defaultTLSMinVersion
 			profile.MinTLSVersion = configv1.TLSProtocolVersion(minVersion)
 		}
 		tlsConfigFn, unsupportedCiphers := tlspkg.NewTLSConfigFromProfile(profile)
@@ -763,7 +765,7 @@ func setKubeRBACProxyTLSEnv(profile configv1.TLSProfileSpec, hasOpenShiftConfig 
 			cipherNames = append(cipherNames, tls.CipherSuiteName(id))
 		}
 	} else {
-		minVersion = "VersionTLS12"
+		minVersion = defaultTLSMinVersion
 		for _, id := range intermediateCiphers {
 			cipherNames = append(cipherNames, tls.CipherSuiteName(id))
 		}
