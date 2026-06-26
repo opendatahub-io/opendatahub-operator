@@ -76,5 +76,5 @@ map:
     src: workspaces/controller/manifests/kustomize
     dest: workbenches/odh-workbenches-controller
   odh-dashboard-operator:
-    src: ./manifests
+    src: manifests
     dest: odh-dashboard-operator
