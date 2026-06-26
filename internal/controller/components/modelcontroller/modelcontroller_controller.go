@@ -123,6 +123,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			}),
 		)).
 		// actions
+		WithAction(precondition.RunlevelGateAction()).
 		WithAction(initialize).
 		WithAction(kustomize.NewAction(
 			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
