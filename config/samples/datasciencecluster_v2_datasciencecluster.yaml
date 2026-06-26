@@ -7,7 +7,7 @@ metadata:
 spec:
   components:
     aigateway:
-      managementState: "Managed"
+      managementState: "Removed"
       batchGateway:
         managementState: "Removed"
     dashboard:
