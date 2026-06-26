@@ -754,7 +754,7 @@ func setKubeRBACProxyTLSEnv(profile configv1.TLSProfileSpec, hasOpenShiftConfig 
 		if len(unsupportedCiphers) > 0 {
 			setupLog.Info("kube-rbac-proxy TLS: some ciphers from profile are unsupported", "unsupported", unsupportedCiphers)
 		}
-		cfg := &tls.Config{}
+		cfg := &tls.Config{} //nolint:gosec // scratch config, tlsConfigFn sets MinVersion
 		tlsConfigFn(cfg)
 		for _, id := range cfg.CipherSuites {
 			cipherNames = append(cipherNames, tls.CipherSuiteName(id))
