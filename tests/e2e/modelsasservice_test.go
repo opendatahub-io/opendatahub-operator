@@ -67,23 +67,127 @@ func modelsAsServiceTestSuite(t *testing.T) {
 		WithEventuallyPollingInterval(ct.TestTimeouts.defaultEventuallyPollInterval),
 	}
 
-	// Setup: Create prerequisites and enable the subcomponent.
-	// PostgreSQL must be created before enabling the component because
-	// maas-api reads the maas-db-config secret on startup.
-	componentCtx.createMaaSPostgres(t)
-	componentCtx.createMaaSGateway(t)
-	componentCtx.EnsureParentComponentEnabled(t)
-	componentCtx.UpdateSubComponentStateInDataScienceCluster(t, operatorv1.Managed)
+	if componentCtx.IsXKS() {
+		componentCtx.runXKSTestSuite(t)
+	} else {
+		componentCtx.runOpenShiftTestSuite(t)
+	}
+}
+
+// runOpenShiftTestSuite runs the MaaS e2e tests on OpenShift (DSC/DSCI mode).
+func (tc *ModelsAsServiceTestCtx) runOpenShiftTestSuite(t *testing.T) {
+	t.Helper()
+
+	tc.createMaaSPostgres(t)
+	tc.createMaaSGateway(t)
+	tc.EnsureParentComponentEnabled(t)
+	tc.UpdateSubComponentStateInDataScienceCluster(t, operatorv1.Managed)
 
 	testCases := []TestCase{
-		{"Validate Tenant CR in subscription namespace", componentCtx.ValidateTenantInSubscriptionNamespace},
-		{"Validate Tenant CRD is namespace-scoped", componentCtx.ValidateTenantCRDNamespaceScoped},
-		{"Validate Tenant singleton enforcement", componentCtx.ValidateTenantSingletonEnforcement},
-		{"Validate payload-processing egress NetworkPolicy", componentCtx.ValidatePayloadProcessingNetworkPolicy},
-		{"Validate Tenant deleted on disable", componentCtx.ValidateTenantDeletedOnDisable},
+		{"Validate Tenant CR in subscription namespace", tc.ValidateTenantInSubscriptionNamespace},
+		{"Validate Tenant CRD is namespace-scoped", tc.ValidateTenantCRDNamespaceScoped},
+		{"Validate Tenant singleton enforcement", tc.ValidateTenantSingletonEnforcement},
+		{"Validate payload-processing egress NetworkPolicy", tc.ValidatePayloadProcessingNetworkPolicy},
+		{"Validate Tenant deleted on disable", tc.ValidateTenantDeletedOnDisable},
 	}
 
 	RunTestCases(t, testCases)
+}
+
+// runXKSTestSuite runs MaaS e2e tests on vanilla Kubernetes (no DSC/DSCI).
+// On xKS the ModelsAsService CR is created directly (as the Helm hook does)
+// and the operator selects the xKS kustomize overlay.
+func (tc *ModelsAsServiceTestCtx) runXKSTestSuite(t *testing.T) {
+	t.Helper()
+
+	tc.createMaaSPostgres(t)
+
+	testCases := []TestCase{
+		{"Validate MaaS CR creation and reconciliation", tc.ValidateXKSMaaSCRCreation},
+		{"Validate MaaS controller deployment running", tc.ValidateXKSMaaSControllerRunning},
+		{"Validate MaaS webhook is registered", tc.ValidateXKSMaaSWebhookRegistered},
+		{"Validate MaaS CR deletion cleans up resources", tc.ValidateXKSMaaSCRDeletion},
+	}
+
+	RunTestCases(t, testCases)
+}
+
+// ValidateXKSMaaSCRCreation creates the ModelsAsService CR directly (no DSC)
+// and verifies the operator reconciles it to Ready.
+func (tc *ModelsAsServiceTestCtx) ValidateXKSMaaSCRCreation(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Smoke, Tier1)
+
+	t.Log("Creating ModelsAsService CR directly (xKS mode, no DSC)")
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(tc.CreateComponent(tc.GVK)),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+			"Ready", metav1.ConditionTrue)),
+		WithCustomErrorMsg("ModelsAsService CR should reach Ready=True"),
+	)
+}
+
+// ValidateXKSMaaSControllerRunning verifies the maas-controller Deployment
+// is created and available in the applications namespace.
+func (tc *ModelsAsServiceTestCtx) ValidateXKSMaaSControllerRunning(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Smoke, Tier1)
+
+	t.Logf("Checking maas-controller Deployment is running in %s", tc.AppsNamespace)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      modelsasservice.MaasControllerDeploymentName,
+			Namespace: tc.AppsNamespace,
+		}),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Available") | .status == "True"`)),
+		WithCustomErrorMsg("maas-controller Deployment should be Available in %s", tc.AppsNamespace),
+	)
+}
+
+// ValidateXKSMaaSWebhookRegistered verifies the MaaS validating webhook
+// configuration is registered on the cluster.
+func (tc *ModelsAsServiceTestCtx) ValidateXKSMaaSWebhookRegistered(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Tier1)
+
+	t.Log("Checking MaaS ValidatingWebhookConfiguration exists")
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ValidatingWebhookConfiguration, types.NamespacedName{
+			Name: "maas-controller-validating-webhook-configuration",
+		}),
+		WithCustomErrorMsg("MaaS ValidatingWebhookConfiguration should exist"),
+	)
+}
+
+// ValidateXKSMaaSCRDeletion deletes the ModelsAsService CR and verifies
+// the maas-controller Deployment is cleaned up.
+func (tc *ModelsAsServiceTestCtx) ValidateXKSMaaSCRDeletion(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Smoke, Tier1)
+
+	t.Log("Deleting ModelsAsService CR to test disable lifecycle")
+
+	tc.DeleteResource(
+		WithMinimalObject(tc.GVK, types.NamespacedName{Name: tc.GetInstanceName(tc.GVK)}),
+		WithForegroundDeletion(),
+		WithWaitForDeletion(true),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+	)
+
+	t.Logf("Waiting for maas-controller Deployment to be removed from %s", tc.AppsNamespace)
+
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      modelsasservice.MaasControllerDeploymentName,
+			Namespace: tc.AppsNamespace,
+		}),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+		WithCustomErrorMsg("maas-controller Deployment should be removed after ModelsAsService CR deletion"),
+	)
 }
 
 // createMaaSPostgres creates a minimal PostgreSQL instance and the maas-db-config secret
