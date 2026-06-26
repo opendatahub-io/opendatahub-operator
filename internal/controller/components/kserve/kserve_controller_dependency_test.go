@@ -322,10 +322,10 @@ func TestSubscriptionDependencyMonitoring(t *testing.T) {
 				status.ConditionDependenciesAvailable),
 		)
 
-		// Subscription conditions should not be written on Kubernetes
+		// Subscription conditions should be True (not-applicable) on Kubernetes
 		wt.Get(gvk.Kserve, nn).Consistently().WithTimeout(5 * time.Second).Should(
-			jq.Match(`all(.status.conditions[]?.type; . != "%s")`,
-				LLMInferenceServiceDependencies),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				LLMInferenceServiceDependencies, metav1.ConditionTrue),
 		)
 
 		// LLMInferenceServiceWideEPDependencies IS expected on Kubernetes (from MonitorCRDs for LWS)

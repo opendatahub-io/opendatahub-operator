@@ -105,11 +105,12 @@ func kueueTestSuite(t *testing.T) {
 	}
 
 	// Define core test cases
-	testCases := make([]TestCase, 0, 5)
+	testCases := make([]TestCase, 0, 6)
 	testCases = append(testCases,
 		TestCase{"Validate component unmanaged error with ocp kueue-operator not installed", componentCtx.ValidateKueueUnmanagedWithoutOcpKueueOperator},
 		TestCase{"Validate component removed to unmanaged transition", componentCtx.ValidateKueueRemovedToUnmanagedTransition},
 		TestCase{"Validate component unmanaged to removed transition", componentCtx.ValidateKueueUnmanagedToRemovedTransition},
+		TestCase{"Validate autoCreateQueues disabled skips queue creation", componentCtx.ValidateKueueAutoCreateQueuesDisabled},
 	)
 
 	// Always run deletion recovery and component disable tests last
@@ -246,11 +247,14 @@ func (tc *KueueTestCtx) ValidateKueueRemovedToUnmanagedTransition(t *testing.T) 
 	// Create Kueue ConfigMap to verify default Kueue resource is created correctly
 	tc.createKueueConfigMap(t)
 
-	t.Logf("Updating the management state of the component in the DataScienceCluster to Unmanaged (expecting NotReady initially due to missing operator).")
-	// Update the management state of the component in the DataScienceCluster.
+	t.Logf("Updating the management state of the component in the DataScienceCluster to Unmanaged with autoCreateQueues=true (expecting NotReady initially due to missing operator).")
+	// Update the management state and enable auto queue creation in the DataScienceCluster.
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, stateUnmanaged)),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, stateUnmanaged),
+			testf.Transform(`.spec.components.%s.autoCreateQueues = true`, componentName),
+		)),
 		WithCondition(And(conditionsUnmanagedNotReady...)),
 	)
 
@@ -281,7 +285,7 @@ func (tc *KueueTestCtx) ValidateKueueRemovedToUnmanagedTransition(t *testing.T) 
 	)
 
 	t.Logf("Verifying default ClusterQueue and LocalQueue resources are created in namespace %s.", managedNS)
-	// Default resources should be created
+	// Default resources should be created when autoCreateQueues is true
 	tc.ensureClusterAndLocalQueueExist(managedNS)
 
 	t.Logf("Verifying default resource flavor (%s) is created.", kueue.DefaultFlavorName)
@@ -320,11 +324,14 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToRemovedTransition(t *testing.T) 
 		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionTrue),
 	}
 
-	t.Logf("Updating DSC %s to set Kueue managementState to Unmanaged.", tc.DataScienceClusterNamespacedName.Name)
-	// Update the management state of the component in the DataScienceCluster.
+	t.Logf("Updating DSC %s to set Kueue managementState to Unmanaged with autoCreateQueues=true.", tc.DataScienceClusterNamespacedName.Name)
+	// Update the management state and enable auto queue creation in the DataScienceCluster.
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, stateUnmanaged)),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, stateUnmanaged),
+			testf.Transform(`.spec.components.%s.autoCreateQueues = true`, componentName),
+		)),
 		WithCondition(And(conditionsUnmanaged...)),
 	)
 
@@ -333,7 +340,7 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToRemovedTransition(t *testing.T) 
 	tc.setupNamespace(managedNS, KueueManagedLabels)
 
 	t.Logf("Verifying default Kueue resources exist in namespace %s.", managedNS)
-	// Default resources should be created
+	// Default resources should be created when autoCreateQueues is true
 	tc.ensureClusterAndLocalQueueExist(managedNS)
 
 	t.Logf("Verifying default resource flavor (%s) is created.", kueue.DefaultFlavorName)
@@ -416,6 +423,68 @@ func (tc *KueueTestCtx) ensureClusterAndLocalQueueExist(localQueueNamespaceName 
 		WithMinimalObject(gvk.LocalQueue, types.NamespacedName{Name: kueueDefaultLocalQueueName, Namespace: localQueueNamespaceName}),
 		WithCustomErrorMsg("LocalQueue should exist in namespace '%s'", localQueueNamespaceName),
 	)
+}
+
+// ValidateKueueAutoCreateQueuesDisabled verifies that when autoCreateQueues is false (the default),
+// the operator does not create ClusterQueue, LocalQueue, or ResourceFlavor resources.
+func (tc *KueueTestCtx) ValidateKueueAutoCreateQueuesDisabled(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke)
+
+	managedNS := "test-kueue-no-queues-" + xid.New().String()
+	componentName := strings.ToLower(tc.GVK.Kind)
+
+	t.Logf("Setting Kueue component (%s) to Removed mode to start with a clean state.", componentApi.KueueInstanceName)
+	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Removed)
+
+	t.Logf("Cleaning up any existing Kueue test resources.")
+	tc.cleanupKueueTestResources(t)
+
+	tc.ensureKueueOperatorsInstalled(t)
+
+	t.Logf("Creating test namespace (%s) with Kueue management annotation.", managedNS)
+	tc.setupNamespace(managedNS, KueueManagedLabels)
+
+	t.Logf("Creating Kueue ConfigMap (%s) to verify default Kueue resource is created correctly.", kueue.KueueConfigMapName)
+	tc.createKueueConfigMap(t)
+
+	stateUnmanaged := operatorv1.Unmanaged
+	conditionsUnmanagedReady := []gTypes.GomegaMatcher{
+		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, stateUnmanaged),
+		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionTrue),
+	}
+
+	t.Logf("Updating DSC to set Kueue to Unmanaged with autoCreateQueues=false (default).")
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, stateUnmanaged),
+			testf.Transform(`.spec.components.%s.autoCreateQueues = false`, componentName),
+		)),
+		WithCondition(And(conditionsUnmanagedReady...)),
+	)
+
+	t.Logf("Verifying Kueue configuration (%s) is still created.", kueue.KueueCRName)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.KueueConfigV1, types.NamespacedName{Name: kueue.KueueCRName}),
+		WithEventuallyTimeout(tc.TestTimeouts.shortEventuallyTimeout),
+	)
+
+	t.Logf("Verifying no ClusterQueue, ResourceFlavor or LocalQueue is created (autoCreateQueues=false).")
+	tc.EnsureResourcesGone(
+		WithMinimalObject(gvk.ClusterQueue, types.NamespacedName{Name: kueueDefaultClusterQueueName}),
+	)
+	tc.EnsureResourcesGone(
+		WithMinimalObject(gvk.ResourceFlavor, types.NamespacedName{Name: kueue.DefaultFlavorName}),
+	)
+	tc.EnsureResourcesDoNotExist(
+		WithMinimalObject(gvk.LocalQueue, types.NamespacedName{Name: kueueDefaultLocalQueueName, Namespace: managedNS}),
+		WithListOptions(&client.ListOptions{Namespace: managedNS}),
+	)
+
+	t.Logf("Cleaning up Kueue test resources.")
+	tc.cleanupKueueTestResources(t)
 }
 
 func (tc *KueueTestCtx) ValidateKueueComponentDisabled(t *testing.T) {

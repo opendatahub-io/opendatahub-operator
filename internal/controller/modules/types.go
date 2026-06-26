@@ -108,6 +108,22 @@ type ControllerImager interface {
 	GetControllerImage() string
 }
 
+// InitContainerNamer allows a module handler to declare an init container
+// whose image should be overridden with the same ControllerImage value.
+// All handlers embedding BaseHandler satisfy this interface automatically;
+// the override is only active when ModuleConfig.InitContainerName is set.
+type InitContainerNamer interface {
+	GetInitContainerName() string
+}
+
+// DeploymentNamer is an optional interface a ModuleHandler can implement to
+// declare the rendered Deployment name targeted for RELATED_IMAGE_* env
+// injection, when it differs from the module name. See
+// BaseHandler.GetDeploymentName.
+type DeploymentNamer interface {
+	GetDeploymentName() string
+}
+
 // ModuleStatus holds the parsed status from a module CR. It includes the
 // standard conditions and generation metadata needed for staleness detection
 // per the onboarding guide's PlatformObject contract.
@@ -161,6 +177,11 @@ type PlatformContext struct {
 
 	// ChartsBasePath is the base directory for locally-bundled Helm charts.
 	ChartsBasePath string
+
+	// ManifestsBasePath is the base directory for locally-bundled Kustomize
+	// manifests. Handlers using ManifestDir resolve their overlay paths
+	// relative to this directory.
+	ManifestsBasePath string
 }
 
 // RegistrationOption configures optional orchestration metadata when adding

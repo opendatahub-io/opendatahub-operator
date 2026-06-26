@@ -21,6 +21,12 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
+const (
+	// defaultContainerName is the operator container name targeted for image
+	// and env injection when a module does not override it.
+	defaultContainerName = "manager"
+)
+
 // initializeModules fetches DSCI once per reconcile and stores it on the
 // ReconciliationRequest so downstream actions can build PlatformContext
 // without redundant API calls.
@@ -103,6 +109,7 @@ func buildPlatformContext(ctx context.Context, rr *odhtype.ReconciliationRequest
 		DSCI:                  dsciOrNil(rr),
 		Platform:              platformFromInstance(rr),
 		ChartsBasePath:        rr.ChartsBasePath,
+		ManifestsBasePath:     rr.ManifestsBasePath,
 	}, nil
 }
 
@@ -226,10 +233,11 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 		}
 
 		perModuleImages = append(perModuleImages, odhtype.ModuleImages{
-			DeploymentName:  deploymentNameFromManifests(operatorManifests, handler.GetName()),
-			ContainerName:   containerNameFor(handler),
-			ControllerImage: controllerImageFor(handler),
-			Images:          handler.GetRelatedImages(),
+			DeploymentName:    deploymentNameFor(handler, operatorManifests),
+			ContainerName:     containerNameFor(handler),
+			ControllerImage:   controllerImageFor(handler),
+			InitContainerName: initContainerNameFor(handler),
+			Images:            handler.GetRelatedImages(),
 		})
 		if len(operatorManifests.HelmCharts) > 0 {
 			rr.HelmCharts = append(rr.HelmCharts, operatorManifests.HelmCharts...)
@@ -262,8 +270,6 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 	return nil
 }
 
-const defaultContainerName = "manager"
-
 func containerNameFor(h ModuleHandler) string {
 	if cn, ok := h.(ContainerNamer); ok {
 		return cn.GetContainerName()
@@ -271,9 +277,30 @@ func containerNameFor(h ModuleHandler) string {
 	return defaultContainerName
 }
 
+// deploymentNameFor resolves the Deployment name targeted for RELATED_IMAGE_*
+// env injection. An explicit Config.DeploymentName (via DeploymentNamer) wins;
+// otherwise it falls back to the manifest-derived name. This matters for
+// kustomize modules whose rendered Deployment name (after namePrefix) differs
+// from the module name.
+func deploymentNameFor(h ModuleHandler, manifests OperatorManifests) string {
+	if dn, ok := h.(DeploymentNamer); ok {
+		if name := dn.GetDeploymentName(); name != "" {
+			return name
+		}
+	}
+	return deploymentNameFromManifests(manifests, h.GetName())
+}
+
 func controllerImageFor(h ModuleHandler) string {
 	if ci, ok := h.(ControllerImager); ok {
 		return ci.GetControllerImage()
+	}
+	return ""
+}
+
+func initContainerNameFor(h ModuleHandler) string {
+	if icn, ok := h.(InitContainerNamer); ok {
+		return icn.GetInitContainerName()
 	}
 	return ""
 }

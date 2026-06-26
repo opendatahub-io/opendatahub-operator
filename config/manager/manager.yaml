@@ -23,6 +23,7 @@ spec:
     metadata:
       annotations:
         kubectl.kubernetes.io/default-container: manager
+        openshift.io/required-scc: restricted-v2
       labels:
         name: opendatahub-operator
         control-plane: controller-manager

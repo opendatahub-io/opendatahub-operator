@@ -8,6 +8,7 @@ on:
       - 'Dockerfiles/**'
       - 'internal/**'
       - 'pkg/**'
+      - '!**/*_test.go'
       - 'cmd/main.go'
     branches: [ 'main' ]
 

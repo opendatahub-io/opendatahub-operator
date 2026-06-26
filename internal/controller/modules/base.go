@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manifests/kustomize"
@@ -67,6 +68,11 @@ type ModuleConfig struct {
 	// SourcePath is an optional overlay path within ContextDir.
 	SourcePath string
 
+	// SourcePathByPlatform selects the overlay path (relative to ManifestDir)
+	// per platform flavor (e.g. overlays/odh, overlays/rhoai). When set and the
+	// active platform has an entry, it takes precedence over SourcePath.
+	SourcePathByPlatform map[common.Platform]string
+
 	// Namespace overrides the default ApplicationsNamespace for Kustomize
 	// rendering. When empty, Kustomize uses ApplicationsNamespace. Set this
 	// for modules that deploy into a dedicated namespace. For Helm modules,
@@ -79,6 +85,15 @@ type ModuleConfig struct {
 	// Override only if the module chart uses a different container name.
 	ContainerName string
 
+	// DeploymentName is the metadata.name of the module operator's Deployment
+	// as rendered (after any kustomize namePrefix/nameSuffix or Helm release
+	// templating). It is the Deployment the platform injects RELATED_IMAGE_*
+	// env vars into. When empty, the platform falls back to the Helm release
+	// name (Helm modules) or the module name (kustomize modules). Set this for
+	// kustomize modules whose rendered Deployment name differs from the module
+	// name, otherwise env injection silently targets the wrong name.
+	DeploymentName string
+
 	// ControllerImage is the RELATED_IMAGE_* env var name whose value is the
 	// fully-qualified image reference for this module's operator container.
 	// When set and the env var is present on the platform operator process,
@@ -86,6 +101,13 @@ type ModuleConfig struct {
 	// rendered Deployment. Leave empty if the chart already bakes in the
 	// correct image and no override is needed.
 	ControllerImage string
+
+	// InitContainerName is the name of an init container whose image field
+	// should be overridden with the same ControllerImage value. This is for
+	// modules whose Deployment includes an init container that shares the
+	// operator image (e.g. "copy-manifests"). Leave empty if no init
+	// container needs the override.
+	InitContainerName string
 
 	// RelatedImages lists RELATED_IMAGE_* environment variable names that the
 	// module operator needs. The platform reads each name from its own process
@@ -117,8 +139,18 @@ func (b *BaseHandler) GetContainerName() string {
 	return "manager"
 }
 
+// GetDeploymentName returns the configured rendered Deployment name, or the
+// empty string when unset (callers then fall back to the manifest-derived name).
+func (b *BaseHandler) GetDeploymentName() string {
+	return b.Config.DeploymentName
+}
+
 func (b *BaseHandler) GetControllerImage() string {
 	return b.Config.ControllerImage
+}
+
+func (b *BaseHandler) GetInitContainerName() string {
+	return b.Config.InitContainerName
 }
 
 func (b *BaseHandler) GetRelatedImages() []string {
@@ -148,10 +180,22 @@ func (b *BaseHandler) GetOperatorManifests(platform *PlatformContext) OperatorMa
 	}
 
 	if b.Config.ManifestDir != "" {
+		manifestPath := b.Config.ManifestDir
+		if platform != nil && platform.ManifestsBasePath != "" {
+			manifestPath = filepath.Join(platform.ManifestsBasePath, b.Config.ManifestDir)
+		}
+
+		sourcePath := b.Config.SourcePath
+		if platform != nil && len(b.Config.SourcePathByPlatform) > 0 {
+			if sp, ok := b.Config.SourcePathByPlatform[platform.Release.Name]; ok {
+				sourcePath = sp
+			}
+		}
+
 		result.Manifests = []types.ManifestInfo{{
-			Path:       b.Config.ManifestDir,
+			Path:       manifestPath,
 			ContextDir: b.Config.ContextDir,
-			SourcePath: b.Config.SourcePath,
+			SourcePath: sourcePath,
 			Namespace:  b.Config.Namespace,
 		}}
 	}

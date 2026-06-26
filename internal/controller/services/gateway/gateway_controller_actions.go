@@ -326,7 +326,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"TLSCertsVolumeName":       TLSCertsVolumeName,
 		"TLSCertsMountPath":        TLSCertsMountPath,
 		"EnvoyFilter":              AuthnFilterName,
-		"RedirectURL":              fmt.Sprintf("https://%s/oauth2/callback", hostname),
+		"RedirectURL":              fmt.Sprintf("https://%s%s", hostname, OAuthCallbackPath),
 		"DestinationRuleName":      DestinationRuleName,
 		"CookieExpire":             cookieExpire,
 		"CookieRefresh":            cookieRefresh,
@@ -378,6 +378,13 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		enableK8sTokenValidation = *gatewayConfig.Spec.EnableK8sTokenValidation
 	}
 	templateData["EnableK8sTokenValidation"] = enableK8sTokenValidation
+
+	tlsMinVersion, tlsCipherSuites, err := getKubeAuthProxyTLSFromAPIServer(ctx, rr.Client)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve APIServer TLS profile: %w", err)
+	}
+	templateData["TLSMinVersion"] = tlsMinVersion
+	templateData["TLSCipherSuite"] = tlsCipherSuites
 
 	return templateData, nil
 }
