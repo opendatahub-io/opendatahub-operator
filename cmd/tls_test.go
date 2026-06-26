@@ -145,6 +145,22 @@ func TestSetKubeRBACProxyTLSEnv_CustomEmptyMinVersion(t *testing.T) {
 	g.Expect(suites).To(ContainSubstring("TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"))
 }
 
+func TestSetKubeRBACProxyTLSEnv_InvalidMinVersion(t *testing.T) {
+	t.Setenv("KUBE_RBAC_PROXY_TLS_MIN_VERSION", "")
+	t.Setenv("KUBE_RBAC_PROXY_TLS_CIPHER_SUITES", "")
+	g := NewWithT(t)
+
+	profile := configv1.TLSProfileSpec{
+		MinTLSVersion: "SomeBogusVersion",
+		Ciphers: []string{
+			"ECDHE-RSA-AES128-GCM-SHA256",
+		},
+	}
+	setKubeRBACProxyTLSEnv(profile, true)
+
+	g.Expect(os.Getenv("KUBE_RBAC_PROXY_TLS_MIN_VERSION")).To(Equal("VersionTLS12"))
+}
+
 func TestSetKubeRBACProxyTLSEnv_NonOpenShift(t *testing.T) {
 	t.Setenv("KUBE_RBAC_PROXY_TLS_MIN_VERSION", "")
 	t.Setenv("KUBE_RBAC_PROXY_TLS_CIPHER_SUITES", "")

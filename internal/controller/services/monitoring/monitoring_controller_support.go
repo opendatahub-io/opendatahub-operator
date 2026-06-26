@@ -287,7 +287,11 @@ func addTracesTemplateData(templateData map[string]any, traces *serviceApi.Trace
 }
 
 func addTLSData(templateData map[string]any) {
-	templateData["TLSMinVersion"] = os.Getenv("KUBE_RBAC_PROXY_TLS_MIN_VERSION")
+	minVersion := os.Getenv("KUBE_RBAC_PROXY_TLS_MIN_VERSION")
+	if minVersion == "" {
+		minVersion = "VersionTLS12"
+	}
+	templateData["TLSMinVersion"] = minVersion
 	templateData["TLSCipherSuites"] = os.Getenv("KUBE_RBAC_PROXY_TLS_CIPHER_SUITES")
 }
 

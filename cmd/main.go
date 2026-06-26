@@ -747,8 +747,11 @@ func setKubeRBACProxyTLSEnv(profile configv1.TLSProfileSpec, hasOpenShiftConfig 
 
 	if hasOpenShiftConfig {
 		minVersion = string(profile.MinTLSVersion)
-		if minVersion == "" {
+		switch minVersion {
+		case "VersionTLS10", "VersionTLS11", "VersionTLS12", "VersionTLS13":
+		default:
 			minVersion = "VersionTLS12"
+			profile.MinTLSVersion = configv1.TLSProtocolVersion(minVersion)
 		}
 		tlsConfigFn, unsupportedCiphers := tlspkg.NewTLSConfigFromProfile(profile)
 		if len(unsupportedCiphers) > 0 {
@@ -766,8 +769,12 @@ func setKubeRBACProxyTLSEnv(profile configv1.TLSProfileSpec, hasOpenShiftConfig 
 		}
 	}
 
-	os.Setenv("KUBE_RBAC_PROXY_TLS_MIN_VERSION", minVersion)
-	os.Setenv("KUBE_RBAC_PROXY_TLS_CIPHER_SUITES", strings.Join(cipherNames, ","))
+	if err := os.Setenv("KUBE_RBAC_PROXY_TLS_MIN_VERSION", minVersion); err != nil {
+		setupLog.Error(err, "failed to set KUBE_RBAC_PROXY_TLS_MIN_VERSION")
+	}
+	if err := os.Setenv("KUBE_RBAC_PROXY_TLS_CIPHER_SUITES", strings.Join(cipherNames, ",")); err != nil {
+		setupLog.Error(err, "failed to set KUBE_RBAC_PROXY_TLS_CIPHER_SUITES")
+	}
 
 	setupLog.Info("resolved kube-rbac-proxy TLS settings", "minVersion", minVersion, "cipherCount", len(cipherNames), "openshift", hasOpenShiftConfig)
 }
