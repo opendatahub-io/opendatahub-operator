@@ -76,9 +76,9 @@ func withSkipConditionCleanup() ReconcilerOpt {
 	}
 }
 
-func withSkipStatusConditions() ReconcilerOpt {
+func withSkipStatusConditions(pred func() bool) ReconcilerOpt {
 	return func(reconciler *Reconciler) {
-		reconciler.skipStatusConditions = true
+		reconciler.skipStatusConditionsFn = pred
 	}
 }
 
@@ -126,7 +126,7 @@ type Reconciler struct {
 	dynamicOwnershipEnabled     bool
 	excludeFromDynamicOwnership map[schema.GroupVersionKind]struct{}
 	skipConditionCleanup        bool
-	skipStatusConditions        bool
+	skipStatusConditionsFn      func() bool
 }
 
 // NewReconciler creates a new reconciler for the given type.
@@ -459,8 +459,10 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) (time
 		is.ObservedGeneration = rr.Instance.GetGeneration()
 	}
 
-	if r.skipStatusConditions {
+	if r.skipStatusConditionsFn != nil && r.skipStatusConditionsFn() {
 		is.Conditions = nil
+		is.Phase = ""
+		is.ObservedGeneration = 0
 	}
 
 	err := resources.ApplyStatus(

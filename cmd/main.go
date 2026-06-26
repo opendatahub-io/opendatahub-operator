@@ -196,7 +196,9 @@ var (
 		componentApi.AIGatewayComponentName: aigatewayModule.NewHandler(),
 	}
 
-	moduleRunlevels = map[string]dag.Runlevel{}
+	moduleRunlevels = map[string]dag.Runlevel{
+		componentApi.AIGatewayComponentName: dag.RL(20),
+	}
 )
 
 func init() { //nolint:gochecknoinits

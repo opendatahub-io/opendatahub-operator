@@ -102,7 +102,7 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 				},
 			),
 		)).
-		WithConditions(status.ConditionTypeComponentsReady).
+		WithConditions(status.ConditionTypeComponentsReady, status.ConditionTypeModulesReady).
 		Build(ctx)
 
 	if err != nil {

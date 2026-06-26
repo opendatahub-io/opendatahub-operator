@@ -14,6 +14,7 @@ import (
 	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
@@ -93,7 +94,7 @@ func newDSCModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		WithInstanceName("modules").
 		WithDynamicOwnership().
 		WithoutConditionCleanup().
-		WithoutStatusConditions().
+		WithoutStatusConditionsIf(cr.HasEntries).
 		Watches(
 			&dsciv2.DSCInitialization{},
 			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
@@ -133,7 +134,7 @@ func newPlatformModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		WithInstanceName("modules").
 		WithDynamicOwnership().
 		WithoutConditionCleanup().
-		WithoutStatusConditions().
+		WithoutStatusConditionsIf(cr.HasEntries).
 		WithAction(enableModulesFromPlatform)
 
 	for _, a := range commonActions() {

@@ -44,6 +44,7 @@ var dagBatches = []componentBatch{
 		name:     "Batch20",
 		runlevel: 20,
 		components: []componentEntry{
+			{name: componentApi.AIGatewayComponentName, gvk: gvk.AIGateway, internal: true},
 			{name: componentApi.DashboardComponentName, gvk: gvk.Dashboard},
 			{name: componentApi.DataSciencePipelinesComponentName, gvk: gvk.DataSciencePipelines},
 			{name: componentApi.ModelRegistryComponentName, gvk: gvk.ModelRegistry},
@@ -88,6 +89,7 @@ var dagBatches = []componentBatch{
 // Kueue is excluded: a validating webhook rejects managementState=Managed
 // for Kueue because it no longer manages deployments directly.
 var dscComponentFields = []string{
+	"aigateway",
 	"dashboard",
 	"workbenches",
 	"aipipelines",
@@ -480,10 +482,10 @@ func (tc *DAGOrderingTestCtx) ValidateInTreeGates(t *testing.T) {
 
 	tc.clearStaleAcks(t, gateKeys...)
 
-	t.Log("Enabling dashboard to trigger a reconcile (in-tree gates should be discovered)")
+	t.Log("Enabling dashboard and aigateway to trigger a reconcile (in-tree gates should be discovered)")
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(selectComponentsTransform("Managed", []string{"dashboard"})),
+		WithMutateFunc(selectComponentsTransform("Managed", []string{"dashboard", "aigateway"})),
 	)
 
 	t.Log("Waiting for ProvisioningProgress=False with reason AdminAckRequired")
@@ -496,7 +498,7 @@ func (tc *DAGOrderingTestCtx) ValidateInTreeGates(t *testing.T) {
 		WithEventuallyTimeout(3*time.Minute),
 		WithEventuallyPollingInterval(10*time.Second),
 	)
-	t.Log("Confirmed: provisioning blocked by in-tree gates")
+	t.Log("Confirmed: provisioning blocked by in-tree gates (components and modules)")
 
 	t.Log("Verifying gate descriptions were written to odh-upgrade-acks")
 	tc.EnsureResourceExists(
@@ -578,10 +580,10 @@ func (tc *DAGOrderingTestCtx) ValidateAdminAckGates(t *testing.T) {
 
 	defer tc.deleteGateSourceCMs(t, "e2e-gate-source-1", "e2e-gate-source-2")
 
-	t.Log("Enabling dashboard to trigger a reconcile")
+	t.Log("Enabling dashboard and aigateway to trigger a reconcile")
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(selectComponentsTransform("Managed", []string{"dashboard"})),
+		WithMutateFunc(selectComponentsTransform("Managed", []string{"dashboard", "aigateway"})),
 	)
 
 	t.Log("Waiting for ProvisioningProgress=False with reason AdminAckRequired")
@@ -594,7 +596,7 @@ func (tc *DAGOrderingTestCtx) ValidateAdminAckGates(t *testing.T) {
 		WithEventuallyTimeout(3*time.Minute),
 		WithEventuallyPollingInterval(10*time.Second),
 	)
-	t.Log("Confirmed: provisioning blocked by two unacknowledged gates (discovered from labeled CMs)")
+	t.Log("Confirmed: provisioning blocked by two unacknowledged gates (components and modules)")
 
 	t.Logf("Acknowledging only the first gate: %s", gateKey1)
 	tc.patchAcksConfigMap(t, gateKey1, "true")

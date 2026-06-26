@@ -244,7 +244,8 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 
 	checker := provision.NewCompositeChecker(
 		cr.NewReadinessChecker(cr.DefaultRegistry(), rr.Client, dsc),
-		NewReadinessChecker(reg, rr.Client, rr.Release.Version.String()),
+		NewReadinessChecker(reg, rr.Client, rr.Release.Version.String(),
+			WithPlatformContext(platformCtx)),
 	)
 
 	var perModuleImages []odhtype.ModuleImages
@@ -313,12 +314,14 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 	}
 
 	if len(failedModules) > 0 {
-		rr.Conditions.SetCondition(common.Condition{
-			Type:    status.ConditionTypeModulesReady,
-			Status:  metav1.ConditionFalse,
-			Reason:  status.ProvisioningFailedReason,
-			Message: fmt.Sprintf("Provisioning failed for: %s", strings.Join(failedModules, ", ")),
-		})
+		if !cr.HasEntries() {
+			rr.Conditions.SetCondition(common.Condition{
+				Type:    status.ConditionTypeModulesReady,
+				Status:  metav1.ConditionFalse,
+				Reason:  status.ProvisioningFailedReason,
+				Message: fmt.Sprintf("Provisioning failed for: %s", strings.Join(failedModules, ", ")),
+			})
+		}
 
 		return fmt.Errorf("BuildModuleCR failed for modules: %s", strings.Join(failedModules, ", "))
 	}
@@ -384,19 +387,16 @@ func deploymentNameFromManifests(manifests OperatorManifests, fallbackName strin
 	return fallbackName
 }
 
-// updateModuleStatus reads status conditions from each enabled module's CR
-// and maps them to the DSC status. Module conditions contribute to the
-// aggregate ModulesReady condition.
+// ComputeModulesStatus reads status conditions from each enabled module's CR
+// and sets the aggregate ModulesReady condition on rr.Conditions.
 //
-// During the transition period where both component and module controllers
-// write to DSC status, ModulesReady is not set because the DSC CRD uses
-// +listType=atomic on status.conditions. With atomic lists, SSA replaces
-// the entire list on each write, so two controllers race and the last
-// writer's conditions overwrite the other's. Once all components have
-// migrated to modules and the DSC controller is removed, the modules
-// controller becomes the sole status writer and ModulesReady can be
-// enabled.
-func updateModuleStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+// During the transition period (in-tree components exist), the DSC
+// controller calls this and is the sole status writer — the modules
+// controller has WithoutStatusConditions so its conditions are never
+// applied. Post-migration (no in-tree components), the modules
+// controller calls this via updateModuleStatus and becomes the sole
+// status writer.
+func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	log := logf.FromContext(ctx)
 
 	reg := DefaultRegistry()
@@ -496,4 +496,15 @@ func updateModuleStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 	}
 
 	return nil
+}
+
+// updateModuleStatus writes ModulesReady only when no in-tree components
+// are registered, meaning the DSC controller is absent and the modules
+// controller is the sole status writer. While components exist, the DSC
+// controller handles ModulesReady.
+func updateModuleStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	if cr.HasEntries() {
+		return nil
+	}
+	return ComputeModulesStatus(ctx, rr)
 }

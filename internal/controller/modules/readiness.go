@@ -19,17 +19,34 @@ type ModuleReadinessChecker struct {
 	registry        *Registry
 	client          client.Client
 	platformVersion string
+	platform        *PlatformContext
 }
 
 // NewReadinessChecker creates a ReadinessChecker backed by the
 // module registry. The platformVersion is the expected version
 // from the platform operator release — modules must report this
 // version in .status.release.version to be considered ready.
-func NewReadinessChecker(reg *Registry, cli client.Client, platformVersion string) *ModuleReadinessChecker {
-	return &ModuleReadinessChecker{
+func NewReadinessChecker(reg *Registry, cli client.Client, platformVersion string, opts ...ReadinessCheckerOption) *ModuleReadinessChecker {
+	m := &ModuleReadinessChecker{
 		registry:        reg,
 		client:          cli,
 		platformVersion: platformVersion,
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// ReadinessCheckerOption configures a ModuleReadinessChecker.
+type ReadinessCheckerOption func(*ModuleReadinessChecker)
+
+// WithPlatformContext sets the PlatformContext used to evaluate
+// handler-level enablement (DSC managementState). Without this,
+// the checker falls back to registry-level enablement only.
+func WithPlatformContext(p *PlatformContext) ReadinessCheckerOption {
+	return func(m *ModuleReadinessChecker) {
+		m.platform = p
 	}
 }
 
@@ -41,6 +58,14 @@ func (m *ModuleReadinessChecker) IsReady(ctx context.Context, name string) (bool
 	handler := m.registry.Lookup(name)
 	if handler == nil {
 		return false, fmt.Errorf("module %q: %w", name, dag.ErrUnknownNode)
+	}
+
+	if !m.registry.IsEnabled(name) {
+		return true, nil
+	}
+
+	if m.platform != nil && !handler.IsEnabled(m.platform) {
+		return true, nil
 	}
 
 	moduleStatus, err := handler.GetModuleStatus(ctx, m.client)

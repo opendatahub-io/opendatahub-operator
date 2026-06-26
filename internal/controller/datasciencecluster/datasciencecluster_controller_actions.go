@@ -78,8 +78,15 @@ func checkUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest) e
 		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
 	}
 
-	reg := cr.DefaultRegistry()
-	if !reg.AnyComponentEnabled(instance) {
+	componentsEnabled := cr.DefaultRegistry().AnyComponentEnabled(instance)
+
+	modulesEnabled := false
+	if modules.DefaultRegistry().HasEntries() {
+		platformCtx := &modules.PlatformContext{DSC: instance}
+		modulesEnabled = modules.DefaultRegistry().AnyEnabled(platformCtx)
+	}
+
+	if !componentsEnabled && !modulesEnabled {
 		return nil
 	}
 
@@ -106,7 +113,8 @@ func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest)
 
 	checker := provision.NewCompositeChecker(
 		cr.NewReadinessChecker(cr.DefaultRegistry(), rr.Client, instance),
-		modules.NewReadinessChecker(modules.DefaultRegistry(), rr.Client, rr.Release.Version.String()),
+		modules.NewReadinessChecker(modules.DefaultRegistry(), rr.Client, rr.Release.Version.String(),
+			modules.WithPlatformContext(&modules.PlatformContext{DSC: instance})),
 	)
 
 	log := logf.FromContext(ctx)
@@ -195,9 +203,14 @@ func updateStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error 
 
 	instance.Status.Release = rr.Release
 
-	err := computeComponentsStatus(ctx, rr, cr.DefaultRegistry())
-	if err != nil {
+	if err := computeComponentsStatus(ctx, rr, cr.DefaultRegistry()); err != nil {
 		return err
+	}
+
+	if cr.HasEntries() {
+		if err := modules.ComputeModulesStatus(ctx, rr); err != nil {
+			return err
+		}
 	}
 
 	return nil

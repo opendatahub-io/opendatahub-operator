@@ -104,9 +104,14 @@ func (r *Registry) EnableFromList(names []string) {
 	for name, e := range r.entries {
 		e.enabled = want[name]
 		r.entries[name] = e
+
+		if want[name] {
+			provision.Enable(name)
+		} else {
+			provision.Disable(name)
+		}
 	}
 	r.resolvedCache = nil
-	provision.InvalidateCache()
 }
 
 // sortedNames returns module names in sorted order for deterministic iteration.
@@ -261,7 +266,7 @@ func (r *Registry) AnyEnabled(platform *PlatformContext) bool {
 	defer r.mu.RUnlock()
 
 	for _, e := range r.entries {
-		if e.handler.IsEnabled(platform) {
+		if e.enabled && e.handler.IsEnabled(platform) {
 			return true
 		}
 	}
