@@ -124,6 +124,7 @@ type ReconcilerBuilder[T common.PlatformObject] struct {
 	excludeFromOwnership     []schema.GroupVersionKind
 	dynamicOwnershipGVKPreds map[schema.GroupVersionKind][]predicate.Predicate
 	skipConditionCleanup     bool
+	skipStatusConditionsFn   func() bool
 }
 
 func ReconcilerFor[T common.PlatformObject](mgr ctrl.Manager, object T, opts ...builder.ForOption) *ReconcilerBuilder[T] {
@@ -172,6 +173,22 @@ func (b *ReconcilerBuilder[T]) WithInstanceName(instanceName string) *Reconciler
 
 func (b *ReconcilerBuilder[T]) WithoutConditionCleanup() *ReconcilerBuilder[T] {
 	b.skipConditionCleanup = true
+	return b
+}
+
+func (b *ReconcilerBuilder[T]) WithoutStatusConditions() *ReconcilerBuilder[T] {
+	b.skipStatusConditionsFn = func() bool { return true }
+	return b
+}
+
+// WithoutStatusConditionsIf conditionally strips conditions from the
+// status apply. When the predicate returns true, conditions are not
+// applied — the controller effectively becomes a non-status-writer.
+// Use this when ownership of status conditions should transfer between
+// controllers at runtime (e.g. DSC owns status while in-tree components
+// exist, modules controller owns it after migration).
+func (b *ReconcilerBuilder[T]) WithoutStatusConditionsIf(pred func() bool) *ReconcilerBuilder[T] {
+	b.skipStatusConditionsFn = pred
 	return b
 }
 
@@ -417,6 +434,9 @@ func (b *ReconcilerBuilder[T]) Build(_ context.Context) (*Reconciler, error) {
 	}
 	if b.skipConditionCleanup {
 		opts = append(opts, withSkipConditionCleanup())
+	}
+	if b.skipStatusConditionsFn != nil {
+		opts = append(opts, withSkipStatusConditions(b.skipStatusConditionsFn))
 	}
 
 	r, err := NewReconciler(b.mgr, name, obj, opts...)
