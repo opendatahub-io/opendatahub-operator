@@ -159,6 +159,9 @@ func TestSetKubeRBACProxyTLSEnv_InvalidMinVersion(t *testing.T) {
 	setKubeRBACProxyTLSEnv(profile, true)
 
 	g.Expect(os.Getenv("KUBE_RBAC_PROXY_TLS_MIN_VERSION")).To(Equal("VersionTLS12"))
+	suites := os.Getenv("KUBE_RBAC_PROXY_TLS_CIPHER_SUITES")
+	g.Expect(suites).NotTo(BeEmpty())
+	g.Expect(suites).To(ContainSubstring("TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"))
 }
 
 func TestSetKubeRBACProxyTLSEnv_NonOpenShift(t *testing.T) {
