@@ -6,6 +6,10 @@ metadata:
     app.kubernetes.io/name: datasciencecluster
 spec:
   components:
+    aigateway:
+      managementState: "Managed"
+      batchGateway:
+        managementState: "Removed"
     dashboard:
       managementState: "Managed"
     aipipelines:

@@ -674,6 +674,10 @@ metadata:
   name: default-dsc
 spec:
   components:
+    aigateway:
+      managementState: "Managed"
+      batchGateway:
+        managementState: "Managed"
     dashboard:
       managementState: Managed
     aipipelines:
