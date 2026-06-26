@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -17,6 +18,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
+
+var unremovableGVKs = []schema.GroupVersionKind{gvk.Namespace}
 
 // ProtectedObject identifies a resource that GC must never delete. Matching uses
 // Group+Kind (version-agnostic) plus Name and optional Namespace, so the filter
@@ -154,7 +157,7 @@ func NewGCAction(resourceID string, operatorNamespace string, protectedObjects [
 		gc.InNamespace(operatorNamespace),
 		gc.WithLabel(labels.InfrastructurePartOf, resourceID),
 		gc.WithObjectPredicate(newGCPredicate(protectedObjects)),
-		gc.WithUnremovables(gvk.Namespace),
+		gc.WithUnremovables(unremovableGVKs...),
 		gc.WithOnlyCollectOwned(true),
 	), nil
 }

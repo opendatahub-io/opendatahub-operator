@@ -12,7 +12,6 @@ import (
 
 	ccmcommon "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
@@ -28,7 +27,7 @@ const (
 // metadata and a function that computes its state based on management
 // policy and cluster state.
 type chartDef struct {
-	stateFn    func(ctx context.Context, cli client.Client, d ccmcommon.Dependencies) chartState
+	stateFn    func(ctx context.Context, cli client.Client, d ccmcommon.Dependencies) (chartState, error)
 	chart      types.HelmChartInfo
 	monitor    monitorConfig
 	operatorCR *types.OperatorCR
@@ -48,40 +47,30 @@ type monitorConfig struct {
 func makeStateFn(
 	policyFn func(ccmcommon.Dependencies) ccmcommon.ManagementPolicy,
 	operatorCR *types.OperatorCR,
-) func(ctx context.Context, cli client.Client, d ccmcommon.Dependencies) chartState {
-	return func(ctx context.Context, cli client.Client, d ccmcommon.Dependencies) chartState {
+) func(ctx context.Context, cli client.Client, d ccmcommon.Dependencies) (chartState, error) {
+	return func(ctx context.Context, cli client.Client, d ccmcommon.Dependencies) (chartState, error) {
 		if policyFn(d) != ccmcommon.Unmanaged {
-			return chartManaged
+			return chartManaged, nil
 		}
 
-		if operatorCR != nil && operatorCRExists(ctx, cli, operatorCR) {
-			return chartCleaning
+		if operatorCR != nil {
+			exists, err := operatorCRExists(ctx, cli, operatorCR)
+			if err != nil {
+				// Stay managed on transient errors — safe default that avoids premature Phase 2 cleanup.
+				return chartManaged, err
+			}
+			if exists {
+				return chartCleaning, nil
+			}
 		}
 
-		return chartExcluded
+		return chartExcluded, nil
 	}
 }
 
 // allChartDefs is the single source of truth for all charts and their target
 // namespaces. BuildHelmCharts derives from this list.
 func allChartDefs(deps ccmcommon.Dependencies, chartsPath string) []chartDef {
-	certManagerOperatorCR := &types.OperatorCR{
-		GVK:  gvk.CertManagerV1Alpha1,
-		Name: "cluster",
-	}
-
-	lwsOperatorCR := &types.OperatorCR{
-		GVK:       gvk.LeaderWorkerSetOperatorV1,
-		Name:      "cluster",
-		Namespace: deps.LWS.GetNamespace(),
-	}
-
-	sailOperatorCR := &types.OperatorCR{
-		GVK:       gvk.Istio,
-		Name:      "default",
-		Namespace: deps.SailOperator.GetNamespace(),
-	}
-
 	return []chartDef{
 		{
 			stateFn: makeStateFn(func(d ccmcommon.Dependencies) ccmcommon.ManagementPolicy {
@@ -117,7 +106,7 @@ func allChartDefs(deps ccmcommon.Dependencies, chartsPath string) []chartDef {
 				},
 				PreApply: []types.HookFn{},
 			},
-			operatorCR: certManagerOperatorCR,
+			operatorCR: &CertManagerOperatorCR,
 			monitor: monitorConfig{
 				ConditionType:  status.ConditionCertManagerReady,
 				HasDeployments: true,
@@ -127,8 +116,8 @@ func allChartDefs(deps ccmcommon.Dependencies, chartsPath string) []chartDef {
 		{
 			stateFn: makeStateFn(func(d ccmcommon.Dependencies) ccmcommon.ManagementPolicy {
 				return d.LWS.ManagementPolicy
-			}, lwsOperatorCR),
-			operatorCR: lwsOperatorCR,
+			}, &LWSOperatorCR),
+			operatorCR: &LWSOperatorCR,
 			chart: types.HelmChartInfo{
 				Source: helm.Source{
 					Chart:       filepath.Join(chartsPath, "lws-operator"),
@@ -148,7 +137,7 @@ func allChartDefs(deps ccmcommon.Dependencies, chartsPath string) []chartDef {
 		{
 			stateFn: makeStateFn(func(d ccmcommon.Dependencies) ccmcommon.ManagementPolicy {
 				return d.SailOperator.ManagementPolicy
-			}, sailOperatorCR),
+			}, &SailOperatorCR),
 			chart: types.HelmChartInfo{
 				Source: helm.Source{
 					Chart:       filepath.Join(chartsPath, "sail-operator"),
@@ -161,7 +150,7 @@ func allChartDefs(deps ccmcommon.Dependencies, chartsPath string) []chartDef {
 				// TODO(OSSM-12397): Remove PostApply hook once the sail-operator ships a fix.
 				PostApply: []types.HookFn{AnnotateIstioWebhooksHook()},
 			},
-			operatorCR: sailOperatorCR,
+			operatorCR: &SailOperatorCR,
 			monitor: monitorConfig{
 				ConditionType:  status.ConditionSailOperatorReady,
 				HasDeployments: true,
@@ -195,11 +184,14 @@ type BuildResult struct {
 
 // BuildHelmCharts returns the charts to render, CRs to filter, and monitoring
 // configs in a single pass. Each chart's stateFn is called exactly once.
-func BuildHelmCharts(ctx context.Context, cli client.Client, deps ccmcommon.Dependencies, chartsPath string) BuildResult {
+func BuildHelmCharts(ctx context.Context, cli client.Client, deps ccmcommon.Dependencies, chartsPath string) (BuildResult, error) {
 	var result BuildResult
 
 	for _, def := range allChartDefs(deps, chartsPath) {
-		state := def.stateFn(ctx, cli, deps)
+		state, err := def.stateFn(ctx, cli, deps)
+		if err != nil {
+			return BuildResult{}, err
+		}
 
 		policy := ccmcommon.Unmanaged
 
@@ -228,21 +220,21 @@ func BuildHelmCharts(ctx context.Context, cli client.Client, deps ccmcommon.Depe
 		})
 	}
 
-	return result
+	return result, nil
 }
 
-func operatorCRExists(ctx context.Context, cli client.Client, cr *types.OperatorCR) bool {
+func operatorCRExists(ctx context.Context, cli client.Client, cr *types.OperatorCR) (bool, error) {
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(cr.GVK)
 
 	err := cli.Get(ctx, client.ObjectKey{Name: cr.Name, Namespace: cr.Namespace}, obj)
 	if err != nil {
 		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
-			return false
+			return false, nil
 		}
 
-		return false
+		return false, err
 	}
 
-	return true
+	return true, nil
 }

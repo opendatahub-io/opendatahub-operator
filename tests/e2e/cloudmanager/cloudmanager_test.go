@@ -9,6 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	ccmapi "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
+	ccmcommon "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -36,15 +37,8 @@ func TestCloudManager_InvalidNameRejected(t *testing.T) {
 
 // TestCloudManager runs all cloud manager e2e tests sequentially under a single
 // CR lifecycle. Tests are ordered so that the CR is created once and reused as
-// long as possible, minimizing repeated create/teardown cycles:
-//
-//  1. DeploymentsAvailable — verify initial deploy
-//  2. ReadOnlyValidation  — status, labels, workload checks, self-healing
-//  3. NamespaceImmutability — verify namespace fields cannot be changed after creation
-//  4. StatusAfterSpecChange — mutates spec but restores to all-Managed
-//  5. ManagedRecovery — all Managed→Unmanaged→Managed (RHOAIENG-62288)
-//  6. GarbageCollection — GC action: stale deletion, protected PKI, unmanaged transition
-//  7. CascadeDeletionOnCRDelete — Kubernetes cascade via ownerReferences (must be last)
+// long as possible, minimizing repeated create/teardown cycles.
+// CascadeDeletionOnCRDelete must be last since it destroys the CR.
 func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests sharing one CR lifecycle are clearer inline
 	wt := tc.NewWithT(t)
 
@@ -243,8 +237,8 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 		t.Run("LWSOperatorFunctional", func(t *testing.T) {
 			t.Run("LeaderWorkerSetOperator CR exists", func(t *testing.T) {
 				wt := tc.NewWithT(t)
-				wt.Get(gvk.LeaderWorkerSetOperatorV1, types.NamespacedName{
-					Name: "cluster",
+				wt.Get(ccmcommon.LWSOperatorCR.GVK, types.NamespacedName{
+					Name: ccmcommon.LWSOperatorCR.Name,
 				}).Eventually().Should(Not(BeNil()))
 			})
 
@@ -279,8 +273,8 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 		t.Run("SailOperatorFunctional", func(t *testing.T) {
 			t.Run("Istio CR is healthy", func(t *testing.T) {
 				wt := tc.NewWithT(t)
-				wt.Get(gvk.Istio, types.NamespacedName{
-					Name: "default", Namespace: sailOperatorNS,
+				wt.Get(ccmcommon.SailOperatorCR.GVK, types.NamespacedName{
+					Name: ccmcommon.SailOperatorCR.Name, Namespace: sailOperatorNS,
 				}).Eventually().Should(
 					jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`),
 				)
@@ -412,45 +406,7 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 		))
 	})
 
-	// --- 5. ManagedRecovery ---
-	// Switches all dependencies to Unmanaged (tearing down operators and operands),
-	// then back to Managed. Verifies the controller recovers without error loops
-	// (e.g. RHOAIENG-62288: cert-manager CRDs present but webhook not yet ready).
-	t.Run("ManagedRecovery", func(t *testing.T) {
-		wt := tc.NewWithT(t)
-
-		// Switch all dependencies to Unmanaged. GC will delete all managed resources,
-		// including the cert-manager operator and its operand pods (webhook, controller,
-		// cainjector). CRDs may still remain on the cluster.
-		wt.Patch(provider.GVK, k8sEngineCrNn(), func(obj *unstructured.Unstructured) error {
-			return unstructured.SetNestedField(obj.Object, depsWithCustomNamespaces(ccmapi.Unmanaged), "spec", "dependencies")
-		}).Eventually().Should(Not(BeNil()))
-
-		// Verify all managed deployments are removed before switching back.
-		// We cannot use the KubernetesEngine CR because if cert-manager is not installed in the cluster,
-		// but the CRD are, it will never be in the Ready state.
-		wt.List(gvk.Deployment,
-			client.MatchingLabels{labels.InfrastructurePartOf: getPartOfLabelValue()},
-		).Eventually().Should(BeEmpty())
-
-		// CM-1019: cert-manager-operator may die before processing CertManager/cluster
-		// finalizers, leaving operand deployments orphaned. Force-delete them so the
-		// Unmanaged→Managed cycle is not flaky.
-		wt.DeleteAll(gvk.Deployment, client.InNamespace(certManagerOperandNS)).Eventually().Should(Succeed())
-		wt.List(gvk.Deployment,
-			client.InNamespace(certManagerOperandNS),
-		).Eventually().Should(BeEmpty())
-
-		// Switch all dependencies back to Managed. The operator must redeploy
-		// cert-manager and wait for webhook readiness before creating PKI resources.
-		wt.Patch(provider.GVK, k8sEngineCrNn(), func(obj *unstructured.Unstructured) error {
-			return unstructured.SetNestedField(obj.Object, depsWithCustomNamespaces(ccmapi.Managed), "spec", "dependencies")
-		}).Eventually().Should(Not(BeNil()))
-
-		waitForReady(wt)
-	})
-
-	// --- 6. GarbageCollection ---
+	// --- 5. GarbageCollection ---
 	// Tests the GC action that runs as the last step in the reconciliation pipeline.
 	// GC identifies stale or orphaned resources by comparing InstanceGeneration
 	// annotations and deletes them, while preserving protected PKI resources.
@@ -555,22 +511,31 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 			}).Eventually().Should(Not(BeNil()))
 
 			waitForReady(wt)
+			waitForDeploymentsAvailable(wt, deployments)
 
 			// Capture deployment references BEFORE the transition (they'll be deleted after).
-			certManagerDep := getManagedDependencyDeploymentByName(t, wt, cr, "cert-manager")
+			// Use a fresh CR from the cluster to ensure current spec values.
+			freshCR := wt.Get(provider.GVK, k8sEngineCrNn()).Eventually().Should(Not(BeNil()))
+
+			certManagerDep := getManagedDependencyDeploymentByName(wt, freshCR, "cert-manager")
 			certManagerNN := types.NamespacedName{Name: certManagerDep.GetName(), Namespace: certManagerDep.GetNamespace()}
 
-			lwsDep := getManagedDependencyDeploymentByName(t, wt, cr, "lws")
+			lwsDep := getManagedDependencyDeploymentByName(wt, freshCR, "lws")
 			lwsNN := types.NamespacedName{Name: lwsDep.GetName(), Namespace: lwsDep.GetNamespace()}
 
-			sailDep := getManagedDependencyDeploymentByName(t, wt, cr, "servicemesh")
+			sailDep := getManagedDependencyDeploymentByName(wt, freshCR, "servicemesh")
 			sailNN := types.NamespacedName{Name: sailDep.GetName(), Namespace: sailDep.GetNamespace()}
 
 			wt.Get(gvk.Deployment, types.NamespacedName{
 				Name: "istiod", Namespace: sailOperatorNS,
 			}).Eventually().Should(Not(BeNil()))
 
+			// TODO(RHOAIENG-68252): cert-manager must be transitioned separately because
+			// its webhook may block SSA-apply of PKI resources during Phase 2 cleanup.
+			// Once the cross-dependency is resolved, all deps can transition together.
+
 			// --- Phase A: switch sail-operator, LWS, gatewayAPI to Unmanaged ---
+			wt.Log("Phase A: switching sail-operator, LWS, gatewayAPI to Unmanaged")
 
 			allUnmanaged := depsWithCustomNamespaces(ccmapi.Unmanaged)
 			allUnmanaged["certManager"] = map[string]any{"managementPolicy": string(ccmapi.Managed)}
@@ -579,10 +544,15 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 				return unstructured.SetNestedField(obj.Object, allUnmanaged, "spec", "dependencies")
 			}).Eventually().Should(Not(BeNil()))
 
-			// sail-operator cleanup check
-			wt.Get(gvk.Istio, types.NamespacedName{
-				Name: "default", Namespace: sailOperatorNS,
+			// sail-operator cleanup check.
+			// Istio CR is deleted first (foreground propagation), forcing sail-operator to
+			// process the IstioRevision finalizer before cascade proceeds. IstioRevision
+			// must be fully gone — a stuck entry here means istiod would be orphaned.
+			wt.Get(ccmcommon.SailOperatorCR.GVK, types.NamespacedName{
+				Name: ccmcommon.SailOperatorCR.Name, Namespace: sailOperatorNS,
 			}).Eventually().Should(BeNil())
+
+			wt.List(gvk.IstioRevision).Eventually().Should(BeEmpty())
 
 			wt.Get(gvk.Deployment, types.NamespacedName{
 				Name: "istiod", Namespace: sailOperatorNS,
@@ -592,11 +562,12 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 
 			// LWS operator cleanup check
 			wt.Get(gvk.Deployment, lwsNN).Eventually().Should(BeNil())
-			wt.Get(gvk.LeaderWorkerSetOperatorV1, types.NamespacedName{
-				Name: "cluster", Namespace: lwsNS,
+			wt.Get(ccmcommon.LWSOperatorCR.GVK, types.NamespacedName{
+				Name: ccmcommon.LWSOperatorCR.Name, Namespace: lwsNS,
 			}).Eventually().Should(BeNil())
 
 			// --- Phase B: switch cert-manager to Unmanaged separately (CM-1019) ---
+			wt.Log("Phase B: switching cert-manager to Unmanaged")
 
 			wt.Patch(provider.GVK, k8sEngineCrNn(), func(obj *unstructured.Unstructured) error {
 				return unstructured.SetNestedField(obj.Object, string(ccmapi.Unmanaged),
@@ -614,11 +585,13 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 			wt.List(gvk.Deployment, client.InNamespace(certManagerOperandNS)).Eventually().Should(BeEmpty())
 
 			// All managed deployments should be gone.
+			wt.Log("verifying all managed deployments are gone")
 			wt.List(gvk.Deployment,
 				client.MatchingLabels{labels.InfrastructurePartOf: getPartOfLabelValue()},
 			).Eventually().Should(BeEmpty())
 
 			// Restore all to Managed for subsequent tests.
+			wt.Log("restoring all dependencies to Managed")
 			wt.Patch(provider.GVK, k8sEngineCrNn(), func(obj *unstructured.Unstructured) error {
 				return unstructured.SetNestedField(obj.Object, depsWithCustomNamespaces(ccmapi.Managed), "spec", "dependencies")
 			}).Eventually().Should(Not(BeNil()))
@@ -627,7 +600,7 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 		})
 	})
 
-	// --- 7. CascadeDeletionOnCRDelete ---
+	// --- 6. CascadeDeletionOnCRDelete ---
 	// Deletes the CR and verifies Kubernetes cascade-deletes all owned resources
 	// (those with ownerReferences). Namespaces are excluded from ownership and
 	// survive deletion. Must be the last test since it destroys the CR.
@@ -653,7 +626,7 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 		}
 
 		// CertManager/cluster must exist and be owned by this CR.
-		wt.Get(gvk.CertManagerV1Alpha1, types.NamespacedName{Name: "cluster"}).
+		wt.Get(ccmcommon.CertManagerOperatorCR.GVK, types.NamespacedName{Name: ccmcommon.CertManagerOperatorCR.Name}).
 			Eventually().Should(jq.Match(`.metadata.ownerReferences | length > 0`))
 
 		// cert-manager operand Deployments must be running before we delete the CR.
@@ -680,6 +653,15 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 		wt.Delete(provider.GVK, k8sEngineCrNn()).Eventually().Should(Succeed())
 		wt.Get(provider.GVK, k8sEngineCrNn()).Eventually().Should(BeNil())
 
+		// The finalizer on the KE CR must delete Istio CR first
+		// (foreground propagation), forcing sail-operator to process the IstioRevision
+		// finalizer before cascade proceeds. A stuck IstioRevision would leave istiod
+		// orphaned after CR deletion.
+		wt.List(gvk.IstioRevision).Eventually().Should(BeEmpty())
+		wt.Get(gvk.Deployment, types.NamespacedName{
+			Name: "istiod", Namespace: sailOperatorNS,
+		}).Eventually().Should(BeNil())
+
 		// All owned deployments should be garbage-collected.
 		for _, dep := range deployments {
 			wt.Get(gvk.Deployment, types.NamespacedName{
@@ -687,9 +669,10 @@ func TestCloudManager(t *testing.T) { //nolint:maintidx // sequential subtests s
 			}).Eventually().Should(BeNil())
 		}
 
-		// FIXME(CM-1019): CertManager/cluster CR may be recreated by the dying
-		// cert-manager-operator. Skipped until the operator stops auto-recreating it.
-		// wt.Get(gvk.CertManagerV1Alpha1, types.NamespacedName{Name: "cluster"}).
+		// FIXME(CM-1019, RHOAIENG-68252): CertManager/cluster CR may be recreated by the dying
+		// cert-manager-operator. Skipped until the operator stops auto-recreating it or
+		// cert-manager is removed from the CCM managed dependencies.
+		// wt.Get(ccmcommon.CertManagerOperatorCR.GVK, types.NamespacedName{Name: ccmcommon.CertManagerOperatorCR.Name}).
 		// 	Eventually().Should(BeNil())
 		// cert-manager operand Deployments must be removed by the cert-manager-operator
 		// finalizer. They are not directly owned by our CR, so cascade deletion

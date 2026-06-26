@@ -150,7 +150,6 @@ func TestNewFinalizer(t *testing.T) {
 		g.Expect(cli.Get(ctx, types.NamespacedName{Name: "cluster"}, got)).To(Succeed())
 		got.SetFinalizers(nil)
 		g.Expect(cli.Update(ctx, got)).To(Succeed())
-		g.Expect(cli.Delete(ctx, got)).To(Succeed())
 		g.Eventually(func() error {
 			return cli.Get(ctx, types.NamespacedName{Name: "cluster"}, got)
 		}).Should(MatchError(ContainSubstring("not found")))

@@ -5,21 +5,14 @@ import (
 	"errors"
 	"fmt"
 
-	helmRenderer "github.com/k8s-manifest-kit/renderer-helm/pkg"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	ccmcommon "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
 	ccmcharts "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/helm"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -31,9 +24,10 @@ var ConditionsTypes = []string{
 
 // reconcileAction holds the configuration for the combined reconcile action.
 type reconcileAction struct {
-	helmOpts   []helm.ActionOpts
-	deployOpts []deploy.ActionOpts
-	resourceID string
+	helmOpts      []helm.ActionOpts
+	deployOpts    []deploy.ActionOpts
+	resourceID    string
+	buildChartsFn func(context.Context, *types.ReconciliationRequest) (ccmcharts.BuildResult, error)
 }
 
 // ReconcileActionOpts configures the combined reconcile action.
@@ -53,13 +47,25 @@ func WithDeployOptions(opts ...deploy.ActionOpts) ReconcileActionOpts {
 	}
 }
 
+// WithBuildChartsFn replaces the default buildCharts implementation.
+// Useful for testing or for callers that need custom chart discovery logic.
+func WithBuildChartsFn(fn func(context.Context, *types.ReconciliationRequest) (ccmcharts.BuildResult, error)) ReconcileActionOpts {
+	return func(a *reconcileAction) {
+		a.buildChartsFn = fn
+	}
+}
+
 func buildCharts(ctx context.Context, rr *types.ReconciliationRequest) (ccmcharts.BuildResult, error) {
+	if rr.ChartsBasePath == "" {
+		return ccmcharts.BuildResult{}, errors.New("ChartsBasePath must not be empty")
+	}
+
 	dp, ok := rr.Instance.(ccmcommon.KubernetesEngineInstance)
 	if !ok {
 		return ccmcharts.BuildResult{}, fmt.Errorf("instance %T does not implement KubernetesEngineInstance", rr.Instance)
 	}
 
-	return ccmcharts.BuildHelmCharts(ctx, rr.Client, dp.GetDependencies(), rr.ChartsBasePath), nil
+	return ccmcharts.BuildHelmCharts(ctx, rr.Client, dp.GetDependencies(), rr.ChartsBasePath)
 }
 
 func filterCRs(resources []unstructured.Unstructured, crs []types.OperatorCR) []unstructured.Unstructured {
@@ -67,20 +73,39 @@ func filterCRs(resources []unstructured.Unstructured, crs []types.OperatorCR) []
 		return resources
 	}
 
-	type key struct {
-		group, version, kind, name string
+	type namespacedKey struct {
+		gvk       schema.GroupVersionKind
+		namespace string
+		name      string
+	}
+	// clusterScopedKey is used for cluster-scoped CRs (Namespace=="") whose Helm
+	// templates may set metadata.namespace (which the API server ignores for cluster-scoped
+	// resources but the renderer preserves in the unstructured object). Matching by
+	// GVK+Name alone ensures filtering works regardless of what the renderer emits.
+	type clusterScopedKey struct {
+		gvk  schema.GroupVersionKind
+		name string
 	}
 
-	exclude := make(map[key]struct{}, len(crs))
+	exact := make(map[namespacedKey]struct{}, len(crs))
+	clusterScoped := make(map[clusterScopedKey]struct{}, len(crs))
+
 	for _, cr := range crs {
-		exclude[key{cr.GVK.Group, cr.GVK.Version, cr.GVK.Kind, cr.Name}] = struct{}{}
+		if cr.Namespace == "" {
+			clusterScoped[clusterScopedKey{cr.GVK, cr.Name}] = struct{}{}
+		} else {
+			exact[namespacedKey{cr.GVK, cr.Namespace, cr.Name}] = struct{}{}
+		}
 	}
 
 	filtered := make([]unstructured.Unstructured, 0, len(resources))
 
 	for _, res := range resources {
-		gvk := res.GroupVersionKind()
-		if _, ok := exclude[key{gvk.Group, gvk.Version, gvk.Kind, res.GetName()}]; !ok {
+		resGVK := res.GroupVersionKind()
+		_, exactMatch := exact[namespacedKey{resGVK, res.GetNamespace(), res.GetName()}]
+		_, clusterMatch := clusterScoped[clusterScopedKey{resGVK, res.GetName()}]
+
+		if !exactMatch && !clusterMatch {
 			filtered = append(filtered, res)
 		}
 	}
@@ -106,7 +131,8 @@ func NewReconcileAction(resourceID string, opts ...ReconcileActionOpts) (actions
 	}
 
 	action := reconcileAction{
-		resourceID: resourceID,
+		resourceID:    resourceID,
+		buildChartsFn: buildCharts,
 	}
 
 	for _, opt := range opts {
@@ -122,7 +148,7 @@ func NewReconcileAction(resourceID string, opts ...ReconcileActionOpts) (actions
 	)...)
 
 	return func(ctx context.Context, rr *types.ReconciliationRequest) error {
-		result, err := buildCharts(ctx, rr)
+		result, err := action.buildChartsFn(ctx, rr)
 		if err != nil {
 			return err
 		}
@@ -168,58 +194,4 @@ func NewReconcileAction(resourceID string, opts ...ReconcileActionOpts) (actions
 
 		return nil
 	}, nil
-}
-
-func cleanupExcludedCharts(ctx context.Context, rr *types.ReconciliationRequest, charts []types.HelmChartInfo) error {
-	if len(charts) == 0 || !rr.Generated {
-		return nil
-	}
-
-	l := logf.FromContext(ctx)
-
-	sources := make([]helmRenderer.Source, 0, len(charts))
-	for _, c := range charts {
-		sources = append(sources, c.Source)
-	}
-
-	renderer, err := helmRenderer.New(sources, helmRenderer.RendererOptions{Strict: true})
-	if err != nil {
-		return fmt.Errorf("cleanup chart render failed: %w", err)
-	}
-
-	resources, err := renderer.Process(ctx, map[string]any{})
-	if err != nil {
-		return fmt.Errorf("cleanup chart render failed: %w", err)
-	}
-
-	unremovables := make(map[schema.GroupVersionKind]struct{}, len(gc.DefaultUnremovables)+1)
-	for _, u := range gc.DefaultUnremovables {
-		unremovables[u] = struct{}{}
-	}
-	unremovables[gvk.Namespace] = struct{}{}
-
-	for i := range resources {
-		obj := &resources[i]
-		objGVK := obj.GroupVersionKind()
-
-		if _, skip := unremovables[objGVK]; skip {
-			continue
-		}
-
-		l.Info("cleanup excluded chart resource",
-			"gvk", objGVK,
-			"ns", obj.GetNamespace(),
-			"name", obj.GetName(),
-		)
-
-		if err := rr.Client.Delete(ctx, obj, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
-			if k8serr.IsNotFound(err) {
-				continue
-			}
-
-			return fmt.Errorf("cleanup delete failed for %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
-		}
-	}
-
-	return nil
 }

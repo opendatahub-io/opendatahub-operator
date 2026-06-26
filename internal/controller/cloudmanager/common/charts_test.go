@@ -3,12 +3,14 @@ package common
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	ccmcommon "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -51,7 +53,8 @@ func TestBuildHelmCharts(t *testing.T) {
 	t.Run("returns all charts in order when all managed", func(t *testing.T) {
 		g := NewWithT(t)
 
-		result := BuildHelmCharts(ctx, cli, ccmcommon.Dependencies{}, testChartsPath)
+		result, err := BuildHelmCharts(ctx, cli, ccmcommon.Dependencies{}, testChartsPath)
+		g.Expect(err).NotTo(HaveOccurred())
 
 		g.Expect(result.Charts).To(HaveLen(len(expectedReleaseNames)))
 		for i, name := range expectedReleaseNames {
@@ -67,7 +70,8 @@ func TestBuildHelmCharts(t *testing.T) {
 		deps := getAllUnmanagedDependencies()
 		deps.LWS.ManagementPolicy = ccmcommon.Managed
 
-		result := BuildHelmCharts(ctx, cli, deps, testChartsPath)
+		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath)
+		g.Expect(err).NotTo(HaveOccurred())
 
 		g.Expect(result.Charts).To(HaveLen(1))
 		g.Expect(result.Charts[0].ReleaseName).To(Equal("lws-operator"))
@@ -80,7 +84,8 @@ func TestBuildHelmCharts(t *testing.T) {
 
 		deps := getAllUnmanagedDependencies()
 
-		result := BuildHelmCharts(ctx, cli, deps, testChartsPath)
+		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath)
+		g.Expect(err).NotTo(HaveOccurred())
 
 		g.Expect(result.Charts).To(BeEmpty())
 		g.Expect(result.FilterCRs).To(BeEmpty())
@@ -96,7 +101,8 @@ func TestBuildHelmCharts(t *testing.T) {
 		deps := getAllUnmanagedDependencies()
 		deps.GatewayAPI.ManagementPolicy = ccmcommon.Managed
 
-		result := BuildHelmCharts(ctx, cli, deps, testChartsPath)
+		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath)
+		g.Expect(err).NotTo(HaveOccurred())
 
 		g.Expect(result.MonitorConfigs).To(HaveLen(4))
 		g.Expect(result.MonitorConfigs[0].Policy).To(Equal(ccmcommon.Managed))
@@ -121,7 +127,8 @@ func TestBuildHelmCharts(t *testing.T) {
 			},
 		}
 
-		result := BuildHelmCharts(ctx, cli, deps, testChartsPath)
+		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath)
+		g.Expect(err).NotTo(HaveOccurred())
 
 		g.Expect(result.Charts).To(HaveLen(4))
 
@@ -154,21 +161,18 @@ func TestBuildHelmChartsPhase1(t *testing.T) {
 			name        string
 			crGVK       schema.GroupVersionKind
 			crName      string
-			crNamespace string
 			releaseName string
 		}{
 			{
 				name:        "sail-operator",
 				crGVK:       gvk.Istio,
 				crName:      "default",
-				crNamespace: ccmcommon.DefaultNamespaceSailOperator,
 				releaseName: "sail-operator",
 			},
 			{
 				name:        "LWS",
 				crGVK:       gvk.LeaderWorkerSetOperatorV1,
 				crName:      "cluster",
-				crNamespace: ccmcommon.DefaultNamespaceLWSOperator,
 				releaseName: "lws-operator",
 			},
 		}
@@ -180,14 +184,12 @@ func TestBuildHelmChartsPhase1(t *testing.T) {
 				cr := &unstructured.Unstructured{}
 				cr.SetGroupVersionKind(tc.crGVK)
 				cr.SetName(tc.crName)
-				if tc.crNamespace != "" {
-					cr.SetNamespace(tc.crNamespace)
-				}
 
 				cli := newFakeClient(t, fakeclient.WithObjects(cr))
 
 				deps := getAllUnmanagedDependencies()
-				result := BuildHelmCharts(ctx, cli, deps, testChartsPath)
+				result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath)
+				g.Expect(err).NotTo(HaveOccurred())
 
 				g.Expect(result.Charts).To(HaveLen(1))
 				g.Expect(result.Charts[0].ReleaseName).To(Equal(tc.releaseName))
@@ -206,7 +208,8 @@ func TestBuildHelmChartsPhase1(t *testing.T) {
 			GatewayAPI: ccmcommon.GatewayAPIDependency{ManagementPolicy: ccmcommon.Unmanaged},
 		}
 
-		result := BuildHelmCharts(ctx, cli, deps, testChartsPath)
+		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath)
+		g.Expect(err).NotTo(HaveOccurred())
 
 		g.Expect(result.Charts).To(HaveLen(3))
 		g.Expect(result.Charts[0].ReleaseName).To(Equal("cert-manager-operator"))
@@ -222,7 +225,6 @@ func TestBuildHelmChartsPhase1(t *testing.T) {
 		istioCR := &unstructured.Unstructured{}
 		istioCR.SetGroupVersionKind(gvk.Istio)
 		istioCR.SetName("default")
-		istioCR.SetNamespace(ccmcommon.DefaultNamespaceSailOperator)
 
 		certManagerCR := &unstructured.Unstructured{}
 		certManagerCR.SetGroupVersionKind(gvk.CertManagerV1Alpha1)
@@ -231,12 +233,12 @@ func TestBuildHelmChartsPhase1(t *testing.T) {
 		lwsCR := &unstructured.Unstructured{}
 		lwsCR.SetGroupVersionKind(gvk.LeaderWorkerSetOperatorV1)
 		lwsCR.SetName("cluster")
-		lwsCR.SetNamespace(ccmcommon.DefaultNamespaceLWSOperator)
 
 		cli := newFakeClient(t, fakeclient.WithObjects(istioCR, certManagerCR, lwsCR))
 
 		deps := getAllUnmanagedDependencies()
-		result := BuildHelmCharts(ctx, cli, deps, testChartsPath)
+		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath)
+		g.Expect(err).NotTo(HaveOccurred())
 
 		// cert-manager has operatorCR=nil (CM-1019), so it goes straight to
 		// chartExcluded even with CertManager CR on cluster.
@@ -251,11 +253,31 @@ func TestBuildHelmChartsPhase1(t *testing.T) {
 		cli := newFakeClient(t)
 
 		deps := getAllUnmanagedDependencies()
-		result := BuildHelmCharts(ctx, cli, deps, testChartsPath)
+		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath)
+		g.Expect(err).NotTo(HaveOccurred())
 
 		g.Expect(result.Charts).To(BeEmpty())
 		g.Expect(result.FilterCRs).To(BeEmpty())
 		g.Expect(result.CleanupCharts).To(HaveLen(3))
+	})
+
+	t.Run("transient Get error propagates instead of forcing Phase 2", func(t *testing.T) {
+		g := NewWithT(t)
+
+		getErr := errors.New("transient api error")
+		cli, err := fakeclient.New(fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+			Get: func(_ context.Context, _ client.WithWatch, _ client.ObjectKey, _ client.Object, _ ...client.GetOption) error {
+				return getErr
+			},
+		}))
+		g.Expect(err).NotTo(HaveOccurred())
+
+		deps := ccmcommon.Dependencies{
+			SailOperator: ccmcommon.SailOperatorDependency{ManagementPolicy: ccmcommon.Unmanaged},
+		}
+
+		_, err = BuildHelmCharts(ctx, cli, deps, testChartsPath)
+		g.Expect(err).To(MatchError(getErr))
 	})
 
 	t.Run("mixed states across dependencies", func(t *testing.T) {
@@ -264,7 +286,6 @@ func TestBuildHelmChartsPhase1(t *testing.T) {
 		istioCR := &unstructured.Unstructured{}
 		istioCR.SetGroupVersionKind(gvk.Istio)
 		istioCR.SetName("default")
-		istioCR.SetNamespace(ccmcommon.DefaultNamespaceSailOperator)
 
 		cli := newFakeClient(t, fakeclient.WithObjects(istioCR))
 
@@ -275,7 +296,8 @@ func TestBuildHelmChartsPhase1(t *testing.T) {
 			SailOperator: ccmcommon.SailOperatorDependency{ManagementPolicy: ccmcommon.Unmanaged},
 		}
 
-		result := BuildHelmCharts(ctx, cli, deps, testChartsPath)
+		result, err := BuildHelmCharts(ctx, cli, deps, testChartsPath)
+		g.Expect(err).NotTo(HaveOccurred())
 
 		g.Expect(result.Charts).To(HaveLen(3))
 		g.Expect(result.Charts[0].ReleaseName).To(Equal("gateway-api"))

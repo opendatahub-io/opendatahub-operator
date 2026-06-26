@@ -4,14 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	ccmapi "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
+	ccmcommon "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -157,8 +158,8 @@ func getManagedDependencyDeployments(wt *testf.WithT, cr *unstructured.Unstructu
 
 // getManagedDependencyDeploymentByName returns the first deployment whose name contains
 // the given substring from the managed dependency deployments list.
-func getManagedDependencyDeploymentByName(t *testing.T, wt *testf.WithT, cr *unstructured.Unstructured, name string) unstructured.Unstructured {
-	t.Helper()
+func getManagedDependencyDeploymentByName(wt *testf.WithT, cr *unstructured.Unstructured, name string) unstructured.Unstructured {
+	wt.THelper()
 
 	deps := getManagedDependencyDeployments(wt, cr)
 	for _, dep := range deps {
@@ -167,8 +168,10 @@ func getManagedDependencyDeploymentByName(t *testing.T, wt *testf.WithT, cr *uns
 		}
 	}
 
-	t.Fatalf("no managed dependency deployment found with name containing %q", name)
-	return unstructured.Unstructured{} // unreachable
+	wt.Expect(true).To(BeFalse(),
+		"no managed dependency deployment found with name containing %q", name)
+
+	return unstructured.Unstructured{} // unreachable after Fail
 }
 
 // getCertManagerOperandNamespace returns the hardcoded cert-manager operand namespace.
@@ -203,16 +206,27 @@ func waitForDeploymentsAvailable(wt *testf.WithT, deployments []unstructured.Uns
 // forceDeleteCertManagerCR removes finalizers from CertManager/cluster and deletes it.
 // The cert-manager-operator may recreate this CR during graceful shutdown (CM-1019),
 // and without the operator running the finalizers can never be processed.
+// Idempotent: returns immediately if the CR does not exist.
 func forceDeleteCertManagerCR(wt *testf.WithT) {
 	wt.THelper()
 
-	nn := types.NamespacedName{Name: "cluster"}
-	cr := wt.Get(gvk.CertManagerV1Alpha1, nn).Eventually().Should(Not(BeNil()))
+	cr := ccmcommon.CertManagerOperatorCR
+	nn := types.NamespacedName{Name: cr.Name}
 
-	cr.SetFinalizers(nil)
-	wt.Expect(wt.Client().Update(wt.Context(), cr)).To(Succeed())
-	wt.Delete(gvk.CertManagerV1Alpha1, nn).Eventually().Should(Succeed())
-	wt.Get(gvk.CertManagerV1Alpha1, nn).Eventually().Should(BeNil())
+	obj := unstructured.Unstructured{}
+	obj.SetGroupVersionKind(cr.GVK)
+
+	err := wt.Client().Get(wt.Context(), nn, &obj)
+	if k8serr.IsNotFound(err) {
+		return
+	}
+
+	wt.Expect(err).ToNot(HaveOccurred())
+
+	obj.SetFinalizers(nil)
+	wt.Expect(wt.Client().Update(wt.Context(), &obj)).To(Succeed())
+	wt.Delete(cr.GVK, nn).Eventually().Should(Succeed())
+	wt.Get(cr.GVK, nn).Eventually().Should(BeNil())
 }
 
 // getPartOfLabelValue returns the value used for the InfrastructurePartOf label
