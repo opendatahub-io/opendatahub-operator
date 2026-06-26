@@ -328,10 +328,11 @@ package datasciencecluster
 // +kubebuilder:rbac:groups=mlflow.opendatahub.io,resources=mlflows/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=mlflow.opendatahub.io,resources=mlflows/finalizers,verbs=update
 
-// Tenant (read-only for ModuleHandler.GetModuleStatus to read Tenant CR status)
+// Tenant (read-only for ModuleHandler.GetModuleStatus + WatchesGVK for status aggregation)
 // ModuleHandler reads Tenant.status.conditions and converts to ModelsAsService.status
+// WatchesGVK(gvk.Tenant) requires list;watch for controller-runtime cache setup
 // All write operations (create/update/delete) are performed by maas-controller
-// +kubebuilder:rbac:groups=maas.opendatahub.io,resources=tenants,verbs=get
+// +kubebuilder:rbac:groups=maas.opendatahub.io,resources=tenants,verbs=get;list;watch
 // +kubebuilder:rbac:groups=maas.opendatahub.io,resources=tenants/status,verbs=get
 
 // MaaS Config (read-only for module framework; maas-controller manages lifecycle)
