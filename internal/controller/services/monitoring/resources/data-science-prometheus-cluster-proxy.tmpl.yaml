@@ -88,6 +88,10 @@ spec:
             - --upstream-ca-file=/etc/prometheus-ca/service-ca.crt
             - --upstream-client-cert-file=/etc/prometheus-client/tls.crt
             - --upstream-client-key-file=/etc/prometheus-client/tls.key
+            - --tls-min-version={{.TLSMinVersion}}
+            {{- if .TLSCipherSuites}}
+            - --tls-cipher-suites={{.TLSCipherSuites}}
+            {{- end}}
             - --logtostderr=true
             - --v=1
             # Allow only metrics endpoint

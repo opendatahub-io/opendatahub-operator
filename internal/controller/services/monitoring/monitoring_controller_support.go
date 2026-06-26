@@ -286,6 +286,11 @@ func addTracesTemplateData(templateData map[string]any, traces *serviceApi.Trace
 	return nil
 }
 
+func addTLSData(templateData map[string]any) {
+	templateData["TLSMinVersion"] = os.Getenv("KUBE_RBAC_PROXY_TLS_MIN_VERSION")
+	templateData["TLSCipherSuites"] = os.Getenv("KUBE_RBAC_PROXY_TLS_CIPHER_SUITES")
+}
+
 // Images can be overridden via environment variables, with defaults based on platform.
 func addImageURLs(rr *odhtypes.ReconciliationRequest, templateData map[string]any) {
 	templateData["KubeRBACProxyImage"] = getImageURL(
@@ -395,6 +400,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	// always add resource defaults
 	addResourceData(templateData)
 	addImageURLs(rr, templateData)
+	addTLSData(templateData)
 
 	// Add metrics-related data if metrics are configured
 	if metrics := monitoring.Spec.Metrics; metrics != nil {

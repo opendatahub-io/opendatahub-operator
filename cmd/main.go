@@ -466,6 +466,10 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	// Fetch the cluster TLS security profile for webhook and metrics servers
 	tlsOpts, tlsProfile, hasOpenShiftConfigAPI := fetchTLSProfile(ctx, scheme, oconfig.RestConfig)
 
+	// Publish resolved TLS profile as kube-rbac-proxy CLI flag values so
+	// monitoring templates can inject them into sidecar containers.
+	setKubeRBACProxyTLSEnv(tlsProfile, hasOpenShiftConfigAPI)
+
 	ctrlMgr, err := ctrl.NewManager(oconfig.RestConfig, ctrl.Options{ // single pod does not need to have LeaderElection
 		Scheme: scheme,
 		// This is the default mapper provider, we define it to ensure it remains
@@ -735,6 +739,37 @@ func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.
 	}
 
 	return tlsOpts, profile, hasAPI
+}
+
+func setKubeRBACProxyTLSEnv(profile configv1.TLSProfileSpec, hasOpenShiftConfig bool) {
+	var minVersion string
+	var cipherNames []string
+
+	if hasOpenShiftConfig {
+		minVersion = string(profile.MinTLSVersion)
+		if minVersion == "" {
+			minVersion = "VersionTLS12"
+		}
+		tlsConfigFn, unsupportedCiphers := tlspkg.NewTLSConfigFromProfile(profile)
+		if len(unsupportedCiphers) > 0 {
+			setupLog.Info("kube-rbac-proxy TLS: some ciphers from profile are unsupported", "unsupported", unsupportedCiphers)
+		}
+		cfg := &tls.Config{}
+		tlsConfigFn(cfg)
+		for _, id := range cfg.CipherSuites {
+			cipherNames = append(cipherNames, tls.CipherSuiteName(id))
+		}
+	} else {
+		minVersion = "VersionTLS12"
+		for _, id := range intermediateCiphers {
+			cipherNames = append(cipherNames, tls.CipherSuiteName(id))
+		}
+	}
+
+	os.Setenv("KUBE_RBAC_PROXY_TLS_MIN_VERSION", minVersion)
+	os.Setenv("KUBE_RBAC_PROXY_TLS_CIPHER_SUITES", strings.Join(cipherNames, ","))
+
+	setupLog.Info("resolved kube-rbac-proxy TLS settings", "minVersion", minVersion, "cipherCount", len(cipherNames), "openshift", hasOpenShiftConfig)
 }
 
 func CreateComponentReconcilers(ctx context.Context, mgr *manager.Manager) error {
