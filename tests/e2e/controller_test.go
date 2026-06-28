@@ -89,6 +89,7 @@ type TestContextConfig struct {
 	operatorControllerTest           bool
 	operatorResilienceTest           bool
 	webhookTest                      bool
+	dagOrderingTest                  bool
 	v2tov3upgradeTest                bool
 	circuitBreakerEnabled            bool
 	circuitBreakerThreshold          int
@@ -477,6 +478,12 @@ func TestOdhOperator(t *testing.T) {
 		mustRun(t, "DSCInitialization and DataScienceCluster validation E2E Tests", dscValidationTestSuite)
 	}
 
+	// Run DAG ordering tests before individual component tests to verify
+	// the unified batch provisioning order on a clean DSC.
+	if testOpts.dagOrderingTest {
+		mustRun(t, "DAG Ordering E2E Tests", dagOrderingTestSuite)
+	}
+
 	// Run monitoring before components — monitoring setup is a prerequisite.
 	mustRun(t, serviceApi.MonitoringServiceName, Services.RunSingle(serviceApi.MonitoringServiceName))
 
@@ -600,6 +607,8 @@ func TestMain(m *testing.M) {
 	checkEnvVarBindingError(viper.BindEnv("test-operator-v2tov3upgrade", viper.GetEnvPrefix()+"_OPERATOR_V2TOV3UPGRADE"))
 	pflag.Bool("test-webhook", true, "run webhook tests")
 	checkEnvVarBindingError(viper.BindEnv("test-webhook", viper.GetEnvPrefix()+"_WEBHOOK"))
+	pflag.Bool("test-dag-ordering", true, "run DAG upgrade ordering tests")
+	checkEnvVarBindingError(viper.BindEnv("test-dag-ordering", viper.GetEnvPrefix()+"_DAG_ORDERING"))
 
 	pflag.Bool("circuit-breaker", true, "enable circuit breaker to halt tests on infrastructure failures")
 	checkEnvVarBindingError(viper.BindEnv("circuit-breaker", viper.GetEnvPrefix()+"_CIRCUIT_BREAKER"))
@@ -675,6 +684,7 @@ func TestMain(m *testing.M) {
 	testOpts.operatorResilienceTest = viper.GetBool("test-operator-resilience")
 	testOpts.v2tov3upgradeTest = viper.GetBool("test-operator-v2tov3upgrade")
 	testOpts.webhookTest = viper.GetBool("test-webhook")
+	testOpts.dagOrderingTest = viper.GetBool("test-dag-ordering")
 	testOpts.circuitBreakerEnabled = viper.GetBool("circuit-breaker")
 	testOpts.circuitBreakerThreshold = viper.GetInt("circuit-breaker-threshold")
 	Components.enabled = viper.GetBool("test-components")

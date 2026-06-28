@@ -92,6 +92,10 @@ func WithTransformers(transformers ...engineTypes.Transformer) ActionOpts {
 }
 
 func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error {
+	if rr.SkipDeploy {
+		return nil
+	}
+
 	return a.cacher.Render(ctx, rr, a.render)
 }
 

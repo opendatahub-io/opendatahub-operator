@@ -273,8 +273,7 @@ registered at program startup in `cmd/main.go`. The registry supports:
 - `Enable(name)` / `Disable(name)` -- CLI suppression flag integration
 - `ForEach(fn)` -- iterate enabled handlers (used by `provisionModules`)
 - `HasEntries()` -- check if any modules are registered
-- `RegistrationOption` -- `WithRunlevel(int)` and `WithDependencies(...string)`
-  for future DAG-based ordering
+- `RegistrationOption` -- `WithRunlevel(int)` for DAG-based ordering
 
 ### `watch.go` -- Static ownership registration
 
