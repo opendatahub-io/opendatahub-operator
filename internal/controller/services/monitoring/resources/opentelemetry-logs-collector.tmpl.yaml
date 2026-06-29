@@ -1,0 +1,99 @@
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: {{.LogsCollectorName}}
+  namespace: {{.Namespace}}
+  labels:
+    app.kubernetes.io/part-of: data-science-observability
+spec:
+  mode: deployment
+  replicas: 2
+  resources:
+    limits:
+      cpu: {{.CollectorCPULimit}}
+      memory: {{.CollectorMemoryLimit}}
+    requests:
+      cpu: {{.CollectorCPURequest}}
+      memory: {{.CollectorMemoryRequest}}
+
+  config:
+    extensions:
+      bearertokenauth:
+        filename: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: '0.0.0.0:4317'
+          http:
+            endpoint: '0.0.0.0:4318'
+
+    processors:
+      batch: {}
+
+      k8sattributes:
+        auth_type: "serviceAccount"
+        passthrough: false
+        extract:
+          metadata:
+            - k8s.namespace.name
+            - k8s.pod.name
+            - k8s.pod.uid
+            - k8s.deployment.name
+            - k8s.node.name
+        pod_association:
+          - sources:
+            - from: resource_attribute
+              name: k8s.pod.name
+          - sources:
+            - from: resource_attribute
+              name: k8s.namespace.name
+
+      resource:
+        attributes:
+          - action: upsert
+            key: log_type
+            value: application
+          - action: upsert
+            key: kubernetes_namespace_name
+            value: opendatahub
+
+      groupbyattrs/maas:
+        keys:
+          - model
+          - subscription
+          - response_type
+
+    exporters:
+{{- if .Logs}}
+      otlphttp/loki:
+        endpoint: {{.LogsEndpoint}}
+        tls:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
+          insecure_skip_verify: true
+        auth:
+          authenticator: bearertokenauth
+        headers:
+          "X-Scope-OrgID": "application"
+{{- end}}
+
+    service:
+      extensions: [bearertokenauth]
+      telemetry:
+        metrics:
+          readers:
+            - pull:
+                exporter:
+                  prometheus:
+                    host: '0.0.0.0'
+                    port: 8888
+
+      pipelines:
+        logs:
+          receivers: [otlp]
+          processors: [resource, k8sattributes, groupbyattrs/maas, batch]
+          exporters:
+{{- if .Logs}}
+            - otlphttp/loki
+{{- end}}

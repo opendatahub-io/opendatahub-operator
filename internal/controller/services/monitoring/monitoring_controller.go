@@ -154,6 +154,7 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(deployTracingStack).
 		WithAction(deployAlerting).
 		WithAction(deployOpenTelemetryCollector).
+		WithAction(deployLogsCollector).
 		WithAction(deployPerses).
 		WithAction(deployPersesTempoIntegration).
 		WithAction(deployPersesPrometheusIntegration).

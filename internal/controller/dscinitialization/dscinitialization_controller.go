@@ -524,6 +524,7 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 	}
 
 	defaultMonitoring.Spec.Alerting = dsci.Spec.Monitoring.Alerting
+	defaultMonitoring.Spec.Logs = dsci.Spec.Monitoring.Logs
 
 	if metricsEnabled || tracesEnabled {
 		if dsci.Spec.Monitoring.CollectorReplicas != 0 {

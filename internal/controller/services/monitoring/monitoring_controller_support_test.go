@@ -1737,3 +1737,495 @@ func TestPersesGVKs(t *testing.T) {
 	g.Expect(ds).Should(Equal(gvk.PersesDatasourceV1Alpha1))
 	g.Expect(db).Should(Equal(gvk.PersesDashboardV1Alpha1))
 }
+
+func TestAddLogsTemplateData(t *testing.T) {
+	tests := []struct {
+		name          string
+		logsConfig    *serviceApi.Logs
+		expectError   bool
+		errorContains string
+		validateData  func(*testing.T, map[string]any)
+	}{
+		{
+			name: "Valid in-cluster endpoint",
+			logsConfig: &serviceApi.Logs{
+				Endpoint: "http://loki.monitoring.svc:3100/loki/api/v1/push",
+			},
+			expectError: false,
+			validateData: func(t *testing.T, data map[string]any) {
+				assert.Equal(t, "http://loki.monitoring.svc:3100/loki/api/v1/push", data["LogsEndpoint"])
+				assert.Equal(t, LogsCollectorName, data["LogsCollectorName"])
+				assert.Equal(t, MaasServiceName, data["MaasServiceName"])
+				assert.Equal(t, MaasServiceNameResourceAttr, data["MaasServiceNameResourceAttr"])
+			},
+		},
+		{
+			name: "Valid external HTTPS endpoint",
+			logsConfig: &serviceApi.Logs{
+				Endpoint: "https://loki.example.com:3100/loki/api/v1/push",
+			},
+			expectError: false,
+			validateData: func(t *testing.T, data map[string]any) {
+				assert.Equal(t, "https://loki.example.com:3100/loki/api/v1/push", data["LogsEndpoint"])
+				assert.Equal(t, LogsCollectorName, data["LogsCollectorName"])
+			},
+		},
+		{
+			name: "Valid external HTTP endpoint (warning logged)",
+			logsConfig: &serviceApi.Logs{
+				Endpoint: "http://external.com:3100/loki/api/v1/push",
+			},
+			expectError: false,
+			validateData: func(t *testing.T, data map[string]any) {
+				assert.Equal(t, "http://external.com:3100/loki/api/v1/push", data["LogsEndpoint"])
+			},
+		},
+		{
+			name: "Invalid scheme (ftp)",
+			logsConfig: &serviceApi.Logs{
+				Endpoint: "ftp://loki.svc:3100/path",
+			},
+			expectError:   true,
+			errorContains: "must use http or https scheme",
+		},
+		{
+			name: "Invalid scheme (ws)",
+			logsConfig: &serviceApi.Logs{
+				Endpoint: "ws://loki.svc:3100/path",
+			},
+			expectError:   true,
+			errorContains: "must use http or https scheme",
+		},
+		{
+			name: "Missing host",
+			logsConfig: &serviceApi.Logs{
+				Endpoint: "http:///path",
+			},
+			expectError:   true,
+			errorContains: "must include a host",
+		},
+		{
+			name: "Invalid URL syntax",
+			logsConfig: &serviceApi.Logs{
+				Endpoint: "ht!tp://invalid",
+			},
+			expectError:   true,
+			errorContains: "invalid logs endpoint URL",
+		},
+		{
+			name: "Minimal valid endpoint",
+			logsConfig: &serviceApi.Logs{
+				Endpoint: "http://loki",
+			},
+			expectError: false,
+			validateData: func(t *testing.T, data map[string]any) {
+				assert.Equal(t, "http://loki", data["LogsEndpoint"])
+			},
+		},
+		{
+			name: "Endpoint with path only",
+			logsConfig: &serviceApi.Logs{
+				Endpoint: "http://loki.svc/loki/api/v1/push",
+			},
+			expectError: false,
+			validateData: func(t *testing.T, data map[string]any) {
+				assert.Equal(t, "http://loki.svc/loki/api/v1/push", data["LogsEndpoint"])
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			templateData := make(map[string]any)
+			err := addLogsTemplateData(templateData, tt.logsConfig)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+			} else {
+				assert.NoError(t, err)
+				if tt.validateData != nil {
+					tt.validateData(t, templateData)
+				}
+			}
+		})
+	}
+}
+
+func TestValidateLogsEndpoint(t *testing.T) {
+	tests := []struct {
+		name          string
+		endpoint      string
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:        "Valid HTTP in-cluster",
+			endpoint:    "http://loki.monitoring.svc:3100/loki/api/v1/push",
+			expectError: false,
+		},
+		{
+			name:        "Valid HTTPS external",
+			endpoint:    "https://loki.example.com/path",
+			expectError: false,
+		},
+		{
+			name:          "Invalid scheme (ftp)",
+			endpoint:      "ftp://loki.svc/path",
+			expectError:   true,
+			errorContains: "must use http or https scheme",
+		},
+		{
+			name:          "Invalid scheme (ws)",
+			endpoint:      "ws://loki.svc/path",
+			expectError:   true,
+			errorContains: "must use http or https scheme",
+		},
+		{
+			name:          "Empty host",
+			endpoint:      "http:///path",
+			expectError:   true,
+			errorContains: "must include a host",
+		},
+		{
+			name:          "Malformed URL",
+			endpoint:      "not-a-url",
+			expectError:   true,
+			errorContains: "must use http or https scheme",
+		},
+		{
+			name:          "Missing scheme",
+			endpoint:      "loki.svc:3100/path",
+			expectError:   true,
+			errorContains: "must use http or https scheme",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateLogsEndpoint(tt.endpoint)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestDeployLogsCollector(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name              string
+		logsConfig        *serviceApi.Logs
+		crdExists         bool
+		expectedCondition struct {
+			status  metav1.ConditionStatus
+			reason  string
+			message string
+		}
+		expectedTemplateCount int
+		expectError           bool
+	}{
+		{
+			name:       "Logs not configured",
+			logsConfig: nil,
+			crdExists:  true,
+			expectedCondition: struct {
+				status  metav1.ConditionStatus
+				reason  string
+				message string
+			}{
+				status:  metav1.ConditionFalse,
+				reason:  status.LogsNotConfiguredReason,
+				message: status.LogsNotConfiguredMessage,
+			},
+			expectedTemplateCount: 0,
+			expectError:           false,
+		},
+		{
+			name: "Logs configured, CRD missing",
+			logsConfig: &serviceApi.Logs{
+				Endpoint: "http://loki.svc:3100/loki/api/v1/push",
+			},
+			crdExists: false,
+			expectedCondition: struct {
+				status  metav1.ConditionStatus
+				reason  string
+				message string
+			}{
+				status:  metav1.ConditionFalse,
+				reason:  "OpenTelemetryCollectorCRDNotFoundReason",
+				message: "OpenTelemetryCollector CRD Not Found (required for logs collection)",
+			},
+			expectedTemplateCount: 0,
+			expectError:           false,
+		},
+		{
+			name: "Logs configured, CRD exists",
+			logsConfig: &serviceApi.Logs{
+				Endpoint: "http://loki.svc:3100/loki/api/v1/push",
+			},
+			crdExists: true,
+			expectedCondition: struct {
+				status  metav1.ConditionStatus
+				reason  string
+				message string
+			}{
+				status: metav1.ConditionTrue,
+			},
+			expectedTemplateCount: 2,
+			expectError:           false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			// Setup scheme
+			scheme := runtime.NewScheme()
+			g.Expect(dsciv2.AddToScheme(scheme)).Should(Succeed())
+			g.Expect(serviceApi.AddToScheme(scheme)).Should(Succeed())
+			g.Expect(extv1.AddToScheme(scheme)).Should(Succeed())
+
+			// Setup fake REST mapper
+			fakeMapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{})
+			if tt.crdExists {
+				// Register OpenTelemetryCollector CRD
+				r := schema.GroupVersionResource{Group: "opentelemetry.io", Version: "v1beta1", Resource: "opentelemetrycollectors"}
+				fakeMapper.AddSpecific(gvk.OpenTelemetryCollector, r, r, meta.RESTScopeNamespace)
+			}
+
+			// Create fake client
+			objects := []client.Object{}
+			if tt.crdExists {
+				crd := &extv1.CustomResourceDefinition{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "opentelemetrycollectors.opentelemetry.io",
+					},
+					Spec: extv1.CustomResourceDefinitionSpec{
+						Group: "opentelemetry.io",
+						Names: extv1.CustomResourceDefinitionNames{
+							Kind:   "OpenTelemetryCollector",
+							Plural: "opentelemetrycollectors",
+						},
+					},
+				}
+				objects = append(objects, crd)
+			}
+
+			cli := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithRESTMapper(fakeMapper).
+				WithObjects(objects...).
+				Build()
+
+			// Create monitoring instance
+			monitoring := &serviceApi.Monitoring{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "default-monitoring",
+				},
+				Spec: serviceApi.MonitoringSpec{
+					MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
+						Logs: tt.logsConfig,
+					},
+				},
+			}
+
+			// Create reconciliation request
+			rr := &odhtypes.ReconciliationRequest{
+				Client:     cli,
+				Instance:   monitoring,
+				Templates:  []odhtypes.TemplateInfo{},
+				Conditions: conditions.NewManager(monitoring, status.ConditionTypeReady),
+			}
+
+			// Execute action
+			err := deployLogsCollector(ctx, rr)
+
+			// Assertions
+			if tt.expectError {
+				g.Expect(err).Should(HaveOccurred())
+			} else {
+				g.Expect(err).ShouldNot(HaveOccurred())
+
+				// Check condition
+				cond := rr.Conditions.GetCondition(status.ConditionLogsCollectorAvailable)
+				g.Expect(cond).ShouldNot(BeNil())
+				g.Expect(cond.Status).Should(Equal(tt.expectedCondition.status))
+				if tt.expectedCondition.reason != "" {
+					g.Expect(cond.Reason).Should(Equal(tt.expectedCondition.reason))
+				}
+				if tt.expectedCondition.message != "" {
+					g.Expect(cond.Message).Should(Equal(tt.expectedCondition.message))
+				}
+
+				// Check templates
+				g.Expect(len(rr.Templates)).Should(Equal(tt.expectedTemplateCount))
+				if tt.expectedTemplateCount == 2 {
+					g.Expect(rr.Templates[0].Path).Should(Equal(OpenTelemetryLogsCollectorTemplate))
+					g.Expect(rr.Templates[1].Path).Should(Equal(LogsCollectorRBACTemplate))
+				}
+			}
+		})
+	}
+}
+
+func TestLogsCollectorConditionLifecycle(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name             string
+		initialCondition *common.Condition
+		logsConfig       *serviceApi.Logs
+		crdExists        bool
+		expectedStatus   metav1.ConditionStatus
+		expectedReason   string
+	}{
+		{
+			name:             "Unknown → NotConfigured",
+			initialCondition: nil,
+			logsConfig:       nil,
+			crdExists:        true,
+			expectedStatus:   metav1.ConditionFalse,
+			expectedReason:   status.LogsNotConfiguredReason,
+		},
+		{
+			name: "NotConfigured → CRD Missing",
+			initialCondition: &common.Condition{
+				Type:   status.ConditionLogsCollectorAvailable,
+				Status: metav1.ConditionFalse,
+				Reason: status.LogsNotConfiguredReason,
+			},
+			logsConfig: &serviceApi.Logs{
+				Endpoint: "http://loki.svc:3100/loki/api/v1/push",
+			},
+			crdExists:      false,
+			expectedStatus: metav1.ConditionFalse,
+			expectedReason: "OpenTelemetryCollectorCRDNotFoundReason",
+		},
+		{
+			name: "CRD Missing → Available",
+			initialCondition: &common.Condition{
+				Type:   status.ConditionLogsCollectorAvailable,
+				Status: metav1.ConditionFalse,
+				Reason: "OpenTelemetryCollectorCRDNotFoundReason",
+			},
+			logsConfig: &serviceApi.Logs{
+				Endpoint: "http://loki.svc:3100/loki/api/v1/push",
+			},
+			crdExists:      true,
+			expectedStatus: metav1.ConditionTrue,
+		},
+		{
+			name: "Available → NotConfigured",
+			initialCondition: &common.Condition{
+				Type:   status.ConditionLogsCollectorAvailable,
+				Status: metav1.ConditionTrue,
+			},
+			logsConfig:     nil,
+			crdExists:      true,
+			expectedStatus: metav1.ConditionFalse,
+			expectedReason: status.LogsNotConfiguredReason,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			// Setup scheme
+			scheme := runtime.NewScheme()
+			g.Expect(dsciv2.AddToScheme(scheme)).Should(Succeed())
+			g.Expect(serviceApi.AddToScheme(scheme)).Should(Succeed())
+			g.Expect(extv1.AddToScheme(scheme)).Should(Succeed())
+
+			// Setup fake REST mapper
+			fakeMapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{})
+			if tt.crdExists {
+				r := schema.GroupVersionResource{Group: "opentelemetry.io", Version: "v1beta1", Resource: "opentelemetrycollectors"}
+				fakeMapper.AddSpecific(gvk.OpenTelemetryCollector, r, r, meta.RESTScopeNamespace)
+			}
+
+			// Create fake client
+			objects := []client.Object{}
+			if tt.crdExists {
+				crd := &extv1.CustomResourceDefinition{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "opentelemetrycollectors.opentelemetry.io",
+					},
+					Spec: extv1.CustomResourceDefinitionSpec{
+						Group: "opentelemetry.io",
+						Names: extv1.CustomResourceDefinitionNames{
+							Kind:   "OpenTelemetryCollector",
+							Plural: "opentelemetrycollectors",
+						},
+					},
+				}
+				objects = append(objects, crd)
+			}
+
+			cli := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithRESTMapper(fakeMapper).
+				WithObjects(objects...).
+				Build()
+
+			// Create monitoring instance with initial condition
+			monitoring := &serviceApi.Monitoring{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "default-monitoring",
+					Generation: 1,
+				},
+				Spec: serviceApi.MonitoringSpec{
+					MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
+						Logs: tt.logsConfig,
+					},
+				},
+			}
+
+			if tt.initialCondition != nil {
+				monitoring.Status.Conditions = []common.Condition{*tt.initialCondition}
+			}
+
+			// Create reconciliation request
+			rr := &odhtypes.ReconciliationRequest{
+				Client:     cli,
+				Instance:   monitoring,
+				Templates:  []odhtypes.TemplateInfo{},
+				Conditions: conditions.NewManager(monitoring, status.ConditionTypeReady),
+			}
+
+			// Execute action
+			err := deployLogsCollector(ctx, rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			// Check condition transition
+			cond := rr.Conditions.GetCondition(status.ConditionLogsCollectorAvailable)
+			g.Expect(cond).ShouldNot(BeNil())
+			g.Expect(cond.Status).Should(Equal(tt.expectedStatus))
+			if tt.expectedReason != "" {
+				g.Expect(cond.Reason).Should(Equal(tt.expectedReason))
+			}
+		})
+	}
+}
+
+func TestLogsCollectorTemplateConstants(t *testing.T) {
+	g := NewWithT(t)
+
+	// Verify templates exist in embedded FS
+	_, err := resourcesFS.ReadFile(OpenTelemetryLogsCollectorTemplate)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	_, err = resourcesFS.ReadFile(LogsCollectorRBACTemplate)
+	g.Expect(err).ShouldNot(HaveOccurred())
+}

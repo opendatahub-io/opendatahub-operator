@@ -3448,6 +3448,7 @@ _Appears in:_
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 | `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |
+| `logs` _[Logs](#logs)_ | Logs configuration for log collection via OpenTelemetry |  |  |
 | `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector. If not set, it defaults<br />to 1 on single-node clusters and 2 on multi-node clusters. |  |  |
 
 
@@ -3552,6 +3553,24 @@ _Appears in:_
 | `enabled` _boolean_ | Enabled determines whether ingress rules are applied.<br />When true, creates NetworkPolicy allowing traffic only from Gateway pods and monitoring namespaces. |  | Required: \{\} <br /> |
 
 
+#### Logs
+
+
+
+Logs enables and defines the configuration for logs collection via OpenTelemetry
+
+
+
+_Appears in:_
+- [DSCIMonitoring](#dscimonitoring)
+- [MonitoringCommonSpec](#monitoringcommonspec)
+- [MonitoringSpec](#monitoringspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `endpoint` _string_ | Endpoint specifies the Loki endpoint URI for log ingestion<br />Must include the full path to the push API, e.g., "/loki/api/v1/push"<br />Examples:<br />  - "http://loki.monitoring.svc:3100/loki/api/v1/push" (in-cluster)<br />  - "https://loki.example.com:3100/loki/api/v1/push" (external) |  | MaxLength: 2048 <br />MinLength: 1 <br />Pattern: `^https?://[a-zA-Z0-9.-]+(:[0-9]+)?(/.*)?$` <br /> |
+
+
 #### Metrics
 
 
@@ -3628,6 +3647,7 @@ _Appears in:_
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 | `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |
+| `logs` _[Logs](#logs)_ | Logs configuration for log collection via OpenTelemetry |  |  |
 | `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector. If not set, it defaults<br />to 1 on single-node clusters and 2 on multi-node clusters. |  |  |
 
 
@@ -3648,6 +3668,7 @@ _Appears in:_
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 | `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |
+| `logs` _[Logs](#logs)_ | Logs configuration for log collection via OpenTelemetry |  |  |
 | `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector. If not set, it defaults<br />to 1 on single-node clusters and 2 on multi-node clusters. |  |  |
 
 
