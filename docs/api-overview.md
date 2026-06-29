@@ -3701,7 +3701,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `issuerURL` _string_ | OIDC issuer URL |  | Required: \{\} <br /> |
+| `issuerURL` _string_ | OIDC issuer URL |  | MaxLength: 2048 <br />MinLength: 1 <br />Pattern: `^https://[a-zA-Z0-9][a-zA-Z0-9.-]+(:[0-9]+)?(/.*)?$` <br />Required: \{\} <br /> |
 | `clientID` _string_ | OIDC client ID |  | Required: \{\} <br /> |
 | `clientSecretRef` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#secretkeyselector-v1-core)_ | Reference to secret containing client secret |  | Required: \{\} <br /> |
 | `secretNamespace` _string_ | Namespace where the client secret is located<br />If not specified, defaults to openshift-ingress |  |  |
