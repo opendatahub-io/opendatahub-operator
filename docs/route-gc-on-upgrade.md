@@ -23,32 +23,32 @@ Validated: June 15, 2026 JIRA: RHOAIENG-61574
 
 RHOAI changed its routing architecture across major versions. In 2.x, each component had its own OpenShift Route. In 3.x, a central Gateway API replaced all per-component routes with a single entry point. This means old routes need to be cleaned up during upgrades.
 
-### RHOAI 2.x — One route, one URL
+## RHOAI 2.x — One route, one URL
 
 The Dashboard controller creates a single OpenShift Route:
 
-```
+```text
 https://rhods-dashboard-redhat-ods-applications.apps.<cluster>/  →  Dashboard service  →  Dashboard pod
 ```
 
 This route lives in redhat-ods-applications and is owned by the Dashboard CR. Note that the 2.x operator did not stamp platform.opendatahub.io/\* annotations on resources — that stamping framework was introduced in the 3.x reconciler refactor (December 2024)(Stamping flow is explained in GC part). The route does have standard OpenShift annotations (e.g., haproxy.router.openshift.io/timeout), which is relevant for how GC handles it during upgrades (see below).
 
-### RHOAI 3.3 — Gateway replaces per-component routing
+## RHOAI 3.3 — Gateway replaces per-component routing
 
 A central Gateway API takes over. Instead of each component having its own route, one Gateway route handles all traffic:
 
-```
+```text
 https://data-science-gateway.apps.<cluster>/  →  Gateway service  →  All RHOAI components
 ```
 
 The old rhods-dashboard route is gone — automatically deleted by GC (explained below). No redirect exists. The old URL simply stops working.
 
-### RHOAI 3.4+ — New URL with backward-compatible redirects
+## RHOAI 3.4+ — New URL with backward-compatible redirects
 
 The gateway hostname changes from data-science-gateway to rh-ai, and two redirect routes are created for backward compatibility:
 
-```
-Old Dashboard URL:  https://rhods-dashboard-<ns>.apps.<cluster>/  ──301──▶ https://rh-ai.apps.<cluster>/
+```text
+Old Dashboard URL:  https://rhods-dashboard-redhat-ods-applications.apps.<cluster>/  ──301──▶ https://rh-ai.apps.<cluster>/
 Old Gateway URL:    https://data-science-gateway.apps.<cluster>/  ──301──▶ https://rh-ai.apps.<cluster>/
 ```
 
@@ -81,7 +81,7 @@ If nothing was rendered (no changes), GC skips entirely. This avoids expensive c
 
 GC does not scan every resource in the cluster. It uses a label selector to find only resources that belong to its controller:
 
-```
+```text
 platform.opendatahub.io/part-of: <controller-name>
 ```
 
@@ -107,14 +107,16 @@ The ownership check uses the CR's GroupVersionKind (not a specific CR name), so 
 
 For each resource that passed both the label and ownership checks, GC reads four annotation stamps:
 
-platform.opendatahub.io/version: "3.4.0"            \# operator version  
-platform.opendatahub.io/type: "OpenShift AI ..."     \# platform type  
-platform.opendatahub.io/instance.uid: "5c6238b6..."  \# owning CR's UID  
-platform.opendatahub.io/instance.generation: "2"     \# owning CR's generation
+```text
+platform.opendatahub.io/version: "3.4.0"            # operator version
+platform.opendatahub.io/type: "OpenShift AI ..."     # platform type
+platform.opendatahub.io/instance.uid: "5c6238b6..."  # owning CR's UID
+platform.opendatahub.io/instance.generation: "2"     # owning CR's generation
+```
 
 The decision tree:
 
-```
+```text
 Resource has NO annotations at all (GetAnnotations() == nil)
   → KEEP (not managed by operator, untouchable)
 
@@ -171,7 +173,7 @@ Three layers of isolation prevent one controller's GC from deleting another cont
 Step-by-step upgrade process from 2.x to 3.3:
 
 1. The 2.x operator had a rhods-dashboard route in redhat-ods-applications. This route has OpenShift annotations but no platform.opendatahub.io/\* stamps (2.x didn't stamp them).  
-2. The 3.3 operator starts. The DSC controller creates the Dashboard CR.  
+2. The 3.3 operator starts. The DSC controller ensures the Dashboard CR exists (creates it if missing, or adopts the existing one from 2.x).  
 3. The Dashboard controller reconciles for the first time.  
 4. Render — In 3.3, the Dashboard controller no longer renders an OpenShift Route (routing moved to HTTPRoute/Gateway API). Other resources (ConfigMaps, Deployments, etc.) are rendered.  
 5. Deploy (SSA) — The rendered resources are applied. Each one gets stamped with version: 3.3.3, part-of: dashboard, etc. The old rhods-dashboard route is not touched because it was not rendered.  
@@ -182,7 +184,7 @@ Step-by-step upgrade process from 2.x to 3.3:
 
 # Validation and Testing
 
-### Upgrade 1: 2.25.7 → 3.3.3
+## Upgrade 1: 2.25.7 → 3.3.3
 
 Before:
 
@@ -204,7 +206,7 @@ What happened:
 
 Impact: Old URL https://rhods-dashboard-... stopped working immediately with no redirect.
 
-### Upgrade 2: 3.3.3 → 3.4.0
+## Upgrade 2: 3.3.3 → 3.4.0
 
 Before:
 
@@ -228,7 +230,7 @@ What happened:
 
 Impact: Old URL https://data-science-gateway.apps... works via 301 redirect. Verified with curl:
 
-```
+```text
 $ curl -I https://rhods-dashboard-redhat-ods-applications.apps.../
 HTTP/1.1 301 Moved Permanently
 Location: https://rh-ai.apps.../
@@ -238,62 +240,24 @@ Location: https://rh-ai.apps.../
 
 # Redirect Lifecycle and Removal
 
-### Today: Explicit deletion
+## Today: Explicit deletion
 
 The redirect routes and their supporting resources (Nginx Deployment, Service, ConfigMap) are explicitly deleted when:
 
 * Dashboard component is removed — If the Dashboard CR doesn't exist, createDashboardRedirects cleans up directly. This explicit approach is needed because removing Dashboard doesn't change GatewayConfig's generation, so GC alone would miss them.  
 * Feature disabled by admin — Setting DISABLE\_DASHBOARD\_REDIRECTS=true in the operator Subscription env removes all redirect resources immediately.
 
-### Future: 
+## Future removal
 
-### Phase 1 — 3.N: Redirects OFF, opt-in to keep
-
-### The code logic flips from:
-
-```
-// 3.4: disabled only if explicitly set
-if os.Getenv("DISABLE_DASHBOARD_REDIRECTS") == "true" { ... }
-```
-
-### 
-
-### To:
-
-```
-// 3.N: enabled only if explicitly set
-if os.Getenv("ENABLE_DASHBOARD_REDIRECTS") != "true" { ... }
-```
-
-###  On upgrade to 3.N:
-
-* Redirects stop working by default — old URLs return 404/503
-
-* Admins who still need time can re-enable via Subscription:
-
-```
-spec:
-  config:
-    env:
-    - name: ENABLE_DASHBOARD_REDIRECTS
-      value: "true"
-```
-
-* The operator logs a warning: "Dashboard redirects are deprecated and will be removed in 3.N+1. Update bookmarks to [https://rh-ai.apps](https://rh-ai.apps/)./"
-
-* A Kubernetes Event is emitted on the GatewayConfig CR for visibility in oc describe
-
-This gives admins one full release cycle to confirm all users have migrated, with a safe rollback path.
-
-### Phase 2 — 3.N: GC handles it automatically
-
-When the redirect feature is removed from the codebase in a future release (e.g., 3.N), the same GC mechanism that deleted the rhods-dashboard route in 3.3 will clean up the redirect resources:
+When the redirect feature is removed from the codebase in a future release, the same GC mechanism that deleted the rhods-dashboard route in 3.3 will clean up the redirect resources:
 
 1. Remove createDashboardRedirects action and templates from the codebase  
-2. On upgrade to 3.N, the Gateway controller no longer deploys redirect resources  
-3. GC finds the existing redirects with version: 3.4.0 ≠ 3.N → deletes them automatically
+2. On upgrade, the Gateway controller no longer deploys redirect resources  
+3. GC finds the existing redirects with a stale version annotation → deletes them automatically
 
 No special migration code needed. The only change is removing the redirect action and templates. GC does the rest — the same proven pattern from the 2.x → 3.3 upgrade.
+
+The exact removal timeline and mechanism will be decided as part of RHOAIENG-61576 (long-term redirect strategy recommendation).
 
 ---
 
@@ -311,7 +275,7 @@ No special migration code needed. The only change is removing the redirect actio
 
 # Administrator and User Recommendations
 
-### Administrators
+## Administrators
 
 Right now (3.4):
 
@@ -320,27 +284,27 @@ Right now (3.4):
 
 Optional — disable redirects early on a specific cluster:
 
-```
-# In Subscription for rhods-operator  
-spec:  
-  config:  
-    env:  
-    - name: DISABLE_DASHBOARD_REDIRECTS  
+```yaml
+# In Subscription for rhods-operator
+spec:
+  config:
+    env:
+    - name: DISABLE_DASHBOARD_REDIRECTS
       value: "true"
 ```
 
-### End users
+## End users
 
 Update your bookmarks from:
 
-```
+```text
 https://rhods-dashboard-redhat-ods-applications.apps.<cluster>/
 https://data-science-gateway.apps.<cluster>/
 ```
 
 To the new stable URL:
 
-```
+```text
 https://rh-ai.apps.<cluster>/
 ```
 
