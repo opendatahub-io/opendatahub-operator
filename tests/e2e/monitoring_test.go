@@ -277,6 +277,7 @@ func (tc *MonitoringTestCtx) runTracesWithPVBackendTests(t *testing.T) {
 		})
 
 		t.Run("Test TempoMonolithic CR Creation with PV backend", tc.ValidateTempoMonolithicCRCreation)
+		t.Run("Test Collector MLflow integration RBAC", tc.ValidateCollectorMLflowIntegrationRBAC)
 	})
 }
 
@@ -2896,6 +2897,30 @@ func (tc *MonitoringTestCtx) ValidateTargetAllocatorRBACConfiguration(t *testing
 			jq.Match(`.subjects[0].namespace == "%s"`, tc.MonitoringNamespace),
 		)),
 		WithCustomErrorMsg("ClusterRoleBinding should bind Target Allocator ClusterRole to ServiceAccount"),
+	)
+}
+
+// ValidateCollectorMLflowIntegrationRBAC tests that the collector SA has the mlflow-integration ClusterRoleBinding.
+func (tc *MonitoringTestCtx) ValidateCollectorMLflowIntegrationRBAC(t *testing.T) {
+	t.Helper()
+	t.Cleanup(tc.resetMonitoringConfigToManaged)
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		withMonitoringTraces(TracesStorageBackendPV, "", TracesStorageSize1Gi, DefaultRetention),
+	)
+
+	// Verify ClusterRoleBinding binds the collector SA to the mlflow-integration ClusterRole
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
+			Name: "data-science-collector-mlflow-integration",
+		}),
+		WithCondition(And(
+			jq.Match(`.roleRef.name == "mlflow-operator-mlflow-integration"`),
+			jq.Match(`.subjects[0].name == "%s"`, TargetAllocatorServiceAccount),
+			jq.Match(`.subjects[0].namespace == "%s"`, tc.MonitoringNamespace),
+		)),
+		WithCustomErrorMsg("ClusterRoleBinding should bind collector SA to mlflow-integration ClusterRole"),
 	)
 }
 
