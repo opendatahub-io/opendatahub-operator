@@ -120,7 +120,12 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
-const defaultTLSMinVersion = "VersionTLS12"
+const (
+	defaultTLSMinVersion = "VersionTLS12"
+
+	envKubeRBACProxyTLSMinVersion  = "KUBE_RBAC_PROXY_TLS_MIN_VERSION"
+	envKubeRBACProxyTLSCipherSuites = "KUBE_RBAC_PROXY_TLS_CIPHER_SUITES"
+)
 
 // intermediateCiphers is the Mozilla Intermediate cipher set for non-OpenShift fallback.
 // This restricts TLS 1.2 to strong AEAD ciphers when no cluster TLS profile is available.
@@ -748,12 +753,12 @@ func setKubeRBACProxyTLSEnv(profile configv1.TLSProfileSpec, hasOpenShiftConfig 
 	var cipherNames []string
 
 	if hasOpenShiftConfig {
-		minVersion = string(profile.MinTLSVersion)
-		switch minVersion {
-		case "VersionTLS10", "VersionTLS11", defaultTLSMinVersion, "VersionTLS13":
+		switch profile.MinTLSVersion {
+		case configv1.VersionTLS12, configv1.VersionTLS13:
+			minVersion = string(profile.MinTLSVersion)
 		default:
 			minVersion = defaultTLSMinVersion
-			profile.MinTLSVersion = configv1.TLSProtocolVersion(minVersion)
+			profile.MinTLSVersion = configv1.VersionTLS12
 		}
 		tlsConfigFn, unsupportedCiphers := tlspkg.NewTLSConfigFromProfile(profile)
 		if len(unsupportedCiphers) > 0 {
@@ -771,11 +776,11 @@ func setKubeRBACProxyTLSEnv(profile configv1.TLSProfileSpec, hasOpenShiftConfig 
 		}
 	}
 
-	if err := os.Setenv("KUBE_RBAC_PROXY_TLS_MIN_VERSION", minVersion); err != nil {
-		setupLog.Error(err, "failed to set KUBE_RBAC_PROXY_TLS_MIN_VERSION")
+	if err := os.Setenv(envKubeRBACProxyTLSMinVersion, minVersion); err != nil {
+		setupLog.Error(err, "failed to set env", "key", envKubeRBACProxyTLSMinVersion)
 	}
-	if err := os.Setenv("KUBE_RBAC_PROXY_TLS_CIPHER_SUITES", strings.Join(cipherNames, ",")); err != nil {
-		setupLog.Error(err, "failed to set KUBE_RBAC_PROXY_TLS_CIPHER_SUITES")
+	if err := os.Setenv(envKubeRBACProxyTLSCipherSuites, strings.Join(cipherNames, ",")); err != nil {
+		setupLog.Error(err, "failed to set env", "key", envKubeRBACProxyTLSCipherSuites)
 	}
 
 	setupLog.Info("resolved kube-rbac-proxy TLS settings", "minVersion", minVersion, "cipherCount", len(cipherNames), "openshift", hasOpenShiftConfig)

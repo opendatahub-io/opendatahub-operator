@@ -286,13 +286,18 @@ func addTracesTemplateData(templateData map[string]any, traces *serviceApi.Trace
 	return nil
 }
 
+const (
+	envKubeRBACProxyTLSMinVersion   = "KUBE_RBAC_PROXY_TLS_MIN_VERSION"
+	envKubeRBACProxyTLSCipherSuites = "KUBE_RBAC_PROXY_TLS_CIPHER_SUITES"
+)
+
 func addTLSData(templateData map[string]any) {
-	minVersion := os.Getenv("KUBE_RBAC_PROXY_TLS_MIN_VERSION")
+	minVersion := os.Getenv(envKubeRBACProxyTLSMinVersion)
 	if minVersion == "" {
 		minVersion = "VersionTLS12"
 	}
 	templateData["TLSMinVersion"] = minVersion
-	templateData["TLSCipherSuites"] = os.Getenv("KUBE_RBAC_PROXY_TLS_CIPHER_SUITES")
+	templateData["TLSCipherSuites"] = os.Getenv(envKubeRBACProxyTLSCipherSuites)
 }
 
 // Images can be overridden via environment variables, with defaults based on platform.

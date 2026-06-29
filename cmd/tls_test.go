@@ -47,8 +47,8 @@ func TestHardenedDefaultsTLSConfig(t *testing.T) {
 }
 
 func TestSetKubeRBACProxyTLSEnv_Intermediate(t *testing.T) {
-	t.Setenv("KUBE_RBAC_PROXY_TLS_MIN_VERSION", "")
-	t.Setenv("KUBE_RBAC_PROXY_TLS_CIPHER_SUITES", "")
+	t.Setenv(envKubeRBACProxyTLSMinVersion, "")
+	t.Setenv(envKubeRBACProxyTLSCipherSuites, "")
 	g := NewWithT(t)
 
 	profile := configv1.TLSProfileSpec{
@@ -67,16 +67,16 @@ func TestSetKubeRBACProxyTLSEnv_Intermediate(t *testing.T) {
 	}
 	setKubeRBACProxyTLSEnv(profile, true)
 
-	g.Expect(os.Getenv("KUBE_RBAC_PROXY_TLS_MIN_VERSION")).To(Equal("VersionTLS12"))
-	suites := os.Getenv("KUBE_RBAC_PROXY_TLS_CIPHER_SUITES")
+	g.Expect(os.Getenv(envKubeRBACProxyTLSMinVersion)).To(Equal("VersionTLS12"))
+	suites := os.Getenv(envKubeRBACProxyTLSCipherSuites)
 	g.Expect(suites).NotTo(BeEmpty())
 	g.Expect(suites).To(ContainSubstring("TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"))
 	g.Expect(suites).To(ContainSubstring("TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"))
 }
 
 func TestSetKubeRBACProxyTLSEnv_Modern(t *testing.T) {
-	t.Setenv("KUBE_RBAC_PROXY_TLS_MIN_VERSION", "")
-	t.Setenv("KUBE_RBAC_PROXY_TLS_CIPHER_SUITES", "")
+	t.Setenv(envKubeRBACProxyTLSMinVersion, "")
+	t.Setenv(envKubeRBACProxyTLSCipherSuites, "")
 	g := NewWithT(t)
 
 	profile := configv1.TLSProfileSpec{
@@ -85,13 +85,13 @@ func TestSetKubeRBACProxyTLSEnv_Modern(t *testing.T) {
 	}
 	setKubeRBACProxyTLSEnv(profile, true)
 
-	g.Expect(os.Getenv("KUBE_RBAC_PROXY_TLS_MIN_VERSION")).To(Equal("VersionTLS13"))
-	g.Expect(os.Getenv("KUBE_RBAC_PROXY_TLS_CIPHER_SUITES")).To(BeEmpty())
+	g.Expect(os.Getenv(envKubeRBACProxyTLSMinVersion)).To(Equal("VersionTLS13"))
+	g.Expect(os.Getenv(envKubeRBACProxyTLSCipherSuites)).To(BeEmpty())
 }
 
 func TestSetKubeRBACProxyTLSEnv_Old(t *testing.T) {
-	t.Setenv("KUBE_RBAC_PROXY_TLS_MIN_VERSION", "")
-	t.Setenv("KUBE_RBAC_PROXY_TLS_CIPHER_SUITES", "")
+	t.Setenv(envKubeRBACProxyTLSMinVersion, "")
+	t.Setenv(envKubeRBACProxyTLSCipherSuites, "")
 	g := NewWithT(t)
 
 	profile := configv1.TLSProfileSpec{
@@ -119,16 +119,15 @@ func TestSetKubeRBACProxyTLSEnv_Old(t *testing.T) {
 	}
 	setKubeRBACProxyTLSEnv(profile, true)
 
-	g.Expect(os.Getenv("KUBE_RBAC_PROXY_TLS_MIN_VERSION")).To(Equal("VersionTLS10"))
-	suites := os.Getenv("KUBE_RBAC_PROXY_TLS_CIPHER_SUITES")
+	g.Expect(os.Getenv(envKubeRBACProxyTLSMinVersion)).To(Equal("VersionTLS12"))
+	suites := os.Getenv(envKubeRBACProxyTLSCipherSuites)
 	g.Expect(suites).NotTo(BeEmpty())
 	g.Expect(suites).To(ContainSubstring("TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"))
-	g.Expect(suites).To(ContainSubstring("TLS_RSA_WITH_AES_128_GCM_SHA256"))
 }
 
 func TestSetKubeRBACProxyTLSEnv_CustomEmptyMinVersion(t *testing.T) {
-	t.Setenv("KUBE_RBAC_PROXY_TLS_MIN_VERSION", "")
-	t.Setenv("KUBE_RBAC_PROXY_TLS_CIPHER_SUITES", "")
+	t.Setenv(envKubeRBACProxyTLSMinVersion, "")
+	t.Setenv(envKubeRBACProxyTLSCipherSuites, "")
 	g := NewWithT(t)
 
 	profile := configv1.TLSProfileSpec{
@@ -139,15 +138,15 @@ func TestSetKubeRBACProxyTLSEnv_CustomEmptyMinVersion(t *testing.T) {
 	}
 	setKubeRBACProxyTLSEnv(profile, true)
 
-	g.Expect(os.Getenv("KUBE_RBAC_PROXY_TLS_MIN_VERSION")).To(Equal("VersionTLS12"))
-	suites := os.Getenv("KUBE_RBAC_PROXY_TLS_CIPHER_SUITES")
+	g.Expect(os.Getenv(envKubeRBACProxyTLSMinVersion)).To(Equal("VersionTLS12"))
+	suites := os.Getenv(envKubeRBACProxyTLSCipherSuites)
 	g.Expect(suites).NotTo(BeEmpty())
 	g.Expect(suites).To(ContainSubstring("TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"))
 }
 
 func TestSetKubeRBACProxyTLSEnv_InvalidMinVersion(t *testing.T) {
-	t.Setenv("KUBE_RBAC_PROXY_TLS_MIN_VERSION", "")
-	t.Setenv("KUBE_RBAC_PROXY_TLS_CIPHER_SUITES", "")
+	t.Setenv(envKubeRBACProxyTLSMinVersion, "")
+	t.Setenv(envKubeRBACProxyTLSCipherSuites, "")
 	g := NewWithT(t)
 
 	profile := configv1.TLSProfileSpec{
@@ -158,21 +157,21 @@ func TestSetKubeRBACProxyTLSEnv_InvalidMinVersion(t *testing.T) {
 	}
 	setKubeRBACProxyTLSEnv(profile, true)
 
-	g.Expect(os.Getenv("KUBE_RBAC_PROXY_TLS_MIN_VERSION")).To(Equal("VersionTLS12"))
-	suites := os.Getenv("KUBE_RBAC_PROXY_TLS_CIPHER_SUITES")
+	g.Expect(os.Getenv(envKubeRBACProxyTLSMinVersion)).To(Equal("VersionTLS12"))
+	suites := os.Getenv(envKubeRBACProxyTLSCipherSuites)
 	g.Expect(suites).NotTo(BeEmpty())
 	g.Expect(suites).To(ContainSubstring("TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"))
 }
 
 func TestSetKubeRBACProxyTLSEnv_NonOpenShift(t *testing.T) {
-	t.Setenv("KUBE_RBAC_PROXY_TLS_MIN_VERSION", "")
-	t.Setenv("KUBE_RBAC_PROXY_TLS_CIPHER_SUITES", "")
+	t.Setenv(envKubeRBACProxyTLSMinVersion, "")
+	t.Setenv(envKubeRBACProxyTLSCipherSuites, "")
 	g := NewWithT(t)
 
 	setKubeRBACProxyTLSEnv(configv1.TLSProfileSpec{}, false)
 
-	g.Expect(os.Getenv("KUBE_RBAC_PROXY_TLS_MIN_VERSION")).To(Equal("VersionTLS12"))
-	suites := os.Getenv("KUBE_RBAC_PROXY_TLS_CIPHER_SUITES")
+	g.Expect(os.Getenv(envKubeRBACProxyTLSMinVersion)).To(Equal("VersionTLS12"))
+	suites := os.Getenv(envKubeRBACProxyTLSCipherSuites)
 	g.Expect(suites).NotTo(BeEmpty())
 	for _, id := range intermediateCiphers {
 		g.Expect(suites).To(ContainSubstring(tls.CipherSuiteName(id)))
