@@ -48,6 +48,9 @@ type PlatformModules struct {
 	// Monitoring controls the monitoring module operator lifecycle.
 	// +optional
 	Monitoring common.ManagementSpec `json:"monitoring,omitempty"`
+	// Kserve controls the kserve module operator lifecycle.
+	// +optional
+	Kserve common.ManagementSpec `json:"kserve,omitempty"`
 }
 
 // PlatformStatus defines the observed state of Platform.
@@ -100,6 +103,9 @@ func (m *PlatformModules) EnabledModules() []string {
 	var enabled []string
 	if m.Monitoring.ManagementState == operatorv1.Managed {
 		enabled = append(enabled, "monitoring")
+	}
+	if m.Kserve.ManagementState == operatorv1.Managed {
+		enabled = append(enabled, "kserve")
 	}
 	return enabled
 }

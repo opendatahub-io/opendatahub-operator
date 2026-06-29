@@ -194,6 +194,7 @@ var (
 	existingModules = map[string]mr.ModuleHandler{
 		// serviceApi.MonitoringServiceName: monitoringModule.NewHandler(),
 		componentApi.AIGatewayComponentName: aigatewayModule.NewHandler(),
+		// componentApi.KserveComponentName: kserveModule.NewHandler(),
 	}
 
 	moduleRunlevels = map[string]dag.Runlevel{

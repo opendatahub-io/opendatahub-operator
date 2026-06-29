@@ -2414,6 +2414,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `monitoring` _[ManagementSpec](#managementspec)_ | Monitoring controls the monitoring module operator lifecycle. |  |  |
+| `kserve` _[ManagementSpec](#managementspec)_ | Kserve controls the kserve module operator lifecycle. |  |  |
 
 
 #### PlatformSpec
