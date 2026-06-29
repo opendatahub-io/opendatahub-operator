@@ -170,7 +170,8 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	// TrustyAI is excluded from quota failure testing due to InferenceServices CRD dependency
 	// Kueue is excluded because it does not have any deployment to manage anymore
 	// LlamaStack Operator is excluded because it has been replaced by OGX and the field is deprecated (no deployments to manage anymore)
-	excludedComponents := 3 // TrustyAI, Kueue, LlamaStack Operator
+	// AIGateway is excluded because it is a module so it does not report DSC ComponentsReady condition
+	excludedComponents := 4 // TrustyAI, Kueue, LlamaStack Operator, AIGateway
 	expectedTestableComponents := expectedComponentCount - excludedComponents
 	tc.g.Expect(componentsLength).Should(Equal(expectedTestableComponents),
 		"allComponents list is out of sync with DSC Components struct. "+

@@ -59,15 +59,6 @@ func modelsAsServiceTestSuite(t *testing.T) {
 		ComponentTestCtx: ct,
 	}
 
-	// The maas-controller hardcodes "opendatahub" as the namespace for DB
-	// secret lookup (appNamespaceForTenant returns DefaultMaaSAPINamespace).
-	// On RHOAI the apps namespace is "redhat-ods-applications" so the secret is never found.
-	// Skip until the upstream maas-controller fix is available.
-	platform := componentCtx.FetchPlatformRelease()
-	if platform == cluster.ManagedRhoai || platform == cluster.SelfManagedRhoai {
-		t.Skip("RHOAIENG-69604: MaaS e2e skipped on RHOAI — maas-controller hardcodes opendatahub namespace (upstream fix pending)")
-	}
-
 	// Set per-operation timeout defaults for all operations in this suite.
 	// MaaS startup involves multiple dependencies (postgres, gateway, maas-controller leader election,
 	// ServiceAccount/TLS cert provisioning) that can take longer than the default 5m timeout.
@@ -434,7 +425,6 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantSingletonEnforcement(t *testing.
 // require MaaS to be re-enabled first.
 func (tc *ModelsAsServiceTestCtx) ValidateTenantDeletedOnDisable(t *testing.T) {
 	t.Helper()
-	t.Skip("RHOAIENG-69570: Skipping Tenant deletion check")
 	skipUnless(t, Smoke, Tier1)
 
 	t.Logf("Verifying Tenant %s/%s is present before disable", tenantSubscriptionNS, tenantName)

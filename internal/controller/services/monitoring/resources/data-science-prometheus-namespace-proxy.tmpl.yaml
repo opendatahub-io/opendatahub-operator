@@ -1,3 +1,29 @@
+# Aggregated ClusterRole granting "create" on metrics.k8s.io/pods.
+#
+# Perses uses POST for Prometheus queries. The namespace proxy's kube-rbac-proxy
+# derives the SAR verb from the HTTP method (POST → "create"). OpenShift's
+# built-in view/edit/admin roles already grant "get" (covering GET requests),
+# but not "create". The metrics.k8s.io API is read-only so granting "create"
+# has no side-effects — it only satisfies the SAR authorization check.
+#
+# See: docs/NAMESPACE_RESTRICTED_METRICS.md
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: data-science-metrics-view
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-admin: "true"
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+    rbac.authorization.k8s.io/aggregate-to-view: "true"
+    platform.opendatahub.io/part-of: monitoring
+rules:
+  - apiGroups:
+      - metrics.k8s.io
+    resources:
+      - pods
+    verbs:
+      - create
 ---
 apiVersion: v1
 kind: ServiceAccount

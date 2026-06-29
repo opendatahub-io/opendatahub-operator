@@ -9,6 +9,7 @@ package dscinitialization
 
 /* Auth */
 // +kubebuilder:rbac:groups="config.openshift.io",resources=authentications;infrastructures,verbs=get;watch;list
+// +kubebuilder:rbac:groups="config.openshift.io",resources=apiservers,verbs=get;watch;list
 
 // Auth
 // +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=auths,verbs=get;list;watch;create;update;patch;delete

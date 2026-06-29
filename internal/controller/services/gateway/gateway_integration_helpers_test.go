@@ -98,6 +98,16 @@ const (
 	dsciName                = "default-dsci"
 	updatedCookieExpireArg  = "--cookie-expire=48h0m0s"
 	updatedCookieRefreshArg = "--cookie-refresh=2h0m0s"
+
+	// testTLSMinVersion and testTLSCipherSuites are the hardcoded expected values that
+	// correspond to the explicit Custom TLS profile set on the APIServer in
+	// setupClusterPrerequisitesForMain. They are kept in sync with that profile definition
+	// and intentionally not derived from the production TLS helper functions so that
+	// assertions in RunDeploymentWithAllArgsTest act as independent oracles.
+	testTLSMinVersion   = "--tls-min-version=TLS1.2"
+	testTLSCipherSuites = "--tls-cipher-suite=" +
+		"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256," +
+		"TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
 )
 
 // EnvoyFilter filter names (canonical names from Envoy proto).
@@ -447,6 +457,33 @@ func setupClusterPrerequisitesForMain(ctx context.Context, cli client.Client, au
 	}
 	if err := cli.Create(ctx, auth); err != nil {
 		panic(fmt.Sprintf("Failed to create Authentication: %v", err))
+	}
+
+	// Use an explicit Custom TLS profile so that the expected TLS args in
+	// RunDeploymentWithAllArgsTest (testTLSMinVersion / testTLSCipherSuites) are
+	// tied to a known, intentional configuration rather than the implicit default.
+	// The OpenSSL cipher names here map 1:1 to the IANA names in testTLSCipherSuites.
+	apiServer := &configv1.APIServer{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: cluster.ClusterAPIServerObj,
+		},
+		Spec: configv1.APIServerSpec{
+			TLSSecurityProfile: &configv1.TLSSecurityProfile{
+				Type: configv1.TLSProfileCustomType,
+				Custom: &configv1.CustomTLSProfile{
+					TLSProfileSpec: configv1.TLSProfileSpec{
+						MinTLSVersion: configv1.VersionTLS12,
+						Ciphers: []string{
+							"ECDHE-RSA-AES128-GCM-SHA256",
+							"ECDHE-RSA-AES256-GCM-SHA384",
+						},
+					},
+				},
+			},
+		},
+	}
+	if err := cli.Create(ctx, apiServer); err != nil {
+		panic(fmt.Sprintf("Failed to create APIServer: %v", err))
 	}
 
 	appsNs := &corev1.Namespace{
@@ -1308,6 +1345,10 @@ func RunDeploymentWithAllArgsTest(t *testing.T, setup TestSetup, expectedHostnam
 	g.Expect(args).To(ContainElement(fmt.Sprintf("--redirect-url=https://%s/oauth2/callback", expectedHostname)))
 	g.Expect(args).To(ContainElement(fmt.Sprintf("--tls-cert-file=%s/tls.crt", gateway.TLSCertsMountPath)))
 	g.Expect(args).To(ContainElement(fmt.Sprintf("--tls-key-file=%s/tls.key", gateway.TLSCertsMountPath)))
+	// testTLSMinVersion and testTLSCipherSuites are constants derived from the explicit
+	// Custom TLS profile set on the APIServer in setupClusterPrerequisitesForMain.
+	g.Expect(args).To(ContainElement(testTLSMinVersion))
+	g.Expect(args).To(ContainElement(testTLSCipherSuites))
 	g.Expect(args).To(ContainElement("--use-system-trust-store=true"))
 	g.Expect(args).To(ContainElement(defaultCookieExpireArg))
 	g.Expect(args).To(ContainElement(defaultCookieRefreshArg))
@@ -1656,7 +1697,10 @@ func RunNetworkPolicyCreationTest(t *testing.T, setup TestSetup) {
 
 	g.Expect(np.Spec.PodSelector.MatchLabels).To(HaveKeyWithValue("app", gateway.KubeAuthProxyName))
 	g.Expect(np.Spec.PolicyTypes).To(ContainElement(networkingv1.PolicyTypeIngress))
+	g.Expect(np.Spec.PolicyTypes).To(ContainElement(networkingv1.PolicyTypeEgress))
 	g.Expect(np.Spec.Ingress).To(HaveLen(3))
+	g.Expect(np.Spec.Egress).To(HaveLen(1))
+	g.Expect(np.Spec.Egress[0]).To(Equal(networkingv1.NetworkPolicyEgressRule{}))
 }
 
 // RunGatewayConfigStatusConditionsTest validates that GatewayConfig status gets conditions set (e.g. Ready).

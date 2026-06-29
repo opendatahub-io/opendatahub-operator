@@ -11,6 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 
 	. "github.com/onsi/gomega"
 )
@@ -258,4 +259,94 @@ func TestParseConditionsNoStatus(t *testing.T) {
 	conditions, err := modules.ParseConditions(u)
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(conditions).Should(BeNil())
+}
+
+func TestResolvedBatchesBasicOrdering(t *testing.T) {
+	g := NewWithT(t)
+	reg := &modules.Registry{}
+
+	reg.Add(newMockHandler("ext-mod", true), modules.WithRunlevel(dag.RL(30)))
+	reg.Add(newMockHandler("infra-mod", true), modules.WithRunlevel(dag.RL(0)))
+	reg.Add(newMockHandler("ai-mod", true), modules.WithRunlevel(dag.RL(20)))
+
+	batches, err := reg.ResolvedBatches()
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(batches).Should(HaveLen(3))
+
+	g.Expect(batches[0]).Should(HaveLen(1))
+	g.Expect(batches[0][0].GetName()).Should(Equal("infra-mod"))
+	g.Expect(batches[1]).Should(HaveLen(1))
+	g.Expect(batches[1][0].GetName()).Should(Equal("ai-mod"))
+	g.Expect(batches[2]).Should(HaveLen(1))
+	g.Expect(batches[2][0].GetName()).Should(Equal("ext-mod"))
+}
+
+func TestResolvedBatchesSkipsDisabled(t *testing.T) {
+	g := NewWithT(t)
+	reg := &modules.Registry{}
+
+	reg.Add(newMockHandler("a", true), modules.WithRunlevel(dag.RL(20)))
+	reg.Add(newMockHandler("b", true), modules.WithRunlevel(dag.RL(20)))
+
+	reg.Disable("b")
+
+	batches, err := reg.ResolvedBatches()
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(batches).Should(HaveLen(1))
+	g.Expect(batches[0]).Should(HaveLen(1))
+	g.Expect(batches[0][0].GetName()).Should(Equal("a"))
+}
+
+func TestResolvedBatchesCacheInvalidation(t *testing.T) {
+	g := NewWithT(t)
+	reg := &modules.Registry{}
+
+	reg.Add(newMockHandler("mod-a", true), modules.WithRunlevel(dag.RL(20)))
+
+	batches1, err := reg.ResolvedBatches()
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(batches1).Should(HaveLen(1))
+
+	reg.Add(newMockHandler("mod-b", true), modules.WithRunlevel(dag.RL(30)))
+
+	batches2, err := reg.ResolvedBatches()
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(batches2).Should(HaveLen(2))
+}
+
+func TestReverseBatchesOrdering(t *testing.T) {
+	g := NewWithT(t)
+	reg := &modules.Registry{}
+
+	reg.Add(newMockHandler("infra", true), modules.WithRunlevel(dag.RL(0)))
+	reg.Add(newMockHandler("ext-a", true), modules.WithRunlevel(dag.RL(30)))
+	reg.Add(newMockHandler("ext-b", true), modules.WithRunlevel(dag.RL(30)))
+
+	batches, err := reg.ReverseBatches()
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(batches).Should(HaveLen(2))
+
+	g.Expect(batches[0][0].GetName()).Should(Equal("ext-b"))
+	g.Expect(batches[0][1].GetName()).Should(Equal("ext-a"))
+	g.Expect(batches[1][0].GetName()).Should(Equal("infra"))
+}
+
+func TestResolvedBatchesEmpty(t *testing.T) {
+	g := NewWithT(t)
+	reg := &modules.Registry{}
+
+	batches, err := reg.ResolvedBatches()
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(batches).Should(BeNil())
+}
+
+func TestLookup(t *testing.T) {
+	g := NewWithT(t)
+	reg := &modules.Registry{}
+
+	h := newMockHandler("findme", true)
+	reg.Add(h)
+
+	g.Expect(reg.Lookup("findme")).Should(Equal(h))
+	g.Expect(reg.Lookup("nonexistent")).Should(BeNil())
 }

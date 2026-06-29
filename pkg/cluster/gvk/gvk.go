@@ -229,6 +229,12 @@ var (
 		Kind:    "Ingress",
 	}
 
+	OpenshiftAPIServer = schema.GroupVersionKind{
+		Group:   configv1.GroupVersion.Group,
+		Version: configv1.GroupVersion.Version,
+		Kind:    "APIServer",
+	}
+
 	SecurityContextConstraints = schema.GroupVersionKind{
 		Group:   securityv1.SchemeGroupVersion.Group,
 		Version: securityv1.SchemeGroupVersion.Version,
@@ -389,6 +395,12 @@ var (
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,
 		Kind:    componentApi.ModelsAsServiceKind,
+	}
+
+	AIGateway = schema.GroupVersionKind{
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.AIGatewayKind,
 	}
 
 	Tenant = schema.GroupVersionKind{
