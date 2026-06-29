@@ -120,13 +120,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
-const (
-	defaultTLSMinVersion = "VersionTLS12"
-
-	envKubeRBACProxyTLSMinVersion  = "KUBE_RBAC_PROXY_TLS_MIN_VERSION"
-	envKubeRBACProxyTLSCipherSuites = "KUBE_RBAC_PROXY_TLS_CIPHER_SUITES"
-)
-
 // intermediateCiphers is the Mozilla Intermediate cipher set for non-OpenShift fallback.
 // This restricts TLS 1.2 to strong AEAD ciphers when no cluster TLS profile is available.
 var intermediateCiphers = []uint16{
@@ -473,10 +466,6 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	// Fetch the cluster TLS security profile for webhook and metrics servers
 	tlsOpts, tlsProfile, hasOpenShiftConfigAPI := fetchTLSProfile(ctx, scheme, oconfig.RestConfig)
 
-	// Publish resolved TLS profile as kube-rbac-proxy CLI flag values so
-	// monitoring templates can inject them into sidecar containers.
-	setKubeRBACProxyTLSEnv(tlsProfile, hasOpenShiftConfigAPI)
-
 	ctrlMgr, err := ctrl.NewManager(oconfig.RestConfig, ctrl.Options{ // single pod does not need to have LeaderElection
 		Scheme: scheme,
 		// This is the default mapper provider, we define it to ensure it remains
@@ -746,44 +735,6 @@ func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.
 	}
 
 	return tlsOpts, profile, hasAPI
-}
-
-func setKubeRBACProxyTLSEnv(profile configv1.TLSProfileSpec, hasOpenShiftConfig bool) {
-	var minVersion string
-	var cipherNames []string
-
-	if hasOpenShiftConfig {
-		switch profile.MinTLSVersion {
-		case configv1.VersionTLS12, configv1.VersionTLS13:
-			minVersion = string(profile.MinTLSVersion)
-		default:
-			minVersion = defaultTLSMinVersion
-			profile.MinTLSVersion = configv1.VersionTLS12
-		}
-		tlsConfigFn, unsupportedCiphers := tlspkg.NewTLSConfigFromProfile(profile)
-		if len(unsupportedCiphers) > 0 {
-			setupLog.Info("kube-rbac-proxy TLS: some ciphers from profile are unsupported", "unsupported", unsupportedCiphers)
-		}
-		cfg := &tls.Config{} //nolint:gosec // scratch config, tlsConfigFn sets MinVersion
-		tlsConfigFn(cfg)
-		for _, id := range cfg.CipherSuites {
-			cipherNames = append(cipherNames, tls.CipherSuiteName(id))
-		}
-	} else {
-		minVersion = defaultTLSMinVersion
-		for _, id := range intermediateCiphers {
-			cipherNames = append(cipherNames, tls.CipherSuiteName(id))
-		}
-	}
-
-	if err := os.Setenv(envKubeRBACProxyTLSMinVersion, minVersion); err != nil {
-		setupLog.Error(err, "failed to set env", "key", envKubeRBACProxyTLSMinVersion)
-	}
-	if err := os.Setenv(envKubeRBACProxyTLSCipherSuites, strings.Join(cipherNames, ",")); err != nil {
-		setupLog.Error(err, "failed to set env", "key", envKubeRBACProxyTLSCipherSuites)
-	}
-
-	setupLog.Info("resolved kube-rbac-proxy TLS settings", "minVersion", minVersion, "cipherCount", len(cipherNames), "openshift", hasOpenShiftConfig)
 }
 
 func CreateComponentReconcilers(ctx context.Context, mgr *manager.Manager) error {

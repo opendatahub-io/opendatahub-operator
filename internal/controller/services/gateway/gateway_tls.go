@@ -127,7 +127,7 @@ func KubeAuthProxyTLSFromProfile(ctx context.Context, profile *configv1.TLSSecur
 	return tlsMinVersionFromProfileSpec(ctx, spec), TLSCipherSuitesFromProfileSpec(ctx, spec)
 }
 
-func getKubeAuthProxyTLSFromAPIServer(ctx context.Context, cli client.Reader) (string, string, error) {
+func GetKubeAuthProxyTLSFromAPIServer(ctx context.Context, cli client.Reader) (string, string, error) {
 	apiServer := &configv1.APIServer{}
 	if err := cli.Get(ctx, client.ObjectKey{Name: cluster.ClusterAPIServerObj}, apiServer); err != nil {
 		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
