@@ -78,3 +78,6 @@ map:
   odh-mcp-lifecycle-module-operator:
     src: config/manifests
     dest: mcp-lifecycle-module-operator
+  odh-trainer-operator:
+    src: config/manifests
+    dest: trainer-operator
