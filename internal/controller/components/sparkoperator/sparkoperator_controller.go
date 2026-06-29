@@ -34,6 +34,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
@@ -60,6 +61,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithPredicates(
 				component.ForLabel(labels.ODH.Component(ComponentName), labels.True)),
 		).
+		WithAction(precondition.RunlevelGateAction()).
 		WithAction(initialize).
 		WithAction(releases.NewAction()).
 		WithAction(kustomize.NewAction(
