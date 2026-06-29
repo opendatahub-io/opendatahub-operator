@@ -67,7 +67,7 @@ func computeComponentsStatus(
 			Type:    status.ConditionTypeComponentsReady,
 			Status:  metav1.ConditionFalse,
 			Reason:  status.NotReadyReason,
-			Message: fmt.Sprintf("Some components are not ready: %s", strings.Join(notReadyComponents, ",")),
+			Message: fmt.Sprintf("Some components are not ready: %s", strings.Join(notReadyComponents, ", ")),
 		})
 	case managedComponent == 0:
 		rr.Conditions.SetCondition(common.Condition{
@@ -75,7 +75,7 @@ func computeComponentsStatus(
 			Status:   metav1.ConditionTrue,
 			Severity: common.ConditionSeverityInfo,
 			Reason:   status.NoManagedComponentsReason,
-			Message:  status.NoManagedComponentsReason,
+			Message:  "All registered components have ManagementState Removed or are not configured",
 		})
 	default:
 		rr.Conditions.MarkTrue(status.ConditionTypeComponentsReady)

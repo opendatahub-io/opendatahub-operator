@@ -21,6 +21,7 @@ spec:
     metadata:
       annotations:
         kubectl.kubernetes.io/default-container: rhods-operator
+        openshift.io/required-scc: restricted-v2
       labels:
         name: rhods-operator
     spec:

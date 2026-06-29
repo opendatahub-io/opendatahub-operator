@@ -83,6 +83,7 @@ const (
 	ConditionDependenciesAvailable               = "DependenciesAvailable"
 	ConditionArgoWorkflowAvailable               = "ArgoWorkflowAvailable"
 	ConditionTypeComponentsReady                 = "ComponentsReady"
+	ConditionTypeProvisioningProgress            = "ProvisioningProgress"
 	ConditionMonitoringReady                     = "MonitoringReady"
 	ConditionTypeModulesReady                    = "ModulesReady"
 	ConditionMonitoringAvailable                 = "MonitoringAvailable"
@@ -124,6 +125,12 @@ const (
 	ReadyReason              = "Ready"
 	DeletingReason           = "Deleting"
 	DeletingMessage          = "Component CR is being deleted"
+
+	// DAG ordering reasons.
+	AwaitingReadinessReason       = "AwaitingReadiness"
+	DAGResolutionFailedReason     = "DAGResolutionFailed"
+	RunlevelTimeoutExceededReason = "RunlevelTimeoutExceeded"
+	AdminAckRequiredReason        = "AdminAckRequired"
 )
 
 const (

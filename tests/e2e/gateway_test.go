@@ -103,6 +103,7 @@ func gatewayTestSuite(t *testing.T) {
 		{"Validate OIDC token forwarding to dashboard", gatewayCtx.ValidateOIDCTokenForwarding},
 		{"Validate OIDC unauthenticated access redirects to login", gatewayCtx.ValidateOIDCUnauthenticatedRedirect},
 		// Common tests (run on both)
+		{"Validate kube-auth-proxy TLS args match cluster APIServer", gatewayCtx.ValidateKubeAuthProxyTLSArgsMatchAPIServer},
 		{"Validate HorizontalPodAutoscaler creation", gatewayCtx.ValidateHPA},
 		{"Validate NetworkPolicy creation", gatewayCtx.ValidateNetworkPolicy},
 		{"Validate OAuth callback HTTPRoute", gatewayCtx.ValidateOAuthCallbackRoute},
@@ -118,7 +119,7 @@ func gatewayTestSuite(t *testing.T) {
 // makeRedirectURL constructs the OAuth redirect URL for the authentication proxy.
 // Format: https://<gateway-hostname>/oauth2/callback
 func makeRedirectURL(hostname string) string {
-	return fmt.Sprintf("--redirect-url=https://%s%s/callback", hostname, authProxyOAuth2Path)
+	return fmt.Sprintf("--redirect-url=https://%s%s", hostname, gateway.OAuthCallbackPath)
 }
 
 // makeCookieDomain constructs the cookie domain argument for the authentication proxy.
@@ -203,7 +204,7 @@ func (tc *GatewayTestCtx) ValidateOAuthClientAndSecret(t *testing.T) {
 	t.Log("Validating OAuth client and secret creation")
 
 	expectedGatewayHostname := tc.getExpectedGatewayHostname(t)
-	expectedRedirectURI := "https://" + expectedGatewayHostname + authProxyOAuth2Path + "/callback"
+	expectedRedirectURI := "https://" + expectedGatewayHostname + gateway.OAuthCallbackPath
 
 	// OAuthClient
 	t.Log("Validating OAuthClient resource")
@@ -265,6 +266,7 @@ func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 	expectedGatewayHostname := tc.getExpectedGatewayHostname(t)
 	expectedRedirectURL := makeRedirectURL(expectedGatewayHostname)
 	expectedCookieDomain := makeCookieDomain(expectedGatewayHostname)
+	tlsMinVersionArg, tlsCipherSuitesArg := tc.expectedKubeAuthProxyTLSDeploymentArgs(t)
 
 	// kube-auth-proxy deployment checks (many conditions grouped into a single EnsureResourceExists call)
 	tc.EnsureResourceExists(
@@ -322,6 +324,8 @@ func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--http-address=0.0.0.0:%d")`, kubeAuthProxyHTTPPort),
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--tls-cert-file=/etc/tls/private/tls.crt")`),
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--tls-key-file=/etc/tls/private/tls.key")`),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "%s")`, tlsMinVersionArg),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "%s")`, tlsCipherSuitesArg),
 
 			// cookie config and related flags
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--cookie-secure=true")`),
@@ -520,7 +524,8 @@ func (tc *GatewayTestCtx) ValidateEnvoyFilter(t *testing.T) {
 			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.server_uri.uri == "%s"`, authProxyURI),
 
 			// ext_authz allowed headers
-			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.authorization_request.allowed_headers.patterns[0].exact == "cookie"`),
+			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.authorization_request.allowed_headers.patterns | any(.exact == "cookie")`),
+			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.authorization_request.allowed_headers.patterns | any(.exact == "user-agent")`),
 			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.authorization_response.allowed_client_headers.patterns[0].exact == "set-cookie"`),
 			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.authorization_response.allowed_upstream_headers.patterns | any(.exact == "x-auth-request-user")`),
 			jq.Match(`.spec.configPatches[0].patch.value.typed_config.http_service.authorization_response.allowed_upstream_headers.patterns | any(.exact == "x-auth-request-email")`),
@@ -850,6 +855,7 @@ func (tc *GatewayTestCtx) ValidateOIDCAuthProxyDeployment(t *testing.T) {
 	expectedRedirectURL := makeRedirectURL(expectedGatewayHostname)
 	expectedCookieDomain := makeCookieDomain(expectedGatewayHostname)
 	oidcConfig := tc.getOIDCConfig(t)
+	tlsMinVersionArg, tlsCipherSuitesArg := tc.expectedKubeAuthProxyTLSDeploymentArgs(t)
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{
@@ -908,6 +914,8 @@ func (tc *GatewayTestCtx) ValidateOIDCAuthProxyDeployment(t *testing.T) {
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--http-address=0.0.0.0:%d")`, kubeAuthProxyHTTPPort),
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--tls-cert-file=/etc/tls/private/tls.crt")`),
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--tls-key-file=/etc/tls/private/tls.key")`),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "%s")`, tlsMinVersionArg),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "%s")`, tlsCipherSuitesArg),
 
 			// cookie config
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--cookie-secure=true")`),
@@ -1135,8 +1143,13 @@ func (tc *GatewayTestCtx) ValidateNetworkPolicy(t *testing.T) {
 			// Verify pod selector matches kube-auth-proxy with specific labels
 			jq.Match(`.spec.podSelector.matchLabels.app == "%s"`, kubeAuthProxyName),
 
-			// Verify ingress policy is enabled
+			// Verify ingress and egress policy types are enabled
 			jq.Match(`.spec.policyTypes | any(. == "Ingress")`),
+			jq.Match(`.spec.policyTypes | any(. == "Egress")`),
+
+			// Verify egress allows all outbound traffic (API server, OAuth, OIDC, DNS)
+			jq.Match(`.spec.egress | length == 1`),
+			jq.Match(`.spec.egress[0] == {}`),
 
 			// Verify ingress rules exist
 			jq.Match(`.spec.ingress | length >= 1`),
@@ -1155,7 +1168,7 @@ func (tc *GatewayTestCtx) ValidateNetworkPolicy(t *testing.T) {
 			jq.Match(`.spec.ingress[1].from[0].namespaceSelector.matchLabels."kubernetes.io/metadata.name" == "openshift-monitoring"`),
 			jq.Match(`.spec.ingress[2].from[0].namespaceSelector.matchLabels."kubernetes.io/metadata.name" == "openshift-user-workload-monitoring"`),
 		)),
-		WithCustomErrorMsg("NetworkPolicy should exist with correct ingress rules for kube-auth-proxy"),
+		WithCustomErrorMsg("NetworkPolicy should exist with correct ingress and egress rules for kube-auth-proxy"),
 	)
 
 	t.Log("NetworkPolicy validation completed")

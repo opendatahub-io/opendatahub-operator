@@ -5,11 +5,13 @@ package upgrade
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"reflect"
 	"strings"
 
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
+	oauthv1 "github.com/openshift/api/oauth/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -94,6 +96,8 @@ func CleanupExistingResource(ctx context.Context,
 	multiErr = multierror.Append(multiErr, cleanupModelControllerLegacyDeployment(ctx, cli, applicationNS))
 	// cleanup deprecated kueue ValidatingAdmissionPolicyBinding
 	multiErr = multierror.Append(multiErr, cleanupDeprecatedKueueVAPB(ctx, cli))
+	// cleanup legacy "odh" OAuthClient from RHOAI 3.3
+	multiErr = multierror.Append(multiErr, cleanupLegacyOAuthClient(ctx, cli))
 
 	// HardwareProfile migration as described in RHOAIENG-33158 and RHOAIENG-33159
 	// This includes creating HardwareProfile resources and updating annotations on Notebooks and InferenceServices
@@ -228,6 +232,48 @@ func cleanupDeprecatedKueueVAPB(ctx context.Context, cli client.Client) error {
 		log.Info("Successfully deleted deprecated ValidatingAdmissionPolicyBinding")
 	}
 
+	return nil
+}
+
+// cleanupLegacyOAuthClient removes the legacy "odh" OAuthClient left over from
+// RHOAI 3.3 upgrades. It only deletes the client if a redirect URI is an HTTPS
+// URL whose path exactly matches OAuthCallbackPath, confirming it was created by
+// the gateway controller and not by an unrelated user workload.
+func cleanupLegacyOAuthClient(ctx context.Context, cli client.Client) error {
+	log := logf.FromContext(ctx)
+
+	legacyClient := &oauthv1.OAuthClient{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: gateway.LegacyAuthClientID,
+		},
+	}
+
+	if err := cli.Get(ctx, client.ObjectKeyFromObject(legacyClient), legacyClient); err != nil {
+		// IsNoMatchError: OAuthClient CRD not registered (OIDC clusters)
+		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to check for legacy OAuthClient %q: %w", gateway.LegacyAuthClientID, err)
+	}
+
+	isGatewayClient := false
+	for _, uri := range legacyClient.RedirectURIs {
+		u, err := url.Parse(uri)
+		if err == nil && u.Scheme == "https" && u.Path == gateway.OAuthCallbackPath {
+			isGatewayClient = true
+			break
+		}
+	}
+
+	if !isGatewayClient {
+		return nil
+	}
+
+	if err := cli.Delete(ctx, legacyClient); client.IgnoreNotFound(err) != nil {
+		return fmt.Errorf("failed to delete legacy OAuthClient %q: %w", gateway.LegacyAuthClientID, err)
+	}
+
+	log.Info("Deleted legacy OAuthClient from previous version", "name", gateway.LegacyAuthClientID)
 	return nil
 }
 

@@ -231,10 +231,10 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			}).WithTimeout(timeout).WithPolling(interval).Should(Succeed())
 
 			// when - Monitoring is set to Removed in DSCI, which should delete the Monitoring CR
-			foundDsci := &dsciv2.DSCInitialization{}
-			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: workingNamespace}, foundDsci)).To(Succeed())
+			foundDsci := &dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: applicationName}}
+			patch := client.MergeFrom(foundDsci.DeepCopy())
 			foundDsci.Spec.Monitoring.ManagementState = operatorv1.Removed
-			Expect(k8sClient.Update(ctx, foundDsci)).To(Succeed())
+			Expect(k8sClient.Patch(ctx, foundDsci, patch)).To(Succeed())
 
 			// then - Monitoring CR should be gone
 			Eventually(func() bool {
@@ -244,7 +244,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 
 			// then - DSCI status should reflect it's removed
 			Eventually(func(g Gomega) {
-				g.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: workingNamespace}, foundDsci)).To(Succeed())
+				g.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: applicationName}, foundDsci)).To(Succeed())
 				g.Expect(foundDsci.Status.Conditions).To(ContainElement(SatisfyAll(
 					HaveField("Type", "MonitoringReady"),
 					HaveField("Status", metav1.ConditionFalse),

@@ -100,6 +100,8 @@ spec:
             - "--redirect-url={{.RedirectURL}}"
             - "--tls-cert-file={{.TLSCertsMountPath}}/tls.crt"
             - "--tls-key-file={{.TLSCertsMountPath}}/tls.key"
+            - "--tls-min-version={{.TLSMinVersion}}"
+            - "--tls-cipher-suite={{.TLSCipherSuite}}"
             - "--use-system-trust-store=true"
             {{- if .ProviderCASecret }}
             - "--provider-ca-file=/etc/provider-ca/ca.crt"

@@ -172,8 +172,8 @@ func TestModelControllerSubscriptionDependencyMonitoring(t *testing.T) {
 			)
 
 			wt.Get(gvk.ModelController, nn).Consistently().WithTimeout(5 * time.Second).Should(
-				jq.Match(`all(.status.conditions[]?.type; . != "%s")`,
-					modelcontroller.LLMDWVADependencies),
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+					modelcontroller.LLMDWVADependencies, metav1.ConditionTrue),
 			)
 		})
 	}
@@ -195,8 +195,8 @@ func TestModelControllerSubscriptionDependencyMonitoring(t *testing.T) {
 		)
 
 		wt.Get(gvk.ModelController, nn).Consistently().WithTimeout(5 * time.Second).Should(
-			jq.Match(`all(.status.conditions[]?.type; . != "%s")`,
-				modelcontroller.LLMDWVADependencies),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				modelcontroller.LLMDWVADependencies, metav1.ConditionTrue),
 		)
 	})
 }

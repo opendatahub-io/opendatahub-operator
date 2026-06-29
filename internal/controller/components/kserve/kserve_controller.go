@@ -174,8 +174,15 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		)).
 		WithPreCondition(precondition.MonitorSubscriptions(
 			[]precondition.SubscriptionDependency{
-				{Name: RHCLOperatorSubscription, DisplayName: "Red Hat Connectivity Link"},
-				{Name: CertManagerOperatorSubscription, DisplayName: "cert-manager operator"},
+				{
+					Name:        RHCLOperatorSubscription,
+					DisplayName: "Red Hat Connectivity Link",
+					Message:     rhclMissingMessage,
+				},
+				{
+					Name:        CertManagerOperatorSubscription,
+					DisplayName: "cert-manager operator",
+				},
 			},
 			precondition.WithConditionType(LLMInferenceServiceDependencies),
 			precondition.WithClusterTypes(cluster.ClusterTypeOpenShift),
@@ -183,9 +190,19 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		)).
 		WithPreCondition(precondition.MonitorSubscriptions(
 			[]precondition.SubscriptionDependency{
-				{Name: RHCLOperatorSubscription, DisplayName: "Red Hat Connectivity Link"},
-				{Name: LWSOperatorSubscription, DisplayName: "LeaderWorkerSet"},
-				{Name: CertManagerOperatorSubscription, DisplayName: "cert-manager operator"},
+				{
+					Name:        RHCLOperatorSubscription,
+					DisplayName: "Red Hat Connectivity Link",
+					Message:     rhclMissingMessage,
+				},
+				{
+					Name:        LWSOperatorSubscription,
+					DisplayName: "LeaderWorkerSet",
+				},
+				{
+					Name:        CertManagerOperatorSubscription,
+					DisplayName: "cert-manager operator",
+				},
 			},
 			precondition.WithConditionType(LLMInferenceServiceWideEPDependencies),
 			precondition.WithClusterTypes(cluster.ClusterTypeOpenShift),
@@ -193,6 +210,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		)).
 
 		// actions
+		WithAction(precondition.RunlevelGateAction()).
 		WithAction(initialize).
 		WithAction(releases.NewAction()).
 		WithAction(removeOwnershipFromUnmanagedResources).

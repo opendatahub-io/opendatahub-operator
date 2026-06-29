@@ -35,6 +35,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
@@ -96,6 +97,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				},
 			)),
 		).
+		WithAction(precondition.RunlevelGateAction()).
 		WithAction(checkPreConditions).
 		WithAction(initialize).
 		WithAction(createConfigMap).
@@ -104,6 +106,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),
 		)).
+		WithAction(migrateDeploymentSelector). // must run after kustomize (needs rendered manifests) and before deploy (stale Deployment must be gone first)
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
