@@ -113,7 +113,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2026-01-02T12:34:28Z"
+    createdAt: "2026-06-29T18:37:38Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -1852,66 +1852,3 @@ spec:
     targetPort: 9443
     type: MutatingAdmissionWebhook
     webhookPath: /mutate-hardware-profile
-  - admissionReviewVersions:
-    - v1
-    containerPort: 443
-    deploymentName: rhods-operator
-    failurePolicy: Fail
-    generateName: kserve-kueuelabels-validator.opendatahub.io
-    rules:
-    - apiGroups:
-      - serving.kserve.io
-      apiVersions:
-      - v1beta1
-      operations:
-      - CREATE
-      - UPDATE
-      resources:
-      - inferenceservices
-    sideEffects: None
-    targetPort: 9443
-    type: ValidatingAdmissionWebhook
-    webhookPath: /validate-kueue
-  - admissionReviewVersions:
-    - v1
-    containerPort: 443
-    deploymentName: rhods-operator
-    failurePolicy: Fail
-    generateName: kubeflow-kueuelabels-validator.opendatahub.io
-    rules:
-    - apiGroups:
-      - kubeflow.org
-      apiVersions:
-      - v1
-      operations:
-      - CREATE
-      - UPDATE
-      resources:
-      - pytorchjobs
-      - notebooks
-    sideEffects: None
-    targetPort: 9443
-    type: ValidatingAdmissionWebhook
-    webhookPath: /validate-kueue
-  - admissionReviewVersions:
-    - v1
-    containerPort: 443
-    deploymentName: rhods-operator
-    failurePolicy: Fail
-    generateName: ray-kueuelabels-validator.opendatahub.io
-    rules:
-    - apiGroups:
-      - ray.io
-      apiVersions:
-      - v1
-      - v1alpha1
-      operations:
-      - CREATE
-      - UPDATE
-      resources:
-      - rayjobs
-      - rayclusters
-    sideEffects: None
-    targetPort: 9443
-    type: ValidatingAdmissionWebhook
-    webhookPath: /validate-kueue
