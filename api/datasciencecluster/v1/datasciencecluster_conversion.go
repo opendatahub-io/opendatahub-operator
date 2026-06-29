@@ -138,6 +138,21 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 					ManagementState: operatorv1.Removed,
 				},
 			},
+			AIGateway: componentApi.DSCAIGateway{
+				ManagementSpec: common.ManagementSpec{
+					// Enable AIGateway when MaaS is enabled in v1
+					ManagementState: func() operatorv1.ManagementState {
+						if c.Spec.Components.Kserve.ModelsAsService.ManagementState == operatorv1.Managed {
+							return operatorv1.Managed
+						}
+						return operatorv1.Removed
+					}(),
+				},
+				AIGatewayCommonSpec: componentApi.AIGatewayCommonSpec{
+					// Auto-migrate: kserve.modelsAsService → aigateway.modelsasservice
+					ModelsAsService: c.Spec.Components.Kserve.ModelsAsService,
+				},
+			},
 		},
 	}
 
@@ -179,6 +194,11 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 				},
 			},
 			SparkOperator: componentApi.DSCSparkOperatorStatus{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Removed,
+				},
+			},
+			AIGateway: componentApi.DSCAIGatewayStatus{
 				ManagementSpec: common.ManagementSpec{
 					ManagementState: operatorv1.Removed,
 				},
