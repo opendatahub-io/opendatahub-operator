@@ -105,6 +105,9 @@ func (tc *ModelsAsServiceTestCtx) runXKSTestSuite(t *testing.T) {
 		{"Validate MaaS CR creation and reconciliation", tc.ValidateXKSMaaSCRCreation},
 		{"Validate MaaS controller deployment running", tc.ValidateXKSMaaSControllerRunning},
 		{"Validate MaaS webhook is registered", tc.ValidateXKSMaaSWebhookRegistered},
+		{"Validate Tenant CR in subscription namespace", tc.ValidateTenantInSubscriptionNamespace},
+		{"Validate Tenant CRD is namespace-scoped", tc.ValidateTenantCRDNamespaceScoped},
+		{"Validate Tenant singleton enforcement", tc.ValidateTenantSingletonEnforcement},
 		{"Validate MaaS CR deletion cleans up resources", tc.ValidateXKSMaaSCRDeletion},
 	}
 
