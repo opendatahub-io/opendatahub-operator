@@ -63,6 +63,10 @@ const (
 	// application namespace (must match upstream manager kustomize).
 	MaasControllerDeploymentName = "maas-controller"
 
+	// MaasControllerWebhookConfigName is the ValidatingWebhookConfiguration name
+	// deployed by the maas-controller (must match upstream webhook kustomize).
+	MaasControllerWebhookConfigName = "maas-validating-webhook-configuration"
+
 	// Manifest paths.
 	BaseManifestsSourcePath = "overlays/odh"
 
@@ -118,6 +122,9 @@ func buildMaasOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconci
 
 	mi := baseManifestInfo(root, BaseManifestsSourcePath)
 	kPath := filepath.Join(mi.Path, mi.ContextDir, "base", "maas-controller", "default")
+	if cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes {
+		kPath = filepath.Join(mi.Path, mi.ContextDir, "overlays", "xks")
+	}
 	if _, err := os.Stat(filepath.Join(kPath, "kustomization.yaml")); err != nil {
 		return nil, fmt.Errorf("maas-controller install bundle not found at %q: %w", kPath, err)
 	}
