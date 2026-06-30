@@ -290,20 +290,20 @@ func addTracesTemplateData(templateData map[string]any, traces *serviceApi.Trace
 func addImageURLs(rr *odhtypes.ReconciliationRequest, templateData map[string]any) {
 	templateData["KubeRBACProxyImage"] = getImageURL(
 		"RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
-		"quay.io/brancz/kube-rbac-proxy:v0.20.0",
-		"registry.redhat.io/openshift4/ose-kube-rbac-proxy-rhel9:v4.17",
+		"quay.io/opendatahub/odh-kube-auth-proxy@sha256:dcb09fbabd8811f0956ef612a0c9ddd5236804b9bd6548a0647d2b531c9d01b3",                 // odh-kube-auth-proxy
+		"registry.redhat.io/openshift4/ose-kube-rbac-proxy-rhel9@sha256:f38d3059623f8a8b05642615e6c3df5db52ff5948408abcf7a7f8e5713550be2", // v4.18
 		rr.Release.Name,
 	)
 	templateData["PromLabelProxyImage"] = getImageURL(
 		"RELATED_IMAGE_OSE_PROM_LABEL_PROXY_IMAGE",
-		"quay.io/prometheuscommunity/prom-label-proxy:v0.12.1",
-		"registry.redhat.io/openshift4/ose-prom-label-proxy-rhel9:v4.17",
+		"quay.io/prometheuscommunity/prom-label-proxy@sha256:28f81efb6574556011e7914851faaccce4a64b1b72a338aaaf3cc9d45e66fd96",             // v0.12.1
+		"registry.redhat.io/openshift4/ose-prom-label-proxy-rhel9@sha256:3f44ba2d9f3d0b04c2a6c754b256ac5b5e6cfeb67651bfd0923fc2859e4b49d1", // v4.18
 		rr.Release.Name,
 	)
 	templateData["CLIImage"] = getImageURL(
 		"RELATED_IMAGE_CLI_IMAGE",
-		"quay.io/openshift/origin-cli:4.17",
-		"registry.redhat.io/openshift4/ose-cli:v4.17",
+		"quay.io/openshift/origin-cli@sha256:4c1b64a79727e392c11cf337936f9edb792e436075d4bdad5f554b79652d16dd",                // 4.18
+		"registry.redhat.io/openshift4/ose-cli-rhel9@sha256:16c25aadbd5f564a7c5f1508470f734d676a411b89bd98b307001619d1a5338f", // v4.18
 		rr.Release.Name,
 	)
 }

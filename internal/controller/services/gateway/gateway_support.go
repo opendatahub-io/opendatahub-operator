@@ -535,8 +535,8 @@ func getKubeAuthProxyImage() string {
 	if image := os.Getenv("RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE"); image != "" {
 		return image
 	}
-	// Fallback for ODH development
-	return "quay.io/opendatahub/odh-kube-auth-proxy:latest"
+	// Fallback for ODH development - pinned to sha256 digest for disconnected/air-gapped support
+	return "quay.io/opendatahub/odh-kube-auth-proxy@sha256:e661417b032df351c4f54bfae157747184721273e18e22eb3c3808a088470da7" // v3.5.0-ea.2
 }
 
 // getDashboardRedirectImage returns the nginx image for dashboard redirects.
@@ -548,7 +548,8 @@ func getDashboardRedirectImage() string {
 	}
 	// Fallback for ODH and local development - publicly accessible UBI9 nginx S2I image
 	// This image is identical to registry.redhat.io/ubi9/nginx-126 but does not require authentication
-	return "registry.access.redhat.com/ubi9/nginx-126:latest"
+	// Pinned to sha256 digest for disconnected/air-gapped support
+	return "registry.access.redhat.com/ubi9/nginx-126@sha256:f0a79ccf21b8780a7534d78ee0e49d1852654f5f0f52e17ebdbe185a71d93253" // 1-1782419572
 }
 
 // GetDashboardRouteName returns the platform-specific dashboard route name.
