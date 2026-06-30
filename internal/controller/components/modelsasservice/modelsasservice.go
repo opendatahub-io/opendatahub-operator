@@ -129,6 +129,7 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	}
 
 	checkMaaSPrerequisites(ctx, rr)
+	checkIPPDependency(dsc, rr)
 
 	t := maasv1alpha1.Tenant{}
 	t.Name = maasv1alpha1.TenantInstanceName
@@ -192,6 +193,29 @@ func metav1ConditionToCommon(c metav1.Condition) common.Condition {
 
 // requiredGatewayAnnotations lists the annotations that must be present on
 // maas-default-gateway for MaaS to work correctly.
+// checkIPPDependency verifies that IPP (Inference Payload Processing) is enabled
+// when MaaS is managed. MaaS inference routing depends on IPP for model routing,
+// API translation, and API key injection at the gateway level.
+// This is an informational warning that does not block reconciliation.
+func checkIPPDependency(dsc *dscv2.DataScienceCluster, rr *types.ReconciliationRequest) {
+	ippState := dsc.Spec.Components.AIGateway.InferencePayloadProcessing.ManagementState
+	if ippState == operatorv1.Managed {
+		rr.Conditions.MarkTrue(
+			status.ConditionMaaSIPPDependency,
+			conditions.WithReason(status.MaaSIPPAvailableReason),
+			conditions.WithMessage(status.MaaSIPPAvailableMessage),
+		)
+		return
+	}
+
+	rr.Conditions.MarkFalse(
+		status.ConditionMaaSIPPDependency,
+		conditions.WithReason(status.MaaSIPPNotManagedReason),
+		conditions.WithMessage(status.MaaSIPPNotManagedMessage),
+		conditions.WithSeverity(common.ConditionSeverityInfo),
+	)
+}
+
 var requiredGatewayAnnotations = map[string]string{
 	annotations.ManagedByODHOperator:  "false",
 	annotations.AuthorinoTLSBootstrap: "true",
