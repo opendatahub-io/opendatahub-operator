@@ -252,7 +252,6 @@ func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceClust
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
-					KserveCommonSpec: componentApi.KserveCommonSpec{},
 				},
 				Ray: componentApi.DSCRay{
 					ManagementSpec: common.ManagementSpec{
@@ -312,6 +311,11 @@ func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceClust
 						ManagementState: operatorv1.Removed,
 					},
 				},
+				AIGateway: componentApi.DSCAIGateway{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
 			},
 		},
 	}
@@ -358,7 +362,6 @@ func CreateDSCv1(name string, workbenchesNamespace string) *dscv1.DataScienceClu
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
-					KserveCommonSpec: componentApi.KserveCommonSpec{},
 				},
 				CodeFlare: componentApi.DSCCodeFlare{
 					ManagementSpec: common.ManagementSpec{

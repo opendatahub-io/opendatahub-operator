@@ -264,11 +264,11 @@ endif
 	@$(call add-crd-to-kustomization,$(CONFIG_DIR)/crd/bases)
 	@$(call fetch-external-crds,github.com/openshift/api,route/v1)
 	@$(call fetch-external-crds,github.com/openshift/api,user/v1)
-	@$(call fetch-external-crds,github.com/openshift/api,config/v1,authentications ingresses)
+	@$(call fetch-external-crds,github.com/openshift/api,config/v1,authentications ingresses apiservers)
 	@$(call fetch-external-crds,github.com/openshift/api,oauth/v1)
 	@# Copy IngressController CRD for gateway LoadBalancer mode (envtest integration tests)
 	@rm -f $(CONFIG_DIR)/crd/external/0000_50_ingress-operator_00-ingresscontroller.crd.yaml
-	@cp $(shell go env GOPATH)/pkg/mod/github.com/openshift/api@$(call go-mod-version,github.com/openshift/api)/operator/v1/0000_50_ingress-operator_00-ingresscontroller.crd.yaml $(CONFIG_DIR)/crd/external/
+	@cp $(shell go env GOPATH)/pkg/mod/github.com/openshift/api@$(call go-mod-version,github.com/openshift/api)/operator/v1/zz_generated.crd-manifests/0000_50_ingress_00_ingresscontrollers.crd.yaml $(CONFIG_DIR)/crd/external/0000_50_ingress-operator_00-ingresscontroller.crd.yaml
 	@# Copy Gateway API CRDs from Go module cache
 	@# rm -f first to handle CI environments where cached files may have restrictive permissions
 	@rm -f $(CONFIG_DIR)/crd/external/gateway.networking.k8s.io_*.yaml
@@ -280,6 +280,7 @@ endif
 	@# Copy KServe CRD to shared rhaii overlay and generate kustomization
 	@mkdir -p config/rhaii/crd/bases
 	@cp $(CONFIG_DIR)/crd/bases/components.platform.opendatahub.io_kserves.yaml config/rhaii/crd/bases/
+	@cp $(CONFIG_DIR)/crd/bases/config.opendatahub.io_platforms.yaml config/rhaii/crd/bases/
 	@$(call add-crd-to-kustomization,config/rhaii/crd/bases)
 	@# Generate shared rhaii webhook manifests with only KServe connection webhooks
 	@$(YQ) eval 'select(.kind == "MutatingWebhookConfiguration") | .webhooks = [.webhooks[] | select(.name == "connection-isvc.opendatahub.io" or .name == "connection-llmisvc.opendatahub.io")]' $(CONFIG_DIR)/webhook/manifests.yaml > config/rhaii/webhook/manifests.yaml
@@ -333,7 +334,7 @@ get-manifests: ## Fetch components manifests from remote git repo
 	ODH_PLATFORM_TYPE=$(ODH_PLATFORM_TYPE) VERSION=$(VERSION) ./get_all_manifests.sh
 	@echo "Validating manifest image tags..."
 	@./.github/scripts/validate-manifest-images.sh
-CLEANFILES += opt/manifests/*
+CLEANFILES += opt/manifests/* opt/charts/*
 
 .PHONY: update-rhai-images
 update-rhai-images: yq ## Fetch RHAI component manifests and update images from RHOAI-Build-Config CSV
@@ -654,7 +655,7 @@ unit-test-operator: envtest ginkgo # directly use ginkgo since the framework is 
     	${GINKGO} -r \
         		--procs=8 \
         		--compilers=2 \
-        		--timeout=25m \
+        		--timeout=35m \
         		--poll-progress-after=30s \
         		--poll-progress-interval=5s \
         		--randomize-all \

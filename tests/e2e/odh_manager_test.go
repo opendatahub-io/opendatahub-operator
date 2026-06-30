@@ -47,9 +47,9 @@ func (tc *OperatorTestCtx) filterCRDTestCases(crds []struct {
 	}
 
 	// In XKS platform (KinD cluster), only a subset of CRDs is expected.
-	// Only the KServe CRD is expected
 	allowedCRDs := []string{
 		"kserves.components.platform.opendatahub.io",
+		"platforms.config.opendatahub.io",
 	}
 
 	var filtered []struct {
@@ -93,6 +93,7 @@ func (tc *OperatorTestCtx) ValidateOwnedCRDs(t *testing.T) {
 		{"Auth CRD", "auths.services.platform.opendatahub.io"},
 		{"SparkOperator CRD", "sparkoperators.components.platform.opendatahub.io"},
 		{"MLflowOperator CRD", "mlflowoperators.components.platform.opendatahub.io"},
+		{"Platform CRD", "platforms.config.opendatahub.io"},
 	}
 
 	crdsTestCases = tc.filterCRDTestCases(crdsTestCases)

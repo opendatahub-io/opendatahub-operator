@@ -68,6 +68,7 @@ func cleanupCoreOperatorResources(t *testing.T, tc *TestContext) {
 			WithMinimalObject(gvk, types.NamespacedName{}),
 			WithWaitForDeletion(true),
 			WithIgnoreNotFound(true),
+			WithAcceptableErr(meta.IsNoMatchError, "IsNoMatchError"),
 		)
 	}
 
@@ -136,7 +137,7 @@ func cleanupAllKueueTestResources(t *testing.T, tc *TestContext) {
 	cleanupKueueClusterScopedResources(t, tc)
 }
 
-// cleanupKueueClusterScopedResources cleans up cluster-scoped Kueue resources (ClusterQueue, KueueConfig).
+// cleanupKueueClusterScopedResources cleans up cluster-scoped Kueue resources (ClusterQueue, ResourceFlavor, KueueConfig).
 func cleanupKueueClusterScopedResources(t *testing.T, tc *TestContext) {
 	t.Helper()
 
@@ -146,6 +147,7 @@ func cleanupKueueClusterScopedResources(t *testing.T, tc *TestContext) {
 		namespacedName types.NamespacedName
 	}{
 		{gvk.ClusterQueue, types.NamespacedName{Name: kueueDefaultClusterQueueName}},
+		{gvk.ResourceFlavor, types.NamespacedName{Name: kueue.DefaultFlavorName}},
 		{gvk.KueueConfigV1, types.NamespacedName{Name: kueue.KueueCRName}},
 	}
 

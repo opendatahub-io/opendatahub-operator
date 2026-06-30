@@ -30,3 +30,5 @@ spec:
     * OGX - Unified open-source APIs for inference, RAG, agents, safety, evals & telemetry
     * MLflow - MLflow is an open-source platform, purpose-built to assist machine learning practitioners and teams in handling the complexities of the machine learning process. MLflow focuses on the full lifecycle for machine learning projects, ensuring that each phase is manageable, traceable, and reproducible.
     * Spark Operator - Spark Operator is a Kubernetes operator for managing Apache Spark applications. It provides a way to deploy and manage Spark applications on Kubernetes.
+    * AI Gateway (Model-as-a-service) aggregates all gateway-related components that have no hard dependency on the workload
+    * Batch Gateway is a high-performance system for processing large-scale batch inference jobs, providing an OpenAI-compatible API

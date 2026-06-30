@@ -45,6 +45,12 @@ type ModuleImages struct {
 	// ContainerName is the target container within the Deployment.
 	// Defaults to "manager" (the kubebuilder convention).
 	ContainerName string
+	// ControllerImage is the RELATED_IMAGE_* env var name whose value
+	// replaces the target container's image field. Empty means no override.
+	ControllerImage string
+	// InitContainerName is the name of an init container whose image field
+	// should also be overridden with the ControllerImage value.
+	InitContainerName string
 	// Images is the list of RELATED_IMAGE_* env var names for this module.
 	Images []string
 }
@@ -179,6 +185,13 @@ type ReconciliationRequest struct {
 	//       their origin
 	Generated bool
 
+	// SkipDeploy is set by the RunlevelGate action when the platform
+	// orchestrator has not yet reached this component's runlevel.
+	// Render, deploy, and GC actions check this flag and return early,
+	// while status-reporting actions always run so that healthy
+	// components continue to report their actual health.
+	SkipDeploy bool
+
 	// ModuleEnvInjection holds aggregated env var injection data for module
 	// operator Deployments. Set by provisionModules, consumed by
 	// injectModuleEnv. Nil when no modules are enabled.
@@ -188,6 +201,12 @@ type ReconciliationRequest struct {
 	// Stored here so updateModuleStatus can build a PlatformContext without
 	// a duplicate API call.
 	DSCI *dsciv2.DSCInitialization
+
+	// GateEntries holds upgrade gate entries extracted from rendered chart
+	// resources by ExtractUpgradeGates. Passed to CheckUpgradeGates so all
+	// gate sources (in-tree, cluster-discovered, chart-extracted) are
+	// merged before the gate check runs.
+	GateEntries map[string]string
 }
 
 // AddResources adds one or more resources to the ReconciliationRequest's Resources slice.

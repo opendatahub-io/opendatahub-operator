@@ -43,8 +43,6 @@ func RegisterAllWebhooks(mgr ctrl.Manager) error {
 		{name: "hardwareprofile", register: hardwareprofilewebhook.RegisterWebhooks, disabled: func() bool {
 			return !cr.IsEnabled(componentApi.KserveComponentName) && !cr.IsEnabled(componentApi.WorkbenchesComponentName)
 		}},
-		// NOTE: kueue validating webhook is disabled. To re-enable, uncomment the entry below.
-		// {name: "kueue", register: kueuewebhook.RegisterWebhooks, disabled: func() bool { return !cr.IsEnabled(componentApi.KueueComponentName) }},
 		{name: "monitoring", register: monitoringwebhook.RegisterWebhooks, disabled: func() bool {
 			return !sr.IsEnabled(serviceApi.MonitoringServiceName) && !mr.IsEnabled(serviceApi.MonitoringServiceName)
 		}},

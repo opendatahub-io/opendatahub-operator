@@ -1,0 +1,31 @@
+{
+  "scenario_id": "oom-plus-wrong-tag",
+  "scenario_name": "OOM Plus Wrong Image Tag",
+  "description": "Two independent failures simultaneously: TrustyAI operator OOMKilled by setting memory limit to 5Mi, and dashboard patched with a nonexistent image tag. The agent must identify both as independent root causes — OOM (1002) on trustyai and ImagePullBackOff (1001) on dashboard — without conflating them. Inspired by RHOAIENG-53745 (trustyai OOM) and troubleshooting.md wrong image tag pattern.",
+  "root_cause": "Two independent failures: (1) TrustyAI operator memory limit set to 5Mi causing OOMKilled, (2) Dashboard image tag changed to nonexistent v999-does-not-exist",
+  "expected_classification": {
+    "category": "infrastructure",
+    "subcategory": "image-pull",
+    "error_code": 1001,
+    "confidence": "medium"
+  },
+  "expected_tool_outputs": {
+    "platform_health": {
+      "healthy": false
+    }
+  },
+  "expected_symptoms": [
+    "trustyai-service-operator-controller-manager in CrashLoopBackOff with OOMKilled",
+    "odh-dashboard pod in ImagePullBackOff with ErrImagePull events",
+    "Two different failure types active simultaneously",
+    "DSC phase NotReady with multiple components affected"
+  ],
+  "tools_that_detect": [
+    "classify_failure",
+    "platform_health",
+    "pod_logs",
+    "recent_events",
+    "component_status"
+  ],
+  "expected_remediation": "Increase memory limits on trustyai-service-operator-controller-manager to 700Mi, and correct the odh-dashboard image tag to a valid version"
+}

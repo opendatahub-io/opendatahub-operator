@@ -67,7 +67,11 @@ func kserveTestSuite(t *testing.T) {
 	)
 
 	// Always run deletion recovery and component disable tests last
-	if !componentCtx.IsXKS() {
+	if componentCtx.IsXKS() {
+		testCases = append(testCases,
+			TestCase{"Validate CRD dependency conditions", componentCtx.ValidateCRDDependencyConditions},
+		)
+	} else {
 		testCases = append(testCases,
 			TestCase{"Validate subscription dependency conditions", componentCtx.ValidateSubscriptionDependencyConditions},
 		)
@@ -124,6 +128,26 @@ func (tc *KserveTestCtx) ValidateSpec(t *testing.T) {
 			// Validate management states of NIM and serving components.
 			jq.Match(`.spec.nim.managementState == "%s"`, dsc.Spec.Components.Kserve.NIM.ManagementState),
 		),
+		),
+	)
+}
+
+// ValidateCRDDependencyConditions verifies that the LWS WideEP CRD dependency
+// condition is present and True on the KServe component CR when the LWS CRD
+// is installed by the cloud manager. xKS only.
+func (tc *KserveTestCtx) ValidateCRDDependencyConditions(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier1)
+
+	kserveNN := types.NamespacedName{Name: componentApi.KserveInstanceName}
+
+	t.Log("Verifying WideEP CRD dependency condition is True on KServe component CR.")
+	tc.EnsureResourceExists(
+		WithMinimalObject(tc.GVK, kserveNN),
+		WithCondition(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				kserve.LLMInferenceServiceWideEPDependencies, metav1.ConditionTrue),
 		),
 	)
 }
@@ -482,17 +506,19 @@ func (tc *KserveTestCtx) runDegradedConditionTest(t *testing.T, testCase degrade
 }
 
 // runXKSDegradedMonitoringTest verifies that setting the AzureKubernetesEngine LWS dependency
-// to Unmanaged causes the Kserve DependenciesAvailable condition to become False,
+// to Unmanaged causes the Kserve WideEP condition to become False (informational),
 // and that setting it back to Managed restores it to True.
+// LWS is an optional dependency on xKS — its absence does not affect DependenciesAvailable.
 func (tc *KserveTestCtx) runXKSDegradedMonitoringTest(t *testing.T, kserveNN types.NamespacedName) {
 	t.Helper()
 
-	t.Logf("Verifying Kserve component DependenciesAvailable=True before test (name=%s).", kserveNN.Name)
+	t.Logf("Verifying Kserve component is healthy before test (name=%s).", kserveNN.Name)
 	tc.EnsureResourceExists(
 		WithMinimalObject(tc.GVK, kserveNN),
-		WithCondition(
+		WithCondition(And(
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionDependenciesAvailable, metav1.ConditionTrue),
-		),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, kserve.LLMInferenceServiceWideEPDependencies, metav1.ConditionTrue),
+		)),
 	)
 
 	t.Logf("Setting AzureKubernetesEngine LWS managementPolicy to Unmanaged.")
@@ -504,11 +530,19 @@ func (tc *KserveTestCtx) runXKSDegradedMonitoringTest(t *testing.T, kserveNN typ
 		WithCustomErrorMsg("Failed to set AzureKubernetesEngine LWS managementPolicy to Unmanaged"),
 	)
 
-	t.Logf("Verifying Kserve component DependenciesAvailable=False after setting LWS to Unmanaged (name=%s).", kserveNN.Name)
+	t.Logf("Verifying Kserve component WideEPDependencies=False after setting LWS to Unmanaged (name=%s).", kserveNN.Name)
 	tc.EnsureResourceExists(
 		WithMinimalObject(tc.GVK, kserveNN),
 		WithCondition(
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionDependenciesAvailable, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, kserve.LLMInferenceServiceWideEPDependencies, metav1.ConditionFalse),
+		),
+	)
+
+	t.Logf("Verifying Kserve DependenciesAvailable remains True (LWS is informational).")
+	tc.EnsureResourceExists(
+		WithMinimalObject(tc.GVK, kserveNN),
+		WithCondition(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionDependenciesAvailable, metav1.ConditionTrue),
 		),
 	)
 
@@ -521,11 +555,11 @@ func (tc *KserveTestCtx) runXKSDegradedMonitoringTest(t *testing.T, kserveNN typ
 		WithCustomErrorMsg("Failed to set AzureKubernetesEngine LWS managementPolicy to Managed"),
 	)
 
-	t.Logf("Verifying Kserve component DependenciesAvailable=True after restoring LWS to Managed (name=%s).", kserveNN.Name)
+	t.Logf("Verifying Kserve component WideEPDependencies=True after restoring LWS to Managed (name=%s).", kserveNN.Name)
 	tc.EnsureResourceExists(
 		WithMinimalObject(tc.GVK, kserveNN),
 		WithCondition(
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionDependenciesAvailable, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, kserve.LLMInferenceServiceWideEPDependencies, metav1.ConditionTrue),
 		),
 	)
 

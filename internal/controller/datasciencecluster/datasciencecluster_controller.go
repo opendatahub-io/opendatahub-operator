@@ -20,6 +20,7 @@ package datasciencecluster
 import (
 	"context"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -33,6 +34,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
@@ -77,9 +79,18 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 				return watchDataScienceClusters(ctx, mgr.GetClient())
 			}),
 			reconciler.WithPredicates(resources.GatewayConfigDomainChanged())).
+		Watches(
+			&corev1.ConfigMap{},
+			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
+				return watchDataScienceClusters(ctx, mgr.GetClient())
+			}),
+			reconciler.WithPredicates(
+				resources.CreatedOrUpdatedOrDeletedNamed(gates.AcksConfigMap),
+			)).
 		WithAction(initialize).
 		WithAction(checkPreConditions).
 		WithAction(updateStatus).
+		WithAction(checkUpgradeGates).
 		WithAction(provisionComponents).
 		WithAction(deploy.NewAction(
 			deploy.WithCache()),
@@ -91,7 +102,7 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 				},
 			),
 		)).
-		WithConditions(status.ConditionTypeComponentsReady).
+		WithConditions(status.ConditionTypeComponentsReady, status.ConditionTypeModulesReady).
 		Build(ctx)
 
 	if err != nil {

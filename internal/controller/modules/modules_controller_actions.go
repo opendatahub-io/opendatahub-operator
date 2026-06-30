@@ -14,12 +14,34 @@ import (
 	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
+
+func checkUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	reg := DefaultRegistry()
+	if !reg.HasEntries() {
+		return nil
+	}
+
+	platformCtx, err := buildPlatformContext(ctx, rr)
+	if err != nil {
+		return err
+	}
+
+	if !reg.AnyEnabled(platformCtx) {
+		return nil
+	}
+
+	return provision.CheckUpgradeGates(ctx, rr.Client, rr.Release, rr.Conditions, rr.GateEntries)
+}
 
 // initializeModules fetches DSCI once per reconcile and stores it on the
 // ReconciliationRequest so downstream actions can build PlatformContext
@@ -103,11 +125,13 @@ func buildPlatformContext(ctx context.Context, rr *odhtype.ReconciliationRequest
 		DSCI:                  dsciOrNil(rr),
 		Platform:              platformFromInstance(rr),
 		ChartsBasePath:        rr.ChartsBasePath,
+		ManifestsBasePath:     rr.ManifestsBasePath,
 	}, nil
 }
 
 // cleanupDisabledModules implements a two-phase cleanup for modules that have
 // been disabled (either by the user setting Removed or by CLI suppression).
+// Cleanup iterates in reverse unified DAG order (higher runlevels first).
 //
 // Phase 1: The module CR still exists on the cluster. We explicitly delete it
 // and keep the module operator Deployment running so it can process any
@@ -129,8 +153,8 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 		return err
 	}
 
-	return reg.ForAll(func(handler ModuleHandler, registryEnabled bool) error {
-		if registryEnabled && handler.IsEnabled(platformCtx) {
+	cleanupOne := func(handler ModuleHandler) error {
+		if handler.IsEnabled(platformCtx) && reg.IsEnabled(handler.GetName()) {
 			return nil
 		}
 
@@ -167,19 +191,36 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 		}
 
 		return nil
-	})
+	}
+
+	reverseBatches, err := provision.DefaultRegistry().ReverseBatches()
+	if err != nil {
+		logf.FromContext(ctx).Error(err, "DAG reverse resolution failed, falling back to alphabetical cleanup order")
+		return reg.ForAll(func(handler ModuleHandler, _ bool) error {
+			return cleanupOne(handler)
+		})
+	}
+
+	for _, batch := range reverseBatches {
+		for _, entry := range provision.ModulesInBatch(batch) {
+			handler := reg.Lookup(entry.GetName())
+			if handler == nil {
+				continue
+			}
+			if err := cleanupOne(handler); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
-// provisionModules iterates over enabled modules in the registry and for each:
-//   - Appends the module's operator manifests to rr.HelmCharts and/or
-//     rr.Manifests (rendered by helm/kustomize actions, applied by deploy.NewAction).
-//   - Builds the module CR and adds it to rr.Resources (applied by
-//     deploy.NewAction alongside operator resources).
-//
-// BuildModuleCR is a pure projection of platform data into the module CR.
-// It must never fail in production. If any module fails, the pipeline is
-// stopped before deploy/GC to prevent partial desired state from causing
-// GC to delete healthy resources.
+// provisionModules iterates over the unified DAG batches (which contain
+// both components and modules) but only provisions entries of KindModule.
+// Readiness gating uses a CompositeChecker that spans both registries, so
+// a component that hasn't reached Ready blocks advancement to the next
+// runlevel just like a module would.
 func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	log := logf.FromContext(ctx)
 
@@ -199,54 +240,88 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 	}
 	platformCtx.GatewayDomain = gatewayDomain
 
+	dsc := dscFromInstance(rr)
+
+	checker := provision.NewCompositeChecker(
+		cr.NewReadinessChecker(cr.DefaultRegistry(), rr.Client, dsc),
+		NewReadinessChecker(reg, rr.Client, rr.Release.Version.String(),
+			WithPlatformContext(platformCtx)),
+	)
+
 	var perModuleImages []odhtype.ModuleImages
 	var failedModules []string
 
-	reg.ForEachEnabled(func(handler ModuleHandler) {
-		name := handler.GetName()
+	// The DSC controller is the sole owner of the ProvisioningProgress
+	// condition. Pass a no-op writer so the modules controller still
+	// participates in DAG gating but doesn't clobber the DSC
+	// controller's condition via the +listType=atomic SSA race.
+	requeueAfter, walkErr := provision.WalkBatches(ctx, checker, moduleStuckTracker, string(rr.Instance.GetUID()), provision.NoOpConditionWriter{},
+		func(batch []provision.UnifiedNode) error {
+			for _, entry := range provision.ModulesInBatch(batch) {
+				handler := reg.Lookup(entry.GetName())
+				if handler == nil {
+					continue
+				}
+				name := handler.GetName()
 
-		if !handler.IsEnabled(platformCtx) {
-			return
-		}
+				if !handler.IsEnabled(platformCtx) {
+					continue
+				}
 
-		log.Info("provisioning module", "module", name)
+				log.Info("provisioning module", "module", name,
+					"runlevel", entry.GetRunlevel())
 
-		operatorManifests := handler.GetOperatorManifests(platformCtx)
+				operatorManifests := handler.GetOperatorManifests(platformCtx)
 
-		moduleCR, err := handler.BuildModuleCR(ctx, rr.Client, platformCtx)
-		if err != nil {
-			log.Error(err, "BuildModuleCR failed (programming error)", "module", name)
-			failedModules = append(failedModules, name)
-			return
-		}
-		if moduleCR == nil {
-			log.Error(nil, "BuildModuleCR returned nil without error (programming error)", "module", name)
-			failedModules = append(failedModules, name)
-			return
-		}
+				moduleCR, err := handler.BuildModuleCR(ctx, rr.Client, platformCtx)
+				if err != nil {
+					log.Error(err, "BuildModuleCR failed (programming error)", "module", name)
+					failedModules = append(failedModules, name)
+					continue
+				}
+				if moduleCR == nil {
+					log.Error(nil, "BuildModuleCR returned nil without error (programming error)", "module", name)
+					failedModules = append(failedModules, name)
+					continue
+				}
 
-		perModuleImages = append(perModuleImages, odhtype.ModuleImages{
-			DeploymentName: deploymentNameFromManifests(operatorManifests, handler.GetName()),
-			ContainerName:  containerNameFor(handler),
-			Images:         handler.GetRelatedImages(),
-		})
-		if len(operatorManifests.HelmCharts) > 0 {
-			rr.HelmCharts = append(rr.HelmCharts, operatorManifests.HelmCharts...)
-		}
-		if len(operatorManifests.Manifests) > 0 {
-			rr.Manifests = append(rr.Manifests, operatorManifests.Manifests...)
-		}
+				perModuleImages = append(perModuleImages, odhtype.ModuleImages{
+					DeploymentName:    deploymentNameFor(handler, operatorManifests),
+					ContainerName:     containerNameFor(handler),
+					ControllerImage:   controllerImageFor(handler),
+					InitContainerName: initContainerNameFor(handler),
+					Images:            handler.GetRelatedImages(),
+				})
+				if len(operatorManifests.HelmCharts) > 0 {
+					rr.HelmCharts = append(rr.HelmCharts, operatorManifests.HelmCharts...)
+				}
+				if len(operatorManifests.Manifests) > 0 {
+					rr.Manifests = append(rr.Manifests, operatorManifests.Manifests...)
+				}
 
-		rr.Resources = append(rr.Resources, *moduleCR)
-	})
+				rr.Resources = append(rr.Resources, *moduleCR)
+			}
+			return nil
+		},
+	)
+
+	if walkErr != nil {
+		return walkErr
+	}
+
+	if requeueAfter > 0 {
+		return odherrors.NewRequeueAfterError(requeueAfter)
+	}
 
 	if len(failedModules) > 0 {
-		rr.Conditions.SetCondition(common.Condition{
-			Type:    status.ConditionTypeModulesReady,
-			Status:  metav1.ConditionFalse,
-			Reason:  status.ProvisioningFailedReason,
-			Message: fmt.Sprintf("Provisioning failed for: %s", strings.Join(failedModules, ", ")),
-		})
+		if !cr.HasEntries() {
+			rr.Conditions.SetCondition(common.Condition{
+				Type:    status.ConditionTypeModulesReady,
+				Status:  metav1.ConditionFalse,
+				Reason:  status.ProvisioningFailedReason,
+				Message: fmt.Sprintf("Provisioning failed for: %s", strings.Join(failedModules, ", ")),
+			})
+		}
 
 		return fmt.Errorf("BuildModuleCR failed for modules: %s", strings.Join(failedModules, ", "))
 	}
@@ -261,6 +336,8 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 	return nil
 }
 
+var moduleStuckTracker = dag.NewStuckTracker()
+
 const defaultContainerName = "manager"
 
 func containerNameFor(h ModuleHandler) string {
@@ -268,6 +345,34 @@ func containerNameFor(h ModuleHandler) string {
 		return cn.GetContainerName()
 	}
 	return defaultContainerName
+}
+
+// deploymentNameFor resolves the Deployment name targeted for RELATED_IMAGE_*
+// env injection. An explicit Config.DeploymentName (via DeploymentNamer) wins;
+// otherwise it falls back to the manifest-derived name. This matters for
+// kustomize modules whose rendered Deployment name (after namePrefix) differs
+// from the module name.
+func deploymentNameFor(h ModuleHandler, manifests OperatorManifests) string {
+	if dn, ok := h.(DeploymentNamer); ok {
+		if name := dn.GetDeploymentName(); name != "" {
+			return name
+		}
+	}
+	return deploymentNameFromManifests(manifests, h.GetName())
+}
+
+func controllerImageFor(h ModuleHandler) string {
+	if ci, ok := h.(ControllerImager); ok {
+		return ci.GetControllerImage()
+	}
+	return ""
+}
+
+func initContainerNameFor(h ModuleHandler) string {
+	if icn, ok := h.(InitContainerNamer); ok {
+		return icn.GetInitContainerName()
+	}
+	return ""
 }
 
 // deploymentNameFromManifests returns the expected Deployment name for a module
@@ -282,19 +387,16 @@ func deploymentNameFromManifests(manifests OperatorManifests, fallbackName strin
 	return fallbackName
 }
 
-// updateModuleStatus reads status conditions from each enabled module's CR
-// and maps them to the DSC status. Module conditions contribute to the
-// aggregate ModulesReady condition.
+// ComputeModulesStatus reads status conditions from each enabled module's CR
+// and sets the aggregate ModulesReady condition on rr.Conditions.
 //
-// During the transition period where both component and module controllers
-// write to DSC status, ModulesReady is not set because the DSC CRD uses
-// +listType=atomic on status.conditions. With atomic lists, SSA replaces
-// the entire list on each write, so two controllers race and the last
-// writer's conditions overwrite the other's. Once all components have
-// migrated to modules and the DSC controller is removed, the modules
-// controller becomes the sole status writer and ModulesReady can be
-// enabled.
-func updateModuleStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+// During the transition period (in-tree components exist), the DSC
+// controller calls this and is the sole status writer — the modules
+// controller has WithoutStatusConditions so its conditions are never
+// applied. Post-migration (no in-tree components), the modules
+// controller calls this via updateModuleStatus and becomes the sole
+// status writer.
+func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	log := logf.FromContext(ctx)
 
 	reg := DefaultRegistry()
@@ -394,4 +496,15 @@ func updateModuleStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 	}
 
 	return nil
+}
+
+// updateModuleStatus writes ModulesReady only when no in-tree components
+// are registered, meaning the DSC controller is absent and the modules
+// controller is the sole status writer. While components exist, the DSC
+// controller handles ModulesReady.
+func updateModuleStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	if cr.HasEntries() {
+		return nil
+	}
+	return ComputeModulesStatus(ctx, rr)
 }

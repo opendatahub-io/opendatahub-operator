@@ -17,6 +17,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -123,6 +124,50 @@ func TestCRDDependencyMonitoring(t *testing.T) {
 		wt.Get(gvk.Kserve, nn).Eventually().Should(
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
 				status.ConditionDependenciesAvailable, metav1.ConditionTrue),
+		)
+	})
+
+	t.Run("Kubernetes cluster without LWS CRD sets WideEPDependencies to False with Info severity", func(t *testing.T) {
+		cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
+		t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+		ctx, cancel := context.WithCancel(context.Background())
+		_, wt := startKserveController(t, ctx)
+		t.Cleanup(cancel)
+
+		createKserveDependencyCR(t, wt)
+
+		nn := types.NamespacedName{Name: componentApi.KserveInstanceName}
+		wt.Get(gvk.Kserve, nn).Eventually().Should(And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				LLMInferenceServiceWideEPDependencies, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .severity == "%s"`,
+				LLMInferenceServiceWideEPDependencies, common.ConditionSeverityInfo),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("LeaderWorkerSet")`,
+				LLMInferenceServiceWideEPDependencies),
+		))
+	})
+
+	t.Run("Kubernetes cluster with LWS CRD sets WideEPDependencies to True", func(t *testing.T) {
+		cluster.SetClusterInfo(cluster.ClusterInfo{Type: cluster.ClusterTypeKubernetes})
+		t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
+
+		ctx, cancel := context.WithCancel(context.Background())
+		et, wt := startKserveController(t, ctx)
+		t.Cleanup(cancel)
+
+		crd, err := et.RegisterCRD(wt.Context(), gvk.LeaderWorkerSetV1,
+			"leaderworkersets", "leaderworkerset",
+			apiextensionsv1.NamespaceScoped)
+		wt.Expect(err).NotTo(HaveOccurred())
+		envt.CleanupDelete(t, NewWithT(t), wt.Context(), wt.Client(), crd)
+
+		createKserveDependencyCR(t, wt)
+
+		nn := types.NamespacedName{Name: componentApi.KserveInstanceName}
+		wt.Get(gvk.Kserve, nn).Eventually().Should(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				LLMInferenceServiceWideEPDependencies, metav1.ConditionTrue),
 		)
 	})
 
@@ -277,12 +322,16 @@ func TestSubscriptionDependencyMonitoring(t *testing.T) {
 				status.ConditionDependenciesAvailable),
 		)
 
-		// Subscription conditions should not be written on Kubernetes
-		wt.Get(gvk.Kserve, nn).Consistently().WithTimeout(5 * time.Second).Should(And(
-			jq.Match(`all(.status.conditions[]?.type; . != "%s")`,
-				LLMInferenceServiceDependencies),
-			jq.Match(`all(.status.conditions[]?.type; . != "%s")`,
+		// Subscription conditions should be True (not-applicable) on Kubernetes
+		wt.Get(gvk.Kserve, nn).Consistently().WithTimeout(5 * time.Second).Should(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+				LLMInferenceServiceDependencies, metav1.ConditionTrue),
+		)
+
+		// LLMInferenceServiceWideEPDependencies IS expected on Kubernetes (from MonitorCRDs for LWS)
+		wt.Get(gvk.Kserve, nn).Eventually().Should(
+			jq.Match(`[.status.conditions[] | select(.type == "%s")] | length > 0`,
 				LLMInferenceServiceWideEPDependencies),
-		))
+		)
 	})
 }

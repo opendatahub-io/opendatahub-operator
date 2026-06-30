@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DAG Runlevel Gating — OpenDataHub Operator</title>
+<style>
+  :root {
+    --bg: #181818; --bg-chrome: #141414; --bg-elevated: #1e1e1e;
+    --text: #e4e4e4eb; --text-sec: #e4e4e48d; --text-ter: #e4e4e45e; --text-quat: #e4e4e442;
+    --fill-1: #e4e4e430; --fill-2: #e4e4e41e; --fill-3: #e4e4e411; --fill-4: #e4e4e40a;
+    --stroke-1: #e4e4e433; --stroke-2: #e4e4e41f; --stroke-3: #e4e4e414;
+    --accent: #599CE7; --accent-hover: #6AABE9;
+    --green: #3FA266; --orange: #D08770; --yellow: #F1B467; --purple: #9386F2; --gray: #e4e4e48a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+  h1 { font-size: 22px; font-weight: 700; }
+  h2 { font-size: 16px; font-weight: 600; margin-top: 24px; margin-bottom: 8px; }
+  h3 { font-size: 13px; font-weight: 600; margin-top: 20px; margin-bottom: 6px; }
+  p, .text-sec { color: var(--text-sec); font-size: 13px; }
+  .text-sm { font-size: 12px; }
+  .text-ter { color: var(--text-ter); }
+  .divider { border: none; border-top: 1px solid var(--stroke-3); margin: 16px 0; }
+  .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .spacer { flex: 1; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+
+  select { background: var(--bg-elevated); color: var(--text); border: 1px solid var(--stroke-2); border-radius: 4px; padding: 6px 10px; font-size: 13px; cursor: pointer; }
+  select:focus { outline: 1px solid var(--accent); }
+
+  .btn { display: inline-flex; align-items: center; padding: 6px 14px; border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; transition: background 0.15s; }
+  .btn-primary { background: var(--accent); color: #191c22; }
+  .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+  .btn-primary:disabled { opacity: 0.4; cursor: default; }
+  .btn-secondary { background: var(--fill-2); color: var(--text); }
+  .btn-secondary:hover { background: var(--fill-1); }
+
+  .stat-box { text-align: center; padding: 12px; background: var(--fill-4); border-radius: 6px; }
+  .stat-value { font-size: 20px; font-weight: 700; }
+  .stat-label { font-size: 11px; color: var(--text-ter); margin-top: 2px; }
+  .stat-success .stat-value { color: var(--green); }
+  .stat-warning .stat-value { color: var(--yellow); }
+
+  .card { border: 1px solid var(--stroke-3); border-radius: 8px; background: var(--bg-elevated); overflow: hidden; }
+  .card-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; font-size: 12px; font-weight: 600; color: var(--text-sec); border-bottom: 1px solid var(--stroke-3); cursor: default; }
+  .card-header.collapsible { cursor: pointer; }
+  .card-header .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; background: var(--fill-2); }
+  .card-header .pill.active { background: var(--accent); color: #191c22; }
+  .card-body { padding: 10px 12px; font-size: 12px; color: var(--text-sec); }
+  .card-body.hidden { display: none; }
+
+  .callout { border-radius: 6px; padding: 12px 14px; font-size: 12px; }
+  .callout-info { background: #599CE714; border-left: 3px solid var(--accent); }
+  .callout-warning { background: #D0877014; border-left: 3px solid var(--orange); }
+  .callout-success { background: #3FA26614; border-left: 3px solid var(--green); }
+  .callout-title { font-weight: 600; margin-bottom: 4px; color: var(--text); }
+  .callout-body { color: var(--text-sec); line-height: 1.6; }
+
+  .dag-wrap { overflow-x: auto; border: 1px solid var(--stroke-3); border-radius: 6px; }
+
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-sec); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  .timeline-step { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 4px; cursor: pointer; border: 1px solid transparent; transition: background 0.1s; }
+  .timeline-step:hover { background: var(--fill-3); }
+  .timeline-step.done { background: var(--fill-4); }
+  .timeline-step.active { background: #599CE722; border-color: #599CE744; }
+  .step-circle { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; flex-shrink: 0; }
+  .step-circle.done { background: var(--green); color: #191c22; }
+  .step-circle.active { background: var(--accent); color: #191c22; }
+  .step-circle.pending { background: var(--fill-2); color: var(--text-ter); }
+  .step-label { font-size: 12px; }
+  .step-label.done { color: var(--text-sec); }
+  .step-label.active { color: var(--text); }
+  .step-label.pending { color: var(--text-ter); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid var(--stroke-3); border-radius: 6px; overflow: hidden; }
+  th { background: var(--fill-3); text-align: left; padding: 8px 10px; font-weight: 600; color: var(--text-sec); font-size: 11px; }
+  td { padding: 6px 10px; border-top: 1px solid var(--stroke-3); }
+  th.center, td.center { text-align: center; }
+  tr:nth-child(even) { background: var(--fill-4); }
+  tr.row-success td:first-child { border-left: 3px solid var(--green); }
+  tr.row-danger td:first-child { border-left: 3px solid var(--orange); }
+  tr.row-warning td:first-child { border-left: 3px solid var(--purple); }
+
+  .log-box { font-family: "SF Mono", "Fira Code", monospace; font-size: 11px; line-height: 1.7; white-space: pre-wrap; color: var(--text-sec); }
+  .log-line-step { color: var(--text); }
+  .log-line-info { color: var(--text-ter); }
+
+  .tracker-row { display: flex; gap: 24px; flex-wrap: wrap; }
+  .tracker-item { font-size: 12px; }
+  .tracker-label { font-weight: 600; color: var(--text); }
+  .tracker-value { color: var(--text-sec); }
+
+  @media (max-width: 800px) {
+    .grid-4 { grid-template-columns: repeat(2, 1fr); }
+    .grid-2 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container" id="app"></div>
+
+<script>
+// ── Data ──────────────────────────────────────────────────────
+const COMPONENTS = [
+  { id:"dashboard",label:"Dashboard",runlevel:20,kind:"component" },
+  { id:"workbenches",label:"Workbenches",runlevel:20,kind:"component" },
+  { id:"ray",label:"Ray",runlevel:20,kind:"component" },
+  { id:"datasciencepipelines",label:"DSPipelines",runlevel:20,kind:"component" },
+  { id:"modelregistry",label:"ModelRegistry",runlevel:20,kind:"component" },
+  { id:"trainer",label:"Trainer",runlevel:20,kind:"component" },
+  { id:"trainingoperator",label:"TrainingOperator",runlevel:20,kind:"component" },
+  { id:"kserve",label:"Kserve",runlevel:31,kind:"component" },
+  { id:"kueue",label:"Kueue",runlevel:31,kind:"component" },
+  { id:"feastoperator",label:"FeastOperator",runlevel:32,kind:"component" },
+  { id:"mlflowoperator",label:"MLflowOperator",runlevel:32,kind:"component" },
+  { id:"sparkoperator",label:"SparkOperator",runlevel:32,kind:"component" },
+  { id:"ogx",label:"OGX",runlevel:32,kind:"component" },
+  { id:"modelcontroller",label:"ModelController",runlevel:33,kind:"component" },
+  { id:"modelsasservice",label:"ModelsAsService",runlevel:33,kind:"component" },
+  { id:"trustyai",label:"TrustyAI",runlevel:33,kind:"component" },
+];
+const MODULES_SCENARIO_ENTRIES = [
+  { id:"monitoring",label:"Monitoring",runlevel:20,kind:"module" },
+];
+const RUNLEVELS = [20,31,32,33];
+const RL_LABELS = {20:"Batch 20 — Core AI Platform",31:"Batch 31 — Inference / Scheduling",32:"Batch 32 — Extended Operators",33:"Batch 33 — Orchestration"};
+const SCENARIOS = [{value:"normal",label:"Normal Provisioning (v3.5.0)"},{value:"stuckWorkbenches",label:"Workbenches Stuck (v3.5.0)"},{value:"upgrade",label:"Upgrade v3.4.0 → v3.5.0"},{value:"adminAck",label:"Upgrade with Admin Ack Gate"},{value:"withModules",label:"Components + Modules (Unified DAG)"}];
+
+const STATE_COLORS = {ready:"var(--green)",deploying:"var(--accent)",unhealthy:"var(--orange)",timedOut:"var(--yellow)",skipped:"var(--purple)",removed:"var(--gray)",pending:"var(--fill-2)"};
+const STATE_LABELS = {ready:"Ready",deploying:"Deploying",unhealthy:"Unhealthy",timedOut:"Timed Out",skipped:"SkipDeploy",removed:"Removed",pending:"Pending"};
+
+function cloneComps(includeModules) {
+  const base = COMPONENTS.map(c=>({...c,state:"pending",platformReady:false,skipDeploy:false,ready:false}));
+  if (includeModules) MODULES_SCENARIO_ENTRIES.forEach(m=>base.push({...m,state:"pending",platformReady:false,skipDeploy:false,ready:false}));
+  return base;
+}
+
+function initialState(sc) {
+  const inclMods = sc==="withModules";
+  const s = {step:0,trackerVersion:"",trackerClearedUpTo:0,dscVersion:"3.5.0",components:cloneComps(inclMods),log:[],currentRunlevel:0,provisioningProgress:"Not started",gateStatus:"none"};
+  if (sc==="upgrade") { s.components.forEach(c=>{c.ready=true;c.state="ready";}); s.trackerVersion="3.4.0"; s.trackerClearedUpTo=33; s.log=["Operator restarting for upgrade from v3.4.0 to v3.5.0...","RunlevelTracker reset: version changed from 3.4.0 to 3.5.0"]; s.provisioningProgress="Upgrade pending"; }
+  else if (sc==="adminAck") { s.components.forEach(c=>{c.ready=true;c.state="ready";}); s.trackerVersion="3.4.0"; s.trackerClearedUpTo=33; s.gateStatus="pending"; s.log=["Operator restarting for upgrade from v3.4.0 to v3.5.0...","Upgrade gates exist for v3.5.0: ack-3.5.0-kserve-api-change"]; s.provisioningProgress="Upgrade pending"; }
+  else if (sc==="withModules") { s.log=["DSC controller + modules controller both starting at version "+s.dscVersion,"Unified DAG contains components (in-tree) and modules (external operators)"]; }
+  else { s.log=["DSC controller starting provisioning at version "+s.dscVersion]; }
+  return s;
+}
+
+function getSteps(sc) {
+  if (sc==="normal") return ["DSC controller begins WalkBatches","processBatch(20): MarkCleared(v3.5.0, 20)","Component controllers reconcile batch 20","RunlevelGateAction: batch 20 cleared — render/deploy/GC proceed","Batch 20 components become Ready","Readiness check: all batch 20 Ready — advance to batch 31","processBatch(31): MarkCleared(v3.5.0, 31)","Component controllers reconcile batch 31","Batch 31 components become Ready","processBatch(32): MarkCleared(v3.5.0, 32)","Batch 32 components become Ready","processBatch(33): MarkCleared(v3.5.0, 33)","Batch 33 components become Ready","ProvisioningProgress = True. All components deployed."];
+  if (sc==="stuckWorkbenches") return ["DSC controller begins WalkBatches","processBatch(20): MarkCleared(v3.5.0, 20)","Component controllers reconcile batch 20","RunlevelGateAction: batch 20 cleared — render/deploy proceeds","Batch 20: most Ready, but Workbenches is UNHEALTHY","Readiness check: Workbenches not ready — DAG blocks at batch 31","Batch 31+ controllers reconcile: RunlevelGateAction sets SkipDeploy=true","Status actions still run: batch 31+ report Ready=True (existing deployments healthy)","PlatformReady=False (Info) on batch 31+ — does NOT affect Ready condition","DSC requeues after timeout. ProvisioningProgress=False, AwaitingReadiness","Timeout expires: DAG advances past stuck Workbenches","processBatch(31): MarkCleared(v3.5.0, 31) — Kserve/Kueue deploy","Remaining batches clear. ProvisioningProgress=True."];
+  if (sc==="withModules") return ["Two controllers start: DSC controller (components) + modules controller","Both walk the same unified DAG — same batches, same runlevels","DSC: processBatch(20) — provisions component CRs, MarkCleared(v3.5.0, 20)","Modules: provisionModules walks batch 20 — deploys Monitoring operator + CR","Component controllers reconcile batch 20 (RunlevelGateAction passes)","Module operator starts, reconciles its CR, reaches Ready","Both checkers confirm batch 20 ready — CompositeChecker spans both kinds","DSC: processBatch(31) — Kserve/Kueue provisioned","Modules controller: no modules at RL 31, skips batch","Batches 31–33 clear. Components Ready. Modules Ready","ProvisioningProgress=True (DSC). ModulesReady=True (modules controller)"];
+  if (sc==="adminAck") return ["Operator restarts with new version v3.5.0","DSC controller reconciles: checkUpgradeGates runs before WalkBatches","EnsureGates writes gate descriptions to odh-upgrade-acks ConfigMap","Unacked gate found: ack-3.5.0-kserve-api-change — StopError returned","ProvisioningProgress=False, AdminAckRequired. DAG walk never starts","All controllers: SkipDeploy=true (RunlevelTracker empty for v3.5.0)","Status actions run: v3.4.0 deployments healthy, Ready=True","Admin sets ack-3.5.0-kserve-api-change=true in odh-upgrade-acks ConfigMap","DSC controller re-reconciles (watches odh-upgrade-acks ConfigMap)","checkUpgradeGates passes — no unacked gates remain","WalkBatches begins. processBatch(20): MarkCleared(v3.5.0, 20)","Batch 20 deploys v3.5.0. Batches 31–33 follow in order","All components upgraded to v3.5.0. ProvisioningProgress=True."];
+  return ["Operator restarts with new version v3.5.0","RunlevelTracker is empty — version mismatch resets state","All component controllers reconcile: RunlevelGateAction fires","IsCleared(v3.5.0, *) = false — SkipDeploy=true for all components","Status actions run: components report Ready=True (v3.4.0 deployments still healthy)","DSC controller starts WalkBatches at v3.5.0","processBatch(20): MarkCleared(v3.5.0, 20)","Batch 20 controllers re-reconcile: SkipDeploy=false, new v3.5.0 manifests deployed","Batch 20 becomes Ready with v3.5.0","processBatch(31): MarkCleared(v3.5.0, 31) — Kserve/Kueue upgraded","processBatch(32): MarkCleared(v3.5.0, 32)","processBatch(33): MarkCleared(v3.5.0, 33)","All components upgraded to v3.5.0. ProvisioningProgress=True."];
+}
+
+function getNarrative(sc,step) {
+  if (step===0) return {title:"Ready to begin",body:sc==="upgrade"||sc==="adminAck"?"The operator has restarted with a new binary (v3.5.0). All components are currently running their v3.4.0 deployments. The RunlevelTracker was populated at v3.4.0 but will reset when the DSC controller starts walking at the new version."+(sc==="adminAck"?" This version has upgrade gates that require admin acknowledgment before provisioning can proceed.":""):sc==="withModules"?"The unified DAG contains both components (in-tree, with dedicated controllers) and modules (external operators deployed by the modules controller). Both the DSC and modules controllers walk the same DAG, using a CompositeChecker for cross-type readiness gating. The modules controller uses a NoOpConditionWriter to avoid SSA races on ProvisioningProgress.":"The DSC controller is about to begin walking the DAG. No runlevels have been cleared yet. Component controllers are registered but waiting for the orchestrator."};
+  const N={normal:{1:{title:"DSC controller begins the DAG walk",body:"The DSC controller's provisionComponents action calls WalkBatches(), which resolves the unified DAG into ordered batches."},2:{title:"Batch 20 is marked as cleared",body:"processBatch calls RunlevelTracker.MarkCleared(\"3.5.0\", 20). Component controllers for batch 20 will now pass their RunlevelGateAction check."},3:{title:"Component controllers reconcile",body:"Each batch 20 controller reconciles. RunlevelGateAction calls IsCleared(\"3.5.0\", 20) → true. SkipDeploy stays false. Full action chain executes."},4:{title:"Render, deploy, and GC proceed",body:"Kustomize/helm renders manifests into rr.Resources. Deploy applies via SSA. GC cleans stale resources. PlatformReady=True (Info) written."},5:{title:"Batch 20 components become Ready",body:"All deployments reach desired replica count. Status actions mark Ready=True."},6:{title:"Readiness gate passes",body:"WalkBatches checks batch 20 readiness before processing batch 31. All ready → walk continues."},7:{title:"Batch 31 is marked as cleared",body:"MarkCleared(\"3.5.0\", 31). Tracker clearedUpTo advances to 31. Kserve and Kueue will now pass RunlevelGateAction."},8:{title:"Kserve and Kueue deploy",body:"RunlevelGateAction passes. Kustomize renders, customizeKserveConfigMap modifies the inferenceservice-config ConfigMap, deploy applies."},9:{title:"Batch 31 becomes Ready",body:"Kserve and Kueue reach desired state. Readiness gate for batch 32 passes."},10:{title:"Batch 32 deploys",body:"MarkCleared(\"3.5.0\", 32). FeastOperator, MLflowOperator, SparkOperator, OGX all reconcile with SkipDeploy=false."},11:{title:"Batch 32 becomes Ready",body:"All four extended operators reach desired deployment state."},12:{title:"Batch 33 deploys",body:"MarkCleared(\"3.5.0\", 33). ModelController, ModelsAsService, and TrustyAI reconcile and deploy."},13:{title:"All batches complete",body:"Batch 33 reaches Ready. All 16 components deployed and healthy."},14:{title:"ProvisioningProgress = True",body:"WalkBatches finishes. ProvisioningProgress condition set to True on DSC status."}},
+  stuckWorkbenches:{1:{title:"DSC controller begins the DAG walk",body:"WalkBatches starts. Batch 20 is first — no prior batches to gate on."},2:{title:"Batch 20 is marked as cleared",body:"MarkCleared(\"3.5.0\", 20). All batch 20 controllers will now pass RunlevelGateAction."},3:{title:"Batch 20 begins deploying",body:"All seven batch 20 controllers reconcile. RunlevelGateAction passes. Manifests rendered and applied."},4:{title:"Deploy proceeds",body:"Kustomize renders, deploy applies via SSA. Each component starts its deployments."},5:{title:"Workbenches fails to become Ready",body:"Most batch 20 components reach Ready, but Workbenches has an issue — its controller pod is crash-looping. Only 1 of 2 deployments available."},6:{title:"DAG blocks at batch 31",body:"WalkBatches checks batch 20 readiness. Workbenches not ready → allReady=false. StuckTracker starts counting. ProvisioningProgress=False, AwaitingReadiness."},7:{title:"Batch 31+ controllers: SkipDeploy=true",body:"This is the key behavior. Kserve, Kueue, etc. reconcile. RunlevelGateAction calls IsCleared(\"3.5.0\", 31) → false (clearedUpTo is 20). SkipDeploy=true set. PlatformReady=False (Info) written."},8:{title:"Status actions still run",body:"Despite SkipDeploy=true, status actions execute. Components with healthy existing deployments report Ready=True. Workloads unaffected — only new deployment paused."},9:{title:"PlatformReady is purely informational",body:"PlatformReady=False has Info severity → does NOT affect Ready condition. Components show Ready=True + PlatformReady=False simultaneously. This is the fix for the ConditionNotSet problem."},10:{title:"DSC requeues on a timer",body:"WalkBatches returns requeueAfter duration. Reconciler schedules requeue so timeout check fires even without external events."},11:{title:"Timeout expires after 10 minutes",body:"StuckTracker detects batch 31 stuck longer than configured timeout (10 min). Marks not-ready entries as timed out, advances."},12:{title:"DAG advances past Workbenches",body:"MarkCleared(\"3.5.0\", 31). Kserve and Kueue now pass RunlevelGateAction, SkipDeploy cleared, full render/deploy/GC runs."},13:{title:"Remaining batches clear",body:"Batches 32–33 deploy and become ready. ProvisioningProgress=True, though Workbenches remains unhealthy. DAG ordering was enforced during the wait."}},
+  withModules:{1:{title:"Two controllers, one DAG",body:"The operator starts two controllers: the DSC controller (manages component CRs and their in-tree controllers) and the modules controller (deploys module operator Deployments, RBAC, and module CRs). Both share the same unified DAG via the provision registry."},2:{title:"Same batches, same runlevels",body:"Components and modules coexist in runlevel batches. In this scenario, Monitoring (a module) is at runlevel 20 alongside Dashboard, Workbenches, etc. The DSC controller calls ComponentsInBatch() to filter its entries; the modules controller calls ModulesInBatch() to filter its own."},3:{title:"DSC provisions components at RL 20",body:"The DSC controller's provisionComponents action calls WalkBatches. processBatch(20) creates/updates component CRs (Dashboard, Workbenches, etc.). MarkCleared(v3.5.0, 20) is called. Component controllers' RunlevelGateAction now passes."},4:{title:"Modules controller provisions at RL 20",body:"The modules controller also calls WalkBatches. For batch 20, it finds Monitoring via ModulesInBatch(). It deploys the monitoring operator's Helm chart (Deployment + RBAC) and creates the Monitoring module CR. The modules controller uses a NoOpConditionWriter — only the DSC controller owns ProvisioningProgress."},5:{title:"Component controllers deploy",body:"Each batch 20 component controller reconciles. RunlevelGateAction checks IsCleared(v3.5.0, 20) → true, SkipDeploy stays false. Kustomize renders manifests, deploy applies via SSA, GC cleans stale resources."},6:{title:"Module operator reconciles its CR",body:"The deployed Monitoring operator starts, picks up its CR, reconciles its operand (Prometheus, Grafana, etc.), and sets Ready=True on the module CR's status. The modules controller will read this status via GetModuleStatus."},7:{title:"CompositeChecker gates advancement",body:"Before batch 31, both controllers check readiness. CompositeChecker combines a component ReadinessChecker (checks component CR conditions) and a module ReadinessChecker (checks module CR conditions). All RL 20 entries — components AND modules — must be ready."},8:{title:"Batch 31 proceeds",body:"All RL 20 entries ready. DSC controller provisions Kserve/Kueue components at RL 31. The modules controller finds no modules at RL 31 — ModulesInBatch returns empty — so it's a no-op for modules at this level."},9:{title:"Modules controller skips empty batches",body:"When a batch has no modules, the modules controller's WalkBatches still walks through it (for gating purposes) but the processBatch callback does nothing — no operator charts to render, no CRs to create."},10:{title:"All batches complete",body:"Batches 31→32→33 clear. All components reach Ready. The Monitoring module is Ready. Both controllers finish their walks."},11:{title:"Both status conditions set",body:"DSC controller sets ProvisioningProgress=True. Modules controller sets ModulesReady=True (but with NoOpConditionWriter for ProvisioningProgress to avoid SSA race). Both conditions appear on the DSC status."}},
+  adminAck:{1:{title:"Operator restarts with new binary",body:"Operator pod restarts with v3.5.0 image. All controllers re-register. RunlevelTracker is freshly initialized (empty)."},2:{title:"checkUpgradeGates runs first",body:"In the DSC controller action chain, checkUpgradeGates runs before provisionComponents (WalkBatches). It collects gates from three sources: in-tree embedded YAML, cluster ConfigMaps with the upgrade-gate label, and chart-extracted entries."},3:{title:"Gate descriptions written to ConfigMap",body:"GateChecker.EnsureGates() creates or updates the odh-upgrade-acks ConfigMap. For each gate key matching ack-3.5.0-*, the description is written. Keys already set to \"true\" are preserved (not overwritten)."},4:{title:"Unacked gate blocks provisioning",body:"Gate ack-3.5.0-kserve-api-change has a descriptive message (not \"true\") → it is unacknowledged. checkUpgradeGates returns a StopError, which halts the action chain. WalkBatches never runs."},5:{title:"DSC status reflects the block",body:"ProvisioningProgress condition is set to False with reason AdminAckRequired and a message listing unacked gate keys. The DSC controller stops — no DAG walk, no MarkCleared calls."},6:{title:"Component controllers still reconcile",body:"RunlevelGateAction fires in each component controller. Since the RunlevelTracker is empty for v3.5.0, IsCleared returns false. SkipDeploy=true for all. PlatformReady=False (Info)."},7:{title:"Existing deployments remain healthy",body:"Despite SkipDeploy=true, status actions run normally. They observe the v3.4.0 deployments, which are healthy. All components report Ready=True. Zero user disruption during the wait."},8:{title:"Admin acknowledges the gate",body:"A cluster admin edits the odh-upgrade-acks ConfigMap, setting ack-3.5.0-kserve-api-change to \"true\". This is the explicit approval to proceed with the upgrade."},9:{title:"DSC re-reconciles automatically",body:"The DSC controller watches the odh-upgrade-acks ConfigMap (via CreatedOrUpdatedOrDeletedNamed predicate). The ConfigMap update triggers an immediate re-reconcile."},10:{title:"Gate check passes",body:"checkUpgradeGates re-runs. EnsureGates finds ack-3.5.0-kserve-api-change=\"true\" → acknowledged. unacked list is empty. The function returns nil — no StopError. The action chain continues."},11:{title:"DAG walk begins",body:"provisionComponents calls WalkBatches. MarkCleared(\"3.5.0\", 20) is called. Batch 20 component controllers pass RunlevelGateAction. Full render/deploy/GC chain executes."},12:{title:"All batches deploy in order",body:"Batches 20→31→32→33 deploy sequentially with readiness gating. Each batch clears before the next begins. v3.5.0 manifests replace v3.4.0 via SSA."},13:{title:"Upgrade complete",body:"All 16 components running v3.5.0. ProvisioningProgress=True. The admin ack gate ensured the operator waited for explicit approval before proceeding with a breaking change."}},
+  upgrade:{1:{title:"Operator restarts with new binary",body:"Operator pod restarts with v3.5.0 image. All controllers re-register. RunlevelTracker singleton is freshly initialized (empty)."},2:{title:"RunlevelTracker resets on version mismatch",body:"Tracker had version=\"3.4.0\", clearedUpTo=33. On MarkCleared(\"3.5.0\", ...), version differs → tracker resets. IsCleared(\"3.5.0\", *) returns false for all runlevels."},3:{title:"All controllers see SkipDeploy=true",body:"Every controller reconciles. RunlevelGateAction checks IsCleared(\"3.5.0\", order) → tracker empty for v3.5.0 → false. SkipDeploy=true for all. No v3.5.0 manifests deployed yet."},4:{title:"Render, deploy, and GC are all no-ops",body:"Kustomize/helm render checks rr.SkipDeploy → returns nil. Deploy returns nil. GC returns nil — critical because GC with empty Resources would otherwise delete everything."},5:{title:"Status actions report real health",body:"Despite SkipDeploy=true, status actions run. They observe existing v3.4.0 deployments, which are healthy. All components report Ready=True. No user disruption."},6:{title:"DSC controller starts WalkBatches",body:"DSC controller reconciles and calls WalkBatches. This orchestrates the ordered upgrade."},7:{title:"Batch 20 cleared at v3.5.0",body:"MarkCleared(\"3.5.0\", 20). Tracker initialized: version=3.5.0, clearedUpTo=20. Batch 20 controllers will now deploy v3.5.0 manifests."},8:{title:"Batch 20 deploys v3.5.0 manifests",body:"Batch 20 reconciles again. RunlevelGateAction passes. Full chain runs — v3.5.0 kustomize manifests rendered and deployed via SSA, replacing v3.4.0."},9:{title:"Batch 20 upgraded and Ready",body:"All batch 20 deployments roll out to v3.5.0 and reach desired state. Readiness gate for batch 31 passes."},10:{title:"Batch 31 upgraded",body:"MarkCleared(\"3.5.0\", 31). Kserve and Kueue receive v3.5.0 manifests and deploy."},11:{title:"Batch 32 deployed",body:"MarkCleared(\"3.5.0\", 32). Extended operators upgrade. Status confirms healthy."},12:{title:"Batch 33 deployed",body:"MarkCleared(\"3.5.0\", 33). ModelController, ModelsAsService, and TrustyAI upgrade. All components at new version."},13:{title:"Upgrade complete",body:"All 16 components running v3.5.0. ProvisioningProgress=True. DAG ensured core platform upgraded first."}}};
+  return (N[sc]||{})[step]||{title:"Step "+step,body:""};
+}
+
+function advanceState(prev,sc) {
+  const s=JSON.parse(JSON.stringify(prev)); s.step++; const steps=getSteps(sc); if(s.step>steps.length)return prev;
+  s.log.push("Step "+s.step+": "+steps[s.step-1]);
+  const setRL=(rl,props)=>{s.components.forEach(c=>{if(c.runlevel===rl)Object.assign(c,props);});};
+  const setAll=(props)=>{s.components.forEach(c=>Object.assign(c,props));};
+  const setGt=(rl,props)=>{s.components.forEach(c=>{if(c.runlevel>rl)Object.assign(c,props);});};
+  const setLe=(rl,props)=>{s.components.forEach(c=>{if(c.runlevel<=rl)Object.assign(c,props);});};
+  const setGe=(rl,props)=>{s.components.forEach(c=>{if(c.runlevel>=rl)Object.assign(c,props);});};
+
+  if(sc==="normal"){switch(s.step){
+    case 1:s.provisioningProgress="Walking DAG...";s.currentRunlevel=20;break;
+    case 2:s.trackerVersion="3.5.0";s.trackerClearedUpTo=20;break;
+    case 3:setRL(20,{platformReady:true,skipDeploy:false,state:"deploying"});break;
+    case 4:break;
+    case 5:setRL(20,{state:"ready",ready:true});s.provisioningProgress="Batch 20 ready";break;
+    case 6:s.currentRunlevel=31;break;
+    case 7:s.trackerClearedUpTo=31;setRL(31,{platformReady:true,skipDeploy:false,state:"deploying"});break;
+    case 8:break;
+    case 9:setRL(31,{state:"ready",ready:true});s.currentRunlevel=32;s.provisioningProgress="Batch 31 ready";break;
+    case 10:s.trackerClearedUpTo=32;setRL(32,{platformReady:true,skipDeploy:false,state:"deploying"});break;
+    case 11:setRL(32,{state:"ready",ready:true});s.currentRunlevel=33;s.provisioningProgress="Batch 32 ready";break;
+    case 12:s.trackerClearedUpTo=33;setRL(33,{platformReady:true,skipDeploy:false,state:"deploying"});break;
+    case 13:setRL(33,{state:"ready",ready:true});s.provisioningProgress="True — all provisioned";break;
+    case 14:s.provisioningProgress="True — all provisioned";break;
+  }}else if(sc==="stuckWorkbenches"){switch(s.step){
+    case 1:s.provisioningProgress="Walking DAG...";s.currentRunlevel=20;break;
+    case 2:s.trackerVersion="3.5.0";s.trackerClearedUpTo=20;break;
+    case 3:setRL(20,{platformReady:true,skipDeploy:false,state:"deploying"});break;
+    case 4:break;
+    case 5:s.components.forEach(c=>{if(c.runlevel===20){if(c.id==="workbenches"){c.state="unhealthy";c.ready=false;}else{c.state="ready";c.ready=true;}}});s.provisioningProgress="Batch 20 partial — Workbenches unhealthy";break;
+    case 6:s.currentRunlevel=31;s.provisioningProgress="AwaitingReadiness: Workbenches";break;
+    case 7:setGt(20,{skipDeploy:true,state:"skipped",platformReady:false});break;
+    case 8:s.components.forEach(c=>{if(c.runlevel>20&&c.id!=="kserve")c.ready=true;if(c.runlevel>20&&c.id==="kserve")c.ready=false;});break;
+    case 9:break;
+    case 10:s.provisioningProgress="False — AwaitingReadiness: Workbenches (requeue 10m)";break;
+    case 11:const wb=s.components.find(c=>c.id==="workbenches");if(wb)wb.state="timedOut";s.provisioningProgress="Timeout exceeded, advancing...";break;
+    case 12:s.trackerClearedUpTo=31;setRL(31,{platformReady:true,skipDeploy:false,state:"deploying"});s.currentRunlevel=32;break;
+    case 13:s.trackerClearedUpTo=33;setGe(31,{platformReady:true,skipDeploy:false,state:"ready",ready:true});s.provisioningProgress="True (Workbenches timed out)";break;
+  }}else if(sc==="withModules"){switch(s.step){
+    case 1:s.provisioningProgress="Starting...";break;
+    case 2:s.currentRunlevel=20;s.provisioningProgress="Walking DAG...";break;
+    case 3:s.trackerVersion="3.5.0";s.trackerClearedUpTo=20;s.components.filter(c=>c.runlevel===20&&c.kind==="component").forEach(c=>{c.platformReady=true;c.skipDeploy=false;c.state="deploying";});break;
+    case 4:s.components.filter(c=>c.kind==="module"&&c.runlevel===20).forEach(c=>{c.platformReady=true;c.skipDeploy=false;c.state="deploying";});break;
+    case 5:s.components.filter(c=>c.runlevel===20&&c.kind==="component").forEach(c=>{c.state="ready";c.ready=true;});break;
+    case 6:s.components.filter(c=>c.kind==="module"&&c.runlevel===20).forEach(c=>{c.state="ready";c.ready=true;});s.provisioningProgress="Batch 20 ready (components + modules)";break;
+    case 7:s.currentRunlevel=31;break;
+    case 8:s.trackerClearedUpTo=31;setRL(31,{platformReady:true,skipDeploy:false,state:"deploying"});break;
+    case 9:break;
+    case 10:setGe(31,{state:"ready",ready:true,platformReady:true,skipDeploy:false});s.trackerClearedUpTo=33;s.currentRunlevel=33;s.provisioningProgress="All batches cleared";break;
+    case 11:s.provisioningProgress="True — all provisioned";break;
+  }}else if(sc==="adminAck"){switch(s.step){
+    case 1:s.trackerVersion="";s.trackerClearedUpTo=0;s.provisioningProgress="Upgrade pending...";break;
+    case 2:s.provisioningProgress="checkUpgradeGates running...";break;
+    case 3:s.gateStatus="unacked";break;
+    case 4:break;
+    case 5:s.provisioningProgress="False — AdminAckRequired: ack-3.5.0-kserve-api-change";break;
+    case 6:setAll({skipDeploy:true,platformReady:false,state:"skipped"});break;
+    case 7:setAll({ready:true});break;
+    case 8:s.gateStatus="acked";break;
+    case 9:s.provisioningProgress="Re-reconciling (ConfigMap watch triggered)...";break;
+    case 10:s.provisioningProgress="Gates passed — starting WalkBatches...";break;
+    case 11:s.trackerVersion="3.5.0";s.trackerClearedUpTo=20;s.currentRunlevel=20;setRL(20,{platformReady:true,skipDeploy:false,state:"deploying"});break;
+    case 12:setAll({platformReady:true,skipDeploy:false,state:"deploying"});s.trackerClearedUpTo=33;s.currentRunlevel=33;break;
+    case 13:setAll({state:"ready",ready:true});s.provisioningProgress="True — v3.5.0 fully deployed";break;
+  }}else{switch(s.step){
+    case 1:s.trackerVersion="";s.trackerClearedUpTo=0;s.provisioningProgress="Upgrade pending...";break;
+    case 2:break;
+    case 3:setAll({skipDeploy:true,platformReady:false,state:"skipped"});break;
+    case 4:break;
+    case 5:setAll({ready:true});break;
+    case 6:s.currentRunlevel=20;s.provisioningProgress="Walking DAG at v3.5.0...";break;
+    case 7:s.trackerVersion="3.5.0";s.trackerClearedUpTo=20;break;
+    case 8:setRL(20,{platformReady:true,skipDeploy:false,state:"deploying"});break;
+    case 9:setRL(20,{state:"ready",ready:true});s.provisioningProgress="Batch 20 upgraded";s.currentRunlevel=31;break;
+    case 10:s.trackerClearedUpTo=31;setRL(31,{platformReady:true,skipDeploy:false,state:"deploying"});break;
+    case 11:s.trackerClearedUpTo=32;setLe(32,{platformReady:true,skipDeploy:false,state:"ready",ready:true});s.currentRunlevel=33;break;
+    case 12:s.trackerClearedUpTo=33;setAll({platformReady:true,skipDeploy:false,state:"ready",ready:true});break;
+    case 13:s.provisioningProgress="True — v3.5.0 fully deployed";break;
+  }}
+  return s;
+}
+
+// ── Rendering ─────────────────────────────────────────────────
+
+let scenario = "normal";
+let state = initialState(scenario);
+
+function render() {
+  const steps = getSteps(scenario);
+  const atEnd = state.step >= steps.length;
+  const narrative = getNarrative(scenario, state.step);
+  const readyCount = state.components.filter(c=>c.ready).length;
+  const skippedCount = state.components.filter(c=>c.skipDeploy).length;
+  const clearedCount = state.components.filter(c=>c.platformReady).length;
+  const calloutTone = atEnd ? "success" : state.gateStatus==="unacked" ? "warning" : state.components.some(c=>c.state==="unhealthy") ? "warning" : "info";
+
+  let html = `
+    <div class="row" style="margin-bottom:8px">
+      <h1>DAG Runlevel Gating</h1>
+      <div class="spacer"></div>
+      <span class="text-sm text-ter">OpenDataHub Operator</span>
+    </div>
+    <p>Interactive walkthrough of the DAG-ordered provisioning system. The DSC controller and modules controller both walk a unified DAG of runlevel batches containing components (in-tree) and modules (external operators). Component controllers use RunlevelGateAction to gate on their batch being cleared. Modules are provisioned inline by the modules controller. On upgrades, admin acknowledgment gates can block provisioning until an admin explicitly approves.</p>
+    <hr class="divider">
+    <div class="row">
+      <span style="font-weight:600;font-size:13px;white-space:nowrap">Scenario</span>
+      <select id="scenarioSelect">${SCENARIOS.map(s=>`<option value="${s.value}"${s.value===scenario?" selected":""}>${s.label}</option>`).join("")}</select>
+      <div class="spacer"></div>
+      <button class="btn btn-secondary" onclick="resetSim()">Reset</button>
+      <button class="btn btn-primary" id="nextBtn" onclick="nextStep()"${atEnd?" disabled":""}>${state.step===0?"Start":"Next Step"}</button>
+    </div>
+    <div class="grid-4" style="margin-top:12px">
+      <div class="stat-box"><div class="stat-value">${state.step} / ${steps.length}</div><div class="stat-label">Step</div></div>
+      <div class="stat-box${readyCount===state.components.length?" stat-success":""}"><div class="stat-value">${readyCount} / ${state.components.length}</div><div class="stat-label">Components Ready</div></div>
+      <div class="stat-box${skippedCount>0?" stat-warning":""}"><div class="stat-value">${skippedCount}</div><div class="stat-label">SkipDeploy Active</div></div>
+      <div class="stat-box${clearedCount===state.components.length?" stat-success":""}"><div class="stat-value">${clearedCount}</div><div class="stat-label">PlatformReady=True</div></div>
+    </div>`;
+
+  // Tracker card
+  const gatePill = state.gateStatus==="unacked"?' <span class="pill" style="background:#D08770;color:#fff">BLOCKED</span>':state.gateStatus==="acked"?' <span class="pill active">PASSED</span>':"";
+  html += `<div class="card" style="margin-top:16px">
+    <div class="card-header">RunlevelTracker <span class="pill${state.trackerVersion?" active":""}">${state.trackerVersion||"empty"}</span></div>
+    <div class="card-body"><div class="tracker-row">
+      <div class="tracker-item"><span class="tracker-label">Version: </span><span class="tracker-value">${state.trackerVersion||"(none)"}</span></div>
+      <div class="tracker-item"><span class="tracker-label">ClearedUpTo: </span><span class="tracker-value">${state.trackerClearedUpTo||"0"}</span></div>
+      <div class="tracker-item"><span class="tracker-label">DSC Version: </span><span class="tracker-value">${state.dscVersion}</span></div>
+      <div class="tracker-item"><span class="tracker-label">ProvisioningProgress: </span><span class="tracker-value">${state.provisioningProgress}</span></div>
+    </div></div></div>`;
+
+  // Admin Ack card (shown when gateStatus is not "none")
+  if (state.gateStatus!=="none") {
+    const gateColor = state.gateStatus==="unacked"?"var(--orange)":"var(--green)";
+    const gateIcon = state.gateStatus==="unacked"?"&#9888;":"&#10003;";
+    html += `<div class="card" style="margin-top:8px;border-left:3px solid ${gateColor}">
+      <div class="card-header">Admin Ack Gate${gatePill}</div>
+      <div class="card-body"><div class="tracker-row">
+        <div class="tracker-item"><span class="tracker-label">Gate Key: </span><span class="tracker-value">ack-3.5.0-kserve-api-change</span></div>
+        <div class="tracker-item"><span class="tracker-label">ConfigMap: </span><span class="tracker-value">odh-upgrade-acks</span></div>
+        <div class="tracker-item"><span class="tracker-label">Status: </span><span class="tracker-value" style="color:${gateColor}">${gateIcon} ${state.gateStatus==="unacked"?"Awaiting admin acknowledgment":"Acknowledged — upgrade approved"}</span></div>
+      </div></div></div>`;
+  }
+
+  // Narrative callout
+  html += `<div class="callout callout-${calloutTone}" style="margin-top:16px">
+    <div class="callout-title">${narrative.title}</div>
+    <div class="callout-body">${narrative.body}</div>
+  </div>`;
+
+  // DAG SVG
+  const rlX = {20:20, 31:300, 32:580, 33:860};
+  let svgH = 10;
+  const rlBoxes = RUNLEVELS.map(rl => {
+    const comps = state.components.filter(c=>c.runlevel===rl);
+    const h = Math.max(60, comps.length*32+50);
+    if(h+30>svgH) svgH=h+30;
+    return {rl,comps,h};
+  });
+  html += `<h2>DAG Batch Visualization</h2><div class="dag-wrap"><svg width="1080" height="${svgH}" viewBox="0 0 1080 ${svgH}">`;
+  // edges
+  for(let i=1;i<RUNLEVELS.length;i++){
+    html+=`<line x1="${rlX[RUNLEVELS[i-1]]+200}" y1="30" x2="${rlX[RUNLEVELS[i]]}" y2="30" stroke="var(--stroke-2)" stroke-width="2" stroke-dasharray="6 3"/>`;
+  }
+  for(const {rl,comps,h} of rlBoxes) {
+    const x=rlX[rl];
+    const isActive=rl===state.currentRunlevel;
+    const allReady=comps.every(c=>c.state==="ready");
+    const anyBad=comps.some(c=>c.state==="unhealthy"||c.state==="timedOut");
+    let fill="var(--fill-4)";
+    if(allReady) fill="#3FA26622";
+    else if(isActive) fill="#599CE718";
+    else if(anyBad) fill="#D0877022";
+    const stroke=isActive?"var(--accent)":"var(--stroke-3)";
+    const sw=isActive?2:1;
+    html+=`<rect x="${x}" y="10" width="200" height="${h}" rx="8" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
+    html+=`<text x="${x+100}" y="32" text-anchor="middle" fill="var(--text-sec)" font-size="11" font-weight="600">${RL_LABELS[rl]}</text>`;
+    comps.forEach((c,ci)=>{
+      const cy=50+ci*32;
+      const col=STATE_COLORS[c.state]||"var(--fill-2)";
+      html+=`<rect x="${x+8}" y="${cy}" width="184" height="26" rx="4" fill="${col}33" stroke="${col}" stroke-width="1"/>`;
+      if(c.kind==="module"){html+=`<rect x="${x+17}" y="${cy+8}" width="10" height="10" rx="2" fill="${col}"/>`;}
+      else{html+=`<circle cx="${x+22}" cy="${cy+13}" r="5" fill="${col}"/>`;}
+      html+=`<text x="${x+32}" y="${cy+17}" fill="var(--text)" font-size="11">${c.label}${c.kind==="module"?" ⬡":""}</text>`;
+      html+=`<text x="${x+180}" y="${cy+17}" text-anchor="end" fill="var(--text-ter)" font-size="9">${c.skipDeploy?"SKIP":(STATE_LABELS[c.state]||"")}</text>`;
+    });
+    if(allReady) html+=`<text x="${x+100}" y="${h+16}" text-anchor="middle" fill="var(--green)" font-size="10" font-weight="600">CLEARED</text>`;
+  }
+  html += `</svg></div>`;
+
+  // Legend
+  html += `<div class="legend">`;
+  [["pending","Pending"],["deploying","Deploying"],["ready","Ready"],["skipped","SkipDeploy"],["unhealthy","Unhealthy"],["timedOut","Timed Out"]].forEach(([s,l])=>{
+    html+=`<div class="legend-item"><div class="legend-dot" style="background:${STATE_COLORS[s]}"></div>${l}</div>`;
+  });
+  if(state.components.some(c=>c.kind==="module")) html+=`<div class="legend-item"><span style="font-size:11px;margin-right:4px">⬡</span> Module (external operator)</div>`;
+  html += `</div><hr class="divider">`;
+
+  // Timeline
+  html += `<h2>Step Timeline</h2><div style="display:flex;flex-direction:column;gap:2px">`;
+  steps.forEach((step,i)=>{
+    const done=i<state.step, active=i===state.step;
+    const cls=done?"done":active?"active":"";
+    const ccls=done?"done":active?"active":"pending";
+    const lcls=done?"done":active?"active":"pending";
+    html+=`<div class="timeline-step ${cls}" onclick="jumpTo(${i+1})">
+      <div class="step-circle ${ccls}">${done?"\u2713":i+1}</div>
+      <span class="step-label ${lcls}">${step}</span>
+    </div>`;
+  });
+  html += `</div><hr class="divider">`;
+
+  // Component table
+  const hasModules = state.components.some(c=>c.kind==="module");
+  html += `<h2>Component Detail</h2><table><thead><tr><th>Name</th>${hasModules?'<th class="center">Kind</th>':""}<th class="center">Runlevel</th><th class="center">State</th><th class="center">PlatformReady</th><th class="center">SkipDeploy</th><th class="center">Ready</th></tr></thead><tbody>`;
+  state.components.forEach(c=>{
+    let rc="";
+    if(c.state==="ready")rc="row-success";
+    else if(c.state==="unhealthy"||c.state==="timedOut")rc="row-danger";
+    else if(c.skipDeploy)rc="row-warning";
+    const kindCell = hasModules?`<td class="center" style="font-size:10px">${c.kind==="module"?"⬡ Module":"Component"}</td>`:"";
+    html+=`<tr class="${rc}"><td>${c.label}</td>${kindCell}<td class="center">${c.runlevel}</td><td class="center">${STATE_LABELS[c.state]||""}</td><td class="center">${c.platformReady?"True (Info)":"False (Info)"}</td><td class="center">${c.skipDeploy?"true":"false"}</td><td class="center">${c.ready?"True":"False"}</td></tr>`;
+  });
+  html += `</tbody></table>`;
+
+  // Event log
+  if(state.log.length>0){
+    html += `<h2>Event Log</h2><div class="card"><div class="card-body"><div class="log-box">`;
+    state.log.slice(-12).forEach(line=>{
+      const cls=line.startsWith("Step")?"log-line-step":"log-line-info";
+      html+=`<div class="${cls}">${line}</div>`;
+    });
+    html += `</div></div></div>`;
+  }
+
+  // Completion callout
+  if(atEnd){
+    let extra="";
+    if(scenario==="stuckWorkbenches") extra=" Workbenches was timed out after 10 minutes and the DAG advanced past it.";
+    if(scenario==="upgrade") extra=" All components have been upgraded from v3.4.0 to v3.5.0 in DAG order.";
+    if(scenario==="adminAck") extra=" The upgrade was blocked until the admin acknowledged the ack-3.5.0-kserve-api-change gate, then proceeded in DAG order.";
+    if(scenario==="withModules") extra=" Both components and modules were provisioned through the unified DAG. The Monitoring module operator was deployed at runlevel 20 alongside core components.";
+    html+=`<div class="callout callout-success" style="margin-top:16px"><div class="callout-title">Provisioning Complete</div><div class="callout-body">All runlevel batches have been processed. The DAG walk is finished and ProvisioningProgress is True.${extra}</div></div>`;
+  }
+
+  // How it works
+  html += `<hr class="divider"><h3>How It Works</h3><div class="grid-2" style="margin-top:8px">`;
+  const howCards = [
+    ["RunlevelTracker (in-memory)","A concurrency-safe singleton that records which runlevel has been cleared at a given operator version. The DSC controller calls MarkCleared() as it walks batches. Component controllers call IsCleared() in their RunlevelGateAction. On version change the tracker resets."],
+    ["RunlevelGateAction (per-component)","An early action in each component controller's chain. If not cleared: sets rr.SkipDeploy=true and writes PlatformReady=False with Info severity. If cleared: lets everything through. Never returns an error."],
+    ["PlatformReady Condition","An informational condition (Info severity) that does NOT affect Ready. A healthy component shows Ready=True + PlatformReady=False. Prevents one stuck component from cascading apparent unhealthiness."],
+    ["SkipDeploy Flag","A boolean on ReconciliationRequest. When true, render/deploy/GC return nil immediately. Status actions always run regardless, so components report real cluster health."],
+    ["Admin Ack Gates","An upgrade precondition that runs before the DAG walk. Components or modules can define gates (ConfigMaps with the upgrade-gate label) requiring explicit admin acknowledgment before provisioning proceeds. Gates are written to the odh-upgrade-acks ConfigMap; an admin acknowledges by setting the key value to \"true\". The DSC controller watches this ConfigMap and re-reconciles immediately when it changes. Sources: in-tree embedded YAML, labeled cluster ConfigMaps, chart-extracted entries."],
+    ["Modules (External Operators)","Modules are external operators deployed and managed by a dedicated modules controller. Unlike components (which have in-tree controllers using RunlevelGateAction), modules are provisioned inline during WalkBatches — the modules controller deploys the operator's Helm chart (Deployment + RBAC) and creates the module CR. The module operator then reconciles its own workloads. Both controllers walk the same unified DAG; ComponentsInBatch() and ModulesInBatch() filter each batch by kind. A CompositeChecker spans both types for readiness gating. The modules controller uses NoOpConditionWriter for ProvisioningProgress to avoid +listType=atomic SSA races with the DSC controller."]
+  ];
+  howCards.forEach(([title,body],idx)=>{
+    html+=`<div class="card"><div class="card-header collapsible" onclick="toggleCard(this)">${title} <span style="font-size:10px">&#9660;</span></div><div class="card-body hidden">${body}</div></div>`;
+  });
+  html += `</div>`;
+
+  document.getElementById("app").innerHTML = html;
+  document.getElementById("scenarioSelect").addEventListener("change",function(e){
+    scenario=e.target.value; state=initialState(scenario); render();
+  });
+}
+
+function nextStep() { const steps=getSteps(scenario); if(state.step<steps.length){state=advanceState(state,scenario);render();} }
+function resetSim() { state=initialState(scenario); render(); }
+function jumpTo(n) { state=initialState(scenario); for(let i=0;i<n;i++)state=advanceState(state,scenario); render(); }
+function toggleCard(header) { const body=header.nextElementSibling; body.classList.toggle("hidden"); }
+
+render();
+</script>
+</body>
+</html>
