@@ -1,0 +1,22 @@
+# In-tree upgrade gate definitions for components that have not yet
+# migrated to modules. Gate entries use version-scoped keys:
+#
+#   ack-<version>-<description>: "Human-readable message"
+#
+# The operator merges these entries into the odh-upgrade-acks ConfigMap.
+# Unacknowledged entries appear as descriptive strings; admins acknowledge
+# by setting a gate's value to "true". Once acked, the operator never
+# overwrites the value.
+#
+# When a component migrates to a module, move its gate entries into the
+# module's Helm chart as a ConfigMap with the label:
+#   platform.opendatahub.io/upgrade-gate: "true"
+#
+# Delete this file when all components have migrated to modules.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: odh-intree-gates
+  labels:
+    platform.opendatahub.io/upgrade-gate: "true"
+data: {}
