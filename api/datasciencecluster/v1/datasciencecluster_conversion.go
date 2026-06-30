@@ -98,6 +98,10 @@ func constructInstalledComponentsFromV2Status(v2Status dscv2.DataScienceClusterS
 func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 	dst := dstRaw.(*dscv2.DataScienceCluster)
 
+	// DEBUG: Log v1 input to understand what we're converting FROM
+	fmt.Printf("DEBUG ConvertTo INPUT: v1.kserve.managementState=%s v1.kserve.modelsAsService.managementState=%s\n",
+		c.Spec.Components.Kserve.ManagementState, c.Spec.Components.Kserve.ModelsAsService.ManagementState)
+
 	dst.ObjectMeta = c.ObjectMeta
 
 	dst.Spec = dscv2.DataScienceClusterSpec{
@@ -227,12 +231,17 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 
 	c.ObjectMeta = src.ObjectMeta
 
+	// When converting v2->v1, we need to put aigateway.modelsAsService back into kserve.modelsAsService
+	// so v1 clients see the migrated configuration
+	v1Kserve := src.Spec.Components.Kserve
+	v1Kserve.ModelsAsService = src.Spec.Components.AIGateway.ModelsAsService
+
 	c.Spec = DataScienceClusterSpec{
 		Components: Components{
 			Dashboard:            src.Spec.Components.Dashboard,
 			Workbenches:          src.Spec.Components.Workbenches,
 			DataSciencePipelines: src.Spec.Components.AIPipelines,
-			Kserve:               src.Spec.Components.Kserve,
+			Kserve:               v1Kserve,
 			Kueue: DSCKueueV1{
 				KueueManagementSpecV1: KueueManagementSpecV1{
 					ManagementState: src.Spec.Components.Kueue.ManagementState,
