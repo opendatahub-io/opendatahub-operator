@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	"fmt"
 	"strings"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -155,6 +156,16 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 			},
 		},
 	}
+
+	// Clear modelsAsService from Kserve after migrating to AIGateway
+	// In v2, modelsAsService lives under aigateway, not kserve
+	dst.Spec.Components.Kserve.ModelsAsService = componentApi.DSCModelsAsServiceSpec{}
+
+	// DEBUG: Log converted values
+	fmt.Printf("DEBUG ConvertTo complete: v2.aigateway.managementState=%s v2.aigateway.modelsAsService.managementState=%s v2.kserve.modelsAsService.managementState=%s\n",
+		dst.Spec.Components.AIGateway.ManagementState,
+		dst.Spec.Components.AIGateway.ModelsAsService.ManagementState,
+		dst.Spec.Components.Kserve.ModelsAsService.ManagementState)
 
 	// Convert status with field renaming: DataSciencePipelines -> AIPipelines
 	// and condition type renaming: DataSciencePipelinesReady -> AIPipelinesReady
