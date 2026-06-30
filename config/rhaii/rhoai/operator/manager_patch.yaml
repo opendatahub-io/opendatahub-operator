@@ -57,9 +57,6 @@ spec:
           value: 'true'
         - name: RHAI_DISABLE_SETUPCONTROLLER_SERVICE
           value: 'true'
-        # Modules (disabled until Konflux onboarding is complete)
-        - name: RHAI_DISABLE_TRAINER_MODULE
-          value: 'true'
         - name: RHAI_APPLICATIONS_NAMESPACE
           value: redhat-ods-applications
         - name: RHAI_VERSION

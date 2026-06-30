@@ -90,9 +90,6 @@ spec:
             value: /opt/charts
           - name: ODH_PLATFORM_TYPE
             value: OpenDataHub
-          # Modules (disabled until Konflux onboarding is complete)
-          - name: RHAI_DISABLE_TRAINER_MODULE
-            value: 'true'
         args:
         - --leader-elect
         - --operator-name=opendatahub
