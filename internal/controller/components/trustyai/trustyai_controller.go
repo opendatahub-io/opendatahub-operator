@@ -29,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
@@ -98,7 +99,10 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				},
 			)),
 		).
-		WithPreCondition(precondition.MonitorCRD(gvk.InferenceServices, precondition.WithStopReconciliation())).
+		WithPreCondition(precondition.MonitorCRD(gvk.InferenceServices,
+			precondition.WithStopReconciliation(),
+			precondition.WithMessage(status.ISVCMissingCRDMessage),
+		)).
 		WithAction(precondition.RunlevelGateAction()).
 		WithAction(initialize).
 		WithAction(createConfigMap).
