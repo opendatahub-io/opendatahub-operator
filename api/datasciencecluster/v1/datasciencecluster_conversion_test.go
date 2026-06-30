@@ -256,8 +256,9 @@ func TestConvertTo_MigratesMaaSFromKserveToAIGateway(t *testing.T) {
 	// Verify AIGateway was enabled
 	g.Expect(v2DSC.Spec.Components.AIGateway.ManagementState).To(Equal(operatorv1.Managed))
 
-	// Verify original kserve.modelsAsService remains unchanged
-	g.Expect(v2DSC.Spec.Components.Kserve.ModelsAsService.ManagementState).To(Equal(operatorv1.Managed))
+	// Verify original kserve.modelsAsService is cleared after migration to aigateway
+	// Empty string is the zero value for ManagementState when creating an empty struct
+	g.Expect(v2DSC.Spec.Components.Kserve.ModelsAsService.ManagementState).To(Equal(operatorv1.ManagementState("")))
 }
 
 // TestConvertTo_MaaSNotEnabledInV1 verifies that when kserve.modelsAsService is
