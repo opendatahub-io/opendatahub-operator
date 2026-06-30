@@ -4,12 +4,12 @@ import (
 	"path"
 	"testing"
 
+	fwapi "github.com/opendatahub-io/operator-actions-framework/api"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/xid"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -145,7 +145,7 @@ func TestRenderResourcesAction(t *testing.T) {
 		rr := types.ReconciliationRequest{
 			Client:    cl,
 			Instance:  &componentApi.Dashboard{},
-			Release:   common.Release{Name: cluster.OpenDataHub},
+			Release:   fwapi.Release{Name: cluster.OpenDataHub},
 			Manifests: []types.ManifestInfo{{Path: id}},
 		}
 
@@ -244,7 +244,7 @@ func TestRenderResourcesWithCacheAction(t *testing.T) {
 		rr := types.ReconciliationRequest{
 			Client:    cl,
 			Instance:  &d,
-			Release:   common.Release{Name: cluster.OpenDataHub},
+			Release:   fwapi.Release{Name: cluster.OpenDataHub},
 			Manifests: []types.ManifestInfo{{Path: id}},
 		}
 

@@ -4,23 +4,20 @@ import (
 	"slices"
 	"time"
 
+	"github.com/opendatahub-io/operator-actions-framework/api"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 )
 
-func SetStatusCondition(a common.ConditionsAccessor, newCondition common.Condition) bool {
+func SetStatusCondition(a api.ConditionsAccessor, newCondition api.Condition) bool {
 	conditions := a.GetConditions()
 
-	// reset LastHeartbeatTime to ensure is not set in any condition that is
-	// eventually carrying it from an old implementation
 	newCondition.LastHeartbeatTime = nil
 
 	if newCondition.LastTransitionTime.IsZero() {
 		newCondition.LastTransitionTime = metav1.NewTime(time.Now())
 	}
 
-	idx := slices.IndexFunc(conditions, func(condition common.Condition) bool {
+	idx := slices.IndexFunc(conditions, func(condition api.Condition) bool {
 		return condition.Type == newCondition.Type
 	})
 
@@ -55,7 +52,7 @@ func SetStatusCondition(a common.ConditionsAccessor, newCondition common.Conditi
 	return true
 }
 
-func RemoveStatusCondition(a common.ConditionsAccessor, conditionType string) bool {
+func RemoveStatusCondition(a api.ConditionsAccessor, conditionType string) bool {
 	conditions := a.GetConditions()
 	l := len(conditions)
 
@@ -63,7 +60,7 @@ func RemoveStatusCondition(a common.ConditionsAccessor, conditionType string) bo
 		return false
 	}
 
-	conditions = slices.DeleteFunc(conditions, func(condition common.Condition) bool {
+	conditions = slices.DeleteFunc(conditions, func(condition api.Condition) bool {
 		return condition.Type == conditionType
 	})
 
@@ -75,7 +72,7 @@ func RemoveStatusCondition(a common.ConditionsAccessor, conditionType string) bo
 	return removed
 }
 
-func FindStatusCondition(a common.ConditionsAccessor, conditionType string) *common.Condition {
+func FindStatusCondition(a api.ConditionsAccessor, conditionType string) *api.Condition {
 	for _, c := range a.GetConditions() {
 		if c.Type == conditionType {
 			return c.DeepCopy()
@@ -85,27 +82,27 @@ func FindStatusCondition(a common.ConditionsAccessor, conditionType string) *com
 	return nil
 }
 
-func IsStatusConditionTrue(a common.ConditionsAccessor, conditionType string) bool {
+func IsStatusConditionTrue(a api.ConditionsAccessor, conditionType string) bool {
 	return IsStatusConditionPresentAndEqual(a, conditionType, metav1.ConditionTrue)
 }
 
-func IsStatusConditionFalse(a common.ConditionsAccessor, conditionType string) bool {
+func IsStatusConditionFalse(a api.ConditionsAccessor, conditionType string) bool {
 	return IsStatusConditionPresentAndEqual(a, conditionType, metav1.ConditionFalse)
 }
 
-func IsStatusConditionPresentAndEqual(a common.ConditionsAccessor, conditionType string, status metav1.ConditionStatus) bool {
-	return slices.ContainsFunc(a.GetConditions(), func(condition common.Condition) bool {
+func IsStatusConditionPresentAndEqual(a api.ConditionsAccessor, conditionType string, status metav1.ConditionStatus) bool {
+	return slices.ContainsFunc(a.GetConditions(), func(condition api.Condition) bool {
 		return condition.Type == conditionType && condition.Status == status
 	})
 }
 
-func applyOpts(c *common.Condition, opts ...Option) {
+func applyOpts(c *api.Condition, opts ...Option) {
 	for _, o := range opts {
 		o(c)
 	}
 }
 
-func equals(c1 common.Condition, c2 common.Condition) bool {
+func equals(c1 api.Condition, c2 api.Condition) bool {
 	return c1.Status == c2.Status &&
 		c1.Reason == c2.Reason &&
 		c1.Message == c2.Message &&

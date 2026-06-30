@@ -5,6 +5,7 @@ import (
 	"slices"
 	"testing"
 
+	fwapi "github.com/opendatahub-io/operator-actions-framework/api"
 	configv1 "github.com/openshift/api/config/v1"
 	userv1 "github.com/openshift/api/user/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -15,7 +16,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -276,7 +276,7 @@ func TestCreateDefaultGroupBasic(t *testing.T) {
 	// Test with a basic reconciliation request
 	rr := &odhtypes.ReconciliationRequest{
 		Client: fakeClient,
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: "test-platform",
 		},
 		Resources: []unstructured.Unstructured{},

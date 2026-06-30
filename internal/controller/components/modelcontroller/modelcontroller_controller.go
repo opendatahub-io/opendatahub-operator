@@ -102,26 +102,28 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			),
 		).
 		// preconditions
-		WithPreCondition(precondition.MonitorSubscriptions(
-			[]precondition.SubscriptionDependency{
-				{Name: CMAOperatorSubscription, DisplayName: "Custom Metrics Autoscaler"},
-			},
-			precondition.WithConditionType(LLMDWVADependencies),
-			precondition.WithClusterTypes(cluster.ClusterTypeOpenShift),
-			precondition.WithSeverity(common.ConditionSeverityInfo),
-			// Skip CMA subscription check unless both Kserve and WVA are managed
-			precondition.WithSkipFunc(func(_ context.Context, rr *odhtypes.ReconciliationRequest) (bool, error) {
-				mc, ok := rr.Instance.(*componentApi.ModelController)
-				if !ok {
-					return false, fmt.Errorf("expected *ModelController, got %T", rr.Instance)
-				}
-				if mc.Spec.Kserve == nil {
-					return true, nil
-				}
-				return mc.Spec.Kserve.ManagementState != operatorv1.Managed ||
-					mc.Spec.Kserve.WVA.ManagementState != operatorv1.Managed, nil
-			}),
-		)).
+		WithReconcilerOpts(reconciler.WithPreConditions([]precondition.PreCondition{
+			precondition.MonitorSubscriptions(
+				[]precondition.SubscriptionDependency{
+					{Name: CMAOperatorSubscription, DisplayName: "Custom Metrics Autoscaler"},
+				},
+				precondition.WithConditionType(LLMDWVADependencies),
+				precondition.WithClusterTypes(cluster.ClusterTypeOpenShift),
+				precondition.WithSeverity(common.ConditionSeverityInfo),
+				// Skip CMA subscription check unless both Kserve and WVA are managed
+				precondition.WithSkipFunc(func(_ context.Context, rr *odhtypes.ReconciliationRequest) (bool, error) {
+					mc, ok := rr.Instance.(*componentApi.ModelController)
+					if !ok {
+						return false, fmt.Errorf("expected *ModelController, got %T", rr.Instance)
+					}
+					if mc.Spec.Kserve == nil {
+						return true, nil
+					}
+					return mc.Spec.Kserve.ManagementState != operatorv1.Managed ||
+						mc.Spec.Kserve.WVA.ManagementState != operatorv1.Managed, nil
+				}),
+			),
+		})).
 		// actions
 		WithAction(precondition.RunlevelGateAction()).
 		WithAction(initialize).

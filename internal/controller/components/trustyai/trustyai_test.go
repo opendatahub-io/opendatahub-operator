@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	gt "github.com/onsi/gomega/types"
+	fwapi "github.com/opendatahub-io/operator-actions-framework/api"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -378,7 +379,7 @@ func TestInitializeWithMCPGuardrailsMode(t *testing.T) {
 		trustyai := createTrustyAICRWithMCPGuardrailsMode(true)
 		rr := &odhtypes.ReconciliationRequest{
 			Instance: trustyai,
-			Release:  common.Release{Name: cluster.OpenDataHub},
+			Release:  fwapi.Release{Name: cluster.OpenDataHub},
 		}
 		err := initialize(context.Background(), rr)
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -391,7 +392,7 @@ func TestInitializeWithMCPGuardrailsMode(t *testing.T) {
 		trustyai := createTrustyAICRWithMCPGuardrailsMode(false)
 		rr := &odhtypes.ReconciliationRequest{
 			Instance: trustyai,
-			Release:  common.Release{Name: cluster.OpenDataHub},
+			Release:  fwapi.Release{Name: cluster.OpenDataHub},
 		}
 		err := initialize(context.Background(), rr)
 		g.Expect(err).ShouldNot(HaveOccurred())

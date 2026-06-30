@@ -5,13 +5,12 @@ import (
 
 	"github.com/blang/semver/v4"
 	helm "github.com/k8s-manifest-kit/renderer-helm/pkg"
-	"github.com/operator-framework/api/pkg/lib/version"
+	fwapi "github.com/opendatahub-io/operator-actions-framework/api"
 	"github.com/rs/xid"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -136,9 +135,9 @@ func TestHash_HelmChartValuesIsDeterministic(t *testing.T) {
 	makeRR := func() *types.ReconciliationRequest {
 		return &types.ReconciliationRequest{
 			Instance: instance,
-			Release: common.Release{
+			Release: fwapi.Release{
 				Name:    "r",
-				Version: version.OperatorVersion{Version: semver.Version{Major: 1}},
+				Version: semver.Version{Major: 1},
 			},
 			HelmCharts: []types.HelmChartInfo{{
 				Source: helm.Source{
@@ -185,11 +184,9 @@ func TestHash_WithNilDSCI(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: instance,
-		Release: common.Release{
-			Name: "test-release",
-			Version: version.OperatorVersion{
-				Version: semver.Version{Major: 2, Minor: 0, Patch: 0},
-			},
+		Release: fwapi.Release{
+			Name:    "test-release",
+			Version: semver.Version{Major: 2, Minor: 0, Patch: 0},
 		},
 	}
 

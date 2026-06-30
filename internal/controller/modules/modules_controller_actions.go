@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/operator-framework/api/pkg/lib/version"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,7 +41,10 @@ func checkUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest) e
 		return nil
 	}
 
-	return provision.CheckUpgradeGates(ctx, rr.Client, rr.Release, rr.Conditions, rr.GateEntries)
+	return provision.CheckUpgradeGates(ctx, rr.Client, common.Release{
+		Name:    rr.Release.Name,
+		Version: version.OperatorVersion{Version: rr.Release.Version},
+	}, rr.Conditions, rr.GateEntries)
 }
 
 // initializeModules fetches DSCI once per reconcile and stores it on the
@@ -57,13 +61,13 @@ func initializeModules(ctx context.Context, rr *odhtype.ReconciliationRequest) e
 	dsci, err := cluster.GetDSCI(ctx, rr.Client)
 	if err != nil {
 		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
-			rr.DSCI = nil
+			odhtype.SetDSCI(rr, nil)
 			return nil
 		}
 		return fmt.Errorf("failed to get DSCI for module reconciler: %w", err)
 	}
 
-	rr.DSCI = dsci
+	odhtype.SetDSCI(rr, dsci)
 
 	return nil
 }
@@ -88,7 +92,7 @@ func platformFromInstance(rr *odhtype.ReconciliationRequest) *configv1alpha1.Pla
 
 // dsciOrNil returns the DSCI from the reconcile request, or nil if absent.
 func dsciOrNil(rr *odhtype.ReconciliationRequest) *dsciv2.DSCInitialization {
-	return rr.DSCI
+	return odhtype.GetDSCI(rr)
 }
 
 // enableModulesFromPlatform reads spec.modules from the Platform CR and
@@ -120,12 +124,15 @@ func buildPlatformContext(ctx context.Context, rr *odhtype.ReconciliationRequest
 
 	return &PlatformContext{
 		ApplicationsNamespace: appNS,
-		Release:               rr.Release,
-		DSC:                   dscFromInstance(rr),
-		DSCI:                  dsciOrNil(rr),
-		Platform:              platformFromInstance(rr),
-		ChartsBasePath:        rr.ChartsBasePath,
-		ManifestsBasePath:     rr.ManifestsBasePath,
+		Release: common.Release{
+			Name:    rr.Release.Name,
+			Version: version.OperatorVersion{Version: rr.Release.Version},
+		},
+		DSC:               dscFromInstance(rr),
+		DSCI:              dsciOrNil(rr),
+		Platform:          platformFromInstance(rr),
+		ChartsBasePath:    rr.ChartsBasePath,
+		ManifestsBasePath: rr.ManifestsBasePath,
 	}, nil
 }
 
@@ -327,10 +334,10 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 	}
 
 	if len(perModuleImages) > 0 || platformCtx.ApplicationsNamespace != "" {
-		rr.ModuleEnvInjection = &odhtype.ModuleEnvInjection{
+		odhtype.SetModuleEnvInjection(rr, &odhtype.ModuleEnvInjection{
 			PerModuleImages:       perModuleImages,
 			ApplicationsNamespace: platformCtx.ApplicationsNamespace,
-		}
+		})
 	}
 
 	return nil

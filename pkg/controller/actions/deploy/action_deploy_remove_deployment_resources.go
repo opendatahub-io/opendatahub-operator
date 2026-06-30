@@ -1,46 +1,7 @@
 package deploy
 
 import (
-	"errors"
-
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	fwdeploy "github.com/opendatahub-io/operator-actions-framework/controller/actions/deploy"
 )
 
-func RemoveDeploymentsResources(obj *unstructured.Unstructured) error {
-	containersPath := []string{"spec", "template", "spec", "containers"}
-	replicasPath := []string{"spec", "replicas"}
-
-	//
-	// Resources
-	//
-
-	sc, ok, err := unstructured.NestedFieldNoCopy(obj.Object, containersPath...)
-	if err != nil && ok {
-		return err
-	}
-
-	var sourceContainers []any
-	if sc != nil {
-		sourceContainers, ok = sc.([]any)
-		if !ok {
-			return errors.New("field is not a slice")
-		}
-	}
-
-	for i := range sourceContainers {
-		m, ok := sourceContainers[i].(map[string]any)
-		if !ok {
-			return errors.New("field is not a map")
-		}
-
-		delete(m, "resources")
-	}
-
-	//
-	// Replicas
-	//
-
-	unstructured.RemoveNestedField(obj.Object, replicasPath...)
-
-	return nil
-}
+var RemoveDeploymentsResources = fwdeploy.RemoveDeploymentsResources

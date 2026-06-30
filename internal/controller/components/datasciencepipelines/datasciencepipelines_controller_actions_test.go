@@ -6,6 +6,7 @@ import (
 	"path"
 	"testing"
 
+	fwapi "github.com/opendatahub-io/operator-actions-framework/api"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -373,7 +374,7 @@ func TestArgoWorkflowsControllersOptions(t *testing.T) {
 				Client:            cli,
 				Instance:          tt.instance,
 				Conditions:        conditions.NewManager(tt.instance, "Ready"),
-				Release:           common.Release{Name: cluster.OpenDataHub},
+				Release:           fwapi.Release{Name: cluster.OpenDataHub},
 				ManifestsBasePath: tmpDir,
 			}
 

@@ -1,5 +1,9 @@
 package annotations
 
+import (
+	fwmeta "github.com/opendatahub-io/operator-actions-framework/metadata"
+)
+
 // ManagedByODHOperator is used to denote if a resource/component should be reconciled - when true, reconcile.
 const ManagedByODHOperator = "opendatahub.io/managed"
 
@@ -18,11 +22,11 @@ const (
 const ManagementStateAnnotation = "component.opendatahub.io/management-state"
 
 const (
-	SuffixVersion            = "/version"
-	SuffixType               = "/type"
-	SuffixInstanceGeneration = "/instance.generation"
-	SuffixInstanceName       = "/instance.name"
-	SuffixInstanceUID        = "/instance.uid"
+	SuffixVersion            = fwmeta.SuffixVersion
+	SuffixType               = fwmeta.SuffixType
+	SuffixInstanceGeneration = fwmeta.SuffixInstanceGeneration
+	SuffixInstanceName       = fwmeta.SuffixInstanceName
+	SuffixInstanceUID        = fwmeta.SuffixInstanceUID
 )
 
 const (

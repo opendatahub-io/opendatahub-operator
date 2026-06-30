@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/onsi/gomega/gstruct"
+	fwapi "github.com/opendatahub-io/operator-actions-framework/api"
 	imagev1 "github.com/openshift/api/image/v1"
 	"github.com/rs/xid"
 	corev1 "k8s.io/api/core/v1"
@@ -16,7 +17,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -67,7 +67,7 @@ func TestImageStreamsNoImageStreams(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: &componentApi.Workbenches{},
-		Release:  common.Release{Name: cluster.OpenDataHub},
+		Release:  fwapi.Release{Name: cluster.OpenDataHub},
 	}
 	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
 
@@ -118,7 +118,7 @@ func TestImageStreamsNoMatchErrorVanillaK8s(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: &componentApi.Workbenches{},
-		Release:  common.Release{Name: cluster.OpenDataHub},
+		Release:  fwapi.Release{Name: cluster.OpenDataHub},
 	}
 	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
 
@@ -152,7 +152,7 @@ func TestImageStreamsAllHealthy(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: &componentApi.Workbenches{},
-		Release:  common.Release{Name: cluster.OpenDataHub},
+		Release:  fwapi.Release{Name: cluster.OpenDataHub},
 	}
 	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
 
@@ -194,7 +194,7 @@ func TestImageStreamsAllFailed(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: &componentApi.Workbenches{},
-		Release:  common.Release{Name: cluster.OpenDataHub},
+		Release:  fwapi.Release{Name: cluster.OpenDataHub},
 	}
 	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
 
@@ -242,7 +242,7 @@ func TestImageStreamsMixedHealth(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: &componentApi.Workbenches{},
-		Release:  common.Release{Name: cluster.OpenDataHub},
+		Release:  fwapi.Release{Name: cluster.OpenDataHub},
 	}
 	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
 
@@ -282,7 +282,7 @@ func TestImageStreamsFreshDeploy(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: &componentApi.Workbenches{},
-		Release:  common.Release{Name: cluster.OpenDataHub},
+		Release:  fwapi.Release{Name: cluster.OpenDataHub},
 	}
 	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
 
@@ -324,7 +324,7 @@ func TestImageStreamsImportSuccessTrue(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: &componentApi.Workbenches{},
-		Release:  common.Release{Name: cluster.OpenDataHub},
+		Release:  fwapi.Release{Name: cluster.OpenDataHub},
 	}
 	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
 
@@ -366,7 +366,7 @@ func TestImageStreamsMultipleImageStreams(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: &componentApi.Workbenches{},
-		Release:  common.Release{Name: cluster.OpenDataHub},
+		Release:  fwapi.Release{Name: cluster.OpenDataHub},
 	}
 	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
 
@@ -407,7 +407,7 @@ func TestImageStreamsIgnoresDifferentLabels(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: &componentApi.Workbenches{},
-		Release:  common.Release{Name: cluster.OpenDataHub},
+		Release:  fwapi.Release{Name: cluster.OpenDataHub},
 	}
 	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
 
@@ -459,7 +459,7 @@ func TestImageStreamsInNamespace(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: &componentApi.Workbenches{},
-		Release:  common.Release{Name: cluster.OpenDataHub},
+		Release:  fwapi.Release{Name: cluster.OpenDataHub},
 	}
 	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
 
@@ -500,7 +500,7 @@ func TestImageStreamsMessageTruncation(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: &componentApi.Workbenches{},
-		Release:  common.Release{Name: cluster.OpenDataHub},
+		Release:  fwapi.Release{Name: cluster.OpenDataHub},
 	}
 	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
 
@@ -545,7 +545,7 @@ func TestImageStreamsMaxFailedTagsCap(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: &componentApi.Workbenches{},
-		Release:  common.Release{Name: cluster.OpenDataHub},
+		Release:  fwapi.Release{Name: cluster.OpenDataHub},
 	}
 	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
 

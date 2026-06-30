@@ -48,6 +48,8 @@ COPY pkg/clusterhealth/go.mod pkg/clusterhealth/go.mod
 COPY pkg/clusterhealth/go.sum pkg/clusterhealth/go.sum
 COPY pkg/failureclassifier/go.mod pkg/failureclassifier/go.mod
 COPY pkg/failureclassifier/go.sum pkg/failureclassifier/go.sum
+COPY operator-actions-framework/go.mod operator-actions-framework/go.mod
+COPY operator-actions-framework/go.sum operator-actions-framework/go.sum
 # cache deps before building and copying source so that we don't need to re-download as much
 # and so that source changes don't invalidate our downloaded layer
 RUN go mod download
@@ -58,6 +60,7 @@ COPY internal/ internal/
 COPY cmd/main.go cmd/main.go
 COPY cmd/cloudmanager/ cmd/cloudmanager/
 COPY pkg/ pkg/
+COPY operator-actions-framework/ operator-actions-framework/
 
 # Build stripe out debug info to minimize binary size
 RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go build -a -ldflags="-s -w" -tags strictfipsruntime -o manager cmd/main.go

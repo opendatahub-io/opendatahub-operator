@@ -73,11 +73,13 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				),
 			),
 			reconciler.Dynamic(reconciler.CrdExists(gvk.JobSetOperatorV1))).
-		WithPreCondition(precondition.Custom(checkPreConditions, precondition.WithStopReconciliation())).
-		WithPreCondition(precondition.MonitorOperator(precondition.OperatorConfig{
-			OperatorGVK: gvk.JobSetOperatorV1,
-			CRName:      jobSetOperatorCRName,
-			Filter:      jobSetConditionFilter,
+		WithReconcilerOpts(reconciler.WithPreConditions([]precondition.PreCondition{
+			precondition.Custom(checkPreConditions, precondition.WithStopReconciliation()),
+			precondition.MonitorOperator(precondition.OperatorConfig{
+				OperatorGVK: gvk.JobSetOperatorV1,
+				CRName:      jobSetOperatorCRName,
+				Filter:      jobSetConditionFilter,
+			}),
 		})).
 		WithAction(precondition.RunlevelGateAction()).
 		WithAction(initialize).

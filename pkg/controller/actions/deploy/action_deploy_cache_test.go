@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/blang/semver/v4"
-	"github.com/operator-framework/api/pkg/lib/version"
+	fwapi "github.com/opendatahub-io/operator-actions-framework/api"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/mock"
@@ -20,7 +20,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -149,11 +148,11 @@ func testResourceNotReDeployed(t *testing.T, cli client.Client, obj client.Objec
 				Generation: 1,
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{Version: semver.Version{
+			Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
-			}}},
+			}},
 		Resources: []unstructured.Unstructured{
 			*in.DeepCopy(),
 		},
@@ -222,11 +221,11 @@ func testCacheTTL(t *testing.T, cli client.Client, obj client.Object) {
 				Generation: 1,
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{Version: semver.Version{
+			Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
-			}}},
+			}},
 		Resources: []unstructured.Unstructured{
 			*in.DeepCopy(),
 		},
@@ -283,11 +282,11 @@ func testDeletionTimestampHandling(t *testing.T, cli client.Client, obj client.O
 				Generation: 1,
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{Version: semver.Version{
+			Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
-			}}},
+			}},
 		Resources: []unstructured.Unstructured{
 			*in.DeepCopy(),
 		},

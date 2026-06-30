@@ -28,7 +28,7 @@ const applicationsNamespaceEnv = "APPLICATIONS_NAMESPACE"
 // The injection data is read from rr.ModuleEnvInjection (set by provisionModules).
 // If nil, this action is a no-op.
 func injectModuleEnv(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	if rr.ModuleEnvInjection == nil {
+	if odhtype.GetModuleEnvInjection(rr) == nil {
 		return nil
 	}
 
@@ -39,7 +39,7 @@ func injectModuleEnv(ctx context.Context, rr *odhtype.ReconciliationRequest) err
 			continue
 		}
 
-		if err := injectEnvVarsIntoDeployment(log, &rr.Resources[i], rr.ModuleEnvInjection); err != nil {
+		if err := injectEnvVarsIntoDeployment(log, &rr.Resources[i], odhtype.GetModuleEnvInjection(rr)); err != nil {
 			log.Error(err, "failed to inject env vars into Deployment",
 				"name", rr.Resources[i].GetName(),
 				"namespace", rr.Resources[i].GetNamespace(),

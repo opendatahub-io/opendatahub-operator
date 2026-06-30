@@ -16,6 +16,8 @@ COPY pkg/clusterhealth/go.mod pkg/clusterhealth/go.mod
 COPY pkg/clusterhealth/go.sum pkg/clusterhealth/go.sum
 COPY pkg/failureclassifier/go.mod pkg/failureclassifier/go.mod
 COPY pkg/failureclassifier/go.sum pkg/failureclassifier/go.sum
+COPY operator-actions-framework/go.mod operator-actions-framework/go.mod
+COPY operator-actions-framework/go.sum operator-actions-framework/go.sum
 # cache deps before building and copying source so that we don't need to re-download as much
 # and so that source changes don't invalidate our downloaded layer
 RUN go mod download
@@ -31,6 +33,7 @@ COPY api/ api/
 COPY internal/ internal/
 COPY cmd/main.go cmd/main.go
 COPY pkg/ pkg/
+COPY operator-actions-framework/ operator-actions-framework/
 
 # Copy other source artifacts
 # tests is needed because we have references to tests packages outside of tests

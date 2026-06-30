@@ -11,7 +11,7 @@ import (
 
 	"github.com/blang/semver/v4"
 	gTypes "github.com/onsi/gomega/types"
-	"github.com/operator-framework/api/pkg/lib/version"
+	fwapi "github.com/opendatahub-io/operator-actions-framework/api"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/mock"
@@ -27,7 +27,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -191,11 +190,9 @@ func TestGcAction(t *testing.T) {
 						Name: componentApi.DashboardInstanceName,
 					},
 				},
-				Release: common.Release{
-					Name: cluster.OpenDataHub,
-					Version: version.OperatorVersion{
-						Version: tt.version,
-					},
+				Release: fwapi.Release{
+					Name:    cluster.OpenDataHub,
+					Version: tt.version,
 				},
 				Generated: tt.generated,
 				Controller: mocks.NewMockController(func(m *mocks.MockController) {
@@ -400,11 +397,9 @@ func TestGcActionOwn(t *testing.T) {
 						Name: componentApi.DashboardInstanceName,
 					},
 				},
-				Release: common.Release{
-					Name: cluster.OpenDataHub,
-					Version: version.OperatorVersion{
-						Version: semver.Version{Major: 0, Minor: 0, Patch: 1},
-					},
+				Release: fwapi.Release{
+					Name:    cluster.OpenDataHub,
+					Version: semver.Version{Major: 0, Minor: 0, Patch: 1},
 				},
 				Generated: true,
 				Controller: mocks.NewMockController(func(m *mocks.MockController) {
@@ -500,11 +495,9 @@ func TestGcActionCluster(t *testing.T) {
 				Name: componentApi.DashboardInstanceName,
 			},
 		},
-		Release: common.Release{
-			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{
-				Version: semver.Version{Major: 0, Minor: 2, Patch: 0},
-			},
+		Release: fwapi.Release{
+			Name:    cluster.OpenDataHub,
+			Version: semver.Version{Major: 0, Minor: 2, Patch: 0},
 		},
 		Generated: true,
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
@@ -642,11 +635,9 @@ func TestGcActionWithPartOfLabel(t *testing.T) {
 				Name: componentApi.DashboardInstanceName,
 			},
 		},
-		Release: common.Release{
-			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{
-				Version: semver.Version{Major: 0, Minor: 1, Patch: 0},
-			},
+		Release: fwapi.Release{
+			Name:    cluster.OpenDataHub,
+			Version: semver.Version{Major: 0, Minor: 1, Patch: 0},
 		},
 		Generated: true,
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
@@ -762,11 +753,9 @@ func TestGcActionOnce(t *testing.T) {
 				Name: componentApi.DashboardInstanceName,
 			},
 		},
-		Release: common.Release{
-			Name: cluster.OpenDataHub,
-			Version: version.OperatorVersion{
-				Version: semver.Version{Major: 0, Minor: 2, Patch: 0},
-			},
+		Release: fwapi.Release{
+			Name:    cluster.OpenDataHub,
+			Version: semver.Version{Major: 0, Minor: 2, Patch: 0},
 		},
 		Generated: true,
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {

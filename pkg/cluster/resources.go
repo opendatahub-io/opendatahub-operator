@@ -7,14 +7,11 @@ import (
 	"reflect"
 	"time"
 
+	fwcluster "github.com/opendatahub-io/operator-actions-framework/cluster"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apiextensions-apiserver/pkg/apihelpers"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -371,95 +368,10 @@ func CreateWithRetry(ctx context.Context, cli client.Client, obj client.Object) 
 	})
 }
 
-func GetCRD(ctx context.Context, cli client.Client, name string) (apiextensionsv1.CustomResourceDefinition, error) {
-	obj := apiextensionsv1.CustomResourceDefinition{}
-	err := cli.Get(ctx, client.ObjectKey{Name: name}, &obj)
-	if err != nil {
-		return obj, err
-	}
-
-	return obj, nil
-}
-
-func HasCRD(ctx context.Context, cli client.Client, gvk schema.GroupVersionKind) (bool, error) {
-	return HasCRDWithVersion(ctx, cli, gvk.GroupKind(), gvk.Version)
-}
-
-// IsAPIAvailable reports whether the given GVK is registered in the cluster's REST API,
-// by querying the RESTMapper (discovery cache).
-//
-// Unlike HasCRD, this works for both custom resources and built-in Kubernetes types
-// (ConfigMap, Deployment, etc.), but it does not verify whether a CRD object actually
-// exists, is terminating, or has the requested version stored. The RESTMapper cache
-// will lag behind recent CRD deletions, as cache is only updated on cache miss.
-//
-// Prefer HasCRD when reacting to CRD lifecycle events (install, upgrade, deletion).
-// Use this function for stable, well-established resource types where a lightweight
-// API presence check is sufficient.
-//
-// Returns:
-//   - (true, nil) if the API is available
-//   - (false, nil) if the API is not available (no matching resource type found)
-//   - (false, error) if there was a transient error (e.g., discovery or RBAC failure)
-func IsAPIAvailable(cli client.Client, gvk schema.GroupVersionKind) (bool, error) {
-	_, err := cli.RESTMapper().RESTMapping(gvk.GroupKind(), gvk.Version)
-	if err != nil {
-		if meta.IsNoMatchError(err) {
-			return false, nil
-		}
-		return false, err
-	}
-	return true, nil
-}
-
-// HasCRDWithVersion checks if a CustomResourceDefinition (CRD) exists with the specified version.
-// It verifies the CRD's existence via the RESTMapper (which only resolves served versions),
-// fetches the CRD object to confirm it hasn't been deleted, and checks if the CRD is under deletion.
-//
-// This function intentionally does not check Status.StoredVersions, as that field reflects
-// which API versions have objects persisted in etcd — an internal detail that does not
-// determine whether a version is usable. A CRD can serve a version without having any
-// objects stored in it, and conversely may have removed a version from StoredVersions
-// after a storage migration while still serving it.
-//
-// Parameters:
-//   - ctx: The context for the request.
-//   - cli: A controller-runtime client to interact with the Kubernetes API.
-//   - gk: The GroupKind of the CRD to look up.
-//   - version: The specific version to check for within the CRD.
-//
-// Returns:
-//   - (true, nil) if the CRD with the specified version exists and is not terminating.
-//   - (false, nil) if the CRD does not exist, the version is not served, or the CRD is terminating.
-//   - (false, error) if there was an error fetching the CRD.
-func HasCRDWithVersion(ctx context.Context, cli client.Client, gk schema.GroupKind, version string) (bool, error) {
-	m, err := cli.RESTMapper().RESTMapping(gk, version)
-	if err != nil {
-		if meta.IsNoMatchError(err) {
-			return false, nil
-		}
-
-		return false, err
-	}
-
-	crd, err := GetCRD(ctx, cli, m.Resource.GroupResource().String())
-	switch {
-	case err != nil:
-		return false, client.IgnoreNotFound(err)
-	case apihelpers.IsCRDConditionTrue(&crd, apiextensionsv1.Terminating):
-		return false, nil
-	default:
-		return true, nil
-	}
-}
-
-func ListGVK(ctx context.Context, cli client.Client, gvk schema.GroupVersionKind, listOptions ...client.ListOption) ([]unstructured.Unstructured, error) {
-	resources := unstructured.UnstructuredList{}
-	resources.SetAPIVersion(gvk.GroupVersion().String())
-	resources.SetKind(gvk.Kind)
-
-	if err := cli.List(ctx, &resources, listOptions...); err != nil {
-		return nil, fmt.Errorf("failed to list resources of type %s: %w", gvk, err)
-	}
-	return resources.Items, nil
-}
+var (
+	GetCRD            = fwcluster.GetCRD
+	HasCRD            = fwcluster.HasCRD
+	IsAPIAvailable    = fwcluster.IsAPIAvailable
+	HasCRDWithVersion = fwcluster.HasCRDWithVersion
+	ListGVK           = fwcluster.ListGVK
+)

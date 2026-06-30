@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/blang/semver/v4"
-	"github.com/operator-framework/api/pkg/lib/version"
+	fwapi "github.com/opendatahub-io/operator-actions-framework/api"
 	"github.com/stretchr/testify/mock"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -14,7 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -374,12 +373,11 @@ func TestCertManagerDependencyOrderingIntegration(t *testing.T) {
 		rr := controllerTypes.ReconciliationRequest{
 			Client:   envTest.Client(),
 			Instance: &componentApi.Dashboard{ObjectMeta: metav1.ObjectMeta{Generation: 1}},
-			Release: common.Release{
+			Release: fwapi.Release{
 				Name: cluster.OpenDataHub,
-				Version: version.OperatorVersion{Version: semver.Version{
+				Version: semver.Version{
 					Major: 1, Minor: 2, Patch: 3,
 				}},
-			},
 			Resources: testResources,
 			Controller: mocks.NewMockController(func(m *mocks.MockController) {
 				m.On("Owns", mock.Anything).Return(false)

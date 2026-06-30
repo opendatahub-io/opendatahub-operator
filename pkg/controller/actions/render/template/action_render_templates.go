@@ -1,186 +1,45 @@
 package template
 
 import (
-	"bytes"
 	"context"
-	"fmt"
-	"maps"
-	gt "text/template"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
+	fwtmpl "github.com/opendatahub-io/operator-actions-framework/controller/actions/render/template"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/resourcecacher"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	templateutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/template"
 )
 
 const (
-	rendererEngine  = "template"
-	ComponentKey    = "Component"
-	AppNamespaceKey = "AppNamespace"
+	ComponentKey    = fwtmpl.ComponentKey
+	AppNamespaceKey = fwtmpl.AppNamespaceKey
 )
 
-// Action takes a set of template locations and render them as Unstructured resources for
-// further processing. The Action can eventually cache the results in memory to avoid doing
-// a full manifest rendering when not needed.
-type Action struct {
-	cacher resourcecacher.ResourceCacher
-	cache  bool
+type Action = fwtmpl.Action
 
-	data   map[string]any
-	dataFn []func(context.Context, *types.ReconciliationRequest) (map[string]any, error)
+type ActionOpts = fwtmpl.ActionOpts
 
-	labels      map[string]string
-	annotations map[string]string
-}
+var (
+	WithCache       = fwtmpl.WithCache
+	WithData        = fwtmpl.WithData
+	WithDataFn      = fwtmpl.WithDataFn
+	WithNamespaceFn = fwtmpl.WithNamespaceFn
+	WithFuncMap     = fwtmpl.WithFuncMap
+	WithLabel       = fwtmpl.WithLabel
+	WithLabels      = fwtmpl.WithLabels
+	WithAnnotation  = fwtmpl.WithAnnotation
+	WithAnnotations = fwtmpl.WithAnnotations
+)
 
-type ActionOpts func(*Action)
-
-func WithCache(enabled bool) ActionOpts {
-	return func(action *Action) {
-		action.cache = enabled
-	}
-}
-
-func WithData(data map[string]any) ActionOpts {
-	return func(action *Action) {
-		maps.Copy(action.data, data)
-	}
-}
-
-func WithDataFn(fns ...func(context.Context, *types.ReconciliationRequest) (map[string]any, error)) ActionOpts {
-	return func(action *Action) {
-		action.dataFn = append(action.dataFn, fns...)
-	}
-}
-
-func WithLabel(name string, value string) ActionOpts {
-	return func(a *Action) {
-		a.labels[name] = value
-	}
-}
-
-func WithLabels(values map[string]string) ActionOpts {
-	return func(a *Action) {
-		maps.Copy(a.labels, values)
-	}
-}
-
-func WithAnnotation(name string, value string) ActionOpts {
-	return func(a *Action) {
-		a.annotations[name] = value
-	}
-}
-
-func WithAnnotations(values map[string]string) ActionOpts {
-	return func(a *Action) {
-		maps.Copy(a.annotations, values)
-	}
-}
-
-func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error {
-	if rr.SkipDeploy {
-		return nil
-	}
-
-	return a.cacher.Render(ctx, rr, a.render)
-}
-
-func (a *Action) decode(decoder runtime.Decoder, data []byte, info types.TemplateInfo) ([]unstructured.Unstructured, error) {
-	u, err := resources.Decode(decoder, data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode template: %w", err)
-	}
-
-	for i := range u {
-		resources.SetLabels(&u[i], a.labels)
-		resources.SetAnnotations(&u[i], a.annotations)
-
-		resources.SetLabels(&u[i], info.Labels)
-		resources.SetAnnotations(&u[i], info.Annotations)
-	}
-
-	return u, err
-}
-
-func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) (resources.UnstructuredList, error) {
-	// Early return if no templates to render
-	if len(rr.Templates) == 0 {
-		return nil, nil
-	}
-
-	decoder := serializer.NewCodecFactory(rr.Client.Scheme()).UniversalDeserializer()
-
-	data := maps.Clone(a.data)
-
-	for _, fn := range a.dataFn {
-		values, err := fn(ctx, rr)
-		if err != nil {
-			return nil, fmt.Errorf("unable to compute template data: %w", err)
-		}
-
-		maps.Copy(data, values)
-	}
-
-	data[ComponentKey] = rr.Instance
-
-	// Fetch application namespace from DSCI.
-	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
-	if err != nil {
-		return nil, err
-	}
-	data[AppNamespaceKey] = appNamespace
-
-	result := make(resources.UnstructuredList, 0)
-
-	var buffer bytes.Buffer
-
-	for i := range rr.Templates {
-		tmpl, err := gt.New("").Option("missingkey=error").Funcs(templateutils.TextTemplateFuncMap()).ParseFS(rr.Templates[i].FS, rr.Templates[i].Path)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse template from: %w", err)
-		}
-
-		for _, t := range tmpl.Templates() {
-			buffer.Reset()
-			err = t.Execute(&buffer, data)
-			if err != nil {
-				return nil, fmt.Errorf("failed to execute template: %w", err)
-			}
-
-			u, err := a.decode(decoder, buffer.Bytes(), rr.Templates[i])
-			if err != nil {
-				return nil, fmt.Errorf("failed to decode template: %w", err)
-			}
-
-			result = append(result, u...)
-		}
-	}
-
-	return result, nil
-}
-
+// NewAction creates a new template render action with ODH defaults
+// (ApplicationNamespace and TextTemplateFuncMap).
 func NewAction(opts ...ActionOpts) actions.Fn {
-	action := Action{
-		data:        make(map[string]any),
-		cacher:      resourcecacher.NewResourceCacher(rendererEngine),
-		cache:       true,
-		labels:      make(map[string]string),
-		annotations: make(map[string]string),
+	defaults := []ActionOpts{
+		fwtmpl.WithNamespaceFn(func(ctx context.Context, rr *types.ReconciliationRequest) (string, error) {
+			return cluster.ApplicationNamespace(ctx, rr.Client)
+		}),
+		fwtmpl.WithFuncMap(templateutils.TextTemplateFuncMap()),
 	}
-
-	for _, opt := range opts {
-		opt(&action)
-	}
-
-	if action.cache {
-		action.cacher.SetKeyFn(types.Hash)
-	}
-
-	return action.run
+	return fwtmpl.NewAction(append(defaults, opts...)...)
 }
