@@ -93,7 +93,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ray"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/sparkoperator"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainer"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainingoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trustyai"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/workbenches"
@@ -101,6 +100,7 @@ import (
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	aigatewayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
+	trainerModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/trainer"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
@@ -148,7 +148,6 @@ var (
 		componentApi.ModelsAsServiceComponentName:      modelsasservice.NewHandler(),
 		componentApi.RayComponentName:                  ray.NewHandler(),
 		componentApi.SparkOperatorComponentName:        sparkoperator.NewHandler(),
-		componentApi.TrainerComponentName:              trainer.NewHandler(),
 		componentApi.TrainingOperatorComponentName:     trainingoperator.NewHandler(),
 		componentApi.TrustyAIComponentName:             trustyai.NewHandler(),
 		componentApi.WorkbenchesComponentName:          workbenches.NewHandler(),
@@ -194,10 +193,12 @@ var (
 	existingModules = map[string]mr.ModuleHandler{
 		// serviceApi.MonitoringServiceName: monitoringModule.NewHandler(),
 		componentApi.AIGatewayComponentName: aigatewayModule.NewHandler(),
+		componentApi.TrainerComponentName:   trainerModule.NewHandler(),
 	}
 
 	moduleRunlevels = map[string]dag.Runlevel{
 		componentApi.AIGatewayComponentName: dag.RL(20),
+		componentApi.TrainerComponentName:   dag.RL(20),
 	}
 )
 
