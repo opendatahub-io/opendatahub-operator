@@ -17,7 +17,6 @@ limitations under the License.
 package v1
 
 import (
-	"fmt"
 	"strings"
 
 	operatorv1 "github.com/openshift/api/operator/v1"

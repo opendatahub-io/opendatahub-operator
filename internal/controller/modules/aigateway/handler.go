@@ -6,15 +6,22 @@ import (
 	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 )
 
 const (
@@ -49,19 +56,31 @@ var (
 	}
 
 	// relatedImages are the operand images the ai-gateway-operator passes to
-	// the sub-module (batch-gateway-operator) deployments it creates; injected as
-	// RELATED_IMAGE_* env vars on the ai-g ateway-operator container.
-	// TODO: append more for maas images.
+	// the sub-module (batch-gateway-operator, maas-controller) deployments it creates;
+	// injected as RELATED_IMAGE_* env vars on the ai-gateway-operator container.
 	relatedImages = []string{
+		// Batch Gateway images
 		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_OPERATOR_IMAGE",
 		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_APISERVER_IMAGE",
 		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_PROCESSOR_IMAGE",
 		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_GC_IMAGE",
+		// MaaS images (commented out until onboarded to build configs - RHOAIENG-66857)
+		// "RELATED_IMAGE_ODH_MAAS_CONTROLLER_IMAGE",
+		// "RELATED_IMAGE_ODH_MAAS_API_IMAGE",
+		// "RELATED_IMAGE_ODH_AI_GATEWAY_PAYLOAD_PROCESSING_IMAGE",
+		// "RELATED_IMAGE_UBI_MINIMAL_IMAGE",
 	}
 )
 
+// handler implements ModuleHandler for AIGateway.
 type handler struct {
 	modules.BaseHandler
+}
+
+// componentHandler implements ComponentHandler for AIGateway status reporting.
+// It wraps the module handler to provide component registry methods.
+type componentHandler struct {
+	*handler
 }
 
 func NewHandler() *handler {
@@ -81,6 +100,11 @@ func NewHandler() *handler {
 			},
 		},
 	}
+}
+
+// NewComponentHandler creates a component handler wrapper for status reporting.
+func NewComponentHandler() *componentHandler {
+	return &componentHandler{handler: NewHandler()}
 }
 
 func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
@@ -134,4 +158,97 @@ func (h *handler) BuildModuleCR(
 	u.SetName(h.Config.CRName)
 
 	return u, nil
+}
+
+// ComponentHandler interface implementation for componentHandler
+// These methods allow AIGateway to be registered as a Component for status reporting
+
+func (c *componentHandler) Init(platform common.Platform, cfg operatorconfig.OperatorSettings) error {
+	// No additional initialization needed - module handler already initialized
+	return nil
+}
+
+func (c *componentHandler) GetName() string {
+	return moduleName
+}
+
+func (c *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
+	if dsc == nil {
+		return false
+	}
+
+	aigateway := dsc.Spec.Components.AIGateway
+
+	// Top-level AIGateway ManagementState acts as master switch
+	if aigateway.ManagementState == operatorv1.Removed {
+		return false
+	}
+
+	// AIGateway is enabled if either sub-component is Managed
+	return aigateway.ModelsAsService.ManagementState == operatorv1.Managed ||
+		aigateway.BatchGateway.ManagementState == operatorv1.Managed
+}
+
+func (c *componentHandler) NewCRObject(ctx context.Context, cli client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
+	// AIGateway CR is managed externally by the module reconciler, not by the component reconciler
+	// Return nil to indicate no component-owned CR (similar to how some components work)
+	return nil, nil
+}
+
+func (c *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
+	// Module reconciler is already set up separately via NewModuleReconciler
+	// No additional component reconciler needed
+	return nil
+}
+
+func (c *componentHandler) UpdateDSCStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) (metav1.ConditionStatus, error) {
+	cs := metav1.ConditionUnknown
+
+	// Get the AIGateway CR (external from ai-gateway-operator)
+	cr := &unstructured.Unstructured{}
+	cr.SetGroupVersionKind(c.Config.GVK)
+	cr.SetName(componentApi.AIGatewayInstanceName)
+
+	if err := rr.Client.Get(ctx, client.ObjectKeyFromObject(cr), cr); err != nil {
+		if k8serr.IsNotFound(err) {
+			return metav1.ConditionFalse, nil
+		}
+		return cs, err
+	}
+
+	// Convert instance to DSC
+	dsc, ok := rr.Instance.(*dscv2.DataScienceCluster)
+	if !ok {
+		return cs, errors.New("instance is not a DataScienceCluster")
+	}
+
+	// Update DSC status.components.aigateway
+	dsc.Status.Components.AIGateway.ManagementState = dsc.Spec.Components.AIGateway.ManagementState
+
+	// TODO: Copy release information when we define how to extract version from AIGateway CR
+	// For now, just set management state
+
+	// Check if AIGateway is ready based on conditions
+	conditions, found, err := unstructured.NestedSlice(cr.Object, "status", "conditions")
+	if err != nil {
+		return metav1.ConditionFalse, err
+	}
+	if !found {
+		return metav1.ConditionFalse, nil
+	}
+
+	for _, cond := range conditions {
+		condMap, ok := cond.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		condType, _, _ := unstructured.NestedString(condMap, "type")
+		condStatus, _, _ := unstructured.NestedString(condMap, "status")
+
+		if condType == status.ConditionTypeReady && condStatus == string(metav1.ConditionTrue) {
+			return metav1.ConditionTrue, nil
+		}
+	}
+
+	return metav1.ConditionFalse, nil
 }

@@ -82,6 +82,9 @@ _Appears in:_
 _Appears in:_
 - [DSCAIGatewayStatus](#dscaigatewaystatus)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### APIKeysConfig

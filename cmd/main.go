@@ -135,6 +135,7 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 
 	existingComponents = map[string]cr.ComponentHandler{
+		componentApi.AIGatewayComponentName:            aigatewayModule.NewComponentHandler(),
 		componentApi.DashboardComponentName:            dashboard.NewHandler(),
 		componentApi.DataSciencePipelinesComponentName: datasciencepipelines.NewHandler(),
 		componentApi.FeastOperatorComponentName:        feastoperator.NewHandler(),
@@ -160,6 +161,7 @@ var (
 	// 32 — independent extensions, no KServe dependency.
 	// 33 — components that require KServe to be Ready.
 	componentRunlevels = map[string]dag.Runlevel{
+		componentApi.AIGatewayComponentName:            dag.RL(20),
 		componentApi.DashboardComponentName:            dag.RL(20),
 		componentApi.DataSciencePipelinesComponentName: dag.RL(20),
 		componentApi.ModelRegistryComponentName:        dag.RL(20),

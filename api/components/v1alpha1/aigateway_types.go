@@ -27,7 +27,9 @@ type AIGatewayBatchGatewaySpec struct {
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 }
 
-type AIGatewayCommonStatus struct{}
+type AIGatewayCommonStatus struct {
+	common.ComponentReleaseStatus `json:",inline"`
+}
 
 // DSCAIGateway contains all the configuration exposed in DSC instance for AIGateway component.
 type DSCAIGateway struct {
