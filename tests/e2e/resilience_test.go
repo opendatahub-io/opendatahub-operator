@@ -193,6 +193,7 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 
 	t.Log("Creating zero-pod quota (blocks everything)")
 	tc.createZeroPodQuotaForOperator()
+	t.Cleanup(func() { tc.deleteZeroPodQuotaForOperator() })
 
 	allControllers := slices.Concat(
 		slices.Collect(maps.Values(componentToControllerMap)),
