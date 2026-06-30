@@ -36,48 +36,48 @@ func NewHandler() *handler {
 					"RELATED_IMAGE_ODH_TRAINER_IMAGE",
 					"RELATED_IMAGE_ODH_TRAINING_CUDA128_TORCH29_PY312_IMAGE",
 					"RELATED_IMAGE_ODH_TRAINING_ROCM64_TORCH29_PY312_IMAGE",
-					"RELATED_IMAGE_ODH_TH06_CUDA130_TORCH210_PY312_IMAGE",
-					"RELATED_IMAGE_ODH_TH06_ROCM64_TORCH291_PY312_IMAGE",
-					"RELATED_IMAGE_ODH_TH06_CPU_TORCH210_PY312_IMAGE",
 				},
 			},
 		},
 	}
 }
 
-// IsEnabled reads the DSC trainer management state. Trainer is a
-// component-type module: enablement lives on the DSC, not the DSCI.
 func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
-	if platform.DSC == nil {
+	if platform == nil {
 		return false
 	}
-	return platform.DSC.Spec.Components.Trainer.ManagementState == operatorv1.Managed
+	if platform.DSC != nil {
+		return platform.DSC.Spec.Components.Trainer.ManagementState == operatorv1.Managed
+	}
+	return false
 }
 
-// BuildModuleCR projects DSC trainer configuration onto the module CR.
-// Since DSCTrainer and the module's TrainerSpec share the same JSON
-// schema (ManagementSpec + TrainerCommonSpec), we convert the DSC struct
-// directly rather than mapping fields one-by-one.
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
 	platform *modules.PlatformContext,
 ) (*unstructured.Unstructured, error) {
+	if platform == nil {
+		return nil, errors.New("platform context is nil, cannot build Trainer CR")
+	}
 	if platform.DSC == nil {
-		return nil, errors.New("DSC is nil, cannot build trainer CR")
+		return nil, errors.New("DSC is not available, cannot build Trainer CR")
 	}
 
-	dscTrainer := platform.DSC.Spec.Components.Trainer
-
-	spec, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&dscTrainer)
+	spec, err := runtime.DefaultUnstructuredConverter.ToUnstructured(
+		&platform.DSC.Spec.Components.Trainer.TrainerCommonSpec,
+	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert DSCTrainer to unstructured: %w", err)
+		return nil, fmt.Errorf("failed to convert TrainerCommonSpec to unstructured: %w", err)
 	}
 
-	u := &unstructured.Unstructured{}
+	u := &unstructured.Unstructured{
+		Object: map[string]any{
+			"spec": spec,
+		},
+	}
 	u.SetGroupVersionKind(h.Config.GVK)
 	u.SetName(h.Config.CRName)
-	u.Object["spec"] = spec
 
 	return u, nil
 }

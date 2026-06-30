@@ -74,6 +74,13 @@ func TestIsEnabled_NilDSC(t *testing.T) {
 	}
 }
 
+func TestIsEnabled_NilPlatform(t *testing.T) {
+	h := trainer.NewHandler()
+	if h.IsEnabled(nil) {
+		t.Error("expected trainer to be disabled when platform is nil")
+	}
+}
+
 func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	h := trainer.NewHandler()
 	platform := newPlatformCtx(operatorv1.Managed)
@@ -95,27 +102,17 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 		t.Fatal("spec is not a map")
 	}
 
-	if got := spec["managementState"]; got != "Managed" {
-		t.Errorf("managementState: want %q, got %v", "Managed", got)
+	if _, exists := spec["managementState"]; exists {
+		t.Error("managementState is a DSC-level field and must not be projected into the module CR")
 	}
 }
 
-func TestBuildModuleCR_EmptyManagementStateRemainsEmpty(t *testing.T) {
+func TestBuildModuleCR_NilPlatformReturnsError(t *testing.T) {
 	h := trainer.NewHandler()
-	platform := newPlatformCtx("")
 
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
-	if err != nil {
-		t.Fatalf("BuildModuleCR returned error: %v", err)
-	}
-
-	spec, ok := u.Object["spec"].(map[string]any)
-	if !ok {
-		t.Fatal("spec is not a map")
-	}
-
-	if got := spec["managementState"]; got != "" && got != nil {
-		t.Errorf("managementState: want empty, got %v", got)
+	_, err := h.BuildModuleCR(context.Background(), nil, nil)
+	if err == nil {
+		t.Error("expected error when platform is nil")
 	}
 }
 
@@ -137,9 +134,6 @@ func TestGetRelatedImages(t *testing.T) {
 		"RELATED_IMAGE_ODH_TRAINER_IMAGE":                        false,
 		"RELATED_IMAGE_ODH_TRAINING_CUDA128_TORCH29_PY312_IMAGE": false,
 		"RELATED_IMAGE_ODH_TRAINING_ROCM64_TORCH29_PY312_IMAGE":  false,
-		"RELATED_IMAGE_ODH_TH06_CUDA130_TORCH210_PY312_IMAGE":    false,
-		"RELATED_IMAGE_ODH_TH06_ROCM64_TORCH291_PY312_IMAGE":     false,
-		"RELATED_IMAGE_ODH_TH06_CPU_TORCH210_PY312_IMAGE":        false,
 	}
 
 	for _, img := range images {
@@ -162,37 +156,31 @@ func TestDSCToModuleCRFlow(t *testing.T) {
 		platform := newPlatformCtx(operatorv1.Managed)
 		h := trainer.NewHandler()
 
-		// Handler should be enabled
 		if !h.IsEnabled(platform) {
 			t.Fatal("IsEnabled should return true when managementState=Managed")
 		}
 
-		// Build Module CR
 		moduleCR, err := h.BuildModuleCR(context.TODO(), nil, platform)
 		if err != nil {
 			t.Fatalf("BuildModuleCR failed: %v", err)
 		}
 
-		// Verify CR name
 		if moduleCR.GetName() != componentApi.TrainerInstanceName {
 			t.Errorf("Expected CR name %q, got %q", componentApi.TrainerInstanceName, moduleCR.GetName())
 		}
 
-		// Verify GVK
 		gvk := moduleCR.GroupVersionKind()
 		if gvk.Group != "components.platform.opendatahub.io" || gvk.Version != "v1alpha1" || gvk.Kind != "Trainer" {
 			t.Errorf("Unexpected GVK: %s", gvk.String())
 		}
 
-		// Verify managementState was projected
 		spec, ok := moduleCR.Object["spec"].(map[string]interface{})
 		if !ok {
 			t.Fatal("Module CR missing spec")
 		}
 
-		mgmtState, ok := spec["managementState"].(string)
-		if !ok || mgmtState != string(operatorv1.Managed) {
-			t.Errorf("Expected managementState=Managed in Module CR spec, got %v", mgmtState)
+		if _, exists := spec["managementState"]; exists {
+			t.Error("managementState is a DSC-level field and must not be projected into the module CR")
 		}
 	})
 }

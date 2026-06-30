@@ -262,7 +262,7 @@ func (tc *TrainerTestCtx) runDegradedConditionTest(t *testing.T, testCase degrad
 }
 
 // ValidateModuleHandlerProjection verifies module handler projects DSC config
-// (spec.components.trainer.managementState) into Trainer Module CR spec.
+// into Trainer Module CR spec (excluding DSC-level fields like managementState).
 func (tc *TrainerTestCtx) ValidateModuleHandlerProjection(t *testing.T) {
 	t.Helper()
 
@@ -279,13 +279,11 @@ func (tc *TrainerTestCtx) ValidateModuleHandlerProjection(t *testing.T) {
 		),
 	)
 
-	t.Log("Step 2: Verify Module CR has spec.managementState projected from DSC")
-	// Read DSC desired state and compare against module spec.managementState.
-	// Default expectation should be Managed only when DSC value is empty.
+	t.Log("Step 2: Verify managementState is NOT projected into Module CR")
 	tc.EnsureResourceExists(
 		WithMinimalObject(moduleGVK, trainerNN),
 		WithCondition(
-			jq.Match(`.spec.managementState == "%s"`, "Managed"),
+			jq.Match(`.spec.managementState == null`),
 		),
 	)
 
