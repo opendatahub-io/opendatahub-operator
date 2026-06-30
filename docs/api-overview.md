@@ -271,8 +271,8 @@ _Appears in:_
 | `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br /> |
 | `oauthProxy` _[OAuthProxyConfig](#oauthproxyconfig)_ | Configures the OAuth proxy sidecar container resources in the<br />'inferenceservice-config' ConfigMap for KServe. Only non-nil fields<br />override the defaults shipped with the operator manifests. |  |  |
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration | \{  \} |  |
-| `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Configures and enables Models as a Service integration |  |  |
-| `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration |  |  |
+| `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Configures and enables Models as a Service integration | \{  \} |  |
+| `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration | \{  \} |  |
 | `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
 
 
@@ -1023,8 +1023,8 @@ _Appears in:_
 | `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br /> |
 | `oauthProxy` _[OAuthProxyConfig](#oauthproxyconfig)_ | Configures the OAuth proxy sidecar container resources in the<br />'inferenceservice-config' ConfigMap for KServe. Only non-nil fields<br />override the defaults shipped with the operator manifests. |  |  |
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration | \{  \} |  |
-| `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Configures and enables Models as a Service integration |  |  |
-| `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration |  |  |
+| `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Configures and enables Models as a Service integration | \{  \} |  |
+| `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration | \{  \} |  |
 | `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
 
 
@@ -1061,8 +1061,8 @@ _Appears in:_
 | `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br /> |
 | `oauthProxy` _[OAuthProxyConfig](#oauthproxyconfig)_ | Configures the OAuth proxy sidecar container resources in the<br />'inferenceservice-config' ConfigMap for KServe. Only non-nil fields<br />override the defaults shipped with the operator manifests. |  |  |
 | `nim` _[NimSpec](#nimspec)_ | Configures and enables NVIDIA NIM integration | \{  \} |  |
-| `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Configures and enables Models as a Service integration |  |  |
-| `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration |  |  |
+| `modelsAsService` _[DSCModelsAsServiceSpec](#dscmodelsasservicespec)_ | Configures and enables Models as a Service integration | \{  \} |  |
+| `wva` _[WVASpec](#wvaspec)_ | Configures and enables workload-variant-autoscaler (WVA) integration | \{  \} |  |
 | `modelCache` _[ModelCacheSpec](#modelcachespec)_ | Configures and enables Model Cache integration |  |  |
 
 

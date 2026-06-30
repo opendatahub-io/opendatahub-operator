@@ -79,8 +79,10 @@ type KserveCommonSpec struct {
 	// +kubebuilder:default={}
 	NIM NimSpec `json:"nim,omitempty"`
 	// Configures and enables Models as a Service integration
+	// +kubebuilder:default={}
 	ModelsAsService DSCModelsAsServiceSpec `json:"modelsAsService,omitempty"`
 	// Configures and enables workload-variant-autoscaler (WVA) integration
+	// +kubebuilder:default={}
 	WVA WVASpec `json:"wva,omitempty"`
 	// Configures and enables Model Cache integration
 	ModelCache *ModelCacheSpec `json:"modelCache,omitempty"`
