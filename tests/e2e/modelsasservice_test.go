@@ -74,6 +74,17 @@ func modelsAsServiceTestSuite(t *testing.T) {
 	}
 }
 
+// commonTenantTests returns the Tenant validation test cases shared across
+// OpenShift and xKS suites. Keeping them in one place ensures new Tenant
+// tests are automatically exercised on both platforms.
+func (tc *ModelsAsServiceTestCtx) commonTenantTests() []TestCase {
+	return []TestCase{
+		{"Validate Tenant CR in subscription namespace", tc.ValidateTenantInSubscriptionNamespace},
+		{"Validate Tenant CRD is namespace-scoped", tc.ValidateTenantCRDNamespaceScoped},
+		{"Validate Tenant singleton enforcement", tc.ValidateTenantSingletonEnforcement},
+	}
+}
+
 // runOpenShiftTestSuite runs the MaaS e2e tests on OpenShift (DSC/DSCI mode).
 func (tc *ModelsAsServiceTestCtx) runOpenShiftTestSuite(t *testing.T) {
 	t.Helper()
@@ -83,13 +94,11 @@ func (tc *ModelsAsServiceTestCtx) runOpenShiftTestSuite(t *testing.T) {
 	tc.EnsureParentComponentEnabled(t)
 	tc.UpdateSubComponentStateInDataScienceCluster(t, operatorv1.Managed)
 
-	testCases := []TestCase{
-		{"Validate Tenant CR in subscription namespace", tc.ValidateTenantInSubscriptionNamespace},
-		{"Validate Tenant CRD is namespace-scoped", tc.ValidateTenantCRDNamespaceScoped},
-		{"Validate Tenant singleton enforcement", tc.ValidateTenantSingletonEnforcement},
-		{"Validate payload-processing egress NetworkPolicy", tc.ValidatePayloadProcessingNetworkPolicy},
-		{"Validate Tenant deleted on disable", tc.ValidateTenantDeletedOnDisable},
-	}
+	testCases := tc.commonTenantTests()
+	testCases = append(testCases,
+		TestCase{"Validate payload-processing egress NetworkPolicy", tc.ValidatePayloadProcessingNetworkPolicy},
+		TestCase{"Validate Tenant deleted on disable", tc.ValidateTenantDeletedOnDisable},
+	)
 
 	RunTestCases(t, testCases)
 }
@@ -101,16 +110,17 @@ func (tc *ModelsAsServiceTestCtx) runXKSTestSuite(t *testing.T) {
 	t.Helper()
 
 	tc.createMaaSPostgres(t)
+	tc.createMaaSGateway(t)
 
 	testCases := []TestCase{
 		{"Validate MaaS CR creation and reconciliation", tc.ValidateXKSMaaSCRCreation},
 		{"Validate MaaS controller deployment running", tc.ValidateXKSMaaSControllerRunning},
 		{"Validate MaaS webhook is registered", tc.ValidateXKSMaaSWebhookRegistered},
-		{"Validate Tenant CR in subscription namespace", tc.ValidateTenantInSubscriptionNamespace},
-		{"Validate Tenant CRD is namespace-scoped", tc.ValidateTenantCRDNamespaceScoped},
-		{"Validate Tenant singleton enforcement", tc.ValidateTenantSingletonEnforcement},
-		{"Validate MaaS CR deletion cleans up resources", tc.ValidateXKSMaaSCRDeletion},
 	}
+	testCases = append(testCases, tc.commonTenantTests()...)
+	testCases = append(testCases,
+		TestCase{"Validate MaaS CR deletion cleans up resources", tc.ValidateXKSMaaSCRDeletion},
+	)
 
 	RunTestCases(t, testCases)
 }
@@ -159,7 +169,7 @@ func (tc *ModelsAsServiceTestCtx) ValidateXKSMaaSWebhookRegistered(t *testing.T)
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.ValidatingWebhookConfiguration, types.NamespacedName{
-			Name: "maas-controller-validating-webhook-configuration",
+			Name: modelsasservice.MaasControllerWebhookConfigName,
 		}),
 		WithCustomErrorMsg("MaaS ValidatingWebhookConfiguration should exist"),
 	)
