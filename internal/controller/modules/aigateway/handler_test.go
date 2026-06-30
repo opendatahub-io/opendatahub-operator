@@ -26,6 +26,12 @@ func newPlatformCtx(mgmtState operatorv1.ManagementState) *modules.PlatformConte
 						ManagementSpec: common.ManagementSpec{
 							ManagementState: mgmtState,
 						},
+						AIGatewayCommonSpec: componentApi.AIGatewayCommonSpec{
+							// Set ModelsAsService to same state so IsEnabled logic works
+							ModelsAsService: componentApi.DSCModelsAsServiceSpec{
+								ManagementState: mgmtState,
+							},
+						},
 					},
 				},
 			},
