@@ -170,6 +170,10 @@ func (a *Action) resolveFieldOwner(rr *odhTypes.ReconciliationRequest) (string, 
 }
 
 func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) error {
+	if rr.SkipDeploy {
+		return nil
+	}
+
 	if a.sortFn != nil {
 		sorted, err := a.sortFn(ctx, rr.Resources)
 		if err != nil {

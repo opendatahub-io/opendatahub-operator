@@ -12,6 +12,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 
@@ -118,4 +119,127 @@ func TestSetEnabled(t *testing.T) {
 
 	reg.Enable("flagtest")
 	g.Expect(reg.IsEnabled("flagtest")).Should(BeTrue(), "should be enabled after Enable()")
+}
+
+func TestForEachIsDeterministic(t *testing.T) {
+	g := NewWithT(t)
+
+	reg := &registry.Registry{}
+	reg.Add(&fakeComponentHandler{name: "zebra", enabled: true}, registry.WithRunlevel(dag.RL(20)))
+	reg.Add(&fakeComponentHandler{name: "alpha", enabled: true}, registry.WithRunlevel(dag.RL(20)))
+	reg.Add(&fakeComponentHandler{name: "middle", enabled: true}, registry.WithRunlevel(dag.RL(20)))
+
+	var visited []string
+	err := reg.ForEach(func(ch registry.ComponentHandler) error {
+		visited = append(visited, ch.GetName())
+		return nil
+	})
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(visited).Should(Equal([]string{"alpha", "middle", "zebra"}))
+}
+
+func TestResolvedBatchesRunlevelOrdering(t *testing.T) {
+	g := NewWithT(t)
+
+	reg := &registry.Registry{}
+	reg.Add(&fakeComponentHandler{name: "ext-comp", enabled: true}, registry.WithRunlevel(dag.RL(30)))
+	reg.Add(&fakeComponentHandler{name: "infra-comp", enabled: true}, registry.WithRunlevel(dag.RL(0)))
+	reg.Add(&fakeComponentHandler{name: "ai-comp", enabled: true}, registry.WithRunlevel(dag.RL(20)))
+
+	batches, err := reg.ResolvedBatches()
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(batches).Should(HaveLen(3))
+
+	g.Expect(batches[0]).Should(HaveLen(1))
+	g.Expect(batches[0][0].GetName()).Should(Equal("infra-comp"))
+	g.Expect(batches[1]).Should(HaveLen(1))
+	g.Expect(batches[1][0].GetName()).Should(Equal("ai-comp"))
+	g.Expect(batches[2]).Should(HaveLen(1))
+	g.Expect(batches[2][0].GetName()).Should(Equal("ext-comp"))
+}
+
+func TestResolvedBatchesSkipsDisabled(t *testing.T) {
+	g := NewWithT(t)
+
+	reg := &registry.Registry{}
+	reg.Add(&fakeComponentHandler{name: "a", enabled: true}, registry.WithRunlevel(dag.RL(20)))
+	reg.Add(&fakeComponentHandler{name: "b", enabled: true}, registry.WithRunlevel(dag.RL(20)))
+	reg.Disable("b")
+
+	batches, err := reg.ResolvedBatches()
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(batches).Should(HaveLen(1))
+	g.Expect(batches[0]).Should(HaveLen(1))
+	g.Expect(batches[0][0].GetName()).Should(Equal("a"))
+}
+
+func TestResolvedBatchesCacheInvalidation(t *testing.T) {
+	g := NewWithT(t)
+
+	reg := &registry.Registry{}
+	reg.Add(&fakeComponentHandler{name: "comp-a", enabled: true}, registry.WithRunlevel(dag.RL(20)))
+
+	batches1, err := reg.ResolvedBatches()
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(batches1).Should(HaveLen(1))
+
+	reg.Add(&fakeComponentHandler{name: "comp-b", enabled: true}, registry.WithRunlevel(dag.RL(30)))
+
+	batches2, err := reg.ResolvedBatches()
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(batches2).Should(HaveLen(2))
+}
+
+func TestReverseBatchesOrdering(t *testing.T) {
+	g := NewWithT(t)
+
+	reg := &registry.Registry{}
+	reg.Add(&fakeComponentHandler{name: "infra", enabled: true}, registry.WithRunlevel(dag.RL(0)))
+	reg.Add(&fakeComponentHandler{name: "ext-a", enabled: true}, registry.WithRunlevel(dag.RL(30)))
+	reg.Add(&fakeComponentHandler{name: "ext-b", enabled: true}, registry.WithRunlevel(dag.RL(30)))
+
+	batches, err := reg.ReverseBatches()
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(batches).Should(HaveLen(2))
+
+	g.Expect(batches[0][0].GetName()).Should(Equal("ext-b"))
+	g.Expect(batches[0][1].GetName()).Should(Equal("ext-a"))
+	g.Expect(batches[1][0].GetName()).Should(Equal("infra"))
+}
+
+func TestLookup(t *testing.T) {
+	g := NewWithT(t)
+
+	reg := &registry.Registry{}
+	h := &fakeComponentHandler{name: "findme", enabled: true}
+	reg.Add(h)
+
+	g.Expect(reg.Lookup("findme")).Should(Equal(h))
+	g.Expect(reg.Lookup("nonexistent")).Should(BeNil())
+}
+
+func TestForAllIncludesDisabled(t *testing.T) {
+	g := NewWithT(t)
+
+	reg := &registry.Registry{}
+	reg.Add(&fakeComponentHandler{name: "enabled-comp", enabled: true})
+	reg.Add(&fakeComponentHandler{name: "disabled-comp", enabled: true})
+	reg.Disable("disabled-comp")
+
+	type visit struct {
+		name    string
+		enabled bool
+	}
+	var visits []visit
+
+	err := reg.ForAll(func(handler registry.ComponentHandler, enabled bool) error {
+		visits = append(visits, visit{name: handler.GetName(), enabled: enabled})
+		return nil
+	})
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(visits).Should(HaveLen(2))
+	g.Expect(visits).Should(ContainElement(visit{name: "disabled-comp", enabled: false}))
+	g.Expect(visits).Should(ContainElement(visit{name: "enabled-comp", enabled: true}))
 }
