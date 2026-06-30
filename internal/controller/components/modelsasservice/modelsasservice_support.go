@@ -63,6 +63,10 @@ const (
 	// application namespace (must match upstream manager kustomize).
 	MaasControllerDeploymentName = "maas-controller"
 
+	// MaasControllerWebhookConfigName is the ValidatingWebhookConfiguration name
+	// deployed by the maas-controller (must match upstream webhook kustomize).
+	MaasControllerWebhookConfigName = "maas-validating-webhook-configuration"
+
 	// Manifest paths.
 	BaseManifestsSourcePath = "overlays/odh"
 
