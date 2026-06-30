@@ -88,6 +88,7 @@ type TestContextConfig struct {
 	dscValidationTest                bool
 	operatorControllerTest           bool
 	operatorResilienceTest           bool
+	platformOrchestrationTest        bool
 	webhookTest                      bool
 	dagOrderingTest                  bool
 	v2tov3upgradeTest                bool
@@ -134,9 +135,13 @@ var (
 	Scheme   = runtime.NewScheme()
 	testOpts = TestContextConfig{}
 
+	platformComponentFlags []string
+
+	// Deprecated: per-component test suites are superseded by platformOrchestrationTestSuite.
+	// Remove once modularisation is complete and platform orchestration covers all components.
 	Components = TestGroup{
 		name:     "components",
-		enabled:  true,
+		enabled:  false,
 		parallel: true,
 		scenarios: []map[string]TestFn{
 			{
@@ -493,6 +498,11 @@ func TestOdhOperator(t *testing.T) {
 	// Run remaining services (auth, gateway)
 	mustRun(t, Services.String(), Services.RunExcluding(serviceApi.MonitoringServiceName))
 
+	// Run platform orchestration contract tests
+	if testOpts.platformOrchestrationTest {
+		mustRun(t, "Platform Orchestration E2E Tests", platformOrchestrationTestSuite)
+	}
+
 	// Run operator resilience test suites after functional tests
 	if testOpts.operatorResilienceTest {
 		mustRun(t, "Operator Resilience E2E Tests", operatorResilienceTestSuite)
@@ -603,6 +613,10 @@ func TestMain(m *testing.M) {
 	checkEnvVarBindingError(viper.BindEnv("test-dsc-validation", viper.GetEnvPrefix()+"_DSC_VALIDATION"))
 	pflag.Bool("test-operator-resilience", true, "run operator resilience tests")
 	checkEnvVarBindingError(viper.BindEnv("test-operator-resilience", viper.GetEnvPrefix()+"_OPERATOR_RESILIENCE"))
+	pflag.Bool("test-platform-orchestration", true, "run platform orchestration contract tests")
+	checkEnvVarBindingError(viper.BindEnv("test-platform-orchestration", viper.GetEnvPrefix()+"_PLATFORM_ORCHESTRATION"))
+	pflag.StringSlice("test-platform-component", nil, "filter platform orchestration tests to specific components (e.g. dashboard,kserve)")
+	checkEnvVarBindingError(viper.BindEnv("test-platform-component", viper.GetEnvPrefix()+"_PLATFORM_COMPONENT"))
 	pflag.Bool("test-operator-v2tov3upgrade", true, "run V2 to V3 upgrade tests")
 	checkEnvVarBindingError(viper.BindEnv("test-operator-v2tov3upgrade", viper.GetEnvPrefix()+"_OPERATOR_V2TOV3UPGRADE"))
 	pflag.Bool("test-webhook", true, "run webhook tests")
@@ -682,6 +696,8 @@ func TestMain(m *testing.M) {
 	testOpts.dscManagementTest = viper.GetBool("test-dsc-management")
 	testOpts.dscValidationTest = viper.GetBool("test-dsc-validation")
 	testOpts.operatorResilienceTest = viper.GetBool("test-operator-resilience")
+	testOpts.platformOrchestrationTest = viper.GetBool("test-platform-orchestration")
+	platformComponentFlags = viper.GetStringSlice("test-platform-component")
 	testOpts.v2tov3upgradeTest = viper.GetBool("test-operator-v2tov3upgrade")
 	testOpts.webhookTest = viper.GetBool("test-webhook")
 	testOpts.dagOrderingTest = viper.GetBool("test-dag-ordering")

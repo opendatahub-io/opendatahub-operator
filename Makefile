@@ -771,6 +771,7 @@ e2e-setup-cluster:
 	@echo "Creating DSCI and DSC with all services enabled..."
 	@$(MAKE) e2e-test \
 		-e E2E_TEST_COMPONENTS=false \
+		-e E2E_TEST_PLATFORM_ORCHESTRATION=false \
 		-e E2E_TEST_SERVICES=false \
 		-e E2E_TEST_WEBHOOK=false \
 		-e E2E_TEST_OPERATOR_RESILIENCE=false \
@@ -784,7 +785,7 @@ e2e-test-xks: ## Run e2e tests on external Kubernetes (KinD, AKS, CoreWeave, etc
 		-e E2E_TEST_CLEAN_UP_PREVIOUS_RESOURCES=false \
 		-e E2E_TEST_DEPENDANT_OPERATORS_MANAGEMENT=false \
 		-e E2E_TEST_WEBHOOK=false \
-		-e E2E_TEST_COMPONENT="kserve" \
+		-e E2E_TEST_PLATFORM_COMPONENT="kserve" \
 		-e E2E_TEST_SERVICES=false \
 		-e E2E_TEST_OPERATOR_RESILIENCE=false \
 		-e E2E_TEST_OPERATOR_V2TOV3UPGRADE=false \
