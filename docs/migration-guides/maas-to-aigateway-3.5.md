@@ -2,7 +2,7 @@
 
 ## Overview
 
-In OpenShift AI 3.5, Models as a Service (MaaS) configuration has moved from `kserve.modelsAsService` to `aigateway.modelsasservice`.
+In OpenShift AI 3.5, Models as a Service (MaaS) configuration has moved from `kserve.modelsAsService` to `aigateway.modelsAsService`.
 
 ✅ **Automatic migration** - the operator automatically migrates your configuration via webhook conversion.
 
@@ -24,7 +24,7 @@ spec:
   components:
     aigateway:
       managementState: Managed
-      modelsasservice:
+      modelsAsService:
         managementState: Managed
 ```
 
@@ -34,8 +34,8 @@ When you upgrade to OpenShift AI 3.5:
 
 1. **Webhook conversion** automatically detects `kserve.modelsAsService: Managed`
 2. **AIGateway is enabled** with `managementState: Managed`
-3. **MaaS config is copied** to `aigateway.modelsasservice`
-4. **Old config remains** at `kserve.modelsAsService` for backward compatibility
+3. **MaaS config is moved** to `aigateway.modelsAsService`
+4. **Old config is cleared** from `kserve.modelsAsService` (migrated, not duplicated)
 5. **ai-gateway-operator** takes over MaaS deployment (instead of platform operator directly)
 
 ## No Action Required
@@ -54,7 +54,7 @@ oc get aigateway default-aigateway
 oc get deployment -n opendatahub ai-gateway-operator
 
 # Check MaaS config in new location
-oc get datasciencecluster default-dsc -o jsonpath='{.spec.components.aigateway.modelsasservice}'
+oc get datasciencecluster default-dsc -o jsonpath='{.spec.components.aigateway.modelsAsService}'
 ```
 
 ## Benefits of New Architecture
@@ -72,7 +72,7 @@ oc patch datasciencecluster default-dsc --type=merge -p '
 spec:
   components:
     aigateway:
-      modelsasservice:
+      modelsAsService:
         managementState: Removed
 '
 ```
@@ -81,7 +81,7 @@ spec:
 
 - **Data preserved**: Existing Tenants, Subscriptions, API keys remain intact
 - **No downtime**: Migration happens automatically without service interruption
-- **Backward compatible**: Old `kserve.modelsAsService` config still works but is deprecated
+- **One-way migration**: After conversion, MaaS config exists only at `aigateway.modelsAsService` (not backward compatible with 3.4)
 
 ## Troubleshooting
 

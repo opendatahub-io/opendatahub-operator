@@ -79,7 +79,3 @@ resources:
 patches:
 - path: manager_auth_proxy_patch.yaml
 - path: manager_webhook_patch.yaml
-images:
-- name: controller
-  newName: quay.io/rh-ee-sbhatnag/opendatahub-operator
-  newTag: maas-aigateway-test

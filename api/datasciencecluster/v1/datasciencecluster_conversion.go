@@ -98,10 +98,6 @@ func constructInstalledComponentsFromV2Status(v2Status dscv2.DataScienceClusterS
 func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 	dst := dstRaw.(*dscv2.DataScienceCluster)
 
-	// DEBUG: Log v1 input to understand what we're converting FROM
-	fmt.Printf("DEBUG ConvertTo INPUT: v1.kserve.managementState=%s v1.kserve.modelsAsService.managementState=%s\n",
-		c.Spec.Components.Kserve.ManagementState, c.Spec.Components.Kserve.ModelsAsService.ManagementState)
-
 	dst.ObjectMeta = c.ObjectMeta
 
 	dst.Spec = dscv2.DataScienceClusterSpec{
@@ -164,12 +160,6 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 	// Clear modelsAsService from Kserve after migrating to AIGateway
 	// In v2, modelsAsService lives under aigateway, not kserve
 	dst.Spec.Components.Kserve.ModelsAsService = componentApi.DSCModelsAsServiceSpec{}
-
-	// DEBUG: Log converted values
-	fmt.Printf("DEBUG ConvertTo complete: v2.aigateway.managementState=%s v2.aigateway.modelsAsService.managementState=%s v2.kserve.modelsAsService.managementState=%s\n",
-		dst.Spec.Components.AIGateway.ManagementState,
-		dst.Spec.Components.AIGateway.ModelsAsService.ManagementState,
-		dst.Spec.Components.Kserve.ModelsAsService.ManagementState)
 
 	// Convert status with field renaming: DataSciencePipelines -> AIPipelines
 	// and condition type renaming: DataSciencePipelinesReady -> AIPipelinesReady

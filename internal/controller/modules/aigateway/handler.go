@@ -88,9 +88,16 @@ func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 		return false
 	}
 	if platform.DSC != nil {
+		aigateway := platform.DSC.Spec.Components.AIGateway
+
+		// Top-level AIGateway ManagementState acts as master switch
+		if aigateway.ManagementState == operatorv1.Removed {
+			return false
+		}
+
 		// AIGateway is enabled if either sub-component is Managed
-		return platform.DSC.Spec.Components.AIGateway.ModelsAsService.ManagementState == operatorv1.Managed ||
-			platform.DSC.Spec.Components.AIGateway.BatchGateway.ManagementState == operatorv1.Managed
+		return aigateway.ModelsAsService.ManagementState == operatorv1.Managed ||
+			aigateway.BatchGateway.ManagementState == operatorv1.Managed
 	}
 	return false
 }
