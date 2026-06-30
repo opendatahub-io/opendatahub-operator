@@ -90,6 +90,9 @@ spec:
             value: /opt/charts
           # - name: ODH_PLATFORM_TYPE
           #   value: SelfManagedRHOAI
+          # Modules (disabled until Konflux onboarding is complete)
+          - name: RHAI_DISABLE_TRAINER_MODULE
+            value: 'true'
         # NOTE: image is provided in CI by pullspec substitution, and by make/kustomize for local builds
         image: REPLACE_IMAGE:v0.0.0-rhoai-placeholder
         imagePullPolicy: Always
