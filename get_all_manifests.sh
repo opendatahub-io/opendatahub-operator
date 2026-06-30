@@ -15,26 +15,25 @@ DST_CHARTS_DIR="./opt/charts"
 
 # ODH Component Manifests
 declare -A ODH_COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:main@3b260b0a3a30af2aee6d9e4a825c730990f9a580:manifests"
-    ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@62ebba193e4f95dc48facc8a621d741494cd19af:components/notebook-controller/config"
-    ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@62ebba193e4f95dc48facc8a621d741494cd19af:components/odh-notebook-controller/config"
-    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@57f1c4e71cbbfc5455bb60e38fe2f4c3d47d53e3:manifests"
-    ["kserve"]="opendatahub-io:kserve:release-v0.17@46a82838f4d57be8469e4f1532a8ad1e36fbc29d:config"
-    ["ray"]="opendatahub-io:kuberay:dev@ad21f8c87bbc1a9efe9ff399194abbdafd65aa08:ray-operator/config"
-    ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@9756af205138b56f9d879c9a592c8e8ec3b4969d:config"
-    ["modelregistry"]="opendatahub-io:model-registry-operator:main@6e10631042b0c31b1c27303a45caef9891fead36:config"
+    ["dashboard"]="opendatahub-io:odh-dashboard:main@f601afd246bd5551a52ca49ef69d1f69b928eac1:manifests"
+    ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@5d0d761264ce34fa7dfaf5e1fff8fec78cfab892:components/notebook-controller/config"
+    ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@5d0d761264ce34fa7dfaf5e1fff8fec78cfab892:components/odh-notebook-controller/config"
+    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@07ef1a4c72b954b61938a1283cbd4d0c83dafc68:manifests"
+    ["kserve"]="opendatahub-io:kserve:release-v0.17@9049db705a4cecfed6850438dcffc7e07423effa:config"
+    ["ray"]="opendatahub-io:kuberay:dev@c9b4bd7563cdd0d01ea45594926e03d1e43952e6:ray-operator/config"
+    ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@c2fc7266af27709b1e16a2a265853b6c81a9d0cb:config"
+    ["modelregistry"]="opendatahub-io:model-registry-operator:main@326592a3669f43112d15862331bcf14866c2baa8:config"
     ["trainingoperator"]="opendatahub-io:training-operator:stable@fc6f0f150c5728fcca8601a654d0a09324a8c121:manifests"
-    ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@19c827062e91b16a0b2f1641b9cc53f1bff48b54:config"
-    ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@3ad9e0bd01f9c44c41222d46866ca4492b84b4d4:config"
+    ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@8f1fffc6f5ada79aa40bb47594422b9711188e8b:config"
+    ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@9600707247308745116b60ac47ab02a2b65edd49:config"
     ["feastoperator"]="opendatahub-io:feast:stable@2a4bb8241189343337e16a508b6a4baf92cb17db:infra/feast-operator/config"
     ["ogx"]="opendatahub-io:ogx-k8s-operator:odh@0ba12ea60949e1b551cebe63c3dc8be2dd4c0bd1:config"
     ["trainer"]="opendatahub-io:trainer:stable@fc9f4315b4ba88cfa03fabf29a730532411bab4c:manifests"
-    ["maas"]="opendatahub-io:models-as-a-service:stable@e01c094491b8806bd6cdd75ddab7cc0e24188d3b:deployment"
-    ["mlflowoperator"]="opendatahub-io:mlflow-operator:main@a9b2aa5ab0b505af3b449316937bde176f6decc6:config"
-    ["sparkoperator"]="opendatahub-io:spark-operator:main@c2bad1c04553283b617846156d6dc2ee335662ac:config"
-    ["wva"]="opendatahub-io:workload-variant-autoscaler:main@1a33d8559d4d56fcd0d4b9b2cc2afdbf6d832aee:config"
-    ["aigateway"]="opendatahub-io:ai-gateway-operator:main@f0383d5d517c23249b6d7b73c6cb7c754036c1c3:config"
-)
+    ["maas"]="opendatahub-io:models-as-a-service:stable@8d9766d9e1cbeb97f42b4fe32bd281294b5c1599:deployment"
+    ["mlflowoperator"]="opendatahub-io:mlflow-operator:main@78ab84841cefc6327b13384cab23b39397f41d6d:config"
+    ["sparkoperator"]="opendatahub-io:spark-operator:main@c267ab785747fc6a5a31e4e597279d45a57b518b:config"
+    ["wva"]="opendatahub-io:workload-variant-autoscaler:main@4cf1c0c215a25803ae9e864a85d40fafe5b406c3:config"
+    ["aigateway"]="opendatahub-io:ai-gateway-operator:main@91028820d07a3057cb5c9b19081b1b260767d846:config")
 
 # RHOAI Component Manifests
 declare -A RHOAI_COMPONENT_MANIFESTS=(
