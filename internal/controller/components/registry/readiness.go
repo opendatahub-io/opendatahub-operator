@@ -2,6 +2,7 @@ package registry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -54,9 +55,12 @@ func (c *ComponentReadinessChecker) IsReady(ctx context.Context, name string) (b
 
 	ci, err := handler.NewCRObject(ctx, c.client, c.dsc)
 	if err != nil {
-		logf.FromContext(ctx).V(1).Info("NewCRObject failed, treating component as ready for DAG gating",
-			"component", name, "error", err)
-		return true, nil
+		if errors.Is(err, ErrComponentNotDeployable) {
+			logf.FromContext(ctx).V(1).Info("NewCRObject reported component not deployable, treating as ready for DAG gating",
+				"component", name, "error", err)
+			return true, nil
+		}
+		return false, fmt.Errorf("component %q: failed to construct CR: %w", name, err)
 	}
 	if isNilPlatformObject(ci) {
 		return true, nil

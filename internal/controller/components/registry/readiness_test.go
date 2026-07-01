@@ -85,13 +85,13 @@ func TestReadinessChecker_NilCRObject_IsReady(t *testing.T) {
 	assert.True(t, ready, "component with nil CR should be treated as ready")
 }
 
-func TestReadinessChecker_NewCRObjectError_TreatedAsReady(t *testing.T) {
+func TestReadinessChecker_NotDeployableError_TreatedAsReady(t *testing.T) {
 	reg := &cr.Registry{}
 	reg.Add(&readinessHandler{
 		name:    "failing-comp",
 		enabled: true,
 		crObj:   nil,
-		crErr:   fmt.Errorf("gateway domain is missing"),
+		crErr:   fmt.Errorf("gateway domain is missing: %w", cr.ErrComponentNotDeployable),
 	})
 
 	dsc := newDSC()
@@ -102,7 +102,28 @@ func TestReadinessChecker_NewCRObjectError_TreatedAsReady(t *testing.T) {
 	ready, err := checker.IsReady(context.Background(), "failing-comp")
 
 	require.NoError(t, err)
-	assert.True(t, ready, "component whose CR cannot be constructed should be treated as ready for DAG gating")
+	assert.True(t, ready, "component not deployable on this platform should be treated as ready for DAG gating")
+}
+
+func TestReadinessChecker_UnexpectedNewCRObjectError_Propagated(t *testing.T) {
+	reg := &cr.Registry{}
+	reg.Add(&readinessHandler{
+		name:    "buggy-comp",
+		enabled: true,
+		crObj:   nil,
+		crErr:   fmt.Errorf("unexpected nil pointer in CR template"),
+	})
+
+	dsc := newDSC()
+	cli, err := fakeclient.New()
+	require.NoError(t, err)
+
+	checker := cr.NewReadinessChecker(reg, cli, dsc)
+	ready, err := checker.IsReady(context.Background(), "buggy-comp")
+
+	require.Error(t, err, "unexpected NewCRObject errors should propagate")
+	assert.False(t, ready)
+	assert.Contains(t, err.Error(), "failed to construct CR")
 }
 
 func TestReadinessChecker_CRNotFound_NotReady(t *testing.T) {
