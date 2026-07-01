@@ -125,6 +125,13 @@ type DeploymentNamer interface {
 	GetDeploymentName() string
 }
 
+// PrerequisiteValidator allows a module handler to block provisioning when
+// cluster prerequisites are not met. provisionModules calls this before
+// rendering operator manifests.
+type PrerequisiteValidator interface {
+	ValidatePrerequisites(platform *PlatformContext) error
+}
+
 // ModuleStatus holds the parsed status from a module CR. It includes the
 // standard conditions, generation metadata for staleness detection, and
 // the release version for the platform version handshake.
@@ -188,6 +195,10 @@ type PlatformContext struct {
 	// manifests. Handlers using ManifestDir resolve their overlay paths
 	// relative to this directory.
 	ManifestsBasePath string
+
+	// CertManagerCRDsAvailable is true when Certificate, CertificateRequest, and
+	// Issuer CRDs from cert-manager.io are registered on the cluster.
+	CertManagerCRDsAvailable bool
 }
 
 // RegistrationOption configures optional orchestration metadata when adding
