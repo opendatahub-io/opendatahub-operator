@@ -3,7 +3,6 @@ package modules
 import (
 	"context"
 	"fmt"
-	"path"
 	"strings"
 
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -185,7 +184,7 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 				rr.HelmCharts = append(rr.HelmCharts, operatorManifests.HelmCharts...)
 			}
 			if len(operatorManifests.Manifests) > 0 {
-				rr.Manifests = append(rr.Manifests, prefixManifestPaths(rr.ManifestsBasePath, operatorManifests.Manifests)...)
+				rr.Manifests = append(rr.Manifests, operatorManifests.Manifests...)
 			}
 
 			return nil
@@ -297,7 +296,7 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 					rr.HelmCharts = append(rr.HelmCharts, operatorManifests.HelmCharts...)
 				}
 				if len(operatorManifests.Manifests) > 0 {
-					rr.Manifests = append(rr.Manifests, prefixManifestPaths(rr.ManifestsBasePath, operatorManifests.Manifests)...)
+					rr.Manifests = append(rr.Manifests, operatorManifests.Manifests...)
 				}
 
 				rr.Resources = append(rr.Resources, *moduleCR)
@@ -508,22 +507,4 @@ func updateModuleStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 		return nil
 	}
 	return ComputeModulesStatus(ctx, rr)
-}
-
-// prefixManifestPaths prepends basePath to each manifest's Path so that
-// relative directory names from module handlers resolve against the
-// operator's manifests root (e.g. /opt/manifests).
-func prefixManifestPaths(basePath string, manifests []odhtype.ManifestInfo) []odhtype.ManifestInfo {
-	if basePath == "" {
-		return manifests
-	}
-
-	out := make([]odhtype.ManifestInfo, len(manifests))
-	copy(out, manifests)
-
-	for i := range out {
-		out[i].Path = path.Join(basePath, out[i].Path)
-	}
-
-	return out
 }
