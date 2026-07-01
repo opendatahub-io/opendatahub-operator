@@ -28,6 +28,10 @@ const (
 	moduleName = componentApi.AIGatewayComponentName
 	crName     = componentApi.AIGatewayInstanceName
 
+	// ReadyConditionType is the DSC condition type set by the component handler.
+	// Follows the <Kind>Ready pattern used by all other ODH components.
+	ReadyConditionType = componentApi.AIGatewayKind + status.ReadySuffix // "AIGatewayReady"
+
 	// manifestDir is the directory (relative to ManifestsBasePath, e.g.
 	// /opt/manifests/aigateway) where get_all_manifests.sh places the
 	// ai-gateway-operator repo's get the full config which has its own manifests + sub-modulars'.
@@ -202,9 +206,11 @@ func (c *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 }
 
 func (c *componentHandler) UpdateDSCStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) (metav1.ConditionStatus, error) {
-	cs := metav1.ConditionUnknown
+	// Set AIGatewayReady=False as the safe default until we confirm the CR is ready.
+	// This mirrors the pattern used by all other ODH components (e.g. KServe, Dashboard).
+	rr.Conditions.MarkFalse(ReadyConditionType)
 
-	// Get the AIGateway CR (external from ai-gateway-operator)
+	// Get the AIGateway CR managed by the ai-gateway-operator.
 	cr := &unstructured.Unstructured{}
 	cr.SetGroupVersionKind(c.Config.GVK)
 	cr.SetName(componentApi.AIGatewayInstanceName)
@@ -213,22 +219,17 @@ func (c *componentHandler) UpdateDSCStatus(ctx context.Context, rr *odhtypes.Rec
 		if k8serr.IsNotFound(err) {
 			return metav1.ConditionFalse, nil
 		}
-		return cs, err
+		return metav1.ConditionUnknown, err
 	}
 
-	// Convert instance to DSC
+	// Mirror managementState into DSC status.components.aigateway.
 	dsc, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
-		return cs, errors.New("instance is not a DataScienceCluster")
+		return metav1.ConditionUnknown, errors.New("instance is not a DataScienceCluster")
 	}
-
-	// Update DSC status.components.aigateway
 	dsc.Status.Components.AIGateway.ManagementState = dsc.Spec.Components.AIGateway.ManagementState
 
-	// TODO: Copy release information when we define how to extract version from AIGateway CR
-	// For now, just set management state
-
-	// Check if AIGateway is ready based on conditions
+	// Mirror the AIGateway CR's Ready condition onto the DSC as AIGatewayReady.
 	conditions, found, err := unstructured.NestedSlice(cr.Object, "status", "conditions")
 	if err != nil {
 		return metav1.ConditionFalse, err
@@ -244,9 +245,21 @@ func (c *componentHandler) UpdateDSCStatus(ctx context.Context, rr *odhtypes.Rec
 		}
 		condType, _, _ := unstructured.NestedString(condMap, "type")
 		condStatus, _, _ := unstructured.NestedString(condMap, "status")
+		condReason, _, _ := unstructured.NestedString(condMap, "reason")
+		condMsg, _, _ := unstructured.NestedString(condMap, "message")
 
-		if condType == status.ConditionTypeReady && condStatus == string(metav1.ConditionTrue) {
-			return metav1.ConditionTrue, nil
+		if condType == status.ConditionTypeReady {
+			rc := common.Condition{
+				Type:    condType,
+				Status:  metav1.ConditionStatus(condStatus),
+				Reason:  condReason,
+				Message: condMsg,
+			}
+			rr.Conditions.MarkFrom(ReadyConditionType, rc)
+			if condStatus == string(metav1.ConditionTrue) {
+				return metav1.ConditionTrue, nil
+			}
+			return metav1.ConditionFalse, nil
 		}
 	}
 
