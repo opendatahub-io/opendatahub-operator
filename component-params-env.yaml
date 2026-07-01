@@ -36,6 +36,9 @@ known_issues:
 - image: RELATED_IMAGE_ODH_TH06_CUDA130_TORCH210_PY312_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-60756
   reason: need to be onboarded to RHOAI 3.5-ea.1
+- image: RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-69576
+  reason: dashboard-operator image not yet onboarded to RHOAI-Build-Config rhoai-3.5-ea.2
 
 odh_exceptions:
 - image: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
