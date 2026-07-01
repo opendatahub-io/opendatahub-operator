@@ -7,12 +7,14 @@ import (
 	"io"
 	"log"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,11 +40,15 @@ const (
 	CreateContainerError       = "CreateContainerError"
 
 	// Log type constants.
-	logTypeCurrent  = "current"
-	logTypePrevious = "previous"
-	testManagerName = "manager"
-	testMLflowPod   = "mlflow-operator-controller-manager-0"
-	testNamespace   = "opendatahub"
+	logTypeCurrent                    = "current"
+	logTypePrevious                   = "previous"
+	testManagerName                   = "manager"
+	testMLflowPod                     = "mlflow-operator-controller-manager-0"
+	testNamespace                     = "opendatahub"
+	mlflowOperatorCRName              = "default-mlflowoperator"
+	mlflowOperatorDeploymentName      = "mlflow-operator-controller-manager"
+	mlflowOperatorControllerToggleEnv = "ENABLE_MLFLOW_OPERATOR_MODULE_CONTROLLER"
+	applicationsNamespaceEnvName      = "APPLICATIONS_NAMESPACE"
 )
 
 var (
@@ -171,6 +177,7 @@ func runDiagnosticsAndClassify(testName string) {
 	}
 
 	logReport(report)
+	logMLflowOperatorDiagnostics(ctx)
 
 	fc := failureclassifier.Classify(report)
 	redactEvidence(&fc)
@@ -324,6 +331,207 @@ func logOperatorSection(report *clusterhealth.Report) {
 	}
 }
 
+func logMLflowOperatorDiagnostics(ctx context.Context) {
+	log.Printf("=== MLFLOW OPERATOR DIAGNOSTICS ===")
+	logMLflowOperatorCRSection(ctx)
+	logMLflowOperatorDeploymentSection(ctx)
+	logMLflowOperatorPodSection(ctx)
+}
+
+func logMLflowOperatorCRSection(ctx context.Context) {
+	log.Printf("--- MLflowOperator CR ---")
+	if globalDebugClient == nil {
+		log.Printf("No Kubernetes client available for MLflowOperator CR diagnostics")
+		return
+	}
+
+	module := &unstructured.Unstructured{}
+	module.SetGroupVersionKind(gvk.MLflowOperator)
+
+	err := globalDebugClient.Get(ctx, types.NamespacedName{Name: mlflowOperatorCRName}, module)
+	switch {
+	case k8serr.IsNotFound(err):
+		log.Printf("MLflowOperator %q not found", mlflowOperatorCRName)
+		return
+	case err != nil:
+		log.Printf("Failed to get MLflowOperator %q: %v", mlflowOperatorCRName, err)
+		return
+	}
+
+	gatewayName, _, _ := unstructured.NestedString(module.Object, "spec", "gatewayName")
+	sectionTitle, _, _ := unstructured.NestedString(module.Object, "spec", "sectionTitle")
+	gatewayDomain, _, _ := unstructured.NestedString(module.Object, "spec", "gateway", "domain")
+	observedGeneration, _, _ := unstructured.NestedInt64(module.Object, "status", "observedGeneration")
+	phase, _, _ := unstructured.NestedString(module.Object, "status", "phase")
+
+	log.Printf(
+		"MLflowOperator %q: generation=%d observedGeneration=%d phase=%q",
+		module.GetName(),
+		module.GetGeneration(),
+		observedGeneration,
+		phase,
+	)
+	log.Printf(
+		"  spec.gatewayName=%q spec.sectionTitle=%q spec.gateway.domain=%q",
+		gatewayName,
+		sectionTitle,
+		gatewayDomain,
+	)
+
+	rawConditions, found, err := unstructured.NestedSlice(module.Object, "status", "conditions")
+	if err != nil {
+		log.Printf("  Failed to read MLflowOperator conditions: %v", err)
+		return
+	}
+	if !found || len(rawConditions) == 0 {
+		log.Printf("  No MLflowOperator status conditions found")
+		return
+	}
+
+	for _, rawCondition := range rawConditions {
+		conditionMap, ok := rawCondition.(map[string]any)
+		if !ok {
+			continue
+		}
+		conditionType, _ := conditionMap["type"].(string)
+		conditionStatus, _ := conditionMap["status"].(string)
+		conditionReason, _ := conditionMap["reason"].(string)
+		conditionMessage, _ := conditionMap["message"].(string)
+		log.Printf(
+			"  %s: %s - %s",
+			conditionType,
+			conditionStatus,
+			redactSensitiveInfo(strings.TrimSpace(strings.Join([]string{conditionReason, conditionMessage}, " "))),
+		)
+	}
+}
+
+func logMLflowOperatorDeploymentSection(ctx context.Context) {
+	log.Printf("--- MLflow Operator Deployment ---")
+	if globalDebugClient == nil {
+		log.Printf("No Kubernetes client available for MLflow operator Deployment diagnostics")
+		return
+	}
+
+	namespace := mlflowOperatorNamespace()
+	deployment := &appsv1.Deployment{}
+	err := globalDebugClient.Get(ctx, types.NamespacedName{
+		Namespace: namespace,
+		Name:      mlflowOperatorDeploymentName,
+	}, deployment)
+	switch {
+	case k8serr.IsNotFound(err):
+		log.Printf("Deployment %s/%s not found", namespace, mlflowOperatorDeploymentName)
+		return
+	case err != nil:
+		log.Printf("Failed to get Deployment %s/%s: %v", namespace, mlflowOperatorDeploymentName, err)
+		return
+	}
+
+	replicas := int32(1)
+	if deployment.Spec.Replicas != nil {
+		replicas = *deployment.Spec.Replicas
+	}
+
+	log.Printf(
+		"Deployment %s/%s: generation=%d observedGeneration=%d ready=%d/%d unavailable=%d",
+		namespace,
+		deployment.Name,
+		deployment.Generation,
+		deployment.Status.ObservedGeneration,
+		deployment.Status.ReadyReplicas,
+		replicas,
+		deployment.Status.UnavailableReplicas,
+	)
+	for _, condition := range deployment.Status.Conditions {
+		log.Printf("  %s: %s - %s", condition.Type, condition.Status, redactSensitiveInfo(condition.Message))
+	}
+
+	managerContainer := findNamedDeploymentContainer(deployment.Spec.Template.Spec.Containers, testManagerName)
+	if managerContainer == nil {
+		log.Printf("  Manager container %q not found on Deployment %s/%s", testManagerName, namespace, mlflowOperatorDeploymentName)
+		return
+	}
+
+	log.Printf("  manager image=%q", managerContainer.Image)
+	log.Printf(
+		"  env %s=%s",
+		mlflowOperatorControllerToggleEnv,
+		formatEnvVarValue(findNamedEnvVar(managerContainer.Env, mlflowOperatorControllerToggleEnv)),
+	)
+	log.Printf(
+		"  env %s=%s",
+		applicationsNamespaceEnvName,
+		formatEnvVarValue(findNamedEnvVar(managerContainer.Env, applicationsNamespaceEnvName)),
+	)
+}
+
+func logMLflowOperatorPodSection(ctx context.Context) {
+	log.Printf("--- MLflow Operator Pods ---")
+	if globalDebugClient == nil {
+		log.Printf("No Kubernetes client available for MLflow operator pod diagnostics")
+		return
+	}
+
+	namespace := mlflowOperatorNamespace()
+	podList := &corev1.PodList{}
+	if err := globalDebugClient.List(ctx, podList, client.InNamespace(namespace)); err != nil {
+		log.Printf("Failed to list pods in namespace %s: %v", namespace, err)
+		return
+	}
+
+	var mlflowPods []corev1.Pod
+	for _, pod := range podList.Items {
+		if strings.HasPrefix(pod.Name, mlflowOperatorDeploymentName+"-") {
+			mlflowPods = append(mlflowPods, pod)
+		}
+	}
+
+	if len(mlflowPods) == 0 {
+		log.Printf("No MLflow operator pods found in namespace %s", namespace)
+		return
+	}
+
+	sort.Slice(mlflowPods, func(i, j int) bool {
+		return mlflowPods[i].Name < mlflowPods[j].Name
+	})
+
+	for _, pod := range mlflowPods {
+		log.Printf("Pod %s: phase=%s", pod.Name, pod.Status.Phase)
+		for _, containerStatus := range pod.Status.ContainerStatuses {
+			waitingReason := ""
+			if containerStatus.State.Waiting != nil {
+				waitingReason = containerStatus.State.Waiting.Reason
+			}
+
+			terminatedState := ""
+			if containerStatus.State.Terminated != nil {
+				terminatedState = fmt.Sprintf("%s (exit %d)", containerStatus.State.Terminated.Reason, containerStatus.State.Terminated.ExitCode)
+			}
+
+			log.Printf(
+				"  Container %s: ready=%v restarts=%d waiting=%q terminated=%q",
+				containerStatus.Name,
+				containerStatus.Ready,
+				containerStatus.RestartCount,
+				waitingReason,
+				terminatedState,
+			)
+
+			if containerStatus.Name != testManagerName || containerStatus.Ready {
+				continue
+			}
+
+			// Fetch current logs even without restarts so we capture startup failures
+			// where the container never becomes Ready but has not crashed yet.
+			logContainerLogs(pod.Name, containerStatus.Name, pod.Namespace, logTypeCurrent)
+			if containerStatus.RestartCount > 0 {
+				logContainerLogs(pod.Name, containerStatus.Name, pod.Namespace, logTypePrevious)
+			}
+		}
+	}
+}
+
 func logCRConditionsSection(name string, section clusterhealth.SectionResult[clusterhealth.CRConditionsSection]) {
 	log.Printf("=== %s STATUS ===", name)
 	if section.Error != "" {
@@ -472,6 +680,44 @@ func logContainerLogs(podName, containerName, namespace, logType string) {
 	log.Printf("        === END LOGS ===")
 }
 
+func mlflowOperatorNamespace() string {
+	if testOpts.appsNamespace != "" {
+		return testOpts.appsNamespace
+	}
+	return testNamespace
+}
+
+func findNamedDeploymentContainer(containers []corev1.Container, targetName string) *corev1.Container {
+	for i := range containers {
+		if containers[i].Name == targetName {
+			return &containers[i]
+		}
+	}
+	return nil
+}
+
+func findNamedEnvVar(envVars []corev1.EnvVar, targetName string) *corev1.EnvVar {
+	for i := range envVars {
+		if envVars[i].Name == targetName {
+			return &envVars[i]
+		}
+	}
+	return nil
+}
+
+func formatEnvVarValue(envVar *corev1.EnvVar) string {
+	if envVar == nil {
+		return "<unset>"
+	}
+	if envVar.ValueFrom != nil {
+		return "<valueFrom>"
+	}
+	if envVar.Value == "" {
+		return "<empty>"
+	}
+	return fmt.Sprintf("%q", redactSensitiveInfo(envVar.Value))
+}
+
 func TestLogPodsSectionContinuesWithPartialData(t *testing.T) {
 	var buf bytes.Buffer
 	originalWriter := log.Writer()
@@ -542,6 +788,33 @@ func TestLogPodsSectionContinuesWithPartialData(t *testing.T) {
 	if !strings.Contains(output, "line-2") {
 		t.Fatalf("expected fetched pod log content in output, got: %s", output)
 	}
+}
+
+func TestFormatEnvVarValue(t *testing.T) {
+	t.Run("unset", func(t *testing.T) {
+		if got := formatEnvVarValue(nil); got != "<unset>" {
+			t.Fatalf("expected <unset>, got %s", got)
+		}
+	})
+
+	t.Run("literal", func(t *testing.T) {
+		got := formatEnvVarValue(&corev1.EnvVar{Name: mlflowOperatorControllerToggleEnv, Value: "true"})
+		if got != `"true"` {
+			t.Fatalf("expected quoted literal, got %s", got)
+		}
+	})
+
+	t.Run("valueFrom", func(t *testing.T) {
+		got := formatEnvVarValue(&corev1.EnvVar{
+			Name: applicationsNamespaceEnvName,
+			ValueFrom: &corev1.EnvVarSource{
+				ConfigMapKeyRef: &corev1.ConfigMapKeySelector{},
+			},
+		})
+		if got != "<valueFrom>" {
+			t.Fatalf("expected <valueFrom>, got %s", got)
+		}
+	})
 }
 
 // retrievePodLogs gets the actual logs from a pod container using client-go.
