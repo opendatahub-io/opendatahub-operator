@@ -15,7 +15,6 @@ DST_CHARTS_DIR="./opt/charts"
 
 # ODH Component Manifests
 declare -A ODH_COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:main@3b260b0a3a30af2aee6d9e4a825c730990f9a580:manifests"
     ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@62ebba193e4f95dc48facc8a621d741494cd19af:components/notebook-controller/config"
     ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@62ebba193e4f95dc48facc8a621d741494cd19af:components/odh-notebook-controller/config"
     ["workbenches/notebooks"]="opendatahub-io:notebooks:main@57f1c4e71cbbfc5455bb60e38fe2f4c3d47d53e3:manifests"
@@ -38,7 +37,6 @@ declare -A ODH_COMPONENT_MANIFESTS=(
 
 # RHOAI Component Manifests
 declare -A RHOAI_COMPONENT_MANIFESTS=(
-    ["dashboard"]="red-hat-data-services:odh-dashboard:rhoai-3.5-ea.2@be75515c3237f426940f543e8e8749a6349be832:manifests"
     ["workbenches/kf-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.5-ea.2@b288fcbbc9e90cace234e0961eb7c53be090d20c:components/notebook-controller/config"
     ["workbenches/odh-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.5-ea.2@b288fcbbc9e90cace234e0961eb7c53be090d20c:components/odh-notebook-controller/config"
     ["workbenches/notebooks"]="red-hat-data-services:notebooks:rhoai-3.5-ea.2@a15f5837562b139854482038bb55ee67c135700f:manifests"
@@ -75,6 +73,7 @@ declare -A ODH_CCM_CHARTS=(
 
 # ODH Component Charts
 declare -A ODH_COMPONENT_CHARTS=(
+    ["dashboard-operator"]="opendatahub-io:odh-dashboard:main@3184b675ae0a7eb50fcdb0d4d76bd1c33b560004:dashboard-operator/charts/dashboard"
 )
 
 # RHOAI CloudManager Charts
@@ -87,6 +86,7 @@ declare -A RHOAI_CCM_CHARTS=(
 
 # RHOAI Component Charts
 declare -A RHOAI_COMPONENT_CHARTS=(
+    ["dashboard-operator"]="red-hat-data-services:odh-dashboard:rhoai-3.5@960530868997027c6e99b7f27a73724007079009:dashboard-operator/charts/dashboard"
 )
 
 # merge_charts merges CCM and component charts into COMPONENT_CHARTS, failing on duplicate keys.

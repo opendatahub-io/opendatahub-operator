@@ -48,7 +48,7 @@ func RegisterAllWebhooks(mgr ctrl.Manager) error {
 		}},
 		{name: "serving", register: serving.RegisterWebhooks, disabled: func() bool { return !cr.IsEnabled(componentApi.KserveComponentName) }},
 		{name: "notebook", register: notebookwebhook.RegisterWebhooks, disabled: func() bool { return !cr.IsEnabled(componentApi.WorkbenchesComponentName) }},
-		{name: "dashboard", register: dashboard.RegisterWebhooks, disabled: func() bool { return !cr.IsEnabled(componentApi.DashboardComponentName) }},
+		{name: "dashboard", register: dashboard.RegisterWebhooks, disabled: func() bool { return !mr.IsEnabled(componentApi.DashboardComponentName) }},
 	}
 
 	for _, e := range entries {
