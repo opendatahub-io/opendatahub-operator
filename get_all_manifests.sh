@@ -75,7 +75,7 @@ declare -A ODH_CCM_CHARTS=(
 declare -A ODH_COMPONENT_CHARTS=(
     # Pin to odh-dashboard#8241 merge on main (webhook cert-manager templates, agentOps).
     # RHOAIENG-70528 RBAC ClusterRole expansion is pending — bump again when that lands.
-    ["dashboard-operator"]="opendatahub-io:odh-dashboard:main@98c129fdd18ffe254b15cf8a3bb98ccfa00e09aa:dashboard-operator/charts/dashboard"
+    ["dashboard-operator"]="opendatahub-io:odh-dashboard:main@2c2e3a4d0956737913a3351633f9343782fd28f6:dashboard-operator/charts/dashboard"
 )
 
 # RHOAI CloudManager Charts
