@@ -709,6 +709,8 @@ spec:
       managementState: Managed
     sparkoperator:
       managementState: Managed
+    mcplifecycleoperator:
+      managementState: Removed
 ```
 
 2. Enable only Dashboard and Workbenches
