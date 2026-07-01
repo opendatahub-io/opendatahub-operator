@@ -7,7 +7,6 @@ import (
 )
 
 //go:embed kueue/monitoring
-//go:embed mcplifecycleoperator/monitoring
 //go:embed sparkoperator/monitoring
 //go:embed trainingoperator/monitoring
 //go:embed trainer/monitoring

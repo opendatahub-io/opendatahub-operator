@@ -13,7 +13,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -414,11 +414,6 @@ func deployAlerting(ctx context.Context, rr *odhtypes.ReconciliationRequest) err
 	if forEachErr != nil {
 		return fmt.Errorf("failed to iterate components: %w", forEachErr)
 	}
-
-	// Add module prometheus rules for enabled modules.
-	// Modules are not in the component registry, so we handle them explicitly.
-	addModuleAlertingRules(ctx, dsc.Spec.Components.MCPLifecycleOperator.ManagementState,
-		componentApi.MCPLifecycleOperatorComponentName, rr, &addErrors, &cleanupErrors)
 
 	// If we fail to add prometheus rules for a component.
 	if len(addErrors) > 0 {

@@ -199,7 +199,8 @@ var (
 	}
 
 	moduleRunlevels = map[string]dag.Runlevel{
-		componentApi.AIGatewayComponentName: dag.RL(20),
+		componentApi.AIGatewayComponentName:            dag.RL(20),
+		componentApi.MCPLifecycleOperatorComponentName: dag.RL(20),
 	}
 )
 

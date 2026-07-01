@@ -3,9 +3,11 @@ package mcplifecycleoperator
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -32,7 +34,7 @@ func NewHandler() *handler {
 			Config: modules.ModuleConfig{
 				Name:            moduleName,
 				CRName:          crName,
-				ManifestDir:     "mcplifecycleoperator",
+				ManifestDir:     "mcp-lifecycle-module-operator",
 				ContextDir:      "default",
 				DeploymentName:  deploymentName,
 				GVK:             gvk.MCPLifecycleOperator,
@@ -69,13 +71,15 @@ func (h *handler) BuildModuleCR(
 	if platform == nil {
 		return nil, errors.New("platform context is nil, cannot build MCPLifecycleOperator CR")
 	}
-
-	spec := map[string]any{
-		"managementState": "Managed",
+	if platform.DSC == nil {
+		return nil, errors.New("DSC is not available, cannot build MCPLifecycleOperator CR")
 	}
 
-	if platform.DSC != nil {
-		spec["managementState"] = string(platform.DSC.Spec.Components.MCPLifecycleOperator.ManagementState)
+	spec, err := runtime.DefaultUnstructuredConverter.ToUnstructured(
+		&platform.DSC.Spec.Components.MCPLifecycleOperator.MCPLifecycleOperatorCommonSpec,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert MCPLifecycleOperatorCommonSpec to unstructured: %w", err)
 	}
 
 	u := &unstructured.Unstructured{

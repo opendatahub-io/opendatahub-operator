@@ -73,22 +73,8 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	g.Expect(u.GetName()).Should(Equal(componentApi.MCPLifecycleOperatorInstanceName))
 	g.Expect(u.GetKind()).Should(Equal(componentApi.MCPLifecycleOperatorKind))
 
-	spec, ok := u.Object["spec"].(map[string]any)
+	_, ok := u.Object["spec"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec is not a map")
-	g.Expect(spec["managementState"]).Should(Equal("Managed"))
-}
-
-func TestBuildModuleCR_Removed(t *testing.T) {
-	g := NewWithT(t)
-	h := mcplifecycleoperator.NewHandler()
-	platform := newPlatformCtx(operatorv1.Removed)
-
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	spec, ok := u.Object["spec"].(map[string]any)
-	g.Expect(ok).Should(BeTrue(), "spec is not a map")
-	g.Expect(spec["managementState"]).Should(Equal("Removed"))
 }
 
 func TestBuildModuleCR_NilPlatformContextReturnsError(t *testing.T) {
@@ -98,19 +84,13 @@ func TestBuildModuleCR_NilPlatformContextReturnsError(t *testing.T) {
 	g.Expect(err).Should(HaveOccurred())
 }
 
-func TestBuildModuleCR_PlatformMode(t *testing.T) {
+func TestBuildModuleCR_NilDSCReturnsError(t *testing.T) {
 	g := NewWithT(t)
 	h := mcplifecycleoperator.NewHandler()
 	platform := &modules.PlatformContext{ApplicationsNamespace: "opendatahub"}
 
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(u.GetName()).Should(Equal(componentApi.MCPLifecycleOperatorInstanceName))
-	g.Expect(u.GetKind()).Should(Equal(componentApi.MCPLifecycleOperatorKind))
-
-	spec, ok := u.Object["spec"].(map[string]any)
-	g.Expect(ok).Should(BeTrue(), "spec is not a map")
-	g.Expect(spec["managementState"]).Should(Equal("Managed"))
+	_, err := h.BuildModuleCR(context.Background(), nil, platform)
+	g.Expect(err).Should(HaveOccurred())
 }
 
 func TestGetRelatedImages(t *testing.T) {
