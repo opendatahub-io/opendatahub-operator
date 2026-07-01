@@ -6,14 +6,12 @@ import (
 	"errors"
 	"fmt"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -432,25 +430,6 @@ func deployAlerting(ctx context.Context, rr *odhtypes.ReconciliationRequest) err
 	}
 
 	return nil
-}
-
-func addModuleAlertingRules(
-	ctx context.Context,
-	mgmtState operatorv1.ManagementState,
-	moduleName string,
-	rr *odhtypes.ReconciliationRequest,
-	addErrors *[]error,
-	cleanupErrors *[]error,
-) {
-	if mgmtState == operatorv1.Managed {
-		if err := addPrometheusRules(moduleName, rr); err != nil {
-			*addErrors = append(*addErrors, fmt.Errorf("failed to add prometheus rules for module %s: %w", moduleName, err))
-		}
-	} else {
-		if err := cleanupPrometheusRules(ctx, moduleName, rr); err != nil {
-			*cleanupErrors = append(*cleanupErrors, fmt.Errorf("failed to cleanup prometheus rules for module %s: %w", moduleName, err))
-		}
-	}
 }
 
 func deployPerses(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
