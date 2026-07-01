@@ -31,7 +31,7 @@ The Dashboard controller creates a single OpenShift Route:
 https://rhods-dashboard-redhat-ods-applications.apps.<cluster>/  →  Dashboard service  →  Dashboard pod
 ```
 
-This route lives in redhat-ods-applications and is owned by the Dashboard CR. RHOAI 2.16 and earlier did not stamp platform.opendatahub.io/\* annotations on resources — the stamping framework was introduced in ODH 2.22.0 ([#1320](https://github.com/opendatahub-io/opendatahub-operator/pull/1320), [#1374](https://github.com/opendatahub-io/opendatahub-operator/pull/1374), December 2024) and is present in RHOAI from 2.19 onwards. The route does have standard OpenShift annotations (e.g., haproxy.router.openshift.io/timeout), which is relevant for how GC handles it during upgrades (see below).
+This route lives in redhat-ods-applications and is owned by the Dashboard CR. RHOAI 2.16 and earlier did not stamp platform.opendatahub.io/\* annotations on resources — the stamping framework was introduced in PRs [#1320](https://github.com/opendatahub-io/opendatahub-operator/pull/1320) (October 2024) and [#1374](https://github.com/opendatahub-io/opendatahub-operator/pull/1374) (November 2024), shipped in ODH 2.22.0 (December 2024), and is present in RHOAI from 2.19 onwards.
 
 ## RHOAI 3.3 — Gateway replaces per-component routing
 
@@ -60,15 +60,19 @@ Both redirects are powered by an Nginx deployment that returns 301 Moved Permane
 
 ## Annotation Stamping Framework
 
-The annotation-stamping and GC framework was introduced upstream in ODH 2.22.0 ([#1320](https://github.com/opendatahub-io/opendatahub-operator/pull/1320), [#1374](https://github.com/opendatahub-io/opendatahub-operator/pull/1374), December 2024). Before that, the operator deployed resources using a legacy code path (pkg/deploy/deploy.go). The legacy path used Server-Side Apply (SSA), but it did not stamp platform.opendatahub.io/\* annotations on resources.
+The annotation-stamping and GC framework was introduced upstream in PRs [#1320](https://github.com/opendatahub-io/opendatahub-operator/pull/1320) (October 2024) and [#1374](https://github.com/opendatahub-io/opendatahub-operator/pull/1374) (November 2024), shipped in ODH 2.22.0 (December 2024). Before that, the operator deployed resources using a legacy code path (pkg/deploy/deploy.go). The legacy path used Server-Side Apply (SSA), but it did not stamp platform.opendatahub.io/\* annotations on resources.
 
 In RHOAI terms: the stamping framework is present starting from **RHOAI 2.19**. Resources deployed by RHOAI 2.19 and later (2.21, 2.22, 2.25, etc.) carry the full set of platform annotations. **RHOAI 2.16 and earlier** use the legacy deploy path and do not stamp annotations.
 
-This means GC handles two different scenarios during upgrades:
+This means GC handles resources differently depending on which version deployed them:
 
-* Resources from **RHOAI 2.16 and earlier**: no platform annotations at all. GC deletes them because platform stamps are missing.  
-* Resources from **RHOAI 2.19+** (2.19, 2.21, 2.22, 2.25, etc.): have platform annotations with the old operator version. GC deletes them because the version stamp does not match the new RHOAI 3.x operator version.  
+* Resources from **RHOAI 2.19+** (2.19, 2.21, 2.22, 2.25, etc.): have platform annotations and the `platform.opendatahub.io/part-of` label. GC finds them via the label selector and deletes them because the version stamp does not match the new RHOAI 3.x operator version.  
 * Resources from the **current RHOAI 3.x version**: carry fresh platform annotations matching the running operator. GC keeps them.
+
+**RHOAI 2.16 and earlier** are a special case. The legacy deploy path (`pkg/deploy/deploy.go`) set `app.kubernetes.io/part-of` (the standard Kubernetes label) but did NOT set `platform.opendatahub.io/part-of` (the label GC queries). This means GC cannot find these resources — they are invisible to the label selector. However, they are still cleaned up through other mechanisms:
+
+* **2.x → 3.4+ upgrades:** The Gateway controller creates a redirect route with the **same name** (`rhods-dashboard`) in the **same namespace** (`redhat-ods-applications`). Server-Side Apply (SSA) overwrites the old route in-place and takes over ownership — the old route becomes the redirect route.  
+* **2.x → 3.3 upgrades:** No redirect exists, and GC cannot find the route. The old `rhods-dashboard` route is **orphaned** — it remains in the cluster pointing at a Dashboard service that may no longer exist. There is no explicit upgrade code in `pkg/upgrade/` that deletes it.
 
 ### Step 1: Garbage Collection (GC) Workflow
 
@@ -147,14 +151,15 @@ There are also two override rules applied before the annotation check:
 
 ### How does this apply to 2.x routes?
 
-The outcome depends on which 2.x version the route was deployed by:
+The outcome depends on which 2.x version deployed the route and which 3.x version you upgrade to:
 
-* **RHOAI 2.16 and earlier:** The route does NOT carry platform annotations. OpenShift routes always have some annotations (e.g., haproxy.router.openshift.io/timeout), so GetAnnotations() is not nil. But the four platform.opendatahub.io/\* stamps are all missing. GC treats this as "not stamped by the current deploy framework" and deletes the resource.  
-* **RHOAI 2.19+** (2.19, 2.21, 2.22, 2.25, etc.): The route carries platform annotations with the old operator version (e.g., version: "2.25.7"). When the RHOAI 3.x operator starts, GC finds the route has all four stamps, but the version does not match the new operator version. GC treats this as stale and deletes the resource.
+* **RHOAI 2.19+** (2.19, 2.21, 2.22, 2.25, etc.): The route carries platform annotations with the old operator version (e.g., version: "2.25.7") and has the `platform.opendatahub.io/part-of: dashboard` label. GC finds the route via the label selector, checks annotations, and deletes it because of version mismatch.
 
-In both cases the route is deleted — the reason differs (missing stamps vs. version mismatch) but the end result is the same.
+* **RHOAI 2.16 and earlier** → **3.4+**: The route does NOT carry `platform.opendatahub.io/part-of` (the legacy deploy path set `app.kubernetes.io/part-of` instead). GC cannot find it via label selector. However, the Gateway controller creates a redirect route with the **same name** (`rhods-dashboard`) in the **same namespace**, so SSA overwrites the old route in-place — the old route becomes a redirect to `rh-ai`.
 
-The label and ownership checks (steps 2–3) still apply. A 2.x resource can only be GC'd if it also has the right platform.opendatahub.io/part-of label and the right ownerReference.
+* **RHOAI 2.16 and earlier** → **3.3**: GC cannot find the route (wrong label), and no redirect route is created to overwrite it. The old route is **orphaned** in the cluster. It still has the old hostname but may point at a service that no longer exists.
+
+The label and ownership checks (steps 2–3) are important: a resource can only be GC'd if it has the right `platform.opendatahub.io/part-of` label and the right ownerReference. Resources with only `app.kubernetes.io/part-of` are invisible to GC.
 
 ### Deploy and GC happen in one reconciliation pass
 
@@ -186,7 +191,7 @@ Step-by-step upgrade process from 2.x to 3.3 (using RHOAI 2.25.7 → 3.3.3 as th
 6. GC — Lists all resources with part-of: dashboard and owned by Dashboard. The old route is found. GC checks annotations: the route has all four platform stamps, but the version ("2.25.7") does not match the current operator version ("3.3.3") → version mismatch → deleted.  
 7. Meanwhile, the Gateway controller creates the new data-science-gateway route with part-of: gatewayconfig and owned by GatewayConfig.
 
-Note: For upgrades from RHOAI 2.16 and earlier (which did not have the stamping framework), the route would lack platform stamps entirely. GC would still delete it — the reason would be "missing stamps" instead of "version mismatch", but the outcome is the same.
+Note: This walkthrough uses RHOAI 2.25.7 (which includes the stamping framework). For upgrades from **RHOAI 2.16 and earlier**, the route would lack both platform annotations AND the `platform.opendatahub.io/part-of` label — GC cannot find it at all. In a 2.16 → 3.3 upgrade, the old route would be orphaned. In a 2.16 → 3.4+ upgrade, the route is overwritten by SSA when the Gateway controller creates a redirect route with the same name (see "How does this apply to 2.x routes?" above).
 
 ---
 
