@@ -34,7 +34,7 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["sparkoperator"]="opendatahub-io:spark-operator:main@c2bad1c04553283b617846156d6dc2ee335662ac:config"
     ["wva"]="opendatahub-io:workload-variant-autoscaler:main@1a33d8559d4d56fcd0d4b9b2cc2afdbf6d832aee:config"
     ["aigateway"]="opendatahub-io:ai-gateway-operator:main@f0383d5d517c23249b6d7b73c6cb7c754036c1c3:config"
-    ["mcp-lifecycle-module-operator"]="opendatahub-io:mcp-lifecycle-module-operator:main@6616374e929896b18b5db309e247d462a844127a:config"
+    ["mcp-lifecycle-module-operator"]="opendatahub-io:mcp-lifecycle-module-operator:main@c6568a38b62adb9ed5fa629d2feb027ae6e3e09b:config"
 )
 
 # RHOAI Component Manifests
