@@ -2,6 +2,7 @@ package registry
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"sync"
 
@@ -17,6 +18,13 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
 )
+
+// ErrComponentNotDeployable signals that a component cannot construct its CR
+// because required platform infrastructure is missing (e.g. gateway domain on
+// vanilla Kubernetes). Wrap NewCRObject errors with this sentinel so the
+// readiness checker can distinguish "not applicable on this platform" from
+// real construction bugs.
+var ErrComponentNotDeployable = errors.New("component not deployable on this platform")
 
 // ComponentHandler is an interface to manage a component
 // Every method should accept ctx since it contains the logger.

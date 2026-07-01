@@ -14,6 +14,7 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
+	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -48,7 +49,7 @@ func (s *componentHandler) NewCRObject(ctx context.Context, cli client.Client, d
 	if err != nil {
 		return nil, fmt.Errorf(
 			"gateway domain is missing for ModelRegistry; the Data Science Gateway may not be ready yet—check that "+
-				"GatewayConfig exists and its status reports a domain: %w", err)
+				"GatewayConfig exists and its status reports a domain: %w", errors.Join(err, cr.ErrComponentNotDeployable))
 	}
 	return &componentApi.ModelRegistry{
 		TypeMeta: metav1.TypeMeta{

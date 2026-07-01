@@ -2,6 +2,7 @@ package registry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -9,6 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
@@ -53,7 +55,12 @@ func (c *ComponentReadinessChecker) IsReady(ctx context.Context, name string) (b
 
 	ci, err := handler.NewCRObject(ctx, c.client, c.dsc)
 	if err != nil {
-		return false, err
+		if errors.Is(err, ErrComponentNotDeployable) {
+			logf.FromContext(ctx).V(1).Info("NewCRObject reported component not deployable, treating as ready for DAG gating",
+				"component", name, "error", err)
+			return true, nil
+		}
+		return false, fmt.Errorf("component %q: failed to construct CR: %w", name, err)
 	}
 	if isNilPlatformObject(ci) {
 		return true, nil
