@@ -243,11 +243,11 @@ func maasParametersConfigMapFromParamsEnv(manifestsBasePath string, appNs string
 	return cm, nil
 }
 
-// payloadProcessingNetworkPolicy returns a NetworkPolicy for the
-// payload-processing pod in the gateway namespace. OCP 4.22 introduced a
-// deny-all NetworkPolicy in openshift-ingress; without explicit rules the pod
-// cannot reach the Kubernetes API server (egress) or receive ext_proc calls
-// from the gateway (ingress).
+// payloadProcessingNetworkPolicy returns a NetworkPolicy for both the
+// payload-processing and payload-pre-processing pods in the gateway namespace.
+// OCP 4.22 introduced a deny-all NetworkPolicy in openshift-ingress; without
+// explicit rules the pods cannot reach the Kubernetes API server (egress) or
+// receive ext_proc calls from the gateway (ingress).
 func payloadProcessingNetworkPolicy(componentLabels map[string]string) unstructured.Unstructured {
 	npLabels := make(map[string]any, len(componentLabels)+1)
 	for k, v := range componentLabels {
@@ -266,8 +266,12 @@ func payloadProcessingNetworkPolicy(componentLabels map[string]string) unstructu
 			},
 			"spec": map[string]any{
 				"podSelector": map[string]any{
-					"matchLabels": map[string]any{
-						"app": "payload-processing",
+					"matchExpressions": []any{
+						map[string]any{
+							"key":      "app",
+							"operator": "In",
+							"values":   []any{"payload-processing", "payload-pre-processing"},
+						},
 					},
 				},
 				"policyTypes": []any{"Ingress", "Egress"},
@@ -381,7 +385,9 @@ type resourceKey struct {
 // kind+name to avoid accidentally matching unrelated resources.
 var gatewayNamespaceResources = map[resourceKey]bool{
 	{kind: "Deployment", name: "payload-processing"}:                true,
+	{kind: "Deployment", name: "payload-pre-processing"}:            true,
 	{kind: "Service", name: "payload-processing"}:                   true,
+	{kind: "Service", name: "payload-pre-processing"}:               true,
 	{kind: "ServiceAccount", name: "payload-processing"}:            true,
 	{kind: "ConfigMap", name: "payload-processing-plugins"}:         true,
 	{kind: "NetworkPolicy", name: "payload-processing"}:             true,

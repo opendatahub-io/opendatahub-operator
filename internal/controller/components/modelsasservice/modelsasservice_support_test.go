@@ -211,9 +211,14 @@ func TestPayloadProcessingNetworkPolicy(t *testing.T) {
 
 	podSelector, ok := spec["podSelector"].(map[string]any)
 	g.Expect(ok).To(BeTrue(), "podSelector should be a map")
-	matchLabels, ok := podSelector["matchLabels"].(map[string]any)
-	g.Expect(ok).To(BeTrue(), "matchLabels should be a map")
-	g.Expect(matchLabels).To(HaveKeyWithValue("app", "payload-processing"))
+	matchExpressions, ok := podSelector["matchExpressions"].([]any)
+	g.Expect(ok).To(BeTrue(), "matchExpressions should be an array")
+	g.Expect(matchExpressions).To(HaveLen(1))
+	expr, ok := matchExpressions[0].(map[string]any)
+	g.Expect(ok).To(BeTrue())
+	g.Expect(expr["key"]).To(Equal("app"))
+	g.Expect(expr["operator"]).To(Equal("In"))
+	g.Expect(expr["values"]).To(ConsistOf("payload-processing", "payload-pre-processing"))
 
 	policyTypes, ok := spec["policyTypes"].([]any)
 	g.Expect(ok).To(BeTrue(), "policyTypes should be an array")

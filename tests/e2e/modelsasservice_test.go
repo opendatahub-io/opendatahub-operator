@@ -315,8 +315,8 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantSingletonEnforcement(t *testing.
 }
 
 // ValidatePayloadProcessingNetworkPolicy verifies that the NetworkPolicy for
-// payload-processing exists in the gateway namespace with correct ingress and
-// egress rules.
+// payload-processing and payload-pre-processing exists in the gateway namespace
+// with correct ingress and egress rules.
 func (tc *ModelsAsServiceTestCtx) ValidatePayloadProcessingNetworkPolicy(t *testing.T) {
 	t.Helper()
 	skipUnless(t, Tier1)
@@ -329,7 +329,10 @@ func (tc *ModelsAsServiceTestCtx) ValidatePayloadProcessingNetworkPolicy(t *test
 			Namespace: maasGatewayNamespace,
 		}),
 		WithCondition(And(
-			jq.Match(`.spec.podSelector.matchLabels.app == "payload-processing"`),
+			jq.Match(`.spec.podSelector.matchExpressions | length == 1`),
+			jq.Match(`.spec.podSelector.matchExpressions[0].key == "app"`),
+			jq.Match(`.spec.podSelector.matchExpressions[0].operator == "In"`),
+			jq.Match(`.spec.podSelector.matchExpressions[0].values | sort == ["payload-pre-processing", "payload-processing"]`),
 			jq.Match(`.spec.policyTypes | any(. == "Ingress")`),
 			jq.Match(`.spec.policyTypes | any(. == "Egress")`),
 			jq.Match(`.spec.ingress | length == 2`),
