@@ -224,8 +224,20 @@ func TestSubscriptionDependencyMonitoring(t *testing.T) {
 				LLMInferenceServiceWideEPDependencies, metav1.ConditionFalse),
 		))
 
+		// Conditions must be Info severity — they are advisory, not blockers (RHOAIENG-68944).
+		wt.Get(gvk.Kserve, nn).Eventually().Should(And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .severity == "%s"`,
+				LLMInferenceServiceDependencies, common.ConditionSeverityInfo),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .severity == "%s"`,
+				LLMInferenceServiceWideEPDependencies, common.ConditionSeverityInfo),
+		))
+
+		// The RHCL-missing message must include self-documenting guidance on how to deploy
+		// LLMInferenceService without authentication (RHOAIENG-68944).
 		wt.Get(gvk.Kserve, nn).Eventually().Should(And(
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("Red Hat Connectivity Link")`,
+				LLMInferenceServiceDependencies),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("enable-auth")`,
 				LLMInferenceServiceDependencies),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("cert-manager operator")`,
 				LLMInferenceServiceDependencies),
