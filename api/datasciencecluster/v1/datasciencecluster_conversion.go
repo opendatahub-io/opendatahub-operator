@@ -138,8 +138,27 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 					ManagementState: operatorv1.Removed,
 				},
 			},
+			AIGateway: componentApi.DSCAIGateway{
+				ManagementSpec: common.ManagementSpec{
+					// Enable AIGateway when MaaS is enabled in v1
+					ManagementState: func() operatorv1.ManagementState {
+						if c.Spec.Components.Kserve.ModelsAsService.ManagementState == operatorv1.Managed {
+							return operatorv1.Managed
+						}
+						return operatorv1.Removed
+					}(),
+				},
+				AIGatewayCommonSpec: componentApi.AIGatewayCommonSpec{
+					// Auto-migrate: kserve.modelsAsService → aigateway.modelsasservice
+					ModelsAsService: c.Spec.Components.Kserve.ModelsAsService,
+				},
+			},
 		},
 	}
+
+	// Clear modelsAsService from Kserve after migrating to AIGateway
+	// In v2, modelsAsService lives under aigateway, not kserve
+	dst.Spec.Components.Kserve.ModelsAsService = componentApi.DSCModelsAsServiceSpec{}
 
 	// Convert status with field renaming: DataSciencePipelines -> AIPipelines
 	// and condition type renaming: DataSciencePipelinesReady -> AIPipelinesReady
@@ -183,6 +202,11 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 					ManagementState: operatorv1.Removed,
 				},
 			},
+			AIGateway: componentApi.DSCAIGatewayStatus{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Removed,
+				},
+			},
 		},
 		Release: c.Status.Release,
 	}
@@ -196,12 +220,17 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 
 	c.ObjectMeta = src.ObjectMeta
 
+	// When converting v2->v1, we need to put aigateway.modelsAsService back into kserve.modelsAsService
+	// so v1 clients see the migrated configuration
+	v1Kserve := src.Spec.Components.Kserve
+	v1Kserve.ModelsAsService = src.Spec.Components.AIGateway.ModelsAsService
+
 	c.Spec = DataScienceClusterSpec{
 		Components: Components{
 			Dashboard:            src.Spec.Components.Dashboard,
 			Workbenches:          src.Spec.Components.Workbenches,
 			DataSciencePipelines: src.Spec.Components.AIPipelines,
-			Kserve:               src.Spec.Components.Kserve,
+			Kserve:               v1Kserve,
 			Kueue: DSCKueueV1{
 				KueueManagementSpecV1: KueueManagementSpecV1{
 					ManagementState: src.Spec.Components.Kueue.ManagementState,

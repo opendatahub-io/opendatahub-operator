@@ -218,3 +218,81 @@ func TestConvertConditions_Nil(t *testing.T) {
 	result := convertConditions(nil, true)
 	g.Expect(result).To(BeNil())
 }
+
+// TestConvertTo_MigratesMaaSFromKserveToAIGateway verifies that when converting
+// from v1 to v2, kserve.modelsAsService is automatically migrated to aigateway.modelsasservice.
+func TestConvertTo_MigratesMaaSFromKserveToAIGateway(t *testing.T) {
+	g := NewWithT(t)
+
+	// Create v1 DSC with kserve.modelsAsService enabled
+	v1DSC := &DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-dsc",
+		},
+		Spec: DataScienceClusterSpec{
+			Components: Components{
+				Kserve: componentApi.DSCKserve{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Managed,
+					},
+					KserveCommonSpec: componentApi.KserveCommonSpec{
+						ModelsAsService: componentApi.DSCModelsAsServiceSpec{
+							ManagementState: operatorv1.Managed,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Convert v1 to v2
+	v2DSC := &dscv2.DataScienceCluster{}
+	err := v1DSC.ConvertTo(v2DSC)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// Verify modelsAsService was migrated to aigateway.modelsasservice
+	g.Expect(v2DSC.Spec.Components.AIGateway.ModelsAsService.ManagementState).To(Equal(operatorv1.Managed))
+
+	// Verify AIGateway was enabled
+	g.Expect(v2DSC.Spec.Components.AIGateway.ManagementState).To(Equal(operatorv1.Managed))
+
+	// Verify original kserve.modelsAsService is cleared after migration to aigateway
+	// Empty string is the zero value for ManagementState when creating an empty struct
+	g.Expect(v2DSC.Spec.Components.Kserve.ModelsAsService.ManagementState).To(Equal(operatorv1.ManagementState("")))
+}
+
+// TestConvertTo_MaaSNotEnabledInV1 verifies that when kserve.modelsAsService is
+// not enabled in v1, AIGateway is set to Removed in v2.
+func TestConvertTo_MaaSNotEnabledInV1(t *testing.T) {
+	g := NewWithT(t)
+
+	v1DSC := &DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-dsc",
+		},
+		Spec: DataScienceClusterSpec{
+			Components: Components{
+				Kserve: componentApi.DSCKserve{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Managed,
+					},
+					KserveCommonSpec: componentApi.KserveCommonSpec{
+						ModelsAsService: componentApi.DSCModelsAsServiceSpec{
+							ManagementState: operatorv1.Removed,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	v2DSC := &dscv2.DataScienceCluster{}
+	err := v1DSC.ConvertTo(v2DSC)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// AIGateway should be Removed when MaaS is not enabled
+	g.Expect(v2DSC.Spec.Components.AIGateway.ManagementState).To(Equal(operatorv1.Removed))
+
+	// modelsAsService should still be copied to aigateway
+	g.Expect(v2DSC.Spec.Components.AIGateway.ModelsAsService.ManagementState).To(Equal(operatorv1.Removed))
+}

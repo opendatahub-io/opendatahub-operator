@@ -88,7 +88,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/mlflowoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelcontroller"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelsasservice"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ogx"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ray"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
@@ -136,6 +135,7 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 
 	existingComponents = map[string]cr.ComponentHandler{
+		componentApi.AIGatewayComponentName:            aigatewayModule.NewComponentHandler(),
 		componentApi.DashboardComponentName:            dashboard.NewHandler(),
 		componentApi.DataSciencePipelinesComponentName: datasciencepipelines.NewHandler(),
 		componentApi.FeastOperatorComponentName:        feastoperator.NewHandler(),
@@ -145,7 +145,6 @@ var (
 		componentApi.MLflowOperatorComponentName:       mlflowoperator.NewHandler(),
 		componentApi.ModelControllerComponentName:      modelcontroller.NewHandler(),
 		componentApi.ModelRegistryComponentName:        modelregistry.NewHandler(),
-		componentApi.ModelsAsServiceComponentName:      modelsasservice.NewHandler(),
 		componentApi.RayComponentName:                  ray.NewHandler(),
 		componentApi.SparkOperatorComponentName:        sparkoperator.NewHandler(),
 		componentApi.TrainerComponentName:              trainer.NewHandler(),
@@ -162,6 +161,7 @@ var (
 	// 32 — independent extensions, no KServe dependency.
 	// 33 — components that require KServe to be Ready.
 	componentRunlevels = map[string]dag.Runlevel{
+		componentApi.AIGatewayComponentName:            dag.RL(20),
 		componentApi.DashboardComponentName:            dag.RL(20),
 		componentApi.DataSciencePipelinesComponentName: dag.RL(20),
 		componentApi.ModelRegistryComponentName:        dag.RL(20),
@@ -179,7 +179,6 @@ var (
 		componentApi.SparkOperatorComponentName:  dag.RL(32),
 
 		componentApi.ModelControllerComponentName: dag.RL(33),
-		componentApi.ModelsAsServiceComponentName: dag.RL(33),
 		componentApi.TrustyAIComponentName:        dag.RL(33),
 	}
 
