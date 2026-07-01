@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -189,6 +190,13 @@ func buildMaasOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconci
 	if err != nil {
 		return nil, fmt.Errorf("build maas-parameters ConfigMap from params.env: %w", err)
 	}
+
+	if maas, ok := rr.Instance.(*componentApi.ModelsAsService); ok && maas.Spec.APIKeys != nil && maas.Spec.APIKeys.MaxExpirationDays != nil {
+		if data, ok := paramsCM.Object["data"].(map[string]any); ok {
+			data["api-key-max-expiration-days"] = strconv.FormatInt(int64(*maas.Spec.APIKeys.MaxExpirationDays), 10)
+		}
+	}
+
 	extra = append(extra, *paramsCM)
 
 	out := make([]client.Object, len(extra))
