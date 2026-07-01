@@ -30,6 +30,12 @@ known_issues:
 - image: RELATED_IMAGE_ODH_CAIKIT_NLP_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-60523
   reason: caikit-nlp support is removed since RHOAI 3.0
+- image: RELATED_IMAGE_ODH_MCP_LIFECYCLE_MODULE_OPERATOR_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-71453
+  reason: pending RHOAI Konflux onboarding for mcp-lifecycle-module-operator
+- image: RELATED_IMAGE_ODH_MCP_LIFECYCLE_OPERATOR_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-71452
+  reason: pending RHOAI Konflux onboarding for mcp-lifecycle-operator
 
 odh_exceptions:
 - image: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
