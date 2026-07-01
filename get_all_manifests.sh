@@ -32,6 +32,8 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["mlflowoperator"]="opendatahub-io:mlflow-operator:main@a9b2aa5ab0b505af3b449316937bde176f6decc6:config"
     ["sparkoperator"]="opendatahub-io:spark-operator:main@c2bad1c04553283b617846156d6dc2ee335662ac:config"
     ["wva"]="opendatahub-io:workload-variant-autoscaler:main@1a33d8559d4d56fcd0d4b9b2cc2afdbf6d832aee:config"
+    ["feast"]="opendatahub-io:feast-module-operator:main@32cb2d4685f4a6bdb62af91a3a756231a84af6ea:config"
+)
 )
 
 # RHOAI Component Manifests
@@ -53,6 +55,7 @@ declare -A RHOAI_COMPONENT_MANIFESTS=(
     ["mlflowoperator"]="red-hat-data-services:mlflow-operator:rhoai-3.5-ea.2@2116e3d405199597f386fae5c3335676837a0f82:config"
     ["sparkoperator"]="red-hat-data-services:spark-operator:rhoai-3.5-ea.2@32039fb50b31ff4098d1c1645319ecb73e14da79:config"
     ["wva"]="red-hat-data-services:workload-variant-autoscaler:rhoai-3.5-ea.2@93c9e78bd1671f577e5efe6ec9248b32d25f8124:config"
+    ["feast"]="opendatahub-io:feast-module-operator:main@32cb2d4685f4a6bdb62af91a3a756231a84af6ea:config"
 )
 
 # {ODH,RHOAI}_{CCM,COMPONENT}_CHARTS are lists of chart repositories info to fetch helm charts
@@ -71,8 +74,6 @@ declare -A ODH_CCM_CHARTS=(
 
 # ODH Component Charts
 declare -A ODH_COMPONENT_CHARTS=(
-    # TODO: Pin to a release tag SHA once first release is cut
-    ["opendatahub-feast-operator"]="opendatahub-io:feast-module-operator:main:config/chart"
 )
 
 # RHOAI CloudManager Charts
@@ -85,8 +86,6 @@ declare -A RHOAI_CCM_CHARTS=(
 
 # RHOAI Component Charts
 declare -A RHOAI_COMPONENT_CHARTS=(
-    # TODO: Update to downstream feast-module-operator repo once established
-    ["opendatahub-feast-operator"]="red-hat-data-services:feast-module-operator:rhoai-3.5:config/chart"
 )
 
 # merge_charts merges CCM and component charts into COMPONENT_CHARTS, failing on duplicate keys.
