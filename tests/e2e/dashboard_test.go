@@ -414,6 +414,7 @@ func (tc *DashboardTestCtx) ValidateComponentDisabled(t *testing.T) {
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
 		WithListOptions(
 			&client.ListOptions{
+				Namespace: tc.AppsNamespace,
 				LabelSelector: k8slabels.Set{
 					labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
 				}.AsSelector(),
