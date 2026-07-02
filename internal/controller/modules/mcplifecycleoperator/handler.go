@@ -49,6 +49,7 @@ func NewHandler() *handler {
 
 // IsEnabled checks whether the MCPLifecycleOperator module should be deployed.
 // In DSC mode, reads DSC.Spec.Components.MCPLifecycleOperator.ManagementState.
+// In Platform mode (xKS), reads Platform.Spec.Modules.MCPLifecycleOperator.ManagementState.
 func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 	if platform == nil {
 		return false
@@ -56,12 +57,15 @@ func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 	if platform.DSC != nil {
 		return platform.DSC.Spec.Components.MCPLifecycleOperator.ManagementState == operatorv1.Managed
 	}
+	if platform.Platform != nil {
+		return platform.Platform.Spec.Modules.MCPLifecycleOperator.ManagementState == operatorv1.Managed
+	}
 	return false
 }
 
 // BuildModuleCR projects platform configuration onto the module CR.
 // In DSC mode, projects the component stanza from the DSC.
-// In Platform mode (xKS), defaults managementState to Managed.
+// In Platform mode (xKS), projects managementState from the Platform CR.
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
@@ -70,15 +74,24 @@ func (h *handler) BuildModuleCR(
 	if platform == nil {
 		return nil, errors.New("platform context is nil, cannot build MCPLifecycleOperator CR")
 	}
-	if platform.DSC == nil {
-		return nil, errors.New("DSC is not available, cannot build MCPLifecycleOperator CR")
-	}
 
-	spec, err := runtime.DefaultUnstructuredConverter.ToUnstructured(
-		&platform.DSC.Spec.Components.MCPLifecycleOperator.MCPLifecycleOperatorCommonSpec,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert MCPLifecycleOperatorCommonSpec to unstructured: %w", err)
+	var spec map[string]any
+
+	switch {
+	case platform.DSC != nil:
+		var err error
+		spec, err = runtime.DefaultUnstructuredConverter.ToUnstructured(
+			&platform.DSC.Spec.Components.MCPLifecycleOperator.MCPLifecycleOperatorCommonSpec,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert MCPLifecycleOperatorCommonSpec to unstructured: %w", err)
+		}
+	case platform.Platform != nil:
+		spec = map[string]any{
+			"managementState": string(platform.Platform.Spec.Modules.MCPLifecycleOperator.ManagementState),
+		}
+	default:
+		return nil, errors.New("neither DSC nor Platform is available, cannot build MCPLifecycleOperator CR")
 	}
 
 	u := &unstructured.Unstructured{
