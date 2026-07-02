@@ -21,6 +21,11 @@ const (
 	// crName must match dashboard-operator CRD CEL (default-dashboard); see odh-dashboard#8093.
 	crName = componentApi.DashboardInstanceName
 
+	// defaultControllerImageTag is used when RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE
+	// is unset on the operator pod. The RHOAI chart defaults to :latest, which does not
+	// exist; :main is the published tag until Build-Config supplies a digest override.
+	defaultControllerImageTag = "main"
+
 	errCertManagerCRDsRequired = "cert-manager CRDs (Certificate, CertificateRequest, Issuer) are required for dashboard webhook TLS"
 )
 
@@ -42,6 +47,11 @@ func NewHandler() *handler {
 					// "odh-dashboard-operator". Clear it so the Deployment name matches
 					// ReleaseName for module env injection (deploymentNameFromManifests).
 					"namePrefix": "",
+					// RHOAI chart defaults image.tag to latest (not published). injectModuleEnv
+					// overrides the full image when RELATED_IMAGE_* is set on the operator pod.
+					"image": map[string]any{
+						"tag": defaultControllerImageTag,
+					},
 					// Preserve chart-aligned webhook defaults; cert-manager gating overrides
 					// enabled/certManager.enabled in GetOperatorManifests.
 					"webhook": map[string]any{

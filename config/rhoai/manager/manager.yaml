@@ -88,6 +88,8 @@ spec:
             value: /opt/manifests
           - name: DEFAULT_CHARTS_PATH
             value: /opt/charts
+          - name: RELATED_IMAGE_ODH_DASHBOARD_OPERATOR_IMAGE
+            value: quay.io/opendatahub/odh-dashboard-operator@sha256:514d1ae9d7a97d084112c7c0afa9bd732237bb472bdf2d7e587bf9ac3ac17797
           # - name: ODH_PLATFORM_TYPE
           #   value: SelfManagedRHOAI
         # NOTE: image is provided in CI by pullspec substitution, and by make/kustomize for local builds

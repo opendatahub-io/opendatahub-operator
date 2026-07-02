@@ -173,6 +173,10 @@ func TestGetOperatorManifests_WithCertManager(t *testing.T) {
 	g.Expect(vals["namespace"]).Should(Equal("opendatahub"))
 	g.Expect(vals["namePrefix"]).Should(Equal(""))
 
+	image, ok := vals["image"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "image values missing")
+	g.Expect(image["tag"]).Should(Equal("main"))
+
 	webhook, ok := vals["webhook"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "webhook values missing")
 	g.Expect(webhook["enabled"]).Should(BeTrue())
