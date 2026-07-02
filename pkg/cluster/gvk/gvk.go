@@ -529,6 +529,12 @@ var (
 		Kind:    "Istio",
 	}
 
+	IstioRevision = schema.GroupVersionKind{
+		Group:   "sailoperator.io",
+		Version: "v1",
+		Kind:    "IstioRevision",
+	}
+
 	GatewayConfig = schema.GroupVersionKind{
 		Group:   serviceApi.GroupVersion.Group,
 		Version: serviceApi.GroupVersion.Version,
