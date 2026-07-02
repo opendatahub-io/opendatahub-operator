@@ -109,19 +109,6 @@ func (tc *DashboardTestCtx) disableDashboard(t *testing.T) {
 	tc.EnsureResourceGone(WithMinimalObject(gvk.Deployment, tc.controllerNN))
 }
 
-func (tc *DashboardTestCtx) dashboardDeployments() []unstructured.Unstructured {
-	return tc.FetchResources(
-		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
-		WithListOptions(
-			&client.ListOptions{
-				Namespace: tc.AppsNamespace,
-				LabelSelector: k8slabels.Set{
-					labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
-				}.AsSelector(),
-			},
-		),
-	)
-}
 
 func (tc *DashboardTestCtx) ValidateComponentEnabled(t *testing.T) {
 	t.Helper()
