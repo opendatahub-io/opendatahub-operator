@@ -328,6 +328,54 @@ func TestClassify_Events(t *testing.T) {
 	}
 }
 
+func TestClassify_StaleEvents(t *testing.T) {
+	tests := []struct {
+		name            string
+		lastTime        time.Time
+		wantCategory    string
+		wantSubcategory string
+		wantErrorCode   int
+	}{
+		{
+			name:            "stale event is skipped",
+			lastTime:        time.Now().Add(-2 * EventAgeThreshold),
+			wantCategory:    CategoryTest,
+			wantSubcategory: "test-failure",
+			wantErrorCode:   CodeTestFailure,
+		},
+		{
+			name:            "recent event triggers classification",
+			lastTime:        time.Now().Add(-1 * time.Minute),
+			wantCategory:    CategoryInfrastructure,
+			wantSubcategory: "network",
+			wantErrorCode:   CodeNetwork,
+		},
+		{
+			name:            "zero LastTime is not skipped",
+			lastTime:        time.Time{},
+			wantCategory:    CategoryInfrastructure,
+			wantSubcategory: "network",
+			wantErrorCode:   CodeNetwork,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			report := &clusterhealth.Report{
+				Events: clusterhealth.SectionResult[clusterhealth.EventsSection]{
+					Data: clusterhealth.EventsSection{
+						Events: []clusterhealth.EventInfo{
+							{Kind: "Node", Name: "worker-1", Reason: "NetworkNotReady", Message: "network plugin not ready", LastTime: tt.lastTime},
+						},
+					},
+				},
+			}
+			got := Classify(report)
+			assertClassification(t, got, tt.wantCategory, tt.wantSubcategory, tt.wantErrorCode, ConfidenceMedium)
+		})
+	}
+}
+
 func TestClassify_Quota(t *testing.T) {
 	report := &clusterhealth.Report{
 		Quotas: clusterhealth.SectionResult[clusterhealth.QuotasSection]{
@@ -428,6 +476,38 @@ func TestClassify_ClusterDistress(t *testing.T) {
 			got := Classify(tt.report)
 			assertClassification(t, got, CategoryInfrastructure, "cluster-distress", CodeInfraUnknown, ConfidenceLow)
 		})
+	}
+}
+
+func TestClassifyOperator_MultiContainerEvidence(t *testing.T) {
+	// Two containers both in unrecognized bad states — one waiting, one terminated.
+	// Verifies that evidence is collected from all containers, not just the first.
+	report := &clusterhealth.Report{
+		Operator: clusterhealth.SectionResult[clusterhealth.OperatorSection]{
+			Data: clusterhealth.OperatorSection{
+				Deployment: &clusterhealth.DeploymentInfo{
+					Name:     "odh-controller",
+					Ready:    1,
+					Replicas: 1,
+				},
+				Pods: []clusterhealth.PodInfo{
+					{
+						Name:  "odh-controller-abc",
+						Phase: "Running",
+						Containers: []clusterhealth.ContainerInfo{
+							{Name: "sidecar", Waiting: "ContainerCreating"},
+							{Name: "manager", Terminated: "Error (exit 255): unexpected failure"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	got := Classify(report)
+	assertClassification(t, got, CategoryInfrastructure, "operator", CodeOperator, ConfidenceLow)
+	if len(got.Evidence) != 2 {
+		t.Errorf("expected evidence from both containers, got %d: %v", len(got.Evidence), got.Evidence)
 	}
 }
 
@@ -654,6 +734,219 @@ func TestClassify_Operator(t *testing.T) {
 			wantSubcategory: "unclassifiable",
 			wantErrorCode:   CodeUnclassifiable,
 			wantConfidence:  ConfidenceLow,
+		},
+		{
+			name: "operator pod Running but container in CrashLoopBackOff",
+			report: &clusterhealth.Report{
+				Operator: clusterhealth.SectionResult[clusterhealth.OperatorSection]{
+					Data: clusterhealth.OperatorSection{
+						Deployment: &clusterhealth.DeploymentInfo{
+							Name:     "odh-controller",
+							Ready:    1,
+							Replicas: 1,
+						},
+						Pods: []clusterhealth.PodInfo{
+							{
+								Name:  "odh-controller-abc",
+								Phase: "Running",
+								Containers: []clusterhealth.ContainerInfo{
+									{Name: "manager", Waiting: "CrashLoopBackOff: back-off restarting failed container"},
+								},
+							},
+						},
+					},
+				},
+			},
+			wantCategory:    CategoryInfrastructure,
+			wantSubcategory: "operator",
+			wantErrorCode:   CodeOperator,
+			wantConfidence:  ConfidenceHigh,
+		},
+		{
+			name: "operator pod Running but container OOMKilled",
+			report: &clusterhealth.Report{
+				Operator: clusterhealth.SectionResult[clusterhealth.OperatorSection]{
+					Data: clusterhealth.OperatorSection{
+						Deployment: &clusterhealth.DeploymentInfo{
+							Name:     "odh-controller",
+							Ready:    1,
+							Replicas: 1,
+						},
+						Pods: []clusterhealth.PodInfo{
+							{
+								Name:  "odh-controller-abc",
+								Phase: "Running",
+								Containers: []clusterhealth.ContainerInfo{
+									{Name: "manager", Terminated: "OOMKilled"},
+								},
+							},
+						},
+					},
+				},
+			},
+			wantCategory:    CategoryInfrastructure,
+			wantSubcategory: "operator",
+			wantErrorCode:   CodeOperator,
+			wantConfidence:  ConfidenceHigh,
+		},
+		{
+			// Two containers: sidecar is healthy, manager is in CrashLoopBackOff.
+			// Exercises the inner container loop — hit must come from the second container.
+			name: "operator pod with two containers one healthy one CrashLoopBackOff",
+			report: &clusterhealth.Report{
+				Operator: clusterhealth.SectionResult[clusterhealth.OperatorSection]{
+					Data: clusterhealth.OperatorSection{
+						Deployment: &clusterhealth.DeploymentInfo{
+							Name:     "odh-controller",
+							Ready:    1,
+							Replicas: 1,
+						},
+						Pods: []clusterhealth.PodInfo{
+							{
+								Name:  "odh-controller-abc",
+								Phase: "Running",
+								Containers: []clusterhealth.ContainerInfo{
+									{Name: "sidecar", Ready: true},
+									{Name: "manager", Waiting: "CrashLoopBackOff: back-off 5m0s restarting failed container"},
+								},
+							},
+						},
+					},
+				},
+			},
+			wantCategory:    CategoryInfrastructure,
+			wantSubcategory: "operator",
+			wantErrorCode:   CodeOperator,
+			wantConfidence:  ConfidenceHigh,
+		},
+		{
+			// Low-confidence path: container in an unrecognized waiting state (not in waitingPatterns).
+			// Should produce ConfidenceLow — the operatorDistress fallback, not the early-return path.
+			name: "operator container in unrecognized waiting state gives low confidence",
+			report: &clusterhealth.Report{
+				Operator: clusterhealth.SectionResult[clusterhealth.OperatorSection]{
+					Data: clusterhealth.OperatorSection{
+						Deployment: &clusterhealth.DeploymentInfo{
+							Name:     "odh-controller",
+							Ready:    1,
+							Replicas: 1,
+						},
+						Pods: []clusterhealth.PodInfo{
+							{
+								Name:  "odh-controller-abc",
+								Phase: "Running",
+								Containers: []clusterhealth.ContainerInfo{
+									{Name: "sidecar", Ready: true},
+									{Name: "manager", Waiting: "ContainerCreating"},
+								},
+							},
+						},
+					},
+				},
+			},
+			wantCategory:    CategoryInfrastructure,
+			wantSubcategory: "operator",
+			wantErrorCode:   CodeOperator,
+			wantConfidence:  ConfidenceLow,
+		},
+		{
+			// Low-confidence path: container terminated with an unrecognized exit (not in terminatedPatterns).
+			// Should produce ConfidenceLow — the operatorDistress fallback, not the early-return path.
+			name: "operator container terminated with unrecognized exit gives low confidence",
+			report: &clusterhealth.Report{
+				Operator: clusterhealth.SectionResult[clusterhealth.OperatorSection]{
+					Data: clusterhealth.OperatorSection{
+						Deployment: &clusterhealth.DeploymentInfo{
+							Name:     "odh-controller",
+							Ready:    1,
+							Replicas: 1,
+						},
+						Pods: []clusterhealth.PodInfo{
+							{
+								Name:  "odh-controller-abc",
+								Phase: "Running",
+								Containers: []clusterhealth.ContainerInfo{
+									{Name: "sidecar", Ready: true},
+									{Name: "manager", Terminated: "Error (exit 255): unexpected failure"},
+								},
+							},
+						},
+					},
+				},
+			},
+			wantCategory:    CategoryInfrastructure,
+			wantSubcategory: "operator",
+			wantErrorCode:   CodeOperator,
+			wantConfidence:  ConfidenceLow,
+		},
+		{
+			// DSCI must win over a low-confidence operator distress signal.
+			// This proves the operatorDistress is deferred and does not block classifyFromDSCI.
+			name: "DSCI unhealthy wins over operator container in unrecognized waiting state",
+			report: &clusterhealth.Report{
+				Operator: clusterhealth.SectionResult[clusterhealth.OperatorSection]{
+					Data: clusterhealth.OperatorSection{
+						Deployment: &clusterhealth.DeploymentInfo{
+							Name:     "odh-controller",
+							Ready:    1,
+							Replicas: 1,
+						},
+						Pods: []clusterhealth.PodInfo{
+							{
+								Name:  "odh-controller-abc",
+								Phase: "Running",
+								Containers: []clusterhealth.ContainerInfo{
+									{Name: "manager", Waiting: "PodInitializing"},
+								},
+							},
+						},
+					},
+				},
+				DSCI: clusterhealth.SectionResult[clusterhealth.CRConditionsSection]{
+					Error: "Degraded: True - component X is degraded",
+					Data: clusterhealth.CRConditionsSection{
+						Name: "default-dsci",
+					},
+				},
+			},
+			wantCategory:    CategoryInfrastructure,
+			wantSubcategory: "dsci-unhealthy",
+			wantErrorCode:   CodeDSCI,
+			wantConfidence:  ConfidenceMedium,
+		},
+		{
+			// DSC must win over a low-confidence operator distress signal.
+			name: "DSC unhealthy wins over operator container in unrecognized waiting state",
+			report: &clusterhealth.Report{
+				Operator: clusterhealth.SectionResult[clusterhealth.OperatorSection]{
+					Data: clusterhealth.OperatorSection{
+						Deployment: &clusterhealth.DeploymentInfo{
+							Name:     "odh-controller",
+							Ready:    1,
+							Replicas: 1,
+						},
+						Pods: []clusterhealth.PodInfo{
+							{
+								Name:  "odh-controller-abc",
+								Phase: "Running",
+								Containers: []clusterhealth.ContainerInfo{
+									{Name: "manager", Waiting: "PodInitializing"},
+								},
+							},
+						},
+					},
+				},
+				DSC: clusterhealth.SectionResult[clusterhealth.CRConditionsSection]{
+					Error: "component dashboard: Ready=False",
+					Data: clusterhealth.CRConditionsSection{
+						Name: "default-dsc",
+					},
+				},
+			},
+			wantCategory:    CategoryInfrastructure,
+			wantSubcategory: "dsc-unhealthy",
+			wantErrorCode:   CodeDSC,
+			wantConfidence:  ConfidenceMedium,
 		},
 		{
 			name: "healthy operator classifies as test failure",
