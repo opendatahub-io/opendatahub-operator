@@ -32,6 +32,7 @@ var (
 		"caikit-standalone-image": "RELATED_IMAGE_ODH_CAIKIT_NLP_IMAGE",
 		"ovms-image":              "RELATED_IMAGE_ODH_OPENVINO_MODEL_SERVER_IMAGE",
 		"mlserver-image":          "RELATED_IMAGE_ODH_MLSERVER_IMAGE",
+		"autogluon-image":         "RELATED_IMAGE_ODH_AUTOGLUON_IMAGE",
 		"vllm-cuda-image":         "RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE",
 		"vllm-cpu-image":          "RELATED_IMAGE_ODH_VLLM_CPU_IMAGE",
 		"vllm-cpu-x86-image":      "RELATED_IMAGE_RHAII_VLLM_CPU_IMAGE",
