@@ -55,3 +55,8 @@ const ConnectionTypeProtocol = "opendatahub.io/connection-type-protocol"
 // ConnectionPath annotation for specifying the path under bucket(s3) to use for the connection.
 // TODO: extend to oci.
 const ConnectionPath = "opendatahub.io/connection-path"
+
+// InjectedConnectionType is set on an InferenceService/LLMInferenceService by the connection
+// webhook after injection. It records the connection type so that cleanup can determine the
+// correct type-specific path even when the original connection secret has been deleted.
+const InjectedConnectionType = "opendatahub.io/injected-connection-type"
