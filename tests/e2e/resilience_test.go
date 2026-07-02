@@ -121,7 +121,7 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentSuccess(t *test
 
 	skipUnless(t, Tier1)
 
-	componentName := componentApi.DashboardComponentName
+	componentName := componentApi.RayComponentName
 
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
@@ -141,7 +141,6 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 
 	// To handle upstream/downstream i trimmed prefix(odh) from few controller names
 	componentToControllerMap := map[string]string{
-		componentApi.DashboardComponentName:            "dashboard",
 		componentApi.DataSciencePipelinesComponentName: "data-science-pipelines-operator-controller-manager",
 		componentApi.FeastOperatorComponentName:        "feast-operator-controller-manager",
 		componentApi.KserveComponentName:               "kserve-controller-manager",
@@ -171,7 +170,8 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	// Kueue is excluded because it does not have any deployment to manage anymore
 	// LlamaStack Operator is excluded because it has been replaced by OGX and the field is deprecated (no deployments to manage anymore)
 	// AIGateway is excluded because it is a module so it does not report DSC ComponentsReady condition
-	excludedComponents := 4 // TrustyAI, Kueue, LlamaStack Operator, AIGateway
+	// Dashboard is excluded because it is a module so it does not report DSC ComponentsReady condition
+	excludedComponents := 5 // TrustyAI, Kueue, LlamaStack Operator, AIGateway, Dashboard
 	expectedTestableComponents := expectedComponentCount - excludedComponents
 	tc.g.Expect(componentsLength).Should(Equal(expectedTestableComponents),
 		"allComponents list is out of sync with DSC Components struct. "+

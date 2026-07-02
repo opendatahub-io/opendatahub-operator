@@ -6,36 +6,55 @@ import (
 
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
 )
 
+const dashboardControllerDeployment = "dashboard-operator"
+
 type DashboardTestCtx struct {
-	*ComponentTestCtx
+	*TestContext
+
+	moduleGVK    schema.GroupVersionKind
+	moduleCRNN   types.NamespacedName
+	controllerNN types.NamespacedName
 }
 
 func dashboardTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(t, &componentApi.Dashboard{})
+	tc, err := NewTestContext(t)
 	require.NoError(t, err)
 
 	componentCtx := DashboardTestCtx{
-		ComponentTestCtx: ct,
+		TestContext: tc,
+		moduleGVK: schema.GroupVersionKind{
+			Group:   componentApi.GroupVersion.Group,
+			Version: componentApi.GroupVersion.Version,
+			Kind:    componentApi.DashboardKind,
+		},
+		moduleCRNN: types.NamespacedName{Name: componentApi.DashboardInstanceName},
+		controllerNN: types.NamespacedName{
+			Namespace: tc.AppsNamespace,
+			Name:      dashboardControllerDeployment,
+		},
 	}
 
-	// Define test cases.
 	testCases := []TestCase{
 		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
@@ -47,8 +66,125 @@ func dashboardTestSuite(t *testing.T) {
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
 
-	// Run the test suite.
 	RunTestCases(t, testCases)
+}
+
+func (tc *DashboardTestCtx) enableDashboard(t *testing.T) {
+	t.Helper()
+
+	if !tc.IsXKS() {
+		tc.EventuallyResourcePatched(
+			WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+			WithMutateFunc(testf.Transform(`.spec.components.dashboard.managementState = "Removed"`)),
+			WithCondition(jq.Match(`.spec.components.dashboard.managementState == "Removed"`)),
+		)
+		tc.EnsureResourceGone(WithMinimalObject(tc.moduleGVK, tc.moduleCRNN))
+	}
+
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.dashboard.managementState = "Managed"`)),
+		WithCondition(jq.Match(`.spec.components.dashboard.managementState == "Managed"`)),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(tc.moduleGVK, tc.moduleCRNN),
+		WithCondition(And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
+		)),
+	)
+}
+
+func (tc *DashboardTestCtx) disableDashboard(t *testing.T) {
+	t.Helper()
+
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.dashboard.managementState = "Removed"`)),
+		WithCondition(jq.Match(`.spec.components.dashboard.managementState == "Removed"`)),
+	)
+
+	tc.EnsureResourceGone(WithMinimalObject(tc.moduleGVK, tc.moduleCRNN))
+	tc.EnsureResourceGone(WithMinimalObject(gvk.Deployment, tc.controllerNN))
+}
+
+func (tc *DashboardTestCtx) ValidateComponentEnabled(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke, Tier1)
+
+	tc.enableDashboard(t)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, tc.controllerNN),
+		WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
+	)
+}
+
+func (tc *DashboardTestCtx) ValidateOperandsOwnerReferences(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke)
+
+	if tc.IsXKS() {
+		t.Skip("Skipping test because operands ownership by component CR is not enforced/guaranteed on XKS platform")
+	}
+
+	tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(
+			&client.ListOptions{
+				Namespace: tc.AppsNamespace,
+				LabelSelector: k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
+				}.AsSelector(),
+			},
+		),
+		WithCondition(
+			HaveEach(
+				jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, componentApi.DashboardKind),
+			),
+		),
+		WithCustomErrorMsg("Deployment resources with correct owner references should exist"),
+	)
+}
+
+func (tc *DashboardTestCtx) ValidateUpdateDeploymentsResources(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke)
+
+	deployments := tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(
+			&client.ListOptions{
+				Namespace: tc.AppsNamespace,
+				LabelSelector: k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
+				}.AsSelector(),
+			},
+		),
+	)
+
+	for _, d := range deployments {
+		t.Run("deployment_"+d.GetName(), func(t *testing.T) {
+			t.Helper()
+
+			replicas := ExtractAndExpectValue[int](tc.g, d, `.spec.replicas`, Not(BeNil()))
+
+			expectedReplica := replicas + 1
+			if replicas > 1 {
+				expectedReplica = 1
+			}
+
+			tc.ConsistentlyResourceCreatedOrUpdated(
+				WithMinimalObject(gvk.Deployment, resources.NamespacedNameFromObject(&d)),
+				WithMutateFunc(testf.Transform(`.spec.replicas = %d`, expectedReplica)),
+				WithCondition(jq.Match(`.spec.replicas == %d`, expectedReplica)),
+			)
+		})
+	}
 }
 
 // ValidateOperandsDynamicallyWatchedResources ensures that operands are correctly watched for dynamic updates.
@@ -57,11 +193,9 @@ func (tc *DashboardTestCtx) ValidateOperandsDynamicallyWatchedResources(t *testi
 
 	skipUnless(t, Smoke)
 
-	// Generate unique platform type values
 	newPt := xid.New().String()
 	oldPt := ""
 
-	// Apply new platform type annotation and verify
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.OdhApplication, types.NamespacedName{Name: "jupyter", Namespace: tc.AppsNamespace}),
 		WithMutateFunc(
@@ -72,7 +206,6 @@ func (tc *DashboardTestCtx) ValidateOperandsDynamicallyWatchedResources(t *testi
 		),
 	)
 
-	// Ensure previously created resources retain their old platform type annotation
 	tc.EnsureResourcesExist(
 		WithMinimalObject(gvk.OdhApplication, types.NamespacedName{Namespace: tc.AppsNamespace}),
 		WithListOptions(
@@ -102,7 +235,37 @@ func (tc *DashboardTestCtx) ValidateCRDReinstated(t *testing.T) {
 		{Name: "odhdocuments.dashboard.opendatahub.io", Version: ""},
 	}
 
-	tc.ValidateCRDsReinstated(t, crds)
+	tc.disableDashboard(t)
+
+	for _, crd := range crds {
+		t.Run(crd.Name+"_removal", func(t *testing.T) {
+			nn := types.NamespacedName{Name: crd.Name}
+			tc.EnsureResourceExists(WithMinimalObject(gvk.CustomResourceDefinition, nn))
+			tc.DeleteResource(
+				WithMinimalObject(gvk.CustomResourceDefinition, nn),
+				WithForegroundDeletion(),
+				WithWaitForDeletion(true),
+			)
+		})
+	}
+
+	tc.enableDashboard(t)
+
+	for _, crd := range crds {
+		t.Run(crd.Name+"_reinstatement", func(t *testing.T) {
+			t.Parallel()
+
+			nn := types.NamespacedName{Name: crd.Name}
+			tc.EnsureResourceExists(WithMinimalObject(gvk.CustomResourceDefinition, nn))
+
+			if len(crd.Version) != 0 {
+				tc.EnsureResourceExists(
+					WithMinimalObject(gvk.CustomResourceDefinition, nn),
+					WithCondition(jq.Match(`.status.storedVersions[0] == "%s"`, crd.Version)),
+				)
+			}
+		})
+	}
 }
 
 // ValidateVAPBlocksDashboardCRCreation verifies that ValidatingAdmissionPolicy blocks
@@ -144,11 +307,120 @@ func (tc *DashboardTestCtx) ValidateVAPBlocksDashboardCRCreation(t *testing.T) {
 func (tc *DashboardTestCtx) ValidateAllDeletionRecovery(t *testing.T) {
 	t.Helper()
 
-	// Run all the standard recovery tests first
-	tc.ComponentTestCtx.ValidateAllDeletionRecovery(t)
+	skipUnless(t, Smoke, Tier1)
 
-	// Add Dashboard-specific recovery test
-	t.Run("Route deletion recovery", func(t *testing.T) {
-		tc.ValidateResourceDeletionRecovery(t, gvk.Route, types.NamespacedName{Namespace: tc.AppsNamespace})
-	})
+	savedOpts := tc.DefaultResourceOpts
+	tc.DefaultResourceOpts = []ResourceOpts{
+		WithEventuallyTimeout(tc.TestTimeouts.deletionRecoveryTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+	}
+	defer func() { tc.DefaultResourceOpts = savedOpts }()
+
+	partOfSelector := &client.ListOptions{
+		Namespace: tc.AppsNamespace,
+		LabelSelector: k8slabels.Set{
+			labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
+		}.AsSelector(),
+	}
+
+	testCases := []TestCase{
+		{"ConfigMap deletion recovery", func(t *testing.T) {
+			t.Helper()
+			tc.validateResourceDeletionRecovery(t, gvk.ConfigMap, types.NamespacedName{Namespace: tc.AppsNamespace}, partOfSelector)
+		}},
+		{"Service deletion recovery", func(t *testing.T) {
+			t.Helper()
+			tc.validateResourceDeletionRecovery(t, gvk.Service, types.NamespacedName{Namespace: tc.AppsNamespace}, partOfSelector)
+		}},
+		{"Deployment deletion recovery", func(t *testing.T) {
+			t.Helper()
+
+			deployments := tc.FetchResources(
+				WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
+				WithListOptions(partOfSelector),
+			)
+
+			if len(deployments) == 0 {
+				t.Logf("No Deployment resources found for dashboard, skipping")
+				return
+			}
+
+			for _, deployment := range deployments {
+				t.Run("deployment_"+deployment.GetName(), func(t *testing.T) {
+					t.Helper()
+
+					recreated := tc.EnsureResourceDeletedThenRecreated(
+						WithMinimalObject(gvk.Deployment, resources.NamespacedNameFromObject(&deployment)),
+					)
+
+					tc.EnsureResourceExists(
+						WithMinimalObject(gvk.Deployment, resources.NamespacedNameFromObject(recreated)),
+						WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+							status.ConditionTypeAvailable, metav1.ConditionTrue)),
+						WithCustomErrorMsg("Recreated deployment should have Available condition"),
+					)
+				})
+			}
+		}},
+		{"Route deletion recovery", func(t *testing.T) {
+			t.Helper()
+			tc.validateResourceDeletionRecovery(t, gvk.Route, types.NamespacedName{Namespace: tc.AppsNamespace}, partOfSelector)
+		}},
+	}
+
+	RunTestCases(t, testCases)
+}
+
+func (tc *DashboardTestCtx) validateResourceDeletionRecovery(
+	t *testing.T,
+	resourceGVK schema.GroupVersionKind,
+	nn types.NamespacedName,
+	listOpts *client.ListOptions,
+) {
+	t.Helper()
+
+	existingResources := tc.FetchResources(
+		WithMinimalObject(resourceGVK, nn),
+		WithListOptions(listOpts),
+	)
+
+	if len(existingResources) == 0 {
+		t.Logf("No %s resources found for dashboard, skipping", resourceGVK.Kind)
+		return
+	}
+
+	for _, resource := range existingResources {
+		t.Run(resourceGVK.Kind+"_"+resource.GetName(), func(t *testing.T) {
+			t.Helper()
+
+			tc.EnsureResourceDeletedThenRecreated(
+				WithMinimalObject(resourceGVK, resources.NamespacedNameFromObject(&resource)),
+			)
+		})
+	}
+}
+
+func (tc *DashboardTestCtx) ValidateComponentDisabled(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke, Tier1)
+
+	tc.EnsureResourceExists(WithMinimalObject(tc.moduleGVK, tc.moduleCRNN))
+
+	tc.disableDashboard(t)
+
+	tc.EnsureResourcesGone(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(
+			&client.ListOptions{
+				Namespace: tc.AppsNamespace,
+				LabelSelector: k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
+				}.AsSelector(),
+			},
+		),
+		WithEventuallyTimeout(tc.TestTimeouts.componentReadinessTimeout),
+	)
+
+	tc.EnsureResourceGone(WithMinimalObject(tc.moduleGVK, tc.moduleCRNN))
 }

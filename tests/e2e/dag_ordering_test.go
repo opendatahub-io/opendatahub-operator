@@ -45,7 +45,7 @@ var dagBatches = []componentBatch{
 		runlevel: 20,
 		components: []componentEntry{
 			{name: componentApi.AIGatewayComponentName, gvk: gvk.AIGateway, internal: true},
-			{name: componentApi.DashboardComponentName, gvk: gvk.Dashboard},
+			{name: componentApi.DashboardComponentName, gvk: gvk.Dashboard, internal: true},
 			{name: componentApi.DataSciencePipelinesComponentName, gvk: gvk.DataSciencePipelines},
 			{name: componentApi.ModelRegistryComponentName, gvk: gvk.ModelRegistry},
 			{name: componentApi.RayComponentName, gvk: gvk.Ray},

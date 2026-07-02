@@ -922,31 +922,31 @@ func (tc *MonitoringTestCtx) ValidateTracesExportersReservedNameValidation(t *te
 	)
 }
 
-// ValidatePrometheusRulesLifecycle validates that Prometheus rules are created when monitoring and dashboard are enabled, and deleted when both are disabled.
+// ValidatePrometheusRulesLifecycle validates that Prometheus rules are created when monitoring and a component are enabled, and deleted when both are disabled.
 func (tc *MonitoringTestCtx) ValidatePrometheusRulesLifecycle(t *testing.T) {
 	t.Helper()
 
-	// First, ensure dashboard is disabled to establish a known initial state.
-	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, gvk.Dashboard.Kind)
+	// First, ensure ray is disabled to establish a known initial state.
+	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, gvk.Ray.Kind)
 
-	// Enable alerting + dashboard → Prometheus rules created
+	// Enable alerting + ray → Prometheus rules created
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
 		tc.withMetricsConfig(),
 		withEmptyAlerting(),
 	)
 
-	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, gvk.Dashboard.Kind)
+	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, gvk.Ray.Kind)
 
-	tc.EnsureResourceExists(WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "dashboard-prometheusrules", Namespace: tc.MonitoringNamespace}))
+	tc.EnsureResourceExists(WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "ray-prometheusrules", Namespace: tc.MonitoringNamespace}))
 	tc.EnsureResourceExists(WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "operator-prometheusrules", Namespace: tc.MonitoringNamespace}))
 
-	// Disable both dashboard and monitoring
+	// Disable both ray and monitoring
 	tc.resetMonitoringConfigToRemoved()
-	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, gvk.Dashboard.Kind)
+	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, gvk.Ray.Kind)
 
 	// Verify both Prometheus rules are deleted
-	tc.EnsureResourceGone(WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "dashboard-prometheusrules", Namespace: tc.MonitoringNamespace}))
+	tc.EnsureResourceGone(WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "ray-prometheusrules", Namespace: tc.MonitoringNamespace}))
 	tc.EnsureResourceGone(WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "operator-prometheusrules", Namespace: tc.MonitoringNamespace}))
 
 	// Cleanup: Remove alerting configuration from DSCInitialization to prevent validation issues

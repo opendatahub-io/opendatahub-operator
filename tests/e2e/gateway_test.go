@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,10 +23,12 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
 )
@@ -617,8 +618,8 @@ func (tc *GatewayTestCtx) ValidateUnauthenticatedRedirect(t *testing.T) {
 	skipUnless(t, Tier1)
 	tc.SkipIfBYOIDC(t)
 
-	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.DashboardKind)
-	defer tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.DashboardKind)
+	tc.enableDashboardModule(t)
+	defer tc.disableDashboardModule(t)
 
 	tc.waitForDashboardHTTPRoute(t)
 	dashboardURL := tc.getDashboardURL(t)
@@ -627,8 +628,6 @@ func (tc *GatewayTestCtx) ValidateUnauthenticatedRedirect(t *testing.T) {
 }
 
 // waitForDashboardHTTPRoute waits for dashboard HTTPRoute to be accepted by the Gateway.
-// Note: Deployment readiness is already validated by UpdateComponentStateInDataScienceClusterWithKind
-// via the DashboardReady condition in DSC, which checks deployment status via deployments.NewAction().
 func (tc *GatewayTestCtx) waitForDashboardHTTPRoute(t *testing.T) {
 	t.Helper()
 
@@ -992,8 +991,8 @@ func (tc *GatewayTestCtx) ValidateOIDCUnauthenticatedRedirect(t *testing.T) {
 
 	oidcConfig := tc.getOIDCConfig(t)
 
-	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.DashboardKind)
-	defer tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.DashboardKind)
+	tc.enableDashboardModule(t)
+	defer tc.disableDashboardModule(t)
 
 	tc.waitForDashboardHTTPRoute(t)
 	dashboardURL := tc.getDashboardURL(t)
@@ -1048,8 +1047,8 @@ func (tc *GatewayTestCtx) ValidateOIDCTokenForwarding(t *testing.T) {
 	skipUnless(t, Tier1)
 	tc.SkipUnlessBYOIDC(t)
 
-	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.DashboardKind)
-	defer tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.DashboardKind)
+	tc.enableDashboardModule(t)
+	defer tc.disableDashboardModule(t)
 
 	tc.waitForDashboardHTTPRoute(t)
 
@@ -1174,4 +1173,34 @@ func (tc *GatewayTestCtx) ValidateNetworkPolicy(t *testing.T) {
 	)
 
 	t.Log("NetworkPolicy validation completed")
+}
+
+func (tc *GatewayTestCtx) enableDashboardModule(t *testing.T) {
+	t.Helper()
+
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.dashboard.managementState = "Managed"`)),
+		WithCondition(jq.Match(`.spec.components.dashboard.managementState == "Managed"`)),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Dashboard, types.NamespacedName{Name: componentApi.DashboardInstanceName}),
+		WithCondition(And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
+		)),
+	)
+}
+
+func (tc *GatewayTestCtx) disableDashboardModule(t *testing.T) {
+	t.Helper()
+
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.dashboard.managementState = "Removed"`)),
+		WithCondition(jq.Match(`.spec.components.dashboard.managementState == "Removed"`)),
+	)
+
+	tc.EnsureResourceGone(WithMinimalObject(gvk.Dashboard, types.NamespacedName{Name: componentApi.DashboardInstanceName}))
 }
