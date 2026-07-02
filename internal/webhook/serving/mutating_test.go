@@ -65,6 +65,7 @@ type TestCase struct {
 	oldAnnotations     map[string]string
 	oldPredictorSpec   map[string]any
 	oldSecretType      string // For UPDATE operations to determine old connection type
+	skipOldSecret      bool   // Skip creating old secret in fake client (simulates deleted secret)
 	operation          admissionv1.Operation
 	expectedAllowed    bool
 	expectedMessage    string
@@ -167,7 +168,7 @@ func runISVCTestCase(t *testing.T, tc TestCase) { //nolint:dupl
 	}
 
 	// Create old secret if needed for UPDATE operations
-	if tc.operation == admissionv1.Update && tc.oldAnnotations != nil {
+	if tc.operation == admissionv1.Update && tc.oldAnnotations != nil && !tc.skipOldSecret {
 		if oldSecretName, exists := tc.oldAnnotations[annotations.Connection]; exists {
 			// Use the specified old secret type, or default to S3 if not specified
 			oldSecretType := tc.oldSecretType
@@ -264,7 +265,7 @@ func runLLMISVCTestCase(t *testing.T, tc TestCase) { //nolint:dupl
 	}
 
 	// Create old secret if needed for UPDATE operations
-	if tc.operation == admissionv1.Update && tc.oldAnnotations != nil {
+	if tc.operation == admissionv1.Update && tc.oldAnnotations != nil && !tc.skipOldSecret {
 		if oldSecretName, exists := tc.oldAnnotations[annotations.Connection]; exists {
 			// Use the specified old secret type, or default to URI if not specified
 			oldSecretType := tc.oldSecretType
@@ -718,6 +719,104 @@ func TestISVCConnectionWebhook(t *testing.T) {
 			expectedPatchCheck: hasStorageUriPatch("s3://new-bucket/new-model"),
 		},
 
+		// Replace tests when old secret has been deleted before IS update.
+		// The old ISVC has the injected-connection-type annotation (set during original injection),
+		// so GetOldConnectionInfo recovers the type even though the secret is gone.
+		{
+			name:            "OCI replace with deleted old secret should not strip storageUri",
+			secretType:      webhookutils.ConnectionTypeProtocolOCI.String(),
+			secretNamespace: testNamespace,
+			annotations:     map[string]string{annotations.Connection: testSecret},
+			predictorSpec: map[string]any{
+				"model": map[string]any{
+					"storageUri": "oci://quay.io/example/model:latest",
+				},
+				"imagePullSecrets": []any{
+					map[string]any{"name": testSecretOld},
+				},
+			},
+			oldAnnotations: map[string]string{
+				annotations.Connection:             testSecretOld,
+				annotations.InjectedConnectionType: webhookutils.ConnectionTypeProtocolOCI.String(),
+			},
+			oldPredictorSpec: map[string]any{"model": map[string]any{"storageUri": "oci://quay.io/example/model:latest"}},
+			skipOldSecret:    true,
+			operation:        admissionv1.Update,
+			expectedAllowed:  true,
+			expectedPatchCheck: func(patches []jsonpatch.JsonPatchOperation) bool {
+				hasSecretReplacement := false
+				for _, p := range patches {
+					if strings.HasPrefix(p.Path, isvcImagePullSecretsPath) && p.Value == testSecret {
+						hasSecretReplacement = true
+					}
+				}
+				return hasSecretReplacement && noStorageUriRemovePatch()(patches)
+			},
+		},
+		{
+			name:            "S3 replace with deleted old secret should re-inject storage fields",
+			secretType:      webhookutils.ConnectionTypeProtocolS3.String(),
+			secretNamespace: testNamespace,
+			annotations:     map[string]string{annotations.Connection: testSecret},
+			predictorSpec: map[string]any{
+				"model": map[string]any{
+					"storage": map[string]any{
+						"key": testSecretOld,
+					},
+				},
+			},
+			oldAnnotations: map[string]string{
+				annotations.Connection:             testSecretOld,
+				annotations.InjectedConnectionType: webhookutils.ConnectionTypeProtocolS3.String(),
+			},
+			oldPredictorSpec: map[string]any{
+				"model": map[string]any{
+					"storage": map[string]any{
+						"key": testSecretOld,
+					},
+				},
+			},
+			skipOldSecret:      true,
+			operation:          admissionv1.Update,
+			expectedAllowed:    true,
+			expectedPatchCheck: hasStorageKeyPatch(testSecret),
+		},
+		{
+			name:            "URI replace with deleted old secret should re-inject storageUri",
+			secretType:      webhookutils.ConnectionTypeProtocolURI.String(),
+			secretNamespace: testNamespace,
+			secretData:      map[string][]byte{"URI": []byte("https://example.com/new-model")},
+			annotations:     map[string]string{annotations.Connection: testSecret},
+			predictorSpec: map[string]any{
+				"model": map[string]any{},
+			},
+			oldAnnotations: map[string]string{
+				annotations.Connection:             testSecretOld,
+				annotations.InjectedConnectionType: webhookutils.ConnectionTypeProtocolURI.String(),
+			},
+			oldPredictorSpec: map[string]any{
+				"model": map[string]any{
+					"storageUri": "https://example.com/old-model",
+				},
+			},
+			skipOldSecret:      true,
+			operation:          admissionv1.Update,
+			expectedAllowed:    true,
+			expectedPatchCheck: hasStorageUriPatch("https://example.com/new-model"),
+		},
+
+		// Verify annotation is set during injection
+		{
+			name:               "OCI injection sets injected-connection-type annotation",
+			secretType:         webhookutils.ConnectionTypeProtocolOCI.String(),
+			secretNamespace:    testNamespace,
+			annotations:        map[string]string{annotations.Connection: testSecret},
+			predictorSpec:      map[string]any{"model": map[string]any{}},
+			operation:          admissionv1.Create,
+			expectedAllowed:    true,
+			expectedPatchCheck: hasInjectedConnectionTypeAnnotationPatch(webhookutils.ConnectionTypeProtocolOCI.String()),
+		},
+
 		// Cleanup tests when annotation is removed
 		{
 			name:            "annotation removed, imagePullSecrets is cleanup",
@@ -904,6 +1003,63 @@ func TestLLMISVCConnectionWebhook(t *testing.T) {
 			expectedAllowed:    true,
 			expectedPatchCheck: hasUriPath("s3://my-bucket/models/new-path"),
 		},
+		// Replace tests when old secret has been deleted before LLMISVC update
+		{
+			name:            "OCI replace with deleted old secret should inject imagePullSecrets for LLMISVC",
+			secretType:      webhookutils.ConnectionTypeProtocolOCI.String(),
+			secretNamespace: testNamespace,
+			annotations:     map[string]string{annotations.Connection: testSecret},
+			predictorSpec: map[string]any{
+				"template": map[string]any{
+					"imagePullSecrets": []any{
+						map[string]any{"name": testSecretOld},
+					},
+				},
+			},
+			oldAnnotations: map[string]string{
+				annotations.Connection:             testSecretOld,
+				annotations.InjectedConnectionType: webhookutils.ConnectionTypeProtocolOCI.String(),
+			},
+			oldPredictorSpec: map[string]any{},
+			skipOldSecret:    true,
+			operation:        admissionv1.Update,
+			expectedAllowed:  true,
+			expectedPatchCheck: func(patches []jsonpatch.JsonPatchOperation) bool {
+				for _, p := range patches {
+					if strings.HasPrefix(p.Path, llmisvcImagePullSecretsPath) && p.Value == testSecret {
+						return true
+					}
+				}
+				return false
+			},
+		},
+		{
+			name:            "S3 replace with deleted old secret should re-inject URI for LLMISVC",
+			secretType:      webhookutils.ConnectionTypeProtocolS3.String(),
+			secretNamespace: testNamespace,
+			secretData:      map[string][]byte{"AWS_S3_BUCKET": []byte("my-bucket")},
+			annotations:     map[string]string{annotations.Connection: testSecret, annotations.ConnectionPath: "models/path"},
+			predictorSpec: map[string]any{
+				"model": map[string]any{
+					"uri": "s3://old-bucket/models/old-path",
+				},
+			},
+			oldAnnotations: map[string]string{
+				annotations.Connection:             testSecretOld,
+				annotations.InjectedConnectionType: webhookutils.ConnectionTypeProtocolS3.String(),
+				annotations.ConnectionPath:         "models/old-path",
+			},
+			oldPredictorSpec: map[string]any{
+				"model": map[string]any{
+					"uri": "s3://old-bucket/models/old-path",
+				},
+			},
+			skipOldSecret:      true,
+			operation:          admissionv1.Update,
+			expectedAllowed:    true,
+			expectedPatchCheck: hasUriPath("s3://my-bucket/models/path"),
+		},
+
 		// cleanup tests
 		{
 			name:            "annotation removed, uri is cleanup for any type of connection previously injected",
@@ -1190,7 +1346,7 @@ func runTestCaseWithCustomSecret(t *testing.T, tc TestCase, secretCreator func(n
 	}
 
 	// Create old secret if needed for UPDATE operations
-	if tc.operation == admissionv1.Update && tc.oldAnnotations != nil {
+	if tc.operation == admissionv1.Update && tc.oldAnnotations != nil && !tc.skipOldSecret {
 		if oldSecretName, exists := tc.oldAnnotations[annotations.Connection]; exists {
 			// Use the specified old secret type, or default to S3 if not specified
 			oldSecretType := tc.oldSecretType

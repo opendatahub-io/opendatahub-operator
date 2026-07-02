@@ -74,7 +74,7 @@ func hasStorageUriPatch(expectedUri string) func([]jsonpatch.JsonPatchOperation)
 }
 
 // s3 for isvc.
-func hasStorageKeyPatch(expectedStorageKey string) func([]jsonpatch.JsonPatchOperation) bool {
+func hasStorageKeyPatch(expectedStorageKey string) func([]jsonpatch.JsonPatchOperation) bool { //nolint:unparam
 	return func(patches []jsonpatch.JsonPatchOperation) bool {
 		for _, patch := range patches {
 			if patch.Path == isvcStorageKeyPath {
@@ -129,6 +129,35 @@ func hasStorageUriCleanupPatch() func([]jsonpatch.JsonPatchOperation) bool {
 		for _, patch := range patches {
 			if patch.Path == isvcStorageUriPath && patch.Operation == OperationRemove {
 				return true
+			}
+		}
+		return false
+	}
+}
+
+func noStorageUriRemovePatch() func([]jsonpatch.JsonPatchOperation) bool {
+	return func(patches []jsonpatch.JsonPatchOperation) bool {
+		for _, patch := range patches {
+			if patch.Path == isvcStorageUriPath && patch.Operation == OperationRemove {
+				return false
+			}
+		}
+		return true
+	}
+}
+
+func hasInjectedConnectionTypeAnnotationPatch(expectedType string) func([]jsonpatch.JsonPatchOperation) bool {
+	return func(patches []jsonpatch.JsonPatchOperation) bool {
+		for _, patch := range patches {
+			if patch.Path == "/metadata/annotations/opendatahub.io~1injected-connection-type" {
+				return patch.Value == expectedType
+			}
+			if patch.Path == "/metadata/annotations" {
+				if anns, ok := patch.Value.(map[string]any); ok {
+					if v, exists := anns["opendatahub.io/injected-connection-type"]; exists {
+						return v == expectedType
+					}
+				}
 			}
 		}
 		return false

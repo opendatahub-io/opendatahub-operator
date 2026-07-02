@@ -501,11 +501,12 @@ func (w *BaseServingConnectionWebhook) GetOldConnectionInfo(ctx context.Context,
 	secretMeta := resources.GvkToPartial(gvk.Secret)
 	if err := w.APIReader.Get(ctx, types.NamespacedName{Name: oldAnnotationValue, Namespace: req.Namespace}, secretMeta); err != nil {
 		if k8serr.IsNotFound(err) { // secret itself might be deleted already.
-			log.V(1).Info("Old secret not found, but still need to cleanup references", "secretName", oldAnnotationValue)
+			log.V(1).Info("Old secret not found, recovering type from object annotation", "secretName", oldAnnotationValue)
+			oldConnectionType := resources.GetAnnotation(oldObj, annotations.InjectedConnectionType)
 			oldConnectionPath := resources.GetAnnotation(oldObj, annotations.ConnectionPath)
 			return ConnectionInfo{
 				SecretName: oldAnnotationValue,
-				Type:       "", // we won't know which connection-type-ref was set on a already deleted secret
+				Type:       oldConnectionType,
 				Path:       oldConnectionPath,
 			}, nil
 		}

@@ -15,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
@@ -217,6 +218,7 @@ func (w *LLMISVCConnectionWebhook) performConnectionInjection(
 
 		// TODO: inject .spec.model.uri
 		// uriValue = webhookutils.GetOCIValue(decodedObj)
+		resources.SetAnnotation(decodedObj, annotations.InjectedConnectionType, connInfo.Type)
 		return true, nil
 
 	case webhookutils.ConnectionTypeProtocolS3.String(), webhookutils.ConnectionTypeRefS3.String():
@@ -241,6 +243,8 @@ func (w *LLMISVCConnectionWebhook) performConnectionInjection(
 		return false, fmt.Errorf("failed to inject .spec.model.uri: %w", err)
 	}
 	log.V(1).Info("Successfully injected .spec.model.uri", "secretName", connInfo.SecretName)
+
+	resources.SetAnnotation(decodedObj, annotations.InjectedConnectionType, connInfo.Type)
 	return true, nil
 }
 
@@ -303,6 +307,10 @@ func (w *LLMISVCConnectionWebhook) performConnectionCleanup(
 		}
 		log.V(1).Info("Successfully cleaned up from .spec.model.uri", "name", req.Name, "namespace", req.Namespace)
 		cleanupPerformed = true
+	}
+
+	if cleanupPerformed {
+		resources.RemoveAnnotation(decodedObj, annotations.InjectedConnectionType)
 	}
 
 	return cleanupPerformed, nil
