@@ -2,8 +2,10 @@ package cluster
 
 import (
 	"context"
+	"strings"
 	"testing"
 
+	configv1 "github.com/openshift/api/config/v1"
 	"github.com/spf13/viper"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -388,6 +390,86 @@ func TestApplicationNamespaceFallback(t *testing.T) {
 			}
 			if result != tc.expectedNamespace {
 				t.Errorf("ApplicationNamespace() = %q, want %q", result, tc.expectedNamespace)
+			}
+		})
+	}
+}
+
+func TestGetOCPVersion(t *testing.T) {
+	testCases := []struct {
+		name        string
+		history     []configv1.UpdateHistory
+		expectError string
+		expectVer   string
+	}{
+		{
+			name:        "returns error when history is empty",
+			history:     []configv1.UpdateHistory{},
+			expectError: "cluster version history is empty",
+		},
+		{
+			name:        "returns error when history is nil",
+			history:     nil,
+			expectError: "cluster version history is empty",
+		},
+		{
+			name: "parses version from first history entry",
+			history: []configv1.UpdateHistory{
+				{Version: "4.16.3"},
+			},
+			expectVer: "4.16.3",
+		},
+		{
+			name: "uses first entry when multiple exist",
+			history: []configv1.UpdateHistory{
+				{Version: "4.16.3"},
+				{Version: "4.15.0"},
+			},
+			expectVer: "4.16.3",
+		},
+		{
+			name: "returns error when version is unparseable",
+			history: []configv1.UpdateHistory{
+				{Version: "not-a-version"},
+			},
+			expectError: "unable to parse OCP version",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			scheme := runtime.NewScheme()
+			_ = configv1.Install(scheme)
+
+			cv := &configv1.ClusterVersion{
+				ObjectMeta: metav1.ObjectMeta{Name: OpenShiftVersionObj},
+				Status: configv1.ClusterVersionStatus{
+					History: tc.history,
+				},
+			}
+
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithObjects(cv).
+				Build()
+
+			result, err := getOCPVersion(context.Background(), fakeClient)
+
+			if tc.expectError != "" {
+				if err == nil {
+					t.Fatalf("Expected error containing %q, got nil", tc.expectError)
+				}
+				if !strings.Contains(err.Error(), tc.expectError) {
+					t.Errorf("Error = %q, want substring %q", err.Error(), tc.expectError)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+			if result.String() != tc.expectVer {
+				t.Errorf("Version = %q, want %q", result.String(), tc.expectVer)
 			}
 		})
 	}
