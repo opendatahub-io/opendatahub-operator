@@ -109,7 +109,6 @@ func (tc *DashboardTestCtx) disableDashboard(t *testing.T) {
 	tc.EnsureResourceGone(WithMinimalObject(gvk.Deployment, tc.controllerNN))
 }
 
-
 func (tc *DashboardTestCtx) ValidateComponentEnabled(t *testing.T) {
 	t.Helper()
 
