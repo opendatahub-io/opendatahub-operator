@@ -85,6 +85,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			deployments.WithSelectorLabel(labels.ODH.Component(componentApi.ModelsAsServiceComponentName), labels.True),
 		)).
 		WithAction(gc.NewAction()).
+		WithAction(cleanupGatewayNamespaceResources).
 		WithConditions(conditionTypes...).
 		Build(ctx)
 

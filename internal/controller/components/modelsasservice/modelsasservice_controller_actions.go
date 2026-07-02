@@ -20,7 +20,13 @@ import (
 	"context"
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
@@ -38,6 +44,63 @@ func renderMaasOperatorInstall(ctx context.Context, rr *odhtypes.ReconciliationR
 	rr.Resources = nil
 	if err := rr.AddResources(out...); err != nil {
 		return fmt.Errorf("add maas-controller install manifest: %w", err)
+	}
+
+	return nil
+}
+
+// cleanupGatewayNamespaceResources deletes resources in the gateway namespace
+// that have the MaaS component label but are no longer in the rendered manifests.
+// Standard gc.NewAction() only covers the operator namespace; resources deployed
+// cross-namespace (e.g. payload-processing in openshift-ingress) need explicit cleanup.
+func cleanupGatewayNamespaceResources(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	l := log.FromContext(ctx)
+	componentLabel := labels.ODH.Component(componentApi.ModelsAsServiceComponentName)
+
+	// Build set of expected resources from the current rendered manifests.
+	type objKey struct {
+		gvk       schema.GroupVersionKind
+		namespace string
+		name      string
+	}
+	expected := make(map[objKey]bool)
+	for i := range rr.Resources {
+		res := &rr.Resources[i]
+		if res.GetNamespace() == DefaultGatewayNamespace {
+			expected[objKey{gvk: res.GroupVersionKind(), namespace: res.GetNamespace(), name: res.GetName()}] = true
+		}
+	}
+
+	// GVKs to scan in the gateway namespace.
+	gvks := []schema.GroupVersionKind{
+		{Group: "apps", Version: "v1", Kind: "Deployment"},
+		{Version: "v1", Kind: "Service"},
+		{Version: "v1", Kind: "ServiceAccount"},
+		{Version: "v1", Kind: "ConfigMap"},
+		{Group: "networking.k8s.io", Version: "v1", Kind: "NetworkPolicy"},
+	}
+
+	for _, gvk := range gvks {
+		list := &unstructured.UnstructuredList{}
+		list.SetGroupVersionKind(gvk)
+		if err := rr.Client.List(ctx, list,
+			client.InNamespace(DefaultGatewayNamespace),
+			client.MatchingLabels{componentLabel: labels.True},
+		); err != nil {
+			continue
+		}
+		for i := range list.Items {
+			item := &list.Items[i]
+			k := objKey{gvk: item.GroupVersionKind(), namespace: item.GetNamespace(), name: item.GetName()}
+			if expected[k] {
+				continue
+			}
+			l.Info("deleting stale gateway namespace resource",
+				"kind", item.GetKind(), "name", item.GetName(), "ns", item.GetNamespace())
+			if err := rr.Client.Delete(ctx, item); client.IgnoreNotFound(err) != nil {
+				return fmt.Errorf("delete stale %s %s/%s: %w", item.GetKind(), item.GetNamespace(), item.GetName(), err)
+			}
+		}
 	}
 
 	return nil
