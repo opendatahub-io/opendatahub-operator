@@ -2477,6 +2477,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `aigateway` _[ManagementSpec](#managementspec)_ | AIGateway controls the ai-gateway-operator module lifecycle. |  |  |
 | `monitoring` _[ManagementSpec](#managementspec)_ | Monitoring controls the monitoring module operator lifecycle. |  |  |
+| `mcplifecycleoperator` _[ManagementSpec](#managementspec)_ | MCPLifecycleOperator controls the MCP Lifecycle Operator module lifecycle. |  |  |
 
 
 #### PlatformSpec
