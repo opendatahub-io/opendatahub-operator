@@ -62,8 +62,8 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithPredicates(
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
 		).
+		WithPreCondition(precondition.Custom(checkPreConditions, precondition.WithStopReconciliation())).
 		WithAction(precondition.RunlevelGateAction()).
-		WithAction(checkPreConditions).
 		WithAction(initialize).
 		WithAction(argoWorkflowsControllersOptions).
 		WithAction(releases.NewAction()).

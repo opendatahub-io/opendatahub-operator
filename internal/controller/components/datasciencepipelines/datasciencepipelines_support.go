@@ -64,6 +64,7 @@ var (
 
 	conditionTypes = []string{
 		status.ConditionArgoWorkflowAvailable,
+		status.ConditionDependenciesAvailable,
 		status.ConditionDeploymentsAvailable,
 	}
 )
