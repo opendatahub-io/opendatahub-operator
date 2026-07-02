@@ -128,6 +128,7 @@ func TestImageHandling(t *testing.T) {
 		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_APISERVER_IMAGE",
 		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_PROCESSOR_IMAGE",
 		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_GC_IMAGE",
+		"RELATED_IMAGE_ODH_LLM_D_ASYNC_IMAGE",
 	))
 
 	// The operator image is handled by ControllerImage (image override), not
