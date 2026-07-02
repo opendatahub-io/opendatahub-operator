@@ -193,6 +193,7 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 
 	t.Log("Creating zero-pod quota (blocks everything)")
 	tc.createZeroPodQuotaForOperator()
+	t.Cleanup(func() { tc.deleteZeroPodQuotaForOperator() })
 
 	allControllers := slices.Concat(
 		slices.Collect(maps.Values(componentToControllerMap)),
@@ -240,7 +241,9 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithCondition(jq.Match(
-			`.status.conditions[] | select(.type == "%s" and .status == "%s") | .message | test("nomanagedcomponents"; "i")`,
+			`.status.conditions[] | select(.type == "%s" and .status == "%s")`+
+				` | (.reason | test("nomanagedcomponents"; "i"))`+
+				` and (.message | test("All registered components have ManagementState Removed"; "i"))`,
 			status.ConditionTypeComponentsReady,
 			metav1.ConditionTrue,
 		)),
