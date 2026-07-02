@@ -34,7 +34,7 @@ func NewHandler() *handler {
 			Config: modules.ModuleConfig{
 				Name:            moduleName,
 				CRName:          crName,
-				ManifestDir:     "mcp-lifecycle-module-operator",
+				ManifestDir:     "mcplifecycleoperator",
 				ContextDir:      "default",
 				DeploymentName:  deploymentName,
 				GVK:             gvk.MCPLifecycleOperator,
