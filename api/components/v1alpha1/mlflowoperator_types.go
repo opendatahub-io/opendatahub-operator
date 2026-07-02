@@ -13,6 +13,16 @@ const (
 )
 
 type MLflowOperatorCommonSpec struct {
+	// Gateway configuration for MLflow ingress (synced from GatewayConfig by the DSC controller
+	// when creating the MLflowOperator CR).
+	// +optional
+	Gateway *common.GatewaySpec `json:"gateway,omitempty"`
+	// GatewayName is the gateway resource name projected into the MLflowOperator singleton CR.
+	// +optional
+	GatewayName string `json:"gatewayName,omitempty"`
+	// SectionTitle is the console section title projected into the MLflowOperator singleton CR.
+	// +optional
+	SectionTitle string `json:"sectionTitle,omitempty"`
 }
 
 type MLflowOperatorSpec struct {

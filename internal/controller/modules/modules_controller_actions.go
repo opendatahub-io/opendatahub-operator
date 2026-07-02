@@ -180,6 +180,7 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 				"module", handler.GetName())
 
 			operatorManifests := handler.GetOperatorManifests(platformCtx)
+			appendModuleEnvInjection(rr, platformCtx.ApplicationsNamespace, moduleImagesFor(handler, operatorManifests))
 			if len(operatorManifests.HelmCharts) > 0 {
 				rr.HelmCharts = append(rr.HelmCharts, operatorManifests.HelmCharts...)
 			}
@@ -247,8 +248,6 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 		NewReadinessChecker(reg, rr.Client, rr.Release.Version.String(),
 			WithPlatformContext(platformCtx)),
 	)
-
-	var perModuleImages []odhtype.ModuleImages
 	var failedModules []string
 
 	// The DSC controller is the sole owner of the ProvisioningProgress
@@ -285,13 +284,7 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 					continue
 				}
 
-				perModuleImages = append(perModuleImages, odhtype.ModuleImages{
-					DeploymentName:    deploymentNameFor(handler, operatorManifests),
-					ContainerName:     containerNameFor(handler),
-					ControllerImage:   controllerImageFor(handler),
-					InitContainerName: initContainerNameFor(handler),
-					Images:            handler.GetRelatedImages(),
-				})
+				appendModuleEnvInjection(rr, platformCtx.ApplicationsNamespace, moduleImagesFor(handler, operatorManifests))
 				if len(operatorManifests.HelmCharts) > 0 {
 					rr.HelmCharts = append(rr.HelmCharts, operatorManifests.HelmCharts...)
 				}
@@ -326,13 +319,6 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 		return fmt.Errorf("BuildModuleCR failed for modules: %s", strings.Join(failedModules, ", "))
 	}
 
-	if len(perModuleImages) > 0 || platformCtx.ApplicationsNamespace != "" {
-		rr.ModuleEnvInjection = &odhtype.ModuleEnvInjection{
-			PerModuleImages:       perModuleImages,
-			ApplicationsNamespace: platformCtx.ApplicationsNamespace,
-		}
-	}
-
 	return nil
 }
 
@@ -345,20 +331,6 @@ func containerNameFor(h ModuleHandler) string {
 		return cn.GetContainerName()
 	}
 	return defaultContainerName
-}
-
-// deploymentNameFor resolves the Deployment name targeted for RELATED_IMAGE_*
-// env injection. An explicit Config.DeploymentName (via DeploymentNamer) wins;
-// otherwise it falls back to the manifest-derived name. This matters for
-// kustomize modules whose rendered Deployment name (after namePrefix) differs
-// from the module name.
-func deploymentNameFor(h ModuleHandler, manifests OperatorManifests) string {
-	if dn, ok := h.(DeploymentNamer); ok {
-		if name := dn.GetDeploymentName(); name != "" {
-			return name
-		}
-	}
-	return deploymentNameFromManifests(manifests, h.GetName())
 }
 
 func controllerImageFor(h ModuleHandler) string {
@@ -375,16 +347,51 @@ func initContainerNameFor(h ModuleHandler) string {
 	return ""
 }
 
-// deploymentNameFromManifests returns the expected Deployment name for a module
-// based on its manifests. For Helm-based modules this is the release name; for
-// Kustomize modules it falls back to the provided fallbackName.
-func deploymentNameFromManifests(manifests OperatorManifests, fallbackName string) string {
+func extraEnvFor(h ModuleHandler) map[string]string {
+	if ep, ok := h.(ExtraEnvProvider); ok {
+		return ep.GetExtraEnv()
+	}
+	return nil
+}
+
+func moduleImagesFor(h ModuleHandler, manifests OperatorManifests) odhtype.ModuleImages {
+	return odhtype.ModuleImages{
+		DeploymentName:    deploymentNameFor(h, manifests),
+		ContainerName:     containerNameFor(h),
+		ControllerImage:   controllerImageFor(h),
+		InitContainerName: initContainerNameFor(h),
+		Images:            h.GetRelatedImages(),
+		ExtraEnv:          extraEnvFor(h),
+	}
+}
+
+func appendModuleEnvInjection(rr *odhtype.ReconciliationRequest, applicationsNamespace string, moduleImages odhtype.ModuleImages) {
+	if rr.ModuleEnvInjection == nil {
+		rr.ModuleEnvInjection = &odhtype.ModuleEnvInjection{
+			ApplicationsNamespace: applicationsNamespace,
+		}
+	} else if rr.ModuleEnvInjection.ApplicationsNamespace == "" {
+		rr.ModuleEnvInjection.ApplicationsNamespace = applicationsNamespace
+	}
+
+	rr.ModuleEnvInjection.PerModuleImages = append(rr.ModuleEnvInjection.PerModuleImages, moduleImages)
+}
+
+// deploymentNameFor returns the expected Deployment name for a module.
+// Prefer an explicit handler override, otherwise use the Helm release name,
+// and finally fall back to the module name for manifest-based modules.
+func deploymentNameFor(h ModuleHandler, manifests OperatorManifests) string {
+	if dn, ok := h.(DeploymentNamer); ok {
+		if deploymentName := dn.GetDeploymentName(); deploymentName != "" {
+			return deploymentName
+		}
+	}
 	for _, chart := range manifests.HelmCharts {
 		if chart.ReleaseName != "" {
 			return chart.ReleaseName
 		}
 	}
-	return fallbackName
+	return h.GetName()
 }
 
 // ComputeModulesStatus reads status conditions from each enabled module's CR
@@ -496,6 +503,65 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 	}
 
 	return nil
+}
+
+// ProjectDSCCompatibilityStatus lets module handlers contribute legacy
+// component-shaped DSC status while keeping DataScienceCluster.status owned by
+// the datasciencecluster controller. This avoids cross-controller writes to the
+// DSC's atomic status.conditions list, where a later status apply can overwrite
+// conditions written by another controller.
+func ProjectDSCCompatibilityStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) ([]string, int, error) {
+	reg := DefaultRegistry()
+	if !reg.HasEntries() {
+		return nil, 0, nil
+	}
+	if rr.Client == nil {
+		return nil, 0, nil
+	}
+
+	platformCtx, err := buildPlatformContext(ctx, rr)
+	if err != nil {
+		return nil, 0, err
+	}
+	if platformCtx.DSC == nil {
+		return nil, 0, nil
+	}
+
+	notReadyModules := make([]string, 0)
+	managedModules := 0
+
+	err = reg.ForEach(func(handler ModuleHandler) error {
+		projector, ok := handler.(DSCStatusProjector)
+		if !ok {
+			return nil
+		}
+
+		cs, err := projector.UpdateDSCComponentStatus(ctx, rr, platformCtx)
+		if err != nil {
+			notReadyModules = append(notReadyModules, handler.GetName())
+			return fmt.Errorf("update DSC compatibility status for module %s: %w", handler.GetName(), err)
+		}
+
+		enabled := handler.IsEnabled(platformCtx)
+		if !enabled && cs != metav1.ConditionFalse {
+			return nil
+		}
+
+		if enabled {
+			managedModules++
+		}
+
+		if cs != metav1.ConditionTrue {
+			notReadyModules = append(notReadyModules, handler.GetName())
+		}
+
+		return nil
+	})
+	if err != nil {
+		return notReadyModules, managedModules, fmt.Errorf("project DSC compatibility status: %w", err)
+	}
+
+	return notReadyModules, managedModules, nil
 }
 
 // updateModuleStatus writes ModulesReady only when no in-tree components

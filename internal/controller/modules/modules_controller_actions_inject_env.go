@@ -124,6 +124,12 @@ func injectEnvVarsIntoDeployment(log logr.Logger, obj *unstructured.Unstructured
 			}
 		}
 
+		for name, value := range mi.ExtraEnv {
+			if setOrOverrideEnv(&existingEnv, name, value) {
+				injected++
+			}
+		}
+
 		if injection.ApplicationsNamespace != "" {
 			if setOrOverrideEnv(&existingEnv, applicationsNamespaceEnv, injection.ApplicationsNamespace) {
 				injected++

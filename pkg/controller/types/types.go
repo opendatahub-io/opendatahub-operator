@@ -53,6 +53,8 @@ type ModuleImages struct {
 	InitContainerName string
 	// Images is the list of RELATED_IMAGE_* env var names for this module.
 	Images []string
+	// ExtraEnv is a fixed set of env vars injected directly into the target Deployment.
+	ExtraEnv map[string]string
 }
 
 // Controller defines the core interface for a controller in the OpenDataHub Operator.

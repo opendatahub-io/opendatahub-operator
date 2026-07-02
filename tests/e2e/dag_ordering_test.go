@@ -338,6 +338,14 @@ func (tc *DAGOrderingTestCtx) ValidatePlatformReady(t *testing.T) {
 				t.Logf("Skipping internal component %s (CR may not exist)", comp.name)
 				continue
 			}
+			if comp.name == componentApi.MLflowOperatorComponentName {
+				// MLflow now reconciles through the module controller path. The
+				// legacy in-tree component controller was the writer of the
+				// informational PlatformReady condition, so the module-backed CR
+				// no longer participates in this assertion.
+				t.Logf("Skipping module-backed component %s for %s assertion", comp.name, precondition.PlatformReadyConditionType)
+				continue
+			}
 
 			instanceName := tc.GetInstanceName(comp.gvk)
 
