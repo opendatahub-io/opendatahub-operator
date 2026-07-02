@@ -316,6 +316,11 @@ func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceClust
 						ManagementState: operatorv1.Removed,
 					},
 				},
+				MCPLifecycleOperator: componentApi.DSCMCPLifecycleOperator{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
 			},
 		},
 	}
