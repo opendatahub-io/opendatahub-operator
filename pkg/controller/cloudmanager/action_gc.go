@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -18,6 +19,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
+var unremovableGVKs = []schema.GroupVersionKind{gvk.Namespace}
+
 // ProtectedObject identifies a resource that GC must never delete. Matching uses
 // Group+Kind (version-agnostic) plus Name and optional Namespace, so the filter
 // survives API version upgrades.
@@ -28,23 +31,61 @@ type ProtectedObject struct {
 	Namespace string // empty for cluster-scoped resources
 }
 
-// newGCPredicate returns the ObjectPredicateFn used by NewGCAction.
+// isStaleOrOrphaned reports whether obj should be deleted based on its CCM
+// instance annotations:
 //
-// Unlike the generic DefaultObjectPredicate (which keeps unannotated resources),
-// the CCM predicate also keeps them: resources without InstanceUID or InstanceGeneration
-// annotations are not CCM-managed and should not be touched.
+//   - Missing InstanceUID or InstanceGeneration: not a CCM resource → false.
+//   - UID differs from the current CR: orphaned from a different instance → true.
+//   - Generation differs from the current CR: stale from a previous spec version → true.
 //
-// The predicate evaluates each resource in order:
-//   - Object matches a protected Group+Kind+Name+Namespace: keep.
-//   - Missing InstanceUID or InstanceGeneration annotations: keep (not a CCM resource).
-//   - UID mismatch with the current CR: delete (orphaned from a different CR instance).
-//   - Generation mismatch with the current CR: delete (stale resource).
-//
-// To handle upgrades from the old annotation prefix (platform.opendatahub.io) to the
-// new one (infrastructure.opendatahub.io), the predicate falls back to reading the old
-// annotations when the new ones are absent. This ensures resources deployed by the old
-// version are still subject to GC even if SSA did not re-apply them (e.g. a resource
-// removed from the Helm chart between versions).
+// Reads infrastructure.opendatahub.io annotations first, falling back to the
+// legacy platform.opendatahub.io prefix so resources deployed before the
+// annotation migration are still subject to GC.
+func isStaleOrOrphaned(rr *odhTypes.ReconciliationRequest, obj unstructured.Unstructured) (bool, error) {
+	log := logf.Log.WithName("ccm-gc")
+	objGVK := obj.GroupVersionKind()
+
+	iUID := resources.GetAnnotation(&obj, labels.ODHInfrastructurePrefix+odhAnnotations.SuffixInstanceUID)
+	iGeneration := resources.GetAnnotation(&obj, labels.ODHInfrastructurePrefix+odhAnnotations.SuffixInstanceGeneration)
+
+	// Fall back to old platform annotations as well, to ensure that GC is aware of potential leftover
+	// resources deployed before the infrastructure annotation migration.
+	if iUID == "" {
+		iUID = resources.GetAnnotation(&obj, labels.ODHPlatformPrefix+odhAnnotations.SuffixInstanceUID)
+	}
+	if iGeneration == "" {
+		iGeneration = resources.GetAnnotation(&obj, labels.ODHPlatformPrefix+odhAnnotations.SuffixInstanceGeneration)
+	}
+
+	if iUID == "" || iGeneration == "" {
+		return false, nil
+	}
+
+	if iUID != string(rr.Instance.GetUID()) {
+		log.V(3).Info("GC: deleting orphaned resource (UID mismatch)", "gvk", objGVK, "name", obj.GetName(), "namespace", obj.GetNamespace())
+		return true, nil
+	}
+
+	iGenerationInt, err := strconv.ParseInt(iGeneration, 10, 64)
+	if err != nil {
+		log.Error(err, "cannot parse InstanceGeneration annotation, skipping resource",
+			"annotation", iGeneration, "gvk", objGVK, "name", obj.GetName(), "namespace", obj.GetNamespace())
+
+		return false, nil
+	}
+
+	shouldDelete := rr.Instance.GetGeneration() != iGenerationInt
+	if shouldDelete {
+		log.V(3).Info("GC: deleting stale resource (generation mismatch)", "gvk", objGVK, "name", obj.GetName(), "namespace", obj.GetNamespace(),
+			"resourceGeneration", iGenerationInt, "crGeneration", rr.Instance.GetGeneration())
+	}
+
+	return shouldDelete, nil
+}
+
+// newGCPredicate returns the ObjectPredicateFn used by NewGCAction. It first
+// skips any resource matching a ProtectedObject entry (version-agnostic
+// Group+Kind+Name+Namespace), then delegates to isStaleOrOrphaned.
 func newGCPredicate(protectedObjects []ProtectedObject) gc.ObjectPredicateFn {
 	log := logf.Log.WithName("ccm-gc")
 	protected := make(map[ProtectedObject]struct{}, len(protectedObjects))
@@ -60,42 +101,7 @@ func newGCPredicate(protectedObjects []ProtectedObject) gc.ObjectPredicateFn {
 			return false, nil
 		}
 
-		iUID := resources.GetAnnotation(&obj, labels.ODHInfrastructurePrefix+odhAnnotations.SuffixInstanceUID)
-		iGeneration := resources.GetAnnotation(&obj, labels.ODHInfrastructurePrefix+odhAnnotations.SuffixInstanceGeneration)
-
-		// Fall back to old platform annotations as well, to ensure that GC is aware of potential leftover
-		// resources deployed before the infrastructure annotation migration.
-		if iUID == "" {
-			iUID = resources.GetAnnotation(&obj, labels.ODHPlatformPrefix+odhAnnotations.SuffixInstanceUID)
-		}
-		if iGeneration == "" {
-			iGeneration = resources.GetAnnotation(&obj, labels.ODHPlatformPrefix+odhAnnotations.SuffixInstanceGeneration)
-		}
-
-		if iUID == "" || iGeneration == "" {
-			return false, nil
-		}
-
-		if iUID != string(rr.Instance.GetUID()) {
-			log.V(3).Info("GC: deleting orphaned resource (UID mismatch)", "gvk", objGVK, "name", obj.GetName(), "namespace", obj.GetNamespace())
-			return true, nil
-		}
-
-		iGenerationInt, err := strconv.ParseInt(iGeneration, 10, 64)
-		if err != nil {
-			log.Error(err, "cannot parse InstanceGeneration annotation, skipping resource",
-				"annotation", iGeneration, "gvk", objGVK, "name", obj.GetName(), "namespace", obj.GetNamespace())
-
-			return false, nil
-		}
-
-		shouldDelete := rr.Instance.GetGeneration() != iGenerationInt
-		if shouldDelete {
-			log.V(3).Info("GC: deleting stale resource (generation mismatch)", "gvk", objGVK, "name", obj.GetName(), "namespace", obj.GetNamespace(),
-				"resourceGeneration", iGenerationInt, "crGeneration", rr.Instance.GetGeneration())
-		}
-
-		return shouldDelete, nil
+		return isStaleOrOrphaned(rr, obj)
 	}
 }
 
@@ -124,6 +130,10 @@ func BootstrapProtectedObjects(config certmanager.BootstrapConfig) []ProtectedOb
 // by the InfrastructurePartOf label, and evaluates each with newGCPredicate.
 // Only owned resources are processed.
 //
+// Dependency CR cleanup is handled by the two-phase mechanism in
+// NewReconcileAction (chart kept during Phase 1, CR filtered from deploy,
+// GC deletes it via generation mismatch). No cleanup pre-phase needed here.
+//
 // NewGCAction must be the last action in the reconciliation pipeline. GC only runs
 // when rr.Generated is true (i.e., on cache miss — when something actually changed).
 // In steady state with no spec changes, GC is skipped entirely.
@@ -147,7 +157,7 @@ func NewGCAction(resourceID string, operatorNamespace string, protectedObjects [
 		gc.InNamespace(operatorNamespace),
 		gc.WithLabel(labels.InfrastructurePartOf, resourceID),
 		gc.WithObjectPredicate(newGCPredicate(protectedObjects)),
-		gc.WithUnremovables(gvk.Namespace),
+		gc.WithUnremovables(unremovableGVKs...),
 		gc.WithOnlyCollectOwned(true),
 	), nil
 }
