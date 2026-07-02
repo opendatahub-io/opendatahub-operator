@@ -25,6 +25,7 @@ import (
 	apicommon "github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	componentMonitoring "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -286,6 +287,16 @@ func addTracesTemplateData(templateData map[string]any, traces *serviceApi.Trace
 	return nil
 }
 
+func addTLSData(ctx context.Context, rr *odhtypes.ReconciliationRequest, templateData map[string]any) {
+	minVersion, cipherSuites, err := gateway.GetKubeAuthProxyTLSFromAPIServer(ctx, rr.Client)
+	if err != nil {
+		logf.FromContext(ctx).Error(err, "failed to read TLS profile for kube-rbac-proxy sidecars, using Intermediate defaults")
+		minVersion, cipherSuites = gateway.KubeAuthProxyTLSFromProfile(ctx, nil)
+	}
+	templateData["TLSMinVersion"] = minVersion
+	templateData["TLSCipherSuites"] = cipherSuites
+}
+
 // Images can be overridden via environment variables, with defaults based on platform.
 func addImageURLs(rr *odhtypes.ReconciliationRequest, templateData map[string]any) {
 	templateData["KubeRBACProxyImage"] = getImageURL(
@@ -395,6 +406,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	// always add resource defaults
 	addResourceData(templateData)
 	addImageURLs(rr, templateData)
+	addTLSData(ctx, rr, templateData)
 
 	// Add metrics-related data if metrics are configured
 	if metrics := monitoring.Spec.Metrics; metrics != nil {

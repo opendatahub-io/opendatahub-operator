@@ -198,7 +198,7 @@ func TestGetKubeAuthProxyTLSFromAPIServer(t *testing.T) {
 		t.Parallel()
 		cli := fake.NewClientBuilder().WithScheme(scheme).Build()
 
-		minVersion, cipherSuites, err := getKubeAuthProxyTLSFromAPIServer(context.Background(), cli)
+		minVersion, cipherSuites, err := GetKubeAuthProxyTLSFromAPIServer(context.Background(), cli)
 		require.NoError(t, err)
 		assert.Equal(t, "TLS1.2", minVersion)
 		assert.Equal(t, intermediateIANACiphers, cipherSuites)
@@ -211,7 +211,7 @@ func TestGetKubeAuthProxyTLSFromAPIServer(t *testing.T) {
 		}
 		cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(apiServer).Build()
 
-		minVersion, cipherSuites, err := getKubeAuthProxyTLSFromAPIServer(context.Background(), cli)
+		minVersion, cipherSuites, err := GetKubeAuthProxyTLSFromAPIServer(context.Background(), cli)
 		require.NoError(t, err)
 		assert.Equal(t, "TLS1.2", minVersion)
 		assert.Equal(t, intermediateIANACiphers, cipherSuites)
@@ -229,7 +229,7 @@ func TestGetKubeAuthProxyTLSFromAPIServer(t *testing.T) {
 		}
 		cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(apiServer).Build()
 
-		minVersion, cipherSuites, err := getKubeAuthProxyTLSFromAPIServer(context.Background(), cli)
+		minVersion, cipherSuites, err := GetKubeAuthProxyTLSFromAPIServer(context.Background(), cli)
 		require.NoError(t, err)
 		// Old profile specifies TLS 1.0; both version AND ciphers floor to Intermediate
 		// so that weak Old ciphers (e.g. 3DES) are not paired with a TLS 1.2 minimum.
@@ -258,7 +258,7 @@ func TestGetKubeAuthProxyTLSFromAPIServer(t *testing.T) {
 		}
 		cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(apiServer).Build()
 
-		minVersion, cipherSuites, err := getKubeAuthProxyTLSFromAPIServer(context.Background(), cli)
+		minVersion, cipherSuites, err := GetKubeAuthProxyTLSFromAPIServer(context.Background(), cli)
 		require.NoError(t, err)
 		assert.Equal(t, "TLS1.2", minVersion)
 		assert.Equal(t, intermediateIANACiphers, cipherSuites,
@@ -284,7 +284,7 @@ func TestGetKubeAuthProxyTLSFromAPIServer(t *testing.T) {
 		}
 		cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(apiServer).Build()
 
-		minVersion, cipherSuites, err := getKubeAuthProxyTLSFromAPIServer(context.Background(), cli)
+		minVersion, cipherSuites, err := GetKubeAuthProxyTLSFromAPIServer(context.Background(), cli)
 		require.NoError(t, err)
 		assert.Equal(t, "TLS1.2", minVersion)
 		assert.Equal(t, "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", cipherSuites)
