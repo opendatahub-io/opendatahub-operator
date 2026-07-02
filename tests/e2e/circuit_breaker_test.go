@@ -93,7 +93,8 @@ func (cb *CircuitBreaker) RecordResult(passed bool, classification *atomic.Point
 	// Check the failure classification to decide if this failure counts
 	if classification != nil {
 		if fc := classification.Load(); fc != nil {
-			if fc.Category == failureclassifier.CategoryTest {
+			if fc.Category == failureclassifier.CategoryTest ||
+				fc.ErrorCode == failureclassifier.CodeNoSignal {
 				log.Printf("Circuit breaker: failure classified as test-logic (%s/%s, code=%d) — not counting toward threshold",
 					fc.Category, fc.Subcategory, fc.ErrorCode)
 				cb.consecutiveFailures = 0
