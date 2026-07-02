@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -299,55 +300,53 @@ func TestBuildSkipFilter(t *testing.T) {
 			name: "monitoring-specific pattern for group level extraction",
 			opts: types.E2ETestOptions{
 				SkipAtPrefixes: []string{
-					"TestOdhOperator/services/*/monitoring",
-					"TestOdhOperator/services/*/",
+					"TestOdhOperator/monitoring/",
 					"TestOdhOperator/",
 				},
 			},
 			aggregatedTestResult: &types.TestResult{PassedTest: []types.TestCase{
-				{Name: "TestOdhOperator/services/group 1/monitoring/Group 1: Base Configuration"},
-				{Name: "TestOdhOperator/services/group 1/monitoring/Group 1: Base Configuration/Auto creation of Monitoring CR"},
-				{Name: "TestOdhOperator/services/group 1/monitoring/Group 1: Base Configuration/Test Monitoring CR content default value"},
-				{Name: "TestOdhOperator/services/group 1/monitoring/Group 2: Metrics & MonitoringStack"},
-				{Name: "TestOdhOperator/services/group 1/monitoring/Group 2: Metrics & MonitoringStack/Test Metrics MonitoringStack CR Creation"},
-				{Name: "TestOdhOperator/services/group 1/monitoring/Group 2: Metrics & MonitoringStack/Test Metrics MonitoringStack CR Configuration"},
+				{Name: "TestOdhOperator/monitoring/Group 1: Base Configuration"},
+				{Name: "TestOdhOperator/monitoring/Group 1: Base Configuration/Auto creation of Monitoring CR"},
+				{Name: "TestOdhOperator/monitoring/Group 1: Base Configuration/Test Monitoring CR content default value"},
+				{Name: "TestOdhOperator/monitoring/Group 2: Metrics & MonitoringStack"},
+				{Name: "TestOdhOperator/monitoring/Group 2: Metrics & MonitoringStack/Test Metrics MonitoringStack CR Creation"},
+				{Name: "TestOdhOperator/monitoring/Group 2: Metrics & MonitoringStack/Test Metrics MonitoringStack CR Configuration"},
 			}},
-			expected: "^TestOdhOperator$/^services$/^group 1$/^monitoring$/^Group 1: Base Configuration$|^TestOdhOperator$/^services$/^group 1$/^monitoring$/^Group 2: Metrics & MonitoringStack$",
+			expected: "^TestOdhOperator$/^monitoring$/^Group 1: Base Configuration$|^TestOdhOperator$/^monitoring$/^Group 2: Metrics & MonitoringStack$",
 		},
 		{
 			name: "monitoring-specific pattern with mixed monitoring and other service tests",
 			opts: types.E2ETestOptions{
 				SkipAtPrefixes: []string{
-					"TestOdhOperator/services/*/monitoring",
+					"TestOdhOperator/monitoring/",
 					"TestOdhOperator/services/*/",
 					"TestOdhOperator/",
 				},
 			},
 			aggregatedTestResult: &types.TestResult{PassedTest: []types.TestCase{
-				{Name: "TestOdhOperator/services/group 1/monitoring/Group 1: Base Configuration"},
-				{Name: "TestOdhOperator/services/group 1/monitoring/Group 1: Base Configuration/Test A"},
+				{Name: "TestOdhOperator/monitoring/Group 1: Base Configuration"},
+				{Name: "TestOdhOperator/monitoring/Group 1: Base Configuration/Test A"},
 				{Name: "TestOdhOperator/services/group 1/auth"},
 				{Name: "TestOdhOperator/services/group 1/auth/Test B"},
 				{Name: "TestOdhOperator/services/group 1/gateway"},
 				{Name: "TestOdhOperator/services/group 1/gateway/Test C"},
 			}},
-			expected: "^TestOdhOperator$/^services$/^group 1$/^auth$|^TestOdhOperator$/^services$/^group 1$/^gateway$|^TestOdhOperator$/^services$/^group 1$/^monitoring$/^Group 1: Base Configuration$",
+			expected: "^TestOdhOperator$/^monitoring$/^Group 1: Base Configuration$|^TestOdhOperator$/^services$/^group 1$/^auth$|^TestOdhOperator$/^services$/^group 1$/^gateway$",
 		},
 		{
 			name: "monitoring-specific pattern takes precedence over general pattern",
 			opts: types.E2ETestOptions{
 				SkipAtPrefixes: []string{
-					"TestOdhOperator/services/*/monitoring", // More specific (4 parts), should match first
-					"TestOdhOperator/services/*/",           // Less specific (3 parts)
+					"TestOdhOperator/monitoring/", // More specific
 					"TestOdhOperator/",
 				},
 			},
 			aggregatedTestResult: &types.TestResult{PassedTest: []types.TestCase{
-				{Name: "TestOdhOperator/services/group 1/monitoring/Group 5: Thanos Querier"},
-				{Name: "TestOdhOperator/services/group 1/monitoring/Group 5: Thanos Querier/Test ThanosQuerier deployment with metrics"},
+				{Name: "TestOdhOperator/monitoring/Group 5: Thanos Querier"},
+				{Name: "TestOdhOperator/monitoring/Group 5: Thanos Querier/Test ThanosQuerier deployment with metrics"},
 			}},
-			// Should extract at Group level (monitoring pattern), not at monitoring level (general pattern)
-			expected: "^TestOdhOperator$/^services$/^group 1$/^monitoring$/^Group 5: Thanos Querier$",
+			// Should extract at Group level (monitoring pattern), not at root level (general pattern)
+			expected: "^TestOdhOperator$/^monitoring$/^Group 5: Thanos Querier$",
 		},
 	}
 
@@ -545,13 +544,12 @@ func TestExtractTestLevel(t *testing.T) {
 			opts: types.E2ETestOptions{
 				NeverSkipPrefixes: []string{},
 				SkipAtPrefixes: []string{
-					"TestOdhOperator/services/*/monitoring",
-					"TestOdhOperator/services/*/",
+					"TestOdhOperator/monitoring/",
 					"TestOdhOperator/",
 				},
 			},
-			testName:   "TestOdhOperator/services/group 1/monitoring/Group 1: Base Configuration/Auto creation of Monitoring CR",
-			wantLevel:  "TestOdhOperator/services/group 1/monitoring/Group 1: Base Configuration",
+			testName:   "TestOdhOperator/monitoring/Group 1: Base Configuration/Auto creation of Monitoring CR",
+			wantLevel:  "TestOdhOperator/monitoring/Group 1: Base Configuration",
 			shouldSkip: true,
 		},
 		{
@@ -559,13 +557,12 @@ func TestExtractTestLevel(t *testing.T) {
 			opts: types.E2ETestOptions{
 				NeverSkipPrefixes: []string{},
 				SkipAtPrefixes: []string{
-					"TestOdhOperator/services/*/monitoring",
-					"TestOdhOperator/services/*/",
+					"TestOdhOperator/monitoring/",
 					"TestOdhOperator/",
 				},
 			},
-			testName:   "TestOdhOperator/services/group 1/monitoring/Group 5: Thanos Querier/Test ThanosQuerier deployment",
-			wantLevel:  "TestOdhOperator/services/group 1/monitoring/Group 5: Thanos Querier",
+			testName:   "TestOdhOperator/monitoring/Group 5: Thanos Querier/Test ThanosQuerier deployment",
+			wantLevel:  "TestOdhOperator/monitoring/Group 5: Thanos Querier",
 			shouldSkip: true,
 		},
 		{
@@ -573,27 +570,12 @@ func TestExtractTestLevel(t *testing.T) {
 			opts: types.E2ETestOptions{
 				NeverSkipPrefixes: []string{},
 				SkipAtPrefixes: []string{
-					"TestOdhOperator/services/*/monitoring",
-					"TestOdhOperator/services/*/",
+					"TestOdhOperator/monitoring/",
 					"TestOdhOperator/",
 				},
 			},
-			testName:   "TestOdhOperator/services/group 1/monitoring/Group 2: Metrics & MonitoringStack/Test CR Creation",
-			wantLevel:  "TestOdhOperator/services/group 1/monitoring/Group 2: Metrics & MonitoringStack",
-			shouldSkip: true,
-		},
-		{
-			name: "other service tests use general pattern not monitoring-specific",
-			opts: types.E2ETestOptions{
-				NeverSkipPrefixes: []string{},
-				SkipAtPrefixes: []string{
-					"TestOdhOperator/services/*/monitoring",
-					"TestOdhOperator/services/*/",
-					"TestOdhOperator/",
-				},
-			},
-			testName:   "TestOdhOperator/services/group 1/auth/Test Auth",
-			wantLevel:  "TestOdhOperator/services/group 1/auth",
+			testName:   "TestOdhOperator/monitoring/Group 2: Metrics & MonitoringStack/Test CR Creation",
+			wantLevel:  "TestOdhOperator/monitoring/Group 2: Metrics & MonitoringStack",
 			shouldSkip: true,
 		},
 		{
@@ -601,13 +583,12 @@ func TestExtractTestLevel(t *testing.T) {
 			opts: types.E2ETestOptions{
 				NeverSkipPrefixes: []string{},
 				SkipAtPrefixes: []string{
-					"TestOdhOperator/services/*/monitoring", // 4 parts with wildcard
-					"TestOdhOperator/services/*/",           // 3 parts with wildcard
-					"TestOdhOperator/",                      // 1 part
+					"TestOdhOperator/monitoring/", // 3 parts with wildcard
+					"TestOdhOperator/",            // 1 part
 				},
 			},
-			testName:   "TestOdhOperator/services/group 1/monitoring/Group 8: Perses/Test Perses",
-			wantLevel:  "TestOdhOperator/services/group 1/monitoring/Group 8: Perses",
+			testName:   "TestOdhOperator/monitoring/Group 8: Perses/Test Perses",
+			wantLevel:  "TestOdhOperator/monitoring/Group 8: Perses",
 			shouldSkip: true,
 		},
 	}
@@ -891,6 +872,20 @@ func TestNotifyPROnFailure(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestIsTimeoutError(t *testing.T) {
+	// exit 2 → go test panic (timeout or runtime panic)
+	cmd := exec.Command("sh", "-c", "exit 2")
+	require.True(t, isTimeoutError(cmd.Run()))
+
+	// exit 1 → normal test failures, not timeout
+	cmd = exec.Command("sh", "-c", "exit 1")
+	require.False(t, isTimeoutError(cmd.Run()))
+
+	// nil and non-ExitError
+	require.False(t, isTimeoutError(nil))
+	require.False(t, isTimeoutError(fmt.Errorf("some error")))
 }
 
 // mockGitHubClient is a mock implementation of GitHubClient for testing

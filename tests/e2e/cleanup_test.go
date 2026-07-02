@@ -13,6 +13,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelsasservice"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
 )
 
 // workloadGVK is used to cleanup Kueue Workloads that may block namespace deletion.
@@ -55,6 +56,9 @@ func CleanupPreviousTestResources(t *testing.T) {
 
 	// Cleanup CodeFlare resources
 	cleanupCodeFlareTestResources(t, tc)
+
+	// Cleanup stale upgrade-gate ConfigMaps left by interrupted test runs
+	cleanupGateSourceConfigMaps(t, tc)
 }
 
 // cleanupCoreOperatorResources deletes DataScienceCluster and DSCInitialization resources.
@@ -182,6 +186,19 @@ func cleanupMaaSControllerFinalizer(t *testing.T, tc *TestContext) {
 		}),
 		WithIgnoreNotFound(true),
 		WithRemoveFinalizersOnDelete(true),
+		WithWaitForDeletion(false),
+	)
+}
+
+func cleanupGateSourceConfigMaps(t *testing.T, tc *TestContext) {
+	t.Helper()
+
+	t.Log("Cleaning up stale upgrade-gate ConfigMaps from previous test runs")
+	tc.DeleteResources(
+		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{}),
+		WithNamespaceFilter(tc.OperatorNamespace),
+		WithDeleteAllOfOptions(client.MatchingLabels{gates.UpgradeGateLabel: "true"}),
+		WithIgnoreNotFound(true),
 		WithWaitForDeletion(false),
 	)
 }

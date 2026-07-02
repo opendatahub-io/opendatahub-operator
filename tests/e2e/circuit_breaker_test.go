@@ -34,20 +34,21 @@ func (s CircuitBreakerState) String() string {
 // CircuitBreaker halts test execution when repeated infrastructure failures
 // are detected. It uses the failure classifier to distinguish infrastructure
 // problems from test-logic bugs:
-//   - Infrastructure failures (or unknown) increment the consecutive failure counter
-//   - Test-logic failures (cluster is healthy) reset the counter
+//   - Infrastructure failures (or unknown) increment the failure counter
+//   - Test-logic failures and passes are orthogonal — they don't affect the counter
 //   - When the counter reaches the threshold, a health check confirms the trip
+//   - Only the health check can reset the counter (cluster confirmed healthy)
 //
 // Each test binary invocation starts with a fresh Closed breaker. The test-retry
 // CLI's retry mechanism naturally provides "half-open" probing on subsequent runs.
 type CircuitBreaker struct {
-	mu                  sync.Mutex
-	state               CircuitBreakerState
-	consecutiveFailures int
-	threshold           int
-	healthChecker       *ClusterHealthChecker
-	tripReason          string
-	totalTrips          int
+	mu            sync.Mutex
+	state         CircuitBreakerState
+	infraFailures int
+	threshold     int
+	healthChecker *ClusterHealthChecker
+	tripReason    string
+	totalTrips    int
 }
 
 var circuitBreaker *CircuitBreaker
@@ -68,8 +69,11 @@ func NewCircuitBreaker(threshold int, healthChecker *ClusterHealthChecker) *Circ
 
 // On failure, the classifier (populated by HandleTestFailure before this call)
 // determines the category:
-//   - CategoryTest: cluster is healthy, failure is test logic — reset counter
+//   - CategoryTest: test logic failure — ignored (orthogonal to infra health)
 //   - CategoryInfrastructure or CategoryUnknown: increment counter
+//
+// Passes and test-logic failures don't reset the counter — only the
+// health check at threshold can reset it (cluster confirmed healthy).
 func (cb *CircuitBreaker) RecordResult(passed bool, classification *atomic.Pointer[failureclassifier.FailureClassification]) {
 	if cb == nil {
 		return
@@ -82,21 +86,19 @@ func (cb *CircuitBreaker) RecordResult(passed bool, classification *atomic.Point
 	}
 
 	if passed {
-		if cb.consecutiveFailures > 0 {
-			log.Printf("Circuit breaker: success recorded, resetting failure counter (was %d)", cb.consecutiveFailures)
-		}
-		cb.consecutiveFailures = 0
 		cb.mu.Unlock()
 		return
 	}
 
-	// Check the failure classification to decide if this failure counts
+	// Check the failure classification to decide if this failure counts.
+	// Test-logic failures are orthogonal to infrastructure health — don't
+	// count them, but also don't reset the counter (prior infra evidence
+	// is still valid). Only the health check at threshold should reset.
 	if classification != nil {
 		if fc := classification.Load(); fc != nil {
 			if fc.Category == failureclassifier.CategoryTest {
 				log.Printf("Circuit breaker: failure classified as test-logic (%s/%s, code=%d) — not counting toward threshold",
 					fc.Category, fc.Subcategory, fc.ErrorCode)
-				cb.consecutiveFailures = 0
 				cb.mu.Unlock()
 				return
 			}
@@ -105,12 +107,12 @@ func (cb *CircuitBreaker) RecordResult(passed bool, classification *atomic.Point
 		}
 	}
 
-	cb.consecutiveFailures++
-	log.Printf("Circuit breaker: infrastructure/unknown failure recorded (%d/%d consecutive)",
-		cb.consecutiveFailures, cb.threshold)
+	cb.infraFailures++
+	log.Printf("Circuit breaker: infrastructure/unknown failure recorded (%d/%d)",
+		cb.infraFailures, cb.threshold)
 
-	needsHealthCheck := cb.consecutiveFailures >= cb.threshold
-	failures := cb.consecutiveFailures
+	needsHealthCheck := cb.infraFailures >= cb.threshold
+	failures := cb.infraFailures
 	cb.mu.Unlock()
 
 	if needsHealthCheck && cb.healthChecker != nil {
@@ -137,14 +139,14 @@ func (cb *CircuitBreaker) evaluateHealth(failures int) {
 		cb.state = CircuitOpen
 		cb.totalTrips++
 		cb.tripReason = fmt.Sprintf(
-			"Infrastructure failure detected after %d consecutive infrastructure/unknown failures. "+
+			"Infrastructure failure detected after %d infrastructure/unknown failures. "+
 				"Cluster health issues: [%s]",
 			failures,
 			strings.Join(health.Issues, "; "))
 		log.Printf("CIRCUIT BREAKER TRIPPED: %s", cb.tripReason)
 	} else {
 		log.Printf("Circuit breaker: confirming health check passed — cluster appears healthy, resetting counter")
-		cb.consecutiveFailures = 0
+		cb.infraFailures = 0
 	}
 }
 

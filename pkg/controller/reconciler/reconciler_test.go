@@ -194,8 +194,7 @@ func TestConditions(t *testing.T) {
 			})
 
 			result, err := cc.Reconcile(ctx, req)
-			se := odherrors.StopError{}
-			if tt.err == nil || errors.As(tt.err, &se) {
+			if tt.err == nil {
 				g.Expect(err).ShouldNot(HaveOccurred())
 			} else {
 				g.Expect(err).Should(MatchError(tt.err))
