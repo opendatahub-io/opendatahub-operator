@@ -28,8 +28,8 @@ import (
 	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
-//+kubebuilder:webhook:path=/mutate-prometheus-monitors,mutating=true,failurePolicy=fail,groups=monitoring.coreos.com,resources=podmonitors,verbs=create;update,versions=v1,name=podmonitor-injector.opendatahub.io,sideEffects=None,admissionReviewVersions=v1
-//+kubebuilder:webhook:path=/mutate-prometheus-monitors,mutating=true,failurePolicy=fail,groups=monitoring.coreos.com,resources=servicemonitors,verbs=create;update,versions=v1,name=servicemonitor-injector.opendatahub.io,sideEffects=None,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/mutate-prometheus-monitors,mutating=true,failurePolicy=fail,groups=monitoring.coreos.com,resources=podmonitors,verbs=create;update,versions=v1,name=podmonitor-injector.opendatahub.io,sideEffects=None,admissionReviewVersions=v1,timeoutSeconds=10
+//+kubebuilder:webhook:path=/mutate-prometheus-monitors,mutating=true,failurePolicy=fail,groups=monitoring.coreos.com,resources=servicemonitors,verbs=create;update,versions=v1,name=servicemonitor-injector.opendatahub.io,sideEffects=None,admissionReviewVersions=v1,timeoutSeconds=10
 //nolint:lll
 
 // Injector implements a mutating admission webhook for monitoring injection.
