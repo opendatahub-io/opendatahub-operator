@@ -49,7 +49,6 @@ func NewHandler() *handler {
 
 // IsEnabled checks whether the MCPLifecycleOperator module should be deployed.
 // In DSC mode, reads DSC.Spec.Components.MCPLifecycleOperator.ManagementState.
-// In Platform mode (xKS), the registry already filters by spec.modules.
 func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 	if platform == nil {
 		return false
@@ -57,7 +56,7 @@ func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 	if platform.DSC != nil {
 		return platform.DSC.Spec.Components.MCPLifecycleOperator.ManagementState == operatorv1.Managed
 	}
-	return true
+	return false
 }
 
 // BuildModuleCR projects platform configuration onto the module CR.
