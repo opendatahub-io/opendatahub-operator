@@ -487,11 +487,6 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) (time
 	}
 
 	if provisionErr != nil {
-		se := odherrors.StopError{}
-		if errors.As(provisionErr, &se) {
-			return 0, nil
-		}
-
 		r.Recorder.Eventf(
 			res,
 			nil,
