@@ -26,8 +26,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 func renderMaasOperatorInstall(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -54,6 +54,10 @@ func renderMaasOperatorInstall(ctx context.Context, rr *odhtypes.ReconciliationR
 // Standard gc.NewAction() only covers the operator namespace; resources deployed
 // cross-namespace (e.g. payload-processing in openshift-ingress) need explicit cleanup.
 func cleanupGatewayNamespaceResources(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	if rr.SkipDeploy {
+		return nil
+	}
+
 	l := log.FromContext(ctx)
 	componentLabel := labels.ODH.Component(componentApi.ModelsAsServiceComponentName)
 
@@ -87,7 +91,7 @@ func cleanupGatewayNamespaceResources(ctx context.Context, rr *odhtypes.Reconcil
 			client.InNamespace(DefaultGatewayNamespace),
 			client.MatchingLabels{componentLabel: labels.True},
 		); err != nil {
-			continue
+			return fmt.Errorf("list gateway namespace %s resources: %w", gvk.String(), err)
 		}
 		for i := range list.Items {
 			item := &list.Items[i]
