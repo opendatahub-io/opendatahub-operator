@@ -936,6 +936,8 @@ func TestDynamicOwnership_DeployAction_CRDAndCR(t *testing.T) {
 	g.Expect(deployedCM.GetOwnerReferences()).To(HaveLen(1), "ConfigMap should have owner reference")
 
 	t.Run("CR is restored after external deletion", func(t *testing.T) {
+		g := NewWithT(t)
+
 		// Delete the CR externally
 		err := cli.Delete(ctx, deployedCR)
 		g.Expect(err).NotTo(HaveOccurred())
@@ -957,6 +959,8 @@ func TestDynamicOwnership_DeployAction_CRDAndCR(t *testing.T) {
 	})
 
 	t.Run("CRD deletion triggers reconciliation", func(t *testing.T) {
+		g := NewWithT(t)
+
 		// Get the current CRD resourceVersion before deletion
 		currentCRD := &apiextensionsv1.CustomResourceDefinition{}
 		g.Expect(cli.Get(ctx, client.ObjectKey{Name: crdWithoutCreatedCR.GetName()}, currentCRD)).To(Succeed())
