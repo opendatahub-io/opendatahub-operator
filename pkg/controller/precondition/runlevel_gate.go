@@ -14,6 +14,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
 const PlatformReadyConditionType = "PlatformReady"
@@ -30,6 +31,10 @@ func RunlevelGateAction() actions.Fn {
 }
 
 func runlevelGateAction(ctx context.Context, rr *types.ReconciliationRequest) error {
+	if flags.IsDAGOrderingDisabled() {
+		return nil
+	}
+
 	kind := rr.Instance.GetObjectKind().GroupVersionKind().Kind
 	componentName := strings.ToLower(kind)
 
