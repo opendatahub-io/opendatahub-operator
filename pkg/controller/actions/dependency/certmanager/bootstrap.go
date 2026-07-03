@@ -18,15 +18,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -34,6 +30,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/cleanup"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	resourcespredicates "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
@@ -296,77 +293,6 @@ func createCABackedIssuer(config BootstrapConfig) (*unstructured.Unstructured, e
 	return u, nil
 }
 
-// NewCleanupAction returns a finalizer action that explicitly deletes CertManager/cluster CR.
-//
-// When deleting the AKE/CWE CR, we need to explicitly delete CertManager/cluster first.
-// The cert-manager-operator has finalizers on CertManager/cluster that clean up its Deployments,
-// but these finalizers won't run if the operator is killed before the CR is deleted.
-// By deleting CertManager/cluster in this action, the operator stays alive long enough
-// to process its finalizers and clean up properly before the cascade deletion continues.
-//
-// The action does nothing if CertManager/cluster does not exist or if it is not owned
-// by the current CR instance.
-func NewCleanupAction() actions.Fn {
-	return func(ctx context.Context, rr *types.ReconciliationRequest) error {
-		l := logf.FromContext(ctx)
-
-		cm := &unstructured.Unstructured{}
-		cm.SetGroupVersionKind(gvk.CertManagerV1Alpha1)
-
-		if err := rr.Client.Get(ctx, client.ObjectKey{Name: "cluster"}, cm); err != nil {
-			if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
-				return nil
-			}
-			return err
-		}
-
-		// Only delete CertManager/cluster if this CR instance owns it.
-		owned := false
-		for _, ref := range cm.GetOwnerReferences() {
-			if ref.UID == rr.Instance.GetUID() {
-				owned = true
-				break
-			}
-		}
-		if !owned {
-			l.V(1).Info("CertManager/cluster is not owned by this instance, skipping cleanup",
-				"instance", rr.Instance.GetName())
-			return nil
-		}
-
-		// Trigger deletion if not already in progress.
-		if cm.GetDeletionTimestamp().IsZero() {
-			l.Info("deleting CertManager/cluster to allow cert-manager-operator to clean up operands",
-				"instance", rr.Instance.GetName())
-			if err := rr.Client.Delete(ctx, cm); err != nil && !k8serr.IsNotFound(err) {
-				return err
-			}
-		}
-
-		// Only wait for cert-manager-operator's own finalizers (identified by its domain prefix).
-		var operatorFinalizers []string
-		for _, f := range cm.GetFinalizers() {
-			if strings.HasPrefix(f, "cert-manager-operator.") {
-				operatorFinalizers = append(operatorFinalizers, f)
-			}
-		}
-		if len(operatorFinalizers) == 0 {
-			l.V(1).Info("CertManager/cluster has no remaining cert-manager-operator finalizers, deletion complete",
-				"instance", rr.Instance.GetName())
-			return nil
-		}
-
-		// The CR is still Terminating and cert-manager-operator finalizers remain.
-		// Return an error to trigger reconciler re-queue. On the next call, Get should
-		// return NotFound once cert-manager-operator has removed all its finalizers.
-		l.Info("waiting for CertManager/cluster to be fully deleted",
-			"instance", rr.Instance.GetName(),
-			"remainingFinalizers", cm.GetFinalizers())
-		return fmt.Errorf("waiting for CertManager/cluster to be fully deleted (remaining finalizers: %v)",
-			cm.GetFinalizers())
-	}
-}
-
 func monitoredCRDs() []schema.GroupVersionKind {
 	gvks := make([]schema.GroupVersionKind, len(monitoredCRDList))
 	for i := range monitoredCRDList {
@@ -444,6 +370,16 @@ func Bootstrap[T common.PlatformObject](instanceName string, config BootstrapCon
 			WithPreCondition(precondition.MonitorCRDs(monitoredCRDs())).
 			WithActionE(NewBootstrapAction(config)).
 			WithConditions(status.ConditionDependenciesAvailable).
-			WithFinalizer(NewCleanupAction())
+			WithFinalizer(cleanup.NewFinalizer(BootstrapCleanupTarget()))
+	}
+}
+
+// BootstrapCleanupTarget returns the cleanup.Target for the CertManager/cluster
+// CR. Used by Bootstrap to register the finalizer, and by the finalizer
+// cleanup targets to ensure the CR is deleted before cascade.
+func BootstrapCleanupTarget() cleanup.Target {
+	return cleanup.Target{
+		GVK:  gvk.CertManagerV1Alpha1,
+		Name: "cluster",
 	}
 }

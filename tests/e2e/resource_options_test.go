@@ -91,9 +91,10 @@ type ResourceOptions struct {
 	// This helps handle controllers that immediately recreate resources after deletion.
 	WaitForRecreation bool
 
-	// RemoveFinalizersOnDelete determines whether to automatically remove finalizers before deletion.
-	// If true, DeleteResource will attempt to remove all finalizers if deletion is blocked.
-	// This helps with resources that get stuck in deletion due to finalizers.
+	// RemoveFinalizersOnDelete determines whether to automatically remove finalizers after deletion.
+	// If true, DeleteResource will attempt to remove all finalizers once the resource is Terminating.
+	// Stripping after the delete (not before) prevents a running controller from re-adding its
+	// finalizer between the strip and the delete.
 	RemoveFinalizersOnDelete bool
 
 	// CleanupT, when set, causes resource creation methods to register a t.Cleanup() that
@@ -225,9 +226,9 @@ func WithWaitForRecreation(wait bool) ResourceOpts {
 	}
 }
 
-// WithRemoveFinalizersOnDelete enables automatic finalizer removal before deletion.
-// When enabled, DeleteResource will attempt to remove all finalizers if deletion is blocked.
-// This helps with resources that get stuck in deletion due to finalizers.
+// WithRemoveFinalizersOnDelete enables automatic finalizer removal after deletion.
+// When enabled, DeleteResource strips all finalizers once the resource is Terminating,
+// preventing a running controller from re-adding its finalizer before the delete.
 func WithRemoveFinalizersOnDelete(remove bool) ResourceOpts {
 	return func(ro *ResourceOptions) {
 		ro.RemoveFinalizersOnDelete = remove

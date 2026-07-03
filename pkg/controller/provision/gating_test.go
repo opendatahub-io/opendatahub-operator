@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -235,6 +236,59 @@ func TestWalkBatches_TimeoutDoesNotForgiveNewStuckEntry(t *testing.T) {
 		"alpha timed out at RL31, but bravo is newly stuck at RL33 and should gate charlie")
 	assert.Equal(t, status.AwaitingReadinessReason, conds.last().Reason,
 		"should be awaiting readiness on bravo, not skipped")
+}
+
+func TestWalkBatches_DAGOrderingDisabled_BypassesGating(t *testing.T) {
+	viper.Set("disable-dag-ordering", true)
+	t.Cleanup(func() { viper.Set("disable-dag-ordering", false) })
+
+	resetDefaultRegistry(t, map[string]dag.Runlevel{
+		"alpha": dag.RL(20),
+		"beta":  dag.RL(31),
+	})
+
+	// alpha not ready — would normally block beta
+	checker := &readinessStub{ready: map[string]bool{"alpha": false, "beta": true}}
+	tracker := dag.NewStuckTracker()
+	conds := &conditionRecorder{}
+	var processed []string
+
+	requeueAfter, err := provision.WalkBatches(context.Background(), checker, tracker, "test", conds, func(batch []provision.UnifiedNode) error {
+		for _, n := range batch {
+			processed = append(processed, n.GetName())
+		}
+		return nil
+	})
+
+	require.NoError(t, err)
+	assert.Zero(t, requeueAfter, "no requeue when gating is disabled")
+	assert.Equal(t, []string{"alpha", "beta"}, processed, "all batches processed regardless of readiness")
+}
+
+func TestWalkBatches_DAGOrderingEnabled_StillGates(t *testing.T) {
+	viper.Set("disable-dag-ordering", false)
+	t.Cleanup(func() { viper.Set("disable-dag-ordering", false) })
+
+	resetDefaultRegistry(t, map[string]dag.Runlevel{
+		"alpha": dag.RL(20),
+		"beta":  dag.RL(31),
+	})
+
+	checker := &readinessStub{ready: map[string]bool{"alpha": false, "beta": true}}
+	tracker := dag.NewStuckTracker()
+	conds := &conditionRecorder{}
+	var processed []string
+
+	requeueAfter, err := provision.WalkBatches(context.Background(), checker, tracker, "test", conds, func(batch []provision.UnifiedNode) error {
+		for _, n := range batch {
+			processed = append(processed, n.GetName())
+		}
+		return nil
+	})
+
+	require.NoError(t, err)
+	assert.Positive(t, requeueAfter, "should requeue while alpha is not ready")
+	assert.Equal(t, []string{"alpha"}, processed, "beta should be gated by non-ready alpha")
 }
 
 func TestWalkBatches_ProcessBatchErrorHaltsWalk(t *testing.T) {

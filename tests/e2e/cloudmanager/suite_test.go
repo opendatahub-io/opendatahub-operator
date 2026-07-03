@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/onsi/gomega/format"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
@@ -27,6 +28,9 @@ var (
 )
 
 func TestMain(m *testing.M) {
+	format.MaxLength = 0 // 0 disables truncation entirely
+	format.RegisterCustomFormatter(stripManagedFields)
+
 	providerName := os.Getenv("CLOUD_MANAGER_PROVIDER")
 	if providerName == "" {
 		fmt.Println("CLOUD_MANAGER_PROVIDER not set, skipping cloud manager e2e tests")
@@ -122,4 +126,47 @@ func preflightCheck() error {
 	}
 
 	return nil
+}
+
+func stripManagedFields(value interface{}) (string, bool) {
+	switch v := value.(type) {
+	case *unstructured.Unstructured:
+		c := v.DeepCopy()
+		c.SetManagedFields(nil)
+		redactSecretData(c)
+
+		return format.Object(c.Object, 1), true
+	case unstructured.Unstructured:
+		c := v.DeepCopy()
+		c.SetManagedFields(nil)
+		redactSecretData(c)
+
+		return format.Object(c.Object, 1), true
+	case []unstructured.Unstructured:
+		stripped := make([]map[string]interface{}, 0, len(v))
+		for i := range v {
+			c := v[i].DeepCopy()
+			c.SetManagedFields(nil)
+			redactSecretData(c)
+			stripped = append(stripped, c.Object)
+		}
+
+		return format.Object(stripped, 1), true
+	default:
+		return "", false
+	}
+}
+
+func redactSecretData(obj *unstructured.Unstructured) {
+	if obj.GetKind() != "Secret" {
+		return
+	}
+
+	for _, field := range []string{"data", "stringData"} {
+		if m, ok := obj.Object[field].(map[string]any); ok {
+			for k := range m {
+				m[k] = "<redacted>"
+			}
+		}
+	}
 }

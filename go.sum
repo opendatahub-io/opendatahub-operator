@@ -165,10 +165,6 @@ github.com/opencontainers/image-spec v1.1.1 h1:y0fUlFfIZhPF1W537XOLg0/fcx6zcHCJw
 github.com/opencontainers/image-spec v1.1.1/go.mod h1:qpqAh3Dmcf36wStyyWU+kCeDgrGnAve2nCC8+7h8Q0M=
 github.com/opendatahub-io/models-as-a-service/maas-controller v0.0.0-20260420142354-89fba298f42a h1:MQWRo9YDTNsJh+82XWkDhqxQEJcd0I4vScIArwVIDCU=
 github.com/opendatahub-io/models-as-a-service/maas-controller v0.0.0-20260420142354-89fba298f42a/go.mod h1:uMYnqqPwy+1ub8me0YMZRZ1vrUQY9jS9nMcUXLBp88k=
-github.com/opendatahub-io/operator-chaos v0.0.0-20260616171738-edb1c045f677 h1:M60vezn5HosBJZpQxeDPhUubmRgyb5xsqbrlh7UjqPo=
-github.com/opendatahub-io/operator-chaos v0.0.0-20260616171738-edb1c045f677/go.mod h1:74+H/z7ueaQpRCzlUkgKjjSpY8raGXaZHi3cjqAy9W8=
-github.com/opendatahub-io/operator-chaos/pkg/sdk/client v0.0.0-20260611152030-3b2d01010fcf h1:vXIgW3xbXYg4hlaVI4z746K+FqARgQIiBj0Za6O9+6M=
-github.com/opendatahub-io/operator-chaos/pkg/sdk/client v0.0.0-20260611152030-3b2d01010fcf/go.mod h1:kKx0QizAwCqMntBBC4lz4dglJH6NUJvpsi1uI3tLZXI=
 github.com/openshift/api v0.0.0-20260317165824-54a3998d81eb h1:iwBR3mzmyE3EMFx7R3CQ9lOccTS0dNht8TW82aGITg0=
 github.com/openshift/api v0.0.0-20260317165824-54a3998d81eb/go.mod h1:pyVjK0nZ4sRs4fuQVQ4rubsJdahI1PB94LnQ8sGdvxo=
 github.com/openshift/controller-runtime-common v0.0.0-20260428152732-64ee174f5e2e h1:k89oIo2EjX0PRSdi1kesktCyWp50SC9WwKurvupvRGs=
