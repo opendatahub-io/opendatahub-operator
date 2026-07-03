@@ -96,7 +96,8 @@ func (cb *CircuitBreaker) RecordResult(passed bool, classification *atomic.Point
 	// is still valid). Only the health check at threshold should reset.
 	if classification != nil {
 		if fc := classification.Load(); fc != nil {
-			if fc.Category == failureclassifier.CategoryTest {
+			if fc.Category == failureclassifier.CategoryTest ||
+				fc.ErrorCode == failureclassifier.CodeNoSignal {
 				log.Printf("Circuit breaker: failure classified as test-logic (%s/%s, code=%d) — not counting toward threshold",
 					fc.Category, fc.Subcategory, fc.ErrorCode)
 				cb.mu.Unlock()

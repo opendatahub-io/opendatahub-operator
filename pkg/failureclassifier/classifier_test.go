@@ -46,12 +46,12 @@ func TestClassify_NilAndCleanReport(t *testing.T) {
 			wantConfidence:  ConfidenceLow,
 		},
 		{
-			name:            "clean report classifies as test failure",
+			name:            "clean report returns no-signal",
 			report:          &clusterhealth.Report{},
-			wantCategory:    CategoryTest,
-			wantSubcategory: "test-failure",
-			wantErrorCode:   CodeTestFailure,
-			wantConfidence:  ConfidenceMedium,
+			wantCategory:    CategoryUnknown,
+			wantSubcategory: "no-signal",
+			wantErrorCode:   CodeNoSignal,
+			wantConfidence:  ConfidenceLow,
 		},
 		{
 			name: "all sections errored returns unknown",
@@ -214,7 +214,7 @@ func TestClassify_PendingBelowThreshold(t *testing.T) {
 				},
 			}
 			got := Classify(report)
-			assertClassification(t, got, CategoryTest, "test-failure", CodeTestFailure, ConfidenceMedium)
+			assertClassification(t, got, CategoryUnknown, "no-signal", CodeNoSignal, ConfidenceLow)
 		})
 	}
 }
@@ -421,6 +421,20 @@ func TestClassify_ClusterDistress(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "unready deployment past threshold",
+			report: &clusterhealth.Report{
+				Deployments: clusterhealth.SectionResult[clusterhealth.DeploymentsSection]{
+					Data: clusterhealth.DeploymentsSection{
+						ByNamespace: map[string][]clusterhealth.DeploymentInfo{
+							"test-ns": {
+								{Namespace: "test-ns", Name: "old-deploy", Ready: 0, Replicas: 1, CreatedAt: time.Now().Add(-2 * PendingThreshold)},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -429,6 +443,23 @@ func TestClassify_ClusterDistress(t *testing.T) {
 			assertClassification(t, got, CategoryInfrastructure, "cluster-distress", CodeInfraUnknown, ConfidenceLow)
 		})
 	}
+}
+
+func TestClassify_DeploymentBelowThreshold(t *testing.T) {
+	// A recently-created unready deployment must be skipped — it is still starting up.
+	report := &clusterhealth.Report{
+		Deployments: clusterhealth.SectionResult[clusterhealth.DeploymentsSection]{
+			Data: clusterhealth.DeploymentsSection{
+				ByNamespace: map[string][]clusterhealth.DeploymentInfo{
+					"test-ns": {
+						{Namespace: "test-ns", Name: "new-deploy", Ready: 0, Replicas: 1, CreatedAt: time.Now().Add(-5 * time.Second)},
+					},
+				},
+			},
+		},
+	}
+	got := Classify(report)
+	assertClassification(t, got, CategoryUnknown, "no-signal", CodeNoSignal, ConfidenceLow)
 }
 
 func TestClassify_Priority(t *testing.T) {
@@ -656,7 +687,7 @@ func TestClassify_Operator(t *testing.T) {
 			wantConfidence:  ConfidenceLow,
 		},
 		{
-			name: "healthy operator classifies as test failure",
+			name: "healthy operator returns no-signal",
 			report: &clusterhealth.Report{
 				Operator: clusterhealth.SectionResult[clusterhealth.OperatorSection]{
 					Data: clusterhealth.OperatorSection{
@@ -671,10 +702,10 @@ func TestClassify_Operator(t *testing.T) {
 					},
 				},
 			},
-			wantCategory:    CategoryTest,
-			wantSubcategory: "test-failure",
-			wantErrorCode:   CodeTestFailure,
-			wantConfidence:  ConfidenceMedium,
+			wantCategory:    CategoryUnknown,
+			wantSubcategory: "no-signal",
+			wantErrorCode:   CodeNoSignal,
+			wantConfidence:  ConfidenceLow,
 		},
 	}
 
@@ -723,7 +754,7 @@ func TestClassify_DSCI(t *testing.T) {
 			wantConfidence:  ConfidenceLow,
 		},
 		{
-			name: "DSCI healthy classifies as test failure",
+			name: "DSCI healthy returns no-signal",
 			report: &clusterhealth.Report{
 				DSCI: clusterhealth.SectionResult[clusterhealth.CRConditionsSection]{
 					Data: clusterhealth.CRConditionsSection{
@@ -731,10 +762,10 @@ func TestClassify_DSCI(t *testing.T) {
 					},
 				},
 			},
-			wantCategory:    CategoryTest,
-			wantSubcategory: "test-failure",
-			wantErrorCode:   CodeTestFailure,
-			wantConfidence:  ConfidenceMedium,
+			wantCategory:    CategoryUnknown,
+			wantSubcategory: "no-signal",
+			wantErrorCode:   CodeNoSignal,
+			wantConfidence:  ConfidenceLow,
 		},
 	}
 
@@ -779,7 +810,7 @@ func TestClassify_SuccessfulTerminationNotFlagged(t *testing.T) {
 	}
 
 	got := Classify(report)
-	assertClassification(t, got, CategoryTest, "test-failure", CodeTestFailure, ConfidenceMedium)
+	assertClassification(t, got, CategoryUnknown, "no-signal", CodeNoSignal, ConfidenceLow)
 }
 
 func TestIsSuccessfulTermination(t *testing.T) {
@@ -837,6 +868,211 @@ func TestMatchesPattern(t *testing.T) {
 			if (got != nil) != tt.want {
 				t.Errorf("matchesPattern() returned %v, want match=%v", got, tt.want)
 			}
+		})
+	}
+}
+
+func TestClassify_RBAC(t *testing.T) {
+	tests := []struct {
+		name    string
+		message string
+	}{
+		{"is forbidden", "system:serviceaccount:ns:sa is forbidden: cannot get pods"},
+		{"access denied", "access denied for resource secrets in namespace foo"},
+		{"does not have permission", "user does not have permission to list configmaps"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			report := &clusterhealth.Report{
+				Events: clusterhealth.SectionResult[clusterhealth.EventsSection]{
+					Data: clusterhealth.EventsSection{
+						Events: []clusterhealth.EventInfo{
+							{Kind: "Pod", Name: "test-pod", Reason: "Failed", Message: tt.message},
+						},
+					},
+				},
+			}
+			got := Classify(report)
+			assertClassification(t, got, CategoryInfrastructure, "rbac", CodeRBAC, ConfidenceMedium)
+		})
+	}
+}
+
+func TestClassify_DNS(t *testing.T) {
+	tests := []struct {
+		name    string
+		message string
+	}{
+		{"no such host", "dial tcp: lookup api.example.com: no such host"},
+		{"failed to resolve", "failed to resolve hostname cluster.local"},
+		{"dns resolution failed", "dns resolution failed for service.namespace.svc.cluster.local"},
+		{"name or service not known", "dial tcp: lookup db: name or service not known"},
+		{"temporary failure in name resolution", "temporary failure in name resolution"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			report := &clusterhealth.Report{
+				Events: clusterhealth.SectionResult[clusterhealth.EventsSection]{
+					Data: clusterhealth.EventsSection{
+						Events: []clusterhealth.EventInfo{
+							{Kind: "Pod", Name: "test-pod", Reason: "Failed", Message: tt.message},
+						},
+					},
+				},
+			}
+			got := Classify(report)
+			assertClassification(t, got, CategoryInfrastructure, "dns", CodeDNS, ConfidenceMedium)
+		})
+	}
+}
+
+func TestClassify_Timeout(t *testing.T) {
+	tests := []struct {
+		name    string
+		message string
+	}{
+		{"context deadline exceeded", "error: context deadline exceeded while waiting for pod"},
+		{"deadline exceeded", "deadline exceeded calling API server"},
+		{"timed out waiting", "timed out waiting for condition"},
+		{"operation timed out", "operation timed out after 30s"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			report := &clusterhealth.Report{
+				Events: clusterhealth.SectionResult[clusterhealth.EventsSection]{
+					Data: clusterhealth.EventsSection{
+						Events: []clusterhealth.EventInfo{
+							{Kind: "Pod", Name: "test-pod", Reason: "Failed", Message: tt.message},
+						},
+					},
+				},
+			}
+			got := Classify(report)
+			assertClassification(t, got, CategoryInfrastructure, "timeout", CodeTimeout, ConfidenceMedium)
+		})
+	}
+}
+
+func TestClassify_ProbeFailure(t *testing.T) {
+	tests := []struct {
+		name   string
+		reason string
+		msg    string
+	}{
+		{"Unhealthy event reason", "Unhealthy", "Liveness probe failed: HTTP probe failed with statuscode: 503"},
+		{"liveness probe in message", "Warning", "liveness probe failed: Get http://10.0.0.1:8080/healthz: connection refused"},
+		{"readiness probe in message", "Warning", "readiness probe failed: command returned non-zero exit code: 1"},
+		{"startup probe in message", "Warning", "startup probe failed: dial tcp: connect: connection refused"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			report := &clusterhealth.Report{
+				Events: clusterhealth.SectionResult[clusterhealth.EventsSection]{
+					Data: clusterhealth.EventsSection{
+						Events: []clusterhealth.EventInfo{
+							{Kind: "Pod", Name: "test-pod", Reason: tt.reason, Message: tt.msg},
+						},
+					},
+				},
+			}
+			got := Classify(report)
+			assertClassification(t, got, CategoryInfrastructure, "probe-failure", CodeProbeFailure, ConfidenceMedium)
+		})
+	}
+}
+
+func TestClassify_TerminatedExitCodes(t *testing.T) {
+	tests := []struct {
+		name            string
+		terminated      string
+		wantSubcategory string
+		wantErrorCode   int
+	}{
+		{"exit 2 invalid flags", "Error (exit 2): flag provided but not defined: --invalid-flag", "invalid-cli-flags", CodeInvalidFlags},
+		{"exit 137 non-OOM forced kill", "Error (exit 137): container killed by signal", "container-exit", CodeContainerExit},
+		{"exit 143 error context", "Error (exit 143): container received SIGTERM", "container-exit", CodeContainerExit},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			report := &clusterhealth.Report{
+				Pods: clusterhealth.SectionResult[clusterhealth.PodsSection]{
+					Data: clusterhealth.PodsSection{
+						ByNamespace: map[string][]clusterhealth.PodInfo{
+							"test-ns": {
+								{
+									Name: "exit-pod",
+									Containers: []clusterhealth.ContainerInfo{
+										{Name: "main", Terminated: tt.terminated},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			got := Classify(report)
+			assertClassification(t, got, CategoryInfrastructure, tt.wantSubcategory, tt.wantErrorCode, ConfidenceMedium)
+		})
+	}
+}
+
+func TestClassify_GracefulTerminationNotFlagged(t *testing.T) {
+	// Containers terminated with reason "Completed" are graceful SIGTERM/drain shutdowns
+	// and must never be classified as failures regardless of exit code.
+	tests := []struct {
+		name       string
+		terminated string
+	}{
+		{"graceful SIGTERM exit 143", "Completed (exit 143)"},
+		{"graceful forced kill exit 137", "Completed (exit 137)"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			report := &clusterhealth.Report{
+				Pods: clusterhealth.SectionResult[clusterhealth.PodsSection]{
+					Data: clusterhealth.PodsSection{
+						ByNamespace: map[string][]clusterhealth.PodInfo{
+							"test-ns": {
+								{
+									Name: "draining-pod",
+									Containers: []clusterhealth.ContainerInfo{
+										{Name: "main", Terminated: tt.terminated},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			got := Classify(report)
+			assertClassification(t, got, CategoryUnknown, "no-signal", CodeNoSignal, ConfidenceLow)
+		})
+	}
+}
+
+func TestClassify_ImagePullEvent(t *testing.T) {
+	// Registry auth failures surfacing as events must be classified as CodeImagePull,
+	// not CodeRBAC, even though the message contains "unauthorized".
+	tests := []struct {
+		name    string
+		message string
+	}{
+		{"unauthorized authentication required", "failed to pull image: unauthorized: authentication required"},
+		{"unauthorized access to resource", "failed to pull and unpack image: unauthorized: access to the requested resource is not authorized"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			report := &clusterhealth.Report{
+				Events: clusterhealth.SectionResult[clusterhealth.EventsSection]{
+					Data: clusterhealth.EventsSection{
+						Events: []clusterhealth.EventInfo{
+							{Kind: "Pod", Name: "test-pod", Reason: "Failed", Message: tt.message},
+						},
+					},
+				},
+			}
+			got := Classify(report)
+			assertClassification(t, got, CategoryInfrastructure, "image-pull", CodeImagePull, ConfidenceMedium)
 		})
 	}
 }
