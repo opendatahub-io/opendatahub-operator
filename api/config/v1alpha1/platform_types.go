@@ -45,6 +45,10 @@ type PlatformSpec struct {
 // fields here when onboarding additional modules.
 // +kubebuilder:object:generate=true
 type PlatformModules struct {
+	// AIGateway controls the ai-gateway-operator module lifecycle.
+	// +optional
+	AIGateway common.ManagementSpec `json:"aigateway,omitempty"`
+
 	// Monitoring controls the monitoring module operator lifecycle.
 	// +optional
 	Monitoring common.ManagementSpec `json:"monitoring,omitempty"`
@@ -98,6 +102,9 @@ type PlatformList struct {
 // EnabledModules returns the names of modules whose ManagementState is Managed.
 func (m *PlatformModules) EnabledModules() []string {
 	var enabled []string
+	if m.AIGateway.ManagementState == operatorv1.Managed {
+		enabled = append(enabled, "aigateway")
+	}
 	if m.Monitoring.ManagementState == operatorv1.Managed {
 		enabled = append(enabled, "monitoring")
 	}
