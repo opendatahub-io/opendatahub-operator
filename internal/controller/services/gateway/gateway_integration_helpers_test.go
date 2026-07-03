@@ -1285,22 +1285,17 @@ func RunDeploymentWithAllArgsTest(t *testing.T, setup TestSetup, expectedHostnam
 	g.Expect(hasHTTPS).To(BeTrue())
 	g.Expect(hasMetrics).To(BeTrue())
 
-	g.Expect(container.Env).To(HaveLen(4))
+	g.Expect(container.Env).To(HaveLen(3))
 	envNames := make(map[string]bool)
 	for _, env := range container.Env {
 		envNames[env.Name] = true
-		if env.Name == "PROXY_MODE" {
-			g.Expect(env.Value).To(Equal("auth"))
-		} else {
-			g.Expect(env.ValueFrom).NotTo(BeNil())
-			g.Expect(env.ValueFrom.SecretKeyRef).NotTo(BeNil())
-			g.Expect(env.ValueFrom.SecretKeyRef.Name).To(Equal(gateway.KubeAuthProxySecretsName))
-		}
+		g.Expect(env.ValueFrom).NotTo(BeNil())
+		g.Expect(env.ValueFrom.SecretKeyRef).NotTo(BeNil())
+		g.Expect(env.ValueFrom.SecretKeyRef.Name).To(Equal(gateway.KubeAuthProxySecretsName))
 	}
 	g.Expect(envNames).To(HaveKey(gateway.EnvClientID))
 	g.Expect(envNames).To(HaveKey(gateway.EnvClientSecret))
 	g.Expect(envNames).To(HaveKey(gateway.EnvCookieSecret))
-	g.Expect(envNames).To(HaveKey("PROXY_MODE"))
 
 	hasTLSMount, hasTmpMount := false, false
 	for _, vm := range container.VolumeMounts {
