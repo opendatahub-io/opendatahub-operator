@@ -58,11 +58,11 @@ func monitorDependencies(ctx context.Context, rr *types.ReconciliationRequest, r
 
 		// Tier 2: operator CR health (skip if Tier 1 already marked unhealthy)
 		cond := rr.Conditions.GetCondition(cfg.ConditionType)
-		if cfg.OperatorGVK.Kind != "" && (cond == nil || cond.Status != metav1.ConditionFalse) {
+		if cfg.OperatorCR != nil && (cond == nil || cond.Status != metav1.ConditionFalse) {
 			result, err := monitor.CheckOperatorHealth(ctx, rr.Client, monitor.OperatorConfig{
-				OperatorGVK: cfg.OperatorGVK,
-				CRName:      cfg.CRName,
-				CRNamespace: cfg.CRNamespace,
+				OperatorGVK: cfg.OperatorCR.GVK,
+				CRName:      cfg.OperatorCR.Name,
+				CRNamespace: cfg.OperatorCR.Namespace,
 				Filter:      defaultDegradedConditionFilter,
 			})
 			if err != nil {
@@ -79,7 +79,7 @@ func monitorDependencies(ctx context.Context, rr *types.ReconciliationRequest, r
 		}
 
 		// No deployments and no CR (e.g. GatewayAPI): mark available after successful deploy
-		if !cfg.HasDeployments && cfg.OperatorGVK.Kind == "" {
+		if !cfg.HasDeployments && cfg.OperatorCR == nil {
 			rr.Conditions.MarkTrue(cfg.ConditionType)
 		}
 	}

@@ -53,6 +53,24 @@ func IsModuleEnabled(name string) bool {
 	return !viper.GetBool(fmt.Sprintf("disable-%s-module", name))
 }
 
+// RegisterDAGOrderingFlags registers the DAG ordering feature flag.
+// Called from cmd/main.go before pflag.Parse.
+// Default true — DAG ordering disabled by default to prevent GC deletion of
+// higher-runlevel component CRs when lower-runlevel components are transiently non-ready.
+func RegisterDAGOrderingFlags() error {
+	pflag.Bool("disable-dag-ordering", true,
+		"Disable DAG runlevel ordering enforcement; all components deploy unconditionally")
+	if err := viper.BindEnv("disable-dag-ordering", "ODH_DISABLE_DAG_ORDERING"); err != nil {
+		return fmt.Errorf("failed to bind disable-dag-ordering: %w", err)
+	}
+	return nil
+}
+
+// IsDAGOrderingDisabled returns true when DAG runlevel ordering enforcement is disabled.
+func IsDAGOrderingDisabled() bool {
+	return viper.GetBool("disable-dag-ordering")
+}
+
 // AddResourceSuppressionFlags registers the DSC and DSCI resource suppression flags.
 // Each flag is bound to a corresponding RHAI_ environment variable.
 func addResourceSuppressionFlags() error {

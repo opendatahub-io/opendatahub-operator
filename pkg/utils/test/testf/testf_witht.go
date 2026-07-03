@@ -241,6 +241,7 @@ func (t *WithT) CreateOrUpdate(
 				return nil // Default no-op function if fn is omitted
 			}
 
+			obj.SetResourceVersion("")
 			_, err := controllerutil.CreateOrUpdate(ctx, t.Client(), obj, mutationFn)
 
 			switch {
@@ -291,6 +292,7 @@ func (t *WithT) CreateOrPatch(
 				return nil // Default no-op function if fn is omitted
 			}
 
+			obj.SetResourceVersion("")
 			_, err := controllerutil.CreateOrPatch(ctx, t.Client(), obj, mutationFn)
 
 			// Check for errors

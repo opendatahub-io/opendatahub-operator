@@ -88,8 +88,13 @@ func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 	if platform == nil {
 		return false
 	}
+	// Openshift
 	if platform.DSC != nil {
 		return platform.DSC.Spec.Components.AIGateway.ManagementState == operatorv1.Managed
+	}
+	// xkS
+	if platform.Platform != nil {
+		return platform.Platform.Spec.Modules.AIGateway.ManagementState == operatorv1.Managed
 	}
 	return false
 }
@@ -106,15 +111,24 @@ func (h *handler) BuildModuleCR(
 	if platform == nil {
 		return nil, errors.New("platform context is nil, cannot build AIGateway CR")
 	}
-	if platform.DSC == nil {
-		return nil, errors.New("DSC is not available, cannot build AIGateway CR")
-	}
 
-	spec, err := runtime.DefaultUnstructuredConverter.ToUnstructured(
-		&platform.DSC.Spec.Components.AIGateway.AIGatewayCommonSpec,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert AIGatewayCommonSpec to unstructured: %w", err)
+	var spec map[string]any
+
+	switch {
+	case platform.DSC != nil:
+		var err error
+		spec, err = runtime.DefaultUnstructuredConverter.ToUnstructured(
+			&platform.DSC.Spec.Components.AIGateway.AIGatewayCommonSpec,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert AIGatewayCommonSpec to unstructured: %w", err)
+		}
+	case platform.Platform != nil:
+		spec = map[string]any{
+			"managementState": string(platform.Platform.Spec.Modules.AIGateway.ManagementState),
+		}
+	default:
+		return nil, errors.New("neither DSC CR nor Platform CR exists, cannot build AIGateway CR")
 	}
 
 	u := &unstructured.Unstructured{

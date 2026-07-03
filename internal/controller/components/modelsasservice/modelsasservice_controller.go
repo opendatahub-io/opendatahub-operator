@@ -76,7 +76,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(precondition.RunlevelGateAction()).
 		WithAction(renderMaasOperatorInstall).
 		WithAction(deploy.NewAction(
-			deploy.WithApplyOrder(),
 			deploy.WithCache(),
 		)).
 		WithAction(ensureMaasClusterConfigControllerRef).

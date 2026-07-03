@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -871,6 +872,20 @@ func TestNotifyPROnFailure(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestIsTimeoutError(t *testing.T) {
+	// exit 2 → go test panic (timeout or runtime panic)
+	cmd := exec.Command("sh", "-c", "exit 2")
+	require.True(t, isTimeoutError(cmd.Run()))
+
+	// exit 1 → normal test failures, not timeout
+	cmd = exec.Command("sh", "-c", "exit 1")
+	require.False(t, isTimeoutError(cmd.Run()))
+
+	// nil and non-ExitError
+	require.False(t, isTimeoutError(nil))
+	require.False(t, isTimeoutError(fmt.Errorf("some error")))
 }
 
 // mockGitHubClient is a mock implementation of GitHubClient for testing

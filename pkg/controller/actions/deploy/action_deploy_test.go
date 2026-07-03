@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/blang/semver/v4"
 	"github.com/onsi/gomega/gstruct"
@@ -850,6 +851,20 @@ func TestDeployOwnerRef(t *testing.T) {
 
 	err = cli.Create(ctx, crd.DeepCopy())
 	g.Expect(err).ToNot(HaveOccurred())
+
+	// Wait for the CRD to be established by the API server's CRD controller
+	// before running deploy, otherwise the controller's status update can
+	// conflict with our owner reference removal (resourceVersion mismatch).
+	g.Eventually(func(g Gomega) {
+		established := &apiextensionsv1.CustomResourceDefinition{}
+		g.Expect(cli.Get(ctx, client.ObjectKeyFromObject(crdRef), established)).To(Succeed())
+		for _, c := range established.Status.Conditions {
+			if c.Type == apiextensionsv1.Established && c.Status == apiextensionsv1.ConditionTrue {
+				return
+			}
+		}
+		g.Expect(false).To(BeTrue(), "CRD not yet established")
+	}).WithTimeout(10 * time.Second).WithPolling(100 * time.Millisecond).Should(Succeed())
 
 	//
 	// deploy
