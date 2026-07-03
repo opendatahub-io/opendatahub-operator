@@ -54,7 +54,7 @@ func TestIsEnabled_NilDSC(t *testing.T) {
 	g := NewWithT(t)
 	h := mcplifecycleoperator.NewHandler()
 	ctx := &modules.PlatformContext{ApplicationsNamespace: "opendatahub"}
-	g.Expect(h.IsEnabled(ctx)).Should(BeTrue())
+	g.Expect(h.IsEnabled(ctx)).Should(BeFalse())
 }
 
 func TestIsEnabled_NilPlatformContext(t *testing.T) {
