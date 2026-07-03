@@ -1,9 +1,15 @@
 package e2e_test
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"flag"
 	"fmt"
+	"math/big"
 	"os"
 	"strings"
 	"testing"
@@ -695,6 +701,35 @@ func RestoreResourceFromBackup(t *testing.T, tc *TestContext, backupPath string)
 	} else {
 		t.Logf("%s backup file %s removed successfully", backedUpObject.GetKind(), backupPath)
 	}
+}
+
+func setCustomCABundle(value string) func(*unstructured.Unstructured) error {
+	return func(obj *unstructured.Unstructured) error {
+		return unstructured.SetNestedField(obj.Object, value, "spec", "trustedCABundle", "customCABundle")
+	}
+}
+
+func generateTestCertPEM(t *testing.T) string {
+	t.Helper()
+
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate RSA key: %v", err)
+	}
+
+	tmpl := x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "test"},
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(time.Hour),
+	}
+
+	der, err := x509.CreateCertificate(rand.Reader, &tmpl, &tmpl, &key.PublicKey, key)
+	if err != nil {
+		t.Fatalf("failed to create certificate: %v", err)
+	}
+
+	return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}))
 }
 
 func loadResourceFromTempFile(path string) (*unstructured.Unstructured, error) {

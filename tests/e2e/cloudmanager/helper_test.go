@@ -4,15 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"testing"
-	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	ccmapi "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
+	ccmcommon "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -158,8 +158,8 @@ func getManagedDependencyDeployments(wt *testf.WithT, cr *unstructured.Unstructu
 
 // getManagedDependencyDeploymentByName returns the first deployment whose name contains
 // the given substring from the managed dependency deployments list.
-func getManagedDependencyDeploymentByName(t *testing.T, wt *testf.WithT, cr *unstructured.Unstructured, name string) unstructured.Unstructured {
-	t.Helper()
+func getManagedDependencyDeploymentByName(wt *testf.WithT, cr *unstructured.Unstructured, name string) unstructured.Unstructured {
+	wt.THelper()
 
 	deps := getManagedDependencyDeployments(wt, cr)
 	for _, dep := range deps {
@@ -168,8 +168,10 @@ func getManagedDependencyDeploymentByName(t *testing.T, wt *testf.WithT, cr *uns
 		}
 	}
 
-	t.Fatalf("no managed dependency deployment found with name containing %q", name)
-	return unstructured.Unstructured{} // unreachable
+	wt.Expect(true).To(BeFalse(),
+		"no managed dependency deployment found with name containing %q", name)
+
+	return unstructured.Unstructured{} // unreachable after Fail
 }
 
 // getCertManagerOperandNamespace returns the hardcoded cert-manager operand namespace.
@@ -181,6 +183,12 @@ func getCertManagerOperandNamespace() string {
 func getSailOperatorNamespace(wt *testf.WithT, cr *unstructured.Unstructured) string {
 	deps := getDependencies(wt, cr)
 	return deps.SailOperator.GetNamespace()
+}
+
+// getLWSNamespace reads the LWS operator namespace from the CR spec using typed methods.
+func getLWSNamespace(wt *testf.WithT, cr *unstructured.Unstructured) string {
+	deps := getDependencies(wt, cr)
+	return deps.LWS.GetNamespace()
 }
 
 // waitForDeploymentsAvailable waits until all managed dependency deployments
@@ -195,14 +203,30 @@ func waitForDeploymentsAvailable(wt *testf.WithT, deployments []unstructured.Uns
 	}
 }
 
-// consistentlyGone asserts that a deployment stays absent for a reasonable duration,
-// confirming the controller is not recreating it.
-func consistentlyGone(wt *testf.WithT, nn types.NamespacedName) {
-	wt.Get(gvk.Deployment, nn).
-		Consistently().
-		WithTimeout(30 * time.Second).
-		WithPolling(5 * time.Second).
-		Should(BeNil())
+// forceDeleteCertManagerCR removes finalizers from CertManager/cluster and deletes it.
+// The cert-manager-operator may recreate this CR during graceful shutdown (CM-1019),
+// and without the operator running the finalizers can never be processed.
+// Idempotent: returns immediately if the CR does not exist.
+func forceDeleteCertManagerCR(wt *testf.WithT) {
+	wt.THelper()
+
+	cr := ccmcommon.CertManagerOperatorCR
+	nn := types.NamespacedName{Name: cr.Name}
+
+	obj := unstructured.Unstructured{}
+	obj.SetGroupVersionKind(cr.GVK)
+
+	err := wt.Client().Get(wt.Context(), nn, &obj)
+	if k8serr.IsNotFound(err) {
+		return
+	}
+
+	wt.Expect(err).ToNot(HaveOccurred())
+
+	obj.SetFinalizers(nil)
+	wt.Expect(wt.Client().Update(wt.Context(), &obj)).To(Succeed())
+	wt.Delete(cr.GVK, nn).Eventually().Should(Succeed())
+	wt.Get(cr.GVK, nn).Eventually().Should(BeNil())
 }
 
 // getPartOfLabelValue returns the value used for the InfrastructurePartOf label

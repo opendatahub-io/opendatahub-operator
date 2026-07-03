@@ -79,6 +79,7 @@ func modelsAsServiceTestSuite(t *testing.T) {
 		{"Validate Tenant CR in subscription namespace", componentCtx.ValidateTenantInSubscriptionNamespace},
 		{"Validate Tenant CRD is namespace-scoped", componentCtx.ValidateTenantCRDNamespaceScoped},
 		{"Validate Tenant singleton enforcement", componentCtx.ValidateTenantSingletonEnforcement},
+		{"Validate payload-processing egress NetworkPolicy", componentCtx.ValidatePayloadProcessingNetworkPolicy},
 		{"Validate Tenant deleted on disable", componentCtx.ValidateTenantDeletedOnDisable},
 	}
 
@@ -311,6 +312,32 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantSingletonEnforcement(t *testing.
 	t.Cleanup(func() {
 		_ = tc.Client().Delete(tc.Context(), u)
 	})
+}
+
+// ValidatePayloadProcessingNetworkPolicy verifies that the NetworkPolicy for
+// payload-processing exists in the gateway namespace with correct ingress and
+// egress rules.
+func (tc *ModelsAsServiceTestCtx) ValidatePayloadProcessingNetworkPolicy(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Tier1)
+
+	t.Logf("Validating NetworkPolicy for payload-processing in %s", maasGatewayNamespace)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.NetworkPolicy, types.NamespacedName{
+			Name:      "payload-processing",
+			Namespace: maasGatewayNamespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.podSelector.matchLabels.app == "payload-processing"`),
+			jq.Match(`.spec.policyTypes | any(. == "Ingress")`),
+			jq.Match(`.spec.policyTypes | any(. == "Egress")`),
+			jq.Match(`.spec.ingress | length == 2`),
+			jq.Match(`.spec.egress | length == 1`),
+			jq.Match(`.spec.egress[0] == {}`),
+		)),
+		WithCustomErrorMsg("NetworkPolicy should exist with correct ingress and egress rules for payload-processing in %s", maasGatewayNamespace),
+	)
 }
 
 // ValidateTenantDeletedOnDisable verifies that the Tenant CR is deleted when MaaS is set to
