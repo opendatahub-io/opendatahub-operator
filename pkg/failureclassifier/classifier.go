@@ -13,6 +13,11 @@ import (
 // starting up normally.
 const PendingThreshold = 60 * time.Second
 
+// EventAgeThreshold is the maximum age of an event to be considered current.
+// Events older than this are skipped to avoid false positives from stale signals
+// on clusters that have already recovered.
+const EventAgeThreshold = 5 * time.Minute
+
 // Classify inspects a clusterhealth Report and categorizes the failure.
 // If report is nil, returns unknown/unclassifiable/3000/low.
 func Classify(report *clusterhealth.Report) FailureClassification {
@@ -30,24 +35,36 @@ func Classify(report *clusterhealth.Report) FailureClassification {
 	}
 
 	// Remaining section classifiers, ordered by priority (first match wins).
-	sectionClassifiers := []func(*clusterhealth.Report) *FailureClassification{
+	for _, fn := range []func(*clusterhealth.Report) *FailureClassification{
 		classifyFromEvents,
 		classifyFromQuotas,
 		classifyFromNodes,
-		classifyFromOperator,
-		classifyFromDSCI,
-		classifyFromDSC,
-	}
-
-	for _, fn := range sectionClassifiers {
+	} {
 		if fc := fn(report); fc != nil {
 			return *fc
 		}
 	}
 
-	// Catch-all: use the deferred pod distress signal if we found one during
-	// the pod scan, or check for unready deployments.
-	if fc := classifyClusterDistress(report, podDistress); fc != nil {
+	// classifyFromOperator returns a specific high-confidence result and a deferred
+	// low-confidence distress signal. The distress signal is held back so that
+	// classifyFromDSCI/classifyFromDSC can fire first — a transient PodInitializing
+	// state must not mask a medium-confidence DSCI/DSC classification.
+	specificOperator, operatorDistress := classifyFromOperator(report)
+	if specificOperator != nil {
+		return *specificOperator
+	}
+
+	for _, fn := range []func(*clusterhealth.Report) *FailureClassification{
+		classifyFromDSCI,
+		classifyFromDSC,
+	} {
+		if fc := fn(report); fc != nil {
+			return *fc
+		}
+	}
+
+	// Catch-all: use the deferred distress signals if no more specific classifier fired.
+	if fc := classifyClusterDistress(report, podDistress, operatorDistress); fc != nil {
 		return *fc
 	}
 
@@ -96,25 +113,23 @@ func classifyFromPods(report *clusterhealth.Report) (*FailureClassification, *Fa
 						}, nil
 					}
 				}
-				// Stash first unrecognized distress signal for deferred use.
-				if distress == nil {
-					if container.Waiting != "" {
+				// Collect all unrecognized distress signals for richer diagnostics.
+				var evidence string
+				if container.Waiting != "" {
+					evidence = fmt.Sprintf("container %s/%s in unrecognized waiting state: %s", pod.Name, container.Name, container.Waiting)
+				} else if container.Terminated != "" && !isSuccessfulTermination(container.Terminated) && !isGracefulTermination(container.Terminated) {
+					evidence = fmt.Sprintf("container %s/%s terminated: %s", pod.Name, container.Name, container.Terminated)
+				}
+				if evidence != "" {
+					if distress == nil {
 						distress = &FailureClassification{
 							Category:    CategoryInfrastructure,
 							Subcategory: "cluster-distress",
 							ErrorCode:   CodeInfraUnknown,
-							Evidence:    []string{fmt.Sprintf("container %s/%s in unrecognized waiting state: %s", pod.Name, container.Name, container.Waiting)},
-							Confidence:  ConfidenceLow,
-						}
-					} else if container.Terminated != "" && !isSuccessfulTermination(container.Terminated) && !isGracefulTermination(container.Terminated) {
-						distress = &FailureClassification{
-							Category:    CategoryInfrastructure,
-							Subcategory: "cluster-distress",
-							ErrorCode:   CodeInfraUnknown,
-							Evidence:    []string{fmt.Sprintf("container %s/%s terminated: %s", pod.Name, container.Name, container.Terminated)},
 							Confidence:  ConfidenceLow,
 						}
 					}
+					distress.Evidence = append(distress.Evidence, evidence)
 				}
 			}
 			if pod.Phase == "Pending" && !pod.CreatedAt.IsZero() && time.Since(pod.CreatedAt) > PendingThreshold {
@@ -134,6 +149,9 @@ func classifyFromPods(report *clusterhealth.Report) (*FailureClassification, *Fa
 // classifyFromEvents checks event reasons/messages for image-pull, network, storage, RBAC, DNS, timeout, and probe patterns.
 func classifyFromEvents(report *clusterhealth.Report) *FailureClassification {
 	for _, event := range report.Events.Data.Events {
+		if !event.LastTime.IsZero() && time.Since(event.LastTime) > EventAgeThreshold {
+			continue
+		}
 		if containsImagePullEventPattern(event.Message) {
 			return &FailureClassification{
 				Category:    CategoryInfrastructure,
@@ -237,12 +255,15 @@ func classifyFromNodes(report *clusterhealth.Report) *FailureClassification {
 	return nil
 }
 
-// classifyClusterDistress uses the pre-computed pod distress signal (if any)
-// and checks for unready deployments. Deployments newer than PendingThreshold
-// are skipped — they are assumed to be mid-startup.
-func classifyClusterDistress(report *clusterhealth.Report, podDistress *FailureClassification) *FailureClassification {
+// classifyClusterDistress uses the pre-computed distress signals (if any) from pods and
+// the operator, then checks for unready deployments. podDistress and operatorDistress are
+// both low-confidence and deferred — they only fire if no more specific classifier matched.
+func classifyClusterDistress(report *clusterhealth.Report, podDistress, operatorDistress *FailureClassification) *FailureClassification {
 	if podDistress != nil {
 		return podDistress
+	}
+	if operatorDistress != nil {
+		return operatorDistress
 	}
 
 	// Check for unready deployments, skipping recently-created ones.
@@ -267,7 +288,9 @@ func classifyClusterDistress(report *clusterhealth.Report, podDistress *FailureC
 }
 
 // classifyFromOperator checks the operator deployment and pod status.
-func classifyFromOperator(report *clusterhealth.Report) *FailureClassification {
+// Returns two values — specific (high-confidence, returned immediately) and distress
+// (low-confidence, deferred so classifyFromDSCI/classifyFromDSC can fire first).
+func classifyFromOperator(report *clusterhealth.Report) (*FailureClassification, *FailureClassification) {
 	if d := report.Operator.Data.Deployment; d != nil {
 		if d.Replicas == 0 {
 			return &FailureClassification{
@@ -276,7 +299,7 @@ func classifyFromOperator(report *clusterhealth.Report) *FailureClassification {
 				ErrorCode:   CodeOperator,
 				Evidence:    []string{fmt.Sprintf("operator deployment %s scaled to 0 replicas", d.Name)},
 				Confidence:  ConfidenceHigh,
-			}
+			}, nil
 		}
 		if d.Ready < d.Replicas {
 			return &FailureClassification{
@@ -285,9 +308,10 @@ func classifyFromOperator(report *clusterhealth.Report) *FailureClassification {
 				ErrorCode:   CodeOperator,
 				Evidence:    []string{fmt.Sprintf("operator deployment %s not ready: %d/%d replicas", d.Name, d.Ready, d.Replicas)},
 				Confidence:  ConfidenceHigh,
-			}
+			}, nil
 		}
 	}
+	var distress *FailureClassification
 	for _, pod := range report.Operator.Data.Pods {
 		if pod.Phase != "Running" && pod.Phase != "Succeeded" {
 			return &FailureClassification{
@@ -296,10 +320,52 @@ func classifyFromOperator(report *clusterhealth.Report) *FailureClassification {
 				ErrorCode:   CodeOperator,
 				Evidence:    []string{fmt.Sprintf("operator pod %s in phase %s", pod.Name, pod.Phase)},
 				Confidence:  ConfidenceHigh,
+			}, nil
+		}
+		for _, container := range pod.Containers {
+			if matchesPattern(container.Waiting, waitingPatterns) != nil {
+				return &FailureClassification{
+					Category:    CategoryInfrastructure,
+					Subcategory: "operator",
+					ErrorCode:   CodeOperator,
+					Evidence:    []string{fmt.Sprintf("operator container %s/%s waiting: %s", pod.Name, container.Name, container.Waiting)},
+					Confidence:  ConfidenceHigh,
+				}, nil
+			}
+			if matchesPattern(container.Terminated, terminatedPatterns) != nil {
+				return &FailureClassification{
+					Category:    CategoryInfrastructure,
+					Subcategory: "operator",
+					ErrorCode:   CodeOperator,
+					Evidence:    []string{fmt.Sprintf("operator container %s/%s terminated: %s", pod.Name, container.Name, container.Terminated)},
+					Confidence:  ConfidenceHigh,
+				}, nil
+			}
+			if container.Waiting != "" {
+				if distress == nil {
+					distress = &FailureClassification{
+						Category:    CategoryInfrastructure,
+						Subcategory: "operator",
+						ErrorCode:   CodeOperator,
+						Confidence:  ConfidenceLow,
+					}
+				}
+				distress.Evidence = append(distress.Evidence, fmt.Sprintf("operator container %s/%s in unrecognized waiting state: %s", pod.Name, container.Name, container.Waiting))
+			}
+			if container.Terminated != "" && !isSuccessfulTermination(container.Terminated) {
+				if distress == nil {
+					distress = &FailureClassification{
+						Category:    CategoryInfrastructure,
+						Subcategory: "operator",
+						ErrorCode:   CodeOperator,
+						Confidence:  ConfidenceLow,
+					}
+				}
+				distress.Evidence = append(distress.Evidence, fmt.Sprintf("operator container %s/%s terminated: %s", pod.Name, container.Name, container.Terminated))
 			}
 		}
 	}
-	return nil
+	return nil, distress
 }
 
 // classifyFromDSCI checks the DSCInitialization CR conditions.
