@@ -8,9 +8,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth"
 )
 
-// PendingThreshold is the minimum duration a pod must be in Pending phase
-// before it is classified as "stuck pending". Pods pending for less than this
-// are assumed to be starting up normally.
+// PendingThreshold is the minimum duration a pod or deployment must be in an unready state
+// before it is classified as a real failure. Resources newer than this are assumed to be
+// starting up normally.
 const PendingThreshold = 60 * time.Second
 
 // Classify inspects a clusterhealth Report and categorizes the failure.
@@ -51,15 +51,15 @@ func Classify(report *clusterhealth.Report) FailureClassification {
 		return *fc
 	}
 
-	// The report is complete and no infrastructure issues were found.
-	// The failure is likely in the test itself.
+	// All sections collected successfully but no infrastructure pattern matched.
+	// The root cause is unknown — callers should not assume the test is at fault.
 	if report.Healthy() {
 		return FailureClassification{
-			Category:    CategoryTest,
-			Subcategory: "test-failure",
-			ErrorCode:   CodeTestFailure,
-			Evidence:    []string{"cluster state appears healthy, failure is likely test-related"},
-			Confidence:  ConfidenceMedium,
+			Category:    CategoryUnknown,
+			Subcategory: "no-signal",
+			ErrorCode:   CodeNoSignal,
+			Evidence:    []string{"all sections collected; no infrastructure pattern matched"},
+			Confidence:  ConfidenceLow,
 		}
 	}
 
@@ -85,14 +85,16 @@ func classifyFromPods(report *clusterhealth.Report) (*FailureClassification, *Fa
 						Confidence:  ConfidenceMedium,
 					}, nil
 				}
-				if match := matchesPattern(container.Terminated, terminatedPatterns); match != nil {
-					return &FailureClassification{
-						Category:    CategoryInfrastructure,
-						Subcategory: match.subcategory,
-						ErrorCode:   match.errorCode,
-						Evidence:    []string{fmt.Sprintf("container %s/%s terminated: %s", pod.Name, container.Name, container.Terminated)},
-						Confidence:  ConfidenceMedium,
-					}, nil
+				if !isGracefulTermination(container.Terminated) {
+					if match := matchesPattern(container.Terminated, terminatedPatterns); match != nil {
+						return &FailureClassification{
+							Category:    CategoryInfrastructure,
+							Subcategory: match.subcategory,
+							ErrorCode:   match.errorCode,
+							Evidence:    []string{fmt.Sprintf("container %s/%s terminated: %s", pod.Name, container.Name, container.Terminated)},
+							Confidence:  ConfidenceMedium,
+						}, nil
+					}
 				}
 				// Stash first unrecognized distress signal for deferred use.
 				if distress == nil {
@@ -104,7 +106,7 @@ func classifyFromPods(report *clusterhealth.Report) (*FailureClassification, *Fa
 							Evidence:    []string{fmt.Sprintf("container %s/%s in unrecognized waiting state: %s", pod.Name, container.Name, container.Waiting)},
 							Confidence:  ConfidenceLow,
 						}
-					} else if container.Terminated != "" && !isSuccessfulTermination(container.Terminated) {
+					} else if container.Terminated != "" && !isSuccessfulTermination(container.Terminated) && !isGracefulTermination(container.Terminated) {
 						distress = &FailureClassification{
 							Category:    CategoryInfrastructure,
 							Subcategory: "cluster-distress",
@@ -129,10 +131,18 @@ func classifyFromPods(report *clusterhealth.Report) (*FailureClassification, *Fa
 	return nil, distress
 }
 
-// classifyFromEvents checks event reasons/messages for network and storage patterns.
-// Covers: network, storage subcategories.
+// classifyFromEvents checks event reasons/messages for image-pull, network, storage, RBAC, DNS, timeout, and probe patterns.
 func classifyFromEvents(report *clusterhealth.Report) *FailureClassification {
 	for _, event := range report.Events.Data.Events {
+		if containsImagePullEventPattern(event.Message) {
+			return &FailureClassification{
+				Category:    CategoryInfrastructure,
+				Subcategory: "image-pull",
+				ErrorCode:   CodeImagePull,
+				Evidence:    []string{fmt.Sprintf("event %s/%s: %s - %s", event.Kind, event.Name, event.Reason, event.Message)},
+				Confidence:  ConfidenceMedium,
+			}
+		}
 		if networkEventReasons[event.Reason] || containsNetworkPattern(event.Message) {
 			return &FailureClassification{
 				Category:    CategoryInfrastructure,
@@ -147,6 +157,42 @@ func classifyFromEvents(report *clusterhealth.Report) *FailureClassification {
 				Category:    CategoryInfrastructure,
 				Subcategory: "storage",
 				ErrorCode:   CodeStorage,
+				Evidence:    []string{fmt.Sprintf("event %s/%s: %s - %s", event.Kind, event.Name, event.Reason, event.Message)},
+				Confidence:  ConfidenceMedium,
+			}
+		}
+		if probeEventReasons[event.Reason] || containsProbePattern(event.Message) {
+			return &FailureClassification{
+				Category:    CategoryInfrastructure,
+				Subcategory: "probe-failure",
+				ErrorCode:   CodeProbeFailure,
+				Evidence:    []string{fmt.Sprintf("event %s/%s: %s - %s", event.Kind, event.Name, event.Reason, event.Message)},
+				Confidence:  ConfidenceMedium,
+			}
+		}
+		if containsRBACPattern(event.Message) {
+			return &FailureClassification{
+				Category:    CategoryInfrastructure,
+				Subcategory: "rbac",
+				ErrorCode:   CodeRBAC,
+				Evidence:    []string{fmt.Sprintf("event %s/%s: %s - %s", event.Kind, event.Name, event.Reason, event.Message)},
+				Confidence:  ConfidenceMedium,
+			}
+		}
+		if containsDNSPattern(event.Message) {
+			return &FailureClassification{
+				Category:    CategoryInfrastructure,
+				Subcategory: "dns",
+				ErrorCode:   CodeDNS,
+				Evidence:    []string{fmt.Sprintf("event %s/%s: %s - %s", event.Kind, event.Name, event.Reason, event.Message)},
+				Confidence:  ConfidenceMedium,
+			}
+		}
+		if containsTimeoutPattern(event.Message) {
+			return &FailureClassification{
+				Category:    CategoryInfrastructure,
+				Subcategory: "timeout",
+				ErrorCode:   CodeTimeout,
 				Evidence:    []string{fmt.Sprintf("event %s/%s: %s - %s", event.Kind, event.Name, event.Reason, event.Message)},
 				Confidence:  ConfidenceMedium,
 			}
@@ -192,16 +238,20 @@ func classifyFromNodes(report *clusterhealth.Report) *FailureClassification {
 }
 
 // classifyClusterDistress uses the pre-computed pod distress signal (if any)
-// and checks for unready deployments. This avoids re-iterating over pods.
+// and checks for unready deployments. Deployments newer than PendingThreshold
+// are skipped — they are assumed to be mid-startup.
 func classifyClusterDistress(report *clusterhealth.Report, podDistress *FailureClassification) *FailureClassification {
 	if podDistress != nil {
 		return podDistress
 	}
 
-	// Check for unready deployments.
+	// Check for unready deployments, skipping recently-created ones.
 	for _, deploys := range report.Deployments.Data.ByNamespace {
 		for _, d := range deploys {
 			if d.Ready < d.Replicas {
+				if !d.CreatedAt.IsZero() && time.Since(d.CreatedAt) < PendingThreshold {
+					continue // still starting up, not a distress signal yet
+				}
 				return &FailureClassification{
 					Category:    CategoryInfrastructure,
 					Subcategory: "cluster-distress",
@@ -284,6 +334,14 @@ func classifyFromCRConditions(name string, section clusterhealth.SectionResult[c
 // string format from clusterhealth is "{Reason} (exit {Code})[: {Message}]".
 func isSuccessfulTermination(terminated string) bool {
 	return strings.Contains(terminated, "(exit 0)")
+}
+
+// isGracefulTermination returns true if the terminated string has Kubernetes
+// reason "Completed", meaning the container exited as part of a normal
+// shutdown (SIGTERM from drain/eviction/rolling-update). These must not be
+// classified as failures even when the exit code is non-zero (e.g. 143).
+func isGracefulTermination(terminated string) bool {
+	return strings.HasPrefix(terminated, "Completed ")
 }
 
 // unknown returns the default unclassifiable result.
