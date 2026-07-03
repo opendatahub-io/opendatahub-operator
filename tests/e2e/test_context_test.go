@@ -1139,7 +1139,7 @@ func (tc *TestContext) waitForDeletionBestEffort(gvk schema.GroupVersionKind, nn
 //   - WithIgnoreNotFound: If true, skips existence check and ignores NotFound errors during deletion.
 //   - WithWaitForDeletion: If true, waits until the resource is fully deleted from the cluster.
 //   - WithWaitForRecreation: If true, waits for the resource to be recreated after deletion (useful for managed resources).
-//   - WithRemoveFinalizersOnDelete: If true, removes all finalizers before deletion to prevent stuck deletions.
+//   - WithRemoveFinalizersOnDelete: If true, removes all finalizers after deletion (while Terminating) to prevent stuck deletions.
 //   - WithClientDeleteOptions: Configures deletion behavior (e.g., propagation policy).
 //
 // Parameters:
@@ -1156,13 +1156,6 @@ func (tc *TestContext) DeleteResource(opts ...ResourceOpts) {
 		)
 	}
 
-	// Remove finalizers if requested, before attempting deletion
-	if ro.RemoveFinalizersOnDelete {
-		// Try to remove finalizers in a best-effort manner
-		// If this fails (e.g., due to validation errors), we continue with deletion anyway
-		tc.tryRemoveFinalizers(ro.GVK, ro.NN)
-	}
-
 	// Perform the delete and handle errors appropriately
 	err := tc.g.Delete(ro.GVK, ro.NN, ro.ClientDeleteOptions).Get()
 
@@ -1175,6 +1168,13 @@ func (tc *TestContext) DeleteResource(opts ...ResourceOpts) {
 
 	// For all remaining cases, expect success
 	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to delete %s instance %s", ro.GVK.Kind, ro.ResourceID)
+
+	// Remove finalizers AFTER the delete so the resource already has a
+	// deletionTimestamp. This prevents a running controller from re-adding
+	// its finalizer between the strip and the delete.
+	if ro.RemoveFinalizersOnDelete {
+		tc.tryRemoveFinalizers(ro.GVK, ro.NN)
+	}
 
 	if ro.WaitForDeletion {
 		opts = append(opts, WithCustomErrorMsg("Resource %s instance %s was not fully deleted", ro.GVK.Kind, ro.ResourceID))
