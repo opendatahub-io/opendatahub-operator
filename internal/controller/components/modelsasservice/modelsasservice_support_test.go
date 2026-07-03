@@ -56,6 +56,13 @@ metadata:
   name: payload-processing-plugins
   namespace: redhat-ods-applications
 `,
+		`
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: payload-processing
+  namespace: redhat-ods-applications
+`,
 		// Unrelated resource that should NOT be moved
 		`
 apiVersion: apps/v1
@@ -178,6 +185,50 @@ roleRef:
 		g.Expect(subj["namespace"]).To(Equal("openshift-ingress"),
 			"subjects[%d].namespace should be restored", i)
 	}
+}
+
+func TestPayloadProcessingNetworkPolicy(t *testing.T) {
+	g := NewWithT(t)
+
+	labels := map[string]string{
+		"opendatahub.io/component":  "true",
+		"app.kubernetes.io/part-of": "modelsasservice",
+	}
+
+	np := payloadProcessingNetworkPolicy(labels)
+
+	g.Expect(np.GetKind()).To(Equal("NetworkPolicy"))
+	g.Expect(np.GetName()).To(Equal("payload-processing"))
+	g.Expect(np.GetNamespace()).To(Equal(DefaultGatewayNamespace))
+
+	npLabels := np.GetLabels()
+	g.Expect(npLabels).To(HaveKeyWithValue("app", "payload-processing"))
+	g.Expect(npLabels).To(HaveKeyWithValue("opendatahub.io/component", "true"))
+	g.Expect(npLabels).To(HaveKeyWithValue("app.kubernetes.io/part-of", "modelsasservice"))
+
+	spec, ok := np.Object["spec"].(map[string]any)
+	g.Expect(ok).To(BeTrue(), "spec should be a map")
+
+	podSelector, ok := spec["podSelector"].(map[string]any)
+	g.Expect(ok).To(BeTrue(), "podSelector should be a map")
+	matchLabels, ok := podSelector["matchLabels"].(map[string]any)
+	g.Expect(ok).To(BeTrue(), "matchLabels should be a map")
+	g.Expect(matchLabels).To(HaveKeyWithValue("app", "payload-processing"))
+
+	policyTypes, ok := spec["policyTypes"].([]any)
+	g.Expect(ok).To(BeTrue(), "policyTypes should be an array")
+	g.Expect(policyTypes).To(ConsistOf("Ingress", "Egress"))
+
+	// Verify egress allows all outbound traffic
+	egress, ok := spec["egress"].([]any)
+	g.Expect(ok).To(BeTrue(), "egress should be an array")
+	g.Expect(egress).To(HaveLen(1))
+	g.Expect(egress[0]).To(Equal(map[string]any{}))
+
+	// Verify ingress rules: gateway on 9004, monitoring on 9090
+	ingress, ok := spec["ingress"].([]any)
+	g.Expect(ok).To(BeTrue(), "ingress should be an array")
+	g.Expect(ingress).To(HaveLen(2))
 }
 
 func TestRestoreCRBSubjectsNamespace_NoSubjects(t *testing.T) {
