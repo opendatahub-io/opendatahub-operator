@@ -343,12 +343,14 @@ func (tc *ModelsAsServiceTestCtx) ValidatePayloadProcessingNetworkPolicy(t *test
 			Namespace: maasGatewayNamespace,
 		}),
 		WithCondition(And(
-			jq.Match(`.spec.podSelector.matchLabels.app == "payload-processing"`),
+			jq.Match(`.spec.podSelector.matchExpressions[]
+				| select(.key == "app") | .operator == "In" and (.values | sort == ["payload-pre-processing","payload-processing"])`),
 			jq.Match(`.spec.policyTypes | any(. == "Ingress")`),
 			jq.Match(`.spec.policyTypes | any(. == "Egress")`),
 			jq.Match(`.spec.ingress | length == 2`),
-			jq.Match(`.spec.egress | length == 1`),
-			jq.Match(`.spec.egress[0] == {}`),
+			jq.Match(`.spec.egress | length == 2`),
+			jq.Match(`.spec.egress[] | select(.ports[] | .port == 53) | .ports | length == 4`),
+			jq.Match(`.spec.egress[] | select(.ports[] | .port == 443) | .ports | length == 2`),
 		)),
 		WithCustomErrorMsg("NetworkPolicy should exist with correct ingress and egress rules for payload-processing in %s", maasGatewayNamespace),
 	)
