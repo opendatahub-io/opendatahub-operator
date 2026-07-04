@@ -17,7 +17,7 @@ type OwnedTypeRegistrar interface {
 
 // moduleStatusPredicates returns predicates that include status changes for every module CR.
 // it explicitiy add predicates on the CR's status change which can be used for calls to reconcile
-// ensure WatchDelete: true, WatchUpdate: true, WatchStatus: true
+// ensure WatchDelete: true, WatchUpdate: true, WatchStatus: true.
 func moduleStatusPredicates() map[schema.GroupVersionKind][]predicate.Predicate {
 	reg := DefaultRegistry()
 	modulesPredicate := make(map[schema.GroupVersionKind][]predicate.Predicate)
