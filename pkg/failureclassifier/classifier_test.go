@@ -46,12 +46,12 @@ func TestClassify_NilAndCleanReport(t *testing.T) {
 			wantConfidence:  ConfidenceLow,
 		},
 		{
-			name:            "clean report classifies as test failure",
+			name:            "clean report returns no-signal",
 			report:          &clusterhealth.Report{},
-			wantCategory:    CategoryTest,
-			wantSubcategory: "test-failure",
-			wantErrorCode:   CodeTestFailure,
-			wantConfidence:  ConfidenceMedium,
+			wantCategory:    CategoryUnknown,
+			wantSubcategory: "no-signal",
+			wantErrorCode:   CodeNoSignal,
+			wantConfidence:  ConfidenceLow,
 		},
 		{
 			name: "all sections errored returns unknown",
@@ -214,7 +214,7 @@ func TestClassify_PendingBelowThreshold(t *testing.T) {
 				},
 			}
 			got := Classify(report)
-			assertClassification(t, got, CategoryTest, "test-failure", CodeTestFailure, ConfidenceMedium)
+			assertClassification(t, got, CategoryUnknown, "no-signal", CodeNoSignal, ConfidenceLow)
 		})
 	}
 }
@@ -328,6 +328,58 @@ func TestClassify_Events(t *testing.T) {
 	}
 }
 
+func TestClassify_StaleEvents(t *testing.T) {
+	tests := []struct {
+		name            string
+		lastTime        time.Time
+		wantCategory    string
+		wantSubcategory string
+		wantErrorCode   int
+		wantConfidence  string
+	}{
+		{
+			name:            "stale event is skipped",
+			lastTime:        time.Now().Add(-2 * EventAgeThreshold),
+			wantCategory:    CategoryUnknown,
+			wantSubcategory: "no-signal",
+			wantErrorCode:   CodeNoSignal,
+			wantConfidence:  ConfidenceLow,
+		},
+		{
+			name:            "recent event triggers classification",
+			lastTime:        time.Now().Add(-1 * time.Minute),
+			wantCategory:    CategoryInfrastructure,
+			wantSubcategory: "network",
+			wantErrorCode:   CodeNetwork,
+			wantConfidence:  ConfidenceMedium,
+		},
+		{
+			name:            "zero LastTime is not skipped",
+			lastTime:        time.Time{},
+			wantCategory:    CategoryInfrastructure,
+			wantSubcategory: "network",
+			wantErrorCode:   CodeNetwork,
+			wantConfidence:  ConfidenceMedium,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			report := &clusterhealth.Report{
+				Events: clusterhealth.SectionResult[clusterhealth.EventsSection]{
+					Data: clusterhealth.EventsSection{
+						Events: []clusterhealth.EventInfo{
+							{Kind: "Node", Name: "worker-1", Reason: "NetworkNotReady", Message: "network plugin not ready", LastTime: tt.lastTime},
+						},
+					},
+				},
+			}
+			got := Classify(report)
+			assertClassification(t, got, tt.wantCategory, tt.wantSubcategory, tt.wantErrorCode, tt.wantConfidence)
+		})
+	}
+}
+
 func TestClassify_Quota(t *testing.T) {
 	report := &clusterhealth.Report{
 		Quotas: clusterhealth.SectionResult[clusterhealth.QuotasSection]{
@@ -421,6 +473,20 @@ func TestClassify_ClusterDistress(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "unready deployment past threshold",
+			report: &clusterhealth.Report{
+				Deployments: clusterhealth.SectionResult[clusterhealth.DeploymentsSection]{
+					Data: clusterhealth.DeploymentsSection{
+						ByNamespace: map[string][]clusterhealth.DeploymentInfo{
+							"test-ns": {
+								{Namespace: "test-ns", Name: "old-deploy", Ready: 0, Replicas: 1, CreatedAt: time.Now().Add(-2 * PendingThreshold)},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -428,6 +494,55 @@ func TestClassify_ClusterDistress(t *testing.T) {
 			got := Classify(tt.report)
 			assertClassification(t, got, CategoryInfrastructure, "cluster-distress", CodeInfraUnknown, ConfidenceLow)
 		})
+	}
+}
+
+func TestClassify_DeploymentBelowThreshold(t *testing.T) {
+	// A recently-created unready deployment must be skipped — it is still starting up.
+	report := &clusterhealth.Report{
+		Deployments: clusterhealth.SectionResult[clusterhealth.DeploymentsSection]{
+			Data: clusterhealth.DeploymentsSection{
+				ByNamespace: map[string][]clusterhealth.DeploymentInfo{
+					"test-ns": {
+						{Namespace: "test-ns", Name: "new-deploy", Ready: 0, Replicas: 1, CreatedAt: time.Now().Add(-5 * time.Second)},
+					},
+				},
+			},
+		},
+	}
+	got := Classify(report)
+	assertClassification(t, got, CategoryUnknown, "no-signal", CodeNoSignal, ConfidenceLow)
+}
+
+func TestClassifyOperator_MultiContainerEvidence(t *testing.T) {
+	// Two containers both in unrecognized bad states — one waiting, one terminated.
+	// Verifies that evidence is collected from all containers, not just the first.
+	report := &clusterhealth.Report{
+		Operator: clusterhealth.SectionResult[clusterhealth.OperatorSection]{
+			Data: clusterhealth.OperatorSection{
+				Deployment: &clusterhealth.DeploymentInfo{
+					Name:     "odh-controller",
+					Ready:    1,
+					Replicas: 1,
+				},
+				Pods: []clusterhealth.PodInfo{
+					{
+						Name:  "odh-controller-abc",
+						Phase: "Running",
+						Containers: []clusterhealth.ContainerInfo{
+							{Name: "sidecar", Waiting: "ContainerCreating"},
+							{Name: "manager", Terminated: "Error (exit 255): unexpected failure"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	got := Classify(report)
+	assertClassification(t, got, CategoryInfrastructure, "operator", CodeOperator, ConfidenceLow)
+	if len(got.Evidence) != 2 {
+		t.Errorf("expected evidence from both containers, got %d: %v", len(got.Evidence), got.Evidence)
 	}
 }
 
@@ -656,7 +771,220 @@ func TestClassify_Operator(t *testing.T) {
 			wantConfidence:  ConfidenceLow,
 		},
 		{
-			name: "healthy operator classifies as test failure",
+			name: "operator pod Running but container in CrashLoopBackOff",
+			report: &clusterhealth.Report{
+				Operator: clusterhealth.SectionResult[clusterhealth.OperatorSection]{
+					Data: clusterhealth.OperatorSection{
+						Deployment: &clusterhealth.DeploymentInfo{
+							Name:     "odh-controller",
+							Ready:    1,
+							Replicas: 1,
+						},
+						Pods: []clusterhealth.PodInfo{
+							{
+								Name:  "odh-controller-abc",
+								Phase: "Running",
+								Containers: []clusterhealth.ContainerInfo{
+									{Name: "manager", Waiting: "CrashLoopBackOff: back-off restarting failed container"},
+								},
+							},
+						},
+					},
+				},
+			},
+			wantCategory:    CategoryInfrastructure,
+			wantSubcategory: "operator",
+			wantErrorCode:   CodeOperator,
+			wantConfidence:  ConfidenceHigh,
+		},
+		{
+			name: "operator pod Running but container OOMKilled",
+			report: &clusterhealth.Report{
+				Operator: clusterhealth.SectionResult[clusterhealth.OperatorSection]{
+					Data: clusterhealth.OperatorSection{
+						Deployment: &clusterhealth.DeploymentInfo{
+							Name:     "odh-controller",
+							Ready:    1,
+							Replicas: 1,
+						},
+						Pods: []clusterhealth.PodInfo{
+							{
+								Name:  "odh-controller-abc",
+								Phase: "Running",
+								Containers: []clusterhealth.ContainerInfo{
+									{Name: "manager", Terminated: "OOMKilled"},
+								},
+							},
+						},
+					},
+				},
+			},
+			wantCategory:    CategoryInfrastructure,
+			wantSubcategory: "operator",
+			wantErrorCode:   CodeOperator,
+			wantConfidence:  ConfidenceHigh,
+		},
+		{
+			// Two containers: sidecar is healthy, manager is in CrashLoopBackOff.
+			// Exercises the inner container loop — hit must come from the second container.
+			name: "operator pod with two containers one healthy one CrashLoopBackOff",
+			report: &clusterhealth.Report{
+				Operator: clusterhealth.SectionResult[clusterhealth.OperatorSection]{
+					Data: clusterhealth.OperatorSection{
+						Deployment: &clusterhealth.DeploymentInfo{
+							Name:     "odh-controller",
+							Ready:    1,
+							Replicas: 1,
+						},
+						Pods: []clusterhealth.PodInfo{
+							{
+								Name:  "odh-controller-abc",
+								Phase: "Running",
+								Containers: []clusterhealth.ContainerInfo{
+									{Name: "sidecar", Ready: true},
+									{Name: "manager", Waiting: "CrashLoopBackOff: back-off 5m0s restarting failed container"},
+								},
+							},
+						},
+					},
+				},
+			},
+			wantCategory:    CategoryInfrastructure,
+			wantSubcategory: "operator",
+			wantErrorCode:   CodeOperator,
+			wantConfidence:  ConfidenceHigh,
+		},
+		{
+			// Low-confidence path: container in an unrecognized waiting state (not in waitingPatterns).
+			// Should produce ConfidenceLow — the operatorDistress fallback, not the early-return path.
+			name: "operator container in unrecognized waiting state gives low confidence",
+			report: &clusterhealth.Report{
+				Operator: clusterhealth.SectionResult[clusterhealth.OperatorSection]{
+					Data: clusterhealth.OperatorSection{
+						Deployment: &clusterhealth.DeploymentInfo{
+							Name:     "odh-controller",
+							Ready:    1,
+							Replicas: 1,
+						},
+						Pods: []clusterhealth.PodInfo{
+							{
+								Name:  "odh-controller-abc",
+								Phase: "Running",
+								Containers: []clusterhealth.ContainerInfo{
+									{Name: "sidecar", Ready: true},
+									{Name: "manager", Waiting: "ContainerCreating"},
+								},
+							},
+						},
+					},
+				},
+			},
+			wantCategory:    CategoryInfrastructure,
+			wantSubcategory: "operator",
+			wantErrorCode:   CodeOperator,
+			wantConfidence:  ConfidenceLow,
+		},
+		{
+			// Low-confidence path: container terminated with an unrecognized exit (not in terminatedPatterns).
+			// Should produce ConfidenceLow — the operatorDistress fallback, not the early-return path.
+			name: "operator container terminated with unrecognized exit gives low confidence",
+			report: &clusterhealth.Report{
+				Operator: clusterhealth.SectionResult[clusterhealth.OperatorSection]{
+					Data: clusterhealth.OperatorSection{
+						Deployment: &clusterhealth.DeploymentInfo{
+							Name:     "odh-controller",
+							Ready:    1,
+							Replicas: 1,
+						},
+						Pods: []clusterhealth.PodInfo{
+							{
+								Name:  "odh-controller-abc",
+								Phase: "Running",
+								Containers: []clusterhealth.ContainerInfo{
+									{Name: "sidecar", Ready: true},
+									{Name: "manager", Terminated: "Error (exit 255): unexpected failure"},
+								},
+							},
+						},
+					},
+				},
+			},
+			wantCategory:    CategoryInfrastructure,
+			wantSubcategory: "operator",
+			wantErrorCode:   CodeOperator,
+			wantConfidence:  ConfidenceLow,
+		},
+		{
+			// DSCI must win over a low-confidence operator distress signal.
+			// This proves the operatorDistress is deferred and does not block classifyFromDSCI.
+			name: "DSCI unhealthy wins over operator container in unrecognized waiting state",
+			report: &clusterhealth.Report{
+				Operator: clusterhealth.SectionResult[clusterhealth.OperatorSection]{
+					Data: clusterhealth.OperatorSection{
+						Deployment: &clusterhealth.DeploymentInfo{
+							Name:     "odh-controller",
+							Ready:    1,
+							Replicas: 1,
+						},
+						Pods: []clusterhealth.PodInfo{
+							{
+								Name:  "odh-controller-abc",
+								Phase: "Running",
+								Containers: []clusterhealth.ContainerInfo{
+									{Name: "manager", Waiting: "PodInitializing"},
+								},
+							},
+						},
+					},
+				},
+				DSCI: clusterhealth.SectionResult[clusterhealth.CRConditionsSection]{
+					Error: "Degraded: True - component X is degraded",
+					Data: clusterhealth.CRConditionsSection{
+						Name: "default-dsci",
+					},
+				},
+			},
+			wantCategory:    CategoryInfrastructure,
+			wantSubcategory: "dsci-unhealthy",
+			wantErrorCode:   CodeDSCI,
+			wantConfidence:  ConfidenceMedium,
+		},
+		{
+			// DSC must win over a low-confidence operator distress signal.
+			name: "DSC unhealthy wins over operator container in unrecognized waiting state",
+			report: &clusterhealth.Report{
+				Operator: clusterhealth.SectionResult[clusterhealth.OperatorSection]{
+					Data: clusterhealth.OperatorSection{
+						Deployment: &clusterhealth.DeploymentInfo{
+							Name:     "odh-controller",
+							Ready:    1,
+							Replicas: 1,
+						},
+						Pods: []clusterhealth.PodInfo{
+							{
+								Name:  "odh-controller-abc",
+								Phase: "Running",
+								Containers: []clusterhealth.ContainerInfo{
+									{Name: "manager", Waiting: "PodInitializing"},
+								},
+							},
+						},
+					},
+				},
+				DSC: clusterhealth.SectionResult[clusterhealth.CRConditionsSection]{
+					Error: "component dashboard: Ready=False",
+					Data: clusterhealth.CRConditionsSection{
+						Name: "default-dsc",
+					},
+				},
+			},
+			wantCategory:    CategoryInfrastructure,
+			wantSubcategory: "dsc-unhealthy",
+			wantErrorCode:   CodeDSC,
+			wantConfidence:  ConfidenceMedium,
+		},
+		{
+			name: "healthy operator returns no-signal",
 			report: &clusterhealth.Report{
 				Operator: clusterhealth.SectionResult[clusterhealth.OperatorSection]{
 					Data: clusterhealth.OperatorSection{
@@ -671,10 +999,10 @@ func TestClassify_Operator(t *testing.T) {
 					},
 				},
 			},
-			wantCategory:    CategoryTest,
-			wantSubcategory: "test-failure",
-			wantErrorCode:   CodeTestFailure,
-			wantConfidence:  ConfidenceMedium,
+			wantCategory:    CategoryUnknown,
+			wantSubcategory: "no-signal",
+			wantErrorCode:   CodeNoSignal,
+			wantConfidence:  ConfidenceLow,
 		},
 	}
 
@@ -723,7 +1051,7 @@ func TestClassify_DSCI(t *testing.T) {
 			wantConfidence:  ConfidenceLow,
 		},
 		{
-			name: "DSCI healthy classifies as test failure",
+			name: "DSCI healthy returns no-signal",
 			report: &clusterhealth.Report{
 				DSCI: clusterhealth.SectionResult[clusterhealth.CRConditionsSection]{
 					Data: clusterhealth.CRConditionsSection{
@@ -731,10 +1059,10 @@ func TestClassify_DSCI(t *testing.T) {
 					},
 				},
 			},
-			wantCategory:    CategoryTest,
-			wantSubcategory: "test-failure",
-			wantErrorCode:   CodeTestFailure,
-			wantConfidence:  ConfidenceMedium,
+			wantCategory:    CategoryUnknown,
+			wantSubcategory: "no-signal",
+			wantErrorCode:   CodeNoSignal,
+			wantConfidence:  ConfidenceLow,
 		},
 	}
 
@@ -779,7 +1107,7 @@ func TestClassify_SuccessfulTerminationNotFlagged(t *testing.T) {
 	}
 
 	got := Classify(report)
-	assertClassification(t, got, CategoryTest, "test-failure", CodeTestFailure, ConfidenceMedium)
+	assertClassification(t, got, CategoryUnknown, "no-signal", CodeNoSignal, ConfidenceLow)
 }
 
 func TestIsSuccessfulTermination(t *testing.T) {
@@ -837,6 +1165,211 @@ func TestMatchesPattern(t *testing.T) {
 			if (got != nil) != tt.want {
 				t.Errorf("matchesPattern() returned %v, want match=%v", got, tt.want)
 			}
+		})
+	}
+}
+
+func TestClassify_RBAC(t *testing.T) {
+	tests := []struct {
+		name    string
+		message string
+	}{
+		{"is forbidden", "system:serviceaccount:ns:sa is forbidden: cannot get pods"},
+		{"access denied", "access denied for resource secrets in namespace foo"},
+		{"does not have permission", "user does not have permission to list configmaps"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			report := &clusterhealth.Report{
+				Events: clusterhealth.SectionResult[clusterhealth.EventsSection]{
+					Data: clusterhealth.EventsSection{
+						Events: []clusterhealth.EventInfo{
+							{Kind: "Pod", Name: "test-pod", Reason: "Failed", Message: tt.message},
+						},
+					},
+				},
+			}
+			got := Classify(report)
+			assertClassification(t, got, CategoryInfrastructure, "rbac", CodeRBAC, ConfidenceMedium)
+		})
+	}
+}
+
+func TestClassify_DNS(t *testing.T) {
+	tests := []struct {
+		name    string
+		message string
+	}{
+		{"no such host", "dial tcp: lookup api.example.com: no such host"},
+		{"failed to resolve", "failed to resolve hostname cluster.local"},
+		{"dns resolution failed", "dns resolution failed for service.namespace.svc.cluster.local"},
+		{"name or service not known", "dial tcp: lookup db: name or service not known"},
+		{"temporary failure in name resolution", "temporary failure in name resolution"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			report := &clusterhealth.Report{
+				Events: clusterhealth.SectionResult[clusterhealth.EventsSection]{
+					Data: clusterhealth.EventsSection{
+						Events: []clusterhealth.EventInfo{
+							{Kind: "Pod", Name: "test-pod", Reason: "Failed", Message: tt.message},
+						},
+					},
+				},
+			}
+			got := Classify(report)
+			assertClassification(t, got, CategoryInfrastructure, "dns", CodeDNS, ConfidenceMedium)
+		})
+	}
+}
+
+func TestClassify_Timeout(t *testing.T) {
+	tests := []struct {
+		name    string
+		message string
+	}{
+		{"context deadline exceeded", "error: context deadline exceeded while waiting for pod"},
+		{"deadline exceeded", "deadline exceeded calling API server"},
+		{"timed out waiting", "timed out waiting for condition"},
+		{"operation timed out", "operation timed out after 30s"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			report := &clusterhealth.Report{
+				Events: clusterhealth.SectionResult[clusterhealth.EventsSection]{
+					Data: clusterhealth.EventsSection{
+						Events: []clusterhealth.EventInfo{
+							{Kind: "Pod", Name: "test-pod", Reason: "Failed", Message: tt.message},
+						},
+					},
+				},
+			}
+			got := Classify(report)
+			assertClassification(t, got, CategoryInfrastructure, "timeout", CodeTimeout, ConfidenceMedium)
+		})
+	}
+}
+
+func TestClassify_ProbeFailure(t *testing.T) {
+	tests := []struct {
+		name   string
+		reason string
+		msg    string
+	}{
+		{"Unhealthy event reason", "Unhealthy", "Liveness probe failed: HTTP probe failed with statuscode: 503"},
+		{"liveness probe in message", "Warning", "liveness probe failed: Get http://10.0.0.1:8080/healthz: connection refused"},
+		{"readiness probe in message", "Warning", "readiness probe failed: command returned non-zero exit code: 1"},
+		{"startup probe in message", "Warning", "startup probe failed: dial tcp: connect: connection refused"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			report := &clusterhealth.Report{
+				Events: clusterhealth.SectionResult[clusterhealth.EventsSection]{
+					Data: clusterhealth.EventsSection{
+						Events: []clusterhealth.EventInfo{
+							{Kind: "Pod", Name: "test-pod", Reason: tt.reason, Message: tt.msg},
+						},
+					},
+				},
+			}
+			got := Classify(report)
+			assertClassification(t, got, CategoryInfrastructure, "probe-failure", CodeProbeFailure, ConfidenceMedium)
+		})
+	}
+}
+
+func TestClassify_TerminatedExitCodes(t *testing.T) {
+	tests := []struct {
+		name            string
+		terminated      string
+		wantSubcategory string
+		wantErrorCode   int
+	}{
+		{"exit 2 invalid flags", "Error (exit 2): flag provided but not defined: --invalid-flag", "invalid-cli-flags", CodeInvalidFlags},
+		{"exit 137 non-OOM forced kill", "Error (exit 137): container killed by signal", "container-exit", CodeContainerExit},
+		{"exit 143 error context", "Error (exit 143): container received SIGTERM", "container-exit", CodeContainerExit},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			report := &clusterhealth.Report{
+				Pods: clusterhealth.SectionResult[clusterhealth.PodsSection]{
+					Data: clusterhealth.PodsSection{
+						ByNamespace: map[string][]clusterhealth.PodInfo{
+							"test-ns": {
+								{
+									Name: "exit-pod",
+									Containers: []clusterhealth.ContainerInfo{
+										{Name: "main", Terminated: tt.terminated},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			got := Classify(report)
+			assertClassification(t, got, CategoryInfrastructure, tt.wantSubcategory, tt.wantErrorCode, ConfidenceMedium)
+		})
+	}
+}
+
+func TestClassify_GracefulTerminationNotFlagged(t *testing.T) {
+	// Containers terminated with reason "Completed" are graceful SIGTERM/drain shutdowns
+	// and must never be classified as failures regardless of exit code.
+	tests := []struct {
+		name       string
+		terminated string
+	}{
+		{"graceful SIGTERM exit 143", "Completed (exit 143)"},
+		{"graceful forced kill exit 137", "Completed (exit 137)"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			report := &clusterhealth.Report{
+				Pods: clusterhealth.SectionResult[clusterhealth.PodsSection]{
+					Data: clusterhealth.PodsSection{
+						ByNamespace: map[string][]clusterhealth.PodInfo{
+							"test-ns": {
+								{
+									Name: "draining-pod",
+									Containers: []clusterhealth.ContainerInfo{
+										{Name: "main", Terminated: tt.terminated},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			got := Classify(report)
+			assertClassification(t, got, CategoryUnknown, "no-signal", CodeNoSignal, ConfidenceLow)
+		})
+	}
+}
+
+func TestClassify_ImagePullEvent(t *testing.T) {
+	// Registry auth failures surfacing as events must be classified as CodeImagePull,
+	// not CodeRBAC, even though the message contains "unauthorized".
+	tests := []struct {
+		name    string
+		message string
+	}{
+		{"unauthorized authentication required", "failed to pull image: unauthorized: authentication required"},
+		{"unauthorized access to resource", "failed to pull and unpack image: unauthorized: access to the requested resource is not authorized"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			report := &clusterhealth.Report{
+				Events: clusterhealth.SectionResult[clusterhealth.EventsSection]{
+					Data: clusterhealth.EventsSection{
+						Events: []clusterhealth.EventInfo{
+							{Kind: "Pod", Name: "test-pod", Reason: "Failed", Message: tt.message},
+						},
+					},
+				},
+			}
+			got := Classify(report)
+			assertClassification(t, got, CategoryInfrastructure, "image-pull", CodeImagePull, ConfidenceMedium)
 		})
 	}
 }

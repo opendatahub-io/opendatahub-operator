@@ -96,6 +96,14 @@ func dscValidationTestSuite(t *testing.T) {
 
 	// Run the test suite.
 	RunTestCases(t, testCases, WithParallel())
+
+	webhookTestCases := []TestCase{
+		{"Validate DSCI webhook denies invalid PEM on update", dscTestCtx.ValidateDSCIWebhookDeniesInvalidPEMOnUpdate},
+		{"Validate DSCI webhook allows valid PEM on update", dscTestCtx.ValidateDSCIWebhookAllowsValidPEMOnUpdate},
+		{"Validate DSCI webhook allows invalid PEM when Removed", dscTestCtx.ValidateDSCIWebhookAllowsInvalidPEMWhenRemoved},
+	}
+
+	RunTestCases(t, webhookTestCases)
 }
 
 // ValidateOperatorsInstallation ensures the required operators are installed.
@@ -194,6 +202,63 @@ func (tc *DSCTestCtx) ValidateDefaultNetworkPolicyExists(t *testing.T) {
 	tc.EnsureResourcesExist(
 		WithMinimalObject(gvk.NetworkPolicy, types.NamespacedName{Namespace: dsci.Spec.ApplicationsNamespace, Name: dsci.Spec.ApplicationsNamespace}),
 		WithCustomErrorMsg("Expected the default NetworkPolicy to be created."),
+	)
+}
+
+// ValidateDSCIWebhookDeniesInvalidPEMOnUpdate verifies that the webhook rejects
+// an update with invalid PEM data in customCABundle when TrustedCABundle is Managed.
+func (tc *DSCTestCtx) ValidateDSCIWebhookDeniesInvalidPEMOnUpdate(t *testing.T) {
+	t.Helper()
+
+	tc.EnsureWebhookBlocksResourceUpdate(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(setCustomCABundle("not-a-valid-pem")),
+		WithFieldName("customCABundle"),
+		WithCustomErrorMsg("Webhook should deny update with invalid PEM in customCABundle"),
+	)
+}
+
+// ValidateDSCIWebhookAllowsValidPEMOnUpdate verifies that the webhook allows
+// an update with valid PEM data in customCABundle when TrustedCABundle is Managed.
+func (tc *DSCTestCtx) ValidateDSCIWebhookAllowsValidPEMOnUpdate(t *testing.T) {
+	t.Helper()
+
+	validPEM := generateTestCertPEM(t)
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(setCustomCABundle(validPEM)),
+		WithCondition(jq.Match(`.spec.trustedCABundle.customCABundle != ""`)),
+		WithCustomErrorMsg("Webhook should allow update with valid PEM in customCABundle"),
+	)
+
+	// restore customCABundle to empty
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(setCustomCABundle("")),
+		WithCondition(jq.Match(`.spec.trustedCABundle.customCABundle == ""`)),
+		WithCustomErrorMsg("Failed to restore customCABundle to empty"),
+	)
+}
+
+// ValidateDSCIWebhookAllowsInvalidPEMWhenRemoved verifies that the webhook skips
+// PEM validation when TrustedCABundle ManagementState is Removed.
+func (tc *DSCTestCtx) ValidateDSCIWebhookAllowsInvalidPEMWhenRemoved(t *testing.T) {
+	t.Helper()
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.trustedCABundle.managementState = "Removed" | .spec.trustedCABundle.customCABundle = "not-a-valid-pem"`)),
+		WithCondition(jq.Match(`.spec.trustedCABundle.managementState == "Removed" and .spec.trustedCABundle.customCABundle == "not-a-valid-pem"`)),
+		WithCustomErrorMsg("Webhook should allow invalid PEM when TrustedCABundle is Removed"),
+	)
+
+	// restore to original state
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.trustedCABundle.managementState = "Managed" | .spec.trustedCABundle.customCABundle = ""`)),
+		WithCondition(jq.Match(`.spec.trustedCABundle.managementState == "Managed"`)),
+		WithCustomErrorMsg("Failed to restore TrustedCABundle state"),
 	)
 }
 

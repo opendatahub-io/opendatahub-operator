@@ -74,6 +74,7 @@ func deploymentToInfo(d *appsv1.Deployment) DeploymentInfo {
 		Name:      d.Name,
 		Ready:     d.Status.ReadyReplicas,
 		Replicas:  desiredReplicas(d),
+		CreatedAt: d.CreationTimestamp.Time,
 	}
 	for _, c := range d.Status.Conditions {
 		if c.Status != corev1.ConditionTrue {

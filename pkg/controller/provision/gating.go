@@ -12,6 +12,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
 // ConditionWriter is the subset of conditions.Manager that the gating
@@ -68,7 +69,7 @@ func WalkBatches(
 	var requeueAfter time.Duration
 
 	for batchIdx, batch := range batches {
-		if batchIdx > 0 {
+		if batchIdx > 0 && !flags.IsDAGOrderingDisabled() {
 			allReady := true
 			var notReadyInPrev []string
 

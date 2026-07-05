@@ -9,7 +9,11 @@ import (
 	"time"
 
 	"github.com/onsi/gomega"
+	"github.com/onsi/gomega/format"
+	"go.uber.org/zap/zapcore"
 	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -23,6 +27,8 @@ import (
 
 	ccmcommon "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	certmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/cloudmanager"
 	opmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/operatorconfig"
@@ -177,12 +183,70 @@ func StartIsolatedController(t *testing.T, ctx context.Context, cfg ControllerTe
 }
 
 // CreateCR creates the cloud-specific CR using cfg.NewCR and registers cleanup.
+//
+// The cleanup finalizer on the CCM CR deletes operator CRs with Foreground
+// propagation. In envtest (no GC), Foreground adds a foregroundDeletion
+// finalizer that is never removed, blocking the parent CR deletion. The
+// cleanup strips those finalizers on each poll cycle while waiting for
+// the CCM CR to disappear.
 func CreateCR(t *testing.T, wt *testf.WithT, cfg ControllerTestConfig, deps ccmcommon.Dependencies) {
 	t.Helper()
 
 	obj := cfg.NewCR(deps)
 	wt.Expect(wt.Client().Create(wt.Context(), obj)).Should(gomega.Succeed())
-	envt.CleanupDelete(t, gomega.NewWithT(t), wt.Context(), wt.Client(), obj)
+
+	g := gomega.NewWithT(t)
+	t.Cleanup(func() {
+		ctx := wt.Context()
+		cli := wt.Client()
+
+		_ = cli.Delete(ctx, obj)
+
+		g.Eventually(func() error {
+			if err := StripOperatorCRFinalizers(ctx, cli); err != nil {
+				return err
+			}
+
+			return cli.Get(ctx, client.ObjectKeyFromObject(obj), obj)
+		}).WithTimeout(envt.DefaultMaxWait).WithPolling(envt.DefaultPollInterval).Should(
+			gomega.MatchError(k8serr.IsNotFound, "IsNotFound"),
+		)
+	})
+}
+
+// StripOperatorCRFinalizers removes finalizers from operator CRs that the
+// cleanup finalizer targets. This unblocks Foreground deletion in envtest
+// where no garbage collector runs to remove the foregroundDeletion finalizer.
+//
+// Targets are derived automatically from production code, so new cleanup
+// targets are picked up without test changes.
+func StripOperatorCRFinalizers(ctx context.Context, cli client.Client) error {
+	targets := append(
+		cloudmanager.FinalizerCleanupTargets(),
+		certmanager.BootstrapCleanupTarget(),
+	)
+
+	for _, t := range targets {
+		obj := &unstructured.Unstructured{}
+		obj.SetGroupVersionKind(t.GVK)
+
+		if err := cli.Get(ctx, client.ObjectKey{Name: t.Name, Namespace: t.Namespace}, obj); err != nil {
+			if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
+				continue
+			}
+
+			return fmt.Errorf("get %s/%s: %w", t.GVK.Kind, t.Name, err)
+		}
+
+		if len(obj.GetFinalizers()) > 0 {
+			obj.SetFinalizers(nil)
+			if err := cli.Update(ctx, obj); err != nil {
+				return fmt.Errorf("strip finalizers from %s/%s: %w", t.GVK.Kind, t.Name, err)
+			}
+		}
+	}
+
+	return nil
 }
 
 // ListInfraDeployments returns the Deployments with the InfrastructurePartOf
@@ -223,7 +287,9 @@ func HasInfraDeployments(wt *testf.WithT, namespace, infraLabel string) bool {
 //	    cloudmanager.RunTestMain(m, &tc, cfg)
 //	}
 func RunTestMain(m *testing.M, tc **testf.TestContext, cfg ControllerTestConfig) {
-	logf.SetLogger(zap.New(zap.UseDevMode(true)))
+	format.MaxLength = 0 // 0 disables truncation entirely
+
+	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.Level(zapcore.ErrorLevel)))
 
 	rootPath, pathErr := envtestutil.FindProjectRoot()
 	if pathErr != nil {

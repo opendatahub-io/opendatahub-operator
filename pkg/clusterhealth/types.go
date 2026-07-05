@@ -82,6 +82,7 @@ type DeploymentInfo struct {
 	Name       string             `json:"name"`
 	Ready      int32              `json:"ready"`
 	Replicas   int32              `json:"replicas"`
+	CreatedAt  time.Time          `json:"createdAt,omitzero"`
 	Conditions []ConditionSummary `json:"conditions"`
 }
 
@@ -95,7 +96,7 @@ type PodInfo struct {
 	Name       string          `json:"name"`
 	Phase      string          `json:"phase"`
 	NodeName   string          `json:"nodeName,omitempty"`
-	CreatedAt  time.Time       `json:"createdAt"`
+	CreatedAt  time.Time       `json:"createdAt,omitzero"`
 	Containers []ContainerInfo `json:"containers"`
 }
 

@@ -12,6 +12,7 @@ import (
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -350,9 +351,10 @@ func TestAWSKubernetesEngineWithoutCertManager(t *testing.T) {
 	})
 }
 
-// TestAWSKubernetesEngineCleanupAction verifies that the certmanager Bootstrap finalizer
-// action deletes CertManager/cluster before cascade deletion is released, allowing
-// cert-manager-operator to process its own finalizers while still running.
+// TestAWSKubernetesEngineCleanupAction verifies that the cleanup finalizer action
+// deletes dependency operator CRs (CertManager/cluster and Istio/default) before
+// cascade deletion is released, allowing each operator to process its own finalizers
+// while still running.
 func TestAWSKubernetesEngineCleanupAction(t *testing.T) {
 	ccmtest.RequireCharts(t)
 
@@ -360,7 +362,8 @@ func TestAWSKubernetesEngineCleanupAction(t *testing.T) {
 	et, wt := ccmtest.StartIsolatedController(t, ctx, awsCfg)
 	t.Cleanup(cancel)
 
-	t.Run("cleanup action deletes CertManager/cluster before cascade", func(t *testing.T) {
+	t.Run("cleanup action deletes CertManager/cluster and Istio/default before cascade", func(t *testing.T) {
+		// Register operator CRDs so dependency CRs can be created.
 		_, err := et.RegisterCRD(wt.Context(),
 			gvk.CertManagerV1Alpha1,
 			"certmanagers", "certmanager",
@@ -368,8 +371,16 @@ func TestAWSKubernetesEngineCleanupAction(t *testing.T) {
 		)
 		wt.Expect(err).NotTo(HaveOccurred())
 
+		_, err = et.RegisterCRD(wt.Context(),
+			gvk.Istio,
+			"istios", "istio",
+			apiextensionsv1.ClusterScoped,
+		)
+		wt.Expect(err).NotTo(HaveOccurred())
+
 		ccmtest.CreateCR(t, wt, awsCfg, ccmcommon.Dependencies{
-			CertManager: ccmcommon.CertManagerDependency{ManagementPolicy: ccmcommon.Managed},
+			CertManager:  ccmcommon.CertManagerDependency{ManagementPolicy: ccmcommon.Managed},
+			SailOperator: ccmcommon.SailOperatorDependency{ManagementPolicy: ccmcommon.Managed},
 		})
 
 		nn := types.NamespacedName{Name: ccmv1alpha1.AWSKubernetesEngineInstanceName}
@@ -381,32 +392,55 @@ func TestAWSKubernetesEngineCleanupAction(t *testing.T) {
 		awske := &ccmv1alpha1.AWSKubernetesEngine{}
 		wt.Expect(wt.Client().Get(wt.Context(), nn, awske)).To(Succeed())
 
-		cm := &unstructured.Unstructured{}
-		cm.SetGroupVersionKind(gvk.CertManagerV1Alpha1)
-		cm.SetName("cluster")
-		cm.SetOwnerReferences([]metav1.OwnerReference{{
+		awskeOwnerRef := metav1.OwnerReference{
 			APIVersion: gvk.AWSKubernetesEngine.GroupVersion().String(),
 			Kind:       gvk.AWSKubernetesEngine.Kind,
 			Name:       awske.GetName(),
 			UID:        awske.GetUID(),
-		}})
-		cm.SetFinalizers([]string{"cert-manager-operator.operator.openshift.io/test-hold"})
-		cm.Object["spec"] = map[string]any{"managementState": "Managed"}
-		wt.Expect(wt.Client().Create(wt.Context(), cm)).To(Succeed())
+		}
+
+		type depCR struct {
+			gvk       schema.GroupVersionKind
+			name      string
+			finalizer string
+			spec      map[string]any
+		}
+
+		deps := []depCR{
+			{gvk: gvk.CertManagerV1Alpha1, name: "cluster", finalizer: "cert-manager-operator.operator.openshift.io/test-hold", spec: map[string]any{"managementState": "Managed"}},
+			{gvk: gvk.Istio, name: "default", finalizer: "sailoperator.io/test-hold", spec: map[string]any{"version": "v1.24.3"}},
+		}
+
+		for _, d := range deps {
+			obj := &unstructured.Unstructured{}
+			obj.SetGroupVersionKind(d.gvk)
+			obj.SetName(d.name)
+			obj.SetOwnerReferences([]metav1.OwnerReference{awskeOwnerRef})
+			obj.SetFinalizers([]string{d.finalizer})
+			obj.Object["spec"] = d.spec
+			wt.Expect(wt.Client().Create(wt.Context(), obj)).To(Succeed())
+		}
 
 		wt.Expect(wt.Client().Delete(wt.Context(), awske)).To(Succeed())
 
-		wt.Get(gvk.CertManagerV1Alpha1, types.NamespacedName{Name: "cluster"}).
-			Eventually().Should(jq.Match(`.metadata.deletionTimestamp != null`))
+		// For each dependency CR: verify the cleanup action triggered deletion,
+		// simulate the operator completing its finalizer processing, then confirm
+		// the CR is fully removed. If any assertion fails, the finalizer action is
+		// not targeting that CR — AWSKE deletion would hang because the operator's
+		// finalizers can't process after the operator pod is gone (RHOAIENG-60496).
+		for _, d := range deps {
+			objNN := types.NamespacedName{Name: d.name}
 
-		cmGot := &unstructured.Unstructured{}
-		cmGot.SetGroupVersionKind(gvk.CertManagerV1Alpha1)
-		wt.Expect(wt.Client().Get(wt.Context(), types.NamespacedName{Name: "cluster"}, cmGot)).To(Succeed())
-		cmGot.SetFinalizers(nil)
-		wt.Expect(wt.Client().Update(wt.Context(), cmGot)).To(Succeed())
+			wt.Get(d.gvk, objNN).Eventually().Should(jq.Match(`.metadata.deletionTimestamp != null`))
 
-		wt.Get(gvk.CertManagerV1Alpha1, types.NamespacedName{Name: "cluster"}).
-			Eventually().Should(BeNil())
+			got := &unstructured.Unstructured{}
+			got.SetGroupVersionKind(d.gvk)
+			wt.Expect(wt.Client().Get(wt.Context(), objNN, got)).To(Succeed())
+			got.SetFinalizers(nil)
+			wt.Expect(wt.Client().Update(wt.Context(), got)).To(Succeed())
+
+			wt.Get(d.gvk, objNN).Eventually().Should(BeNil())
+		}
 
 		wt.Get(gvk.AWSKubernetesEngine, nn).Eventually().Should(BeNil())
 	})
