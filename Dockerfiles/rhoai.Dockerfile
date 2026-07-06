@@ -20,9 +20,10 @@ RUN if [[ "${BUILD_TYPE}" == "RELEASE" && "${USE_LOCAL}" != "true" ]]; then \
         rm -rf /opt/manifests/*; \
         ODH_PLATFORM_TYPE=rhoai ./get_all_manifests.sh ${OVERWRITE_MANIFESTS}; \
     elif [ "${BUILD_TYPE}" == "CI" ]; then \
-        rm -rf /opt/manifests/*; \
-        ls -la /cachi2/prefetched-manifests; \
+        rm -rf /opt/manifests/* /opt/charts/*; \
+        ls -la /cachi2/prefetched-manifests /cachi2/prefetched-charts; \
         cp -r /cachi2/prefetched-manifests/* /opt/manifests/; \
+        cp -r /cachi2/prefetched-charts/* /opt/charts/; \
     fi
 
 # Clean up unwanted directories and files from manifests
