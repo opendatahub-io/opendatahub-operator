@@ -536,7 +536,7 @@ func getKubeAuthProxyImage() string {
 		return image
 	}
 	// Fallback for ODH development - pinned to sha256 digest for disconnected/air-gapped support
-	return "quay.io/opendatahub/odh-kube-auth-proxy@sha256:6428d0d0c020c42c33843b3331e256c86cf17b734ccc3e3e8120147f1b36e304" // latest as of 2026-06-26
+	return "quay.io/opendatahub/odh-kube-auth-proxy@sha256:f9d9dc6e0e05fe7b47141e605e1dd147302dd023936c2d20e205afbc96a51d9d" // latest as of 2026-07-06 (6a6aa63c)
 }
 
 // getDashboardRedirectImage returns the nginx image for dashboard redirects.
