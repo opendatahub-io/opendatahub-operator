@@ -1,0 +1,1859 @@
+{
+  "component": "opendatahub-operator",
+  "repo": "opendatahub-io/opendatahub-operator",
+  "commit_sha": "92b842b6af6a0c1fa73fdb25e161f8a24cf10dfc",
+  "extracted_at": "2026-07-03T09:48:06Z",
+  "analyzer_version": "0.1.1",
+  "schema_version": "2",
+  "dockerfiles": [
+    {
+      "path": "Dockerfiles/Dockerfile",
+      "base_image": "registry.access.redhat.com/ubi9/ubi-minimal:latest",
+      "build_stage_images": [
+        "registry.access.redhat.com/ubi9/toolbox",
+        "registry.access.redhat.com/ubi9/go-toolset:$GOLANG_VERSION"
+      ],
+      "stages": 3,
+      "user": "1001",
+      "issues": [
+        "Unpinned base image: registry.access.redhat.com/ubi9/toolbox",
+        "Unpinned base image: registry.access.redhat.com/ubi9/ubi-minimal:latest"
+      ],
+      "architectures": [
+        "multi-arch"
+      ],
+      "build_args": {
+        "CGO_ENABLED": "1",
+        "GOLANG_VERSION": "1.26",
+        "TARGETARCH": "",
+        "TARGETPLATFORM": ""
+      },
+      "copy_instructions": [
+        {
+          "sources": [
+            "/workspace/manager"
+          ],
+          "destination": ".",
+          "from_stage": "builder",
+          "original_sources": [
+            "go.mod",
+            "go.sum",
+            "pkg/clusterhealth/go.mod",
+            "pkg/clusterhealth/go.sum",
+            "pkg/failureclassifier/go.mod",
+            "pkg/failureclassifier/go.sum",
+            "api/",
+            "internal/",
+            "cmd/main.go",
+            "cmd/cloudmanager/",
+            "pkg/"
+          ]
+        },
+        {
+          "sources": [
+            "/workspace/cloudmanager"
+          ],
+          "destination": ".",
+          "from_stage": "builder",
+          "original_sources": [
+            "go.mod",
+            "go.sum",
+            "pkg/clusterhealth/go.mod",
+            "pkg/clusterhealth/go.sum",
+            "pkg/failureclassifier/go.mod",
+            "pkg/failureclassifier/go.sum",
+            "api/",
+            "internal/",
+            "cmd/main.go",
+            "cmd/cloudmanager/",
+            "pkg/"
+          ]
+        },
+        {
+          "sources": [
+            "/opt/manifests"
+          ],
+          "destination": "/opt/manifests-template",
+          "from_stage": "manifests",
+          "original_sources": [
+            "opt/manifests/",
+            "opt/charts/",
+            "get_all_manifests.sh",
+            "config/osd-configs/",
+            "config/hardwareprofiles/",
+            "config/connectionAPI/",
+            "config/segment/"
+          ]
+        },
+        {
+          "sources": [
+            "/opt/charts"
+          ],
+          "destination": "/opt/charts",
+          "from_stage": "manifests",
+          "original_sources": [
+            "opt/manifests/",
+            "opt/charts/",
+            "get_all_manifests.sh",
+            "config/osd-configs/",
+            "config/hardwareprofiles/",
+            "config/connectionAPI/",
+            "config/segment/"
+          ]
+        }
+      ],
+      "build_commands": [
+        {
+          "tool": "go",
+          "command": "build",
+          "entry_point": "cmd/main.go",
+          "output": "manager"
+        },
+        {
+          "tool": "go",
+          "command": "build",
+          "entry_point": "./cmd/cloudmanager/",
+          "output": "cloudmanager"
+        }
+      ]
+    },
+    {
+      "path": "Dockerfiles/build-bundle.Dockerfile",
+      "base_image": "registry.access.redhat.com/ubi9/go-toolset:$GOLANG_VERSION",
+      "stages": 1,
+      "user": "root",
+      "issues": [
+        "Container runs as root user"
+      ],
+      "build_args": {
+        "GOLANG_VERSION": "1.26"
+      },
+      "copy_instructions": [
+        {
+          "sources": [
+            "go.mod"
+          ],
+          "destination": "go.mod"
+        },
+        {
+          "sources": [
+            "go.sum"
+          ],
+          "destination": "go.sum"
+        },
+        {
+          "sources": [
+            "pkg/clusterhealth/go.mod"
+          ],
+          "destination": "pkg/clusterhealth/go.mod"
+        },
+        {
+          "sources": [
+            "pkg/clusterhealth/go.sum"
+          ],
+          "destination": "pkg/clusterhealth/go.sum"
+        },
+        {
+          "sources": [
+            "pkg/failureclassifier/go.mod"
+          ],
+          "destination": "pkg/failureclassifier/go.mod"
+        },
+        {
+          "sources": [
+            "pkg/failureclassifier/go.sum"
+          ],
+          "destination": "pkg/failureclassifier/go.sum"
+        },
+        {
+          "sources": [
+            "Makefile"
+          ],
+          "destination": "Makefile"
+        },
+        {
+          "sources": [
+            "api/"
+          ],
+          "destination": "api/"
+        },
+        {
+          "sources": [
+            "internal/"
+          ],
+          "destination": "internal/"
+        },
+        {
+          "sources": [
+            "cmd/main.go"
+          ],
+          "destination": "cmd/main.go"
+        },
+        {
+          "sources": [
+            "pkg/"
+          ],
+          "destination": "pkg/"
+        },
+        {
+          "sources": [
+            "tests/"
+          ],
+          "destination": "tests/"
+        },
+        {
+          "sources": [
+            "PROJECT"
+          ],
+          "destination": "PROJECT"
+        },
+        {
+          "sources": [
+            "config/"
+          ],
+          "destination": "config/"
+        },
+        {
+          "sources": [
+            "Dockerfiles/"
+          ],
+          "destination": "Dockerfiles/"
+        }
+      ],
+      "build_commands": [
+        {
+          "tool": "make",
+          "command": "operator-sdk"
+        },
+        {
+          "tool": "make",
+          "command": "bundle"
+        },
+        {
+          "tool": "make",
+          "command": "bundle"
+        }
+      ]
+    },
+    {
+      "path": "Dockerfiles/bundle.Dockerfile",
+      "base_image": "scratch",
+      "build_stage_images": [
+        "registry.access.redhat.com/ubi9/go-toolset:$GOLANG_VERSION"
+      ],
+      "stages": 2,
+      "user": "root",
+      "issues": [
+        "Unpinned base image: scratch",
+        "Container runs as root user"
+      ],
+      "build_args": {
+        "GOLANG_VERSION": "1.26"
+      },
+      "copy_instructions": [
+        {
+          "sources": [
+            "/workspace/odh-bundle/manifests"
+          ],
+          "destination": "/manifests/",
+          "from_stage": "builder",
+          "original_sources": [
+            "go.mod",
+            "go.sum",
+            "pkg/clusterhealth/go.mod",
+            "pkg/clusterhealth/go.sum",
+            "pkg/failureclassifier/go.mod",
+            "pkg/failureclassifier/go.sum",
+            "Makefile",
+            "api/",
+            "internal/",
+            "cmd/main.go",
+            "pkg/",
+            "tests/",
+            "PROJECT",
+            "config/",
+            "Dockerfiles/"
+          ]
+        },
+        {
+          "sources": [
+            "/workspace/odh-bundle/metadata"
+          ],
+          "destination": "/metadata/",
+          "from_stage": "builder",
+          "original_sources": [
+            "go.mod",
+            "go.sum",
+            "pkg/clusterhealth/go.mod",
+            "pkg/clusterhealth/go.sum",
+            "pkg/failureclassifier/go.mod",
+            "pkg/failureclassifier/go.sum",
+            "Makefile",
+            "api/",
+            "internal/",
+            "cmd/main.go",
+            "pkg/",
+            "tests/",
+            "PROJECT",
+            "config/",
+            "Dockerfiles/"
+          ]
+        },
+        {
+          "sources": [
+            "/workspace/odh-bundle/tests/scorecard"
+          ],
+          "destination": "/tests/scorecard/",
+          "from_stage": "builder",
+          "original_sources": [
+            "go.mod",
+            "go.sum",
+            "pkg/clusterhealth/go.mod",
+            "pkg/clusterhealth/go.sum",
+            "pkg/failureclassifier/go.mod",
+            "pkg/failureclassifier/go.sum",
+            "Makefile",
+            "api/",
+            "internal/",
+            "cmd/main.go",
+            "pkg/",
+            "tests/",
+            "PROJECT",
+            "config/",
+            "Dockerfiles/"
+          ]
+        }
+      ],
+      "build_commands": [
+        {
+          "tool": "make",
+          "command": "operator-sdk"
+        },
+        {
+          "tool": "make",
+          "command": "bundle"
+        },
+        {
+          "tool": "make",
+          "command": "bundle"
+        }
+      ]
+    },
+    {
+      "path": "Dockerfiles/catalog.Dockerfile",
+      "base_image": "quay.io/operator-framework/opm:latest",
+      "build_stage_images": [
+        "quay.io/operator-framework/opm:latest"
+      ],
+      "stages": 2,
+      "issues": [
+        "Unpinned base image: quay.io/operator-framework/opm:latest",
+        "Unpinned base image: quay.io/operator-framework/opm:latest",
+        "No USER directive found (defaults to root)"
+      ],
+      "copy_instructions": [
+        {
+          "sources": [
+            "/configs"
+          ],
+          "destination": "/configs",
+          "from_stage": "builder",
+          "original_sources": [
+            "catalog"
+          ]
+        },
+        {
+          "sources": [
+            "/tmp/cache"
+          ],
+          "destination": "/tmp/cache",
+          "from_stage": "builder",
+          "original_sources": [
+            "catalog"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "Dockerfiles/e2e-tests/e2e-tests.Dockerfile",
+      "base_image": "golang:$GOLANG_VERSION",
+      "build_stage_images": [
+        "registry.access.redhat.com/ubi9/go-toolset:$GOLANG_VERSION"
+      ],
+      "stages": 2,
+      "user": "root",
+      "issues": [
+        "Container runs as root user"
+      ],
+      "architectures": [
+        "multi-arch"
+      ],
+      "build_args": {
+        "CGO_ENABLED": "1",
+        "GOLANG_VERSION": "1.26",
+        "TARGETARCH": ""
+      },
+      "copy_instructions": [
+        {
+          "sources": [
+            "/workspace/e2e-tests"
+          ],
+          "destination": ".",
+          "from_stage": "builder",
+          "original_sources": [
+            "go.mod",
+            "go.sum",
+            "pkg/clusterhealth/go.mod",
+            "pkg/clusterhealth/go.sum",
+            "pkg/failureclassifier/go.mod",
+            "pkg/failureclassifier/go.sum",
+            "api/",
+            "internal/",
+            "cmd/main.go",
+            "cmd/test-retry/",
+            "pkg/",
+            "tests/"
+          ]
+        },
+        {
+          "sources": [
+            "/workspace/test-retry"
+          ],
+          "destination": "/go/bin/test-retry",
+          "from_stage": "builder",
+          "original_sources": [
+            "go.mod",
+            "go.sum",
+            "pkg/clusterhealth/go.mod",
+            "pkg/clusterhealth/go.sum",
+            "pkg/failureclassifier/go.mod",
+            "pkg/failureclassifier/go.sum",
+            "api/",
+            "internal/",
+            "cmd/main.go",
+            "cmd/test-retry/",
+            "pkg/",
+            "tests/"
+          ]
+        },
+        {
+          "sources": [
+            "tests/e2e/scripts/run_e2e_tests.sh"
+          ],
+          "destination": "/e2e/run_e2e_tests.sh"
+        }
+      ],
+      "build_commands": [
+        {
+          "tool": "go",
+          "command": "build",
+          "output": "../../test-retry"
+        },
+        {
+          "tool": "go",
+          "command": "build",
+          "output": "/usr/local/bin/test2json"
+        }
+      ]
+    },
+    {
+      "path": "Dockerfiles/rhoai-bundle.Dockerfile",
+      "base_image": "scratch",
+      "build_stage_images": [
+        "registry.access.redhat.com/ubi9/go-toolset:$GOLANG_VERSION"
+      ],
+      "stages": 2,
+      "user": "root",
+      "issues": [
+        "Unpinned base image: scratch",
+        "Container runs as root user"
+      ],
+      "build_args": {
+        "GOLANG_VERSION": "1.26"
+      },
+      "copy_instructions": [
+        {
+          "sources": [
+            "/workspace/rhoai-bundle/manifests"
+          ],
+          "destination": "/manifests/",
+          "from_stage": "builder",
+          "original_sources": [
+            "go.mod",
+            "go.sum",
+            "pkg/clusterhealth/go.mod",
+            "pkg/clusterhealth/go.sum",
+            "pkg/failureclassifier/go.mod",
+            "pkg/failureclassifier/go.sum",
+            "Makefile",
+            "api/",
+            "internal/",
+            "cmd/main.go",
+            "pkg/",
+            "tests/",
+            "PROJECT",
+            "config/",
+            "Dockerfiles/"
+          ]
+        },
+        {
+          "sources": [
+            "/workspace/rhoai-bundle/metadata"
+          ],
+          "destination": "/metadata/",
+          "from_stage": "builder",
+          "original_sources": [
+            "go.mod",
+            "go.sum",
+            "pkg/clusterhealth/go.mod",
+            "pkg/clusterhealth/go.sum",
+            "pkg/failureclassifier/go.mod",
+            "pkg/failureclassifier/go.sum",
+            "Makefile",
+            "api/",
+            "internal/",
+            "cmd/main.go",
+            "pkg/",
+            "tests/",
+            "PROJECT",
+            "config/",
+            "Dockerfiles/"
+          ]
+        },
+        {
+          "sources": [
+            "/workspace/rhoai-bundle/tests/scorecard"
+          ],
+          "destination": "/tests/scorecard/",
+          "from_stage": "builder",
+          "original_sources": [
+            "go.mod",
+            "go.sum",
+            "pkg/clusterhealth/go.mod",
+            "pkg/clusterhealth/go.sum",
+            "pkg/failureclassifier/go.mod",
+            "pkg/failureclassifier/go.sum",
+            "Makefile",
+            "api/",
+            "internal/",
+            "cmd/main.go",
+            "pkg/",
+            "tests/",
+            "PROJECT",
+            "config/",
+            "Dockerfiles/"
+          ]
+        }
+      ],
+      "build_commands": [
+        {
+          "tool": "make",
+          "command": "operator-sdk"
+        },
+        {
+          "tool": "make",
+          "command": "bundle"
+        },
+        {
+          "tool": "make",
+          "command": "bundle"
+        }
+      ]
+    },
+    {
+      "path": "Dockerfiles/rhoai.Dockerfile",
+      "base_image": "registry.access.redhat.com/ubi9/ubi-minimal:latest",
+      "build_stage_images": [
+        "registry.access.redhat.com/ubi9/toolbox",
+        "registry.access.redhat.com/ubi9/go-toolset:$GOLANG_VERSION"
+      ],
+      "stages": 3,
+      "user": "1001",
+      "issues": [
+        "Unpinned base image: registry.access.redhat.com/ubi9/toolbox",
+        "Unpinned base image: registry.access.redhat.com/ubi9/ubi-minimal:latest"
+      ],
+      "architectures": [
+        "multi-arch"
+      ],
+      "build_args": {
+        "CGO_ENABLED": "1",
+        "GOLANG_VERSION": "1.26",
+        "TARGETARCH": "",
+        "TARGETPLATFORM": ""
+      },
+      "copy_instructions": [
+        {
+          "sources": [
+            "/workspace/manager"
+          ],
+          "destination": ".",
+          "from_stage": "builder",
+          "original_sources": [
+            "go.mod",
+            "go.sum",
+            "pkg/clusterhealth/go.mod",
+            "pkg/clusterhealth/go.sum",
+            "pkg/failureclassifier/go.mod",
+            "pkg/failureclassifier/go.sum",
+            "api/",
+            "internal/",
+            "cmd/main.go",
+            "cmd/cloudmanager/",
+            "pkg/"
+          ]
+        },
+        {
+          "sources": [
+            "/workspace/cloudmanager"
+          ],
+          "destination": ".",
+          "from_stage": "builder",
+          "original_sources": [
+            "go.mod",
+            "go.sum",
+            "pkg/clusterhealth/go.mod",
+            "pkg/clusterhealth/go.sum",
+            "pkg/failureclassifier/go.mod",
+            "pkg/failureclassifier/go.sum",
+            "api/",
+            "internal/",
+            "cmd/main.go",
+            "cmd/cloudmanager/",
+            "pkg/"
+          ]
+        },
+        {
+          "sources": [
+            "/opt/manifests"
+          ],
+          "destination": "/opt/manifests-template",
+          "from_stage": "manifests",
+          "original_sources": [
+            "opt/manifests/",
+            "opt/charts/",
+            "get_all_manifests.sh",
+            "config/osd-configs/",
+            "config/hardwareprofiles/",
+            "config/connectionAPI/",
+            "config/segment/"
+          ]
+        },
+        {
+          "sources": [
+            "/opt/charts"
+          ],
+          "destination": "/opt/charts",
+          "from_stage": "manifests",
+          "original_sources": [
+            "opt/manifests/",
+            "opt/charts/",
+            "get_all_manifests.sh",
+            "config/osd-configs/",
+            "config/hardwareprofiles/",
+            "config/connectionAPI/",
+            "config/segment/"
+          ]
+        }
+      ],
+      "build_commands": [
+        {
+          "tool": "go",
+          "command": "build",
+          "entry_point": "cmd/main.go",
+          "output": "manager"
+        },
+        {
+          "tool": "go",
+          "command": "build",
+          "entry_point": "./cmd/cloudmanager/",
+          "output": "cloudmanager"
+        }
+      ]
+    },
+    {
+      "path": "Dockerfiles/toolbox.Dockerfile",
+      "base_image": "registry.fedoraproject.org/fedora-toolbox:38",
+      "stages": 1,
+      "issues": [
+        "No USER directive found (defaults to root)"
+      ],
+      "build_args": {
+        "GOLANG_VERSION": "1.26.0"
+      },
+      "build_commands": [
+        {
+          "tool": "make",
+          "command": "ripgrep"
+        }
+      ]
+    }
+  ],
+  "kustomize_components": [
+    {
+      "name": "dashboard",
+      "support_file": "internal/controller/components/dashboard/dashboard_support.go",
+      "overlay_paths": [
+        "/odh",
+        "/rhoai",
+        "modular-architecture",
+        "observability/odh",
+        "observability/rhoai"
+      ],
+      "context_dirs": [
+        "dashboard"
+      ],
+      "image_params": [
+        {
+          "env_var": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
+          "params_key": "odh-dashboard-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_MOD_ARCH_MODEL_REGISTRY_IMAGE",
+          "params_key": "model-registry-ui-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_MOD_ARCH_GEN_AI_IMAGE",
+          "params_key": "gen-ai-ui-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_MOD_ARCH_MLFLOW_IMAGE",
+          "params_key": "mlflow-ui-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_MOD_ARCH_MAAS_IMAGE",
+          "params_key": "maas-ui-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_MOD_ARCH_EVAL_HUB_IMAGE",
+          "params_key": "eval-hub-ui-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
+          "params_key": "kube-rbac-proxy"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_MODEL_REGISTRY_JOB_ASYNC_UPLOAD_IMAGE",
+          "params_key": "images-jobs-async-upload"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_MOD_ARCH_AUTOML_IMAGE",
+          "params_key": "automl-ui-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_AUTOML_IMAGE",
+          "params_key": "automl-pipeline-runtime-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_MOD_ARCH_AUTORAG_IMAGE",
+          "params_key": "autorag-ui-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_AUTORAG_IMAGE",
+          "params_key": "autorag-pipeline-runtime-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_MOD_ARCH_AGENT_OPS_IMAGE",
+          "params_key": "agent-ops-ui-image"
+        }
+      ]
+    },
+    {
+      "name": "datasciencepipelines",
+      "support_file": "internal/controller/components/datasciencepipelines/datasciencepipelines_support.go",
+      "overlay_paths": [
+        "overlays/odh",
+        "overlays/rhoai"
+      ],
+      "context_dirs": [
+        "datasciencepipelines"
+      ],
+      "image_params": [
+        {
+          "env_var": "RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_OPERATOR_CONTROLLER_IMAGE",
+          "params_key": "IMAGES_DSPO"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_ML_PIPELINES_API_SERVER_V2_IMAGE",
+          "params_key": "IMAGES_APISERVER"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_ML_PIPELINES_PERSISTENCEAGENT_V2_IMAGE",
+          "params_key": "IMAGES_PERSISTENCEAGENT"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_ML_PIPELINES_SCHEDULEDWORKFLOW_V2_IMAGE",
+          "params_key": "IMAGES_SCHEDULEDWORKFLOW"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_ARGOEXEC_IMAGE",
+          "params_key": "IMAGES_ARGO_EXEC"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_DATA_SCIENCE_PIPELINES_ARGO_WORKFLOWCONTROLLER_IMAGE",
+          "params_key": "IMAGES_ARGO_WORKFLOWCONTROLLER"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_ML_PIPELINES_DRIVER_IMAGE",
+          "params_key": "IMAGES_DRIVER"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_ML_PIPELINES_LAUNCHER_IMAGE",
+          "params_key": "IMAGES_LAUNCHER"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_MLMD_GRPC_SERVER_IMAGE",
+          "params_key": "IMAGES_MLMDGRPC"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_ML_PIPELINES_RUNTIME_GENERIC_IMAGE",
+          "params_key": "IMAGES_PIPELINESRUNTIMEGENERIC"
+        },
+        {
+          "env_var": "RELATED_IMAGE_DSP_PROXYV2_IMAGE",
+          "params_key": "IMAGES_MLMDENVOY"
+        },
+        {
+          "env_var": "RELATED_IMAGE_DSP_MARIADB_IMAGE",
+          "params_key": "IMAGES_MARIADB"
+        },
+        {
+          "env_var": "RELATED_IMAGE_DSP_TOOLBOX_IMAGE",
+          "params_key": "IMAGES_TOOLBOX"
+        },
+        {
+          "env_var": "RELATED_IMAGE_DSP_INSTRUCTLAB_NVIDIA_IMAGE",
+          "params_key": "IMAGES_RHELAI"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
+          "params_key": "kube-rbac-proxy"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_PIPELINES_COMPONENTS_IMAGE",
+          "params_key": "IMAGES_PIPELINES_COMPONENTS"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_AUTOML_IMAGE",
+          "params_key": "RELATED_IMAGE_ODH_AUTOML_IMAGE"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_AUTORAG_IMAGE",
+          "params_key": "RELATED_IMAGE_ODH_AUTORAG_IMAGE"
+        }
+      ]
+    },
+    {
+      "name": "feastoperator",
+      "support_file": "internal/controller/components/feastoperator/feastoperator_support.go",
+      "overlay_paths": [
+        "overlays/odh",
+        "overlays/rhoai"
+      ],
+      "context_dirs": [
+        "feastoperator"
+      ],
+      "image_params": [
+        {
+          "env_var": "RELATED_IMAGE_ODH_FEAST_OPERATOR_IMAGE",
+          "params_key": "RELATED_IMAGE_FEAST_OPERATOR"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_FEATURE_SERVER_IMAGE",
+          "params_key": "RELATED_IMAGE_FEATURE_SERVER"
+        }
+      ]
+    },
+    {
+      "name": "kserve",
+      "support_file": "internal/controller/components/kserve/kserve_support.go",
+      "overlay_paths": [
+        "overlays/odh",
+        "overlays/odh-modelcache",
+        "overlays/odh-xks"
+      ],
+      "context_dirs": [
+        "connectionAPI",
+        "kserve"
+      ],
+      "image_params": [
+        {
+          "env_var": "RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE",
+          "params_key": "kserve-agent"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE",
+          "params_key": "kserve-controller"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE",
+          "params_key": "llmisvc-controller"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_KSERVE_ROUTER_IMAGE",
+          "params_key": "kserve-router"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_KSERVE_STORAGE_INITIALIZER_IMAGE",
+          "params_key": "kserve-storage-initializer"
+        },
+        {
+          "env_var": "RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE",
+          "params_key": "kserve-llm-d"
+        },
+        {
+          "env_var": "RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE",
+          "params_key": "kserve-llm-d-nvidia-cuda"
+        },
+        {
+          "env_var": "RELATED_IMAGE_RHAII_VLLM_ROCM_IMAGE",
+          "params_key": "kserve-llm-d-amd-rocm"
+        },
+        {
+          "env_var": "RELATED_IMAGE_RHAII_VLLM_SPYRE_IMAGE",
+          "params_key": "kserve-llm-d-ibm-spyre"
+        },
+        {
+          "env_var": "RELATED_IMAGE_RHAII_VLLM_GAUDI_IMAGE",
+          "params_key": "kserve-llm-d-intel-gaudi"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_LLM_D_ROUTER_ENDPOINT_PICKER_IMAGE",
+          "params_key": "kserve-llm-d-inference-scheduler"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_LLM_D_ROUTER_DISAGG_SIDECAR_IMAGE",
+          "params_key": "kserve-llm-d-routing-sidecar"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
+          "params_key": "kube-rbac-proxy"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_LLM_D_KV_CACHE_IMAGE",
+          "params_key": "kserve-llm-d-uds-tokenizer"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_KSERVE_LOCALMODEL_CONTROLLER_IMAGE",
+          "params_key": "kserve-localmodel-controller"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_KSERVE_LOCALMODELNODE_AGENT_IMAGE",
+          "params_key": "kserve-localmodelnode-agent"
+        }
+      ]
+    },
+    {
+      "name": "kueue",
+      "support_file": "internal/controller/components/kueue/kueue_support.go"
+    },
+    {
+      "name": "mlflowoperator",
+      "support_file": "internal/controller/components/mlflowoperator/mlflowoperator_support.go",
+      "overlay_paths": [
+        "overlays/odh",
+        "overlays/rhoai"
+      ],
+      "context_dirs": [
+        "mlflowoperator"
+      ],
+      "image_params": [
+        {
+          "env_var": "RELATED_IMAGE_ODH_MLFLOW_IMAGE",
+          "params_key": "MLFLOW_IMAGE"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_MLFLOW_OPERATOR_IMAGE",
+          "params_key": "MLFLOW_OPERATOR_IMAGE"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
+          "params_key": "KUBE_AUTH_PROXY_IMAGE"
+        }
+      ]
+    },
+    {
+      "name": "modelcontroller",
+      "support_file": "internal/controller/components/modelcontroller/modelcontroller_support.go",
+      "overlay_paths": [
+        "base",
+        "overlays/namespace-scoped/openshift"
+      ],
+      "context_dirs": [
+        "modelcontroller",
+        "wva"
+      ],
+      "image_params": [
+        {
+          "env_var": "RELATED_IMAGE_ODH_WORKLOAD_VARIANT_AUTOSCALER_CONTROLLER_IMAGE",
+          "params_key": "wva-controller-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
+          "params_key": "odh-model-controller"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_MODEL_SERVING_API_IMAGE",
+          "params_key": "odh-model-serving-api"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_CAIKIT_NLP_IMAGE",
+          "params_key": "caikit-standalone-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_OPENVINO_MODEL_SERVER_IMAGE",
+          "params_key": "ovms-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_MLSERVER_IMAGE",
+          "params_key": "mlserver-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE",
+          "params_key": "vllm-cuda-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_VLLM_CPU_IMAGE",
+          "params_key": "vllm-cpu-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_RHAII_VLLM_CPU_IMAGE",
+          "params_key": "vllm-cpu-x86-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_RHAII_VLLM_GAUDI_IMAGE",
+          "params_key": "vllm-gaudi-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_RHAII_VLLM_ROCM_IMAGE",
+          "params_key": "vllm-rocm-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_RHAII_VLLM_SPYRE_IMAGE",
+          "params_key": "vllm-spyre-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_GUARDRAILS_DETECTOR_HUGGINGFACE_RUNTIME_IMAGE",
+          "params_key": "guardrails-detector-huggingface-runtime-image"
+        }
+      ]
+    },
+    {
+      "name": "modelregistry",
+      "support_file": "internal/controller/components/modelregistry/modelregistry_support.go",
+      "overlay_paths": [
+        "overlays/odh"
+      ],
+      "context_dirs": [
+        "modelregistry"
+      ],
+      "image_params": [
+        {
+          "env_var": "RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE",
+          "params_key": "IMAGES_MODELREGISTRY_OPERATOR"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_MODEL_REGISTRY_IMAGE",
+          "params_key": "IMAGES_REST_SERVICE"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_MODEL_METADATA_COLLECTION_IMAGE",
+          "params_key": "IMAGES_CATALOG_DATA"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_MODEL_PERFORMANCE_DATA_IMAGE",
+          "params_key": "IMAGES_BENCHMARK_DATA"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_MODEL_REGISTRY_JOB_ASYNC_UPLOAD_IMAGE",
+          "params_key": "IMAGES_JOBS_ASYNC_UPLOAD"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
+          "params_key": "kube-rbac-proxy"
+        },
+        {
+          "env_var": "RELATED_IMAGE_POSTGRESQL_16_IMAGE",
+          "params_key": "IMAGES_POSTGRES"
+        }
+      ]
+    },
+    {
+      "name": "modelsasservice",
+      "support_file": "internal/controller/components/modelsasservice/modelsasservice_support.go",
+      "overlay_paths": [
+        "overlays/odh"
+      ],
+      "image_params": [
+        {
+          "env_var": "RELATED_IMAGE_ODH_MAAS_API_IMAGE",
+          "params_key": "maas-api-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_MAAS_CONTROLLER_IMAGE",
+          "params_key": "maas-controller-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_AI_GATEWAY_PAYLOAD_PROCESSING_IMAGE",
+          "params_key": "payload-processing-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_UBI_MINIMAL_IMAGE",
+          "params_key": "maas-api-key-cleanup-image"
+        }
+      ]
+    },
+    {
+      "name": "ogx",
+      "support_file": "internal/controller/components/ogx/ogx_support.go",
+      "overlay_paths": [
+        "overlays/odh",
+        "overlays/rhoai"
+      ],
+      "context_dirs": [
+        "ogx"
+      ],
+      "image_params": [
+        {
+          "env_var": "RELATED_IMAGE_ODH_OGX_K8S_OPERATOR_IMAGE",
+          "params_key": "RELATED_IMAGE_ODH_OGX_OPERATOR"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_OGX_CORE_IMAGE",
+          "params_key": "RELATED_IMAGE_RH_DISTRIBUTION"
+        }
+      ]
+    },
+    {
+      "name": "ray",
+      "support_file": "internal/controller/components/ray/ray_support.go",
+      "overlay_paths": [
+        "openshift"
+      ],
+      "context_dirs": [
+        "ray"
+      ],
+      "image_params": [
+        {
+          "env_var": "RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE",
+          "params_key": "odh-kuberay-operator-controller-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
+          "params_key": "odh-kube-rbac-proxy-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_OSE_OAUTH_PROXY_IMAGE",
+          "params_key": "odh-oauth-proxy-image"
+        }
+      ]
+    },
+    {
+      "name": "sparkoperator",
+      "support_file": "internal/controller/components/sparkoperator/sparkoperator_support.go",
+      "overlay_paths": [
+        "overlays/odh",
+        "overlays/rhoai"
+      ],
+      "context_dirs": [
+        "sparkoperator"
+      ],
+      "image_params": [
+        {
+          "env_var": "RELATED_IMAGE_ODH_SPARK_OPERATOR_IMAGE",
+          "params_key": "SPARK_OPERATOR_CONTROLLER_IMAGE"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_SPARK_OPERATOR_IMAGE",
+          "params_key": "SPARK_OPERATOR_WEBHOOK_IMAGE"
+        }
+      ]
+    },
+    {
+      "name": "trainer",
+      "support_file": "internal/controller/components/trainer/trainer_support.go",
+      "overlay_paths": [
+        "rhoai"
+      ],
+      "context_dirs": [
+        "trainer"
+      ],
+      "image_params": [
+        {
+          "env_var": "RELATED_IMAGE_ODH_TRAINER_IMAGE",
+          "params_key": "odh-kubeflow-trainer-controller-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_TRAINING_CUDA128_TORCH29_PY312_IMAGE",
+          "params_key": "odh-training-cuda128-torch29-py312-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_TRAINING_ROCM64_TORCH29_PY312_IMAGE",
+          "params_key": "odh-training-rocm64-torch29-py312-image"
+        }
+      ]
+    },
+    {
+      "name": "trainingoperator",
+      "support_file": "internal/controller/components/trainingoperator/trainingoperator_support.go",
+      "overlay_paths": [
+        "rhoai"
+      ],
+      "context_dirs": [
+        "trainingoperator"
+      ],
+      "image_params": [
+        {
+          "env_var": "RELATED_IMAGE_ODH_TRAINING_OPERATOR_IMAGE",
+          "params_key": "odh-training-operator-controller-image"
+        }
+      ]
+    },
+    {
+      "name": "trustyai",
+      "support_file": "internal/controller/components/trustyai/trustyai_support.go",
+      "overlay_paths": [
+        "/overlays/mcp-guardrails",
+        "/overlays/odh",
+        "/overlays/rhoai"
+      ],
+      "context_dirs": [
+        "trustyai"
+      ],
+      "image_params": [
+        {
+          "env_var": "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE",
+          "params_key": "trustyaiServiceImage"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE",
+          "params_key": "trustyaiOperatorImage"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_TA_LMES_DRIVER_IMAGE",
+          "params_key": "lmes-driver-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_TA_LMES_JOB_IMAGE",
+          "params_key": "lmes-pod-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_FMS_GUARDRAILS_ORCHESTRATOR_IMAGE",
+          "params_key": "guardrails-orchestrator-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_TRUSTYAI_VLLM_ORCHESTRATOR_GATEWAY_IMAGE",
+          "params_key": "guardrails-sidecar-gateway-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_BUILT_IN_DETECTOR_IMAGE",
+          "params_key": "guardrails-built-in-detector-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_PYTHON_312_IMAGE",
+          "params_key": "ragas-provider-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_TRUSTYAI_GARAK_LLS_PROVIDER_DSP_IMAGE",
+          "params_key": "garak-provider-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_TRUSTYAI_NEMO_GUARDRAILS_SERVER_IMAGE",
+          "params_key": "nemo-guardrails-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_EVAL_HUB_IMAGE",
+          "params_key": "evalHubImage"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
+          "params_key": "kube-rbac-proxy"
+        }
+      ]
+    },
+    {
+      "name": "workbenches",
+      "support_file": "internal/controller/components/workbenches/workbenches_support.go",
+      "overlay_paths": [
+        "base",
+        "odh/overlays/additional",
+        "overlays/openshift",
+        "rhoai/overlays/additional"
+      ],
+      "context_dirs": [
+        "workbenches/kf-notebook-controller",
+        "workbenches/notebooks",
+        "workbenches/odh-notebook-controller"
+      ],
+      "image_params": [
+        {
+          "env_var": "RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE",
+          "params_key": "odh-notebook-controller-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
+          "params_key": "kube-rbac-proxy"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE",
+          "params_key": "odh-kf-notebook-controller-image"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_DATASCIENCE_CPU_PY312_IMAGE",
+          "params_key": "odh-workbench-codeserver-datascience-cpu-py312-ubi9-n"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_DATASCIENCE_CPU_PY312_IMAGE",
+          "params_key": "odh-workbench-jupyter-datascience-cpu-py312-ubi9-n"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_MINIMAL_CPU_PY312_IMAGE",
+          "params_key": "odh-workbench-jupyter-minimal-cpu-py312-ubi9-n"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_MINIMAL_CUDA_PY312_IMAGE",
+          "params_key": "odh-workbench-jupyter-minimal-cuda-py312-ubi9-n"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_MINIMAL_ROCM_PY312_IMAGE",
+          "params_key": "odh-workbench-jupyter-minimal-rocm-py312-ubi9-n"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_PYTORCH_CUDA_PY312_IMAGE",
+          "params_key": "odh-workbench-jupyter-pytorch-cuda-py312-ubi9-n"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_PYTORCH_ROCM_PY312_IMAGE",
+          "params_key": "odh-workbench-jupyter-pytorch-rocm-py312-ubi9-n"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_TENSORFLOW_CUDA_PY312_IMAGE",
+          "params_key": "odh-workbench-jupyter-tensorflow-cuda-py312-ubi9-n"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_TENSORFLOW_ROCM_PY312_IMAGE",
+          "params_key": "odh-workbench-jupyter-tensorflow-rocm-py312-ubi9-n"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_TRUSTYAI_CPU_PY312_IMAGE",
+          "params_key": "odh-workbench-jupyter-trustyai-cpu-py312-ubi9-n"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_PYTORCH_LLMCOMPRESSOR_CUDA_PY312_IMAGE",
+          "params_key": "odh-workbench-jupyter-pytorch-llmcompressor-cuda-py312-ubi9-n"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_DATASCIENCE_CPU_PY312_IMAGE",
+          "params_key": "odh-pipeline-runtime-datascience-cpu-py312-ubi9-n"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_MINIMAL_CPU_PY312_IMAGE",
+          "params_key": "odh-pipeline-runtime-minimal-cpu-py312-ubi9-n"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_TENSORFLOW_CUDA_PY312_IMAGE",
+          "params_key": "odh-pipeline-runtime-tensorflow-cuda-py312-ubi9-n"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_TENSORFLOW_ROCM_PY312_IMAGE",
+          "params_key": "odh-pipeline-runtime-tensorflow-rocm-py312-ubi9-n"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_CUDA_PY312_IMAGE",
+          "params_key": "odh-pipeline-runtime-pytorch-cuda-py312-ubi9-n"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_ROCM_PY312_IMAGE",
+          "params_key": "odh-pipeline-runtime-pytorch-rocm-py312-ubi9-n"
+        },
+        {
+          "env_var": "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_LLMCOMPRESSOR_CUDA_PY312_IMAGE",
+          "params_key": "odh-pipeline-runtime-pytorch-llmcompressor-cuda-py312-ubi9-n"
+        }
+      ]
+    }
+  ],
+  "kustomize_overlay_refs": [
+    {
+      "overlay": "config/cloudmanager/aws/crd",
+      "resources": [
+        "bases/"
+      ],
+      "source": "config/cloudmanager/aws/crd/kustomization.yaml"
+    },
+    {
+      "overlay": "config/cloudmanager/aws/default",
+      "resources": [
+        "../crd",
+        "../manager",
+        "../rbac"
+      ],
+      "namespace": "opendatahub-cloudmanager-system",
+      "source": "config/cloudmanager/aws/default/kustomization.yaml"
+    },
+    {
+      "overlay": "config/cloudmanager/aws/local",
+      "resources": [
+        "../default"
+      ],
+      "patches": [
+        "manager_pull_policy_patch.yaml"
+      ],
+      "namespace": "opendatahub-cloudmanager-system",
+      "source": "config/cloudmanager/aws/local/kustomization.yaml"
+    },
+    {
+      "overlay": "config/cloudmanager/aws/rbac",
+      "resources": [
+        "leader_election_role.yaml",
+        "leader_election_role_binding.yaml",
+        "role.yaml",
+        "role_binding.yaml",
+        "service_account.yaml"
+      ],
+      "source": "config/cloudmanager/aws/rbac/kustomization.yaml"
+    },
+    {
+      "overlay": "config/cloudmanager/aws/rhoai",
+      "resources": [
+        "../crd",
+        "../manager",
+        "../rbac"
+      ],
+      "patches": [
+        "ClusterRole opendatahub-aws-cloud-manager-role",
+        "ClusterRoleBinding opendatahub-aws-cloud-manager-rolebinding",
+        "manager_rhoai_patch.yaml"
+      ],
+      "namespace": "rhai-cloudmanager-system",
+      "source": "config/cloudmanager/aws/rhoai/kustomization.yaml"
+    },
+    {
+      "overlay": "config/cloudmanager/azure/crd",
+      "resources": [
+        "bases/"
+      ],
+      "source": "config/cloudmanager/azure/crd/kustomization.yaml"
+    },
+    {
+      "overlay": "config/cloudmanager/azure/default",
+      "resources": [
+        "../crd",
+        "../manager",
+        "../rbac"
+      ],
+      "namespace": "opendatahub-cloudmanager-system",
+      "source": "config/cloudmanager/azure/default/kustomization.yaml"
+    },
+    {
+      "overlay": "config/cloudmanager/azure/local",
+      "resources": [
+        "../default"
+      ],
+      "patches": [
+        "manager_pull_policy_patch.yaml"
+      ],
+      "namespace": "opendatahub-cloudmanager-system",
+      "source": "config/cloudmanager/azure/local/kustomization.yaml"
+    },
+    {
+      "overlay": "config/cloudmanager/azure/rbac",
+      "resources": [
+        "leader_election_role.yaml",
+        "leader_election_role_binding.yaml",
+        "role.yaml",
+        "role_binding.yaml",
+        "service_account.yaml"
+      ],
+      "source": "config/cloudmanager/azure/rbac/kustomization.yaml"
+    },
+    {
+      "overlay": "config/cloudmanager/azure/rhoai",
+      "resources": [
+        "../crd",
+        "../manager",
+        "../rbac"
+      ],
+      "patches": [
+        "ClusterRole opendatahub-azure-cloud-manager-role",
+        "ClusterRoleBinding opendatahub-azure-cloud-manager-rolebinding",
+        "manager_rhoai_patch.yaml"
+      ],
+      "namespace": "rhai-cloudmanager-system",
+      "source": "config/cloudmanager/azure/rhoai/kustomization.yaml"
+    },
+    {
+      "overlay": "config/cloudmanager/coreweave/crd",
+      "resources": [
+        "bases/"
+      ],
+      "source": "config/cloudmanager/coreweave/crd/kustomization.yaml"
+    },
+    {
+      "overlay": "config/cloudmanager/coreweave/default",
+      "resources": [
+        "../crd",
+        "../manager",
+        "../rbac"
+      ],
+      "namespace": "opendatahub-cloudmanager-system",
+      "source": "config/cloudmanager/coreweave/default/kustomization.yaml"
+    },
+    {
+      "overlay": "config/cloudmanager/coreweave/local",
+      "resources": [
+        "../default"
+      ],
+      "patches": [
+        "manager_pull_policy_patch.yaml"
+      ],
+      "namespace": "opendatahub-cloudmanager-system",
+      "source": "config/cloudmanager/coreweave/local/kustomization.yaml"
+    },
+    {
+      "overlay": "config/cloudmanager/coreweave/rbac",
+      "resources": [
+        "leader_election_role.yaml",
+        "leader_election_role_binding.yaml",
+        "role.yaml",
+        "role_binding.yaml",
+        "service_account.yaml"
+      ],
+      "source": "config/cloudmanager/coreweave/rbac/kustomization.yaml"
+    },
+    {
+      "overlay": "config/cloudmanager/coreweave/rhoai",
+      "resources": [
+        "../crd",
+        "../manager",
+        "../rbac"
+      ],
+      "patches": [
+        "ClusterRole opendatahub-coreweave-cloud-manager-role",
+        "ClusterRoleBinding opendatahub-coreweave-cloud-manager-rolebinding",
+        "manager_rhoai_patch.yaml"
+      ],
+      "namespace": "rhai-cloudmanager-system",
+      "source": "config/cloudmanager/coreweave/rhoai/kustomization.yaml"
+    },
+    {
+      "overlay": "config/connectionAPI",
+      "resources": [
+        "secret_s3_validation.yaml"
+      ],
+      "source": "config/connectionAPI/kustomization.yaml"
+    },
+    {
+      "overlay": "config/crd",
+      "resources": [
+        "bases/"
+      ],
+      "patches": [
+        "patches/cainjection_in_datasciencecluster_datascienceclusters.yaml",
+        "patches/cainjection_in_dscinitialization_dscinitializations.yaml",
+        "patches/webhook_in_datasciencecluster_datascienceclusters.yaml",
+        "patches/webhook_in_dscinitialization_dscinitializations.yaml"
+      ],
+      "source": "config/crd/kustomization.yaml"
+    },
+    {
+      "overlay": "config/default",
+      "resources": [
+        "../crd",
+        "../manager",
+        "../rbac",
+        "../webhook"
+      ],
+      "patches": [
+        "manager_auth_proxy_patch.yaml",
+        "manager_webhook_patch.yaml"
+      ],
+      "namespace": "opendatahub-operator-system",
+      "name_prefix": "opendatahub-operator-",
+      "source": "config/default/kustomization.yaml"
+    },
+    {
+      "overlay": "config/hardwareprofiles",
+      "resources": [
+        "default-profile.yaml"
+      ],
+      "source": "config/hardwareprofiles/kustomization.yaml"
+    },
+    {
+      "overlay": "config/manifests",
+      "resources": [
+        "../connectionAPI",
+        "../default",
+        "../prometheus",
+        "../samples",
+        "../scorecard",
+        "bases/opendatahub-operator.clusterserviceversion.yaml"
+      ],
+      "patches": [
+        "CustomResourceDefinition datascienceclusters.datasciencecluster.opendatahub.io",
+        "CustomResourceDefinition dscinitializations.dscinitialization.opendatahub.io",
+        "description-patch.yml"
+      ],
+      "source": "config/manifests/kustomization.yaml"
+    },
+    {
+      "overlay": "config/osd-configs",
+      "resources": [
+        "dedicated-admins-mgmt-role.yaml",
+        "dedicated-admins-mgmt-rolebinding.yaml"
+      ],
+      "source": "config/osd-configs/kustomization.yaml"
+    },
+    {
+      "overlay": "config/partners/anaconda/base",
+      "resources": [
+        "anaconda-ce-validator-cron.yaml"
+      ],
+      "common_labels": [
+        "component.opendatahub.io/name=anaconda-ce",
+        "opendatahub.io/component=true"
+      ],
+      "source": "config/partners/anaconda/base/kustomization.yaml"
+    },
+    {
+      "overlay": "config/prometheus",
+      "resources": [
+        "prom_clusterrole.yaml",
+        "prom_clusterrolebinding.yaml"
+      ],
+      "source": "config/prometheus/kustomization.yaml"
+    },
+    {
+      "overlay": "config/rbac",
+      "resources": [
+        "auth_proxy_client_clusterrole.yaml",
+        "auth_proxy_service.yaml",
+        "role.yaml",
+        "role_binding.yaml",
+        "service_account.yaml"
+      ],
+      "source": "config/rbac/kustomization.yaml"
+    },
+    {
+      "overlay": "config/rhaii/certmanager",
+      "resources": [
+        "../webhook"
+      ],
+      "patches": [
+        "MutatingWebhookConfiguration",
+        "Service webhook-service"
+      ],
+      "source": "config/rhaii/certmanager/kustomization.yaml"
+    },
+    {
+      "overlay": "config/rhaii/crd",
+      "resources": [
+        "bases/"
+      ],
+      "source": "config/rhaii/crd/kustomization.yaml"
+    },
+    {
+      "overlay": "config/rhaii/odh",
+      "resources": [
+        "../odh-operator",
+        "namespace.yaml"
+      ],
+      "source": "config/rhaii/odh/kustomization.yaml"
+    },
+    {
+      "overlay": "config/rhaii/odh-local",
+      "resources": [
+        "../odh"
+      ],
+      "patches": [
+        "manager_pull_policy_patch.yaml"
+      ],
+      "source": "config/rhaii/odh-local/kustomization.yaml"
+    },
+    {
+      "overlay": "config/rhaii/odh-operator",
+      "resources": [
+        "../../manager",
+        "../../rbac",
+        "../certmanager",
+        "../crd"
+      ],
+      "patches": [
+        "manager_auth_proxy_patch.yaml",
+        "manager_patch.yaml",
+        "manager_remove_scc_annotation_patch.yaml",
+        "manager_webhook_patch.yaml"
+      ],
+      "namespace": "opendatahub-operator-system",
+      "name_prefix": "opendatahub-operator-",
+      "source": "config/rhaii/odh-operator/kustomization.yaml"
+    },
+    {
+      "overlay": "config/rhaii/rhoai/certmanager",
+      "resources": [
+        "../../webhook"
+      ],
+      "patches": [
+        "MutatingWebhookConfiguration",
+        "Service webhook-service",
+        "Service webhook-service"
+      ],
+      "name_prefix": "rhai-operator-",
+      "source": "config/rhaii/rhoai/certmanager/kustomization.yaml"
+    },
+    {
+      "overlay": "config/rhaii/rhoai/default",
+      "resources": [
+        "../operator",
+        "namespace.yaml"
+      ],
+      "source": "config/rhaii/rhoai/default/kustomization.yaml"
+    },
+    {
+      "overlay": "config/rhaii/rhoai/operator",
+      "resources": [
+        "../../../rhoai/manager",
+        "../../../rhoai/rbac",
+        "../../crd",
+        "../certmanager"
+      ],
+      "patches": [
+        "manager_auth_proxy_patch.yaml",
+        "manager_patch.yaml",
+        "manager_webhook_patch.yaml"
+      ],
+      "namespace": "redhat-ods-operator",
+      "source": "config/rhaii/rhoai/operator/kustomization.yaml"
+    },
+    {
+      "overlay": "config/rhaii/webhook",
+      "resources": [
+        "manifests.yaml",
+        "service.yaml"
+      ],
+      "source": "config/rhaii/webhook/kustomization.yaml"
+    },
+    {
+      "overlay": "config/rhoai/crd",
+      "resources": [
+        "bases/"
+      ],
+      "patches": [
+        "patches/cainjection_in_datasciencecluster_datascienceclusters.yaml",
+        "patches/cainjection_in_dscinitialization_dscinitializations.yaml",
+        "patches/webhook_in_datasciencecluster_datascienceclusters.yaml",
+        "patches/webhook_in_dscinitialization_dscinitializations.yaml"
+      ],
+      "source": "config/rhoai/crd/kustomization.yaml"
+    },
+    {
+      "overlay": "config/rhoai/default",
+      "resources": [
+        "../crd",
+        "../manager",
+        "../rbac",
+        "../webhook"
+      ],
+      "patches": [
+        "manager_auth_proxy_patch.yaml",
+        "manager_webhook_patch.yaml"
+      ],
+      "namespace": "redhat-ods-operator",
+      "source": "config/rhoai/default/kustomization.yaml"
+    },
+    {
+      "overlay": "config/rhoai/manifests",
+      "resources": [
+        "../../prometheus",
+        "../../scorecard",
+        "../default",
+        "../samples",
+        "bases/rhods-operator.clusterserviceversion.yaml"
+      ],
+      "patches": [
+        "CustomResourceDefinition datascienceclusters.datasciencecluster.opendatahub.io",
+        "CustomResourceDefinition dscinitializations.dscinitialization.opendatahub.io",
+        "description-patch.yml"
+      ],
+      "source": "config/rhoai/manifests/kustomization.yaml"
+    },
+    {
+      "overlay": "config/rhoai/rbac",
+      "resources": [
+        "auth_proxy_client_clusterrole.yaml",
+        "auth_proxy_service.yaml",
+        "role.yaml",
+        "role_binding.yaml",
+        "service_account.yaml"
+      ],
+      "source": "config/rhoai/rbac/kustomization.yaml"
+    },
+    {
+      "overlay": "config/rhoai/webhook",
+      "resources": [
+        "manifests.yaml",
+        "service.yaml"
+      ],
+      "name_prefix": "rhods-operator-",
+      "source": "config/rhoai/webhook/kustomization.yaml"
+    },
+    {
+      "overlay": "config/scorecard",
+      "resources": [
+        "bases/config.yaml"
+      ],
+      "patches": [
+        "patches/basic.config.yaml",
+        "patches/olm.config.yaml"
+      ],
+      "source": "config/scorecard/kustomization.yaml"
+    },
+    {
+      "overlay": "config/segment",
+      "resources": [
+        "segment-key-config.yaml",
+        "segment-key-secret.yaml"
+      ],
+      "source": "config/segment/kustomization.yaml"
+    },
+    {
+      "overlay": "config/webhook",
+      "resources": [
+        "manifests.yaml",
+        "service.yaml"
+      ],
+      "source": "config/webhook/kustomization.yaml"
+    }
+  ],
+  "data_coverage": {
+    "api_types": "none",
+    "component_refs": "none",
+    "configmap_volumes": "none",
+    "configmaps": "none",
+    "crds": "none",
+    "deployments": "none",
+    "dockerfiles": "rich",
+    "external_connections": "none",
+    "ingress_routing": "none",
+    "kustomize_overlay_refs": "rich",
+    "label_contracts": "none",
+    "network_policies": "none",
+    "operator_config": "none",
+    "platform_detection": "none",
+    "prometheus_metrics": "none",
+    "python_k8s_calls": "none",
+    "rbac": "none",
+    "reconcile_sequences": "none",
+    "runtime_dependencies": "none",
+    "secrets": "none",
+    "services": "none",
+    "serving_runtime_refs": "none",
+    "status_conditions": "none",
+    "webhooks": "none"
+  },
+  "summary": "opendatahub-operator is a Kubernetes component. kustomize overlays: config/cloudmanager/aws/crd, config/cloudmanager/aws/default, config/cloudmanager/aws/local, config/cloudmanager/aws/rbac, config/cloudmanager/aws/rhoai, config/cloudmanager/azure/crd, config/cloudmanager/azure/default, config/cloudmanager/azure/local, config/cloudmanager/azure/rbac, config/cloudmanager/azure/rhoai, config/cloudmanager/coreweave/crd, config/cloudmanager/coreweave/default, config/cloudmanager/coreweave/local, config/cloudmanager/coreweave/rbac, config/cloudmanager/coreweave/rhoai, config/connectionAPI, config/crd, config/default, config/hardwareprofiles, config/manifests, config/osd-configs, config/partners/anaconda/base, config/prometheus, config/rbac, config/rhaii/certmanager, config/rhaii/crd, config/rhaii/odh, config/rhaii/odh-local, config/rhaii/odh-operator, config/rhaii/rhoai/certmanager, config/rhaii/rhoai/default, config/rhaii/rhoai/operator, config/rhaii/webhook, config/rhoai/crd, config/rhoai/default, config/rhoai/manifests, config/rhoai/rbac, config/rhoai/webhook, config/scorecard, config/segment, config/webhook.",
+  "extractors_run": [
+    "docker",
+    "kustomize"
+  ]
+}
