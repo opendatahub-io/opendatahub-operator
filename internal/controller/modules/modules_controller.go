@@ -132,7 +132,7 @@ func newDSCModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 func newPlatformModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	b := reconciler.ReconcilerFor(mgr, &configv1alpha1.Platform{}).
 		WithInstanceName("modules").
-		WithDynamicOwnership(). // TODO: probably enable as well WithDynamicOwnership(reconciler.WithGVKPredicates(moduleStatusPredicates())).
+		WithDynamicOwnership(reconciler.WithGVKPredicates(moduleStatusPredicates())).
 		WithoutConditionCleanup().
 		WithoutStatusConditionsIf(cr.HasEntries).
 		WithAction(enableModulesFromPlatform)
