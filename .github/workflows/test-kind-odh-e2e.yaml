@@ -5,19 +5,6 @@ on:
     types: [opened, labeled, synchronize, reopened]
     branches:
       - main
-    paths-ignore:
-      - 'cmd/cloudmanager/**'
-      - 'internal/controller/cloudmanager/**'
-      - 'config/cloudmanager/**'
-      - 'api/cloudmanager/**'
-      - 'tests/e2e/cloudmanager/**'
-      - 'pkg/controller/cloudmanager/**'
-      - 'docs/cloudmanager-api-overview.md'
-      - 'hack/update-cloudmanager-rbac.sh'
-      - '.github/workflows/test-cloudmanager-e2e.yaml'
-      - 'crd-ref-docs.cloudmanager.config.yaml'
-      - 'pkg/operatorconfig/cloudmanager.go'
-      - 'pkg/utils/test/cloudmanager/**'
 
 permissions:
   contents: read
@@ -28,25 +15,34 @@ env:
 
 jobs:
   get-merge-commit:
-    if: >-
-      github.event.action == 'labeled' && github.event.label.name == 'run-xks-e2e' ||
-      github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'run-xks-e2e')
     name: Get merge commit
     uses: ./.github/workflows/get-merge-commit.yaml
 
   kind-odh-e2e-tests:
     needs: get-merge-commit
-    # Label gate: only runs when a maintainer adds this label, preventing
-    # untrusted fork PRs from executing arbitrary code with repo secrets.
-    if: >-
-      github.event.action == 'labeled' && github.event.label.name == 'run-xks-e2e' ||
-      github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'run-xks-e2e')
     runs-on: ubuntu-latest
     permissions:
       contents: read
     env:
       KIND_CLUSTER_NAME: kind-odh-e2e-tests-${{ github.run_id }}
     steps:
+      - name: Check authorization
+        env:
+          AUTHOR_ASSOCIATION: ${{ github.event.pull_request.author_association }}
+          EVENT_ACTION: ${{ github.event.action }}
+          LABEL_NAME: ${{ github.event.label.name }}
+        run: |
+          if [[ "$AUTHOR_ASSOCIATION" =~ ^(OWNER|MEMBER|COLLABORATOR)$ ]]; then
+            echo "Trusted contributor — running automatically"
+            exit 0
+          fi
+          if [[ "$EVENT_ACTION" == "labeled" && "$LABEL_NAME" == "run-xks-e2e" ]]; then
+            echo "External contributor — approved via label"
+            exit 0
+          fi
+          echo "::error::xKS e2e tests required. A maintainer must add the 'run-xks-e2e' label after reviewing the code."
+          exit 1
+
       - name: Checkout code
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
