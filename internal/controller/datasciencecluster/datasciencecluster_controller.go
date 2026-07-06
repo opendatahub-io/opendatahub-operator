@@ -19,7 +19,6 @@ package datasciencecluster
 
 import (
 	"context"
-	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -73,7 +72,9 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 
 	// Watch module CRs so that status changes (e.g. AIGateway transitioning
 	// to Ready) trigger DSC reconciliation and propagate to ModulesReady.
-	if err := modules.ForAll(func(h modules.ModuleHandler, _ bool) error {
+	// ForAll iterates every registered module regardless of enabled state;
+	// the Dynamic predicate defers actual watch setup until the CRD exists.
+	_ = modules.ForAll(func(h modules.ModuleHandler, _ bool) error {
 		moduleGVK := h.GetGVK()
 		b = b.WatchesGVK(moduleGVK,
 			reconciler.Dynamic(reconciler.CrdExists(moduleGVK)),
@@ -83,9 +84,7 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 			reconciler.WithPredicates(componentsPredicate),
 		)
 		return nil
-	}); err != nil {
-		return fmt.Errorf("failed to register module watches: %w", err)
-	}
+	})
 
 	_, err := b.Watches(
 		&dsciv2.DSCInitialization{},
