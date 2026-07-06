@@ -22,7 +22,7 @@ import (
 
 const (
 	MCPLifecycleOperatorComponentName = "mcplifecycleoperator"
-	MCPLifecycleOperatorInstanceName  = "default-" + MCPLifecycleOperatorComponentName
+	MCPLifecycleOperatorInstanceName  = "default"
 	MCPLifecycleOperatorKind          = "MCPLifecycleOperator"
 )
 
