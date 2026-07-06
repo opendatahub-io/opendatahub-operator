@@ -30,7 +30,7 @@ ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	# - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 	ifeq ($(VERSION), )
-		VERSION = 3.5.0-ea.2
+		VERSION = 3.5.0
 	endif
 	# Specifies the namespace where the operator pods are deployed (defaults to opendatahub-operator-system)
 	OPERATOR_NAMESPACE ?= opendatahub-operator-system
@@ -62,7 +62,7 @@ else
 	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 	# NOTE: see also the git branches for RHOAI in get_all_manifests.sh. This variable does NOT affect those
 	ifeq ($(VERSION), )
-		VERSION = 3.5.0-ea.2
+		VERSION = 3.5.0
 	endif
 	# Specifies the namespace where the operator pods are deployed (defaults to redhat-ods-operator)
 	OPERATOR_NAMESPACE ?= redhat-ods-operator
@@ -170,7 +170,7 @@ SHELL = /usr/bin/env bash -o pipefail
 
 # E2E tests additional flags
 # See README.md, default go test timeout 10m
-E2E_TEST_FLAGS = -timeout 50m
+E2E_TEST_FLAGS = -timeout 80m
 
 # Default image-build is to not use local odh-manifests folder
 # set to "true" to use local instead

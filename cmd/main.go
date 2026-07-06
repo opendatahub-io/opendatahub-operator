@@ -312,6 +312,11 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
+	if err := flags.RegisterDAGOrderingFlags(); err != nil {
+		fmt.Printf("Error registering DAG ordering flags: %s", err.Error())
+		os.Exit(1)
+	}
+
 	oconfig, err := operatorconfig.LoadConfig()
 	if err != nil {
 		fmt.Printf("Error loading configuration: %s", err.Error())
