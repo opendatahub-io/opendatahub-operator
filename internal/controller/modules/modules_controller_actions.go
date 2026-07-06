@@ -369,6 +369,13 @@ func deploymentNameFor(h ModuleHandler, manifests OperatorManifests) string {
 	return deploymentNameFromManifests(manifests, h.GetName())
 }
 
+func readyConditionTypeFor(h ModuleHandler) string {
+	if rct, ok := h.(ReadyConditionTyper); ok {
+		return rct.GetReadyConditionType()
+	}
+	return h.GetGVK().Kind + status.ReadySuffix
+}
+
 func controllerImageFor(h ModuleHandler) string {
 	if ci, ok := h.(ControllerImager); ok {
 		return ci.GetControllerImage()
@@ -395,8 +402,9 @@ func deploymentNameFromManifests(manifests OperatorManifests, fallbackName strin
 	return fallbackName
 }
 
-// ComputeModulesStatus reads status conditions from each enabled module's CR
-// and sets the aggregate ModulesReady condition on rr.Conditions.
+// ComputeModulesStatus reads status conditions from each module's CR and
+// sets both per-module conditions (e.g. AIGatewayReady) and the aggregate
+// ModulesReady condition on rr.Conditions.
 //
 // During the transition period (in-tree components exist), the DSC
 // controller calls this and is the sole status writer — the modules
@@ -423,8 +431,16 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 
 	err = reg.ForEach(func(handler ModuleHandler) error {
 		name := handler.GetName()
+		condType := readyConditionTypeFor(handler)
 
 		if !handler.IsEnabled(platformCtx) {
+			rr.Conditions.SetCondition(common.Condition{
+				Type:     condType,
+				Status:   metav1.ConditionFalse,
+				Reason:   status.RemovedReason,
+				Severity: common.ConditionSeverityInfo,
+				Message:  fmt.Sprintf("Module ManagementState is set to %s", status.RemovedReason),
+			})
 			return nil
 		}
 
@@ -434,6 +450,13 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 		if err != nil {
 			log.V(1).Info("failed to get module status", "module", name, "error", err)
 			notReadyModules = append(notReadyModules, name)
+
+			rr.Conditions.SetCondition(common.Condition{
+				Type:    condType,
+				Status:  metav1.ConditionFalse,
+				Reason:  status.NotReadyReason,
+				Message: fmt.Sprintf("Failed to get module status: %v", err),
+			})
 			return nil
 		}
 
@@ -444,19 +467,44 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 				"generation", moduleStatus.Generation,
 			)
 			notReadyModules = append(notReadyModules, name+" (stale)")
+
+			rr.Conditions.SetCondition(common.Condition{
+				Type:    condType,
+				Status:  metav1.ConditionFalse,
+				Reason:  status.NotReadyReason,
+				Message: "Module status is stale (observedGeneration < generation)",
+			})
 			return nil
 		}
 
 		ready := false
 		degraded := false
+		var readyCond *metav1.Condition
 
-		for _, c := range moduleStatus.Conditions {
-			switch c.Type {
+		for i := range moduleStatus.Conditions {
+			switch moduleStatus.Conditions[i].Type {
 			case status.ConditionTypeReady:
-				ready = c.Status == metav1.ConditionTrue
+				ready = moduleStatus.Conditions[i].Status == metav1.ConditionTrue
+				readyCond = &moduleStatus.Conditions[i]
 			case status.ConditionTypeDegraded:
-				degraded = c.Status == metav1.ConditionTrue
+				degraded = moduleStatus.Conditions[i].Status == metav1.ConditionTrue
 			}
+		}
+
+		if readyCond != nil {
+			rr.Conditions.SetCondition(common.Condition{
+				Type:    condType,
+				Status:  readyCond.Status,
+				Reason:  readyCond.Reason,
+				Message: readyCond.Message,
+			})
+		} else {
+			rr.Conditions.SetCondition(common.Condition{
+				Type:    condType,
+				Status:  metav1.ConditionFalse,
+				Reason:  status.NotReadyReason,
+				Message: "Module has not reported a Ready condition yet",
+			})
 		}
 
 		if !ready {
