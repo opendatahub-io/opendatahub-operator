@@ -30,6 +30,7 @@ import (
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
@@ -44,7 +45,7 @@ import (
 func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	componentsPredicate := dependent.New(dependent.WithWatchStatus(true))
 
-	_, err := reconciler.ReconcilerFor(mgr, &dscv2.DataScienceCluster{}).
+	b := reconciler.ReconcilerFor(mgr, &dscv2.DataScienceCluster{}).
 		Owns(&componentApi.Dashboard{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.Workbenches{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.Ray{}, reconciler.WithPredicates(componentsPredicate)).
@@ -67,8 +68,23 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 				return watchDataScienceClusters(ctx, mgr.GetClient())
 			}),
 			reconciler.WithPredicates(componentsPredicate),
-		).
-		Watches(
+		)
+
+	// Watch module CRs so that status changes (e.g. AIGateway transitioning
+	// to Ready) trigger DSC reconciliation and propagate to ModulesReady.
+	_ = modules.ForAll(func(h modules.ModuleHandler, _ bool) error {
+		moduleGVK := h.GetGVK()
+		b = b.WatchesGVK(moduleGVK,
+			reconciler.Dynamic(reconciler.CrdExists(moduleGVK)),
+			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
+				return watchDataScienceClusters(ctx, mgr.GetClient())
+			}),
+			reconciler.WithPredicates(componentsPredicate),
+		)
+		return nil
+	})
+
+	_, err := b.Watches(
 			&dsciv2.DSCInitialization{},
 			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
 				return watchDataScienceClusters(ctx, mgr.GetClient())
