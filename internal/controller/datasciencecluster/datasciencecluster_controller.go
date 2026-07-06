@@ -74,8 +74,7 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 	// to Ready) trigger DSC reconciliation and propagate to ModulesReady.
 	// ForAll iterates every registered module regardless of enabled state;
 	// the Dynamic predicate defers actual watch setup until the CRD exists.
-	_ = modules.ForAll(func(h modules.ModuleHandler, _ bool) error {
-		moduleGVK := h.GetGVK()
+	for _, moduleGVK := range collectModuleGVKs(modules.DefaultRegistry()) {
 		b = b.WatchesGVK(moduleGVK,
 			reconciler.Dynamic(reconciler.CrdExists(moduleGVK)),
 			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
@@ -83,8 +82,7 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 			}),
 			reconciler.WithPredicates(componentsPredicate),
 		)
-		return nil
-	})
+	}
 
 	_, err := b.Watches(
 		&dsciv2.DSCInitialization{},

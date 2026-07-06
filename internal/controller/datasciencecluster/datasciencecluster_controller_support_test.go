@@ -7,12 +7,15 @@ import (
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
@@ -197,5 +200,87 @@ func TestComputeComponentsStatus(t *testing.T) {
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`,
 				status.ConditionTypeComponentsReady, status.NoManagedComponentsReason),
 		)))
+	})
+}
+
+// mockModuleHandler is a minimal ModuleHandler for testing collectModuleGVKs.
+type mockModuleHandler struct {
+	modules.BaseHandler
+
+	enabled bool
+}
+
+func newMockModuleHandler(name string, moduleGVK schema.GroupVersionKind, enabled bool) *mockModuleHandler {
+	return &mockModuleHandler{
+		BaseHandler: modules.BaseHandler{
+			Config: modules.ModuleConfig{
+				Name:   name,
+				CRName: "default",
+				GVK:    moduleGVK,
+			},
+		},
+		enabled: enabled,
+	}
+}
+
+func (m *mockModuleHandler) IsEnabled(_ *modules.PlatformContext) bool {
+	return m.enabled
+}
+
+func (m *mockModuleHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *modules.PlatformContext) (*unstructured.Unstructured, error) {
+	return nil, nil
+}
+
+// Verify mockModuleHandler satisfies ModuleHandler at compile time.
+var _ modules.ModuleHandler = (*mockModuleHandler)(nil)
+
+func TestCollectModuleGVKs(t *testing.T) {
+	t.Run("empty registry returns nil", func(t *testing.T) {
+		g := NewWithT(t)
+		reg := &modules.Registry{}
+
+		result := collectModuleGVKs(reg)
+		g.Expect(result).Should(BeNil())
+	})
+
+	t.Run("single module returns its GVK", func(t *testing.T) {
+		g := NewWithT(t)
+		reg := &modules.Registry{}
+
+		expectedGVK := schema.GroupVersionKind{Group: "test.io", Version: "v1", Kind: "AIGateway"}
+		reg.Add(newMockModuleHandler("aigateway", expectedGVK, true))
+
+		result := collectModuleGVKs(reg)
+		g.Expect(result).Should(HaveLen(1))
+		g.Expect(result[0]).Should(Equal(expectedGVK))
+	})
+
+	t.Run("multiple modules return all GVKs", func(t *testing.T) {
+		g := NewWithT(t)
+		reg := &modules.Registry{}
+
+		gvk1 := schema.GroupVersionKind{Group: "test.io", Version: "v1", Kind: "ModuleA"}
+		gvk2 := schema.GroupVersionKind{Group: "test.io", Version: "v1", Kind: "ModuleB"}
+		reg.Add(newMockModuleHandler("module-a", gvk1, true))
+		reg.Add(newMockModuleHandler("module-b", gvk2, true))
+
+		result := collectModuleGVKs(reg)
+		g.Expect(result).Should(HaveLen(2))
+		g.Expect(result).Should(ConsistOf(gvk1, gvk2))
+	})
+
+	t.Run("disabled modules are included", func(t *testing.T) {
+		g := NewWithT(t)
+		reg := &modules.Registry{}
+
+		enabledGVK := schema.GroupVersionKind{Group: "test.io", Version: "v1", Kind: "Enabled"}
+		disabledGVK := schema.GroupVersionKind{Group: "test.io", Version: "v1", Kind: "Disabled"}
+		reg.Add(newMockModuleHandler("enabled-mod", enabledGVK, true))
+		reg.Add(newMockModuleHandler("disabled-mod", disabledGVK, false))
+		reg.Disable("disabled-mod")
+
+		result := collectModuleGVKs(reg)
+		g.Expect(result).Should(HaveLen(2))
+		g.Expect(result).Should(ConsistOf(enabledGVK, disabledGVK))
 	})
 }
