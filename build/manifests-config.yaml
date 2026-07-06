@@ -78,3 +78,6 @@ map:
   odh-mcp-lifecycle-module-operator:
     src: config
     dest: mcplifecycleoperator
+  odh-feast-module-operator:
+    src: config/chart
+    dest: config/manifests
