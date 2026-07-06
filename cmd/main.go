@@ -719,6 +719,13 @@ func fetchTLSProfile(ctx context.Context, scheme *runtime.Scheme, restCfg *rest.
 			setupLog.Info("TLS profile not available, using hardened defaults (non-OpenShift cluster)")
 		case k8serr.IsNotFound(err):
 			setupLog.Info("APIServer resource not found, using hardened defaults")
+		case k8serr.IsForbidden(err):
+			setupLog.Error(err, "APIServer access forbidden, using hardened defaults",
+			"action", "verify RBAC: service account needs get/list/watch on config.openshift.io/apiservers")
+		case k8serr.IsServiceUnavailable(err),
+			k8serr.IsTimeout(err),
+			k8serr.IsTooManyRequests(err):
+			setupLog.Info("Transient API error reading TLS profile, using hardened defaults", "error", err)
 		default:
 			setupLog.Error(err, "unable to read APIServer TLS profile, refusing to start with unknown TLS posture")
 			os.Exit(1)
