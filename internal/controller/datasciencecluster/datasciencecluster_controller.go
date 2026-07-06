@@ -19,6 +19,7 @@ package datasciencecluster
 
 import (
 	"context"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -72,7 +73,7 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 
 	// Watch module CRs so that status changes (e.g. AIGateway transitioning
 	// to Ready) trigger DSC reconciliation and propagate to ModulesReady.
-	_ = modules.ForAll(func(h modules.ModuleHandler, _ bool) error {
+	if err := modules.ForAll(func(h modules.ModuleHandler, _ bool) error {
 		moduleGVK := h.GetGVK()
 		b = b.WatchesGVK(moduleGVK,
 			reconciler.Dynamic(reconciler.CrdExists(moduleGVK)),
@@ -82,13 +83,15 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 			reconciler.WithPredicates(componentsPredicate),
 		)
 		return nil
-	})
+	}); err != nil {
+		return fmt.Errorf("failed to register module watches: %w", err)
+	}
 
 	_, err := b.Watches(
-			&dsciv2.DSCInitialization{},
-			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
-				return watchDataScienceClusters(ctx, mgr.GetClient())
-			})).
+		&dsciv2.DSCInitialization{},
+		reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
+			return watchDataScienceClusters(ctx, mgr.GetClient())
+		})).
 		Watches(
 			&serviceApi.GatewayConfig{},
 			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
