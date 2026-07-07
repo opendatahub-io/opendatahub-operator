@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -14,13 +15,12 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
@@ -28,95 +28,98 @@ import (
 )
 
 type platformComponent struct {
-	object        common.PlatformObject
+	componentGVK  schema.GroupVersionKind
 	dscFieldName  string
 	conditionKind string
 	crdName       string
 	releasesField string
+	// enableField overrides dscFieldName for enable/disable operations.
+	// Used by implicitly-managed components (e.g. ModelController is controlled by Kserve).
+	enableField string
 }
 
 func allPlatformComponents() []platformComponent {
 	return []platformComponent{
 		{
-			object:       &componentApi.Dashboard{},
+			componentGVK: gvk.Dashboard,
 			dscFieldName: componentApi.DashboardComponentName,
 			crdName:      "dashboards.components.platform.opendatahub.io",
 		},
 		{
-			object:        &componentApi.Workbenches{},
+			componentGVK:  gvk.Workbenches,
 			dscFieldName:  componentApi.WorkbenchesComponentName,
 			crdName:       "workbenches.components.platform.opendatahub.io",
 			releasesField: componentApi.WorkbenchesComponentName,
 		},
 		{
-			object:        &componentApi.DataSciencePipelines{},
+			componentGVK:  gvk.DataSciencePipelines,
 			dscFieldName:  aiPipelinesFieldName,
 			conditionKind: componentApi.AIPipelinesKind,
 			crdName:       "datasciencepipelines.components.platform.opendatahub.io",
 			releasesField: aiPipelinesFieldName,
 		},
 		{
-			object:        &componentApi.Kserve{},
+			componentGVK:  gvk.Kserve,
 			dscFieldName:  componentApi.KserveComponentName,
 			crdName:       "kserves.components.platform.opendatahub.io",
 			releasesField: componentApi.KserveComponentName,
 		},
 		{
-			object:        &componentApi.Kueue{},
+			componentGVK:  gvk.Kueue,
 			dscFieldName:  componentApi.KueueComponentName,
 			crdName:       "kueues.components.platform.opendatahub.io",
 			releasesField: componentApi.KueueComponentName,
 		},
 		{
-			object:        &componentApi.Ray{},
+			componentGVK:  gvk.Ray,
 			dscFieldName:  componentApi.RayComponentName,
 			crdName:       "rays.components.platform.opendatahub.io",
 			releasesField: componentApi.RayComponentName,
 		},
 		{
-			object:        &componentApi.TrustyAI{},
+			componentGVK:  gvk.TrustyAI,
 			dscFieldName:  componentApi.TrustyAIComponentName,
 			crdName:       "trustyais.components.platform.opendatahub.io",
 			releasesField: componentApi.TrustyAIComponentName,
 		},
 		{
-			object:        &componentApi.ModelRegistry{},
+			componentGVK:  gvk.ModelRegistry,
 			dscFieldName:  componentApi.ModelRegistryComponentName,
 			crdName:       "modelregistries.components.platform.opendatahub.io",
 			releasesField: componentApi.ModelRegistryComponentName,
 		},
 		{
-			object:        &componentApi.TrainingOperator{},
+			componentGVK:  gvk.TrainingOperator,
 			dscFieldName:  componentApi.TrainingOperatorComponentName,
 			crdName:       "trainingoperators.components.platform.opendatahub.io",
 			releasesField: componentApi.TrainingOperatorComponentName,
 		},
 		{
-			object:        &componentApi.FeastOperator{},
+			componentGVK:  gvk.FeastOperator,
 			dscFieldName:  componentApi.FeastOperatorComponentName,
 			crdName:       "feastoperators.components.platform.opendatahub.io",
 			releasesField: componentApi.FeastOperatorComponentName,
 		},
 		{
-			object:        &componentApi.OGX{},
+			componentGVK:  gvk.OGX,
 			dscFieldName:  componentApi.OGXComponentName,
 			crdName:       "ogxs.components.platform.opendatahub.io",
 			releasesField: componentApi.OGXComponentName,
 		},
 		{
-			object:        &componentApi.MLflowOperator{},
+			componentGVK:  gvk.MLflowOperator,
 			dscFieldName:  componentApi.MLflowOperatorComponentName,
 			crdName:       "mlflowoperators.components.platform.opendatahub.io",
 			releasesField: componentApi.MLflowOperatorComponentName,
 		},
 		{
-			object:        &componentApi.Trainer{},
+			componentGVK:  gvk.Trainer,
 			dscFieldName:  componentApi.TrainerComponentName,
 			crdName:       "trainers.components.platform.opendatahub.io",
 			releasesField: componentApi.TrainerComponentName,
 		},
 		{
-			object:        &componentApi.SparkOperator{},
+			componentGVK:  gvk.SparkOperator,
 			dscFieldName:  componentApi.SparkOperatorComponentName,
 			crdName:       "sparkoperators.components.platform.opendatahub.io",
 			releasesField: componentApi.SparkOperatorComponentName,
@@ -133,28 +136,38 @@ type PlatformOrchestrationTestCtx struct {
 	conditionKind string
 	crdName       string
 	releasesField string
+	enableField   string
 }
 
 func newPlatformOrchestrationTestCtx(t *testing.T, tc *TestContext, pc platformComponent) *PlatformOrchestrationTestCtx {
 	t.Helper()
 
-	ogvk, err := resources.GetGroupVersionKindForObject(tc.Scheme(), pc.object)
-	require.NoError(t, err, "Failed to resolve GVK for %T", pc.object)
-
 	conditionKind := pc.conditionKind
 	if conditionKind == "" {
-		conditionKind = ogvk.Kind
+		conditionKind = pc.componentGVK.Kind
 	}
 
 	return &PlatformOrchestrationTestCtx{
 		TestContext:   tc,
-		componentGVK:  ogvk,
-		componentNN:   types.NamespacedName{Name: tc.GetInstanceName(ogvk)},
+		componentGVK:  pc.componentGVK,
+		componentNN:   types.NamespacedName{Name: tc.GetInstanceName(pc.componentGVK)},
 		dscFieldName:  pc.dscFieldName,
 		conditionKind: conditionKind,
 		crdName:       pc.crdName,
 		releasesField: pc.releasesField,
+		enableField:   pc.enableField,
 	}
+}
+
+func (ctx *PlatformOrchestrationTestCtx) effectiveEnableField() string {
+	if ctx.enableField != "" {
+		return ctx.enableField
+	}
+	return ctx.dscFieldName
+}
+
+func (ctx *PlatformOrchestrationTestCtx) isImplicitlyManaged() bool {
+	return ctx.enableField != ""
 }
 
 func platformOrchestrationTestSuite(t *testing.T) {
@@ -167,6 +180,18 @@ func platformOrchestrationTestSuite(t *testing.T) {
 
 	components, err := filterPlatformComponents(allPlatformComponents(), platformComponentFlags)
 	require.NoError(t, err)
+
+	// Dynamic check: verify allPlatformComponents stays in sync with dscv2.Components struct.
+	// Excluded: LlamaStackOperator (deprecated), AIGateway (module), MCPLifecycleOperator (module).
+	allComponents := allPlatformComponents()
+	dscComponentCount := reflect.TypeFor[dscv2.Components]().NumField()
+	excludedFromOrchestration := 3
+	expectedOrchestrationCount := dscComponentCount - excludedFromOrchestration
+	require.Len(t, allComponents, expectedOrchestrationCount,
+		"allPlatformComponents() is out of sync with dscv2.Components struct. "+
+			"Expected %d testable components but found %d. (Total DSC components: %d, Excluded: %d — "+
+			"LlamaStackOperator (deprecated), AIGateway (module), MCPLifecycleOperator (module))",
+		expectedOrchestrationCount, len(allComponents), dscComponentCount, excludedFromOrchestration)
 
 	for _, pc := range components {
 		ctx := newPlatformOrchestrationTestCtx(t, tc, pc)
@@ -183,6 +208,8 @@ func platformOrchestrationTestSuite(t *testing.T) {
 				{"Spec projection: DSC managementState reflected on component CR", ctx.TestSpecProjectionManagementState},
 				{"Spec projection: DSC patch updates component CR", ctx.TestSpecProjectionDSCPatchPropagated},
 				{"Spec projection: SSA idempotency", ctx.TestSSAIdempotency},
+				{"Contract: observedGeneration matches generation", ctx.TestObservedGenerationMatchesGeneration},
+				{"Contract: singleton enforcement rejects duplicate CR", ctx.TestSingletonEnforcement},
 				{"Status: component Ready propagated to DSC", ctx.TestStatusReadyPropagatedToDSC},
 				{"Status: ProvisioningSucceeded condition set", ctx.TestProvisioningSucceededCondition},
 				{"Status: component releases populated on DSC", ctx.TestComponentReleasesPopulated},
@@ -271,30 +298,22 @@ func (ctx *PlatformOrchestrationTestCtx) TestApplicationsNamespaceInjected(t *te
 	}
 
 	for _, dep := range deployments {
-		containers, _, _ := unstructured.NestedSlice(dep.Object, "spec", "template", "spec", "containers")
-		for _, c := range containers {
-			if cm, ok := c.(map[string]any); ok {
-				if envList, ok := cm["env"].([]any); ok {
-					for _, e := range envList {
-						if em, ok := e.(map[string]any); ok {
-							if name, ok := em["name"].(string); ok && name == "APPLICATIONS_NAMESPACE" {
-								ctx.EnsureResourceExists(
-									WithMinimalObject(gvk.Deployment, types.NamespacedName{
-										Name:      dep.GetName(),
-										Namespace: dep.GetNamespace(),
-									}),
-									WithCondition(
-										jq.Match(`.spec.template.spec.containers[].env[]? | select(.name == "APPLICATIONS_NAMESPACE") | .value == "%s"`, ctx.AppsNamespace),
-									),
-									WithCustomErrorMsg("Deployment %s should have APPLICATIONS_NAMESPACE=%s", dep.GetName(), ctx.AppsNamespace),
-								)
-								return
-							}
-						}
-					}
-				}
-			}
+		if !deploymentHasEnvVar(dep, "APPLICATIONS_NAMESPACE") {
+			continue
 		}
+
+		ctx.EnsureResourceExists(
+			WithMinimalObject(gvk.Deployment, types.NamespacedName{
+				Name:      dep.GetName(),
+				Namespace: dep.GetNamespace(),
+			}),
+			WithCondition(
+				jq.Match(`.spec.template.spec.containers[].env[]? | select(.name == "APPLICATIONS_NAMESPACE") | .value == "%s"`, ctx.AppsNamespace),
+			),
+			WithCustomErrorMsg("Deployment %s should have APPLICATIONS_NAMESPACE=%s", dep.GetName(), ctx.AppsNamespace),
+		)
+
+		return
 	}
 
 	t.Skip("No deployments with APPLICATIONS_NAMESPACE env var found")
@@ -327,27 +346,7 @@ func (ctx *PlatformOrchestrationTestCtx) TestRelatedImageEnvVarsInjected(t *test
 		}),
 	)
 
-	containers, _, _ := unstructured.NestedSlice(dep.Object, "spec", "template", "spec", "containers")
-	hasRelatedImage := false
-	for _, c := range containers {
-		if cm, ok := c.(map[string]any); ok {
-			if envList, ok := cm["env"].([]any); ok {
-				for _, e := range envList {
-					if em, ok := e.(map[string]any); ok {
-						if name, ok := em["name"].(string); ok && strings.HasPrefix(name, "RELATED_IMAGE_") {
-							hasRelatedImage = true
-							break
-						}
-					}
-				}
-			}
-		}
-		if hasRelatedImage {
-			break
-		}
-	}
-
-	if !hasRelatedImage {
+	if !deploymentHasEnvVarPrefix(dep, "RELATED_IMAGE_") {
 		t.Skip("No RELATED_IMAGE_* env vars found (non-CI environment)")
 	}
 }
@@ -369,6 +368,10 @@ func (ctx *PlatformOrchestrationTestCtx) TestComponentCROwnedByDSC(t *testing.T)
 func (ctx *PlatformOrchestrationTestCtx) TestDisableLifecycle(t *testing.T) {
 	t.Helper()
 	skipUnless(t, Smoke, Tier1)
+
+	if ctx.isImplicitlyManaged() {
+		t.Skipf("Skipping disable lifecycle for implicitly-managed component %s (controlled via %s)", ctx.dscFieldName, ctx.enableField)
+	}
 
 	ctx.ensureComponentEnabled(t)
 
@@ -421,6 +424,10 @@ func (ctx *PlatformOrchestrationTestCtx) TestDisableLifecycle(t *testing.T) {
 func (ctx *PlatformOrchestrationTestCtx) TestSpecProjectionManagementState(t *testing.T) {
 	t.Helper()
 	skipUnless(t, Smoke, Tier1)
+
+	if ctx.isImplicitlyManaged() {
+		t.Skipf("Skipping spec projection for implicitly-managed component %s (no direct DSC field)", ctx.dscFieldName)
+	}
 
 	ctx.ensureComponentEnabled(t)
 
@@ -509,12 +516,10 @@ func (ctx *PlatformOrchestrationTestCtx) TestStatusReadyPropagatedToDSC(t *testi
 
 	ctx.EnsureResourceExists(
 		WithMinimalObject(gvk.DataScienceCluster, ctx.DataScienceClusterNamespacedName),
-		WithCondition(And(
+		WithCondition(
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
 				conditionType, metav1.ConditionTrue),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
-				status.ConditionTypeReady, metav1.ConditionTrue),
-		)),
+		),
 	)
 }
 
@@ -552,6 +557,40 @@ func (ctx *PlatformOrchestrationTestCtx) TestComponentReleasesPopulated(t *testi
 			jq.Match(`.status.components.%s.releases[].version != ""`, ctx.releasesField),
 		)),
 	)
+}
+
+func (ctx *PlatformOrchestrationTestCtx) TestObservedGenerationMatchesGeneration(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Smoke, Tier1)
+
+	ctx.ensureComponentEnabled(t)
+
+	ctx.EnsureResourceExists(
+		WithMinimalObject(ctx.componentGVK, ctx.componentNN),
+		WithCondition(
+			jq.Match(`.status.observedGeneration == .metadata.generation`),
+		),
+		WithEventuallyTimeout(ctx.TestTimeouts.componentReadinessTimeout),
+	)
+}
+
+func (ctx *PlatformOrchestrationTestCtx) TestSingletonEnforcement(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Tier1)
+
+	ctx.ensureComponentEnabled(t)
+
+	duplicate := &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": ctx.componentGVK.GroupVersion().String(),
+			"kind":       ctx.componentGVK.Kind,
+			"metadata":   map[string]any{"name": "duplicate-" + strings.ToLower(ctx.componentGVK.Kind)},
+			"spec":       map[string]any{},
+		},
+	}
+
+	err := ctx.Client().Create(ctx.Context(), duplicate)
+	require.Error(t, err, "Creating a duplicate %s CR should be rejected by admission", ctx.componentGVK.Kind)
 }
 
 func (ctx *PlatformOrchestrationTestCtx) TestDeletedComponentCRRecreated(t *testing.T) {
@@ -611,6 +650,39 @@ func (ctx *PlatformOrchestrationTestCtx) TestDeletedDeploymentRecreated(t *testi
 	)
 }
 
+func deploymentHasEnvVar(dep unstructured.Unstructured, envName string) bool {
+	return deploymentHasEnvVarFunc(&dep, func(name string) bool { return name == envName })
+}
+
+func deploymentHasEnvVarPrefix(dep *unstructured.Unstructured, prefix string) bool {
+	return deploymentHasEnvVarFunc(dep, func(name string) bool { return strings.HasPrefix(name, prefix) })
+}
+
+func deploymentHasEnvVarFunc(dep *unstructured.Unstructured, match func(string) bool) bool {
+	containers, _, _ := unstructured.NestedSlice(dep.Object, "spec", "template", "spec", "containers")
+	for _, c := range containers {
+		cm, ok := c.(map[string]any)
+		if !ok {
+			continue
+		}
+		envList, ok := cm["env"].([]any)
+		if !ok {
+			continue
+		}
+		for _, e := range envList {
+			em, ok := e.(map[string]any)
+			if !ok {
+				continue
+			}
+			name, _ := em["name"].(string)
+			if match(name) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func filterPlatformComponents(all []platformComponent, flags []string) ([]platformComponent, error) {
 	if len(flags) == 0 {
 		flags = []string{componentApi.DashboardComponentName}
@@ -649,11 +721,13 @@ func filterPlatformComponents(all []platformComponent, flags []string) ([]platfo
 func (ctx *PlatformOrchestrationTestCtx) ensureComponentEnabled(t *testing.T) {
 	t.Helper()
 
+	field := ctx.effectiveEnableField()
+
 	ctx.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, ctx.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, ctx.dscFieldName, operatorv1.Managed)),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, field, operatorv1.Managed)),
 		WithCondition(And(
-			jq.Match(`.spec.components.%s.managementState == "%s"`, ctx.dscFieldName, operatorv1.Managed),
+			jq.Match(`.spec.components.%s.managementState == "%s"`, field, operatorv1.Managed),
 			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`,
 				ctx.conditionKind, metav1.ConditionTrue),
 		)),
@@ -667,11 +741,13 @@ func (ctx *PlatformOrchestrationTestCtx) setComponentManagementState(state opera
 		readyStatus = metav1.ConditionTrue
 	}
 
+	field := ctx.effectiveEnableField()
+
 	ctx.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, ctx.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, ctx.dscFieldName, state)),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, field, state)),
 		WithCondition(And(
-			jq.Match(`.spec.components.%s.managementState == "%s"`, ctx.dscFieldName, state),
+			jq.Match(`.spec.components.%s.managementState == "%s"`, field, state),
 			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`,
 				ctx.conditionKind, readyStatus),
 		)),

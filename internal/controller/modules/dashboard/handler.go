@@ -13,6 +13,7 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
 const (
@@ -99,6 +100,9 @@ func (h *handler) BuildModuleCR(
 	}
 	u.SetGroupVersionKind(h.Config.GVK)
 	u.SetName(h.Config.CRName)
+	u.SetAnnotations(map[string]string{
+		annotations.ManagementStateAnnotation: string(platform.DSC.Spec.Components.Dashboard.ManagementState),
+	})
 
 	return u, nil
 }
