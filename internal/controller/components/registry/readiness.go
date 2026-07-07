@@ -7,6 +7,8 @@ import (
 
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -15,6 +17,15 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 )
+
+// InstanceNamer is an optional interface a ComponentHandler can implement
+// to expose the well-known singleton CR name and GVK. The readiness
+// checker uses this on xKS (where DSC is nil) to fetch the CR directly
+// without calling NewCRObject, which requires a non-nil DSC.
+type InstanceNamer interface {
+	GetInstanceName() string
+	GetInstanceGVK() schema.GroupVersionKind
+}
 
 // ComponentReadinessChecker implements dag.ReadinessChecker for
 // in-tree components. It looks up the handler by name, constructs
@@ -27,8 +38,11 @@ type ComponentReadinessChecker struct {
 }
 
 // NewReadinessChecker creates a ReadinessChecker backed by this
-// component registry. It needs a client and DSC instance to fetch
-// each component's CR and inspect its conditions.
+// component registry. It needs a client to fetch each component's
+// CR and inspect its conditions. The dsc parameter may be nil on
+// xKS where the DSC controller is suppressed; in that case the
+// checker falls back to registry-level enablement and the
+// InstanceNamer interface for CR lookups.
 func NewReadinessChecker(reg *Registry, cli client.Client, dsc *dscv2.DataScienceCluster) *ComponentReadinessChecker {
 	return &ComponentReadinessChecker{
 		registry: reg,
@@ -45,6 +59,10 @@ func (c *ComponentReadinessChecker) IsReady(ctx context.Context, name string) (b
 	handler := c.registry.Lookup(name)
 	if handler == nil {
 		return false, fmt.Errorf("component %q: %w", name, dag.ErrUnknownNode)
+	}
+
+	if c.dsc == nil {
+		return c.isReadyWithoutDSC(ctx, name, handler)
 	}
 
 	if !handler.IsEnabled(c.dsc) {
@@ -64,7 +82,6 @@ func (c *ComponentReadinessChecker) IsReady(ctx context.Context, name string) (b
 		return false, fmt.Errorf("component %q CR does not implement client.Object", name)
 	}
 
-	// Fetch the live CR from the cluster to read its actual status.
 	err = c.client.Get(ctx, types.NamespacedName{Name: obj.GetName()}, obj)
 	if err != nil {
 		if k8serr.IsNotFound(err) {
@@ -79,6 +96,48 @@ func (c *ComponentReadinessChecker) IsReady(ctx context.Context, name string) (b
 	}
 
 	return isComponentCRReady(live), nil
+}
+
+func (c *ComponentReadinessChecker) isReadyWithoutDSC(ctx context.Context, name string, handler ComponentHandler) (bool, error) {
+	if !c.registry.IsEnabled(name) {
+		return true, nil
+	}
+
+	namer, ok := handler.(InstanceNamer)
+	if !ok {
+		return true, nil
+	}
+
+	u := &unstructured.Unstructured{}
+	u.SetGroupVersionKind(namer.GetInstanceGVK())
+
+	if err := c.client.Get(ctx, types.NamespacedName{Name: namer.GetInstanceName()}, u); err != nil {
+		if k8serr.IsNotFound(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("component %q: failed to get CR: %w", name, err)
+	}
+
+	return isUnstructuredCRReady(u), nil
+}
+
+func isUnstructuredCRReady(u *unstructured.Unstructured) bool {
+	conditions, found, _ := unstructured.NestedSlice(u.Object, "status", "conditions")
+	if !found {
+		return false
+	}
+	for _, item := range conditions {
+		c, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		condType, _, _ := unstructured.NestedString(c, "type")
+		condStatus, _, _ := unstructured.NestedString(c, "status")
+		if condType == status.ConditionTypeReady {
+			return condStatus == string(metav1.ConditionTrue)
+		}
+	}
+	return false
 }
 
 func isComponentCRReady(obj common.PlatformObject) bool {

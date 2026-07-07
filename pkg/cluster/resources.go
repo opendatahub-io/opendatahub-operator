@@ -22,6 +22,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
@@ -119,6 +120,26 @@ func WatchDataScienceClusters(ctx context.Context, cli client.Client) []reconcil
 	instanceList := &dscv2.DataScienceClusterList{}
 	if err := cli.List(ctx, instanceList); err != nil {
 		logf.FromContext(ctx).Error(err, "failed to list DataScienceCluster instances for watch mapping")
+		return []reconcile.Request{}
+	}
+
+	requests := make([]reconcile.Request, len(instanceList.Items))
+	for i := range instanceList.Items {
+		requests[i] = reconcile.Request{
+			NamespacedName: types.NamespacedName{Name: instanceList.Items[i].Name},
+		}
+	}
+
+	return requests
+}
+
+// WatchPlatforms lists all Platform CR instances and returns reconcile
+// requests for each. Use this as an event mapper to re-queue the Platform
+// controller when related resources (module CRs) change.
+func WatchPlatforms(ctx context.Context, cli client.Client) []reconcile.Request {
+	instanceList := &configv1alpha1.PlatformList{}
+	if err := cli.List(ctx, instanceList); err != nil {
+		logf.FromContext(ctx).Error(err, "failed to list Platform instances for watch mapping")
 		return []reconcile.Request{}
 	}
 

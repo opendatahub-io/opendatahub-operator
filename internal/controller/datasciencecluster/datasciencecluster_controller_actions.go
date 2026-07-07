@@ -176,6 +176,8 @@ func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest)
 	}
 
 	if requeueAfter > 0 {
+		rr.Generated = false
+
 		return odherrors.NewRequeueAfterError(requeueAfter)
 	}
 

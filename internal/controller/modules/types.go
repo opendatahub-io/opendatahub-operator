@@ -64,6 +64,11 @@ type ModuleHandler interface {
 	// added to rr.Resources and applied by deploy.NewAction alongside operator
 	// resources. This is the single isolation point for the platform-to-module-CR
 	// field mapping.
+	//
+	// Returning (nil, nil) is valid and signals that the CR is externally
+	// managed (e.g. created by the CCM Helm chart on xKS). Operator
+	// manifests and image overrides are still collected; only the CR
+	// itself is skipped.
 	BuildModuleCR(ctx context.Context, cli client.Client, platform *PlatformContext) (*unstructured.Unstructured, error)
 
 	// GetRelatedImages returns the RELATED_IMAGE_* environment variable names

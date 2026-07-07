@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -365,5 +366,37 @@ func TestListConfigMapUsingGVK(t *testing.T) {
 		g.Expect(res).Should(HaveLen(1))
 		g.Expect(res[0].GetName()).Should(Equal("configmap2"))
 		g.Expect(res[0].GetNamespace()).Should(Equal(ns))
+	})
+}
+
+func TestWatchPlatforms(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	t.Run("should return requests for existing Platform CRs", func(t *testing.T) {
+		t.Parallel()
+		g := NewWithT(t)
+
+		cli, err := fakeclient.New(
+			fakeclient.WithObjects(
+				&configv1alpha1.Platform{ObjectMeta: metav1.ObjectMeta{Name: "default"}},
+			),
+		)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		requests := cluster.WatchPlatforms(ctx, cli)
+		g.Expect(requests).Should(HaveLen(1))
+		g.Expect(requests[0].Name).Should(Equal("default"))
+	})
+
+	t.Run("should return empty slice when no Platform CRs exist", func(t *testing.T) {
+		t.Parallel()
+		g := NewWithT(t)
+
+		cli, err := fakeclient.New()
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		requests := cluster.WatchPlatforms(ctx, cli)
+		g.Expect(requests).Should(BeEmpty())
 	})
 }
