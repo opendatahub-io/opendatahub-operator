@@ -130,7 +130,6 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	g.Expect(u.GetKind()).Should(Equal(componentApi.DashboardKind))
 	g.Expect(u.GroupVersionKind().Group).Should(Equal("components.platform.opendatahub.io"))
 	g.Expect(u.GroupVersionKind().Version).Should(Equal("v1alpha1"))
-
 	spec, ok := u.Object["spec"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec is not a map")
 	g.Expect(spec["managementState"]).Should(Equal("Managed"))
