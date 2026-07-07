@@ -2910,7 +2910,7 @@ func (tc *MonitoringTestCtx) ValidateCollectorMLflowIntegrationRBAC(t *testing.T
 		withMonitoringTraces(TracesStorageBackendPV, "", TracesStorageSize1Gi, DefaultRetention),
 	)
 
-	// Verify ClusterRoleBinding binds the collector SA to the mlflow-integration ClusterRole
+	// Step 1: Verify ClusterRoleBinding binds the collector SA to the mlflow-integration ClusterRole
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
 			Name: "data-science-collector-mlflow-integration",
@@ -2921,6 +2921,18 @@ func (tc *MonitoringTestCtx) ValidateCollectorMLflowIntegrationRBAC(t *testing.T
 			jq.Match(`.subjects[0].namespace == "%s"`, tc.MonitoringNamespace),
 		)),
 		WithCustomErrorMsg("ClusterRoleBinding should bind collector SA to mlflow-integration ClusterRole"),
+	)
+
+	// Step 2: Disable traces and verify ClusterRoleBinding is removed
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		withNoTraces(),
+	)
+
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
+			Name: "data-science-collector-mlflow-integration",
+		}),
 	)
 }
 
