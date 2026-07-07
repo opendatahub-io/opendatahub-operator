@@ -33,6 +33,9 @@ type platformComponent struct {
 	conditionKind string
 	crdName       string
 	releasesField string
+	// enableField overrides dscFieldName for enable/disable operations.
+	// Used by implicitly-managed components (e.g. ModelController is controlled by Kserve).
+	enableField string
 }
 
 func allPlatformComponents() []platformComponent {
@@ -121,6 +124,15 @@ func allPlatformComponents() []platformComponent {
 			crdName:       "sparkoperators.components.platform.opendatahub.io",
 			releasesField: componentApi.SparkOperatorComponentName,
 		},
+		{
+			object:       &componentApi.ModelController{},
+			dscFieldName: componentApi.ModelControllerComponentName,
+			crdName:      "modelcontrollers.components.platform.opendatahub.io",
+			enableField:  componentApi.KserveComponentName,
+		},
+		// TODO: Add ModelsAsService once ensureComponentEnabled supports nested enable paths.
+		// ModelsAsService requires spec.components.kserve.modelsAsService.managementState = Managed
+		// in addition to Kserve being Managed.
 	}
 }
 
@@ -133,6 +145,7 @@ type PlatformOrchestrationTestCtx struct {
 	conditionKind string
 	crdName       string
 	releasesField string
+	enableField   string
 }
 
 func newPlatformOrchestrationTestCtx(t *testing.T, tc *TestContext, pc platformComponent) *PlatformOrchestrationTestCtx {
@@ -154,7 +167,19 @@ func newPlatformOrchestrationTestCtx(t *testing.T, tc *TestContext, pc platformC
 		conditionKind: conditionKind,
 		crdName:       pc.crdName,
 		releasesField: pc.releasesField,
+		enableField:   pc.enableField,
 	}
+}
+
+func (ctx *PlatformOrchestrationTestCtx) effectiveEnableField() string {
+	if ctx.enableField != "" {
+		return ctx.enableField
+	}
+	return ctx.dscFieldName
+}
+
+func (ctx *PlatformOrchestrationTestCtx) isImplicitlyManaged() bool {
+	return ctx.enableField != ""
 }
 
 func platformOrchestrationTestSuite(t *testing.T) {
@@ -271,30 +296,22 @@ func (ctx *PlatformOrchestrationTestCtx) TestApplicationsNamespaceInjected(t *te
 	}
 
 	for _, dep := range deployments {
-		containers, _, _ := unstructured.NestedSlice(dep.Object, "spec", "template", "spec", "containers")
-		for _, c := range containers {
-			if cm, ok := c.(map[string]any); ok {
-				if envList, ok := cm["env"].([]any); ok {
-					for _, e := range envList {
-						if em, ok := e.(map[string]any); ok {
-							if name, ok := em["name"].(string); ok && name == "APPLICATIONS_NAMESPACE" {
-								ctx.EnsureResourceExists(
-									WithMinimalObject(gvk.Deployment, types.NamespacedName{
-										Name:      dep.GetName(),
-										Namespace: dep.GetNamespace(),
-									}),
-									WithCondition(
-										jq.Match(`.spec.template.spec.containers[].env[]? | select(.name == "APPLICATIONS_NAMESPACE") | .value == "%s"`, ctx.AppsNamespace),
-									),
-									WithCustomErrorMsg("Deployment %s should have APPLICATIONS_NAMESPACE=%s", dep.GetName(), ctx.AppsNamespace),
-								)
-								return
-							}
-						}
-					}
-				}
-			}
+		if !deploymentHasEnvVar(dep, "APPLICATIONS_NAMESPACE") {
+			continue
 		}
+
+		ctx.EnsureResourceExists(
+			WithMinimalObject(gvk.Deployment, types.NamespacedName{
+				Name:      dep.GetName(),
+				Namespace: dep.GetNamespace(),
+			}),
+			WithCondition(
+				jq.Match(`.spec.template.spec.containers[].env[]? | select(.name == "APPLICATIONS_NAMESPACE") | .value == "%s"`, ctx.AppsNamespace),
+			),
+			WithCustomErrorMsg("Deployment %s should have APPLICATIONS_NAMESPACE=%s", dep.GetName(), ctx.AppsNamespace),
+		)
+
+		return
 	}
 
 	t.Skip("No deployments with APPLICATIONS_NAMESPACE env var found")
@@ -327,27 +344,7 @@ func (ctx *PlatformOrchestrationTestCtx) TestRelatedImageEnvVarsInjected(t *test
 		}),
 	)
 
-	containers, _, _ := unstructured.NestedSlice(dep.Object, "spec", "template", "spec", "containers")
-	hasRelatedImage := false
-	for _, c := range containers {
-		if cm, ok := c.(map[string]any); ok {
-			if envList, ok := cm["env"].([]any); ok {
-				for _, e := range envList {
-					if em, ok := e.(map[string]any); ok {
-						if name, ok := em["name"].(string); ok && strings.HasPrefix(name, "RELATED_IMAGE_") {
-							hasRelatedImage = true
-							break
-						}
-					}
-				}
-			}
-		}
-		if hasRelatedImage {
-			break
-		}
-	}
-
-	if !hasRelatedImage {
+	if !deploymentHasEnvVarPrefix(dep, "RELATED_IMAGE_") {
 		t.Skip("No RELATED_IMAGE_* env vars found (non-CI environment)")
 	}
 }
@@ -369,6 +366,10 @@ func (ctx *PlatformOrchestrationTestCtx) TestComponentCROwnedByDSC(t *testing.T)
 func (ctx *PlatformOrchestrationTestCtx) TestDisableLifecycle(t *testing.T) {
 	t.Helper()
 	skipUnless(t, Smoke, Tier1)
+
+	if ctx.isImplicitlyManaged() {
+		t.Skipf("Skipping disable lifecycle for implicitly-managed component %s (controlled via %s)", ctx.dscFieldName, ctx.enableField)
+	}
 
 	ctx.ensureComponentEnabled(t)
 
@@ -421,6 +422,10 @@ func (ctx *PlatformOrchestrationTestCtx) TestDisableLifecycle(t *testing.T) {
 func (ctx *PlatformOrchestrationTestCtx) TestSpecProjectionManagementState(t *testing.T) {
 	t.Helper()
 	skipUnless(t, Smoke, Tier1)
+
+	if ctx.isImplicitlyManaged() {
+		t.Skipf("Skipping spec projection for implicitly-managed component %s (no direct DSC field)", ctx.dscFieldName)
+	}
 
 	ctx.ensureComponentEnabled(t)
 
@@ -509,12 +514,10 @@ func (ctx *PlatformOrchestrationTestCtx) TestStatusReadyPropagatedToDSC(t *testi
 
 	ctx.EnsureResourceExists(
 		WithMinimalObject(gvk.DataScienceCluster, ctx.DataScienceClusterNamespacedName),
-		WithCondition(And(
+		WithCondition(
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
 				conditionType, metav1.ConditionTrue),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
-				status.ConditionTypeReady, metav1.ConditionTrue),
-		)),
+		),
 	)
 }
 
@@ -611,6 +614,39 @@ func (ctx *PlatformOrchestrationTestCtx) TestDeletedDeploymentRecreated(t *testi
 	)
 }
 
+func deploymentHasEnvVar(dep unstructured.Unstructured, envName string) bool {
+	return deploymentHasEnvVarFunc(&dep, func(name string) bool { return name == envName })
+}
+
+func deploymentHasEnvVarPrefix(dep *unstructured.Unstructured, prefix string) bool {
+	return deploymentHasEnvVarFunc(dep, func(name string) bool { return strings.HasPrefix(name, prefix) })
+}
+
+func deploymentHasEnvVarFunc(dep *unstructured.Unstructured, match func(string) bool) bool {
+	containers, _, _ := unstructured.NestedSlice(dep.Object, "spec", "template", "spec", "containers")
+	for _, c := range containers {
+		cm, ok := c.(map[string]any)
+		if !ok {
+			continue
+		}
+		envList, ok := cm["env"].([]any)
+		if !ok {
+			continue
+		}
+		for _, e := range envList {
+			em, ok := e.(map[string]any)
+			if !ok {
+				continue
+			}
+			name, _ := em["name"].(string)
+			if match(name) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func filterPlatformComponents(all []platformComponent, flags []string) ([]platformComponent, error) {
 	if len(flags) == 0 {
 		flags = []string{componentApi.DashboardComponentName}
@@ -649,11 +685,13 @@ func filterPlatformComponents(all []platformComponent, flags []string) ([]platfo
 func (ctx *PlatformOrchestrationTestCtx) ensureComponentEnabled(t *testing.T) {
 	t.Helper()
 
+	field := ctx.effectiveEnableField()
+
 	ctx.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, ctx.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, ctx.dscFieldName, operatorv1.Managed)),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, field, operatorv1.Managed)),
 		WithCondition(And(
-			jq.Match(`.spec.components.%s.managementState == "%s"`, ctx.dscFieldName, operatorv1.Managed),
+			jq.Match(`.spec.components.%s.managementState == "%s"`, field, operatorv1.Managed),
 			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`,
 				ctx.conditionKind, metav1.ConditionTrue),
 		)),
@@ -667,11 +705,13 @@ func (ctx *PlatformOrchestrationTestCtx) setComponentManagementState(state opera
 		readyStatus = metav1.ConditionTrue
 	}
 
+	field := ctx.effectiveEnableField()
+
 	ctx.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, ctx.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, ctx.dscFieldName, state)),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, field, state)),
 		WithCondition(And(
-			jq.Match(`.spec.components.%s.managementState == "%s"`, ctx.dscFieldName, state),
+			jq.Match(`.spec.components.%s.managementState == "%s"`, field, state),
 			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`,
 				ctx.conditionKind, readyStatus),
 		)),

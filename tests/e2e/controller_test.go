@@ -141,7 +141,7 @@ var (
 	// Remove once modularisation is complete and platform orchestration covers all components.
 	Components = TestGroup{
 		name:     "components",
-		enabled:  false,
+		enabled:  true,
 		parallel: true,
 		scenarios: []map[string]TestFn{
 			{
@@ -493,16 +493,15 @@ func TestOdhOperator(t *testing.T) {
 	// Run monitoring before components — monitoring setup is a prerequisite.
 	mustRun(t, serviceApi.MonitoringServiceName, Services.RunSingle(serviceApi.MonitoringServiceName))
 
+	if testOpts.platformOrchestrationTest {
+		mustRun(t, "Platform Orchestration E2E Tests", platformOrchestrationTestSuite)
+	}
+
 	// Run components test suites
 	mustRun(t, Components.String(), Components.Run)
 
 	// Run remaining services (auth, gateway)
 	mustRun(t, Services.String(), Services.RunExcluding(serviceApi.MonitoringServiceName))
-
-	// Run platform orchestration contract tests
-	if testOpts.platformOrchestrationTest {
-		mustRun(t, "Platform Orchestration E2E Tests", platformOrchestrationTestSuite)
-	}
 
 	// Run operator resilience test suites after functional tests
 	if testOpts.operatorResilienceTest {
