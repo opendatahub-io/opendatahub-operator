@@ -59,6 +59,6 @@ func wvaManifestsPath(basePath string) types.ManifestInfo {
 	return types.ManifestInfo{
 		Path:       basePath,
 		ContextDir: "wva",
-		SourcePath: "overlays/namespace-scoped/openshift",
+		SourcePath: "overlays/cluster-scoped/openshift",
 	}
 }

@@ -39,6 +39,10 @@ map:
   odh-dashboard:
     src: manifests
     dest: dashboard
+  odh-dashboard-operator:
+    src: dashboard-operator/charts/dashboard
+    dest: dashboardoperator
+    type: chart
   odh-training-operator:
     src: manifests
     dest: trainingoperator
