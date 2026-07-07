@@ -28,10 +28,13 @@ func NewHandler() *handler {
 	return &handler{
 		BaseHandler: modules.BaseHandler{
 			Config: modules.ModuleConfig{
-				Name:        moduleName,
-				CRName:      crName,
-				GVK:         gvk.Trainer,
-				ManifestDir: "trainer",
+				Name:            moduleName,
+				CRName:          crName,
+				GVK:             gvk.Trainer,
+				ManifestDir:     "trainer",
+				ContextDir:      "default",
+				ControllerImage: "RELATED_IMAGE_ODH_TRAINER_OPERATOR_IMAGE",
+				DeploymentName:  "trainer-operator-controller-manager",
 				RelatedImages: []string{
 					"RELATED_IMAGE_ODH_TRAINER_IMAGE",
 					"RELATED_IMAGE_ODH_TRAINING_CUDA128_TORCH29_PY312_IMAGE",
@@ -70,6 +73,8 @@ func (h *handler) BuildModuleCR(
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert TrainerCommonSpec to unstructured: %w", err)
 	}
+
+	spec["appNamespace"] = platform.ApplicationsNamespace
 
 	u := &unstructured.Unstructured{
 		Object: map[string]any{

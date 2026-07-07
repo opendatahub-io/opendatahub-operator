@@ -105,6 +105,10 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	if _, exists := spec["managementState"]; exists {
 		t.Error("managementState is a DSC-level field and must not be projected into the module CR")
 	}
+
+	if ns, ok := spec["appNamespace"].(string); !ok || ns != "opendatahub" {
+		t.Errorf("appNamespace: want %q, got %v", "opendatahub", spec["appNamespace"])
+	}
 }
 
 func TestBuildModuleCR_NilPlatformReturnsError(t *testing.T) {
