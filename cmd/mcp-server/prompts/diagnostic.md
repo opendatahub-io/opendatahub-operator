@@ -49,7 +49,7 @@ Based on what Step 1 revealed, drill deeper. **Parallelize tool calls wherever p
    - If the pod has restarted, also call with `previous: true`.
    - Do not pull logs for Running/Ready pods with high restart counts — those restarts are historical.
 
-**After Step 2:** If investigation found no active failures (all pods Running/Ready, no errors, no warning events) → use the **"Platform Healthy"** structured output format and stop.
+**After Step 2:** If investigation found no active failures (all pods Running/Ready, no errors, no warning events) → use the **"Platform Healthy"** structured output format and stop. If `classify_failure` returns code **3001 (NoSignal)**, do not report healthy — use the "When Issues Are Found" format with confidence **low** and recommend manual investigation.
 
 ### Step 3: Correlate (Trace Root Cause Using Dependency Graph)
 
@@ -198,9 +198,16 @@ oc <command to confirm the issue is resolved>
 | 1008 | Operator | infrastructure |
 | 1009 | DSCI | infrastructure |
 | 1010 | DSC | infrastructure |
+| 1011 | RBAC | infrastructure |
+| 1012 | DNS | infrastructure |
+| 1013 | Timeout | infrastructure |
+| 1014 | ProbeFailure | infrastructure |
+| 1015 | InvalidFlags | infrastructure |
+| 1016 | ContainerExit | infrastructure |
 | 1099 | InfraUnknown | infrastructure |
 | 2001 | TestFailure | test failures |
-| 3000 | Unclassifiable | unknown |
+| 3000 | Unclassifiable | unknown — data collection failed or nil report |
+| 3001 | NoSignal | unknown — all sections collected; no pattern matched |
 
 ---
 
@@ -230,7 +237,31 @@ oc <command to confirm the issue is resolved>
 - **Common causes**: Dependency not installed, wrong version, dependency operator crashed
 - **Remediation**: Install the missing operator from OperatorHub, check version compatibility
 
-### 5. Image Pull Failures
+### 5. RBAC / Permission Errors
+- **Symptoms**: `classify_failure` returns code 1011, events contain "is forbidden" or "unauthorized"
+- **Investigation**: `recent_events`, `pod_logs` for the affected component
+- **Common causes**: Missing ClusterRole/RoleBinding, service account lacks permissions, namespace mismatch
+- **Remediation**: Inspect the RBAC resource, apply the missing role/binding, verify service account
+
+### 6. DNS Failures
+- **Symptoms**: `classify_failure` returns code 1012, events contain "no such host" or "name resolution failed"
+- **Investigation**: `recent_events`, check CoreDNS pods in `kube-system`
+- **Common causes**: CoreDNS not running, incorrect service name, network policy blocking DNS port 53
+- **Remediation**: Restart CoreDNS, verify service names and namespaces, check network policies
+
+### 7. Timeout / Deadline Exceeded
+- **Symptoms**: `classify_failure` returns code 1013, events contain "context deadline exceeded" or "timed out"
+- **Investigation**: `recent_events`, `pod_logs` for the component hitting the timeout
+- **Common causes**: Downstream service slow or unavailable, resource contention, misconfigured timeout values
+- **Remediation**: Check dependency health, increase resource limits if CPU-starved, inspect network latency
+
+### 8. Liveness / Readiness Probe Failures
+- **Symptoms**: `classify_failure` returns code 1014, `Unhealthy` events for a pod
+- **Investigation**: `recent_events`, `pod_logs` for the unhealthy pod
+- **Common causes**: Application not ready in time, health endpoint path wrong, resource limits too tight causing slow startup
+- **Remediation**: Check probe config, increase `initialDelaySeconds`, inspect app logs for startup errors
+
+### 9. Image Pull Failures
 - **Symptoms**: `classify_failure` returns code 1001, pods stuck in ImagePullBackOff
 - **Investigation**: `pod_logs`, `recent_events` for pull error details
 - **Common causes**: Wrong image tag, private registry without pull secret, registry unreachable, SHA-pinned image removed

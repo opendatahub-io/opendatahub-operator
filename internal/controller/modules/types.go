@@ -12,6 +12,7 @@ import (
 	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
@@ -116,9 +117,17 @@ type InitContainerNamer interface {
 	GetInitContainerName() string
 }
 
+// DeploymentNamer is an optional interface a ModuleHandler can implement to
+// declare the rendered Deployment name targeted for RELATED_IMAGE_* env
+// injection, when it differs from the module name. See
+// BaseHandler.GetDeploymentName.
+type DeploymentNamer interface {
+	GetDeploymentName() string
+}
+
 // ModuleStatus holds the parsed status from a module CR. It includes the
-// standard conditions and generation metadata needed for staleness detection
-// per the onboarding guide's PlatformObject contract.
+// standard conditions, generation metadata for staleness detection, and
+// the release version for the platform version handshake.
 type ModuleStatus struct {
 	// Conditions from .status.conditions on the module CR.
 	Conditions []metav1.Condition
@@ -126,6 +135,11 @@ type ModuleStatus struct {
 	ObservedGeneration int64
 	// Generation from .metadata.generation on the module CR.
 	Generation int64
+	// ReleaseVersion from .status.releases[name="platform"].version on
+	// the module CR. Used for the platform version handshake — the module
+	// is not considered ready for DAG progression unless this matches the
+	// current platform version.
+	ReleaseVersion string
 }
 
 // OperatorManifests holds the manifest descriptors returned by a module handler.
@@ -169,6 +183,11 @@ type PlatformContext struct {
 
 	// ChartsBasePath is the base directory for locally-bundled Helm charts.
 	ChartsBasePath string
+
+	// ManifestsBasePath is the base directory for locally-bundled Kustomize
+	// manifests. Handlers using ManifestDir resolve their overlay paths
+	// relative to this directory.
+	ManifestsBasePath string
 }
 
 // RegistrationOption configures optional orchestration metadata when adding
@@ -176,20 +195,12 @@ type PlatformContext struct {
 type RegistrationOption func(*registryEntry)
 
 // WithRunlevel sets the runlevel for DAG-based ordering. Lower runlevels
-// are processed first. Planned -- will be enforced by DAG-aware ordering
-// in a follow-up; currently stored but not used for iteration order.
-func WithRunlevel(level int) RegistrationOption {
+// are provisioned first; all nodes in a runlevel must be Ready before the
+// next runlevel begins. Use the pre-defined constants in the dag package
+// (e.g. dag.RL(20)). Modules without an explicit runlevel default
+// to dag.RL(99) (provisioned last).
+func WithRunlevel(level dag.Runlevel) RegistrationOption {
 	return func(e *registryEntry) {
 		e.runlevel = level
-	}
-}
-
-// WithDependencies declares module names this module depends on. The
-// registry ensures dependencies are processed before dependents.
-// Planned -- will be enforced by DAG-aware ordering in a follow-up;
-// currently stored but not used for iteration order.
-func WithDependencies(deps ...string) RegistrationOption {
-	return func(e *registryEntry) {
-		e.dependencies = deps
 	}
 }

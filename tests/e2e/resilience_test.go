@@ -170,7 +170,8 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	// TrustyAI is excluded from quota failure testing due to InferenceServices CRD dependency
 	// Kueue is excluded because it does not have any deployment to manage anymore
 	// LlamaStack Operator is excluded because it has been replaced by OGX and the field is deprecated (no deployments to manage anymore)
-	excludedComponents := 3 // TrustyAI, Kueue, LlamaStack Operator
+	// AIGateway is excluded because it is a module so it does not report DSC ComponentsReady condition
+	excludedComponents := 4 // TrustyAI, Kueue, LlamaStack Operator, AIGateway
 	expectedTestableComponents := expectedComponentCount - excludedComponents
 	tc.g.Expect(componentsLength).Should(Equal(expectedTestableComponents),
 		"allComponents list is out of sync with DSC Components struct. "+
@@ -192,6 +193,7 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 
 	t.Log("Creating zero-pod quota (blocks everything)")
 	tc.createZeroPodQuotaForOperator()
+	t.Cleanup(func() { tc.deleteZeroPodQuotaForOperator() })
 
 	allControllers := slices.Concat(
 		slices.Collect(maps.Values(componentToControllerMap)),
@@ -239,7 +241,9 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithCondition(jq.Match(
-			`.status.conditions[] | select(.type == "%s" and .status == "%s") | .message | test("nomanagedcomponents"; "i")`,
+			`.status.conditions[] | select(.type == "%s" and .status == "%s")`+
+				` | (.reason | test("nomanagedcomponents"; "i"))`+
+				` and (.message | test("All registered components have ManagementState Removed"; "i"))`,
 			status.ConditionTypeComponentsReady,
 			metav1.ConditionTrue,
 		)),

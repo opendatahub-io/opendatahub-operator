@@ -42,6 +42,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
@@ -72,9 +73,9 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				component.ForLabel(labels.ODH.Component(componentApi.ModelsAsServiceComponentName), labels.True),
 			),
 		).
+		WithAction(precondition.RunlevelGateAction()).
 		WithAction(renderMaasOperatorInstall).
 		WithAction(deploy.NewAction(
-			deploy.WithApplyOrder(),
 			deploy.WithCache(),
 		)).
 		WithAction(ensureMaasClusterConfigControllerRef).

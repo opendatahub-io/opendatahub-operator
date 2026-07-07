@@ -8,6 +8,7 @@ import (
 
 	ccmv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/cloudmanager/azure/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/cloudmanager/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/cleanup"
 	certmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/dependency/certmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/cloudmanager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
@@ -23,13 +24,12 @@ func NewReconciler(ctx context.Context, mgr ctrl.Manager, cfg *operatorconfig.Cl
 	bootstrapConfig := certmanager.DefaultBootstrapConfig(certmanager.WithOperatorCert(cfg.RhaiOperatorNamespace))
 
 	_, err := reconciler.ReconcilerFor(mgr, &ccmv1alpha1.AzureKubernetesEngine{}).
-		WithDynamicOwnership().
+		WithDynamicOwnership(common.OperatorCRGVKPredicates()).
 		Watches(
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(handlers.ToNamed(ccmv1alpha1.AzureKubernetesEngineInstanceName)),
 			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamed(common.ServiceMonitorCRDName)),
 		).
-		WithAction(initialize).
 		ComposeWith(certmanager.Bootstrap[*ccmv1alpha1.AzureKubernetesEngine](
 			ccmv1alpha1.AzureKubernetesEngineInstanceName,
 			bootstrapConfig,
@@ -38,6 +38,9 @@ func NewReconciler(ctx context.Context, mgr ctrl.Manager, cfg *operatorconfig.Cl
 		// GC must be last: evaluates every CCM resource and removes stale or orphaned ones.
 		WithActionE(cloudmanager.NewGCAction(resourceID, cfg.RhaiOperatorNamespace,
 			cloudmanager.BootstrapProtectedObjects(bootstrapConfig),
+		)).
+		WithFinalizer(cleanup.NewFinalizer(
+			cloudmanager.FinalizerCleanupTargets()...,
 		)).
 		WithConditions(cloudmanager.ConditionsTypes...).
 		Build(ctx)

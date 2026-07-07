@@ -224,6 +224,66 @@ func TestConditions(t *testing.T) {
 	}
 }
 
+func TestRequeueAfterError_CausesRequeue(t *testing.T) {
+	ctx := t.Context()
+
+	g := NewWithT(t)
+
+	et, err := envt.New()
+	g.Expect(err).NotTo(HaveOccurred())
+	t.Cleanup(func() { _ = et.Stop() })
+
+	cli := et.Client()
+
+	dsci := resources.GvkToUnstructured(gvk.DSCInitialization)
+	dsci.SetName(xid.New().String())
+	dsci.SetGeneration(1)
+
+	err = cli.Create(ctx, dsci)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	dash := resources.GvkToUnstructured(gvk.Dashboard)
+	dash.SetName(componentApi.DashboardInstanceName)
+	dash.SetGeneration(1)
+
+	err = cli.Create(ctx, dash)
+	g.Expect(err).NotTo(HaveOccurred())
+	t.Cleanup(func() {
+		_ = cli.Delete(ctx, dash, client.PropagationPolicy(metav1.DeletePropagationBackground))
+	})
+
+	requeueDuration := 7 * time.Minute
+	secondActionExecuted := false
+
+	cc := createReconciler(cli)
+	cc.AddAction(func(_ context.Context, _ *odhtype.ReconciliationRequest) error {
+		return odherrors.NewRequeueAfterError(requeueDuration)
+	})
+	cc.AddAction(func(_ context.Context, _ *odhtype.ReconciliationRequest) error {
+		secondActionExecuted = true
+		return nil
+	})
+
+	result, err := cc.Reconcile(ctx, ctrl.Request{
+		NamespacedName: types.NamespacedName{Name: componentApi.DashboardInstanceName},
+	})
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(result.RequeueAfter).Should(Equal(requeueDuration))
+	g.Expect(secondActionExecuted).To(BeTrue(), "actions after RequeueAfterError should still execute")
+
+	di := resources.GvkToUnstructured(gvk.Dashboard)
+	di.SetName(componentApi.DashboardInstanceName)
+
+	err = cli.Get(ctx, client.ObjectKeyFromObject(di), di)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(di).Should(And(
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+			status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
+	))
+}
+
 func TestPreConditions_StopReconciliation(t *testing.T) {
 	ctx := t.Context()
 
@@ -876,6 +936,8 @@ func TestDynamicOwnership_DeployAction_CRDAndCR(t *testing.T) {
 	g.Expect(deployedCM.GetOwnerReferences()).To(HaveLen(1), "ConfigMap should have owner reference")
 
 	t.Run("CR is restored after external deletion", func(t *testing.T) {
+		g := NewWithT(t)
+
 		// Delete the CR externally
 		err := cli.Delete(ctx, deployedCR)
 		g.Expect(err).NotTo(HaveOccurred())
@@ -897,6 +959,8 @@ func TestDynamicOwnership_DeployAction_CRDAndCR(t *testing.T) {
 	})
 
 	t.Run("CRD deletion triggers reconciliation", func(t *testing.T) {
+		g := NewWithT(t)
+
 		// Get the current CRD resourceVersion before deletion
 		currentCRD := &apiextensionsv1.CustomResourceDefinition{}
 		g.Expect(cli.Get(ctx, client.ObjectKey{Name: crdWithoutCreatedCR.GetName()}, currentCRD)).To(Succeed())

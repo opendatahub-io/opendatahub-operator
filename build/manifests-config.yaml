@@ -39,6 +39,10 @@ map:
   odh-dashboard:
     src: manifests
     dest: dashboard
+  odh-dashboard-operator:
+    src: dashboard-operator/charts/dashboard
+    dest: dashboardoperator
+    type: chart
   odh-training-operator:
     src: manifests
     dest: trainingoperator
@@ -67,11 +71,14 @@ map:
     src: kagenti-operator/config
     dest: kagenti-operator
   odh-ai-gateway-operator:
-    src: config/manifests
-    dest: ai-gateway-operator
+    src: config
+    dest: aigateway
   odh-batch-gateway-operator:
     src: config/
     dest: batch-gateway-operator
   odh-workbenches-controller:
     src: workspaces/controller/manifests/kustomize
     dest: workbenches/odh-workbenches-controller
+  odh-mcp-lifecycle-module-operator:
+    src: config
+    dest: mcplifecycleoperator

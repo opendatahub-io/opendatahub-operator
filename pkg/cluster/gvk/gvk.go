@@ -397,6 +397,12 @@ var (
 		Kind:    componentApi.ModelsAsServiceKind,
 	}
 
+	AIGateway = schema.GroupVersionKind{
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.AIGatewayKind,
+	}
+
 	Tenant = schema.GroupVersionKind{
 		Group:   "maas.opendatahub.io",
 		Version: "v1alpha1",
@@ -521,6 +527,12 @@ var (
 		Group:   "sailoperator.io",
 		Version: "v1",
 		Kind:    "Istio",
+	}
+
+	IstioRevision = schema.GroupVersionKind{
+		Group:   "sailoperator.io",
+		Version: "v1",
+		Kind:    "IstioRevision",
 	}
 
 	GatewayConfig = schema.GroupVersionKind{

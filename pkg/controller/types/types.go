@@ -133,6 +133,16 @@ type TemplateInfo struct {
 // HookFn is the signature for pre/post apply hooks.
 type HookFn func(ctx context.Context, rr *ReconciliationRequest) error
 
+// OperatorCR identifies the custom resource created by the operator that
+// this chart deploys. Used by the two-phase cleanup: when a dependency is
+// set to Unmanaged, the CR is filtered from deploy so GC can delete it
+// while operator resources are kept alive.
+type OperatorCR struct {
+	GVK       schema.GroupVersionKind
+	Name      string
+	Namespace string
+}
+
 // HelmChartInfo describes a Helm chart to render.
 type HelmChartInfo struct {
 	helm.Source
@@ -185,6 +195,13 @@ type ReconciliationRequest struct {
 	//       their origin
 	Generated bool
 
+	// SkipDeploy is set by the RunlevelGate action when the platform
+	// orchestrator has not yet reached this component's runlevel.
+	// Render, deploy, and GC actions check this flag and return early,
+	// while status-reporting actions always run so that healthy
+	// components continue to report their actual health.
+	SkipDeploy bool
+
 	// ModuleEnvInjection holds aggregated env var injection data for module
 	// operator Deployments. Set by provisionModules, consumed by
 	// injectModuleEnv. Nil when no modules are enabled.
@@ -194,6 +211,12 @@ type ReconciliationRequest struct {
 	// Stored here so updateModuleStatus can build a PlatformContext without
 	// a duplicate API call.
 	DSCI *dsciv2.DSCInitialization
+
+	// GateEntries holds upgrade gate entries extracted from rendered chart
+	// resources by ExtractUpgradeGates. Passed to CheckUpgradeGates so all
+	// gate sources (in-tree, cluster-discovered, chart-extracted) are
+	// merged before the gate check runs.
+	GateEntries map[string]string
 }
 
 // AddResources adds one or more resources to the ReconciliationRequest's Resources slice.

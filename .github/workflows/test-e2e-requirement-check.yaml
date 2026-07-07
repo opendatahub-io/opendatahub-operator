@@ -20,6 +20,7 @@ permissions:
 jobs:
   check-e2e-update-requirement:
     name: Check requirement to update E2E test suite
+    if: github.head_ref != 'sync/upgrade-manifest-shas' || github.event.pull_request.user.login != 'odh-release-bot[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
