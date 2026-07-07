@@ -2900,7 +2900,7 @@ func (tc *MonitoringTestCtx) ValidateTargetAllocatorRBACConfiguration(t *testing
 	)
 }
 
-// ValidateCollectorMLflowIntegrationRBAC tests that the collector SA has the mlflow-integration ClusterRoleBinding.
+// ValidateCollectorMLflowIntegrationRBAC tests that the collector SA has the MLflow trace export ClusterRole and ClusterRoleBinding.
 func (tc *MonitoringTestCtx) ValidateCollectorMLflowIntegrationRBAC(t *testing.T) {
 	t.Helper()
 	t.Cleanup(tc.resetMonitoringConfigToManaged)
@@ -2910,28 +2910,48 @@ func (tc *MonitoringTestCtx) ValidateCollectorMLflowIntegrationRBAC(t *testing.T
 		withMonitoringTraces(TracesStorageBackendPV, "", TracesStorageSize1Gi, DefaultRetention),
 	)
 
-	// Step 1: Verify ClusterRoleBinding binds the collector SA to the mlflow-integration ClusterRole
+	// Step 1: Verify ClusterRole grants only experiments update on mlflow.kubeflow.org
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
-			Name: "data-science-collector-mlflow-integration",
+		WithMinimalObject(gvk.ClusterRole, types.NamespacedName{
+			Name: "data-science-collector-mlflow-trace-export",
 		}),
 		WithCondition(And(
-			jq.Match(`.roleRef.name == "mlflow-operator-mlflow-integration"`),
+			jq.Match(`.rules | length == 1`),
+			jq.Match(`.rules[0].apiGroups[0] == "mlflow.kubeflow.org"`),
+			jq.Match(`.rules[0].resources[0] == "experiments"`),
+			jq.Match(`.rules[0].verbs[0] == "update"`),
+		)),
+		WithCustomErrorMsg("ClusterRole should grant only experiments update on mlflow.kubeflow.org"),
+	)
+
+	// Step 2: Verify ClusterRoleBinding binds the collector SA to the trace export ClusterRole
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
+			Name: "data-science-collector-mlflow-trace-export",
+		}),
+		WithCondition(And(
+			jq.Match(`.roleRef.name == "data-science-collector-mlflow-trace-export"`),
 			jq.Match(`.subjects[0].name == "%s"`, TargetAllocatorServiceAccount),
 			jq.Match(`.subjects[0].namespace == "%s"`, tc.MonitoringNamespace),
 		)),
-		WithCustomErrorMsg("ClusterRoleBinding should bind collector SA to mlflow-integration ClusterRole"),
+		WithCustomErrorMsg("ClusterRoleBinding should bind collector SA to mlflow trace export ClusterRole"),
 	)
 
-	// Step 2: Disable traces and verify ClusterRoleBinding is removed
+	// Step 3: Disable traces and verify both resources are removed
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
 		withNoTraces(),
 	)
 
 	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.ClusterRole, types.NamespacedName{
+			Name: "data-science-collector-mlflow-trace-export",
+		}),
+	)
+
+	tc.EnsureResourceGone(
 		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
-			Name: "data-science-collector-mlflow-integration",
+			Name: "data-science-collector-mlflow-trace-export",
 		}),
 	)
 }
