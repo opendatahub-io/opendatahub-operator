@@ -58,7 +58,7 @@ declare -A RHOAI_COMPONENT_MANIFESTS=(
     ["sparkoperator"]="red-hat-data-services:spark-operator:rhoai-3.5@c0635171cfb41bb125495abb90c52e2c6cfb16f3:config"
     ["wva"]="red-hat-data-services:workload-variant-autoscaler:rhoai-3.5@0bd602e32608a777185ada21dda7dd9118bb4c81:config"
     ["aigateway"]="red-hat-data-services:ai-gateway-operator:rhoai-3.5@18ea3a825739c6d9e39469fcf2143538ff7f88a1:config"
-    ["mcplifecycleoperator"]="red-hat-data-services:mcp-lifecycle-module-operator:rhoai-3.5@bf48912850ba77e7040160f8d7fff7b49de37357:config"
+    ["mcplifecycleoperator"]="red-hat-data-services:mcp-lifecycle-module-operator:rhoai-3.5@8d399fbe42ad241c7b3631eb20867c14b76ef428:config"
 )
 
 # {ODH,RHOAI}_{CCM,COMPONENT}_CHARTS are lists of chart repositories info to fetch helm charts
