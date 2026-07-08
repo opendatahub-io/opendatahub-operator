@@ -182,6 +182,23 @@ record_odh_exception_match() {
     grep "^${image}|" "$ODH_EXCEPTIONS_FILE" | head -1 >> "$ODH_EXCEPTIONS_MATCHED"
 }
 
+# RHAI Helm exceptions: images owned by a rhai_helm_components component but
+# intentionally absent from the RHAI Helm chart (still checked against ODH/RHOAI)
+RHAI_HELM_EXCEPTIONS_FILE="$WORKDIR/rhai-helm-exceptions.txt"
+RHAI_HELM_EXCEPTIONS_MATCHED="$WORKDIR/rhai-helm-exceptions-matched.txt"
+touch "$RHAI_HELM_EXCEPTIONS_FILE" "$RHAI_HELM_EXCEPTIONS_MATCHED"
+$YQ -r '(.rhai_helm_exceptions // [])[] | .image + "|" + .reason' "$CONFIG_FILE" \
+    > "$RHAI_HELM_EXCEPTIONS_FILE"
+
+is_rhai_helm_exception() {
+    grep -q "^$1|" "$RHAI_HELM_EXCEPTIONS_FILE"
+}
+
+record_rhai_helm_exception_match() {
+    local image="$1"
+    grep "^${image}|" "$RHAI_HELM_EXCEPTIONS_FILE" | head -1 >> "$RHAI_HELM_EXCEPTIONS_MATCHED"
+}
+
 # --- Step 3: Extract map entries per component ---
 # For each component dir, extract Go map entries: "key": "RELATED_IMAGE_*"
 # Output: component/key/RELATED_IMAGE_VALUE lines
@@ -381,6 +398,13 @@ while IFS= read -r related_image; do
         done < "$RHAI_HELM_COMPONENTS"
     fi
 
+    # RHAI Helm exceptions: skip the RHAI Helm chart requirement for images
+    # intentionally not deployed via the chart (still validated against ODH/RHOAI)
+    if $needs_rhai_helm && is_rhai_helm_exception "$related_image"; then
+        record_rhai_helm_exception_match "$related_image"
+        needs_rhai_helm=false
+    fi
+
     # ODH exceptions: treat image as present in ODH if intentionally excluded
     if is_odh_exception "$related_image"; then
         record_odh_exception_match "$related_image"
@@ -514,6 +538,10 @@ if [ -s "$ODH_EXCEPTIONS_MATCHED" ]; then
     local_oe_count=$(sort -u "$ODH_EXCEPTIONS_MATCHED" | wc -l | tr -d ' ')
     printf ", ${CYAN}%d ODH exception(s)${RESET}" "$local_oe_count"
 fi
+if [ -s "$RHAI_HELM_EXCEPTIONS_MATCHED" ]; then
+    local_re_count=$(sort -u "$RHAI_HELM_EXCEPTIONS_MATCHED" | wc -l | tr -d ' ')
+    printf ", ${CYAN}%d RHAI Helm exception(s)${RESET}" "$local_re_count"
+fi
 echo ""
 
 # Known issues detail
@@ -531,6 +559,15 @@ if [ -s "$ODH_EXCEPTIONS_MATCHED" ]; then
     printf "  ${CYAN}${BOLD}ODH exceptions (not applicable to ODH, skipped):${RESET}\n"
     sort -u "$ODH_EXCEPTIONS_MATCHED" | while IFS='|' read -r oe_image oe_reason; do
         printf "    ${CYAN}%s${RESET} - %s\n" "$oe_image" "$oe_reason"
+    done
+fi
+
+# RHAI Helm exceptions detail
+if [ -s "$RHAI_HELM_EXCEPTIONS_MATCHED" ]; then
+    echo ""
+    printf "  ${CYAN}${BOLD}RHAI Helm exceptions (not in RHAI Helm chart, skipped):${RESET}\n"
+    sort -u "$RHAI_HELM_EXCEPTIONS_MATCHED" | while IFS='|' read -r re_image re_reason; do
+        printf "    ${CYAN}%s${RESET} - %s\n" "$re_image" "$re_reason"
     done
 fi
 
@@ -577,6 +614,29 @@ if [ -s "$ODH_EXCEPTIONS_FILE" ]; then
 
     if [ "$stale_oe_count" -gt 0 ]; then
         WARNINGS=$((WARNINGS + stale_oe_count))
+    fi
+fi
+
+# Detect stale RHAI Helm exceptions (configured but no longer triggered)
+if [ -s "$RHAI_HELM_EXCEPTIONS_FILE" ]; then
+    matched_re_images="$WORKDIR/matched-re-images.txt"
+    sort -u "$RHAI_HELM_EXCEPTIONS_MATCHED" | cut -d'|' -f1 | sort -u > "$matched_re_images" 2>/dev/null || true
+
+    stale_re_count=0
+    while IFS='|' read -r re_image re_reason; do
+        if ! grep -qxF "$re_image" "$matched_re_images" 2>/dev/null; then
+            if [ "$stale_re_count" -eq 0 ]; then
+                echo ""
+                printf "  ${YELLOW}${BOLD}Stale RHAI Helm exceptions (no longer triggered, please remove from ${CONFIG_FILE}):${RESET}\n"
+            fi
+            printf "    ${YELLOW}%s${RESET} - %s\n" "$re_image" "$re_reason"
+            stale_re_count=$((stale_re_count + 1))
+        fi
+    done < "$RHAI_HELM_EXCEPTIONS_FILE"
+    rm -f "$matched_re_images"
+
+    if [ "$stale_re_count" -gt 0 ]; then
+        WARNINGS=$((WARNINGS + stale_re_count))
     fi
 fi
 
