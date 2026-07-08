@@ -5,6 +5,23 @@ on:
     types: [opened, labeled, synchronize, reopened]
     branches:
       - main
+    paths:
+      - 'api/components/v1alpha1/kserve_types.go'
+      - 'internal/controller/components/kserve/**'
+      - 'config/rbac/components_kserve_editor_role.yaml'
+      - 'config/rbac/components_kserve_viewer_role.yaml'
+      - 'tests/e2e/kserve_test.go'
+      - 'cmd/cloudmanager/**'
+      - 'internal/controller/cloudmanager/**'
+      - 'config/cloudmanager/**'
+      - 'api/cloudmanager/**'
+      - 'tests/e2e/cloudmanager/**'
+      - 'pkg/controller/cloudmanager/**'
+      - 'pkg/operatorconfig/cloudmanager.go'
+      - 'pkg/utils/test/cloudmanager/**'
+      - 'config/rhaii/**'
+      - 'get_all_manifests.sh'
+      - '.github/workflows/test-kind-odh-e2e.yaml'
 
 permissions:
   contents: read
@@ -29,14 +46,27 @@ jobs:
       - name: Check authorization
         env:
           AUTHOR_ASSOCIATION: ${{ github.event.pull_request.author_association }}
+          AUTHOR_LOGIN: ${{ github.event.pull_request.user.login }}
           EVENT_ACTION: ${{ github.event.action }}
           LABEL_NAME: ${{ github.event.label.name }}
+          HAS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'run-xks-e2e') }}
         run: |
+          TRUSTED_BOTS=("odh-release-bot[bot]" "jira-autofix[bot]" "dependabot[bot]")
           if [[ "$AUTHOR_ASSOCIATION" =~ ^(OWNER|MEMBER|COLLABORATOR)$ ]]; then
             echo "Trusted contributor — running automatically"
             exit 0
           fi
-          if [[ "$EVENT_ACTION" == "labeled" && "$LABEL_NAME" == "run-xks-e2e" ]]; then
+          for bot in "${TRUSTED_BOTS[@]}"; do
+            if [[ "$AUTHOR_LOGIN" == "$bot" ]]; then
+              echo "Trusted bot — running automatically"
+              exit 0
+            fi
+          done
+          if [[ "$EVENT_ACTION" == "labeled" && ( "$LABEL_NAME" == "lgtm" || "$LABEL_NAME" == "approved" ) ]]; then
+            echo "Reviewer approval ($LABEL_NAME) — running automatically"
+            exit 0
+          fi
+          if [[ "$HAS_LABEL" == "true" ]]; then
             echo "External contributor — approved via label"
             exit 0
           fi
