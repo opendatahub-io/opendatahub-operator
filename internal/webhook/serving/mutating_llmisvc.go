@@ -31,8 +31,6 @@ var LlmisvcConfigs = LLMInferenceServingPath{
 	ServiceAccountNamePath: []string{"spec", "template", "serviceAccountName"},
 }
 
-//nolint:lll
-
 type LLMISVCConnectionWebhook struct {
 	Webhook webhookutils.BaseServingConnectionWebhook
 }
