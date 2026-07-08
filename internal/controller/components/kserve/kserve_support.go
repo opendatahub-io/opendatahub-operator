@@ -32,22 +32,24 @@ var (
 	ErrResourceNotFound = errors.New("resource not found")
 
 	imageParamMap = map[string]string{
-		"kserve-agent":                     "RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE",
-		"kserve-controller":                "RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE",
-		"llmisvc-controller":               "RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE",
-		"kserve-router":                    "RELATED_IMAGE_ODH_KSERVE_ROUTER_IMAGE",
-		"kserve-storage-initializer":       "RELATED_IMAGE_ODH_KSERVE_STORAGE_INITIALIZER_IMAGE",
-		"kserve-llm-d":                     "RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE", // Default image (Nvidia CUDA)
-		"kserve-llm-d-nvidia-cuda":         "RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE",
-		"kserve-llm-d-amd-rocm":            "RELATED_IMAGE_RHAII_VLLM_ROCM_IMAGE",
-		"kserve-llm-d-ibm-spyre":           "RELATED_IMAGE_RHAII_VLLM_SPYRE_IMAGE",
-		"kserve-llm-d-intel-gaudi":         "RELATED_IMAGE_RHAII_VLLM_GAUDI_IMAGE",
-		"kserve-llm-d-inference-scheduler": "RELATED_IMAGE_ODH_LLM_D_ROUTER_ENDPOINT_PICKER_IMAGE",
-		"kserve-llm-d-routing-sidecar":     "RELATED_IMAGE_ODH_LLM_D_ROUTER_DISAGG_SIDECAR_IMAGE",
-		"kube-rbac-proxy":                  "RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
-		"kserve-llm-d-uds-tokenizer":       "RELATED_IMAGE_ODH_LLM_D_KV_CACHE_IMAGE",
-		"kserve-localmodel-controller":     "RELATED_IMAGE_ODH_KSERVE_LOCALMODEL_CONTROLLER_IMAGE",
-		"kserve-localmodelnode-agent":      "RELATED_IMAGE_ODH_KSERVE_LOCALMODELNODE_AGENT_IMAGE",
+		"kserve-agent":                              "RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE",
+		"kserve-controller":                         "RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE",
+		"llmisvc-controller":                        "RELATED_IMAGE_ODH_KSERVE_LLMISVC_CONTROLLER_IMAGE",
+		"kserve-router":                             "RELATED_IMAGE_ODH_KSERVE_ROUTER_IMAGE",
+		"kserve-storage-initializer":                "RELATED_IMAGE_ODH_KSERVE_STORAGE_INITIALIZER_IMAGE",
+		"kserve-llm-d":                              "RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE", // Default image (Nvidia CUDA)
+		"kserve-llm-d-nvidia-cuda":                  "RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE",
+		"kserve-llm-d-amd-rocm":                     "RELATED_IMAGE_RHAII_VLLM_ROCM_IMAGE",
+		"kserve-llm-d-ibm-spyre":                    "RELATED_IMAGE_RHAII_VLLM_SPYRE_IMAGE",
+		"kserve-llm-d-intel-gaudi":                  "RELATED_IMAGE_RHAII_VLLM_GAUDI_IMAGE",
+		"kserve-llm-d-inference-scheduler":          "RELATED_IMAGE_ODH_LLM_D_ROUTER_ENDPOINT_PICKER_IMAGE",
+		"kserve-llm-d-routing-sidecar":              "RELATED_IMAGE_ODH_LLM_D_ROUTER_DISAGG_SIDECAR_IMAGE",
+		"kube-rbac-proxy":                           "RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
+		"kserve-llm-d-uds-tokenizer":                "RELATED_IMAGE_ODH_LLM_D_KV_CACHE_IMAGE",
+		"kserve-localmodel-controller":              "RELATED_IMAGE_ODH_KSERVE_LOCALMODEL_CONTROLLER_IMAGE",
+		"kserve-localmodelnode-agent":               "RELATED_IMAGE_ODH_KSERVE_LOCALMODELNODE_AGENT_IMAGE",
+		"kserve-llm-d-latency-predictor-prediction": "RELATED_IMAGE_ODH_LATENCY_PREDICTOR_PREDICTION_IMAGE",
+		"kserve-llm-d-latency-predictor-training":   "RELATED_IMAGE_ODH_LATENCY_PREDICTOR_TEST_IMAGE",
 	}
 )
 
