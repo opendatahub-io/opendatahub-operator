@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/mcptools"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrl "sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -36,11 +37,7 @@ func main() {
 
 	s := server.NewMCPServer("opendatahub-health", "0.1.0")
 
-	registerPlatformHealth(s, kubeClient)
-	registerOperatorDependencies(s, kubeClient)
-	registerRecentEvents(s, kubeClient)
-	registerClassifyFailure(s, kubeClient)
-	registerComponentStatus(s, kubeClient)
+	mcptools.RegisterAll(s, kubeClient)
 
 	if err := server.ServeStdio(s); err != nil {
 		log.Fatalf("mcp-server: serve: %v", err)
