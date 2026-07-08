@@ -30,6 +30,42 @@ known_issues:
 - image: RELATED_IMAGE_ODH_CAIKIT_NLP_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-60523
   reason: caikit-nlp support is removed since RHOAI 3.0
+- image: RELATED_IMAGE_RHAII_VLLM_CUDA_IMAGE_UPSTREAM_VERSION
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-73455
+  reason: Injected dynamically at bundle-build time by the Konflux bundle processor from SBOM metadata (RHOAIENG-66499); not statically declared in build-config repos. Long-term disposition (permanent known_issue vs validate-related-images learning the suffix pattern) is an open question for AI Core Platform.
+- image: RELATED_IMAGE_RHAII_VLLM_CUDA_FAST_1_IMAGE_UPSTREAM_VERSION
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-73455
+  reason: Injected dynamically at bundle-build time by the Konflux bundle processor from SBOM metadata (RHOAIENG-66499); not statically declared in build-config repos. Long-term disposition (permanent known_issue vs validate-related-images learning the suffix pattern) is an open question for AI Core Platform.
+- image: RELATED_IMAGE_RHAII_VLLM_CUDA_FAST_2_IMAGE_UPSTREAM_VERSION
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-73455
+  reason: Injected dynamically at bundle-build time by the Konflux bundle processor from SBOM metadata (RHOAIENG-66499); not statically declared in build-config repos. Long-term disposition (permanent known_issue vs validate-related-images learning the suffix pattern) is an open question for AI Core Platform.
+- image: RELATED_IMAGE_RHAII_VLLM_ROCM_IMAGE_UPSTREAM_VERSION
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-73455
+  reason: Injected dynamically at bundle-build time by the Konflux bundle processor from SBOM metadata (RHOAIENG-66499); not statically declared in build-config repos. Long-term disposition (permanent known_issue vs validate-related-images learning the suffix pattern) is an open question for AI Core Platform.
+- image: RELATED_IMAGE_RHAII_VLLM_ROCM_FAST_1_IMAGE_UPSTREAM_VERSION
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-73455
+  reason: Injected dynamically at bundle-build time by the Konflux bundle processor from SBOM metadata (RHOAIENG-66499); not statically declared in build-config repos. Long-term disposition (permanent known_issue vs validate-related-images learning the suffix pattern) is an open question for AI Core Platform.
+- image: RELATED_IMAGE_RHAII_VLLM_ROCM_FAST_2_IMAGE_UPSTREAM_VERSION
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-73455
+  reason: Injected dynamically at bundle-build time by the Konflux bundle processor from SBOM metadata (RHOAIENG-66499); not statically declared in build-config repos. Long-term disposition (permanent known_issue vs validate-related-images learning the suffix pattern) is an open question for AI Core Platform.
+- image: RELATED_IMAGE_RHAII_VLLM_GAUDI_IMAGE_UPSTREAM_VERSION
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-73455
+  reason: Injected dynamically at bundle-build time by the Konflux bundle processor from SBOM metadata (RHOAIENG-66499); not statically declared in build-config repos. Long-term disposition (permanent known_issue vs validate-related-images learning the suffix pattern) is an open question for AI Core Platform.
+- image: RELATED_IMAGE_RHAII_VLLM_GAUDI_FAST_1_IMAGE_UPSTREAM_VERSION
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-73455
+  reason: Injected dynamically at bundle-build time by the Konflux bundle processor from SBOM metadata (RHOAIENG-66499); not statically declared in build-config repos. Long-term disposition (permanent known_issue vs validate-related-images learning the suffix pattern) is an open question for AI Core Platform.
+- image: RELATED_IMAGE_RHAII_VLLM_GAUDI_FAST_2_IMAGE_UPSTREAM_VERSION
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-73455
+  reason: Injected dynamically at bundle-build time by the Konflux bundle processor from SBOM metadata (RHOAIENG-66499); not statically declared in build-config repos. Long-term disposition (permanent known_issue vs validate-related-images learning the suffix pattern) is an open question for AI Core Platform.
+- image: RELATED_IMAGE_RHAII_VLLM_SPYRE_IMAGE_UPSTREAM_VERSION
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-73455
+  reason: Injected dynamically at bundle-build time by the Konflux bundle processor from SBOM metadata (RHOAIENG-66499); not statically declared in build-config repos. Long-term disposition (permanent known_issue vs validate-related-images learning the suffix pattern) is an open question for AI Core Platform.
+- image: RELATED_IMAGE_RHAII_VLLM_SPYRE_FAST_1_IMAGE_UPSTREAM_VERSION
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-73455
+  reason: Injected dynamically at bundle-build time by the Konflux bundle processor from SBOM metadata (RHOAIENG-66499); not statically declared in build-config repos. Long-term disposition (permanent known_issue vs validate-related-images learning the suffix pattern) is an open question for AI Core Platform.
+- image: RELATED_IMAGE_RHAII_VLLM_SPYRE_FAST_2_IMAGE_UPSTREAM_VERSION
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-73455
+  reason: Injected dynamically at bundle-build time by the Konflux bundle processor from SBOM metadata (RHOAIENG-66499); not statically declared in build-config repos. Long-term disposition (permanent known_issue vs validate-related-images learning the suffix pattern) is an open question for AI Core Platform.
 
 odh_exceptions:
 - image: RELATED_IMAGE_ODH_VLLM_CPU_IMAGE
