@@ -139,7 +139,7 @@ func newPlatformModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 
 	reg := DefaultRegistry()
 	if reg.HasEntries() {
-		_ = reg.ForAll(func(h ModuleHandler, _ bool) error {
+		if err := reg.ForAll(func(h ModuleHandler, _ bool) error {
 			b = b.WatchesGVK(h.GetGVK(),
 				reconciler.Dynamic(reconciler.CrdExists(h.GetGVK())),
 				reconciler.WithEventMapper(
@@ -148,7 +148,9 @@ func newPlatformModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 					}),
 				reconciler.WithPredicates(predicates.DefaultPredicate))
 			return nil
-		})
+		}); err != nil {
+			return fmt.Errorf("failed to register module GVK watches: %w", err)
+		}
 	}
 
 	for _, a := range commonActions() {
