@@ -141,6 +141,7 @@ func newPlatformModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	if reg.HasEntries() {
 		_ = reg.ForAll(func(h ModuleHandler, _ bool) error {
 			b = b.WatchesGVK(h.GetGVK(),
+				reconciler.Dynamic(reconciler.CrdExists(h.GetGVK())),
 				reconciler.WithEventMapper(
 					func(ctx context.Context, _ client.Object) []reconcile.Request {
 						return cluster.WatchPlatforms(ctx, mgr.GetClient())
