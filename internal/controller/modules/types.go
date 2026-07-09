@@ -159,7 +159,7 @@ type PlatformContext struct {
 	// ApplicationsNamespace is the namespace where module operands deploy.
 	ApplicationsNamespace string
 
-	// MonitoringNamespace is the namespace where monitoring from DSCI.Spec.Monitoring.Namespace.
+	// MonitoringNamespace is the namespace from DSCI.Spec.Monitoring.Namespace.
 	// Empty when monitoring is not set on main process or no DSCI(xKS).
 	MonitoringNamespace string
 
