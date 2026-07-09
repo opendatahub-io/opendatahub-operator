@@ -104,6 +104,11 @@ func (tc *ModelsAsServiceTestCtx) createMaaSPostgres(t *testing.T) {
 	ns := tc.maasDBNamespace()
 	t.Logf("Creating MaaS PostgreSQL instance in namespace %s", ns)
 
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: ns}),
+		WithCustomErrorMsg("Failed to create namespace %s for MaaS database", ns),
+	)
+
 	// Create the postgres Deployment
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{Name: maasPostgresName, Namespace: ns}),
