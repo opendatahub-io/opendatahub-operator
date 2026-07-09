@@ -49,6 +49,15 @@ const (
 	maasDBConfigSecret   = "maas-db-config" //nolint:gosec // secret name reference, not a credential
 )
 
+func (tc *ModelsAsServiceTestCtx) maasDBNamespace() string {
+	switch tc.FetchPlatformRelease() {
+	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
+		return "redhat-ai-gateway-infra"
+	default:
+		return "odh-ai-gateway-infra"
+	}
+}
+
 func modelsAsServiceTestSuite(t *testing.T) {
 	t.Helper()
 
@@ -92,8 +101,13 @@ func modelsAsServiceTestSuite(t *testing.T) {
 func (tc *ModelsAsServiceTestCtx) createMaaSPostgres(t *testing.T) {
 	t.Helper()
 
-	ns := tc.AppsNamespace
+	ns := tc.maasDBNamespace()
 	t.Logf("Creating MaaS PostgreSQL instance in namespace %s", ns)
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: ns}),
+		WithCustomErrorMsg("Failed to create namespace %s for MaaS database", ns),
+	)
 
 	// Create the postgres Deployment
 	tc.EventuallyResourceCreatedOrUpdated(
