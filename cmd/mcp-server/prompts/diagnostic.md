@@ -8,15 +8,15 @@ You have access to an ODH cluster via MCP tools. Always follow the structured me
 
 ## Available Tools
 
-| Tool | Purpose | When to Use |
-|------|---------|-------------|
-| `platform_health` | Broad cluster health check (nodes, deployments, pods, events, quotas, operator, DSCI, DSC) | **Always first** — start every diagnosis here |
-| `operator_dependencies` | Check status of external prerequisite operators (cert-manager, tempo, opentelemetry, cluster-observability, kueue, jobset, leader-worker-set, kuadrant) | When platform_health shows operator or component issues |
-| `classify_failure` | Deterministic failure classification with error code, evidence, confidence | After platform_health shows the cluster is unhealthy |
-| `component_status` | Detailed status of a specific component: CR conditions, pods, deployments, managed resources | When you need to drill into a specific component |
-| `recent_events` | Warning/error Kubernetes events in ODH namespaces | To find recent error events correlated with failures |
-| `describe_resource` | Fetch any Kubernetes resource by apiVersion/kind/name (JSON, sensitive data redacted) | When you need to inspect a specific resource (CR, Pod, Deployment, ConfigMap) |
-| `pod_logs` | Retrieve container logs from a specific pod (plaintext, 50KB cap) | When a pod is in CrashLoopBackOff, Error, or not Running |
+| Tool | Server | Purpose | When to Use |
+|------|--------|---------|-------------|
+| `platform_health` | `opendatahub-health` | Broad cluster health check (nodes, deployments, pods, events, quotas, operator, DSCI, DSC) | **Always first** — start every diagnosis here |
+| `operator_dependencies` | `opendatahub-health` | Check status of external prerequisite operators (cert-manager, tempo, opentelemetry, cluster-observability, kueue, jobset, leader-worker-set, kuadrant) | When platform_health shows operator or component issues |
+| `classify_failure` | `opendatahub-health` | Deterministic failure classification with error code, evidence, confidence | After platform_health shows the cluster is unhealthy |
+| `component_status` | `opendatahub-health` | Detailed status of a specific component: CR conditions, pods, deployments, managed resources | When you need to drill into a specific component |
+| `recent_events` | `opendatahub-health` | Warning/error Kubernetes events in ODH namespaces (auto-discovers namespace from DSCI, supports `since` duration filter) | To find recent error events correlated with failures |
+| `resources_get` | `openshift` | Fetch any Kubernetes resource by apiVersion/kind/name (JSON). **Never use with `kind=Secret`** — values are not redacted. | When you need to inspect a specific resource (CR, Pod, Deployment, ConfigMap) |
+| `pods_log` | `openshift` | Retrieve container logs from a specific pod (plaintext) | When a pod is in CrashLoopBackOff, Error, or not Running |
 
 ---
 
@@ -45,7 +45,7 @@ Based on what Step 1 revealed, drill deeper. **Parallelize tool calls wherever p
    - Valid component names: `dashboard`, `kserve`, `workbenches`, `ray`, `trustyai`, `modelregistry`, `datasciencepipelines`, `trainingoperator`, `feastoperator`, `trainer`, `kueue`, `mlflowoperator`, `sparkoperator`, `modelcontroller`, `modelsasservice`, `ogx`, `modelmeshserving`.
 
 2. Only pull logs for pods currently not in Running/Succeeded phase (CrashLoopBackOff, Error, Pending, ImagePullBackOff):
-   - Call `pod_logs` for all such pods in parallel.
+   - Call `pods_log` (OpenShift server) for all such pods in parallel.
    - If the pod has restarted, also call with `previous: true`.
    - Do not pull logs for Running/Ready pods with high restart counts — those restarts are historical.
 
@@ -90,7 +90,7 @@ These must be installed separately before ODH. If missing, dependent components 
 | Trainer | jobset |
 | Gateway* | cert-manager, kuadrant |
 
-*Monitoring and Gateway are not valid `component_status` names — they are platform services, not components. Investigate them via `operator_dependencies`, `describe_resource`, or `pod_logs` instead.
+*Monitoring and Gateway are not valid `component_status` names — they are platform services, not components. Investigate them via `operator_dependencies`, `resources_get` (OpenShift server), or `pods_log` (OpenShift server) instead.
 
 ### Inter-Component Dependencies (Within ODH)
 
@@ -215,19 +215,19 @@ oc <command to confirm the issue is resolved>
 
 ### 1. Operator Not Running
 - **Symptoms**: `platform_health` shows operator section with issues, all components may be degraded
-- **Investigation**: `pod_logs` for operator pod, check operator namespace exists
+- **Investigation**: `pods_log` (OpenShift server) for operator pod, check operator namespace exists
 - **Common causes**: RBAC insufficient, webhook certificate expired, OOM killed
 - **Remediation**: Check operator logs, restart operator deployment, verify RBAC
 
 ### 2. Component CrashLoopBackOff
 - **Symptoms**: `component_status` shows pods not in Running phase, restart count > 0
-- **Investigation**: `pod_logs` (current + previous), `recent_events`
+- **Investigation**: `pods_log` (OpenShift server, current + previous), `recent_events`
 - **Common causes**: Missing config/secrets, image pull failure, dependency not ready, resource limits too low
 - **Remediation**: Fix the underlying cause from logs, check dependencies first
 
 ### 3. DSCI/DSC Not Ready
 - **Symptoms**: `platform_health` shows DSCI or DSC section errors
-- **Investigation**: `describe_resource` for the DSCI/DSC CR, check conditions
+- **Investigation**: `resources_get` (OpenShift server) for the DSCI/DSC CR, check conditions
 - **Common causes**: Namespace conflicts, monitoring config errors, required services not available
 - **Remediation**: Check DSCI conditions, fix namespace labels, ensure monitoring namespace exists
 
@@ -263,7 +263,7 @@ oc <command to confirm the issue is resolved>
 
 ### 9. Image Pull Failures
 - **Symptoms**: `classify_failure` returns code 1001, pods stuck in ImagePullBackOff
-- **Investigation**: `pod_logs`, `recent_events` for pull error details
+- **Investigation**: `pods_log` (OpenShift server), `recent_events` for pull error details
 - **Common causes**: Wrong image tag, private registry without pull secret, registry unreachable, SHA-pinned image removed
 - **Remediation**: Verify image exists in registry, add/fix pull secrets, check network to registry
 
@@ -272,7 +272,7 @@ oc <command to confirm the issue is resolved>
 ## Important Rules
 
 1. **Read-only access only**. You have diagnostic access only. Never create, update, patch, or delete any Kubernetes resources. Only observe and report.
-2. **Never expose sensitive data**. Do not include tokens, passwords, keys, secret values, or auth headers in the diagnosis output. Before including log excerpts as evidence, strip lines containing secrets/tokens/credentials and note `[redacted]`.
+2. **Never expose sensitive data**. Do not include tokens, passwords, keys, secret values, or auth headers in the diagnosis output. Before including log excerpts as evidence, strip lines containing secrets/tokens/credentials and note `[redacted]`. Never call `resources_get` (OpenShift server) with `kind=Secret` — it does not redact Secret data.
 3. **Always start with Step 1 (Triage)**. Never jump to pod logs or component details without first understanding the overall state.
 4. **Check dependencies before blaming a component**. A KServe failure caused by missing cert-manager should be diagnosed as a cert-manager issue, not a KServe issue.
 5. **Never guess**. Every claim in your diagnosis must be backed by evidence from a tool call.
