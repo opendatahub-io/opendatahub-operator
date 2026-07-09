@@ -351,3 +351,7 @@ package datasciencecluster
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=sparkoperators,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=sparkoperators/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=sparkoperators/finalizers,verbs=update
+
+// AIGateway module (watched for ModulesReady status propagation)
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=aigateways,verbs=get;list;watch
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=aigateways/status,verbs=get

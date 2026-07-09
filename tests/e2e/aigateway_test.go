@@ -65,6 +65,13 @@ func aiGatewayTestSuite(t *testing.T) {
 				)),
 			)
 
+			if !tc.IsXKS() {
+				tc.EnsureResourceExists(
+					WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+					WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeModulesReady, metav1.ConditionTrue)),
+				)
+			}
+
 			tc.EnsureResourceExists(
 				WithMinimalObject(gvk.Deployment, controllerNN),
 				WithCondition(jq.Match(`.status.readyReplicas >= 1`)),

@@ -7,10 +7,12 @@ import (
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
@@ -86,4 +88,23 @@ func computeComponentsStatus(
 	}
 
 	return nil
+}
+
+// collectModuleGVKs returns the GVK of every registered module so the DSC
+// controller can set up dynamic watches. It iterates all modules regardless
+// of enabled state because the Dynamic predicate defers actual watch setup
+// until the CRD exists on the cluster.
+func collectModuleGVKs(reg *modules.Registry) []schema.GroupVersionKind {
+	if !reg.HasEntries() {
+		return nil
+	}
+
+	var gvks []schema.GroupVersionKind
+
+	_ = reg.ForAll(func(h modules.ModuleHandler, _ bool) error {
+		gvks = append(gvks, h.GetGVK())
+		return nil
+	})
+
+	return gvks
 }
