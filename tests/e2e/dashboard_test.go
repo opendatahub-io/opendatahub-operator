@@ -17,6 +17,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
 )
@@ -49,6 +50,76 @@ func dashboardTestSuite(t *testing.T) {
 
 	// Run the test suite.
 	RunTestCases(t, testCases)
+}
+
+// ValidateOperandsOwnerReferences overrides the ComponentTestCtx method to
+// accept both Dashboard and DataScienceCluster as valid owners. With the
+// module architecture the controller deployment is owned by DSC (deployed
+// by the ODH Operator via Helm), while operand deployments are owned by
+// the Dashboard CR (deployed by the dashboard-operator).
+func (tc *DashboardTestCtx) ValidateOperandsOwnerReferences(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke)
+
+	if tc.IsXKS() {
+		t.Skip("Skipping test because operands ownership by component CR is not enforced/guaranteed on XKS platform")
+	}
+
+	tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(
+			&client.ListOptions{
+				Namespace: tc.AppsNamespace,
+				LabelSelector: k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+				}.AsSelector(),
+			},
+		),
+		WithCondition(
+			HaveEach(
+				SatisfyAny(
+					jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, tc.GVK.Kind),
+					jq.Match(`.metadata.ownerReferences[0].kind == "DataScienceCluster"`),
+				),
+			),
+		),
+		WithCustomErrorMsg("Deployment resources with correct owner references should exist"),
+	)
+}
+
+// ValidateUpdateDeploymentsResources overrides the ComponentTestCtx method to
+// only test the controller deployment (owned by DSC). Operand deployments
+// (e.g. rhods-dashboard) are owned and reconciled by the dashboard-operator,
+// so external replica changes are expected to be reverted — that is correct
+// module behavior, not a test failure.
+func (tc *DashboardTestCtx) ValidateUpdateDeploymentsResources(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke)
+
+	controllerDep := tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Namespace: tc.AppsNamespace,
+			Name:      "dashboard-operator",
+		}),
+	)
+
+	replicas := ExtractAndExpectValue[int](tc.g, *controllerDep, `.spec.replicas`, Not(BeNil()))
+
+	expectedReplica := replicas + 1
+	if replicas > 1 {
+		expectedReplica = 1
+	}
+
+	tc.ConsistentlyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Namespace: tc.AppsNamespace,
+			Name:      "dashboard-operator",
+		}),
+		WithMutateFunc(testf.Transform(`.spec.replicas = %d`, expectedReplica)),
+		WithCondition(jq.Match(`.spec.replicas == %d`, expectedReplica)),
+	)
 }
 
 // ValidateOperandsDynamicallyWatchedResources ensures that operands are correctly watched for dynamic updates.
