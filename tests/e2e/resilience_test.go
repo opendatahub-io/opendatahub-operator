@@ -141,7 +141,6 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 
 	// To handle upstream/downstream i trimmed prefix(odh) from few controller names
 	componentToControllerMap := map[string]string{
-		componentApi.DashboardComponentName:            "dashboard",
 		componentApi.DataSciencePipelinesComponentName: "data-science-pipelines-operator-controller-manager",
 		componentApi.FeastOperatorComponentName:        "feast-operator-controller-manager",
 		componentApi.OGXComponentName:                  "ogx-k8s-operator-controller-manager",
@@ -166,11 +165,12 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	// Kueue is excluded because it does not have any deployment to manage anymore
 	// LlamaStack Operator is excluded because it has been replaced by OGX and the field is deprecated (no deployments to manage anymore)
 	// AIGateway is excluded because it is a module (reports AIGatewayReady via ModulesReady, not ComponentsReady)
+	// Dashboard is excluded because it is a module so it does not report DSC ComponentsReady condition
 	// MCPLifecycleOperator is excluded because it is a module so it does not report DSC ComponentsReady condition
 	// MLflowOperator is excluded because it is a module so it does not report DSC ComponentsReady condition
 	// Kserve is excluded because it is a module so it does not report DSC ComponentsReady condition
 	// Workbenches is excluded because it is a module so it does not report DSC ComponentsReady condition
-	excludedComponents := 8 // TrustyAI, Kueue, LlamaStack Operator, AIGateway, MCPLifecycleOperator, MLflowOperator, Kserve, Workbenches
+	excludedComponents := 9 // TrustyAI, Kueue, LlamaStack Operator, AIGateway, Dashboard, MCPLifecycleOperator, MLflowOperator, Kserve, Workbenches
 	expectedTestableComponents := expectedComponentCount - excludedComponents
 	tc.g.Expect(componentsLength).Should(Equal(expectedTestableComponents),
 		"allComponents list is out of sync with DSC Components struct. "+
@@ -259,7 +259,7 @@ func (tc *OperatorResilienceTestCtx) ValidateMissingComponentsCRDHandling(t *tes
 
 	skipUnless(t, Tier1)
 
-	crdTestingName := "dashboards.components.platform.opendatahub.io"
+	crdTestingName := "rays.components.platform.opendatahub.io"
 	crd := tc.FetchResource(
 		WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: crdTestingName}),
 	)
