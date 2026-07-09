@@ -37,8 +37,6 @@ var IsvcConfigs = InferenceServingPath{
 	ServiceAccountNamePath: []string{"spec", "predictor", "serviceAccountName"},  // used by all, has string
 }
 
-//nolint:lll
-
 var _ admission.Handler = &ISVCConnectionWebhook{}
 
 func (w *ISVCConnectionWebhook) SetupWithManager(mgr ctrl.Manager) error {
