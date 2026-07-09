@@ -9,6 +9,8 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	apiextensionsinternal "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	structuralschema "k8s.io/apiextensions-apiserver/pkg/apiserver/schema"
+	"k8s.io/apiextensions-apiserver/pkg/apiserver/schema/pruning"
 	apiextensionsvalidation "k8s.io/apiextensions-apiserver/pkg/apiserver/validation"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -79,20 +81,26 @@ func loadCRDFromArtifacts(t *testing.T, handler modules.ModuleHandler, manifests
 	targetGVK := handler.GetGVK()
 	name := handler.GetName()
 
-	searchPaths := []string{
-		filepath.Join(manifestsRoot, name, "crd", "bases"),
-		filepath.Join(chartsRoot, name, "crds"),
-	}
-
-	// Helm modules may use a different chart directory name than the module name.
 	manifests := handler.GetOperatorManifests(&modules.PlatformContext{
 		ChartsBasePath:    chartsRoot,
 		ManifestsBasePath: manifestsRoot,
 		Release:           common.Release{Name: cluster.OpenDataHub},
 	})
+
+	searchPaths := []string{
+		filepath.Join(manifestsRoot, name, "crd", "bases"),
+		filepath.Join(manifestsRoot, name, "crd"),
+		filepath.Join(chartsRoot, name, "crds"),
+	}
+
+	for _, mi := range manifests.Manifests {
+		searchPaths = append(searchPaths,
+			filepath.Join(mi.Path, "crd", "bases"),
+			filepath.Join(mi.Path, "crd"),
+		)
+	}
 	for _, chart := range manifests.HelmCharts {
-		chartCRDs := filepath.Join(chart.Chart, "crds")
-		searchPaths = append(searchPaths, chartCRDs)
+		searchPaths = append(searchPaths, filepath.Join(chart.Chart, "crds"))
 	}
 
 	for _, dir := range searchPaths {
@@ -221,6 +229,11 @@ func TestModuleCRSchemaCompliance(t *testing.T) {
 			continue
 		}
 
+		ss, err := structuralschema.NewStructural(internalSchema)
+		if err != nil {
+			t.Fatalf("failed to create structural schema for module %s: %v", handler.GetName(), err)
+		}
+
 		handlerDSCContext := dscCtx
 		if handler.GetName() == serviceApi.MonitoringServiceName {
 			handlerDSCContext = dsciCtx
@@ -239,6 +252,13 @@ func TestModuleCRSchemaCompliance(t *testing.T) {
 			g.Expect(errs).Should(BeEmpty(),
 				"BuildModuleCR output for %s does not conform to CRD schema:\n%s",
 				handler.GetName(), errs.ToAggregate())
+
+			prunedFields := pruning.PruneWithOptions(cr.Object, ss, true, structuralschema.UnknownFieldPathOptions{
+				TrackUnknownFieldPaths: true,
+			})
+			g.Expect(prunedFields).Should(BeEmpty(),
+				"BuildModuleCR output for %s contains fields not in CRD schema (would be pruned by API server): %v",
+				handler.GetName(), prunedFields)
 		})
 	}
 
