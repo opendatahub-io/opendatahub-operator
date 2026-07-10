@@ -47,7 +47,7 @@ func NewHandler() *handler {
 
 // IsEnabled checks whether the monitoring module should be deployed.
 // In DSC mode (DSCI present), reads DSCI.Spec.Monitoring.ManagementState.
-// In Platform mode (xKS), reads Platform.Spec.Modules.Monitoring.ManagementState.
+// In Platform mode (xKS), the module stanza's presence is the signal.
 func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 	if platform == nil {
 		return false
@@ -56,14 +56,15 @@ func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 		return platform.DSCI.Spec.Monitoring.ManagementState == operatorv1.Managed
 	}
 	if platform.Platform != nil {
-		return platform.Platform.Spec.Modules.Monitoring.ManagementState == operatorv1.Managed
+		return platform.Platform.Spec.Modules.Monitoring != nil
 	}
 	return false
 }
 
 // BuildModuleCR projects platform monitoring configuration onto the module CR.
-// In DSC mode, the full DSCIMonitoring struct is converted directly.
-// In Platform mode, a minimal spec with ManagementState is projected.
+// In DSC mode, MonitoringCommonSpec is projected from DSCI (managementState
+// is excluded — the CR's existence implies Managed).
+// In Platform mode, an empty spec is used since there is no DSCI config.
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
@@ -78,14 +79,12 @@ func (h *handler) BuildModuleCR(
 	switch {
 	case platform.DSCI != nil:
 		var err error
-		spec, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&platform.DSCI.Spec.Monitoring)
+		spec, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&platform.DSCI.Spec.Monitoring.MonitoringCommonSpec)
 		if err != nil {
-			return nil, fmt.Errorf("failed to convert DSCIMonitoring to unstructured: %w", err)
+			return nil, fmt.Errorf("failed to convert MonitoringCommonSpec to unstructured: %w", err)
 		}
 	case platform.Platform != nil:
-		spec = map[string]any{
-			"managementState": string(platform.Platform.Spec.Modules.Monitoring.ManagementState),
-		}
+		spec = map[string]any{}
 	default:
 		return nil, errors.New("neither DSCI nor Platform is available, cannot build monitoring CR")
 	}

@@ -88,21 +88,19 @@ func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 	if platform == nil {
 		return false
 	}
-	// Openshift
 	if platform.DSC != nil {
 		return platform.DSC.Spec.Components.AIGateway.ManagementState == operatorv1.Managed
 	}
-	// xkS
 	if platform.Platform != nil {
-		return platform.Platform.Spec.Modules.AIGateway.ManagementState == operatorv1.Managed
+		return platform.Platform.Spec.Modules.AIGateway != nil
 	}
 	return false
 }
 
 // BuildModuleCR projects the DSC AIGateway configuration onto the
-// aigateways.components.platform.opendatahub.io CR. The DSC-level
-// managementState is intentionally excluded; only AIGatewayCommonSpec is
-// projected into the module CR.
+// aigateways.components.platform.opendatahub.io CR. Only AIGatewayCommonSpec
+// fields are projected; managementState is not included because the CR's
+// existence implies Managed and deletion implies Removed.
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
@@ -124,9 +122,7 @@ func (h *handler) BuildModuleCR(
 			return nil, fmt.Errorf("failed to convert AIGatewayCommonSpec to unstructured: %w", err)
 		}
 	case platform.Platform != nil:
-		spec = map[string]any{
-			"managementState": string(platform.Platform.Spec.Modules.AIGateway.ManagementState),
-		}
+		spec = map[string]any{}
 	default:
 		return nil, errors.New("neither DSC CR nor Platform CR exists, cannot build AIGateway CR")
 	}

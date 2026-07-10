@@ -39,19 +39,15 @@ func newPlatformCtx(mgmtState operatorv1.ManagementState) *modules.PlatformConte
 	}
 }
 
-func newPlatformModePlatformCtx(mgmtState operatorv1.ManagementState) *modules.PlatformContext {
-	return &modules.PlatformContext{
+func newPlatformModePlatformCtx(enabled bool) *modules.PlatformContext {
+	p := &modules.PlatformContext{
 		ApplicationsNamespace: "opendatahub",
-		Platform: &configv1alpha1.Platform{
-			Spec: configv1alpha1.PlatformSpec{
-				Modules: configv1alpha1.PlatformModules{
-					Monitoring: common.ManagementSpec{
-						ManagementState: mgmtState,
-					},
-				},
-			},
-		},
+		Platform:              &configv1alpha1.Platform{},
 	}
+	if enabled {
+		p.Platform.Spec.Modules.Monitoring = &configv1alpha1.PlatformModuleConfig{}
+	}
+	return p
 }
 
 func TestIsEnabled_Managed(t *testing.T) {
@@ -92,22 +88,16 @@ func TestBuildModuleCR_NilPlatformContextReturnsError(t *testing.T) {
 	g.Expect(err).Should(HaveOccurred())
 }
 
-func TestIsEnabled_PlatformMode_Managed(t *testing.T) {
+func TestIsEnabled_PlatformMode_Enabled(t *testing.T) {
 	g := NewWithT(t)
 	h := monitoring.NewHandler()
-	g.Expect(h.IsEnabled(newPlatformModePlatformCtx(operatorv1.Managed))).Should(BeTrue())
+	g.Expect(h.IsEnabled(newPlatformModePlatformCtx(true))).Should(BeTrue())
 }
 
-func TestIsEnabled_PlatformMode_Removed(t *testing.T) {
+func TestIsEnabled_PlatformMode_Disabled(t *testing.T) {
 	g := NewWithT(t)
 	h := monitoring.NewHandler()
-	g.Expect(h.IsEnabled(newPlatformModePlatformCtx(operatorv1.Removed))).Should(BeFalse())
-}
-
-func TestIsEnabled_PlatformMode_Empty(t *testing.T) {
-	g := NewWithT(t)
-	h := monitoring.NewHandler()
-	g.Expect(h.IsEnabled(newPlatformModePlatformCtx(""))).Should(BeFalse())
+	g.Expect(h.IsEnabled(newPlatformModePlatformCtx(false))).Should(BeFalse())
 }
 
 func TestBuildModuleCR_BasicProjection(t *testing.T) {
@@ -122,24 +112,9 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 
 	spec, ok := u.Object["spec"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec is not a map")
-	g.Expect(spec["managementState"]).Should(Equal("Managed"))
+	g.Expect(spec).ShouldNot(HaveKey("managementState"),
+		"managementState must not be projected — CR existence implies Managed")
 	g.Expect(spec["namespace"]).Should(Equal("opendatahub"))
-}
-
-func TestBuildModuleCR_EmptyManagementStatePassedThrough(t *testing.T) {
-	g := NewWithT(t)
-	h := monitoring.NewHandler()
-	platform := newPlatformCtx("")
-
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	spec, ok := u.Object["spec"].(map[string]any)
-	g.Expect(ok).Should(BeTrue(), "spec is not a map")
-
-	if got, exists := spec["managementState"]; exists {
-		g.Expect(got).Should(BeEmpty(), "managementState should be empty when not set")
-	}
 }
 
 func TestBuildModuleCR_ProjectsMetrics(t *testing.T) {
@@ -226,7 +201,7 @@ func TestBuildModuleCR_NilDSCINilPlatformReturnsError(t *testing.T) {
 func TestBuildModuleCR_PlatformMode(t *testing.T) {
 	g := NewWithT(t)
 	h := monitoring.NewHandler()
-	platform := newPlatformModePlatformCtx(operatorv1.Managed)
+	platform := newPlatformModePlatformCtx(true)
 
 	u, err := h.BuildModuleCR(context.Background(), nil, platform)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -235,15 +210,15 @@ func TestBuildModuleCR_PlatformMode(t *testing.T) {
 
 	spec, ok := u.Object["spec"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec is not a map")
-	g.Expect(spec["managementState"]).Should(Equal("Managed"))
+	g.Expect(spec).ShouldNot(HaveKey("managementState"),
+		"managementState must not be projected — CR existence implies Managed")
 }
 
 func TestGetRelatedImages(t *testing.T) {
 	g := NewWithT(t)
 	h := monitoring.NewHandler()
-	images := h.GetRelatedImages()
 
-	g.Expect(images).Should(ConsistOf(
+	g.Expect(h.GetRelatedImages()).Should(ConsistOf(
 		"RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
 		"RELATED_IMAGE_OSE_PROM_LABEL_PROXY_IMAGE",
 		"RELATED_IMAGE_CLI_IMAGE",
