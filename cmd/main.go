@@ -101,6 +101,7 @@ import (
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	aigatewayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
+	mcplifecycleoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
@@ -193,11 +194,13 @@ var (
 
 	existingModules = map[string]mr.ModuleHandler{
 		// serviceApi.MonitoringServiceName: monitoringModule.NewHandler(),
-		componentApi.AIGatewayComponentName: aigatewayModule.NewHandler(),
+		componentApi.AIGatewayComponentName:            aigatewayModule.NewHandler(),
+		componentApi.MCPLifecycleOperatorComponentName: mcplifecycleoperatorModule.NewHandler(),
 	}
 
 	moduleRunlevels = map[string]dag.Runlevel{
-		componentApi.AIGatewayComponentName: dag.RL(20),
+		componentApi.AIGatewayComponentName:            dag.RL(20),
+		componentApi.MCPLifecycleOperatorComponentName: dag.RL(20),
 	}
 )
 

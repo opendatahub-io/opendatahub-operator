@@ -363,6 +363,38 @@ _Appears in:_
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
+#### DSCMCPLifecycleOperator
+
+
+
+DSCMCPLifecycleOperator contains all the configuration exposed in DSC instance for MCPLifecycleOperator component.
+
+
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
+#### DSCMCPLifecycleOperatorStatus
+
+
+
+DSCMCPLifecycleOperatorStatus struct holds the status for the MCPLifecycleOperator component exposed in the DSC.
+
+
+
+_Appears in:_
+- [ComponentsStatus](#componentsstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
 #### DSCMLflowOperator
 
 
@@ -1244,6 +1276,36 @@ _Appears in:_
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
+
+
+#### MCPLifecycleOperatorCommonSpec
+
+
+
+MCPLifecycleOperatorCommonSpec holds config fields shared between the
+standalone CRD (owned by the module operator) and the DSC embedding.
+
+
+
+_Appears in:_
+- [DSCMCPLifecycleOperator](#dscmcplifecycleoperator)
+
+
+
+#### MCPLifecycleOperatorCommonStatus
+
+
+
+MCPLifecycleOperatorCommonStatus defines the shared observed state of MCPLifecycleOperator.
+
+
+
+_Appears in:_
+- [DSCMCPLifecycleOperatorStatus](#dscmcplifecycleoperatorstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### MLflowOperator
@@ -2415,6 +2477,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `aigateway` _[ManagementSpec](#managementspec)_ | AIGateway controls the ai-gateway-operator module lifecycle. |  |  |
 | `monitoring` _[ManagementSpec](#managementspec)_ | Monitoring controls the monitoring module operator lifecycle. |  |  |
+| `mcplifecycleoperator` _[ManagementSpec](#managementspec)_ | MCPLifecycleOperator controls the MCP Lifecycle Operator module lifecycle. |  |  |
 
 
 #### PlatformSpec
@@ -2655,6 +2718,7 @@ _Appears in:_
 | `trainer` _[DSCTrainer](#dsctrainer)_ | Trainer component configuration. |  |  |
 | `sparkoperator` _[DSCSparkOperator](#dscsparkoperator)_ | SparkOperator component configuration. |  |  |
 | `aigateway` _[DSCAIGateway](#dscaigateway)_ | AIGateway component configuration. |  |  |
+| `mcplifecycleoperator` _[DSCMCPLifecycleOperator](#dscmcplifecycleoperator)_ | MCPLifecycleOperator component configuration. |  |  |
 
 
 #### ComponentsStatus
@@ -2686,6 +2750,7 @@ _Appears in:_
 | `trainer` _[DSCTrainerStatus](#dsctrainerstatus)_ | Trainer component status. |  |  |
 | `sparkoperator` _[DSCSparkOperatorStatus](#dscsparkoperatorstatus)_ | SparkOperator component status. |  |  |
 | `aigateway` _[DSCAIGatewayStatus](#dscaigatewaystatus)_ | AIGateway component status. |  |  |
+| `mcplifecycleoperator` _[DSCMCPLifecycleOperatorStatus](#dscmcplifecycleoperatorstatus)_ | MCPLifecycleOperator component status. |  |  |
 
 
 #### DataScienceCluster
