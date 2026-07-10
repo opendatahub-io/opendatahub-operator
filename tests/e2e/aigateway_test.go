@@ -69,6 +69,12 @@ func aiGatewayTestSuite(t *testing.T) {
 				WithMinimalObject(gvk.Deployment, controllerNN),
 				WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
 			)
+
+			// do check on DSC ModulesReady is true
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeModulesReady, metav1.ConditionTrue)),
+			)
 		}},
 		{"Validate component disabled", func(t *testing.T) {
 			t.Helper()
