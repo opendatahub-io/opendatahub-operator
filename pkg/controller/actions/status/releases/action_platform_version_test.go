@@ -3,8 +3,8 @@ package releases_test
 import (
 	"testing"
 
-	"github.com/operator-framework/api/pkg/lib/version"
 	"github.com/blang/semver/v4"
+	"github.com/operator-framework/api/pkg/lib/version"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -93,8 +93,10 @@ func TestPlatformVersionAction(t *testing.T) {
 			err := action(ctx, &rr)
 			g.Expect(err).NotTo(HaveOccurred())
 
-			wr := rr.Instance.(common.WithReleases)
+			wr, ok := rr.Instance.(common.WithReleases)
+			g.Expect(ok).To(BeTrue())
 			actualReleases := wr.GetReleaseStatus()
+			g.Expect(actualReleases).NotTo(BeNil())
 			g.Expect(*actualReleases).To(Equal(tt.expectedReleases))
 		})
 	}
