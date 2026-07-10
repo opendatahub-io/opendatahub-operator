@@ -46,247 +46,116 @@ func (f *crComponentHandler) IsEnabled(_ *dscv2.DataScienceCluster) bool {
 	return f.enabled
 }
 
-func TestReadinessChecker_ReadyWithMatchingPlatformVersion(t *testing.T) {
+func TestReadinessChecker_IsReady(t *testing.T) {
 	t.Parallel()
-	g := NewWithT(t)
 
-	dsp := &componentApi.DataSciencePipelines{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: componentApi.DataSciencePipelinesInstanceName,
+	tests := []struct {
+		name             string
+		releases         []common.ComponentRelease
+		conditionStatus  metav1.ConditionStatus
+		platformVersion  string
+		expectedReady    bool
+		assertionMessage string
+	}{
+		{
+			name:             "ready with matching platform version",
+			releases:         []common.ComponentRelease{{Name: "platform", Version: "2.20.0"}},
+			conditionStatus:  metav1.ConditionTrue,
+			platformVersion:  "2.20.0",
+			expectedReady:    true,
+			assertionMessage: "component with matching version and Ready=True should be ready",
 		},
-		Status: componentApi.DataSciencePipelinesStatus{
-			Status: common.Status{
-				Conditions: []common.Condition{
-					{Type: status.ConditionTypeReady, Status: metav1.ConditionTrue},
+		{
+			name:             "not ready version mismatch",
+			releases:         []common.ComponentRelease{{Name: "platform", Version: "2.19.0"}},
+			conditionStatus:  metav1.ConditionTrue,
+			platformVersion:  "2.20.0",
+			expectedReady:    false,
+			assertionMessage: "component reporting old version should not be ready",
+		},
+		{
+			name:             "ready when no platform release",
+			releases:         nil,
+			conditionStatus:  metav1.ConditionTrue,
+			platformVersion:  "2.20.0",
+			expectedReady:    true,
+			assertionMessage: "component without platform release should fall through to Ready check",
+		},
+		{
+			name:             "ready when empty platform version",
+			releases:         []common.ComponentRelease{{Name: "platform", Version: "2.19.0"}},
+			conditionStatus:  metav1.ConditionTrue,
+			platformVersion:  "",
+			expectedReady:    true,
+			assertionMessage: "empty platform version should skip version check",
+		},
+		{
+			name:             "not ready when condition false",
+			releases:         []common.ComponentRelease{{Name: "platform", Version: "2.20.0"}},
+			conditionStatus:  metav1.ConditionFalse,
+			platformVersion:  "2.20.0",
+			expectedReady:    false,
+			assertionMessage: "component with Ready=False should not be ready regardless of version",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			dsp := &componentApi.DataSciencePipelines{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: componentApi.DataSciencePipelinesInstanceName,
 				},
-			},
-			DataSciencePipelinesCommonStatus: componentApi.DataSciencePipelinesCommonStatus{
-				ComponentReleaseStatus: common.ComponentReleaseStatus{
-					Releases: []common.ComponentRelease{
-						{Name: "platform", Version: "2.20.0"},
+				Status: componentApi.DataSciencePipelinesStatus{
+					Status: common.Status{
+						Conditions: []common.Condition{
+							{Type: status.ConditionTypeReady, Status: tc.conditionStatus},
+						},
 					},
 				},
-			},
-		},
-	}
+			}
 
-	cli, err := fakeclient.New(
-		fakeclient.WithObjects(dsp),
-		fakeclient.WithGVKs(fakeclient.GVKMapping{
-			GVK:   gvk.DataSciencePipelines,
-			Scope: meta.RESTScopeRoot,
-		}),
-	)
-	g.Expect(err).ShouldNot(HaveOccurred())
+			if len(tc.releases) > 0 {
+				dsp.Status.DataSciencePipelinesCommonStatus = componentApi.DataSciencePipelinesCommonStatus{
+					ComponentReleaseStatus: common.ComponentReleaseStatus{
+						Releases: tc.releases,
+					},
+				}
+			}
 
-	reg := &registry.Registry{}
-	reg.Add(&crComponentHandler{
-		name:    "datasciencepipelines",
-		enabled: true,
-		cr: &componentApi.DataSciencePipelines{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: componentApi.DataSciencePipelinesInstanceName,
-			},
-		},
-	})
+			cli, err := fakeclient.New(
+				fakeclient.WithObjects(dsp),
+				fakeclient.WithGVKs(fakeclient.GVKMapping{
+					GVK:   gvk.DataSciencePipelines,
+					Scope: meta.RESTScopeRoot,
+				}),
+			)
+			g.Expect(err).ShouldNot(HaveOccurred())
 
-	checker := registry.NewReadinessChecker(reg, cli, nil, "2.20.0")
-	ready, err := checker.IsReady(context.Background(), "datasciencepipelines")
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(ready).Should(BeTrue())
-}
-
-func TestReadinessChecker_NotReadyVersionMismatch(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-
-	dsp := &componentApi.DataSciencePipelines{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: componentApi.DataSciencePipelinesInstanceName,
-		},
-		Status: componentApi.DataSciencePipelinesStatus{
-			Status: common.Status{
-				Conditions: []common.Condition{
-					{Type: status.ConditionTypeReady, Status: metav1.ConditionTrue},
-				},
-			},
-			DataSciencePipelinesCommonStatus: componentApi.DataSciencePipelinesCommonStatus{
-				ComponentReleaseStatus: common.ComponentReleaseStatus{
-					Releases: []common.ComponentRelease{
-						{Name: "platform", Version: "2.19.0"},
+			reg := &registry.Registry{}
+			reg.Add(&crComponentHandler{
+				name:    "datasciencepipelines",
+				enabled: true,
+				cr: &componentApi.DataSciencePipelines{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: componentApi.DataSciencePipelinesInstanceName,
 					},
 				},
-			},
-		},
+			})
+
+			checker := registry.NewReadinessChecker(reg, cli, nil, tc.platformVersion)
+			ready, err := checker.IsReady(context.Background(), "datasciencepipelines")
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			if tc.expectedReady {
+				g.Expect(ready).Should(BeTrue(), tc.assertionMessage)
+			} else {
+				g.Expect(ready).Should(BeFalse(), tc.assertionMessage)
+			}
+		})
 	}
-
-	cli, err := fakeclient.New(
-		fakeclient.WithObjects(dsp),
-		fakeclient.WithGVKs(fakeclient.GVKMapping{
-			GVK:   gvk.DataSciencePipelines,
-			Scope: meta.RESTScopeRoot,
-		}),
-	)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	reg := &registry.Registry{}
-	reg.Add(&crComponentHandler{
-		name:    "datasciencepipelines",
-		enabled: true,
-		cr: &componentApi.DataSciencePipelines{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: componentApi.DataSciencePipelinesInstanceName,
-			},
-		},
-	})
-
-	checker := registry.NewReadinessChecker(reg, cli, nil, "2.20.0")
-	ready, err := checker.IsReady(context.Background(), "datasciencepipelines")
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(ready).Should(BeFalse(), "component reporting old version should not be ready")
-}
-
-func TestReadinessChecker_ReadyWhenNoPlatformRelease(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-
-	dsp := &componentApi.DataSciencePipelines{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: componentApi.DataSciencePipelinesInstanceName,
-		},
-		Status: componentApi.DataSciencePipelinesStatus{
-			Status: common.Status{
-				Conditions: []common.Condition{
-					{Type: status.ConditionTypeReady, Status: metav1.ConditionTrue},
-				},
-			},
-		},
-	}
-
-	cli, err := fakeclient.New(
-		fakeclient.WithObjects(dsp),
-		fakeclient.WithGVKs(fakeclient.GVKMapping{
-			GVK:   gvk.DataSciencePipelines,
-			Scope: meta.RESTScopeRoot,
-		}),
-	)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	reg := &registry.Registry{}
-	reg.Add(&crComponentHandler{
-		name:    "datasciencepipelines",
-		enabled: true,
-		cr: &componentApi.DataSciencePipelines{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: componentApi.DataSciencePipelinesInstanceName,
-			},
-		},
-	})
-
-	checker := registry.NewReadinessChecker(reg, cli, nil, "2.20.0")
-	ready, err := checker.IsReady(context.Background(), "datasciencepipelines")
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(ready).Should(BeTrue(), "component without platform release should fall through to Ready check")
-}
-
-func TestReadinessChecker_ReadyWhenEmptyPlatformVersion(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-
-	dsp := &componentApi.DataSciencePipelines{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: componentApi.DataSciencePipelinesInstanceName,
-		},
-		Status: componentApi.DataSciencePipelinesStatus{
-			Status: common.Status{
-				Conditions: []common.Condition{
-					{Type: status.ConditionTypeReady, Status: metav1.ConditionTrue},
-				},
-			},
-			DataSciencePipelinesCommonStatus: componentApi.DataSciencePipelinesCommonStatus{
-				ComponentReleaseStatus: common.ComponentReleaseStatus{
-					Releases: []common.ComponentRelease{
-						{Name: "platform", Version: "2.19.0"},
-					},
-				},
-			},
-		},
-	}
-
-	cli, err := fakeclient.New(
-		fakeclient.WithObjects(dsp),
-		fakeclient.WithGVKs(fakeclient.GVKMapping{
-			GVK:   gvk.DataSciencePipelines,
-			Scope: meta.RESTScopeRoot,
-		}),
-	)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	reg := &registry.Registry{}
-	reg.Add(&crComponentHandler{
-		name:    "datasciencepipelines",
-		enabled: true,
-		cr: &componentApi.DataSciencePipelines{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: componentApi.DataSciencePipelinesInstanceName,
-			},
-		},
-	})
-
-	checker := registry.NewReadinessChecker(reg, cli, nil, "")
-	ready, err := checker.IsReady(context.Background(), "datasciencepipelines")
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(ready).Should(BeTrue(), "empty platform version should skip version check")
-}
-
-func TestReadinessChecker_NotReadyWhenConditionFalse(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-
-	dsp := &componentApi.DataSciencePipelines{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: componentApi.DataSciencePipelinesInstanceName,
-		},
-		Status: componentApi.DataSciencePipelinesStatus{
-			Status: common.Status{
-				Conditions: []common.Condition{
-					{Type: status.ConditionTypeReady, Status: metav1.ConditionFalse},
-				},
-			},
-			DataSciencePipelinesCommonStatus: componentApi.DataSciencePipelinesCommonStatus{
-				ComponentReleaseStatus: common.ComponentReleaseStatus{
-					Releases: []common.ComponentRelease{
-						{Name: "platform", Version: "2.20.0"},
-					},
-				},
-			},
-		},
-	}
-
-	cli, err := fakeclient.New(
-		fakeclient.WithObjects(dsp),
-		fakeclient.WithGVKs(fakeclient.GVKMapping{
-			GVK:   gvk.DataSciencePipelines,
-			Scope: meta.RESTScopeRoot,
-		}),
-	)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	reg := &registry.Registry{}
-	reg.Add(&crComponentHandler{
-		name:    "datasciencepipelines",
-		enabled: true,
-		cr: &componentApi.DataSciencePipelines{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: componentApi.DataSciencePipelinesInstanceName,
-			},
-		},
-	})
-
-	checker := registry.NewReadinessChecker(reg, cli, nil, "2.20.0")
-	ready, err := checker.IsReady(context.Background(), "datasciencepipelines")
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(ready).Should(BeFalse(), "component with Ready=False should not be ready regardless of version")
 }
 
 func TestReadinessChecker_DisabledComponentIsReady(t *testing.T) {
