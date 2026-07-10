@@ -385,7 +385,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	case platform == cluster.XKS && rhaiVersion == "":
 		setupLog.Error(errors.New("RHAI_VERSION must be set when platform is XKS"), "invalid configuration")
 		os.Exit(1)
-	case platform != cluster.XKS && rhaiVersion != "":
+	case platform != cluster.XKS && rhaiVersion != "" && os.Getenv("CI") != "true":
 		setupLog.Error(fmt.Errorf(
 			"RHAI_VERSION (%q) must not be set when platform is not XKS; version is detected from CSV",
 			rhaiVersion,

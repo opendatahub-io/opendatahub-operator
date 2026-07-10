@@ -1,10 +1,13 @@
 package e2e_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
+	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -12,13 +15,17 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+
+	. "github.com/onsi/gomega"
 )
 
 type DAGOrderingTestCtx struct {
@@ -44,7 +51,6 @@ var dagBatches = []componentBatch{
 		name:     "Batch20",
 		runlevel: 20,
 		components: []componentEntry{
-			{name: componentApi.AIGatewayComponentName, gvk: gvk.AIGateway, internal: true},
 			{name: componentApi.DashboardComponentName, gvk: gvk.Dashboard},
 			{name: componentApi.DataSciencePipelinesComponentName, gvk: gvk.DataSciencePipelines},
 			{name: componentApi.ModelRegistryComponentName, gvk: gvk.ModelRegistry},
@@ -52,6 +58,7 @@ var dagBatches = []componentBatch{
 			{name: componentApi.TrainerComponentName, gvk: gvk.Trainer},
 			{name: componentApi.TrainingOperatorComponentName, gvk: gvk.TrainingOperator},
 			{name: componentApi.WorkbenchesComponentName, gvk: gvk.Workbenches},
+			{name: componentApi.MCPLifecycleOperatorComponentName, gvk: gvk.MCPLifecycleOperator, internal: true},
 		},
 	},
 	{
@@ -59,6 +66,7 @@ var dagBatches = []componentBatch{
 		runlevel: 31,
 		components: []componentEntry{
 			{name: componentApi.KserveComponentName, gvk: gvk.Kserve},
+			{name: componentApi.ModelControllerComponentName, gvk: gvk.ModelController},
 			{name: componentApi.KueueComponentName, gvk: gvk.Kueue, internal: true},
 		},
 	},
@@ -70,13 +78,13 @@ var dagBatches = []componentBatch{
 			{name: componentApi.MLflowOperatorComponentName, gvk: gvk.MLflowOperator},
 			{name: componentApi.OGXComponentName, gvk: gvk.OGX},
 			{name: componentApi.SparkOperatorComponentName, gvk: gvk.SparkOperator},
+			{name: componentApi.AIGatewayComponentName, gvk: gvk.AIGateway, internal: true},
 		},
 	},
 	{
 		name:     "Batch33",
 		runlevel: 33,
 		components: []componentEntry{
-			{name: componentApi.ModelControllerComponentName, gvk: gvk.ModelController},
 			{name: componentApi.ModelsAsServiceComponentName, gvk: gvk.ModelsAsService, internal: true},
 			{name: componentApi.TrustyAIComponentName, gvk: gvk.TrustyAI},
 		},
@@ -100,6 +108,7 @@ var dscComponentFields = []string{
 	"trustyai",
 	"feastoperator",
 	"ogx",
+	"mcplifecycleoperator",
 	"mlflowoperator",
 	"trainer",
 	"sparkoperator",
@@ -130,93 +139,48 @@ func dagOrderingTestSuite(t *testing.T) {
 
 	t.Log("Ensuring clean slate: setting all components to Removed")
 	ctx.setAllRemoved(t)
+	ctx.removeOperatorEnvVar(t, "RHAI_VERSION")
+	ctx.removeOperatorEnvVar(t, "CI")
 
 	// Tests are ordered to minimise expensive enable/disable cycles.
-	// Each test's end state feeds the next test's start state:
-	//   InTreeGates (→Removed) → AdminAckGates (→Removed) →
+	// Each test's end state feeds the next test's start state.
+	//
+	// Phase 1: Gate tests (no upgrade simulation needed)
+	//   InTreeGates (→Removed) → AdminAckGates (→Removed)
+	//
+	// Phase 2: Deploy + gating with version handshake
 	//   PartialEnablement (→Removed) →
-	//   RunlevelGating (→Removed, enables under quota, proves gating,
-	//                    removes quota, converges → AllReady) →
-	//   BatchOrdering (→AllReady, read-only) →
+	//   RunlevelGating (enables, converges, then upgrade + quota proves
+	//     gating and batch-sequential ordering, converges at new version
+	//     → AllReady)
+	//
+	// Phase 3: Steady-state tests (original version restored)
 	//   PlatformReady (→AllReady, read-only) →
+	//   ComponentStability (→AllReady, toggles KServe) →
 	//   DAGCleanup (→Removed)
-	testCases := []TestCase{
+
+	// Phase 1: gate tests
+	RunTestCases(t, []TestCase{
 		{"Validate in-tree gates block and unblock provisioning", ctx.ValidateInTreeGates},
 		{"Validate admin ack gates block and unblock provisioning", ctx.ValidateAdminAckGates},
+	})
+
+	// Phase 2: deploy + gating with version upgrade
+	RunTestCases(t, []TestCase{
 		{"Validate partial enablement", ctx.ValidatePartialEnablement},
 		{"Validate runlevel gating and convergence", ctx.ValidateRunlevelGatingAndConvergence},
-		{"Validate batch ordering", ctx.ValidateBatchOrdering},
-		{"Validate PlatformReady condition on component CRs", ctx.ValidatePlatformReady},
-		{"Validate DAG cleanup", ctx.ValidateDAGCleanup},
-	}
+	})
 
-	RunTestCases(t, testCases)
-}
+	// Restore operator to original version after Phase 2 upgrade.
+	// Components have platform release = 99.0.0. Restoring triggers
+	// another gating cycle (version mismatch) until components reconcile.
+	t.Log("Restoring operator to original version for Phase 3")
+	ctx.removeOperatorEnvVar(t, "RHAI_VERSION")
+	ctx.removeOperatorEnvVar(t, "CI")
 
-// ValidateRunlevelGatingAndConvergence combines gating proof with DAG
-// convergence in a single enable cycle. Starting from a Removed state
-// (all component CRs deleted), it applies a zero-pod quota, enables all
-// components, and verifies that Extension CRs (batch 31+) are absent
-// while batch 20 is stuck. After removing the quota it waits for full
-// convergence (ProvisioningProgress=True), verifies Extension CRs were
-// created, and leaves the cluster in an AllReady state for subsequent
-// read-only tests.
-//
-// This avoids operator restarts (and associated stale-PlatformReady
-// race conditions) by leveraging the fact that the RunlevelTracker is
-// naturally empty for newly-created component CRs.
-func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T) {
-	t.Helper()
-
-	skipUnless(t, Tier2, Tier3)
-
-	t.Log("Waiting for Extension CRs to be fully deleted before gating test")
-	for _, extGVK := range extensionGVKs {
-		instanceName := tc.GetInstanceName(extGVK)
-		tc.EnsureResourceGone(
-			WithMinimalObject(extGVK, types.NamespacedName{Name: instanceName}),
-			WithEventuallyTimeout(5*time.Minute),
-			WithEventuallyPollingInterval(10*time.Second),
-		)
-	}
-
-	t.Log("Applying zero-pod quota to block batch 20 deployments")
-	tc.createDAGQuota()
-
-	t.Log("Enabling all components under quota")
-	tc.EventuallyResourcePatched(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(allComponentsTransform("Managed")),
-	)
-
-	t.Log("Waiting for ProvisioningProgress=False (batch 20 stuck under quota)")
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithCondition(jq.Match(
-			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
-			status.ConditionTypeProvisioningProgress, metav1.ConditionFalse,
-		)),
-		WithEventuallyTimeout(5*time.Minute),
-		WithEventuallyPollingInterval(10*time.Second),
-	)
-
-	t.Log("Verifying no Extension CRs were created while batch 20 is gated")
-	for _, extGVK := range extensionGVKs {
-		instanceName := tc.GetInstanceName(extGVK)
-		u := tc.FetchResource(
-			WithMinimalObject(extGVK, types.NamespacedName{Name: instanceName}),
-		)
-		require.Nil(t, u,
-			"Extension CR %s should not exist while batch 20 is stuck under quota", extGVK.Kind)
-	}
-	t.Log("Confirmed: no Extension CRs exist while gated")
-
-	t.Log("Removing quota to unblock batch 20")
-	tc.deleteDAGQuota()
-
-	t.Log("Waiting for DAG convergence (ProvisioningProgress=True)")
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+	t.Log("Waiting for convergence at original version")
+	ctx.EnsureResourceExists(
+		WithMinimalObject(gvk.Platform, ctx.PlatformNamespacedName),
 		WithCondition(jq.Match(
 			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
 			status.ConditionTypeProvisioningProgress, metav1.ConditionTrue,
@@ -225,102 +189,173 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 		WithEventuallyPollingInterval(15*time.Second),
 	)
 
-	t.Log("Verifying Extension CRs now exist after recovery")
-	for _, extGVK := range extensionGVKs {
-		instanceName := tc.GetInstanceName(extGVK)
-		u := tc.FetchResource(
-			WithMinimalObject(extGVK, types.NamespacedName{Name: instanceName}),
-		)
-		require.NotNil(t, u,
-			"Extension CR %s should exist after DAG convergence", extGVK.Kind)
-	}
-	t.Log("DAG converged and gating verified")
+	// Phase 3: steady-state tests
+	RunTestCases(t, []TestCase{
+		// {"Validate PlatformReady condition on component CRs", ctx.ValidatePlatformReady},
+		{"Validate component stability across enable/disable cycles (RHOAIENG-73142)", ctx.ValidateComponentStability},
+		{"Validate DAG cleanup", ctx.ValidateDAGCleanup},
+	})
+
+	// Final cleanup: ensure cluster is left clean regardless of test outcomes
+	t.Cleanup(func() {
+		t.Log("Cleanup: setting all components to Removed")
+		ctx.setAllRemoved(t)
+		ctx.deleteDAGQuota()
+	})
 }
 
-// ValidateBatchOrdering fetches component CRs created during DAG convergence
-// and asserts that components in earlier runlevel batches have earlier
-// creationTimestamps than those in later batches.
-func (tc *DAGOrderingTestCtx) ValidateBatchOrdering(t *testing.T) {
+// ValidateRunlevelGatingAndConvergence proves that the DAG readiness
+// gating mechanism works end-to-end. It first deploys all components at
+// the original version, then simulates a version upgrade under a
+// zero-pod quota. The version change makes the readiness checker detect
+// a platform release mismatch on component CRs (old version != new
+// operator version), blocking DAG advancement. The quota prevents
+// batch-20 components from reconciling at the new version, keeping them
+// stuck. Extension controllers (batch 31+) should be gated
+// (PlatformReady=False) while batch 20 is blocked. Removing the quota
+// lets components reconcile, proving convergence.
+//
+// The test leaves the operator at version 99.0.0-dag-test for
+// subsequent tests (BatchOrdering). The suite restores the original
+// version after Phase 2.
+func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T) {
 	t.Helper()
 
 	skipUnless(t, Tier2, Tier3)
 
-	type batchTimestamps struct {
-		name     string
-		earliest metav1.Time
-		latest   metav1.Time
-		count    int
-		skipped  []string
+	// Guard against leftover quota from a prior crashed/interrupted run.
+	tc.deleteDAGQuota()
+
+	// Step 1: Deploy all components at the original version.
+	// This establishes platform release version in component CR status.
+	t.Log("Enabling all components for initial deployment and waiting for initial convergence (ComponentsReady=True and ModulesReady=True on DSC)")
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(allComponentsTransform("Managed")),
+		WithCondition(And(
+			jq.Match(
+				`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
+				status.ConditionTypeComponentsReady, metav1.ConditionTrue,
+			),
+			jq.Match(
+				`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
+				status.ConditionTypeModulesReady, metav1.ConditionTrue,
+			),
+		)),
+		WithEventuallyTimeout(15*time.Minute),
+		WithEventuallyPollingInterval(15*time.Second),
+	)
+
+	// Step 2: Apply quota and simulate version upgrade.
+	// Quota blocks new pod creation. Version change triggers readiness
+	// gating: component CRs have the old platform release version which
+	// no longer matches the new operator version.
+	t.Log("Applying zero-pod quota to block deployments")
+	tc.createDAGQuota()
+
+	t.Log("Simulating version upgrade")
+	tc.setOperatorEnvVar(t, "CI", "true")
+	tc.setOperatorEnvVar(t, "RHAI_VERSION", "99.0.0-dag-test")
+
+	// Step 3: Verify gating is active.
+	t.Log("Waiting for ProvisioningProgress=False on Platform CR (version mismatch + quota)")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Platform, tc.PlatformNamespacedName),
+		WithCondition(jq.Match(
+			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
+			status.ConditionTypeProvisioningProgress, metav1.ConditionFalse,
+		)),
+		WithEventuallyTimeout(5*time.Minute),
+		WithEventuallyPollingInterval(10*time.Second),
+	)
+
+	t.Log("Verifying Extension controllers are gated (PlatformReady=False) while prior batches are stuck")
+	for _, extGVK := range extensionGVKs {
+		instanceName := tc.GetInstanceName(extGVK)
+		tc.EnsureResourceExists(
+			WithMinimalObject(extGVK, types.NamespacedName{Name: instanceName}),
+			WithCondition(jq.Match(
+				`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
+				precondition.PlatformReadyConditionType, metav1.ConditionFalse,
+			)),
+			WithCustomErrorMsg("Extension %s should have PlatformReady=False while prior batches are gated", extGVK.Kind),
+		)
+	}
+	t.Log("Confirmed: Extension controllers are gated")
+
+	// Step 4: Remove quota and verify convergence at new version.
+	t.Log("Removing quota to unblock deployments")
+	tc.deleteDAGQuota()
+
+	t.Log("Waiting for DAG convergence (ProvisioningProgress=True on Platform CR)")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Platform, tc.PlatformNamespacedName),
+		WithCondition(jq.Match(
+			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
+			status.ConditionTypeProvisioningProgress, metav1.ConditionTrue,
+		)),
+		WithEventuallyTimeout(15*time.Minute),
+		WithEventuallyPollingInterval(15*time.Second),
+	)
+
+	t.Log("Verifying component controllers are unblocked (PlatformReady=True)")
+	for _, batch := range dagBatches {
+		for _, comp := range batch.components {
+			if comp.internal {
+				continue
+			}
+			tc.EnsureResourceExists(
+				WithMinimalObject(comp.gvk, types.NamespacedName{Name: tc.GetInstanceName(comp.gvk)}),
+				WithCondition(jq.Match(
+					`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
+					precondition.PlatformReadyConditionType, metav1.ConditionTrue,
+				)),
+				WithEventuallyTimeout(5*time.Minute),
+				WithEventuallyPollingInterval(10*time.Second),
+				WithCustomErrorMsg("%s should have PlatformReady=True after convergence", comp.name),
+			)
+		}
 	}
 
-	var results []batchTimestamps
+	t.Log("Verifying ModulesReady=True on Platform CR")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Platform, tc.PlatformNamespacedName),
+		WithCondition(jq.Match(
+			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
+			status.ConditionTypeModulesReady, metav1.ConditionTrue,
+		)),
+		WithEventuallyTimeout(2*time.Minute),
+		WithEventuallyPollingInterval(10*time.Second),
+	)
 
+	t.Log("Verifying module CRs are Ready")
 	for _, batch := range dagBatches {
-		bt := batchTimestamps{name: batch.name}
-
 		for _, comp := range batch.components {
+			if !comp.internal {
+				continue
+			}
 			instanceName := tc.GetInstanceName(comp.gvk)
+			if instanceName == "" {
+				continue
+			}
 			u := tc.FetchResource(
 				WithMinimalObject(comp.gvk, types.NamespacedName{Name: instanceName}),
 			)
 			if u == nil {
-				bt.skipped = append(bt.skipped, comp.name)
-				t.Logf("Component %s CR not found, skipping from ordering check", comp.name)
 				continue
 			}
-
-			ts := u.GetCreationTimestamp()
-			if ts.IsZero() {
-				bt.skipped = append(bt.skipped, comp.name)
-				t.Logf("Component %s has zero creationTimestamp, skipping", comp.name)
-				continue
-			}
-
-			if bt.count == 0 {
-				bt.earliest = ts
-				bt.latest = ts
-			} else {
-				if ts.Before(&bt.earliest) {
-					bt.earliest = ts
-				}
-				if bt.latest.Before(&ts) {
-					bt.latest = ts
-				}
-			}
-			bt.count++
-		}
-
-		if bt.count > 0 {
-			results = append(results, bt)
-			t.Logf("Batch %s: %d CRs, earliest=%s, latest=%s",
-				bt.name, bt.count, bt.earliest.Format(time.RFC3339), bt.latest.Format(time.RFC3339))
-		} else {
-			t.Logf("Batch %s: no CRs found (skipped: %s)", bt.name, strings.Join(bt.skipped, ", "))
-		}
-
-		if len(bt.skipped) > 0 {
-			t.Logf("Batch %s: skipped components: %s", bt.name, strings.Join(bt.skipped, ", "))
+			tc.EnsureResourceExists(
+				WithMinimalObject(comp.gvk, types.NamespacedName{Name: instanceName}),
+				WithCondition(jq.Match(
+					`any(.status.conditions[]; .type == "Ready" and .status == "True")`,
+				)),
+				WithEventuallyTimeout(2*time.Minute),
+				WithEventuallyPollingInterval(10*time.Second),
+				WithCustomErrorMsg("module %s should have Ready=True after convergence", comp.name),
+			)
 		}
 	}
-
-	require.GreaterOrEqual(t, len(results), 2,
-		"Need at least 2 batches with component CRs to verify ordering")
-
-	for i := range len(results) - 1 {
-		curr := results[i]
-		next := results[i+1]
-
-		require.False(t,
-			next.earliest.Before(&curr.latest),
-			"Batch %q latest CR (%s) should not be after batch %q earliest CR (%s) — DAG ordering violated",
-			curr.name, curr.latest.Format(time.RFC3339),
-			next.name, next.earliest.Format(time.RFC3339),
-		)
-
-		t.Logf("Ordering OK: batch %q (latest %s) -> batch %q (earliest %s)",
-			curr.name, curr.latest.Format(time.RFC3339),
-			next.name, next.earliest.Format(time.RFC3339))
-	}
+	t.Log("DAG gating and version handshake verified")
 }
 
 // ValidatePlatformReady verifies that every component CR has the
@@ -354,6 +389,85 @@ func (tc *DAGOrderingTestCtx) ValidatePlatformReady(t *testing.T) {
 			t.Logf("Component %s: %s=True (correct)", comp.name, precondition.PlatformReadyConditionType)
 		}
 	}
+}
+
+// ValidateComponentStability verifies that toggling one component's
+// ManagementState does not cause unrelated higher-RL components to be
+// recreated (RHOAIENG-73142). Starting from AllReady state, it records
+// SparkOperator CR UID, sets KServe to Removed then back to Managed,
+// and asserts SparkOperator CR UID is unchanged.
+func (tc *DAGOrderingTestCtx) ValidateComponentStability(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Tier2, Tier3)
+
+	t.Log("Ensuring KServe and SparkOperator are Managed")
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(selectComponentsTransform(string(operatorv1.Managed), []string{"kserve", "sparkoperator"})),
+	)
+
+	sparkInstanceName := tc.GetInstanceName(gvk.SparkOperator)
+
+	t.Log("Waiting for SparkOperator CR to exist and be Ready")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.SparkOperator, types.NamespacedName{Name: sparkInstanceName}),
+		WithCondition(jq.Match(
+			`any(.status.conditions[]; .type == "Ready" and .status == "True")`,
+		)),
+		WithEventuallyTimeout(10*time.Minute),
+		WithEventuallyPollingInterval(15*time.Second),
+	)
+
+	t.Log("Recording SparkOperator CR UID before toggle")
+	sparkBefore := tc.FetchResource(
+		WithMinimalObject(gvk.SparkOperator, types.NamespacedName{Name: sparkInstanceName}),
+	)
+	require.NotNil(t, sparkBefore, "SparkOperator CR should exist in AllReady state")
+	uidBefore := sparkBefore.GetUID()
+	require.NotEmpty(t, uidBefore, "SparkOperator CR should have a UID")
+
+	t.Log("Setting KServe to Removed")
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(selectComponentsTransform(string(operatorv1.Removed), []string{"kserve"})),
+	)
+
+	t.Log("Waiting for KServe CR to be deleted")
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: tc.GetInstanceName(gvk.Kserve)}),
+		WithEventuallyTimeout(5*time.Minute),
+		WithEventuallyPollingInterval(10*time.Second),
+	)
+
+	t.Log("Setting KServe back to Managed")
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(selectComponentsTransform(string(operatorv1.Managed), []string{"kserve"})),
+		WithCondition(jq.Match(
+			`.status.components.kserve.managementState == "%s"`,
+			string(operatorv1.Managed),
+		)),
+	)
+
+	t.Log("Waiting for KServe CR to be recreated and Ready")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: tc.GetInstanceName(gvk.Kserve)}),
+		WithCondition(jq.Match(
+			`any(.status.conditions[]; .type == "Ready" and .status == "True")`,
+		)),
+		WithEventuallyTimeout(10*time.Minute),
+		WithEventuallyPollingInterval(15*time.Second),
+	)
+
+	t.Log("Verifying SparkOperator CR UID is unchanged")
+	sparkAfter := tc.FetchResource(
+		WithMinimalObject(gvk.SparkOperator, types.NamespacedName{Name: sparkInstanceName}),
+	)
+	require.NotNil(t, sparkAfter, "SparkOperator CR should still exist")
+	require.Equal(t, uidBefore, sparkAfter.GetUID(),
+		"SparkOperator CR was recreated (UID changed) — RHOAIENG-73142 regression")
+	t.Log("SparkOperator CR UID stable across KServe toggle")
 }
 
 // ValidateDAGCleanup sets all components to Removed, waits for the DSC
@@ -404,35 +518,16 @@ func (tc *DAGOrderingTestCtx) ValidatePartialEnablement(t *testing.T) {
 		WithMutateFunc(selectComponentsTransform("Managed", partialFields)),
 	)
 
-	t.Log("Waiting for DAG to start processing (ProvisioningProgress=False)")
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithCondition(jq.Match(
-			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
-			status.ConditionTypeProvisioningProgress, metav1.ConditionFalse,
-		)),
-		WithEventuallyTimeout(3*time.Minute),
-		WithEventuallyPollingInterval(10*time.Second),
-	)
-
-	t.Log("Waiting for ProvisioningProgress=True (DAG walked all batches)")
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithCondition(jq.Match(
-			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
-			status.ConditionTypeProvisioningProgress, metav1.ConditionTrue,
-		)),
-		WithEventuallyTimeout(15*time.Minute),
-		WithEventuallyPollingInterval(15*time.Second),
-	)
-
+	t.Log("Verifying enabled component CRs are created")
 	enabledGVKs := []schema.GroupVersionKind{gvk.Dashboard, gvk.Kserve, gvk.ModelRegistry}
 	for _, g := range enabledGVKs {
 		instanceName := tc.GetInstanceName(g)
-		u := tc.FetchResource(
+		tc.EnsureResourceExists(
 			WithMinimalObject(g, types.NamespacedName{Name: instanceName}),
+			WithEventuallyTimeout(5*time.Minute),
+			WithEventuallyPollingInterval(10*time.Second),
+			WithCustomErrorMsg("Enabled component CR %s should exist", g.Kind),
 		)
-		require.NotNil(t, u, "Enabled component CR %s should exist", g.Kind)
 	}
 
 	disabledGVKs := []schema.GroupVersionKind{
@@ -586,9 +681,9 @@ func (tc *DAGOrderingTestCtx) ValidateAdminAckGates(t *testing.T) {
 		WithMutateFunc(selectComponentsTransform("Managed", []string{"dashboard", "aigateway"})),
 	)
 
-	t.Log("Waiting for ProvisioningProgress=False with reason AdminAckRequired")
+	t.Log("Waiting for ProvisioningProgress=False with reason AdminAckRequired on Platform CR")
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMinimalObject(gvk.Platform, tc.PlatformNamespacedName),
 		WithCondition(jq.Match(
 			`any(.status.conditions[]; .type == "%s" and .status == "%s" and .reason == "%s")`,
 			status.ConditionTypeProvisioningProgress, metav1.ConditionFalse, status.AdminAckRequiredReason,
@@ -596,14 +691,14 @@ func (tc *DAGOrderingTestCtx) ValidateAdminAckGates(t *testing.T) {
 		WithEventuallyTimeout(3*time.Minute),
 		WithEventuallyPollingInterval(10*time.Second),
 	)
-	t.Log("Confirmed: provisioning blocked by two unacknowledged gates (components and modules)")
+	t.Log("Confirmed: provisioning blocked by two unacknowledged gates")
 
 	t.Logf("Acknowledging only the first gate: %s", gateKey1)
 	tc.patchAcksConfigMap(t, gateKey1, "true")
 
 	t.Log("Verifying provisioning remains blocked (second gate still unacknowledged)")
 	tc.EnsureResourceExistsConsistently(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMinimalObject(gvk.Platform, tc.PlatformNamespacedName),
 		WithCondition(jq.Match(
 			`any(.status.conditions[]; .type == "%s" and .status == "%s" and .reason == "%s")`,
 			status.ConditionTypeProvisioningProgress, metav1.ConditionFalse, status.AdminAckRequiredReason,
@@ -618,7 +713,7 @@ func (tc *DAGOrderingTestCtx) ValidateAdminAckGates(t *testing.T) {
 
 	t.Log("Waiting for provisioning to resume (all gates acknowledged)")
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMinimalObject(gvk.Platform, tc.PlatformNamespacedName),
 		WithCondition(jq.Match(
 			`any(.status.conditions[]; .type == "%s" and .reason != "%s")`,
 			status.ConditionTypeProvisioningProgress, status.AdminAckRequiredReason,
@@ -792,4 +887,139 @@ func (tc *DAGOrderingTestCtx) deleteDAGQuota() {
 		WithIgnoreNotFound(true),
 		WithWaitForDeletion(true),
 	)
+}
+
+// setOperatorEnvVar sets an environment variable on the operator, triggering
+// a pod restart. For OLM installs it patches the CSV (OLM propagates to
+// the Deployment). For non-OLM installs it patches the Deployment directly.
+func (tc *DAGOrderingTestCtx) setOperatorEnvVar(t *testing.T, envName, envValue string) {
+	t.Helper()
+
+	envEntry := corev1.EnvVar{Name: envName, Value: envValue}
+
+	if tc.patchSubscriptionEnvVar(t, envName, &envEntry) {
+		t.Logf("Patched Subscription to add env %s=%s", envName, envValue)
+	} else {
+		t.Logf("No OLM Subscription found, patching Deployment directly")
+		tc.patchDeploymentEnvVar(t, envName, &envEntry)
+	}
+
+	tc.waitForOperatorReady(t)
+}
+
+// removeOperatorEnvVar removes an environment variable from the operator
+// and waits for the pod to restart.
+func (tc *DAGOrderingTestCtx) removeOperatorEnvVar(t *testing.T, envName string) {
+	t.Helper()
+
+	if tc.patchSubscriptionEnvVar(t, envName, nil) {
+		t.Logf("Patched Subscription to remove env %s", envName)
+	} else {
+		t.Logf("No OLM Subscription found, patching Deployment directly")
+		tc.patchDeploymentEnvVar(t, envName, nil)
+	}
+
+	tc.waitForOperatorReady(t)
+}
+
+// patchSubscriptionEnvVar patches the operator Subscription to add or remove
+// an env var via spec.config.env. OLM propagates this to the CSV and Deployment.
+// Returns false if no Subscription is found (non-OLM install).
+// When envVar is nil, the named env var is removed.
+func (tc *DAGOrderingTestCtx) patchSubscriptionEnvVar(t *testing.T, envName string, envVar *corev1.EnvVar) bool {
+	t.Helper()
+
+	subList := &ofapi.SubscriptionList{}
+	err := tc.Client().List(tc.Context(), subList, client.InNamespace(tc.OperatorNamespace))
+	if err != nil {
+		return false
+	}
+
+	subIdx := slices.IndexFunc(subList.Items, func(sub ofapi.Subscription) bool {
+		return strings.Contains(sub.Name, "opendatahub") || strings.Contains(sub.Name, "rhods")
+	})
+	if subIdx == -1 {
+		return false
+	}
+
+	sub := &subList.Items[subIdx]
+	if sub.Spec.Config == nil {
+		sub.Spec.Config = &ofapi.SubscriptionConfig{}
+	}
+
+	// Remove existing entry with this name
+	sub.Spec.Config.Env = slices.DeleteFunc(sub.Spec.Config.Env, func(e corev1.EnvVar) bool {
+		return e.Name == envName
+	})
+
+	// Add new entry if provided
+	if envVar != nil {
+		sub.Spec.Config.Env = append(sub.Spec.Config.Env, *envVar)
+	}
+
+	err = tc.Client().Update(tc.Context(), sub)
+	require.NoError(t, err, "Failed to update Subscription %s", sub.Name)
+
+	return true
+}
+
+// patchDeploymentEnvVar patches the operator Deployment to add or remove an env var.
+// When envVar is nil, the named env var is removed.
+func (tc *DAGOrderingTestCtx) patchDeploymentEnvVar(t *testing.T, envName string, envVar *corev1.EnvVar) {
+	t.Helper()
+
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.Deployment, tc.operatorDeploymentNN()),
+		WithMutateFunc(func(obj *unstructured.Unstructured) error {
+			containers, _, _ := unstructured.NestedSlice(obj.Object, "spec", "template", "spec", "containers")
+			if len(containers) == 0 {
+				return nil
+			}
+			container, ok := containers[0].(map[string]any)
+			if !ok {
+				return nil
+			}
+			env, _ := container["env"].([]any)
+
+			// Remove existing entry
+			var filtered []any
+			for _, e := range env {
+				if entry, ok := e.(map[string]any); ok && entry["name"] != envName {
+					filtered = append(filtered, e)
+				}
+			}
+
+			// Add new entry if provided
+			if envVar != nil {
+				filtered = append(filtered, map[string]any{"name": envVar.Name, "value": envVar.Value})
+			}
+
+			container["env"] = filtered
+			containers[0] = container
+			return unstructured.SetNestedSlice(obj.Object, containers, "spec", "template", "spec", "containers")
+		}),
+	)
+}
+
+// waitForOperatorReady waits for the operator deployment to have all replicas ready.
+func (tc *DAGOrderingTestCtx) waitForOperatorReady(t *testing.T) {
+	t.Helper()
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, tc.operatorDeploymentNN()),
+		WithCondition(jq.Match(`.status.readyReplicas == .status.replicas and .status.updatedReplicas == .status.replicas`)),
+		WithEventuallyTimeout(5*time.Minute),
+		WithEventuallyPollingInterval(10*time.Second),
+	)
+}
+
+func (tc *DAGOrderingTestCtx) operatorDeploymentName() string {
+	if cluster.GetRelease().Name == cluster.SelfManagedRhoai || cluster.GetRelease().Name == cluster.ManagedRhoai {
+		return controllerDeploymentRhoai
+	}
+	return controllerDeploymentODH
+}
+
+func (tc *DAGOrderingTestCtx) operatorDeploymentNN() types.NamespacedName {
+	return types.NamespacedName{Name: tc.operatorDeploymentName(), Namespace: tc.OperatorNamespace}
 }

@@ -457,6 +457,10 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) (time
 	if rr.Conditions.IsHappy() {
 		is.Phase = status.PhaseReady
 		is.ObservedGeneration = rr.Instance.GetGeneration()
+
+		if wr, ok := rr.Instance.(common.WithReleases); ok && !rr.SkipDeploy {
+			setPlatformRelease(wr, rr.Release.Version.String())
+		}
 	}
 
 	if r.skipStatusConditionsFn != nil && r.skipStatusConditionsFn() {
@@ -500,4 +504,20 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) (time
 	}
 
 	return requeueAfter, nil
+}
+
+const platformReleaseName = common.PlatformReleaseName
+
+func setPlatformRelease(wr common.WithReleases, version string) {
+	releases := wr.GetReleaseStatus()
+	for i, r := range *releases {
+		if r.Name == platformReleaseName {
+			(*releases)[i].Version = version
+			return
+		}
+	}
+	*releases = append(*releases, common.ComponentRelease{
+		Name:    platformReleaseName,
+		Version: version,
+	})
 }

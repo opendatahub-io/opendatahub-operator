@@ -10,7 +10,6 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
@@ -22,16 +21,11 @@ import (
 func newPlatformCtx(mgmtState operatorv1.ManagementState) *modules.PlatformContext {
 	return &modules.PlatformContext{
 		ApplicationsNamespace: "opendatahub",
-		DSC:                   &dscv2.DataScienceCluster{},
-		DSCI: &dsciv2.DSCInitialization{
-			Spec: dsciv2.DSCInitializationSpec{
-				ApplicationsNamespace: "opendatahub",
-				Monitoring: serviceApi.DSCIMonitoring{
-					ManagementSpec: common.ManagementSpec{
+		Platform: &configv1alpha1.Platform{
+			Spec: configv1alpha1.PlatformSpec{
+				Modules: configv1alpha1.PlatformModules{
+					Monitoring: common.ManagementSpec{
 						ManagementState: mgmtState,
-					},
-					MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
-						Namespace: "opendatahub",
 					},
 				},
 			},
@@ -39,15 +33,16 @@ func newPlatformCtx(mgmtState operatorv1.ManagementState) *modules.PlatformConte
 	}
 }
 
-func newPlatformModePlatformCtx(mgmtState operatorv1.ManagementState) *modules.PlatformContext {
-	return &modules.PlatformContext{
-		ApplicationsNamespace: "opendatahub",
-		Platform: &configv1alpha1.Platform{
-			Spec: configv1alpha1.PlatformSpec{
-				Modules: configv1alpha1.PlatformModules{
-					Monitoring: common.ManagementSpec{
-						ManagementState: mgmtState,
-					},
+func newDSCI(mgmtState operatorv1.ManagementState) *dsciv2.DSCInitialization {
+	return &dsciv2.DSCInitialization{
+		Spec: dsciv2.DSCInitializationSpec{
+			ApplicationsNamespace: "opendatahub",
+			Monitoring: serviceApi.DSCIMonitoring{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: mgmtState,
+				},
+				MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
+					Namespace: "opendatahub",
 				},
 			},
 		},
@@ -72,10 +67,10 @@ func TestIsEnabled_Empty(t *testing.T) {
 	g.Expect(h.IsEnabled(newPlatformCtx(""))).Should(BeFalse())
 }
 
-func TestIsEnabled_NilDSCI_NilPlatform(t *testing.T) {
+func TestIsEnabled_NilPlatform(t *testing.T) {
 	g := NewWithT(t)
 	h := monitoring.NewHandler()
-	ctx := &modules.PlatformContext{DSC: &dscv2.DataScienceCluster{}}
+	ctx := &modules.PlatformContext{ApplicationsNamespace: "opendatahub"}
 	g.Expect(h.IsEnabled(ctx)).Should(BeFalse())
 }
 
@@ -85,68 +80,35 @@ func TestIsEnabled_NilPlatformContext(t *testing.T) {
 	g.Expect(h.IsEnabled(nil)).Should(BeFalse())
 }
 
-func TestBuildModuleCR_NilPlatformContextReturnsError(t *testing.T) {
+func TestBuildModuleCR_NilDSCIReturnsError(t *testing.T) {
 	g := NewWithT(t)
 	h := monitoring.NewHandler()
-	_, err := h.BuildModuleCR(context.Background(), nil, nil)
+	_, err := h.BuildModuleCR(context.Background(), nil, nil, nil)
 	g.Expect(err).Should(HaveOccurred())
-}
-
-func TestIsEnabled_PlatformMode_Managed(t *testing.T) {
-	g := NewWithT(t)
-	h := monitoring.NewHandler()
-	g.Expect(h.IsEnabled(newPlatformModePlatformCtx(operatorv1.Managed))).Should(BeTrue())
-}
-
-func TestIsEnabled_PlatformMode_Removed(t *testing.T) {
-	g := NewWithT(t)
-	h := monitoring.NewHandler()
-	g.Expect(h.IsEnabled(newPlatformModePlatformCtx(operatorv1.Removed))).Should(BeFalse())
-}
-
-func TestIsEnabled_PlatformMode_Empty(t *testing.T) {
-	g := NewWithT(t)
-	h := monitoring.NewHandler()
-	g.Expect(h.IsEnabled(newPlatformModePlatformCtx(""))).Should(BeFalse())
 }
 
 func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	g := NewWithT(t)
 	h := monitoring.NewHandler()
-	platform := newPlatformCtx(operatorv1.Managed)
+	dsci := newDSCI(operatorv1.Managed)
 
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	u, err := h.BuildModuleCR(context.Background(), nil, nil, dsci)
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(u.GetName()).Should(Equal(serviceApi.MonitoringInstanceName))
 	g.Expect(u.GetKind()).Should(Equal(serviceApi.MonitoringKind))
 
 	spec, ok := u.Object["spec"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec is not a map")
-	g.Expect(spec["managementState"]).Should(Equal("Managed"))
+	g.Expect(spec).ShouldNot(HaveKey("managementState"),
+		"managementState is a DSCI-level field and must not be projected into the module CR")
 	g.Expect(spec["namespace"]).Should(Equal("opendatahub"))
-}
-
-func TestBuildModuleCR_EmptyManagementStatePassedThrough(t *testing.T) {
-	g := NewWithT(t)
-	h := monitoring.NewHandler()
-	platform := newPlatformCtx("")
-
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	spec, ok := u.Object["spec"].(map[string]any)
-	g.Expect(ok).Should(BeTrue(), "spec is not a map")
-
-	if got, exists := spec["managementState"]; exists {
-		g.Expect(got).Should(BeEmpty(), "managementState should be empty when not set")
-	}
 }
 
 func TestBuildModuleCR_ProjectsMetrics(t *testing.T) {
 	g := NewWithT(t)
 	h := monitoring.NewHandler()
-	platform := newPlatformCtx(operatorv1.Managed)
-	platform.DSCI.Spec.Monitoring.Metrics = &serviceApi.Metrics{
+	dsci := newDSCI(operatorv1.Managed)
+	dsci.Spec.Monitoring.Metrics = &serviceApi.Metrics{
 		Storage: &serviceApi.MetricsStorage{
 			Size:      resource.MustParse("10Gi"),
 			Retention: "7d",
@@ -154,7 +116,7 @@ func TestBuildModuleCR_ProjectsMetrics(t *testing.T) {
 		Replicas: 2,
 	}
 
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	u, err := h.BuildModuleCR(context.Background(), nil, nil, dsci)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, ok := u.Object["spec"].(map[string]any)
@@ -173,8 +135,8 @@ func TestBuildModuleCR_ProjectsMetrics(t *testing.T) {
 func TestBuildModuleCR_ProjectsTraces(t *testing.T) {
 	g := NewWithT(t)
 	h := monitoring.NewHandler()
-	platform := newPlatformCtx(operatorv1.Managed)
-	platform.DSCI.Spec.Monitoring.Traces = &serviceApi.Traces{
+	dsci := newDSCI(operatorv1.Managed)
+	dsci.Spec.Monitoring.Traces = &serviceApi.Traces{
 		Storage: serviceApi.TracesStorage{
 			Backend: serviceApi.StorageBackendS3,
 			Secret:  "my-s3-creds",
@@ -190,7 +152,7 @@ func TestBuildModuleCR_ProjectsTraces(t *testing.T) {
 		},
 	}
 
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	u, err := h.BuildModuleCR(context.Background(), nil, nil, dsci)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, ok := u.Object["spec"].(map[string]any)
@@ -212,30 +174,6 @@ func TestBuildModuleCR_ProjectsTraces(t *testing.T) {
 	g.Expect(tls["enabled"]).Should(BeTrue())
 	g.Expect(tls["certificateSecret"]).Should(Equal("tls-secret"))
 	g.Expect(tls["caConfigMap"]).Should(Equal("ca-cm"))
-}
-
-func TestBuildModuleCR_NilDSCINilPlatformReturnsError(t *testing.T) {
-	g := NewWithT(t)
-	h := monitoring.NewHandler()
-	platform := &modules.PlatformContext{DSC: &dscv2.DataScienceCluster{}}
-
-	_, err := h.BuildModuleCR(context.Background(), nil, platform)
-	g.Expect(err).Should(HaveOccurred())
-}
-
-func TestBuildModuleCR_PlatformMode(t *testing.T) {
-	g := NewWithT(t)
-	h := monitoring.NewHandler()
-	platform := newPlatformModePlatformCtx(operatorv1.Managed)
-
-	u, err := h.BuildModuleCR(context.Background(), nil, platform)
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(u.GetName()).Should(Equal(serviceApi.MonitoringInstanceName))
-	g.Expect(u.GetKind()).Should(Equal(serviceApi.MonitoringKind))
-
-	spec, ok := u.Object["spec"].(map[string]any)
-	g.Expect(ok).Should(BeTrue(), "spec is not a map")
-	g.Expect(spec["managementState"]).Should(Equal("Managed"))
 }
 
 func TestGetRelatedImages(t *testing.T) {

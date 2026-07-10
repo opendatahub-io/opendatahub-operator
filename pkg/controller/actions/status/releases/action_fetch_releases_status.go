@@ -17,6 +17,7 @@ import (
 
 const (
 	ComponentMetadataFilename = "component_metadata.yaml"
+	platformReleaseName       = common.PlatformReleaseName
 )
 
 type Action struct {
@@ -73,8 +74,20 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 		a.componentReleaseStatus = releases
 	}
 
-	// Update the release status in the resource
-	obj.SetReleaseStatus(a.componentReleaseStatus)
+	// Carry forward the platform release entry from the existing
+	// status. This entry is managed by the reconciler's
+	// setPlatformRelease, not by the component metadata YAML.
+	result := append([]common.ComponentRelease{}, a.componentReleaseStatus...)
+
+	for _, r := range *obj.GetReleaseStatus() {
+		if r.Name == platformReleaseName {
+			result = append(result, r)
+
+			break
+		}
+	}
+
+	obj.SetReleaseStatus(result)
 
 	return nil
 }

@@ -12,6 +12,8 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -91,68 +93,37 @@ func NewHandler() *handler {
 }
 
 func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
-	if platform == nil {
+	if platform == nil || platform.Platform == nil {
 		return false
 	}
-	// OpenShift
-	if platform.DSC != nil {
-		dsc := platform.DSC.Spec.Components
-		// If aigateway.managementState is explicitly set, it is the master switch.
-		if dsc.AIGateway.ManagementState != "" {
-			return dsc.AIGateway.ManagementState == operatorv1.Managed
-		}
-		// Deprecated: respect kserve.modelsAsService for 3.4→3.5 upgrade compatibility.
-		// Users who have not yet migrated their DSC will still get MaaS deployed.
-		// TODO: remove this fallback when kserve.modelsAsService is removed from the CRD schema.
-		return dsc.Kserve.ManagementState == operatorv1.Managed &&
-			dsc.Kserve.ModelsAsService.ManagementState == operatorv1.Managed //nolint:staticcheck
-	}
-	// xkS
-	if platform.Platform != nil {
-		return platform.Platform.Spec.Modules.AIGateway.ManagementState == operatorv1.Managed
-	}
-	return false
+	return platform.Platform.Spec.Modules.AIGateway.ManagementState == operatorv1.Managed
 }
 
-// BuildModuleCR projects the DSC AIGateway configuration onto the
-// aigateways.components.platform.opendatahub.io CR. The DSC-level
-// managementState is intentionally excluded; only AIGatewayCommonSpec is
-// projected into the module CR.
+// BuildModuleCR constructs the AIGateway CR from DSC spec.
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
-	platform *modules.PlatformContext,
+	dsc *dscv2.DataScienceCluster,
+	_ *dsciv2.DSCInitialization,
 ) (*unstructured.Unstructured, error) {
-	if platform == nil {
-		return nil, errors.New("platform context is nil, cannot build AIGateway CR")
+	if dsc == nil {
+		return nil, errors.New("DSC is nil, cannot build AIGateway CR")
 	}
 
-	var spec map[string]any
+	dscComponents := dsc.Spec.Components
+	commonSpec := dscComponents.AIGateway.AIGatewayCommonSpec.DeepCopy()
 
-	switch {
-	case platform.DSC != nil:
-		dscComponents := platform.DSC.Spec.Components
-		commonSpec := dscComponents.AIGateway.AIGatewayCommonSpec.DeepCopy()
+	// Deprecated: if modelsAsAService is not set but kserve.modelsAsService is,
+	// populate modelsAsAService so AGO knows to deploy MaaS.
+	// TODO: remove this fallback when kserve.modelsAsService is removed from the CRD schema.
+	if commonSpec.ModelsAsAService.ManagementState == "" &&
+		dscComponents.Kserve.ManagementState == operatorv1.Managed {
+		commonSpec.ModelsAsAService.ManagementState = dscComponents.Kserve.ModelsAsService.ManagementState //nolint:staticcheck
+	}
 
-		// Deprecated: if modelsAsAService is not set but kserve.modelsAsService is,
-		// populate modelsAsAService so AGO knows to deploy MaaS.
-		// TODO: remove this fallback when kserve.modelsAsService is removed from the CRD schema.
-		if commonSpec.ModelsAsAService.ManagementState == "" &&
-			dscComponents.Kserve.ManagementState == operatorv1.Managed {
-			commonSpec.ModelsAsAService.ManagementState = dscComponents.Kserve.ModelsAsService.ManagementState //nolint:staticcheck
-		}
-
-		var err error
-		spec, err = runtime.DefaultUnstructuredConverter.ToUnstructured(commonSpec)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert AIGatewayCommonSpec to unstructured: %w", err)
-		}
-	case platform.Platform != nil:
-		spec = map[string]any{
-			"managementState": string(platform.Platform.Spec.Modules.AIGateway.ManagementState),
-		}
-	default:
-		return nil, errors.New("neither DSC CR nor Platform CR exists, cannot build AIGateway CR")
+	spec, err := runtime.DefaultUnstructuredConverter.ToUnstructured(commonSpec)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert AIGatewayCommonSpec to unstructured: %w", err)
 	}
 
 	u := &unstructured.Unstructured{

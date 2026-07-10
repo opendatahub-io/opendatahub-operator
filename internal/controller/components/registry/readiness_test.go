@@ -38,6 +38,9 @@ func (f *readinessHandler) Init(_ common.Platform, _ operatorconfig.OperatorSett
 	return nil
 }
 func (f *readinessHandler) GetName() string { return f.name }
+func (f *readinessHandler) GroupVersionKind() schema.GroupVersionKind {
+	return testGVK
+}
 func (f *readinessHandler) NewCRObject(_ context.Context, _ client.Client, _ *dscv2.DataScienceCluster) (common.PlatformObject, error) {
 	return nil, nil
 }
@@ -49,18 +52,6 @@ func (f *readinessHandler) UpdateDSCStatus(_ context.Context, _ *types.Reconcili
 }
 func (f *readinessHandler) IsEnabled(_ *dscv2.DataScienceCluster) bool { return f.enabled }
 
-type readinessHandlerWithNamer struct {
-	readinessHandler
-
-	instanceName string
-	instanceGVK  schema.GroupVersionKind
-}
-
-func (f *readinessHandlerWithNamer) GetInstanceName() string                 { return f.instanceName }
-func (f *readinessHandlerWithNamer) GetInstanceGVK() schema.GroupVersionKind { return f.instanceGVK }
-
-var _ registry.InstanceNamer = (*readinessHandlerWithNamer)(nil)
-
 func newFakeClient(scheme *runtime.Scheme, objs ...client.Object) client.Client {
 	return fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
 }
@@ -71,52 +62,31 @@ func readinessTestScheme() *runtime.Scheme {
 	return s
 }
 
-func TestReadinessChecker_NilDSC_SuppressedComponent_IsReady(t *testing.T) {
+func TestReadinessChecker_UnknownNode(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
 	reg := &registry.Registry{}
-	reg.Add(&readinessHandler{name: "suppressed", enabled: true})
-	reg.Disable("suppressed")
-
-	checker := registry.NewReadinessChecker(reg, newFakeClient(readinessTestScheme()), nil)
-	ready, err := checker.IsReady(context.Background(), "suppressed")
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(ready).Should(BeTrue(), "suppressed component should be treated as ready")
+	checker := registry.NewReadinessChecker(reg, newFakeClient(readinessTestScheme()), "")
+	_, err := checker.IsReady(context.Background(), "nonexistent")
+	g.Expect(err).Should(HaveOccurred())
+	g.Expect(err).Should(MatchError(ContainSubstring(dag.ErrUnknownNode.Error())))
 }
 
-func TestReadinessChecker_NilDSC_EnabledNoInstanceNamer_IsReady(t *testing.T) {
+func TestReadinessChecker_NoCR_IsReady(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
 	reg := &registry.Registry{}
-	reg.Add(&readinessHandler{name: "no-namer", enabled: true})
+	reg.Add(&readinessHandler{name: "comp", enabled: true})
 
-	checker := registry.NewReadinessChecker(reg, newFakeClient(readinessTestScheme()), nil)
-	ready, err := checker.IsReady(context.Background(), "no-namer")
+	checker := registry.NewReadinessChecker(reg, newFakeClient(readinessTestScheme()), "")
+	ready, err := checker.IsReady(context.Background(), "comp")
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(ready).Should(BeTrue(), "handler without InstanceNamer should be treated as ready")
+	g.Expect(ready).Should(BeTrue(), "absent CR should be treated as ready")
 }
 
-func TestReadinessChecker_NilDSC_CRNotFound_NotReady(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-
-	reg := &registry.Registry{}
-	reg.Add(&readinessHandlerWithNamer{
-		readinessHandler: readinessHandler{name: "comp-a", enabled: true},
-		instanceName:     "default-comp-a",
-		instanceGVK:      testGVK,
-	})
-
-	cli := newFakeClient(readinessTestScheme())
-	checker := registry.NewReadinessChecker(reg, cli, nil)
-	ready, err := checker.IsReady(context.Background(), "comp-a")
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(ready).Should(BeFalse(), "CR not found should mean not ready")
-}
-
-func TestReadinessChecker_NilDSC_CRExistsReadinessStatus(t *testing.T) {
+func TestReadinessChecker_CRExists_ReadyCondition(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -145,14 +115,10 @@ func TestReadinessChecker_NilDSC_CRExistsReadinessStatus(t *testing.T) {
 			}, "status", "conditions")
 
 			reg := &registry.Registry{}
-			reg.Add(&readinessHandlerWithNamer{
-				readinessHandler: readinessHandler{name: "comp", enabled: true},
-				instanceName:     "default-comp",
-				instanceGVK:      testGVK,
-			})
+			reg.Add(&readinessHandler{name: "comp", enabled: true})
 
 			cli := newFakeClient(readinessTestScheme(), cr)
-			checker := registry.NewReadinessChecker(reg, cli, nil)
+			checker := registry.NewReadinessChecker(reg, cli, "")
 			ready, err := checker.IsReady(context.Background(), "comp")
 			g.Expect(err).ShouldNot(HaveOccurred())
 			g.Expect(ready).Should(Equal(tt.expectReady))
@@ -160,14 +126,68 @@ func TestReadinessChecker_NilDSC_CRExistsReadinessStatus(t *testing.T) {
 	}
 }
 
-func TestReadinessChecker_NilDSC_UnknownNode(t *testing.T) {
+func TestReadinessChecker_VersionHandshake_MatchingVersion(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	reg := &registry.Registry{}
+	cr := &unstructured.Unstructured{}
+	cr.SetGroupVersionKind(testGVK)
+	cr.SetName("default-comp")
+	_ = unstructured.SetNestedSlice(cr.Object, []interface{}{
+		map[string]interface{}{
+			"name":    "platform",
+			"version": "2.0.0",
+		},
+	}, "status", "releases")
 
-	checker := registry.NewReadinessChecker(reg, newFakeClient(readinessTestScheme()), nil)
-	_, err := checker.IsReady(context.Background(), "nonexistent")
-	g.Expect(err).Should(HaveOccurred())
-	g.Expect(err).Should(MatchError(ContainSubstring(dag.ErrUnknownNode.Error())))
+	reg := &registry.Registry{}
+	reg.Add(&readinessHandler{name: "comp", enabled: true})
+
+	cli := newFakeClient(readinessTestScheme(), cr)
+	checker := registry.NewReadinessChecker(reg, cli, "2.0.0")
+	ready, err := checker.IsReady(context.Background(), "comp")
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(ready).Should(BeTrue(), "matching platform release version should be ready")
+}
+
+func TestReadinessChecker_VersionHandshake_MismatchBlocks(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	cr := &unstructured.Unstructured{}
+	cr.SetGroupVersionKind(testGVK)
+	cr.SetName("default-comp")
+	_ = unstructured.SetNestedSlice(cr.Object, []interface{}{
+		map[string]interface{}{
+			"name":    "platform",
+			"version": "1.0.0",
+		},
+	}, "status", "releases")
+
+	reg := &registry.Registry{}
+	reg.Add(&readinessHandler{name: "comp", enabled: true})
+
+	cli := newFakeClient(readinessTestScheme(), cr)
+	checker := registry.NewReadinessChecker(reg, cli, "2.0.0")
+	ready, err := checker.IsReady(context.Background(), "comp")
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(ready).Should(BeFalse(), "mismatched platform release version should block")
+}
+
+func TestReadinessChecker_VersionHandshake_EmptyReleasePasses(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	cr := &unstructured.Unstructured{}
+	cr.SetGroupVersionKind(testGVK)
+	cr.SetName("default-comp")
+
+	reg := &registry.Registry{}
+	reg.Add(&readinessHandler{name: "comp", enabled: true})
+
+	cli := newFakeClient(readinessTestScheme(), cr)
+	checker := registry.NewReadinessChecker(reg, cli, "2.0.0")
+	ready, err := checker.IsReady(context.Background(), "comp")
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(ready).Should(BeTrue(), "empty platform release should pass (first deploy)")
 }

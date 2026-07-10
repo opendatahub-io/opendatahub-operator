@@ -15,7 +15,6 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
-	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -85,17 +84,11 @@ func (s *componentHandler) Init(_ common.Platform, cfg operatorconfig.OperatorSe
 	return nil
 }
 
-var _ cr.InstanceNamer = (*componentHandler)(nil)
-
 func (s *componentHandler) GetName() string {
 	return componentName
 }
 
-func (s *componentHandler) GetInstanceName() string {
-	return componentApi.KserveInstanceName
-}
-
-func (s *componentHandler) GetInstanceGVK() schema.GroupVersionKind {
+func (s *componentHandler) GroupVersionKind() schema.GroupVersionKind {
 	return componentApi.GroupVersion.WithKind(componentApi.KserveKind)
 }
 

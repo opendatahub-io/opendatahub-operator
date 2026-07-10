@@ -48,6 +48,14 @@ func WithManagedByFalseMatcher(matcher ResourceMatcher) Option {
 	}
 }
 
+// WithDefaultPredicates sets the default predicates for all dynamically
+// owned resources. These are used when no GVK-specific predicate is set.
+func WithDefaultPredicates(preds ...predicate.Predicate) Option {
+	return func(a *Action) {
+		a.defaultPredicates = preds
+	}
+}
+
 // WithGVKPredicates sets custom predicates for specific GVKs.
 // These predicates will be used instead of the default predicates for the specified GVKs.
 func WithGVKPredicates(gvkPredicates map[schema.GroupVersionKind][]predicate.Predicate) Option {
@@ -79,6 +87,7 @@ type Action struct {
 	watchRegisterFn       WatchRegisterFunc
 	ownerGVK              schema.GroupVersionKind
 	managedByFalseMatcher ResourceMatcher
+	defaultPredicates     []predicate.Predicate
 	gvkPredicates         map[schema.GroupVersionKind][]predicate.Predicate
 	watched               sync.Map
 	watchedCRDs           sync.Map
@@ -234,9 +243,11 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 				resources.GvkToUnstructured(a.ownerGVK),
 				handler.OnlyControllerOwner(),
 			)
-			// Check for custom predicates for this GVK
+			// Check for custom predicates for this GVK, then default overrides, then built-in defaults
 			if customPredicates, ok := a.gvkPredicates[resGVK]; ok {
 				watchPredicates = customPredicates
+			} else if len(a.defaultPredicates) > 0 {
+				watchPredicates = a.defaultPredicates
 			} else {
 				if resGVK == gvk.Deployment {
 					watchPredicates = []predicate.Predicate{predicates.DefaultDeploymentPredicate}

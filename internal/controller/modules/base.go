@@ -239,7 +239,7 @@ func (b *BaseHandler) GetModuleStatus(ctx context.Context, cli client.Client) (*
 	}, nil
 }
 
-const platformReleaseName = "platform"
+const platformReleaseName = common.PlatformReleaseName
 
 func extractPlatformReleaseVersion(u *unstructured.Unstructured) string {
 	releases, found, _ := unstructured.NestedSlice(u.Object, "status", "releases")

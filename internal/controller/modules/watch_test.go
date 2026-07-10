@@ -10,6 +10,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 
 	. "github.com/onsi/gomega"
@@ -23,7 +25,7 @@ func (h *testModuleHandler) IsEnabled(_ *PlatformContext) bool {
 	return true
 }
 
-func (h *testModuleHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *PlatformContext) (*unstructured.Unstructured, error) {
+func (h *testModuleHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *dscv2.DataScienceCluster, _ *dsciv2.DSCInitialization) (*unstructured.Unstructured, error) {
 	return nil, nil
 }
 

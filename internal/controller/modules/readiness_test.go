@@ -8,6 +8,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 
 	. "github.com/onsi/gomega"
@@ -25,7 +27,7 @@ func (m *statusMockHandler) IsEnabled(_ *modules.PlatformContext) bool {
 	return m.enabled
 }
 
-func (m *statusMockHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *modules.PlatformContext) (*unstructured.Unstructured, error) {
+func (m *statusMockHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *dscv2.DataScienceCluster, _ *dsciv2.DSCInitialization) (*unstructured.Unstructured, error) {
 	return nil, nil
 }
 
