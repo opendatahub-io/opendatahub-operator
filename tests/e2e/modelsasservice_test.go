@@ -12,7 +12,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelsasservice"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -32,8 +31,8 @@ const (
 	modelsAsServiceFieldName = "modelsAsService"
 
 	// Gateway constants from modelsasservice package.
-	maasGatewayNamespace = modelsasservice.DefaultGatewayNamespace
-	maasGatewayName      = modelsasservice.DefaultGatewayName
+	maasGatewayNamespace = "openshift-ingress"
+	maasGatewayName      = "maas-default-gateway"
 
 	// Gateway class for OpenShift default ingress controller.
 	// Reference: https://github.com/opendatahub-io/models-as-a-service/blob/main/deployment/base/networking/maas/maas-gateway-api.yaml
@@ -262,7 +261,7 @@ func (tc *ModelsAsServiceTestCtx) createMaaSGateway(t *testing.T) {
 
 const (
 	tenantName           = "default-tenant"
-	tenantSubscriptionNS = modelsasservice.MaaSSubscriptionNamespace
+	tenantSubscriptionNS = "models-as-a-service"
 	tenantCRDName        = "tenants.maas.opendatahub.io"
 )
 
@@ -390,7 +389,7 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantDeletedOnDisable(t *testing.T) {
 	t.Logf("Waiting until maas-controller Deployment is removed from %s", tc.AppsNamespace)
 	tc.EnsureResourceGone(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{
-			Name:      modelsasservice.MaasControllerDeploymentName,
+			Name:      "maas-controller",
 			Namespace: tc.AppsNamespace,
 		}),
 		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),

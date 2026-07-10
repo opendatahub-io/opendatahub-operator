@@ -22,7 +22,7 @@ var KnownComponents = map[string]string{
 	"trainingoperator":     "TrainingOperator", "feastoperator": "FeastOperator",
 	"ogx": "OGX", "modelmeshserving": "ModelMeshServing",
 	"mlflowoperator": "MLflowOperator", "sparkoperator": "SparkOperator",
-	"modelcontroller": "ModelController", "modelsasservice": "ModelsAsService",
+	"modelcontroller": "ModelController",
 	"trainer": "Trainer",
 }
 

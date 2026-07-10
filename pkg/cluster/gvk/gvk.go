@@ -397,12 +397,6 @@ var (
 		Kind:    componentApi.MCPLifecycleOperatorKind,
 	}
 
-	ModelsAsService = schema.GroupVersionKind{
-		Group:   componentApi.GroupVersion.Group,
-		Version: componentApi.GroupVersion.Version,
-		Kind:    componentApi.ModelsAsServiceKind,
-	}
-
 	AIGateway = schema.GroupVersionKind{
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,
