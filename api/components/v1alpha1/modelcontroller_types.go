@@ -75,7 +75,8 @@ type ModelControllerMRSpec struct {
 
 // ModelControllerStatus defines the observed state of ModelController
 type ModelControllerStatus struct {
-	common.Status `json:",inline"`
+	common.Status                 `json:",inline"`
+	common.ComponentReleaseStatus `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
@@ -100,4 +101,12 @@ func (c *ModelController) GetConditions() []common.Condition {
 
 func (c *ModelController) SetConditions(conditions []common.Condition) {
 	c.Status.SetConditions(conditions)
+}
+
+func (c *ModelController) GetReleaseStatus() *[]common.ComponentRelease {
+	return &c.Status.Releases
+}
+
+func (c *ModelController) SetReleaseStatus(releases []common.ComponentRelease) {
+	c.Status.Releases = releases
 }

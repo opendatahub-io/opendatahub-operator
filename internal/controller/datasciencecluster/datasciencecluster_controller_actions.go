@@ -111,9 +111,11 @@ func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest)
 
 	rr.Generated = true
 
+	platformVersion := rr.Release.Version.String()
+
 	checker := provision.NewCompositeChecker(
-		cr.NewReadinessChecker(cr.DefaultRegistry(), rr.Client, instance),
-		modules.NewReadinessChecker(modules.DefaultRegistry(), rr.Client, rr.Release.Version.String(),
+		cr.NewReadinessChecker(cr.DefaultRegistry(), rr.Client, instance, platformVersion),
+		modules.NewReadinessChecker(modules.DefaultRegistry(), rr.Client, platformVersion,
 			modules.WithPlatformContext(&modules.PlatformContext{DSC: instance})),
 	)
 

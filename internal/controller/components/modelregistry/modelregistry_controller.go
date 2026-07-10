@@ -88,6 +88,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		)).
 		WithAction(deployments.NewAction()).
 		WithAction(updateStatus).
+		WithAction(releases.NewPlatformVersionAction()).
 		// must be the final action
 		WithAction(gc.NewAction()).
 		// declares the list of additional, controller specific conditions that are

@@ -193,7 +193,8 @@ type GatewayRef struct {
 
 // ModelsAsServiceStatus defines the observed state of ModelsAsService
 type ModelsAsServiceStatus struct {
-	common.Status `json:",inline"`
+	common.Status                 `json:",inline"`
+	common.ComponentReleaseStatus `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
@@ -218,6 +219,14 @@ func (c *ModelsAsService) GetConditions() []common.Condition {
 
 func (c *ModelsAsService) SetConditions(conditions []common.Condition) {
 	c.Status.SetConditions(conditions)
+}
+
+func (c *ModelsAsService) GetReleaseStatus() *[]common.ComponentRelease {
+	return &c.Status.Releases
+}
+
+func (c *ModelsAsService) SetReleaseStatus(releases []common.ComponentRelease) {
+	c.Status.Releases = releases
 }
 
 // DSCModelsAsServiceSpec enables ModelsAsService integration

@@ -237,6 +237,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		)).
 		WithAction(reconcileModelCache).
 		WithAction(deployments.NewAction()).
+		WithAction(releases.NewPlatformVersionAction()).
 		// must be the final action
 		WithAction(gc.NewAction(gc.WithUnremovables(gvk.LLMInferenceServiceConfigV1Alpha1, gvk.LLMInferenceServiceConfigV1Alpha2))).
 		WithFinalizer(deleteLLMInferenceServiceConfigs).
