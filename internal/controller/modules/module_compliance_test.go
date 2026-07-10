@@ -267,5 +267,4 @@ func TestModuleCRSchemaCompliance(t *testing.T) {
 			})
 		}
 	}
-
 }

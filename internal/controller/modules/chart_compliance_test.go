@@ -168,5 +168,4 @@ func TestModuleManifestRendering(t *testing.T) {
 			}
 		}
 	}
-
 }
