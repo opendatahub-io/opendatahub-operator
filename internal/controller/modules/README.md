@@ -238,9 +238,26 @@ to every handler's `BuildModuleCR`. It exposes:
 | Field | Source | Description |
 |---|---|---|
 | `ApplicationsNamespace` | `DSCI.Spec.ApplicationsNamespace` | Namespace where module operands deploy |
+| `MonitoringNamespace` | `DSCI.Spec.Monitoring.Namespace` | Namespace for the monitoring stack (empty when monitoring is unset or in xKS mode with no DSCI) |
 | `GatewayDomain` | `GatewayConfig.Status.Domain` | Cluster ingress domain (empty if not yet provisioned) |
 | `Release` | `rr.Release` | Platform identity (ODH/RHOAI) and version |
 | `DSC` | reconcile instance | The `DataScienceCluster` instance for reading module-specific component stanzas |
+
+#### Injected environment variables (platform → module operator)
+
+After rendering and before deploy, the `injectModuleEnv` action writes these env
+vars onto each module operator's Deployment container (default `manager`). Only
+non-empty values are injected. **The names are a contract**: a module operator
+that needs these values must read them by these exact, unprefixed names.
+
+| Env var | Source | Notes |
+|---|---|---|
+| `APPLICATIONS_NAMESPACE` | `PlatformContext.ApplicationsNamespace` | Always injected when set |
+| `MONITORING_NAMESPACE` | `PlatformContext.MonitoringNamespace` | Skipped when empty (e.g. monitoring unset, xKS) |
+| `RELATED_IMAGE_*` | operator env of the same name | Scoped per module via `GetRelatedImages()` |
+
+Note: the operator's own config env (`ODH_MANAGER_DSC_MONITORING_NAMESPACE`, bound
+via viper) is a separate input mechanism and is unrelated to these injected names.
 
 ### `base.go` -- BaseHandler and ModuleConfig
 

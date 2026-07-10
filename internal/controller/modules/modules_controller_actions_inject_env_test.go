@@ -347,7 +347,7 @@ func TestInjectModuleEnvTargetsManagerContainer(t *testing.T) {
 		Should(Equal("registry.example.com/sidecar:latest"))
 }
 
-func TestInjectModuleEnvEmptyNamespace(t *testing.T) {
+func TestInjectModuleEnvEmptyApplicationNamespace(t *testing.T) {
 	g := NewWithT(t)
 
 	dep := makeDeployment("my-operator")
@@ -364,6 +364,57 @@ func TestInjectModuleEnvEmptyNamespace(t *testing.T) {
 
 	env := getContainerEnv(&rr.Resources[0])
 	g.Expect(env).Should(BeNil())
+}
+
+func TestInjectModuleEnvMonitoringNamespace(t *testing.T) {
+	g := NewWithT(t)
+
+	dep := makeDeployment("my-operator")
+
+	rr := &odhtype.ReconciliationRequest{
+		Resources: []unstructured.Unstructured{dep},
+		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
+			PerModuleImages: []odhtype.ModuleImages{{
+				DeploymentName: "my-operator",
+			}},
+			ApplicationsNamespace: "opendatahub",
+			MonitoringNamespace:   "odh-monitoring",
+		},
+	}
+
+	err := injectModuleEnv(context.Background(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	env := getContainerEnv(&rr.Resources[0])
+	g.Expect(envNames(env)).Should(ConsistOf(
+		applicationsNamespaceEnv,
+		monitoringNamespaceEnv,
+	))
+	g.Expect(envValue(env, monitoringNamespaceEnv)).Should(Equal("odh-monitoring"))
+}
+
+func TestInjectModuleEnvEmptyMonitoringNamespace(t *testing.T) {
+	g := NewWithT(t)
+
+	dep := makeDeployment("my-operator")
+
+	rr := &odhtype.ReconciliationRequest{
+		Resources: []unstructured.Unstructured{dep},
+		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
+			PerModuleImages: []odhtype.ModuleImages{{
+				DeploymentName: "my-operator",
+			}},
+			ApplicationsNamespace: "opendatahub",
+			MonitoringNamespace:   "",
+		},
+	}
+
+	err := injectModuleEnv(context.Background(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	env := getContainerEnv(&rr.Resources[0])
+	g.Expect(envNames(env)).Should(ConsistOf(applicationsNamespaceEnv))
+	g.Expect(envNames(env)).ShouldNot(ContainElement(monitoringNamespaceEnv))
 }
 
 func TestInjectControllerImage(t *testing.T) {
