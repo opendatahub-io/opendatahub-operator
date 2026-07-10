@@ -60,9 +60,11 @@ func TestReadinessChecker_ReadyWithMatchingPlatformVersion(t *testing.T) {
 					{Type: status.ConditionTypeReady, Status: metav1.ConditionTrue},
 				},
 			},
-			ComponentReleaseStatus: common.ComponentReleaseStatus{
-				Releases: []common.ComponentRelease{
-					{Name: "platform", Version: "2.20.0"},
+			DataSciencePipelinesCommonStatus: componentApi.DataSciencePipelinesCommonStatus{
+				ComponentReleaseStatus: common.ComponentReleaseStatus{
+					Releases: []common.ComponentRelease{
+						{Name: "platform", Version: "2.20.0"},
+					},
 				},
 			},
 		},
@@ -108,9 +110,11 @@ func TestReadinessChecker_NotReadyVersionMismatch(t *testing.T) {
 					{Type: status.ConditionTypeReady, Status: metav1.ConditionTrue},
 				},
 			},
-			ComponentReleaseStatus: common.ComponentReleaseStatus{
-				Releases: []common.ComponentRelease{
-					{Name: "platform", Version: "2.19.0"},
+			DataSciencePipelinesCommonStatus: componentApi.DataSciencePipelinesCommonStatus{
+				ComponentReleaseStatus: common.ComponentReleaseStatus{
+					Releases: []common.ComponentRelease{
+						{Name: "platform", Version: "2.19.0"},
+					},
 				},
 			},
 		},
@@ -199,9 +203,11 @@ func TestReadinessChecker_ReadyWhenEmptyPlatformVersion(t *testing.T) {
 					{Type: status.ConditionTypeReady, Status: metav1.ConditionTrue},
 				},
 			},
-			ComponentReleaseStatus: common.ComponentReleaseStatus{
-				Releases: []common.ComponentRelease{
-					{Name: "platform", Version: "2.19.0"},
+			DataSciencePipelinesCommonStatus: componentApi.DataSciencePipelinesCommonStatus{
+				ComponentReleaseStatus: common.ComponentReleaseStatus{
+					Releases: []common.ComponentRelease{
+						{Name: "platform", Version: "2.19.0"},
+					},
 				},
 			},
 		},
@@ -247,9 +253,11 @@ func TestReadinessChecker_NotReadyWhenConditionFalse(t *testing.T) {
 					{Type: status.ConditionTypeReady, Status: metav1.ConditionFalse},
 				},
 			},
-			ComponentReleaseStatus: common.ComponentReleaseStatus{
-				Releases: []common.ComponentRelease{
-					{Name: "platform", Version: "2.20.0"},
+			DataSciencePipelinesCommonStatus: componentApi.DataSciencePipelinesCommonStatus{
+				ComponentReleaseStatus: common.ComponentReleaseStatus{
+					Releases: []common.ComponentRelease{
+						{Name: "platform", Version: "2.20.0"},
+					},
 				},
 			},
 		},
