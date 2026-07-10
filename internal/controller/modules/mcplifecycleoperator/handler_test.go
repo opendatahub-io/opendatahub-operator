@@ -96,9 +96,8 @@ func TestBuildModuleCR_NilDSCReturnsError(t *testing.T) {
 func TestGetRelatedImages(t *testing.T) {
 	g := NewWithT(t)
 	h := mcplifecycleoperator.NewHandler()
-	images := h.GetRelatedImages()
 
-	g.Expect(images).Should(ConsistOf("RELATED_IMAGE_ODH_MCP_LIFECYCLE_OPERATOR_IMAGE"))
+	g.Expect(h.GetRelatedImages()).Should(ConsistOf("RELATED_IMAGE_ODH_MCP_LIFECYCLE_OPERATOR_IMAGE"))
 }
 
 func TestGetName(t *testing.T) {

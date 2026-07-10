@@ -59,25 +59,27 @@ func TestIsEnabled_NilDSC_NilPlatform(t *testing.T) {
 	g.Expect(h.IsEnabled(ctx)).Should(BeFalse())
 }
 
-func newPlatformModePlatformCtx(mgmtState operatorv1.ManagementState) *modules.PlatformContext {
-	return &modules.PlatformContext{
+func newPlatformModePlatformCtx(enabled bool) *modules.PlatformContext {
+	p := &modules.PlatformContext{
 		ApplicationsNamespace: "opendatahub",
-		Platform: &configv1alpha1.Platform{
-			Spec: configv1alpha1.PlatformSpec{
-				Modules: configv1alpha1.PlatformModules{
-					AIGateway: common.ManagementSpec{
-						ManagementState: mgmtState,
-					},
-				},
-			},
-		},
+		Platform:              &configv1alpha1.Platform{},
 	}
+	if enabled {
+		p.Platform.Spec.Modules.AIGateway = &configv1alpha1.PlatformModuleConfig{}
+	}
+	return p
 }
 
-func TestIsEnabled_PlatformMode_Managed(t *testing.T) {
+func TestIsEnabled_PlatformMode_Enabled(t *testing.T) {
 	g := NewWithT(t)
 	h := aigateway.NewHandler()
-	g.Expect(h.IsEnabled(newPlatformModePlatformCtx(operatorv1.Managed))).Should(BeTrue())
+	g.Expect(h.IsEnabled(newPlatformModePlatformCtx(true))).Should(BeTrue())
+}
+
+func TestIsEnabled_PlatformMode_Disabled(t *testing.T) {
+	g := NewWithT(t)
+	h := aigateway.NewHandler()
+	g.Expect(h.IsEnabled(newPlatformModePlatformCtx(false))).Should(BeFalse())
 }
 
 func TestIsEnabled_NilPlatformContext(t *testing.T) {
@@ -121,7 +123,7 @@ func TestBuildModuleCR_NilDSCNilPlatformReturnsError(t *testing.T) {
 func TestBuildModuleCR_PlatformMode(t *testing.T) {
 	g := NewWithT(t)
 	h := aigateway.NewHandler()
-	platform := newPlatformModePlatformCtx(operatorv1.Managed)
+	platform := newPlatformModePlatformCtx(true)
 
 	u, err := h.BuildModuleCR(context.Background(), nil, platform)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -130,7 +132,8 @@ func TestBuildModuleCR_PlatformMode(t *testing.T) {
 
 	spec, ok := u.Object["spec"].(map[string]any)
 	g.Expect(ok).Should(BeTrue(), "spec is not a map")
-	g.Expect(spec["managementState"]).Should(Equal("Managed"))
+	g.Expect(spec).ShouldNot(HaveKey("managementState"),
+		"managementState must not be projected — CR existence implies Managed")
 }
 
 func TestGetName(t *testing.T) {

@@ -49,7 +49,7 @@ func NewHandler() *handler {
 
 // IsEnabled checks whether the MCPLifecycleOperator module should be deployed.
 // In DSC mode, reads DSC.Spec.Components.MCPLifecycleOperator.ManagementState.
-// In Platform mode (xKS), reads Platform.Spec.Modules.MCPLifecycleOperator.ManagementState.
+// In Platform mode (xKS), the module stanza's presence is the signal.
 func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 	if platform == nil {
 		return false
@@ -58,14 +58,15 @@ func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 		return platform.DSC.Spec.Components.MCPLifecycleOperator.ManagementState == operatorv1.Managed
 	}
 	if platform.Platform != nil {
-		return platform.Platform.Spec.Modules.MCPLifecycleOperator.ManagementState == operatorv1.Managed
+		return platform.Platform.Spec.Modules.MCPLifecycleOperator != nil
 	}
 	return false
 }
 
 // BuildModuleCR projects platform configuration onto the module CR.
-// In DSC mode, projects the component stanza from the DSC.
-// In Platform mode (xKS), projects managementState from the Platform CR.
+// In DSC mode, projects MCPLifecycleOperatorCommonSpec from the DSC.
+// In Platform mode (xKS), an empty spec is used. managementState is never
+// projected — the CR's existence implies Managed, deletion implies Removed.
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
@@ -87,9 +88,7 @@ func (h *handler) BuildModuleCR(
 			return nil, fmt.Errorf("failed to convert MCPLifecycleOperatorCommonSpec to unstructured: %w", err)
 		}
 	case platform.Platform != nil:
-		spec = map[string]any{
-			"managementState": string(platform.Platform.Spec.Modules.MCPLifecycleOperator.ManagementState),
-		}
+		spec = map[string]any{}
 	default:
 		return nil, errors.New("neither DSC nor Platform is available, cannot build MCPLifecycleOperator CR")
 	}

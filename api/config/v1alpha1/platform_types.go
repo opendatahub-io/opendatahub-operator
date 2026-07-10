@@ -17,7 +17,6 @@ limitations under the License.
 package v1alpha1
 
 import (
-	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -32,30 +31,25 @@ var _ common.PlatformObject = (*Platform)(nil)
 
 // PlatformSpec defines the desired state of Platform.
 type PlatformSpec struct {
-	// Modules declares the set of modules managed by this Platform instance.
-	// Each field corresponds to a registered module handler. Modules follow
-	// the same Managed/Removed/empty convention as DSC components: Managed
-	// deploys the module, Removed tears it down, empty means not managed.
 	// +optional
 	Modules PlatformModules `json:"modules,omitempty"`
 }
 
-// PlatformModules declares per-module management state for Platform mode.
-// Each field maps to a registered module handler by name. Add new module
-// fields here when onboarding additional modules.
+// PlatformModuleConfig holds per-module configuration. Currently empty;
+// presence of the stanza is the enablement signal.
+// +kubebuilder:object:generate=true
+type PlatformModuleConfig struct{}
+
+// PlatformModules declares which modules are enabled. A module is enabled
+// when its field is non-nil and disabled when nil.
 // +kubebuilder:object:generate=true
 type PlatformModules struct {
-	// AIGateway controls the ai-gateway-operator module lifecycle.
 	// +optional
-	AIGateway common.ManagementSpec `json:"aigateway,omitempty"`
-
-	// Monitoring controls the monitoring module operator lifecycle.
+	AIGateway *PlatformModuleConfig `json:"aigateway,omitempty"`
 	// +optional
-	Monitoring common.ManagementSpec `json:"monitoring,omitempty"`
-
-	// MCPLifecycleOperator controls the MCP Lifecycle Operator module lifecycle.
+	Monitoring *PlatformModuleConfig `json:"monitoring,omitempty"`
 	// +optional
-	MCPLifecycleOperator common.ManagementSpec `json:"mcplifecycleoperator,omitempty"`
+	MCPLifecycleOperator *PlatformModuleConfig `json:"mcplifecycleoperator,omitempty"`
 }
 
 // PlatformStatus defines the observed state of Platform.
@@ -103,16 +97,16 @@ type PlatformList struct {
 	Items           []Platform `json:"items"`
 }
 
-// EnabledModules returns the names of modules whose ManagementState is Managed.
+// EnabledModules returns the names of modules with a non-nil stanza.
 func (m *PlatformModules) EnabledModules() []string {
 	var enabled []string
-	if m.AIGateway.ManagementState == operatorv1.Managed {
+	if m.AIGateway != nil {
 		enabled = append(enabled, "aigateway")
 	}
-	if m.Monitoring.ManagementState == operatorv1.Managed {
+	if m.Monitoring != nil {
 		enabled = append(enabled, "monitoring")
 	}
-	if m.MCPLifecycleOperator.ManagementState == operatorv1.Managed {
+	if m.MCPLifecycleOperator != nil {
 		enabled = append(enabled, "mcplifecycleoperator")
 	}
 	return enabled
