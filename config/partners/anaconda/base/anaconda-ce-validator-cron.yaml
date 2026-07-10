@@ -25,6 +25,13 @@ spec:
           containers:
           - name: anaconda-ce-validator
             image: registry.redhat.io/openshift4/ose-cli@sha256:75bf9b911b6481dcf29f7942240d1555adaa607eec7fc61bedb7f624f87c36d4
+            env:
+              - name: RELATED_IMAGE_ANACONDA_CE_CLI
+                value: "registry.redhat.io/openshift4/ose-cli@sha256:75bf9b911b6481dcf29f7942240d1555adaa607eec7fc61bedb7f624f87c36d4"
+              - name: RELATED_IMAGE_ANACONDA_CE_NOTEBOOK
+                value: "quay.io/modh/odh-anaconda-notebook@sha256:380c07bf79f5ec7d22441cde276c50b5eb2a459485cde05087837639a566ae3d"
+              - name: DISCONNECTED
+                value: ""
             command:
               - /bin/sh
               - -c
@@ -36,8 +43,13 @@ spec:
                 BUILDCONFIG_NAME='s2i-minimal-notebook-anaconda'
                 ANACONDA_VERSION='v0.2.2-anaconda'
 
+                if [ "${DISCONNECTED:-}" = "true" ]; then
+                  echo "Disconnected environment detected, skipping Anaconda CE validation"
+                  exit 0
+                fi
+
                 function generate_imagestream() {
-                  echo '{"apiVersion":"image.openshift.io/v1","kind":"ImageStream","metadata":{"annotations":{"opendatahub.io/notebook-image-order":"10","opendatahub.io/notebook-image-desc":"Notebook with Anaconda CE tools instead of pip.","opendatahub.io/notebook-image-name":"Anaconda Commercial Edition","opendatahub.io/notebook-image-url":"https://github.com/red-hat-data-services/notebooks"},"labels":{"component.opendatahub.io/name":"jupyterhub","opendatahub.io/modified":"false","opendatahub.io/notebook-image":"true"},"name":"s2i-minimal-notebook-anaconda"},"spec":{"lookupPolicy":{"local":true},"tags":[{"name":"2023.1","annotations":{"opendatahub.io/default-image":"true","opendatahub.io/notebook-python-dependencies":"[{\"name\":\"JupyterLab\",\"version\": \"3.5\"}, {\"name\": \"Notebook\",\"version\": \"6.5\"}]","opendatahub.io/notebook-software":"[{\"name\":\"Python\",\"version\":\"v3.8\"}]","opendatahub.io/workbench-image-recommended":"true","openshift.io/imported-from":"quay.io/modh/odh-anaconda-notebook"},"from":{"kind":"DockerImage","name":"quay.io/modh/odh-anaconda-notebook@sha256:380c07bf79f5ec7d22441cde276c50b5eb2a459485cde05087837639a566ae3d"},"generation":2,"importPolicy":{"importMode":"Legacy"},"referencePolicy":{"type":"Local"}}]}}'
+                  echo '{"apiVersion":"image.openshift.io/v1","kind":"ImageStream","metadata":{"annotations":{"opendatahub.io/notebook-image-order":"10","opendatahub.io/notebook-image-desc":"Notebook with Anaconda CE tools instead of pip.","opendatahub.io/notebook-image-name":"Anaconda Commercial Edition","opendatahub.io/notebook-image-url":"https://github.com/red-hat-data-services/notebooks"},"labels":{"component.opendatahub.io/name":"jupyterhub","opendatahub.io/modified":"false","opendatahub.io/notebook-image":"true"},"name":"s2i-minimal-notebook-anaconda"},"spec":{"lookupPolicy":{"local":true},"tags":[{"name":"2023.1","annotations":{"opendatahub.io/default-image":"true","opendatahub.io/notebook-python-dependencies":"[{\"name\":\"JupyterLab\",\"version\": \"3.5\"}, {\"name\": \"Notebook\",\"version\": \"6.5\"}]","opendatahub.io/notebook-software":"[{\"name\":\"Python\",\"version\":\"v3.8\"}]","opendatahub.io/workbench-image-recommended":"true","openshift.io/imported-from":"quay.io/modh/odh-anaconda-notebook"},"from":{"kind":"DockerImage","name":"'"${RELATED_IMAGE_ANACONDA_CE_NOTEBOOK}"'"},"generation":2,"importPolicy":{"importMode":"Legacy"},"referencePolicy":{"type":"Local"}}]}}'
                 }
 
                 function create_imagestream() {
