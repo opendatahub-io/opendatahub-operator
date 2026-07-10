@@ -10,8 +10,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
@@ -24,6 +26,11 @@ const (
 	deploymentName = "mcp-lifecycle-module-operator-controller-manager"
 )
 
+var sourcePathByPlatform = map[common.Platform]string{
+	cluster.OpenDataHub:      "overlays/odh",
+	cluster.SelfManagedRhoai: "overlays/odh",
+}
+
 type handler struct {
 	modules.BaseHandler
 }
@@ -32,13 +39,13 @@ func NewHandler() *handler {
 	return &handler{
 		BaseHandler: modules.BaseHandler{
 			Config: modules.ModuleConfig{
-				Name:            moduleName,
-				CRName:          crName,
-				ManifestDir:     "mcplifecycleoperator",
-				ContextDir:      "default",
-				DeploymentName:  deploymentName,
-				GVK:             gvk.MCPLifecycleOperator,
-				ControllerImage: "RELATED_IMAGE_ODH_MCP_LIFECYCLE_MODULE_OPERATOR_IMAGE",
+				Name:                 moduleName,
+				CRName:               crName,
+				ManifestDir:          "mcplifecycleoperator",
+				SourcePathByPlatform: sourcePathByPlatform,
+				DeploymentName:       deploymentName,
+				GVK:                  gvk.MCPLifecycleOperator,
+				ControllerImage:      "RELATED_IMAGE_ODH_MCP_LIFECYCLE_MODULE_OPERATOR_IMAGE",
 				RelatedImages: []string{
 					"RELATED_IMAGE_ODH_MCP_LIFECYCLE_OPERATOR_IMAGE",
 				},
