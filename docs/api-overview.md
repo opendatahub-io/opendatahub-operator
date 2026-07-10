@@ -117,6 +117,21 @@ _Appears in:_
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the bundled Argo Workflows controllers.<br />              It will only upgrade the Argo Workflows controllers if it is safe to do so. This is the default<br />              behavior.<br />- "Removed" : the operator is not managing the bundled Argo Workflows controllers and will not install it.<br />              If it is installed, the operator will remove it but will not remove other Argo Workflows<br />              installations. | Managed | Enum: [Managed Removed] <br /> |
 
 
+#### ComponentRelease
+
+
+
+ComponentRelease represents the detailed status of a component release.
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `name` _string_ |  |  | Required: \{\} |
+| `version` _string_ |  |  |  |
+| `repoUrl` _string_ |  |  |  |
+
+
 #### DSCAIGateway
 
 

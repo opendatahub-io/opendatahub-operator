@@ -368,7 +368,8 @@ endif
 api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-ref-docs, render managementstate with marker
 	$(CRD_REF_DOCS) --source-path ./ --output-path ./docs/api-overview.md --renderer markdown --config ./crd-ref-docs.config.yaml && \
 	grep -Ev '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md && \
-	$(SED_COMMAND) -i "s|](#managementstate)|](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)|g" ./docs/api-overview.md
+	$(SED_COMMAND) -i "s|](#managementstate)|](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)|g" ./docs/api-overview.md && \
+	$(SED_COMMAND) -i '/^#### DSCAIGateway$$/i\#### ComponentRelease\n\n\n\nComponentRelease represents the detailed status of a component release.\n\n\n\n| Field | Description | Default | Validation |\n| --- | --- | --- | --- |\n| `name` _string_ |  |  | Required: \\{\\} |\n| `version` _string_ |  |  |  |\n| `repoUrl` _string_ |  |  |  |\n\n' ./docs/api-overview.md
 	$(CRD_REF_DOCS) --source-path ./api/cloudmanager/ --output-path ./docs/cloudmanager-api-overview.md --renderer markdown --config ./crd-ref-docs.cloudmanager.config.yaml
 
 .PHONY: ginkgo
