@@ -125,6 +125,39 @@ ComponentRelease represents the detailed status of a component release.
 
 
 
+_Appears in:_
+- [DashboardStatus](#dashboardstatus)
+- [DataSciencePipelinesCommonStatus](#datasciencepipelinescommonstatus)
+- [DataSciencePipelinesStatus](#datasciencepipelinesstatus)
+- [FeastOperatorCommonStatus](#feastoperatorcommonstatus)
+- [FeastOperatorStatus](#feastoperatorstatus)
+- [KserveCommonStatus](#kservecommonstatus)
+- [KserveStatus](#kservestatus)
+- [KueueCommonStatus](#kueuecommonstatus)
+- [KueueStatus](#kueuestatus)
+- [LlamaStackOperatorCommonStatus](#llamastackoperatorcommonstatus)
+- [MCPLifecycleOperatorCommonStatus](#mcplifecycleoperatorcommonstatus)
+- [MLflowOperatorCommonStatus](#mlflowoperatorcommonstatus)
+- [MLflowOperatorStatus](#mlflowoperatorstatus)
+- [ModelControllerStatus](#modelcontrollerstatus)
+- [ModelRegistryCommonStatus](#modelregistrycommonstatus)
+- [ModelRegistryStatus](#modelregistrystatus)
+- [ModelsAsServiceStatus](#modelsasservicestatus)
+- [OGXCommonStatus](#ogxcommonstatus)
+- [OGXStatus](#ogxstatus)
+- [RayCommonStatus](#raycommonstatus)
+- [RayStatus](#raystatus)
+- [SparkOperatorCommonStatus](#sparkoperatorcommonstatus)
+- [SparkOperatorStatus](#sparkoperatorstatus)
+- [TrainerCommonStatus](#trainercommonstatus)
+- [TrainerStatus](#trainerstatus)
+- [TrainingOperatorCommonStatus](#trainingoperatorcommonstatus)
+- [TrainingOperatorStatus](#trainingoperatorstatus)
+- [TrustyAICommonStatus](#trustyaicommonstatus)
+- [TrustyAIStatus](#trustyaistatus)
+- [WorkbenchesCommonStatus](#workbenchescommonstatus)
+- [WorkbenchesStatus](#workbenchesstatus)
+
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `name` _string_ |  |  | Required: \{\} |
