@@ -159,7 +159,7 @@ var (
 	//
 	// 20 — core AI/ML, all independent; gateway deps are on GatewayConfig
 	//      service (separate lifecycle), not on other components.
-	// 31 — extension foundations (kserve, kueue), independent of each other.
+	// 31 — serving stack co-deployed together (kserve, modelcontroller, kueue).
 	// 32 — independent extensions, no KServe dependency.
 	// 33 — components that require KServe to be Ready.
 	componentRunlevels = map[string]dag.Runlevel{
@@ -171,15 +171,15 @@ var (
 		componentApi.TrainingOperatorComponentName:     dag.RL(20),
 		componentApi.WorkbenchesComponentName:          dag.RL(20),
 
-		componentApi.KserveComponentName: dag.RL(31),
-		componentApi.KueueComponentName:  dag.RL(31),
+		componentApi.KserveComponentName:          dag.RL(31),
+		componentApi.KueueComponentName:           dag.RL(31),
+		componentApi.ModelControllerComponentName: dag.RL(31),
 
 		componentApi.FeastOperatorComponentName:  dag.RL(32),
 		componentApi.MLflowOperatorComponentName: dag.RL(32),
 		componentApi.OGXComponentName:            dag.RL(32),
 		componentApi.SparkOperatorComponentName:  dag.RL(32),
 
-		componentApi.ModelControllerComponentName: dag.RL(33),
 		componentApi.ModelsAsServiceComponentName: dag.RL(33),
 		componentApi.TrustyAIComponentName:        dag.RL(33),
 	}
@@ -199,7 +199,7 @@ var (
 	}
 
 	moduleRunlevels = map[string]dag.Runlevel{
-		componentApi.AIGatewayComponentName:            dag.RL(20),
+		componentApi.AIGatewayComponentName:            dag.RL(32),
 		componentApi.MCPLifecycleOperatorComponentName: dag.RL(20),
 	}
 )
