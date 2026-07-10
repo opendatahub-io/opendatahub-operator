@@ -11,7 +11,7 @@ rhai_helm_components:
   - kserve
 
 # Example:
-# - image: RELATED_IMAGE_ODH_CAIKIT_NLP_IMAGE
+# - image: RELATED_IMAGE_ODH_ML_PIPELINES_RUNTIME_GENERIC_IMAGE
 #   jira: https://issues.redhat.com/browse/RHOAIENG-XXXXX
 #   reason: Deprecated image, removal tracked in Jira
 known_issues:
@@ -27,9 +27,6 @@ known_issues:
 - image: RELATED_IMAGE_DSP_TOOLBOX_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-60396
   reason: Removed with InstrutLab pipeline removal since RHOAI 3.0
-- image: RELATED_IMAGE_ODH_CAIKIT_NLP_IMAGE
-  jira: https://redhat.atlassian.net/browse/RHOAIENG-60523
-  reason: caikit-nlp support is removed since RHOAI 3.0
 - image: RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE
   jira: https://redhat.atlassian.net/browse/RHAISTRAT-130
   reason: TrustyAI-Service descoped from RHOAI 3.5, delivering in 3.6-EA1
