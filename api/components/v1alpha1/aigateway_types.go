@@ -15,6 +15,12 @@ const (
 // AIGatewayCommonSpec defines the user-facing configuration for AIGateway,
 // shared between DSC and the AIGateway CR.
 type AIGatewayCommonSpec struct {
+	// ModelsAsAService controls the Models as a Service sub-component.
+	// Note: the field uses "AsA" (modelsAsAService) intentionally — this matches the
+	// ai-gateway-operator CRD field name (spec.modelsAsAService). The type name
+	// DSCModelsAsServiceSpec is shared with the deprecated kserve.modelsAsService field
+	// and predates the rename; the JSON tag is the authoritative API surface.
+	ModelsAsAService DSCModelsAsServiceSpec `json:"modelsAsAService,omitempty"`
 	// BatchGateway controls the batch-gateway operator sub-component.
 	BatchGateway AIGatewayBatchGatewaySpec `json:"batchGateway,omitempty"`
 }
@@ -25,7 +31,9 @@ type AIGatewayBatchGatewaySpec struct {
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 }
 
-type AIGatewayCommonStatus struct{}
+type AIGatewayCommonStatus struct {
+	common.ComponentReleaseStatus `json:",inline"`
+}
 
 // DSCAIGateway contains all the configuration exposed in DSC instance for AIGateway component.
 type DSCAIGateway struct {

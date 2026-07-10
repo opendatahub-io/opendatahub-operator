@@ -50,15 +50,20 @@ var (
 	}
 
 	// relatedImages are the operand images the ai-gateway-operator passes to
-	// the sub-module (batch-gateway-operator) deployments it creates; injected as
-	// RELATED_IMAGE_* env vars on the ai-g ateway-operator container.
-	// TODO: append more for maas images.
+	// the sub-module (batch-gateway-operator, maas-controller) deployments it creates;
+	// injected as RELATED_IMAGE_* env vars on the ai-gateway-operator container.
 	relatedImages = []string{
+		// Batch Gateway images
 		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_OPERATOR_IMAGE",
 		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_APISERVER_IMAGE",
 		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_PROCESSOR_IMAGE",
 		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_GC_IMAGE",
 		"RELATED_IMAGE_ODH_LLM_D_ASYNC_IMAGE",
+		// MaaS images — registered in ODH-Build-Config bundle-patch.yaml
+		"RELATED_IMAGE_ODH_MAAS_CONTROLLER_IMAGE",
+		"RELATED_IMAGE_ODH_MAAS_API_IMAGE",
+		"RELATED_IMAGE_ODH_AI_GATEWAY_PAYLOAD_PROCESSING_IMAGE",
+		"RELATED_IMAGE_UBI_MINIMAL_IMAGE",
 	}
 )
 
@@ -78,7 +83,7 @@ func NewHandler() *handler {
 				ControllerImage:      controllerImage,
 				InitContainerName:    initContainerName, // use same controller image for initContainer
 				RelatedImages:        relatedImages,
-				DeploymentName:       deploymentName, // different name need to set explicltiy
+				DeploymentName:       deploymentName, // different name need to set explicitly
 				GVK:                  gvk.AIGateway,
 			},
 		},
@@ -89,9 +94,17 @@ func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 	if platform == nil {
 		return false
 	}
-	// Openshift
+	// OpenShift
 	if platform.DSC != nil {
-		return platform.DSC.Spec.Components.AIGateway.ManagementState == operatorv1.Managed
+		dsc := platform.DSC.Spec.Components
+		// If aigateway.managementState is explicitly set, it is the master switch.
+		if dsc.AIGateway.ManagementState != "" {
+			return dsc.AIGateway.ManagementState == operatorv1.Managed
+		}
+		// Deprecated: respect kserve.modelsAsService for 3.4→3.5 upgrade compatibility.
+		// Users who have not yet migrated their DSC will still get MaaS deployed.
+		// TODO(3.7): remove this fallback when kserve.modelsAsService is removed.
+		return dsc.Kserve.ModelsAsService.ManagementState == operatorv1.Managed //nolint:staticcheck
 	}
 	// xkS
 	if platform.Platform != nil {
@@ -117,10 +130,18 @@ func (h *handler) BuildModuleCR(
 
 	switch {
 	case platform.DSC != nil:
+		dscComponents := platform.DSC.Spec.Components
+		commonSpec := dscComponents.AIGateway.AIGatewayCommonSpec.DeepCopy()
+
+		// Deprecated: if modelsAsAService is not set but kserve.modelsAsService is,
+		// populate modelsAsAService so AGO knows to deploy MaaS.
+		// TODO(3.7): remove this fallback when kserve.modelsAsService is removed.
+		if commonSpec.ModelsAsAService.ManagementState == "" {
+			commonSpec.ModelsAsAService.ManagementState = dscComponents.Kserve.ModelsAsService.ManagementState //nolint:staticcheck
+		}
+
 		var err error
-		spec, err = runtime.DefaultUnstructuredConverter.ToUnstructured(
-			&platform.DSC.Spec.Components.AIGateway.AIGatewayCommonSpec,
-		)
+		spec, err = runtime.DefaultUnstructuredConverter.ToUnstructured(commonSpec)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert AIGatewayCommonSpec to unstructured: %w", err)
 		}

@@ -52,6 +52,52 @@ func TestIsEnabled_Empty(t *testing.T) {
 	g.Expect(h.IsEnabled(newDSCPlatformCtx(""))).Should(BeFalse())
 }
 
+// IsEnabled is driven solely by the top-level ManagementState — sub-component
+// states (batchGateway, modelsAsService) do not affect module enablement.
+func TestIsEnabled_ManagedWithSubComponentsRemoved(t *testing.T) {
+	g := NewWithT(t)
+	h := aigateway.NewHandler()
+	platform := &modules.PlatformContext{
+		ApplicationsNamespace: "opendatahub",
+		DSC: &dscv2.DataScienceCluster{
+			Spec: dscv2.DataScienceClusterSpec{
+				Components: dscv2.Components{
+					AIGateway: componentApi.DSCAIGateway{
+						ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+						AIGatewayCommonSpec: componentApi.AIGatewayCommonSpec{
+							BatchGateway:     componentApi.AIGatewayBatchGatewaySpec{ManagementState: operatorv1.Removed},
+							ModelsAsAService: componentApi.DSCModelsAsServiceSpec{ManagementState: operatorv1.Removed},
+						},
+					},
+				},
+			},
+		},
+	}
+	g.Expect(h.IsEnabled(platform)).Should(BeTrue())
+}
+
+func TestIsEnabled_RemovedWithSubComponentsManaged(t *testing.T) {
+	g := NewWithT(t)
+	h := aigateway.NewHandler()
+	platform := &modules.PlatformContext{
+		ApplicationsNamespace: "opendatahub",
+		DSC: &dscv2.DataScienceCluster{
+			Spec: dscv2.DataScienceClusterSpec{
+				Components: dscv2.Components{
+					AIGateway: componentApi.DSCAIGateway{
+						ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
+						AIGatewayCommonSpec: componentApi.AIGatewayCommonSpec{
+							BatchGateway:     componentApi.AIGatewayBatchGatewaySpec{ManagementState: operatorv1.Managed},
+							ModelsAsAService: componentApi.DSCModelsAsServiceSpec{ManagementState: operatorv1.Managed},
+						},
+					},
+				},
+			},
+		},
+	}
+	g.Expect(h.IsEnabled(platform)).Should(BeFalse())
+}
+
 func TestIsEnabled_NilDSC_NilPlatform(t *testing.T) {
 	g := NewWithT(t)
 	h := aigateway.NewHandler()
@@ -84,6 +130,134 @@ func TestIsEnabled_NilPlatformContext(t *testing.T) {
 	g := NewWithT(t)
 	h := aigateway.NewHandler()
 	g.Expect(h.IsEnabled(nil)).Should(BeFalse())
+}
+
+// Backward compat: kserve.modelsAsService=Managed should enable AIGateway when
+// aigateway.managementState is not explicitly set (3.4→3.5 upgrade path).
+func TestIsEnabled_LegacyKserveModelsAsService_Managed(t *testing.T) {
+	g := NewWithT(t)
+	h := aigateway.NewHandler()
+	platform := &modules.PlatformContext{
+		ApplicationsNamespace: "opendatahub",
+		DSC: &dscv2.DataScienceCluster{
+			Spec: dscv2.DataScienceClusterSpec{
+				Components: dscv2.Components{
+					// aigateway.managementState intentionally empty (not yet migrated)
+					Kserve: componentApi.DSCKserve{
+						KserveCommonSpec: componentApi.KserveCommonSpec{
+							ModelsAsService: componentApi.DSCModelsAsServiceSpec{
+								ManagementState: operatorv1.Managed,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	g.Expect(h.IsEnabled(platform)).Should(BeTrue())
+}
+
+// Backward compat: aigateway.managementState=Removed must win even when
+// kserve.modelsAsService=Managed (explicit master switch takes priority).
+func TestIsEnabled_LegacyKserveModelsAsService_ExplicitAIGatewayRemovedWins(t *testing.T) {
+	g := NewWithT(t)
+	h := aigateway.NewHandler()
+	platform := &modules.PlatformContext{
+		ApplicationsNamespace: "opendatahub",
+		DSC: &dscv2.DataScienceCluster{
+			Spec: dscv2.DataScienceClusterSpec{
+				Components: dscv2.Components{
+					AIGateway: componentApi.DSCAIGateway{
+						ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
+					},
+					Kserve: componentApi.DSCKserve{
+						KserveCommonSpec: componentApi.KserveCommonSpec{
+							ModelsAsService: componentApi.DSCModelsAsServiceSpec{
+								ManagementState: operatorv1.Managed,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	g.Expect(h.IsEnabled(platform)).Should(BeFalse())
+}
+
+// Backward compat: BuildModuleCR must populate modelsAsAService from
+// kserve.modelsAsService when modelsAsAService is not explicitly set.
+func TestBuildModuleCR_LegacyKserveModelsAsService_PopulatesModelsAsAService(t *testing.T) {
+	g := NewWithT(t)
+	h := aigateway.NewHandler()
+	platform := &modules.PlatformContext{
+		ApplicationsNamespace: "opendatahub",
+		DSC: &dscv2.DataScienceCluster{
+			Spec: dscv2.DataScienceClusterSpec{
+				Components: dscv2.Components{
+					Kserve: componentApi.DSCKserve{
+						KserveCommonSpec: componentApi.KserveCommonSpec{
+							ModelsAsService: componentApi.DSCModelsAsServiceSpec{
+								ManagementState: operatorv1.Managed,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+
+	maas, ok := spec["modelsAsAService"].(map[string]any)
+	g.Expect(ok).Should(BeTrue(), "modelsAsAService should be present in AIGateway CR spec")
+	g.Expect(maas["managementState"]).Should(Equal("Managed"),
+		"modelsAsAService.managementState should be Managed (populated from kserve.modelsAsService)")
+}
+
+// Backward compat: explicit aigateway.modelsAsAService takes priority over
+// kserve.modelsAsService when both are set.
+func TestBuildModuleCR_ExplicitModelsAsAServiceWinsOverLegacy(t *testing.T) {
+	g := NewWithT(t)
+	h := aigateway.NewHandler()
+	platform := &modules.PlatformContext{
+		ApplicationsNamespace: "opendatahub",
+		DSC: &dscv2.DataScienceCluster{
+			Spec: dscv2.DataScienceClusterSpec{
+				Components: dscv2.Components{
+					AIGateway: componentApi.DSCAIGateway{
+						ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+						AIGatewayCommonSpec: componentApi.AIGatewayCommonSpec{
+							ModelsAsAService: componentApi.DSCModelsAsServiceSpec{
+								ManagementState: operatorv1.Removed, // explicit
+							},
+						},
+					},
+					Kserve: componentApi.DSCKserve{
+						KserveCommonSpec: componentApi.KserveCommonSpec{
+							ModelsAsService: componentApi.DSCModelsAsServiceSpec{
+								ManagementState: operatorv1.Managed, // legacy
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	u, err := h.BuildModuleCR(context.Background(), nil, platform)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	spec, ok := u.Object["spec"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+
+	maas, ok := spec["modelsAsAService"].(map[string]any)
+	g.Expect(ok).Should(BeTrue())
+	g.Expect(maas["managementState"]).Should(Equal("Removed"),
+		"explicit modelsAsAService=Removed must win over legacy kserve.modelsAsService=Managed")
 }
 
 func TestBuildModuleCR_BasicProjection(t *testing.T) {
@@ -166,6 +340,10 @@ func TestImageHandling(t *testing.T) {
 		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_PROCESSOR_IMAGE",
 		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_GC_IMAGE",
 		"RELATED_IMAGE_ODH_LLM_D_ASYNC_IMAGE",
+		"RELATED_IMAGE_ODH_MAAS_CONTROLLER_IMAGE",
+		"RELATED_IMAGE_ODH_MAAS_API_IMAGE",
+		"RELATED_IMAGE_ODH_AI_GATEWAY_PAYLOAD_PROCESSING_IMAGE",
+		"RELATED_IMAGE_UBI_MINIMAL_IMAGE",
 	))
 
 	// The operator image is handled by ControllerImage (image override), not

@@ -218,3 +218,186 @@ func TestConvertConditions_Nil(t *testing.T) {
 	result := convertConditions(nil, true)
 	g.Expect(result).To(BeNil())
 }
+
+// TestConvertTo_MigratesMaaSFromKserveToAIGateway verifies that when converting
+// from v1 to v2, kserve.modelsAsService is automatically migrated to aigateway.modelsasservice.
+func TestConvertTo_MigratesMaaSFromKserveToAIGateway(t *testing.T) {
+	g := NewWithT(t)
+
+	// Create v1 DSC with kserve.modelsAsService enabled
+	v1DSC := &DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-dsc",
+		},
+		Spec: DataScienceClusterSpec{
+			Components: Components{
+				Kserve: componentApi.DSCKserve{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Managed,
+					},
+					KserveCommonSpec: componentApi.KserveCommonSpec{
+						ModelsAsService: componentApi.DSCModelsAsServiceSpec{
+							ManagementState: operatorv1.Managed,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Convert v1 to v2
+	v2DSC := &dscv2.DataScienceCluster{}
+	err := v1DSC.ConvertTo(v2DSC)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// Verify modelsAsService was migrated to aigateway.modelsAsAService
+	g.Expect(v2DSC.Spec.Components.AIGateway.ModelsAsAService.ManagementState).To(Equal(operatorv1.Managed))
+
+	// Verify AIGateway was enabled
+	g.Expect(v2DSC.Spec.Components.AIGateway.ManagementState).To(Equal(operatorv1.Managed))
+
+	// kserve.modelsAsService is intentionally preserved (not cleared) in v2 because
+	// self == oldSelf CEL makes it immutable — clearing it would fail admission.
+	// It will be pruned automatically when removed from the CRD schema in 3.7.
+	g.Expect(v2DSC.Spec.Components.Kserve.ModelsAsService.ManagementState).To(Equal(operatorv1.Managed))
+}
+
+// TestConvertTo_MaaSNotEnabledInV1 verifies that when kserve.modelsAsService is
+// not enabled in v1, AIGateway is set to Removed in v2.
+func TestConvertTo_MaaSNotEnabledInV1(t *testing.T) {
+	g := NewWithT(t)
+
+	v1DSC := &DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-dsc",
+		},
+		Spec: DataScienceClusterSpec{
+			Components: Components{
+				Kserve: componentApi.DSCKserve{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Managed,
+					},
+					KserveCommonSpec: componentApi.KserveCommonSpec{
+						ModelsAsService: componentApi.DSCModelsAsServiceSpec{
+							ManagementState: operatorv1.Removed,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	v2DSC := &dscv2.DataScienceCluster{}
+	err := v1DSC.ConvertTo(v2DSC)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// AIGateway should be Removed when MaaS is not enabled
+	g.Expect(v2DSC.Spec.Components.AIGateway.ManagementState).To(Equal(operatorv1.Removed))
+
+	// modelsAsAService should still be copied to aigateway
+	g.Expect(v2DSC.Spec.Components.AIGateway.ModelsAsAService.ManagementState).To(Equal(operatorv1.Removed))
+}
+
+// TestConvertTo_MaaSNotConfiguredInV1 verifies that when kserve.modelsAsService is
+// never configured (zero-value ManagementState ""), AIGateway is set to Removed in v2.
+func TestConvertTo_MaaSNotConfiguredInV1(t *testing.T) {
+	g := NewWithT(t)
+
+	v1DSC := &DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-dsc",
+		},
+		Spec: DataScienceClusterSpec{
+			Components: Components{
+				Kserve: componentApi.DSCKserve{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Managed,
+					},
+					// ModelsAsService left at zero value — never configured
+				},
+			},
+		},
+	}
+
+	v2DSC := &dscv2.DataScienceCluster{}
+	err := v1DSC.ConvertTo(v2DSC)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// AIGateway should be Removed when MaaS was never configured (zero-value "")
+	g.Expect(v2DSC.Spec.Components.AIGateway.ManagementState).To(Equal(operatorv1.Removed))
+	g.Expect(v2DSC.Spec.Components.AIGateway.ModelsAsAService.ManagementState).To(Equal(operatorv1.ManagementState("")))
+}
+
+// TestConvertRoundTrip_BatchGatewayPreserved verifies that a v2→v1→v2 round-trip
+// preserves BatchGateway state even when modelsAsService is Removed (i.e. the only
+// AIGateway signal in v1 would reconstruct AIGateway as Removed).
+func TestConvertRoundTrip_BatchGatewayPreserved(t *testing.T) {
+	g := NewWithT(t)
+
+	// v2 DSC: AIGateway Managed, BatchGateway Managed, MaaS Removed
+	v2Original := &dscv2.DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-dsc"},
+		Spec: dscv2.DataScienceClusterSpec{
+			Components: dscv2.Components{
+				AIGateway: componentApi.DSCAIGateway{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Managed,
+					},
+					AIGatewayCommonSpec: componentApi.AIGatewayCommonSpec{
+						BatchGateway: componentApi.AIGatewayBatchGatewaySpec{
+							ManagementState: operatorv1.Managed,
+						},
+						ModelsAsAService: componentApi.DSCModelsAsServiceSpec{
+							ManagementState: operatorv1.Removed,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Step 1: v2 → v1 (ConvertFrom stashes AIGateway state)
+	v1DSC := &DataScienceCluster{}
+	err := v1DSC.ConvertFrom(v2Original)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// v1 should have kserve.modelsAsService mirrored as Removed
+	g.Expect(v1DSC.Spec.Components.Kserve.ModelsAsService.ManagementState).To(Equal(operatorv1.Removed))
+	// v1 should carry the stash annotation
+	g.Expect(v1DSC.GetAnnotations()).To(HaveKey("conversion.opendatahub.io/aigateway-state"))
+
+	// Step 2: v1 → v2 (ConvertTo restores from stash)
+	v2Restored := &dscv2.DataScienceCluster{}
+	err = v1DSC.ConvertTo(v2Restored)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// BatchGateway must be preserved — not lost due to round-trip
+	g.Expect(v2Restored.Spec.Components.AIGateway.ManagementState).To(Equal(operatorv1.Managed))
+	g.Expect(v2Restored.Spec.Components.AIGateway.BatchGateway.ManagementState).To(Equal(operatorv1.Managed))
+	g.Expect(v2Restored.Spec.Components.AIGateway.ModelsAsAService.ManagementState).To(Equal(operatorv1.Removed))
+
+	// Internal annotation must be removed from the restored v2 object
+	g.Expect(v2Restored.GetAnnotations()).NotTo(HaveKey("conversion.opendatahub.io/aigateway-state"))
+}
+
+// TestConvertTo_CorruptStashAnnotationDoesNotLeak verifies that a corrupt stash
+// annotation is always removed from the v2 object even when unmarshal fails.
+func TestConvertTo_CorruptStashAnnotationDoesNotLeak(t *testing.T) {
+	g := NewWithT(t)
+
+	v1DSC := &DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-dsc",
+			Annotations: map[string]string{
+				"conversion.opendatahub.io/aigateway-state": "not-valid-json",
+			},
+		},
+	}
+
+	v2DSC := &dscv2.DataScienceCluster{}
+	err := v1DSC.ConvertTo(v2DSC)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// Annotation must not leak onto the v2 object even though unmarshal failed
+	g.Expect(v2DSC.GetAnnotations()).NotTo(HaveKey("conversion.opendatahub.io/aigateway-state"))
+}

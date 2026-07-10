@@ -644,7 +644,7 @@ func createDSCWithKServeAndMaaS(kserveState, maasState operatorv1.ManagementStat
 	dsc.SetName("test-dsc")
 
 	dsc.Spec.Components.Kserve.ManagementState = kserveState
-	dsc.Spec.Components.Kserve.ModelsAsService.ManagementState = maasState
+	dsc.Spec.Components.Kserve.ModelsAsService.ManagementState = maasState //nolint:staticcheck
 
 	return &dsc
 }

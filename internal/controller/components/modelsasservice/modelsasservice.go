@@ -100,7 +100,7 @@ func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
 
 	// Check ModelsAsService specific management state
 	// For Technical preview release, default to Disabled if not explicitly set to Managed
-	return dsc.Spec.Components.Kserve.ModelsAsService.ManagementState == operatorv1.Managed
+	return dsc.Spec.Components.Kserve.ModelsAsService.ManagementState == operatorv1.Managed //nolint:staticcheck
 }
 
 // UpdateDSCStatus updates the ModelsAsService component status in the DataScienceCluster from MaasTenantConfig.
@@ -115,7 +115,7 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
 	if !s.IsEnabled(dsc) {
-		ms := dsc.Spec.Components.Kserve.ModelsAsService.ManagementState
+		ms := dsc.Spec.Components.Kserve.ModelsAsService.ManagementState //nolint:staticcheck
 		if ms == "" {
 			ms = operatorv1.Removed
 		}

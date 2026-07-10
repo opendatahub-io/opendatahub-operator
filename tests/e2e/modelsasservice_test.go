@@ -27,9 +27,9 @@ type ModelsAsServiceTestCtx struct {
 }
 
 const (
-	// Subcomponent field name in JSON (matches the field name in KserveCommonSpec).
-	// This must match the JSON tag in KserveCommonSpec.ModelsAsService.
-	modelsAsServiceFieldName = "modelsAsService"
+	// Subcomponent field name in JSON (matches the field name in AIGatewayCommonSpec).
+	// This must match the JSON tag in AIGatewayCommonSpec.ModelsAsService.
+	modelsAsServiceFieldName = "modelsAsAService"
 
 	// Gateway constants from modelsasservice package.
 	maasGatewayNamespace = modelsasservice.DefaultGatewayNamespace
@@ -61,7 +61,7 @@ func (tc *ModelsAsServiceTestCtx) maasDBNamespace() string {
 func modelsAsServiceTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewSubComponentTestCtx(t, &componentApi.ModelsAsService{}, componentApi.KserveKind, modelsAsServiceFieldName)
+	ct, err := NewSubComponentTestCtx(t, &componentApi.ModelsAsService{}, componentApi.AIGatewayKind, modelsAsServiceFieldName)
 	require.NoError(t, err)
 
 	componentCtx := ModelsAsServiceTestCtx{
