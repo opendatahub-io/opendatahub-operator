@@ -19,6 +19,11 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
 var allowedKinds = map[string]bool{
 	"Deployment":                     true,
 	"Service":                        true,
@@ -29,6 +34,7 @@ var allowedKinds = map[string]bool{
 	"RoleBinding":                    true,
 	"ConfigMap":                      true,
 	"CustomResourceDefinition":       true,
+	"Namespace":                      true,
 	"MutatingWebhookConfiguration":   true,
 	"ValidatingWebhookConfiguration": true,
 	"Issuer":                         true,
@@ -70,17 +76,8 @@ func TestModuleManifestRendering(t *testing.T) {
 		t.Fatalf("failed to resolve manifests root %s: %v", manifestsRoot, err)
 	}
 
-	chartsExist := true
-	if _, err := os.Stat(absChartsRoot); os.IsNotExist(err) {
-		chartsExist = false
-	}
-
-	manifestsExist := true
-	if _, err := os.Stat(absManifestsRoot); os.IsNotExist(err) {
-		manifestsExist = false
-	}
-
-	if !chartsExist && !manifestsExist {
+	artifactsAvailable := dirExists(absChartsRoot) || dirExists(absManifestsRoot)
+	if !artifactsAvailable {
 		t.Skipf("neither charts (%s) nor manifests (%s) found (run get_all_manifests.sh first)",
 			absChartsRoot, absManifestsRoot)
 	}
@@ -92,20 +89,15 @@ func TestModuleManifestRendering(t *testing.T) {
 
 	platforms := testPlatformContexts(absChartsRoot, absManifestsRoot)
 
-	testedCount := 0
-
 	for _, handler := range handlers {
 		for _, platform := range platforms {
 			manifests := handler.GetOperatorManifests(platform)
 
 			for _, chartInfo := range manifests.HelmCharts {
 				if _, err := os.Stat(chartInfo.Chart); os.IsNotExist(err) {
-					t.Logf("chart directory %s not found for module %s, skipping (run get_all_manifests.sh)",
+					t.Fatalf("chart directory %s not found for module %s (run get_all_manifests.sh)",
 						chartInfo.Chart, handler.GetName())
-					continue
 				}
-
-				testedCount++
 
 				t.Run(handler.GetName()+"/helm/"+string(platform.Release.Name), func(t *testing.T) {
 					g := NewWithT(t)
@@ -142,12 +134,9 @@ func TestModuleManifestRendering(t *testing.T) {
 			for _, manifestInfo := range manifests.Manifests {
 				renderPath := manifestInfo.String()
 				if _, err := os.Stat(manifestInfo.Path); os.IsNotExist(err) {
-					t.Logf("manifest directory %s not found for module %s, skipping (run get_all_manifests.sh)",
+					t.Fatalf("manifest directory %s not found for module %s (run get_all_manifests.sh)",
 						manifestInfo.Path, handler.GetName())
-					continue
 				}
-
-				testedCount++
 
 				t.Run(handler.GetName()+"/kustomize/"+string(platform.Release.Name), func(t *testing.T) {
 					g := NewWithT(t)
@@ -180,9 +169,5 @@ func TestModuleManifestRendering(t *testing.T) {
 				})
 			}
 		}
-	}
-
-	if testedCount == 0 {
-		t.Skipf("no module artifacts available for testing (run get_all_manifests.sh first)")
 	}
 }
