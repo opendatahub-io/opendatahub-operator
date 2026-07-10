@@ -118,8 +118,15 @@ func buildPlatformContext(ctx context.Context, rr *odhtype.ReconciliationRequest
 		return nil, fmt.Errorf("failed to resolve application namespace: %w", err)
 	}
 
+	// Monitoring namespace  read directly from DSCI or set to empty when no DSCI (xKS).
+	var monitoringNS string
+	if rr.DSCI != nil {
+		monitoringNS = rr.DSCI.Spec.Monitoring.Namespace
+	}
+
 	return &PlatformContext{
 		ApplicationsNamespace: appNS,
+		MonitoringNamespace:   monitoringNS,
 		Release:               rr.Release,
 		DSC:                   dscFromInstance(rr),
 		DSCI:                  dsciOrNil(rr),
@@ -326,10 +333,11 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 		return fmt.Errorf("BuildModuleCR failed for modules: %s", strings.Join(failedModules, ", "))
 	}
 
-	if len(perModuleImages) > 0 || platformCtx.ApplicationsNamespace != "" {
+	if len(perModuleImages) > 0 || platformCtx.ApplicationsNamespace != "" || platformCtx.MonitoringNamespace != "" {
 		rr.ModuleEnvInjection = &odhtype.ModuleEnvInjection{
 			PerModuleImages:       perModuleImages,
 			ApplicationsNamespace: platformCtx.ApplicationsNamespace,
+			MonitoringNamespace:   platformCtx.MonitoringNamespace,
 		}
 	}
 

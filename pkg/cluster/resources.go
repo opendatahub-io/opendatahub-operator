@@ -172,8 +172,6 @@ func ApplicationNamespace(ctx context.Context, cli client.Client) (string, error
 }
 
 // MonitoringNamespace returns the monitoring namespace from DSCInitialization.
-// Unlike ApplicationNamespace, this does not fall back to a cached value because
-// the monitoring namespace has no equivalent override mechanism (no RHAI_ env var).
 func MonitoringNamespace(ctx context.Context, cli client.Client) (string, error) {
 	dsci, err := GetDSCI(ctx, cli)
 	if err != nil {
