@@ -17,9 +17,9 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-const aiGatewayControllerDeployment = "ai-gateway-operator"
+const mcpLifecycleOperatorControllerDeployment = "mcp-lifecycle-module-operator-controller-manager"
 
-func aiGatewayTestSuite(t *testing.T) {
+func mcpLifecycleOperatorTestSuite(t *testing.T) {
 	t.Helper()
 
 	tc, err := NewTestContext(t)
@@ -28,12 +28,12 @@ func aiGatewayTestSuite(t *testing.T) {
 	moduleGVK := schema.GroupVersionKind{
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,
-		Kind:    componentApi.AIGatewayKind,
+		Kind:    componentApi.MCPLifecycleOperatorKind,
 	}
-	moduleCRNN := types.NamespacedName{Name: componentApi.AIGatewayInstanceName}
+	moduleCRNN := types.NamespacedName{Name: componentApi.MCPLifecycleOperatorInstanceName}
 	controllerNN := types.NamespacedName{
 		Namespace: tc.AppsNamespace,
-		Name:      aiGatewayControllerDeployment,
+		Name:      mcpLifecycleOperatorControllerDeployment,
 	}
 
 	testCases := []TestCase{
@@ -41,20 +41,19 @@ func aiGatewayTestSuite(t *testing.T) {
 			t.Helper()
 			skipUnless(t, Smoke, Tier1)
 
-			// DSC has no "AIGatewayReady" condition, the test is only to check if the AIGateway CR and its deployment exist
 			if !tc.IsXKS() {
 				tc.EventuallyResourcePatched(
 					WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-					WithMutateFunc(testf.Transform(`.spec.components.aigateway.managementState = "Removed"`)),
-					WithCondition(jq.Match(`.spec.components.aigateway.managementState == "Removed"`)),
+					WithMutateFunc(testf.Transform(`.spec.components.mcplifecycleoperator.managementState = "Removed"`)),
+					WithCondition(jq.Match(`.spec.components.mcplifecycleoperator.managementState == "Removed"`)),
 				)
 				tc.EnsureResourceGone(WithMinimalObject(moduleGVK, moduleCRNN))
 			}
 
 			tc.EventuallyResourcePatched(
 				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-				WithMutateFunc(testf.Transform(`.spec.components.aigateway.managementState = "Managed"`)),
-				WithCondition(jq.Match(`.spec.components.aigateway.managementState == "Managed"`)),
+				WithMutateFunc(testf.Transform(`.spec.components.mcplifecycleoperator.managementState = "Managed"`)),
+				WithCondition(jq.Match(`.spec.components.mcplifecycleoperator.managementState == "Managed"`)),
 			)
 
 			tc.EnsureResourceExists(
@@ -69,12 +68,6 @@ func aiGatewayTestSuite(t *testing.T) {
 				WithMinimalObject(gvk.Deployment, controllerNN),
 				WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
 			)
-
-			// do check on DSC ModulesReady is true
-			tc.EnsureResourceExists(
-				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-				WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeModulesReady, metav1.ConditionTrue)),
-			)
 		}},
 		{"Validate component disabled", func(t *testing.T) {
 			t.Helper()
@@ -82,8 +75,8 @@ func aiGatewayTestSuite(t *testing.T) {
 
 			tc.EventuallyResourcePatched(
 				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-				WithMutateFunc(testf.Transform(`.spec.components.aigateway.managementState = "Removed"`)),
-				WithCondition(jq.Match(`.spec.components.aigateway.managementState == "Removed"`)),
+				WithMutateFunc(testf.Transform(`.spec.components.mcplifecycleoperator.managementState = "Removed"`)),
+				WithCondition(jq.Match(`.spec.components.mcplifecycleoperator.managementState == "Removed"`)),
 			)
 
 			tc.EnsureResourceGone(WithMinimalObject(moduleGVK, moduleCRNN))

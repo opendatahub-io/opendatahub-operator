@@ -100,6 +100,7 @@ import (
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	aigatewayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
+	mcplifecycleoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
 	trainerModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/trainer"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
@@ -157,7 +158,7 @@ var (
 	//
 	// 20 — core AI/ML, all independent; gateway deps are on GatewayConfig
 	//      service (separate lifecycle), not on other components.
-	// 31 — extension foundations (kserve, kueue), independent of each other.
+	// 31 — serving stack co-deployed together (kserve, modelcontroller, kueue).
 	// 32 — independent extensions, no KServe dependency.
 	// 33 — components that require KServe to be Ready.
 	componentRunlevels = map[string]dag.Runlevel{
@@ -169,15 +170,15 @@ var (
 		componentApi.TrainingOperatorComponentName:     dag.RL(20),
 		componentApi.WorkbenchesComponentName:          dag.RL(20),
 
-		componentApi.KserveComponentName: dag.RL(31),
-		componentApi.KueueComponentName:  dag.RL(31),
+		componentApi.KserveComponentName:          dag.RL(31),
+		componentApi.KueueComponentName:           dag.RL(31),
+		componentApi.ModelControllerComponentName: dag.RL(31),
 
 		componentApi.FeastOperatorComponentName:  dag.RL(32),
 		componentApi.MLflowOperatorComponentName: dag.RL(32),
 		componentApi.OGXComponentName:            dag.RL(32),
 		componentApi.SparkOperatorComponentName:  dag.RL(32),
 
-		componentApi.ModelControllerComponentName: dag.RL(33),
 		componentApi.ModelsAsServiceComponentName: dag.RL(33),
 		componentApi.TrustyAIComponentName:        dag.RL(33),
 	}
@@ -192,13 +193,15 @@ var (
 
 	existingModules = map[string]mr.ModuleHandler{
 		// serviceApi.MonitoringServiceName: monitoringModule.NewHandler(),
-		componentApi.AIGatewayComponentName: aigatewayModule.NewHandler(),
-		componentApi.TrainerComponentName:   trainerModule.NewHandler(),
+		componentApi.AIGatewayComponentName:            aigatewayModule.NewHandler(),
+		componentApi.MCPLifecycleOperatorComponentName: mcplifecycleoperatorModule.NewHandler(),
+		componentApi.TrainerComponentName:              trainerModule.NewHandler(),
 	}
 
 	moduleRunlevels = map[string]dag.Runlevel{
-		componentApi.AIGatewayComponentName: dag.RL(20),
-		componentApi.TrainerComponentName:   dag.RL(20),
+		componentApi.AIGatewayComponentName:            dag.RL(32),
+		componentApi.MCPLifecycleOperatorComponentName: dag.RL(20),
+		componentApi.TrainerComponentName:              dag.RL(20),
 	}
 )
 
