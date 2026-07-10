@@ -146,6 +146,8 @@ func findCRDInDir(t *testing.T, dir string, targetGVK schema.GroupVersionKind) *
 
 		crd := &apiextensionsv1.CustomResourceDefinition{}
 		if err := yaml.UnmarshalStrict(data, crd); err != nil {
+			t.Logf("WARNING: failed to unmarshal %s as CRD: %v", filepath.Join(dir, entry.Name()), err)
+
 			continue
 		}
 
@@ -163,17 +165,11 @@ func findCRDInDir(t *testing.T, dir string, targetGVK schema.GroupVersionKind) *
 	return nil
 }
 
-// getOpenAPIV3Schema extracts the OpenAPI v3 schema for the given version from
-// a CRD. Falls back to the first version if no exact match is found.
 func getOpenAPIV3Schema(crd *apiextensionsv1.CustomResourceDefinition, version string) *apiextensionsv1.JSONSchemaProps {
 	for _, v := range crd.Spec.Versions {
 		if v.Name == version && v.Schema != nil {
 			return v.Schema.OpenAPIV3Schema
 		}
-	}
-
-	if len(crd.Spec.Versions) > 0 && crd.Spec.Versions[0].Schema != nil {
-		return crd.Spec.Versions[0].Schema.OpenAPIV3Schema
 	}
 
 	return nil

@@ -92,9 +92,9 @@ func TestModuleManifestRendering(t *testing.T) {
 			manifests := handler.GetOperatorManifests(platform)
 
 			for _, chartInfo := range manifests.HelmCharts {
-				if _, err := os.Stat(chartInfo.Chart); os.IsNotExist(err) {
-					t.Fatalf("chart directory %s not found for module %s (run get_all_manifests.sh)",
-						chartInfo.Chart, handler.GetName())
+				if _, err := os.Stat(chartInfo.Chart); err != nil {
+					t.Fatalf("chart directory %s not accessible for module %s (run get_all_manifests.sh): %v",
+						chartInfo.Chart, handler.GetName(), err)
 				}
 
 				t.Run(handler.GetName()+"/helm/"+string(platform.Release.Name), func(t *testing.T) {
@@ -131,9 +131,9 @@ func TestModuleManifestRendering(t *testing.T) {
 
 			for _, manifestInfo := range manifests.Manifests {
 				renderPath := manifestInfo.String()
-				if _, err := os.Stat(manifestInfo.Path); os.IsNotExist(err) {
-					t.Fatalf("manifest directory %s not found for module %s (run get_all_manifests.sh)",
-						manifestInfo.Path, handler.GetName())
+				if _, err := os.Stat(manifestInfo.Path); err != nil {
+					t.Fatalf("manifest directory %s not accessible for module %s (run get_all_manifests.sh): %v",
+						manifestInfo.Path, handler.GetName(), err)
 				}
 
 				t.Run(handler.GetName()+"/kustomize/"+string(platform.Release.Name), func(t *testing.T) {
