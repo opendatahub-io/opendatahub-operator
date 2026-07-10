@@ -460,10 +460,6 @@ undeploy-rhaii: prepare ## Undeploy rhaii controller from the K8s cluster specif
 undeploy: prepare ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build $(CONFIG_DIR)/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
-.PHONY: inject-images
-inject-images: ## Patch deployed operator with RELATED_IMAGE_* env vars from bundled manifests (for local dev).
-	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) hack/inject-dev-images.sh
-
 ## Location to install dependencies to
 LOCALBIN ?= $(shell pwd)/bin
 $(LOCALBIN):
