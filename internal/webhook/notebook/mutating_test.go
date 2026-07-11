@@ -637,6 +637,102 @@ func TestNotebookWebhook_Handle_EnvFromInjection(t *testing.T) {
 	}
 }
 
+// TestNotebookWebhook_Handle_CreateUpdateNeverReturnZeroValueResponse verifies
+// that the Create/Update code path in Handle always returns an explicit Allowed
+// response and never falls through to a zero-value admission.Response (which has
+// Allowed=false). Regression test for RHOAIENG-56113.
+func TestNotebookWebhook_Handle_CreateUpdateNeverReturnZeroValueResponse(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name            string
+		operation       admissionv1.Operation
+		notebook        *unstructured.Unstructured
+		oldNotebook     *unstructured.Unstructured
+		secretsToCreate []string
+		expectedMessage string
+	}{
+		{
+			name:      "create without connection annotation is explicitly allowed",
+			operation: admissionv1.Create,
+			notebook:  createNotebook(),
+			expectedMessage: "no injection needed",
+		},
+		{
+			name:      "create with empty connection annotation is explicitly allowed",
+			operation: admissionv1.Create,
+			notebook: createNotebook(withAnnotations(map[string]string{
+				annotations.Connection: "",
+			})),
+			expectedMessage: "no injection needed",
+		},
+		{
+			name:      "update without connection annotation is explicitly allowed",
+			operation: admissionv1.Update,
+			notebook:  createNotebook(),
+			oldNotebook: createNotebook(),
+			expectedMessage: "no injection needed",
+		},
+		{
+			name:      "create with valid connection annotation returns allowed with patches",
+			operation: admissionv1.Create,
+			notebook: createNotebook(withAnnotations(map[string]string{
+				annotations.Connection: fmt.Sprintf("%s/%s", testNamespace, testSecret1),
+			})),
+			secretsToCreate: []string{testSecret1},
+		},
+		{
+			name:      "update with unchanged connections returns allowed via no-op injection path",
+			operation: admissionv1.Update,
+			notebook: createNotebook(withAnnotations(map[string]string{
+				annotations.Connection: fmt.Sprintf("%s/%s", testNamespace, testSecret1),
+			})),
+			oldNotebook: createNotebook(withAnnotations(map[string]string{
+				annotations.Connection: fmt.Sprintf("%s/%s", testNamespace, testSecret1),
+			})),
+			secretsToCreate: []string{testSecret1},
+			expectedMessage: "no changes required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			baseCli := fake.NewClientBuilder().Build()
+			cli := &mockClient{
+				Client: baseCli,
+				allowPermissions: map[string]bool{
+					testSecret1: true,
+				},
+			}
+
+			for _, secretName := range tt.secretsToCreate {
+				g.Expect(cli.Create(t.Context(), &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      secretName,
+						Namespace: testNamespace,
+					},
+				})).Should(Succeed())
+			}
+
+			wh := createTestWebhook(t, cli)
+			req := createAdmissionRequest(t, tt.operation, tt.notebook, tt.oldNotebook)
+
+			resp := wh.Handle(t.Context(), req)
+
+			// The response must always be explicitly Allowed for valid requests
+			g.Expect(resp.Allowed).Should(BeTrue(), "Handle must never return a zero-value (denied) response for valid Create/Update requests")
+
+			// The response must have an explicit Result with a message, not a zero-value
+			if tt.expectedMessage != "" {
+				g.Expect(resp.Result).ShouldNot(BeNil(), "Result must not be nil")
+				g.Expect(resp.Result.Message).Should(ContainSubstring(tt.expectedMessage))
+			}
+		})
+	}
+}
+
 // Helper function to verify expected patches.
 func verifyExpectedPatches(t *testing.T, actualPatches []jsonpatch.JsonPatchOperation, expectedPatchChecks []func(jsonpatch.JsonPatchOperation) bool) {
 	t.Helper()
