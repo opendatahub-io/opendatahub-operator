@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"testing"
@@ -8,13 +9,16 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelsasservice"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
@@ -89,6 +93,7 @@ func modelsAsServiceTestSuite(t *testing.T) {
 		{"Validate Tenant CRD is namespace-scoped", componentCtx.ValidateTenantCRDNamespaceScoped},
 		{"Validate Tenant singleton enforcement", componentCtx.ValidateTenantSingletonEnforcement},
 		{"Validate payload-processing egress NetworkPolicy", componentCtx.ValidatePayloadProcessingNetworkPolicy},
+		{"Validate deny-by-default gateway policies", componentCtx.ValidateGatewayPolicies},
 		{"Validate Tenant deleted on disable", componentCtx.ValidateTenantDeletedOnDisable},
 	}
 
@@ -352,6 +357,51 @@ func (tc *ModelsAsServiceTestCtx) ValidatePayloadProcessingNetworkPolicy(t *test
 		)),
 		WithCustomErrorMsg("NetworkPolicy should exist with correct ingress and egress rules for payload-processing in %s", maasGatewayNamespace),
 	)
+}
+
+// ValidateGatewayPolicies verifies that deny-by-default gateway policies (AuthPolicy,
+// RateLimitPolicy) are deployed to the gateway namespace when Kuadrant CRDs are present.
+func (tc *ModelsAsServiceTestCtx) ValidateGatewayPolicies(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Tier1)
+
+	ctx := context.Background()
+	hasCRD, err := cluster.HasCRD(ctx, tc.Client(), gvk.AuthPolicyv1)
+	require.NoError(t, err)
+
+	if !hasCRD {
+		t.Log("Skipping gateway policy validation: AuthPolicy CRD not installed")
+		return
+	}
+
+	componentLabelKey := labels.ODH.Component(componentApi.ModelsAsServiceComponentName)
+	policySelector := &client.ListOptions{
+		Namespace: maasGatewayNamespace,
+		LabelSelector: k8slabels.SelectorFromSet(
+			k8slabels.Set{componentLabelKey: labels.True},
+		),
+	}
+
+	t.Logf("Validating AuthPolicy resources with MaaS labels exist in %s", maasGatewayNamespace)
+	tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.AuthPolicyv1, types.NamespacedName{Namespace: maasGatewayNamespace}),
+		WithListOptions(policySelector),
+		WithCondition(BeNumerically(">=", 1)),
+		WithCustomErrorMsg("At least one AuthPolicy with MaaS component label should exist in %s", maasGatewayNamespace),
+	)
+
+	hasRateLimitCRD, err := cluster.HasCRD(ctx, tc.Client(), gvk.RateLimitPolicyv1)
+	require.NoError(t, err)
+
+	if hasRateLimitCRD {
+		t.Logf("Validating RateLimitPolicy resources with MaaS labels exist in %s", maasGatewayNamespace)
+		tc.EnsureResourcesExist(
+			WithMinimalObject(gvk.RateLimitPolicyv1, types.NamespacedName{Namespace: maasGatewayNamespace}),
+			WithListOptions(policySelector),
+			WithCondition(BeNumerically(">=", 1)),
+			WithCustomErrorMsg("At least one RateLimitPolicy with MaaS component label should exist in %s", maasGatewayNamespace),
+		)
+	}
 }
 
 // ValidateTenantDeletedOnDisable verifies that the Tenant CR is deleted when MaaS is set to
