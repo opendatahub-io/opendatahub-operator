@@ -67,7 +67,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Watches(&corev1.Namespace{},
 			reconciler.WithEventHandler(handlers.ToNamed(componentApi.WorkbenchesInstanceName)),
 			reconciler.WithPredicates(
-				component.ForLabel(labels.PlatformPartOf, componentApi.WorkbenchesComponentName),
+				component.ForLabelAllEvents(labels.PlatformPartOf, componentApi.WorkbenchesComponentName),
 			),
 		).
 		Watches(
