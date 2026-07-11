@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -47,12 +49,7 @@ func renderMaasOperatorInstall(ctx context.Context, rr *odhtypes.ReconciliationR
 	// cluster. OwnsGVK(...CrdExists...) guards watches but not the deploy path;
 	// without this check, apply would fail with "no matches for kind" on
 	// clusters without Kuadrant.
-	hasPolicyCRDs, err := kuadrantPolicyCRDsExist(ctx, rr)
-	if err != nil {
-		return fmt.Errorf("check kuadrant policy CRDs: %w", err)
-	}
-
-	if hasPolicyCRDs {
+	if kuadrantPolicyCRDsExist(ctx, rr) {
 		policyOut, err := buildMaasPolicyManifests(rr)
 		if err != nil {
 			return err
@@ -67,11 +64,12 @@ func renderMaasOperatorInstall(ctx context.Context, rr *odhtypes.ReconciliationR
 	return nil
 }
 
-func kuadrantPolicyCRDsExist(ctx context.Context, rr *odhtypes.ReconciliationRequest) (bool, error) {
+func kuadrantPolicyCRDsExist(ctx context.Context, rr *odhtypes.ReconciliationRequest) bool {
 	has, err := cluster.HasCRD(ctx, rr.Client, gvk.AuthPolicyv1)
 	if err != nil {
-		return false, err
+		logf.FromContext(ctx).V(1).Info("unable to check for Kuadrant policy CRDs, skipping policy rendering", "error", err)
+		return false
 	}
 
-	return has, nil
+	return has
 }
