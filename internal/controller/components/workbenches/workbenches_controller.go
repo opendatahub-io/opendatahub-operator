@@ -64,7 +64,12 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithPredicates(
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
 		).
-		Watches(&corev1.Namespace{}).
+		Watches(&corev1.Namespace{},
+			reconciler.WithEventHandler(handlers.ToNamed(componentApi.WorkbenchesInstanceName)),
+			reconciler.WithPredicates(
+				component.ForLabel(labels.PlatformPartOf, componentApi.WorkbenchesComponentName),
+			),
+		).
 		Watches(
 			&componentApi.MLflowOperator{},
 			reconciler.WithEventHandler(handlers.ToNamed(componentApi.WorkbenchesInstanceName)),
