@@ -206,7 +206,7 @@ func buildMaasOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconci
 // enforce default-deny security posture on the MaaS gateway. The bundle is rendered separately
 // from the main install bundle because the policies target the gateway namespace and have their
 // own kustomization.yaml. Resources are labelled with the MaaS component labels for GC.
-func buildMaasPolicyManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest) ([]client.Object, error) {
+func buildMaasPolicyManifests(rr *odhtypes.ReconciliationRequest) ([]client.Object, error) {
 	root := rr.ManifestsBasePath
 	if root == "" {
 		return nil, errors.New("ManifestsBasePath is unset; cannot render maas-controller policy bundle")

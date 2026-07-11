@@ -324,7 +324,6 @@ resources:
 
 func TestBuildMaasPolicyManifests(t *testing.T) {
 	g := NewWithT(t)
-	ctx := t.Context()
 
 	root := createPolicyKustomizeBundle(t)
 	dsci := testDSCI()
@@ -337,7 +336,7 @@ func TestBuildMaasPolicyManifests(t *testing.T) {
 		Instance:          &componentApi.ModelsAsService{},
 	}
 
-	out, err := buildMaasPolicyManifests(ctx, rr)
+	out, err := buildMaasPolicyManifests(rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(out).To(HaveLen(2), "should render AuthPolicy and RateLimitPolicy")
 
@@ -369,7 +368,6 @@ func TestBuildMaasPolicyManifests(t *testing.T) {
 
 func TestBuildMaasPolicyManifests_MissingBundle(t *testing.T) {
 	g := NewWithT(t)
-	ctx := t.Context()
 
 	root := t.TempDir()
 	dsci := testDSCI()
@@ -382,21 +380,20 @@ func TestBuildMaasPolicyManifests_MissingBundle(t *testing.T) {
 		Instance:          &componentApi.ModelsAsService{},
 	}
 
-	_, err = buildMaasPolicyManifests(ctx, rr)
+	_, err = buildMaasPolicyManifests(rr)
 	g.Expect(err).Should(HaveOccurred())
 	g.Expect(err.Error()).Should(ContainSubstring("policy bundle not found"))
 }
 
 func TestBuildMaasPolicyManifests_EmptyManifestsBasePath(t *testing.T) {
 	g := NewWithT(t)
-	ctx := t.Context()
 
 	rr := &pkgtypes.ReconciliationRequest{
 		ManifestsBasePath: "",
 		Instance:          &componentApi.ModelsAsService{},
 	}
 
-	_, err := buildMaasPolicyManifests(ctx, rr)
+	_, err := buildMaasPolicyManifests(rr)
 	g.Expect(err).Should(HaveOccurred())
 	g.Expect(err.Error()).Should(ContainSubstring("ManifestsBasePath is unset"))
 }
