@@ -57,8 +57,10 @@ func renderMaasOperatorInstall(ctx context.Context, rr *odhtypes.ReconciliationR
 		if err != nil {
 			return err
 		}
-		if err := rr.AddResources(policyOut...); err != nil {
-			return fmt.Errorf("add maas-controller policy manifest: %w", err)
+		if len(policyOut) > 0 {
+			if err := rr.AddResources(policyOut...); err != nil {
+				return fmt.Errorf("add maas-controller policy manifest: %w", err)
+			}
 		}
 	}
 

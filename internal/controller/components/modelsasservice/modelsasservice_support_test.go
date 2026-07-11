@@ -380,9 +380,9 @@ func TestBuildMaasPolicyManifests_MissingBundle(t *testing.T) {
 		Instance:          &componentApi.ModelsAsService{},
 	}
 
-	_, err = buildMaasPolicyManifests(rr)
-	g.Expect(err).Should(HaveOccurred())
-	g.Expect(err.Error()).Should(ContainSubstring("policy bundle not found"))
+	out, err := buildMaasPolicyManifests(rr)
+	g.Expect(err).ShouldNot(HaveOccurred(), "missing policies directory should be a no-op, not an error")
+	g.Expect(out).To(BeNil(), "no resources should be returned when the policies bundle is absent")
 }
 
 func TestBuildMaasPolicyManifests_EmptyManifestsBasePath(t *testing.T) {

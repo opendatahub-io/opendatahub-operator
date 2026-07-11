@@ -215,6 +215,9 @@ func buildMaasPolicyManifests(rr *odhtypes.ReconciliationRequest) ([]client.Obje
 	mi := baseManifestInfo(root, BaseManifestsSourcePath)
 	kPath := filepath.Join(mi.Path, mi.ContextDir, "base", "maas-controller", "policies")
 	if _, err := os.Stat(filepath.Join(kPath, "kustomization.yaml")); err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("maas-controller policy bundle not found at %q: %w", kPath, err)
 	}
 
