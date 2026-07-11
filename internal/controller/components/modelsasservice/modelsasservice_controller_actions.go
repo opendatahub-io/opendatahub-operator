@@ -40,5 +40,15 @@ func renderMaasOperatorInstall(ctx context.Context, rr *odhtypes.ReconciliationR
 		return fmt.Errorf("add maas-controller install manifest: %w", err)
 	}
 
+	// Render and append the deny-by-default gateway policy bundle (AuthPolicy,
+	// RateLimitPolicy, etc.) so it is deployed alongside the main install bundle.
+	policyOut, err := buildMaasPolicyManifests(ctx, rr)
+	if err != nil {
+		return err
+	}
+	if err := rr.AddResources(policyOut...); err != nil {
+		return fmt.Errorf("add maas-controller policy manifest: %w", err)
+	}
+
 	return nil
 }

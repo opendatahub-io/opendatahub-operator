@@ -201,6 +201,67 @@ func buildMaasOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconci
 	return out, nil
 }
 
+// buildMaasPolicyManifests renders the deny-by-default gateway policy kustomize bundle
+// (AuthPolicy, RateLimitPolicy, etc.) from base/maas-controller/policies. These resources
+// enforce default-deny security posture on the MaaS gateway. The bundle is rendered separately
+// from the main install bundle because the policies target the gateway namespace and have their
+// own kustomization.yaml. Resources are labelled with the MaaS component labels for GC.
+func buildMaasPolicyManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest) ([]client.Object, error) {
+	root := rr.ManifestsBasePath
+	if root == "" {
+		return nil, errors.New("ManifestsBasePath is unset; cannot render maas-controller policy bundle")
+	}
+
+	mi := baseManifestInfo(root, BaseManifestsSourcePath)
+	kPath := filepath.Join(mi.Path, mi.ContextDir, "base", "maas-controller", "policies")
+	if _, err := os.Stat(filepath.Join(kPath, "kustomization.yaml")); err != nil {
+		return nil, fmt.Errorf("maas-controller policy bundle not found at %q: %w", kPath, err)
+	}
+
+	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
+	fs := filesys.MakeFsOnDisk()
+	resMap, err := k.Run(fs, kPath)
+	if err != nil {
+		return nil, fmt.Errorf("kustomize build %q: %w", kPath, err)
+	}
+
+	// Policy resources target the gateway namespace, not the application namespace.
+	// Apply namespace transform to DefaultGatewayNamespace so policies are co-located
+	// with the gateway they protect.
+	if err := plugins.CreateNamespaceApplierPlugin(DefaultGatewayNamespace).Transform(resMap); err != nil {
+		return nil, fmt.Errorf("namespace transform for maas-controller policy bundle: %w", err)
+	}
+
+	componentLabels := map[string]string{
+		labels.ODH.Component(componentApi.ModelsAsServiceComponentName): labels.True,
+		labels.K8SCommon.PartOf: componentApi.ModelsAsServiceComponentName,
+	}
+	if err := plugins.CreateSetLabelsPlugin(componentLabels).Transform(resMap); err != nil {
+		return nil, fmt.Errorf("labels transform for maas-controller policy bundle: %w", err)
+	}
+
+	rendered := resMap.Resources()
+	extra := make([]unstructured.Unstructured, 0, len(rendered))
+	for i := range rendered {
+		m, err := rendered[i].Map()
+		if err != nil {
+			return nil, fmt.Errorf("maas-controller policy bundle resource map: %w", err)
+		}
+		m, err = normalizeUnstructuredObject(m)
+		if err != nil {
+			return nil, fmt.Errorf("normalize maas-controller policy bundle object: %w", err)
+		}
+		extra = append(extra, unstructured.Unstructured{Object: m})
+	}
+
+	out := make([]client.Object, len(extra))
+	for i := range extra {
+		out[i] = &extra[i]
+	}
+
+	return out, nil
+}
+
 // maasParametersConfigMapFromParamsEnv reads the already-updated params.env
 // (Init → ApplyParams has already merged RELATED_IMAGE_* and extraParamsMap)
 // and builds the maas-parameters ConfigMap that is deployed alongside
