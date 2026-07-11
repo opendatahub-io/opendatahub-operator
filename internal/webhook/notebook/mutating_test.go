@@ -652,9 +652,9 @@ func TestNotebookWebhook_Handle_CreateUpdateNeverReturnZeroValueResponse(t *test
 		expectedMessage string
 	}{
 		{
-			name:      "create without connection annotation is explicitly allowed",
-			operation: admissionv1.Create,
-			notebook:  createNotebook(),
+			name:            "create without connection annotation is explicitly allowed",
+			operation:       admissionv1.Create,
+			notebook:        createNotebook(),
 			expectedMessage: "no injection needed",
 		},
 		{
@@ -666,10 +666,10 @@ func TestNotebookWebhook_Handle_CreateUpdateNeverReturnZeroValueResponse(t *test
 			expectedMessage: "no injection needed",
 		},
 		{
-			name:      "update without connection annotation is explicitly allowed",
-			operation: admissionv1.Update,
-			notebook:  createNotebook(),
-			oldNotebook: createNotebook(),
+			name:            "update without connection annotation is explicitly allowed",
+			operation:       admissionv1.Update,
+			notebook:        createNotebook(),
+			oldNotebook:     createNotebook(),
 			expectedMessage: "no injection needed",
 		},
 		{
