@@ -90,6 +90,14 @@ func TestReadinessChecker_IsReady(t *testing.T) {
 			assertionMessage: "empty platform version should skip version check",
 		},
 		{
+			name:             "ready when component reports empty release version",
+			releases:         []common.ComponentRelease{{Name: "platform", Version: ""}},
+			conditionStatus:  metav1.ConditionTrue,
+			platformVersion:  "2.20.0",
+			expectedReady:    true,
+			assertionMessage: "empty component release version should skip version check even with non-empty platform version",
+		},
+		{
 			name:             "not ready when condition false",
 			releases:         []common.ComponentRelease{{Name: "platform", Version: "2.20.0"}},
 			conditionStatus:  metav1.ConditionFalse,
