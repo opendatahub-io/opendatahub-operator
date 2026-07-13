@@ -92,6 +92,14 @@ type ModuleHandler interface {
 	DeleteOperatorResources(ctx context.Context, cli client.Client, platform *PlatformContext) error
 }
 
+// ReadyConditionTyper allows a module handler to declare the condition type
+// string used for per-module status on the DSC (e.g. "AIGatewayReady").
+// All handlers embedding BaseHandler satisfy this interface automatically;
+// the default derives the type from GVK.Kind + "Ready".
+type ReadyConditionTyper interface {
+	GetReadyConditionType() string
+}
+
 // ContainerNamer allows a module handler to override the default container
 // name ("manager") used for RELATED_IMAGE_* and controller image injection.
 // All handlers embedding BaseHandler satisfy this interface automatically;
