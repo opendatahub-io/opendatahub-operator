@@ -30,6 +30,7 @@ import (
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
@@ -44,7 +45,7 @@ import (
 func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	componentsPredicate := dependent.New(dependent.WithWatchStatus(true))
 
-	_, err := reconciler.ReconcilerFor(mgr, &dscv2.DataScienceCluster{}).
+	b := reconciler.ReconcilerFor(mgr, &dscv2.DataScienceCluster{}).
 		Owns(&componentApi.Dashboard{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.Workbenches{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.Ray{}, reconciler.WithPredicates(componentsPredicate)).
@@ -60,14 +61,32 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 		Owns(&componentApi.FeastOperator{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.OGX{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.MLflowOperator{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.SparkOperator{}, reconciler.WithPredicates(componentsPredicate)).
-		WatchesGVK(gvk.Tenant,
-			reconciler.Dynamic(reconciler.CrdExists(gvk.Tenant)),
+		Owns(&componentApi.SparkOperator{}, reconciler.WithPredicates(componentsPredicate))
+
+	// Module CRs are not owned by the DSC controller, but their status
+	// changes must trigger a DSC reconcile so ComputeModulesStatus can
+	// update conditions while in-tree components still exist.
+	// (HasEntries prevents the modules controller from writing DSC status
+	// during the transition).
+	_ = modules.ForAll(func(h modules.ModuleHandler, _ bool) error {
+		moduleGVK := h.GetGVK()
+		b = b.WatchesGVK(moduleGVK,
+			reconciler.Dynamic(reconciler.CrdExists(moduleGVK)),
 			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
 				return watchDataScienceClusters(ctx, mgr.GetClient())
 			}),
 			reconciler.WithPredicates(componentsPredicate),
-		).
+		)
+		return nil
+	})
+
+	_, err := b.WatchesGVK(gvk.Tenant,
+		reconciler.Dynamic(reconciler.CrdExists(gvk.Tenant)),
+		reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
+			return watchDataScienceClusters(ctx, mgr.GetClient())
+		}),
+		reconciler.WithPredicates(componentsPredicate),
+	).
 		Watches(
 			&dsciv2.DSCInitialization{},
 			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
