@@ -132,7 +132,8 @@ func removeCRFinalizers(
 // filterOperatorFinalizers splits finalizers into those that should be kept
 // (not owned by the operator) and those that should be removed (containing
 // the operator's domain).
-func filterOperatorFinalizers(finalizers []string) (kept, removed []string) {
+func filterOperatorFinalizers(finalizers []string) ([]string, []string) {
+	var kept, removed []string
 	for _, f := range finalizers {
 		if strings.Contains(f, operatorFinalizerDomain) {
 			removed = append(removed, f)
