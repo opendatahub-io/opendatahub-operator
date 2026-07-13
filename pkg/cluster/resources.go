@@ -133,24 +133,12 @@ func WatchDataScienceClusters(ctx context.Context, cli client.Client) []reconcil
 	return requests
 }
 
-// WatchPlatforms lists all Platform CR instances and returns reconcile
-// requests for each. Use this as an event mapper to re-queue the Platform
-// controller when related resources (module CRs) change.
-func WatchPlatforms(ctx context.Context, cli client.Client) []reconcile.Request {
-	instanceList := &configv1alpha1.PlatformList{}
-	if err := cli.List(ctx, instanceList); err != nil {
-		logf.FromContext(ctx).Error(err, "failed to list Platform instances for watch mapping")
-		return []reconcile.Request{}
+// WatchPlatforms returns a reconcile request for the Platform singleton.
+// Platform has a webhook-enforced name so no list call is needed.
+func WatchPlatforms(_ context.Context, _ client.Client) []reconcile.Request {
+	return []reconcile.Request{
+		{NamespacedName: types.NamespacedName{Name: configv1alpha1.PlatformInstanceName}},
 	}
-
-	requests := make([]reconcile.Request, len(instanceList.Items))
-	for i := range instanceList.Items {
-		requests[i] = reconcile.Request{
-			NamespacedName: types.NamespacedName{Name: instanceList.Items[i].Name},
-		}
-	}
-
-	return requests
 }
 
 // GetDSCI retrieves the DSCInitialization (DSCI) instance from the Kubernetes cluster.

@@ -109,8 +109,6 @@ func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest)
 		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
 	}
 
-	rr.Generated = true
-
 	checker := provision.NewCompositeChecker(
 		cr.NewReadinessChecker(cr.DefaultRegistry(), rr.Client, instance),
 		modules.NewReadinessChecker(modules.DefaultRegistry(), rr.Client, rr.Release.Version.String(),
@@ -176,10 +174,10 @@ func provisionComponents(ctx context.Context, rr *odhtype.ReconciliationRequest)
 	}
 
 	if requeueAfter > 0 {
-		rr.Generated = false
-
 		return odherrors.NewRequeueAfterError(requeueAfter)
 	}
+
+	rr.Generated = true
 
 	if len(failedComponents) > 0 {
 		rr.Conditions.SetCondition(common.Condition{
