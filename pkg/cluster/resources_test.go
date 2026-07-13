@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -365,5 +366,18 @@ func TestListConfigMapUsingGVK(t *testing.T) {
 		g.Expect(res).Should(HaveLen(1))
 		g.Expect(res[0].GetName()).Should(Equal("configmap2"))
 		g.Expect(res[0].GetNamespace()).Should(Equal(ns))
+	})
+}
+
+func TestWatchPlatforms(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should return request for the Platform singleton", func(t *testing.T) {
+		t.Parallel()
+		g := NewWithT(t)
+
+		requests := cluster.WatchPlatforms(t.Context(), nil)
+		g.Expect(requests).Should(HaveLen(1))
+		g.Expect(requests[0].Name).Should(Equal(configv1alpha1.PlatformInstanceName))
 	})
 }
