@@ -81,9 +81,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 						return isInferenceServicesCRD(e.Object)
 					},
 					UpdateFunc: func(e event.UpdateEvent) bool {
-						// Don't react to updates - checkPreConditions only checks if CRD exists, not its version/spec
-						// This also prevents continuous reconciliation on CRD status updates
-						return false
+						return isInferenceServicesCRD(e.ObjectNew)
 					},
 					DeleteFunc: func(e event.DeleteEvent) bool {
 						// React when InferenceServices CRD is deleted (dependency becomes unavailable)
