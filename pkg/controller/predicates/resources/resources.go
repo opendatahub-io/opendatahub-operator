@@ -9,6 +9,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -209,7 +210,7 @@ var DSCComponentUpdatePredicate = predicate.Funcs{
 			return false
 		}
 		// if .spec.components is changed, return true.
-		if !reflect.DeepEqual(oldDSC.Spec.Components, newDSC.Spec.Components) {
+		if !equality.Semantic.DeepEqual(oldDSC.Spec.Components, newDSC.Spec.Components) {
 			return true
 		}
 
@@ -483,7 +484,7 @@ func APIServerTLSSecurityProfileChanged() predicate.Predicate {
 				// Reconcile when either object cannot be converted so TLS args stay in sync.
 				return true
 			}
-			return !reflect.DeepEqual(oldAPI.Spec.TLSSecurityProfile, newAPI.Spec.TLSSecurityProfile)
+			return !equality.Semantic.DeepEqual(oldAPI.Spec.TLSSecurityProfile, newAPI.Spec.TLSSecurityProfile)
 		},
 		GenericFunc: func(e event.GenericEvent) bool {
 			return false
