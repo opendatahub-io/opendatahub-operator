@@ -7,11 +7,14 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -28,28 +31,91 @@ type WorkbenchesTestCtx struct {
 func workbenchesTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(t, &componentApi.Workbenches{})
+	ct, err := NewComponentTestCtx(t, &componentApi.Workbenches{
+		ObjectMeta: metav1.ObjectMeta{Name: componentApi.WorkbenchesInstanceName},
+	})
 	require.NoError(t, err)
 
 	componentCtx := WorkbenchesTestCtx{
 		ComponentTestCtx: ct,
 	}
 
-	// Define test cases.
 	testCases := []TestCase{
 		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
+		{"Validate module operator deployment", componentCtx.ValidateModuleOperatorDeployment},
 		{"Validate workbenches namespace configuration", componentCtx.ValidateWorkbenchesNamespaceConfiguration},
-		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
-		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
-		{"Validate component releases", componentCtx.ValidateComponentReleases},
+		{"Validate module releases", componentCtx.ValidateModuleReleases},
 		{"Validate ImageStreams available", componentCtx.ValidateImageStreamsAvailable},
 		{"Validate MLflow integration", componentCtx.ValidateMLflowIntegration},
 		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
 
-	// Run the test suite.
 	RunTestCases(t, testCases)
+}
+
+// ValidateComponentEnabled ensures the module CR is ready and DSC module conditions are satisfied.
+func (tc *WorkbenchesTestCtx) ValidateComponentEnabled(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke, Tier1)
+
+	tc.ComponentTestCtx.ValidateComponentEnabled(t)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Namespace: tc.AppsNamespace,
+			Name:      workbenchesModule.ControllerDeploymentName,
+		}),
+		WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeModulesReady, metav1.ConditionTrue)),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.WorkbenchesKind, metav1.ConditionTrue)),
+		WithCustomErrorMsg("DataScienceCluster should have %sReady condition set to True", componentApi.WorkbenchesKind),
+	)
+}
+
+// ValidateModuleOperatorDeployment verifies the out-of-tree module operator Deployment is ready.
+func (tc *WorkbenchesTestCtx) ValidateModuleOperatorDeployment(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke, Tier1)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Namespace: tc.AppsNamespace,
+			Name:      workbenchesModule.ControllerDeploymentName,
+		}),
+		WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
+	)
+}
+
+// ValidateModuleReleases ensures the Workbenches module CR exposes release metadata.
+// Typed status (releases, workbenchNamespace) lives on the module CR owned by
+// workbenches-operator; the platform does not project it into DSC status.
+func (tc *WorkbenchesTestCtx) ValidateModuleReleases(t *testing.T) {
+	t.Helper()
+
+	tc.SkipIfXKSCluster(t)
+
+	skipUnless(t, Smoke)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Workbenches, types.NamespacedName{Name: componentApi.WorkbenchesInstanceName}),
+		WithCondition(
+			And(
+				jq.Match(`[.status.releases[]? | select(.name != "" and .version != "" and .repoUrl != "")] | length > 0`),
+			),
+		),
+		WithCustomErrorMsg("Workbenches module CR should expose non-empty status.releases entries"),
+	)
 }
 
 func (tc *WorkbenchesTestCtx) ValidateWorkbenchesNamespaceConfiguration(t *testing.T) {
@@ -57,19 +123,16 @@ func (tc *WorkbenchesTestCtx) ValidateWorkbenchesNamespaceConfiguration(t *testi
 
 	skipUnless(t, Tier1)
 
-	// ensure the workbenches namespace exists and has the expected label
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: tc.WorkbenchesNamespace}),
 		WithCondition(jq.Match(`.metadata.labels["%s"] == "true"`, labels.ODH.OwnedNamespace)),
 	)
 
-	// ensure the DataScienceCluster has the expected workbench namespace
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithCondition(jq.Match(`.spec.components.workbenches.workbenchNamespace == "%s"`, tc.WorkbenchesNamespace)),
 	)
 
-	// ensure the Workbenches CR instance has the expected workbench namespace in both spec and status
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Workbenches, types.NamespacedName{Name: componentApi.WorkbenchesInstanceName}),
 		WithCondition(
@@ -95,47 +158,41 @@ func (tc *WorkbenchesTestCtx) ValidateMLflowIntegration(t *testing.T) {
 		)
 	}
 
+	// Operands are reconciled into spec.workbenchNamespace, not the applications namespace
+	// where workbenches-operator runs (see ValidateWorkbenchesNamespaceConfiguration).
 	odhControllerDeployment := WithMinimalObject(gvk.Deployment, types.NamespacedName{
 		Name:      odhNotebookControllerManager,
-		Namespace: tc.AppsNamespace,
+		Namespace: tc.WorkbenchesNamespace,
 	})
 
-	// Ensure MLflowOperator is in Removed state to start the test
 	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.MLflowOperatorKind)
 
-	// Ensure the Workbenches component is still ready with MLflowOperator in Removed state
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Workbenches, types.NamespacedName{Name: componentApi.WorkbenchesInstanceName}),
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`)),
 	)
 
-	// Verify the ODH notebook controller deployment exists and is available
 	tc.EnsureResourceExists(
 		odhControllerDeployment,
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Available") | .status == "True"`)),
 	)
 
-	// Verify MLFLOW_ENABLED env var is "false" when MLflowOperator is Removed in DSC
 	tc.EnsureResourceExists(
 		odhControllerDeployment,
 		WithCondition(mlflowEnvMatcher("false")),
 		WithCustomErrorMsg("MLFLOW_ENABLED should be 'false' when MLflowOperator is Removed"),
 	)
 
-	// Test the Managed path: enable MLflowOperator and verify MLFLOW_ENABLED env var becomes "true"
 	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.MLflowOperatorKind)
 
-	// Verify MLFLOW_ENABLED env var is "true" when MLflowOperator is Managed in DSC
 	tc.EnsureResourceExists(
 		odhControllerDeployment,
 		WithCondition(mlflowEnvMatcher("true")),
 		WithCustomErrorMsg("MLFLOW_ENABLED should be 'true' when MLflowOperator is Managed"),
 	)
 
-	// Restore MLflowOperator to Removed state
 	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.MLflowOperatorKind)
 
-	// Verify MLFLOW_ENABLED env var returns to "false" when MLflowOperator is Removed again in DSC
 	tc.EnsureResourceExists(
 		odhControllerDeployment,
 		WithCondition(mlflowEnvMatcher("false")),
@@ -143,12 +200,50 @@ func (tc *WorkbenchesTestCtx) ValidateMLflowIntegration(t *testing.T) {
 	)
 }
 
-// ValidateAllDeletionRecovery overrides the shared ComponentTestCtx method to handle
-// workbenches-specific ConfigMap issues. The workbenches component uses Kustomize
-// configMapGenerator which appends content-hash suffixes to ConfigMap names. When the
-// content changes, a new ConfigMap is created but the old one may not be garbage collected,
-// causing the generic deletion recovery test to fail waiting for the orphaned ConfigMap
-// to be recreated.
+// ValidateComponentDisabled ensures module resources are removed when workbenches is disabled.
+func (tc *WorkbenchesTestCtx) ValidateComponentDisabled(t *testing.T) {
+	t.Helper()
+
+	skipUnless(t, Smoke, Tier1)
+
+	tc.EnsureResourcesExist(WithMinimalObject(tc.GVK, tc.NamespacedName))
+
+	tc.UpdateComponentState(operatorv1.Removed)
+
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Namespace: tc.AppsNamespace,
+			Name:      workbenchesModule.ControllerDeploymentName,
+		}),
+	)
+
+	tc.EnsureResourcesGone(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(
+			&client.ListOptions{
+				Namespace: tc.AppsNamespace,
+				LabelSelector: k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+				}.AsSelector(),
+			},
+		),
+		WithEventuallyTimeout(tc.TestTimeouts.componentReadinessTimeout),
+	)
+
+	tc.EnsureResourceGone(WithMinimalObject(tc.GVK, tc.NamespacedName))
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(
+			And(
+				jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.WorkbenchesKind, metav1.ConditionFalse),
+				jq.Match(`.status.conditions[] | select(.type == "%sReady") | .reason == "%s"`, componentApi.WorkbenchesKind, status.RemovedReason),
+			),
+		),
+		WithCustomErrorMsg("DataScienceCluster should have %sReady condition set to False/Removed", componentApi.WorkbenchesKind),
+	)
+}
+
 func (tc *WorkbenchesTestCtx) ValidateAllDeletionRecovery(t *testing.T) {
 	t.Helper()
 
@@ -198,9 +293,6 @@ func (tc *WorkbenchesTestCtx) validateConfigMapDeletionRecovery(t *testing.T) {
 	for _, resource := range existingResources {
 		name := resource.GetName()
 
-		// Kustomize configMapGenerator appends a content-hash suffix to this ConfigMap.
-		// Orphaned copies from previous hashes are not garbage-collected, so the
-		// deletion recovery test would fail waiting for the stale copy to be recreated.
 		if strings.HasPrefix(name, "odh-notebook-controller-image-parameters") {
 			t.Logf("Skipping Kustomize-generated ConfigMap %s (hash suffix causes orphaned copies)", name)
 			continue
@@ -220,17 +312,12 @@ func (tc *WorkbenchesTestCtx) ValidateImageStreamsAvailable(t *testing.T) {
 
 	skipUnless(t, Tier1)
 
-	// On vanilla K8s the ImageStream CRD does not exist, so the action
-	// returns early without setting any condition — skip in that case.
 	exists, err := cluster.HasCRD(context.Background(), tc.Client(), gvk.ImageStream)
 	require.NoError(t, err)
 	if !exists {
 		t.Skip("Skipping ImageStreamsAvailable test: ImageStream CRD not installed (vanilla K8s)")
 	}
 
-	// Verify that the Workbenches CR has an ImageStreamsAvailable condition.
-	// The condition should exist regardless of whether any ImageStream tags
-	// failed to import.
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Workbenches, types.NamespacedName{Name: componentApi.WorkbenchesInstanceName}),
 		WithCondition(jq.Match(`[.status.conditions[] | select(.type == "ImageStreamsAvailable")] | length > 0`)),

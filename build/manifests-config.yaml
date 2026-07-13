@@ -1,20 +1,8 @@
 map:
-  notebooks:
-    src: manifests
-    dest: workbenches/notebooks
-    git.url: https://github.com/opendatahub-io/notebooks
-    ref_type: branch
-    branch: stable
   odh-kserve-controller:
     src: config
     dest: kserve
     git.url: https://github.com/opendatahub-io/kserve
-  odh-kf-notebook-controller:
-    src: components/notebook-controller/config
-    dest: workbenches/kf-notebook-controller
-  odh-notebook-controller:
-    src: components/odh-notebook-controller/config
-    dest: workbenches/odh-notebook-controller
   odh-data-science-pipelines-operator-controller:
     src: config
     dest: datasciencepipelines
@@ -76,9 +64,13 @@ map:
   odh-batch-gateway-operator:
     src: config/
     dest: batch-gateway-operator
-  odh-workbenches-controller:
-    src: workspaces/controller/manifests/kustomize
-    dest: workbenches/odh-workbenches-controller
+  odh-workbenches-operator:
+    src: charts/operator
+    dest: workbenches
+    type: chart
+    git.url: https://github.com/opendatahub-io/workbenches-operator
+    ref_type: branch
+    branch: main
   odh-mcp-lifecycle-module-operator:
     src: config
     dest: mcplifecycleoperator
