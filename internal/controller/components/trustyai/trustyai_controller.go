@@ -24,11 +24,11 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
@@ -38,10 +38,25 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	pkgresources "github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
+
+const (
+	// InferenceServicesCRDName is the name of the InferenceServices CRD that TrustyAI depends on.
+	InferenceServicesCRDName = "inferenceservices.serving.kserve.io"
+)
+
+// isInferenceServicesCRD checks if the given object is the InferenceServices CRD managed by KServe.
+func isInferenceServicesCRD(obj client.Object) bool {
+	// Early return: check name first (cheaper comparison)
+	if obj.GetName() != InferenceServicesCRDName {
+		return false
+	}
+	// Check if it's managed by KServe using safe label check
+	return pkgresources.HasLabel(obj, labels.ODH.Component(componentApi.KserveComponentName), labels.True)
+}
 
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	_, err := reconciler.ReconcilerFor(mgr, &componentApi.TrustyAI{}).
@@ -59,15 +74,29 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithEventHandler(
 				handlers.ToNamed(componentApi.TrustyAIInstanceName)),
 			reconciler.WithPredicates(predicate.Or(
-				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True),
-				resources.CreatedOrUpdatedOrDeletedNamed(gvk.InferenceServicesCRDName),
+				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True), // if TrustyAI CR is changed
+				predicate.Funcs{ // OR if ISVC CRD from kserve is created or deleted
+					CreateFunc: func(e event.CreateEvent) bool {
+						// React when InferenceServices CRD is created (dependency becomes available)
+						return isInferenceServicesCRD(e.Object)
+					},
+					UpdateFunc: func(e event.UpdateEvent) bool {
+						return isInferenceServicesCRD(e.ObjectNew)
+					},
+					DeleteFunc: func(e event.DeleteEvent) bool {
+						// React when InferenceServices CRD is deleted (dependency becomes unavailable)
+						// This triggers checkPreConditions which will detect the missing CRD and set conditions to False
+						return isInferenceServicesCRD(e.Object)
+					},
+					GenericFunc: func(e event.GenericEvent) bool {
+						// Don't match Generic events
+						return false
+					},
+				},
 			)),
 		).
-		WithPreCondition(precondition.MonitorCRD(gvk.InferenceServicesCRDName,
-			precondition.WithStopReconciliation(),
-			precondition.WithMessage(status.ISVCMissingCRDMessage),
-		)).
 		WithAction(precondition.RunlevelGateAction()).
+		WithAction(checkPreConditions).
 		WithAction(initialize).
 		WithAction(createConfigMap).
 		WithAction(releases.NewAction()).
