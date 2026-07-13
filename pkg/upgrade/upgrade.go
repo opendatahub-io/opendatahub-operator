@@ -320,9 +320,9 @@ func MigrateToInfraHardwareProfiles(ctx context.Context, cli client.Client, appl
 	// 3. Attach HardwareProfile annotations to existing Notebooks
 	multiErr = multierror.Append(multiErr, AttachHardwareProfileToNotebooks(ctx, cli, applicationNS, odhConfig))
 
-	// 4. Attach HardwareProfile annotations to existing InferenceServices but create custom-serving HWP first.
+	// 4. Create custom-serving HardwareProfile used by kserve-module for ISVC annotation migration.
+	// Note: AttachHardwareProfileToInferenceServices has been moved to kserve-module (RHOAIENG-63833).
 	multiErr = multierror.Append(multiErr, createCustomServingHardwareProfile(ctx, cli, applicationNS))
-	multiErr = multierror.Append(multiErr, AttachHardwareProfileToInferenceServices(ctx, cli, applicationNS, odhConfig))
 
 	return multiErr.ErrorOrNil()
 }

@@ -115,15 +115,15 @@ func TestMigrateToInfraHardwareProfilesIdempotence_FullMigration(t *testing.T) {
 	nb2Annotations := stateAfterFirstRun.NotebookAnnotations["notebook-size"]
 	g.Expect(nb2Annotations).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "containersize-small-notebooks"))
 
-	// Verify InferenceService annotations were set
-	isvc1Annotations := stateAfterFirstRun.ISVCAnnotations["isvc-with-runtime"]
-	g.Expect(isvc1Annotations).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "tpu-profile-serving"))
-
-	isvc2Annotations := stateAfterFirstRun.ISVCAnnotations["isvc-with-matching-size"]
-	g.Expect(isvc2Annotations).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "containersize-small-serving"))
-
-	isvc3Annotations := stateAfterFirstRun.ISVCAnnotations["isvc-custom"]
-	g.Expect(isvc3Annotations).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "custom-serving"))
+	// ISVC annotation migration moved to kserve-module (RHOAIENG-63833).
+	// isvc1Annotations := stateAfterFirstRun.ISVCAnnotations["isvc-with-runtime"]
+	// g.Expect(isvc1Annotations).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "tpu-profile-serving"))
+	//
+	// isvc2Annotations := stateAfterFirstRun.ISVCAnnotations["isvc-with-matching-size"]
+	// g.Expect(isvc2Annotations).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "containersize-small-serving"))
+	//
+	// isvc3Annotations := stateAfterFirstRun.ISVCAnnotations["isvc-custom"]
+	// g.Expect(isvc3Annotations).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "custom-serving"))
 
 	// Verify idempotence with 2 additional runs
 	verifyClusterStateIdempotence(ctx, g, cli, namespace, 2, stateAfterFirstRun)
