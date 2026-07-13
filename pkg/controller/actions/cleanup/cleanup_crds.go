@@ -3,6 +3,7 @@ package cleanup
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -15,6 +16,10 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	odhTypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
+
+// operatorFinalizerDomain is the domain used by the opendatahub operator for its
+// finalizers. Only finalizers containing this domain will be removed during cleanup.
+const operatorFinalizerDomain = "opendatahub.io"
 
 // NewCRDInstanceCleanupFinalizer returns a finalizer action that removes
 // finalizers from all CR instances of CRDs labeled for this component.
@@ -73,7 +78,12 @@ func removeCRFinalizers(
 	})
 
 	if err := cli.List(ctx, crList); err != nil {
-		if meta.IsNoMatchError(err) || k8serr.IsNotFound(err) {
+		if k8serr.IsNotFound(err) {
+			return nil
+		}
+
+		if meta.IsNoMatchError(err) {
+			l.Info("no REST mapping for CRD, skipping finalizer cleanup this pass", "crd", crd.Name)
 			return nil
 		}
 
@@ -82,18 +92,29 @@ func removeCRFinalizers(
 
 	for j := range crList.Items {
 		cr := &crList.Items[j]
-		if len(cr.GetFinalizers()) == 0 {
+		finalizers := cr.GetFinalizers()
+		if len(finalizers) == 0 {
 			continue
 		}
 
-		l.Info("removing finalizers from CR during component cleanup",
+		kept, removed := filterOperatorFinalizers(finalizers)
+		if len(removed) == 0 {
+			continue
+		}
+
+		l.Info("removing operator-owned finalizers from CR during component cleanup",
 			"crd", crd.Name,
 			"name", cr.GetName(),
 			"namespace", cr.GetNamespace(),
+			"removedFinalizers", removed,
 		)
 
 		patch := client.MergeFrom(cr.DeepCopy())
-		cr.SetFinalizers(nil)
+		if len(kept) == 0 {
+			cr.SetFinalizers(nil)
+		} else {
+			cr.SetFinalizers(kept)
+		}
 
 		if err := cli.Patch(ctx, cr, patch); err != nil {
 			if k8serr.IsNotFound(err) {
@@ -106,4 +127,19 @@ func removeCRFinalizers(
 	}
 
 	return nil
+}
+
+// filterOperatorFinalizers splits finalizers into those that should be kept
+// (not owned by the operator) and those that should be removed (containing
+// the operator's domain).
+func filterOperatorFinalizers(finalizers []string) (kept, removed []string) {
+	for _, f := range finalizers {
+		if strings.Contains(f, operatorFinalizerDomain) {
+			removed = append(removed, f)
+		} else {
+			kept = append(kept, f)
+		}
+	}
+
+	return kept, removed
 }
