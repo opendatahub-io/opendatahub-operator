@@ -72,6 +72,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			deploy.WithCache(),
 		)).
 		WithAction(deployments.NewAction()).
+		WithAction(releases.NewPlatformVersionAction()).
 		WithAction(gc.NewAction()).
 		WithConditions(conditionTypes...).
 		Build(ctx)

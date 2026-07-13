@@ -249,9 +249,11 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 
 	dsc := dscFromInstance(rr)
 
+	platformVersion := rr.Release.Version.String()
+
 	checker := provision.NewCompositeChecker(
-		cr.NewReadinessChecker(cr.DefaultRegistry(), rr.Client, dsc),
-		NewReadinessChecker(reg, rr.Client, rr.Release.Version.String(),
+		cr.NewReadinessChecker(cr.DefaultRegistry(), rr.Client, dsc, platformVersion),
+		NewReadinessChecker(reg, rr.Client, platformVersion,
 			WithPlatformContext(platformCtx)),
 	)
 

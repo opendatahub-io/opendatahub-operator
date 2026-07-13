@@ -117,6 +117,54 @@ _Appears in:_
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the bundled Argo Workflows controllers.<br />              It will only upgrade the Argo Workflows controllers if it is safe to do so. This is the default<br />              behavior.<br />- "Removed" : the operator is not managing the bundled Argo Workflows controllers and will not install it.<br />              If it is installed, the operator will remove it but will not remove other Argo Workflows<br />              installations. | Managed | Enum: [Managed Removed] <br /> |
 
 
+#### ComponentRelease
+
+
+
+ComponentRelease represents the detailed status of a component release.
+
+
+
+_Appears in:_
+- [DashboardStatus](#dashboardstatus)
+- [DataSciencePipelinesCommonStatus](#datasciencepipelinescommonstatus)
+- [DataSciencePipelinesStatus](#datasciencepipelinesstatus)
+- [FeastOperatorCommonStatus](#feastoperatorcommonstatus)
+- [FeastOperatorStatus](#feastoperatorstatus)
+- [KserveCommonStatus](#kservecommonstatus)
+- [KserveStatus](#kservestatus)
+- [KueueCommonStatus](#kueuecommonstatus)
+- [KueueStatus](#kueuestatus)
+- [LlamaStackOperatorCommonStatus](#llamastackoperatorcommonstatus)
+- [MCPLifecycleOperatorCommonStatus](#mcplifecycleoperatorcommonstatus)
+- [MLflowOperatorCommonStatus](#mlflowoperatorcommonstatus)
+- [MLflowOperatorStatus](#mlflowoperatorstatus)
+- [ModelControllerStatus](#modelcontrollerstatus)
+- [ModelRegistryCommonStatus](#modelregistrycommonstatus)
+- [ModelRegistryStatus](#modelregistrystatus)
+- [ModelsAsServiceStatus](#modelsasservicestatus)
+- [OGXCommonStatus](#ogxcommonstatus)
+- [OGXStatus](#ogxstatus)
+- [RayCommonStatus](#raycommonstatus)
+- [RayStatus](#raystatus)
+- [SparkOperatorCommonStatus](#sparkoperatorcommonstatus)
+- [SparkOperatorStatus](#sparkoperatorstatus)
+- [TrainerCommonStatus](#trainercommonstatus)
+- [TrainerStatus](#trainerstatus)
+- [TrainingOperatorCommonStatus](#trainingoperatorcommonstatus)
+- [TrainingOperatorStatus](#trainingoperatorstatus)
+- [TrustyAICommonStatus](#trustyaicommonstatus)
+- [TrustyAIStatus](#trustyaistatus)
+- [WorkbenchesCommonStatus](#workbenchescommonstatus)
+- [WorkbenchesStatus](#workbenchesstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `name` _string_ |  |  | Required: \{\} |
+| `version` _string_ |  |  |  |
+| `repoUrl` _string_ |  |  |  |
+
+
 #### DSCAIGateway
 
 
@@ -801,6 +849,7 @@ _Appears in:_
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 | `url` _string_ |  |  |  |
 
 
@@ -1524,6 +1573,7 @@ _Appears in:_
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### ModelRegistry
@@ -1675,6 +1725,7 @@ _Appears in:_
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### NimSpec

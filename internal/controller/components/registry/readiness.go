@@ -13,27 +13,31 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/dag"
 )
 
 // ComponentReadinessChecker implements dag.ReadinessChecker for
 // in-tree components. It looks up the handler by name, constructs
 // the expected CR object, fetches it from the cluster, and checks
-// the Ready condition on the live status.
+// the Ready condition and platform version handshake on the live status.
 type ComponentReadinessChecker struct {
-	registry *Registry
-	client   client.Client
-	dsc      *dscv2.DataScienceCluster
+	registry        *Registry
+	client          client.Client
+	dsc             *dscv2.DataScienceCluster
+	platformVersion string
 }
 
 // NewReadinessChecker creates a ReadinessChecker backed by this
-// component registry. It needs a client and DSC instance to fetch
-// each component's CR and inspect its conditions.
-func NewReadinessChecker(reg *Registry, cli client.Client, dsc *dscv2.DataScienceCluster) *ComponentReadinessChecker {
+// component registry. It needs a client, DSC instance, and the
+// current platform version to fetch each component's CR and inspect
+// its conditions and release version handshake.
+func NewReadinessChecker(reg *Registry, cli client.Client, dsc *dscv2.DataScienceCluster, platformVersion string) *ComponentReadinessChecker {
 	return &ComponentReadinessChecker{
-		registry: reg,
-		client:   cli,
-		dsc:      dsc,
+		registry:        reg,
+		client:          cli,
+		dsc:             dsc,
+		platformVersion: platformVersion,
 	}
 }
 
@@ -78,7 +82,24 @@ func (c *ComponentReadinessChecker) IsReady(ctx context.Context, name string) (b
 		return false, fmt.Errorf("component %q CR does not implement PlatformObject", name)
 	}
 
-	return isComponentCRReady(live), nil
+	if !isComponentCRReady(live) {
+		return false, nil
+	}
+
+	// Version handshake: if the component reports a platform release
+	// version, it must match the current platform version. If the
+	// component has not populated the field (empty or interface not
+	// implemented), skip the check and rely on health conditions alone.
+	if c.platformVersion != "" {
+		if wr, ok := obj.(common.WithReleases); ok {
+			componentVersion := getPlatformReleaseVersion(wr)
+			if componentVersion != "" && componentVersion != c.platformVersion {
+				return false, nil
+			}
+		}
+	}
+
+	return true, nil
 }
 
 func isComponentCRReady(obj common.PlatformObject) bool {
@@ -92,6 +113,19 @@ func isComponentCRReady(obj common.PlatformObject) bool {
 		}
 	}
 	return false
+}
+
+func getPlatformReleaseVersion(wr common.WithReleases) string {
+	rels := wr.GetReleaseStatus()
+	if rels == nil {
+		return ""
+	}
+	for _, r := range *rels {
+		if r.Name == releases.PlatformReleaseName {
+			return r.Version
+		}
+	}
+	return ""
 }
 
 func isNilPlatformObject(v any) bool {
