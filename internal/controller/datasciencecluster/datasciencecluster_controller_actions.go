@@ -358,28 +358,28 @@ func updateStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error 
 	return nil
 }
 
-// mirrorPlatformConditions copies conditions owned by the platform
-// controller (ModulesReady, ProvisioningProgress) from Platform CR to
-// DSC status so users see them on DSC.
+// mirrorPlatformConditions copies module-owned conditions from the
+// Platform CR to DSC status. The module controller is the single source
+// of truth for module status. Only conditions explicitly owned by the
+// module controller are mirrored: per-module ready conditions (derived
+// from the module registry) and the known aggregate conditions.
 func mirrorPlatformConditions(ctx context.Context, rr *odhtype.ReconciliationRequest) {
 	var platform configv1alpha1.Platform
 	if err := rr.Client.Get(ctx, client.ObjectKey{Name: configv1alpha1.PlatformInstanceName}, &platform); err != nil {
 		return
 	}
 
-	mirrored := map[string]bool{
-		status.ConditionTypeModulesReady:         true,
-		status.ConditionTypeProvisioningProgress: true,
-	}
+	mirror := modules.OwnedConditionTypes()
 
 	for _, c := range platform.GetConditions() {
-		if mirrored[c.Type] {
-			rr.Conditions.SetCondition(common.Condition{
-				Type:    c.Type,
-				Status:  c.Status,
-				Reason:  c.Reason,
-				Message: c.Message,
-			})
+		if !mirror[c.Type] {
+			continue
 		}
+		rr.Conditions.SetCondition(common.Condition{
+			Type:    c.Type,
+			Status:  c.Status,
+			Reason:  c.Reason,
+			Message: c.Message,
+		})
 	}
 }

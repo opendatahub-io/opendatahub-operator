@@ -306,7 +306,7 @@ func deploymentNameFromManifests(manifests OperatorManifests, fallbackName strin
 	return fallbackName
 }
 
-// ComputeModulesStatus reads status conditions from each module's CR and
+// computeModulesStatus reads status conditions from each module's CR and
 // sets both per-module conditions (e.g. AIGatewayReady) and the aggregate
 // ModulesReady condition on rr.Conditions.
 //
@@ -316,7 +316,7 @@ func deploymentNameFromManifests(manifests OperatorManifests, fallbackName strin
 // applied. Post-migration (no in-tree components), the modules
 // controller calls this via updateModuleStatus and becomes the sole
 // status writer.
-func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+func computeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	log := logf.FromContext(ctx)
 
 	reg := DefaultRegistry()
@@ -461,5 +461,23 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 // updateModuleStatus writes ModulesReady to Platform CR status.
 // DSC mirrors this condition from Platform CR.
 func updateModuleStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	return ComputeModulesStatus(ctx, rr)
+	return computeModulesStatus(ctx, rr)
+}
+
+// OwnedConditionTypes returns the set of condition types that the module
+// controller writes to the Platform CR. The DSC controller uses this to
+// know which conditions to mirror from Platform CR to DSC status.
+func OwnedConditionTypes() map[string]bool {
+	types := map[string]bool{
+		status.ConditionTypeModulesReady:         true,
+		status.ConditionTypeProvisioningProgress: true,
+	}
+
+	DefaultRegistry().ForEach(func(handler ModuleHandler) error { //nolint:errcheck
+		types[readyConditionTypeFor(handler)] = true
+
+		return nil
+	})
+
+	return types
 }

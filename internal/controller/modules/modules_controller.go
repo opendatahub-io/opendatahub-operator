@@ -117,7 +117,10 @@ func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		b = b.WithAction(a)
 	}
 
-	rec, err := b.WithConditions(status.ConditionTypeModulesReady).Build(ctx)
+	rec, err := b.WithConditions(
+		status.ConditionTypeModulesReady,
+		status.ConditionTypeProvisioningProgress,
+	).Build(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create platform controller: %w", err)
 	}
