@@ -3,6 +3,7 @@ package provision
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -55,9 +56,7 @@ func ExtractUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest)
 			continue
 		}
 
-		for k, v := range data {
-			rr.GateEntries[k] = v
-		}
+		maps.Copy(rr.GateEntries, data)
 
 		log.V(1).Info("extracted gate ConfigMap from rendered resources",
 			"name", res.GetName(), "entries", len(data))
@@ -102,21 +101,15 @@ func CheckUpgradeGatesInNamespace(
 	if err != nil {
 		return fmt.Errorf("failed to load in-tree gates: %w", err)
 	}
-	for k, v := range intreeGates {
-		allGates[k] = v
-	}
+	maps.Copy(allGates, intreeGates)
 
 	clusterGates, err := gc.DiscoverGates(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to discover cluster gates: %w", err)
 	}
-	for k, v := range clusterGates {
-		allGates[k] = v
-	}
+	maps.Copy(allGates, clusterGates)
 
-	for k, v := range chartGates {
-		allGates[k] = v
-	}
+	maps.Copy(allGates, chartGates)
 
 	unacked, err := gc.EnsureGates(ctx, allGates, version)
 	if err != nil {

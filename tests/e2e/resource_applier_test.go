@@ -40,7 +40,7 @@ func isNumericMatcher(matcher gTypes.GomegaMatcher) bool {
 // Helper function to safely dereference the condition pointer.
 func dereferenceCondition(condition gTypes.GomegaMatcher) any {
 	// If condition is a pointer, dereference it
-	if reflect.TypeOf(condition).Kind() == reflect.Ptr {
+	if reflect.TypeOf(condition).Kind() == reflect.Pointer {
 		return reflect.ValueOf(condition).Elem().Interface()
 	}
 	// If it's not a pointer, return the condition as is

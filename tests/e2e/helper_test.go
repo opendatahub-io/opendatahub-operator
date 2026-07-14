@@ -742,7 +742,7 @@ func loadResourceFromTempFile(path string) (*unstructured.Unstructured, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read backup file %s: %w", path, err)
 	}
-	obj := make(map[string]interface{})
+	obj := make(map[string]any)
 	if err := json.Unmarshal(data, &obj); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal backup from file %s: %w", path, err)
 	}

@@ -14,12 +14,7 @@ import (
 
 // ptrManagementState returns a pointer to the given ManagementState.
 func ptrManagementState(ms operatorv1.ManagementState) *operatorv1.ManagementState {
-	return &ms
-}
-
-// ptrString returns a pointer to the given string.
-func ptrString(s string) *string {
-	return &s
+	return new(ms)
 }
 
 // TestDefaulterV2_DefaultingLogic exercises the defaulting webhook logic for DataScienceCluster v2 resources.
@@ -36,20 +31,20 @@ func TestDefaulterV2_DefaultingLogic(t *testing.T) {
 	}{
 		{
 			name:                "Sets default RegistriesNamespace if empty and Managed",
-			managementState:     ptrManagementState(operatorv1.Managed),
-			registriesNamespace: ptrString(""),
+			managementState:     new(operatorv1.Managed),
+			registriesNamespace: new(""),
 			expectedNamespace:   modelregistryctrl.DefaultModelRegistriesNamespace,
 		},
 		{
 			name:                "Does not overwrite custom RegistriesNamespace if set",
-			managementState:     ptrManagementState(operatorv1.Managed),
-			registriesNamespace: ptrString("custom-ns"),
+			managementState:     new(operatorv1.Managed),
+			registriesNamespace: new("custom-ns"),
 			expectedNamespace:   "custom-ns",
 		},
 		{
 			name:                "Does nothing if not Managed",
-			managementState:     ptrManagementState(operatorv1.Removed),
-			registriesNamespace: ptrString(""),
+			managementState:     new(operatorv1.Removed),
+			registriesNamespace: new(""),
 			expectedNamespace:   "",
 		},
 		{
@@ -96,19 +91,19 @@ func TestDefaulterV2_NIMDefaultingLogic(t *testing.T) {
 	}{
 		{
 			name:                  "Sets default NIM ManagementState if empty and Kserve is Managed",
-			kserveManagementState: ptrManagementState(operatorv1.Managed),
+			kserveManagementState: new(operatorv1.Managed),
 			nimManagementState:    ptrManagementState(""),
 			expectedNIMState:      operatorv1.Managed,
 		},
 		{
 			name:                  "Does not overwrite NIM ManagementState if already set",
-			kserveManagementState: ptrManagementState(operatorv1.Managed),
-			nimManagementState:    ptrManagementState(operatorv1.Removed),
+			kserveManagementState: new(operatorv1.Managed),
+			nimManagementState:    new(operatorv1.Removed),
 			expectedNIMState:      operatorv1.Removed,
 		},
 		{
 			name:                  "Does nothing if Kserve is not Managed",
-			kserveManagementState: ptrManagementState(operatorv1.Removed),
+			kserveManagementState: new(operatorv1.Removed),
 			nimManagementState:    ptrManagementState(""),
 			expectedNIMState:      "",
 		},

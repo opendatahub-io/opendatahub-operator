@@ -148,14 +148,14 @@ func TestUpdateDSCStatus(t *testing.T) {
 	}{
 		{
 			name:           "ready Tenant CR",
-			tenantReady:    ptr(true),
+			tenantReady:    new(true),
 			expectedStatus: metav1.ConditionTrue,
 			expectedReason: status.ReadyReason,
 			expectedMsg:    "Component is ready",
 		},
 		{
 			name:           "not-ready Tenant CR",
-			tenantReady:    ptr(false),
+			tenantReady:    new(false),
 			expectedStatus: metav1.ConditionFalse,
 			expectedReason: status.NotReadyReason,
 			expectedMsg:    "Component is not ready",
@@ -677,8 +677,6 @@ func createTenantCR(ready bool) *maasv1alpha1.Tenant {
 
 	return c
 }
-
-func ptr[T any](v T) *T { return &v }
 
 // TestApplyImageOverridesFromParams verifies that the Option B image override
 // pipeline (kustomize build → ImageTagTransformerPlugin) correctly replaces the

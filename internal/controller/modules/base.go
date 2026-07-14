@@ -3,6 +3,7 @@ package modules
 import (
 	"context"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"time"
 
@@ -167,9 +168,7 @@ func (b *BaseHandler) GetOperatorManifests(platform *PlatformContext) OperatorMa
 
 	if b.Config.ChartDir != "" && platform != nil {
 		vals := make(map[string]any, len(b.Config.Values))
-		for k, v := range b.Config.Values {
-			vals[k] = v
-		}
+		maps.Copy(vals, b.Config.Values)
 
 		if b.Config.NamespaceValueKey != "" && platform.ApplicationsNamespace != "" {
 			vals[b.Config.NamespaceValueKey] = platform.ApplicationsNamespace
@@ -248,7 +247,7 @@ func extractPlatformReleaseVersion(u *unstructured.Unstructured) string {
 	}
 
 	for _, item := range releases {
-		entry, ok := item.(map[string]interface{})
+		entry, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}

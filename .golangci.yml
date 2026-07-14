@@ -40,6 +40,27 @@ linters:
       ignore-string-values:
         - "true"
         - "false"
+        # JSON/YAML field names — self-documenting as inline literals
+        - spec
+        - name
+        - metadata
+        - kind
+        - apiVersion
+        - string
+        - object
+        - endpoint
+        - headers
+        - debug
+        - matchLabels
+        - ConfigMap
+        # K8s API version strings — used in GVK declarations
+        - v1alpha1
+        - v1alpha2
+        - v1beta1
+        - v1beta2
+        # K8s API group strings — used in GVK declarations
+        - networking.istio.io
+      min-occurrences: 8
     gocritic:
       enabled-checks:
         - deferInLoop
@@ -138,6 +159,12 @@ linters:
       - linters:
           - lll
         path: internal/controller/cloudmanager/common/kubebuilder_rbac.go
+      - linters:
+          - goconst
+        path: _test\.go
+      - linters:
+          - gosec
+        path: _test\.go
     paths:
       - api
       - third_party$

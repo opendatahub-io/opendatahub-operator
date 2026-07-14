@@ -154,5 +154,5 @@ func isComponentCRReady(obj common.PlatformObject) bool {
 }
 
 func isNilPlatformObject(v any) bool {
-	return v == nil || (reflect.ValueOf(v).Kind() == reflect.Ptr && reflect.ValueOf(v).IsNil())
+	return v == nil || (reflect.ValueOf(v).Kind() == reflect.Pointer && reflect.ValueOf(v).IsNil())
 }

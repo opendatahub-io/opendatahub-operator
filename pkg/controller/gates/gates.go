@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"sort"
 	"strings"
 
@@ -91,9 +92,7 @@ func (gc *GateChecker) EnsureGates(ctx context.Context, gateEntries map[string]s
 			},
 			Data: make(map[string]string, len(filtered)),
 		}
-		for k, v := range filtered {
-			cm.Data[k] = v
-		}
+		maps.Copy(cm.Data, filtered)
 		if createErr := gc.client.Create(ctx, cm); createErr != nil {
 			if !k8serr.IsAlreadyExists(createErr) {
 				return nil, fmt.Errorf("failed to create %s ConfigMap: %w", AcksConfigMap, createErr)
@@ -215,9 +214,7 @@ func (gc *GateChecker) DiscoverGates(ctx context.Context) (map[string]string, er
 
 	result := make(map[string]string)
 	for i := range cmList.Items {
-		for k, v := range cmList.Items[i].Data {
-			result[k] = v
-		}
+		maps.Copy(result, cmList.Items[i].Data)
 	}
 
 	return result, nil

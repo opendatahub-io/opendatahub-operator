@@ -207,8 +207,7 @@ var requiredGatewayAnnotations = map[string]string{
 func checkMaaSPrerequisites(ctx context.Context, rr *types.ReconciliationRequest) {
 	l := logf.FromContext(ctx).WithName("checkMaaSPrerequisites")
 
-	var issues []string
-
+	issues := make([]string, 0, 4)
 	issues = append(issues, checkGatewayAnnotations(ctx, l, rr)...)
 	issues = append(issues, checkAuthorinoTLS(ctx, l, rr)...)
 

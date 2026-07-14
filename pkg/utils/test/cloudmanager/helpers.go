@@ -17,7 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
@@ -155,7 +154,7 @@ func StartIsolatedController(t *testing.T, ctx context.Context, cfg ControllerTe
 
 	et, err := SetupEnvTest(cfg.CRDSubdir,
 		envt.WithManager(ctrl.Options{
-			Controller: ctrlconfig.Controller{SkipNameValidation: ptr.To(true)},
+			Controller: ctrlconfig.Controller{SkipNameValidation: new(true)},
 		}),
 		envt.WithOpManagerOptions(opmanager.WithChartsBasePath(chartsPath)),
 		envt.WithRegisterControllers(func(mgr ctrlmanager.Manager) error {

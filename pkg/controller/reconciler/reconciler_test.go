@@ -24,7 +24,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
-	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/config"
@@ -348,7 +347,7 @@ func TestReconcilerBuilder_WatchMethods_UseUnstructured(t *testing.T) {
 	g := NewWithT(t)
 
 	et, err := envt.New(envt.WithManager(ctrl.Options{
-		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
+		Controller: config.Controller{SkipNameValidation: new(true)},
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
@@ -404,7 +403,7 @@ func TestReconcilerBuilder_ComposeWith(t *testing.T) {
 	g := NewWithT(t)
 
 	et, err := envt.New(envt.WithManager(ctrl.Options{
-		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
+		Controller: config.Controller{SkipNameValidation: new(true)},
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
@@ -505,7 +504,7 @@ func TestNewReconciler_WithDynamicOwnership(t *testing.T) {
 	g := NewWithT(t)
 
 	et, err := envt.New(envt.WithManager(ctrl.Options{
-		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
+		Controller: config.Controller{SkipNameValidation: new(true)},
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
@@ -580,7 +579,7 @@ func TestDynamicOwnership_DeployAction(t *testing.T) {
 	nsName := xid.New().String()
 
 	et, err := envt.New(envt.WithManager(ctrl.Options{
-		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
+		Controller: config.Controller{SkipNameValidation: new(true)},
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
@@ -661,8 +660,8 @@ func TestDynamicOwnership_DeployAction(t *testing.T) {
 		Kind:               gvk.Dashboard.Kind,
 		Name:               componentApi.DashboardInstanceName,
 		UID:                dashboard.GetUID(),
-		Controller:         ptr.To(true),
-		BlockOwnerDeletion: ptr.To(true),
+		Controller:         new(true),
+		BlockOwnerDeletion: new(true),
 	}))
 
 	// Verify Secret was deployed WITHOUT owner reference
@@ -786,7 +785,7 @@ func TestDynamicOwnership_DisabledByDefault(t *testing.T) {
 	configMapName := xid.New().String()
 
 	et, err := envt.New(envt.WithManager(ctrl.Options{
-		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
+		Controller: config.Controller{SkipNameValidation: new(true)},
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
@@ -840,7 +839,7 @@ func TestDynamicOwnership_DeployAction_CRDAndCR(t *testing.T) {
 	nsName := xid.New().String()
 
 	et, err := envt.New(envt.WithManager(ctrl.Options{
-		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
+		Controller: config.Controller{SkipNameValidation: new(true)},
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
@@ -988,7 +987,7 @@ func TestDynamicOwnership_DeployAction_WithGVKPredicates(t *testing.T) {
 	nsName := xid.New().String()
 
 	et, err := envt.New(envt.WithManager(ctrl.Options{
-		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
+		Controller: config.Controller{SkipNameValidation: new(true)},
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
@@ -1038,7 +1037,7 @@ func TestDynamicOwnership_DeployAction_WithGVKPredicates(t *testing.T) {
 					Selector: &metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "test"},
 					},
-					Replicas: ptr.To(int32(1)),
+					Replicas: new(int32(1)),
 					Template: corev1.PodTemplateSpec{
 						ObjectMeta: metav1.ObjectMeta{
 							Labels: map[string]string{"app": "test"},
@@ -1119,7 +1118,7 @@ func TestDynamicOwnership_DeployAction_WithGVKPredicates(t *testing.T) {
 		g.Expect(cli.Get(ctx, client.ObjectKey{Name: deploymentName, Namespace: nsName}, deployedDeployment)).To(Succeed())
 		original := deployedDeployment.DeepCopy()
 
-		deployedDeployment.Spec.Replicas = ptr.To(int32(2))
+		deployedDeployment.Spec.Replicas = new(int32(2))
 		err := cli.Patch(ctx, deployedDeployment, client.MergeFrom(original))
 		g.Expect(err).NotTo(HaveOccurred())
 
@@ -1208,7 +1207,7 @@ func TestDynamicOwnership_GCWithDynamicAction(t *testing.T) {
 	nsName := xid.New().String()
 
 	et, err := envt.New(envt.WithManager(ctrl.Options{
-		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
+		Controller: config.Controller{SkipNameValidation: new(true)},
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
@@ -1344,7 +1343,7 @@ func TestDynamicOwnership_StaticOwnershipPrecedence(t *testing.T) {
 	nsName := xid.New().String()
 
 	et, err := envt.New(envt.WithManager(ctrl.Options{
-		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
+		Controller: config.Controller{SkipNameValidation: new(true)},
 	}))
 	g.Expect(err).NotTo(HaveOccurred())
 	t.Cleanup(func() { _ = et.Stop() })
@@ -1411,7 +1410,7 @@ func TestDynamicOwnership_StaticOwnershipPrecedence(t *testing.T) {
 		Kind:               gvk.Dashboard.Kind,
 		Name:               componentApi.DashboardInstanceName,
 		UID:                dashboard.GetUID(),
-		Controller:         ptr.To(true),
-		BlockOwnerDeletion: ptr.To(true),
+		Controller:         new(true),
+		BlockOwnerDeletion: new(true),
 	}))
 }

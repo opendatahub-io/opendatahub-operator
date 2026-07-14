@@ -686,8 +686,8 @@ var metricsExporterSchemas = map[string]ExporterSchema{
 			"endpoint": {
 				Type:      "string",
 				Pattern:   regexp.MustCompile(`^https?://[a-zA-Z0-9.-]+(:[0-9]+)?(/.*)?$`),
-				MinLength: intPtr(1),
-				MaxLength: intPtr(2048),
+				MinLength: new(1),
+				MaxLength: new(2048),
 			},
 			"headers": {
 				Type: "map[string]string",
@@ -702,7 +702,7 @@ var metricsExporterSchemas = map[string]ExporterSchema{
 			"timeout": {
 				Type:      "string",
 				Pattern:   regexp.MustCompile(`^\d+[smh]$`),
-				MaxLength: intPtr(10),
+				MaxLength: new(10),
 			},
 		},
 		FieldRules: map[string][]ValidationRule{
@@ -731,8 +731,8 @@ var metricsExporterSchemas = map[string]ExporterSchema{
 			"endpoint": {
 				Type:      "string",
 				Pattern:   regexp.MustCompile(`^https?://[a-zA-Z0-9.-]+(:[0-9]+)?(/.*)?$`),
-				MinLength: intPtr(1),
-				MaxLength: intPtr(2048),
+				MinLength: new(1),
+				MaxLength: new(2048),
 			},
 			"headers": {
 				Type: "map[string]string",
@@ -744,7 +744,7 @@ var metricsExporterSchemas = map[string]ExporterSchema{
 			"timeout": {
 				Type:      "string",
 				Pattern:   regexp.MustCompile(`^\d+[smh]$`),
-				MaxLength: intPtr(10),
+				MaxLength: new(10),
 			},
 		},
 		FieldRules: map[string][]ValidationRule{
@@ -788,8 +788,8 @@ var metricsExporterSchemas = map[string]ExporterSchema{
 			"endpoint": {
 				Type:      "string",
 				Pattern:   regexp.MustCompile(`^https?://[a-zA-Z0-9.-]+(:[0-9]+)?(/.*)?$`),
-				MinLength: intPtr(1),
-				MaxLength: intPtr(2048),
+				MinLength: new(1),
+				MaxLength: new(2048),
 			},
 			"headers": {
 				Type: "map[string]string",
@@ -800,7 +800,7 @@ var metricsExporterSchemas = map[string]ExporterSchema{
 			"remote_timeout": {
 				Type:      "string",
 				Pattern:   regexp.MustCompile(`^\d+[smh]$`),
-				MaxLength: intPtr(10),
+				MaxLength: new(10),
 			},
 		},
 		FieldRules: map[string][]ValidationRule{
@@ -1017,10 +1017,6 @@ func validateFieldTypeStrict(_ string, value any, expectedType string) error {
 // Helper functions.
 func contains(slice []string, item string) bool {
 	return slices.Contains(slice, item)
-}
-
-func intPtr(i int) *int {
-	return &i
 }
 
 // syncPrometheusWebTLSCA watches the prometheus-web-tls-ca ConfigMap and syncs its CA to a Secret.

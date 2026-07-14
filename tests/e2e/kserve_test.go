@@ -613,10 +613,10 @@ func (tc *KserveTestCtx) enableModelCache(t *testing.T, nodeName string) {
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(func(obj *unstructured.Unstructured) error {
-			return unstructured.SetNestedField(obj.Object, map[string]interface{}{
+			return unstructured.SetNestedField(obj.Object, map[string]any{
 				"managementState": "Managed",
 				"cacheSize":       "5Gi",
-				"nodeNames":       []interface{}{nodeName},
+				"nodeNames":       []any{nodeName},
 			}, "spec", "components", "kserve", "modelCache")
 		}),
 		WithCondition(

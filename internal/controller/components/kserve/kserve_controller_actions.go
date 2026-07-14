@@ -368,7 +368,7 @@ func createModelCachePVAndPVC(ctx context.Context, rr *odhtypes.ReconciliationRe
 			pvc.Spec.VolumeName = modelCachePVName
 			pvc.Spec.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
 			pvc.Spec.VolumeMode = ptr.To(corev1.PersistentVolumeFilesystem)
-			pvc.Spec.StorageClassName = ptr.To("local-storage")
+			pvc.Spec.StorageClassName = new("local-storage")
 		}
 		pvc.Spec.Resources = corev1.VolumeResourceRequirements{
 			Requests: corev1.ResourceList{corev1.ResourceStorage: cacheSize},
@@ -399,29 +399,29 @@ func createLocalModelNodeGroup(ctx context.Context, rr *odhtypes.ReconciliationR
 	obj.SetName("workers")
 
 	_, err := controllerutil.CreateOrUpdate(ctx, rr.Client, obj, func() error {
-		obj.Object["spec"] = map[string]interface{}{
+		obj.Object["spec"] = map[string]any{
 			"storageLimit": cacheSizeStr,
-			"persistentVolumeSpec": map[string]interface{}{
-				"capacity": map[string]interface{}{
+			"persistentVolumeSpec": map[string]any{
+				"capacity": map[string]any{
 					"storage": cacheSizeStr,
 				},
 				"volumeMode":                    "Filesystem",
-				"accessModes":                   []interface{}{"ReadWriteOnce"},
+				"accessModes":                   []any{"ReadWriteOnce"},
 				"persistentVolumeReclaimPolicy": "Delete",
 				"storageClassName":              "local-storage",
-				"hostPath": map[string]interface{}{
+				"hostPath": map[string]any{
 					"path": "/var/lib/kserve/models",
 					"type": "DirectoryOrCreate",
 				},
-				"nodeAffinity": map[string]interface{}{
-					"required": map[string]interface{}{
-						"nodeSelectorTerms": []interface{}{
-							map[string]interface{}{
-								"matchExpressions": []interface{}{
-									map[string]interface{}{
+				"nodeAffinity": map[string]any{
+					"required": map[string]any{
+						"nodeSelectorTerms": []any{
+							map[string]any{
+								"matchExpressions": []any{
+									map[string]any{
 										"key":      modelCacheLabelKey,
 										"operator": "In",
-										"values":   []interface{}{modelCacheLabelValue},
+										"values":   []any{modelCacheLabelValue},
 									},
 								},
 							},
@@ -429,11 +429,11 @@ func createLocalModelNodeGroup(ctx context.Context, rr *odhtypes.ReconciliationR
 					},
 				},
 			},
-			"persistentVolumeClaimSpec": map[string]interface{}{
-				"accessModes": []interface{}{"ReadWriteOnce"},
+			"persistentVolumeClaimSpec": map[string]any{
+				"accessModes": []any{"ReadWriteOnce"},
 				"volumeMode":  "Filesystem",
-				"resources": map[string]interface{}{
-					"requests": map[string]interface{}{
+				"resources": map[string]any{
+					"requests": map[string]any{
 						"storage": cacheSizeStr,
 					},
 				},
