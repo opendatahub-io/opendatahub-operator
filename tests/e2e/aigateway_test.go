@@ -41,7 +41,6 @@ func aiGatewayTestSuite(t *testing.T) {
 			t.Helper()
 			skipUnless(t, Smoke, Tier1)
 
-			// DSC has no "AIGatewayReady" condition, the test is only to check if the AIGateway CR and its deployment exist
 			if !tc.IsXKS() {
 				tc.EventuallyResourcePatched(
 					WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
@@ -70,10 +69,15 @@ func aiGatewayTestSuite(t *testing.T) {
 				WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
 			)
 
-			// do check on DSC ModulesReady is true
 			tc.EnsureResourceExists(
 				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 				WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeModulesReady, metav1.ConditionTrue)),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithCondition(jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.AIGatewayKind, metav1.ConditionTrue)),
+				WithCustomErrorMsg("DataScienceCluster should have %sReady condition set to True", componentApi.AIGatewayKind),
 			)
 		}},
 		{"Validate component disabled", func(t *testing.T) {
@@ -88,6 +92,15 @@ func aiGatewayTestSuite(t *testing.T) {
 
 			tc.EnsureResourceGone(WithMinimalObject(moduleGVK, moduleCRNN))
 			tc.EnsureResourceGone(WithMinimalObject(gvk.Deployment, controllerNN))
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithCondition(And(
+					jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.AIGatewayKind, metav1.ConditionFalse),
+					jq.Match(`.status.conditions[] | select(.type == "%sReady") | .reason == "%s"`, componentApi.AIGatewayKind, status.RemovedReason),
+				)),
+				WithCustomErrorMsg("DataScienceCluster should have %sReady condition set to False/Removed", componentApi.AIGatewayKind),
+			)
 		}},
 	}
 

@@ -56,6 +56,7 @@ var (
 		"automl-pipeline-runtime-image":  "RELATED_IMAGE_ODH_AUTOML_IMAGE",
 		"autorag-ui-image":               "RELATED_IMAGE_ODH_MOD_ARCH_AUTORAG_IMAGE",
 		"autorag-pipeline-runtime-image": "RELATED_IMAGE_ODH_AUTORAG_IMAGE",
+		"pgvector-image":                 "RELATED_IMAGE_POSTGRESQL_16_IMAGE",
 		"agent-ops-ui-image":             "RELATED_IMAGE_ODH_MOD_ARCH_AGENT_OPS_IMAGE",
 	}
 
