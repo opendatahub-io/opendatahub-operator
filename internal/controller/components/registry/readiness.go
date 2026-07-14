@@ -127,7 +127,7 @@ func isUnstructuredCRReady(u *unstructured.Unstructured) bool {
 		return false
 	}
 	for _, item := range conditions {
-		c, ok := item.(map[string]interface{})
+		c, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}
