@@ -34,7 +34,7 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["sparkoperator"]="opendatahub-io:spark-operator:main@2cbd4dcee990d9ef018566dde5dad74ce5de3d45:config"
     ["wva"]="opendatahub-io:workload-variant-autoscaler:main@ba229d66d60868553a8030092fb9808b24cad3b5:config"
     ["aigateway"]="opendatahub-io:ai-gateway-operator:stable@6425cd676043f78c6d14ecd2679f85563c0fe975:config"
-    ["mcplifecycleoperator"]="opendatahub-io:mcp-lifecycle-module-operator:main@8a35318566a4b677d8bd5e86cce5156be49f4e74:config"
+    ["mcplifecycleoperator"]="opendatahub-io:mcp-lifecycle-module-operator:main@04f49b105ca0564b163db3b4e8cd5d881afd5185:config"
 )
 
 # RHOAI Component Manifests
@@ -58,7 +58,7 @@ declare -A RHOAI_COMPONENT_MANIFESTS=(
     ["sparkoperator"]="red-hat-data-services:spark-operator:rhoai-3.5@097e5b49586299da1e6af8b6a886a220652edaa0:config"
     ["wva"]="red-hat-data-services:workload-variant-autoscaler:rhoai-3.5@0bd602e32608a777185ada21dda7dd9118bb4c81:config"
     ["aigateway"]="red-hat-data-services:ai-gateway-operator:rhoai-3.5@28a185925793953f02c239c94058f69baf323ede:config"
-    ["mcplifecycleoperator"]="red-hat-data-services:mcp-lifecycle-module-operator:rhoai-3.5@36fb8e59184668f5b5789aaf815ba5deda0f2279:config"
+    ["mcplifecycleoperator"]="red-hat-data-services:mcp-lifecycle-module-operator:rhoai-3.5@a130a8ac79a5cb45c9ec4bb32015afb8df2d2ed3:config"
 )
 
 # {ODH,RHOAI}_{CCM,COMPONENT}_CHARTS are lists of chart repositories info to fetch helm charts
