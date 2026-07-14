@@ -258,12 +258,20 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 	var perModuleImages []odhtype.ModuleImages
 	var failedModules []string
 
-	// The DSC controller is the sole owner of the ProvisioningProgress
-	// condition. Pass a no-op writer so the modules controller still
-	// participates in DAG gating but doesn't clobber the DSC
-	// controller's condition via the +listType=atomic SSA race.
-	requeueAfter, walkErr := provision.WalkBatches(ctx, checker, moduleStuckTracker, string(rr.Instance.GetUID()), provision.NoOpConditionWriter{},
+	var condWriter provision.ConditionWriter = provision.NoOpConditionWriter{}
+	if !flags.IsDSCEnabled() {
+		condWriter = rr.Conditions
+	}
+
+	requeueAfter, walkErr := provision.WalkBatches(ctx, checker, moduleStuckTracker, string(rr.Instance.GetUID()), condWriter,
 		func(batch []provision.UnifiedNode) error {
+			if !flags.IsDSCEnabled() {
+				provision.GetRunlevelTracker().MarkCleared(
+					rr.Release.Version.String(),
+					batch[0].GetRunlevel().Order,
+				)
+			}
+
 			for _, entry := range provision.ModulesInBatch(batch) {
 				handler := reg.Lookup(entry.GetName())
 				if handler == nil {
@@ -280,18 +288,6 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 
 				operatorManifests := handler.GetOperatorManifests(platformCtx)
 
-				moduleCR, err := handler.BuildModuleCR(ctx, rr.Client, platformCtx)
-				if err != nil {
-					log.Error(err, "BuildModuleCR failed (programming error)", "module", name)
-					failedModules = append(failedModules, name)
-					continue
-				}
-				if moduleCR == nil {
-					log.Error(nil, "BuildModuleCR returned nil without error (programming error)", "module", name)
-					failedModules = append(failedModules, name)
-					continue
-				}
-
 				perModuleImages = append(perModuleImages, odhtype.ModuleImages{
 					DeploymentName:    deploymentNameFor(handler, operatorManifests),
 					ContainerName:     containerNameFor(handler),
@@ -306,7 +302,17 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 					rr.Manifests = append(rr.Manifests, operatorManifests.Manifests...)
 				}
 
-				rr.Resources = append(rr.Resources, *moduleCR)
+				moduleCR, err := handler.BuildModuleCR(ctx, rr.Client, platformCtx)
+				if err != nil {
+					log.Error(err, "BuildModuleCR failed", "module", name)
+					failedModules = append(failedModules, name)
+					continue
+				}
+				if moduleCR != nil {
+					rr.Resources = append(rr.Resources, *moduleCR)
+				} else {
+					log.V(1).Info("BuildModuleCR returned nil, CR is externally managed", "module", name)
+				}
 			}
 			return nil
 		},
