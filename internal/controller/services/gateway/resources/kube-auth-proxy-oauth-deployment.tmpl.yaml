@@ -114,5 +114,4 @@ spec:
             - "--cookie-name={{.AuthProxyCookieName}}"
             - "--cookie-domain={{.GatewayHostname}}"
             - "--provider=openshift"
-            - "--ssl-insecure-skip-verify={{.InsecureSkipVerify}}"
             - "--scope=user:full"

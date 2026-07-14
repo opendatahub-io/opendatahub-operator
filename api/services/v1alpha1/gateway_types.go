@@ -106,15 +106,6 @@ type GatewayConfigSpec struct {
 	// +optional
 	ProviderCASecretName string `json:"providerCASecretName,omitempty"`
 
-	// VerifyProviderCertificate controls TLS certificate verification for the authentication provider.
-	// When true (default), certificates are verified against the system trust store and providerCASecretName.
-	// When false, certificate verification is disabled (development/testing only).
-	// WARNING: Setting this to false disables security and should only be used in non-production environments.
-	// For production use with self-signed certificates, use ProviderCASecretName instead.
-	// +optional
-	// +kubebuilder:default=true
-	VerifyProviderCertificate *bool `json:"verifyProviderCertificate,omitempty"`
-
 	// EnableK8sTokenValidation enables Kubernetes service account token validation via TokenReview API.
 	// When enabled, kube-auth-proxy validates bearer tokens as service account tokens alongside OAuth/OIDC authentication.
 	// This allows service accounts to authenticate via bearer tokens while human users authenticate via OAuth/OIDC.

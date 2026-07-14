@@ -253,11 +253,6 @@ func (in *GatewayConfigSpec) DeepCopyInto(out *GatewayConfigSpec) {
 		*out = new(NetworkPolicyConfig)
 		(*in).DeepCopyInto(*out)
 	}
-	if in.VerifyProviderCertificate != nil {
-		in, out := &in.VerifyProviderCertificate, &out.VerifyProviderCertificate
-		*out = new(bool)
-		**out = **in
-	}
 	if in.EnableK8sTokenValidation != nil {
 		in, out := &in.EnableK8sTokenValidation, &out.EnableK8sTokenValidation
 		*out = new(bool)

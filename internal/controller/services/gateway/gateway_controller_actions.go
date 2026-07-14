@@ -364,14 +364,6 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		templateData["ProviderCASecretName"] = gatewayConfig.Spec.ProviderCASecretName
 	}
 
-	// Add TLS verification setting (default to true for security)
-	verifyProviderCert := true
-	if gatewayConfig.Spec.VerifyProviderCertificate != nil {
-		verifyProviderCert = *gatewayConfig.Spec.VerifyProviderCertificate
-	}
-	// Template needs the inverse: insecure-skip-verify is the opposite of verify
-	templateData["InsecureSkipVerify"] = !verifyProviderCert
-
 	// Add K8s service account token validation settings (default to enabled)
 	enableK8sTokenValidation := true
 	if gatewayConfig.Spec.EnableK8sTokenValidation != nil {

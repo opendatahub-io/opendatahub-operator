@@ -96,13 +96,6 @@ func oidcSpecWithProviderCA(secretName string) serviceApi.GatewayConfigSpec {
 	return spec
 }
 
-// oidcSpecWithVerifyProviderCertificate returns the OIDC spec with VerifyProviderCertificate set.
-func oidcSpecWithVerifyProviderCertificate(verify bool) serviceApi.GatewayConfigSpec {
-	spec := getOIDCGatewayConfigSpec()
-	spec.VerifyProviderCertificate = &verify
-	return spec
-}
-
 // oidcSpecWithAuthProxyTimeout returns the OIDC spec with AuthProxyTimeout set.
 func oidcSpecWithAuthProxyTimeout(d time.Duration) serviceApi.GatewayConfigSpec {
 	spec := getOIDCGatewayConfigSpec()
@@ -196,7 +189,7 @@ func TestOIDCServiceCreation(t *testing.T) {
 // TestOIDCDeploymentWithAllArgs validates Deployment args in OIDC mode (delegates to RunDeploymentWithAllArgsTest).
 func TestOIDCDeploymentWithAllArgs(t *testing.T) {
 	RunDeploymentWithAllArgsTest(t, GetOIDCTestSetup(), DefaultGatewayHost(OIDCClusterDomain),
-		[]string{"--provider=oidc", fmt.Sprintf("--oidc-issuer-url=%s", OIDCIssuerURL), "--skip-oidc-discovery=false", "--ssl-insecure-skip-verify=false", "--pass-authorization-header=true", "--set-authorization-header=true"},
+		[]string{"--provider=oidc", fmt.Sprintf("--oidc-issuer-url=%s", OIDCIssuerURL), "--skip-oidc-discovery=false", "--pass-authorization-header=true", "--set-authorization-header=true"},
 		[]string{"--provider=openshift", "--scope=user:full", "--pass-access-token=true"})
 }
 
@@ -338,37 +331,6 @@ func TestOIDCWithProviderCASecret(t *testing.T) {
 	// Verify --provider-ca-file arg
 	args := deployment.Spec.Template.Spec.Containers[0].Args
 	g.Expect(args).To(ContainElement("--provider-ca-file=/etc/provider-ca/ca.crt"))
-}
-
-// TestOIDCWithInsecureSkipVerify validates that VerifyProviderCertificate=false results in --ssl-insecure-skip-verify=true in the deployment.
-func TestOIDCWithInsecureSkipVerify(t *testing.T) {
-	tc := OIDCTestEnv
-	g := NewWithT(t)
-
-	ensureOIDCClientSecret(t, tc)
-	defer DeleteGatewayConfig(t, tc.Ctx, tc.K8sClient)
-
-	CreateGatewayConfig(t, tc.Ctx, tc.K8sClient, oidcSpecWithVerifyProviderCertificate(false))
-
-	g.Eventually(func() bool {
-		gc := &serviceApi.GatewayConfig{}
-		if err := tc.K8sClient.Get(tc.Ctx, types.NamespacedName{Name: serviceApi.GatewayConfigName}, gc); err != nil {
-			return false
-		}
-		if gc.Spec.VerifyProviderCertificate == nil || *gc.Spec.VerifyProviderCertificate {
-			return false
-		}
-		deployment, err := getAuthProxyDeployment(tc.Ctx, tc.K8sClient)
-		if err != nil {
-			return false
-		}
-		for _, arg := range deployment.Spec.Template.Spec.Containers[0].Args {
-			if arg == "--ssl-insecure-skip-verify=true" {
-				return true
-			}
-		}
-		return false
-	}, TestTimeout, TestInterval).Should(BeTrue(), "GatewayConfig VerifyProviderCertificate and deployment --ssl-insecure-skip-verify must be updated")
 }
 
 // TestOIDCSpecMutationCookieConfig validates cookie spec mutation in OIDC mode (delegates to RunSpecMutationCookieConfigTest).
