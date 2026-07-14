@@ -139,7 +139,7 @@ func TestDataScienceClusterV2_ModelsAsServiceDeprecationWarning(t *testing.T) {
 
 	withModelsAsService := func(state operatorv1.ManagementState) func(*dscv2.DataScienceCluster) {
 		return func(dsc *dscv2.DataScienceCluster) {
-			dsc.Spec.Components.Kserve.ModelsAsService.ManagementState = state
+			dsc.Spec.Components.Kserve.ModelsAsService.ManagementState = state //nolint:staticcheck
 		}
 	}
 
