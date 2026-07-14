@@ -348,6 +348,9 @@ func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--metrics-address=0.0.0.0:%d")`, kubeAuthProxyMetricsPort),
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--use-system-trust-store=true")`),
 
+			// TLS verification hardening: --ssl-insecure-skip-verify must never be present (RHOAIENG-69364)
+			jq.Match(`.spec.template.spec.containers[0].args | all(. != "--ssl-insecure-skip-verify=true")`),
+
 			// secret hash annotation
 			jq.Match(`.spec.template.metadata.annotations["opendatahub.io/secret-hash"] != null`),
 			jq.Match(`.spec.template.metadata.annotations["opendatahub.io/secret-hash"] | test("^[0-9a-f]{64}$|^$")`),
@@ -941,6 +944,9 @@ func (tc *GatewayTestCtx) ValidateOIDCAuthProxyDeployment(t *testing.T) {
 			// metrics and trust store
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--metrics-address=0.0.0.0:%d")`, kubeAuthProxyMetricsPort),
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--use-system-trust-store=true")`),
+
+			// TLS verification hardening: --ssl-insecure-skip-verify must never be present (RHOAIENG-69364)
+			jq.Match(`.spec.template.spec.containers[0].args | all(. != "--ssl-insecure-skip-verify=true")`),
 
 			// secret hash annotation
 			jq.Match(`.spec.template.metadata.annotations["opendatahub.io/secret-hash"] != null`),
