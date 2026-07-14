@@ -8,7 +8,7 @@ import (
 
 // DeprecatedModelsAsServiceWarning is returned as an admission warning on DSC
 // create/update when spec.components.kserve.modelsAsService is Managed.
-// kubectl/oc prints it as: Warning: <message>
+// kubectl/oc prints it as: Warning: <message>.
 const DeprecatedModelsAsServiceWarning = "spec.components.kserve.modelsAsService is deprecated; " +
 	"use spec.components.aigateway.modelsAsAService instead. " +
 	"Clear to Removed after migration (re-enabling is blocked). " +
