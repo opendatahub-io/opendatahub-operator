@@ -165,6 +165,7 @@ linters:
       - linters:
           - gosec
         path: _test\.go
+        text: "G101:"
     paths:
       - api
       - third_party$

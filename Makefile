@@ -936,7 +936,7 @@ set -e; \
 package=$(2)@$(3) ;\
 echo "Downloading $${package}" ;\
 rm -f "$(1)" || true ;\
-GOTOOLCHAIN=go$(GO_VERSION) GOBIN=$(LOCALBIN) go install $${package} ;\
+GOTOOLCHAIN="go$(GO_VERSION)" GOBIN="$(LOCALBIN)" go install "$${package}" ;\
 mv "$(1)" "$(1)-$(3)" ;\
 } ;\
 [ "$$(readlink "$(1)")" = "$(1)-$(3)" ] || ln -sf "$(1)-$(3)" "$(1)"
