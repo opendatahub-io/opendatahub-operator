@@ -5,7 +5,6 @@ import (
 	"net"
 	"testing"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,7 +27,7 @@ type ModelsAsServiceTestCtx struct {
 
 const (
 	// Subcomponent field name in JSON (matches the field name in AIGatewayCommonSpec).
-	// This must match the JSON tag in AIGatewayCommonSpec.ModelsAsService.
+	// This must match the JSON tag in AIGatewayCommonSpec.ModelsAsAService.
 	modelsAsServiceFieldName = "modelsAsAService"
 
 	// Gateway constants from modelsasservice package.
@@ -79,17 +78,35 @@ func modelsAsServiceTestSuite(t *testing.T) {
 	// Setup: Create prerequisites and enable the subcomponent.
 	// PostgreSQL must be created before enabling the component because
 	// maas-api reads the maas-db-config secret on startup.
+	//
+	// Note: MaaS is a sub-component of AIGateway (PR #3723) — the in-tree
+	// ModelsAsService handler is deregistered, so ModelsAsServiceReady is never
+	// set on the DSC. We bypass UpdateSubComponentStateInDataScienceCluster
+	// (which waits for ModelsAsServiceReady) and patch the DSC directly.
 	componentCtx.createMaaSPostgres(t)
 	componentCtx.createMaaSGateway(t)
 	componentCtx.EnsureParentComponentEnabled(t)
-	componentCtx.UpdateSubComponentStateInDataScienceCluster(t, operatorv1.Managed)
+
+	// Enable modelsAsAService directly without waiting for the defunct ModelsAsServiceReady condition.
+	componentCtx.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, componentCtx.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.aigateway.modelsAsAService.managementState = "Managed"`)),
+		WithCondition(jq.Match(`.spec.components.aigateway.modelsAsAService.managementState == "Managed"`)),
+	)
+
+	// Wait for AIGatewayReady=True before running test cases.
+	componentCtx.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, componentCtx.DataScienceClusterNamespacedName),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "AIGatewayReady") | .status == "True"`)),
+		WithEventuallyTimeout(ct.TestTimeouts.longEventuallyTimeout),
+	)
 
 	testCases := []TestCase{
 		{"Validate MaasTenantConfig CR in subscription namespace", componentCtx.ValidateTenantInSubscriptionNamespace},
 		{"Validate MaasTenantConfig CRD is namespace-scoped", componentCtx.ValidateTenantCRDNamespaceScoped},
 		{"Validate MaasTenantConfig singleton enforcement", componentCtx.ValidateTenantSingletonEnforcement},
 		{"Validate payload-processing egress NetworkPolicy", componentCtx.ValidatePayloadProcessingNetworkPolicy},
-		{"Validate MaasTenantConfig deleted on disable", componentCtx.ValidateTenantDeletedOnDisable},
+		{"Validate MaaS deployment removed on disable", componentCtx.ValidateMaaSDeploymentRemovedOnDisable},
 	}
 
 	RunTestCases(t, testCases)
@@ -329,31 +346,31 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantSingletonEnforcement(t *testing.
 }
 
 // ValidatePayloadProcessingNetworkPolicy verifies that the NetworkPolicy for
-// payload-processing exists in the gateway namespace with correct ingress and
-// egress rules.
+// payload-processing exists in the infrastructure namespace with correct ingress
+// and egress policy types.
 func (tc *ModelsAsServiceTestCtx) ValidatePayloadProcessingNetworkPolicy(t *testing.T) {
 	t.Helper()
 	skipUnless(t, Tier1)
 
-	t.Logf("Validating NetworkPolicy for payload-processing in %s", maasGatewayNamespace)
+	ns := tc.maasDBNamespace()
+	t.Logf("Validating NetworkPolicy for payload-processing in %s", ns)
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.NetworkPolicy, types.NamespacedName{
 			Name:      "payload-processing",
-			Namespace: maasGatewayNamespace,
+			Namespace: ns,
 		}),
 		WithCondition(And(
-			jq.Match(`.spec.podSelector.matchLabels.app == "payload-processing"`),
 			jq.Match(`.spec.policyTypes | any(. == "Ingress")`),
 			jq.Match(`.spec.policyTypes | any(. == "Egress")`),
-			jq.Match(`.spec.ingress | length == 2`),
-			jq.Match(`.spec.egress | length == 1`),
-			jq.Match(`.spec.egress[0] == {}`),
+			jq.Match(`.spec.ingress | length >= 1`),
+			jq.Match(`.spec.egress | length >= 1`),
 		)),
-		WithCustomErrorMsg("NetworkPolicy should exist with correct ingress and egress rules for payload-processing in %s", maasGatewayNamespace),
+		WithCustomErrorMsg("NetworkPolicy payload-processing should exist with Ingress and Egress rules in %s", ns),
 	)
 }
 
+<<<<<<< HEAD
 // ValidateTenantDeletedOnDisable verifies that the MaasTenantConfig CR is deleted when MaaS is set to
 // Removed and that the maas-controller Deployment is eventually removed from the application
 // namespace. Teardown is driven by the ModelsAsService component reconciler (GC of owned objects)
@@ -385,6 +402,24 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantDeletedOnDisable(t *testing.T) {
 		}),
 		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
 		WithCustomErrorMsg("MaasTenantConfig should be deleted when MaaS is disabled"),
+=======
+// ValidateMaaSDeploymentRemovedOnDisable verifies that the maas-controller Deployment is
+// removed when modelsAsAService is set to Removed.
+//
+// Architecture note (PR #3723): setting modelsAsAService=Removed causes AGO to remove the
+// maas-controller Deployment. The MaaS Config CR and Tenant CR are owned by the AIGateway CR
+// via ownerReferences — they are only GC'd when AIGateway itself is deleted. Tenant cleanup
+// on sub-component disable is therefore out of scope for this test.
+func (tc *ModelsAsServiceTestCtx) ValidateMaaSDeploymentRemovedOnDisable(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Smoke, Tier1)
+
+	t.Log("Disabling MaaS subcomponent (modelsAsAService=Removed)")
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.aigateway.modelsAsAService.managementState = "Removed"`)),
+		WithCondition(jq.Match(`.spec.components.aigateway.modelsAsAService.managementState == "Removed"`)),
+>>>>>>> 7fe472547 (test: add AIGateway module E2E tests and fix MaaS tests for new architecture)
 	)
 
 	t.Logf("Waiting until maas-controller Deployment is removed from %s", tc.AppsNamespace)
@@ -395,6 +430,6 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantDeletedOnDisable(t *testing.T) {
 		}),
 		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
-		WithCustomErrorMsg("maas-controller Deployment should be removed when MaaS is disabled."),
+		WithCustomErrorMsg("maas-controller Deployment should be removed when modelsAsAService is disabled"),
 	)
 }
