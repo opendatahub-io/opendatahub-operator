@@ -32,19 +32,31 @@ spec:
 
 ## What Happens Automatically
 
-When you upgrade to OpenShift AI 3.5:
+### v2 DSC upgrade (most users — no DSC rewrite)
 
-1. **Webhook conversion** automatically detects `kserve.modelsAsService: Managed`
-2. **AIGateway is enabled** with `managementState: Managed`
-3. **MaaS config is moved** to `aigateway.modelsAsAService`
-4. **Old config is preserved** in `kserve.modelsAsService` — read-only (CEL `self == oldSelf`), pruned automatically in 3.7
-5. **ai-gateway-operator** takes over MaaS deployment (instead of platform operator directly)
+If your cluster stores a v2 DSC with `kserve.modelsAsService: Managed` (the 3.4 state), the operator reads it at startup via the `IsEnabled()` fallback and `BuildModuleCR()` — **no conversion webhook runs, no DSC fields are rewritten**:
+
+1. **`IsEnabled()` fallback** detects `kserve.modelsAsService: Managed` when `aigateway.managementState` is not yet set
+2. **AIGateway module is provisioned** — ai-gateway-operator deployed with `modelsAsAService: Managed` in the AIGateway CR
+3. **DSC is untouched** — `kserve.modelsAsService` stays as-is in etcd; GitOps sees no drift
+4. **`oc`/`kubectl` Warning** is emitted on any create/update while `kserve.modelsAsService` remains `Managed`
+
+### v1 API write (conversion webhook path)
+
+If a client submits `apiVersion: v1` with `kserve.modelsAsService: Managed`:
+
+1. **Conversion webhook** migrates `kserve.modelsAsService` → `aigateway.modelsAsAService` in the stored v2
+2. **Old field is preserved** — CEL allows clearing to `Removed` after migration, but blocks re-enabling (`Removed→Managed`). Pruned automatically in 3.7
+3. **`oc`/`kubectl` Warning** is emitted
+4. **ai-gateway-operator** takes over MaaS deployment
 
 ## Upgrade Path (3.4 → 3.5)
 
 ### Standard users (kubectl / oc)
 
-No action needed on upgrade — MaaS continues to deploy. Migrate at your own pace before 3.7:
+No action needed on upgrade — MaaS continues to deploy. Migrate at your own pace before 3.7.
+
+When ready, apply the following **v2 API** patch to move to the new field and clear the old one:
 
 ```bash
 oc patch datasciencecluster default-dsc --type=merge -p '
@@ -56,9 +68,11 @@ spec:
         managementState: Managed
     kserve:
       modelsAsService:
-        managementState: ""
+        managementState: Removed
 '
 ```
+
+While `kserve.modelsAsService` is still `Managed`, `oc` prints a deprecation Warning. After you set it to `Removed`, the Warning stops. Re-enabling it (`Removed→Managed`) is rejected by CEL.
 
 ### GitOps users (ArgoCD, Flux)
 
@@ -81,9 +95,12 @@ components:
     managementState: Managed
     modelsAsAService:
       managementState: Managed
+  kserve:
+    modelsAsService:
+      managementState: Removed   # optional cleanup; Managed→Removed allowed
 ```
 
-Then apply via your GitOps tool. The old field is read-only in 3.5 — setting it on new clusters is rejected.
+Do **not** re-enable the old field after clearing it — CEL rejects `Removed→Managed`. Use `aigateway.modelsAsAService` instead.
 
 ### Automatic webhook migration (v1 DSC only)
 
@@ -124,11 +141,25 @@ spec:
 '
 ```
 
+If the AIGateway module should also be torn down:
+
+```bash
+oc patch datasciencecluster default-dsc --type=merge -p '
+spec:
+  components:
+    aigateway:
+      managementState: Removed
+'
+```
+
+Use `Removed`, not omit/`""`. Empty `aigateway.managementState` re-triggers the legacy `kserve.modelsAsService` fallback.
+
 ## Important Notes
 
 - **Data preserved**: Existing Tenants, Subscriptions, API keys remain intact
 - **No downtime**: Migration happens automatically without service interruption
 - **One-way migration**: After conversion, MaaS config exists only at `aigateway.modelsAsAService` (not backward compatible with 3.4)
+- **CEL on deprecated field**: `Managed→Removed` allowed (cleanup); `Removed→Managed` blocked
 
 ## Troubleshooting
 

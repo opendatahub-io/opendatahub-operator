@@ -219,6 +219,78 @@ func TestConvertConditions_Nil(t *testing.T) {
 	g.Expect(result).To(BeNil())
 }
 
+// TestConvertFrom_FallsBackToKserveModelsAsServiceWhenAIGatewayNotSet verifies the
+// ConvertFrom fallback: when aigateway.modelsAsAService is not set (3.4→3.5 backward-compat
+// upgrade path), the stored kserve.modelsAsService is preserved in the v1 output so that
+// the CEL transition rule's oldSelf reflects the actual value and v1 API writes succeed.
+func TestConvertFrom_FallsBackToKserveModelsAsServiceWhenAIGatewayNotSet(t *testing.T) {
+	g := NewWithT(t)
+
+	// Simulate a 3.4 DSC stored in v2: kserve.modelsAsService=Managed, aigateway not set.
+	v2DSC := &dscv2.DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-dsc"},
+		Spec: dscv2.DataScienceClusterSpec{
+			Components: dscv2.Components{
+				Kserve: componentApi.DSCKserve{
+					KserveCommonSpec: componentApi.KserveCommonSpec{
+						ModelsAsService: componentApi.DSCModelsAsServiceSpec{ //nolint:staticcheck
+							ManagementState: operatorv1.Managed,
+						},
+					},
+				},
+				// AIGateway not set — aigateway.modelsAsAService.ManagementState == ""
+			},
+		},
+	}
+
+	v1DSC := &DataScienceCluster{}
+	g.Expect(v1DSC.ConvertFrom(v2DSC)).To(Succeed())
+
+	// v1 should reflect the stored kserve.modelsAsService (Managed), not the empty aigateway value.
+	// This ensures the CEL transition rule sees oldSelf.managementState == 'Managed' and allows
+	// subsequent v1 API writes with modelsAsService=Managed (no "no such key" error).
+	g.Expect(v1DSC.Spec.Components.Kserve.ModelsAsService.ManagementState). //nolint:staticcheck
+		To(Equal(operatorv1.Managed))
+}
+
+// TestConvertFrom_UsesAIGatewayModelsAsServiceWhenSet verifies that when
+// aigateway.modelsAsAService is explicitly set, it takes precedence over the
+// stored kserve.modelsAsService in the v1 output (post-migration state).
+func TestConvertFrom_UsesAIGatewayModelsAsServiceWhenSet(t *testing.T) {
+	g := NewWithT(t)
+
+	// Post-migration DSC: kserve.modelsAsService=Removed (cleaned up), aigateway.modelsAsAService=Managed.
+	v2DSC := &dscv2.DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-dsc"},
+		Spec: dscv2.DataScienceClusterSpec{
+			Components: dscv2.Components{
+				Kserve: componentApi.DSCKserve{
+					KserveCommonSpec: componentApi.KserveCommonSpec{
+						ModelsAsService: componentApi.DSCModelsAsServiceSpec{ //nolint:staticcheck
+							ManagementState: operatorv1.Removed,
+						},
+					},
+				},
+				AIGateway: componentApi.DSCAIGateway{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+					AIGatewayCommonSpec: componentApi.AIGatewayCommonSpec{
+						ModelsAsAService: componentApi.DSCModelsAsServiceSpec{
+							ManagementState: operatorv1.Managed,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	v1DSC := &DataScienceCluster{}
+	g.Expect(v1DSC.ConvertFrom(v2DSC)).To(Succeed())
+
+	// v1 should mirror aigateway.modelsAsAService (Managed), not the stored kserve value (Removed).
+	g.Expect(v1DSC.Spec.Components.Kserve.ModelsAsService.ManagementState). //nolint:staticcheck
+		To(Equal(operatorv1.Managed))
+}
+
 // TestConvertTo_MigratesMaaSFromKserveToAIGateway verifies that when converting
 // from v1 to v2, kserve.modelsAsService is automatically migrated to aigateway.modelsasservice.
 func TestConvertTo_MigratesMaaSFromKserveToAIGateway(t *testing.T) {
@@ -256,9 +328,9 @@ func TestConvertTo_MigratesMaaSFromKserveToAIGateway(t *testing.T) {
 	// Verify AIGateway was enabled
 	g.Expect(v2DSC.Spec.Components.AIGateway.ManagementState).To(Equal(operatorv1.Managed))
 
-	// kserve.modelsAsService is intentionally preserved (not cleared) in v2 because
-	// self == oldSelf CEL makes it immutable — clearing it would fail admission.
-	// It will be pruned automatically when removed from the CRD schema in 3.7.
+	// kserve.modelsAsService is intentionally preserved (not cleared) in v2 for
+	// fidelity with what the v1 client wrote. CEL allows Managed→Removed cleanup
+	// after migrating to aigateway; the field is pruned from the CRD in 3.7.
 	g.Expect(v2DSC.Spec.Components.Kserve.ModelsAsService.ManagementState).To(Equal(operatorv1.Managed))
 }
 

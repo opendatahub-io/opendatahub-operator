@@ -152,9 +152,9 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 	}
 
 	// kserve.modelsAsService is intentionally NOT cleared here.
-	// self == oldSelf CEL validation makes it immutable once set, so clearing it
-	// would cause admission to reject the ConvertTo output. The field is deprecated
-	// and will be pruned automatically when removed from the CRD schema in 3.7.
+	// ConvertTo preserves the value the v1 client wrote for fidelity. CEL allows
+	// Managed→Removed cleanup after the user has migrated to aigateway.modelsAsAService;
+	// Removed→Managed remains blocked. The field is pruned from the CRD schema in 3.7.
 
 	// Step 1: restore from stash if present, to preserve v2-only sub-component state
 	// (e.g. BatchGateway) that v1 cannot represent natively.
@@ -256,8 +256,15 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 
 	// When converting v2->v1, mirror aigateway.modelsAsAService back into kserve.modelsAsService
 	// so v1 clients see the MaaS configuration in the familiar v1 field.
+	// Fallback: if aigateway.modelsAsAService is not yet set (3.4→3.5 backward-compat path
+	// where only kserve.modelsAsService is populated), keep the stored kserve.modelsAsService
+	// so the CEL transition rule's oldSelf reflects the actual value (prevents "no such key:
+	// managementState" on v1 API writes when aigateway.modelsAsAService has no managementState).
 	v1Kserve := src.Spec.Components.Kserve
-	v1Kserve.ModelsAsService = src.Spec.Components.AIGateway.ModelsAsAService
+	if src.Spec.Components.AIGateway.ModelsAsAService.ManagementState != "" {
+		v1Kserve.ModelsAsService = src.Spec.Components.AIGateway.ModelsAsAService
+	}
+	// else: v1Kserve.ModelsAsService already preserved from src.Spec.Components.Kserve above
 
 	c.Spec = DataScienceClusterSpec{
 		Components: Components{
