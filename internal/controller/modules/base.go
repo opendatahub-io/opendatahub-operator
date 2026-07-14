@@ -17,6 +17,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manifests/kustomize"
@@ -130,6 +131,10 @@ func (b *BaseHandler) GetName() string {
 
 func (b *BaseHandler) GetGVK() schema.GroupVersionKind {
 	return b.Config.GVK
+}
+
+func (b *BaseHandler) GetReadyConditionType() string {
+	return b.Config.GVK.Kind + status.ReadySuffix
 }
 
 func (b *BaseHandler) GetContainerName() string {

@@ -118,8 +118,15 @@ func buildPlatformContext(ctx context.Context, rr *odhtype.ReconciliationRequest
 		return nil, fmt.Errorf("failed to resolve application namespace: %w", err)
 	}
 
+	// Monitoring namespace  read directly from DSCI or set to empty when no DSCI (xKS).
+	var monitoringNS string
+	if rr.DSCI != nil {
+		monitoringNS = rr.DSCI.Spec.Monitoring.Namespace
+	}
+
 	return &PlatformContext{
 		ApplicationsNamespace: appNS,
+		MonitoringNamespace:   monitoringNS,
 		Release:               rr.Release,
 		DSC:                   dscFromInstance(rr),
 		DSCI:                  dsciOrNil(rr),
@@ -251,12 +258,20 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 	var perModuleImages []odhtype.ModuleImages
 	var failedModules []string
 
-	// The DSC controller is the sole owner of the ProvisioningProgress
-	// condition. Pass a no-op writer so the modules controller still
-	// participates in DAG gating but doesn't clobber the DSC
-	// controller's condition via the +listType=atomic SSA race.
-	requeueAfter, walkErr := provision.WalkBatches(ctx, checker, moduleStuckTracker, string(rr.Instance.GetUID()), provision.NoOpConditionWriter{},
+	var condWriter provision.ConditionWriter = provision.NoOpConditionWriter{}
+	if !flags.IsDSCEnabled() {
+		condWriter = rr.Conditions
+	}
+
+	requeueAfter, walkErr := provision.WalkBatches(ctx, checker, moduleStuckTracker, string(rr.Instance.GetUID()), condWriter,
 		func(batch []provision.UnifiedNode) error {
+			if !flags.IsDSCEnabled() {
+				provision.GetRunlevelTracker().MarkCleared(
+					rr.Release.Version.String(),
+					batch[0].GetRunlevel().Order,
+				)
+			}
+
 			for _, entry := range provision.ModulesInBatch(batch) {
 				handler := reg.Lookup(entry.GetName())
 				if handler == nil {
@@ -273,18 +288,6 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 
 				operatorManifests := handler.GetOperatorManifests(platformCtx)
 
-				moduleCR, err := handler.BuildModuleCR(ctx, rr.Client, platformCtx)
-				if err != nil {
-					log.Error(err, "BuildModuleCR failed (programming error)", "module", name)
-					failedModules = append(failedModules, name)
-					continue
-				}
-				if moduleCR == nil {
-					log.Error(nil, "BuildModuleCR returned nil without error (programming error)", "module", name)
-					failedModules = append(failedModules, name)
-					continue
-				}
-
 				perModuleImages = append(perModuleImages, odhtype.ModuleImages{
 					DeploymentName:    deploymentNameFor(handler, operatorManifests),
 					ContainerName:     containerNameFor(handler),
@@ -299,7 +302,17 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 					rr.Manifests = append(rr.Manifests, operatorManifests.Manifests...)
 				}
 
-				rr.Resources = append(rr.Resources, *moduleCR)
+				moduleCR, err := handler.BuildModuleCR(ctx, rr.Client, platformCtx)
+				if err != nil {
+					log.Error(err, "BuildModuleCR failed", "module", name)
+					failedModules = append(failedModules, name)
+					continue
+				}
+				if moduleCR != nil {
+					rr.Resources = append(rr.Resources, *moduleCR)
+				} else {
+					log.V(1).Info("BuildModuleCR returned nil, CR is externally managed", "module", name)
+				}
 			}
 			return nil
 		},
@@ -307,6 +320,14 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 
 	if walkErr != nil {
 		return walkErr
+	}
+
+	if len(perModuleImages) > 0 || platformCtx.ApplicationsNamespace != "" || platformCtx.MonitoringNamespace != "" {
+		rr.ModuleEnvInjection = &odhtype.ModuleEnvInjection{
+			PerModuleImages:       perModuleImages,
+			ApplicationsNamespace: platformCtx.ApplicationsNamespace,
+			MonitoringNamespace:   platformCtx.MonitoringNamespace,
+		}
 	}
 
 	if requeueAfter > 0 {
@@ -324,13 +345,6 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 		}
 
 		return fmt.Errorf("BuildModuleCR failed for modules: %s", strings.Join(failedModules, ", "))
-	}
-
-	if len(perModuleImages) > 0 || platformCtx.ApplicationsNamespace != "" {
-		rr.ModuleEnvInjection = &odhtype.ModuleEnvInjection{
-			PerModuleImages:       perModuleImages,
-			ApplicationsNamespace: platformCtx.ApplicationsNamespace,
-		}
 	}
 
 	return nil
@@ -361,6 +375,13 @@ func deploymentNameFor(h ModuleHandler, manifests OperatorManifests) string {
 	return deploymentNameFromManifests(manifests, h.GetName())
 }
 
+func readyConditionTypeFor(h ModuleHandler) string {
+	if rct, ok := h.(ReadyConditionTyper); ok {
+		return rct.GetReadyConditionType()
+	}
+	return h.GetGVK().Kind + status.ReadySuffix
+}
+
 func controllerImageFor(h ModuleHandler) string {
 	if ci, ok := h.(ControllerImager); ok {
 		return ci.GetControllerImage()
@@ -387,8 +408,9 @@ func deploymentNameFromManifests(manifests OperatorManifests, fallbackName strin
 	return fallbackName
 }
 
-// ComputeModulesStatus reads status conditions from each enabled module's CR
-// and sets the aggregate ModulesReady condition on rr.Conditions.
+// ComputeModulesStatus reads status conditions from each module's CR and
+// sets both per-module conditions (e.g. AIGatewayReady) and the aggregate
+// ModulesReady condition on rr.Conditions.
 //
 // During the transition period (in-tree components exist), the DSC
 // controller calls this and is the sole status writer — the modules
@@ -415,8 +437,16 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 
 	err = reg.ForEach(func(handler ModuleHandler) error {
 		name := handler.GetName()
+		condType := readyConditionTypeFor(handler)
 
 		if !handler.IsEnabled(platformCtx) {
+			rr.Conditions.SetCondition(common.Condition{
+				Type:     condType,
+				Status:   metav1.ConditionFalse,
+				Reason:   status.RemovedReason,
+				Severity: common.ConditionSeverityInfo,
+				Message:  fmt.Sprintf("Module ManagementState is set to %s", status.RemovedReason),
+			})
 			return nil
 		}
 
@@ -426,6 +456,13 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 		if err != nil {
 			log.V(1).Info("failed to get module status", "module", name, "error", err)
 			notReadyModules = append(notReadyModules, name)
+
+			rr.Conditions.SetCondition(common.Condition{
+				Type:    condType,
+				Status:  metav1.ConditionFalse,
+				Reason:  status.NotReadyReason,
+				Message: fmt.Sprintf("Failed to get module status: %v", err),
+			})
 			return nil
 		}
 
@@ -436,19 +473,44 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 				"generation", moduleStatus.Generation,
 			)
 			notReadyModules = append(notReadyModules, name+" (stale)")
+
+			rr.Conditions.SetCondition(common.Condition{
+				Type:    condType,
+				Status:  metav1.ConditionFalse,
+				Reason:  status.NotReadyReason,
+				Message: "Module status is stale (observedGeneration < generation)",
+			})
 			return nil
 		}
 
 		ready := false
 		degraded := false
+		var readyCond *metav1.Condition
 
-		for _, c := range moduleStatus.Conditions {
-			switch c.Type {
+		for i := range moduleStatus.Conditions {
+			switch moduleStatus.Conditions[i].Type {
 			case status.ConditionTypeReady:
-				ready = c.Status == metav1.ConditionTrue
+				ready = moduleStatus.Conditions[i].Status == metav1.ConditionTrue
+				readyCond = &moduleStatus.Conditions[i]
 			case status.ConditionTypeDegraded:
-				degraded = c.Status == metav1.ConditionTrue
+				degraded = moduleStatus.Conditions[i].Status == metav1.ConditionTrue
 			}
+		}
+
+		if readyCond != nil {
+			rr.Conditions.SetCondition(common.Condition{
+				Type:    condType,
+				Status:  readyCond.Status,
+				Reason:  readyCond.Reason,
+				Message: readyCond.Message,
+			})
+		} else {
+			rr.Conditions.SetCondition(common.Condition{
+				Type:    condType,
+				Status:  metav1.ConditionFalse,
+				Reason:  status.NotReadyReason,
+				Message: "Module has not reported a Ready condition yet",
+			})
 		}
 
 		if !ready {

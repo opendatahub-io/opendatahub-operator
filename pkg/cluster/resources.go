@@ -22,6 +22,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
@@ -132,6 +133,14 @@ func WatchDataScienceClusters(ctx context.Context, cli client.Client) []reconcil
 	return requests
 }
 
+// WatchPlatforms returns a reconcile request for the Platform singleton.
+// Platform has a webhook-enforced name so no list call is needed.
+func WatchPlatforms(_ context.Context, _ client.Client) []reconcile.Request {
+	return []reconcile.Request{
+		{NamespacedName: types.NamespacedName{Name: configv1alpha1.PlatformInstanceName}},
+	}
+}
+
 // GetDSCI retrieves the DSCInitialization (DSCI) instance from the Kubernetes cluster.
 func GetDSCI(ctx context.Context, cli client.Client) (*dsciv2.DSCInitialization, error) {
 	instances := dsciv2.DSCInitializationList{}
@@ -172,8 +181,6 @@ func ApplicationNamespace(ctx context.Context, cli client.Client) (string, error
 }
 
 // MonitoringNamespace returns the monitoring namespace from DSCInitialization.
-// Unlike ApplicationNamespace, this does not fall back to a cached value because
-// the monitoring namespace has no equivalent override mechanism (no RHAI_ env var).
 func MonitoringNamespace(ctx context.Context, cli client.Client) (string, error) {
 	dsci, err := GetDSCI(ctx, cli)
 	if err != nil {

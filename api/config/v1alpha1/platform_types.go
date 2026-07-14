@@ -52,6 +52,10 @@ type PlatformModules struct {
 	// Monitoring controls the monitoring module operator lifecycle.
 	// +optional
 	Monitoring common.ManagementSpec `json:"monitoring,omitempty"`
+
+	// MCPLifecycleOperator controls the MCP Lifecycle Operator module lifecycle.
+	// +optional
+	MCPLifecycleOperator common.ManagementSpec `json:"mcplifecycleoperator,omitempty"`
 }
 
 // PlatformStatus defines the observed state of Platform.
@@ -107,6 +111,9 @@ func (m *PlatformModules) EnabledModules() []string {
 	}
 	if m.Monitoring.ManagementState == operatorv1.Managed {
 		enabled = append(enabled, "monitoring")
+	}
+	if m.MCPLifecycleOperator.ManagementState == operatorv1.Managed {
+		enabled = append(enabled, "mcplifecycleoperator")
 	}
 	return enabled
 }

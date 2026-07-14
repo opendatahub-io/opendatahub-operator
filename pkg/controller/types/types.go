@@ -25,8 +25,8 @@ import (
 
 // ModuleEnvInjection holds aggregated environment variable injection data
 // for all enabled modules. Set by provisionModules and consumed by the
-// injectModuleEnv action to inject RELATED_IMAGE_* and APPLICATIONS_NAMESPACE
-// env vars into module operator Deployments.
+// injectModuleEnv action to inject RELATED_IMAGE_*, APPLICATIONS_NAMESPACE and
+// MONITORING_NAMESPACE env vars into module operator Deployments.
 type ModuleEnvInjection struct {
 	// PerModuleImages maps each module's related images to its chart/manifest
 	// resources. Each entry's images are only injected into Deployments
@@ -34,6 +34,9 @@ type ModuleEnvInjection struct {
 	PerModuleImages []ModuleImages
 	// ApplicationsNamespace is the platform's shared application namespace.
 	ApplicationsNamespace string
+	// MonitoringNamespace is the platform's monitoring namespace. "" when
+	// monitoring is not configured or DSCI not exist (e.g xks).
+	MonitoringNamespace string
 }
 
 // ModuleImages associates a module's related images with a deployment name

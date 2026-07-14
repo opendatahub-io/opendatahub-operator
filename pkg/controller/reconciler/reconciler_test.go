@@ -1086,20 +1086,21 @@ func TestDynamicOwnership_DeployAction_WithGVKPredicates(t *testing.T) {
 	g.Expect(deployedCM.GetOwnerReferences()).To(HaveLen(1))
 
 	t.Run("deployment is restored after external deletion", func(t *testing.T) {
+		originalUID := deployedDeployment.GetUID()
+
 		// Delete the Deployment externally
 		err := cli.Delete(ctx, deployedDeployment)
 		g.Expect(err).NotTo(HaveOccurred())
 
-		// Verify Deployment is deleted
-		g.Eventually(func() bool {
-			err := cli.Get(ctx, client.ObjectKey{Name: deploymentName, Namespace: nsName}, deployedDeployment)
-			return err != nil && k8serr.IsNotFound(err)
-		}).WithTimeout(5*time.Second).Should(BeTrue(), "Deployment should be deleted")
-
-		// Wait for watch-triggered reconciliation to restore the Deployment
+		// Wait for the watch-triggered reconciliation to restore the Deployment.
+		// In envtest the controller can re-create the object before a polling
+		// loop observes the intermediate NotFound state, so instead of checking
+		// for NotFound first, verify that a new object (different UID) exists
+		// with the expected owner reference.
 		g.Eventually(func(gg Gomega) {
 			restored := &appsv1.Deployment{}
 			gg.Expect(cli.Get(ctx, client.ObjectKey{Name: deploymentName, Namespace: nsName}, restored)).To(Succeed())
+			gg.Expect(restored.GetUID()).NotTo(Equal(originalUID), "UID should differ, proving re-creation")
 			gg.Expect(restored.GetOwnerReferences()).To(HaveLen(1))
 		}).WithTimeout(10*time.Second).Should(Succeed(), "Deployment should be restored after deletion")
 	})

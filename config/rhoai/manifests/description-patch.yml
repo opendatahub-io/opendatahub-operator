@@ -32,3 +32,4 @@ spec:
     * Spark Operator - Spark Operator is a Kubernetes operator for managing Apache Spark applications. It provides a way to deploy and manage Spark applications on Kubernetes.
     * AI Gateway (Model-as-a-service) aggregates all gateway-related components that have no hard dependency on the workload
     * Batch Gateway is a high-performance system for processing large-scale batch inference jobs, providing an OpenAI-compatible API
+    * MCP Lifecycle Operator - Manages the lifecycle of MCP (Model Context Protocol) servers on OpenShift AI

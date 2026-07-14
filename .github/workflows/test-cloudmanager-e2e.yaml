@@ -42,14 +42,27 @@ jobs:
       - name: Check authorization
         env:
           AUTHOR_ASSOCIATION: ${{ github.event.pull_request.author_association }}
+          AUTHOR_LOGIN: ${{ github.event.pull_request.user.login }}
           EVENT_ACTION: ${{ github.event.action }}
           LABEL_NAME: ${{ github.event.label.name }}
+          HAS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'run-xks-e2e') }}
         run: |
+          TRUSTED_BOTS=("odh-release-bot[bot]" "jira-autofix[bot]" "dependabot[bot]")
           if [[ "$AUTHOR_ASSOCIATION" =~ ^(OWNER|MEMBER|COLLABORATOR)$ ]]; then
             echo "Trusted contributor — running automatically"
             exit 0
           fi
-          if [[ "$EVENT_ACTION" == "labeled" && "$LABEL_NAME" == "run-xks-e2e" ]]; then
+          for bot in "${TRUSTED_BOTS[@]}"; do
+            if [[ "$AUTHOR_LOGIN" == "$bot" ]]; then
+              echo "Trusted bot — running automatically"
+              exit 0
+            fi
+          done
+          if [[ "$EVENT_ACTION" == "labeled" && ( "$LABEL_NAME" == "lgtm" || "$LABEL_NAME" == "approved" ) ]]; then
+            echo "Reviewer approval ($LABEL_NAME) — running automatically"
+            exit 0
+          fi
+          if [[ "$HAS_LABEL" == "true" ]]; then
             echo "External contributor — approved via label"
             exit 0
           fi

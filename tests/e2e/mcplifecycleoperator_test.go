@@ -17,9 +17,9 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-const aiGatewayControllerDeployment = "ai-gateway-operator"
+const mcpLifecycleOperatorControllerDeployment = "mcp-lifecycle-module-operator-controller-manager"
 
-func aiGatewayTestSuite(t *testing.T) {
+func mcpLifecycleOperatorTestSuite(t *testing.T) {
 	t.Helper()
 
 	tc, err := NewTestContext(t)
@@ -28,12 +28,12 @@ func aiGatewayTestSuite(t *testing.T) {
 	moduleGVK := schema.GroupVersionKind{
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,
-		Kind:    componentApi.AIGatewayKind,
+		Kind:    componentApi.MCPLifecycleOperatorKind,
 	}
-	moduleCRNN := types.NamespacedName{Name: componentApi.AIGatewayInstanceName}
+	moduleCRNN := types.NamespacedName{Name: componentApi.MCPLifecycleOperatorInstanceName}
 	controllerNN := types.NamespacedName{
 		Namespace: tc.AppsNamespace,
-		Name:      aiGatewayControllerDeployment,
+		Name:      mcpLifecycleOperatorControllerDeployment,
 	}
 
 	testCases := []TestCase{
@@ -44,16 +44,16 @@ func aiGatewayTestSuite(t *testing.T) {
 			if !tc.IsXKS() {
 				tc.EventuallyResourcePatched(
 					WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-					WithMutateFunc(testf.Transform(`.spec.components.aigateway.managementState = "Removed"`)),
-					WithCondition(jq.Match(`.spec.components.aigateway.managementState == "Removed"`)),
+					WithMutateFunc(testf.Transform(`.spec.components.mcplifecycleoperator.managementState = "Removed"`)),
+					WithCondition(jq.Match(`.spec.components.mcplifecycleoperator.managementState == "Removed"`)),
 				)
 				tc.EnsureResourceGone(WithMinimalObject(moduleGVK, moduleCRNN))
 			}
 
 			tc.EventuallyResourcePatched(
 				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-				WithMutateFunc(testf.Transform(`.spec.components.aigateway.managementState = "Managed"`)),
-				WithCondition(jq.Match(`.spec.components.aigateway.managementState == "Managed"`)),
+				WithMutateFunc(testf.Transform(`.spec.components.mcplifecycleoperator.managementState = "Managed"`)),
+				WithCondition(jq.Match(`.spec.components.mcplifecycleoperator.managementState == "Managed"`)),
 			)
 
 			tc.EnsureResourceExists(
@@ -68,17 +68,6 @@ func aiGatewayTestSuite(t *testing.T) {
 				WithMinimalObject(gvk.Deployment, controllerNN),
 				WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
 			)
-
-			tc.EnsureResourceExists(
-				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-				WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeModulesReady, metav1.ConditionTrue)),
-			)
-
-			tc.EnsureResourceExists(
-				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-				WithCondition(jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.AIGatewayKind, metav1.ConditionTrue)),
-				WithCustomErrorMsg("DataScienceCluster should have %sReady condition set to True", componentApi.AIGatewayKind),
-			)
 		}},
 		{"Validate component disabled", func(t *testing.T) {
 			t.Helper()
@@ -86,21 +75,12 @@ func aiGatewayTestSuite(t *testing.T) {
 
 			tc.EventuallyResourcePatched(
 				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-				WithMutateFunc(testf.Transform(`.spec.components.aigateway.managementState = "Removed"`)),
-				WithCondition(jq.Match(`.spec.components.aigateway.managementState == "Removed"`)),
+				WithMutateFunc(testf.Transform(`.spec.components.mcplifecycleoperator.managementState = "Removed"`)),
+				WithCondition(jq.Match(`.spec.components.mcplifecycleoperator.managementState == "Removed"`)),
 			)
 
 			tc.EnsureResourceGone(WithMinimalObject(moduleGVK, moduleCRNN))
 			tc.EnsureResourceGone(WithMinimalObject(gvk.Deployment, controllerNN))
-
-			tc.EnsureResourceExists(
-				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-				WithCondition(And(
-					jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.AIGatewayKind, metav1.ConditionFalse),
-					jq.Match(`.status.conditions[] | select(.type == "%sReady") | .reason == "%s"`, componentApi.AIGatewayKind, status.RemovedReason),
-				)),
-				WithCustomErrorMsg("DataScienceCluster should have %sReady condition set to False/Removed", componentApi.AIGatewayKind),
-			)
 		}},
 	}
 

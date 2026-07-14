@@ -92,7 +92,7 @@ func NewModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 func newDSCModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	b := reconciler.ReconcilerFor(mgr, &dscv2.DataScienceCluster{}).
 		WithInstanceName("modules").
-		WithDynamicOwnership().
+		WithDynamicOwnership(reconciler.WithGVKPredicates(moduleStatusPredicates())).
 		WithoutConditionCleanup().
 		WithoutStatusConditionsIf(cr.HasEntries).
 		Watches(
@@ -132,16 +132,35 @@ func newDSCModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 func newPlatformModuleReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	b := reconciler.ReconcilerFor(mgr, &configv1alpha1.Platform{}).
 		WithInstanceName("modules").
-		WithDynamicOwnership().
+		WithDynamicOwnership(reconciler.WithGVKPredicates(moduleStatusPredicates())).
 		WithoutConditionCleanup().
 		WithoutStatusConditionsIf(cr.HasEntries).
 		WithAction(enableModulesFromPlatform)
+
+	reg := DefaultRegistry()
+	if reg.HasEntries() {
+		if err := reg.ForAll(func(h ModuleHandler, _ bool) error {
+			b = b.WatchesGVK(h.GetGVK(),
+				reconciler.Dynamic(reconciler.CrdExists(h.GetGVK())),
+				reconciler.WithEventMapper(
+					func(ctx context.Context, _ client.Object) []reconcile.Request {
+						return cluster.WatchPlatforms(ctx, mgr.GetClient())
+					}),
+				reconciler.WithPredicates(predicates.DefaultPredicate))
+			return nil
+		}); err != nil {
+			return fmt.Errorf("failed to register module GVK watches: %w", err)
+		}
+	}
 
 	for _, a := range commonActions() {
 		b = b.WithAction(a)
 	}
 
-	rec, err := b.WithConditions(status.ConditionTypeModulesReady).Build(ctx)
+	rec, err := b.WithConditions(
+		status.ConditionTypeModulesReady,
+		status.ConditionTypeProvisioningProgress,
+	).Build(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create module reconciler (platform mode): %w", err)
 	}

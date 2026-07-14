@@ -89,6 +89,9 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 						},
 					},
 				},
+				MCPLifecycleOperator: componentApi.DSCMCPLifecycleOperator{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
+				},
 			},
 		},
 	}
