@@ -314,14 +314,6 @@ func deployOpenTelemetryCollector(ctx context.Context, rr *odhtypes.Reconciliati
 		})
 	}
 
-	// Collector RBAC for MLflow trace ingestion (only when tracing is enabled)
-	if monitoring.Spec.Traces != nil {
-		template = append(template, odhtypes.TemplateInfo{
-			FS:   resourcesFS,
-			Path: CollectorMLflowRBACTemplate,
-		})
-	}
-
 	rr.Templates = append(rr.Templates, template...)
 
 	return nil
