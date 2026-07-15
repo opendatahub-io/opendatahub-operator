@@ -304,6 +304,14 @@ func deployOpenTelemetryCollector(ctx context.Context, rr *odhtypes.Reconciliati
 			FS:   resourcesFS,
 			Path: CollectorServiceMonitorsTemplate,
 		},
+		// RoleBinding allowing Prometheus to discover/scrape the
+		// opendatahub-operator-metrics ServiceMonitor's target in the operator
+		// namespace (CollectorServiceMonitorsTemplate creates that ServiceMonitor
+		// unconditionally, so this must be deployed unconditionally too).
+		{
+			FS:   resourcesFS,
+			Path: OperatorMetricsPrometheusRBACTemplate,
+		},
 	}
 
 	// Prometheus Service with TLS (only when metrics collection is enabled)

@@ -180,8 +180,10 @@ IMAGE_BUILD_FLAGS += --build-arg CGO_ENABLED=$(CGO_ENABLED)
 IMAGE_BUILD_FLAGS += --platform $(PLATFORM)
 
 # Prometheus-Unit Tests Parameters
-# Covers both per-component rules (internal/controller/components/**) and
-# cross-cutting/service-level rules (internal/controller/services/monitoring/**).
+# I widened this from internal/controller/components to internal/controller
+# because the service-level rules I added under
+# internal/controller/services/monitoring weren't being picked up by
+# make test-alerts / make validate-prometheus-rules otherwise.
 PROMETHEUS_RULES_DIR = ./internal/controller
 PROMETHEUS_RULE_TEMPLATES = $(shell find $(PROMETHEUS_RULES_DIR) -name "*-prometheusrules.tmpl.yaml" 2>/dev/null)
 PROMETHEUS_ALERT_TESTS = $(shell find $(PROMETHEUS_RULES_DIR) -name "*-alerting.unit-tests.yaml" 2>/dev/null)
