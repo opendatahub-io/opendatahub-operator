@@ -147,25 +147,25 @@ func TestUpdateDSCStatus(t *testing.T) {
 		expectedMsg    string
 	}{
 		{
-			name:           "ready Tenant CR",
+			name:           "ready MaasTenantConfig CR",
 			tenantReady:    ptr(true),
 			expectedStatus: metav1.ConditionTrue,
 			expectedReason: status.ReadyReason,
 			expectedMsg:    "Component is ready",
 		},
 		{
-			name:           "not-ready Tenant CR",
+			name:           "not-ready MaasTenantConfig CR",
 			tenantReady:    ptr(false),
 			expectedStatus: metav1.ConditionFalse,
 			expectedReason: status.NotReadyReason,
 			expectedMsg:    "Component is not ready",
 		},
 		{
-			name:           "missing Tenant CR",
+			name:           "missing MaasTenantConfig CR",
 			tenantReady:    nil,
 			expectedStatus: metav1.ConditionFalse,
 			expectedReason: status.NotReadyReason,
-			expectedMsg:    "Tenant CR not available yet",
+			expectedMsg:    "MaasTenantConfig CR not available yet",
 		},
 	} {
 		t.Run("should handle enabled component with "+tc.name, func(t *testing.T) {
@@ -234,16 +234,16 @@ func TestUpdateDSCStatus(t *testing.T) {
 		})
 	}
 
-	t.Run("should handle Tenant CR with no status conditions", func(t *testing.T) {
+	t.Run("should handle MaasTenantConfig CR with no status conditions", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
 		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
-		cr := &maasv1alpha1.Tenant{}
-		cr.SetName(maasv1alpha1.TenantInstanceName)
+		cr := &maasv1alpha1.MaasTenantConfig{}
+		cr.SetName(maasv1alpha1.MaasTenantConfigInstanceName)
 		cr.SetNamespace(MaaSSubscriptionNamespace)
 		cr.APIVersion = maasv1alpha1.GroupVersion.String()
-		cr.Kind = maasv1alpha1.TenantKind
+		cr.Kind = maasv1alpha1.MaasTenantConfigKind
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(testDSCI(), dsc, cr))
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -260,25 +260,25 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, status.NotReadyReason),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "Tenant CR exists but has no ready condition yet"`, ReadyConditionType),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "MaasTenantConfig CR exists but has no ready condition yet"`, ReadyConditionType),
 		)))
 	})
 
-	t.Run("should report CRD not installed when Tenant CRD is missing", func(t *testing.T) {
+	t.Run("should report CRD not installed when MaasTenantConfig CRD is missing", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
 		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
 
 		noMatchErr := &apimeta.NoResourceMatchError{PartialResource: schema.GroupVersionResource{
-			Group: "maas.opendatahub.io", Version: "v1alpha1", Resource: "tenants",
+			Group: "maas.opendatahub.io", Version: "v1alpha1", Resource: "maastenantconfigs",
 		}}
 
 		cli, err := fakeclient.New(
 			fakeclient.WithObjects(testDSCI(), dsc),
 			fakeclient.WithInterceptorFuncs(interceptor.Funcs{
 				Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
-					if _, ok := obj.(*maasv1alpha1.Tenant); ok {
+					if _, ok := obj.(*maasv1alpha1.MaasTenantConfig); ok {
 						return noMatchErr
 					}
 					return c.Get(ctx, key, obj, opts...)
@@ -299,7 +299,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, status.NotReadyReason),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "Tenant CRD not installed"`, ReadyConditionType),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "MaasTenantConfig CRD not installed"`, ReadyConditionType),
 		)))
 	})
 
@@ -313,7 +313,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 			fakeclient.WithObjects(testDSCI(), dsc),
 			fakeclient.WithInterceptorFuncs(interceptor.Funcs{
 				Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
-					if _, ok := obj.(*maasv1alpha1.Tenant); ok {
+					if _, ok := obj.(*maasv1alpha1.MaasTenantConfig); ok {
 						return errors.New("simulated API server error")
 					}
 					return c.Get(ctx, key, obj, opts...)
@@ -329,7 +329,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		})
 
 		g.Expect(err).Should(HaveOccurred())
-		g.Expect(err.Error()).Should(ContainSubstring("failed to get Tenant"))
+		g.Expect(err.Error()).Should(ContainSubstring("failed to get MaasTenantConfig"))
 	})
 }
 
@@ -650,12 +650,12 @@ func createDSCWithKServeAndMaaS(kserveState, maasState operatorv1.ManagementStat
 	return &dsc
 }
 
-func createTenantCR(ready bool) *maasv1alpha1.Tenant {
-	c := &maasv1alpha1.Tenant{}
-	c.SetName(maasv1alpha1.TenantInstanceName)
+func createTenantCR(ready bool) *maasv1alpha1.MaasTenantConfig {
+	c := &maasv1alpha1.MaasTenantConfig{}
+	c.SetName(maasv1alpha1.MaasTenantConfigInstanceName)
 	c.SetNamespace(MaaSSubscriptionNamespace)
 	c.APIVersion = maasv1alpha1.GroupVersion.String()
-	c.Kind = maasv1alpha1.TenantKind
+	c.Kind = maasv1alpha1.MaasTenantConfigKind
 	now := metav1.Now()
 	if ready {
 		c.Status.Conditions = []metav1.Condition{{

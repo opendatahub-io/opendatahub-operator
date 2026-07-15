@@ -71,7 +71,7 @@ func (s *componentHandler) Init(_ common.Platform, cfg operatorconfig.OperatorSe
 // The ModelsAsService component reconciler applies maas-controller install manifests
 // with controller ownership on that CR. The DataScienceCluster reconciler only ensures
 // this CR exists when MaaS is enabled; it does not apply the install bundle. maas-controller
-// continues to own Tenant CR lifecycle; UpdateDSCStatus only reads Tenant status.
+// continues to own MaasTenantConfig CR lifecycle; UpdateDSCStatus only reads MaasTenantConfig status.
 func (s *componentHandler) NewCRObject(_ context.Context, _ client.Client, dsc *dscv2.DataScienceCluster) (common.PlatformObject, error) {
 	if !s.IsEnabled(dsc) {
 		return nil, nil
@@ -103,7 +103,7 @@ func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
 	return dsc.Spec.Components.Kserve.ModelsAsService.ManagementState == operatorv1.Managed
 }
 
-// UpdateDSCStatus updates the ModelsAsService component status in the DataScienceCluster from Tenant.
+// UpdateDSCStatus updates the ModelsAsService component status in the DataScienceCluster from MaasTenantConfig.
 func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
 	cs := metav1.ConditionUnknown
 
@@ -130,8 +130,8 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 
 	checkMaaSPrerequisites(ctx, rr)
 
-	t := maasv1alpha1.Tenant{}
-	t.Name = maasv1alpha1.TenantInstanceName
+	t := maasv1alpha1.MaasTenantConfig{}
+	t.Name = maasv1alpha1.MaasTenantConfigInstanceName
 	t.Namespace = MaaSSubscriptionNamespace
 
 	if err := rr.Client.Get(ctx, client.ObjectKeyFromObject(&t), &t); err != nil {
@@ -140,18 +140,18 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 			rr.Conditions.MarkFalse(
 				ReadyConditionType,
 				conditions.WithReason(status.NotReadyReason),
-				conditions.WithMessage("Tenant CR not available yet"),
+				conditions.WithMessage("MaasTenantConfig CR not available yet"),
 			)
 			return metav1.ConditionFalse, nil
 		case apimeta.IsNoMatchError(err):
 			rr.Conditions.MarkFalse(
 				ReadyConditionType,
 				conditions.WithReason(status.NotReadyReason),
-				conditions.WithMessage("Tenant CRD not installed"),
+				conditions.WithMessage("MaasTenantConfig CRD not installed"),
 			)
 			return metav1.ConditionFalse, nil
 		default:
-			return cs, fmt.Errorf("failed to get Tenant %s/%s: %w", t.Namespace, t.Name, err)
+			return cs, fmt.Errorf("failed to get MaasTenantConfig %s/%s: %w", t.Namespace, t.Name, err)
 		}
 	}
 
@@ -171,7 +171,7 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		rr.Conditions.MarkFalse(
 			ReadyConditionType,
 			conditions.WithReason(status.NotReadyReason),
-			conditions.WithMessage("Tenant CR exists but has no ready condition yet"),
+			conditions.WithMessage("MaasTenantConfig CR exists but has no ready condition yet"),
 		)
 		cs = metav1.ConditionFalse
 	}
