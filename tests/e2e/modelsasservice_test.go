@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelsasservice"
+	aigateway "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -30,9 +30,9 @@ const (
 	// This must match the JSON tag in AIGatewayCommonSpec.ModelsAsAService.
 	modelsAsServiceFieldName = "modelsAsAService"
 
-	// Gateway constants from modelsasservice package.
-	maasGatewayNamespace = modelsasservice.DefaultGatewayNamespace
-	maasGatewayName      = modelsasservice.DefaultGatewayName
+	// Gateway constants from aigateway module package.
+	maasGatewayNamespace = aigateway.MaaSGatewayNamespace
+	maasGatewayName      = aigateway.MaaSGatewayName
 
 	// Gateway class for OpenShift default ingress controller.
 	// Reference: https://github.com/opendatahub-io/models-as-a-service/blob/main/deployment/base/networking/maas/maas-gateway-api.yaml
@@ -279,7 +279,7 @@ func (tc *ModelsAsServiceTestCtx) createMaaSGateway(t *testing.T) {
 
 const (
 	tenantName           = "default-tenant"
-	tenantSubscriptionNS = modelsasservice.MaaSSubscriptionNamespace
+	tenantSubscriptionNS = aigateway.MaaSSubscriptionNamespace
 	tenantCRDName        = "maastenantconfigs.maas.opendatahub.io"
 )
 
@@ -370,39 +370,6 @@ func (tc *ModelsAsServiceTestCtx) ValidatePayloadProcessingNetworkPolicy(t *test
 	)
 }
 
-<<<<<<< HEAD
-// ValidateTenantDeletedOnDisable verifies that the MaasTenantConfig CR is deleted when MaaS is set to
-// Removed and that the maas-controller Deployment is eventually removed from the application
-// namespace. Teardown is driven by the ModelsAsService component reconciler (GC of owned objects)
-// and maas-controller LifecycleReconciler (CleanupFinalizer on the Deployment).
-// This test is the last case in the suite; cleanup_test.go handles DSC deletion and does not
-// require MaaS to be re-enabled first.
-func (tc *ModelsAsServiceTestCtx) ValidateTenantDeletedOnDisable(t *testing.T) {
-	t.Helper()
-	skipUnless(t, Smoke, Tier1)
-
-	t.Logf("Verifying MaasTenantConfig %s/%s is present before disable", tenantSubscriptionNS, tenantName)
-
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.MaasTenantConfig, types.NamespacedName{
-			Name:      tenantName,
-			Namespace: tenantSubscriptionNS,
-		}),
-		WithCustomErrorMsg("MaasTenantConfig should exist before disabling MaaS"),
-	)
-
-	t.Log("Disabling MaaS subcomponent (setting to Removed)")
-	tc.UpdateSubComponentStateInDataScienceCluster(t, operatorv1.Removed)
-
-	t.Logf("Waiting for MaasTenantConfig %s/%s to be deleted", tenantSubscriptionNS, tenantName)
-	tc.EnsureResourcesGone(
-		WithMinimalObject(gvk.MaasTenantConfig, types.NamespacedName{
-			Name:      tenantName,
-			Namespace: tenantSubscriptionNS,
-		}),
-		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
-		WithCustomErrorMsg("MaasTenantConfig should be deleted when MaaS is disabled"),
-=======
 // ValidateMaaSDeploymentRemovedOnDisable verifies that the maas-controller Deployment is
 // removed when modelsAsAService is set to Removed.
 //
@@ -419,13 +386,12 @@ func (tc *ModelsAsServiceTestCtx) ValidateMaaSDeploymentRemovedOnDisable(t *test
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.aigateway.modelsAsAService.managementState = "Removed"`)),
 		WithCondition(jq.Match(`.spec.components.aigateway.modelsAsAService.managementState == "Removed"`)),
->>>>>>> 7fe472547 (test: add AIGateway module E2E tests and fix MaaS tests for new architecture)
 	)
 
 	t.Logf("Waiting until maas-controller Deployment is removed from %s", tc.AppsNamespace)
 	tc.EnsureResourceGone(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{
-			Name:      modelsasservice.MaasControllerDeploymentName,
+			Name:      aigateway.MaaSControllerDeploymentName,
 			Namespace: tc.AppsNamespace,
 		}),
 		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
