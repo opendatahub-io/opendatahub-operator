@@ -452,6 +452,61 @@ func TestConvertRoundTrip_BatchGatewayPreserved(t *testing.T) {
 	g.Expect(v2Restored.GetAnnotations()).NotTo(HaveKey("conversion.opendatahub.io/aigateway-state"))
 }
 
+// TestConvertRoundTrip_MaaSUpgradeFrom34 verifies the full 3.4→3.5 upgrade round-trip
+// via the v1 API: a v2 DSC stored with kserve.modelsAsService=Managed (3.4 state, no
+// aigateway) round-trips through v1 and back to v2 with aigateway correctly populated.
+//
+// This covers the scenario where a v1 API client (e.g. GitOps tool) interacts with the
+// cluster after upgrade — ConvertFrom must reflect the correct state in v1 so that the
+// client's subsequent write (ConvertTo) migrates MaaS to the aigateway field.
+func TestConvertRoundTrip_MaaSUpgradeFrom34(t *testing.T) {
+	g := NewWithT(t)
+
+	// 3.4 cluster state stored in v2: kserve.modelsAsService=Managed, aigateway not set.
+	v2Original := &dscv2.DataScienceCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-dsc"},
+		Spec: dscv2.DataScienceClusterSpec{
+			Components: dscv2.Components{
+				Kserve: componentApi.DSCKserve{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+					KserveCommonSpec: componentApi.KserveCommonSpec{
+						ModelsAsService: componentApi.DSCModelsAsServiceSpec{ //nolint:staticcheck
+							ManagementState: operatorv1.Managed,
+						},
+					},
+				},
+				// AIGateway not set — 3.4 cluster has no aigateway config
+			},
+		},
+	}
+
+	// Step 1: v2(stored) → v1 via ConvertFrom (simulates a v1 GET after upgrade)
+	v1DSC := &DataScienceCluster{}
+	g.Expect(v1DSC.ConvertFrom(v2Original)).To(Succeed())
+
+	// v1 must reflect kserve.modelsAsService=Managed so that:
+	// (a) the v1 client sees the correct state, and
+	// (b) the CEL oldSelf check has the key present on the next v1 write.
+	g.Expect(v1DSC.Spec.Components.Kserve.ModelsAsService.ManagementState). //nolint:staticcheck
+										To(Equal(operatorv1.Managed))
+
+	// Step 2: v1 → v2 via ConvertTo (simulates the v1 client writing back)
+	v2Migrated := &dscv2.DataScienceCluster{}
+	g.Expect(v1DSC.ConvertTo(v2Migrated)).To(Succeed())
+
+	// aigateway must be enabled and modelsAsAService=Managed after migration.
+	g.Expect(v2Migrated.Spec.Components.AIGateway.ManagementState).To(Equal(operatorv1.Managed))
+	g.Expect(v2Migrated.Spec.Components.AIGateway.ModelsAsAService.ManagementState).To(Equal(operatorv1.Managed))
+
+	// kserve.modelsAsService is preserved (not cleared) — clearing it would conflict
+	// with the CEL one-directional rule on the next v2 admission check.
+	g.Expect(v2Migrated.Spec.Components.Kserve.ModelsAsService.ManagementState). //nolint:staticcheck
+										To(Equal(operatorv1.Managed))
+
+	// No stash annotation must leak onto the migrated v2 object.
+	g.Expect(v2Migrated.GetAnnotations()).NotTo(HaveKey("conversion.opendatahub.io/aigateway-state"))
+}
+
 // TestConvertTo_CorruptStashAnnotationDoesNotLeak verifies that a corrupt stash
 // annotation is always removed from the v2 object even when unmarshal fails.
 func TestConvertTo_CorruptStashAnnotationDoesNotLeak(t *testing.T) {
