@@ -57,12 +57,12 @@ metadata:
   namespace: {{.Namespace}}
 spec:
   endpoints:
-    # The controller-manager-metrics-service port is named "https" for historical
-    # reasons (leftover from a kube-rbac-proxy sidecar that no longer exists), but
-    # the operator serves metrics over plain HTTP (--metrics-bind-address, no TLS
-    # flags in config/default/manager_auth_proxy_patch.yaml and its variants).
-    # Using scheme: https here causes scrapes to fail with
-    # "server gave HTTP response to HTTPS client".
+    # I found that this port is still called "https" from back when there was a
+    # kube-rbac-proxy sidecar in front of it, but that's gone now and the operator
+    # just serves metrics over plain HTTP (no TLS flags anywhere in
+    # config/default/manager_auth_proxy_patch.yaml). I was scraping this with
+    # scheme: https before and kept getting "server gave HTTP response to HTTPS
+    # client" errors, so I switched it to http and the target came up fine.
     - port: https
       scheme: http
   namespaceSelector:
