@@ -143,7 +143,11 @@ func TestIsEnabled_LegacyKserveModelsAsService_Managed(t *testing.T) {
 			Spec: dscv2.DataScienceClusterSpec{
 				Components: dscv2.Components{
 					// aigateway.managementState intentionally empty (not yet migrated)
+					// In 3.4, kserve.managementState was always Managed when modelsAsService was Managed.
 					Kserve: componentApi.DSCKserve{
+						ManagementSpec: common.ManagementSpec{
+							ManagementState: operatorv1.Managed,
+						},
 						KserveCommonSpec: componentApi.KserveCommonSpec{
 							ModelsAsService: componentApi.DSCModelsAsServiceSpec{
 								ManagementState: operatorv1.Managed,
@@ -194,7 +198,11 @@ func TestBuildModuleCR_LegacyKserveModelsAsService_PopulatesModelsAsAService(t *
 		DSC: &dscv2.DataScienceCluster{
 			Spec: dscv2.DataScienceClusterSpec{
 				Components: dscv2.Components{
+					// In 3.4, kserve.managementState was always Managed when modelsAsService was Managed.
 					Kserve: componentApi.DSCKserve{
+						ManagementSpec: common.ManagementSpec{
+							ManagementState: operatorv1.Managed,
+						},
 						KserveCommonSpec: componentApi.KserveCommonSpec{
 							ModelsAsService: componentApi.DSCModelsAsServiceSpec{
 								ManagementState: operatorv1.Managed,

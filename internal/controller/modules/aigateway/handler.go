@@ -59,7 +59,7 @@ var (
 		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_PROCESSOR_IMAGE",
 		"RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_GC_IMAGE",
 		"RELATED_IMAGE_ODH_LLM_D_ASYNC_IMAGE",
-		// MaaS images — registered in ODH-Build-Config bundle-patch.yaml
+		// MaaS images
 		"RELATED_IMAGE_ODH_MAAS_CONTROLLER_IMAGE",
 		"RELATED_IMAGE_ODH_MAAS_API_IMAGE",
 		"RELATED_IMAGE_ODH_AI_GATEWAY_PAYLOAD_PROCESSING_IMAGE",
@@ -103,8 +103,9 @@ func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 		}
 		// Deprecated: respect kserve.modelsAsService for 3.4→3.5 upgrade compatibility.
 		// Users who have not yet migrated their DSC will still get MaaS deployed.
-		// TODO(3.7): remove this fallback when kserve.modelsAsService is removed.
-		return dsc.Kserve.ModelsAsService.ManagementState == operatorv1.Managed //nolint:staticcheck
+		// TODO: remove this fallback when kserve.modelsAsService is removed from the CRD schema.
+		return dsc.Kserve.ManagementState == operatorv1.Managed && //nolint:staticcheck
+			dsc.Kserve.ModelsAsService.ManagementState == operatorv1.Managed //nolint:staticcheck
 	}
 	// xkS
 	if platform.Platform != nil {
@@ -135,8 +136,9 @@ func (h *handler) BuildModuleCR(
 
 		// Deprecated: if modelsAsAService is not set but kserve.modelsAsService is,
 		// populate modelsAsAService so AGO knows to deploy MaaS.
-		// TODO(3.7): remove this fallback when kserve.modelsAsService is removed.
-		if commonSpec.ModelsAsAService.ManagementState == "" {
+		// TODO: remove this fallback when kserve.modelsAsService is removed from the CRD schema.
+		if commonSpec.ModelsAsAService.ManagementState == "" &&
+			dscComponents.Kserve.ManagementState == operatorv1.Managed { //nolint:staticcheck
 			commonSpec.ModelsAsAService.ManagementState = dscComponents.Kserve.ModelsAsService.ManagementState //nolint:staticcheck
 		}
 

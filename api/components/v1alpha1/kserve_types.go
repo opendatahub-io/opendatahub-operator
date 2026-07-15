@@ -78,7 +78,7 @@ type KserveCommonSpec struct {
 	// Configures and enables NVIDIA NIM integration
 	// +kubebuilder:default={}
 	NIM NimSpec `json:"nim,omitempty"`
-	// Deprecated: ModelsAsService is preserved for backward compatibility through 3.6.
+	// Deprecated: ModelsAsService is preserved for backward compatibility at least through 3.6.
 	// MaaS is now configured via spec.components.aigateway.modelsAsAService.
 	// Existing Managed values are still respected by the operator.
 	// One-directional CEL: Managed→Removed (cleanup) is allowed; Removed→Managed is blocked.

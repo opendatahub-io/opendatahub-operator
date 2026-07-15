@@ -4,9 +4,9 @@
 
 In OpenShift AI 3.5, Models as a Service (MaaS) configuration has moved from `kserve.modelsAsService` to `aigateway.modelsAsAService`.
 
-✅ **No immediate action required** — existing `kserve.modelsAsService` configurations continue to work through 3.6.
+✅ **No immediate action required** — existing `kserve.modelsAsService` configurations continue to work at least through 3.6.
 
-The operator respects `kserve.modelsAsService` for backward compatibility through 3.6. Migrate to `aigateway.modelsAsAService` before upgrading to 3.7.
+The operator respects `kserve.modelsAsService` for backward compatibility at least through 3.6.
 
 ## Configuration Change
 
@@ -46,7 +46,7 @@ If your cluster stores a v2 DSC with `kserve.modelsAsService: Managed` (the 3.4 
 If a client submits `apiVersion: v1` with `kserve.modelsAsService: Managed`:
 
 1. **Conversion webhook** migrates `kserve.modelsAsService` → `aigateway.modelsAsAService` in the stored v2
-2. **Old field is preserved** — CEL allows clearing to `Removed` after migration, but blocks re-enabling (`Removed→Managed`). Pruned automatically in 3.7
+2. **Old field is preserved** — CEL allows clearing to `Removed` after migration, but blocks re-enabling (`Removed→Managed`)
 3. **`oc`/`kubectl` Warning** is emitted
 4. **ai-gateway-operator** takes over MaaS deployment
 
@@ -54,7 +54,7 @@ If a client submits `apiVersion: v1` with `kserve.modelsAsService: Managed`:
 
 ### Standard users (kubectl / oc)
 
-No action needed on upgrade — MaaS continues to deploy. Migrate at your own pace before 3.7.
+No action needed on upgrade — MaaS continues to deploy.
 
 When ready, apply the following **v2 API** patch to move to the new field and clear the old one:
 
