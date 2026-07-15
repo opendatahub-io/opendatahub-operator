@@ -412,7 +412,7 @@ var (
 	Tenant = schema.GroupVersionKind{
 		Group:   "maas.opendatahub.io",
 		Version: "v1alpha1",
-		Kind:    "Tenant",
+		Kind:    "MaasTenantConfig",
 	}
 
 	// MaasConfig is the cluster-scoped MaaS anchor CR (maas.opendatahub.io/v1alpha1, Kind=Config).

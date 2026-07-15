@@ -263,7 +263,7 @@ func (tc *ModelsAsServiceTestCtx) createMaaSGateway(t *testing.T) {
 const (
 	tenantName           = "default-tenant"
 	tenantSubscriptionNS = modelsasservice.MaaSSubscriptionNamespace
-	tenantCRDName        = "tenants.maas.opendatahub.io"
+	tenantCRDName        = "maastenantconfigs.maas.opendatahub.io"
 )
 
 // ValidateTenantInSubscriptionNamespace verifies that the maas-controller self-bootstrapped
