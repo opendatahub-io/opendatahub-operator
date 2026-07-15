@@ -26,7 +26,6 @@ Package v1 contains API Schema definitions for the components v1 API group
 - [ModelController](#modelcontroller)
 - [ModelRegistry](#modelregistry)
 - [ModelsAsService](#modelsasservice)
-- [OGX](#ogx)
 - [Ray](#ray)
 - [SparkOperator](#sparkoperator)
 - [Trainer](#trainer)
@@ -529,7 +528,7 @@ _Appears in:_
 
 
 
-DSCOGX contains all the configuration exposed in DSC instance for OGX component
+
 
 
 
@@ -545,7 +544,7 @@ _Appears in:_
 
 
 
-DSCOGXStatus struct holds the status for the OGX component exposed in the DSC
+
 
 
 
@@ -1787,27 +1786,6 @@ _Appears in:_
 
 
 
-#### OGX
-
-
-
-OGX is the Schema for the OGX API
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `OGX` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[OGXSpec](#ogxspec)_ |  |  |  |
-| `status` _[OGXStatus](#ogxstatus)_ |  |  |  |
-
-
 #### OGXCommonSpec
 
 
@@ -1818,7 +1796,6 @@ OGX is the Schema for the OGX API
 
 _Appears in:_
 - [DSCOGX](#dscogx)
-- [OGXSpec](#ogxspec)
 
 
 
@@ -1826,49 +1803,13 @@ _Appears in:_
 
 
 
-OGXCommonStatus defines the shared observed state of OGX
+
 
 
 
 _Appears in:_
 - [DSCOGXStatus](#dscogxstatus)
-- [OGXStatus](#ogxstatus)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
-
-
-#### OGXSpec
-
-
-
-OGXSpec defines the desired state of OGX
-
-
-
-_Appears in:_
-- [OGX](#ogx)
-
-
-
-#### OGXStatus
-
-
-
-OGXStatus defines the observed state of OGX
-
-
-
-_Appears in:_
-- [OGX](#ogx)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### RawServiceConfig
@@ -2538,6 +2479,7 @@ _Appears in:_
 | `mcplifecycleoperator` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | MCPLifecycleOperator controls the MCP Lifecycle Operator module lifecycle. |  |  |
 | `kserve` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Kserve controls the kserve module operator lifecycle. |  |  |
 | `workbenches` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | Workbenches controls the workbenches module operator lifecycle. |  |  |
+| `ogx` _[ManagementSpec](https://pkg.go.dev/github.com/opendatahub-io/opendatahub-operator/v2/api/common#ManagementSpec)_ | OGX controls the OGX module operator lifecycle. |  |  |
 
 
 #### PlatformSpec
