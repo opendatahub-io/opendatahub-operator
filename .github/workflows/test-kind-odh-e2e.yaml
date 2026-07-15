@@ -40,6 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: read
     env:
       KIND_CLUSTER_NAME: kind-odh-e2e-tests-${{ github.run_id }}
     steps:
@@ -73,17 +74,36 @@ jobs:
           echo "::error::xKS e2e tests required. A maintainer must add the 'run-xks-e2e' label after reviewing the code."
           exit 1
 
+      - name: Check for a prior successful run
+        id: prior-run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          PRIOR_SUCCESS_COUNT=$(gh api "repos/${{ github.repository }}/actions/workflows/test-kind-odh-e2e.yaml/runs?head_sha=${HEAD_SHA}&status=success" \
+            --jq "[.workflow_runs[] | select(.id != ${{ github.run_id }})] | length")
+          if [[ "$PRIOR_SUCCESS_COUNT" -gt 0 ]]; then
+            echo "A run for commit $HEAD_SHA already succeeded. Skipping this rerun, there's no code change to test."
+            echo "already_passed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "already_passed=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout code
+        if: steps.prior-run.outputs.already_passed != 'true'
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           ref: ${{ needs.get-merge-commit.outputs.mergedSha }}
+          persist-credentials: false
 
       - name: Set up Go
+        if: steps.prior-run.outputs.already_passed != 'true'
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
           go-version-file: go.mod
 
       - name: Create KinD Cluster
+        if: steps.prior-run.outputs.already_passed != 'true'
         uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
         with:
           cluster_name: ${{ env.KIND_CLUSTER_NAME }}
@@ -91,7 +111,7 @@ jobs:
           config: config/kind/kind-config.yaml
 
       - name: Configure Pull Secrets for operator dependencies in the KinD Cluster
-        if: env.PULL_SECRET != ''
+        if: env.PULL_SECRET != '' && steps.prior-run.outputs.already_passed != 'true'
         run: |
           pull_secret_file="$RUNNER_TEMP/pull-secret.json"
           echo "$PULL_SECRET" > "$pull_secret_file"
@@ -101,16 +121,20 @@ jobs:
           PULL_SECRET: ${{ secrets.CCM_PULL_SECRET }}
 
       - name: Build ODH Operator and Cloud Manager Images
+        if: steps.prior-run.outputs.already_passed != 'true'
         run: make image-build
 
       - name: Load Images into the KinD Cluster
+        if: steps.prior-run.outputs.already_passed != 'true'
         run: make image-kind-load
 
       - name: Create ODH Operator Namespace
+        if: steps.prior-run.outputs.already_passed != 'true'
         run: |
           kubectl create namespace opendatahub-operator-system
 
       - name: Deploy Cloud Manager
+        if: steps.prior-run.outputs.already_passed != 'true'
         timeout-minutes: 15
         run: |
           make deploy-ccm-local-azure
@@ -119,6 +143,7 @@ jobs:
           echo "✅ Cloud Manager is Ready!"
 
       - name: Deploy AzureKubernetesEngine CR
+        if: steps.prior-run.outputs.already_passed != 'true'
         timeout-minutes: 15
         run: |
           kubectl apply -f config/cloudmanager/azure/samples/azurekubernetesengine_v1alpha1.yaml
@@ -127,6 +152,7 @@ jobs:
           echo "✅ AzureKubernetesEngine CR is Ready!"
 
       - name: Deploy ODH Operator
+        if: steps.prior-run.outputs.already_passed != 'true'
         timeout-minutes: 15
         run: |
           make deploy-rhaii-local
@@ -135,6 +161,7 @@ jobs:
           echo "✅ ODH is Ready!"
 
       - name: Run E2E Tests
+        if: steps.prior-run.outputs.already_passed != 'true'
         run: make e2e-test-xks
 
       - name: Collect Cloud Manager logs on failure
