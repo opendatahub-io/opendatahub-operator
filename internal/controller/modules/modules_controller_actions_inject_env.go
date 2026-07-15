@@ -16,6 +16,7 @@ import (
 const (
 	applicationsNamespaceEnv = "APPLICATIONS_NAMESPACE"
 	monitoringNamespaceEnv   = "MONITORING_NAMESPACE"
+	platformTypeEnv          = "ODH_MODULE_OPERATOR_PLATFORM_TYPE"
 )
 
 // injectModuleEnv is a pipeline action that runs after Helm/Kustomize rendering
@@ -135,6 +136,12 @@ func injectEnvVarsIntoDeployment(log logr.Logger, obj *unstructured.Unstructured
 
 		if injection.MonitoringNamespace != "" {
 			if setOrOverrideEnv(&existingEnv, monitoringNamespaceEnv, injection.MonitoringNamespace) {
+				injected++
+			}
+		}
+
+		if injection.PlatformType != "" {
+			if setOrOverrideEnv(&existingEnv, platformTypeEnv, injection.PlatformType) {
 				injected++
 			}
 		}

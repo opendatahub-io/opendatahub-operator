@@ -417,6 +417,54 @@ func TestInjectModuleEnvEmptyMonitoringNamespace(t *testing.T) {
 	g.Expect(envNames(env)).ShouldNot(ContainElement(monitoringNamespaceEnv))
 }
 
+func TestInjectModuleEnvPlatformType(t *testing.T) {
+	g := NewWithT(t)
+
+	dep := makeDeployment("my-operator")
+
+	rr := &odhtype.ReconciliationRequest{
+		Resources: []unstructured.Unstructured{dep},
+		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
+			PerModuleImages: []odhtype.ModuleImages{{
+				DeploymentName: "my-operator",
+			}},
+			ApplicationsNamespace: "opendatahub",
+			PlatformType:          "XKS",
+		},
+	}
+
+	err := injectModuleEnv(context.Background(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	env := getContainerEnv(&rr.Resources[0])
+	g.Expect(envNames(env)).Should(ContainElement(platformTypeEnv))
+	g.Expect(envValue(env, platformTypeEnv)).Should(Equal("XKS"))
+}
+
+func TestInjectModuleEnvEmptyPlatformType(t *testing.T) {
+	g := NewWithT(t)
+
+	dep := makeDeployment("my-operator")
+
+	rr := &odhtype.ReconciliationRequest{
+		Resources: []unstructured.Unstructured{dep},
+		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
+			PerModuleImages: []odhtype.ModuleImages{{
+				DeploymentName: "my-operator",
+			}},
+			ApplicationsNamespace: "opendatahub",
+			PlatformType:          "",
+		},
+	}
+
+	err := injectModuleEnv(context.Background(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	env := getContainerEnv(&rr.Resources[0])
+	g.Expect(envNames(env)).Should(ConsistOf(applicationsNamespaceEnv))
+	g.Expect(envNames(env)).ShouldNot(ContainElement(platformTypeEnv))
+}
+
 func TestInjectControllerImage(t *testing.T) {
 	g := NewWithT(t)
 
