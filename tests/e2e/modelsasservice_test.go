@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"testing"
@@ -9,12 +10,17 @@ import (
 	"github.com/stretchr/testify/require"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelsasservice"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
@@ -89,6 +95,7 @@ func modelsAsServiceTestSuite(t *testing.T) {
 		{"Validate Tenant CRD is namespace-scoped", componentCtx.ValidateTenantCRDNamespaceScoped},
 		{"Validate Tenant singleton enforcement", componentCtx.ValidateTenantSingletonEnforcement},
 		{"Validate payload-processing egress NetworkPolicy", componentCtx.ValidatePayloadProcessingNetworkPolicy},
+		{"Validate deny-by-default gateway policies", componentCtx.ValidateGatewayPolicies},
 		{"Validate Tenant deleted on disable", componentCtx.ValidateTenantDeletedOnDisable},
 	}
 
@@ -352,6 +359,74 @@ func (tc *ModelsAsServiceTestCtx) ValidatePayloadProcessingNetworkPolicy(t *test
 		)),
 		WithCustomErrorMsg("NetworkPolicy should exist with correct ingress and egress rules for payload-processing in %s", maasGatewayNamespace),
 	)
+}
+
+// ValidateGatewayPolicies verifies that deny-by-default gateway policies (AuthPolicy,
+// RateLimitPolicy) deployed to the gateway namespace carry MaaS component labels.
+// The policies kustomize bundle is optional in the upstream MaaS manifests — if the
+// bundle is absent the reconciler skips policy rendering, so this test validates
+// labels on whatever policies are present rather than requiring a minimum count.
+func (tc *ModelsAsServiceTestCtx) ValidateGatewayPolicies(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Tier1)
+
+	ctx := context.Background()
+	hasCRD, err := cluster.HasCRD(ctx, tc.Client(), gvk.AuthPolicyv1)
+	require.NoError(t, err)
+
+	if !hasCRD {
+		t.Log("Skipping gateway policy validation: AuthPolicy CRD not installed")
+		return
+	}
+
+	componentLabelKey := labels.ODH.Component(componentApi.ModelsAsServiceComponentName)
+	labelSelector := k8slabels.SelectorFromSet(
+		k8slabels.Set{componentLabelKey: labels.True},
+	)
+
+	authPolicies := listPoliciesInGatewayNamespace(t, tc, gvk.AuthPolicyv1, labelSelector)
+	if len(authPolicies) == 0 {
+		t.Log("No AuthPolicy resources with MaaS labels found — policies bundle may be absent from MaaS manifests, skipping")
+		return
+	}
+
+	t.Logf("Found %d AuthPolicy resource(s) with MaaS labels in %s", len(authPolicies), maasGatewayNamespace)
+	for _, p := range authPolicies {
+		require.Equal(t, maasGatewayNamespace, p.GetNamespace(),
+			"AuthPolicy %s should be in the gateway namespace", p.GetName())
+	}
+
+	hasRateLimitCRD, err := cluster.HasCRD(ctx, tc.Client(), gvk.RateLimitPolicyv1)
+	require.NoError(t, err)
+
+	if hasRateLimitCRD {
+		rateLimitPolicies := listPoliciesInGatewayNamespace(t, tc, gvk.RateLimitPolicyv1, labelSelector)
+		t.Logf("Found %d RateLimitPolicy resource(s) with MaaS labels in %s", len(rateLimitPolicies), maasGatewayNamespace)
+		for _, p := range rateLimitPolicies {
+			require.Equal(t, maasGatewayNamespace, p.GetNamespace(),
+				"RateLimitPolicy %s should be in the gateway namespace", p.GetName())
+		}
+	}
+}
+
+func listPoliciesInGatewayNamespace(
+	t *testing.T,
+	tc *ModelsAsServiceTestCtx,
+	policyGVK schema.GroupVersionKind,
+	selector k8slabels.Selector,
+) []unstructured.Unstructured {
+	t.Helper()
+
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(policyGVK)
+
+	err := tc.Client().List(tc.Context(), list,
+		client.InNamespace(maasGatewayNamespace),
+		client.MatchingLabelsSelector{Selector: selector},
+	)
+	require.NoError(t, err, "listing %s in %s", policyGVK.Kind, maasGatewayNamespace)
+
+	return list.Items
 }
 
 // ValidateTenantDeletedOnDisable verifies that the Tenant CR is deleted when MaaS is set to

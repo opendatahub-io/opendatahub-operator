@@ -18,7 +18,8 @@ limitations under the License.
 // GVK emitted by the maas-controller install kustomize bundle (see upstream
 // https://github.com/opendatahub-io/models-as-a-service/tree/main/deployment/base/maas-controller/default
 // which pulls in ../crd, ../rbac, ../manager, ../monitoring). CRDs use a separate deploy path
-// and are not listed here. Gateway policy YAMLs under ../policies are not part of default.
+// and are not listed here. Gateway policy YAMLs under ../policies (AuthPolicy, RateLimitPolicy,
+// TelemetryPolicy) are rendered as a separate kustomize bundle and included in the deploy action.
 // Config CR (config-default.yaml) is included in the bundle so the deploy action sets ModelsAsService
 // as controller owner, enabling GC on disable. OwnsGVK for Config is intentionally omitted: the
 // Config CRD is GC'd with the component, and registering a watch for it would cause the operator
@@ -38,6 +39,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
@@ -64,6 +66,11 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// Reserved for future webhooks; not in default bundle today.
 		Owns(&admissionregistrationv1.ValidatingWebhookConfiguration{}).
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(predicates.DefaultDeploymentPredicate)).
+		// Gateway policy resources from base/maas-controller/policies.
+		// These CRDs may not be installed on the cluster, so use Dynamic with CrdExists.
+		OwnsGVK(gvk.AuthPolicyv1, reconciler.Dynamic(reconciler.CrdExists(gvk.AuthPolicyv1))).
+		OwnsGVK(gvk.RateLimitPolicyv1, reconciler.Dynamic(reconciler.CrdExists(gvk.RateLimitPolicyv1))).
+		OwnsGVK(gvk.TelemetryPolicyv1alpha1, reconciler.Dynamic(reconciler.CrdExists(gvk.TelemetryPolicyv1alpha1))).
 		Watches(
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(
