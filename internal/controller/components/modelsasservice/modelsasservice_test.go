@@ -9,9 +9,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/onsi/gomega/types"
-	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -239,11 +239,10 @@ func TestUpdateDSCStatus(t *testing.T) {
 		ctx := t.Context()
 
 		dsc := createDSCWithKServeAndMaaS(operatorv1.Managed, operatorv1.Managed)
-		cr := &maasv1alpha1.MaasTenantConfig{}
-		cr.SetName(maasv1alpha1.MaasTenantConfigInstanceName)
+		cr := &unstructured.Unstructured{}
+		cr.SetGroupVersionKind(gvk.MaasTenantConfig)
+		cr.SetName(MaasTenantConfigInstanceName)
 		cr.SetNamespace(MaaSSubscriptionNamespace)
-		cr.APIVersion = maasv1alpha1.GroupVersion.String()
-		cr.Kind = maasv1alpha1.MaasTenantConfigKind
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(testDSCI(), dsc, cr))
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -278,7 +277,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 			fakeclient.WithObjects(testDSCI(), dsc),
 			fakeclient.WithInterceptorFuncs(interceptor.Funcs{
 				Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
-					if _, ok := obj.(*maasv1alpha1.MaasTenantConfig); ok {
+					if isMaasTenantConfigObj(obj) {
 						return noMatchErr
 					}
 					return c.Get(ctx, key, obj, opts...)
@@ -313,7 +312,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 			fakeclient.WithObjects(testDSCI(), dsc),
 			fakeclient.WithInterceptorFuncs(interceptor.Funcs{
 				Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
-					if _, ok := obj.(*maasv1alpha1.MaasTenantConfig); ok {
+					if isMaasTenantConfigObj(obj) {
 						return errors.New("simulated API server error")
 					}
 					return c.Get(ctx, key, obj, opts...)
@@ -650,30 +649,35 @@ func createDSCWithKServeAndMaaS(kserveState, maasState operatorv1.ManagementStat
 	return &dsc
 }
 
-func createTenantCR(ready bool) *maasv1alpha1.MaasTenantConfig {
-	c := &maasv1alpha1.MaasTenantConfig{}
-	c.SetName(maasv1alpha1.MaasTenantConfigInstanceName)
+func isMaasTenantConfigObj(obj client.Object) bool {
+	u, ok := obj.(*unstructured.Unstructured)
+	return ok && u.GroupVersionKind() == gvk.MaasTenantConfig
+}
+
+func createTenantCR(ready bool) *unstructured.Unstructured {
+	c := &unstructured.Unstructured{}
+	c.SetGroupVersionKind(gvk.MaasTenantConfig)
+	c.SetName(MaasTenantConfigInstanceName)
 	c.SetNamespace(MaaSSubscriptionNamespace)
-	c.APIVersion = maasv1alpha1.GroupVersion.String()
-	c.Kind = maasv1alpha1.MaasTenantConfigKind
-	now := metav1.Now()
+
+	condStatus := string(metav1.ConditionFalse)
+	reason := status.NotReadyReason
+	message := "Component is not ready"
 	if ready {
-		c.Status.Conditions = []metav1.Condition{{
-			Type:               status.ConditionTypeReady,
-			Status:             metav1.ConditionTrue,
-			Reason:             status.ReadyReason,
-			Message:            "Component is ready",
-			LastTransitionTime: now,
-		}}
-	} else {
-		c.Status.Conditions = []metav1.Condition{{
-			Type:               status.ConditionTypeReady,
-			Status:             metav1.ConditionFalse,
-			Reason:             status.NotReadyReason,
-			Message:            "Component is not ready",
-			LastTransitionTime: now,
-		}}
+		condStatus = string(metav1.ConditionTrue)
+		reason = status.ReadyReason
+		message = "Component is ready"
 	}
+
+	_ = unstructured.SetNestedSlice(c.Object, []interface{}{
+		map[string]interface{}{
+			"type":               status.ConditionTypeReady,
+			"status":             condStatus,
+			"reason":             reason,
+			"message":            message,
+			"lastTransitionTime": metav1.Now().UTC().Format(time.RFC3339),
+		},
+	}, "status", "conditions")
 
 	return c
 }

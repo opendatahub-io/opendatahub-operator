@@ -73,6 +73,9 @@ const (
 	// MaasClusterConfigName is the cluster-scoped maas Config singleton name (must match
 	// maas-controller; see models-as-a-service lifecycle).
 	MaasClusterConfigName = "default"
+
+	// MaasTenantConfigInstanceName is the singleton MaasTenantConfig resource name enforced by the API.
+	MaasTenantConfigInstanceName = "default-tenant"
 )
 
 var (
