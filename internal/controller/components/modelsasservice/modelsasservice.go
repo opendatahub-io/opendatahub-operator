@@ -22,9 +22,9 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
-	maasv1alpha1 "github.com/opendatahub-io/models-as-a-service/maas-controller/api/maas/v1alpha1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
@@ -130,11 +130,15 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 
 	checkMaaSPrerequisites(ctx, rr)
 
-	t := maasv1alpha1.MaasTenantConfig{}
-	t.Name = maasv1alpha1.MaasTenantConfigInstanceName
-	t.Namespace = MaaSSubscriptionNamespace
+	// Fetch via unstructured so we do not depend on a maas-controller API bump when Kind is renamed.
+	t := &unstructured.Unstructured{}
+	t.SetGroupVersionKind(gvk.MaasTenantConfig)
+	key := client.ObjectKey{
+		Name:      MaasTenantConfigInstanceName,
+		Namespace: MaaSSubscriptionNamespace,
+	}
 
-	if err := rr.Client.Get(ctx, client.ObjectKeyFromObject(&t), &t); err != nil {
+	if err := rr.Client.Get(ctx, key, t); err != nil {
 		switch {
 		case k8serr.IsNotFound(err):
 			rr.Conditions.MarkFalse(
@@ -151,7 +155,7 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 			)
 			return metav1.ConditionFalse, nil
 		default:
-			return cs, fmt.Errorf("failed to get MaasTenantConfig %s/%s: %w", t.Namespace, t.Name, err)
+			return cs, fmt.Errorf("failed to get MaasTenantConfig %s/%s: %w", key.Namespace, key.Name, err)
 		}
 	}
 
@@ -164,8 +168,8 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		return metav1.ConditionFalse, nil
 	}
 
-	if rc := apimeta.FindStatusCondition(t.Status.Conditions, status.ConditionTypeReady); rc != nil {
-		rr.Conditions.MarkFrom(ReadyConditionType, metav1ConditionToCommon(*rc))
+	if rc := findUnstructuredReadyCondition(t); rc != nil {
+		rr.Conditions.MarkFrom(ReadyConditionType, *rc)
 		cs = rc.Status
 	} else {
 		rr.Conditions.MarkFalse(
@@ -179,15 +183,44 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	return cs, nil
 }
 
-func metav1ConditionToCommon(c metav1.Condition) common.Condition {
-	return common.Condition{
-		Type:               c.Type,
-		Status:             c.Status,
-		Reason:             c.Reason,
-		Message:            c.Message,
-		ObservedGeneration: c.ObservedGeneration,
-		LastTransitionTime: c.LastTransitionTime,
+// findUnstructuredReadyCondition returns the Ready condition from an unstructured object's status.
+func findUnstructuredReadyCondition(u *unstructured.Unstructured) *common.Condition {
+	items, found, _ := unstructured.NestedSlice(u.Object, "status", "conditions")
+	if !found {
+		return nil
 	}
+
+	for _, item := range items {
+		c, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		condType, _, _ := unstructured.NestedString(c, "type")
+		if condType != status.ConditionTypeReady {
+			continue
+		}
+
+		condStatus, _, _ := unstructured.NestedString(c, "status")
+		reason, _, _ := unstructured.NestedString(c, "reason")
+		message, _, _ := unstructured.NestedString(c, "message")
+		observedGeneration, _, _ := unstructured.NestedInt64(c, "observedGeneration")
+
+		out := &common.Condition{
+			Type:               condType,
+			Status:             metav1.ConditionStatus(condStatus),
+			Reason:             reason,
+			Message:            message,
+			ObservedGeneration: observedGeneration,
+		}
+		if t, found, _ := unstructured.NestedString(c, "lastTransitionTime"); found && t != "" {
+			if parsed, err := time.Parse(time.RFC3339, t); err == nil {
+				out.LastTransitionTime = metav1.NewTime(parsed)
+			}
+		}
+		return out
+	}
+
+	return nil
 }
 
 // requiredGatewayAnnotations lists the annotations that must be present on
