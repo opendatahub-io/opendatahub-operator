@@ -55,7 +55,7 @@ const (
 	DefaultGatewayName      = "maas-default-gateway"
 
 	// MaaSSubscriptionNamespace is the namespace where MaaS CRs live
-	// (Tenant, MaaSSubscription, MaaSAuthPolicy). Must match the
+	// (MaasTenantConfig, MaaSSubscription, MaaSAuthPolicy). Must match the
 	// maas-controller --maas-subscription-namespace flag.
 	MaaSSubscriptionNamespace = "models-as-a-service"
 
@@ -105,7 +105,7 @@ func baseManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInfo 
 
 // buildMaasOperatorInstallManifests renders the maas-controller kustomize bundle (CRDs, RBAC,
 // Deployment, maas-parameters ConfigMap). Used by the ModelsAsService component reconciler so
-// workloads get controller ownership from the ModelsAsService CR; Tenant CR lifecycle remains
+// workloads get controller ownership from the ModelsAsService CR; MaasTenantConfig CR lifecycle remains
 // in maas-controller. Cluster-scoped maas Config is not in this bundle (Lifecycle in maas-controller
 // owns that CR); the ModelsAsService reconciler patches controller ownership on Config separately.
 // Do not call from the DataScienceCluster reconciler: deploy would set owner references on the DSC
@@ -205,7 +205,7 @@ func buildMaasOperatorInstallManifests(ctx context.Context, rr *odhtypes.Reconci
 // (Init → ApplyParams has already merged RELATED_IMAGE_* and extraParamsMap)
 // and builds the maas-parameters ConfigMap that is deployed alongside
 // maas-controller. This is the authoritative source of maas-parameters;
-// the Tenant reconciler consumes it rather than regenerating it.
+// the MaasTenantConfig reconciler consumes it rather than regenerating it.
 func maasParametersConfigMapFromParamsEnv(manifestsBasePath string, appNs string, monitoringNs string, componentLabels map[string]string) (*unstructured.Unstructured, error) {
 	paramsFile := filepath.Join(manifestsBasePath, MaasManifestContextDir, BaseManifestsSourcePath, "params.env")
 	paramsMap, err := parseParamsEnv(paramsFile)
