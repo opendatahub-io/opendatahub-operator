@@ -287,7 +287,15 @@ func (tc *TrainerTestCtx) ValidateModuleHandlerProjection(t *testing.T) {
 		),
 	)
 
-	t.Log("Step 3: Verify Module CR has correct ownerReferences to DSC")
+	t.Log("Step 3: Verify appNamespace is projected into Module CR spec")
+	tc.EnsureResourceExists(
+		WithMinimalObject(moduleGVK, trainerNN),
+		WithCondition(
+			jq.Match(`.spec.appNamespace == "%s"`, tc.AppsNamespace),
+		),
+	)
+
+	t.Log("Step 4: Verify Module CR has correct ownerReferences to DSC")
 	tc.EnsureResourceExists(
 		WithMinimalObject(moduleGVK, trainerNN),
 		WithCondition(

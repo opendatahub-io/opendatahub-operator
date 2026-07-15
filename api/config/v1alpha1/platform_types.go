@@ -56,6 +56,10 @@ type PlatformModules struct {
 	// MCPLifecycleOperator controls the MCP Lifecycle Operator module lifecycle.
 	// +optional
 	MCPLifecycleOperator common.ManagementSpec `json:"mcplifecycleoperator,omitempty"`
+
+	// Trainer controls the Trainer module operator lifecycle.
+	// +optional
+	Trainer common.ManagementSpec `json:"trainer,omitempty"`
 }
 
 // PlatformStatus defines the observed state of Platform.
@@ -114,6 +118,9 @@ func (m *PlatformModules) EnabledModules() []string {
 	}
 	if m.MCPLifecycleOperator.ManagementState == operatorv1.Managed {
 		enabled = append(enabled, "mcplifecycleoperator")
+	}
+	if m.Trainer.ManagementState == operatorv1.Managed {
+		enabled = append(enabled, "trainer")
 	}
 	return enabled
 }

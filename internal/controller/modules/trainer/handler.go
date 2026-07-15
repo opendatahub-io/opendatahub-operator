@@ -52,6 +52,9 @@ func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 	if platform.DSC != nil {
 		return platform.DSC.Spec.Components.Trainer.ManagementState == operatorv1.Managed
 	}
+	if platform.Platform != nil {
+		return platform.Platform.Spec.Modules.Trainer.ManagementState == operatorv1.Managed
+	}
 	return false
 }
 
