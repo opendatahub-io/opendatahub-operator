@@ -56,7 +56,7 @@ tests:
             exp_annotations:
               summary: "OpenTelemetry Collector telemetry scrape target is down"
               description: "The data-science-collector-collector-monitoring target has been down for more than 10 minutes. Collector health metrics are not being collected."
-              triage: "https://github.com/opendatahub-io/opendatahub-operator/blob/main/docs/troubleshooting.md#collector-telemetry-scrape-target-down"
+              triage: "https://github.com/opendatahub-io/opendatahub-operator/blob/main/docs/troubleshooting.md#collector-telemetry--prometheus-exporter-scrape-target-down"
 
   # CollectorPrometheusExporterScrapeTargetDown
   - interval: 1m
@@ -83,7 +83,7 @@ tests:
             exp_annotations:
               summary: "OpenTelemetry Collector Prometheus exporter scrape target is down"
               description: "The data-science-collector-prometheus target has been down for more than 10 minutes. Application metrics forwarded through the collector are not being collected."
-              triage: "https://github.com/opendatahub-io/opendatahub-operator/blob/main/docs/troubleshooting.md#collector-prometheus-exporter-scrape-target-down"
+              triage: "https://github.com/opendatahub-io/opendatahub-operator/blob/main/docs/troubleshooting.md#collector-telemetry--prometheus-exporter-scrape-target-down"
 
   # AlertmanagerSelfScrapeTargetDown
   - interval: 1m

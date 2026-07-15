@@ -284,7 +284,7 @@ oc describe pod <prometheus-pod-name> -n opendatahub
 #### 2. Check the `prometheus-self-fixed` ServiceMonitor and its target in Prometheus:
 ```bash
 oc get servicemonitors.monitoring.rhobs -n opendatahub prometheus-self-fixed -o yaml
-oc exec -n opendatahub <prometheus-pod-name> -c prometheus -- curl -sSk https://localhost:9090/api/v1/targets | jq '.data.activeTargets[] | select(.labels.job=="prometheus-self-fixed")'
+oc exec -n opendatahub <prometheus-pod-name> -c prometheus -- curl -sS --cacert /etc/prometheus/configmaps/prometheus-web-tls-ca/service-ca.crt https://localhost:9090/api/v1/targets | jq '.data.activeTargets[] | select(.labels.job=="prometheus-self-fixed")'
 ```
 
 #### 3. Check TLS certificate validity (this target uses a fixed `serverName` to work around a SAN mismatch):
@@ -415,7 +415,7 @@ oc get svc opendatahub-operator-controller-manager-metrics-service -n opendatahu
 oc get rolebinding data-science-monitoringstack-prometheus-operator-metrics-reader -n opendatahub-operator-system
 ```
 
-#### 2. Verify Prometheus can reach the endpoint (metrics are served over plain HTTP on port 8080, not HTTPS):
+#### 2. Verify Prometheus can reach the endpoint (the Service exposes port 8443, which forwards to the pod's plain-HTTP port 8080 — no TLS is served on either hop):
 ```bash
 oc exec -n opendatahub <prometheus-pod-name> -c prometheus -- curl -sS http://opendatahub-operator-controller-manager-metrics-service.opendatahub-operator-system.svc.cluster.local:8443/metrics
 ```
