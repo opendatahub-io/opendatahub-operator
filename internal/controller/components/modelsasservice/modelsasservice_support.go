@@ -17,32 +17,15 @@ limitations under the License.
 package modelsasservice
 
 import (
-	"bufio"
-	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/util/validation"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/kustomize/api/builtins" //nolint:staticcheck // Remove after package update
-	"sigs.k8s.io/kustomize/api/krusty"
 	"sigs.k8s.io/kustomize/api/resmap"
 	"sigs.k8s.io/kustomize/api/resource"
-	"sigs.k8s.io/kustomize/api/types"
-	"sigs.k8s.io/kustomize/kyaml/filesys"
 	kyaml "sigs.k8s.io/kustomize/kyaml/yaml"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins"
 )
 
 const (
@@ -66,8 +49,7 @@ const (
 	// Manifest paths.
 	BaseManifestsSourcePath = "overlays/odh"
 
-	// MaasManifestContextDir is the kustomize bundle directory under ManifestsBasePath (matches
-	// baseManifestInfo ContextDir).
+	// MaasManifestContextDir is the kustomize bundle directory under ManifestsBasePath.
 	MaasManifestContextDir = "maas"
 
 	// MaasClusterConfigName is the cluster-scoped maas Config singleton name (must match
@@ -78,173 +60,6 @@ const (
 	MaasTenantConfigInstanceName = "default-tenant"
 )
 
-var (
-	conditionTypes = []string{
-		status.ConditionDeploymentsAvailable,
-	}
-
-	// Image parameter mappings for manifest substitution.
-	imagesMap = map[string]string{
-		"maas-api-image":             "RELATED_IMAGE_ODH_MAAS_API_IMAGE",
-		"maas-controller-image":      "RELATED_IMAGE_ODH_MAAS_CONTROLLER_IMAGE",
-		"payload-processing-image":   "RELATED_IMAGE_ODH_AI_GATEWAY_PAYLOAD_PROCESSING_IMAGE",
-		"maas-api-key-cleanup-image": "RELATED_IMAGE_UBI_MINIMAL_IMAGE",
-	}
-
-	// Additional parameters for manifest customization.
-	extraParamsMap = map[string]string{
-		"gateway-namespace": DefaultGatewayNamespace,
-		"gateway-name":      DefaultGatewayName,
-	}
-)
-
-func baseManifestInfo(basePath string, sourcePath string) odhtypes.ManifestInfo {
-	return odhtypes.ManifestInfo{
-		Path:       basePath,
-		ContextDir: MaasManifestContextDir,
-		SourcePath: sourcePath,
-	}
-}
-
-// buildMaasOperatorInstallManifests renders the maas-controller kustomize bundle (CRDs, RBAC,
-// Deployment, maas-parameters ConfigMap). Used by the ModelsAsService component reconciler so
-// workloads get controller ownership from the ModelsAsService CR; MaasTenantConfig CR lifecycle remains
-// in maas-controller. Cluster-scoped maas Config is not in this bundle (Lifecycle in maas-controller
-// owns that CR); the ModelsAsService reconciler patches controller ownership on Config separately.
-// Do not call from the DataScienceCluster reconciler: deploy would set owner references on the DSC
-// instance instead of the ModelsAsService CR.
-func buildMaasOperatorInstallManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest) ([]client.Object, error) {
-	root := rr.ManifestsBasePath
-	if root == "" {
-		return nil, errors.New("ManifestsBasePath is unset; cannot render maas-controller install bundle")
-	}
-
-	mi := baseManifestInfo(root, BaseManifestsSourcePath)
-	kPath := filepath.Join(mi.Path, mi.ContextDir, "base", "maas-controller", "default")
-	if _, err := os.Stat(filepath.Join(kPath, "kustomization.yaml")); err != nil {
-		return nil, fmt.Errorf("maas-controller install bundle not found at %q: %w", kPath, err)
-	}
-
-	appNs, err := cluster.ApplicationNamespace(ctx, rr.Client)
-	if err != nil {
-		return nil, fmt.Errorf("application namespace for maas-controller install: %w", err)
-	}
-
-	monitoringNs, err := cluster.MonitoringNamespace(ctx, rr.Client)
-	if err != nil {
-		return nil, fmt.Errorf("monitoring namespace for maas-controller install: %w", err)
-	}
-	if monitoringNs == "" {
-		return nil, errors.New("monitoring namespace cannot be empty")
-	}
-	if errs := validation.IsDNS1123Label(monitoringNs); len(errs) > 0 {
-		return nil, fmt.Errorf("monitoring namespace %q is not a valid DNS-1123 label: %v", monitoringNs, errs)
-	}
-
-	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
-	fs := filesys.MakeFsOnDisk()
-	resMap, err := k.Run(fs, kPath)
-	if err != nil {
-		return nil, fmt.Errorf("kustomize build %q: %w", kPath, err)
-	}
-
-	if err := plugins.CreateNamespaceApplierPlugin(appNs).Transform(resMap); err != nil {
-		return nil, fmt.Errorf("namespace transform for maas-controller bundle: %w", err)
-	}
-
-	// The blanket namespace transform above moves ALL resources to appNs, but
-	// payload-processing resources must remain in the gateway namespace because
-	// the EnvoyFilter must run in the same namespace as the Gateway for Envoy
-	// to attach ext_proc filters. Restore their namespace to the gateway ns.
-	// See RHOAIENG-59726.
-	if err := restoreGatewayNamespaceResources(resMap); err != nil {
-		return nil, fmt.Errorf("restore gateway namespace for payload-processing: %w", err)
-	}
-
-	componentLabels := map[string]string{
-		labels.ODH.Component(componentApi.ModelsAsServiceComponentName): labels.True,
-		labels.K8SCommon.PartOf: componentApi.ModelsAsServiceComponentName,
-	}
-	if err := plugins.CreateSetLabelsPlugin(componentLabels).Transform(resMap); err != nil {
-		return nil, fmt.Errorf("labels transform for maas-controller bundle: %w", err)
-	}
-
-	paramsEnvPath := filepath.Join(mi.Path, mi.ContextDir, BaseManifestsSourcePath, "params.env")
-	if err := applyImageOverridesFromParams(resMap, paramsEnvPath); err != nil {
-		return nil, fmt.Errorf("image override for maas-controller bundle: %w", err)
-	}
-
-	rendered := resMap.Resources()
-	extra := make([]unstructured.Unstructured, 0, len(rendered)+1)
-	for i := range rendered {
-		m, err := rendered[i].Map()
-		if err != nil {
-			return nil, fmt.Errorf("maas-controller bundle resource map: %w", err)
-		}
-		m, err = normalizeUnstructuredObject(m)
-		if err != nil {
-			return nil, fmt.Errorf("normalize maas-controller bundle object: %w", err)
-		}
-		extra = append(extra, unstructured.Unstructured{Object: m})
-	}
-
-	paramsCM, err := maasParametersConfigMapFromParamsEnv(root, appNs, monitoringNs, componentLabels)
-	if err != nil {
-		return nil, fmt.Errorf("build maas-parameters ConfigMap from params.env: %w", err)
-	}
-	extra = append(extra, *paramsCM)
-
-	extra = append(extra, payloadProcessingNetworkPolicy(componentLabels))
-
-	out := make([]client.Object, len(extra))
-	for i := range extra {
-		out[i] = &extra[i]
-	}
-
-	return out, nil
-}
-
-// maasParametersConfigMapFromParamsEnv reads the already-updated params.env
-// (Init → ApplyParams has already merged RELATED_IMAGE_* and extraParamsMap)
-// and builds the maas-parameters ConfigMap that is deployed alongside
-// maas-controller. This is the authoritative source of maas-parameters;
-// the MaasTenantConfig reconciler consumes it rather than regenerating it.
-func maasParametersConfigMapFromParamsEnv(manifestsBasePath string, appNs string, monitoringNs string, componentLabels map[string]string) (*unstructured.Unstructured, error) {
-	paramsFile := filepath.Join(manifestsBasePath, MaasManifestContextDir, BaseManifestsSourcePath, "params.env")
-	paramsMap, err := parseParamsEnv(paramsFile)
-	if err != nil {
-		return nil, fmt.Errorf("reading %s: %w", paramsFile, err)
-	}
-
-	// Override app-namespace with the resolved application namespace so that
-	// RHOAI deployments (redhat-ods-applications) don't use the ODH default
-	// hardcoded in params.env (opendatahub).
-	paramsMap["app-namespace"] = appNs
-
-	// Override monitoring-namespace with the resolved monitoring namespace so that
-	// RHOAI deployments (redhat-ods-monitoring) don't use the ODH default
-	// hardcoded in params.env (opendatahub).
-	paramsMap["monitoring-namespace"] = monitoringNs
-
-	data := make(map[string]any, len(paramsMap))
-	for k, v := range paramsMap {
-		data[k] = v
-	}
-
-	cm := &unstructured.Unstructured{
-		Object: map[string]any{
-			"apiVersion": "v1",
-			"kind":       "ConfigMap",
-			"metadata": map[string]any{
-				"name":      "maas-parameters",
-				"namespace": appNs,
-				"labels":    toStringInterfaceMap(componentLabels),
-			},
-			"data": data,
-		},
-	}
-	return cm, nil
-}
 
 // payloadProcessingNetworkPolicy returns a NetworkPolicy for the
 // payload-processing pod in the gateway namespace. OCP 4.22 introduced a
@@ -332,47 +147,13 @@ func payloadProcessingNetworkPolicy(componentLabels map[string]string) unstructu
 	}
 }
 
-// parseParamsEnv reads a key=value env file, skipping comments and blank lines.
-func parseParamsEnv(filename string) (map[string]string, error) {
-	f, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	m := make(map[string]string)
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		if key, value, ok := strings.Cut(line, "="); ok {
-			m[key] = value
-		}
-	}
-	return m, scanner.Err()
-}
-
-func toStringInterfaceMap(m map[string]string) map[string]any {
-	out := make(map[string]any, len(m))
-	for k, v := range m {
-		out[k] = v
-	}
-	return out
-}
-
-func normalizeUnstructuredObject(obj map[string]any) (map[string]any, error) {
-	b, err := json.Marshal(obj)
-	if err != nil {
-		return nil, err
-	}
-	var out map[string]any
-	if err := json.Unmarshal(b, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
-}
+// Image parameter mappings for MaaS manifest substitution (informational — no longer
+// applied by this package since MaaS moved to the AIGateway module handler):
+//
+//	"maas-controller-image":      RELATED_IMAGE_ODH_MAAS_CONTROLLER_IMAGE
+//	"maas-api-image":             RELATED_IMAGE_ODH_MAAS_API_IMAGE
+//	"payload-processing-image":   RELATED_IMAGE_ODH_AI_GATEWAY_PAYLOAD_PROCESSING_IMAGE
+//	"maas-api-key-cleanup-image": RELATED_IMAGE_UBI_MINIMAL_IMAGE
 
 type resourceKey struct {
 	kind string
@@ -441,60 +222,4 @@ func restoreCRBSubjectsNamespace(res *resource.Resource, namespace string) error
 	}
 	res.RNode = *node
 	return nil
-}
-
-// deployImageParams maps the kustomize image name (as rendered by the images
-// transformer in manager/kustomization.yaml) to the params.env key that
-// Init → ApplyParams populates from RELATED_IMAGE_* env vars.
-var deployImageParams = map[string]string{
-	"quay.io/opendatahub/maas-controller": "maas-controller-image",
-}
-
-// applyImageOverridesFromParams reads the already-updated params.env and uses
-// kustomize's ImageTagTransformerPlugin to replace default images in the
-// rendered resources. Init → ApplyParams has already merged RELATED_IMAGE_*
-// values into params.env, so this keeps params.env as the single source of
-// truth -- consistent with how all other components handle image substitution.
-func applyImageOverridesFromParams(m resmap.ResMap, paramsEnvPath string) error {
-	params, err := parseParamsEnv(paramsEnvPath)
-	if err != nil {
-		return fmt.Errorf("reading %s: %w", paramsEnvPath, err)
-	}
-
-	for kustomizeName, paramKey := range deployImageParams {
-		override := params[paramKey]
-		if override == "" {
-			continue
-		}
-
-		img := parseImageRef(kustomizeName, override)
-		plugin := &builtins.ImageTagTransformerPlugin{ImageTag: img}
-		if err := plugin.Transform(m); err != nil {
-			return fmt.Errorf("applying image override %s=%s: %w", paramKey, override, err)
-		}
-	}
-	return nil
-}
-
-// parseImageRef builds a kustomize Image from a full image reference.
-// It handles both tag (repo:tag) and digest (repo@sha256:...) formats.
-func parseImageRef(kustomizeName, ref string) types.Image {
-	if idx := strings.LastIndex(ref, "@"); idx > 0 {
-		return types.Image{
-			Name:    kustomizeName,
-			NewName: ref[:idx],
-			Digest:  ref[idx+1:],
-		}
-	}
-	if idx := strings.LastIndex(ref, ":"); idx > 0 {
-		return types.Image{
-			Name:    kustomizeName,
-			NewName: ref[:idx],
-			NewTag:  ref[idx+1:],
-		}
-	}
-	return types.Image{
-		Name:    kustomizeName,
-		NewName: ref,
-	}
 }

@@ -250,7 +250,7 @@ func TestConvertFrom_FallsBackToKserveModelsAsServiceWhenAIGatewayNotSet(t *test
 	// This ensures the CEL transition rule sees oldSelf.managementState == 'Managed' and allows
 	// subsequent v1 API writes with modelsAsService=Managed (no "no such key" error).
 	g.Expect(v1DSC.Spec.Components.Kserve.ModelsAsService.ManagementState). //nolint:staticcheck
-		To(Equal(operatorv1.Managed))
+										To(Equal(operatorv1.Managed))
 }
 
 // TestConvertFrom_UsesAIGatewayModelsAsServiceWhenSet verifies that when
@@ -288,7 +288,7 @@ func TestConvertFrom_UsesAIGatewayModelsAsServiceWhenSet(t *testing.T) {
 
 	// v1 should mirror aigateway.modelsAsAService (Managed), not the stored kserve value (Removed).
 	g.Expect(v1DSC.Spec.Components.Kserve.ModelsAsService.ManagementState). //nolint:staticcheck
-		To(Equal(operatorv1.Managed))
+										To(Equal(operatorv1.Managed))
 }
 
 // TestConvertTo_MigratesMaaSFromKserveToAIGateway verifies that when converting
