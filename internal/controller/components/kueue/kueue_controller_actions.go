@@ -15,32 +15,33 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
-func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) (precondition.CheckResult, error) {
 	kueueCRInstance, ok := rr.Instance.(*componentApi.Kueue)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentApi.Kueue)", rr.Instance)
+		return precondition.CheckResult{}, fmt.Errorf("resource instance %T is not a componentApi.Kueue", rr.Instance)
 	}
 
 	switch kueueCRInstance.Spec.ManagementState {
 	case operatorv1.Managed:
-		return ErrKueueStateManagedNotSupported
+		return precondition.CheckResult{Pass: false, Message: ErrKueueStateManagedNotSupported.Error()}, nil
 	case operatorv1.Unmanaged:
-		if kueueInfo, err := cluster.OperatorExists(ctx, rr.Client, kueueOperator); err != nil || kueueInfo == nil {
-			if err != nil {
-				return odherrors.NewStopErrorW(err)
-			}
+		kueueInfo, err := cluster.OperatorExists(ctx, rr.Client, kueueOperator)
+		if err != nil {
+			return precondition.CheckResult{}, err
+		}
 
-			return ErrKueueOperatorNotInstalled
+		if kueueInfo == nil {
+			return precondition.CheckResult{Pass: false, Message: ErrKueueOperatorNotInstalled.Error()}, nil
 		}
 	default:
-		return nil
+		return precondition.CheckResult{Pass: true}, nil
 	}
 
-	return nil
+	return precondition.CheckResult{Pass: true}, nil
 }
 
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {

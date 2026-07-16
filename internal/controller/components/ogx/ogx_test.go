@@ -167,7 +167,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 }
 
 func TestCheckPreConditions(t *testing.T) {
-	t.Run("should return error when LlamaStackOperator is Managed", func(t *testing.T) {
+	t.Run("should fail when LlamaStackOperator is Managed", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
@@ -177,16 +177,17 @@ func TestCheckPreConditions(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		err = checkPreConditions(ctx, &types.ReconciliationRequest{
+		result, err := checkPreConditions(ctx, &types.ReconciliationRequest{
 			Client: cli,
 		})
 
-		g.Expect(err).Should(HaveOccurred())
-		g.Expect(err.Error()).Should(ContainSubstring("LlamaStackOperator is set to Managed"))
-		g.Expect(err.Error()).Should(ContainSubstring("deprecated"))
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(result.Pass).Should(BeFalse())
+		g.Expect(result.Message).Should(ContainSubstring("LlamaStackOperator is set to Managed"))
+		g.Expect(result.Message).Should(ContainSubstring("deprecated"))
 	})
 
-	t.Run("should succeed when LlamaStackOperator is Removed", func(t *testing.T) {
+	t.Run("should pass when LlamaStackOperator is Removed", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
@@ -196,11 +197,12 @@ func TestCheckPreConditions(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		err = checkPreConditions(ctx, &types.ReconciliationRequest{
+		result, err := checkPreConditions(ctx, &types.ReconciliationRequest{
 			Client: cli,
 		})
 
 		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(result.Pass).Should(BeTrue())
 	})
 }
 
