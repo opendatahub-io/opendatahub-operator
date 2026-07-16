@@ -1,13 +1,5 @@
-# I added this because Prometheus couldn't see the opendatahub-operator-metrics
-# target at all - it wasn't even showing up as "dropped" in the targets list.
-# Turns out the RBAC that the Cluster Observability Operator sets up for
-# Prometheus only covers {{.Namespace}}, so it has no permission to discover
-# Services/Endpoints/EndpointSlices over in {{.OperatorNamespace}}.
-#
-# Instead of writing a new ClusterRole, I just reused the one the Cluster
-# Observability Operator already generates for the "data-science-monitoringstack"
-# Prometheus, and bound it here with a namespace-local RoleBinding scoped to the
-# operator namespace. That was enough to get the target discovered.
+# Lets Prometheus discover/scrape opendatahub-operator-metrics in {{.OperatorNamespace}};
+# COO's generated RBAC only covers {{.Namespace}}.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
