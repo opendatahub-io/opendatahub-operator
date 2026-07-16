@@ -165,10 +165,12 @@ func setOrOverrideEnv(envSlice *[]any, name, value string) bool {
 	for i, e := range *envSlice {
 		if em, ok := e.(map[string]any); ok {
 			if n, ok := em["name"].(string); ok && n == name {
-				if em["value"] == value {
+				_, hasValueFrom := em["valueFrom"]
+				if em["value"] == value && !hasValueFrom {
 					return false
 				}
 				em["value"] = value
+				delete(em, "valueFrom")
 				(*envSlice)[i] = em
 				return true
 			}

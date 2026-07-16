@@ -255,6 +255,64 @@ func TestInjectModuleEnvOverridesExistingVars(t *testing.T) {
 	g.Expect(envNames(env)).Should(ContainElement(applicationsNamespaceEnv))
 }
 
+func TestInjectModuleEnvReplacesValueFrom(t *testing.T) {
+	g := NewWithT(t)
+
+	dep := makeDeployment("ogx-operator",
+		map[string]any{
+			"name": "ODH_MODULE_OPERATOR_NAMESPACE",
+			"valueFrom": map[string]any{
+				"fieldRef": map[string]any{"fieldPath": "metadata.namespace"},
+			},
+		},
+		map[string]any{
+			"name": applicationsNamespaceEnv,
+			"valueFrom": map[string]any{
+				"fieldRef": map[string]any{"fieldPath": "metadata.namespace"},
+			},
+		},
+	)
+
+	rr := &odhtype.ReconciliationRequest{
+		Resources: []unstructured.Unstructured{dep},
+		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
+			PerModuleImages: []odhtype.ModuleImages{{
+				DeploymentName: "ogx-operator",
+			}},
+			ApplicationsNamespace: "opendatahub",
+		},
+	}
+
+	err := injectModuleEnv(context.Background(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	env := getContainerEnv(&rr.Resources[0])
+
+	// APPLICATIONS_NAMESPACE should have value set and valueFrom removed
+	for _, e := range env {
+		em, ok := e.(map[string]any)
+		if !ok {
+			continue
+		}
+		if em["name"] == applicationsNamespaceEnv {
+			g.Expect(em["value"]).Should(Equal("opendatahub"))
+			g.Expect(em).ShouldNot(HaveKey("valueFrom"))
+		}
+	}
+
+	// ODH_MODULE_OPERATOR_NAMESPACE should be untouched (not injected by the action)
+	for _, e := range env {
+		em, ok := e.(map[string]any)
+		if !ok {
+			continue
+		}
+		if em["name"] == "ODH_MODULE_OPERATOR_NAMESPACE" {
+			g.Expect(em).Should(HaveKey("valueFrom"))
+			g.Expect(em).ShouldNot(HaveKey("value"))
+		}
+	}
+}
+
 func TestInjectModuleEnvScopesPerModule(t *testing.T) {
 	g := NewWithT(t)
 
