@@ -1,0 +1,140 @@
+rule_files:
+  - operator-alerting.rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # PrometheusSelfScrapeTargetDown
+  - interval: 1m
+    input_series:
+      - series: 'up{job="prometheus-self-fixed"}'
+        values: "1x15"
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: PrometheusSelfScrapeTargetDown
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'up{job="prometheus-self-fixed"}'
+        values: "0x15"
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: PrometheusSelfScrapeTargetDown
+        exp_alerts:
+          - exp_labels:
+              alertname: PrometheusSelfScrapeTargetDown
+              job: "prometheus-self-fixed"
+              severity: critical
+            exp_annotations:
+              summary: "Data Science Prometheus is not scraping itself"
+              description: "The prometheus-self-fixed target (Prometheus self-monitoring) has been down for more than 10 minutes. Prometheus health cannot be verified, and dependent SLO alerts may be silently broken."
+              triage: "https://github.com/opendatahub-io/opendatahub-operator/blob/main/docs/troubleshooting.md#prometheus-self-scrape-target-down"
+
+  # CollectorTelemetryScrapeTargetDown
+  - interval: 1m
+    input_series:
+      - series: 'up{job="data-science-collector-collector-monitoring"}'
+        values: "1x15"
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: CollectorTelemetryScrapeTargetDown
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'up{job="data-science-collector-collector-monitoring"}'
+        values: "0x15"
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: CollectorTelemetryScrapeTargetDown
+        exp_alerts:
+          - exp_labels:
+              alertname: CollectorTelemetryScrapeTargetDown
+              job: "data-science-collector-collector-monitoring"
+              severity: warning
+            exp_annotations:
+              summary: "OpenTelemetry Collector telemetry scrape target is down"
+              description: "The data-science-collector-collector-monitoring target has been down for more than 10 minutes. Collector health metrics are not being collected."
+              triage: "https://github.com/opendatahub-io/opendatahub-operator/blob/main/docs/troubleshooting.md#collector-telemetry--prometheus-exporter-scrape-target-down"
+
+  # CollectorPrometheusExporterScrapeTargetDown
+  - interval: 1m
+    input_series:
+      - series: 'up{job="data-science-collector-prometheus"}'
+        values: "1x15"
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: CollectorPrometheusExporterScrapeTargetDown
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'up{job="data-science-collector-prometheus"}'
+        values: "0x15"
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: CollectorPrometheusExporterScrapeTargetDown
+        exp_alerts:
+          - exp_labels:
+              alertname: CollectorPrometheusExporterScrapeTargetDown
+              job: "data-science-collector-prometheus"
+              severity: warning
+            exp_annotations:
+              summary: "OpenTelemetry Collector Prometheus exporter scrape target is down"
+              description: "The data-science-collector-prometheus target has been down for more than 10 minutes. Application metrics forwarded through the collector are not being collected."
+              triage: "https://github.com/opendatahub-io/opendatahub-operator/blob/main/docs/troubleshooting.md#collector-telemetry--prometheus-exporter-scrape-target-down"
+
+  # AlertmanagerSelfScrapeTargetDown
+  - interval: 1m
+    input_series:
+      - series: 'up{job="alertmanager-self"}'
+        values: "1x15"
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: AlertmanagerSelfScrapeTargetDown
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'up{job="alertmanager-self"}'
+        values: "0x15"
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: AlertmanagerSelfScrapeTargetDown
+        exp_alerts:
+          - exp_labels:
+              alertname: AlertmanagerSelfScrapeTargetDown
+              job: "alertmanager-self"
+              severity: warning
+            exp_annotations:
+              summary: "Data Science Alertmanager self-monitoring scrape target is down"
+              description: "The alertmanager-self target has been down for more than 10 minutes. Alertmanager health cannot be verified, which may mask alert delivery failures."
+              triage: "https://github.com/opendatahub-io/opendatahub-operator/blob/main/docs/troubleshooting.md#alertmanager-self-scrape-target-down"
+
+  # OperatorMetricsScrapeTargetDown
+  - interval: 1m
+    input_series:
+      - series: 'up{job="opendatahub-operator-controller-manager-metrics-service"}'
+        values: "1x15"
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: OperatorMetricsScrapeTargetDown
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'up{job="opendatahub-operator-controller-manager-metrics-service"}'
+        values: "0x15"
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: OperatorMetricsScrapeTargetDown
+        exp_alerts:
+          - exp_labels:
+              alertname: OperatorMetricsScrapeTargetDown
+              job: "opendatahub-operator-controller-manager-metrics-service"
+              severity: warning
+            exp_annotations:
+              summary: "opendatahub-operator metrics scrape target is down"
+              description: "The opendatahub-operator-controller-manager-metrics-service target has been down for more than 10 minutes. Operator health/reconcile metrics are not being collected."
+              triage: "https://github.com/opendatahub-io/opendatahub-operator/blob/main/docs/troubleshooting.md#operator-metrics-scrape-target-down"

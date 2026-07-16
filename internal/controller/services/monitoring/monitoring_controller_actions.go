@@ -32,6 +32,7 @@ const (
 	CollectorServiceMonitorsTemplate                 = "resources/collector-servicemonitors.tmpl.yaml"
 	CollectorPrometheusServiceTemplate               = "resources/collector-prometheus-service.tmpl.yaml"
 	CollectorRBACTemplate                            = "resources/collector-rbac.tmpl.yaml"
+	OperatorMetricsPrometheusRBACTemplate            = "resources/operator-metrics-prometheus-rbac.tmpl.yaml"
 	PrometheusRouteTemplate                          = "resources/data-science-prometheus-route.tmpl.yaml"
 	InstrumentationTemplate                          = "resources/instrumentation.tmpl.yaml"
 	PrometheusNamespaceProxyTemplate                 = "resources/data-science-prometheus-namespace-proxy.tmpl.yaml"
@@ -302,6 +303,14 @@ func deployOpenTelemetryCollector(ctx context.Context, rr *odhtypes.Reconciliati
 		{
 			FS:   resourcesFS,
 			Path: CollectorServiceMonitorsTemplate,
+		},
+		// I added this RoleBinding so Prometheus can actually discover/scrape the
+		// opendatahub-operator-metrics ServiceMonitor's target in the operator
+		// namespace. CollectorServiceMonitorsTemplate creates that ServiceMonitor
+		// unconditionally, so I'm deploying this unconditionally too.
+		{
+			FS:   resourcesFS,
+			Path: OperatorMetricsPrometheusRBACTemplate,
 		},
 	}
 

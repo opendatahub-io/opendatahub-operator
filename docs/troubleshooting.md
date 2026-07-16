@@ -256,3 +256,196 @@ Escalate to the development team if:
 - Multiple restarts with no clear cause in logs
 
 **Bug Report**: Include all debug information collected above and steps taken.
+
+### Scrape Target Down Alerts
+
+> **Note on notifications**: As of this writing, the Data Science `Alertmanager` has no configured receivers other than the default `null` receiver (`oc exec -n opendatahub <alertmanager-pod-name> -c alertmanager -- curl -sS http://localhost:9093/api/v2/receivers`). This means the alerts below will fire and be visible in the Alertmanager/Prometheus UI, but **no external notification (Slack, email, webhook, etc.) will be sent** until a real receiver is configured. See [RHOAIENG-55993](https://redhat.atlassian.net/browse/RHOAIENG-55993) for tracking that separate gap. Do not assume "no notification received" means the alert didn't fire — check the UI/API directly.
+
+### Prometheus Self Scrape Target Down
+
+**Alert**: `PrometheusSelfScrapeTargetDown`  
+**Severity**: Critical  
+**Description**: The Data Science Prometheus instance has not been able to scrape its own `prometheus-self-fixed` target for more than 10 minutes.
+
+#### Symptoms
+
+- Prometheus alert `PrometheusSelfScrapeTargetDown` is firing
+- Prometheus self-monitoring metrics (`up{job="prometheus-self-fixed"}`) are missing or stale
+- Downstream SLO alerts that depend on Prometheus self-health may be silently unreliable
+
+#### Investigation Steps
+
+#### 1. Check Prometheus pod status:
+```bash
+oc get pods -n opendatahub -l app.kubernetes.io/name=prometheus
+oc describe pod <prometheus-pod-name> -n opendatahub
+```
+
+#### 2. Check the `prometheus-self-fixed` ServiceMonitor and its target in Prometheus:
+```bash
+oc get servicemonitors.monitoring.rhobs -n opendatahub prometheus-self-fixed -o yaml
+oc exec -n opendatahub <prometheus-pod-name> -c prometheus -- curl -sS --cacert /etc/prometheus/configmaps/prometheus-web-tls-ca/service-ca.crt https://localhost:9090/api/v1/targets | jq '.data.activeTargets[] | select(.labels.job=="prometheus-self-fixed")'
+```
+
+#### 3. Check TLS certificate validity (this target uses a fixed `serverName` to work around a SAN mismatch):
+```bash
+oc get configmap prometheus-web-tls-ca -n opendatahub
+oc get secret prometheus-operated-tls -n opendatahub
+```
+
+#### Common Causes & Solutions
+
+#### 1. Certificate rotation / SAN mismatch
+- **Symptom**: TLS handshake errors in Prometheus logs referencing `prometheus-operated`
+- **Solution**: Verify the `prometheus-web-tls-ca` ConfigMap and `prometheus-operated-tls` Secret are present and up to date; restart the Prometheus pod to pick up rotated certs
+
+#### 2. Prometheus pod not running
+- **Symptom**: Pod in `CrashLoopBackOff` or `Pending`
+- **Solution**: Check events and resource availability (`oc describe pod`, `oc get events -n opendatahub`)
+
+#### Resolution Steps
+
+1. **Restart Prometheus** (StatefulSet-managed, safe to cycle one replica at a time):
+   ```bash
+   oc delete pod <prometheus-pod-name> -n opendatahub
+   ```
+2. **Verify recovery**: confirm `up{job="prometheus-self-fixed"} == 1` after the pod is back to `Running`
+3. **If persistent**: check the Cluster Observability Operator (`MonitoringStack` CR) status for reconciliation errors
+
+#### When to Escalate
+
+Escalate if the target remains down after a Prometheus restart, or if TLS certificate issues recur repeatedly across restarts.
+
+### Collector Telemetry / Prometheus Exporter Scrape Target Down
+
+**Alerts**: `CollectorTelemetryScrapeTargetDown`, `CollectorPrometheusExporterScrapeTargetDown`  
+**Severity**: Warning  
+**Description**: The OpenTelemetry Collector's own telemetry endpoint (`data-science-collector-collector-monitoring`) or its Prometheus exporter endpoint for application metrics (`data-science-collector-prometheus`) has been unreachable for more than 10 minutes.
+
+#### Symptoms
+
+- One of the above alerts is firing
+- Collector health metrics and/or application metrics collected via the Prometheus exporter are missing
+
+#### Investigation Steps
+
+#### 1. Check collector pod status:
+```bash
+oc get pods -n opendatahub -l app.kubernetes.io/component=opentelemetry-collector
+oc describe pod <collector-pod-name> -n opendatahub
+```
+
+#### 2. Check the relevant ServiceMonitor and target health:
+```bash
+oc get servicemonitors.monitoring.rhobs -n opendatahub data-science-collector-monitor -o yaml
+oc get servicemonitors.monitoring.rhobs -n opendatahub data-science-prometheus-monitor -o yaml
+```
+
+#### 3. Check collector logs:
+```bash
+oc logs -n opendatahub <collector-pod-name> --tail=100
+```
+
+#### Resolution Steps
+
+1. **Restart the collector pod** if it is crashing or unresponsive:
+   ```bash
+   oc delete pod <collector-pod-name> -n opendatahub
+   ```
+2. **Check the OpenTelemetry Operator** (`opentelemetry-operator` CSV) is healthy on the cluster
+3. **Verify recovery** by re-checking `up{job="data-science-collector-collector-monitoring"}` / `up{job="data-science-collector-prometheus"}`
+
+#### When to Escalate
+
+Escalate if the collector repeatedly crashes or the OpenTelemetry Operator itself is degraded.
+
+### Alertmanager Self Scrape Target Down
+
+**Alert**: `AlertmanagerSelfScrapeTargetDown`  
+**Severity**: Warning  
+**Description**: The `alertmanager-self` scrape target has been down for more than 10 minutes, meaning Alertmanager's own health cannot be verified.
+
+#### Symptoms
+
+- Alert `AlertmanagerSelfScrapeTargetDown` is firing
+- Risk that real alert delivery failures (e.g. to receivers/notification channels) could go unnoticed while Alertmanager health is unknown
+
+#### Investigation Steps
+
+#### 1. Check Alertmanager pod status:
+```bash
+oc get pods -n opendatahub -l app.kubernetes.io/name=alertmanager
+oc describe pod <alertmanager-pod-name> -n opendatahub
+```
+
+#### 2. Check Alertmanager logs:
+```bash
+oc logs -n opendatahub <alertmanager-pod-name> --tail=100
+```
+
+#### Resolution Steps
+
+1. **Restart Alertmanager** (StatefulSet-managed):
+   ```bash
+   oc delete pod <alertmanager-pod-name> -n opendatahub
+   ```
+2. **Verify recovery** by re-checking `up{job="alertmanager-self"}`
+
+#### When to Escalate
+
+Escalate if Alertmanager remains down after a restart, since this may indicate a broader issue with the `MonitoringStack` deployment.
+
+### Operator Metrics Scrape Target Down
+
+**Alert**: `OperatorMetricsScrapeTargetDown`  
+**Severity**: Warning  
+**Description**: The `opendatahub-operator-controller-manager-metrics-service` scrape target (the opendatahub-operator's own `/metrics` endpoint) has been down for more than 10 minutes.
+
+#### Symptoms
+
+- Alert `OperatorMetricsScrapeTargetDown` is firing
+- Operator reconcile/health metrics (e.g. `controller_runtime_reconcile_total`) are missing, which can also silently break the `SLOs - RHODS Operator v2` recording rules
+
+#### Investigation Steps
+
+#### 1. Check the operator pods and the metrics Service/RoleBinding:
+```bash
+oc get pods -n opendatahub-operator-system -l control-plane=controller-manager
+oc get svc opendatahub-operator-controller-manager-metrics-service -n opendatahub-operator-system
+oc get rolebinding data-science-monitoringstack-prometheus-operator-metrics-reader -n opendatahub-operator-system
+```
+
+#### 2. Verify Prometheus can reach the endpoint (the Service exposes port 8443, which forwards to the pod's plain-HTTP port 8080 — no TLS is served on either hop):
+```bash
+oc exec -n opendatahub <prometheus-pod-name> -c prometheus -- curl -sS http://opendatahub-operator-controller-manager-metrics-service.opendatahub-operator-system.svc.cluster.local:8443/metrics
+```
+
+#### 3. Check the ServiceMonitor's scrape scheme:
+```bash
+oc get servicemonitors.monitoring.rhobs -n opendatahub opendatahub-operator-metrics -o jsonpath='{.spec.endpoints[0]}'
+```
+It should be `scheme: http` (the metrics Service port is named `https` for historical reasons but no TLS is actually served — see `internal/controller/services/monitoring/resources/collector-servicemonitors.tmpl.yaml`).
+
+#### Common Causes & Solutions
+
+#### 1. Missing cross-namespace RBAC
+- **Symptom**: Target never appears, not even as a "dropped" target in `/api/v1/targets?state=any`; Prometheus logs show `endpoints is forbidden ... in the namespace "opendatahub-operator-system"`
+- **Solution**: Verify the `data-science-monitoringstack-prometheus-operator-metrics-reader` RoleBinding exists in `opendatahub-operator-system` and grants the Prometheus ServiceAccount access to `services`/`endpoints`/`endpointslices`/`pods`
+
+#### 2. Scheme mismatch (`http: server gave HTTP response to HTTPS client`)
+- **Symptom**: Target appears but is `down` with this exact error in `lastError`
+- **Solution**: Ensure the ServiceMonitor uses `scheme: http` (the operator does not serve TLS on its metrics port)
+
+#### 3. Operator pods not running
+- **Symptom**: No pods matching `control-plane=controller-manager`
+- **Solution**: Check operator deployment status and events
+
+#### Resolution Steps
+
+1. **If RBAC is missing**: re-apply the RoleBinding template (`operator-metrics-prometheus-rbac.tmpl.yaml`)
+2. **If scheme is wrong**: re-apply the ServiceMonitor template (`collector-servicemonitors.tmpl.yaml`)
+3. **Verify recovery**: re-check `up{job="opendatahub-operator-controller-manager-metrics-service"}`
+
+#### When to Escalate
+
+Escalate if the target remains down after confirming RBAC and scheme are correct, since this may indicate a networking or operator pod issue.

@@ -57,11 +57,14 @@ metadata:
   namespace: {{.Namespace}}
 spec:
   endpoints:
+    # I found that this port is still called "https" from back when there was a
+    # kube-rbac-proxy sidecar in front of it, but that's gone now and the operator
+    # just serves metrics over plain HTTP (no TLS flags anywhere in
+    # config/default/manager_auth_proxy_patch.yaml). I was scraping this with
+    # scheme: https before and kept getting "server gave HTTP response to HTTPS
+    # client" errors, so I switched it to http and the target came up fine.
     - port: https
-      scheme: https
-      tlsConfig:
-        insecureSkipVerify: true
-      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      scheme: http
   namespaceSelector:
     matchNames:
       - {{.OperatorNamespace}}
