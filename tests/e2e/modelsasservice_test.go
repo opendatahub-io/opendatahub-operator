@@ -85,11 +85,11 @@ func modelsAsServiceTestSuite(t *testing.T) {
 	componentCtx.UpdateSubComponentStateInDataScienceCluster(t, operatorv1.Managed)
 
 	testCases := []TestCase{
-		{"Validate Tenant CR in subscription namespace", componentCtx.ValidateTenantInSubscriptionNamespace},
-		{"Validate Tenant CRD is namespace-scoped", componentCtx.ValidateTenantCRDNamespaceScoped},
-		{"Validate Tenant singleton enforcement", componentCtx.ValidateTenantSingletonEnforcement},
+		{"Validate MaasTenantConfig CR in subscription namespace", componentCtx.ValidateTenantInSubscriptionNamespace},
+		{"Validate MaasTenantConfig CRD is namespace-scoped", componentCtx.ValidateTenantCRDNamespaceScoped},
+		{"Validate MaasTenantConfig singleton enforcement", componentCtx.ValidateTenantSingletonEnforcement},
 		{"Validate payload-processing egress NetworkPolicy", componentCtx.ValidatePayloadProcessingNetworkPolicy},
-		{"Validate Tenant deleted on disable", componentCtx.ValidateTenantDeletedOnDisable},
+		{"Validate MaasTenantConfig deleted on disable", componentCtx.ValidateTenantDeletedOnDisable},
 	}
 
 	RunTestCases(t, testCases)
@@ -263,19 +263,19 @@ func (tc *ModelsAsServiceTestCtx) createMaaSGateway(t *testing.T) {
 const (
 	tenantName           = "default-tenant"
 	tenantSubscriptionNS = modelsasservice.MaaSSubscriptionNamespace
-	tenantCRDName        = "tenants.maas.opendatahub.io"
+	tenantCRDName        = "maastenantconfigs.maas.opendatahub.io"
 )
 
 // ValidateTenantInSubscriptionNamespace verifies that the maas-controller self-bootstrapped
-// the default-tenant Tenant CR in the models-as-a-service namespace (not the operator namespace).
+// the default-tenant MaasTenantConfig CR in the models-as-a-service namespace (not the operator namespace).
 func (tc *ModelsAsServiceTestCtx) ValidateTenantInSubscriptionNamespace(t *testing.T) {
 	t.Helper()
 	skipUnless(t, Smoke, Tier1)
 
-	t.Logf("Checking Tenant %s/%s exists with Ready condition", tenantSubscriptionNS, tenantName)
+	t.Logf("Checking MaasTenantConfig %s/%s exists with Ready condition", tenantSubscriptionNS, tenantName)
 
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Tenant, types.NamespacedName{
+		WithMinimalObject(gvk.MaasTenantConfig, types.NamespacedName{
 			Name:      tenantName,
 			Namespace: tenantSubscriptionNS,
 		}),
@@ -285,11 +285,11 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantInSubscriptionNamespace(t *testi
 				jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue),
 			),
 		),
-		WithCustomErrorMsg("Tenant %s/%s should exist with Ready=True", tenantSubscriptionNS, tenantName),
+		WithCustomErrorMsg("MaasTenantConfig %s/%s should exist with Ready=True", tenantSubscriptionNS, tenantName),
 	)
 }
 
-// ValidateTenantCRDNamespaceScoped verifies that the Tenant CRD is registered as namespace-scoped.
+// ValidateTenantCRDNamespaceScoped verifies that the MaasTenantConfig CRD is registered as namespace-scoped.
 func (tc *ModelsAsServiceTestCtx) ValidateTenantCRDNamespaceScoped(t *testing.T) {
 	t.Helper()
 	skipUnless(t, Smoke, Tier1)
@@ -301,24 +301,24 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantCRDNamespaceScoped(t *testing.T)
 		WithCondition(
 			jq.Match(`.spec.scope == "Namespaced"`),
 		),
-		WithCustomErrorMsg("Tenant CRD %s should have scope: Namespaced", tenantCRDName),
+		WithCustomErrorMsg("MaasTenantConfig CRD %s should have scope: Namespaced", tenantCRDName),
 	)
 }
 
-// ValidateTenantSingletonEnforcement verifies the CEL validation rule rejects Tenant CRs
+// ValidateTenantSingletonEnforcement verifies the CEL validation rule rejects MaasTenantConfig CRs
 // with names other than "default-tenant".
 func (tc *ModelsAsServiceTestCtx) ValidateTenantSingletonEnforcement(t *testing.T) {
 	t.Helper()
 	skipUnless(t, Tier1)
 
-	t.Log("Verifying CEL singleton enforcement: creating Tenant with wrong name should fail")
+	t.Log("Verifying CEL singleton enforcement: creating MaasTenantConfig with wrong name should fail")
 
-	u := resources.GvkToUnstructured(gvk.Tenant)
+	u := resources.GvkToUnstructured(gvk.MaasTenantConfig)
 	u.SetName("not-default-tenant")
 	u.SetNamespace(tenantSubscriptionNS)
 
 	err := tc.Client().Create(tc.Context(), u)
-	require.Error(t, err, "creating Tenant with non-singleton name should be rejected by CEL validation")
+	require.Error(t, err, "creating MaasTenantConfig with non-singleton name should be rejected by CEL validation")
 	require.True(t, k8serr.IsInvalid(err),
 		"expected Invalid status error from CEL validation, got: %v", err)
 
@@ -354,7 +354,7 @@ func (tc *ModelsAsServiceTestCtx) ValidatePayloadProcessingNetworkPolicy(t *test
 	)
 }
 
-// ValidateTenantDeletedOnDisable verifies that the Tenant CR is deleted when MaaS is set to
+// ValidateTenantDeletedOnDisable verifies that the MaasTenantConfig CR is deleted when MaaS is set to
 // Removed and that the maas-controller Deployment is eventually removed from the application
 // namespace. Teardown is driven by the ModelsAsService component reconciler (GC of owned objects)
 // and maas-controller LifecycleReconciler (CleanupFinalizer on the Deployment).
@@ -364,27 +364,27 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantDeletedOnDisable(t *testing.T) {
 	t.Helper()
 	skipUnless(t, Smoke, Tier1)
 
-	t.Logf("Verifying Tenant %s/%s is present before disable", tenantSubscriptionNS, tenantName)
+	t.Logf("Verifying MaasTenantConfig %s/%s is present before disable", tenantSubscriptionNS, tenantName)
 
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Tenant, types.NamespacedName{
+		WithMinimalObject(gvk.MaasTenantConfig, types.NamespacedName{
 			Name:      tenantName,
 			Namespace: tenantSubscriptionNS,
 		}),
-		WithCustomErrorMsg("Tenant should exist before disabling MaaS"),
+		WithCustomErrorMsg("MaasTenantConfig should exist before disabling MaaS"),
 	)
 
 	t.Log("Disabling MaaS subcomponent (setting to Removed)")
 	tc.UpdateSubComponentStateInDataScienceCluster(t, operatorv1.Removed)
 
-	t.Logf("Waiting for Tenant %s/%s to be deleted", tenantSubscriptionNS, tenantName)
+	t.Logf("Waiting for MaasTenantConfig %s/%s to be deleted", tenantSubscriptionNS, tenantName)
 	tc.EnsureResourcesGone(
-		WithMinimalObject(gvk.Tenant, types.NamespacedName{
+		WithMinimalObject(gvk.MaasTenantConfig, types.NamespacedName{
 			Name:      tenantName,
 			Namespace: tenantSubscriptionNS,
 		}),
 		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
-		WithCustomErrorMsg("Tenant should be deleted when MaaS is disabled"),
+		WithCustomErrorMsg("MaasTenantConfig should be deleted when MaaS is disabled"),
 	)
 
 	t.Logf("Waiting until maas-controller Deployment is removed from %s", tc.AppsNamespace)
