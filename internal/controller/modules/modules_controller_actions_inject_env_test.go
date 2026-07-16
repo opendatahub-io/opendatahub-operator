@@ -7,6 +7,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 
 	. "github.com/onsi/gomega"
@@ -429,7 +430,7 @@ func TestInjectModuleEnvPlatformType(t *testing.T) {
 				DeploymentName: "my-operator",
 			}},
 			ApplicationsNamespace: "opendatahub",
-			PlatformType:          "XKS",
+			PlatformType:          common.Platform("XKS"),
 		},
 	}
 

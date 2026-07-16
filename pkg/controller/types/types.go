@@ -38,10 +38,10 @@ type ModuleEnvInjection struct {
 	// MonitoringNamespace is the platform's monitoring namespace. "" when
 	// monitoring is not configured or DSCI not exist (e.g xks).
 	MonitoringNamespace string
-	// PlatformType is the platform identifier (e.g. "OpenDataHub",
-	// "SelfManagedRHOAI", "XKS"). Forwarded to module operators so they
+	// PlatformType is the platform identifier (e.g. OpenDataHub,
+	// SelfManagedRHOAI, XKS). Forwarded to module operators so they
 	// can select platform-specific manifests without auto-detecting.
-	PlatformType string
+	PlatformType common.Platform
 }
 
 // ModuleImages associates a module's related images with a deployment name

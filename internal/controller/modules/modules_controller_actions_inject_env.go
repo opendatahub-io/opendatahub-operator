@@ -141,7 +141,7 @@ func injectEnvVarsIntoDeployment(log logr.Logger, obj *unstructured.Unstructured
 		}
 
 		if injection.PlatformType != "" {
-			if setOrOverrideEnv(&existingEnv, platformTypeEnv, injection.PlatformType) {
+			if setOrOverrideEnv(&existingEnv, platformTypeEnv, string(injection.PlatformType)) {
 				injected++
 			}
 		}

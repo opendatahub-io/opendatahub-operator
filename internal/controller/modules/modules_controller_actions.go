@@ -327,7 +327,7 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 			PerModuleImages:       perModuleImages,
 			ApplicationsNamespace: platformCtx.ApplicationsNamespace,
 			MonitoringNamespace:   platformCtx.MonitoringNamespace,
-			PlatformType:          string(platformCtx.Release.Name),
+			PlatformType:          platformCtx.Release.Name,
 		}
 	}
 
