@@ -191,7 +191,7 @@ func findUnstructuredReadyCondition(u *unstructured.Unstructured) *common.Condit
 	}
 
 	for _, item := range items {
-		c, ok := item.(map[string]interface{})
+		c, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}

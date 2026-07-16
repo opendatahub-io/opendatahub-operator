@@ -40,6 +40,11 @@ import (
 
 const testApplicationsNamespace = "tenant-test-ns"
 
+var (
+	boolTrue  = true
+	boolFalse = false
+)
+
 func testDSCI() *dsciv2.DSCInitialization {
 	return &dsciv2.DSCInitialization{
 		ObjectMeta: metav1.ObjectMeta{Name: "default"},
@@ -148,14 +153,14 @@ func TestUpdateDSCStatus(t *testing.T) {
 	}{
 		{
 			name:           "ready MaasTenantConfig CR",
-			tenantReady:    ptr(true),
+			tenantReady:    &boolTrue,
 			expectedStatus: metav1.ConditionTrue,
 			expectedReason: status.ReadyReason,
 			expectedMsg:    "Component is ready",
 		},
 		{
 			name:           "not-ready MaasTenantConfig CR",
-			tenantReady:    ptr(false),
+			tenantReady:    &boolFalse,
 			expectedStatus: metav1.ConditionFalse,
 			expectedReason: status.NotReadyReason,
 			expectedMsg:    "Component is not ready",
@@ -669,8 +674,8 @@ func createTenantCR(ready bool) *unstructured.Unstructured {
 		message = "Component is ready"
 	}
 
-	_ = unstructured.SetNestedSlice(c.Object, []interface{}{
-		map[string]interface{}{
+	_ = unstructured.SetNestedSlice(c.Object, []any{
+		map[string]any{
 			"type":               status.ConditionTypeReady,
 			"status":             condStatus,
 			"reason":             reason,
