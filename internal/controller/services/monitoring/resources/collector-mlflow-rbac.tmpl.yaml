@@ -1,0 +1,24 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: data-science-collector-mlflow-trace-export
+rules:
+- apiGroups:
+  - mlflow.kubeflow.org
+  resources:
+  - experiments
+  verbs:
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: data-science-collector-mlflow-trace-export
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: data-science-collector-mlflow-trace-export
+subjects:
+- kind: ServiceAccount
+  name: data-science-collector-collector
+  namespace: {{ .Namespace }}
