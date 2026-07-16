@@ -111,19 +111,35 @@ if [ -n "${PULL_NUMBER:-}" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
   GITHUB_PR_FLAGS="--github-owner=${REPO_OWNER} --github-repo=${REPO_NAME} --github-pr=${PULL_NUMBER} --failure-label=${E2E_FLAKY_LABEL}"
 fi
 
+JUNIT_FILE="results/xunit_report.xml"
+
+filter_gate_skips_if_present() {
+  if [ ! -f "$JUNIT_FILE" ]; then
+    echo "No JUnit file at ${JUNIT_FILE}; skipping gate-skip filter"
+    return 0
+  fi
+
+  if ! command -v test-retry >/dev/null 2>&1; then
+    echo "Warning: test-retry not found; leaving ${JUNIT_FILE} unfiltered" >&2
+    return 0
+  fi
+
+  echo "Filtering tag-gate skips from ${JUNIT_FILE}"
+  test-retry filter-gate-skips --junit "$JUNIT_FILE"
+}
+
 # Choose test runner based on USE_TEST_RETRY flag
 if [ "$USE_TEST_RETRY" = "true" ] || [ "$USE_TEST_RETRY" = "1" ]; then
   echo "Using test-retry for JUnit enrichment with failure classification"
 
-  # Run with test-retry (enriched JUnit XML with <properties>)
-  # Note: No --filter flag (uses custom e2e flags like --tag, --test-operator-controller instead)
+  set +e
   # shellcheck disable=SC2086
-  exec test-retry e2e \
+  test-retry e2e \
     --command ./e2e-tests \
     --filter "" \
     --path /e2e \
     --max-retries 3 \
-    --junit-output results/xunit_report.xml \
+    --junit-output "$JUNIT_FILE" \
     --verbose \
     ${GITHUB_PR_FLAGS} \
     -- --test.parallel=8 \
@@ -144,6 +160,11 @@ if [ "$USE_TEST_RETRY" = "true" ] || [ "$USE_TEST_RETRY" = "1" ]; then
     --dsc-monitoring-namespace="$E2E_TEST_DSC_MONITORING_NAMESPACE" \
     --tag="$E2E_TEST_TAG" \
     "$@"
+  test_exit=$?
+  set -e
+
+  filter_gate_skips_if_present
+  exit "$test_exit"
 else
   echo "Using gotestsum with leaf-oriented JUnit XML"
 
@@ -206,5 +227,6 @@ else
     fi
   fi
 
+  filter_gate_skips_if_present
   exit "$test_status"
 fi
