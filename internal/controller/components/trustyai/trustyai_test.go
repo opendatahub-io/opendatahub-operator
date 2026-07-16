@@ -400,6 +400,59 @@ func TestInitializeWithMCPGuardrailsMode(t *testing.T) {
 	})
 }
 
+func TestIsInferenceServicesCRD(t *testing.T) {
+	tests := []struct {
+		name   string
+		obj    client.Object
+		expect bool
+	}{
+		{
+			name: "should match CRD by name alone without any labels",
+			obj: &metav1.PartialObjectMetadata{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: InferenceServicesCRDName,
+				},
+			},
+			expect: true,
+		},
+		{
+			name: "should match CRD by name with ODH component label present",
+			obj: &metav1.PartialObjectMetadata{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:   InferenceServicesCRDName,
+					Labels: map[string]string{"opendatahub.io/component.kserve": "true"},
+				},
+			},
+			expect: true,
+		},
+		{
+			name: "should not match CRD with different name",
+			obj: &metav1.PartialObjectMetadata{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "servingruntime.serving.kserve.io",
+				},
+			},
+			expect: false,
+		},
+		{
+			name: "should not match CRD with empty name",
+			obj: &metav1.PartialObjectMetadata{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "",
+				},
+			},
+			expect: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			g.Expect(isInferenceServicesCRD(tt.obj)).To(Equal(tt.expect))
+		})
+	}
+}
+
 func createDSCWithTrustyAI(managementState operatorv1.ManagementState) *dscv2.DataScienceCluster {
 	dsc := dscv2.DataScienceCluster{}
 	dsc.SetGroupVersionKind(gvk.DataScienceCluster)
