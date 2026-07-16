@@ -328,9 +328,9 @@ package datasciencecluster
 // +kubebuilder:rbac:groups=mlflow.opendatahub.io,resources=mlflows/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=mlflow.opendatahub.io,resources=mlflows/finalizers,verbs=update
 
-// Tenant (read status for DSC mirroring; delete on disable; watch for OwnsGVK)
-// +kubebuilder:rbac:groups=maas.opendatahub.io,resources=tenants,verbs=get;list;watch;delete
-// +kubebuilder:rbac:groups=maas.opendatahub.io,resources=tenants/status,verbs=get
+// MaasTenantConfig (read status for DSC mirroring; delete on disable; watch for OwnsGVK)
+// +kubebuilder:rbac:groups=maas.opendatahub.io,resources=maastenantconfigs,verbs=get;list;watch;delete
+// +kubebuilder:rbac:groups=maas.opendatahub.io,resources=maastenantconfigs/status,verbs=get
 
 // MaaS Config (cluster anchor CR in install bundle; ModelsAsService deploy sets controller owner;
 // dynamic ownership registers a cache watch — operator SA must list/watch and mutate like other owned CRs)
