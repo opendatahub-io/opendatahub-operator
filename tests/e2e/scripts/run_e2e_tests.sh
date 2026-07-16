@@ -132,7 +132,7 @@ filter_gate_skips_if_present() {
 if [ "$USE_TEST_RETRY" = "true" ] || [ "$USE_TEST_RETRY" = "1" ]; then
   echo "Using test-retry for JUnit enrichment with failure classification"
 
-  set +e
+  test_exit=0
   # shellcheck disable=SC2086
   test-retry e2e \
     --command ./e2e-tests \
@@ -159,9 +159,7 @@ if [ "$USE_TEST_RETRY" = "true" ] || [ "$USE_TEST_RETRY" = "1" ]; then
     --workbenches-namespace="$E2E_TEST_WORKBENCHES_NAMESPACE" \
     --dsc-monitoring-namespace="$E2E_TEST_DSC_MONITORING_NAMESPACE" \
     --tag="$E2E_TEST_TAG" \
-    "$@"
-  test_exit=$?
-  set -e
+    "$@" || test_exit=$?
 
   filter_gate_skips_if_present
   exit "$test_exit"
@@ -175,7 +173,7 @@ else
   raw_junit_report=results/xunit_report.unfiltered
   test_events=results/test-events.json
 
-  set +e
+  test_status=0
   gotestsum --junitfile-project-name odh-operator-e2e \
     --junitfile "$raw_junit_report" --jsonfile "$test_events" \
     --format standard-verbose --raw-command \
@@ -196,9 +194,7 @@ else
     --workbenches-namespace="$E2E_TEST_WORKBENCHES_NAMESPACE" \
     --dsc-monitoring-namespace="$E2E_TEST_DSC_MONITORING_NAMESPACE" \
     --tag="$E2E_TEST_TAG" \
-    "$@"
-  test_status=$?
-  set -e
+    "$@" || test_status=$?
 
   # Ignore only parent results. Their captured output is retained by the
   # converter as suite-level output. If this leaves no failure/error despite
