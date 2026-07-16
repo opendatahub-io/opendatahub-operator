@@ -125,7 +125,7 @@ filter_gate_skips_if_present() {
 if [ "$USE_TEST_RETRY" = "true" ] || [ "$USE_TEST_RETRY" = "1" ]; then
   echo "Using test-retry for JUnit enrichment with failure classification"
 
-  set +e
+  test_exit=0
   # shellcheck disable=SC2086
   test-retry e2e \
     --command ./e2e-tests \
@@ -152,16 +152,14 @@ if [ "$USE_TEST_RETRY" = "true" ] || [ "$USE_TEST_RETRY" = "1" ]; then
     --workbenches-namespace="$E2E_TEST_WORKBENCHES_NAMESPACE" \
     --dsc-monitoring-namespace="$E2E_TEST_DSC_MONITORING_NAMESPACE" \
     --tag="$E2E_TEST_TAG" \
-    "$@"
-  test_exit=$?
-  set -e
+    "$@" || test_exit=$?
 
   filter_gate_skips_if_present
   exit "$test_exit"
 else
   echo "Using gotestsum (standard JUnit XML, no enrichment)"
 
-  set +e
+  test_exit=0
   gotestsum --junitfile-project-name odh-operator-e2e \
     --junitfile "$JUNIT_FILE" --format standard-verbose --raw-command \
     -- test2json -t -p e2e ./e2e-tests --test.v=test2json --test.parallel=8 \
@@ -181,9 +179,7 @@ else
     --workbenches-namespace="$E2E_TEST_WORKBENCHES_NAMESPACE" \
     --dsc-monitoring-namespace="$E2E_TEST_DSC_MONITORING_NAMESPACE" \
     --tag="$E2E_TEST_TAG" \
-    "$@"
-  test_exit=$?
-  set -e
+    "$@" || test_exit=$?
 
   filter_gate_skips_if_present
   exit "$test_exit"
