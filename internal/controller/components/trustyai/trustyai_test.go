@@ -14,7 +14,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -587,8 +586,6 @@ func TestInferenceServicesCRDCreatePredicate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
 			crd := makeCRD(tt.crdName, tt.lbls)
-			e := event.CreateEvent{Object: crd}
-			g.Expect(e.Object.GetName() == InferenceServicesCRDName).Should(Equal(tt.expected))
 			g.Expect(createFired(crd)).Should(Equal(tt.expected))
 		})
 	}
