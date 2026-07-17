@@ -385,13 +385,15 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) (time
 	rr.Conditions.Reset()
 
 	// Check if all the preconditions are met. If not, flag to stop the reconciliation.
-	shouldStop := precondition.RunAll(ctx, &rr, r.preConditions)
+	shouldStop, preconditionRequeue := precondition.RunAll(ctx, &rr, r.preConditions)
 
 	var provisionErr error
 	var requeueAfter time.Duration
 
 	if shouldStop {
 		l.Info("Preconditions not met, stopping reconciliation")
+
+		requeueAfter = preconditionRequeue
 
 		rr.Conditions.MarkFalse(
 			status.ConditionTypeProvisioningSucceeded,

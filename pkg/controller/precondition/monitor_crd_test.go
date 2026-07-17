@@ -189,7 +189,7 @@ func TestMonitorCRD_IntegrationWithRunAll(t *testing.T) {
 		MonitorCRD(absentGVK),
 	}
 
-	shouldStop := RunAll(ctx, rr, pcs)
+	shouldStop, _ := RunAll(ctx, rr, pcs)
 	g.Expect(shouldStop).To(BeFalse())
 
 	got := condManager.GetCondition(status.ConditionDependenciesAvailable)

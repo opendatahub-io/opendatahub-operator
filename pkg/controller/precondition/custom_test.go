@@ -31,7 +31,7 @@ func TestCustom_PassingCheck(t *testing.T) {
 	g := NewWithT(t)
 
 	rr := newRR(status.ConditionDependenciesAvailable)
-	shouldStop := RunAll(t.Context(), rr, []PreCondition{
+	shouldStop, _ := RunAll(t.Context(), rr, []PreCondition{
 		Custom(passingCheck),
 	})
 
@@ -46,7 +46,7 @@ func TestCustom_FailingCheck(t *testing.T) {
 	g := NewWithT(t)
 
 	rr := newRR(status.ConditionDependenciesAvailable)
-	shouldStop := RunAll(t.Context(), rr, []PreCondition{
+	shouldStop, _ := RunAll(t.Context(), rr, []PreCondition{
 		Custom(failingCheck("component not ready")),
 	})
 
@@ -62,7 +62,7 @@ func TestCustom_ErrorCheck(t *testing.T) {
 	g := NewWithT(t)
 
 	rr := newRR(status.ConditionDependenciesAvailable)
-	shouldStop := RunAll(t.Context(), rr, []PreCondition{
+	shouldStop, _ := RunAll(t.Context(), rr, []PreCondition{
 		Custom(errorCheck),
 	})
 
@@ -77,7 +77,7 @@ func TestCustom_WithStopReconciliation(t *testing.T) {
 	g := NewWithT(t)
 
 	rr := newRR(status.ConditionDependenciesAvailable)
-	shouldStop := RunAll(t.Context(), rr, []PreCondition{
+	shouldStop, _ := RunAll(t.Context(), rr, []PreCondition{
 		Custom(failingCheck("must stop"), WithStopReconciliation()),
 	})
 
@@ -93,7 +93,7 @@ func TestCustom_AllOptions(t *testing.T) {
 
 	customCondition := "CustomCheck"
 	rr := newRR(customCondition)
-	shouldStop := RunAll(t.Context(), rr, []PreCondition{
+	shouldStop, _ := RunAll(t.Context(), rr, []PreCondition{
 		Custom(
 			failingCheck("original"),
 			WithConditionType(customCondition),
@@ -117,7 +117,7 @@ func TestCustom_ErrorWithStopReconciliation(t *testing.T) {
 	g := NewWithT(t)
 
 	rr := newRR(status.ConditionDependenciesAvailable)
-	shouldStop := RunAll(t.Context(), rr, []PreCondition{
+	shouldStop, _ := RunAll(t.Context(), rr, []PreCondition{
 		Custom(errorCheck, WithStopReconciliation()),
 	})
 
@@ -142,7 +142,7 @@ func TestCustom_AccessesInstance(t *testing.T) {
 	}
 
 	rr := newRR(status.ConditionDependenciesAvailable)
-	shouldStop := RunAll(t.Context(), rr, []PreCondition{
+	shouldStop, _ := RunAll(t.Context(), rr, []PreCondition{
 		Custom(instanceCheck),
 	})
 
@@ -157,7 +157,7 @@ func TestCustom_NilCheck(t *testing.T) {
 	g := NewWithT(t)
 
 	rr := newRR(status.ConditionDependenciesAvailable)
-	shouldStop := RunAll(t.Context(), rr, []PreCondition{
+	shouldStop, _ := RunAll(t.Context(), rr, []PreCondition{
 		Custom(nil),
 	})
 
@@ -173,7 +173,7 @@ func TestCustom_NilCheckWithStopReconciliation(t *testing.T) {
 	g := NewWithT(t)
 
 	rr := newRR(status.ConditionDependenciesAvailable)
-	shouldStop := RunAll(t.Context(), rr, []PreCondition{
+	shouldStop, _ := RunAll(t.Context(), rr, []PreCondition{
 		Custom(nil, WithStopReconciliation()),
 	})
 
@@ -191,7 +191,7 @@ func TestCustom_SkippedOnClusterType(t *testing.T) {
 	t.Cleanup(func() { cluster.SetClusterInfo(cluster.ClusterInfo{}) })
 
 	rr := newRR(status.ConditionDependenciesAvailable)
-	shouldStop := RunAll(t.Context(), rr, []PreCondition{
+	shouldStop, _ := RunAll(t.Context(), rr, []PreCondition{
 		Custom(failingCheck("should not run"), WithClusterTypes(cluster.ClusterTypeKubernetes)),
 	})
 

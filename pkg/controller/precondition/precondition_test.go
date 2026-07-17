@@ -252,7 +252,7 @@ func TestRunAll(t *testing.T) {
 				rr.Instance.SetGeneration(tt.generation)
 			}
 
-			shouldStop := RunAll(t.Context(), rr, tt.preConditions)
+			shouldStop, _ := RunAll(t.Context(), rr, tt.preConditions)
 			g.Expect(shouldStop).To(Equal(tt.expectedShouldStop))
 
 			got := rr.Conditions.GetCondition(status.ConditionDependenciesAvailable)
@@ -287,7 +287,7 @@ func TestRunAll_EmptyList(t *testing.T) {
 	g := NewWithT(t)
 
 	rr := newRR()
-	shouldStop := RunAll(t.Context(), rr, nil)
+	shouldStop, _ := RunAll(t.Context(), rr, nil)
 
 	g.Expect(shouldStop).To(BeFalse())
 }
@@ -307,7 +307,7 @@ func TestRunAll_ClusterTypeFiltering(t *testing.T) {
 		),
 	}
 
-	shouldStop := RunAll(t.Context(), rr, pcs)
+	shouldStop, _ := RunAll(t.Context(), rr, pcs)
 
 	g.Expect(shouldStop).To(BeFalse())
 	got := rr.Conditions.GetCondition(status.ConditionDependenciesAvailable)
@@ -382,7 +382,7 @@ func TestRunAll_SkipFuncError(t *testing.T) {
 		),
 	}
 
-	shouldStop := RunAll(t.Context(), rr, pcs)
+	shouldStop, _ := RunAll(t.Context(), rr, pcs)
 	g.Expect(shouldStop).To(BeFalse())
 
 	got := rr.Conditions.GetCondition(status.ConditionDependenciesAvailable)
@@ -448,7 +448,7 @@ func TestRunAll_ClusterTypeFilterRunsBeforeSkipFunc(t *testing.T) {
 		),
 	}
 
-	shouldStop := RunAll(t.Context(), rr, pcs)
+	shouldStop, _ := RunAll(t.Context(), rr, pcs)
 	g.Expect(shouldStop).To(BeFalse())
 	g.Expect(skipFuncCalled).To(BeFalse(), "SkipFunc should not be called when cluster type filter already skipped")
 }

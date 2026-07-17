@@ -18,6 +18,7 @@ package trustyai
 
 import (
 	"context"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -96,6 +97,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		).
 		WithPreCondition(precondition.MonitorCRD(gvk.InferenceServices,
 			precondition.WithStopReconciliation(),
+			precondition.WithRequeueInterval(30*time.Second),
 			precondition.WithMessage(status.ISVCMissingCRDMessage),
 		)).
 		WithAction(precondition.RunlevelGateAction()).
