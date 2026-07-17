@@ -296,24 +296,36 @@ else
 fi
 rm -f "$rhai_temp"
 
-# Fetch SBOM metadata config (version metadata env vars, not container images)
+# Fetch SBOM metadata configs (version metadata env vars, not container images)
 SBOM_METADATA_FILE="$WORKDIR/sbom-metadata-images.txt"
 SBOM_METADATA_MATCHED="$WORKDIR/sbom-metadata-matched.txt"
 touch "$SBOM_METADATA_FILE" "$SBOM_METADATA_MATCHED"
-echo ""
-echo "Fetching SBOM metadata config (${RHOAI_BUILD_CONFIG_BRANCH})..."
-SBOM_METADATA_URL="${RHOAI_BASE_URL}/bundle/metadata-config.yaml"
-sbom_temp=$(mktemp "${WORKDIR}/fetched.XXXXXX.yaml")
-if curl -sfL --max-filesize 10485760 --connect-timeout 10 --max-time 30 \
-        "$SBOM_METADATA_URL" -o "$sbom_temp" 2>/dev/null; then
-    $YQ -r '(.sbom-metadata // [])[] | .suffix as $s | .env_vars[] | . + $s' "$sbom_temp" \
-        2>/dev/null | sort -u > "$SBOM_METADATA_FILE"
-    sbom_count=$(wc -l < "$SBOM_METADATA_FILE" | tr -d ' ')
-    echo "  Found ${sbom_count} SBOM metadata env var(s) to exclude"
-else
-    echo "  WARNING: Failed to fetch SBOM metadata config"
-fi
-rm -f "$sbom_temp"
+
+fetch_sbom_metadata() {
+    local label="$1"
+    local url="$2"
+    local sbom_temp
+    sbom_temp=$(mktemp "${WORKDIR}/fetched.XXXXXX.yaml")
+    echo ""
+    echo "Fetching SBOM metadata config from ${label}..."
+    if curl -sfL --max-filesize 10485760 --connect-timeout 10 --max-time 30 \
+            "$url" -o "$sbom_temp" 2>/dev/null; then
+        $YQ -r '(.sbom-metadata // [])[] | .suffix as $s | .env_vars[] | . + $s' "$sbom_temp" \
+            2>/dev/null >> "$SBOM_METADATA_FILE"
+        local count
+        count=$(wc -l < "$SBOM_METADATA_FILE" | tr -d ' ')
+        echo "  Found ${count} SBOM metadata env var(s) to exclude (cumulative)"
+    else
+        echo "  WARNING: Failed to fetch SBOM metadata config from ${label}"
+    fi
+    rm -f "$sbom_temp"
+}
+
+fetch_sbom_metadata "RHOAI-Build-Config (${RHOAI_BUILD_CONFIG_BRANCH})" \
+    "${RHOAI_BASE_URL}/bundle/metadata-config.yaml"
+fetch_sbom_metadata "ODH-Build-Config (${ODH_BUILD_CONFIG_BRANCH})" \
+    "${ODH_BASE_URL}/bundle/metadata-config.yaml"
+sort -u -o "$SBOM_METADATA_FILE" "$SBOM_METADATA_FILE"
 
 ODH_LABEL="ODH (${ODH_BUILD_CONFIG_BRANCH})"
 RHOAI_LABEL="RHOAI (${RHOAI_BUILD_CONFIG_BRANCH})"
