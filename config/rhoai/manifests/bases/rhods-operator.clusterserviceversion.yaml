@@ -48,7 +48,7 @@ metadata:
               "managementState": "Removed"
             },
             "ogx": {
-              "managementState": "Removed"
+              "managementState": "Managed"
             },
             "kueue": {
               "managementState": "Removed"

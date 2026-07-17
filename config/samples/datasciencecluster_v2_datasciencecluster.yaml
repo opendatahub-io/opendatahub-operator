@@ -43,7 +43,7 @@ spec:
     llamastackoperator:
       managementState: "Removed"
     ogx:
-      managementState: "Removed"
+      managementState: "Managed"
     mlflowoperator:
       managementState: "Managed"
     sparkoperator:
