@@ -98,6 +98,8 @@ func CleanupExistingResource(ctx context.Context,
 	multiErr = multierror.Append(multiErr, cleanupDeprecatedKueueVAPB(ctx, cli))
 	// cleanup legacy "odh" OAuthClient from RHOAI 3.3
 	multiErr = multierror.Append(multiErr, cleanupLegacyOAuthClient(ctx, cli))
+	// cleanup deprecated RStudio BuildConfigs and ImageStreams from RHOAI 3.4 (RHAIENG-5327)
+	multiErr = multierror.Append(multiErr, cleanupDeprecatedRStudioResources(ctx, cli, applicationNS))
 
 	// HardwareProfile migration as described in RHOAIENG-33158 and RHOAIENG-33159
 	// This includes creating HardwareProfile resources and updating annotations on Notebooks and InferenceServices
