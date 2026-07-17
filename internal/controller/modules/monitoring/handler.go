@@ -37,7 +37,6 @@ func NewHandler() *handler {
 				RelatedImages: []string{
 					"RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
 					"RELATED_IMAGE_OSE_PROM_LABEL_PROXY_IMAGE",
-					"RELATED_IMAGE_CLI_IMAGE",
 					"RELATED_IMAGE_PERSES_IMAGE",
 				},
 			},
