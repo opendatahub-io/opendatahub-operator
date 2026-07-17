@@ -501,7 +501,7 @@ func TestConvertRoundTrip_MaaSUpgradeFrom34(t *testing.T) {
 	// kserve.modelsAsService is preserved (not cleared) — clearing it would conflict
 	// with the CEL one-directional rule on the next v2 admission check.
 	g.Expect(v2Migrated.Spec.Components.Kserve.ModelsAsService.ManagementState). //nolint:staticcheck
-										To(Equal(operatorv1.Managed))
+											To(Equal(operatorv1.Managed))
 
 	// No stash annotation must leak onto the migrated v2 object.
 	g.Expect(v2Migrated.GetAnnotations()).NotTo(HaveKey("conversion.opendatahub.io/aigateway-state"))

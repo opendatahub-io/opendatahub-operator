@@ -346,13 +346,13 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantSingletonEnforcement(t *testing.
 }
 
 // ValidatePayloadProcessingNetworkPolicy verifies that the NetworkPolicy for
-// payload-processing exists in the infrastructure namespace with correct ingress
-// and egress policy types.
+// payload-processing exists in the gateway namespace (openshift-ingress) with
+// correct ingress and egress policy types.
 func (tc *ModelsAsServiceTestCtx) ValidatePayloadProcessingNetworkPolicy(t *testing.T) {
 	t.Helper()
 	skipUnless(t, Tier1)
 
-	ns := tc.maasDBNamespace()
+	ns := maasGatewayNamespace
 	t.Logf("Validating NetworkPolicy for payload-processing in %s", ns)
 
 	tc.EnsureResourceExists(
