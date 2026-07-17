@@ -42,6 +42,12 @@ func CleanupPreviousTestResources(t *testing.T) {
 	// can be processed, leaving the namespace stuck in Terminating. Strip the finalizer first.
 	cleanupMaaSControllerFinalizer(t, tc)
 
+	// KServe deploys cluster-scoped webhook configurations (with failurePolicy: Fail) that
+	// reference services inside the applications namespace. If the namespace is deleted first,
+	// the services are gone but the webhooks remain, blocking any resource validation and
+	// leaving the namespace stuck in Terminating.
+	cleanupKserveWebhookConfigurations(t, tc)
+
 	// Delete the entire applications namespace - this removes all component resources at once
 	// (AuthConfig, ResourceQuotas, Kueue resources, etc.) and the operator will recreate as needed
 	t.Logf("Cleaning up applications namespace: %s", tc.AppsNamespace)
@@ -188,6 +194,35 @@ func cleanupMaaSControllerFinalizer(t *testing.T, tc *TestContext) {
 		WithRemoveFinalizersOnDelete(true),
 		WithWaitForDeletion(false),
 	)
+}
+
+func cleanupKserveWebhookConfigurations(t *testing.T, tc *TestContext) {
+	t.Helper()
+
+	t.Log("Removing KServe webhook configurations that block namespace deletion")
+	webhooks := []struct {
+		gvk  schema.GroupVersionKind
+		name string
+	}{
+		{gvk.MutatingWebhookConfiguration, "llminferenceservice.serving.kserve.io"},
+		{gvk.ValidatingWebhookConfiguration, "llminferenceservice.serving.kserve.io"},
+		{gvk.ValidatingWebhookConfiguration, "llminferenceserviceconfig.serving.kserve.io"},
+		{gvk.MutatingWebhookConfiguration, "inferenceservice.serving.kserve.io"},
+		{gvk.ValidatingWebhookConfiguration, "inferenceservice.serving.kserve.io"},
+		{gvk.ValidatingWebhookConfiguration, "trainedmodel.serving.kserve.io"},
+		{gvk.ValidatingWebhookConfiguration, "inferencegraph.serving.kserve.io"},
+		{gvk.ValidatingWebhookConfiguration, "clusterservingruntime.serving.kserve.io"},
+		{gvk.ValidatingWebhookConfiguration, "servingruntime.serving.kserve.io"},
+		{gvk.ValidatingWebhookConfiguration, "localmodelcache.serving.kserve.io"},
+	}
+
+	for _, wh := range webhooks {
+		tc.DeleteResource(
+			WithMinimalObject(wh.gvk, types.NamespacedName{Name: wh.name}),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+	}
 }
 
 func cleanupGateSourceConfigMaps(t *testing.T, tc *TestContext) {

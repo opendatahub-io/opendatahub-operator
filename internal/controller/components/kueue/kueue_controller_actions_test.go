@@ -51,8 +51,12 @@ func TestCheckPreConditions_Unknown_State(t *testing.T) {
 		Conditions: conditions.NewManager(&kueue, status.ConditionTypeReady),
 	}
 
-	err = checkPreConditions(ctx, &rr)
+	result, err := checkPreConditions(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(result.Pass).Should(BeTrue())
+
+	// Verify that checkPreConditions does not modify conditions directly;
+	// condition management is handled by the precondition framework.
 	g.Expect(&kueue).Should(
 		WithTransform(resources.ToUnstructured,
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionUnknown),
@@ -90,9 +94,10 @@ func TestCheckPreConditions_Managed_KueueOperatorAlreadyInstalled(t *testing.T) 
 		Conditions: conditions.NewManager(&kueue, status.ConditionTypeReady),
 	}
 
-	err = checkPreConditions(ctx, &rr)
-	g.Expect(err).Should(HaveOccurred())
-	g.Expect(err).To(MatchError(ContainSubstring(status.KueueStateManagedNotSupportedMessage)))
+	result, err := checkPreConditions(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(result.Pass).Should(BeFalse())
+	g.Expect(result.Message).Should(ContainSubstring(status.KueueStateManagedNotSupportedMessage))
 }
 
 func TestCheckPreConditions_Unmanaged_KueueOperatorNotInstalled(t *testing.T) {
@@ -116,9 +121,10 @@ func TestCheckPreConditions_Unmanaged_KueueOperatorNotInstalled(t *testing.T) {
 		Conditions: conditions.NewManager(&kueue, status.ConditionTypeReady),
 	}
 
-	err = checkPreConditions(ctx, &rr)
-	g.Expect(err).Should(HaveOccurred())
-	g.Expect(err).To(MatchError(ContainSubstring(status.KueueOperatorNotInstalledMessage)))
+	result, err := checkPreConditions(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(result.Pass).Should(BeFalse())
+	g.Expect(result.Message).Should(ContainSubstring(status.KueueOperatorNotInstalledMessage))
 }
 
 func TestConfigureClusterQueueViewerRoleAction_RoleNotFound(t *testing.T) {
