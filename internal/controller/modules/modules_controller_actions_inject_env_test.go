@@ -7,6 +7,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 
 	. "github.com/onsi/gomega"
@@ -415,6 +416,54 @@ func TestInjectModuleEnvEmptyMonitoringNamespace(t *testing.T) {
 	env := getContainerEnv(&rr.Resources[0])
 	g.Expect(envNames(env)).Should(ConsistOf(applicationsNamespaceEnv))
 	g.Expect(envNames(env)).ShouldNot(ContainElement(monitoringNamespaceEnv))
+}
+
+func TestInjectModuleEnvPlatformType(t *testing.T) {
+	g := NewWithT(t)
+
+	dep := makeDeployment("my-operator")
+
+	rr := &odhtype.ReconciliationRequest{
+		Resources: []unstructured.Unstructured{dep},
+		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
+			PerModuleImages: []odhtype.ModuleImages{{
+				DeploymentName: "my-operator",
+			}},
+			ApplicationsNamespace: "opendatahub",
+			PlatformType:          common.Platform("XKS"),
+		},
+	}
+
+	err := injectModuleEnv(context.Background(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	env := getContainerEnv(&rr.Resources[0])
+	g.Expect(envNames(env)).Should(ContainElement(platformTypeEnv))
+	g.Expect(envValue(env, platformTypeEnv)).Should(Equal("XKS"))
+}
+
+func TestInjectModuleEnvEmptyPlatformType(t *testing.T) {
+	g := NewWithT(t)
+
+	dep := makeDeployment("my-operator")
+
+	rr := &odhtype.ReconciliationRequest{
+		Resources: []unstructured.Unstructured{dep},
+		ModuleEnvInjection: &odhtype.ModuleEnvInjection{
+			PerModuleImages: []odhtype.ModuleImages{{
+				DeploymentName: "my-operator",
+			}},
+			ApplicationsNamespace: "opendatahub",
+			PlatformType:          "",
+		},
+	}
+
+	err := injectModuleEnv(context.Background(), rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	env := getContainerEnv(&rr.Resources[0])
+	g.Expect(envNames(env)).Should(ConsistOf(applicationsNamespaceEnv))
+	g.Expect(envNames(env)).ShouldNot(ContainElement(platformTypeEnv))
 }
 
 func TestInjectControllerImage(t *testing.T) {
