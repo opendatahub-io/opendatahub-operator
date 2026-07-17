@@ -46,6 +46,7 @@ var (
 	sourcePathByPlatform = map[common.Platform]string{
 		cluster.OpenDataHub:      "overlays/odh",
 		cluster.SelfManagedRhoai: "overlays/rhoai",
+		cluster.XKS:              "overlays/rhoai",
 	}
 
 	// relatedImages are the operand images the ai-gateway-operator passes to

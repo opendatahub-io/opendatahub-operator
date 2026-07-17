@@ -300,12 +300,6 @@ func addImageURLs(rr *odhtypes.ReconciliationRequest, templateData map[string]an
 		"registry.redhat.io/openshift4/ose-prom-label-proxy-rhel9@sha256:3f44ba2d9f3d0b04c2a6c754b256ac5b5e6cfeb67651bfd0923fc2859e4b49d1", // v4.18
 		rr.Release.Name,
 	)
-	templateData["CLIImage"] = getImageURL(
-		"RELATED_IMAGE_CLI_IMAGE",
-		"quay.io/openshift/origin-cli@sha256:4c1b64a79727e392c11cf337936f9edb792e436075d4bdad5f554b79652d16dd",                // 4.18
-		"registry.redhat.io/openshift4/ose-cli-rhel9@sha256:16c25aadbd5f564a7c5f1508470f734d676a411b89bd98b307001619d1a5338f", // v4.18
-		rr.Release.Name,
-	)
 }
 
 func getImageURL(envVar, upstreamDefault, rhoaiDefault string, platform apicommon.Platform) string {
