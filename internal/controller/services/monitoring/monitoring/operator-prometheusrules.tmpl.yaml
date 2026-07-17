@@ -42,7 +42,7 @@ spec:
         rules:
         - alert: PrometheusSelfScrapeTargetDown
           expr: |
-            up{job="prometheus-self-fixed"} == 0
+            absent(up{job="prometheus-self-fixed"}) or up{job="prometheus-self-fixed"} == 0
           for: 10m
           labels:
             severity: critical
@@ -53,7 +53,7 @@ spec:
 
         - alert: CollectorTelemetryScrapeTargetDown
           expr: |
-            up{job="data-science-collector-collector-monitoring"} == 0
+            absent(up{job="data-science-collector-collector-monitoring"}) or up{job="data-science-collector-collector-monitoring"} == 0
           for: 10m
           labels:
             severity: warning
@@ -64,7 +64,7 @@ spec:
 
         - alert: CollectorPrometheusExporterScrapeTargetDown
           expr: |
-            up{job="data-science-collector-prometheus"} == 0
+            absent(up{job="data-science-collector-prometheus"}) or up{job="data-science-collector-prometheus"} == 0
           for: 10m
           labels:
             severity: warning
@@ -75,7 +75,7 @@ spec:
 
         - alert: AlertmanagerSelfScrapeTargetDown
           expr: |
-            up{job="alertmanager-self"} == 0
+            absent(up{job="alertmanager-self"}) or up{job="alertmanager-self"} == 0
           for: 10m
           labels:
             severity: warning
@@ -86,7 +86,7 @@ spec:
 
         - alert: OperatorMetricsScrapeTargetDown
           expr: |
-            up{job="opendatahub-operator-controller-manager-metrics-service"} == 0
+            absent(up{job="opendatahub-operator-controller-manager-metrics-service"}) or up{job="opendatahub-operator-controller-manager-metrics-service"} == 0
           for: 10m
           labels:
             severity: warning
