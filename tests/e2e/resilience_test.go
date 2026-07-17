@@ -172,7 +172,8 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	// LlamaStack Operator is excluded because it has been replaced by OGX and the field is deprecated (no deployments to manage anymore)
 	// AIGateway is excluded because it is a module (reports AIGatewayReady via ModulesReady, not ComponentsReady)
 	// MCPLifecycleOperator is excluded because it is a module so it does not report DSC ComponentsReady condition
-	excludedComponents := 5 // TrustyAI, Kueue, LlamaStack Operator, AIGateway, MCPLifecycleOperator
+	// Trainer is excluded because it is a module so it does not report DSC ComponentsReady condition
+	excludedComponents := 6 // TrustyAI, Kueue, LlamaStack Operator, AIGateway, MCPLifecycleOperator, Trainer
 	expectedTestableComponents := expectedComponentCount - excludedComponents
 	tc.g.Expect(componentsLength).Should(Equal(expectedTestableComponents),
 		"allComponents list is out of sync with DSC Components struct. "+
