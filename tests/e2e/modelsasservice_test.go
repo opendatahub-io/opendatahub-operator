@@ -7,7 +7,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -75,15 +74,10 @@ func modelsAsServiceTestSuite(t *testing.T) {
 		WithEventuallyPollingInterval(ct.TestTimeouts.defaultEventuallyPollInterval),
 	}
 
-	// Setup: Create prerequisites and enable the subcomponent.
-	// PostgreSQL must be created before enabling the component because
-	// maas-api reads the maas-db-config secret on startup.
-	//
 	// Note: MaaS is a sub-component of AIGateway (PR #3723) — the in-tree
 	// ModelsAsService handler is deregistered, so ModelsAsServiceReady is never
 	// set on the DSC. We bypass UpdateSubComponentStateInDataScienceCluster
 	// (which waits for ModelsAsServiceReady) and patch the DSC directly.
-	componentCtx.createMaaSPostgres(t)
 	componentCtx.createMaaSGateway(t)
 	componentCtx.EnsureParentComponentEnabled(t)
 
@@ -94,12 +88,16 @@ func modelsAsServiceTestSuite(t *testing.T) {
 		WithCondition(jq.Match(`.spec.components.aigateway.modelsAsAService.managementState == "Managed"`)),
 	)
 
-	// Wait for AIGatewayReady=True before running test cases.
+	// Wait for AIGatewayReady=True before creating postgres — this ensures the
+	// ai-gateway-operator has reconciled with modelsAsAService=Managed and will
+	// no longer delete the infrastructure namespace.
 	componentCtx.EnsureResourceExists(
 		WithMinimalObject(gvk.DataScienceCluster, componentCtx.DataScienceClusterNamespacedName),
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "AIGatewayReady") | .status == "True"`)),
 		WithEventuallyTimeout(ct.TestTimeouts.longEventuallyTimeout),
 	)
+
+	componentCtx.createMaaSPostgres(t)
 
 	testCases := []TestCase{
 		{"Validate MaasTenantConfig CR in subscription namespace", componentCtx.ValidateTenantInSubscriptionNamespace},
@@ -289,8 +287,13 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantInSubscriptionNamespace(t *testi
 	t.Helper()
 	skipUnless(t, Smoke, Tier1)
 
-	t.Logf("Checking MaasTenantConfig %s/%s exists with Ready condition", tenantSubscriptionNS, tenantName)
+	t.Logf("Checking MaasTenantConfig %s/%s exists with DependenciesAvailable=True", tenantSubscriptionNS, tenantName)
 
+	// Verify the CR was bootstrapped by maas-controller in the subscription namespace
+	// and that Kuadrant dependencies (AuthConfig CRD) are available. DependenciesAvailable=True
+	// is achievable in CI — it verifies the AGO deployment wired Kuadrant correctly.
+	// Ready=True additionally requires Authorino instance and monitoring which are
+	// external to the ODH operator's responsibility.
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.MaasTenantConfig, types.NamespacedName{
 			Name:      tenantName,
@@ -299,10 +302,10 @@ func (tc *ModelsAsServiceTestCtx) ValidateTenantInSubscriptionNamespace(t *testi
 		WithCondition(
 			And(
 				jq.Match(`.metadata.namespace == "%s"`, tenantSubscriptionNS),
-				jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue),
+				jq.Match(`.status.conditions[] | select(.type == "DependenciesAvailable") | .status == "True"`),
 			),
 		),
-		WithCustomErrorMsg("MaasTenantConfig %s/%s should exist with Ready=True", tenantSubscriptionNS, tenantName),
+		WithCustomErrorMsg("MaasTenantConfig %s/%s should exist with DependenciesAvailable=True", tenantSubscriptionNS, tenantName),
 	)
 }
 
@@ -373,10 +376,9 @@ func (tc *ModelsAsServiceTestCtx) ValidatePayloadProcessingNetworkPolicy(t *test
 // ValidateMaaSDeploymentRemovedOnDisable verifies that the maas-controller Deployment is
 // removed when modelsAsAService is set to Removed.
 //
-// Architecture note (PR #3723): setting modelsAsAService=Removed causes AGO to remove the
-// maas-controller Deployment. The MaaS Config CR and Tenant CR are owned by the AIGateway CR
-// via ownerReferences — they are only GC'd when AIGateway itself is deleted. Tenant cleanup
-// on sub-component disable is therefore out of scope for this test.
+// Architecture note (PR #3723): setting modelsAsAService=Removed causes AGO to initiate
+// graceful teardown of the maas-controller Deployment. The maas-controller acknowledges
+// teardown via models-as-a-service#1159 (self-teardown feature).
 func (tc *ModelsAsServiceTestCtx) ValidateMaaSDeploymentRemovedOnDisable(t *testing.T) {
 	t.Helper()
 	skipUnless(t, Smoke, Tier1)
