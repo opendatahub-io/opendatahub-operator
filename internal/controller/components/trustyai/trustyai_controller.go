@@ -79,13 +79,20 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True), // if TrustyAI CR is changed
 				predicate.Funcs{ // OR if ISVC CRD from kserve is created or deleted
 					CreateFunc: func(e event.CreateEvent) bool {
-						// React when InferenceServices CRD is created (dependency becomes available)
-						return isInferenceServicesCRD(e.Object)
+						// React when InferenceServices CRD is created. Name-only check: the ODH label
+						// (app.opendatahub.io/kserve) is added later by ODH and is absent at creation time.
+						return e.Object.GetName() == InferenceServicesCRDName
 					},
 					UpdateFunc: func(e event.UpdateEvent) bool {
-						// Don't react to updates - MonitorCRD precondition only checks if CRD exists, not its version/spec
-						// This also prevents continuous reconciliation on CRD status updates
-						return false
+						// React when the ODH label is added to the InferenceServices CRD. This covers
+						// the case where the operator restarts after the CRD already exists: no Create
+						// event fires, but ODH later labels the CRD triggering this handler.
+						if e.ObjectNew.GetName() != InferenceServicesCRDName {
+							return false
+						}
+						wasLabeled := pkgresources.HasLabel(e.ObjectOld, labels.ODH.Component(componentApi.KserveComponentName), labels.True)
+						isLabeled := pkgresources.HasLabel(e.ObjectNew, labels.ODH.Component(componentApi.KserveComponentName), labels.True)
+						return !wasLabeled && isLabeled
 					},
 					DeleteFunc: func(e event.DeleteEvent) bool {
 						// React when InferenceServices CRD is deleted (dependency becomes unavailable)
