@@ -296,6 +296,25 @@ else
 fi
 rm -f "$rhai_temp"
 
+# Fetch SBOM metadata config (version metadata env vars, not container images)
+SBOM_METADATA_FILE="$WORKDIR/sbom-metadata-images.txt"
+SBOM_METADATA_MATCHED="$WORKDIR/sbom-metadata-matched.txt"
+touch "$SBOM_METADATA_FILE" "$SBOM_METADATA_MATCHED"
+echo ""
+echo "Fetching SBOM metadata config (${RHOAI_BUILD_CONFIG_BRANCH})..."
+SBOM_METADATA_URL="${RHOAI_BASE_URL}/bundle/metadata-config.yaml"
+sbom_temp=$(mktemp "${WORKDIR}/fetched.XXXXXX.yaml")
+if curl -sfL --max-filesize 10485760 --connect-timeout 10 --max-time 30 \
+        "$SBOM_METADATA_URL" -o "$sbom_temp" 2>/dev/null; then
+    $YQ -r '(.sbom-metadata // [])[] | .suffix as $s | .env_vars[] | . + $s' "$sbom_temp" \
+        2>/dev/null | sort -u > "$SBOM_METADATA_FILE"
+    sbom_count=$(wc -l < "$SBOM_METADATA_FILE" | tr -d ' ')
+    echo "  Found ${sbom_count} SBOM metadata env var(s) to exclude"
+else
+    echo "  WARNING: Failed to fetch SBOM metadata config"
+fi
+rm -f "$sbom_temp"
+
 ODH_LABEL="ODH (${ODH_BUILD_CONFIG_BRANCH})"
 RHOAI_LABEL="RHOAI (${RHOAI_BUILD_CONFIG_BRANCH})"
 RHAI_LABEL="RHAI Helm"
@@ -348,6 +367,12 @@ touch "$ERRORS_FILE" "$WARNINGS_FILE"
 sort -u -t'|' -k1,1 "$ALL_ENTRIES" | cut -d'|' -f1 | sort -u > "$WORKDIR/unique-images.txt"
 
 while IFS= read -r related_image; do
+    # SBOM metadata: version env vars derived from metadata-config.yaml are not images
+    if grep -qxF "$related_image" "$SBOM_METADATA_FILE" 2>/dev/null; then
+        echo "$related_image" >> "$SBOM_METADATA_MATCHED"
+        continue
+    fi
+
     in_odh=false
     in_rhoai=false
     in_rhai=false
@@ -514,6 +539,10 @@ if [ -s "$ODH_EXCEPTIONS_MATCHED" ]; then
     local_oe_count=$(sort -u "$ODH_EXCEPTIONS_MATCHED" | wc -l | tr -d ' ')
     printf ", ${CYAN}%d ODH exception(s)${RESET}" "$local_oe_count"
 fi
+if [ -s "$SBOM_METADATA_MATCHED" ]; then
+    local_sm_count=$(sort -u "$SBOM_METADATA_MATCHED" | wc -l | tr -d ' ')
+    printf ", ${CYAN}%d SBOM metadata exclusion(s)${RESET}" "$local_sm_count"
+fi
 echo ""
 
 # Known issues detail
@@ -531,6 +560,15 @@ if [ -s "$ODH_EXCEPTIONS_MATCHED" ]; then
     printf "  ${CYAN}${BOLD}ODH exceptions (not applicable to ODH, skipped):${RESET}\n"
     sort -u "$ODH_EXCEPTIONS_MATCHED" | while IFS='|' read -r oe_image oe_reason; do
         printf "    ${CYAN}%s${RESET} - %s\n" "$oe_image" "$oe_reason"
+    done
+fi
+
+# SBOM metadata exclusions detail
+if [ -s "$SBOM_METADATA_MATCHED" ]; then
+    echo ""
+    printf "  ${CYAN}${BOLD}SBOM metadata (version metadata, not images, skipped):${RESET}\n"
+    sort -u "$SBOM_METADATA_MATCHED" | while IFS= read -r sm_image; do
+        printf "    ${CYAN}%s${RESET}\n" "$sm_image"
     done
 fi
 
