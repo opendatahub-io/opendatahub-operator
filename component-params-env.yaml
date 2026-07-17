@@ -15,6 +15,9 @@ rhai_helm_components:
 #   jira: https://issues.redhat.com/browse/RHOAIENG-XXXXX
 #   reason: Deprecated image, removal tracked in Jira
 known_issues:
+- image: RELATED_IMAGE_ODH_LLM_D_KV_CACHE_IMAGE
+  jira: https://redhat.atlassian.net/browse/RHOAIENG-60938
+  reason: Unused image, will be dropped here as part of migration to module for kserve
 - image: RELATED_IMAGE_ODH_ML_PIPELINES_RUNTIME_GENERIC_IMAGE
   jira: https://redhat.atlassian.net/browse/RHOAIENG-60396
   reason: Removed with InstrutLab pipeline removal since RHOAI 3.0
