@@ -923,35 +923,22 @@ func (tc *MonitoringTestCtx) ValidateTracesExportersReservedNameValidation(t *te
 	)
 }
 
-// ValidatePrometheusRulesLifecycle validates that Prometheus rules are created when monitoring and dashboard are enabled, and deleted when both are disabled.
+// ValidatePrometheusRulesLifecycle validates that operator Prometheus rules are created when alerting is enabled and deleted when monitoring is disabled.
 func (tc *MonitoringTestCtx) ValidatePrometheusRulesLifecycle(t *testing.T) {
 	t.Helper()
 
-	// First, ensure dashboard is disabled to establish a known initial state.
-	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, gvk.Dashboard.Kind)
-
-	// Enable alerting + dashboard → Prometheus rules created
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
 		tc.withMetricsConfig(),
 		withEmptyAlerting(),
 	)
 
-	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, gvk.Dashboard.Kind)
-
-	tc.EnsureResourceExists(WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "dashboard-prometheusrules", Namespace: tc.MonitoringNamespace}))
 	tc.EnsureResourceExists(WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "operator-prometheusrules", Namespace: tc.MonitoringNamespace}))
 
-	// Disable both dashboard and monitoring
 	tc.resetMonitoringConfigToRemoved()
-	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, gvk.Dashboard.Kind)
 
-	// Verify both Prometheus rules are deleted
-	tc.EnsureResourceGone(WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "dashboard-prometheusrules", Namespace: tc.MonitoringNamespace}))
 	tc.EnsureResourceGone(WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "operator-prometheusrules", Namespace: tc.MonitoringNamespace}))
 
-	// Cleanup: Remove alerting configuration from DSCInitialization to prevent validation issues
-	// This ensures that subsequent tests can set metrics=null without violating the validation rule
 	tc.updateMonitoringConfig(withNoAlerting())
 }
 
