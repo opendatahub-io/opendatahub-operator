@@ -186,7 +186,7 @@ func TestGetOperatorManifests_PlatformOverlay(t *testing.T) {
 		{"odh", cluster.OpenDataHub, "/base/aigateway/manifests/ai-gateway-operator/overlays/odh"},
 		{"self-managed-rhoai", cluster.SelfManagedRhoai, "/base/aigateway/manifests/ai-gateway-operator/overlays/rhoai"},
 		{"managed-rhoai-not-supported", cluster.ManagedRhoai, "/base/aigateway/manifests/ai-gateway-operator"},
-		{"unknown-has-no-overlay", cluster.XKS, "/base/aigateway/manifests/ai-gateway-operator"},
+		{"xks-uses-rhoai-overlay", cluster.XKS, "/base/aigateway/manifests/ai-gateway-operator/overlays/rhoai"},
 	}
 
 	for _, tcase := range cases {
