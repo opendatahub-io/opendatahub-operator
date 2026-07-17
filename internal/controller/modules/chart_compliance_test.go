@@ -9,6 +9,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	aigatewayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
+	feastModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/feastoperator"
 	mcplifecycleoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
 	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
 
@@ -37,6 +38,7 @@ func moduleHandlers() []modules.ModuleHandler {
 		aigatewayModule.NewHandler(),
 		mcplifecycleoperatorModule.NewHandler(),
 		workbenchesModule.NewHandler(),
+		feastModule.NewHandler(),
 	}
 }
 
