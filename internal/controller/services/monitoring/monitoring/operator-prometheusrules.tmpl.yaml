@@ -25,13 +25,12 @@ spec:
         - alert: OperatorPodRestartingFrequently
           expr: |
             increase(kube_pod_container_status_restarts_total{
-              namespace="redhat-ods-operator",
-              pod=~"rhods-operator.*"
+              namespace=~"redhat-ods-operator|opendatahub-operator-system",
+              pod=~"rhods-operator.*|opendatahub-operator-controller-manager.*"
             }[5m]) > 3
           for: 2m
           labels:
             severity: warning
-            namespace: redhat-ods-operator
           annotations:
             summary: "Operator pod {{`{{`}} $labels.pod {{`}}`}} is restarting frequently"
             description: "Pod {{`{{`}} $labels.pod {{`}}`}} in namespace {{`{{`}} $labels.namespace {{`}}`}} has restarted {{`{{`}} $value {{`}}`}} times in the last 5 minutes. This indicates potential instability."
