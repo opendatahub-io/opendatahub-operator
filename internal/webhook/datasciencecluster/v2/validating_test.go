@@ -125,3 +125,54 @@ func TestDataScienceClusterV2_ValidatingWebhook(t *testing.T) {
 		})
 	}
 }
+
+func TestDataScienceClusterV2_ModelsAsServiceDeprecationWarning(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	g := NewWithT(t)
+
+	gvr := metav1.GroupVersionResource{
+		Group:    gvk.DataScienceCluster.Group,
+		Version:  gvk.DataScienceCluster.Version,
+		Resource: "datascienceclusters",
+	}
+
+	withModelsAsService := func(state operatorv1.ManagementState) func(*dscv2.DataScienceCluster) {
+		return func(dsc *dscv2.DataScienceCluster) {
+			dsc.Spec.Components.Kserve.ModelsAsService.ManagementState = state //nolint:staticcheck
+		}
+	}
+
+	sch, err := scheme.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+	cli, err := fakeclient.New(fakeclient.WithObjects(envtestutil.NewDSCI("dsci-for-dsc")), fakeclient.WithScheme(sch))
+	g.Expect(err).ShouldNot(HaveOccurred())
+	validator := &v2webhook.Validator{
+		Client:  cli,
+		Name:    "test-v2",
+		Decoder: admission.NewDecoder(sch),
+	}
+
+	t.Run("Warns on create when modelsAsService is Managed", func(t *testing.T) {
+		t.Parallel()
+		g := NewWithT(t)
+		req := envtestutil.NewAdmissionRequest(t, admissionv1.Create,
+			envtestutil.NewDSC("test-warn", withModelsAsService(operatorv1.Managed)),
+			gvk.DataScienceCluster, gvr)
+		resp := validator.Handle(ctx, req)
+		g.Expect(resp.Allowed).To(BeTrue())
+		g.Expect(resp.Warnings).To(ContainElement(ContainSubstring("modelsAsService is deprecated")))
+		g.Expect(resp.Warnings).To(ContainElement(ContainSubstring("aigateway.modelsAsAService")))
+	})
+
+	t.Run("No warning when modelsAsService is Removed", func(t *testing.T) {
+		t.Parallel()
+		g := NewWithT(t)
+		req := envtestutil.NewAdmissionRequest(t, admissionv1.Create,
+			envtestutil.NewDSC("test-no-warn", withModelsAsService(operatorv1.Removed)),
+			gvk.DataScienceCluster, gvr)
+		resp := validator.Handle(ctx, req)
+		g.Expect(resp.Allowed).To(BeTrue())
+		g.Expect(resp.Warnings).To(BeEmpty())
+	})
+}
