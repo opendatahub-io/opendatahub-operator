@@ -11,7 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelsasservice"
+	aigateway "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
 )
@@ -187,7 +187,7 @@ func cleanupMaaSControllerFinalizer(t *testing.T, tc *TestContext) {
 	t.Log("Removing maas-controller cleanup finalizer (if present)")
 	tc.DeleteResource(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{
-			Name:      modelsasservice.MaasControllerDeploymentName,
+			Name:      aigateway.MaaSControllerDeploymentName,
 			Namespace: tc.AppsNamespace,
 		}),
 		WithIgnoreNotFound(true),
