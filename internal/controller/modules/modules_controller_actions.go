@@ -201,7 +201,7 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 		return nil
 	}
 
-	reverseBatches, err := provision.DefaultRegistry().ReverseBatches()
+	reverseBatches, err := provision.ReverseBatchesAll()
 	if err != nil {
 		logf.FromContext(ctx).Error(err, "DAG reverse resolution failed, falling back to alphabetical cleanup order")
 		return reg.ForAll(func(handler ModuleHandler, _ bool) error {
