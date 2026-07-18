@@ -190,12 +190,12 @@ $YQ -r '(.rhoai_exceptions // [])[] | .image + "|" + .reason' "$CONFIG_FILE" \
     > "$RHOAI_EXCEPTIONS_FILE"
 
 is_rhoai_exception() {
-    grep -q "^$1|" "$RHOAI_EXCEPTIONS_FILE"
+    grep -q -e "^$1|" -- "$RHOAI_EXCEPTIONS_FILE"
 }
 
 record_rhoai_exception_match() {
     local image="$1"
-    grep "^${image}|" "$RHOAI_EXCEPTIONS_FILE" | head -1 >> "$RHOAI_EXCEPTIONS_MATCHED"
+    grep -e "^${image}|" -- "$RHOAI_EXCEPTIONS_FILE" | head -1 >> "$RHOAI_EXCEPTIONS_MATCHED"
 }
 
 # --- Step 3: Extract map entries per component ---
@@ -325,7 +325,7 @@ fetch_sbom_metadata() {
     echo ""
     echo "Fetching SBOM metadata config from ${label}..."
     if curl -sfL --max-filesize 10485760 --connect-timeout 10 --max-time 30 \
-            "$url" -o "$sbom_temp" 2>/dev/null; then
+            -o "$sbom_temp" -- "$url" 2>/dev/null; then
         $YQ -r '(.sbom-metadata // [])[] | .suffix as $s | .env_vars[] | . + $s' "$sbom_temp" \
             2>/dev/null >> "$SBOM_METADATA_FILE"
         local count
@@ -396,7 +396,7 @@ sort -u -t'|' -k1,1 "$ALL_ENTRIES" | cut -d'|' -f1 | sort -u > "$WORKDIR/unique-
 
 while IFS= read -r related_image; do
     # SBOM metadata: version env vars derived from metadata-config.yaml are not images
-    if grep -qxF "$related_image" "$SBOM_METADATA_FILE" 2>/dev/null; then
+    if grep -qxF -e "$related_image" -- "$SBOM_METADATA_FILE" 2>/dev/null; then
         echo "$related_image" >> "$SBOM_METADATA_MATCHED"
         continue
     fi
@@ -575,11 +575,11 @@ if [ -s "$ODH_EXCEPTIONS_MATCHED" ]; then
 fi
 if [ -s "$RHOAI_EXCEPTIONS_MATCHED" ]; then
     local_re_count=$(sort -u "$RHOAI_EXCEPTIONS_MATCHED" | wc -l | tr -d ' ')
-    printf ", ${CYAN}%d RHOAI exception(s)${RESET}" "$local_re_count"
+    printf ", %b%d RHOAI exception(s)%b" "$CYAN" "$local_re_count" "$RESET"
 fi
 if [ -s "$SBOM_METADATA_MATCHED" ]; then
     local_sm_count=$(sort -u "$SBOM_METADATA_MATCHED" | wc -l | tr -d ' ')
-    printf ", ${CYAN}%d SBOM metadata exclusion(s)${RESET}" "$local_sm_count"
+    printf ", %b%d SBOM metadata exclusion(s)%b" "$CYAN" "$local_sm_count" "$RESET"
 fi
 echo ""
 
@@ -604,18 +604,18 @@ fi
 # RHOAI exceptions detail
 if [ -s "$RHOAI_EXCEPTIONS_MATCHED" ]; then
     echo ""
-    printf "  ${CYAN}${BOLD}RHOAI exceptions (not applicable to RHOAI, skipped):${RESET}\n"
+    printf "  %b%bRHOAI exceptions (not applicable to RHOAI, skipped):%b\n" "$CYAN" "$BOLD" "$RESET"
     sort -u "$RHOAI_EXCEPTIONS_MATCHED" | while IFS='|' read -r re_image re_reason; do
-        printf "    ${CYAN}%s${RESET} - %s\n" "$re_image" "$re_reason"
+        printf "    %b%s%b - %s\n" "$CYAN" "$re_image" "$RESET" "$re_reason"
     done
 fi
 
 # SBOM metadata exclusions detail
 if [ -s "$SBOM_METADATA_MATCHED" ]; then
     echo ""
-    printf "  ${CYAN}${BOLD}SBOM metadata (version metadata, not images, skipped):${RESET}\n"
+    printf "  %b%bSBOM metadata (version metadata, not images, skipped):%b\n" "$CYAN" "$BOLD" "$RESET"
     sort -u "$SBOM_METADATA_MATCHED" | while IFS= read -r sm_image; do
-        printf "    ${CYAN}%s${RESET}\n" "$sm_image"
+        printf "    %b%s%b\n" "$CYAN" "$sm_image" "$RESET"
     done
 fi
 
@@ -672,12 +672,12 @@ if [ -s "$RHOAI_EXCEPTIONS_FILE" ]; then
 
     stale_re_count=0
     while IFS='|' read -r re_image re_reason; do
-        if ! grep -qxF "$re_image" "$matched_re_images" 2>/dev/null; then
+        if ! grep -qxF -e "$re_image" -- "$matched_re_images" 2>/dev/null; then
             if [ "$stale_re_count" -eq 0 ]; then
                 echo ""
-                printf "  ${YELLOW}${BOLD}Stale RHOAI exceptions (no longer triggered, please remove from ${CONFIG_FILE}):${RESET}\n"
+                printf "  %b%bStale RHOAI exceptions (no longer triggered, please remove from %s):%b\n" "$YELLOW" "$BOLD" "$CONFIG_FILE" "$RESET"
             fi
-            printf "    ${YELLOW}%s${RESET} - %s\n" "$re_image" "$re_reason"
+            printf "    %b%s%b - %s\n" "$YELLOW" "$re_image" "$RESET" "$re_reason"
             stale_re_count=$((stale_re_count + 1))
         fi
     done < "$RHOAI_EXCEPTIONS_FILE"
