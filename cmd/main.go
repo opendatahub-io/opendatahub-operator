@@ -88,7 +88,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/mlflowoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelcontroller"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelsasservice"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ogx"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ray"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
@@ -146,7 +145,6 @@ var (
 		componentApi.MLflowOperatorComponentName:       mlflowoperator.NewHandler(),
 		componentApi.ModelControllerComponentName:      modelcontroller.NewHandler(),
 		componentApi.ModelRegistryComponentName:        modelregistry.NewHandler(),
-		componentApi.ModelsAsServiceComponentName:      modelsasservice.NewHandler(),
 		componentApi.RayComponentName:                  ray.NewHandler(),
 		componentApi.SparkOperatorComponentName:        sparkoperator.NewHandler(),
 		componentApi.TrainingOperatorComponentName:     trainingoperator.NewHandler(),
@@ -179,8 +177,7 @@ var (
 		componentApi.OGXComponentName:            dag.RL(32),
 		componentApi.SparkOperatorComponentName:  dag.RL(32),
 
-		componentApi.ModelsAsServiceComponentName: dag.RL(33),
-		componentApi.TrustyAIComponentName:        dag.RL(33),
+		componentApi.TrustyAIComponentName: dag.RL(33),
 	}
 
 	existingServices = map[string]sr.ServiceHandler{

@@ -29,12 +29,12 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["feastoperator"]="opendatahub-io:feast:stable@bad000a710030ca06f42741715b7b215a443c85c:infra/feast-operator/config"
     ["ogx"]="opendatahub-io:ogx-k8s-operator:odh@7b8c8149f3b216ab0edcc247c422f072c92ac915:config"
     ["trainer"]="opendatahub-io:trainer-operator:main@c2c36e3584c8eebd50720c52b7f22de7d00f76fe:config"
-    ["maas"]="opendatahub-io:models-as-a-service:stable@571a9b70ac81159d2e90b885013386fe69b1bb98:deployment"
+    ["maas"]="opendatahub-io:models-as-a-service:stable@8c7449c59d08c9b5a7cd2120236b5eb871cfe179:deployment"
     ["mlflowoperator"]="opendatahub-io:mlflow-operator:main@d08ed9fdd2d0783900a9c679053ce87cf5649eb6:config"
     ["sparkoperator"]="opendatahub-io:spark-operator:main@4dd2dae8947d76dabfcbca3a38b525b8765741bd:config"
     ["wva"]="opendatahub-io:workload-variant-autoscaler:main@8df86ea0826a9fbb5339098f38a493dabf859c37:config"
     ["aigateway"]="opendatahub-io:ai-gateway-operator:stable@78e57c820bd2879e5ef42289447aa55bdf68dce4:config"
-    ["mcplifecycleoperator"]="opendatahub-io:mcp-lifecycle-module-operator:main@7db9739cd9c8ee3f321a08653be738ec52c5a9fa:config"
+["mcplifecycleoperator"]="opendatahub-io:mcp-lifecycle-module-operator:main@7db9739cd9c8ee3f321a08653be738ec52c5a9fa:config"
 )
 
 # RHOAI Component Manifests
@@ -53,12 +53,12 @@ declare -A RHOAI_COMPONENT_MANIFESTS=(
     ["feastoperator"]="red-hat-data-services:feast:rhoai-3.5@280859e613a89c19cac50483b5ee13384d23113f:infra/feast-operator/config"
     ["ogx"]="red-hat-data-services:ogx-k8s-operator:rhoai-3.5@69907fa92dd3477266780da415e81c179d0dce7a:config"
     ["trainer"]="red-hat-data-services:trainer-operator:rhoai-3.5@d6634425da9568f8ec0064b47d7b6462ac8dfc36:config"
-    ["maas"]="red-hat-data-services:models-as-a-service:rhoai-3.5@2a4ce4a0fe5d5ced14b549ed386a3f6d240031d5:deployment"
+    ["maas"]="red-hat-data-services:models-as-a-service:rhoai-3.5@1e0df2e7b658424f20fbe18ceb8eba43c750d39a:deployment"
     ["mlflowoperator"]="red-hat-data-services:mlflow-operator:rhoai-3.5@d8d8e2c08749d96164ce400f6afc0ff768bc8c28:config"
     ["sparkoperator"]="red-hat-data-services:spark-operator:rhoai-3.5@77f949e1d3d438de39bc5f5ebccb45fdf0114852:config"
     ["wva"]="red-hat-data-services:workload-variant-autoscaler:rhoai-3.5@77a2f3ec16160dc9ec261511033260ff9402f0cf:config"
     ["aigateway"]="red-hat-data-services:ai-gateway-operator:rhoai-3.5@3d75e8884b0b171808eef630ece2995ed7cda8bb:config"
-    ["mcplifecycleoperator"]="red-hat-data-services:mcp-lifecycle-module-operator:rhoai-3.5@c32d55bf77c41d53a17e274ecf6219d80f154cad:config"
+["mcplifecycleoperator"]="red-hat-data-services:mcp-lifecycle-module-operator:rhoai-3.5@c32d55bf77c41d53a17e274ecf6219d80f154cad:config"
 )
 
 # {ODH,RHOAI}_{CCM,COMPONENT}_CHARTS are lists of chart repositories info to fetch helm charts

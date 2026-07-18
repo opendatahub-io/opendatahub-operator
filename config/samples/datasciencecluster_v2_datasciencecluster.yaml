@@ -8,6 +8,8 @@ spec:
   components:
     aigateway:
       managementState: "Removed"
+      modelsAsAService:
+        managementState: "Removed"
       batchGateway:
         managementState: "Removed"
     dashboard:
@@ -19,8 +21,6 @@ spec:
       nim:
         managementState: "Managed"
       rawDeploymentServiceConfig: "Headed"
-      modelsAsService:
-        managementState: "Removed"
       wva:
         managementState: "Removed"
     kueue:
@@ -43,7 +43,7 @@ spec:
     llamastackoperator:
       managementState: "Removed"
     ogx:
-      managementState: "Removed"
+      managementState: "Managed"
     mlflowoperator:
       managementState: "Managed"
     sparkoperator:
