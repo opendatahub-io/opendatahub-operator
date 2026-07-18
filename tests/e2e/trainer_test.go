@@ -155,10 +155,43 @@ func trainerDegradedMonitoringTestSuite(t *testing.T) {
 
 	testCases := []TestCase{
 		// we must enable the component first since this suite runs isolated from other component tests
-		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
+		{"Validate component enabled", componentCtx.ValidateModuleEnabled},
 		{"Validate external operator degraded condition monitoring", componentCtx.ValidateExternalOperatorDegradedMonitoring},
 	}
 	RunTestCases(t, testCases)
+}
+
+// ValidateModuleEnabled enables trainer using the module pattern: separate DSC patch
+// from readiness check, waiting for ModulesReady instead of ComponentsReady.
+func (tc *TrainerTestCtx) ValidateModuleEnabled(t *testing.T) {
+	t.Helper()
+	skipUnless(t, Smoke, Tier1)
+
+	moduleGVK := schema.GroupVersionKind{
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.TrainerKind,
+	}
+	moduleCRNN := types.NamespacedName{Name: componentApi.TrainerInstanceName}
+
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.trainer.managementState = "Managed"`)),
+		WithCondition(jq.Match(`.spec.components.trainer.managementState == "Managed"`)),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(moduleGVK, moduleCRNN),
+		WithCondition(And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
+		)),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeModulesReady, metav1.ConditionTrue)),
+	)
 }
 
 // ValidateExternalOperatorDegradedMonitoring ensures that when the external JobSet operator CR
