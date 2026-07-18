@@ -140,19 +140,23 @@ var (
 		parallel: true,
 		scenarios: []map[string]TestFn{
 			{
-				componentApi.DashboardComponentName:            dashboardTestSuite,
-				componentApi.RayComponentName:                  rayTestSuite,
-				componentApi.ModelRegistryComponentName:        modelRegistryTestSuite,
-				componentApi.TrainingOperatorComponentName:     trainingOperatorTestSuite,
-				componentApi.TrainerComponentName:              trainerTestSuite,
-				componentApi.DataSciencePipelinesComponentName: dataSciencePipelinesTestSuite,
-				componentApi.WorkbenchesComponentName:          workbenchesTestSuite,
+				componentApi.DashboardComponentName:        dashboardTestSuite,
+				componentApi.RayComponentName:              rayTestSuite,
+				componentApi.ModelRegistryComponentName:    modelRegistryTestSuite,
+				componentApi.TrainingOperatorComponentName: trainingOperatorTestSuite,
+				componentApi.TrainerComponentName:          trainerTestSuite,
+			},
+			{
 				componentApi.KserveComponentName:               kserveTestSuite,
-				componentApi.FeastOperatorComponentName:        feastOperatorTestSuite,
-				componentApi.OGXComponentName:                  ogxTestSuite,
 				componentApi.SparkOperatorComponentName:        sparkOperatorTestSuite,
-				componentApi.AIGatewayComponentName:            aiGatewayTestSuite,
+				componentApi.FeastOperatorComponentName:        feastOperatorTestSuite,
 				componentApi.MCPLifecycleOperatorComponentName: mcpLifecycleOperatorTestSuite,
+			},
+			{
+				componentApi.WorkbenchesComponentName:          workbenchesTestSuite,
+				componentApi.DataSciencePipelinesComponentName: dataSciencePipelinesTestSuite,
+				componentApi.OGXComponentName:                  ogxTestSuite,
+				componentApi.AIGatewayComponentName:            aiGatewayTestSuite,
 			},
 			{
 				// Kueue tests depends on Workbenches, so must not run with Workbenches tests in parallel
