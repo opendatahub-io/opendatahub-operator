@@ -134,6 +134,14 @@ func monitoringTestSuite(t *testing.T) {
 	// ========================================================================
 	t.Run("Validate monitoring service disabled", monitoringServiceCtx.ValidateMonitoringServiceDisabled)
 	t.Run("Validate MonitoringReady condition reflects disabled state on DSCI", monitoringServiceCtx.ValidateMonitoringReadyConditionDisabledOnDSCI)
+
+	// ========================================================================
+	// Post-Suite: Restore monitoring baseline
+	// Re-enables monitoring so the cluster is healthy for subsequent test suites
+	// (components, auth, gateway). Without this, the disabled monitoring state
+	// causes cascading timeouts and failures in component tests.
+	// ========================================================================
+	t.Run("Restore monitoring for subsequent test suites", monitoringServiceCtx.RestoreMonitoringAfterSuite)
 }
 
 func (tc *MonitoringTestCtx) runBaseConfigurationTests(t *testing.T) {
@@ -492,6 +500,23 @@ func (tc *MonitoringTestCtx) ValidateMonitoringReadyConditionDisabledOnDSCI(t *t
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, status.ConditionMonitoringReady, status.RemovedReason),
 		)),
 		WithCustomErrorMsg("DSCI should have MonitoringReady=False with reason Removed when monitoring is disabled"),
+	)
+}
+
+// RestoreMonitoringAfterSuite re-enables monitoring after the disable validation tests
+// so the cluster is in a healthy state for subsequent test suites (components, auth, gateway).
+func (tc *MonitoringTestCtx) RestoreMonitoringAfterSuite(t *testing.T) {
+	t.Helper()
+
+	tc.resetMonitoringConfigToManaged()
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithCondition(And(
+			jq.Match(`.status.phase == "%s"`, status.PhaseReady),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionMonitoringReady, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("DSCI should have MonitoringReady=True after re-enabling monitoring for subsequent test suites"),
 	)
 }
 
