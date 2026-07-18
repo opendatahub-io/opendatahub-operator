@@ -126,6 +126,7 @@ type ReconcilerBuilder[T common.PlatformObject] struct {
 	dynamicOwnershipDefaultPreds []predicate.Predicate
 	skipConditionCleanup         bool
 	skipStatusConditionsFn       func() bool
+	platformReleaseEnabled       bool
 }
 
 func ReconcilerFor[T common.PlatformObject](mgr ctrl.Manager, object T, opts ...builder.ForOption) *ReconcilerBuilder[T] {
@@ -179,6 +180,16 @@ func (b *ReconcilerBuilder[T]) WithoutConditionCleanup() *ReconcilerBuilder[T] {
 
 func (b *ReconcilerBuilder[T]) WithoutStatusConditions() *ReconcilerBuilder[T] {
 	b.skipStatusConditionsFn = func() bool { return true }
+	return b
+}
+
+// WithPlatformRelease enables the platform version handshake: the
+// reconciler writes status.releases[name="platform"] with the current
+// operator version when the component reaches Ready and deploy was not
+// skipped. Disabled by default — modules can manage their own platform
+// release externally.
+func (b *ReconcilerBuilder[T]) WithPlatformRelease() *ReconcilerBuilder[T] {
+	b.platformReleaseEnabled = true
 	return b
 }
 
@@ -437,6 +448,9 @@ func (b *ReconcilerBuilder[T]) Build(_ context.Context) (*Reconciler, error) {
 	}
 	if b.skipStatusConditionsFn != nil {
 		opts = append(opts, withSkipStatusConditions(b.skipStatusConditionsFn))
+	}
+	if b.platformReleaseEnabled {
+		opts = append(opts, withPlatformRelease())
 	}
 
 	r, err := NewReconciler(b.mgr, name, obj, opts...)

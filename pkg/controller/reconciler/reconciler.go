@@ -99,6 +99,12 @@ func withDynamicOwnership(opts ...DynamicOwnershipOption) ReconcilerOpt {
 	}
 }
 
+func withPlatformRelease() ReconcilerOpt {
+	return func(reconciler *Reconciler) {
+		reconciler.platformReleaseEnabled = true
+	}
+}
+
 const platformFinalizer = "platform.opendatahub.io/finalizer"
 
 // Reconciler provides generic reconciliation functionality for ODH objects.
@@ -127,6 +133,7 @@ type Reconciler struct {
 	excludeFromDynamicOwnership map[schema.GroupVersionKind]struct{}
 	skipConditionCleanup        bool
 	skipStatusConditionsFn      func() bool
+	platformReleaseEnabled      bool
 }
 
 // NewReconciler creates a new reconciler for the given type.
@@ -458,8 +465,13 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) (time
 		is.Phase = status.PhaseReady
 		is.ObservedGeneration = rr.Instance.GetGeneration()
 
-		if wr, ok := rr.Instance.(common.WithReleases); ok && !rr.SkipDeploy {
-			setPlatformRelease(wr, rr.Release.Version.String())
+		// Platform version handshake: stamp the current operator version
+		// into status.releases so the DAG readiness checker can detect
+		// version mismatches during upgrades.
+		if r.platformReleaseEnabled && !rr.SkipDeploy {
+			if wr, ok := rr.Instance.(common.WithReleases); ok {
+				setPlatformRelease(wr, rr.Release.Version.String())
+			}
 		}
 	}
 
@@ -506,18 +518,18 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) (time
 	return requeueAfter, nil
 }
 
-const platformReleaseName = common.PlatformReleaseName
-
 func setPlatformRelease(wr common.WithReleases, version string) {
 	releases := wr.GetReleaseStatus()
 	for i, r := range *releases {
-		if r.Name == platformReleaseName {
+		if r.Name == common.PlatformReleaseName {
 			(*releases)[i].Version = version
+
 			return
 		}
 	}
+
 	*releases = append(*releases, common.ComponentRelease{
-		Name:    platformReleaseName,
+		Name:    common.PlatformReleaseName,
 		Version: version,
 	})
 }

@@ -103,6 +103,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			precondition.WithStopReconciliation(),
 			precondition.WithMessage(status.ISVCMissingCRDMessage),
 		)).
+		WithPlatformRelease().
 		WithAction(precondition.RunlevelGateAction()).
 		WithAction(initialize).
 		WithAction(createConfigMap).

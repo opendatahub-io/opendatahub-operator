@@ -333,7 +333,7 @@ func computeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 	var degradedModules []string
 	var enabledCount int
 
-	err = reg.ForEach(func(handler ModuleHandler) error {
+	err = reg.ForAll(func(handler ModuleHandler, _ bool) error {
 		name := handler.GetName()
 		condType := readyConditionTypeFor(handler)
 
@@ -473,7 +473,7 @@ func OwnedConditionTypes() map[string]bool {
 		status.ConditionTypeProvisioningProgress: true,
 	}
 
-	DefaultRegistry().ForEach(func(handler ModuleHandler) error { //nolint:errcheck
+	DefaultRegistry().ForAll(func(handler ModuleHandler, _ bool) error { //nolint:errcheck
 		types[readyConditionTypeFor(handler)] = true
 
 		return nil

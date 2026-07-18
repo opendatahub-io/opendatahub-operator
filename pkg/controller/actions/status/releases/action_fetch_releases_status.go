@@ -75,8 +75,9 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 	}
 
 	// Carry forward the platform release entry from the existing
-	// status. This entry is managed by the reconciler's
-	// setPlatformRelease, not by the component metadata YAML.
+	// status. This entry is managed by the reconciler (when
+	// WithPlatformRelease is enabled), not by the component metadata
+	// YAML.
 	result := append([]common.ComponentRelease{}, a.componentReleaseStatus...)
 
 	for _, r := range *obj.GetReleaseStatus() {
@@ -87,6 +88,7 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 		}
 	}
 
+	// Update the release status in the resource
 	obj.SetReleaseStatus(result)
 
 	return nil
@@ -128,6 +130,7 @@ func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) ([
 			// Return an empty slice of releases instead of an error
 			return nil, nil
 		}
+
 		return nil, fmt.Errorf("error reading metadata file: %w", err)
 	}
 

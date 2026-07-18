@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -23,6 +24,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/gates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/precondition"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
 	. "github.com/onsi/gomega"
@@ -139,8 +141,7 @@ func dagOrderingTestSuite(t *testing.T) {
 
 	t.Log("Ensuring clean slate: setting all components to Removed")
 	ctx.setAllRemoved(t)
-	ctx.removeOperatorEnvVar(t, "RHAI_VERSION")
-	ctx.removeOperatorEnvVar(t, "CI")
+	ctx.removeOperatorEnvVars(t, "RHAI_VERSION", "CI")
 
 	// Tests are ordered to minimise expensive enable/disable cycles.
 	// Each test's end state feeds the next test's start state.
@@ -175,8 +176,16 @@ func dagOrderingTestSuite(t *testing.T) {
 	// Components have platform release = 99.0.0. Restoring triggers
 	// another gating cycle (version mismatch) until components reconcile.
 	t.Log("Restoring operator to original version for Phase 3")
-	ctx.removeOperatorEnvVar(t, "RHAI_VERSION")
-	ctx.removeOperatorEnvVar(t, "CI")
+	ctx.removeOperatorEnvVars(t, "RHAI_VERSION", "CI")
+
+	// Module operators are separate deployments that don't restart when
+	// the main operator version changes. They still report the old
+	// platform version, blocking the DAG readiness checker.
+	// Force a rollout restart so they re-read the updated platform config.
+	// TODO(dag): the operator should handle this automatically by
+	// annotating module Deployments with a version hash so that a
+	// platform version change triggers a pod restart.
+	ctx.restartModuleOperators(t)
 
 	t.Log("Waiting for convergence at original version")
 	ctx.EnsureResourceExists(
@@ -191,7 +200,7 @@ func dagOrderingTestSuite(t *testing.T) {
 
 	// Phase 3: steady-state tests
 	RunTestCases(t, []TestCase{
-		// {"Validate PlatformReady condition on component CRs", ctx.ValidatePlatformReady},
+		{"Validate PlatformReady condition on component CRs", ctx.ValidatePlatformReady},
 		{"Validate component stability across enable/disable cycles (RHOAIENG-73142)", ctx.ValidateComponentStability},
 		{"Validate DAG cleanup", ctx.ValidateDAGCleanup},
 	})
@@ -254,8 +263,10 @@ func (tc *DAGOrderingTestCtx) ValidateRunlevelGatingAndConvergence(t *testing.T)
 	tc.createDAGQuota()
 
 	t.Log("Simulating version upgrade")
-	tc.setOperatorEnvVar(t, "CI", "true")
-	tc.setOperatorEnvVar(t, "RHAI_VERSION", "99.0.0-dag-test")
+	tc.setOperatorEnvVars(t,
+		corev1.EnvVar{Name: "CI", Value: "true"},
+		corev1.EnvVar{Name: "RHAI_VERSION", Value: "99.0.0-dag-test"},
+	)
 
 	// Step 3: Verify gating is active.
 	t.Log("Waiting for ProvisioningProgress=False on Platform CR (version mismatch + quota)")
@@ -889,84 +900,123 @@ func (tc *DAGOrderingTestCtx) deleteDAGQuota() {
 	)
 }
 
-// setOperatorEnvVar sets an environment variable on the operator, triggering
-// a pod restart. For OLM installs it patches the CSV (OLM propagates to
+// setOperatorEnvVars sets environment variables on the operator, triggering
+// a single pod restart. For OLM installs it patches the CSV (OLM propagates to
 // the Deployment). For non-OLM installs it patches the Deployment directly.
-func (tc *DAGOrderingTestCtx) setOperatorEnvVar(t *testing.T, envName, envValue string) {
+func (tc *DAGOrderingTestCtx) setOperatorEnvVars(t *testing.T, envs ...corev1.EnvVar) {
 	t.Helper()
 
-	envEntry := corev1.EnvVar{Name: envName, Value: envValue}
-
-	if tc.patchSubscriptionEnvVar(t, envName, &envEntry) {
-		t.Logf("Patched Subscription to add env %s=%s", envName, envValue)
+	if tc.patchSubscriptionEnvVars(t, envs) {
+		t.Logf("Patched Subscription to set env vars: %v", envVarNames(envs))
 	} else {
 		t.Logf("No OLM Subscription found, patching Deployment directly")
-		tc.patchDeploymentEnvVar(t, envName, &envEntry)
+		tc.patchDeploymentEnvVars(t, envs, nil)
 	}
 
 	tc.waitForOperatorReady(t)
 }
 
-// removeOperatorEnvVar removes an environment variable from the operator
+// removeOperatorEnvVars removes environment variables from the operator
 // and waits for the pod to restart.
-func (tc *DAGOrderingTestCtx) removeOperatorEnvVar(t *testing.T, envName string) {
+func (tc *DAGOrderingTestCtx) removeOperatorEnvVars(t *testing.T, envNames ...string) {
 	t.Helper()
 
-	if tc.patchSubscriptionEnvVar(t, envName, nil) {
-		t.Logf("Patched Subscription to remove env %s", envName)
+	if tc.patchSubscriptionEnvVarRemovals(t, envNames) {
+		t.Logf("Patched Subscription to remove env vars: %v", envNames)
 	} else {
 		t.Logf("No OLM Subscription found, patching Deployment directly")
-		tc.patchDeploymentEnvVar(t, envName, nil)
+		tc.patchDeploymentEnvVars(t, nil, envNames)
 	}
 
 	tc.waitForOperatorReady(t)
 }
 
-// patchSubscriptionEnvVar patches the operator Subscription to add or remove
-// an env var via spec.config.env. OLM propagates this to the CSV and Deployment.
+// patchSubscriptionEnvVars patches the operator Subscription to set env vars
+// via spec.config.env. OLM propagates this to the CSV and Deployment.
 // Returns false if no Subscription is found (non-OLM install).
-// When envVar is nil, the named env var is removed.
-func (tc *DAGOrderingTestCtx) patchSubscriptionEnvVar(t *testing.T, envName string, envVar *corev1.EnvVar) bool {
+func (tc *DAGOrderingTestCtx) patchSubscriptionEnvVars(t *testing.T, envs []corev1.EnvVar) bool {
+	t.Helper()
+
+	sub := tc.findSubscription(t)
+	if sub == nil {
+		return false
+	}
+
+	if sub.Spec.Config == nil {
+		sub.Spec.Config = &ofapi.SubscriptionConfig{}
+	}
+
+	for _, env := range envs {
+		sub.Spec.Config.Env = slices.DeleteFunc(sub.Spec.Config.Env, func(e corev1.EnvVar) bool {
+			return e.Name == env.Name
+		})
+		sub.Spec.Config.Env = append(sub.Spec.Config.Env, env)
+	}
+
+	err := tc.Client().Update(tc.Context(), sub)
+	require.NoError(t, err, "Failed to update Subscription %s", sub.Name)
+
+	return true
+}
+
+// patchSubscriptionEnvVarRemovals patches the operator Subscription to remove
+// env vars. Returns false if no Subscription is found (non-OLM install).
+func (tc *DAGOrderingTestCtx) patchSubscriptionEnvVarRemovals(t *testing.T, envNames []string) bool {
+	t.Helper()
+
+	sub := tc.findSubscription(t)
+	if sub == nil {
+		return false
+	}
+
+	if sub.Spec.Config == nil {
+		return true
+	}
+
+	for _, name := range envNames {
+		sub.Spec.Config.Env = slices.DeleteFunc(sub.Spec.Config.Env, func(e corev1.EnvVar) bool {
+			return e.Name == name
+		})
+	}
+
+	err := tc.Client().Update(tc.Context(), sub)
+	require.NoError(t, err, "Failed to update Subscription %s", sub.Name)
+
+	return true
+}
+
+// findSubscription returns the operator Subscription, or nil if not found.
+func (tc *DAGOrderingTestCtx) findSubscription(t *testing.T) *ofapi.Subscription {
 	t.Helper()
 
 	subList := &ofapi.SubscriptionList{}
 	err := tc.Client().List(tc.Context(), subList, client.InNamespace(tc.OperatorNamespace))
 	if err != nil {
-		return false
+		return nil
 	}
 
 	subIdx := slices.IndexFunc(subList.Items, func(sub ofapi.Subscription) bool {
 		return strings.Contains(sub.Name, "opendatahub") || strings.Contains(sub.Name, "rhods")
 	})
 	if subIdx == -1 {
-		return false
+		return nil
 	}
 
-	sub := &subList.Items[subIdx]
-	if sub.Spec.Config == nil {
-		sub.Spec.Config = &ofapi.SubscriptionConfig{}
-	}
-
-	// Remove existing entry with this name
-	sub.Spec.Config.Env = slices.DeleteFunc(sub.Spec.Config.Env, func(e corev1.EnvVar) bool {
-		return e.Name == envName
-	})
-
-	// Add new entry if provided
-	if envVar != nil {
-		sub.Spec.Config.Env = append(sub.Spec.Config.Env, *envVar)
-	}
-
-	err = tc.Client().Update(tc.Context(), sub)
-	require.NoError(t, err, "Failed to update Subscription %s", sub.Name)
-
-	return true
+	return &subList.Items[subIdx]
 }
 
-// patchDeploymentEnvVar patches the operator Deployment to add or remove an env var.
-// When envVar is nil, the named env var is removed.
-func (tc *DAGOrderingTestCtx) patchDeploymentEnvVar(t *testing.T, envName string, envVar *corev1.EnvVar) {
+// patchDeploymentEnvVars patches the operator Deployment to add/remove env vars
+// in a single mutation. toSet are added/updated, toRemove are removed by name.
+func (tc *DAGOrderingTestCtx) patchDeploymentEnvVars(t *testing.T, toSet []corev1.EnvVar, toRemove []string) {
 	t.Helper()
+
+	removeSet := make(map[string]bool, len(toRemove))
+	for _, name := range toRemove {
+		removeSet[name] = true
+	}
+	for _, env := range toSet {
+		removeSet[env.Name] = true
+	}
 
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.Deployment, tc.operatorDeploymentNN()),
@@ -981,17 +1031,18 @@ func (tc *DAGOrderingTestCtx) patchDeploymentEnvVar(t *testing.T, envName string
 			}
 			env, _ := container["env"].([]any)
 
-			// Remove existing entry
 			var filtered []any
 			for _, e := range env {
-				if entry, ok := e.(map[string]any); ok && entry["name"] != envName {
-					filtered = append(filtered, e)
+				if entry, ok := e.(map[string]any); ok {
+					if name, _ := entry["name"].(string); removeSet[name] {
+						continue
+					}
 				}
+				filtered = append(filtered, e)
 			}
 
-			// Add new entry if provided
-			if envVar != nil {
-				filtered = append(filtered, map[string]any{"name": envVar.Name, "value": envVar.Value})
+			for _, ev := range toSet {
+				filtered = append(filtered, map[string]any{"name": ev.Name, "value": ev.Value})
 			}
 
 			container["env"] = filtered
@@ -999,6 +1050,14 @@ func (tc *DAGOrderingTestCtx) patchDeploymentEnvVar(t *testing.T, envName string
 			return unstructured.SetNestedSlice(obj.Object, containers, "spec", "template", "spec", "containers")
 		}),
 	)
+}
+
+func envVarNames(envs []corev1.EnvVar) []string {
+	names := make([]string, 0, len(envs))
+	for _, e := range envs {
+		names = append(names, e.Name)
+	}
+	return names
 }
 
 // waitForOperatorReady waits for the operator deployment to have all replicas ready.
@@ -1022,4 +1081,52 @@ func (tc *DAGOrderingTestCtx) operatorDeploymentName() string {
 
 func (tc *DAGOrderingTestCtx) operatorDeploymentNN() types.NamespacedName {
 	return types.NamespacedName{Name: tc.operatorDeploymentName(), Namespace: tc.OperatorNamespace}
+}
+
+// restartModuleOperators forces a restart of module operator pods in
+// the applications namespace. Module operators are separate processes that
+// don't automatically detect platform version changes; a restart causes
+// them to re-read the platform config ConfigMap and report the updated
+// version in their module CR status.
+func (tc *DAGOrderingTestCtx) restartModuleOperators(t *testing.T) {
+	t.Helper()
+
+	deps := tc.FetchResources(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(&client.ListOptions{
+			Namespace: tc.AppsNamespace,
+			LabelSelector: k8slabels.SelectorFromSet(k8slabels.Set{
+				labels.PlatformPartOf: labels.Platform,
+			}),
+		}),
+	)
+
+	for _, dep := range deps {
+		name := dep.GetName()
+
+		matchLabels, _, _ := unstructured.NestedStringMap(dep.Object, "spec", "selector", "matchLabels")
+		if len(matchLabels) == 0 {
+			t.Logf("Deployment %s has no selector matchLabels, skipping", name)
+			continue
+		}
+
+		pods := tc.FetchResources(
+			WithMinimalObject(gvk.Pod, types.NamespacedName{Namespace: tc.AppsNamespace}),
+			WithListOptions(&client.ListOptions{
+				Namespace:     tc.AppsNamespace,
+				LabelSelector: k8slabels.SelectorFromSet(matchLabels),
+			}),
+		)
+
+		for _, pod := range pods {
+			t.Logf("Deleting pod %s (module operator %s)", pod.GetName(), name)
+			tc.DeleteResource(
+				WithMinimalObject(gvk.Pod, types.NamespacedName{
+					Namespace: pod.GetNamespace(),
+					Name:      pod.GetName(),
+				}),
+				WithWaitForDeletion(true),
+			)
+		}
+	}
 }
