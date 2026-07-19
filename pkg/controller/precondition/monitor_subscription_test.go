@@ -211,7 +211,7 @@ func TestMonitorSubscriptions_ErrorWritesConditionUnknown(t *testing.T) {
 		),
 	}
 
-	shouldStop := RunAll(t.Context(), rr, pcs)
+	shouldStop, _ := RunAll(t.Context(), rr, pcs)
 	g.Expect(shouldStop).To(BeFalse())
 
 	got := condManager.GetCondition(condType)
@@ -287,7 +287,7 @@ func TestMonitorSubscriptions_IntegrationWithRunAll(t *testing.T) {
 		),
 	}
 
-	shouldStop := RunAll(t.Context(), rr, pcs)
+	shouldStop, _ := RunAll(t.Context(), rr, pcs)
 	g.Expect(shouldStop).To(BeFalse())
 
 	got := condManager.GetCondition(condType)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrlLog "sigs.k8s.io/controller-runtime/pkg/log"
@@ -41,6 +42,7 @@ type PreCondition struct {
 	conditionType      string
 	severity           common.ConditionSeverity
 	stopReconciliation bool
+	requeueInterval    time.Duration
 	clusterTypes       []string
 	message            string
 	skipFunc           SkipFunc // runtime predicate to conditionally skip this precondition
@@ -81,6 +83,17 @@ func WithClusterTypes(types ...string) Option {
 func WithMessage(msg string) Option {
 	return func(pc *PreCondition) {
 		pc.message = msg
+	}
+}
+
+// WithRequeueInterval sets the interval at which the reconciler should
+// re-evaluate this precondition when it is not met. Use for transient
+// conditions (e.g. a CRD not yet installed) where the dependency may
+// appear independently of watch events. Preconditions for permanent
+// configuration errors should not set this option.
+func WithRequeueInterval(d time.Duration) Option {
+	return func(pc *PreCondition) {
+		pc.requeueInterval = d
 	}
 }
 
@@ -144,15 +157,19 @@ func (agg *conditionAggregate) record(s metav1.ConditionStatus, message string, 
 	}
 }
 
-// RunAll runs all the preconditions and returns true when the reconciliation should be stopped.
-func RunAll(ctx context.Context, rr *types.ReconciliationRequest, preConditions []PreCondition) bool {
+// RunAll runs all preconditions and returns whether reconciliation should
+// stop, plus the shortest requeue interval requested by any failing
+// precondition (zero if no requeue was requested).
+func RunAll(ctx context.Context, rr *types.ReconciliationRequest, preConditions []PreCondition) (bool, time.Duration) {
 	if len(preConditions) == 0 {
-		return false
+		return false, 0
 	}
 
 	l := ctrlLog.FromContext(ctx)
 	clusterType := cluster.GetClusterInfo().Type
 	results := make(map[string]*conditionAggregate)
+
+	var minRequeue time.Duration
 
 	for i := range preConditions {
 		pc := &preConditions[i]
@@ -210,6 +227,10 @@ func RunAll(ctx context.Context, rr *types.ReconciliationRequest, preConditions 
 			}
 
 			agg.record(metav1.ConditionFalse, msg, pc)
+
+			if pc.requeueInterval > 0 && (minRequeue == 0 || pc.requeueInterval < minRequeue) {
+				minRequeue = pc.requeueInterval
+			}
 		}
 	}
 
@@ -236,5 +257,5 @@ func RunAll(ctx context.Context, rr *types.ReconciliationRequest, preConditions 
 		}
 	}
 
-	return shouldStop
+	return shouldStop, minRequeue
 }

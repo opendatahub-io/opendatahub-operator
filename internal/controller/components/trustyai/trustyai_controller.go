@@ -18,6 +18,7 @@ package trustyai
 
 import (
 	"context"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -42,7 +43,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
-	pkgresources "github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 const (
@@ -50,14 +50,10 @@ const (
 	InferenceServicesCRDName = "inferenceservices.serving.kserve.io"
 )
 
-// isInferenceServicesCRD checks if the given object is the InferenceServices CRD managed by KServe.
+// isInferenceServicesCRD checks if the given object is the InferenceServices CRD.
+// CRD names are globally unique, so name matching is sufficient.
 func isInferenceServicesCRD(obj client.Object) bool {
-	// Early return: check name first (cheaper comparison)
-	if obj.GetName() != InferenceServicesCRDName {
-		return false
-	}
-	// Check if it's managed by KServe using safe label check
-	return pkgresources.HasLabel(obj, labels.ODH.Component(componentApi.KserveComponentName), labels.True)
+	return obj.GetName() == InferenceServicesCRDName
 }
 
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
@@ -101,6 +97,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		).
 		WithPreCondition(precondition.MonitorCRD(gvk.InferenceServices,
 			precondition.WithStopReconciliation(),
+			precondition.WithRequeueInterval(30*time.Second),
 			precondition.WithMessage(status.ISVCMissingCRDMessage),
 		)).
 		WithAction(precondition.RunlevelGateAction()).
