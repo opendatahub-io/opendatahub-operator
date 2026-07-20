@@ -148,9 +148,9 @@ func (h *handler) BuildModuleCR(
 			return nil, fmt.Errorf("failed to convert AIGatewayCommonSpec to unstructured: %w", err)
 		}
 	case platform.Platform != nil:
-		spec = map[string]any{
-			"managementState": string(platform.Platform.Spec.Modules.AIGateway.ManagementState),
-		}
+		// On xKS the Helm chart creates the AIGateway CR; the operator
+		// only needs to deploy the ai-gateway-operator via manifests.
+		return nil, nil
 	default:
 		return nil, errors.New("neither DSC CR nor Platform CR exists, cannot build AIGateway CR")
 	}
