@@ -59,7 +59,7 @@ const (
 	defaultCollectorMemoryRequest = "256Mi"
 
 	defaultTempoCPULimit      = "1"
-	defaultTempoMemoryLimit   = "256Mi"
+	defaultTempoMemoryLimit   = "512Mi"
 	defaultTempoCPURequest    = "100m"
 	defaultTempoMemoryRequest = "256Mi"
 )
