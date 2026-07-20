@@ -86,6 +86,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(kustomize.NewAction()).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
+			deploy.WithWebhookGating(),
 			deploy.WithLabel(labels.ODH.Component(ComponentName), labels.True),
 		)).
 		WithAction(deployments.NewAction()).

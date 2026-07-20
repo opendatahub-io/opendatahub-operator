@@ -66,6 +66,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		)).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
+			deploy.WithWebhookGating(),
 		)).
 		WithAction(deployments.NewAction()).
 		// must be the final action

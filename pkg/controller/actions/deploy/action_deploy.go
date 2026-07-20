@@ -7,7 +7,9 @@ import (
 	"maps"
 	"strconv"
 	"strings"
+	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -18,6 +20,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
+	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhTypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -56,6 +59,7 @@ type Action struct {
 	cache            *Cache
 	sortFn           SortFn
 	continueOnError  bool
+	webhookGating    bool
 }
 
 type ActionOpts func(*Action)
@@ -154,6 +158,17 @@ func WithContinueOnError() ActionOpts {
 	}
 }
 
+// WithWebhookGating enables two-phase deployment: non-webhook resources are
+// deployed first, then deployment readiness is verified before applying
+// webhook configurations. If deployments are not yet Ready, webhooks are
+// skipped and the reconciliation is requeued. This prevents failurePolicy:Fail
+// webhooks from blocking API calls before their backing pods are available.
+func WithWebhookGating() ActionOpts {
+	return func(action *Action) {
+		action.webhookGating = true
+	}
+}
+
 // resolveFieldOwner returns the effective field owner for the reconciled
 // instance.  When a.fieldOwner is explicitly configured it is returned
 // as-is; otherwise the owner is derived from the instance's Kind.
@@ -188,6 +203,80 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 		a.cache.Sync()
 	}
 
+	if a.webhookGating {
+		return a.runWithWebhookGating(ctx, rr)
+	}
+
+	return a.deployResources(ctx, rr, rr.Resources)
+}
+
+func (a *Action) runWithWebhookGating(ctx context.Context, rr *odhTypes.ReconciliationRequest) error {
+	l := logf.FromContext(ctx)
+
+	var nonWebhooks, webhooks []unstructured.Unstructured
+	for i := range rr.Resources {
+		if resources.IsWebhookResource(rr.Resources[i]) {
+			webhooks = append(webhooks, rr.Resources[i])
+		} else {
+			nonWebhooks = append(nonWebhooks, rr.Resources[i])
+		}
+	}
+
+	if err := a.deployResources(ctx, rr, nonWebhooks); err != nil {
+		return err
+	}
+
+	if len(webhooks) == 0 {
+		return nil
+	}
+
+	ready, err := deploymentsReady(ctx, rr.Client, nonWebhooks)
+	if err != nil {
+		return fmt.Errorf("failed to check deployment readiness for webhook gating: %w", err)
+	}
+
+	if !ready {
+		l.Info("deployments not ready, deferring webhook registration",
+			"webhookCount", len(webhooks))
+		return odherrors.NewRequeueAfterError(10 * time.Second)
+	}
+
+	return a.deployResources(ctx, rr, webhooks)
+}
+
+func deploymentsReady(ctx context.Context, cli client.Client, items []unstructured.Unstructured) (bool, error) {
+	for i := range items {
+		if items[i].GroupVersionKind() != gvk.Deployment {
+			continue
+		}
+
+		current := &appsv1.Deployment{}
+		key := client.ObjectKeyFromObject(&items[i])
+
+		if err := cli.Get(ctx, key, current); err != nil {
+			if k8serr.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+
+		if current.Generation != current.Status.ObservedGeneration {
+			return false, nil
+		}
+
+		if current.Spec.Replicas != nil && *current.Spec.Replicas == 0 {
+			continue
+		}
+
+		if current.Status.Replicas == 0 || current.Status.ReadyReplicas != current.Status.Replicas {
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
+func (a *Action) deployResources(ctx context.Context, rr *odhTypes.ReconciliationRequest, items []unstructured.Unstructured) error {
 	controllerName, err := a.resolveFieldOwner(rr)
 	if err != nil {
 		return err
@@ -198,14 +287,14 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 	var firstErr error
 	var failedResources []string
 
-	for i := range rr.Resources {
-		res := rr.Resources[i]
+	for i := range items {
+		res := items[i]
 		current := resources.GvkToUnstructured(res.GroupVersionKind())
 
 		lookupErr := rr.Client.Get(ctx, client.ObjectKeyFromObject(&res), current)
 		switch {
 		case k8serr.IsNotFound(lookupErr):
-			// set it to nil fto pass it down to other methods and signal
+			// set it to nil to pass it down to other methods and signal
 			// that there's no previous known state of the resource
 			current = nil
 		case lookupErr != nil:
@@ -246,7 +335,7 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 		var ok bool
 		var err error
 
-		switch rr.Resources[i].GroupVersionKind() {
+		switch items[i].GroupVersionKind() {
 		case gvk.CustomResourceDefinition:
 			ok, err = a.deployCRD(ctx, rr, res, current)
 		default:
