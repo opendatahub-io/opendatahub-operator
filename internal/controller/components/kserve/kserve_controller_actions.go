@@ -244,6 +244,17 @@ var xksDependencyCRDs = []schema.GroupVersionKind{
 func deleteLLMInferenceServiceConfigs(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	l := logf.FromContext(ctx)
 
+	// Delete the LLMInferenceServiceConfig validating webhook first — it blocks
+	// deletion of "well-known" configs. The webhook is owned by this KServe CR
+	// and will be GC'd anyway; removing it early lets the finalizer complete.
+	vwc := &unstructured.Unstructured{}
+	vwc.SetGroupVersionKind(gvk.ValidatingWebhookConfiguration)
+	vwc.SetName("llminferenceserviceconfig.serving.kserve.io")
+
+	if err := rr.Client.Delete(ctx, vwc); err != nil && !k8serr.IsNotFound(err) {
+		return fmt.Errorf("failed to delete LLMInferenceServiceConfig webhook: %w", err)
+	}
+
 	list := &unstructured.UnstructuredList{}
 	list.SetGroupVersionKind(gvk.LLMInferenceServiceConfigV1Alpha2)
 
@@ -284,6 +295,32 @@ func deleteLLMInferenceServiceConfigs(ctx context.Context, rr *odhtypes.Reconcil
 		remaining++
 
 		if !item.GetDeletionTimestamp().IsZero() {
+			// Item is stuck in deletion — the webhook controller that processes
+			// its finalizer is being torn down. Strip the finalizer so deletion
+			// can complete.
+			const kserveFinalizer = "serving.kserve.io/llmisvcconfig-finalizer"
+
+			finalizers := item.GetFinalizers()
+			var retained []string
+			found := false
+			for _, f := range finalizers {
+				if f == kserveFinalizer {
+					found = true
+				} else {
+					retained = append(retained, f)
+				}
+			}
+			if found {
+				item.SetFinalizers(retained)
+				if err := rr.Client.Update(ctx, item); err != nil && !k8serr.IsNotFound(err) {
+					return fmt.Errorf("failed to remove finalizer from LLMInferenceServiceConfig %s/%s: %w",
+						item.GetNamespace(), item.GetName(), err)
+				}
+				l.Info("removed kserve finalizer from stuck LLMInferenceServiceConfig",
+					"name", item.GetName(),
+					"namespace", item.GetNamespace(),
+				)
+			}
 			continue
 		}
 
