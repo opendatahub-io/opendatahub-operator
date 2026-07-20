@@ -12,6 +12,7 @@ import (
 	"github.com/go-logr/logr"
 	routev1 "github.com/openshift/api/route/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -304,4 +305,158 @@ func updateInfraHWP(
 
 	logger.Info("successfully updated infrastructure hardware profile", "name", infrahwp.GetName())
 	return nil
+}
+
+func ensureNamespacedRBAC(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	logger := log.FromContext(ctx)
+
+	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
+	if err != nil {
+		return err
+	}
+
+	saName := "odh-dashboard"
+	if rr.Release.Name == cluster.SelfManagedRhoai || rr.Release.Name == cluster.ManagedRhoai {
+		saName = "rhods-dashboard"
+	}
+
+	notebooksNS := resolveNotebooksNamespace(ctx, rr)
+	if notebooksNS != "" {
+		logger.V(1).Info("ensuring Dashboard RBAC in notebooks namespace", "namespace", notebooksNS)
+		if err := addNamespacedRBAC(rr, saName, appNamespace, notebooksNS, "notebooks", notebooksRBACRules()); err != nil {
+			return fmt.Errorf("failed to add notebooks RBAC resources: %w", err)
+		}
+	}
+
+	modelRegistryNS := resolveModelRegistryNamespace(ctx, rr)
+	if modelRegistryNS != "" {
+		logger.V(1).Info("ensuring Dashboard RBAC in model-registry namespace", "namespace", modelRegistryNS)
+		if err := addNamespacedRBAC(rr, saName, appNamespace, modelRegistryNS, "model-registries", modelRegistryRBACRules()); err != nil {
+			return fmt.Errorf("failed to add model-registry RBAC resources: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func resolveNotebooksNamespace(ctx context.Context, rr *odhtypes.ReconciliationRequest) string {
+	logger := log.FromContext(ctx)
+
+	wb := &componentApi.Workbenches{}
+	err := rr.Client.Get(ctx, client.ObjectKey{Name: componentApi.WorkbenchesInstanceName}, wb)
+	if err != nil {
+		logger.V(1).Info("Workbenches CR not found, skipping notebooks RBAC")
+		return ""
+	}
+
+	ns := wb.Spec.WorkbenchNamespace
+	if ns == "" {
+		switch rr.Release.Name {
+		case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
+			ns = cluster.DefaultNotebooksNamespaceRHOAI
+		case cluster.OpenDataHub:
+			ns = cluster.DefaultNotebooksNamespaceODH
+		}
+	}
+
+	exists, err := cluster.NamespaceExists(ctx, rr.Client, ns)
+	if err != nil || !exists {
+		logger.V(1).Info("notebooks namespace not found, skipping RBAC", "namespace", ns)
+		return ""
+	}
+
+	return ns
+}
+
+func resolveModelRegistryNamespace(ctx context.Context, rr *odhtypes.ReconciliationRequest) string {
+	logger := log.FromContext(ctx)
+
+	mr := &componentApi.ModelRegistry{}
+	err := rr.Client.Get(ctx, client.ObjectKey{Name: componentApi.ModelRegistryInstanceName}, mr)
+	if err != nil {
+		logger.V(1).Info("ModelRegistry CR not found, skipping model-registry RBAC")
+		return ""
+	}
+
+	ns := mr.Spec.RegistriesNamespace
+	if ns == "" {
+		logger.V(1).Info("ModelRegistry registriesNamespace is empty, skipping RBAC")
+		return ""
+	}
+
+	exists, err := cluster.NamespaceExists(ctx, rr.Client, ns)
+	if err != nil || !exists {
+		logger.V(1).Info("model-registry namespace not found, skipping RBAC", "namespace", ns)
+		return ""
+	}
+
+	return ns
+}
+
+func addNamespacedRBAC(rr *odhtypes.ReconciliationRequest, saName, saNamespace, targetNamespace, roleSuffix string, rules []rbacv1.PolicyRule) error {
+	roleName := saName + "-" + roleSuffix
+
+	role := &rbacv1.Role{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      roleName,
+			Namespace: targetNamespace,
+		},
+		Rules: rules,
+	}
+
+	rb := &rbacv1.RoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      roleName,
+			Namespace: targetNamespace,
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: rbacv1.GroupName,
+			Kind:     "Role",
+			Name:     roleName,
+		},
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      rbacv1.ServiceAccountKind,
+				Name:      saName,
+				Namespace: saNamespace,
+			},
+		},
+	}
+
+	return rr.AddResources(role, rb)
+}
+
+func notebooksRBACRules() []rbacv1.PolicyRule {
+	return []rbacv1.PolicyRule{
+		{
+			APIGroups: []string{""},
+			Resources: []string{"persistentvolumeclaims"},
+			Verbs:     []string{"create", "get"},
+		},
+		{
+			APIGroups: []string{""},
+			Resources: []string{"configmaps"},
+			Verbs:     []string{"create", "get", "update"},
+		},
+		{
+			APIGroups: []string{""},
+			Resources: []string{"secrets"},
+			Verbs:     []string{"create", "get", "update"},
+		},
+	}
+}
+
+func modelRegistryRBACRules() []rbacv1.PolicyRule {
+	return []rbacv1.PolicyRule{
+		{
+			APIGroups: []string{""},
+			Resources: []string{"secrets"},
+			Verbs:     []string{"delete", "list", "patch"},
+		},
+		{
+			APIGroups: []string{""},
+			Resources: []string{"configmaps"},
+			Verbs:     []string{"create", "list"},
+		},
+	}
 }
