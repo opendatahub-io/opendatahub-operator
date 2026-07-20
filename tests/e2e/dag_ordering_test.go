@@ -49,6 +49,7 @@ var dagBatches = []componentBatch{
 			{name: componentApi.DataSciencePipelinesComponentName, gvk: gvk.DataSciencePipelines},
 			{name: componentApi.ModelRegistryComponentName, gvk: gvk.ModelRegistry},
 			{name: componentApi.RayComponentName, gvk: gvk.Ray},
+			{name: componentApi.SparkOperatorComponentName, gvk: gvk.SparkOperator, internal: true},
 			{name: componentApi.TrainerComponentName, gvk: gvk.Trainer},
 			{name: componentApi.TrainingOperatorComponentName, gvk: gvk.TrainingOperator},
 			{name: componentApi.WorkbenchesComponentName, gvk: gvk.Workbenches},
@@ -69,7 +70,6 @@ var dagBatches = []componentBatch{
 			{name: componentApi.FeastOperatorComponentName, gvk: gvk.FeastOperator},
 			{name: componentApi.MLflowOperatorComponentName, gvk: gvk.MLflowOperator},
 			{name: componentApi.OGXComponentName, gvk: gvk.OGX},
-			{name: componentApi.SparkOperatorComponentName, gvk: gvk.SparkOperator},
 		},
 	},
 	{
@@ -113,7 +113,6 @@ var extensionGVKs = []schema.GroupVersionKind{
 	gvk.FeastOperator,
 	gvk.MLflowOperator,
 	gvk.OGX,
-	gvk.SparkOperator,
 }
 
 const dagQuotaName = "dag-test-restrictive-quota"

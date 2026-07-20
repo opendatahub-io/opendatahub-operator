@@ -1,25 +1,26 @@
 # DAG-Based Provisioning
 
-The ODH operator provisions components in dependency order using a
-runlevel-based DAG. Three gating layers control when components are
+The ODH operator provisions components and modules in dependency order using a
+runlevel-based DAG. Three gating layers control when entries are
 deployed: **admin acknowledgment gates**, **runlevel readiness gates**,
 and **per-controller deploy gates**.
 
 ## Runlevel Assignments
 
-Components are assigned a runlevel that determines provisioning order.
-Lower runlevels provision first; components at the same runlevel form a
+Components and modules are assigned a runlevel that determines provisioning
+order. Lower runlevels provision first; entries at the same runlevel form a
 batch and are provisioned together.
 
-| Runlevel | Components | Purpose |
-|----------|------------|---------|
-| 20 | Dashboard, DataSciencePipelines, ModelRegistry, Ray, Trainer, TrainingOperator, Workbenches | Core AI/ML — no inter-component dependencies |
+| Runlevel | Entries | Purpose |
+|----------|---------|---------|
+| 20 | AIGateway (module), Dashboard, DataSciencePipelines, ModelRegistry, Ray, SparkOperator (module), Trainer, TrainingOperator, Workbenches | Core AI/ML and independent modules — no inter-entry dependencies |
 | 31 | Kserve, Kueue | Extension foundations |
-| 32 | FeastOperator, MLflowOperator, OGX, SparkOperator | Independent extensions |
+| 32 | FeastOperator, MLflowOperator, OGX | Independent extensions |
 | 33 | ModelController, ModelsAsService, TrustyAI | Require Kserve Ready |
 
-Assignments are registered in `cmd/main.go` via `provision.Add()`.
-Components not explicitly assigned default to runlevel 99.
+Assignments are registered in `cmd/main.go` (`componentRunlevels` /
+`moduleRunlevels`) and merged via `provision.Add()`. Entries not explicitly
+assigned default to runlevel 99.
 
 ## Provisioning Flow
 
@@ -32,7 +33,7 @@ DSC reconcile
   │
   └─ 2. WalkBatches          ← runlevel readiness layer
         │
-        ├─ Batch 20: provision core components
+        ├─ Batch 20: provision core components and independent modules
         │   └─ wait for all Ready (up to 10min timeout)
         │
         ├─ Batch 31: provision extension foundations
@@ -44,9 +45,12 @@ DSC reconcile
         └─ Batch 33: provision KServe-dependent components
 ```
 
-Each component also has its own controller. When that controller
-reconciles, a `RunlevelGateAction` checks whether the DAG has reached
-its runlevel before allowing resource deployment.
+In-tree components each have their own controller. Out-of-tree modules are
+orchestrated by the modules controller (see
+[`internal/controller/modules/README.md`](../internal/controller/modules/README.md)).
+When an in-tree component controller reconciles, a `RunlevelGateAction`
+checks whether the DAG has reached its runlevel before allowing resource
+deployment.
 
 ## Layer 1: Admin Acknowledgment Gates
 

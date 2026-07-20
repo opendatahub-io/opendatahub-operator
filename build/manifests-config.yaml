@@ -59,7 +59,7 @@ map:
     src: deployment
     dest: maas
   odh-spark-operator:
-    src: config
+    src: spark-operator-module/config
     dest: sparkoperator
   odh-ogx-k8s-operator:
     src: config

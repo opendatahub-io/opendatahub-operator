@@ -60,8 +60,7 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 		Owns(&componentApi.ModelsAsService{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.FeastOperator{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.OGX{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.MLflowOperator{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.SparkOperator{}, reconciler.WithPredicates(componentsPredicate))
+		Owns(&componentApi.MLflowOperator{}, reconciler.WithPredicates(componentsPredicate))
 
 	// Module CRs are not owned by the DSC controller, but their status
 	// changes must trigger a DSC reconcile so ComputeModulesStatus can

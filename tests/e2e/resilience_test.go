@@ -148,9 +148,8 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 		componentApi.OGXComponentName:                  "ogx-k8s-operator-controller-manager",
 		componentApi.MLflowOperatorComponentName:       "mlflow-operator-controller-manager",
 		componentApi.ModelRegistryComponentName:        "model-registry-operator-controller-manager",
-		componentApi.RayComponentName:                  "kuberay-operator",
-		componentApi.SparkOperatorComponentName:        "spark-operator-controller",
-		componentApi.TrainingOperatorComponentName:     "kubeflow-training-operator",
+		componentApi.RayComponentName:              "kuberay-operator",
+		componentApi.TrainingOperatorComponentName: "kubeflow-training-operator",
 		componentApi.TrainerComponentName:              "kubeflow-trainer-controller-manager",
 		// componentApi.TrustyAIComponentName:             "trustyai-service-operator-controller-manager",
 		componentApi.WorkbenchesComponentName: "notebook-controller-manager",
@@ -172,7 +171,8 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	// LlamaStack Operator is excluded because it has been replaced by OGX and the field is deprecated (no deployments to manage anymore)
 	// AIGateway is excluded because it is a module (reports AIGatewayReady via ModulesReady, not ComponentsReady)
 	// MCPLifecycleOperator is excluded because it is a module so it does not report DSC ComponentsReady condition
-	excludedComponents := 5 // TrustyAI, Kueue, LlamaStack Operator, AIGateway, MCPLifecycleOperator
+	// SparkOperator is excluded because it is a module (reports SparkOperatorReady via ModulesReady, not ComponentsReady)
+	excludedComponents := 6 // TrustyAI, Kueue, LlamaStack Operator, AIGateway, MCPLifecycleOperator, SparkOperator
 	expectedTestableComponents := expectedComponentCount - excludedComponents
 	tc.g.Expect(componentsLength).Should(Equal(expectedTestableComponents),
 		"allComponents list is out of sync with DSC Components struct. "+
