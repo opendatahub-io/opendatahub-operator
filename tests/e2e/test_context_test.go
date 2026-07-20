@@ -77,6 +77,9 @@ type TestContext struct {
 	// Namespaced name of the DataScienceCluster custom resource used for testing.
 	DataScienceClusterNamespacedName types.NamespacedName
 
+	// Namespaced name of the Platform custom resource used for testing.
+	PlatformNamespacedName types.NamespacedName
+
 	// DefaultResourceOpts are applied as a baseline to every NewResourceOptions call.
 	// Individual per-operation opts (e.g., WithEventuallyTimeout) override these defaults.
 	DefaultResourceOpts []ResourceOpts
@@ -125,6 +128,7 @@ func NewTestContext(t *testing.T) (*TestContext, error) { //nolint:thelper
 		logger:                           t,
 		DSCInitializationNamespacedName:  types.NamespacedName{Name: dsciInstanceName},
 		DataScienceClusterNamespacedName: types.NamespacedName{Name: dscInstanceName},
+		PlatformNamespacedName:           types.NamespacedName{Name: platformInstanceName},
 		OperatorNamespace:                testOpts.operatorNamespace,
 		AppsNamespace:                    testOpts.appsNamespace,
 		WorkbenchesNamespace:             testOpts.workbenchesNamespace,
@@ -1486,6 +1490,27 @@ func (tc *TestContext) FetchDataScienceCluster() *dscv2.DataScienceCluster {
 func (tc *TestContext) IsXKS() bool {
 	// In XKS platform (KinD), the cluster type is Kubernetes
 	return cluster.GetClusterInfo().Type == cluster.ClusterTypeKubernetes
+}
+
+// EnsurePlatformCR creates the Platform CR if it does not exist. On
+// OpenShift the DSC controller creates it via syncPlatformCR; on xKS
+// there is no DSC controller so the E2E test must create it.
+func (tc *TestContext) EnsurePlatformCR(t *testing.T) {
+	t.Helper()
+
+	platform := &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": gvk.Platform.GroupVersion().String(),
+			"kind":       gvk.Platform.Kind,
+			"metadata":   map[string]any{"name": platformInstanceName},
+			"spec":       map[string]any{},
+		},
+	}
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(platform),
+		WithEventuallyTimeout(30*time.Second),
+	)
 }
 
 // SkipIfXKSCluster is used to skip a test if the platform where its being executed is XKS.

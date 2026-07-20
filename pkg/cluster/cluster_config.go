@@ -356,22 +356,23 @@ func getRelease(ctx context.Context, cli client.Client, platformType string) (co
 	}
 	initRelease.Name = platform
 
-	// CI is read directly from the environment (not via viper/pflag) because it is
-	// not an operator configuration flag — it is a well-known CI/CD convention used
-	// only to short-circuit version detection during unit tests.
-	if os.Getenv("CI") == "true" {
-		return initRelease, nil
-	}
-
 	// If RHAI_VERSION is explicitly configured (via env var or CLI flag),
 	// use it instead of detecting from CSV. This is the primary path on
-	// non-OpenShift clusters where OLM is absent.
+	// non-OpenShift clusters where OLM is absent. Checked before CI so
+	// an explicit version override always takes effect.
 	if rhaiVersion := flags.GetRHAIVersion(); rhaiVersion != "" {
 		v, err := semver.ParseTolerant(rhaiVersion)
 		if err != nil {
 			return initRelease, fmt.Errorf("invalid RHAI_VERSION %q: %w", rhaiVersion, err)
 		}
 		initRelease.Version = version.OperatorVersion{Version: v}
+		return initRelease, nil
+	}
+
+	// CI is read directly from the environment (not via viper/pflag) because it is
+	// not an operator configuration flag — it is a well-known CI/CD convention used
+	// only to short-circuit version detection during unit tests.
+	if os.Getenv("CI") == "true" {
 		return initRelease, nil
 	}
 

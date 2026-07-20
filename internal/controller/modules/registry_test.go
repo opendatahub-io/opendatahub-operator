@@ -39,7 +39,7 @@ func (m *mockHandler) IsEnabled(_ *modules.PlatformContext) bool {
 	return m.enabled
 }
 
-func (m *mockHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *modules.PlatformContext) (*unstructured.Unstructured, error) {
+func (m *mockHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *modules.DSCContext) (*unstructured.Unstructured, error) {
 	return nil, nil
 }
 

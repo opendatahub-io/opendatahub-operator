@@ -539,6 +539,158 @@ func TestDynamicOwnershipAction_DynamicOwnsDedup(t *testing.T) {
 	mockCtrl.AssertNotCalled(t, "AddDynamicOwnedType", mock.Anything)
 }
 
+func TestDynamicOwnershipAction_WithDefaultPredicates(t *testing.T) {
+	g := NewWithT(t)
+	ctx := context.Background()
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	ns := xid.New().String()
+	cmName := xid.New().String()
+	deploymentName := xid.New().String()
+
+	cm := createConfigMap(t, g, cmName, ns)
+	deployment := createDeployment(t, g, deploymentName, ns)
+
+	type watchCall struct {
+		gvk        string
+		predicates []predicate.Predicate
+	}
+	var watchCalls []watchCall
+
+	defaultPredicate := predicate.Funcs{
+		CreateFunc: func(_ event.TypedCreateEvent[client.Object]) bool { return false },
+		UpdateFunc: func(_ event.TypedUpdateEvent[client.Object]) bool { return true },
+		DeleteFunc: func(_ event.TypedDeleteEvent[client.Object]) bool { return false },
+	}
+
+	action := dynamicownership.NewAction(
+		func(obj client.Object, _ handler.EventHandler, predicates ...predicate.Predicate) error {
+			call := watchCall{
+				gvk:        obj.GetObjectKind().GroupVersionKind().String(),
+				predicates: predicates,
+			}
+			watchCalls = append(watchCalls, call)
+			return nil
+		},
+		gvk.Dashboard,
+		dynamicownership.WithDefaultPredicates(defaultPredicate),
+	)
+
+	rr := types.ReconciliationRequest{
+		Client: cl,
+		Instance: &componentApi.Dashboard{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-dashboard",
+			},
+		},
+		Resources: []unstructured.Unstructured{*cm, *deployment},
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("IsDynamicOwnershipEnabled").Return(true)
+			m.On("IsExcludedFromDynamicOwnership", mock.Anything).Return(false)
+		}),
+	}
+
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(watchCalls).To(HaveLen(2))
+
+	for _, call := range watchCalls {
+		g.Expect(call.predicates).To(HaveLen(1),
+			"GVK %s should use default predicate", call.gvk)
+		g.Expect(call.predicates[0].Create(event.TypedCreateEvent[client.Object]{Object: cm})).To(BeFalse(),
+			"default predicate Create should return false for %s", call.gvk)
+		g.Expect(call.predicates[0].Update(event.TypedUpdateEvent[client.Object]{ObjectOld: cm, ObjectNew: cm})).To(BeTrue(),
+			"default predicate Update should return true for %s", call.gvk)
+	}
+}
+
+func TestDynamicOwnershipAction_WithDefaultPredicatesOverriddenByGVK(t *testing.T) {
+	g := NewWithT(t)
+	ctx := context.Background()
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	ns := xid.New().String()
+	cmName := xid.New().String()
+	deploymentName := xid.New().String()
+
+	cm := createConfigMap(t, g, cmName, ns)
+	deployment := createDeployment(t, g, deploymentName, ns)
+
+	type watchCall struct {
+		gvk        string
+		predicates []predicate.Predicate
+	}
+	var watchCalls []watchCall
+
+	defaultPredicate := predicate.Funcs{
+		CreateFunc: func(_ event.TypedCreateEvent[client.Object]) bool { return false },
+		UpdateFunc: func(_ event.TypedUpdateEvent[client.Object]) bool { return false },
+	}
+	gvkOverridePredicate := predicate.Funcs{
+		CreateFunc: func(_ event.TypedCreateEvent[client.Object]) bool { return true },
+		UpdateFunc: func(_ event.TypedUpdateEvent[client.Object]) bool { return true },
+	}
+
+	action := dynamicownership.NewAction(
+		func(obj client.Object, _ handler.EventHandler, predicates ...predicate.Predicate) error {
+			call := watchCall{
+				gvk:        obj.GetObjectKind().GroupVersionKind().String(),
+				predicates: predicates,
+			}
+			watchCalls = append(watchCalls, call)
+			return nil
+		},
+		gvk.Dashboard,
+		dynamicownership.WithDefaultPredicates(defaultPredicate),
+		dynamicownership.WithGVKPredicates(map[schema.GroupVersionKind][]predicate.Predicate{
+			gvk.Deployment: {gvkOverridePredicate},
+		}),
+	)
+
+	rr := types.ReconciliationRequest{
+		Client: cl,
+		Instance: &componentApi.Dashboard{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-dashboard",
+			},
+		},
+		Resources: []unstructured.Unstructured{*cm, *deployment},
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("IsDynamicOwnershipEnabled").Return(true)
+			m.On("IsExcludedFromDynamicOwnership", mock.Anything).Return(false)
+		}),
+	}
+
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(watchCalls).To(HaveLen(2))
+
+	var deploymentCall, cmCall watchCall
+	for _, call := range watchCalls {
+		if call.gvk == gvk.Deployment.String() {
+			deploymentCall = call
+		} else if call.gvk == gvk.ConfigMap.String() {
+			cmCall = call
+		}
+	}
+
+	// Deployment uses GVK-specific override, not default
+	g.Expect(deploymentCall.predicates).To(HaveLen(1))
+	g.Expect(deploymentCall.predicates[0].Create(event.TypedCreateEvent[client.Object]{Object: deployment})).To(BeTrue())
+	g.Expect(deploymentCall.predicates[0].Update(event.TypedUpdateEvent[client.Object]{ObjectOld: deployment, ObjectNew: deployment})).To(BeTrue())
+
+	// ConfigMap uses default predicate
+	g.Expect(cmCall.predicates).To(HaveLen(1))
+	g.Expect(cmCall.predicates[0].Create(event.TypedCreateEvent[client.Object]{Object: cm})).To(BeFalse())
+	g.Expect(cmCall.predicates[0].Update(event.TypedUpdateEvent[client.Object]{ObjectOld: cm, ObjectNew: cm})).To(BeFalse())
+}
+
 func createConfigMap(t *testing.T, g Gomega, name, ns string) *unstructured.Unstructured {
 	t.Helper()
 

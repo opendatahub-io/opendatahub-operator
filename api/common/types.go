@@ -137,6 +137,11 @@ func (s *Status) SetConditions(conditions []Condition) {
 	s.Conditions = append(conditions[:0:0], conditions...)
 }
 
+// PlatformReleaseName is the well-known release entry name used by the
+// version handshake between the platform operator and component/module
+// controllers.
+const PlatformReleaseName = "platform"
+
 // ComponentRelease represents the detailed status of a component release.
 // +kubebuilder:object:generate=true
 type ComponentRelease struct {

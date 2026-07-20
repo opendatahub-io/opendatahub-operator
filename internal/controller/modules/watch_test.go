@@ -23,7 +23,7 @@ func (h *testModuleHandler) IsEnabled(_ *PlatformContext) bool {
 	return true
 }
 
-func (h *testModuleHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *PlatformContext) (*unstructured.Unstructured, error) {
+func (h *testModuleHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *DSCContext) (*unstructured.Unstructured, error) {
 	return nil, nil
 }
 

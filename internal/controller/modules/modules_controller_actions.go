@@ -5,15 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
-	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -22,7 +18,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/provision"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 )
 
 func checkUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
@@ -43,42 +38,7 @@ func checkUpgradeGates(ctx context.Context, rr *odhtype.ReconciliationRequest) e
 	return provision.CheckUpgradeGates(ctx, rr.Client, rr.Release, rr.Conditions, rr.GateEntries)
 }
 
-// initializeModules fetches DSCI once per reconcile and stores it on the
-// ReconciliationRequest so downstream actions can build PlatformContext
-// without redundant API calls.
-//
-// In platform mode (xKS), DSCI is suppressed via flags; the fetch is
-// skipped entirely and rr.DSCI remains nil.
-func initializeModules(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	if !flags.IsDSCIEnabled() {
-		return nil
-	}
-
-	dsci, err := cluster.GetDSCI(ctx, rr.Client)
-	if err != nil {
-		if k8serr.IsNotFound(err) || meta.IsNoMatchError(err) {
-			rr.DSCI = nil
-			return nil
-		}
-		return fmt.Errorf("failed to get DSCI for module reconciler: %w", err)
-	}
-
-	rr.DSCI = dsci
-
-	return nil
-}
-
-// dscFromInstance safely extracts the DataScienceCluster from the reconcile
-// instance. Returns nil when the primary resource is not a DSC (standalone mode).
-func dscFromInstance(rr *odhtype.ReconciliationRequest) *dscv2.DataScienceCluster {
-	if dsc, ok := rr.Instance.(*dscv2.DataScienceCluster); ok {
-		return dsc
-	}
-	return nil
-}
-
-// platformFromInstance safely extracts the Platform CR from the reconcile
-// instance. Returns nil when the primary resource is not a Platform (DSC mode).
+// platformFromInstance extracts the Platform CR from the reconcile instance.
 func platformFromInstance(rr *odhtype.ReconciliationRequest) *configv1alpha1.Platform {
 	if p, ok := rr.Instance.(*configv1alpha1.Platform); ok {
 		return p
@@ -86,19 +46,12 @@ func platformFromInstance(rr *odhtype.ReconciliationRequest) *configv1alpha1.Pla
 	return nil
 }
 
-// dsciOrNil returns the DSCI from the reconcile request, or nil if absent.
-func dsciOrNil(rr *odhtype.ReconciliationRequest) *dsciv2.DSCInitialization {
-	return rr.DSCI
-}
-
 // enableModulesFromPlatform reads spec.modules from the Platform CR and
-// enables only those modules in the registry. This action is only used in
-// platform mode (xKS); DSC mode derives enablement from the DSC spec.
+// enables only those modules in the registry.
 //
 // Safety: this mutates the package-level registry. It is safe because the
 // controller uses the default MaxConcurrentReconciles=1, so only one
-// reconcile is in-flight at a time. Do not increase concurrency without
-// adding synchronization to the registry.
+// reconcile is in-flight at a time.
 func enableModulesFromPlatform(_ context.Context, rr *odhtype.ReconciliationRequest) error {
 	p := platformFromInstance(rr)
 	if p == nil {
@@ -111,7 +64,7 @@ func enableModulesFromPlatform(_ context.Context, rr *odhtype.ReconciliationRequ
 }
 
 // buildPlatformContext constructs a PlatformContext for the current reconcile
-// cycle. Works in both DSC and standalone modes.
+// cycle. Always reads from Platform CR.
 func buildPlatformContext(ctx context.Context, rr *odhtype.ReconciliationRequest) (*PlatformContext, error) {
 	appNS, err := cluster.ApplicationNamespace(ctx, rr.Client)
 	if err != nil {
@@ -128,25 +81,18 @@ func buildPlatformContext(ctx context.Context, rr *odhtype.ReconciliationRequest
 		ApplicationsNamespace: appNS,
 		MonitoringNamespace:   monitoringNS,
 		Release:               rr.Release,
-		DSC:                   dscFromInstance(rr),
-		DSCI:                  dsciOrNil(rr),
 		Platform:              platformFromInstance(rr),
 		ChartsBasePath:        rr.ChartsBasePath,
 		ManifestsBasePath:     rr.ManifestsBasePath,
 	}, nil
 }
 
-// cleanupDisabledModules implements a two-phase cleanup for modules that have
-// been disabled (either by the user setting Removed or by CLI suppression).
-// Cleanup iterates in reverse unified DAG order (higher runlevels first).
-//
-// Phase 1: The module CR still exists on the cluster. We explicitly delete it
-// and keep the module operator Deployment running so it can process any
-// finalizer on the CR. A requeue is requested so Phase 2 runs after the
-// operator has finished cleanup.
-//
-// Phase 2: The module CR is confirmed gone. It is now safe to delete the
-// module operator's Deployment, RBAC, and other chart resources.
+// cleanupDisabledModules handles operator resource cleanup for disabled modules.
+// CR deletion is handled by DSC/DSCI controllers (they own the module CR lifecycle).
+// This action only manages operator resources:
+//   - CR still deleting (finalizers in progress): keep operator alive so it can
+//     process finalizers
+//   - CR gone: delete operator Deployment, RBAC, and chart resources
 func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	reg := DefaultRegistry()
 	if !reg.HasEntries() {
@@ -170,22 +116,7 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 			return err
 		}
 
-		switch crState {
-		case CRStateAbsent:
-			log.Info("module CR gone, cleaning up operator resources", "module", handler.GetName())
-			return handler.DeleteOperatorResources(ctx, rr.Client, platformCtx)
-
-		case CRStateAlive:
-			log.Info("module disabled, deleting module CR", "module", handler.GetName())
-			if err := handler.DeleteModuleCR(ctx, rr.Client); err != nil {
-				return err
-			}
-			fallthrough
-
-		case CRStateDeleting:
-			log.Info("module CR deletion in progress, keeping operator alive",
-				"module", handler.GetName())
-
+		appendOperatorManifests := func() {
 			operatorManifests := handler.GetOperatorManifests(platformCtx)
 			if len(operatorManifests.HelmCharts) > 0 {
 				rr.HelmCharts = append(rr.HelmCharts, operatorManifests.HelmCharts...)
@@ -193,8 +124,39 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 			if len(operatorManifests.Manifests) > 0 {
 				rr.Manifests = append(rr.Manifests, operatorManifests.Manifests...)
 			}
+		}
 
-			return nil
+		condType := readyConditionTypeFor(handler)
+
+		switch crState {
+		case CRStateAbsent:
+			log.Info("module CR gone, cleaning up operator resources", "module", handler.GetName())
+			return handler.DeleteOperatorResources(ctx, rr.Client, platformCtx)
+
+		case CRStateAlive:
+			log.Info("module disabled but CR still exists", "module", handler.GetName())
+
+			rr.Conditions.SetCondition(common.Condition{
+				Type:    condType,
+				Status:  metav1.ConditionFalse,
+				Reason:  status.RemovedReason,
+				Message: fmt.Sprintf("Module %s is disabled but its CR still exists — delete it to complete removal", handler.GetName()),
+			})
+
+			appendOperatorManifests()
+
+		case CRStateDeleting:
+			log.Info("module CR deleting, keeping operator alive for finalizers", "module", handler.GetName())
+
+			rr.Conditions.SetCondition(common.Condition{
+				Type:     condType,
+				Status:   metav1.ConditionFalse,
+				Reason:   status.RemovedReason,
+				Severity: common.ConditionSeverityInfo,
+				Message:  fmt.Sprintf("Module %s CR is being deleted", handler.GetName()),
+			})
+
+			appendOperatorManifests()
 		}
 
 		return nil
@@ -247,31 +209,16 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 	}
 	platformCtx.GatewayDomain = gatewayDomain
 
-	dsc := dscFromInstance(rr)
-
 	checker := provision.NewCompositeChecker(
-		cr.NewReadinessChecker(cr.DefaultRegistry(), rr.Client, dsc),
+		cr.NewReadinessChecker(cr.DefaultRegistry(), rr.Client, rr.Release.Version.String()),
 		NewReadinessChecker(reg, rr.Client, rr.Release.Version.String(),
 			WithPlatformContext(platformCtx)),
 	)
 
 	var perModuleImages []odhtype.ModuleImages
-	var failedModules []string
 
-	var condWriter provision.ConditionWriter = provision.NoOpConditionWriter{}
-	if !flags.IsDSCEnabled() {
-		condWriter = rr.Conditions
-	}
-
-	requeueAfter, walkErr := provision.WalkBatches(ctx, checker, moduleStuckTracker, string(rr.Instance.GetUID()), condWriter,
+	requeueAfter, walkErr := provision.WalkBatches(ctx, checker, moduleStuckTracker, string(rr.Instance.GetUID()), rr.Release.Version.String(), rr.Conditions,
 		func(batch []provision.UnifiedNode) error {
-			if !flags.IsDSCEnabled() {
-				provision.GetRunlevelTracker().MarkCleared(
-					rr.Release.Version.String(),
-					batch[0].GetRunlevel().Order,
-				)
-			}
-
 			for _, entry := range provision.ModulesInBatch(batch) {
 				handler := reg.Lookup(entry.GetName())
 				if handler == nil {
@@ -283,7 +230,7 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 					continue
 				}
 
-				log.Info("provisioning module", "module", name,
+				log.Info("provisioning module operator", "module", name,
 					"runlevel", entry.GetRunlevel())
 
 				operatorManifests := handler.GetOperatorManifests(platformCtx)
@@ -300,18 +247,6 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 				}
 				if len(operatorManifests.Manifests) > 0 {
 					rr.Manifests = append(rr.Manifests, operatorManifests.Manifests...)
-				}
-
-				moduleCR, err := handler.BuildModuleCR(ctx, rr.Client, platformCtx)
-				if err != nil {
-					log.Error(err, "BuildModuleCR failed", "module", name)
-					failedModules = append(failedModules, name)
-					continue
-				}
-				if moduleCR != nil {
-					rr.Resources = append(rr.Resources, *moduleCR)
-				} else {
-					log.V(1).Info("BuildModuleCR returned nil, CR is externally managed", "module", name)
 				}
 			}
 			return nil
@@ -333,19 +268,6 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 
 	if requeueAfter > 0 {
 		return odherrors.NewRequeueAfterError(requeueAfter)
-	}
-
-	if len(failedModules) > 0 {
-		if !cr.HasEntries() {
-			rr.Conditions.SetCondition(common.Condition{
-				Type:    status.ConditionTypeModulesReady,
-				Status:  metav1.ConditionFalse,
-				Reason:  status.ProvisioningFailedReason,
-				Message: fmt.Sprintf("Provisioning failed for: %s", strings.Join(failedModules, ", ")),
-			})
-		}
-
-		return fmt.Errorf("BuildModuleCR failed for modules: %s", strings.Join(failedModules, ", "))
 	}
 
 	return nil
@@ -409,7 +331,7 @@ func deploymentNameFromManifests(manifests OperatorManifests, fallbackName strin
 	return fallbackName
 }
 
-// ComputeModulesStatus reads status conditions from each module's CR and
+// computeModulesStatus reads status conditions from each module's CR and
 // sets both per-module conditions (e.g. AIGatewayReady) and the aggregate
 // ModulesReady condition on rr.Conditions.
 //
@@ -419,7 +341,7 @@ func deploymentNameFromManifests(manifests OperatorManifests, fallbackName strin
 // applied. Post-migration (no in-tree components), the modules
 // controller calls this via updateModuleStatus and becomes the sole
 // status writer.
-func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+func computeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 	log := logf.FromContext(ctx)
 
 	reg := DefaultRegistry()
@@ -436,7 +358,7 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 	var degradedModules []string
 	var enabledCount int
 
-	err = reg.ForEach(func(handler ModuleHandler) error {
+	err = reg.ForAll(func(handler ModuleHandler, _ bool) error {
 		name := handler.GetName()
 		condType := readyConditionTypeFor(handler)
 
@@ -561,13 +483,26 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 	return nil
 }
 
-// updateModuleStatus writes ModulesReady only when no in-tree components
-// are registered, meaning the DSC controller is absent and the modules
-// controller is the sole status writer. While components exist, the DSC
-// controller handles ModulesReady.
+// updateModuleStatus writes ModulesReady to Platform CR status.
+// DSC mirrors this condition from Platform CR.
 func updateModuleStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	if cr.HasEntries() {
-		return nil
+	return computeModulesStatus(ctx, rr)
+}
+
+// OwnedConditionTypes returns the set of condition types that the module
+// controller writes to the Platform CR. The DSC controller uses this to
+// know which conditions to mirror from Platform CR to DSC status.
+func OwnedConditionTypes() map[string]bool {
+	types := map[string]bool{
+		status.ConditionTypeModulesReady:         true,
+		status.ConditionTypeProvisioningProgress: true,
 	}
-	return ComputeModulesStatus(ctx, rr)
+
+	DefaultRegistry().ForAll(func(handler ModuleHandler, _ bool) error { //nolint:errcheck
+		types[readyConditionTypeFor(handler)] = true
+
+		return nil
+	})
+
+	return types
 }

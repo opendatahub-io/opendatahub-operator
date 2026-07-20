@@ -25,7 +25,7 @@ func (m *statusMockHandler) IsEnabled(_ *modules.PlatformContext) bool {
 	return m.enabled
 }
 
-func (m *statusMockHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *modules.PlatformContext) (*unstructured.Unstructured, error) {
+func (m *statusMockHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *modules.DSCContext) (*unstructured.Unstructured, error) {
 	return nil, nil
 }
 

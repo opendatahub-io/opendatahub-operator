@@ -75,13 +75,6 @@ func aiGatewayTestSuite(t *testing.T) {
 
 			tc.EnsureResourceExists(
 				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
-				WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeModulesReady, metav1.ConditionTrue)),
-			)
-
-			tc.EnsureResourceExists(
-				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 				WithCondition(jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.AIGatewayKind, metav1.ConditionTrue)),
 				WithCustomErrorMsg("DataScienceCluster should have %sReady condition set to True", componentApi.AIGatewayKind),
 			)

@@ -35,13 +35,14 @@ const (
 // Module teams typically embed BaseHandler and only implement IsEnabled
 // and BuildModuleCR; the remaining methods have default implementations
 // driven by ModuleConfig.
+//
+//nolint:interfacebloat
 type ModuleHandler interface {
 	// GetName returns the unique identifier for this module.
 	GetName() string
 
 	// IsEnabled returns whether the module should be deployed based on platform
-	// configuration. Component modules check platform.DSC; service modules
-	// check platform.DSCI.
+	// configuration.
 	IsEnabled(platform *PlatformContext) bool
 
 	// GetGVK returns the GroupVersionKind of the module CR that this handler
@@ -59,17 +60,19 @@ type ModuleHandler interface {
 	// runtime values (e.g. operatorNamespace) into Helm chart values.
 	GetOperatorManifests(platform *PlatformContext) OperatorManifests
 
-	// BuildModuleCR constructs the module CR as an unstructured object with
-	// platform fields projected from PlatformContext. The returned object is
-	// added to rr.Resources and applied by deploy.NewAction alongside operator
-	// resources. This is the single isolation point for the platform-to-module-CR
-	// field mapping.
-	//
-	// Returning (nil, nil) is valid and signals that the CR is externally
-	// managed (e.g. created by the CCM Helm chart on xKS). Operator
-	// manifests and image overrides are still collected; only the CR
-	// itself is skipped.
-	BuildModuleCR(ctx context.Context, cli client.Client, platform *PlatformContext) (*unstructured.Unstructured, error)
+	// PopulatePlatformModule sets this module's management state on the
+	// PlatformModules struct, derived from DSC/DSCI spec.
+	// Component-modules read from dscCtx.DSC, service-modules from dscCtx.DSCI.
+	// Called by the DSC/DSCI controller to project module enablement into
+	// the Platform CR.
+	PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *DSCContext)
+
+	// BuildModuleCR constructs the module CR as an unstructured object.
+	// Called by DSC/DSCI controllers (not the platform controller) to create
+	// module CRs with full spec from DSC/DSCI. On xKS users create CRs
+	// manually and this method is not called.
+	// Component-modules read from dscCtx.DSC, service-modules from dscCtx.DSCI.
+	BuildModuleCR(ctx context.Context, cli client.Client, dscCtx *DSCContext) (*unstructured.Unstructured, error)
 
 	// GetRelatedImages returns the RELATED_IMAGE_* environment variable names
 	// that the module operator needs injected into its Deployment.
@@ -164,10 +167,26 @@ type OperatorManifests struct {
 	Manifests  []types.ManifestInfo
 }
 
+// DSCContext holds DSC/DSCI references for handler methods called by
+// DSC or DSCI controllers. Parallels PlatformContext (platform controller).
+// Component-modules read DSC, service-modules read DSCI.
+//
+// Both fields are nullable: the DSC controller populates only DSC,
+// the DSCI controller populates only DSCI. Handlers that depend on
+// a nil field should no-op (for PopulatePlatformModule) or return
+// an error (for BuildModuleCR).
+type DSCContext struct {
+	// DSC is the DataScienceCluster instance. Nil when called from the
+	// DSCI controller.
+	DSC *dscv2.DataScienceCluster
+	// DSCI is the DSCInitialization instance. Nil when called from the
+	// DSC controller.
+	DSCI *dsciv2.DSCInitialization
+}
+
 // PlatformContext holds platform-level fields gathered once per reconcile
-// and passed to each module handler's BuildModuleCR. It centralizes the
-// platform contract so handlers don't need to fetch shared resources
-// individually.
+// and passed to each module handler. It centralizes the platform contract
+// so handlers don't need to fetch shared resources individually.
 type PlatformContext struct {
 	// ApplicationsNamespace is the namespace where module operands deploy.
 	ApplicationsNamespace string
@@ -183,19 +202,9 @@ type PlatformContext struct {
 	// Release identifies the platform (ODH/RHOAI) and version.
 	Release common.Release
 
-	// DSC is the DataScienceCluster instance. Handlers read their
-	// module-specific component stanza from it (e.g., DSC.Spec.Components.MyModule).
-	// Nil in standalone mode (xKS) where no DSC CRD is installed.
-	DSC *dscv2.DataScienceCluster
-
-	// DSCI is the DSCInitialization instance. Service-type modules read
-	// their configuration from it (e.g., DSCI.Spec.Monitoring).
-	// Nil in standalone mode (xKS) where no DSCI CRD is installed.
-	DSCI *dsciv2.DSCInitialization
-
-	// Platform is the Platform CR instance. Non-nil only in standalone
-	// mode (xKS) where DSC/DSCI are suppressed. Handlers use it to read
-	// per-module ManagementSpec from Platform.Spec.Modules.
+	// Platform is the Platform CR instance. Handlers read per-module
+	// ManagementSpec from Platform.Spec.Modules. On OpenShift, DSC/DSCI
+	// controllers project enablement into Platform CR via SSA.
 	Platform *configv1alpha1.Platform
 
 	// ChartsBasePath is the base directory for locally-bundled Helm charts.

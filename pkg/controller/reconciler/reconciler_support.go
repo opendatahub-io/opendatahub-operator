@@ -109,22 +109,24 @@ func ClusterIsOpenShift() DynamicPredicate {
 }
 
 type ReconcilerBuilder[T common.PlatformObject] struct {
-	mgr                      ctrl.Manager
-	input                    forInput
-	watches                  []watchInput
-	predicates               []predicate.Predicate
-	instanceName             string
-	preConditions            []precondition.PreCondition
-	actions                  []actions.Fn
-	finalizers               []actions.Fn
-	errors                   error
-	happyCondition           string
-	dependentConditions      []string
-	dynamicOwnership         bool
-	excludeFromOwnership     []schema.GroupVersionKind
-	dynamicOwnershipGVKPreds map[schema.GroupVersionKind][]predicate.Predicate
-	skipConditionCleanup     bool
-	skipStatusConditionsFn   func() bool
+	mgr                          ctrl.Manager
+	input                        forInput
+	watches                      []watchInput
+	predicates                   []predicate.Predicate
+	instanceName                 string
+	preConditions                []precondition.PreCondition
+	actions                      []actions.Fn
+	finalizers                   []actions.Fn
+	errors                       error
+	happyCondition               string
+	dependentConditions          []string
+	dynamicOwnership             bool
+	excludeFromOwnership         []schema.GroupVersionKind
+	dynamicOwnershipGVKPreds     map[schema.GroupVersionKind][]predicate.Predicate
+	dynamicOwnershipDefaultPreds []predicate.Predicate
+	skipConditionCleanup         bool
+	skipStatusConditionsFn       func() bool
+	platformReleaseEnabled       bool
 }
 
 func ReconcilerFor[T common.PlatformObject](mgr ctrl.Manager, object T, opts ...builder.ForOption) *ReconcilerBuilder[T] {
@@ -181,14 +183,13 @@ func (b *ReconcilerBuilder[T]) WithoutStatusConditions() *ReconcilerBuilder[T] {
 	return b
 }
 
-// WithoutStatusConditionsIf conditionally strips conditions from the
-// status apply. When the predicate returns true, conditions are not
-// applied — the controller effectively becomes a non-status-writer.
-// Use this when ownership of status conditions should transfer between
-// controllers at runtime (e.g. DSC owns status while in-tree components
-// exist, modules controller owns it after migration).
-func (b *ReconcilerBuilder[T]) WithoutStatusConditionsIf(pred func() bool) *ReconcilerBuilder[T] {
-	b.skipStatusConditionsFn = pred
+// WithPlatformRelease enables the platform version handshake: the
+// reconciler writes status.releases[name="platform"] with the current
+// operator version when the component reaches Ready and deploy was not
+// skipped. Disabled by default — modules can manage their own platform
+// release externally.
+func (b *ReconcilerBuilder[T]) WithPlatformRelease() *ReconcilerBuilder[T] {
+	b.platformReleaseEnabled = true
 	return b
 }
 
@@ -221,8 +222,9 @@ func (b *ReconcilerBuilder[T]) WithFinalizer(value actions.Fn) *ReconcilerBuilde
 type DynamicOwnershipOption func(*dynamicOwnershipConfig)
 
 type dynamicOwnershipConfig struct {
-	excludeGVKs   []schema.GroupVersionKind
-	gvkPredicates map[schema.GroupVersionKind][]predicate.Predicate
+	excludeGVKs       []schema.GroupVersionKind
+	gvkPredicates     map[schema.GroupVersionKind][]predicate.Predicate
+	defaultPredicates []predicate.Predicate
 }
 
 // ExcludeGVKs excludes GVKs from dynamic ownership. Excluded GVKs will not get
@@ -258,6 +260,14 @@ func ExcludeGVKs(gvks ...schema.GroupVersionKind) DynamicOwnershipOption {
 func WithGVKPredicates(gvkPredicates map[schema.GroupVersionKind][]predicate.Predicate) DynamicOwnershipOption {
 	return func(c *dynamicOwnershipConfig) {
 		c.gvkPredicates = gvkPredicates
+	}
+}
+
+// WithDefaultPredicates sets the default predicates for all dynamically
+// owned resources. Used when no GVK-specific predicate is configured.
+func WithDefaultPredicates(preds ...predicate.Predicate) DynamicOwnershipOption {
+	return func(c *dynamicOwnershipConfig) {
+		c.defaultPredicates = preds
 	}
 }
 
@@ -298,6 +308,7 @@ func (b *ReconcilerBuilder[T]) WithDynamicOwnership(opts ...DynamicOwnershipOpti
 	b.excludeFromOwnership = append(b.excludeFromOwnership, gvk.Namespace)
 	b.excludeFromOwnership = append(b.excludeFromOwnership, cfg.excludeGVKs...)
 	b.dynamicOwnershipGVKPreds = cfg.gvkPredicates
+	b.dynamicOwnershipDefaultPreds = cfg.defaultPredicates
 
 	return b
 }
@@ -438,6 +449,9 @@ func (b *ReconcilerBuilder[T]) Build(_ context.Context) (*Reconciler, error) {
 	if b.skipStatusConditionsFn != nil {
 		opts = append(opts, withSkipStatusConditions(b.skipStatusConditionsFn))
 	}
+	if b.platformReleaseEnabled {
+		opts = append(opts, withPlatformRelease())
+	}
 
 	r, err := NewReconciler(b.mgr, name, obj, opts...)
 	if err != nil {
@@ -524,6 +538,9 @@ func (b *ReconcilerBuilder[T]) Build(_ context.Context) (*Reconciler, error) {
 		dynamicOpts := []dynamicownership.Option{}
 		if b.dynamicOwnershipGVKPreds != nil {
 			dynamicOpts = append(dynamicOpts, dynamicownership.WithGVKPredicates(b.dynamicOwnershipGVKPreds))
+		}
+		if len(b.dynamicOwnershipDefaultPreds) > 0 {
+			dynamicOpts = append(dynamicOpts, dynamicownership.WithDefaultPredicates(b.dynamicOwnershipDefaultPreds...))
 		}
 
 		// Pre-register statically owned GVKs to prevent duplicate watch registration

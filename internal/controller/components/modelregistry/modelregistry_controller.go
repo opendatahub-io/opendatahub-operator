@@ -73,6 +73,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithPredicates(
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
 		).
+		WithPlatformRelease().
 		WithAction(precondition.RunlevelGateAction()).
 		WithAction(initialize).
 		WithAction(customizeManifests).

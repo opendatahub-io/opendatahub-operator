@@ -42,6 +42,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				component.ForLabel(labels.ODH.Component(ComponentName), labels.True)),
 		).
 		// Add FeastOperator-specific actions
+		WithPlatformRelease().
 		WithAction(precondition.RunlevelGateAction()).
 		WithAction(initialize).
 		WithAction(setKustomizedParams).

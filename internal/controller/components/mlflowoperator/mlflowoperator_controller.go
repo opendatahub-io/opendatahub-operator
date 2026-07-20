@@ -65,6 +65,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				component.ForLabel(labels.ODH.Component(ComponentName), labels.True)),
 		).
 		Watches(&gwapiv1.HTTPRoute{}).
+		WithPlatformRelease().
 		WithAction(precondition.RunlevelGateAction()).
 		WithAction(initialize).
 		WithAction(setKustomizedParams).

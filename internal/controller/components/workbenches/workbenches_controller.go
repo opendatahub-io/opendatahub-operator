@@ -73,6 +73,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.Dynamic(reconciler.CrdExists(gvk.ImageStream)),
 			reconciler.WithEventHandler(handlers.ToNamed(componentApi.WorkbenchesInstanceName)),
 		).
+		WithPlatformRelease().
 		WithAction(precondition.RunlevelGateAction()).
 		WithAction(initialize).
 		WithAction(releases.NewAction(
