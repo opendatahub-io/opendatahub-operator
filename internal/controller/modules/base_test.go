@@ -35,10 +35,7 @@ func TestDeleteRenderedResources_SkipsCRDs(t *testing.T) {
 	ctx := context.Background()
 	log := logf.Log
 
-	configMap := makeUnstructured(
-		schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ConfigMap"},
-		"test-cm", "test-ns",
-	)
+	configMap := makeUnstructured(gvk.ConfigMap, "test-cm", "test-ns")
 	crd := makeUnstructured(gvk.CustomResourceDefinition, "tests.example.com", "")
 
 	cli, err := fakeclient.New(fakeclient.WithObjects(&configMap, &crd))
@@ -50,10 +47,14 @@ func TestDeleteRenderedResources_SkipsCRDs(t *testing.T) {
 	err = handler.deleteRenderedResources(ctx, cli, log, resources)
 	g.Expect(err).NotTo(HaveOccurred())
 
-	err = cli.Get(ctx, client.ObjectKeyFromObject(&crd), &unstructured.Unstructured{})
+	crdLookup := unstructured.Unstructured{}
+	crdLookup.SetGroupVersionKind(gvk.CustomResourceDefinition)
+	err = cli.Get(ctx, client.ObjectKeyFromObject(&crd), &crdLookup)
 	g.Expect(err).NotTo(HaveOccurred(), "CRD should not be deleted")
 
-	err = cli.Get(ctx, client.ObjectKeyFromObject(&configMap), &unstructured.Unstructured{})
+	cmLookup := unstructured.Unstructured{}
+	cmLookup.SetGroupVersionKind(gvk.ConfigMap)
+	err = cli.Get(ctx, client.ObjectKeyFromObject(&configMap), &cmLookup)
 	g.Expect(k8serr.IsNotFound(err)).To(BeTrue(), "ConfigMap should be deleted")
 }
 
@@ -64,10 +65,7 @@ func TestDeleteRenderedResources_SkipsNamespaces(t *testing.T) {
 	ctx := context.Background()
 	log := logf.Log
 
-	configMap := makeUnstructured(
-		schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ConfigMap"},
-		"test-cm", "test-ns",
-	)
+	configMap := makeUnstructured(gvk.ConfigMap, "test-cm", "test-ns")
 	ns := makeUnstructured(gvk.Namespace, "operator-ns", "")
 
 	cli, err := fakeclient.New(fakeclient.WithObjects(&configMap, &ns))
@@ -79,9 +77,13 @@ func TestDeleteRenderedResources_SkipsNamespaces(t *testing.T) {
 	err = handler.deleteRenderedResources(ctx, cli, log, resources)
 	g.Expect(err).NotTo(HaveOccurred())
 
-	err = cli.Get(ctx, client.ObjectKeyFromObject(&ns), &unstructured.Unstructured{})
+	nsLookup := unstructured.Unstructured{}
+	nsLookup.SetGroupVersionKind(gvk.Namespace)
+	err = cli.Get(ctx, client.ObjectKeyFromObject(&ns), &nsLookup)
 	g.Expect(err).NotTo(HaveOccurred(), "Namespace should not be deleted")
 
-	err = cli.Get(ctx, client.ObjectKeyFromObject(&configMap), &unstructured.Unstructured{})
+	cmLookup := unstructured.Unstructured{}
+	cmLookup.SetGroupVersionKind(gvk.ConfigMap)
+	err = cli.Get(ctx, client.ObjectKeyFromObject(&configMap), &cmLookup)
 	g.Expect(k8serr.IsNotFound(err)).To(BeTrue(), "ConfigMap should be deleted")
 }
