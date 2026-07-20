@@ -25,7 +25,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
@@ -500,42 +499,26 @@ func makeCRD(name string, lbls map[string]string) *extv1.CustomResourceDefinitio
 	return crd
 }
 
-func odhKserveLabel() map[string]string {
-	return map[string]string{
-		labels.ODH.Component(componentApi.KserveComponentName): labels.True,
+// TestInferenceServicesCRDDeletePredicate covers the DeleteFunc predicate (name-only check).
+// The ODH label is not required: the CRD may be deleted before ODH labels it.
+func TestInferenceServicesCRDDeletePredicate(t *testing.T) {
+	deleteFired := func(crd *extv1.CustomResourceDefinition) bool {
+		return crd.GetName() == InferenceServicesCRDName
 	}
-}
 
-// TestIsInferenceServicesCRD covers the DeleteFunc predicate (full name + label check).
-func TestIsInferenceServicesCRD(t *testing.T) {
 	tests := []struct {
 		name     string
 		crdName  string
-		lbls     map[string]string
 		expected bool
 	}{
 		{
-			name:     "correct name and ODH label → true",
+			name:     "correct CRD name → fires",
 			crdName:  InferenceServicesCRDName,
-			lbls:     odhKserveLabel(),
 			expected: true,
 		},
 		{
-			name:     "correct name but no ODH label → false",
-			crdName:  InferenceServicesCRDName,
-			lbls:     nil,
-			expected: false,
-		},
-		{
-			name:     "wrong name with ODH label → false",
+			name:     "wrong CRD name → does not fire",
 			crdName:  "other.crd.io",
-			lbls:     odhKserveLabel(),
-			expected: false,
-		},
-		{
-			name:     "wrong name no label → false",
-			crdName:  "other.crd.io",
-			lbls:     nil,
 			expected: false,
 		},
 	}
@@ -543,14 +526,13 @@ func TestIsInferenceServicesCRD(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
-			crd := makeCRD(tt.crdName, tt.lbls)
-			g.Expect(isInferenceServicesCRD(crd)).Should(Equal(tt.expected))
+			crd := makeCRD(tt.crdName, nil)
+			g.Expect(deleteFired(crd)).Should(Equal(tt.expected))
 		})
 	}
 }
 
 // TestInferenceServicesCRDCreatePredicate covers the CreateFunc predicate (name-only check).
-// KServe creates the CRD without the ODH label; the predicate must fire on name match alone.
 func TestInferenceServicesCRDCreatePredicate(t *testing.T) {
 	createFired := func(crd *extv1.CustomResourceDefinition) bool {
 		return crd.GetName() == InferenceServicesCRDName
@@ -559,25 +541,16 @@ func TestInferenceServicesCRDCreatePredicate(t *testing.T) {
 	tests := []struct {
 		name     string
 		crdName  string
-		lbls     map[string]string
 		expected bool
 	}{
 		{
-			name:     "correct name, no ODH label (KServe-created CRD) → fires",
+			name:     "correct CRD name → fires",
 			crdName:  InferenceServicesCRDName,
-			lbls:     nil,
 			expected: true,
 		},
 		{
-			name:     "correct name, with ODH label → fires",
-			crdName:  InferenceServicesCRDName,
-			lbls:     odhKserveLabel(),
-			expected: true,
-		},
-		{
-			name:     "wrong name → does not fire",
+			name:     "wrong CRD name → does not fire",
 			crdName:  "other.crd.io",
-			lbls:     nil,
 			expected: false,
 		},
 	}
@@ -585,75 +558,8 @@ func TestInferenceServicesCRDCreatePredicate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
-			crd := makeCRD(tt.crdName, tt.lbls)
+			crd := makeCRD(tt.crdName, nil)
 			g.Expect(createFired(crd)).Should(Equal(tt.expected))
-		})
-	}
-}
-
-// TestInferenceServicesCRDUpdatePredicate covers the UpdateFunc predicate (label-added transition).
-func TestInferenceServicesCRDUpdatePredicate(t *testing.T) {
-	odhLabel := labels.ODH.Component(componentApi.KserveComponentName)
-
-	updateFired := func(oldObj, newObj *extv1.CustomResourceDefinition) bool {
-		if newObj.GetName() != InferenceServicesCRDName {
-			return false
-		}
-		wasLabeled := oldObj.GetLabels()[odhLabel] == labels.True
-		isLabeled := newObj.GetLabels()[odhLabel] == labels.True
-		return !wasLabeled && isLabeled
-	}
-
-	tests := []struct {
-		name     string
-		crdName  string
-		oldLbls  map[string]string
-		newLbls  map[string]string
-		expected bool
-	}{
-		{
-			name:     "ODH label added (absent → present) → fires",
-			crdName:  InferenceServicesCRDName,
-			oldLbls:  nil,
-			newLbls:  odhKserveLabel(),
-			expected: true,
-		},
-		{
-			name:     "ODH label already present → does not fire (no spurious reconciliation)",
-			crdName:  InferenceServicesCRDName,
-			oldLbls:  odhKserveLabel(),
-			newLbls:  odhKserveLabel(),
-			expected: false,
-		},
-		{
-			name:     "ODH label removed (present → absent) → does not fire",
-			crdName:  InferenceServicesCRDName,
-			oldLbls:  odhKserveLabel(),
-			newLbls:  nil,
-			expected: false,
-		},
-		{
-			name:     "neither old nor new has ODH label → does not fire",
-			crdName:  InferenceServicesCRDName,
-			oldLbls:  nil,
-			newLbls:  nil,
-			expected: false,
-		},
-		{
-			name:     "wrong CRD name with label added → does not fire",
-			crdName:  "other.crd.io",
-			oldLbls:  nil,
-			newLbls:  odhKserveLabel(),
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			g := NewWithT(t)
-			oldCRD := makeCRD(tt.crdName, tt.oldLbls)
-			newCRD := makeCRD(tt.crdName, tt.newLbls)
-			g.Expect(updateFired(oldCRD, newCRD)).Should(Equal(tt.expected))
 		})
 	}
 }
