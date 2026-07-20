@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"time"
 
 	"github.com/go-logr/logr"
 	helm "github.com/k8s-manifest-kit/renderer-helm/pkg"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,6 +19,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -116,6 +119,12 @@ type ModuleConfig struct {
 	// and injects them into the module operator's Deployment before apply.
 	// Variables whose values are empty on the platform operator are skipped.
 	RelatedImages []string
+
+	// SubmoduleConditions declares condition types on the module CR status
+	// that should be mirrored to the DSC status as independent conditions.
+	// Each entry contributes to the ModulesReady aggregate. The module
+	// operator is responsible for setting these conditions on its CR.
+	SubmoduleConditions []SubmoduleCondition
 }
 
 // BaseHandler provides default implementations for ModuleHandler methods
@@ -160,6 +169,32 @@ func (b *BaseHandler) GetInitContainerName() string {
 
 func (b *BaseHandler) GetRelatedImages() []string {
 	return b.Config.RelatedImages
+}
+
+func (b *BaseHandler) GetSubmoduleConditions() []SubmoduleCondition {
+	return b.Config.SubmoduleConditions
+}
+
+// WriteDSCComponentStatus sets the managementState on the module's typed
+// DSC status field (e.g. dsc.Status.Components.AIGateway.ManagementState).
+// The field is resolved via reflection using Config.GVK.Kind. Modules
+// without a matching field on ComponentsStatus (e.g. service modules) are
+// silently skipped.
+func (b *BaseHandler) WriteDSCComponentStatus(dsc *dscv2.DataScienceCluster, enabled bool) {
+	field := reflect.ValueOf(&dsc.Status.Components).Elem().FieldByName(b.Config.GVK.Kind)
+	if !field.IsValid() {
+		return
+	}
+
+	ms := operatorv1.Removed
+	if enabled {
+		ms = operatorv1.Managed
+	}
+
+	msField := field.FieldByName("ManagementState")
+	if msField.IsValid() && msField.CanSet() {
+		msField.SetString(string(ms))
+	}
 }
 
 func (b *BaseHandler) GetOperatorManifests(platform *PlatformContext) OperatorManifests {

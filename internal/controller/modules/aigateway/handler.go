@@ -81,10 +81,34 @@ func NewHandler() *handler {
 				ContextDir:           "manifests/ai-gateway-operator",
 				SourcePathByPlatform: sourcePathByPlatform,
 				ControllerImage:      controllerImage,
-				InitContainerName:    initContainerName, // use same controller image for initContainer
+				InitContainerName:    initContainerName,
 				RelatedImages:        relatedImages,
-				DeploymentName:       deploymentName, // different name need to set explicitly
+				DeploymentName:       deploymentName,
 				GVK:                  gvk.AIGateway,
+				SubmoduleConditions: []modules.SubmoduleCondition{
+					{
+						SourceConditionType: "ModelsAsServiceReady",
+						DSCConditionType:    "ModelsAsServiceReady",
+						StatusFieldName:     "ModelsAsAService",
+						IsEnabled: func(p *modules.PlatformContext) bool {
+							if p == nil || p.DSC == nil {
+								return false
+							}
+							return p.DSC.Spec.Components.AIGateway.ModelsAsAService.ManagementState == operatorv1.Managed
+						},
+					},
+					{
+						SourceConditionType: "BatchGatewayReady",
+						DSCConditionType:    "BatchGatewayReady",
+						StatusFieldName:     "BatchGateway",
+						IsEnabled: func(p *modules.PlatformContext) bool {
+							if p == nil || p.DSC == nil {
+								return false
+							}
+							return p.DSC.Spec.Components.AIGateway.BatchGateway.ManagementState == operatorv1.Managed
+						},
+					},
+				},
 			},
 		},
 	}

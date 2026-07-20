@@ -3,8 +3,10 @@ package modules
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -439,8 +441,14 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 	err = reg.ForEach(func(handler ModuleHandler) error {
 		name := handler.GetName()
 		condType := readyConditionTypeFor(handler)
+		submodules := submoduleConditionsFor(handler)
+		enabled := handler.IsEnabled(platformCtx)
 
-		if !handler.IsEnabled(platformCtx) {
+		if platformCtx.DSC != nil {
+			handler.WriteDSCComponentStatus(platformCtx.DSC, enabled)
+		}
+
+		if !enabled {
 			rr.Conditions.SetCondition(common.Condition{
 				Type:     condType,
 				Status:   metav1.ConditionFalse,
@@ -448,6 +456,19 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 				Severity: common.ConditionSeverityInfo,
 				Message:  fmt.Sprintf("Module ManagementState is set to %s", status.RemovedReason),
 			})
+
+			for _, sm := range submodules {
+				writeSubmoduleComponentStatus(platformCtx, sm, false)
+
+				rr.Conditions.SetCondition(common.Condition{
+					Type:     sm.DSCConditionType,
+					Status:   metav1.ConditionFalse,
+					Reason:   status.RemovedReason,
+					Severity: common.ConditionSeverityInfo,
+					Message:  fmt.Sprintf("Parent module %s ManagementState is set to %s", name, status.RemovedReason),
+				})
+			}
+
 			return nil
 		}
 
@@ -464,6 +485,29 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 				Reason:  status.NotReadyReason,
 				Message: fmt.Sprintf("Failed to get module status: %v", err),
 			})
+
+			for _, sm := range submodules {
+				subEnabled := sm.IsEnabled == nil || sm.IsEnabled(platformCtx)
+				writeSubmoduleComponentStatus(platformCtx, sm, subEnabled)
+
+				if !subEnabled {
+					rr.Conditions.SetCondition(common.Condition{
+						Type:     sm.DSCConditionType,
+						Status:   metav1.ConditionFalse,
+						Reason:   status.RemovedReason,
+						Severity: common.ConditionSeverityInfo,
+						Message:  "Submodule ManagementState is set to Removed",
+					})
+				} else {
+					rr.Conditions.SetCondition(common.Condition{
+						Type:    sm.DSCConditionType,
+						Status:  metav1.ConditionFalse,
+						Reason:  status.NotReadyReason,
+						Message: fmt.Sprintf("Failed to get parent module %s status: %v", name, err),
+					})
+				}
+			}
+
 			return nil
 		}
 
@@ -520,6 +564,8 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 			degradedModules = append(degradedModules, name)
 		}
 
+		mirrorSubmoduleConditions(rr, platformCtx, moduleStatus, submodules, &notReadyModules)
+
 		return nil
 	})
 
@@ -570,4 +616,96 @@ func updateModuleStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 		return nil
 	}
 	return ComputeModulesStatus(ctx, rr)
+}
+
+func submoduleConditionsFor(h ModuleHandler) []SubmoduleCondition {
+	if scp, ok := h.(SubmoduleConditionProvider); ok {
+		return scp.GetSubmoduleConditions()
+	}
+	return nil
+}
+
+// mirrorSubmoduleConditions copies declared submodule conditions from the
+// module CR's status onto the DSC conditions. It checks per-submodule
+// enablement: disabled submodules get a Removed condition. Enabled submodules
+// whose condition is not True are appended to notReadyModules so they affect
+// the aggregate.
+func mirrorSubmoduleConditions(
+	rr *odhtype.ReconciliationRequest,
+	platformCtx *PlatformContext,
+	moduleStatus *ModuleStatus,
+	submodules []SubmoduleCondition,
+	notReadyModules *[]string,
+) {
+	if len(submodules) == 0 {
+		return
+	}
+
+	condByType := make(map[string]*metav1.Condition, len(moduleStatus.Conditions))
+	for i := range moduleStatus.Conditions {
+		condByType[moduleStatus.Conditions[i].Type] = &moduleStatus.Conditions[i]
+	}
+
+	for _, sm := range submodules {
+		subEnabled := sm.IsEnabled == nil || sm.IsEnabled(platformCtx)
+
+		writeSubmoduleComponentStatus(platformCtx, sm, subEnabled)
+
+		if !subEnabled {
+			rr.Conditions.SetCondition(common.Condition{
+				Type:     sm.DSCConditionType,
+				Status:   metav1.ConditionFalse,
+				Reason:   status.RemovedReason,
+				Severity: common.ConditionSeverityInfo,
+				Message:  "Submodule ManagementState is set to Removed",
+			})
+
+			continue
+		}
+
+		source := condByType[sm.SourceConditionType]
+		if source == nil {
+			rr.Conditions.SetCondition(common.Condition{
+				Type:    sm.DSCConditionType,
+				Status:  metav1.ConditionFalse,
+				Reason:  status.AwaitingReadinessReason,
+				Message: "Submodule is enabled (Managed) but the module operator has not reported its status yet",
+			})
+			*notReadyModules = append(*notReadyModules, sm.DSCConditionType)
+
+			continue
+		}
+
+		rr.Conditions.SetCondition(common.Condition{
+			Type:    sm.DSCConditionType,
+			Status:  source.Status,
+			Reason:  source.Reason,
+			Message: source.Message,
+		})
+
+		if source.Status != metav1.ConditionTrue {
+			*notReadyModules = append(*notReadyModules, sm.DSCConditionType)
+		}
+	}
+}
+
+func writeSubmoduleComponentStatus(platformCtx *PlatformContext, sm SubmoduleCondition, enabled bool) {
+	if platformCtx.DSC == nil || sm.StatusFieldName == "" {
+		return
+	}
+
+	field := reflect.ValueOf(&platformCtx.DSC.Status.Components).Elem().FieldByName(sm.StatusFieldName)
+	if !field.IsValid() {
+		return
+	}
+
+	ms := operatorv1.Removed
+	if enabled {
+		ms = operatorv1.Managed
+	}
+
+	msField := field.FieldByName("ManagementState")
+	if msField.IsValid() && msField.CanSet() {
+		msField.SetString(string(ms))
+	}
 }

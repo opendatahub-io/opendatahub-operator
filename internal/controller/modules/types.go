@@ -35,7 +35,7 @@ const (
 // Module teams typically embed BaseHandler and only implement IsEnabled
 // and BuildModuleCR; the remaining methods have default implementations
 // driven by ModuleConfig.
-type ModuleHandler interface {
+type ModuleHandler interface { //nolint:interfacebloat
 	// GetName returns the unique identifier for this module.
 	GetName() string
 
@@ -95,6 +95,12 @@ type ModuleHandler interface {
 	// deletes each resource from the cluster. Used by the two-phase cleanup
 	// action after the module CR has been confirmed deleted.
 	DeleteOperatorResources(ctx context.Context, cli client.Client, platform *PlatformContext) error
+
+	// WriteDSCComponentStatus sets the module's managementState on the
+	// typed DSC status field (e.g. dsc.Status.Components.AIGateway).
+	// Called during status computation so the DSC status reflects each
+	// module's current management state, matching component behavior.
+	WriteDSCComponentStatus(dsc *dscv2.DataScienceCluster, enabled bool)
 }
 
 // ReadyConditionTyper allows a module handler to declare the condition type
@@ -136,6 +142,39 @@ type InitContainerNamer interface {
 // BaseHandler.GetDeploymentName.
 type DeploymentNamer interface {
 	GetDeploymentName() string
+}
+
+// SubmoduleCondition declares a condition type on the module CR's status
+// that the orchestrator should mirror into the DSC status as an independent
+// condition. Each mirrored condition contributes to the ModulesReady aggregate.
+type SubmoduleCondition struct {
+	// SourceConditionType is the condition type to read from the module CR's
+	// .status.conditions (e.g. "ModelsAsServiceReady").
+	SourceConditionType string
+
+	// DSCConditionType is the condition type to write on the DSC
+	// .status.conditions (e.g. "ModelsAsServiceReady"). May differ from
+	// SourceConditionType if the module uses internal naming.
+	DSCConditionType string
+
+	// StatusFieldName is the Go struct field name on ComponentsStatus where
+	// this submodule's ManagementState is written (e.g. "ModelsAsAService").
+	StatusFieldName string
+
+	// IsEnabled returns whether the submodule is enabled based on the DSC spec.
+	// When false, the DSC condition is set to Removed and
+	// status.components shows Removed. When nil, the submodule is assumed
+	// enabled whenever its parent module is enabled.
+	IsEnabled func(platformCtx *PlatformContext) bool
+}
+
+// SubmoduleConditionProvider allows a module handler to declare submodule
+// condition types that should be mirrored from the module CR status into
+// the DSC status. All handlers embedding BaseHandler satisfy this interface
+// automatically; the mirroring is only active when
+// ModuleConfig.SubmoduleConditions is non-empty.
+type SubmoduleConditionProvider interface {
+	GetSubmoduleConditions() []SubmoduleCondition
 }
 
 // ModuleStatus holds the parsed status from a module CR. It includes the
