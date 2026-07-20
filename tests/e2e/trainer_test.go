@@ -162,7 +162,7 @@ func trainerDegradedMonitoringTestSuite(t *testing.T) {
 }
 
 // ValidateModuleEnabled enables trainer using the module pattern: separate DSC patch
-// from readiness check, waiting for ModulesReady instead of ComponentsReady.
+// from readiness check, waiting for TrainerReady instead of the aggregate ModulesReady.
 func (tc *TrainerTestCtx) ValidateModuleEnabled(t *testing.T) {
 	t.Helper()
 	skipUnless(t, Smoke, Tier1)
@@ -190,7 +190,8 @@ func (tc *TrainerTestCtx) ValidateModuleEnabled(t *testing.T) {
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeModulesReady, metav1.ConditionTrue)),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.TrainerKind, metav1.ConditionTrue)),
+		WithCustomErrorMsg("DataScienceCluster should have %sReady condition set to True", componentApi.TrainerKind),
 	)
 }
 
