@@ -235,7 +235,7 @@ func (tc *TrainerTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.
 	tc.EnsureResourceExists(
 		WithMinimalObject(tc.GVK, trainerNN),
 		WithCondition(
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionDependenciesAvailable, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
 		),
 	)
 
@@ -252,7 +252,7 @@ func (tc *TrainerTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.
 	tc.EnsureResourceExists(
 		WithMinimalObject(tc.GVK, trainerNN),
 		WithCondition(
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionDependenciesAvailable, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
 		),
 	)
 
@@ -291,7 +291,6 @@ func (tc *TrainerTestCtx) ensureJobSetBaseline(t *testing.T) *unstructured.Unstr
 	tc.ClearAllConditionsFromResourceStatus(jobSetCR)
 	tc.EnsureResourceExists(
 		WithMinimalObject(tc.GVK, trainerNN),
-		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionDependenciesAvailable, metav1.ConditionTrue)),
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue)),
 	)
 	tc.EnsureResourceExists(
@@ -344,15 +343,12 @@ func (tc *TrainerTestCtx) runDegradedConditionTest(t *testing.T, testCase degrad
 		"Simulated condition for e2e test: "+testCase.conditionType+"="+string(testCase.conditionStatus),
 	)
 
-	t.Logf("Verifying Trainer component CR (%s) reacts by setting DependenciesAvailable=False and Ready=False.", trainerNN)
+	t.Logf("Verifying Trainer component CR (%s) reacts by setting Degraded=True and Ready=False.", trainerNN)
 	tc.EnsureResourceExists(
 		WithMinimalObject(tc.GVK, trainerNN),
 		WithCondition(
 			And(
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionDependenciesAvailable, metav1.ConditionFalse),
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, status.ConditionDependenciesAvailable, "PreConditionFailed"),
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("%s")`, status.ConditionDependenciesAvailable, gvk.JobSetOperatorV1.Kind),
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("%s")`, status.ConditionDependenciesAvailable, testCase.conditionType),
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeDegraded, metav1.ConditionTrue),
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionFalse),
 			),
 		),
@@ -370,14 +366,11 @@ func (tc *TrainerTestCtx) runDegradedConditionTest(t *testing.T, testCase degrad
 	jobSetCR = tc.FetchSingleResourceOfKind(gvk.JobSetOperatorV1, jobSetOpNamespace)
 	tc.RemoveConditionFromResourceStatus(jobSetCR, testCase.conditionType)
 
-	t.Logf("Verifying Trainer component CR (%s) recovers (DependenciesAvailable=True, Ready=True).", trainerNN)
+	t.Logf("Verifying Trainer component CR (%s) recovers (Ready=True).", trainerNN)
 	tc.EnsureResourceExists(
 		WithMinimalObject(tc.GVK, trainerNN),
 		WithCondition(
-			And(
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionDependenciesAvailable, metav1.ConditionTrue),
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
-			),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
 		),
 	)
 
