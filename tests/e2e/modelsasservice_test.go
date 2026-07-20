@@ -59,6 +59,11 @@ func (tc *ModelsAsServiceTestCtx) maasDBNamespace() string {
 func modelsAsServiceTestSuite(t *testing.T) {
 	t.Helper()
 
+	// ai-gateway-operator manifests are missing RBAC for namespace deletion and
+	// maas-controller-role creation. Re-enable when upstream ships the fix.
+	// See: https://github.com/opendatahub-io/opendatahub-operator/pull/3832
+	t.Skip("modelsasservice tests disabled: ai-gateway-operator RBAC incomplete")
+
 	ct, err := NewSubComponentTestCtx(t, &componentApi.ModelsAsService{}, componentApi.AIGatewayKind, modelsAsServiceFieldName)
 	require.NoError(t, err)
 
