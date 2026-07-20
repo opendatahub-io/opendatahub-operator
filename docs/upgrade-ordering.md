@@ -42,9 +42,9 @@ The pre-defined runlevels are:
 
 | Expression     | Purpose                                    |
 |----------------|--------------------------------------------|
-| `dag.RL(20)`   | Core AI/ML components (dashboard, pipelines, workbenches, ray, etc.) |
+| `dag.RL(20)`   | Core AI/ML components and independent modules (dashboard, pipelines, workbenches, ray, aigateway, sparkoperator, etc.) |
 | `dag.RL(31)`   | Extension foundations (KServe, Kueue)      |
-| `dag.RL(32)`   | Independent extensions (Feast, MLflow, OGX, Spark) |
+| `dag.RL(32)`   | Independent extensions (Feast, MLflow, OGX) |
 | `dag.RL(33)`   | KServe-dependent extensions (ModelController, ModelsAsService, TrustyAI) |
 | `dag.RL(99)`   | Fallback for unassigned entries (provisioned last) |
 
@@ -175,7 +175,8 @@ Add an entry to the `moduleRunlevels` map:
 
 ```go
 moduleRunlevels = map[string]dag.Runlevel{
-    "my-module": dag.RL(25),
+    // Independent modules share RL(20) with core components (e.g. aigateway, sparkoperator).
+    "my-module": dag.RL(20),
 }
 ```
 
@@ -191,30 +192,31 @@ in later runlevels will be blocked.
 
 ## Current component ordering
 
-The current assignments produce the following provisioning sequence:
+The current assignments produce the following provisioning sequence.
+Components and modules share one DAG; within a batch, entries are sorted
+alphabetically for determinism.
 
 ```text
 Batch 1 — RL(20):
-  dashboard, datasciencepipelines, modelregistry, ray,
-  trainer, trainingoperator, workbenches
+  aigateway (module), dashboard, datasciencepipelines, modelregistry,
+  ray, sparkoperator (module), trainer, trainingoperator, workbenches
 
 Batch 2 — RL(31):
   kserve, kueue
 
 Batch 3 — RL(32):
-  feastoperator, mlflowoperator, ogx, sparkoperator
+  feastoperator, mlflowoperator, ogx
 
 Batch 4 — RL(33):
   modelcontroller, modelsasservice, trustyai
 ```
-
-Within each batch, entries are sorted alphabetically for determinism.
 
 ## Decision guide
 
 | Scenario | Runlevel |
 |----------|----------|
 | Independent core component | `dag.RL(20)` |
+| Independent out-of-tree module | `dag.RL(20)` |
 | Extension that others depend on | `dag.RL(31)` |
 | Extension, independent | `dag.RL(32)` |
 | Extension that needs KServe ready first | `dag.RL(33)` |
