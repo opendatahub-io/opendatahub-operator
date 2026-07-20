@@ -83,7 +83,7 @@ func TestIsEnabled_NilPlatformContext(t *testing.T) {
 func TestBuildModuleCR_NilDSCIReturnsError(t *testing.T) {
 	g := NewWithT(t)
 	h := monitoring.NewHandler()
-	_, err := h.BuildModuleCR(context.Background(), nil, nil, nil)
+	_, err := h.BuildModuleCR(context.Background(), nil, nil)
 	g.Expect(err).Should(HaveOccurred())
 }
 
@@ -92,7 +92,7 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	h := monitoring.NewHandler()
 	dsci := newDSCI(operatorv1.Managed)
 
-	u, err := h.BuildModuleCR(context.Background(), nil, nil, dsci)
+	u, err := h.BuildModuleCR(context.Background(), nil, &modules.DSCContext{DSCI: dsci})
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(u.GetName()).Should(Equal(serviceApi.MonitoringInstanceName))
 	g.Expect(u.GetKind()).Should(Equal(serviceApi.MonitoringKind))
@@ -116,7 +116,7 @@ func TestBuildModuleCR_ProjectsMetrics(t *testing.T) {
 		Replicas: 2,
 	}
 
-	u, err := h.BuildModuleCR(context.Background(), nil, nil, dsci)
+	u, err := h.BuildModuleCR(context.Background(), nil, &modules.DSCContext{DSCI: dsci})
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, ok := u.Object["spec"].(map[string]any)
@@ -152,7 +152,7 @@ func TestBuildModuleCR_ProjectsTraces(t *testing.T) {
 		},
 	}
 
-	u, err := h.BuildModuleCR(context.Background(), nil, nil, dsci)
+	u, err := h.BuildModuleCR(context.Background(), nil, &modules.DSCContext{DSCI: dsci})
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, ok := u.Object["spec"].(map[string]any)

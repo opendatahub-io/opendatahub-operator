@@ -10,8 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
-	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -46,6 +45,13 @@ func NewHandler() *handler {
 	}
 }
 
+func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *modules.DSCContext) {
+	if dscCtx == nil || dscCtx.DSCI == nil {
+		return
+	}
+	pm.Monitoring.ManagementState = dscCtx.DSCI.Spec.Monitoring.ManagementState
+}
+
 func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 	if platform == nil || platform.Platform == nil {
 		return false
@@ -58,14 +64,13 @@ func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
-	_ *dscv2.DataScienceCluster,
-	dsci *dsciv2.DSCInitialization,
+	dscCtx *modules.DSCContext,
 ) (*unstructured.Unstructured, error) {
-	if dsci == nil {
+	if dscCtx == nil || dscCtx.DSCI == nil {
 		return nil, errors.New("DSCI is nil, cannot build monitoring CR")
 	}
 
-	spec, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&dsci.Spec.Monitoring.MonitoringCommonSpec)
+	spec, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&dscCtx.DSCI.Spec.Monitoring.MonitoringCommonSpec)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert MonitoringSpec to unstructured: %w", err)
 	}

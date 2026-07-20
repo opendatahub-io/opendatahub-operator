@@ -17,13 +17,11 @@ limitations under the License.
 package v2
 
 import (
-	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 )
 
 // DataScienceClusterSpec defines the desired state of the cluster.
@@ -85,30 +83,6 @@ type Components struct {
 
 	// MCPLifecycleOperator component configuration.
 	MCPLifecycleOperator componentApi.DSCMCPLifecycleOperator `json:"mcplifecycleoperator,omitempty"`
-}
-
-// PlatformModules returns the module enablement state derived from DSC
-// components, for projection into the Platform CR.
-func (c *Components) PlatformModules() configv1alpha1.PlatformModules {
-	aiGatewayState := c.AIGateway.ManagementState
-
-	// Deprecated: respect kserve.modelsAsService for 3.4→3.5 upgrade compatibility.
-	// Users who have not yet migrated their DSC will still get AIGateway deployed.
-	// TODO: remove this fallback when kserve.modelsAsService is removed from the CRD schema.
-	if aiGatewayState == "" &&
-		c.Kserve.ManagementState == operatorv1.Managed &&
-		c.Kserve.ModelsAsService.ManagementState == operatorv1.Managed { //nolint:staticcheck
-		aiGatewayState = operatorv1.Managed
-	}
-
-	return configv1alpha1.PlatformModules{
-		AIGateway: common.ManagementSpec{
-			ManagementState: aiGatewayState,
-		},
-		MCPLifecycleOperator: common.ManagementSpec{
-			ManagementState: c.MCPLifecycleOperator.ManagementState,
-		},
-	}
 }
 
 // ComponentsStatus defines the custom status of DataScienceCluster components.

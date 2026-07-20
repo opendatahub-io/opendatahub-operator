@@ -12,8 +12,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
-	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -92,6 +91,21 @@ func NewHandler() *handler {
 	}
 }
 
+func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *modules.DSCContext) {
+	if dscCtx == nil || dscCtx.DSC == nil {
+		return
+	}
+	dsc := dscCtx.DSC
+	state := dsc.Spec.Components.AIGateway.ManagementState
+	// Deprecated: kserve.modelsAsService fallback for 3.4→3.5 upgrade compatibility.
+	if state == "" &&
+		dsc.Spec.Components.Kserve.ManagementState == operatorv1.Managed &&
+		dsc.Spec.Components.Kserve.ModelsAsService.ManagementState == operatorv1.Managed { //nolint:staticcheck
+		state = operatorv1.Managed
+	}
+	pm.AIGateway.ManagementState = state
+}
+
 func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 	if platform == nil || platform.Platform == nil {
 		return false
@@ -103,14 +117,13 @@ func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
-	dsc *dscv2.DataScienceCluster,
-	_ *dsciv2.DSCInitialization,
+	dscCtx *modules.DSCContext,
 ) (*unstructured.Unstructured, error) {
-	if dsc == nil {
+	if dscCtx == nil || dscCtx.DSC == nil {
 		return nil, errors.New("DSC is nil, cannot build AIGateway CR")
 	}
 
-	dscComponents := dsc.Spec.Components
+	dscComponents := dscCtx.DSC.Spec.Components
 	commonSpec := dscComponents.AIGateway.AIGatewayCommonSpec.DeepCopy()
 
 	// Deprecated: if modelsAsAService is not set but kserve.modelsAsService is,

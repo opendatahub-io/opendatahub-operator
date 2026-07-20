@@ -35,13 +35,14 @@ const (
 // Module teams typically embed BaseHandler and only implement IsEnabled
 // and BuildModuleCR; the remaining methods have default implementations
 // driven by ModuleConfig.
+//
+//nolint:interfacebloat
 type ModuleHandler interface {
 	// GetName returns the unique identifier for this module.
 	GetName() string
 
 	// IsEnabled returns whether the module should be deployed based on platform
-	// configuration. Component modules check platform.DSC; service modules
-	// check platform.DSCI.
+	// configuration.
 	IsEnabled(platform *PlatformContext) bool
 
 	// GetGVK returns the GroupVersionKind of the module CR that this handler
@@ -59,12 +60,19 @@ type ModuleHandler interface {
 	// runtime values (e.g. operatorNamespace) into Helm chart values.
 	GetOperatorManifests(platform *PlatformContext) OperatorManifests
 
+	// PopulatePlatformModule sets this module's management state on the
+	// PlatformModules struct, derived from DSC/DSCI spec.
+	// Component-modules read from dscCtx.DSC, service-modules from dscCtx.DSCI.
+	// Called by the DSC/DSCI controller to project module enablement into
+	// the Platform CR.
+	PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *DSCContext)
+
 	// BuildModuleCR constructs the module CR as an unstructured object.
 	// Called by DSC/DSCI controllers (not the platform controller) to create
 	// module CRs with full spec from DSC/DSCI. On xKS users create CRs
 	// manually and this method is not called.
-	// Component-modules read from dsc, service-modules from dsci.
-	BuildModuleCR(ctx context.Context, cli client.Client, dsc *dscv2.DataScienceCluster, dsci *dsciv2.DSCInitialization) (*unstructured.Unstructured, error)
+	// Component-modules read from dscCtx.DSC, service-modules from dscCtx.DSCI.
+	BuildModuleCR(ctx context.Context, cli client.Client, dscCtx *DSCContext) (*unstructured.Unstructured, error)
 
 	// GetRelatedImages returns the RELATED_IMAGE_* environment variable names
 	// that the module operator needs injected into its Deployment.
@@ -157,6 +165,23 @@ type ModuleStatus struct {
 type OperatorManifests struct {
 	HelmCharts []types.HelmChartInfo
 	Manifests  []types.ManifestInfo
+}
+
+// DSCContext holds DSC/DSCI references for handler methods called by
+// DSC or DSCI controllers. Parallels PlatformContext (platform controller).
+// Component-modules read DSC, service-modules read DSCI.
+//
+// Both fields are nullable: the DSC controller populates only DSC,
+// the DSCI controller populates only DSCI. Handlers that depend on
+// a nil field should no-op (for PopulatePlatformModule) or return
+// an error (for BuildModuleCR).
+type DSCContext struct {
+	// DSC is the DataScienceCluster instance. Nil when called from the
+	// DSCI controller.
+	DSC *dscv2.DataScienceCluster
+	// DSCI is the DSCInitialization instance. Nil when called from the
+	// DSC controller.
+	DSCI *dsciv2.DSCInitialization
 }
 
 // PlatformContext holds platform-level fields gathered once per reconcile

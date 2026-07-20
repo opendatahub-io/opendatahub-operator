@@ -102,7 +102,7 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	h := mcplifecycleoperator.NewHandler()
 	dsc := newDSC(operatorv1.Managed)
 
-	u, err := h.BuildModuleCR(context.Background(), nil, dsc, nil)
+	u, err := h.BuildModuleCR(context.Background(), nil, &modules.DSCContext{DSC: dsc})
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(u.GetName()).Should(Equal(componentApi.MCPLifecycleOperatorInstanceName))
 	g.Expect(u.GetKind()).Should(Equal(componentApi.MCPLifecycleOperatorKind))
@@ -116,7 +116,7 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 func TestBuildModuleCR_NilDSCReturnsError(t *testing.T) {
 	g := NewWithT(t)
 	h := mcplifecycleoperator.NewHandler()
-	_, err := h.BuildModuleCR(context.Background(), nil, nil, nil)
+	_, err := h.BuildModuleCR(context.Background(), nil, nil)
 	g.Expect(err).Should(HaveOccurred())
 }
 

@@ -91,11 +91,23 @@ func syncPlatformCR(_ context.Context, rr *odhtype.ReconciliationRequest) error 
 			Name: configv1alpha1.PlatformInstanceName,
 		},
 		Spec: configv1alpha1.PlatformSpec{
-			Modules: instance.Spec.Components.PlatformModules(),
+			Modules: buildPlatformModules(&modules.DSCContext{DSC: instance}),
 		},
 	}
 
 	return rr.AddResources(platform)
+}
+
+// buildPlatformModules iterates all module handlers to derive their
+// management state from DSC/DSCI, producing the PlatformModules struct
+// for projection into the Platform CR.
+func buildPlatformModules(dscCtx *modules.DSCContext) configv1alpha1.PlatformModules {
+	var pm configv1alpha1.PlatformModules
+	modules.DefaultRegistry().ForAll(func(handler modules.ModuleHandler, _ bool) error { //nolint:errcheck
+		handler.PopulatePlatformModule(&pm, dscCtx)
+		return nil
+	})
+	return pm
 }
 
 // cleanupDisabledComponents deletes component CRs for disabled components
@@ -189,7 +201,7 @@ func cleanupDisabledModuleCRs(ctx context.Context, rr *odhtype.ReconciliationReq
 		return nil
 	}
 
-	pm := instance.Spec.Components.PlatformModules()
+	pm := buildPlatformModules(&modules.DSCContext{DSC: instance})
 	enabledModules := make(map[string]bool)
 	for _, name := range pm.EnabledModules() {
 		enabledModules[name] = true
@@ -316,7 +328,7 @@ func provisionModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 		return nil
 	}
 
-	pm := instance.Spec.Components.PlatformModules()
+	pm := buildPlatformModules(&modules.DSCContext{DSC: instance})
 	enabledModules := make(map[string]bool)
 	for _, name := range pm.EnabledModules() {
 		enabledModules[name] = true
@@ -329,7 +341,7 @@ func provisionModuleCRs(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 			return nil
 		}
 
-		moduleCR, err := handler.BuildModuleCR(ctx, rr.Client, instance, nil)
+		moduleCR, err := handler.BuildModuleCR(ctx, rr.Client, &modules.DSCContext{DSC: instance})
 		if err != nil {
 			return fmt.Errorf("BuildModuleCR failed for module %s: %w", name, err)
 		}

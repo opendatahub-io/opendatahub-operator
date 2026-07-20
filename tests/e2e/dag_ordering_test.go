@@ -178,6 +178,24 @@ func dagOrderingTestSuite(t *testing.T) {
 	t.Log("Restoring operator to original version for Phase 3")
 	ctx.removeOperatorEnvVars(t, "RHAI_VERSION", "CI")
 
+	// Wait for the operator to acquire the leader lease and complete its
+	// first reconciliation at the restored version. This ensures the
+	// platform config ConfigMaps are updated with the correct
+	// platformVersion BEFORE module operators are restarted. Without
+	// this, module operators may read a stale ConfigMap (still containing
+	// the Phase 2 version) because they only read platformVersion at
+	// startup and never re-read it.
+	t.Log("Waiting for operator to reconcile at restored version (ProvisioningProgress=False)")
+	ctx.EnsureResourceExists(
+		WithMinimalObject(gvk.Platform, ctx.PlatformNamespacedName),
+		WithCondition(jq.Match(
+			`any(.status.conditions[]; .type == "%s" and .status == "%s")`,
+			status.ConditionTypeProvisioningProgress, metav1.ConditionFalse,
+		)),
+		WithEventuallyTimeout(5*time.Minute),
+		WithEventuallyPollingInterval(10*time.Second),
+	)
+
 	// Module operators are separate deployments that don't restart when
 	// the main operator version changes. They still report the old
 	// platform version, blocking the DAG readiness checker.
@@ -1125,7 +1143,6 @@ func (tc *DAGOrderingTestCtx) restartModuleOperators(t *testing.T) {
 					Namespace: pod.GetNamespace(),
 					Name:      pod.GetName(),
 				}),
-				WithWaitForDeletion(true),
 			)
 		}
 	}

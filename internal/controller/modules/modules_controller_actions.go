@@ -116,15 +116,7 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 			return err
 		}
 
-		switch crState {
-		case CRStateAbsent:
-			log.Info("module CR gone, cleaning up operator resources", "module", handler.GetName())
-			return handler.DeleteOperatorResources(ctx, rr.Client, platformCtx)
-
-		case CRStateAlive, CRStateDeleting:
-			log.Info("module CR still exists, keeping operator alive for finalizer processing",
-				"module", handler.GetName(), "state", crState)
-
+		appendOperatorManifests := func() {
 			operatorManifests := handler.GetOperatorManifests(platformCtx)
 			if len(operatorManifests.HelmCharts) > 0 {
 				rr.HelmCharts = append(rr.HelmCharts, operatorManifests.HelmCharts...)
@@ -132,6 +124,39 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 			if len(operatorManifests.Manifests) > 0 {
 				rr.Manifests = append(rr.Manifests, operatorManifests.Manifests...)
 			}
+		}
+
+		condType := readyConditionTypeFor(handler)
+
+		switch crState {
+		case CRStateAbsent:
+			log.Info("module CR gone, cleaning up operator resources", "module", handler.GetName())
+			return handler.DeleteOperatorResources(ctx, rr.Client, platformCtx)
+
+		case CRStateAlive:
+			log.Info("module disabled but CR still exists", "module", handler.GetName())
+
+			rr.Conditions.SetCondition(common.Condition{
+				Type:    condType,
+				Status:  metav1.ConditionFalse,
+				Reason:  status.RemovedReason,
+				Message: fmt.Sprintf("Module %s is disabled but its CR still exists — delete it to complete removal", handler.GetName()),
+			})
+
+			appendOperatorManifests()
+
+		case CRStateDeleting:
+			log.Info("module CR deleting, keeping operator alive for finalizers", "module", handler.GetName())
+
+			rr.Conditions.SetCondition(common.Condition{
+				Type:     condType,
+				Status:   metav1.ConditionFalse,
+				Reason:   status.RemovedReason,
+				Severity: common.ConditionSeverityInfo,
+				Message:  fmt.Sprintf("Module %s CR is being deleted", handler.GetName()),
+			})
+
+			appendOperatorManifests()
 		}
 
 		return nil

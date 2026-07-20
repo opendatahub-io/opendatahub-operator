@@ -77,6 +77,72 @@ func TestIsEnabled_NilPlatformContext(t *testing.T) {
 	g.Expect(h.IsEnabled(nil)).Should(BeFalse())
 }
 
+func TestPopulatePlatformModule_ExplicitManaged(t *testing.T) {
+	g := NewWithT(t)
+	h := aigateway.NewHandler()
+	var pm configv1alpha1.PlatformModules
+	h.PopulatePlatformModule(&pm, &modules.DSCContext{DSC: newDSC(operatorv1.Managed)})
+	g.Expect(pm.AIGateway.ManagementState).Should(Equal(operatorv1.Managed))
+}
+
+func TestPopulatePlatformModule_ExplicitRemoved(t *testing.T) {
+	g := NewWithT(t)
+	h := aigateway.NewHandler()
+	var pm configv1alpha1.PlatformModules
+	h.PopulatePlatformModule(&pm, &modules.DSCContext{DSC: newDSC(operatorv1.Removed)})
+	g.Expect(pm.AIGateway.ManagementState).Should(Equal(operatorv1.Removed))
+}
+
+func TestPopulatePlatformModule_NilDSC(t *testing.T) {
+	g := NewWithT(t)
+	h := aigateway.NewHandler()
+	var pm configv1alpha1.PlatformModules
+	h.PopulatePlatformModule(&pm, nil)
+	g.Expect(pm.AIGateway.ManagementState).Should(BeEmpty())
+}
+
+func TestPopulatePlatformModule_LegacyKserveFallback(t *testing.T) {
+	g := NewWithT(t)
+	h := aigateway.NewHandler()
+	dsc := &dscv2.DataScienceCluster{
+		Spec: dscv2.DataScienceClusterSpec{
+			Components: dscv2.Components{
+				Kserve: componentApi.DSCKserve{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+					KserveCommonSpec: componentApi.KserveCommonSpec{
+						ModelsAsService: componentApi.DSCModelsAsServiceSpec{ManagementState: operatorv1.Managed},
+					},
+				},
+			},
+		},
+	}
+	var pm configv1alpha1.PlatformModules
+	h.PopulatePlatformModule(&pm, &modules.DSCContext{DSC: dsc})
+	g.Expect(pm.AIGateway.ManagementState).Should(Equal(operatorv1.Managed))
+}
+
+func TestPopulatePlatformModule_ExplicitRemovedWinsOverLegacy(t *testing.T) {
+	g := NewWithT(t)
+	h := aigateway.NewHandler()
+	dsc := &dscv2.DataScienceCluster{
+		Spec: dscv2.DataScienceClusterSpec{
+			Components: dscv2.Components{
+				AIGateway: componentApi.DSCAIGateway{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
+				},
+				Kserve: componentApi.DSCKserve{
+					KserveCommonSpec: componentApi.KserveCommonSpec{
+						ModelsAsService: componentApi.DSCModelsAsServiceSpec{ManagementState: operatorv1.Managed},
+					},
+				},
+			},
+		},
+	}
+	var pm configv1alpha1.PlatformModules
+	h.PopulatePlatformModule(&pm, &modules.DSCContext{DSC: dsc})
+	g.Expect(pm.AIGateway.ManagementState).Should(Equal(operatorv1.Removed))
+}
+
 // Backward compat: BuildModuleCR must populate modelsAsAService from
 // kserve.modelsAsService when modelsAsAService is not explicitly set.
 func TestBuildModuleCR_LegacyKserveModelsAsService_PopulatesModelsAsAService(t *testing.T) {
@@ -99,7 +165,7 @@ func TestBuildModuleCR_LegacyKserveModelsAsService_PopulatesModelsAsAService(t *
 		},
 	}
 
-	u, err := h.BuildModuleCR(context.Background(), nil, dsc, nil)
+	u, err := h.BuildModuleCR(context.Background(), nil, &modules.DSCContext{DSC: dsc})
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, ok := u.Object["spec"].(map[string]any)
@@ -138,7 +204,7 @@ func TestBuildModuleCR_ExplicitModelsAsAServiceWinsOverLegacy(t *testing.T) {
 		},
 	}
 
-	u, err := h.BuildModuleCR(context.Background(), nil, dsc, nil)
+	u, err := h.BuildModuleCR(context.Background(), nil, &modules.DSCContext{DSC: dsc})
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	spec, ok := u.Object["spec"].(map[string]any)
@@ -155,7 +221,7 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 	h := aigateway.NewHandler()
 	dsc := newDSC(operatorv1.Managed)
 
-	u, err := h.BuildModuleCR(context.Background(), nil, dsc, nil)
+	u, err := h.BuildModuleCR(context.Background(), nil, &modules.DSCContext{DSC: dsc})
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(u.GetName()).Should(Equal(componentApi.AIGatewayInstanceName))
 	g.Expect(u.GetKind()).Should(Equal(componentApi.AIGatewayKind))
@@ -169,7 +235,7 @@ func TestBuildModuleCR_BasicProjection(t *testing.T) {
 func TestBuildModuleCR_NilDSCReturnsError(t *testing.T) {
 	g := NewWithT(t)
 	h := aigateway.NewHandler()
-	_, err := h.BuildModuleCR(context.Background(), nil, nil, nil)
+	_, err := h.BuildModuleCR(context.Background(), nil, nil)
 	g.Expect(err).Should(HaveOccurred())
 }
 

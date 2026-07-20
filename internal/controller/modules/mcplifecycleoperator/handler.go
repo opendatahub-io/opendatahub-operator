@@ -11,8 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
-	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
@@ -49,6 +48,13 @@ func NewHandler() *handler {
 	}
 }
 
+func (h *handler) PopulatePlatformModule(pm *configv1alpha1.PlatformModules, dscCtx *modules.DSCContext) {
+	if dscCtx == nil || dscCtx.DSC == nil {
+		return
+	}
+	pm.MCPLifecycleOperator.ManagementState = dscCtx.DSC.Spec.Components.MCPLifecycleOperator.ManagementState
+}
+
 func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 	if platform == nil || platform.Platform == nil {
 		return false
@@ -60,15 +66,14 @@ func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 func (h *handler) BuildModuleCR(
 	_ context.Context,
 	_ client.Client,
-	dsc *dscv2.DataScienceCluster,
-	_ *dsciv2.DSCInitialization,
+	dscCtx *modules.DSCContext,
 ) (*unstructured.Unstructured, error) {
-	if dsc == nil {
+	if dscCtx == nil || dscCtx.DSC == nil {
 		return nil, errors.New("DSC is nil, cannot build MCPLifecycleOperator CR")
 	}
 
 	spec, err := runtime.DefaultUnstructuredConverter.ToUnstructured(
-		&dsc.Spec.Components.MCPLifecycleOperator.MCPLifecycleOperatorCommonSpec,
+		&dscCtx.DSC.Spec.Components.MCPLifecycleOperator.MCPLifecycleOperatorCommonSpec,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert MCPLifecycleOperatorCommonSpec to unstructured: %w", err)

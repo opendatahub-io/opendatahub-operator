@@ -17,6 +17,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -123,6 +124,9 @@ type ModuleConfig struct {
 // override IsEnabled and BuildModuleCR.
 type BaseHandler struct {
 	Config ModuleConfig
+}
+
+func (b *BaseHandler) PopulatePlatformModule(_ *configv1alpha1.PlatformModules, _ *DSCContext) {
 }
 
 func (b *BaseHandler) GetName() string {
