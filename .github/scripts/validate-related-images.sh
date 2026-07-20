@@ -182,6 +182,22 @@ record_odh_exception_match() {
     grep "^${image}|" "$ODH_EXCEPTIONS_FILE" | head -1 >> "$ODH_EXCEPTIONS_MATCHED"
 }
 
+# RHOAI exceptions: images intentionally absent from RHOAI-Build-Config
+RHOAI_EXCEPTIONS_FILE="$WORKDIR/rhoai-exceptions.txt"
+RHOAI_EXCEPTIONS_MATCHED="$WORKDIR/rhoai-exceptions-matched.txt"
+touch "$RHOAI_EXCEPTIONS_FILE" "$RHOAI_EXCEPTIONS_MATCHED"
+$YQ -r '(.rhoai_exceptions // [])[] | .image + "|" + .reason' "$CONFIG_FILE" \
+    > "$RHOAI_EXCEPTIONS_FILE"
+
+is_rhoai_exception() {
+    grep -q -e "^$1|" -- "$RHOAI_EXCEPTIONS_FILE"
+}
+
+record_rhoai_exception_match() {
+    local image="$1"
+    grep -e "^${image}|" -- "$RHOAI_EXCEPTIONS_FILE" | head -1 >> "$RHOAI_EXCEPTIONS_MATCHED"
+}
+
 # --- Step 3: Extract map entries per component ---
 # For each component dir, extract Go map entries: "key": "RELATED_IMAGE_*"
 # Output: component/key/RELATED_IMAGE_VALUE lines
@@ -296,6 +312,37 @@ else
 fi
 rm -f "$rhai_temp"
 
+# Fetch SBOM metadata configs (version metadata env vars, not container images)
+SBOM_METADATA_FILE="$WORKDIR/sbom-metadata-images.txt"
+SBOM_METADATA_MATCHED="$WORKDIR/sbom-metadata-matched.txt"
+touch "$SBOM_METADATA_FILE" "$SBOM_METADATA_MATCHED"
+
+fetch_sbom_metadata() {
+    local label="$1"
+    local url="$2"
+    local sbom_temp
+    sbom_temp=$(mktemp "${WORKDIR}/fetched.XXXXXX.yaml")
+    echo ""
+    echo "Fetching SBOM metadata config from ${label}..."
+    if curl -sfL --max-filesize 10485760 --connect-timeout 10 --max-time 30 \
+            -o "$sbom_temp" -- "$url" 2>/dev/null; then
+        $YQ -r '(.sbom-metadata // [])[] | .suffix as $s | .env_vars[] | . + $s' "$sbom_temp" \
+            2>/dev/null >> "$SBOM_METADATA_FILE"
+        local count
+        count=$(wc -l < "$SBOM_METADATA_FILE" | tr -d ' ')
+        echo "  Found ${count} SBOM metadata env var(s) to exclude (cumulative)"
+    else
+        echo "  WARNING: Failed to fetch SBOM metadata config from ${label}"
+    fi
+    rm -f "$sbom_temp"
+}
+
+fetch_sbom_metadata "RHOAI-Build-Config (${RHOAI_BUILD_CONFIG_BRANCH})" \
+    "${RHOAI_BASE_URL}/bundle/metadata-config.yaml"
+fetch_sbom_metadata "ODH-Build-Config (${ODH_BUILD_CONFIG_BRANCH})" \
+    "${ODH_BASE_URL}/bundle/metadata-config.yaml"
+sort -u -o "$SBOM_METADATA_FILE" "$SBOM_METADATA_FILE"
+
 ODH_LABEL="ODH (${ODH_BUILD_CONFIG_BRANCH})"
 RHOAI_LABEL="RHOAI (${RHOAI_BUILD_CONFIG_BRANCH})"
 RHAI_LABEL="RHAI Helm"
@@ -348,6 +395,12 @@ touch "$ERRORS_FILE" "$WARNINGS_FILE"
 sort -u -t'|' -k1,1 "$ALL_ENTRIES" | cut -d'|' -f1 | sort -u > "$WORKDIR/unique-images.txt"
 
 while IFS= read -r related_image; do
+    # SBOM metadata: version env vars derived from metadata-config.yaml are not images
+    if grep -qxF -e "$related_image" -- "$SBOM_METADATA_FILE" 2>/dev/null; then
+        echo "$related_image" >> "$SBOM_METADATA_MATCHED"
+        continue
+    fi
+
     in_odh=false
     in_rhoai=false
     in_rhai=false
@@ -385,6 +438,12 @@ while IFS= read -r related_image; do
     if is_odh_exception "$related_image"; then
         record_odh_exception_match "$related_image"
         in_odh=true
+    fi
+
+    # RHOAI exceptions: treat image as present in RHOAI if intentionally excluded
+    if is_rhoai_exception "$related_image"; then
+        record_rhoai_exception_match "$related_image"
+        in_rhoai=true
     fi
 
     # Skip if everything is OK
@@ -514,6 +573,14 @@ if [ -s "$ODH_EXCEPTIONS_MATCHED" ]; then
     local_oe_count=$(sort -u "$ODH_EXCEPTIONS_MATCHED" | wc -l | tr -d ' ')
     printf ", ${CYAN}%d ODH exception(s)${RESET}" "$local_oe_count"
 fi
+if [ -s "$RHOAI_EXCEPTIONS_MATCHED" ]; then
+    local_re_count=$(sort -u "$RHOAI_EXCEPTIONS_MATCHED" | wc -l | tr -d ' ')
+    printf ", %b%d RHOAI exception(s)%b" "$CYAN" "$local_re_count" "$RESET"
+fi
+if [ -s "$SBOM_METADATA_MATCHED" ]; then
+    local_sm_count=$(sort -u "$SBOM_METADATA_MATCHED" | wc -l | tr -d ' ')
+    printf ", %b%d SBOM metadata exclusion(s)%b" "$CYAN" "$local_sm_count" "$RESET"
+fi
 echo ""
 
 # Known issues detail
@@ -531,6 +598,24 @@ if [ -s "$ODH_EXCEPTIONS_MATCHED" ]; then
     printf "  ${CYAN}${BOLD}ODH exceptions (not applicable to ODH, skipped):${RESET}\n"
     sort -u "$ODH_EXCEPTIONS_MATCHED" | while IFS='|' read -r oe_image oe_reason; do
         printf "    ${CYAN}%s${RESET} - %s\n" "$oe_image" "$oe_reason"
+    done
+fi
+
+# RHOAI exceptions detail
+if [ -s "$RHOAI_EXCEPTIONS_MATCHED" ]; then
+    echo ""
+    printf "  %b%bRHOAI exceptions (not applicable to RHOAI, skipped):%b\n" "$CYAN" "$BOLD" "$RESET"
+    sort -u "$RHOAI_EXCEPTIONS_MATCHED" | while IFS='|' read -r re_image re_reason; do
+        printf "    %b%s%b - %s\n" "$CYAN" "$re_image" "$RESET" "$re_reason"
+    done
+fi
+
+# SBOM metadata exclusions detail
+if [ -s "$SBOM_METADATA_MATCHED" ]; then
+    echo ""
+    printf "  %b%bSBOM metadata (version metadata, not images, skipped):%b\n" "$CYAN" "$BOLD" "$RESET"
+    sort -u "$SBOM_METADATA_MATCHED" | while IFS= read -r sm_image; do
+        printf "    %b%s%b\n" "$CYAN" "$sm_image" "$RESET"
     done
 fi
 
@@ -577,6 +662,29 @@ if [ -s "$ODH_EXCEPTIONS_FILE" ]; then
 
     if [ "$stale_oe_count" -gt 0 ]; then
         WARNINGS=$((WARNINGS + stale_oe_count))
+    fi
+fi
+
+# Detect stale RHOAI exceptions (configured but no longer triggered)
+if [ -s "$RHOAI_EXCEPTIONS_FILE" ]; then
+    matched_re_images="$WORKDIR/matched-re-images.txt"
+    sort -u "$RHOAI_EXCEPTIONS_MATCHED" | cut -d'|' -f1 | sort -u > "$matched_re_images" 2>/dev/null || true
+
+    stale_re_count=0
+    while IFS='|' read -r re_image re_reason; do
+        if ! grep -qxF -e "$re_image" -- "$matched_re_images" 2>/dev/null; then
+            if [ "$stale_re_count" -eq 0 ]; then
+                echo ""
+                printf "  %b%bStale RHOAI exceptions (no longer triggered, please remove from %s):%b\n" "$YELLOW" "$BOLD" "$CONFIG_FILE" "$RESET"
+            fi
+            printf "    %b%s%b - %s\n" "$YELLOW" "$re_image" "$RESET" "$re_reason"
+            stale_re_count=$((stale_re_count + 1))
+        fi
+    done < "$RHOAI_EXCEPTIONS_FILE"
+    rm -f "$matched_re_images"
+
+    if [ "$stale_re_count" -gt 0 ]; then
+        WARNINGS=$((WARNINGS + stale_re_count))
     fi
 fi
 
