@@ -320,7 +320,10 @@ func ensureNamespacedRBAC(ctx context.Context, rr *odhtypes.ReconciliationReques
 		saName = "rhods-dashboard"
 	}
 
-	notebooksNS := resolveNotebooksNamespace(ctx, rr)
+	notebooksNS, err := resolveNotebooksNamespace(ctx, rr)
+	if err != nil {
+		return fmt.Errorf("failed to resolve notebooks namespace: %w", err)
+	}
 	if notebooksNS != "" {
 		logger.V(1).Info("ensuring Dashboard RBAC in notebooks namespace", "namespace", notebooksNS)
 		if err := addNamespacedRBAC(rr, saName, appNamespace, notebooksNS, "notebooks", notebooksRBACRules()); err != nil {
@@ -328,7 +331,10 @@ func ensureNamespacedRBAC(ctx context.Context, rr *odhtypes.ReconciliationReques
 		}
 	}
 
-	modelRegistryNS := resolveModelRegistryNamespace(ctx, rr)
+	modelRegistryNS, err := resolveModelRegistryNamespace(ctx, rr)
+	if err != nil {
+		return fmt.Errorf("failed to resolve model-registry namespace: %w", err)
+	}
 	if modelRegistryNS != "" {
 		logger.V(1).Info("ensuring Dashboard RBAC in model-registry namespace", "namespace", modelRegistryNS)
 		if err := addNamespacedRBAC(rr, saName, appNamespace, modelRegistryNS, "model-registries", modelRegistryRBACRules()); err != nil {
@@ -339,14 +345,17 @@ func ensureNamespacedRBAC(ctx context.Context, rr *odhtypes.ReconciliationReques
 	return nil
 }
 
-func resolveNotebooksNamespace(ctx context.Context, rr *odhtypes.ReconciliationRequest) string {
+func resolveNotebooksNamespace(ctx context.Context, rr *odhtypes.ReconciliationRequest) (string, error) {
 	logger := log.FromContext(ctx)
 
 	wb := &componentApi.Workbenches{}
 	err := rr.Client.Get(ctx, client.ObjectKey{Name: componentApi.WorkbenchesInstanceName}, wb)
 	if err != nil {
-		logger.V(1).Info("Workbenches CR not found, skipping notebooks RBAC")
-		return ""
+		if k8serr.IsNotFound(err) {
+			logger.V(1).Info("Workbenches CR not found, skipping notebooks RBAC")
+			return "", nil
+		}
+		return "", fmt.Errorf("failed to get Workbenches CR: %w", err)
 	}
 
 	ns := wb.Spec.WorkbenchNamespace
@@ -360,37 +369,46 @@ func resolveNotebooksNamespace(ctx context.Context, rr *odhtypes.ReconciliationR
 	}
 
 	exists, err := cluster.NamespaceExists(ctx, rr.Client, ns)
-	if err != nil || !exists {
+	if err != nil {
+		return "", fmt.Errorf("failed to check notebooks namespace %q: %w", ns, err)
+	}
+	if !exists {
 		logger.V(1).Info("notebooks namespace not found, skipping RBAC", "namespace", ns)
-		return ""
+		return "", nil
 	}
 
-	return ns
+	return ns, nil
 }
 
-func resolveModelRegistryNamespace(ctx context.Context, rr *odhtypes.ReconciliationRequest) string {
+func resolveModelRegistryNamespace(ctx context.Context, rr *odhtypes.ReconciliationRequest) (string, error) {
 	logger := log.FromContext(ctx)
 
 	mr := &componentApi.ModelRegistry{}
 	err := rr.Client.Get(ctx, client.ObjectKey{Name: componentApi.ModelRegistryInstanceName}, mr)
 	if err != nil {
-		logger.V(1).Info("ModelRegistry CR not found, skipping model-registry RBAC")
-		return ""
+		if k8serr.IsNotFound(err) {
+			logger.V(1).Info("ModelRegistry CR not found, skipping model-registry RBAC")
+			return "", nil
+		}
+		return "", fmt.Errorf("failed to get ModelRegistry CR: %w", err)
 	}
 
 	ns := mr.Spec.RegistriesNamespace
 	if ns == "" {
 		logger.V(1).Info("ModelRegistry registriesNamespace is empty, skipping RBAC")
-		return ""
+		return "", nil
 	}
 
 	exists, err := cluster.NamespaceExists(ctx, rr.Client, ns)
-	if err != nil || !exists {
+	if err != nil {
+		return "", fmt.Errorf("failed to check model-registry namespace %q: %w", ns, err)
+	}
+	if !exists {
 		logger.V(1).Info("model-registry namespace not found, skipping RBAC", "namespace", ns)
-		return ""
+		return "", nil
 	}
 
-	return ns
+	return ns, nil
 }
 
 func addNamespacedRBAC(rr *odhtypes.ReconciliationRequest, saName, saNamespace, targetNamespace, roleSuffix string, rules []rbacv1.PolicyRule) error {
