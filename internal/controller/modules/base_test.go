@@ -32,10 +32,10 @@ func TestDeleteRenderedResources_SkipsProtectedResources(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name         string
-		skipGVK      schema.GroupVersionKind
-		skipResName  string
-		skipDesc     string
+		name        string
+		skipGVK     schema.GroupVersionKind
+		skipResName string
+		skipDesc    string
 	}{
 		{
 			name:        "CRDs are not deleted",
