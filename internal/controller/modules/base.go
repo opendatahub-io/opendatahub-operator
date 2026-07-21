@@ -373,6 +373,13 @@ func (b *BaseHandler) deleteRenderedResources(
 			continue
 		}
 
+		if res.GetKind() == "Namespace" {
+			log.V(1).Info("skipping Namespace deletion during module cleanup",
+				"module", b.Config.Name,
+				"name", res.GetName())
+			continue
+		}
+
 		log.V(1).Info("deleting module operator resource",
 			"module", b.Config.Name,
 			"kind", res.GetKind(),
