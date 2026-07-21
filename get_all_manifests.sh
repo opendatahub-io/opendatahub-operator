@@ -19,7 +19,7 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@537d7e048d76d352b073b08e8f0a3c77044154b6:components/notebook-controller/config"
     ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@537d7e048d76d352b073b08e8f0a3c77044154b6:components/odh-notebook-controller/config"
     ["workbenches/notebooks"]="opendatahub-io:notebooks:main@bcaad010f1676b6a798e2bb4bf1ab7dc6b7b0718:manifests"
-    ["kserve"]="opendatahub-io:kserve:release-v0.17@4e873979b7bb5f0a73034cf105e80d0d297675e0:config"
+    ["kserve"]="opendatahub-io:kserve:release-v0.17@473ec65e09b0ab888fcc33a8fd0736ff3b276f82:config"
     ["ray"]="opendatahub-io:kuberay:dev@8c772ccfe6a9734d6152c8a24e270488b967231d:ray-operator/config"
     ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@bc5156e764b2d360ca0eabff9e5131bb2c6ee672:config"
     ["modelregistry"]="opendatahub-io:model-registry-operator:main@ddaca00f1749175cef655b967c3c453fc0ef347f:config"
@@ -34,7 +34,7 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["sparkoperator"]="opendatahub-io:spark-operator:main@4dd2dae8947d76dabfcbca3a38b525b8765741bd:config"
     ["wva"]="opendatahub-io:workload-variant-autoscaler:main@8df86ea0826a9fbb5339098f38a493dabf859c37:config"
     ["aigateway"]="opendatahub-io:ai-gateway-operator:stable@78e57c820bd2879e5ef42289447aa55bdf68dce4:config"
-["mcplifecycleoperator"]="opendatahub-io:mcp-lifecycle-module-operator:main@7db9739cd9c8ee3f321a08653be738ec52c5a9fa:config"
+    ["mcplifecycleoperator"]="opendatahub-io:mcp-lifecycle-module-operator:main@7db9739cd9c8ee3f321a08653be738ec52c5a9fa:config"
 )
 
 # RHOAI Component Manifests
@@ -43,7 +43,7 @@ declare -A RHOAI_COMPONENT_MANIFESTS=(
     ["workbenches/kf-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.5@dbade66a3e1a06e1f9e6f86b7b0355fc10d853b7:components/notebook-controller/config"
     ["workbenches/odh-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.5@dbade66a3e1a06e1f9e6f86b7b0355fc10d853b7:components/odh-notebook-controller/config"
     ["workbenches/notebooks"]="red-hat-data-services:notebooks:rhoai-3.5@e9508a6743ad151e350b7d263c49ad421e1d8048:manifests"
-    ["kserve"]="red-hat-data-services:kserve:rhoai-3.5@32f79b785f8485a03de2c266c5876b6817968ffd:config"
+    ["kserve"]="red-hat-data-services:kserve:rhoai-3.5@03e934e940248c6f592f823c5723a1150c726993:config"
     ["ray"]="red-hat-data-services:kuberay:rhoai-3.5@53476f7917dd0c3ba52c9a2021986d263b7e7e24:ray-operator/config"
     ["trustyai"]="red-hat-data-services:trustyai-service-operator:rhoai-3.5@26a8052cda820504e5e5383c0d8ef1d5ebd4f8b0:config"
     ["modelregistry"]="red-hat-data-services:model-registry-operator:rhoai-3.5@283975d584f886177b9371b9ba8a93163a76efe8:config"
@@ -58,7 +58,7 @@ declare -A RHOAI_COMPONENT_MANIFESTS=(
     ["sparkoperator"]="red-hat-data-services:spark-operator:rhoai-3.5@77f949e1d3d438de39bc5f5ebccb45fdf0114852:config"
     ["wva"]="red-hat-data-services:workload-variant-autoscaler:rhoai-3.5@77a2f3ec16160dc9ec261511033260ff9402f0cf:config"
     ["aigateway"]="red-hat-data-services:ai-gateway-operator:rhoai-3.5@3d75e8884b0b171808eef630ece2995ed7cda8bb:config"
-["mcplifecycleoperator"]="red-hat-data-services:mcp-lifecycle-module-operator:rhoai-3.5@c32d55bf77c41d53a17e274ecf6219d80f154cad:config"
+    ["mcplifecycleoperator"]="red-hat-data-services:mcp-lifecycle-module-operator:rhoai-3.5@c32d55bf77c41d53a17e274ecf6219d80f154cad:config"
 )
 
 # {ODH,RHOAI}_{CCM,COMPONENT}_CHARTS are lists of chart repositories info to fetch helm charts
