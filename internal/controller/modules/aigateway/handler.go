@@ -87,8 +87,8 @@ func NewHandler() *handler {
 				GVK:                  gvk.AIGateway,
 				SubmoduleConditions: []modules.SubmoduleCondition{
 					{
-						SourceConditionType: "ModelsAsServiceReady",
-						DSCConditionType:    "ModelsAsServiceReady",
+						SourceConditionType: "ModelsAsAServiceReady",
+						DSCConditionType:    "ModelsAsAServiceReady",
 						StatusFieldName:     "ModelsAsAService",
 						IsEnabled: func(p *modules.PlatformContext) bool {
 							if p == nil || p.DSC == nil {
