@@ -28,62 +28,58 @@ func makeUnstructured(gvkVal schema.GroupVersionKind, name, namespace string) un
 	return u
 }
 
-func TestDeleteRenderedResources_SkipsCRDs(t *testing.T) {
+func TestDeleteRenderedResources_SkipsProtectedResources(t *testing.T) {
 	t.Parallel()
-	g := NewWithT(t)
 
-	ctx := context.Background()
-	log := logf.Log
+	cases := []struct {
+		name         string
+		skipGVK      schema.GroupVersionKind
+		skipResName  string
+		skipDesc     string
+	}{
+		{
+			name:        "CRDs are not deleted",
+			skipGVK:     gvk.CustomResourceDefinition,
+			skipResName: "tests.example.com",
+			skipDesc:    "CRD",
+		},
+		{
+			name:        "Namespaces are not deleted",
+			skipGVK:     gvk.Namespace,
+			skipResName: "operator-ns",
+			skipDesc:    "Namespace",
+		},
+	}
 
-	configMap := makeUnstructured(gvk.ConfigMap, "test-cm", "test-ns")
-	crd := makeUnstructured(gvk.CustomResourceDefinition, "tests.example.com", "")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
 
-	cli, err := fakeclient.New(fakeclient.WithObjects(&configMap, &crd))
-	g.Expect(err).NotTo(HaveOccurred())
+			ctx := context.Background()
+			log := logf.Log
 
-	handler := &BaseHandler{Config: ModuleConfig{Name: "test-module"}}
-	resources := []unstructured.Unstructured{configMap, crd}
+			configMap := makeUnstructured(gvk.ConfigMap, "test-cm", "test-ns")
+			skipRes := makeUnstructured(tc.skipGVK, tc.skipResName, "")
 
-	err = handler.deleteRenderedResources(ctx, cli, log, resources)
-	g.Expect(err).NotTo(HaveOccurred())
+			cli, err := fakeclient.New(fakeclient.WithObjects(&configMap, &skipRes))
+			g.Expect(err).NotTo(HaveOccurred())
 
-	crdLookup := unstructured.Unstructured{}
-	crdLookup.SetGroupVersionKind(gvk.CustomResourceDefinition)
-	err = cli.Get(ctx, client.ObjectKeyFromObject(&crd), &crdLookup)
-	g.Expect(err).NotTo(HaveOccurred(), "CRD should not be deleted")
+			handler := &BaseHandler{Config: ModuleConfig{Name: "test-module"}}
+			resources := []unstructured.Unstructured{configMap, skipRes}
 
-	cmLookup := unstructured.Unstructured{}
-	cmLookup.SetGroupVersionKind(gvk.ConfigMap)
-	err = cli.Get(ctx, client.ObjectKeyFromObject(&configMap), &cmLookup)
-	g.Expect(k8serr.IsNotFound(err)).To(BeTrue(), "ConfigMap should be deleted")
-}
+			err = handler.deleteRenderedResources(ctx, cli, log, resources)
+			g.Expect(err).NotTo(HaveOccurred())
 
-func TestDeleteRenderedResources_SkipsNamespaces(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
+			skipLookup := unstructured.Unstructured{}
+			skipLookup.SetGroupVersionKind(tc.skipGVK)
+			err = cli.Get(ctx, client.ObjectKeyFromObject(&skipRes), &skipLookup)
+			g.Expect(err).NotTo(HaveOccurred(), tc.skipDesc+" should not be deleted")
 
-	ctx := context.Background()
-	log := logf.Log
-
-	configMap := makeUnstructured(gvk.ConfigMap, "test-cm", "test-ns")
-	ns := makeUnstructured(gvk.Namespace, "operator-ns", "")
-
-	cli, err := fakeclient.New(fakeclient.WithObjects(&configMap, &ns))
-	g.Expect(err).NotTo(HaveOccurred())
-
-	handler := &BaseHandler{Config: ModuleConfig{Name: "test-module"}}
-	resources := []unstructured.Unstructured{configMap, ns}
-
-	err = handler.deleteRenderedResources(ctx, cli, log, resources)
-	g.Expect(err).NotTo(HaveOccurred())
-
-	nsLookup := unstructured.Unstructured{}
-	nsLookup.SetGroupVersionKind(gvk.Namespace)
-	err = cli.Get(ctx, client.ObjectKeyFromObject(&ns), &nsLookup)
-	g.Expect(err).NotTo(HaveOccurred(), "Namespace should not be deleted")
-
-	cmLookup := unstructured.Unstructured{}
-	cmLookup.SetGroupVersionKind(gvk.ConfigMap)
-	err = cli.Get(ctx, client.ObjectKeyFromObject(&configMap), &cmLookup)
-	g.Expect(k8serr.IsNotFound(err)).To(BeTrue(), "ConfigMap should be deleted")
+			cmLookup := unstructured.Unstructured{}
+			cmLookup.SetGroupVersionKind(gvk.ConfigMap)
+			err = cli.Get(ctx, client.ObjectKeyFromObject(&configMap), &cmLookup)
+			g.Expect(k8serr.IsNotFound(err)).To(BeTrue(), "ConfigMap should be deleted")
+		})
+	}
 }
