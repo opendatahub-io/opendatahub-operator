@@ -82,3 +82,6 @@ map:
   odh-mcp-lifecycle-module-operator:
     src: config
     dest: mcplifecycleoperator
+  odh-spark-operator-module:
+    src: spark-operator-module/config
+    dest: spark-operator-module
