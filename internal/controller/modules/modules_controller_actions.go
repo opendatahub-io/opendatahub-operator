@@ -160,6 +160,8 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 		return err
 	}
 
+	var keptAliveImages []odhtype.ModuleImages
+
 	cleanupOne := func(handler ModuleHandler) error {
 		if handler.IsEnabled(platformCtx) && reg.IsEnabled(handler.GetName()) {
 			return nil
@@ -195,6 +197,14 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 				rr.Manifests = append(rr.Manifests, operatorManifests.Manifests...)
 			}
 
+			keptAliveImages = append(keptAliveImages, odhtype.ModuleImages{
+				DeploymentName:    deploymentNameFor(handler, operatorManifests),
+				ContainerName:     containerNameFor(handler),
+				ControllerImage:   controllerImageFor(handler),
+				InitContainerName: initContainerNameFor(handler),
+				Images:            handler.GetRelatedImages(),
+			})
+
 			return nil
 		}
 
@@ -204,21 +214,34 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 	reverseBatches, err := provision.ReverseBatchesAll()
 	if err != nil {
 		logf.FromContext(ctx).Error(err, "DAG reverse resolution failed, falling back to alphabetical cleanup order")
-		return reg.ForAll(func(handler ModuleHandler, _ bool) error {
+		if forAllErr := reg.ForAll(func(handler ModuleHandler, _ bool) error {
 			return cleanupOne(handler)
-		})
-	}
-
-	for _, batch := range reverseBatches {
-		for _, entry := range provision.ModulesInBatch(batch) {
-			handler := reg.Lookup(entry.GetName())
-			if handler == nil {
-				continue
-			}
-			if err := cleanupOne(handler); err != nil {
-				return err
+		}); forAllErr != nil {
+			return forAllErr
+		}
+	} else {
+		for _, batch := range reverseBatches {
+			for _, entry := range provision.ModulesInBatch(batch) {
+				handler := reg.Lookup(entry.GetName())
+				if handler == nil {
+					continue
+				}
+				if err := cleanupOne(handler); err != nil {
+					return err
+				}
 			}
 		}
+	}
+
+	if len(keptAliveImages) > 0 {
+		if rr.ModuleEnvInjection == nil {
+			rr.ModuleEnvInjection = &odhtype.ModuleEnvInjection{
+				ApplicationsNamespace: platformCtx.ApplicationsNamespace,
+				MonitoringNamespace:   platformCtx.MonitoringNamespace,
+				PlatformType:          platformCtx.Release.Name,
+			}
+		}
+		rr.ModuleEnvInjection.PerModuleImages = append(rr.ModuleEnvInjection.PerModuleImages, keptAliveImages...)
 	}
 
 	return nil
