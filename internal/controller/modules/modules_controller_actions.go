@@ -457,17 +457,7 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 				Message:  fmt.Sprintf("Module ManagementState is set to %s", status.RemovedReason),
 			})
 
-			for _, sm := range submodules {
-				writeSubmoduleComponentStatus(platformCtx, sm, false)
-
-				rr.Conditions.SetCondition(common.Condition{
-					Type:     sm.DSCConditionType,
-					Status:   metav1.ConditionFalse,
-					Reason:   status.RemovedReason,
-					Severity: common.ConditionSeverityInfo,
-					Message:  fmt.Sprintf("Parent module %s ManagementState is set to %s", name, status.RemovedReason),
-				})
-			}
+			setSubmodulesFallback(rr, platformCtx, submodules, true, "", "")
 
 			return nil
 		}
@@ -486,27 +476,10 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 				Message: fmt.Sprintf("Failed to get module status: %v", err),
 			})
 
-			for _, sm := range submodules {
-				subEnabled := sm.IsEnabled == nil || sm.IsEnabled(platformCtx)
-				writeSubmoduleComponentStatus(platformCtx, sm, subEnabled)
-
-				if !subEnabled {
-					rr.Conditions.SetCondition(common.Condition{
-						Type:     sm.DSCConditionType,
-						Status:   metav1.ConditionFalse,
-						Reason:   status.RemovedReason,
-						Severity: common.ConditionSeverityInfo,
-						Message:  "Submodule ManagementState is set to Removed",
-					})
-				} else {
-					rr.Conditions.SetCondition(common.Condition{
-						Type:    sm.DSCConditionType,
-						Status:  metav1.ConditionFalse,
-						Reason:  status.NotReadyReason,
-						Message: fmt.Sprintf("Failed to get parent module %s status: %v", name, err),
-					})
-				}
-			}
+			setSubmodulesFallback(rr, platformCtx, submodules, false,
+				status.NotReadyReason,
+				fmt.Sprintf("Failed to get parent module %s status: %v", name, err),
+			)
 
 			return nil
 		}
@@ -525,6 +498,12 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 				Reason:  status.NotReadyReason,
 				Message: "Module status is stale (observedGeneration < generation)",
 			})
+
+			setSubmodulesFallback(rr, platformCtx, submodules, false,
+				status.NotReadyReason,
+				fmt.Sprintf("Parent module %s status is stale (observedGeneration < generation)", name),
+			)
+
 			return nil
 		}
 
@@ -607,14 +586,16 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 	return nil
 }
 
-// updateModuleStatus writes ModulesReady only when no in-tree components
-// are registered, meaning the DSC controller is absent and the modules
-// controller is the sole status writer. While components exist, the DSC
-// controller handles ModulesReady.
+// updateModuleStatus calls ComputeModulesStatus to keep
+// status.components.*.managementState in sync on every reconcile cycle.
+// When in-tree components are registered the DSC controller also calls
+// ComputeModulesStatus (and owns the conditions/phase), but the modules
+// controller's reconciler still performs an SSA status write — without
+// recomputing here, that write would overwrite the DSC controller's
+// status.components values with stale data from the initial GET.
+// The duplicate condition writes are harmless: WithoutStatusConditionsIf
+// nils them before the SSA apply when in-tree components exist.
 func updateModuleStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	if cr.HasEntries() {
-		return nil
-	}
 	return ComputeModulesStatus(ctx, rr)
 }
 
@@ -689,6 +670,42 @@ func mirrorSubmoduleConditions(
 	}
 }
 
+// setSubmodulesFallback writes submodule conditions and component status when
+// the parent module cannot provide real submodule status (disabled, error, or
+// stale). When parentDisabled is true all submodules are marked Removed
+// regardless of their individual IsEnabled state; otherwise each submodule's
+// own enablement is checked.
+func setSubmodulesFallback(
+	rr *odhtype.ReconciliationRequest,
+	platformCtx *PlatformContext,
+	submodules []SubmoduleCondition,
+	parentDisabled bool,
+	enabledReason string,
+	enabledMessage string,
+) {
+	for _, sm := range submodules {
+		subEnabled := !parentDisabled && (sm.IsEnabled == nil || sm.IsEnabled(platformCtx))
+		writeSubmoduleComponentStatus(platformCtx, sm, subEnabled)
+
+		if !subEnabled {
+			rr.Conditions.SetCondition(common.Condition{
+				Type:     sm.DSCConditionType,
+				Status:   metav1.ConditionFalse,
+				Reason:   status.RemovedReason,
+				Severity: common.ConditionSeverityInfo,
+				Message:  "Submodule ManagementState is set to Removed",
+			})
+		} else {
+			rr.Conditions.SetCondition(common.Condition{
+				Type:    sm.DSCConditionType,
+				Status:  metav1.ConditionFalse,
+				Reason:  enabledReason,
+				Message: enabledMessage,
+			})
+		}
+	}
+}
+
 func writeSubmoduleComponentStatus(platformCtx *PlatformContext, sm SubmoduleCondition, enabled bool) {
 	if platformCtx.DSC == nil || sm.StatusFieldName == "" {
 		return
@@ -706,6 +723,12 @@ func writeSubmoduleComponentStatus(platformCtx *PlatformContext, sm SubmoduleCon
 
 	msField := field.FieldByName("ManagementState")
 	if msField.IsValid() && msField.CanSet() {
+		if msField.Kind() != reflect.String {
+			panic(fmt.Sprintf(
+				"writeSubmoduleComponentStatus: field %s.ManagementState is %s, expected string",
+				sm.StatusFieldName, msField.Kind(),
+			))
+		}
 		msField.SetString(string(ms))
 	}
 }

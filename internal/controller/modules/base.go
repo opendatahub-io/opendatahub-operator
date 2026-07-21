@@ -193,6 +193,12 @@ func (b *BaseHandler) WriteDSCComponentStatus(dsc *dscv2.DataScienceCluster, ena
 
 	msField := field.FieldByName("ManagementState")
 	if msField.IsValid() && msField.CanSet() {
+		if msField.Kind() != reflect.String {
+			panic(fmt.Sprintf(
+				"WriteDSCComponentStatus: field %s.ManagementState is %s, expected string",
+				b.Config.GVK.Kind, msField.Kind(),
+			))
+		}
 		msField.SetString(string(ms))
 	}
 }

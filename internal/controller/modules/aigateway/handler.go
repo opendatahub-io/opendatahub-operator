@@ -94,7 +94,15 @@ func NewHandler() *handler {
 							if p == nil || p.DSC == nil {
 								return false
 							}
-							return p.DSC.Spec.Components.AIGateway.ModelsAsAService.ManagementState == operatorv1.Managed
+							dsc := p.DSC.Spec.Components
+							if dsc.AIGateway.ModelsAsAService.ManagementState != "" {
+								return dsc.AIGateway.ModelsAsAService.ManagementState == operatorv1.Managed
+							}
+							// Deprecated: fall back to kserve.modelsAsService for
+							// users who haven't migrated their DSC to the explicit
+							// aigateway block yet.
+							return dsc.Kserve.ManagementState == operatorv1.Managed &&
+								dsc.Kserve.ModelsAsService.ManagementState == operatorv1.Managed //nolint:staticcheck
 						},
 					},
 					{

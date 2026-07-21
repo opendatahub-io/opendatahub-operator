@@ -24,3 +24,15 @@ func SubmoduleConditionsFor(h ModuleHandler) []SubmoduleCondition {
 func WriteSubmoduleComponentStatus(platformCtx *PlatformContext, sm SubmoduleCondition, enabled bool) {
 	writeSubmoduleComponentStatus(platformCtx, sm, enabled)
 }
+
+// SetSubmodulesFallback exposes setSubmodulesFallback for testing.
+func SetSubmodulesFallback(
+	rr *types.ReconciliationRequest,
+	platformCtx *PlatformContext,
+	submodules []SubmoduleCondition,
+	parentDisabled bool,
+	reason string,
+	message string,
+) {
+	setSubmodulesFallback(rr, platformCtx, submodules, parentDisabled, reason, message)
+}

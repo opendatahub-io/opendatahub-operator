@@ -124,6 +124,99 @@ func aiGatewayTestSuite(t *testing.T) {
 				WithCustomErrorMsg("DSC AIGatewayReady should recover to True after module CR recreation"),
 			)
 		}},
+		{"Validate submodule conditions with mixed enablement", func(t *testing.T) {
+			t.Helper()
+			skipUnless(t, Tier1)
+
+			tc.EventuallyResourcePatched(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithMutateFunc(testf.Transform(`.spec.components.aigateway.managementState = "Managed"`)),
+				WithCondition(jq.Match(`.spec.components.aigateway.managementState == "Managed"`)),
+			)
+
+			// Enable BatchGateway, disable ModelsAsAService.
+			tc.EventuallyResourcePatched(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithMutateFunc(testf.TransformPipeline(
+					testf.Transform(`.spec.components.aigateway.batchGateway.managementState = "Managed"`),
+					testf.Transform(`.spec.components.aigateway.modelsAsAService.managementState = "Removed"`),
+				)),
+				WithCondition(And(
+					jq.Match(`.spec.components.aigateway.batchGateway.managementState == "Managed"`),
+					jq.Match(`.spec.components.aigateway.modelsAsAService.managementState == "Removed"`),
+				)),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(moduleGVK, moduleCRNN),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue)),
+			)
+
+			// ModelsAsServiceReady should be False/Removed since the submodule is disabled.
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(And(
+					jq.Match(`.status.conditions[] | select(.type == "ModelsAsServiceReady") | .status == "False"`),
+					jq.Match(`.status.conditions[] | select(.type == "ModelsAsServiceReady") | .reason == "%s"`, status.RemovedReason),
+				)),
+				WithCustomErrorMsg("DSC ModelsAsServiceReady should be False/Removed when submodule is disabled"),
+			)
+
+			// BatchGatewayReady should exist on the DSC (mirrored from the module CR).
+			// The condition may be True if the operator has reported it, or False/AwaitingReadiness
+			// if the operator hasn't reported yet — either way, it must be present.
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(jq.Match(`.status.conditions[] | select(.type == "BatchGatewayReady") | .type == "BatchGatewayReady"`)),
+				WithCustomErrorMsg("DSC BatchGatewayReady condition should be present when submodule is Managed"),
+			)
+
+			// Verify DSC status.components reflects the correct managementState for each submodule.
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithCondition(And(
+					jq.Match(`.status.components.modelsAsAService.managementState == "Removed"`),
+					jq.Match(`.status.components.batchGateway.managementState == "Managed"`),
+					jq.Match(`.status.components.aigateway.managementState == "Managed"`),
+				)),
+				WithCustomErrorMsg("DSC status.components should reflect submodule managementState"),
+			)
+		}},
+		{"Validate submodule conditions when parent disabled", func(t *testing.T) {
+			t.Helper()
+			skipUnless(t, Tier1)
+
+			tc.EventuallyResourcePatched(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithMutateFunc(testf.Transform(`.spec.components.aigateway.managementState = "Removed"`)),
+				WithCondition(jq.Match(`.spec.components.aigateway.managementState == "Removed"`)),
+			)
+
+			// When parent module is Removed, all submodule conditions must also show Removed.
+			// Cleanup must complete (CR finalizer + operator scale-down) before ComputeModulesStatus
+			// updates the DSC conditions, so use the long timeout.
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(And(
+					jq.Match(`.status.conditions[] | select(.type == "ModelsAsServiceReady") | .status == "False"`),
+					jq.Match(`.status.conditions[] | select(.type == "ModelsAsServiceReady") | .reason == "%s"`, status.RemovedReason),
+					jq.Match(`.status.conditions[] | select(.type == "BatchGatewayReady") | .status == "False"`),
+					jq.Match(`.status.conditions[] | select(.type == "BatchGatewayReady") | .reason == "%s"`, status.RemovedReason),
+				)),
+				WithCustomErrorMsg("All submodule conditions should show Removed when parent AIGateway is disabled"),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(jq.Match(`.status.components.aigateway.managementState == "Removed"`)),
+				WithCustomErrorMsg("DSC status.components.aigateway should show Removed"),
+			)
+		}},
 		{"Validate component disabled", func(t *testing.T) {
 			t.Helper()
 			skipUnless(t, Smoke, Tier1)
