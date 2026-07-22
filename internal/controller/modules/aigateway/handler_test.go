@@ -300,19 +300,16 @@ func TestBuildModuleCR_NilDSCNilPlatformReturnsError(t *testing.T) {
 	g.Expect(err).Should(HaveOccurred())
 }
 
-func TestBuildModuleCR_PlatformMode(t *testing.T) {
+// On xKS (Platform CR path), the Helm chart owns the AIGateway CR —
+// BuildModuleCR returns nil so the operator doesn't create or patch it.
+func TestBuildModuleCR_PlatformMode_ReturnsNil(t *testing.T) {
 	g := NewWithT(t)
 	h := aigateway.NewHandler()
 	platform := newPlatformModePlatformCtx(operatorv1.Managed)
 
 	u, err := h.BuildModuleCR(context.Background(), nil, platform)
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(u.GetName()).Should(Equal(componentApi.AIGatewayInstanceName))
-	g.Expect(u.GetKind()).Should(Equal(componentApi.AIGatewayKind))
-
-	spec, ok := u.Object["spec"].(map[string]any)
-	g.Expect(ok).Should(BeTrue(), "spec is not a map")
-	g.Expect(spec["managementState"]).Should(Equal("Managed"))
+	g.Expect(u).Should(BeNil(), "Platform CR path should return nil — Helm chart owns the AIGateway CR on xKS")
 }
 
 func TestGetName(t *testing.T) {
