@@ -78,7 +78,7 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 		return nil
 	})
 
-	_, err := b.WatchesGVK(gvk.MaasTenantConfig,
+	b = b.WatchesGVK(gvk.MaasTenantConfig,
 		reconciler.Dynamic(reconciler.CrdExists(gvk.MaasTenantConfig)),
 		reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
 			return watchDataScienceClusters(ctx, mgr.GetClient())
@@ -103,7 +103,9 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 			}),
 			reconciler.WithPredicates(
 				resources.CreatedOrUpdatedOrDeletedNamed(gates.AcksConfigMap),
-			)).
+			))
+
+	_, err := b.
 		WithAction(initialize).
 		WithAction(checkPreConditions).
 		WithAction(updateStatus).

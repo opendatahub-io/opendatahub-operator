@@ -10,10 +10,12 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"testing"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
@@ -38,6 +40,9 @@ const (
 	// Log type constants.
 	logTypeCurrent  = "current"
 	logTypePrevious = "previous"
+	testManagerName = "manager"
+	testMLflowPod   = "mlflow-operator-controller-manager-0"
+	testNamespace   = "opendatahub"
 )
 
 var (
@@ -60,6 +65,7 @@ var (
 	lastPanicDiagTS atomic.Int64
 	// lastClassification stores the most recent failure classification for circuit breaker consumption.
 	lastClassification atomic.Pointer[failureclassifier.FailureClassification]
+	podLogsFetcher     = retrievePodLogs
 )
 
 // SetGlobalDebugClient sets the Kubernetes client for global debugging.
@@ -236,7 +242,10 @@ func logPodsSection(report *clusterhealth.Report) {
 	log.Printf("=== PODS ===")
 	if report.Pods.Error != "" {
 		log.Printf("Failed to collect pod data: %s", report.Pods.Error)
-		return
+		if len(report.Pods.Data.Data) == 0 {
+			return
+		}
+		log.Printf("Continuing with partial pod data to collect logs from problematic containers")
 	}
 	for ns, pods := range report.Pods.Data.ByNamespace {
 		problemsFound := false
@@ -432,7 +441,7 @@ func determineLogType(containerStatus corev1.ContainerStatus) string {
 func logContainerLogs(podName, containerName, namespace, logType string) {
 	log.Printf("        === LOGS (%s) for container %s ===", strings.ToUpper(logType), containerName)
 
-	logs, err := retrievePodLogs(namespace, podName, containerName, logType == "previous")
+	logs, err := podLogsFetcher(namespace, podName, containerName, logType == "previous")
 	if err != nil {
 		log.Printf("        Failed to retrieve logs: %v", err)
 		return
@@ -461,6 +470,78 @@ func logContainerLogs(podName, containerName, namespace, logType string) {
 	}
 
 	log.Printf("        === END LOGS ===")
+}
+
+func TestLogPodsSectionContinuesWithPartialData(t *testing.T) {
+	var buf bytes.Buffer
+	originalWriter := log.Writer()
+	originalFetcher := podLogsFetcher
+	log.SetOutput(&buf)
+	defer log.SetOutput(originalWriter)
+
+	podLogsFetcher = func(namespace, podName, containerName string, previous bool) (string, error) {
+		if namespace != testNamespace || podName != testMLflowPod || containerName != testManagerName || !previous {
+			t.Fatalf("unexpected log request namespace=%q pod=%q container=%q previous=%v", namespace, podName, containerName, previous)
+		}
+		return "line-1\nline-2", nil
+	}
+	defer func() {
+		podLogsFetcher = originalFetcher
+	}()
+
+	report := &clusterhealth.Report{
+		Pods: clusterhealth.SectionResult[clusterhealth.PodsSection]{
+			Error: testNamespace + "/" + testMLflowPod + ": container manager not ready",
+			Data: clusterhealth.PodsSection{
+				ByNamespace: map[string][]clusterhealth.PodInfo{
+					testNamespace: {{
+						Namespace: testNamespace,
+						Name:      testMLflowPod,
+						Phase:     string(corev1.PodRunning),
+						Containers: []clusterhealth.ContainerInfo{{
+							Name:         testManagerName,
+							Ready:        false,
+							RestartCount: 1,
+							Waiting:      CrashLoopBackOff,
+						}},
+					}},
+				},
+				Data: []corev1.Pod{{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      testMLflowPod,
+						Namespace: testNamespace,
+					},
+					Status: corev1.PodStatus{
+						Phase: corev1.PodRunning,
+						ContainerStatuses: []corev1.ContainerStatus{{
+							Name:         testManagerName,
+							Ready:        false,
+							RestartCount: 1,
+							State: corev1.ContainerState{
+								Waiting: &corev1.ContainerStateWaiting{Reason: CrashLoopBackOff},
+							},
+						}},
+					},
+				}},
+			},
+		},
+	}
+
+	logPodsSection(report)
+
+	output := buf.String()
+	if !strings.Contains(output, "Failed to collect pod data") {
+		t.Fatalf("expected pod section error to be logged, got: %s", output)
+	}
+	if !strings.Contains(output, "Continuing with partial pod data to collect logs") {
+		t.Fatalf("expected partial-data continuation message, got: %s", output)
+	}
+	if !strings.Contains(output, "=== LOGS (PREVIOUS) for container manager ===") {
+		t.Fatalf("expected container logs to be emitted, got: %s", output)
+	}
+	if !strings.Contains(output, "line-2") {
+		t.Fatalf("expected fetched pod log content in output, got: %s", output)
+	}
 }
 
 // retrievePodLogs gets the actual logs from a pod container using client-go.
