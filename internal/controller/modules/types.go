@@ -184,13 +184,6 @@ type ExtraEnvProvider interface {
 	GetExtraEnv() map[string]string
 }
 
-// DSCStatusProjector allows a module handler to preserve component-specific
-// DSC status while the platform transitions from the in-tree component path
-// to the generic module framework.
-type DSCStatusProjector interface {
-	UpdateDSCComponentStatus(ctx context.Context, rr *types.ReconciliationRequest, platform *PlatformContext) (metav1.ConditionStatus, error)
-}
-
 // ModuleStatus holds the parsed status from a module CR. It includes the
 // standard conditions, generation metadata for staleness detection, and
 // the release version for the platform version handshake.

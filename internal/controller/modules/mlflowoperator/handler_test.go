@@ -2,7 +2,6 @@
 package mlflowoperator
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -15,25 +14,14 @@ import (
 	apiextensionsvalidation "k8s.io/apiextensions-apiserver/pkg/apiserver/validation"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	"sigs.k8s.io/yaml"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
-
-	. "github.com/onsi/gomega"
 )
 
 const (
@@ -256,94 +244,6 @@ func TestBuildModuleCRMatchesVendoredCRDSchemaPlatformMode(t *testing.T) {
 	if len(errs) > 0 {
 		t.Fatalf("platform mode module CR does not match vendored CRD schema: %v", errs.ToAggregate())
 	}
-}
-
-func TestUpdateDSCComponentStatus(t *testing.T) {
-	g := NewWithT(t)
-	handler := NewHandler()
-
-	dsc := &dscv2.DataScienceCluster{
-		ObjectMeta: metav1.ObjectMeta{Name: mlflowTestDSCName},
-	}
-	dsc.Spec.Components.MLflowOperator.ManagementState = operatorv1.Managed
-
-	module := &componentApi.MLflowOperator{}
-	module.SetGroupVersionKind(gvk.MLflowOperator)
-	module.SetName(componentApi.MLflowOperatorInstanceName)
-	module.Status.Conditions = []common.Condition{{
-		Type:    status.ConditionTypeReady,
-		Status:  metav1.ConditionTrue,
-		Reason:  status.ReadyReason,
-		Message: "Component is ready",
-	}}
-
-	cli, err := fakeclient.New(fakeclient.WithObjects(dsc, module))
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	_, err = handler.UpdateDSCComponentStatus(t.Context(), &types.ReconciliationRequest{
-		Client:     cli,
-		Instance:   dsc,
-		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
-	}, &modules.PlatformContext{DSC: dsc})
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	g.Expect(dsc).Should(WithTransform(json.Marshal,
-		jq.Match(`.status.components.mlflowoperator.managementState == "%s"`, operatorv1.Managed),
-	))
-}
-
-func TestUpdateDSCComponentStatusNormalizesEmptyManagementState(t *testing.T) {
-	g := NewWithT(t)
-	handler := NewHandler()
-
-	dsc := &dscv2.DataScienceCluster{
-		ObjectMeta: metav1.ObjectMeta{Name: mlflowTestDSCName},
-	}
-
-	cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	_, err = handler.UpdateDSCComponentStatus(t.Context(), &types.ReconciliationRequest{
-		Client:     cli,
-		Instance:   dsc,
-		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
-	}, &modules.PlatformContext{DSC: dsc})
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	g.Expect(dsc).Should(WithTransform(json.Marshal,
-		jq.Match(`.status.components.mlflowoperator.managementState == "%s"`, operatorv1.Removed),
-	))
-}
-
-func TestUpdateDSCComponentStatusPropagatesGetErrors(t *testing.T) {
-	g := NewWithT(t)
-	handler := NewHandler()
-
-	dsc := &dscv2.DataScienceCluster{
-		ObjectMeta: metav1.ObjectMeta{Name: "test-dsc"},
-	}
-	dsc.Spec.Components.MLflowOperator.ManagementState = operatorv1.Managed
-
-	cli, err := fakeclient.New(
-		fakeclient.WithObjects(dsc),
-		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
-			Get: func(_ context.Context, _ client.WithWatch, _ client.ObjectKey, obj client.Object, _ ...client.GetOption) error {
-				if _, ok := obj.(*componentApi.MLflowOperator); ok {
-					return errors.New("boom")
-				}
-				return nil
-			},
-		}),
-	)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	_, err = handler.UpdateDSCComponentStatus(t.Context(), &types.ReconciliationRequest{
-		Client:     cli,
-		Instance:   dsc,
-		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
-	}, &modules.PlatformContext{DSC: dsc})
-	g.Expect(err).Should(HaveOccurred())
-	g.Expect(err.Error()).Should(ContainSubstring("boom"))
 }
 
 func loadMLflowOperatorSchema(t *testing.T) *apiextensions.JSONSchemaProps {

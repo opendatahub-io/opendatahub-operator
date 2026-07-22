@@ -173,15 +173,15 @@ func aiGatewayTestSuite(t *testing.T) {
 				WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue)),
 			)
 
-			// ModelsAsServiceReady should be False/Removed since the submodule is disabled.
+			// ModelsAsAServiceReady should be False/Removed since the submodule is disabled.
 			tc.EnsureResourceExists(
 				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 				WithCondition(And(
-					jq.Match(`.status.conditions[] | select(.type == "ModelsAsServiceReady") | .status == "False"`),
-					jq.Match(`.status.conditions[] | select(.type == "ModelsAsServiceReady") | .reason == "%s"`, status.RemovedReason),
+					jq.Match(`.status.conditions[] | select(.type == "ModelsAsAServiceReady") | .status == "False"`),
+					jq.Match(`.status.conditions[] | select(.type == "ModelsAsAServiceReady") | .reason == "%s"`, status.RemovedReason),
 				)),
-				WithCustomErrorMsg("DSC ModelsAsServiceReady should be False/Removed when submodule is disabled"),
+				WithCustomErrorMsg("DSC ModelsAsAServiceReady should be False/Removed when submodule is disabled"),
 			)
 
 			// BatchGatewayReady should exist on the DSC (mirrored from the module CR).
@@ -222,8 +222,8 @@ func aiGatewayTestSuite(t *testing.T) {
 				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 				WithCondition(And(
-					jq.Match(`.status.conditions[] | select(.type == "ModelsAsServiceReady") | .status == "False"`),
-					jq.Match(`.status.conditions[] | select(.type == "ModelsAsServiceReady") | .reason == "%s"`, status.RemovedReason),
+					jq.Match(`.status.conditions[] | select(.type == "ModelsAsAServiceReady") | .status == "False"`),
+					jq.Match(`.status.conditions[] | select(.type == "ModelsAsAServiceReady") | .reason == "%s"`, status.RemovedReason),
 					jq.Match(`.status.conditions[] | select(.type == "BatchGatewayReady") | .status == "False"`),
 					jq.Match(`.status.conditions[] | select(.type == "BatchGatewayReady") | .reason == "%s"`, status.RemovedReason),
 				)),

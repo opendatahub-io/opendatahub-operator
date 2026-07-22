@@ -607,65 +607,6 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 	return nil
 }
 
-// ProjectDSCCompatibilityStatus lets module handlers contribute legacy
-// component-shaped DSC status while keeping DataScienceCluster.status owned by
-// the datasciencecluster controller. This avoids cross-controller writes to the
-// DSC's atomic status.conditions list, where a later status apply can overwrite
-// conditions written by another controller.
-func ProjectDSCCompatibilityStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) ([]string, int, error) {
-	reg := DefaultRegistry()
-	if !reg.HasEntries() {
-		return nil, 0, nil
-	}
-	if rr.Client == nil {
-		return nil, 0, nil
-	}
-
-	platformCtx, err := buildPlatformContext(ctx, rr)
-	if err != nil {
-		return nil, 0, err
-	}
-	if platformCtx.DSC == nil {
-		return nil, 0, nil
-	}
-
-	notReadyModules := make([]string, 0)
-	managedModules := 0
-
-	err = reg.ForEach(func(handler ModuleHandler) error {
-		projector, ok := handler.(DSCStatusProjector)
-		if !ok {
-			return nil
-		}
-
-		cs, err := projector.UpdateDSCComponentStatus(ctx, rr, platformCtx)
-		if err != nil {
-			notReadyModules = append(notReadyModules, handler.GetName())
-			return fmt.Errorf("update DSC compatibility status for module %s: %w", handler.GetName(), err)
-		}
-
-		enabled := handler.IsEnabled(platformCtx)
-		if !enabled && cs != metav1.ConditionFalse {
-			return nil
-		}
-
-		if enabled {
-			managedModules++
-		}
-
-		if cs != metav1.ConditionTrue {
-			notReadyModules = append(notReadyModules, handler.GetName())
-		}
-
-		return nil
-	})
-	if err != nil {
-		return notReadyModules, managedModules, fmt.Errorf("project DSC compatibility status: %w", err)
-	}
-
-	return notReadyModules, managedModules, nil
-}
-
 // updateModuleStatus calls ComputeModulesStatus to keep
 // status.components.*.managementState in sync on every reconcile cycle.
 // When in-tree components are registered the DSC controller also calls
