@@ -160,8 +160,6 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 		return err
 	}
 
-	var keptAliveImages []odhtype.ModuleImages
-
 	cleanupOne := func(handler ModuleHandler) error {
 		if handler.IsEnabled(platformCtx) && reg.IsEnabled(handler.GetName()) {
 			return nil
@@ -197,14 +195,6 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 				rr.Manifests = append(rr.Manifests, operatorManifests.Manifests...)
 			}
 
-			keptAliveImages = append(keptAliveImages, odhtype.ModuleImages{
-				DeploymentName:    deploymentNameFor(handler, operatorManifests),
-				ContainerName:     containerNameFor(handler),
-				ControllerImage:   controllerImageFor(handler),
-				InitContainerName: initContainerNameFor(handler),
-				Images:            handler.GetRelatedImages(),
-			})
-
 			return nil
 		}
 
@@ -231,17 +221,6 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 				}
 			}
 		}
-	}
-
-	if len(keptAliveImages) > 0 {
-		if rr.ModuleEnvInjection == nil {
-			rr.ModuleEnvInjection = &odhtype.ModuleEnvInjection{
-				ApplicationsNamespace: platformCtx.ApplicationsNamespace,
-				MonitoringNamespace:   platformCtx.MonitoringNamespace,
-				PlatformType:          platformCtx.Release.Name,
-			}
-		}
-		rr.ModuleEnvInjection.PerModuleImages = append(rr.ModuleEnvInjection.PerModuleImages, keptAliveImages...)
 	}
 
 	return nil
