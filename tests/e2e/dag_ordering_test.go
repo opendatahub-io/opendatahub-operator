@@ -76,7 +76,6 @@ var dagBatches = []componentBatch{
 		name:     "Batch33",
 		runlevel: 33,
 		components: []componentEntry{
-			{name: componentApi.ModelControllerComponentName, gvk: gvk.ModelController},
 			{name: componentApi.ModelsAsServiceComponentName, gvk: gvk.ModelsAsService, internal: true},
 			{name: componentApi.TrustyAIComponentName, gvk: gvk.TrustyAI},
 		},
@@ -106,8 +105,8 @@ var dscComponentFields = []string{
 }
 
 // extensionGVKs lists the explicitly-enabled Extension components.
-// ModelController and ModelsAsService are excluded — they are internal
-// components auto-created by the operator and may not have CRs.
+// ModelsAsService is excluded — it is an internal
+// component auto-created by the operator and may not have a CR.
 var extensionGVKs = []schema.GroupVersionKind{
 	gvk.Kserve,
 	gvk.FeastOperator,
