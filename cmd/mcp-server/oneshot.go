@@ -14,7 +14,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/failureclassifier"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/failureclassifier"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/mcptools"
 )
 
 // DiagnoseReport combines the cluster health report with failure classification
@@ -55,12 +56,12 @@ func runOneShot(kubeClient client.Client, testName string) int {
 	cfg := clusterhealth.Config{
 		Client: kubeClient,
 		Operator: clusterhealth.OperatorConfig{
-			Namespace: getEnvDefault(envOperatorNamespace, defaultOperatorNS),
-			Name:      getEnvDefault(envOperatorDeployment, defaultOperatorDeploy),
+			Namespace: mcptools.GetEnvDefault(mcptools.EnvOperatorNamespace, mcptools.DefaultOperatorNS),
+			Name:      mcptools.GetEnvDefault(mcptools.EnvOperatorDeployment, mcptools.DefaultOperatorDeploy),
 		},
 		Namespaces: clusterhealth.NamespaceConfig{
-			Apps:       getEnvDefault(envApplicationsNamespace, defaultAppsNS),
-			Monitoring: getEnvDefault(envMonitoringNamespace, defaultMonitoringNS),
+			Apps:       mcptools.GetEnvDefault(mcptools.EnvApplicationsNamespace, mcptools.DefaultAppsNS),
+			Monitoring: mcptools.GetEnvDefault(mcptools.EnvMonitoringNamespace, mcptools.DefaultMonitoringNS),
 			Extra:      []string{"kube-system"},
 		},
 		DSCI: types.NamespacedName{Name: "default-dsci"},

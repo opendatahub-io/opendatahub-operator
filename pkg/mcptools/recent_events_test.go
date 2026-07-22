@@ -1,4 +1,4 @@
-package main
+package mcptools
 
 import (
 	"context"
@@ -204,13 +204,13 @@ func TestDiscoverODHNamespaces(t *testing.T) {
 				"spec":       map[string]interface{}{"applicationsNamespace": "custom-apps"},
 			},
 		}, "custom-apps"},
-		{"no DSCI", nil, defaultAppsNS},
+		{"no DSCI", nil, DefaultAppsNS},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv(envApplicationsNamespace, "")
-			t.Setenv(envOperatorNamespace, "")
+			t.Setenv(EnvApplicationsNamespace, "")
+			t.Setenv(EnvOperatorNamespace, "")
 
 			s := runtime.NewScheme()
 			_ = scheme.AddToScheme(s)

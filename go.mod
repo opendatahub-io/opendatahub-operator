@@ -14,7 +14,7 @@ require (
 	github.com/onsi/gomega v1.39.1
 	github.com/opendatahub-io/models-as-a-service/maas-controller v0.0.0-20260420142354-89fba298f42a
 	github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth v0.0.0
-	github.com/opendatahub-io/opendatahub-operator/v2/pkg/failureclassifier v0.0.0-00010101000000-000000000000
+	github.com/opendatahub-io/opendatahub-operator/pkg/failureclassifier v0.0.0-00010101000000-000000000000
 	github.com/openshift/api v0.0.0-20260317165824-54a3998d81eb
 	github.com/openshift/controller-runtime-common v0.0.0-20260428152732-64ee174f5e2e
 	github.com/openshift/library-go v0.0.0-20260213153706-03f1709971c5
@@ -138,6 +138,6 @@ require (
 
 replace github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth => ./pkg/clusterhealth
 
-replace github.com/opendatahub-io/opendatahub-operator/v2/pkg/failureclassifier => ./pkg/failureclassifier
+replace github.com/opendatahub-io/opendatahub-operator/pkg/failureclassifier => ./pkg/failureclassifier
 
 exclude github.com/openshift/api v3.9.0+incompatible

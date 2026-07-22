@@ -1,4 +1,4 @@
-package main
+package mcptools
 
 import (
 	"context"
@@ -29,12 +29,12 @@ func callTool(t *testing.T, cl client.Client, args map[string]interface{}) clust
 	cfg := clusterhealth.Config{
 		Client: cl,
 		Operator: clusterhealth.OperatorConfig{
-			Namespace: stringParam(req, "operator_namespace", getEnvDefault(envOperatorNamespace, defaultOperatorNS)),
-			Name:      getEnvDefault(envOperatorDeployment, defaultOperatorDeploy),
+			Namespace: stringParam(req, "operator_namespace", GetEnvDefault(EnvOperatorNamespace, DefaultOperatorNS)),
+			Name:      GetEnvDefault(EnvOperatorDeployment, DefaultOperatorDeploy),
 		},
 		Namespaces: clusterhealth.NamespaceConfig{
-			Apps:       stringParam(req, "applications_namespace", getEnvDefault(envApplicationsNamespace, defaultAppsNS)),
-			Monitoring: getEnvDefault(envMonitoringNamespace, defaultMonitoringNS),
+			Apps:       stringParam(req, "applications_namespace", GetEnvDefault(EnvApplicationsNamespace, DefaultAppsNS)),
+			Monitoring: GetEnvDefault(EnvMonitoringNamespace, DefaultMonitoringNS),
 			Extra:      []string{"kube-system"},
 		},
 	}
