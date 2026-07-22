@@ -607,16 +607,19 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 	return nil
 }
 
-// updateModuleStatus calls ComputeModulesStatus to keep
-// status.components.*.managementState in sync on every reconcile cycle.
-// When in-tree components are registered the DSC controller also calls
-// ComputeModulesStatus (and owns the conditions/phase), but the modules
-// controller's reconciler still performs an SSA status write — without
-// recomputing here, that write would overwrite the DSC controller's
-// status.components values with stale data from the initial GET.
-// The duplicate condition writes are harmless: WithoutStatusConditionsIf
-// nils them before the SSA apply when in-tree components exist.
+// updateModuleStatus writes module conditions and component status into
+// the DSC status. When in-tree components are registered, the DSC
+// controller is the sole status writer — it already calls
+// ComputeModulesStatus in its own action chain. The modules controller
+// skips recomputation so its SSA apply carries only the cached status
+// values (conditions are stripped by WithoutStatusConditionsIf).
+// When no in-tree components exist (Platform CR mode), the modules
+// controller is the sole status writer and computes everything.
 func updateModuleStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+	if cr.HasEntries() && dscFromInstance(rr) != nil {
+		return nil
+	}
+
 	return ComputeModulesStatus(ctx, rr)
 }
 
