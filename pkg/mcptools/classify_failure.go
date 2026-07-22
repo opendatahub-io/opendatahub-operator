@@ -1,4 +1,4 @@
-package main
+package mcptools
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/pkg/clusterhealth"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/failureclassifier"
+	"github.com/opendatahub-io/opendatahub-operator/pkg/failureclassifier"
 )
 
 // registerClassifyFailure adds the classify_failure tool to the MCP server.
@@ -49,11 +49,11 @@ func registerClassifyFailure(s *server.MCPServer, kubeClient client.Client) {
 			Client: kubeClient,
 			Operator: clusterhealth.OperatorConfig{
 				Namespace: operatorNS,
-				Name:      getEnvDefault(envOperatorDeployment, defaultOperatorDeploy),
+				Name:      GetEnvDefault(EnvOperatorDeployment, DefaultOperatorDeploy),
 			},
 			Namespaces: clusterhealth.NamespaceConfig{
 				Apps:       appsNS,
-				Monitoring: getEnvDefault(envMonitoringNamespace, defaultMonitoringNS),
+				Monitoring: GetEnvDefault(EnvMonitoringNamespace, DefaultMonitoringNS),
 				Extra:      []string{"kube-system"},
 			},
 		}

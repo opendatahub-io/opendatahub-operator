@@ -1,4 +1,4 @@
-package main
+package mcptools
 
 import (
 	"context"
@@ -76,8 +76,8 @@ func callDeps(t *testing.T, cl client.Client, args map[string]any) (string, bool
 
 func TestOperatorDependencies(t *testing.T) {
 	cl := newFakeClient(
-		makeDeployment(defaultOperatorNS, defaultOperatorDeploy, 1, 1),
-		makePod(defaultOperatorNS, "op-pod", "Running", map[string]string{"app": defaultOperatorDeploy}),
+		makeDeployment(DefaultOperatorNS, DefaultOperatorDeploy, 1, 1),
+		makePod(DefaultOperatorNS, "op-pod", "Running", map[string]string{"app": DefaultOperatorDeploy}),
 		makeDeployment("cert-manager-operator", "cert-manager-operator", 1, 1),
 		makePod("cert-manager-operator", "cm-pod", "Running", map[string]string{"app": "cert-manager-operator"}),
 		makeDeployment("openshift-tempo-operator", "tempo-operator", 0, 1),
@@ -86,7 +86,7 @@ func TestOperatorDependencies(t *testing.T) {
 
 	report, err := clusterhealth.Run(context.Background(), clusterhealth.Config{
 		Client:       cl,
-		Operator:     clusterhealth.OperatorConfig{Namespace: defaultOperatorNS, Name: defaultOperatorDeploy},
+		Operator:     clusterhealth.OperatorConfig{Namespace: DefaultOperatorNS, Name: DefaultOperatorDeploy},
 		OnlySections: []string{"operator"},
 	})
 	if err != nil {
@@ -158,8 +158,8 @@ func TestOperatorDependencies(t *testing.T) {
 	}
 
 	healthyCl := newFakeClient(
-		makeDeployment(defaultOperatorNS, defaultOperatorDeploy, 1, 1),
-		makePod(defaultOperatorNS, "op-pod", "Running", map[string]string{"app": defaultOperatorDeploy}),
+		makeDeployment(DefaultOperatorNS, DefaultOperatorDeploy, 1, 1),
+		makePod(DefaultOperatorNS, "op-pod", "Running", map[string]string{"app": DefaultOperatorDeploy}),
 		makeDeployment("cert-manager-operator", "cert-manager-operator", 1, 1),
 		makePod("cert-manager-operator", "cm-pod", "Running", map[string]string{"app": "cert-manager-operator"}),
 		makeDeployment("openshift-tempo-operator", "tempo-operator", 1, 1),
