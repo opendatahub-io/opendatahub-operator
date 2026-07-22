@@ -146,7 +146,6 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 		componentApi.FeastOperatorComponentName:        "feast-operator-controller-manager",
 		componentApi.KserveComponentName:               "kserve-controller-manager",
 		componentApi.OGXComponentName:                  "ogx-k8s-operator-controller-manager",
-		componentApi.MLflowOperatorComponentName:       "mlflow-operator-controller-manager",
 		componentApi.ModelRegistryComponentName:        "model-registry-operator-controller-manager",
 		componentApi.RayComponentName:                  "kuberay-operator",
 		componentApi.SparkOperatorComponentName:        "spark-operator-controller",
@@ -172,12 +171,14 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	// LlamaStack Operator is excluded because it has been replaced by OGX and the field is deprecated (no deployments to manage anymore)
 	// AIGateway is excluded because it is a module (reports AIGatewayReady via ModulesReady, not ComponentsReady)
 	// MCPLifecycleOperator is excluded because it is a module so it does not report DSC ComponentsReady condition
-	excludedComponents := 5 // TrustyAI, Kueue, LlamaStack Operator, AIGateway, MCPLifecycleOperator
+	// MLflowOperator is excluded because it is a module so it does not report DSC ComponentsReady condition
+	excludedComponents := 6 // TrustyAI, Kueue, LlamaStack Operator, AIGateway, MCPLifecycleOperator, MLflowOperator
 	expectedTestableComponents := expectedComponentCount - excludedComponents
 	tc.g.Expect(componentsLength).Should(Equal(expectedTestableComponents),
 		"allComponents list is out of sync with DSC Components struct. "+
 			"Expected %d testable components but found %d. "+
-			"(Total DSC components: %d, Excluded: %d - TrustyAI due to InferenceServices CRD dependency and Kueue because dose not manage any deployment)",
+			"(Total DSC components: %d, Excluded: %d - TrustyAI due to InferenceServices CRD dependency, "+
+			"Kueue because it does not manage any deployment, and module-backed components that report via ModulesReady)",
 		expectedTestableComponents, componentsLength, expectedComponentCount, excludedComponents)
 
 	// Ensure clean initial state by disabling all components first

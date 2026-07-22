@@ -24,7 +24,6 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
@@ -42,23 +41,12 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
-	pkgresources "github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 const (
 	// InferenceServicesCRDName is the name of the InferenceServices CRD that TrustyAI depends on.
 	InferenceServicesCRDName = "inferenceservices.serving.kserve.io"
 )
-
-// isInferenceServicesCRD checks if the given object is the InferenceServices CRD managed by KServe.
-func isInferenceServicesCRD(obj client.Object) bool {
-	// Early return: check name first (cheaper comparison)
-	if obj.GetName() != InferenceServicesCRDName {
-		return false
-	}
-	// Check if it's managed by KServe using safe label check
-	return pkgresources.HasLabel(obj, labels.ODH.Component(componentApi.KserveComponentName), labels.True)
-}
 
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	_, err := reconciler.ReconcilerFor(mgr, &componentApi.TrustyAI{}).
@@ -79,21 +67,15 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True), // if TrustyAI CR is changed
 				predicate.Funcs{ // OR if ISVC CRD from kserve is created or deleted
 					CreateFunc: func(e event.CreateEvent) bool {
-						// React when InferenceServices CRD is created (dependency becomes available)
-						return isInferenceServicesCRD(e.Object)
+						return e.Object.GetName() == InferenceServicesCRDName
 					},
 					UpdateFunc: func(e event.UpdateEvent) bool {
-						// Don't react to updates - MonitorCRD precondition only checks if CRD exists, not its version/spec
-						// This also prevents continuous reconciliation on CRD status updates
 						return false
 					},
 					DeleteFunc: func(e event.DeleteEvent) bool {
-						// React when InferenceServices CRD is deleted (dependency becomes unavailable)
-						// MonitorCRD precondition will detect the missing CRD and set conditions to False
-						return isInferenceServicesCRD(e.Object)
+						return e.Object.GetName() == InferenceServicesCRDName
 					},
 					GenericFunc: func(e event.GenericEvent) bool {
-						// Don't match Generic events
 						return false
 					},
 				},

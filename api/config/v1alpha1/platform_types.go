@@ -49,6 +49,10 @@ type PlatformModules struct {
 	// +optional
 	AIGateway common.ManagementSpec `json:"aigateway,omitempty"`
 
+	// MLflowOperator controls the MLflow module operator lifecycle.
+	// +optional
+	MLflowOperator common.ManagementSpec `json:"mlflowoperator,omitempty"`
+
 	// Monitoring controls the monitoring module operator lifecycle.
 	// +optional
 	Monitoring common.ManagementSpec `json:"monitoring,omitempty"`
@@ -108,6 +112,9 @@ func (m *PlatformModules) EnabledModules() []string {
 	var enabled []string
 	if m.AIGateway.ManagementState == operatorv1.Managed {
 		enabled = append(enabled, "aigateway")
+	}
+	if m.MLflowOperator.ManagementState == operatorv1.Managed {
+		enabled = append(enabled, "mlflowoperator")
 	}
 	if m.Monitoring.ManagementState == operatorv1.Managed {
 		enabled = append(enabled, "monitoring")
