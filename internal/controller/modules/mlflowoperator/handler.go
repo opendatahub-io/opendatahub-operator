@@ -5,8 +5,6 @@ import (
 	"errors"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -15,11 +13,8 @@ import (
 	configv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/config/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
@@ -124,45 +119,6 @@ func (h *handler) BuildModuleCR(
 	})
 
 	return u, nil
-}
-
-func (h *handler) UpdateDSCComponentStatus(
-	ctx context.Context,
-	rr *types.ReconciliationRequest,
-	platform *modules.PlatformContext,
-) (metav1.ConditionStatus, error) {
-	if platform == nil || platform.DSC == nil {
-		return metav1.ConditionUnknown, nil
-	}
-
-	module := componentApi.MLflowOperator{}
-	module.SetGroupVersionKind(gvk.MLflowOperator)
-	module.SetName(crName)
-	if err := rr.Client.Get(ctx, client.ObjectKeyFromObject(&module), &module); err != nil {
-		if !k8serr.IsNotFound(err) {
-			return metav1.ConditionUnknown, err
-		}
-	}
-
-	dsc := platform.DSC
-	ms := components.NormalizeManagementState(dsc.Spec.Components.MLflowOperator.ManagementState)
-	dsc.Status.Components.MLflowOperator.ManagementState = ms
-	dsc.Status.Components.MLflowOperator.MLflowOperatorCommonStatus = nil
-
-	if !module.GetDeletionTimestamp().IsZero() {
-		return metav1.ConditionFalse, nil
-	}
-
-	if h.IsEnabled(platform) {
-		dsc.Status.Components.MLflowOperator.MLflowOperatorCommonStatus = module.Status.MLflowOperatorCommonStatus.DeepCopy()
-		if rc := conditions.FindStatusCondition(module.GetStatus(), status.ConditionTypeReady); rc != nil {
-			return rc.Status, nil
-		}
-
-		return metav1.ConditionFalse, nil
-	}
-
-	return metav1.ConditionUnknown, nil
 }
 
 func sectionTitle(platformName common.Platform) string {
