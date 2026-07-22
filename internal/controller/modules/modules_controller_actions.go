@@ -3,10 +3,8 @@ package modules
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"strings"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -445,7 +443,7 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 		enabled := handler.IsEnabled(platformCtx)
 
 		if platformCtx.DSC != nil {
-			handler.WriteDSCComponentStatus(platformCtx.DSC, enabled)
+			handler.WriteDSCComponentStatus(platformCtx.DSC, enabled, nil)
 		}
 
 		if !enabled {
@@ -544,6 +542,10 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 		}
 
 		mirrorSubmoduleConditions(rr, platformCtx, moduleStatus, submodules, &notReadyModules)
+
+		if platformCtx.DSC != nil {
+			handler.WriteDSCComponentStatus(platformCtx.DSC, enabled, moduleStatus.Releases)
+		}
 
 		return nil
 	})
@@ -707,28 +709,5 @@ func setSubmodulesFallback(
 }
 
 func writeSubmoduleComponentStatus(platformCtx *PlatformContext, sm SubmoduleCondition, enabled bool) {
-	if platformCtx.DSC == nil || sm.StatusFieldName == "" {
-		return
-	}
-
-	field := reflect.ValueOf(&platformCtx.DSC.Status.Components).Elem().FieldByName(sm.StatusFieldName)
-	if !field.IsValid() {
-		return
-	}
-
-	ms := operatorv1.Removed
-	if enabled {
-		ms = operatorv1.Managed
-	}
-
-	msField := field.FieldByName("ManagementState")
-	if msField.IsValid() && msField.CanSet() {
-		if msField.Kind() != reflect.String {
-			panic(fmt.Sprintf(
-				"writeSubmoduleComponentStatus: field %s.ManagementState is %s, expected string",
-				sm.StatusFieldName, msField.Kind(),
-			))
-		}
-		msField.SetString(string(ms))
-	}
+	setDSCComponentField(platformCtx.DSC, sm.StatusFieldName, enabled, nil)
 }

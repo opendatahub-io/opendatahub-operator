@@ -175,13 +175,24 @@ func (b *BaseHandler) GetSubmoduleConditions() []SubmoduleCondition {
 	return b.Config.SubmoduleConditions
 }
 
-// WriteDSCComponentStatus sets the managementState on the module's typed
-// DSC status field (e.g. dsc.Status.Components.AIGateway.ManagementState).
+// WriteDSCComponentStatus sets the managementState and releases on the
+// module's typed DSC status field (e.g. dsc.Status.Components.AIGateway).
 // The field is resolved via reflection using Config.GVK.Kind. Modules
 // without a matching field on ComponentsStatus (e.g. service modules) are
 // silently skipped.
-func (b *BaseHandler) WriteDSCComponentStatus(dsc *dscv2.DataScienceCluster, enabled bool) {
-	field := reflect.ValueOf(&dsc.Status.Components).Elem().FieldByName(b.Config.GVK.Kind)
+func (b *BaseHandler) WriteDSCComponentStatus(dsc *dscv2.DataScienceCluster, enabled bool, releases []common.ComponentRelease) {
+	setDSCComponentField(dsc, b.Config.GVK.Kind, enabled, releases)
+}
+
+// setDSCComponentField sets ManagementState and releases on a named field
+// of dsc.Status.Components using reflection. Used by both module-level
+// and submodule-level status writers.
+func setDSCComponentField(dsc *dscv2.DataScienceCluster, fieldName string, enabled bool, releases []common.ComponentRelease) {
+	if dsc == nil || fieldName == "" {
+		return
+	}
+
+	field := reflect.ValueOf(&dsc.Status.Components).Elem().FieldByName(fieldName)
 	if !field.IsValid() {
 		return
 	}
@@ -195,11 +206,41 @@ func (b *BaseHandler) WriteDSCComponentStatus(dsc *dscv2.DataScienceCluster, ena
 	if msField.IsValid() && msField.CanSet() {
 		if msField.Kind() != reflect.String {
 			panic(fmt.Sprintf(
-				"WriteDSCComponentStatus: field %s.ManagementState is %s, expected string",
-				b.Config.GVK.Kind, msField.Kind(),
+				"setDSCComponentField: field %s.ManagementState is %s, expected string",
+				fieldName, msField.Kind(),
 			))
 		}
 		msField.SetString(string(ms))
+	}
+
+	setReleasesOnDSCField(field, releases)
+}
+
+// setReleasesOnDSCField sets the Releases slice on a DSC status struct field.
+// DSC status types embed a pointer-to-CommonStatus (e.g. *KserveCommonStatus)
+// that contains Releases. FieldByName panics through nil pointers, so we
+// iterate struct fields to find the pointer, allocate if nil, then set
+// Releases on the pointed-to struct. Types without a Releases field are
+// silently skipped.
+func setReleasesOnDSCField(field reflect.Value, releases []common.ComponentRelease) {
+	for i := range field.NumField() {
+		f := field.Field(i)
+		if f.Kind() != reflect.Ptr || f.Type().Elem().Kind() != reflect.Struct {
+			continue
+		}
+
+		if _, ok := f.Type().Elem().FieldByName("Releases"); !ok {
+			continue
+		}
+
+		if f.IsNil() {
+			if len(releases) == 0 {
+				return
+			}
+			f.Set(reflect.New(f.Type().Elem()))
+		}
+		f.Elem().FieldByName("Releases").Set(reflect.ValueOf(releases))
+		return
 	}
 }
 
@@ -270,36 +311,53 @@ func (b *BaseHandler) GetModuleStatus(ctx context.Context, cli client.Client) (*
 	}
 
 	observedGen, _, _ := unstructured.NestedInt64(u.Object, "status", "observedGeneration")
-	releaseVersion := extractPlatformReleaseVersion(u)
+	releases := extractReleases(u)
+	releaseVersion := platformReleaseVersion(releases)
 
 	return &ModuleStatus{
 		Conditions:         conditions,
 		ObservedGeneration: observedGen,
 		Generation:         u.GetGeneration(),
 		ReleaseVersion:     releaseVersion,
+		Releases:           releases,
 	}, nil
 }
 
 const platformReleaseName = "platform"
 
-func extractPlatformReleaseVersion(u *unstructured.Unstructured) string {
-	releases, found, _ := unstructured.NestedSlice(u.Object, "status", "releases")
+func extractReleases(u *unstructured.Unstructured) []common.ComponentRelease {
+	items, found, _ := unstructured.NestedSlice(u.Object, "status", "releases")
 	if !found {
-		return ""
+		return nil
 	}
 
-	for _, item := range releases {
+	result := make([]common.ComponentRelease, 0, len(items))
+	for _, item := range items {
 		entry, ok := item.(map[string]interface{})
 		if !ok {
 			continue
 		}
 		name, _, _ := unstructured.NestedString(entry, "name")
-		if name == platformReleaseName {
-			ver, _, _ := unstructured.NestedString(entry, "version")
-			return ver
+		if name == "" {
+			continue
+		}
+		version, _, _ := unstructured.NestedString(entry, "version")
+		repoURL, _, _ := unstructured.NestedString(entry, "repoUrl")
+		result = append(result, common.ComponentRelease{
+			Name:    name,
+			Version: version,
+			RepoURL: repoURL,
+		})
+	}
+	return result
+}
+
+func platformReleaseVersion(releases []common.ComponentRelease) string {
+	for _, r := range releases {
+		if r.Name == platformReleaseName {
+			return r.Version
 		}
 	}
-
 	return ""
 }
 

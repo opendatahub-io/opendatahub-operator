@@ -96,11 +96,12 @@ type ModuleHandler interface { //nolint:interfacebloat
 	// action after the module CR has been confirmed deleted.
 	DeleteOperatorResources(ctx context.Context, cli client.Client, platform *PlatformContext) error
 
-	// WriteDSCComponentStatus sets the module's managementState on the
-	// typed DSC status field (e.g. dsc.Status.Components.AIGateway).
-	// Called during status computation so the DSC status reflects each
-	// module's current management state, matching component behavior.
-	WriteDSCComponentStatus(dsc *dscv2.DataScienceCluster, enabled bool)
+	// WriteDSCComponentStatus sets the module's managementState and
+	// releases on the typed DSC status field
+	// (e.g. dsc.Status.Components.AIGateway). Called during status
+	// computation so the DSC status reflects each module's current
+	// management state and release metadata.
+	WriteDSCComponentStatus(dsc *dscv2.DataScienceCluster, enabled bool, releases []common.ComponentRelease)
 }
 
 // ReadyConditionTyper allows a module handler to declare the condition type
@@ -192,6 +193,10 @@ type ModuleStatus struct {
 	// is not considered ready for DAG progression unless this matches the
 	// current platform version.
 	ReleaseVersion string
+	// Releases is the full list of component releases parsed from
+	// .status.releases on the module CR. Mirrored into the DSC
+	// status so consumers can inspect per-module release metadata.
+	Releases []common.ComponentRelease
 }
 
 // OperatorManifests holds the manifest descriptors returned by a module handler.

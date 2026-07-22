@@ -1,4 +1,5 @@
-package modules_test
+//nolint:testpackage
+package modules
 
 import (
 	"context"
@@ -13,7 +14,6 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -42,8 +42,8 @@ func newTestRR() (*odhtype.ReconciliationRequest, *conditions.Manager) {
 	}, mgr
 }
 
-func newTestPlatformCtx() *modules.PlatformContext {
-	return &modules.PlatformContext{
+func newTestPlatformCtx() *PlatformContext {
+	return &PlatformContext{
 		DSC: &dscv2.DataScienceCluster{},
 	}
 }
@@ -52,8 +52,8 @@ func TestGetSubmoduleConditions_Empty(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	handler := &modules.BaseHandler{
-		Config: modules.ModuleConfig{
+	handler := &BaseHandler{
+		Config: ModuleConfig{
 			Name:   "test",
 			CRName: "default",
 			GVK:    schema.GroupVersionKind{Kind: "Test"},
@@ -67,12 +67,12 @@ func TestGetSubmoduleConditions_Declared(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	handler := &modules.BaseHandler{
-		Config: modules.ModuleConfig{
+	handler := &BaseHandler{
+		Config: ModuleConfig{
 			Name:   "aigateway",
 			CRName: "default",
 			GVK:    schema.GroupVersionKind{Kind: "AIGateway"},
-			SubmoduleConditions: []modules.SubmoduleCondition{
+			SubmoduleConditions: []SubmoduleCondition{
 				{
 					SourceConditionType: "ModelsAsServiceReady",
 					DSCConditionType:    "ModelsAsServiceReady",
@@ -94,23 +94,23 @@ func TestGetSubmoduleConditions_Declared(t *testing.T) {
 }
 
 type submoduleTestHandler struct {
-	modules.BaseHandler
+	BaseHandler
 }
 
-func (h *submoduleTestHandler) IsEnabled(_ *modules.PlatformContext) bool { return true }
-func (h *submoduleTestHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *modules.PlatformContext) (*unstructured.Unstructured, error) {
+func (h *submoduleTestHandler) IsEnabled(_ *PlatformContext) bool { return true }
+func (h *submoduleTestHandler) BuildModuleCR(_ context.Context, _ client.Client, _ *PlatformContext) (*unstructured.Unstructured, error) {
 	return nil, nil
 }
-func (h *submoduleTestHandler) GetModuleStatus(_ context.Context, _ client.Client) (*modules.ModuleStatus, error) {
+func (h *submoduleTestHandler) GetModuleStatus(_ context.Context, _ client.Client) (*ModuleStatus, error) {
 	return nil, nil
 }
 
-var _ modules.ModuleHandler = (*submoduleTestHandler)(nil)
+var _ ModuleHandler = (*submoduleTestHandler)(nil)
 
-func newSubmoduleTestHandler(name string, subs []modules.SubmoduleCondition) *submoduleTestHandler {
+func newSubmoduleTestHandler(name string, subs []SubmoduleCondition) *submoduleTestHandler {
 	return &submoduleTestHandler{
-		BaseHandler: modules.BaseHandler{
-			Config: modules.ModuleConfig{
+		BaseHandler: BaseHandler{
+			Config: ModuleConfig{
 				Name:                name,
 				CRName:              "default",
 				GVK:                 schema.GroupVersionKind{Kind: name},
@@ -126,7 +126,7 @@ func TestSubmoduleConditionsFor_NoSubmodules(t *testing.T) {
 
 	h := newSubmoduleTestHandler("basic", nil)
 
-	result := modules.SubmoduleConditionsFor(h)
+	result := submoduleConditionsFor(h)
 	g.Expect(result).Should(BeEmpty())
 }
 
@@ -134,11 +134,11 @@ func TestSubmoduleConditionsFor_WithSubmodules(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	h := newSubmoduleTestHandler("aigateway", []modules.SubmoduleCondition{
+	h := newSubmoduleTestHandler("aigateway", []SubmoduleCondition{
 		{SourceConditionType: "FooReady", DSCConditionType: "FooReady"},
 	})
 
-	result := modules.SubmoduleConditionsFor(h)
+	result := submoduleConditionsFor(h)
 	g.Expect(result).Should(HaveLen(1))
 	g.Expect(result[0].DSCConditionType).Should(Equal("FooReady"))
 }
@@ -149,19 +149,19 @@ func TestMirrorSubmoduleConditions_ConditionFound_True(t *testing.T) {
 
 	rr, mgr := newTestRR()
 
-	moduleStatus := &modules.ModuleStatus{
+	moduleStatus := &ModuleStatus{
 		Conditions: []metav1.Condition{
 			{Type: "Ready", Status: metav1.ConditionTrue, Reason: "AllGood"},
 			{Type: "ModelsAsServiceReady", Status: metav1.ConditionTrue, Reason: "Deployed", Message: "MaaS is healthy"},
 		},
 	}
 
-	submodules := []modules.SubmoduleCondition{
+	submodules := []SubmoduleCondition{
 		{SourceConditionType: "ModelsAsServiceReady", DSCConditionType: "ModelsAsServiceReady"},
 	}
 
 	var notReady []string
-	modules.MirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules, &notReady)
+	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules, &notReady)
 
 	cond := mgr.GetCondition("ModelsAsServiceReady")
 	g.Expect(cond).ShouldNot(BeNil())
@@ -177,19 +177,19 @@ func TestMirrorSubmoduleConditions_ConditionFound_False(t *testing.T) {
 
 	rr, mgr := newTestRR()
 
-	moduleStatus := &modules.ModuleStatus{
+	moduleStatus := &ModuleStatus{
 		Conditions: []metav1.Condition{
 			{Type: "Ready", Status: metav1.ConditionTrue, Reason: "AllGood"},
 			{Type: "BatchGatewayReady", Status: metav1.ConditionFalse, Reason: "Deploying", Message: "waiting for pods"},
 		},
 	}
 
-	submodules := []modules.SubmoduleCondition{
+	submodules := []SubmoduleCondition{
 		{SourceConditionType: "BatchGatewayReady", DSCConditionType: "BatchGatewayReady"},
 	}
 
 	var notReady []string
-	modules.MirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules, &notReady)
+	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules, &notReady)
 
 	cond := mgr.GetCondition("BatchGatewayReady")
 	g.Expect(cond).ShouldNot(BeNil())
@@ -203,18 +203,18 @@ func TestMirrorSubmoduleConditions_ConditionAbsent(t *testing.T) {
 
 	rr, mgr := newTestRR()
 
-	moduleStatus := &modules.ModuleStatus{
+	moduleStatus := &ModuleStatus{
 		Conditions: []metav1.Condition{
 			{Type: "Ready", Status: metav1.ConditionTrue, Reason: "AllGood"},
 		},
 	}
 
-	submodules := []modules.SubmoduleCondition{
+	submodules := []SubmoduleCondition{
 		{SourceConditionType: "ModelsAsServiceReady", DSCConditionType: "ModelsAsServiceReady"},
 	}
 
 	var notReady []string
-	modules.MirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules, &notReady)
+	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules, &notReady)
 
 	cond := mgr.GetCondition("ModelsAsServiceReady")
 	g.Expect(cond).ShouldNot(BeNil())
@@ -230,7 +230,7 @@ func TestMirrorSubmoduleConditions_MultipleSubmodules(t *testing.T) {
 
 	rr, mgr := newTestRR()
 
-	moduleStatus := &modules.ModuleStatus{
+	moduleStatus := &ModuleStatus{
 		Conditions: []metav1.Condition{
 			{Type: "Ready", Status: metav1.ConditionTrue, Reason: "AllGood"},
 			{Type: "ModelsAsServiceReady", Status: metav1.ConditionTrue, Reason: "Ready"},
@@ -238,13 +238,13 @@ func TestMirrorSubmoduleConditions_MultipleSubmodules(t *testing.T) {
 		},
 	}
 
-	submodules := []modules.SubmoduleCondition{
+	submodules := []SubmoduleCondition{
 		{SourceConditionType: "ModelsAsServiceReady", DSCConditionType: "ModelsAsServiceReady"},
 		{SourceConditionType: "BatchGatewayReady", DSCConditionType: "BatchGatewayReady"},
 	}
 
 	var notReady []string
-	modules.MirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules, &notReady)
+	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules, &notReady)
 
 	maasCond := mgr.GetCondition("ModelsAsServiceReady")
 	g.Expect(maasCond).ShouldNot(BeNil())
@@ -263,14 +263,14 @@ func TestMirrorSubmoduleConditions_EmptySubmodules(t *testing.T) {
 
 	rr, mgr := newTestRR()
 
-	moduleStatus := &modules.ModuleStatus{
+	moduleStatus := &ModuleStatus{
 		Conditions: []metav1.Condition{
 			{Type: "Ready", Status: metav1.ConditionTrue},
 		},
 	}
 
 	var notReady []string
-	modules.MirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, nil, &notReady)
+	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, nil, &notReady)
 
 	g.Expect(mgr.GetCondition("ModelsAsServiceReady")).Should(BeNil())
 	g.Expect(notReady).Should(BeEmpty())
@@ -282,18 +282,18 @@ func TestMirrorSubmoduleConditions_DifferentSourceAndDSCType(t *testing.T) {
 
 	rr, mgr := newTestRR()
 
-	moduleStatus := &modules.ModuleStatus{
+	moduleStatus := &ModuleStatus{
 		Conditions: []metav1.Condition{
 			{Type: "InternalMaaSStatus", Status: metav1.ConditionTrue, Reason: "OK", Message: "all good"},
 		},
 	}
 
-	submodules := []modules.SubmoduleCondition{
+	submodules := []SubmoduleCondition{
 		{SourceConditionType: "InternalMaaSStatus", DSCConditionType: "ModelsAsServiceReady"},
 	}
 
 	var notReady []string
-	modules.MirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules, &notReady)
+	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules, &notReady)
 
 	cond := mgr.GetCondition("ModelsAsServiceReady")
 	g.Expect(cond).ShouldNot(BeNil())
@@ -310,24 +310,24 @@ func TestMirrorSubmoduleConditions_DisabledSubmodule_ShowsRemoved(t *testing.T) 
 
 	rr, mgr := newTestRR()
 
-	moduleStatus := &modules.ModuleStatus{
+	moduleStatus := &ModuleStatus{
 		Conditions: []metav1.Condition{
 			{Type: "Ready", Status: metav1.ConditionTrue, Reason: "AllGood"},
 			{Type: "ModelsAsServiceReady", Status: metav1.ConditionTrue, Reason: "Ready"},
 		},
 	}
 
-	submodules := []modules.SubmoduleCondition{
+	submodules := []SubmoduleCondition{
 		{
 			SourceConditionType: "ModelsAsServiceReady",
 			DSCConditionType:    "ModelsAsServiceReady",
 			StatusFieldName:     "ModelsAsAService",
-			IsEnabled:           func(_ *modules.PlatformContext) bool { return false },
+			IsEnabled:           func(_ *PlatformContext) bool { return false },
 		},
 	}
 
 	var notReady []string
-	modules.MirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules, &notReady)
+	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules, &notReady)
 
 	cond := mgr.GetCondition("ModelsAsServiceReady")
 	g.Expect(cond).ShouldNot(BeNil())
@@ -343,13 +343,13 @@ func TestMirrorSubmoduleConditions_NilIsEnabled_AssumedEnabled(t *testing.T) {
 
 	rr, mgr := newTestRR()
 
-	moduleStatus := &modules.ModuleStatus{
+	moduleStatus := &ModuleStatus{
 		Conditions: []metav1.Condition{
 			{Type: "FooReady", Status: metav1.ConditionTrue, Reason: "OK"},
 		},
 	}
 
-	submodules := []modules.SubmoduleCondition{
+	submodules := []SubmoduleCondition{
 		{
 			SourceConditionType: "FooReady",
 			DSCConditionType:    "FooReady",
@@ -358,7 +358,7 @@ func TestMirrorSubmoduleConditions_NilIsEnabled_AssumedEnabled(t *testing.T) {
 	}
 
 	var notReady []string
-	modules.MirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules, &notReady)
+	mirrorSubmoduleConditions(rr, newTestPlatformCtx(), moduleStatus, submodules, &notReady)
 
 	cond := mgr.GetCondition("FooReady")
 	g.Expect(cond).ShouldNot(BeNil())
@@ -372,13 +372,13 @@ func TestWriteSubmoduleComponentStatus_SetsManaged(t *testing.T) {
 
 	pCtx := newTestPlatformCtx()
 
-	sm := modules.SubmoduleCondition{
+	sm := SubmoduleCondition{
 		SourceConditionType: "ModelsAsServiceReady",
 		DSCConditionType:    "ModelsAsServiceReady",
 		StatusFieldName:     "ModelsAsAService",
 	}
 
-	modules.WriteSubmoduleComponentStatus(pCtx, sm, true)
+	writeSubmoduleComponentStatus(pCtx, sm, true)
 	g.Expect(pCtx.DSC.Status.Components.ModelsAsAService.ManagementState).Should(
 		Equal(operatorv1.Managed))
 }
@@ -389,13 +389,13 @@ func TestWriteSubmoduleComponentStatus_SetsRemoved(t *testing.T) {
 
 	pCtx := newTestPlatformCtx()
 
-	sm := modules.SubmoduleCondition{
+	sm := SubmoduleCondition{
 		SourceConditionType: "BatchGatewayReady",
 		DSCConditionType:    "BatchGatewayReady",
 		StatusFieldName:     "BatchGateway",
 	}
 
-	modules.WriteSubmoduleComponentStatus(pCtx, sm, false)
+	writeSubmoduleComponentStatus(pCtx, sm, false)
 	g.Expect(pCtx.DSC.Status.Components.BatchGateway.ManagementState).Should(
 		Equal(operatorv1.Removed))
 }
@@ -406,13 +406,13 @@ func TestWriteSubmoduleComponentStatus_EmptyFieldName_NoOp(t *testing.T) {
 
 	pCtx := newTestPlatformCtx()
 
-	sm := modules.SubmoduleCondition{
+	sm := SubmoduleCondition{
 		SourceConditionType: "FooReady",
 		DSCConditionType:    "FooReady",
 		StatusFieldName:     "",
 	}
 
-	modules.WriteSubmoduleComponentStatus(pCtx, sm, true)
+	writeSubmoduleComponentStatus(pCtx, sm, true)
 	g.Expect(pCtx.DSC.Status.Components.ModelsAsAService.ManagementState).Should(
 		Equal(operatorv1.ManagementState("")))
 }
@@ -420,12 +420,12 @@ func TestWriteSubmoduleComponentStatus_EmptyFieldName_NoOp(t *testing.T) {
 func TestWriteSubmoduleComponentStatus_NilDSC_NoOp(t *testing.T) {
 	t.Parallel()
 
-	pCtx := &modules.PlatformContext{DSC: nil}
-	sm := modules.SubmoduleCondition{
+	pCtx := &PlatformContext{DSC: nil}
+	sm := SubmoduleCondition{
 		StatusFieldName: "ModelsAsAService",
 	}
 
-	modules.WriteSubmoduleComponentStatus(pCtx, sm, true)
+	writeSubmoduleComponentStatus(pCtx, sm, true)
 }
 
 func TestWriteDSCComponentStatus_FieldResolution(t *testing.T) {
@@ -440,9 +440,9 @@ func TestWriteDSCComponentStatus_FieldResolution(t *testing.T) {
 	}
 
 	for _, kind := range knownKinds {
-		h := &modules.BaseHandler{Config: modules.ModuleConfig{GVK: schema.GroupVersionKind{Kind: kind}}}
+		h := &BaseHandler{Config: ModuleConfig{GVK: schema.GroupVersionKind{Kind: kind}}}
 		dsc := &dscv2.DataScienceCluster{}
-		h.WriteDSCComponentStatus(dsc, true)
+		h.WriteDSCComponentStatus(dsc, true, nil)
 
 		field := reflect.ValueOf(&dsc.Status.Components).Elem().FieldByName(kind)
 		g.Expect(field.IsValid()).Should(BeTrue(), "ComponentsStatus must have field %q", kind)
@@ -464,15 +464,15 @@ func TestWriteSubmoduleComponentStatus_FieldResolution(t *testing.T) {
 
 	for _, fieldName := range knownSubmoduleFields {
 		pCtx := newTestPlatformCtx()
-		sm := modules.SubmoduleCondition{StatusFieldName: fieldName}
-		modules.WriteSubmoduleComponentStatus(pCtx, sm, true)
+		sm := SubmoduleCondition{StatusFieldName: fieldName}
+		writeSubmoduleComponentStatus(pCtx, sm, true)
 
 		field := reflect.ValueOf(&pCtx.DSC.Status.Components).Elem().FieldByName(fieldName)
 		g.Expect(field.IsValid()).Should(BeTrue(), "ComponentsStatus must have field %q", fieldName)
 		ms := field.FieldByName("ManagementState")
 		g.Expect(ms.IsValid()).Should(BeTrue(), "%s must have ManagementState", fieldName)
 		g.Expect(ms.String()).Should(Equal(string(operatorv1.Managed)),
-			"%s.ManagementState should be Managed after WriteSubmoduleComponentStatus(enabled=true)", fieldName)
+			"%s.ManagementState should be Managed after writeSubmoduleComponentStatus(enabled=true)", fieldName)
 	}
 }
 
@@ -483,22 +483,22 @@ func TestSetSubmodulesFallback_ParentDisabled(t *testing.T) {
 	rr, mgr := newTestRR()
 	pCtx := newTestPlatformCtx()
 
-	submodules := []modules.SubmoduleCondition{
+	submodules := []SubmoduleCondition{
 		{
 			SourceConditionType: "ModelsAsServiceReady",
 			DSCConditionType:    "ModelsAsServiceReady",
 			StatusFieldName:     "ModelsAsAService",
-			IsEnabled:           func(_ *modules.PlatformContext) bool { return true },
+			IsEnabled:           func(_ *PlatformContext) bool { return true },
 		},
 		{
 			SourceConditionType: "BatchGatewayReady",
 			DSCConditionType:    "BatchGatewayReady",
 			StatusFieldName:     "BatchGateway",
-			IsEnabled:           func(_ *modules.PlatformContext) bool { return true },
+			IsEnabled:           func(_ *PlatformContext) bool { return true },
 		},
 	}
 
-	modules.SetSubmodulesFallback(rr, pCtx, submodules, true, "", "")
+	setSubmodulesFallback(rr, pCtx, submodules, true, "", "")
 
 	for _, sm := range submodules {
 		cond := mgr.GetCondition(sm.DSCConditionType)
@@ -520,22 +520,22 @@ func TestSetSubmodulesFallback_ParentNotReady(t *testing.T) {
 	rr, mgr := newTestRR()
 	pCtx := newTestPlatformCtx()
 
-	submodules := []modules.SubmoduleCondition{
+	submodules := []SubmoduleCondition{
 		{
 			SourceConditionType: "ModelsAsServiceReady",
 			DSCConditionType:    "ModelsAsServiceReady",
 			StatusFieldName:     "ModelsAsAService",
-			IsEnabled:           func(_ *modules.PlatformContext) bool { return true },
+			IsEnabled:           func(_ *PlatformContext) bool { return true },
 		},
 		{
 			SourceConditionType: "BatchGatewayReady",
 			DSCConditionType:    "BatchGatewayReady",
 			StatusFieldName:     "BatchGateway",
-			IsEnabled:           func(_ *modules.PlatformContext) bool { return false },
+			IsEnabled:           func(_ *PlatformContext) bool { return false },
 		},
 	}
 
-	modules.SetSubmodulesFallback(rr, pCtx, submodules, false,
+	setSubmodulesFallback(rr, pCtx, submodules, false,
 		status.NotReadyReason, "parent is stale",
 	)
 

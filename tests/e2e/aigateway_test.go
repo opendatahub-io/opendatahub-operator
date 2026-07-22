@@ -101,6 +101,26 @@ func aiGatewayTestSuite(t *testing.T) {
 				WithCustomErrorMsg("ai-gateway-operator Deployment should have APPLICATIONS_NAMESPACE=%s injected", tc.AppsNamespace),
 			)
 		}},
+		{"Validate releases mirrored to DSC", func(t *testing.T) {
+			t.Helper()
+			skipUnless(t, Tier1)
+
+			// Module CR should have releases populated by the module operator.
+			tc.EnsureResourceExists(
+				WithMinimalObject(moduleGVK, moduleCRNN),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(jq.Match(`.status.releases | length > 0`)),
+				WithCustomErrorMsg("AIGateway module CR should have releases in status"),
+			)
+
+			// DSC should mirror the module CR's releases.
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+				WithCondition(jq.Match(`.status.components.aigateway.releases | length > 0`)),
+				WithCustomErrorMsg("DSC status.components.aigateway.releases should be mirrored from module CR"),
+			)
+		}},
 		{"Validate module CR deletion recovery", func(t *testing.T) {
 			t.Helper()
 			skipUnless(t, Tier1)
