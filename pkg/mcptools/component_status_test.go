@@ -1,4 +1,4 @@
-package main
+package mcptools
 
 import (
 	"context"
@@ -20,14 +20,14 @@ func TestComponentStatus(t *testing.T) {
 	cl := newFakeClient()
 
 	t.Run("unknown component", func(t *testing.T) {
-		_, err := clusterhealth.GetComponentStatus(context.Background(), cl, "bogus", defaultAppsNS)
+		_, err := clusterhealth.GetComponentStatus(context.Background(), cl, "bogus", DefaultAppsNS)
 		if err == nil {
 			t.Error("expected error for unknown component")
 		}
 	})
 
 	t.Run("no CR exists", func(t *testing.T) {
-		r, err := clusterhealth.GetComponentStatus(context.Background(), cl, "kserve", defaultAppsNS)
+		r, err := clusterhealth.GetComponentStatus(context.Background(), cl, "kserve", DefaultAppsNS)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -52,7 +52,7 @@ func TestComponentStatus_ErrorClients(t *testing.T) {
 	for _, tt := range tests {
 		for _, comp := range components {
 			t.Run(tt.name+"/"+comp, func(t *testing.T) {
-				_, err := clusterhealth.GetComponentStatus(context.Background(), tt.client, comp, defaultAppsNS)
+				_, err := clusterhealth.GetComponentStatus(context.Background(), tt.client, comp, DefaultAppsNS)
 				if err == nil {
 					t.Fatalf("expected error for component %q, got nil", comp)
 				}
@@ -69,7 +69,7 @@ func TestComponentStatus_DeploymentsAndPods(t *testing.T) {
 	cl := newFakeClient(
 		&appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "kserve-ctrl", Namespace: defaultAppsNS,
+				Name: "kserve-ctrl", Namespace: DefaultAppsNS,
 				Labels: map[string]string{"app.opendatahub.io/kserve": "true"},
 			},
 			Spec: appsv1.DeploymentSpec{
@@ -80,14 +80,14 @@ func TestComponentStatus_DeploymentsAndPods(t *testing.T) {
 		},
 		&corev1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "kserve-pod", Namespace: defaultAppsNS,
+				Name: "kserve-pod", Namespace: DefaultAppsNS,
 				Labels: map[string]string{"app.opendatahub.io/kserve": "true"},
 			},
 			Status: corev1.PodStatus{Phase: corev1.PodRunning},
 		},
 	)
 
-	r, err := clusterhealth.GetComponentStatus(context.Background(), cl, "kserve", defaultAppsNS)
+	r, err := clusterhealth.GetComponentStatus(context.Background(), cl, "kserve", DefaultAppsNS)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -121,7 +121,7 @@ func TestFetchManagedResources(t *testing.T) {
 	}
 
 	t.Run("no resources in empty cluster", func(t *testing.T) {
-		resources, err := fetchManagedResources(context.Background(), newFakeClient(), "dashboard", defaultAppsNS)
+		resources, err := fetchManagedResources(context.Background(), newFakeClient(), "dashboard", DefaultAppsNS)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -135,13 +135,13 @@ func TestFetchManagedResources(t *testing.T) {
 		replicas := int32(1)
 		cl := newFakeClient(
 			&appsv1.Deployment{
-				ObjectMeta: metav1.ObjectMeta{Name: "kserve-ctrl", Namespace: defaultAppsNS, Labels: kserveLabel},
+				ObjectMeta: metav1.ObjectMeta{Name: "kserve-ctrl", Namespace: DefaultAppsNS, Labels: kserveLabel},
 				Spec:       appsv1.DeploymentSpec{Replicas: &replicas, Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "kserve"}}},
 				Status:     appsv1.DeploymentStatus{ReadyReplicas: 1},
 			},
-			&corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "webhook-svc", Namespace: defaultAppsNS, Labels: kserveLabel}},
-			&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "isvc-config", Namespace: defaultAppsNS, Labels: kserveLabel}},
-			&corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "ray-svc", Namespace: defaultAppsNS, Labels: map[string]string{"app.opendatahub.io/ray": "true"}}},
+			&corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "webhook-svc", Namespace: DefaultAppsNS, Labels: kserveLabel}},
+			&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "isvc-config", Namespace: DefaultAppsNS, Labels: kserveLabel}},
+			&corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "ray-svc", Namespace: DefaultAppsNS, Labels: map[string]string{"app.opendatahub.io/ray": "true"}}},
 		)
 
 		var got struct {
