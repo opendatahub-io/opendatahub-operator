@@ -1,4 +1,4 @@
-package main
+package mcptools
 
 import (
 	"context"
@@ -24,14 +24,14 @@ var (
 )
 
 const (
-	envOperatorNamespace     = "E2E_TEST_OPERATOR_NAMESPACE"
-	envApplicationsNamespace = "E2E_TEST_APPLICATIONS_NAMESPACE"
-	envOperatorDeployment    = "E2E_TEST_OPERATOR_DEPLOYMENT_NAME"
-	envMonitoringNamespace   = "E2E_TEST_DSC_MONITORING_NAMESPACE"
-	defaultOperatorNS        = "opendatahub-operator-system"
-	defaultAppsNS            = "opendatahub"
-	defaultOperatorDeploy    = "opendatahub-operator-controller-manager"
-	defaultMonitoringNS      = "opendatahub"
+	EnvOperatorNamespace     = "E2E_TEST_OPERATOR_NAMESPACE"
+	EnvApplicationsNamespace = "E2E_TEST_APPLICATIONS_NAMESPACE"
+	EnvOperatorDeployment    = "E2E_TEST_OPERATOR_DEPLOYMENT_NAME"
+	EnvMonitoringNamespace   = "E2E_TEST_DSC_MONITORING_NAMESPACE"
+	DefaultOperatorNS        = "opendatahub-operator-system"
+	DefaultAppsNS            = "opendatahub"
+	DefaultOperatorDeploy    = "opendatahub-operator-controller-manager"
+	DefaultMonitoringNS      = "opendatahub"
 )
 
 // stringParam extracts a string param from an MCP request, returning fallback if missing or empty.
@@ -60,8 +60,8 @@ func boolParam(req mcp.CallToolRequest, name string, fallback bool) bool {
 	return fallback
 }
 
-// getEnvDefault returns the env var value if set, otherwise fallback.
-func getEnvDefault(key, fallback string) string {
+// GetEnvDefault returns the env var value if set, otherwise fallback.
+func GetEnvDefault(key, fallback string) string {
 	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
 		return v
 	}
@@ -72,7 +72,7 @@ func getEnvDefault(key, fallback string) string {
 // Falls back to env var / hardcoded default if DSCI is absent or field is empty.
 // Returns an error for RBAC or CRD issues that should not be silently masked.
 func discoverAppsNamespace(ctx context.Context, kubeClient client.Client) (string, error) {
-	fallback := getEnvDefault(envApplicationsNamespace, defaultAppsNS)
+	fallback := GetEnvDefault(EnvApplicationsNamespace, DefaultAppsNS)
 
 	list := &unstructured.UnstructuredList{}
 	list.SetGroupVersionKind(schema.GroupVersionKind{
@@ -125,7 +125,7 @@ func discoveryErrorResult(toolName string, err error) *mcp.CallToolResult {
 // discoverOperatorNamespace returns the operator namespace.
 // Operator namespace is not stored in DSCI, so this wraps env var / hardcoded default.
 func discoverOperatorNamespace() string {
-	return getEnvDefault(envOperatorNamespace, defaultOperatorNS)
+	return GetEnvDefault(EnvOperatorNamespace, DefaultOperatorNS)
 }
 
 // splitTrimmed splits a comma-separated string into trimmed, non-empty parts.

@@ -10,6 +10,7 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -488,6 +489,78 @@ func createTrustyAIDeployment(selectorLabels map[string]string) *appsv1.Deployme
 				Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "manager", Image: "test"}}},
 			},
 		},
+	}
+}
+
+func makeCRD(name string, lbls map[string]string) *extv1.CustomResourceDefinition {
+	crd := &extv1.CustomResourceDefinition{}
+	crd.SetName(name)
+	crd.SetLabels(lbls)
+	return crd
+}
+
+// TestInferenceServicesCRDDeletePredicate covers the DeleteFunc predicate (name-only check).
+// The ODH label is not required: the CRD may be deleted before ODH labels it.
+func TestInferenceServicesCRDDeletePredicate(t *testing.T) {
+	deleteFired := func(crd *extv1.CustomResourceDefinition) bool {
+		return crd.GetName() == InferenceServicesCRDName
+	}
+
+	tests := []struct {
+		name     string
+		crdName  string
+		expected bool
+	}{
+		{
+			name:     "correct CRD name → fires",
+			crdName:  InferenceServicesCRDName,
+			expected: true,
+		},
+		{
+			name:     "wrong CRD name → does not fire",
+			crdName:  "other.crd.io",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			crd := makeCRD(tt.crdName, nil)
+			g.Expect(deleteFired(crd)).Should(Equal(tt.expected))
+		})
+	}
+}
+
+// TestInferenceServicesCRDCreatePredicate covers the CreateFunc predicate (name-only check).
+func TestInferenceServicesCRDCreatePredicate(t *testing.T) {
+	createFired := func(crd *extv1.CustomResourceDefinition) bool {
+		return crd.GetName() == InferenceServicesCRDName
+	}
+
+	tests := []struct {
+		name     string
+		crdName  string
+		expected bool
+	}{
+		{
+			name:     "correct CRD name → fires",
+			crdName:  InferenceServicesCRDName,
+			expected: true,
+		},
+		{
+			name:     "wrong CRD name → does not fire",
+			crdName:  "other.crd.io",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			crd := makeCRD(tt.crdName, nil)
+			g.Expect(createFired(crd)).Should(Equal(tt.expected))
+		})
 	}
 }
 

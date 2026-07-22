@@ -1,4 +1,4 @@
-package main
+package mcptools
 
 import (
 	"context"
@@ -51,11 +51,11 @@ func registerPlatformHealth(s *server.MCPServer, kubeClient client.Client) {
 			Client: kubeClient,
 			Operator: clusterhealth.OperatorConfig{
 				Namespace: operatorNS,
-				Name:      getEnvDefault(envOperatorDeployment, defaultOperatorDeploy),
+				Name:      GetEnvDefault(EnvOperatorDeployment, DefaultOperatorDeploy),
 			},
 			Namespaces: clusterhealth.NamespaceConfig{
 				Apps:       appsNS,
-				Monitoring: getEnvDefault(envMonitoringNamespace, defaultMonitoringNS),
+				Monitoring: GetEnvDefault(EnvMonitoringNamespace, DefaultMonitoringNS),
 				Extra:      []string{"kube-system"},
 			},
 		}
