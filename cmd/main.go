@@ -85,7 +85,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/feastoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ogx"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ray"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/sparkoperator"
@@ -99,6 +98,7 @@ import (
 	kserveModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
 	mcplifecycleoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
 	mlflowOperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mlflowoperator"
+	ogxModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/ogx"
 	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
@@ -139,7 +139,6 @@ var (
 		componentApi.DataSciencePipelinesComponentName: datasciencepipelines.NewHandler(),
 		componentApi.FeastOperatorComponentName:        feastoperator.NewHandler(),
 		componentApi.KueueComponentName:                kueue.NewHandler(),
-		componentApi.OGXComponentName:                  ogx.NewHandler(),
 		componentApi.ModelRegistryComponentName:        modelregistry.NewHandler(),
 		componentApi.RayComponentName:                  ray.NewHandler(),
 		componentApi.SparkOperatorComponentName:        sparkoperator.NewHandler(),
@@ -166,7 +165,6 @@ var (
 		componentApi.KueueComponentName: dag.RL(31),
 
 		componentApi.FeastOperatorComponentName: dag.RL(32),
-		componentApi.OGXComponentName:           dag.RL(32),
 		componentApi.SparkOperatorComponentName: dag.RL(32),
 
 		componentApi.TrustyAIComponentName: dag.RL(33),
@@ -186,6 +184,7 @@ var (
 		componentApi.MCPLifecycleOperatorComponentName: mcplifecycleoperatorModule.NewHandler(),
 		componentApi.MLflowOperatorComponentName:       mlflowOperatorModule.NewHandler(),
 		componentApi.KserveComponentName:               kserveModule.NewHandler(),
+		componentApi.OGXComponentName:                  ogxModule.NewHandler(),
 		componentApi.WorkbenchesComponentName:          workbenchesModule.NewHandler(),
 	}
 
@@ -194,6 +193,7 @@ var (
 		componentApi.MCPLifecycleOperatorComponentName: dag.RL(20),
 		componentApi.MLflowOperatorComponentName:       dag.RL(32),
 		componentApi.KserveComponentName:               dag.RL(31),
+		componentApi.OGXComponentName:                  dag.RL(32),
 		componentApi.WorkbenchesComponentName:          dag.RL(20),
 	}
 )

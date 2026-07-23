@@ -3,9 +3,9 @@ package e2e_test
 import (
 	"testing"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -17,77 +17,92 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-type OGXTestCtx struct {
-	*ComponentTestCtx
-}
+const ogxControllerDeployment = "opendatahub-ogx-operator"
 
 func ogxTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(t, &componentApi.OGX{})
+	tc, err := NewTestContext(t)
 	require.NoError(t, err)
 
-	componentCtx := OGXTestCtx{
-		ComponentTestCtx: ct,
+	moduleGVK := schema.GroupVersionKind{
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.OGXKind,
+	}
+	moduleCRNN := types.NamespacedName{Name: componentApi.OGXInstanceName}
+	controllerNN := types.NamespacedName{
+		Namespace: tc.AppsNamespace,
+		Name:      ogxControllerDeployment,
 	}
 
-	// Define test cases.
 	testCases := []TestCase{
-		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
-		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
-		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
-		{"Validate component releases", componentCtx.ValidateComponentReleases},
-		{"Validate LlamaStackOperator conflict", componentCtx.ValidateLlamaStackOperatorConflict},
-		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
-		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
+		{"Validate component enabled", func(t *testing.T) {
+			t.Helper()
+			skipUnless(t, Smoke, Tier1)
+
+			if !tc.IsXKS() {
+				tc.EventuallyResourcePatched(
+					WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+					WithMutateFunc(testf.Transform(`.spec.components.ogx.managementState = "Removed"`)),
+					WithCondition(jq.Match(`.spec.components.ogx.managementState == "Removed"`)),
+				)
+				tc.EnsureResourceGone(WithMinimalObject(moduleGVK, moduleCRNN))
+			}
+
+			tc.EventuallyResourcePatched(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithMutateFunc(testf.Transform(`.spec.components.ogx.managementState = "Managed"`)),
+				WithCondition(jq.Match(`.spec.components.ogx.managementState == "Managed"`)),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(moduleGVK, moduleCRNN),
+				WithCondition(And(
+					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
+				)),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.Deployment, controllerNN),
+				WithCondition(jq.Match(`.status.readyReplicas >= 1`)),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeModulesReady, metav1.ConditionTrue)),
+			)
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithCondition(jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.OGXKind, metav1.ConditionTrue)),
+				WithCustomErrorMsg("DataScienceCluster should have %sReady condition set to True", componentApi.OGXKind),
+			)
+		}},
+		{"Validate component disabled", func(t *testing.T) {
+			t.Helper()
+			skipUnless(t, Smoke, Tier1)
+
+			tc.EventuallyResourcePatched(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithMutateFunc(testf.Transform(`.spec.components.ogx.managementState = "Removed"`)),
+				WithCondition(jq.Match(`.spec.components.ogx.managementState == "Removed"`)),
+			)
+
+			tc.EnsureResourceGone(WithMinimalObject(moduleGVK, moduleCRNN))
+			tc.EnsureResourceGone(WithMinimalObject(gvk.Deployment, controllerNN))
+
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+				WithCondition(And(
+					jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentApi.OGXKind, metav1.ConditionFalse),
+					jq.Match(`.status.conditions[] | select(.type == "%sReady") | .reason == "%s"`, componentApi.OGXKind, status.RemovedReason),
+				)),
+				WithCustomErrorMsg("DataScienceCluster should have %sReady condition set to False/Removed", componentApi.OGXKind),
+			)
+		}},
 	}
 
-	// Run the test suite.
 	RunTestCases(t, testCases)
-}
-
-// ValidateLlamaStackOperatorConflict verifies that OGX detects the deprecated
-// LlamaStackOperator conflict and recovers when it is resolved. Setting
-// LlamaStackOperator to Managed while OGX is enabled should cause the
-// precondition to fail; setting it back to Removed should allow recovery
-// via the DSC watch event (no requeue needed).
-func (tc *OGXTestCtx) ValidateLlamaStackOperatorConflict(t *testing.T) {
-	t.Helper()
-
-	skipUnless(t, Tier1)
-
-	// set LlamaStackOperator to Managed to trigger precondition failure
-	tc.EventuallyResourcePatched(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.llamastackoperator.managementState = "%s"`, operatorv1.Managed)),
-	)
-
-	ogxNN := types.NamespacedName{Name: componentApi.OGXInstanceName}
-
-	// validate that OGX conditions reflect the failure
-	tc.EnsureResourceExists(
-		WithMinimalObject(tc.GVK, ogxNN),
-		WithCondition(
-			And(
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionFalse),
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionDependenciesAvailable, metav1.ConditionFalse),
-			),
-		),
-		WithCustomErrorMsg("OGX should have Ready and DependenciesAvailable conditions set to False when LlamaStackOperator is Managed"),
-	)
-
-	// set LlamaStackOperator back to Removed in DSC to resolve the conflict
-	tc.EventuallyResourcePatched(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.llamastackoperator.managementState = "%s"`, operatorv1.Removed)),
-	)
-
-	// validate OGX recovers after the conflict is resolved
-	tc.EnsureResourceExists(
-		WithMinimalObject(tc.GVK, ogxNN),
-		WithCondition(
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
-		),
-		WithCustomErrorMsg("OGX should recover to Ready=True after LlamaStackOperator conflict is resolved"),
-	)
 }
