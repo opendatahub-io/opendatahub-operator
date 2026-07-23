@@ -196,17 +196,18 @@ func TestCleanupDisabledModulesPreservesModuleEnvInjectionWhileDeleting(t *testi
 	if len(rr.Manifests) != 1 {
 		t.Fatalf("expected deleting module manifests to be kept alive, got %d", len(rr.Manifests))
 	}
-	if rr.ModuleEnvInjection == nil {
+	mei := types.GetModuleEnvInjection(rr)
+	if mei == nil {
 		t.Fatalf("expected module env injection to be preserved for deleting module")
 	}
-	if rr.ModuleEnvInjection.ApplicationsNamespace != testApplicationsNamespace {
-		t.Fatalf("expected applications namespace %q, got %q", testApplicationsNamespace, rr.ModuleEnvInjection.ApplicationsNamespace)
+	if mei.ApplicationsNamespace != testApplicationsNamespace {
+		t.Fatalf("expected applications namespace %q, got %q", testApplicationsNamespace, mei.ApplicationsNamespace)
 	}
-	if len(rr.ModuleEnvInjection.PerModuleImages) != 1 {
-		t.Fatalf("expected one deleting module env injection entry, got %d", len(rr.ModuleEnvInjection.PerModuleImages))
+	if len(mei.PerModuleImages) != 1 {
+		t.Fatalf("expected one deleting module env injection entry, got %d", len(mei.PerModuleImages))
 	}
 
-	moduleImages := rr.ModuleEnvInjection.PerModuleImages[0]
+	moduleImages := mei.PerModuleImages[0]
 	if moduleImages.DeploymentName != "cleanup-module-controller-manager" {
 		t.Fatalf("expected deployment name %q, got %q", "cleanup-module-controller-manager", moduleImages.DeploymentName)
 	}
@@ -266,14 +267,15 @@ func TestProvisionModulesAddsResourcesAndEnvInjection(t *testing.T) {
 	if len(rr.Manifests) != 1 {
 		t.Fatalf("expected one module manifest entry, got %d", len(rr.Manifests))
 	}
-	if rr.ModuleEnvInjection == nil || len(rr.ModuleEnvInjection.PerModuleImages) != 1 {
-		t.Fatalf("expected one module env injection entry, got %#v", rr.ModuleEnvInjection)
+	mei2 := types.GetModuleEnvInjection(rr)
+	if mei2 == nil || len(mei2.PerModuleImages) != 1 {
+		t.Fatalf("expected one module env injection entry, got %#v", mei2)
 	}
-	if rr.ModuleEnvInjection.ApplicationsNamespace != testApplicationsNamespace {
-		t.Fatalf("expected applications namespace %q, got %q", testApplicationsNamespace, rr.ModuleEnvInjection.ApplicationsNamespace)
+	if mei2.ApplicationsNamespace != testApplicationsNamespace {
+		t.Fatalf("expected applications namespace %q, got %q", testApplicationsNamespace, mei2.ApplicationsNamespace)
 	}
-	if rr.ModuleEnvInjection.PerModuleImages[0].DeploymentName != testProvisioningDeploymentName {
-		t.Fatalf("expected deployment name to be preserved, got %#v", rr.ModuleEnvInjection.PerModuleImages[0])
+	if mei2.PerModuleImages[0].DeploymentName != testProvisioningDeploymentName {
+		t.Fatalf("expected deployment name to be preserved, got %#v", mei2.PerModuleImages[0])
 	}
 }
 

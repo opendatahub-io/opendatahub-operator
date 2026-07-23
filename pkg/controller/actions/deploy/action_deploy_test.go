@@ -11,6 +11,7 @@ import (
 
 	"github.com/blang/semver/v4"
 	"github.com/onsi/gomega/gstruct"
+	fwapi "github.com/opendatahub-io/odh-platform-utilities/framework/api"
 	"github.com/operator-framework/api/pkg/lib/version"
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/mock"
@@ -30,7 +31,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -85,7 +85,7 @@ func TestDeployAction(t *testing.T) {
 				Generation: 1,
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
@@ -173,7 +173,7 @@ func TestDeployNotOwnedSkip(t *testing.T) {
 				Generation: 1,
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
@@ -238,7 +238,7 @@ func TestDeployNotOwnedCreate(t *testing.T) {
 				Generation: 1,
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
@@ -293,7 +293,7 @@ func TestDeployErrorFormat(t *testing.T) {
 				Generation: 1,
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
@@ -350,7 +350,7 @@ func TestDeployDeOwn(t *testing.T) {
 				Generation: 1,
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
@@ -417,7 +417,7 @@ func setupManagedAnnotationTest(t *testing.T, cl client.Client, managed string, 
 				Generation: 1,
 			},
 		},
-		Release: common.Release{Name: cluster.OpenDataHub, Version: version.OperatorVersion{Version: semver.Version{Major: 1, Minor: 2, Patch: 3}}},
+		Release: fwapi.Release{Name: cluster.OpenDataHub, Version: version.OperatorVersion{Version: semver.Version{Major: 1, Minor: 2, Patch: 3}}},
 	}
 
 	g.Expect(rr.AddResources(&appsv1.Deployment{
@@ -629,7 +629,7 @@ func deployClusterRoles(t *testing.T, ctx context.Context, cli client.Client, ro
 				UID:        apimachinery.UID(xid.New().String()),
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
@@ -693,7 +693,7 @@ func TestDeployCRD(t *testing.T) {
 				UID:        apimachinery.UID(id),
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
@@ -873,7 +873,7 @@ func TestDeployOwnerRef(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cli,
 		Instance: instance,
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
@@ -961,7 +961,7 @@ func TestDeployDynamicOwnership_SetsOwnerReferences(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: instance,
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
@@ -1045,7 +1045,7 @@ func TestDeployDynamicOwnership_ExcludesGVKs(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: instance,
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
@@ -1126,7 +1126,7 @@ func TestDeployDynamicOwnership_FallsBackToStaticOwnership(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: instance,
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
@@ -1176,7 +1176,7 @@ func newOwnerRefReconciliationRequest(cl client.Client, instance *componentApi.D
 	return types.ReconciliationRequest{
 		Client:   cl,
 		Instance: instance,
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
@@ -1466,7 +1466,7 @@ func TestDeployDynamicOwnership_CRDsExcludedByDefault(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: instance,
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
@@ -1555,7 +1555,7 @@ func TestWithSortFn(t *testing.T) {
 				Generation: 1,
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
@@ -1641,7 +1641,7 @@ func TestWithApplyOrder(t *testing.T) {
 				Generation: 1,
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
@@ -1714,7 +1714,7 @@ func TestDeployWithPartOfLabel(t *testing.T) {
 				Generation: 1,
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
@@ -1770,7 +1770,7 @@ func TestDeployWithAnnotationPrefix(t *testing.T) {
 				Generation: 1,
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
@@ -1863,7 +1863,7 @@ func TestDeployCRDWithPartOfLabel(t *testing.T) {
 				Generation: 1,
 			},
 		},
-		Release: common.Release{
+		Release: fwapi.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
@@ -1956,7 +1956,7 @@ func TestDeployContinueOnError(t *testing.T) {
 					Generation: 1,
 				},
 			},
-			Release: common.Release{
+			Release: fwapi.Release{
 				Name: cluster.OpenDataHub,
 				Version: version.OperatorVersion{Version: semver.Version{
 					Major: 1, Minor: 2, Patch: 3,
@@ -2002,7 +2002,7 @@ func TestDeployContinueOnError(t *testing.T) {
 					Generation: 1,
 				},
 			},
-			Release: common.Release{
+			Release: fwapi.Release{
 				Name: cluster.OpenDataHub,
 				Version: version.OperatorVersion{Version: semver.Version{
 					Major: 1, Minor: 2, Patch: 3,
