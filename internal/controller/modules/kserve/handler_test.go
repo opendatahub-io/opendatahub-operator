@@ -2,14 +2,9 @@ package kserve_test
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -17,11 +12,6 @@ import (
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/kserve"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
-	types "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
 	. "github.com/onsi/gomega"
 )
@@ -200,183 +190,4 @@ func TestGetName(t *testing.T) {
 	g := NewWithT(t)
 	h := kserve.NewHandler()
 	g.Expect(h.GetName()).Should(Equal(componentApi.KserveComponentName))
-}
-
-const kserveTestDSCName = "default-dsc"
-
-func TestUpdateDSCComponentStatus(t *testing.T) {
-	g := NewWithT(t)
-	h := kserve.NewHandler()
-
-	dsc := &dscv2.DataScienceCluster{
-		ObjectMeta: metav1.ObjectMeta{Name: kserveTestDSCName},
-	}
-	dsc.Spec.Components.Kserve.ManagementState = operatorv1.Managed
-
-	module := &componentApi.Kserve{}
-	module.SetName(componentApi.KserveInstanceName)
-	module.Status.Conditions = []common.Condition{{
-		Type:    status.ConditionTypeReady,
-		Status:  metav1.ConditionTrue,
-		Reason:  status.ReadyReason,
-		Message: "Component is ready",
-	}}
-
-	cli, err := fakeclient.New(fakeclient.WithObjects(dsc, module))
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	_, err = h.UpdateDSCComponentStatus(t.Context(), &types.ReconciliationRequest{
-		Client:     cli,
-		Instance:   dsc,
-		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
-	}, &modules.PlatformContext{DSC: dsc})
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	g.Expect(dsc).Should(WithTransform(json.Marshal,
-		jq.Match(`.status.components.kserve.managementState == "%s"`, operatorv1.Managed),
-	))
-}
-
-func TestUpdateDSCComponentStatusNormalizesEmptyManagementState(t *testing.T) {
-	g := NewWithT(t)
-	h := kserve.NewHandler()
-
-	dsc := &dscv2.DataScienceCluster{
-		ObjectMeta: metav1.ObjectMeta{Name: kserveTestDSCName},
-	}
-
-	cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	_, err = h.UpdateDSCComponentStatus(t.Context(), &types.ReconciliationRequest{
-		Client:     cli,
-		Instance:   dsc,
-		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
-	}, &modules.PlatformContext{DSC: dsc})
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	g.Expect(dsc).Should(WithTransform(json.Marshal,
-		jq.Match(`.status.components.kserve.managementState == "%s"`, operatorv1.Removed),
-	))
-}
-
-func TestUpdateDSCComponentStatusModuleNotFound(t *testing.T) {
-	g := NewWithT(t)
-	h := kserve.NewHandler()
-
-	dsc := &dscv2.DataScienceCluster{
-		ObjectMeta: metav1.ObjectMeta{Name: kserveTestDSCName},
-	}
-	dsc.Spec.Components.Kserve.ManagementState = operatorv1.Managed
-
-	cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	cs, err := h.UpdateDSCComponentStatus(t.Context(), &types.ReconciliationRequest{
-		Client:     cli,
-		Instance:   dsc,
-		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
-	}, &modules.PlatformContext{DSC: dsc})
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(cs).Should(Equal(metav1.ConditionFalse))
-}
-
-func TestUpdateDSCComponentStatusModuleDeleting(t *testing.T) {
-	g := NewWithT(t)
-	h := kserve.NewHandler()
-
-	dsc := &dscv2.DataScienceCluster{
-		ObjectMeta: metav1.ObjectMeta{Name: kserveTestDSCName},
-	}
-	dsc.Spec.Components.Kserve.ManagementState = operatorv1.Managed
-
-	now := metav1.Now()
-	module := &componentApi.Kserve{}
-	module.SetName(componentApi.KserveInstanceName)
-	module.SetDeletionTimestamp(&now)
-	module.SetFinalizers([]string{"test"})
-
-	cli, err := fakeclient.New(fakeclient.WithObjects(dsc, module))
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	cs, err := h.UpdateDSCComponentStatus(t.Context(), &types.ReconciliationRequest{
-		Client:     cli,
-		Instance:   dsc,
-		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
-	}, &modules.PlatformContext{DSC: dsc})
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(cs).Should(Equal(metav1.ConditionFalse))
-}
-
-func TestUpdateDSCComponentStatusPropagatesReleaseStatus(t *testing.T) {
-	g := NewWithT(t)
-	h := kserve.NewHandler()
-
-	dsc := &dscv2.DataScienceCluster{
-		ObjectMeta: metav1.ObjectMeta{Name: kserveTestDSCName},
-	}
-	dsc.Spec.Components.Kserve.ManagementState = operatorv1.Managed
-
-	module := &componentApi.Kserve{}
-	module.SetName(componentApi.KserveInstanceName)
-	module.Status.Conditions = []common.Condition{{
-		Type:   status.ConditionTypeReady,
-		Status: metav1.ConditionTrue,
-		Reason: status.ReadyReason,
-	}}
-	module.Status.KserveCommonStatus = componentApi.KserveCommonStatus{
-		ComponentReleaseStatus: common.ComponentReleaseStatus{
-			Releases: []common.ComponentRelease{
-				{Name: "kserve", Version: "v0.14.0"},
-			},
-		},
-	}
-
-	cli, err := fakeclient.New(fakeclient.WithObjects(dsc, module))
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	_, err = h.UpdateDSCComponentStatus(t.Context(), &types.ReconciliationRequest{
-		Client:     cli,
-		Instance:   dsc,
-		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
-	}, &modules.PlatformContext{DSC: dsc})
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	g.Expect(dsc).Should(WithTransform(json.Marshal,
-		jq.Match(`.status.components.kserve.releases[0].name == "kserve"`),
-	))
-	g.Expect(dsc).Should(WithTransform(json.Marshal,
-		jq.Match(`.status.components.kserve.releases[0].version == "v0.14.0"`),
-	))
-}
-
-func TestUpdateDSCComponentStatusPropagatesGetErrors(t *testing.T) {
-	g := NewWithT(t)
-	h := kserve.NewHandler()
-
-	dsc := &dscv2.DataScienceCluster{
-		ObjectMeta: metav1.ObjectMeta{Name: kserveTestDSCName},
-	}
-	dsc.Spec.Components.Kserve.ManagementState = operatorv1.Managed
-
-	cli, err := fakeclient.New(
-		fakeclient.WithObjects(dsc),
-		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
-			Get: func(_ context.Context, _ client.WithWatch, _ client.ObjectKey, obj client.Object, _ ...client.GetOption) error {
-				if _, ok := obj.(*componentApi.Kserve); ok {
-					return errors.New("boom")
-				}
-				return nil
-			},
-		}),
-	)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	_, err = h.UpdateDSCComponentStatus(t.Context(), &types.ReconciliationRequest{
-		Client:     cli,
-		Instance:   dsc,
-		Conditions: conditions.NewManager(dsc, status.ConditionTypeModulesReady),
-	}, &modules.PlatformContext{DSC: dsc})
-	g.Expect(err).Should(HaveOccurred())
-	g.Expect(err.Error()).Should(ContainSubstring("boom"))
 }

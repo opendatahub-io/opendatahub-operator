@@ -6,18 +6,13 @@ import (
 	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	types "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
@@ -25,6 +20,9 @@ const (
 	moduleName    = componentApi.KserveComponentName
 	crName        = componentApi.KserveInstanceName
 	finalizerName = "platform.opendatahub.io/finalizer"
+
+	LLMInferenceServiceDependencies       = componentApi.KserveKind + "LLMInferenceServiceDependencies"
+	LLMInferenceServiceWideEPDependencies = componentApi.KserveKind + "LLMInferenceServiceWideEPDependencies"
 )
 
 type handler struct {
@@ -41,6 +39,16 @@ func NewHandler() *handler {
 				DeploymentName:  "kserve-module-controller-manager",
 				GVK:             gvk.Kserve,
 				ControllerImage: "RELATED_IMAGE_ODH_KSERVE_MODULE_OPERATOR_IMAGE",
+				SubmoduleConditions: []modules.SubmoduleCondition{
+					{
+						SourceConditionType: LLMInferenceServiceDependencies,
+						DSCConditionType:    LLMInferenceServiceDependencies,
+					},
+					{
+						SourceConditionType: LLMInferenceServiceWideEPDependencies,
+						DSCConditionType:    LLMInferenceServiceWideEPDependencies,
+					},
+				},
 				// Keep in sync with kserve-module/pkg/kservemodule/images.go
 				// and ODH-Build-Config bundle-patch.yaml.
 				RelatedImages: []string{
@@ -127,45 +135,6 @@ func (h *handler) IsEnabled(platform *modules.PlatformContext) bool {
 		return platform.Platform.Spec.Modules.Kserve.ManagementState == operatorv1.Managed
 	}
 	return false
-}
-
-func (h *handler) UpdateDSCComponentStatus(
-	ctx context.Context,
-	rr *types.ReconciliationRequest,
-	platform *modules.PlatformContext,
-) (metav1.ConditionStatus, error) {
-	if platform == nil || platform.DSC == nil {
-		return metav1.ConditionUnknown, nil
-	}
-
-	module := componentApi.Kserve{}
-	module.SetGroupVersionKind(gvk.Kserve)
-	module.SetName(crName)
-	if err := rr.Client.Get(ctx, client.ObjectKeyFromObject(&module), &module); err != nil {
-		if !k8serr.IsNotFound(err) {
-			return metav1.ConditionUnknown, err
-		}
-	}
-
-	dsc := platform.DSC
-	ms := components.NormalizeManagementState(dsc.Spec.Components.Kserve.ManagementState)
-	dsc.Status.Components.Kserve.ManagementState = ms
-	dsc.Status.Components.Kserve.KserveCommonStatus = nil
-
-	if !module.GetDeletionTimestamp().IsZero() {
-		return metav1.ConditionFalse, nil
-	}
-
-	if h.IsEnabled(platform) {
-		dsc.Status.Components.Kserve.KserveCommonStatus = module.Status.KserveCommonStatus.DeepCopy()
-		if rc := conditions.FindStatusCondition(module.GetStatus(), status.ConditionTypeReady); rc != nil {
-			return rc.Status, nil
-		}
-
-		return metav1.ConditionFalse, nil
-	}
-
-	return metav1.ConditionUnknown, nil
 }
 
 func (h *handler) BuildModuleCR(
