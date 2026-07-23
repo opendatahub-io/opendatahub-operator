@@ -274,12 +274,35 @@ func (tc *OperatorResilienceTestCtx) ValidateMissingComponentsCRDHandling(t *tes
 	// Save a backup copy of the CRD
 	crdBackup := resources.StripServerMetadata(crd)
 
-	// Delete the CRD
+	// Snapshot Dashboard CRs before deleting the CRD — FetchResources will fail with
+	// NoMatchError once the CRD is gone so the list must be captured while it still exists.
+	dashboardCRs := tc.FetchResources(WithMinimalObject(gvk.Dashboard, types.NamespacedName{}))
+
+	// Delete the CRD — this triggers cascade deletion of component CR instances.
+	// Do not wait yet; module-based components need finalizer cleanup first.
 	tc.DeleteResource(
 		WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{
 			Name: crd.GetName(),
 		}),
-		WithWaitForDeletion(true),
+	)
+
+	// Module-based components carry platform.opendatahub.io/finalizer on their CR.
+	// When the CRD enters Terminating the module controller's informer is invalidated,
+	// so the finalizer can never be removed and the CRD gets stuck. Strip it here.
+	// For in-tree components this is a no-op — controller clears the finalizer promptly.
+	for _, cr := range dashboardCRs {
+		tc.DeleteResource(
+			WithMinimalObject(gvk.Dashboard, types.NamespacedName{Name: cr.GetName()}),
+			WithIgnoreNotFound(true),
+			WithRemoveFinalizersOnDelete(true),
+			WithWaitForDeletion(true),
+		)
+	}
+
+	// Now wait for the CRD to be fully gone
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: crd.GetName()}),
+		WithCustomErrorMsg("CRD %s was not fully deleted after finalizer cleanup", crd.GetName()),
 	)
 
 	// Validate pod health and system health
