@@ -8,26 +8,36 @@ import (
 	helmRenderer "github.com/k8s-manifest-kit/renderer-helm/pkg"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
+	aigatewayModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/aigateway"
+	mcplifecycleoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
+	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
 
 	. "github.com/onsi/gomega"
 )
 
 var allowedKinds = map[string]bool{
-	"Deployment":               true,
-	"ServiceAccount":           true,
-	"ClusterRole":              true,
-	"ClusterRoleBinding":       true,
-	"Role":                     true,
-	"RoleBinding":              true,
-	"ConfigMap":                true,
-	"CustomResourceDefinition": true,
+	"Deployment":                   true,
+	"Service":                      true,
+	"ServiceAccount":               true,
+	"ClusterRole":                  true,
+	"ClusterRoleBinding":           true,
+	"Role":                         true,
+	"RoleBinding":                  true,
+	"ConfigMap":                    true,
+	"CustomResourceDefinition":     true,
+	"MutatingWebhookConfiguration": true,
 }
 
 // moduleHandlers returns every module handler that the platform operator
 // registers. Keep this list in sync with existingModules in cmd/main.go.
 // Adding a handler here automatically includes it in the compliance check.
+// Handlers without Helm charts (Kustomize-only) are skipped by the test loop.
 func moduleHandlers() []modules.ModuleHandler {
-	return []modules.ModuleHandler{}
+	return []modules.ModuleHandler{
+		aigatewayModule.NewHandler(),
+		mcplifecycleoperatorModule.NewHandler(),
+		workbenchesModule.NewHandler(),
+	}
 }
 
 func TestModuleChartCompliance(t *testing.T) {
