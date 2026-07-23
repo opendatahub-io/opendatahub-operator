@@ -167,6 +167,7 @@ func (r *UnifiedRegistry) ResolvedBatches() ([][]UnifiedNode, error) {
 }
 
 // ReverseBatches returns batches in reverse order for cleanup.
+// Only enabled nodes are included.
 func (r *UnifiedRegistry) ReverseBatches() ([][]UnifiedNode, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -178,6 +179,18 @@ func (r *UnifiedRegistry) ReverseBatches() ([][]UnifiedNode, error) {
 			continue
 		}
 		g.Add(n)
+	}
+
+	return g.ReverseBatches()
+}
+
+func (r *UnifiedRegistry) ReverseBatchesAll() ([][]UnifiedNode, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	g := dag.NewGraph[UnifiedNode]()
+	for _, name := range r.order {
+		g.Add(r.nodes[name])
 	}
 
 	return g.ReverseBatches()
@@ -215,6 +228,10 @@ func Enable(name string) {
 
 func Disable(name string) {
 	defaultRegistry.Disable(name)
+}
+
+func ReverseBatchesAll() ([][]UnifiedNode, error) {
+	return defaultRegistry.ReverseBatchesAll()
 }
 
 func InvalidateCache() {

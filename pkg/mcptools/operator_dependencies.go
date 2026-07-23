@@ -1,4 +1,4 @@
-package main
+package mcptools
 
 import (
 	"context"
@@ -36,7 +36,7 @@ func registerOperatorDependencies(s *server.MCPServer, kubeClient client.Client)
 			Client: kubeClient,
 			Operator: clusterhealth.OperatorConfig{
 				Namespace: operatorNS,
-				Name:      getEnvDefault(envOperatorDeployment, defaultOperatorDeploy),
+				Name:      GetEnvDefault(EnvOperatorDeployment, DefaultOperatorDeploy),
 			},
 			OnlySections: []string{"operator"},
 		})

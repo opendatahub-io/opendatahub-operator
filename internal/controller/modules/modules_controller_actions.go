@@ -187,6 +187,7 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 				"module", handler.GetName())
 
 			operatorManifests := handler.GetOperatorManifests(platformCtx)
+			appendModuleEnvInjection(rr, platformCtx.ApplicationsNamespace, platformCtx.MonitoringNamespace, platformCtx.Release.Name, moduleImagesFor(handler, operatorManifests))
 			if len(operatorManifests.HelmCharts) > 0 {
 				rr.HelmCharts = append(rr.HelmCharts, operatorManifests.HelmCharts...)
 			}
@@ -200,22 +201,24 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 		return nil
 	}
 
-	reverseBatches, err := provision.DefaultRegistry().ReverseBatches()
+	reverseBatches, err := provision.ReverseBatchesAll()
 	if err != nil {
 		logf.FromContext(ctx).Error(err, "DAG reverse resolution failed, falling back to alphabetical cleanup order")
-		return reg.ForAll(func(handler ModuleHandler, _ bool) error {
+		if forAllErr := reg.ForAll(func(handler ModuleHandler, _ bool) error {
 			return cleanupOne(handler)
-		})
-	}
-
-	for _, batch := range reverseBatches {
-		for _, entry := range provision.ModulesInBatch(batch) {
-			handler := reg.Lookup(entry.GetName())
-			if handler == nil {
-				continue
-			}
-			if err := cleanupOne(handler); err != nil {
-				return err
+		}); forAllErr != nil {
+			return forAllErr
+		}
+	} else {
+		for _, batch := range reverseBatches {
+			for _, entry := range provision.ModulesInBatch(batch) {
+				handler := reg.Lookup(entry.GetName())
+				if handler == nil {
+					continue
+				}
+				if err := cleanupOne(handler); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -254,8 +257,6 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 		NewReadinessChecker(reg, rr.Client, rr.Release.Version.String(),
 			WithPlatformContext(platformCtx)),
 	)
-
-	var perModuleImages []odhtype.ModuleImages
 	var failedModules []string
 
 	var condWriter provision.ConditionWriter = provision.NoOpConditionWriter{}
@@ -288,13 +289,14 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 
 				operatorManifests := handler.GetOperatorManifests(platformCtx)
 
-				perModuleImages = append(perModuleImages, odhtype.ModuleImages{
-					DeploymentName:    deploymentNameFor(handler, operatorManifests),
-					ContainerName:     containerNameFor(handler),
-					ControllerImage:   controllerImageFor(handler),
-					InitContainerName: initContainerNameFor(handler),
-					Images:            handler.GetRelatedImages(),
-				})
+				moduleCR, err := handler.BuildModuleCR(ctx, rr.Client, platformCtx)
+				if err != nil {
+					log.Error(err, "BuildModuleCR failed", "module", name)
+					failedModules = append(failedModules, name)
+					continue
+				}
+
+				appendModuleEnvInjection(rr, platformCtx.ApplicationsNamespace, platformCtx.MonitoringNamespace, platformCtx.Release.Name, moduleImagesFor(handler, operatorManifests))
 				if len(operatorManifests.HelmCharts) > 0 {
 					rr.HelmCharts = append(rr.HelmCharts, operatorManifests.HelmCharts...)
 				}
@@ -302,17 +304,12 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 					rr.Manifests = append(rr.Manifests, operatorManifests.Manifests...)
 				}
 
-				moduleCR, err := handler.BuildModuleCR(ctx, rr.Client, platformCtx)
-				if err != nil {
-					log.Error(err, "BuildModuleCR failed", "module", name)
-					failedModules = append(failedModules, name)
+				if moduleCR == nil {
+					log.V(1).Info("BuildModuleCR returned nil, CR is externally managed", "module", name)
 					continue
 				}
-				if moduleCR != nil {
-					rr.Resources = append(rr.Resources, *moduleCR)
-				} else {
-					log.V(1).Info("BuildModuleCR returned nil, CR is externally managed", "module", name)
-				}
+
+				rr.Resources = append(rr.Resources, *moduleCR)
 			}
 			return nil
 		},
@@ -320,15 +317,6 @@ func provisionModules(ctx context.Context, rr *odhtype.ReconciliationRequest) er
 
 	if walkErr != nil {
 		return walkErr
-	}
-
-	if len(perModuleImages) > 0 || platformCtx.ApplicationsNamespace != "" || platformCtx.MonitoringNamespace != "" {
-		rr.ModuleEnvInjection = &odhtype.ModuleEnvInjection{
-			PerModuleImages:       perModuleImages,
-			ApplicationsNamespace: platformCtx.ApplicationsNamespace,
-			MonitoringNamespace:   platformCtx.MonitoringNamespace,
-			PlatformType:          platformCtx.Release.Name,
-		}
 	}
 
 	if requeueAfter > 0 {
@@ -362,27 +350,12 @@ func containerNameFor(h ModuleHandler) string {
 	return defaultContainerName
 }
 
-// deploymentNameFor resolves the Deployment name targeted for RELATED_IMAGE_*
-// env injection. An explicit Config.DeploymentName (via DeploymentNamer) wins;
-// otherwise it falls back to the manifest-derived name. This matters for
-// kustomize modules whose rendered Deployment name (after namePrefix) differs
-// from the module name.
-func deploymentNameFor(h ModuleHandler, manifests OperatorManifests) string {
-	if dn, ok := h.(DeploymentNamer); ok {
-		if name := dn.GetDeploymentName(); name != "" {
-			return name
-		}
-	}
-	return deploymentNameFromManifests(manifests, h.GetName())
-}
-
 func readyConditionTypeFor(h ModuleHandler) string {
 	if rct, ok := h.(ReadyConditionTyper); ok {
 		return rct.GetReadyConditionType()
 	}
 	return h.GetGVK().Kind + status.ReadySuffix
 }
-
 func controllerImageFor(h ModuleHandler) string {
 	if ci, ok := h.(ControllerImager); ok {
 		return ci.GetControllerImage()
@@ -397,16 +370,64 @@ func initContainerNameFor(h ModuleHandler) string {
 	return ""
 }
 
-// deploymentNameFromManifests returns the expected Deployment name for a module
-// based on its manifests. For Helm-based modules this is the release name; for
-// Kustomize modules it falls back to the provided fallbackName.
-func deploymentNameFromManifests(manifests OperatorManifests, fallbackName string) string {
+func extraEnvFor(h ModuleHandler) map[string]string {
+	if ep, ok := h.(ExtraEnvProvider); ok {
+		return ep.GetExtraEnv()
+	}
+	return nil
+}
+
+func moduleImagesFor(h ModuleHandler, manifests OperatorManifests) odhtype.ModuleImages {
+	return odhtype.ModuleImages{
+		DeploymentName:    deploymentNameFor(h, manifests),
+		ContainerName:     containerNameFor(h),
+		ControllerImage:   controllerImageFor(h),
+		InitContainerName: initContainerNameFor(h),
+		Images:            h.GetRelatedImages(),
+		ExtraEnv:          extraEnvFor(h),
+	}
+}
+
+func appendModuleEnvInjection(
+	rr *odhtype.ReconciliationRequest,
+	applicationsNamespace, monitoringNamespace string,
+	platformType common.Platform,
+	moduleImages odhtype.ModuleImages,
+) {
+	if rr.ModuleEnvInjection == nil {
+		rr.ModuleEnvInjection = &odhtype.ModuleEnvInjection{
+			ApplicationsNamespace: applicationsNamespace,
+			MonitoringNamespace:   monitoringNamespace,
+			PlatformType:          platformType,
+		}
+	} else if rr.ModuleEnvInjection.ApplicationsNamespace == "" {
+		rr.ModuleEnvInjection.ApplicationsNamespace = applicationsNamespace
+	}
+	if rr.ModuleEnvInjection.MonitoringNamespace == "" {
+		rr.ModuleEnvInjection.MonitoringNamespace = monitoringNamespace
+	}
+	if rr.ModuleEnvInjection.PlatformType == "" {
+		rr.ModuleEnvInjection.PlatformType = platformType
+	}
+
+	rr.ModuleEnvInjection.PerModuleImages = append(rr.ModuleEnvInjection.PerModuleImages, moduleImages)
+}
+
+// deploymentNameFor returns the expected Deployment name for a module.
+// Prefer an explicit handler override, otherwise use the Helm release name,
+// and finally fall back to the module name for manifest-based modules.
+func deploymentNameFor(h ModuleHandler, manifests OperatorManifests) string {
+	if dn, ok := h.(DeploymentNamer); ok {
+		if deploymentName := dn.GetDeploymentName(); deploymentName != "" {
+			return deploymentName
+		}
+	}
 	for _, chart := range manifests.HelmCharts {
 		if chart.ReleaseName != "" {
 			return chart.ReleaseName
 		}
 	}
-	return fallbackName
+	return h.GetName()
 }
 
 // ComputeModulesStatus reads status conditions from each module's CR and
@@ -439,8 +460,14 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 	err = reg.ForEach(func(handler ModuleHandler) error {
 		name := handler.GetName()
 		condType := readyConditionTypeFor(handler)
+		submodules := submoduleConditionsFor(handler)
+		enabled := handler.IsEnabled(platformCtx)
 
-		if !handler.IsEnabled(platformCtx) {
+		if platformCtx.DSC != nil {
+			handler.WriteDSCComponentStatus(platformCtx.DSC, enabled, nil)
+		}
+
+		if !enabled {
 			rr.Conditions.SetCondition(common.Condition{
 				Type:     condType,
 				Status:   metav1.ConditionFalse,
@@ -448,6 +475,9 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 				Severity: common.ConditionSeverityInfo,
 				Message:  fmt.Sprintf("Module ManagementState is set to %s", status.RemovedReason),
 			})
+
+			setSubmodulesFallback(rr, platformCtx, submodules, true, "", "")
+
 			return nil
 		}
 
@@ -464,6 +494,12 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 				Reason:  status.NotReadyReason,
 				Message: fmt.Sprintf("Failed to get module status: %v", err),
 			})
+
+			setSubmodulesFallback(rr, platformCtx, submodules, false,
+				status.NotReadyReason,
+				fmt.Sprintf("Failed to get parent module %s status: %v", name, err),
+			)
+
 			return nil
 		}
 
@@ -481,6 +517,12 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 				Reason:  status.NotReadyReason,
 				Message: "Module status is stale (observedGeneration < generation)",
 			})
+
+			setSubmodulesFallback(rr, platformCtx, submodules, false,
+				status.NotReadyReason,
+				fmt.Sprintf("Parent module %s status is stale (observedGeneration < generation)", name),
+			)
+
 			return nil
 		}
 
@@ -518,6 +560,12 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 			notReadyModules = append(notReadyModules, name)
 		} else if degraded {
 			degradedModules = append(degradedModules, name)
+		}
+
+		mirrorSubmoduleConditions(rr, platformCtx, moduleStatus, submodules, &notReadyModules)
+
+		if platformCtx.DSC != nil {
+			handler.WriteDSCComponentStatus(platformCtx.DSC, enabled, moduleStatus.Releases)
 		}
 
 		return nil
@@ -561,13 +609,129 @@ func ComputeModulesStatus(ctx context.Context, rr *odhtype.ReconciliationRequest
 	return nil
 }
 
-// updateModuleStatus writes ModulesReady only when no in-tree components
-// are registered, meaning the DSC controller is absent and the modules
-// controller is the sole status writer. While components exist, the DSC
-// controller handles ModulesReady.
+// updateModuleStatus writes module conditions and component status into
+// the DSC status. When in-tree components are registered, the DSC
+// controller is the sole status writer — it already calls
+// ComputeModulesStatus in its own action chain. The modules controller
+// skips recomputation so its SSA apply carries only the cached status
+// values (conditions are stripped by WithoutStatusConditionsIf).
+// When no in-tree components exist (Platform CR mode), the modules
+// controller is the sole status writer and computes everything.
 func updateModuleStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	if cr.HasEntries() {
+	if cr.HasEntries() && dscFromInstance(rr) != nil {
 		return nil
 	}
+
 	return ComputeModulesStatus(ctx, rr)
+}
+
+func submoduleConditionsFor(h ModuleHandler) []SubmoduleCondition {
+	if scp, ok := h.(SubmoduleConditionProvider); ok {
+		return scp.GetSubmoduleConditions()
+	}
+	return nil
+}
+
+// mirrorSubmoduleConditions copies declared submodule conditions from the
+// module CR's status onto the DSC conditions. It checks per-submodule
+// enablement: disabled submodules get a Removed condition. Enabled submodules
+// whose condition is not True are appended to notReadyModules so they affect
+// the aggregate.
+func mirrorSubmoduleConditions(
+	rr *odhtype.ReconciliationRequest,
+	platformCtx *PlatformContext,
+	moduleStatus *ModuleStatus,
+	submodules []SubmoduleCondition,
+	notReadyModules *[]string,
+) {
+	if len(submodules) == 0 {
+		return
+	}
+
+	condByType := make(map[string]*metav1.Condition, len(moduleStatus.Conditions))
+	for i := range moduleStatus.Conditions {
+		condByType[moduleStatus.Conditions[i].Type] = &moduleStatus.Conditions[i]
+	}
+
+	for _, sm := range submodules {
+		subEnabled := sm.IsEnabled == nil || sm.IsEnabled(platformCtx)
+
+		writeSubmoduleComponentStatus(platformCtx, sm, subEnabled)
+
+		if !subEnabled {
+			rr.Conditions.SetCondition(common.Condition{
+				Type:     sm.DSCConditionType,
+				Status:   metav1.ConditionFalse,
+				Reason:   status.RemovedReason,
+				Severity: common.ConditionSeverityInfo,
+				Message:  "Submodule ManagementState is set to Removed",
+			})
+
+			continue
+		}
+
+		source := condByType[sm.SourceConditionType]
+		if source == nil {
+			rr.Conditions.SetCondition(common.Condition{
+				Type:    sm.DSCConditionType,
+				Status:  metav1.ConditionFalse,
+				Reason:  status.AwaitingReadinessReason,
+				Message: "Submodule is enabled (Managed) but the module operator has not reported its status yet",
+			})
+			*notReadyModules = append(*notReadyModules, sm.DSCConditionType)
+
+			continue
+		}
+
+		rr.Conditions.SetCondition(common.Condition{
+			Type:    sm.DSCConditionType,
+			Status:  source.Status,
+			Reason:  source.Reason,
+			Message: source.Message,
+		})
+
+		if source.Status != metav1.ConditionTrue {
+			*notReadyModules = append(*notReadyModules, sm.DSCConditionType)
+		}
+	}
+}
+
+// setSubmodulesFallback writes submodule conditions and component status when
+// the parent module cannot provide real submodule status (disabled, error, or
+// stale). When parentDisabled is true all submodules are marked Removed
+// regardless of their individual IsEnabled state; otherwise each submodule's
+// own enablement is checked.
+func setSubmodulesFallback(
+	rr *odhtype.ReconciliationRequest,
+	platformCtx *PlatformContext,
+	submodules []SubmoduleCondition,
+	parentDisabled bool,
+	enabledReason string,
+	enabledMessage string,
+) {
+	for _, sm := range submodules {
+		subEnabled := !parentDisabled && (sm.IsEnabled == nil || sm.IsEnabled(platformCtx))
+		writeSubmoduleComponentStatus(platformCtx, sm, subEnabled)
+
+		if !subEnabled {
+			rr.Conditions.SetCondition(common.Condition{
+				Type:     sm.DSCConditionType,
+				Status:   metav1.ConditionFalse,
+				Reason:   status.RemovedReason,
+				Severity: common.ConditionSeverityInfo,
+				Message:  "Submodule ManagementState is set to Removed",
+			})
+		} else {
+			rr.Conditions.SetCondition(common.Condition{
+				Type:    sm.DSCConditionType,
+				Status:  metav1.ConditionFalse,
+				Reason:  enabledReason,
+				Message: enabledMessage,
+			})
+		}
+	}
+}
+
+func writeSubmoduleComponentStatus(platformCtx *PlatformContext, sm SubmoduleCondition, enabled bool) {
+	setDSCComponentField(platformCtx.DSC, sm.StatusFieldName, enabled, nil)
 }
