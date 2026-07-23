@@ -150,7 +150,6 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 		componentApi.SparkOperatorComponentName:        "spark-operator-controller",
 		componentApi.TrainingOperatorComponentName:     "kubeflow-training-operator",
 		// componentApi.TrustyAIComponentName:             "trustyai-service-operator-controller-manager",
-		componentApi.WorkbenchesComponentName: "notebook-controller-manager",
 	}
 
 	// Error message includes components + internal components name
@@ -169,8 +168,9 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	// MCPLifecycleOperator is excluded because it is a module so it does not report DSC ComponentsReady condition
 	// MLflowOperator is excluded because it is a module so it does not report DSC ComponentsReady condition
 	// Kserve is excluded because it is a module so it does not report DSC ComponentsReady condition
+	// Workbenches is excluded because it is a module so it does not report DSC ComponentsReady condition
 	// Trainer is excluded because it is a module so it does not report DSC ComponentsReady condition
-	excludedComponents := 8 // TrustyAI, Kueue, LlamaStack Operator, AIGateway, MCPLifecycleOperator, Kserve, MLflowOperator, Trainer
+	excludedComponents := 9 // TrustyAI, Kueue, LlamaStack Operator, AIGateway, MCPLifecycleOperator, MLflowOperator, Kserve, Workbenches, Trainer
 
 	expectedTestableComponents := expectedComponentCount - excludedComponents
 	tc.g.Expect(componentsLength).Should(Equal(expectedTestableComponents),

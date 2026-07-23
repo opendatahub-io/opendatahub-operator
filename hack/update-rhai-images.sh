@@ -41,7 +41,6 @@ declare -A RHAI_COMPONENT_PATHS=(
     ["trainer"]="trainer/rhoai"
     ["trainingoperator"]="trainingoperator/rhoai"
     ["trustyai"]="trustyai/overlays/rhoai trustyai/overlays/mcp-guardrails"
-    ["workbenches"]="workbenches/odh-notebook-controller/base workbenches/kf-notebook-controller/overlays/openshift workbenches/notebooks/rhoai/base:params-latest.env"
 )
 
 COMPONENT_FILTER=""

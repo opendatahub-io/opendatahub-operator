@@ -91,7 +91,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/sparkoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainingoperator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trustyai"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/workbenches"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	mr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules"
@@ -100,6 +99,7 @@ import (
 	mcplifecycleoperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mcplifecycleoperator"
 	mlflowOperatorModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/mlflowoperator"
 	trainerModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/trainer"
+	workbenchesModule "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/modules/workbenches"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
@@ -145,7 +145,6 @@ var (
 		componentApi.SparkOperatorComponentName:        sparkoperator.NewHandler(),
 		componentApi.TrainingOperatorComponentName:     trainingoperator.NewHandler(),
 		componentApi.TrustyAIComponentName:             trustyai.NewHandler(),
-		componentApi.WorkbenchesComponentName:          workbenches.NewHandler(),
 	}
 
 	// Component runlevel assignments.
@@ -162,7 +161,6 @@ var (
 		componentApi.RayComponentName:                  dag.RL(20),
 		componentApi.TrainerComponentName:              dag.RL(20),
 		componentApi.TrainingOperatorComponentName:     dag.RL(20),
-		componentApi.WorkbenchesComponentName:          dag.RL(20),
 
 		componentApi.KueueComponentName: dag.RL(31),
 
@@ -188,6 +186,7 @@ var (
 		componentApi.MLflowOperatorComponentName:       mlflowOperatorModule.NewHandler(),
 		componentApi.KserveComponentName:               kserveModule.NewHandler(),
 		componentApi.TrainerComponentName:              trainerModule.NewHandler(),
+		componentApi.WorkbenchesComponentName:          workbenchesModule.NewHandler(),
 	}
 
 	moduleRunlevels = map[string]dag.Runlevel{
@@ -196,6 +195,7 @@ var (
 		componentApi.MLflowOperatorComponentName:       dag.RL(32),
 		componentApi.KserveComponentName:               dag.RL(31),
 		componentApi.TrainerComponentName:              dag.RL(20),
+		componentApi.WorkbenchesComponentName:          dag.RL(20),
 	}
 )
 

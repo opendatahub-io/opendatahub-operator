@@ -67,6 +67,10 @@ type PlatformModules struct {
 	// Trainer controls the Trainer module operator lifecycle.
 	// +optional
 	Trainer common.ManagementSpec `json:"trainer,omitempty"`
+
+	// Workbenches controls the workbenches module operator lifecycle.
+	// +optional
+	Workbenches common.ManagementSpec `json:"workbenches,omitempty"`
 }
 
 // PlatformStatus defines the observed state of Platform.
@@ -134,6 +138,9 @@ func (m *PlatformModules) EnabledModules() []string {
 	}
 	if m.Trainer.ManagementState == operatorv1.Managed {
 		enabled = append(enabled, "trainer")
+	}
+	if m.Workbenches.ManagementState == operatorv1.Managed {
+		enabled = append(enabled, "workbenches")
 	}
 	return enabled
 }
