@@ -40,6 +40,8 @@ spec:
   - name: build-args
     value:
     - BUILD_TYPE=CI
+  - name: enable-early-gate-testing
+    value: "false"
   pipelineRef:
     resolver: git
     params:
