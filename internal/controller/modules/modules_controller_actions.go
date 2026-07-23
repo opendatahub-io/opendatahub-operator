@@ -201,22 +201,24 @@ func cleanupDisabledModules(ctx context.Context, rr *odhtype.ReconciliationReque
 		return nil
 	}
 
-	reverseBatches, err := provision.DefaultRegistry().ReverseBatches()
+	reverseBatches, err := provision.ReverseBatchesAll()
 	if err != nil {
 		logf.FromContext(ctx).Error(err, "DAG reverse resolution failed, falling back to alphabetical cleanup order")
-		return reg.ForAll(func(handler ModuleHandler, _ bool) error {
+		if forAllErr := reg.ForAll(func(handler ModuleHandler, _ bool) error {
 			return cleanupOne(handler)
-		})
-	}
-
-	for _, batch := range reverseBatches {
-		for _, entry := range provision.ModulesInBatch(batch) {
-			handler := reg.Lookup(entry.GetName())
-			if handler == nil {
-				continue
-			}
-			if err := cleanupOne(handler); err != nil {
-				return err
+		}); forAllErr != nil {
+			return forAllErr
+		}
+	} else {
+		for _, batch := range reverseBatches {
+			for _, entry := range provision.ModulesInBatch(batch) {
+				handler := reg.Lookup(entry.GetName())
+				if handler == nil {
+					continue
+				}
+				if err := cleanupOne(handler); err != nil {
+					return err
+				}
 			}
 		}
 	}
