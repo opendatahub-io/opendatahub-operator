@@ -6,10 +6,11 @@ import (
 	"os"
 
 	"github.com/mark3labs/mcp-go/server"
-	"github.com/opendatahub-io/opendatahub-operator/pkg/mcptools"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrl "sigs.k8s.io/controller-runtime/pkg/client/config"
+
+	"github.com/opendatahub-io/opendatahub-operator/pkg/mcptools"
 )
 
 func main() {
