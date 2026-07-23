@@ -280,15 +280,30 @@ func (tc *TrainerTestCtx) ValidateExternalOperatorDegradedMonitoring(t *testing.
 	t.Log("All external operator degraded condition monitoring tests passed")
 }
 
-// ensureJobSetBaseline clears JobSet conditions, asserts Trainer component/DSC health.
-// Returns the JobSet CR for use in test assertions.
+// ensureJobSetBaseline restores healthy conditions on the JobSetOperator CR
+// and asserts Trainer component/DSC health. Returns the JobSet CR for use
+// in test assertions.
 func (tc *TrainerTestCtx) ensureJobSetBaseline(t *testing.T) *unstructured.Unstructured {
 	t.Helper()
 
 	trainerNN := types.NamespacedName{Name: componentApi.TrainerInstanceName}
 	jobSetCR := tc.FetchSingleResourceOfKind(gvk.JobSetOperatorV1, jobSetOpNamespace)
 
-	tc.ClearAllConditionsFromResourceStatus(jobSetCR)
+	// Re-inject healthy conditions instead of clearing all — the trainer-operator
+	// treats "no conditions" as degraded (operator hasn't reconciled yet).
+	healthyConditions := []struct {
+		condType string
+		status   metav1.ConditionStatus
+	}{
+		{"Available", metav1.ConditionTrue},
+		{"Degraded", metav1.ConditionFalse},
+		{"TargetConfigControllerDegraded", metav1.ConditionFalse},
+		{"JobSetOperatorStaticResourcesDegraded", metav1.ConditionFalse},
+	}
+	for _, c := range healthyConditions {
+		tc.InjectConditionIntoResourceStatus(jobSetCR, c.condType, c.status, "AsExpected", "")
+	}
+
 	tc.EnsureResourceExists(
 		WithMinimalObject(tc.GVK, trainerNN),
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue)),
